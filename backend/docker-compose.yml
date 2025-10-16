@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: novelaide_postgres
+    environment:
+      POSTGRES_USER: novelaide
+      POSTGRES_PASSWORD: novelaide_password
+      POSTGRES_DB: novelaide
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - novelaide_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U novelaide"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: novelaide_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - novelaide_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI 应用
+  backend:
+    build: .
+    container_name: novelaide_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://novelaide:novelaide_password@postgres:5432/novelaide
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=your-secret-key-change-this-in-production
+      - DEBUG=True
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - novelaide_network
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  novelaide_network:
+    driver: bridge

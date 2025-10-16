@@ -1,0 +1,51 @@
+from pydantic import BaseModel, Field, field_serializer
+from typing import Optional
+from datetime import datetime
+from uuid import UUID
+
+
+class ChapterBase(BaseModel):
+    """章节基础模型"""
+    title: str = Field(..., min_length=1, max_length=200)
+    content: str = ""
+
+
+class ChapterCreate(ChapterBase):
+    """创建章节"""
+    work_id: UUID
+    order: Optional[int] = None
+
+
+class ChapterUpdate(BaseModel):
+    """更新章节"""
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    content: Optional[str] = None
+    order: Optional[int] = None
+    is_published: Optional[bool] = None
+
+
+class ChapterResponse(ChapterBase):
+    """章节响应"""
+    id: UUID
+    work_id: UUID
+    order: int
+    is_published: bool
+    word_count: int
+    view_count: int
+    created_at: datetime
+    updated_at: datetime
+    published_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+    
+    @field_serializer('id', 'work_id')
+    def serialize_uuid(self, value: UUID, _info) -> str:
+        """将 UUID 序列化为字符串"""
+        return str(value)
+
+
+class ChapterListResponse(BaseModel):
+    """章节列表响应"""
+    total: int
+    items: list[ChapterResponse]

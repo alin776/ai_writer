@@ -1,0 +1,111 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 虚拟环境
+venv/
+ENV/
+env/
+.venv
+pip/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# 环境变量（敏感信息）
+.env
+.env.local
+.env.*.local
+
+# 日志文件
+logs/
+*.log
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+novelaide.db
+
+# 上传文件
+uploads/
+media/
+
+# 测试相关
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# 临时测试脚本（不提交到仓库）
+test_*.py
+auto_test.py
+clear_users.py
+view_data.py
+
+# 临时文档和笔记（开发过程中的临时文件）
+API_TEST_LIST.md
+FIX_SUMMARY.md
+HOW_TO_TEST.md
+NEXT_STEPS.md
+README_TEST.md
+TEST_DATA.md
+PROGRESS_STATUS.md
+ARCHITECTURE_FIX_LOG.md
+
+# 临时批处理脚本
+run_tests.bat
+run_full_test.bat
+start_server.bat
+VERIFY_FIX.bat
+
+# Alembic
+alembic/versions/*.pyc
+
+# 缓存文件
+pip-log.txt
+pip-delete-this-directory.txt
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# 打包文件
+*.tar.gz
+*.zip
+*.rar
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Factory AI
+.factory/
