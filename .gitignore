@@ -1,4 +1,4 @@
-# ==================== Python ====================
+# ==================== Python (Backend) ====================
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -11,19 +11,10 @@ env/
 ENV/
 .venv
 
-# PyCharm
-.idea/
-*.iml
-
-# VS Code
-.vscode/
-*.code-workspace
-
 # Distribution / packaging
 .Python
 build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -42,17 +33,11 @@ htmlcov/
 .tox/
 .coverage
 .coverage.*
-.cache
 nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
 .pytest_cache/
-
-# Environments
-.env
-.env.local
-.env.*.local
 
 # Database
 *.db
@@ -60,41 +45,54 @@ coverage.xml
 *.sqlite3
 novelaide.db
 
-# Logs
-*.log
-logs/
-
-# ==================== Node.js / Frontend ====================
+# ==================== Node.js (Frontend) ====================
 # Dependencies
 node_modules/
+
+# Logs
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
 # Production build
 dist/
+dist-ssr/
 build/
 .next/
 out/
+*.local
 
 # Testing
 coverage/
 
-# Environment variables
+# ==================== Environment Variables ====================
+.env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
-# Editor directories and files
-.DS_Store
-Thumbs.db
+# ==================== IDEs and Editors ====================
+# VS Code
+.vscode/*
+!.vscode/extensions.json
 
-# ==================== Docker ====================
-*.pid
-*.seed
-*.pid.lock
+# PyCharm / IDEA
+.idea
+*.iml
+
+# Other editors
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*.swo
 
 # ==================== OS ====================
 # macOS
@@ -114,36 +112,27 @@ $RECYCLE.BIN/
 .directory
 
 # ==================== Project Specific ====================
-# 临时文件
+# Temporary files
 *.tmp
 *.temp
-*.swp
-*.swo
-*~
+*.cache
 
-# 测试数据
+# Test data
 test_data/
 *.test.json
 
-# 上传文件
+# Uploads
 uploads/
 static/uploads/
 
-# 缓存
+# Cache
 .cache/
-*.cache
 
-# IDE
+# Other
 Microsoft/
-
-# 忽略个人配置
 .personal/
 
-# 忽略生成的文档（如果需要的话）
-# docs/_build/
-
-# ==================== 注意 ====================
-# 不要忽略这些重要文件：
+# ==================== Important: DO NOT Ignore ====================
 # !.gitkeep
 # !.env.example
 # !requirements.txt

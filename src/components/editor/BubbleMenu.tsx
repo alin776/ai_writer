@@ -1,0 +1,189 @@
+/**
+ * 气泡菜单 - 选中文本时显示的浮动工具栏
+ */
+import React, { useState } from 'react';
+import { BubbleMenu as TiptapBubbleMenu } from '@tiptap/react/menus';
+import { Editor } from '@tiptap/core';
+import {
+  Bold,
+  Italic,
+  Underline as UnderlineIcon,
+  Strikethrough,
+  Code,
+  Highlighter,
+  Link as LinkIcon,
+  Unlink,
+  Sparkles,
+} from 'lucide-react';
+import AIAutoComplete from './AIAutoComplete';
+
+interface BubbleMenuProps {
+  editor: Editor;
+}
+
+/**
+ * 气泡菜单组件
+ */
+const BubbleMenu: React.FC<BubbleMenuProps> = ({ editor }) => {
+  const [openAI, setOpenAI] = useState(false);
+
+  if (!editor) {
+    return null;
+  }
+
+  /**
+   * 设置链接
+   */
+  const setLink = () => {
+    const previousUrl = editor.getAttributes('link').href;
+    const url = window.prompt('请输入链接地址:', previousUrl);
+
+    if (url === null) {
+      return;
+    }
+
+    if (url === '') {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run();
+      return;
+    }
+
+    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+  };
+
+  /**
+   * 移除链接
+   */
+  const unsetLink = () => {
+    editor.chain().focus().unsetLink().run();
+  };
+
+  /**
+   * 工具栏按钮
+   */
+  const BubbleButton: React.FC<{
+    onClick: () => void;
+    isActive?: boolean;
+    children: React.ReactNode;
+    title: string;
+  }> = ({ onClick, isActive, children, title }) => (
+    <button
+      onClick={onClick}
+      className={`bubble-menu-button ${isActive ? 'active' : ''}`}
+      title={title}
+      type="button"
+    >
+      {children}
+    </button>
+  );
+
+  // 当 AI 面板打开时，显示 AI 自动补全界面
+  if (openAI) {
+    return (
+      <TiptapBubbleMenu
+        editor={editor}
+        className="bubble-menu-container ai-mode"
+      >
+        <AIAutoComplete
+          editor={editor}
+          onOpenChange={setOpenAI}
+        />
+      </TiptapBubbleMenu>
+    );
+  }
+
+  return (
+    <TiptapBubbleMenu
+      editor={editor}
+      className="bubble-menu-container"
+    >
+      {/* Ask AI 按钮 */}
+      <button
+        onClick={() => setOpenAI(true)}
+        className="bubble-menu-button ai-button"
+        title="Ask AI"
+        type="button"
+      >
+        <Sparkles className="w-4 h-4 text-purple-500" />
+        <span className="ml-1 text-sm text-purple-500 font-medium">Ask AI</span>
+      </button>
+
+      {/* 分隔符 */}
+      <div className="bubble-menu-separator" />
+
+      {/* 文本样式 */}
+      <div className="bubble-menu-group">
+        <BubbleButton
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          isActive={editor.isActive('bold')}
+          title="粗体 (Ctrl+B)"
+        >
+          <Bold className="w-4 h-4" />
+        </BubbleButton>
+
+        <BubbleButton
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          isActive={editor.isActive('italic')}
+          title="斜体 (Ctrl+I)"
+        >
+          <Italic className="w-4 h-4" />
+        </BubbleButton>
+
+        <BubbleButton
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+          isActive={editor.isActive('underline')}
+          title="下划线 (Ctrl+U)"
+        >
+          <UnderlineIcon className="w-4 h-4" />
+        </BubbleButton>
+
+        <BubbleButton
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+          isActive={editor.isActive('strike')}
+          title="删除线"
+        >
+          <Strikethrough className="w-4 h-4" />
+        </BubbleButton>
+      </div>
+
+      {/* 分隔符 */}
+      <div className="bubble-menu-separator" />
+
+      {/* 高亮和代码 */}
+      <div className="bubble-menu-group">
+        <BubbleButton
+          onClick={() => editor.chain().focus().toggleHighlight().run()}
+          isActive={editor.isActive('highlight')}
+          title="高亮"
+        >
+          <Highlighter className="w-4 h-4" />
+        </BubbleButton>
+
+        <BubbleButton
+          onClick={() => editor.chain().focus().toggleCode().run()}
+          isActive={editor.isActive('code')}
+          title="行内代码"
+        >
+          <Code className="w-4 h-4" />
+        </BubbleButton>
+      </div>
+
+      {/* 分隔符 */}
+      <div className="bubble-menu-separator" />
+
+      {/* 链接 */}
+      <div className="bubble-menu-group">
+        {editor.isActive('link') ? (
+          <BubbleButton onClick={unsetLink} title="移除链接">
+            <Unlink className="w-4 h-4" />
+          </BubbleButton>
+        ) : (
+          <BubbleButton onClick={setLink} title="插入链接">
+            <LinkIcon className="w-4 h-4" />
+          </BubbleButton>
+        )}
+      </div>
+    </TiptapBubbleMenu>
+  );
+};
+
+export default BubbleMenu;

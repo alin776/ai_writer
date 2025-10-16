@@ -1,0 +1,60 @@
+/**
+ * Card 组件样式
+ * 极简美学设计
+ */
+
+.card {
+  background-color: #ffffff;
+  border: 1px solid #f3f4f6;
+  border-radius: 8px;
+  transition: all 200ms ease;
+}
+
+.card:hover {
+  border-color: #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Padding 变体 */
+.sm {
+  padding: 1rem;
+}
+
+.md {
+  padding: 1.5rem;
+}
+
+.lg {
+  padding: 2rem;
+}
+
+/* Header */
+.header {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.description {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+/* Content */
+.content {
+  color: #374151;
+}
+
+/* Footer */
+.footer {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f3f4f6;
+}
