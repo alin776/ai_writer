@@ -9,7 +9,7 @@ echo.
 echo [1/7] 检查 Python 环境...
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo [错误] 未检测到 Python，请先安装 Python 3.8 或以上版本
+    echo [错误] 未检测到 Python,请先安装 Python 3.8 或以上版本
     echo 下载地址: https://www.python.org/downloads/
     pause
     exit /b 1
@@ -23,7 +23,7 @@ psql --version >nul 2>&1
 if errorlevel 1 (
     echo [警告] 未检测到 PostgreSQL
     echo.
-    echo PostgreSQL 是本项目的必需数据库，请先安装。
+    echo PostgreSQL 是本项目的必需数据库,请先安装.
     echo.
     echo 下载地址: https://get.enterprisedb.com/postgresql/postgresql-15.14-2-windows-x64.exe
     echo 或访问官网: https://www.postgresql.org/download/windows/
@@ -118,7 +118,7 @@ if errorlevel 2 (
 
 echo.
 echo 正在测试数据库连接...
-python -c "import asyncio; from app.core.database import engine; asyncio.run(engine.connect().aclose())" 2>nul
+python test_db_temp.py >nul 2>&1
 if errorlevel 1 (
     echo [警告] 数据库连接失败，请检查：
     echo   1. PostgreSQL 服务是否运行

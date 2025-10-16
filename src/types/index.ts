@@ -16,37 +16,52 @@ export type UserRole = 'admin' | 'user';
  */
 export interface User {
   id: string;
-  name: string;
+  username: string;  // 后端使用 username
   email: string;
-  role: UserRole;
+  full_name?: string;  // 后端使用 full_name
   avatar?: string;
-  registrationDate: string;
-  status: 'active' | 'disabled';
-  dailyAiQuota: number;
-  usedAiQuota: number;
+  bio?: string;
+  is_active: boolean;  // 后端使用 is_active
+  is_admin: boolean;   // 后端使用 is_admin
+  is_verified: boolean;  // 后端使用 is_verified
+  created_at: string;   // 后端使用 created_at
+  updated_at: string;   // 后端使用 updated_at
+  last_login_at?: string;  // 后端使用 last_login_at
+
+  // 兼容旧字段（用于前端显示）
+  name?: string;  // 映射到 username 或 full_name
+  role?: UserRole;  // 从 is_admin 推导
+  registrationDate?: string;  // 映射到 created_at
+  status?: 'active' | 'disabled';  // 从 is_active 推导
+  dailyAiQuota?: number;
+  usedAiQuota?: number;
 }
 
 /**
  * 登录凭证
  */
 export interface LoginCredentials {
-  email: string;
+  username: string;  // 后端登录使用 username 字段（可以是用户名或邮箱）
   password: string;
 }
 
 /**
  * 注册数据
  */
-export interface RegisterData extends LoginCredentials {
-  name: string;
+export interface RegisterData {
+  username: string;  // 后端注册使用 username
+  email: string;     // 后端注册需要 email
+  password: string;
 }
 
 /**
  * 认证响应
  */
 export interface AuthResponse {
-  user: User;
-  token: string;
+  access_token: string;  // 后端返回 access_token
+  refresh_token: string; // 后端返回 refresh_token
+  token_type: string;    // 后端返回 token_type
+  user: User;            // 后端返回用户信息
 }
 
 // ==================== 作品相关类型 ====================

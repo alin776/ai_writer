@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import { DataService } from '../../services/DataService';
+import { AuthService } from '../../services/AuthService';
 import { Sparkles, ArrowLeft } from 'lucide-react';
 import styles from './RegisterView.module.css';
 
@@ -14,7 +14,7 @@ const RegisterView: React.FC = () => {
   const { login } = useAuthStore();
 
   const [formData, setFormData] = useState({
-    name: '',
+    username: '',  // 后端使用 username
     email: '',
     password: '',
     confirmPassword: '',
@@ -40,10 +40,12 @@ const RegisterView: React.FC = () => {
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.name) {
-      newErrors.name = '请输入用户名';
-    } else if (formData.name.length < 3) {
-      newErrors.name = '用户名至少需要 3 个字符';
+    if (!formData.username) {
+      newErrors.username = '请输入用户名';
+    } else if (formData.username.length < 3) {
+      newErrors.username = '用户名至少需要 3 个字符';
+    } else if (formData.username.length > 50) {
+      newErrors.username = '用户名不能超过 50 个字符';
     }
 
     if (!formData.email) {
@@ -56,6 +58,8 @@ const RegisterView: React.FC = () => {
       newErrors.password = '请输入密码';
     } else if (formData.password.length < 6) {
       newErrors.password = '密码至少需要 6 个字符';
+    } else if (formData.password.length > 50) {
+      newErrors.password = '密码不能超过 50 个字符';
     }
 
     if (!formData.confirmPassword) {
@@ -79,9 +83,9 @@ const RegisterView: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // 调用 DataService 注册
-      const response = await DataService.register({
-        name: formData.name,
+      // 调用 AuthService 注册
+      const response = await AuthService.register({
+        username: formData.username,
         email: formData.email,
         password: formData.password,
       });
@@ -89,8 +93,9 @@ const RegisterView: React.FC = () => {
       // 注册成功并自动登录
       login(response.user, response.token);
       navigate('/works');
-    } catch (error) {
-      setErrors({ submit: '注册失败，请稍后重试' });
+    } catch (error: any) {
+      const errorMessage = error.message || '注册失败，请稍后重试';
+      setErrors({ submit: errorMessage });
     } finally {
       setIsLoading(false);
     }
@@ -118,19 +123,19 @@ const RegisterView: React.FC = () => {
         <form onSubmit={handleSubmit} className={styles.form}>
           {/* 用户名输入 */}
           <div className={styles.formGroup}>
-            <label htmlFor="name" className={styles.label}>
+            <label htmlFor="username" className={styles.label}>
               用户名
             </label>
             <input
-              id="name"
-              name="name"
+              id="username"
+              name="username"
               type="text"
-              value={formData.name}
+              value={formData.username}
               onChange={handleChange}
-              placeholder="您的用户名"
-              className={`${styles.input} ${errors.name ? styles.error : ''}`}
+              placeholder="3-50个字符"
+              className={`${styles.input} ${errors.username ? styles.error : ''}`}
             />
-            {errors.name && <span className={styles.errorMessage}>{errors.name}</span>}
+            {errors.username && <span className={styles.errorMessage}>{errors.username}</span>}
           </div>
 
           {/* 邮箱输入 */}

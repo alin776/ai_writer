@@ -60,16 +60,18 @@ if errorlevel 1 (
     :: 测试数据库连接
     if exist venv (
         call venv\Scripts\activate
-        python -c "import asyncio; from app.core.database import engine; asyncio.run(engine.connect().aclose())" 2>nul
-        if errorlevel 1 (
-            echo [⚠] 数据库连接失败
-            echo     请检查：
-            echo     1. PostgreSQL 服务是否运行
-            echo     2. 数据库 novelaide 是否已创建
-            echo     3. .env 文件中的数据库配置
-            echo     详见: docs\POSTGRESQL_SETUP.md
-        ) else (
-            echo [✓] 数据库连接正常
+        if exist test_db_temp.py (
+            python test_db_temp.py >nul 2>&1
+            if errorlevel 1 (
+                echo [⚠] 数据库连接失败
+                echo     请检查：
+                echo     1. PostgreSQL 服务是否运行
+                echo     2. 数据库 novelaide 是否已创建
+                echo     3. .env 文件中的数据库配置
+                echo     详见: docs\POSTGRESQL_SETUP.md
+            ) else (
+                echo [✓] 数据库连接正常
+            )
         )
     )
 )

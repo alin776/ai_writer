@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import { DataService } from '../../services/DataService';
+import { AuthService } from '../../services/AuthService';
 import { Sparkles, ArrowLeft } from 'lucide-react';
 import styles from './LoginView.module.css';
 
@@ -14,7 +14,7 @@ const LoginView: React.FC = () => {
   const { login } = useAuthStore();
 
   const [formData, setFormData] = useState({
-    email: '',
+    username: '',  // 后端使用 username（可以是邮箱或用户名）
     password: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -38,10 +38,8 @@ const LoginView: React.FC = () => {
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.email) {
-      newErrors.email = '请输入邮箱地址';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = '请输入有效的邮箱地址';
+    if (!formData.username) {
+      newErrors.username = '请输入用户名或邮箱';
     }
 
     if (!formData.password) {
@@ -65,17 +63,18 @@ const LoginView: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // 调用 DataService 登录
-      const response = await DataService.login({
-        email: formData.email,
+      // 调用 AuthService 登录
+      const response = await AuthService.login({
+        username: formData.username,
         password: formData.password,
       });
 
       // 登录成功
       login(response.user, response.token);
       navigate('/works');
-    } catch (error) {
-      setErrors({ submit: '登录失败，请检查邮箱和密码' });
+    } catch (error: any) {
+      const errorMessage = error.message || '登录失败，请检查用户名和密码';
+      setErrors({ submit: errorMessage });
     } finally {
       setIsLoading(false);
     }
@@ -101,21 +100,21 @@ const LoginView: React.FC = () => {
 
         {/* 登录表单 */}
         <form onSubmit={handleSubmit} className={styles.form}>
-          {/* 邮箱输入 */}
+          {/* 用户名/邮箱输入 */}
           <div className={styles.formGroup}>
-            <label htmlFor="email" className={styles.label}>
-              邮箱地址
+            <label htmlFor="username" className={styles.label}>
+              用户名或邮箱
             </label>
             <input
-              id="email"
-              name="email"
-              type="email"
-              value={formData.email}
+              id="username"
+              name="username"
+              type="text"
+              value={formData.username}
               onChange={handleChange}
-              placeholder="your@email.com"
-              className={`${styles.input} ${errors.email ? styles.error : ''}`}
+              placeholder="用户名或邮箱地址"
+              className={`${styles.input} ${errors.username ? styles.error : ''}`}
             />
-            {errors.email && <span className={styles.errorMessage}>{errors.email}</span>}
+            {errors.username && <span className={styles.errorMessage}>{errors.username}</span>}
           </div>
 
           {/* 密码输入 */}

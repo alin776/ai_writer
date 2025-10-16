@@ -61,24 +61,24 @@ class UserService:
         existing = await self.get_user_by_username(user_data.username)
         if existing:
             raise ValueError("Username already taken")
-        
+
         # 如果提供了邮箱，检查是否已存在
         if user_data.email:
             existing = await self.get_user_by_email(user_data.email)
             if existing:
                 raise ValueError("Email already registered")
-        
+
         # 创建用户
         user = User(
             username=user_data.username,
             hashed_password=get_password_hash(user_data.password),
             email=user_data.email,  # 可选
         )
-        
+
         self.db.add(user)
-        await self.db.commit()
+        await self.db.flush()  # flush 而不是 commit，这样如果后续有错误可以回滚
         await self.db.refresh(user)
-        
+
         return user
     
     async def update_user(self, user_id: str, user_data: UserUpdate) -> Optional[User]:
@@ -125,15 +125,16 @@ class UserService:
         user = await self.get_user_by_username(username)
         if not user:
             user = await self.get_user_by_email(username)
-        
+
         if not user:
             return None
-        
+
         if not verify_password(password, user.hashed_password):
             return None
-        
+
         # 更新最后登录时间
         user.last_login_at = datetime.utcnow()
-        await self.db.commit()
-        
+        await self.db.flush()  # flush 而不是 commit
+        await self.db.refresh(user)  # 刷新对象，确保所有字段都已加载
+
         return user

@@ -12,7 +12,7 @@ export class ApiAdapter implements IDataAdapter {
 
   constructor() {
     this.axiosInstance = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api',
+      baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1',
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json',
@@ -22,9 +22,17 @@ export class ApiAdapter implements IDataAdapter {
     // 请求拦截器：添加 Token
     this.axiosInstance.interceptors.request.use(
       (config) => {
-        const token = localStorage.getItem('token');
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        // 从 localStorage 获取 auth-storage 中的 token
+        const authStorage = localStorage.getItem('auth-storage');
+        if (authStorage) {
+          try {
+            const { state } = JSON.parse(authStorage);
+            if (state?.token) {
+              config.headers.Authorization = `Bearer ${state.token}`;
+            }
+          } catch (e) {
+            console.error('Failed to parse auth storage:', e);
+          }
         }
         return config;
       },
@@ -35,7 +43,10 @@ export class ApiAdapter implements IDataAdapter {
 
     // 响应拦截器：处理错误
     this.axiosInstance.interceptors.response.use(
-      (response) => response.data,
+      (response) => {
+        // 后端直接返回数据，不需要额外处理
+        return response.data;
+      },
       (error) => {
         // 统一错误处理
         console.error('API Error:', error);
@@ -46,8 +57,8 @@ export class ApiAdapter implements IDataAdapter {
 
           switch (status) {
             case 401:
-              // 未授权，清除 token 并跳转登录
-              localStorage.removeItem('token');
+              // 未授权，清除 auth storage 并跳转登录
+              localStorage.removeItem('auth-storage');
               window.location.href = '/login';
               break;
             case 403:
@@ -58,12 +69,16 @@ export class ApiAdapter implements IDataAdapter {
               // 资源不存在
               console.error('资源不存在');
               break;
+            case 409:
+              // 冲突（如用户名已存在）
+              console.error('资源冲突:', data?.detail || '用户名或邮箱已存在');
+              break;
             case 500:
               // 服务器错误
               console.error('服务器错误');
               break;
             default:
-              console.error('请求错误:', data?.message || error.message);
+              console.error('请求错误:', data?.detail || data?.message || error.message);
           }
 
           return Promise.reject(data || error);

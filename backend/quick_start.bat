@@ -24,7 +24,7 @@ call venv\Scripts\activate
 
 :: 检查数据库连接
 echo 正在检查数据库连接...
-python -c "import asyncio; from app.core.database import engine; asyncio.run(engine.connect().aclose())" 2>nul
+python test_db_temp.py >nul 2>&1
 if errorlevel 1 (
     echo [错误] 数据库连接失败！
     echo.
