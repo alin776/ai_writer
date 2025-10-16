@@ -1,0 +1,150 @@
+# ==================== Python ====================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# PyCharm
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Environments
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+novelaide.db
+
+# Logs
+*.log
+logs/
+
+# ==================== Node.js / Frontend ====================
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Production build
+dist/
+build/
+.next/
+out/
+
+# Testing
+coverage/
+
+# Environment variables
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Editor directories and files
+.DS_Store
+Thumbs.db
+
+# ==================== Docker ====================
+*.pid
+*.seed
+*.pid.lock
+
+# ==================== OS ====================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.directory
+
+# ==================== Project Specific ====================
+# 临时文件
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# 测试数据
+test_data/
+*.test.json
+
+# 上传文件
+uploads/
+static/uploads/
+
+# 缓存
+.cache/
+*.cache
+
+# IDE
+Microsoft/
+
+# 忽略个人配置
+.personal/
+
+# 忽略生成的文档（如果需要的话）
+# docs/_build/
+
+# ==================== 注意 ====================
+# 不要忽略这些重要文件：
+# !.gitkeep
+# !.env.example
+# !requirements.txt
+# !package.json
