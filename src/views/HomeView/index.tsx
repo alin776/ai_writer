@@ -6,10 +6,24 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, BookOpen, Edit3, Lightbulb, Zap, Users, ArrowRight } from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
 import styles from './HomeView.module.css';
 
 const HomeView: React.FC = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuthStore();
+
+  /**
+   * 处理"开始创作"点击
+   * 检查登录状态，未登录跳转到登录页，已登录跳转到作品页
+   */
+  const handleStartWriting = () => {
+    if (isAuthenticated) {
+      navigate('/works');
+    } else {
+      navigate('/login');
+    }
+  };
 
   // 功能特性 - 精简描述
   const features = [
@@ -105,7 +119,7 @@ const HomeView: React.FC = () => {
 
           {/* CTA - 极简按钮组 */}
           <div className={styles.heroButtons}>
-            <button onClick={() => navigate('/register')} className={styles.primaryButton}>
+            <button onClick={handleStartWriting} className={styles.primaryButton}>
               开始创作
               <ArrowRight size={16} className={styles.arrowIcon} />
             </button>
@@ -149,8 +163,8 @@ const HomeView: React.FC = () => {
           <h2 className={styles.ctaSectionTitle}>开始你的创作</h2>
           <p className={styles.ctaSectionSubtitle}>免费注册，立即体验 AI 辅助写作</p>
           <div className={styles.ctaSectionButtons}>
-            <button onClick={() => navigate('/register')} className={styles.ctaPrimaryButton}>
-              免费注册
+            <button onClick={handleStartWriting} className={styles.ctaPrimaryButton}>
+              {isAuthenticated ? '进入创作' : '免费注册'}
             </button>
             <button onClick={() => navigate('/login')} className={styles.ctaSecondaryButton}>
               登录账户
