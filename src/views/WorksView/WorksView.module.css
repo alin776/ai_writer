@@ -1,0 +1,266 @@
+/* WorksView.module.css - Minimalist Design System */
+
+/* Page Container */
+.page {
+  min-height: 100vh;
+  background-color: #ffffff;
+  padding: 48px 24px;
+}
+
+/* Header Section */
+.header {
+  max-width: 1200px;
+  margin: 0 auto 48px;
+  text-align: center;
+}
+
+.title {
+  font-size: 36px;
+  font-weight: 300;
+  color: #111827;
+  margin: 0 0 16px;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  font-size: 16px;
+  font-weight: 400;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* Grid Layout */
+.grid {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+/* Card Component */
+.card {
+  background-color: #ffffff;
+  border: 1px solid #f3f4f6;
+  border-radius: 8px;
+  padding: 24px;
+  transition: all 200ms ease;
+  cursor: pointer;
+}
+
+.card:hover {
+  border-color: #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Card Content */
+.cardTitle {
+  font-size: 18px;
+  font-weight: 500;
+  color: #111827;
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+
+.cardDescription {
+  font-size: 14px;
+  font-weight: 400;
+  color: #6b7280;
+  margin: 0 0 16px;
+  line-height: 1.6;
+}
+
+.cardMeta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.cardMetaItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Button Styles */
+.button {
+  background-color: #111827;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 200ms ease;
+  outline: none;
+}
+
+.button:hover {
+  background-color: #374151;
+}
+
+.button:active {
+  background-color: #1f2937;
+}
+
+.buttonSecondary {
+  background-color: #ffffff;
+  color: #111827;
+  border: 1px solid #f3f4f6;
+  border-radius: 4px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 200ms ease;
+  outline: none;
+}
+
+.buttonSecondary:hover {
+  border-color: #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.buttonSecondary:active {
+  background-color: #f9fafb;
+}
+
+/* Button Group */
+.buttonGroup {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+/* Empty State */
+.empty {
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+  padding: 80px 24px;
+}
+
+.emptyIcon {
+  font-size: 48px;
+  color: #e5e7eb;
+  margin-bottom: 16px;
+}
+
+.emptyTitle {
+  font-size: 18px;
+  font-weight: 500;
+  color: #111827;
+  margin: 0 0 8px;
+}
+
+.emptyDescription {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0 0 24px;
+}
+
+/* Loading State */
+.loading {
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+  padding: 80px 24px;
+  color: #6b7280;
+}
+
+/* Filter/Action Bar */
+.actionBar {
+  max-width: 1200px;
+  margin: 0 auto 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.filterGroup {
+  display: flex;
+  gap: 8px;
+}
+
+/* Card Actions */
+.cardActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.cardButton {
+  flex: 1;
+  background-color: #ffffff;
+  color: #111827;
+  border: 1px solid #f3f4f6;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 200ms ease;
+  text-align: center;
+}
+
+.cardButton:hover {
+  border-color: #e5e7eb;
+  background-color: #f9fafb;
+}
+
+/* Badge */
+.badge {
+  display: inline-block;
+  background-color: #f3f4f6;
+  color: #6b7280;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.badgePrimary {
+  background-color: #111827;
+  color: #ffffff;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .page {
+    padding: 32px 16px;
+  }
+
+  .header {
+    margin-bottom: 32px;
+  }
+
+  .title {
+    font-size: 28px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .actionBar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .buttonGroup {
+    flex-direction: column;
+  }
+
+  .button,
+  .buttonSecondary {
+    width: 100%;
+  }
+}

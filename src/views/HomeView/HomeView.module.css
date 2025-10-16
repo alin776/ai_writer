@@ -1,0 +1,444 @@
+/**
+ * HomeView 组件样式
+ * 极简美学设计 - 专注、简约、呼吸感
+ */
+
+/* 页面容器 */
+.page {
+  min-height: 100vh;
+  background-color: #ffffff;
+}
+
+/* Header - 极简设计 */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  width: 100%;
+  border-bottom: 1px solid #f3f4f6;
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+}
+
+.headerContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 3.5rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* Logo - 简约 */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: opacity 200ms ease;
+}
+
+.logo:hover {
+  opacity: 0.8;
+}
+
+.logoIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  background-color: #111827;
+  border-radius: 4px;
+}
+
+.logoText {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #111827;
+  letter-spacing: -0.025em;
+}
+
+/* Navigation - 去除装饰 */
+.nav {
+  display: none;
+  align-items: center;
+  gap: 2rem;
+}
+
+@media (min-width: 768px) {
+  .nav {
+    display: flex;
+  }
+}
+
+.navLink {
+  font-size: 0.875rem;
+  color: #6b7280;
+  text-decoration: none;
+  transition: color 200ms ease;
+}
+
+.navLink:hover {
+  color: #111827;
+}
+
+/* CTA - 极简按钮 */
+.cta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.loginButton {
+  padding: 0.375rem 1rem;
+  font-size: 0.875rem;
+  color: #374151;
+  background-color: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 200ms ease;
+}
+
+.loginButton:hover {
+  color: #111827;
+}
+
+.registerButton {
+  padding: 0.375rem 1rem;
+  font-size: 0.875rem;
+  color: #ffffff;
+  background-color: #111827;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 200ms ease;
+}
+
+.registerButton:hover {
+  background-color: #1f2937;
+}
+
+/* Hero Section - 极简主义 */
+.hero {
+  padding: 6rem 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .hero {
+    padding: 8rem 1.5rem;
+  }
+}
+
+.heroContainer {
+  max-width: 56rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+/* Badge - 微妙标识 */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-bottom: 2rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+  letter-spacing: 0.1em;
+}
+
+/* Main Heading - 大标题，充足留白 */
+.title {
+  margin-bottom: 1.5rem;
+  font-size: 3rem;
+  font-weight: 300;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  color: #111827;
+}
+
+@media (min-width: 768px) {
+  .title {
+    font-size: 3.75rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .title {
+    font-size: 4.5rem;
+  }
+}
+
+.titleEmphasis {
+  font-weight: 400;
+}
+
+/* Subtitle - 精简描述 */
+.subtitle {
+  margin-bottom: 3rem;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #6b7280;
+  max-width: 36rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (min-width: 768px) {
+  .subtitle {
+    font-size: 1.125rem;
+  }
+}
+
+/* CTA Buttons - 极简按钮组 */
+.heroButtons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.primaryButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.5rem;
+  font-size: 0.875rem;
+  color: #ffffff;
+  background-color: #111827;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.primaryButton:hover {
+  background-color: #1f2937;
+}
+
+.primaryButton:hover .arrowIcon {
+  transform: translateX(0.125rem);
+}
+
+.arrowIcon {
+  transition: transform 200ms ease;
+}
+
+.secondaryButton {
+  padding: 0.625rem 1.5rem;
+  font-size: 0.875rem;
+  color: #374151;
+  background-color: transparent;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.secondaryButton:hover {
+  border-color: #d1d5db;
+  background-color: #f9fafb;
+}
+
+/* Features Section - 卡片式布局，大量留白 */
+.features {
+  padding: 5rem 1.5rem;
+  background-color: rgba(249, 250, 251, 0.5);
+}
+
+.featuresContainer {
+  max-width: 80rem;
+  margin: 0 auto;
+}
+
+/* Section Header - 极简标题 */
+.sectionHeader {
+  margin-bottom: 4rem;
+  text-align: center;
+}
+
+.sectionTitle {
+  font-size: 1.5rem;
+  font-weight: 300;
+  color: #111827;
+  margin-bottom: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .sectionTitle {
+    font-size: 1.875rem;
+  }
+}
+
+.sectionSubtitle {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+/* Feature Grid - 3列网格，充分留白 */
+.featureGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .featureGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .featureGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.featureCard {
+  padding: 1.5rem;
+  background-color: #ffffff;
+  border: 1px solid #f3f4f6;
+  border-radius: 8px;
+  transition: all 200ms ease;
+}
+
+.featureCard:hover {
+  border-color: #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Icon - 极简图标 */
+.featureIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-bottom: 1rem;
+  background-color: #f9fafb;
+  color: #6b7280;
+  border-radius: 4px;
+  transition: all 200ms ease;
+}
+
+.featureCard:hover .featureIcon {
+  background-color: #111827;
+  color: #ffffff;
+}
+
+/* Title - 清晰层级 */
+.featureTitle {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #111827;
+  margin-bottom: 0.375rem;
+}
+
+/* Description - 辅助文字 */
+.featureDescription {
+  font-size: 0.75rem;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+/* CTA Section - 极简黑白 */
+.ctaSection {
+  padding: 5rem 1.5rem;
+  background-color: #111827;
+}
+
+.ctaSectionContainer {
+  max-width: 56rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.ctaSectionTitle {
+  font-size: 1.875rem;
+  font-weight: 300;
+  color: #ffffff;
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 768px) {
+  .ctaSectionTitle {
+    font-size: 2.25rem;
+  }
+}
+
+.ctaSectionSubtitle {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  margin-bottom: 2rem;
+  max-width: 28rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.ctaSectionButtons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.ctaPrimaryButton {
+  padding: 0.625rem 1.5rem;
+  font-size: 0.875rem;
+  color: #111827;
+  background-color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 200ms ease;
+}
+
+.ctaPrimaryButton:hover {
+  background-color: #f3f4f6;
+}
+
+.ctaSecondaryButton {
+  padding: 0.625rem 1.5rem;
+  font-size: 0.875rem;
+  color: #d1d5db;
+  background-color: transparent;
+  border: 1px solid #374151;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.ctaSecondaryButton:hover {
+  border-color: #4b5563;
+  background-color: #1f2937;
+}
+
+/* Footer - 极简页脚 */
+.footer {
+  padding: 2rem 1.5rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+.footerContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 72rem;
+  margin: 0 auto;
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.footerBrand {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.footerCopyright {
+  color: #9ca3af;
+}

@@ -1,0 +1,36 @@
+/**
+ * AuthLayout 组件样式
+ * 极简美学设计
+ */
+
+.layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
+}
+
+.main {
+  display: flex;
+  flex: 1;
+}
+
+.content {
+  flex: 1;
+  min-height: calc(100vh - 3.5rem);
+  background-color: #fafafa;
+  overflow-y: auto;
+}
+
+.contentInner {
+  padding: 2rem;
+  max-width: 80rem;
+  margin: 0 auto;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .contentInner {
+    padding: 1rem;
+  }
+}

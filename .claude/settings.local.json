@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm run build)",
+      "Read(//c/Users/Administrator/Desktop/**)",
+      "WebSearch",
+      "Bash(dir C:UsersAdministratorDesktop)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,339 @@
+/**
+ * EditorView 极简美学样式
+ * - 绝对专注：无边框干扰
+ * - 纯净背景：白色或极浅灰
+ * - 高对比度：确保可读性
+ */
+
+/* 页面容器 */
+.page {
+  min-height: 100vh;
+  background-color: #fafafa;
+  display: flex;
+  flex-direction: column;
+}
+
+.container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/* 工具栏 - 极简扁平化 */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.toolbarLeft {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.toolbarRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #6b7280;
+  font-size: 14px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.backButton:hover {
+  color: #111827;
+  background-color: #f3f4f6;
+}
+
+.toolbarButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: none;
+}
+
+.toolbarButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 工具栏按钮变体 */
+.toolbarButton.outline {
+  color: #4b5563;
+  border: 1px solid #d1d5db;
+  background-color: #ffffff;
+}
+
+.toolbarButton.outline:hover:not(:disabled) {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.toolbarButton.primary {
+  color: #ffffff;
+  background-color: #2563eb;
+}
+
+.toolbarButton.primary:hover:not(:disabled) {
+  background-color: #1d4ed8;
+}
+
+/* 编辑器主体 */
+.editor {
+  flex: 1;
+  display: flex;
+  background-color: #ffffff;
+  overflow: hidden;
+}
+
+.editorMain {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.editorContent {
+  flex: 1;
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 48px 32px;
+}
+
+/* 标题输入框 - 绝对专注，无边框 */
+.titleInput {
+  width: 100%;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #111827;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  margin-bottom: 32px;
+  resize: none;
+  overflow: hidden;
+}
+
+.titleInput::placeholder {
+  color: #d1d5db;
+}
+
+.titleInput:focus {
+  outline: none;
+}
+
+/* 内容文本区域 - 极简，高对比度 */
+.contentTextarea {
+  width: 100%;
+  min-height: 600px;
+  font-size: 16px;
+  line-height: 1.8;
+  color: #1f2937;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  resize: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+.contentTextarea::placeholder {
+  color: #d1d5db;
+}
+
+.contentTextarea:focus {
+  outline: none;
+}
+
+/* AI 辅助侧边栏 */
+.sidebar {
+  width: 360px;
+  background-color: #f9fafb;
+  border-left: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebarHeader {
+  padding: 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background-color: #ffffff;
+}
+
+.sidebarTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+}
+
+.sidebarContent {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.sidebarPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #9ca3af;
+  font-size: 14px;
+  text-align: center;
+}
+
+/* 状态栏 */
+.statusBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 24px;
+  background-color: #ffffff;
+  border-top: 1px solid #e5e7eb;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.statusLeft {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.statusRight {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.wordCount {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.saveStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.saveStatus.saved {
+  color: #059669;
+}
+
+.saveStatus.saving {
+  color: #2563eb;
+}
+
+.saveStatus.error {
+  color: #dc2626;
+}
+
+/* 加载和错误状态 */
+.loadingContainer,
+.errorContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+
+.errorContent {
+  text-align: center;
+}
+
+.errorMessage {
+  color: #dc2626;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+/* 响应式设计 */
+@media (max-width: 1024px) {
+  .sidebar {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .toolbar {
+    padding: 8px 16px;
+  }
+
+  .toolbarButton {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .editorContent {
+    padding: 24px 16px;
+  }
+
+  .titleInput {
+    font-size: 24px;
+    margin-bottom: 24px;
+  }
+
+  .contentTextarea {
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  .statusBar {
+    padding: 6px 16px;
+    font-size: 12px;
+  }
+}
+
+/* 打印样式 */
+@media print {
+  .toolbar,
+  .sidebar,
+  .statusBar {
+    display: none;
+  }
+
+  .page {
+    background-color: #ffffff;
+  }
+
+  .editorContent {
+    max-width: 100%;
+    padding: 0;
+  }
+}

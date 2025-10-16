@@ -1,0 +1,62 @@
+/**
+ * Mock AI 模型数据
+ */
+import type { AIModel } from '@/types';
+
+export const mockAIModels: AIModel[] = [
+  {
+    id: 'model-1',
+    name: 'GPT-4',
+    type: 'gpt-4',
+    provider: 'OpenAI',
+    apiKey: 'sk-*********************abc123',
+    apiEndpoint: 'https://api.openai.com/v1',
+    usageLimit: 10000,
+    usedCount: 3547,
+    costPerRequest: 0.03,
+    status: 'active',
+    description: '最先进的语言模型，适合高质量内容创作',
+    createTime: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: 'model-2',
+    name: 'GPT-3.5 Turbo',
+    type: 'gpt-3.5-turbo',
+    provider: 'OpenAI',
+    apiKey: 'sk-*********************xyz789',
+    apiEndpoint: 'https://api.openai.com/v1',
+    usageLimit: 50000,
+    usedCount: 25680,
+    costPerRequest: 0.002,
+    status: 'active',
+    description: '高性价比模型，适合日常写作',
+    createTime: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: 'model-3',
+    name: 'Claude 3 Opus',
+    type: 'claude-3',
+    provider: 'Anthropic',
+    apiKey: 'sk-*********************claude3',
+    apiEndpoint: 'https://api.anthropic.com/v1',
+    usageLimit: 5000,
+    usedCount: 1234,
+    costPerRequest: 0.015,
+    status: 'active',
+    description: 'Anthropic 的高端模型，擅长长文本处理',
+    createTime: '2024-02-01T00:00:00Z',
+  },
+  {
+    id: 'model-4',
+    name: 'Claude 2',
+    type: 'claude-2',
+    provider: 'Anthropic',
+    apiKey: 'sk-*********************claude2',
+    status: 'inactive',
+    usageLimit: 8000,
+    usedCount: 7890,
+    costPerRequest: 0.008,
+    description: 'Claude 2 模型，已停用',
+    createTime: '2024-01-15T00:00:00Z',
+  },
+];

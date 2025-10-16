@@ -1,0 +1,52 @@
+/**
+ * Mock 作品数据
+ */
+import type { Work } from '@/types';
+
+export const mockWorks: Work[] = [
+  {
+    id: 'work-1',
+    title: '仙侠奇缘：九天之巅',
+    description: '一个凡人少年，因缘际会踏上修仙之路，历经千难万险，最终登临九天之巅的故事。',
+    coverImage: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=400',
+    authorId: 'user-1',
+    totalWords: 245680,
+    chapterCount: 45,
+    status: 'writing',
+    aiModelUsed: 'gpt-4',
+    createTime: '2024-01-20T09:00:00Z',
+    updateTime: '2025-10-14T15:30:00Z',
+    tags: ['仙侠', '修真', '热血'],
+    genre: '仙侠',
+  },
+  {
+    id: 'work-2',
+    title: '星际迷航：银河帝国',
+    description: '遥远未来，人类建立了横跨银河系的庞大帝国，主角作为一名星际舰长，在宇宙中探索未知。',
+    coverImage: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=400',
+    authorId: 'user-1',
+    totalWords: 128340,
+    chapterCount: 28,
+    status: 'writing',
+    aiModelUsed: 'claude-3',
+    createTime: '2024-03-05T10:30:00Z',
+    updateTime: '2025-10-13T20:15:00Z',
+    tags: ['科幻', '星际', '冒险'],
+    genre: '科幻',
+  },
+  {
+    id: 'work-3',
+    title: '都市风云：商业帝国',
+    description: '一个从底层打拼的年轻人，凭借智慧和勇气，在都市中建立起自己的商业帝国。',
+    coverImage: 'https://images.unsplash.com/photo-1449034446853-66c86144b0ad?w=400',
+    authorId: 'user-1',
+    totalWords: 89560,
+    chapterCount: 18,
+    status: 'draft',
+    aiModelUsed: 'gpt-3.5-turbo',
+    createTime: '2024-08-12T14:00:00Z',
+    updateTime: '2025-10-10T11:45:00Z',
+    tags: ['都市', '商战', '逆袭'],
+    genre: '都市',
+  },
+];
