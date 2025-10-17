@@ -112,6 +112,8 @@ async def ai_complete(
         f"上下文长度: {len(request.context)}, "
         f"风格: {request.style or '默认'}"
     )
+    logger.info(f"[AI续写] context内容: '{request.context[:200]}'")
+    logger.info(f"[AI续写] prompt: '{request.prompt}', max_tokens: {request.max_tokens}")
     
     ai_service = HTTPAIService()
     

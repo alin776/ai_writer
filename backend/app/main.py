@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 import logging
 import traceback
@@ -36,6 +37,29 @@ app = FastAPI(
 )
 
 # 全局异常处理
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """捕获422参数验证错误，详细记录"""
+    logger.error("="*60)
+    logger.error(f"422 参数验证错误 - URL: {request.url.path}")
+    logger.error(f"请求方法: {request.method}")
+    
+    # 记录请求体
+    try:
+        body = await request.body()
+        logger.error(f"请求体: {body.decode('utf-8')}")
+    except:
+        logger.error("无法读取请求体")
+    
+    # 记录验证错误详情
+    logger.error(f"验证错误详情: {exc.errors()}")
+    logger.error("="*60)
+    
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": exc.errors()}
+    )
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """捕获所有未处理的异常"""

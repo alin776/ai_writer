@@ -51,11 +51,13 @@ export interface TokenResponse {
 }
 
 /**
- * 认证响应
+ * 认证响应（注册后返回）
  */
 export interface AuthResponse {
   user: User;
-  token: string;
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
 }
 
 // ==================== 作品相关类型 ====================

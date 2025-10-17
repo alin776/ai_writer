@@ -38,12 +38,15 @@ class DataServiceClass {
 
   constructor() {
     // 根据环境变量决定使用 Mock 还是真实 API
-    // 开发环境使用 MockAdapter，生产环境使用 ApiAdapter
-    const useMock = import.meta.env.MODE !== 'production' || import.meta.env.VITE_USE_MOCK === 'true';
+    // VITE_USE_MOCK=false 时使用真实 API
+    // VITE_USE_MOCK=true 时使用 Mock 数据
+    const useMock = import.meta.env.VITE_USE_MOCK === 'true';
 
     this.adapter = useMock ? new MockAdapter() : new ApiAdapter();
 
     console.log(`[DataService] 使用 ${useMock ? 'Mock' : 'Real API'} 数据源`);
+    console.log(`[DataService] VITE_USE_MOCK = ${import.meta.env.VITE_USE_MOCK}`);
+    console.log(`[DataService] VITE_API_BASE_URL = ${import.meta.env.VITE_API_BASE_URL}`);
   }
 
   // ==================== 认证相关 ====================
@@ -60,9 +63,9 @@ class DataServiceClass {
   /**
    * 注册
    * @param data 注册数据
-   * @returns Promise<AuthResponse>
+   * @returns Promise<User>
    */
-  async register(data: RegisterData): Promise<AuthResponse> {
+  async register(data: RegisterData): Promise<User> {
     return this.adapter.post('/auth/register', data);
   }
 

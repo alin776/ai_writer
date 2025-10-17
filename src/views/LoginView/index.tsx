@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { DataService } from '../../services/DataService';
-import { Sparkles, ArrowLeft } from 'lucide-react';
+import { Sparkles, ArrowLeft, CheckCircle } from 'lucide-react';
 import styles from './LoginView.module.css';
 
 /**
@@ -11,14 +11,29 @@ import styles from './LoginView.module.css';
  */
 const LoginView: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuthStore();
 
+  // 获取注册页面传递的状态
+  const registerSuccess = location.state as { message?: string; username?: string } | null;
+
   const [formData, setFormData] = useState({
-    username: '',
+    username: registerSuccess?.username || '',
     password: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState(registerSuccess?.message || '');
+
+  // 清除成功消息（5秒后）
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
 
   /**
    * 处理输入变化
@@ -102,6 +117,25 @@ const LoginView: React.FC = () => {
           <h1 className={styles.logoText}>登录账户</h1>
           <p className={styles.logoSubtext}>欢迎回到 AI Writer</p>
         </div>
+
+        {/* 注册成功提示 */}
+        {successMessage && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '12px 16px',
+            backgroundColor: '#ecfdf5',
+            border: '1px solid #10b981',
+            borderRadius: '8px',
+            color: '#065f46',
+            fontSize: '14px',
+            marginBottom: '20px'
+          }}>
+            <CheckCircle size={18} />
+            <span>{successMessage}</span>
+          </div>
+        )}
 
         {/* 登录表单 */}
         <form onSubmit={handleSubmit} className={styles.form}>

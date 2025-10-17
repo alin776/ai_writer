@@ -80,15 +80,20 @@ const RegisterView: React.FC = () => {
 
     try {
       // 调用 DataService 注册
-      const response = await DataService.register({
+      await DataService.register({
         username: formData.name,
         email: formData.email,
         password: formData.password,
       });
 
-      // 注册成功并自动登录
-      login(response.user, response.token);
-      navigate('/works');
+      // 注册成功，跳转到登录页
+      // 注意：这里可以传递状态来显示成功提示
+      navigate('/login', { 
+        state: { 
+          message: '注册成功！请使用您的账号登录。',
+          username: formData.name 
+        } 
+      });
     } catch (error) {
       setErrors({ submit: '注册失败，请稍后重试' });
     } finally {

@@ -59,6 +59,14 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+class AuthResponse(BaseModel):
+    """认证响应（注册/登录后返回）"""
+    user: UserResponse
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
 class TokenData(BaseModel):
     """Token 数据"""
     user_id: Optional[str] = None

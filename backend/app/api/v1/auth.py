@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.security import create_access_token, create_refresh_token
-from app.schemas.user import UserCreate, UserResponse, Token
+from app.schemas.user import UserCreate, UserResponse, Token, AuthResponse
 from app.services.user_service import UserService
 
 router = APIRouter()
@@ -28,7 +28,9 @@ async def register(
     
     - **email**: 邮箱地址
     - **username**: 用户名（3-50字符）
-    - **password**: 密码（至少8字符）
+    - **password**: 密码（至少6字符）
+    
+    注册成功后请前往登录页面登录
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -40,7 +42,8 @@ async def register(
         user = await user_service.create_user(user_data)
         logger.info(f"User created successfully: {user.id}")
         
-        # 直接返回 ORM 对象，由 Pydantic 模型负责序列化
+        # 只返回用户信息，不返回 token
+        # 用户需要手动登录
         return user
     except ValueError as e:
         logger.error(f"ValueError: {e}")

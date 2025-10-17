@@ -1,8 +1,7 @@
 /**
- * AI 服务
- * 处理 AI 相关的 API 请求
+ * AI 服务 - 调用后端API版本
+ * 所有AI功能通过后端接口实现，支持SSE流式响应
  */
-import { getAIConfig, validateAIConfig } from '@/config/ai.config';
 
 export interface AICompletionRequest {
   prompt: string;
@@ -27,15 +26,24 @@ export interface AIStreamChunk {
 }
 
 class AIService {
-  private config = getAIConfig();
   private abortController: AbortController | null = null;
+  private baseUrl: string;
 
   constructor() {
-    // 验证配置
-    const validation = validateAIConfig();
-    if (!validation.valid) {
-      console.warn('AI 配置验证失败:', validation.errors);
+    // 使用后端API地址
+    this.baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+    console.log('[AIService] 初始化，后端地址:', this.baseUrl);
+  }
+
+  /**
+   * 获取认证 Token
+   */
+  private getAuthToken(): string {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('未登录，请先登录');
     }
+    return token;
   }
 
   /**
@@ -62,25 +70,17 @@ class AIService {
       console.log('[AIService] 开始 AI 续写请求');
       console.log('[AIService] 请求参数:', request);
 
-      const apiUrl = `${this.config.apiUrl}/v1/chat/completions`;
-      console.log('[AIService] API URL:', apiUrl);
-      console.log('[AIService] 模型:', request.model || this.config.openai.model);
+      const apiUrl = `${this.baseUrl}/ai/complete`;
+      const token = this.getAuthToken();
 
+      // 构建后端API请求参数
+      // 确保max_tokens不小于100（后端最小值要求）
+      const maxTokens = Math.max(request.maxTokens || 500, 100);
       const requestBody = {
-        model: request.model || this.config.openai.model,
-        messages: [
-          {
-            role: 'system',
-            content: '你是一个专业的写作助手。用户会给你一段文本，你需要直接续写这段文本，不要添加任何前缀或说明，直接输出续写的内容即可。',
-          },
-          {
-            role: 'user',
-            content: request.prompt,
-          },
-        ],
-        max_tokens: request.maxTokens || this.config.continue.maxTokens,
-        temperature: request.temperature || this.config.continue.temperature,
-        stream: true,
+        context: request.context || request.prompt,
+        prompt: '续写',
+        style: '',
+        max_tokens: maxTokens,
       };
 
       console.log('[AIService] 请求体:', JSON.stringify(requestBody, null, 2));
@@ -92,7 +92,8 @@ class AIService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.config.apiKey}`,
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'text/event-stream',
         },
         body: JSON.stringify(requestBody),
         signal: this.abortController.signal,
@@ -105,9 +106,8 @@ class AIService {
         try {
           const error = await response.json();
           console.error('[AIService] API 错误详情:', error);
-          errorMessage = error.error?.message || error.message || errorMessage;
+          errorMessage = error.detail || error.message || errorMessage;
         } catch (e) {
-          // 如果解析 JSON 失败，使用状态文本
           errorMessage = `${errorMessage}: ${response.statusText}`;
         }
         throw new Error(errorMessage);
@@ -122,7 +122,7 @@ class AIService {
       let result = '';
       let chunkCount = 0;
 
-      console.log('[AIService] 开始读取流式响应');
+      console.log('[AIService] 开始读取SSE流式响应');
 
       while (true) {
         const { done, value } = await reader.read();
@@ -139,7 +139,7 @@ class AIService {
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const data = line.slice(6);
+            const data = line.slice(6); // 移除 "data: "
 
             // 跳过 [DONE] 信号
             if (data === '[DONE]') {
@@ -147,57 +147,31 @@ class AIService {
               continue;
             }
 
-            // 跳过非 JSON 数据（如 ": OPENROUTER PROCESSING"）
-            if (!data.startsWith('{')) {
-              console.log('[AIService] 跳过非 JSON 数据:', data);
-              continue;
+            // 检查错误
+            if (data.startsWith('[ERROR]')) {
+              const errorMsg = data.slice(8);
+              console.error('[AIService] 服务器错误:', errorMsg);
+              throw new Error(errorMsg);
             }
 
-            try {
-              const json = JSON.parse(data);
-              console.log('[AIService] 解析的 JSON 对象:', json);
+            // 直接使用内容（后端已经过滤了think标签）
+            const content = data;
+            console.log('[AIService] 提取的 content:', content);
 
-              // 只提取 content 字段，忽略 reasoning（思考过程）
-              const content = json.choices?.[0]?.delta?.content
-                           || json.choices?.[0]?.message?.content
-                           || json.delta?.content
-                           || json.content
-                           || '';
-
-              // 获取 reasoning 字段用于调试（但不输出）
-              const reasoning = json.choices?.[0]?.delta?.reasoning || '';
-              if (reasoning) {
-                console.log('[AIService] 跳过 reasoning（思考过程）:', reasoning);
+            if (content) {
+              console.log('[AIService] 收到内容片段:', content);
+              result += content;
+              if (onChunk) {
+                console.log('[AIService] 调用 onChunk 回调');
+                onChunk(content);
               }
-
-              console.log('[AIService] 提取的 content:', content);
-
-              if (content) {
-                console.log('[AIService] 收到内容片段:', content);
-                // 直接输出内容
-                result += content;
-                if (onChunk) {
-                  console.log('[AIService] 调用 onChunk 回调');
-                  onChunk(content);
-                }
-              } else if (!reasoning) {
-                // 如果既没有 content 也没有 reasoning，说明是其他数据
-                console.log('[AIService] content 为空，JSON 结构:', JSON.stringify(json, null, 2));
-              }
-            } catch (e) {
-              console.error('[AIService] 解析 JSON 失败:', e, '原始数据:', data);
             }
           }
         }
       }
 
       console.log('[AIService] 总共接收到的内容长度:', result.length);
-      console.log('[AIService] 原始结果:', result);
-
-      // 最后过滤掉所有 think 标签内容
-      result = this.filterThinkTags(result);
-      console.log('[AIService] 过滤后结果长度:', result.length);
-      console.log('[AIService] 过滤后结果:', result);
+      console.log('[AIService] 最终结果:', result);
 
       // 清除 AbortController
       this.abortController = null;
@@ -213,7 +187,7 @@ class AIService {
         throw new Error('AI 生成已暂停');
       }
 
-      console.error('OpenAI API 流式请求失败:', error);
+      console.error('AI API 请求失败:', error);
       throw error;
     }
   }
@@ -225,46 +199,11 @@ class AIService {
   async completeSync(
     request: AICompletionRequest
   ): Promise<AICompletionResponse> {
-    const apiUrl = `${this.config.apiUrl}/v1/chat/completions`;
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.config.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: request.model || this.config.openai.model,
-        messages: [
-          {
-            role: 'system',
-            content: '你是一个专业的写作助手。直接输出处理后的内容，不要添加任何前缀、说明或额外的话。',
-          },
-          {
-            role: 'user',
-            content: request.prompt,
-          },
-        ],
-        max_tokens: request.maxTokens || this.config.openai.maxTokens,
-        temperature: request.temperature || this.config.openai.temperature,
-        stream: false,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'OpenAI API 请求失败');
-    }
-
-    const data = await response.json();
+    // 使用流式API，只是不传递回调
+    const text = await this.complete(request);
     return {
-      text: data.choices[0]?.message?.content || '',
-      usage: data.usage
-        ? {
-            promptTokens: data.usage.prompt_tokens,
-            completionTokens: data.usage.completion_tokens,
-            totalTokens: data.usage.total_tokens,
-          }
-        : undefined,
+      text,
+      usage: undefined,
     };
   }
 
@@ -274,39 +213,12 @@ class AIService {
    */
   async quickComplete(context: string): Promise<string> {
     try {
-      const apiUrl = `${this.config.apiUrl}/v1/chat/completions`;
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.config.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: this.config.openai.model,
-          messages: [
-            {
-              role: 'system',
-              content: '你是一个写作助手。根据上下文，提供简短的续写建议（不超过30个字）。只输出续写内容，不要添加任何前缀或说明。',
-            },
-            {
-              role: 'user',
-              content: `继续写作：${context}`,
-            },
-          ],
-          max_tokens: 50,
-          temperature: 0.7,
-        }),
+      const result = await this.complete({
+        prompt: context,
+        context,
+        maxTokens: 100,
       });
-
-      if (!response.ok) {
-        throw new Error('快速补全请求失败');
-      }
-
-      const data = await response.json();
-      const suggestion = data.choices[0]?.message?.content || '';
-
-      // 过滤掉 think 标签内容
-      return this.filterThinkTags(suggestion).trim();
+      return result.trim();
     } catch (error) {
       console.error('快速补全失败:', error);
       return '';
@@ -320,46 +232,20 @@ class AIService {
    */
   async getSuggestions(context: string, position: number): Promise<string[]> {
     try {
-    const apiUrl = `${this.config.apiUrl}/v1/chat/completions`;
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.config.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.config.openai.model,
-        messages: [
-          {
-            role: 'system',
-            content: '你是一个写作助手。根据上下文，提供3个简短的续写建议，每个建议不超过15个字。',
-          },
-          {
-            role: 'user',
-            content: `上下文：${context}\n\n请提供3个续写建议：`,
-          },
-        ],
-        max_tokens: 100,
-        temperature: 0.7,
-        n: 1,
-      }),
-    });
+      const result = await this.complete({
+        prompt: `${context}\n\n请提供3个续写建议：`,
+        context,
+        maxTokens: 100,
+      });
 
-    if (!response.ok) {
-      throw new Error('获取建议失败');
-    }
+      // 解析返回的建议
+      const suggestions = result
+        .split('\n')
+        .filter((line: string) => line.trim())
+        .map((line: string) => line.replace(/^\d+\.?\s*/, '').trim())
+        .slice(0, 3);
 
-    const data = await response.json();
-    const text = data.choices[0]?.message?.content || '';
-
-    // 解析返回的建议（假设返回格式为每行一个建议）
-    const suggestions = text
-      .split('\n')
-      .filter((line: string) => line.trim())
-      .map((line: string) => line.replace(/^\d+\.?\s*/, '').trim())
-      .slice(0, this.config.completion.maxSuggestions);
-
-    return suggestions;
+      return suggestions;
     } catch (error) {
       console.error('Get suggestions error:', error);
       return [];
@@ -372,14 +258,56 @@ class AIService {
    * @param instruction - 改写指令
    */
   async rewrite(text: string, instruction: string): Promise<string> {
-    const request: AICompletionRequest = {
-      prompt: `${instruction}\n\n原文：\n${text}\n\n改写后：`,
-      maxTokens: 1000,
-      temperature: 0.7,
-    };
+    const apiUrl = `${this.baseUrl}/ai/polish`;
+    const token = this.getAuthToken();
 
-    const response = await this.completeSync(request);
-    return response.text;
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'text/event-stream',
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API 请求失败 (${response.status})`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('无法读取响应流');
+      }
+
+      const decoder = new TextDecoder();
+      let result = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n').filter((line) => line.trim() !== '');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+            if (data.startsWith('[ERROR]')) {
+              throw new Error(data.slice(8));
+            }
+            result += data;
+          }
+        }
+      }
+
+      return result;
+    } catch (error) {
+      console.error('AI 润色失败:', error);
+      throw error;
+    }
   }
 
   /**
@@ -387,7 +315,56 @@ class AIService {
    * @param text - 要扩写的文本
    */
   async expand(text: string): Promise<string> {
-    return this.rewrite(text, '请扩写以下内容，增加更多细节和描述：');
+    const apiUrl = `${this.baseUrl}/ai/expand`;
+    const token = this.getAuthToken();
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'text/event-stream',
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API 请求失败 (${response.status})`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('无法读取响应流');
+      }
+
+      const decoder = new TextDecoder();
+      let result = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n').filter((line) => line.trim() !== '');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+            if (data.startsWith('[ERROR]')) {
+              throw new Error(data.slice(8));
+            }
+            result += data;
+          }
+        }
+      }
+
+      return result;
+    } catch (error) {
+      console.error('AI 扩写失败:', error);
+      throw error;
+    }
   }
 
   /**
@@ -395,7 +372,56 @@ class AIService {
    * @param text - 要缩写的文本
    */
   async summarize(text: string): Promise<string> {
-    return this.rewrite(text, '请总结以下内容，保留关键信息：');
+    const apiUrl = `${this.baseUrl}/ai/summarize`;
+    const token = this.getAuthToken();
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'text/event-stream',
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API 请求失败 (${response.status})`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('无法读取响应流');
+      }
+
+      const decoder = new TextDecoder();
+      let result = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n').filter((line) => line.trim() !== '');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+            if (data.startsWith('[ERROR]')) {
+              throw new Error(data.slice(8));
+            }
+            result += data;
+          }
+        }
+      }
+
+      return result;
+    } catch (error) {
+      console.error('AI 总结失败:', error);
+      throw error;
+    }
   }
 
   /**
@@ -411,25 +437,57 @@ class AIService {
    * @param text - 要翻译的文本
    * @param targetLang - 目标语言
    */
-  async translate(text: string, targetLang: string): Promise<string> {
-    return this.rewrite(text, `请将以下文本翻译成${targetLang}：`);
-  }
+  async translate(text: string, targetLang: string = 'auto'): Promise<string> {
+    const apiUrl = `${this.baseUrl}/ai/translate`;
+    const token = this.getAuthToken();
 
-  /**
-   * 检查内容是否在 think 标签内
-   */
-  private isThinkContent(text: string): boolean {
-    const thinkOpenCount = (text.match(/<think>/g) || []).length;
-    const thinkCloseCount = (text.match(/<\/think>/g) || []).length;
-    return thinkOpenCount > thinkCloseCount;
-  }
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'text/event-stream',
+        },
+        body: JSON.stringify({ text, target_lang: targetLang }),
+      });
 
-  /**
-   * 过滤 think 标签及其内容
-   */
-  private filterThinkTags(content: string): string {
-    // 移除 <think> 和 </think> 标签及其之间的内容
-    return content.replace(/<think>[\s\S]*?<\/think>/g, '');
+      if (!response.ok) {
+        throw new Error(`API 请求失败 (${response.status})`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('无法读取响应流');
+      }
+
+      const decoder = new TextDecoder();
+      let result = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n').filter((line) => line.trim() !== '');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+            if (data.startsWith('[ERROR]')) {
+              throw new Error(data.slice(8));
+            }
+            result += data;
+          }
+        }
+      }
+
+      return result;
+    } catch (error) {
+      console.error('AI 翻译失败:', error);
+      throw error;
+    }
   }
 }
 
