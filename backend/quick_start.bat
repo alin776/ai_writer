@@ -24,13 +24,14 @@ call venv\Scripts\activate
 
 :: 检查数据库连接
 echo 正在检查数据库连接...
-python -c "import asyncio; from app.core.database import engine; asyncio.run(engine.connect().aclose())" 2>nul
+python test_db_temp.py 2>nul
 if errorlevel 1 (
     echo [错误] 数据库连接失败！
     echo.
     echo 请检查：
     echo   1. PostgreSQL 服务是否运行？
-    echo      - 可运行: net start postgresql-x64-15
+    echo      - PostgreSQL 15: net start postgresql-x64-15
+    echo      - PostgreSQL 18: net start postgresql-x64-18
     echo   2. 数据库是否已创建？
     echo      - 查看: docs\POSTGRESQL_SETUP.md
     echo   3. .env 文件中的数据库配置是否正确？
@@ -38,7 +39,6 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-echo 数据库连接正常
 
 :: 启动服务器
 echo.

@@ -1,18 +1,19 @@
 /**
  * 章节树组件
- * 支持拖拽排序、新增章节、进入编辑
+ * 支持内联编辑、拖拽排序、新增章节
  */
 import React, { useState } from 'react';
 import {
   ChevronRight,
   ChevronDown,
   Plus,
-  Edit2,
   Trash2,
   FileText,
   Circle,
   CheckCircle2,
   Archive,
+  Save,
+  X,
 } from 'lucide-react';
 import { Chapter, ChapterStatus } from '@/types/novel';
 
@@ -20,23 +21,23 @@ interface ChapterTreeProps {
   chapters: Chapter[];
   currentChapterId?: string;
   onChapterSelect: (chapterId: string) => void;
-  onChapterAdd: (parentId?: string) => void;
-  onChapterEdit: (chapterId: string) => void;
+  onChapterSave: (chapter: Partial<Chapter> & { id?: string }) => void;
   onChapterDelete: (chapterId: string) => void;
-  onChapterMove: (chapterId: string, newOrder: number) => void;
+  onChapterMove?: (chapterId: string, newOrder: number) => void;
 }
 
 const ChapterTree: React.FC<ChapterTreeProps> = ({
   chapters,
   currentChapterId,
   onChapterSelect,
-  onChapterAdd,
-  onChapterEdit,
+  onChapterSave,
   onChapterDelete,
   onChapterMove,
 }) => {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingData, setEditingData] = useState<any>(null);
 
   // 获取状态图标
   const getStatusIcon = (status: ChapterStatus) => {
@@ -80,6 +81,70 @@ const ChapterTree: React.FC<ChapterTreeProps> = ({
       .sort((a, b) => a.order - b.order);
   };
 
+  // 获取章节编号（从1开始）
+  const getChapterNumber = (chapterId: string) => {
+    const sortedChapters = [...chapters].sort((a, b) => a.order - b.order);
+    return sortedChapters.findIndex((c) => c.id === chapterId) + 1;
+  };
+
+  // 格式化章节标题（添加编号）
+  const formatChapterTitle = (title: string, chapterId: string) => {
+    const chapterNum = getChapterNumber(chapterId);
+    // 检查标题是否已经有"第X章"格式
+    if (/^第\d+章/.test(title)) {
+      return title;
+    }
+    return `第${chapterNum}章 ${title}`;
+  };
+
+  // 开始编辑
+  const startEditing = (chapter: Chapter) => {
+    setEditingId(chapter.id);
+    // 编辑时移除"第X章"前缀，只编辑实际标题
+    const titleWithoutPrefix = chapter.title.replace(/^第\d+章\s*/, '');
+    setEditingData({
+      id: chapter.id,
+      title: titleWithoutPrefix,
+      content: chapter.content,
+    });
+  };
+
+  // 取消编辑
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditingData(null);
+  };
+
+  // 保存编辑
+  const saveEditing = () => {
+    if (!editingData || !editingData.title.trim()) {
+      return;
+    }
+
+    // 保存时不添加编号，让显示时自动添加
+    const saveData = {
+      ...editingData,
+      title: editingData.title.trim()
+    };
+
+    onChapterSave(saveData);
+    cancelEditing();
+  };
+
+  // 添加新章节（内联编辑）
+  const handleAdd = () => {
+    const newId = 'temp-' + Date.now();
+    const newChapter = {
+      id: newId,
+      title: '',
+      content: '',
+      order: chapters.length,
+    };
+
+    setEditingId(newId);
+    setEditingData(newChapter);
+  };
+
   // 拖拽开始
   const handleDragStart = (e: React.DragEvent, chapterId: string) => {
     setDraggedId(chapterId);
@@ -100,7 +165,7 @@ const ChapterTree: React.FC<ChapterTreeProps> = ({
   // 放置
   const handleDrop = (e: React.DragEvent, targetId: string) => {
     e.preventDefault();
-    if (draggedId && draggedId !== targetId) {
+    if (draggedId && draggedId !== targetId && onChapterMove) {
       const targetChapter = chapters.find((c) => c.id === targetId);
       if (targetChapter) {
         onChapterMove(draggedId, targetChapter.order);
@@ -115,6 +180,60 @@ const ChapterTree: React.FC<ChapterTreeProps> = ({
     const isExpanded = expandedIds.has(chapter.id);
     const isActive = currentChapterId === chapter.id;
     const isDragging = draggedId === chapter.id;
+    const isEditing = editingId === chapter.id;
+
+    if (isEditing) {
+      return (
+        <div
+          key={chapter.id}
+          className="p-3 rounded-lg border border-blue-500 bg-blue-50 mb-2"
+          style={{ marginLeft: `${level * 1.5}rem` }}
+        >
+          <div className="space-y-2">
+            <input
+              type="text"
+              value={editingData.title || ''}
+              onChange={(e) =>
+                setEditingData({ ...editingData, title: e.target.value })
+              }
+              placeholder="章节标题（自动添加编号）"
+              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  saveEditing();
+                } else if (e.key === 'Escape') {
+                  cancelEditing();
+                }
+              }}
+            />
+            {editingData.title && (
+              <div className="text-xs text-gray-500 mt-1">
+                预览: 第{chapters.length + (editingData.id?.startsWith('temp-') ? 1 : getChapterNumber(editingData.id))}章 {editingData.title}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={cancelEditing}
+                className="px-2 py-1 text-xs text-gray-600 hover:text-gray-800 flex items-center gap-1"
+              >
+                <X className="w-3 h-3" />
+                取消
+              </button>
+              <button
+                onClick={saveEditing}
+                disabled={!editingData.title?.trim()}
+                className="px-2 py-1 text-xs text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed rounded flex items-center gap-1"
+              >
+                <Save className="w-3 h-3" />
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div key={chapter.id} className="chapter-tree-item">
@@ -150,8 +269,9 @@ const ChapterTree: React.FC<ChapterTreeProps> = ({
           <div
             className="chapter-info flex-1"
             onClick={() => onChapterSelect(chapter.id)}
+            onDoubleClick={() => startEditing(chapter)}
           >
-            <div className="chapter-title">{chapter.title}</div>
+            <div className="chapter-title">{formatChapterTitle(chapter.title, chapter.id)}</div>
             <div className="chapter-meta">
               {getStatusIcon(chapter.status)}
               <span className="status-text">{getStatusText(chapter.status)}</span>
@@ -161,16 +281,6 @@ const ChapterTree: React.FC<ChapterTreeProps> = ({
 
           {/* 操作按钮 */}
           <div className="chapter-actions">
-            <button
-              className="action-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                onChapterEdit(chapter.id);
-              }}
-              title="编辑"
-            >
-              <Edit2 className="w-3.5 h-3.5" />
-            </button>
             <button
               className="action-btn"
               onClick={(e) => {
@@ -197,6 +307,11 @@ const ChapterTree: React.FC<ChapterTreeProps> = ({
   };
 
   const rootChapters = getChildChapters();
+  
+  // 如果正在添加新章节，显示在列表顶部
+  const displayChapters = editingId?.startsWith('temp-')
+    ? [editingData as Chapter, ...rootChapters]
+    : rootChapters;
 
   return (
     <div className="chapter-tree">
@@ -205,7 +320,7 @@ const ChapterTree: React.FC<ChapterTreeProps> = ({
         <h3 className="tree-title">章节</h3>
         <button
           className="add-chapter-btn"
-          onClick={() => onChapterAdd()}
+          onClick={handleAdd}
           title="新增章节"
         >
           <Plus className="w-4 h-4" />
@@ -214,15 +329,15 @@ const ChapterTree: React.FC<ChapterTreeProps> = ({
 
       {/* 章节列表 */}
       <div className="chapter-list">
-        {rootChapters.length > 0 ? (
-          rootChapters.map((chapter) => renderChapter(chapter))
+        {displayChapters.length > 0 ? (
+          displayChapters.map((chapter) => renderChapter(chapter))
         ) : (
           <div className="empty-state">
             <FileText className="w-12 h-12 text-gray-300 mb-2" />
             <p className="text-sm text-gray-400">暂无章节</p>
             <button
               className="text-sm text-blue-500 hover:text-blue-600 mt-2"
-              onClick={() => onChapterAdd()}
+              onClick={handleAdd}
             >
               创建第一个章节
             </button>

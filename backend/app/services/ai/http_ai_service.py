@@ -1,7 +1,7 @@
 """
-基于 HTTP 的 AI 服务（绕过 Cloudflare 拦截）
+HTTP-based AI Service (Bypass Cloudflare blocking)
 
-直接使用 httpx 调用 OpenAI API，不使用 openai-python SDK
+Direct httpx calls to OpenAI API, not using openai-python SDK
 """
 
 import httpx
@@ -9,6 +9,7 @@ import json
 import logging
 from typing import AsyncGenerator
 from app.core.config import settings
+from app.services.ai.prompts import get_prompts_manager
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +18,11 @@ class HTTPAIService:
     """基于 HTTP 的 AI 服务 - 直接调用 API 绕过 Cloudflare"""
     
     def __init__(self):
-        """初始化 HTTP 客户端"""
+        """Initialize HTTP client and prompts manager"""
         self.api_key = settings.OPENAI_API_KEY
         self.base_url = settings.OPENAI_BASE_URL
         self.model = settings.OPENAI_MODEL
+        self.prompts = get_prompts_manager()
         
         # 创建持久化客户端，模拟普通浏览器/应用
         self.client = httpx.AsyncClient(
@@ -141,14 +143,20 @@ class HTTPAIService:
         temperature: float = 0.7
     ) -> AsyncGenerator[str, None]:
         """AI 续写（流式响应）"""
-        system_prompt = self._build_complete_system_prompt(prompt, style)
+        # 区分自动补全和正式续写
+        is_autocomplete = max_tokens <= 150
+        
+        if is_autocomplete:
+            system_prompt = self._build_autocomplete_system_prompt()
+            logger.info(f"AI自动补全请求 - 上下文长度: {len(context)}")
+        else:
+            system_prompt = self._build_complete_system_prompt(prompt, style)
+            logger.info(f"AI续写请求 - 上下文长度: {len(context)}, 风格: {style or '默认'}")
         
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": context}
         ]
-        
-        logger.info(f"AI续写请求 - 上下文长度: {len(context)}, 风格: {style or '默认'}")
         
         async for chunk in self._stream_chat(messages, max_tokens, temperature):
             yield chunk
@@ -159,27 +167,15 @@ class HTTPAIService:
         max_tokens: int = 1000,
         temperature: float = 0.5
     ) -> AsyncGenerator[str, None]:
-        """AI 润色（流式响应）"""
+        """AI Polish (streaming response)"""
+        system_prompt, user_prefix = self.prompts.get_polish_prompt()
+        
         messages = [
-            {
-                "role": "system",
-                "content": (
-                    "你是专业的文本润色助手。你的任务是优化文字表达，使其更加流畅、生动、富有感染力。\n\n"
-                    "要求：\n"
-                    "- 保持原文的核心意思和情节\n"
-                    "- 优化词汇选择，使表达更精准\n"
-                    "- 改善句式结构，提升可读性\n"
-                    "- 增强情感表达和画面感\n"
-                    "- 只返回润色后的文本，不要添加说明"
-                )
-            },
-            {
-                "role": "user",
-                "content": f"请润色以下文本：\n\n{text}"
-            }
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"{user_prefix}{text}"}
         ]
         
-        logger.info(f"AI润色请求 - 文本长度: {len(text)}")
+        logger.info(f"AI Polish request - text length: {len(text)}")
         
         async for chunk in self._stream_chat(messages, max_tokens, temperature):
             yield chunk
@@ -190,35 +186,15 @@ class HTTPAIService:
         target_lang: str = "auto",
         max_tokens: int = 1000
     ) -> AsyncGenerator[str, None]:
-        """AI 翻译（流式响应）"""
-        if target_lang == "auto":
-            instruction = "智能识别语言并翻译。如果是中文则翻译成英文，如果是英文则翻译成中文。"
-        elif target_lang == "english":
-            instruction = "翻译成英文。"
-        elif target_lang == "chinese":
-            instruction = "翻译成中文。"
-        else:
-            instruction = f"翻译成{target_lang}。"
+        """AI Translate (streaming response)"""
+        system_prompt = self.prompts.get_translate_prompt(target_lang)
         
         messages = [
-            {
-                "role": "system",
-                "content": (
-                    f"你是专业的翻译助手。{instruction}\n\n"
-                    "要求：\n"
-                    "- 准确传达原文意思\n"
-                    "- 符合目标语言的表达习惯\n"
-                    "- 保持原文的语气和风格\n"
-                    "- 只返回翻译结果，不要添加说明"
-                )
-            },
-            {
-                "role": "user",
-                "content": text
-            }
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": text}
         ]
         
-        logger.info(f"AI翻译请求 - 文本长度: {len(text)}, 目标语言: {target_lang}")
+        logger.info(f"AI Translate request - text length: {len(text)}, target: {target_lang}")
         
         async for chunk in self._stream_chat(messages, max_tokens, temperature=0.3):
             yield chunk
@@ -229,27 +205,15 @@ class HTTPAIService:
         max_tokens: int = 1000,
         temperature: float = 0.7
     ) -> AsyncGenerator[str, None]:
-        """AI 扩写（流式响应）"""
+        """AI Expand (streaming response)"""
+        system_prompt, user_prefix = self.prompts.get_expand_prompt()
+        
         messages = [
-            {
-                "role": "system",
-                "content": (
-                    "你是专业的扩写助手。你的任务是在保持原文核心内容的基础上，丰富细节和表达。\n\n"
-                    "要求：\n"
-                    "- 保持原文的核心情节和主旨\n"
-                    "- 增加环境描写、心理描写和动作描写\n"
-                    "- 扩展对话和细节，增强代入感\n"
-                    "- 使场景更加生动、立体\n"
-                    "- 只返回扩写后的文本，不要添加说明"
-                )
-            },
-            {
-                "role": "user",
-                "content": f"请扩写以下内容：\n\n{text}"
-            }
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"{user_prefix}{text}"}
         ]
         
-        logger.info(f"AI扩写请求 - 文本长度: {len(text)}")
+        logger.info(f"AI Expand request - text length: {len(text)}")
         
         async for chunk in self._stream_chat(messages, max_tokens, temperature):
             yield chunk
@@ -260,53 +224,26 @@ class HTTPAIService:
         max_tokens: int = 500,
         temperature: float = 0.3
     ) -> AsyncGenerator[str, None]:
-        """AI 总结（流式响应）"""
+        """AI Summarize (streaming response)"""
+        system_prompt, user_prefix = self.prompts.get_summarize_prompt()
+        
         messages = [
-            {
-                "role": "system",
-                "content": (
-                    "你是专业的总结助手。你的任务是提取核心信息，生成简洁的摘要。\n\n"
-                    "要求：\n"
-                    "- 保留关键情节和重要信息\n"
-                    "- 去除冗余和次要细节\n"
-                    "- 逻辑清晰，语言简练\n"
-                    "- 控制在原文长度的30%以内\n"
-                    "- 只返回总结内容，不要添加说明"
-                )
-            },
-            {
-                "role": "user",
-                "content": f"请总结以下内容：\n\n{text}"
-            }
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"{user_prefix}{text}"}
         ]
         
-        logger.info(f"AI总结请求 - 文本长度: {len(text)}")
+        logger.info(f"AI Summarize request - text length: {len(text)}")
         
         async for chunk in self._stream_chat(messages, max_tokens, temperature):
             yield chunk
     
+    def _build_autocomplete_system_prompt(self) -> str:
+        """Build autocomplete system prompt from config"""
+        return self.prompts.get_autocomplete_prompt()
+    
     def _build_complete_system_prompt(self, prompt: str, style: str) -> str:
-        """构建续写的系统提示词"""
-        base_prompt = (
-            "你是一位专业的小说创作助手，擅长续写、扩写和润色小说内容。"
-            "你的写作风格自然流畅，善于刻画人物、描写场景、推动情节发展。"
-        )
-        
-        if style:
-            base_prompt += f"\n\n写作风格：{style}"
-        
-        base_prompt += f"\n\n任务：根据用户提供的上下文，进行{prompt}。"
-        
-        base_prompt += (
-            "\n\n要求：\n"
-            "- 保持与上文的叙述风格一致\n"
-            "- 情节发展自然合理\n"
-            "- 人物性格符合设定\n"
-            "- 控制在200-500字之间\n"
-            "- 直接开始续写，不要添加说明性文字"
-        )
-        
-        return base_prompt
+        """Build complete (continuation) system prompt from config"""
+        return self.prompts.get_complete_prompt(prompt, style)
     
     def _should_filter(self, content: str) -> bool:
         """判断内容是否应该被过滤"""

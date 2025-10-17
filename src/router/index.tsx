@@ -17,6 +17,7 @@ const HomeView = React.lazy(() => import('../views/HomeView'));
 const LoginView = React.lazy(() => import('../views/LoginView'));
 const RegisterView = React.lazy(() => import('../views/RegisterView'));
 const WorksView = React.lazy(() => import('../views/WorksView'));
+const CreateWorkView = React.lazy(() => import('../views/CreateWorkView'));
 const WorkDetailView = React.lazy(() => import('../views/WorkDetailView'));
 const EditorView = React.lazy(() => import('../views/EditorView'));
 const AdminDashboardView = React.lazy(() => import('../views/AdminDashboardView'));
@@ -98,6 +99,14 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <WorksView />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/works/create',
+        element: (
+          <SuspenseWrapper>
+            <CreateWorkView />
           </SuspenseWrapper>
         ),
       },

@@ -37,12 +37,29 @@ export class ApiAdapter implements IDataAdapter {
     this.axiosInstance.interceptors.response.use(
       (response) => response.data,
       (error) => {
-        // 统一错误处理
-        console.error('API Error:', error);
-
         if (error.response) {
           // 服务器返回错误状态码
-          const { status, data } = error.response;
+          const { status, data, config } = error.response;
+          const url = config?.url || '';
+
+          // 世界观相关的404错误静默处理（功能未实现，暂时忽略）
+          const isWorldviewNotFound = status === 404 && (
+            url.includes('/characters') ||
+            url.includes('/locations') ||
+            url.includes('/settings')
+          );
+
+          if (isWorldviewNotFound) {
+            // 只在开发模式下显示警告
+            if (import.meta.env.DEV) {
+              console.warn(`[API] 世界观API未实现: ${url}`);
+            }
+            // 返回空数组，不中断应用
+            return Promise.resolve([]);
+          }
+
+          // 非世界观错误，正常打印
+          console.error('API Error:', error);
 
           switch (status) {
             case 401:
@@ -56,7 +73,7 @@ export class ApiAdapter implements IDataAdapter {
               break;
             case 404:
               // 资源不存在
-              console.error('资源不存在');
+              console.error('资源不存在:', url);
               break;
             case 500:
               // 服务器错误

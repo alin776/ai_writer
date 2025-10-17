@@ -4,7 +4,7 @@ import { ArrowLeft, Edit, Trash2, Plus, BookOpen } from 'lucide-react';
 import { Button, Card, Loading } from '../../components/common';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
-import type { Work, Chapter } from '../../types';
+import type { Work, Chapter, CreateChapterData } from '../../types';
 import type { Chapter as NovelChapter, WorldData, Character, Location, Setting } from '../../types/novel';
 import { formatDate } from '../../utils/formatDate';
 import NovelEditor from '../../components/editor/NovelEditor';
@@ -148,41 +148,65 @@ const WorkDetailView: React.FC = () => {
   }, [workId, chapters.length, showToast]);
 
   /**
-   * 处理编辑章节
+   * 处理保存章节（新增或编辑）
    */
-  const handleEditChapter = useCallback(async (chapterId: string) => {
-    const chapter = chapters.find((c) => c.id === chapterId);
-    if (!chapter) return;
-
-    const newTitle = prompt('请输入新的章节标题：', chapter.title);
-    if (!newTitle || !newTitle.trim()) {
+  const handleSaveChapter = useCallback(async (chapterData: Partial<Chapter> & { id?: string }) => {
+    if (!workId) return;
+    if (!chapterData.title?.trim()) {
       showToast('warning', '章节标题不能为空');
       return;
     }
 
-    if (newTitle === chapter.title) return;
-
     try {
-      const updatedChapter = {
-        ...chapter,
-        title: newTitle.trim(),
-        updated_at: new Date().toISOString(),
-      };
+      // 判断是新增还是编辑
+      const isNew = !chapterData.id || chapterData.id.startsWith('temp-');
 
-      // 更新状态
-      setChapters((prev) =>
-        prev.map((c) => (c.id === chapterId ? updatedChapter : c))
-      );
+      if (isNew) {
+        // 新增章节
+        const newChapterData = {
+          work_id: workId,
+          title: chapterData.title.trim(),
+          content: chapterData.content || '',
+          order: chapters.length + 1,
+        };
 
-      // 保存到后端
-      await DataService.updateChapter(chapterId, updatedChapter);
+        const savedChapter = await DataService.createChapter(newChapterData);
 
-      showToast('success', '章节标题更新成功');
+        // 更新章节列表
+        setChapters((prev) => [...prev, savedChapter]);
+
+        // 选中新章节
+        setCurrentChapterId(savedChapter.id);
+        setCurrentChapterContent(savedChapter.content);
+
+        showToast('success', '章节添加成功');
+      } else {
+        // 编辑章节
+        const chapter = chapters.find((c) => c.id === chapterData.id);
+        if (!chapter) return;
+
+        const updatedChapter = {
+          ...chapter,
+          title: chapterData.title.trim(),
+          content: chapterData.content || chapter.content,
+          updated_at: new Date().toISOString(),
+        };
+
+        // 更新状态
+        setChapters((prev) =>
+          prev.map((c) => (c.id === chapterData.id ? updatedChapter : c))
+        );
+
+        // 保存到后端
+        await DataService.updateChapter(chapterData.id, updatedChapter);
+
+        showToast('success', '章节更新成功');
+      }
     } catch (error) {
-      showToast('error', '章节标题更新失败');
-      console.error('Failed to edit chapter:', error);
+      showToast('error', isNew ? '章节添加失败' : '章节更新失败');
+      console.error('Failed to save chapter:', error);
     }
-  }, [chapters, showToast]);
+  }, [workId, chapters, showToast]);
 
   /**
    * 处理删除章节
@@ -549,8 +573,7 @@ const WorkDetailView: React.FC = () => {
           chapters={novelChapters}
           currentChapterId={currentChapterId}
           onChapterSelect={handleChapterSelect}
-          onChapterAdd={handleAddChapter}
-          onChapterEdit={handleEditChapter}
+          onChapterSave={handleSaveChapter}
           onChapterDelete={handleDeleteChapter}
           onChapterMove={handleChapterMove}
         />

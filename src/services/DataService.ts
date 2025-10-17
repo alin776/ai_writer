@@ -181,6 +181,19 @@ class DataServiceClass {
     return this.adapter.delete(`/chapters/${id}`);
   }
 
+  /**
+   * 重新排序章节
+   * @param workId 作品ID
+   * @param chapterIds 章节ID列表（按新顺序）
+   * @returns Promise<void>
+   */
+  async reorderChapters(workId: string, chapterIds: string[]): Promise<void> {
+    return this.adapter.post('/chapters/reorder', {
+      work_id: workId,
+      chapter_ids: chapterIds
+    });
+  }
+
   // ==================== AI 相关 ====================
 
   /**

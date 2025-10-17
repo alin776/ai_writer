@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { BookOpen, Plus } from 'lucide-react';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
@@ -17,6 +17,7 @@ import styles from './WorksView.module.css';
  * - Loading 状态
  */
 const WorksView: React.FC = () => {
+  const navigate = useNavigate();
   const [works, setWorks] = useState<Work[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,29 +46,10 @@ const WorksView: React.FC = () => {
   }, [showToast]);
 
   /**
-   * 处理创建新作品
+   * 处理创建新作品 - 跳转到创建页面
    */
-  const handleCreateWork = async () => {
-    const title = prompt('请输入作品标题：');
-    if (!title || !title.trim()) {
-      showToast('warning', '作品标题不能为空');
-      return;
-    }
-
-    const description = prompt('请输入作品简介（可选）：') || '暂无描述';
-
-    try {
-      const newWork = await DataService.createWork({
-        title: title.trim(),
-        description: description.trim(),
-      });
-
-      setWorks((prev) => [newWork, ...prev]);
-      showToast('success', '作品创建成功');
-    } catch (error) {
-      showToast('error', '作品创建失败');
-      console.error('Failed to create work:', error);
-    }
+  const handleCreateWork = () => {
+    navigate('/works/create');
   };
 
   if (isLoading) {

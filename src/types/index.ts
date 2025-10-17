@@ -105,8 +105,10 @@ export interface Chapter {
   title: string;
   content: string;
   word_count: number;
+  view_count: number;
   is_published: boolean;
   order: number;
+  published_at: string | null;
   created_at: string;
   updated_at: string;
 }

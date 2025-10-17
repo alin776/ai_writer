@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # OpenAI 配置
     OPENAI_API_KEY: str
     OPENAI_BASE_URL: str = "https://204992.xyz/v1"
-    OPENAI_MODEL: str = "gpt-4"  # 默认模型，可通过环境变量修改
+    OPENAI_MODEL: str = "gpt-5"  # 默认模型，可通过环境变量修改
     
     # 文件上传配置
     MAX_UPLOAD_SIZE: int = 10485760  # 10MB
