@@ -20,6 +20,7 @@ import type {
   AIModel,
   Item,
   AuthResponse,
+  TokenResponse,
   LoginCredentials,
   RegisterData,
   CreateWorkData,
@@ -50,9 +51,9 @@ class DataServiceClass {
   /**
    * 登录
    * @param credentials 登录凭证
-   * @returns Promise<AuthResponse>
+   * @returns Promise<TokenResponse>
    */
-  async login(credentials: LoginCredentials): Promise<AuthResponse> {
+  async login(credentials: LoginCredentials): Promise<TokenResponse> {
     return this.adapter.post('/auth/login', credentials);
   }
 
@@ -70,7 +71,7 @@ class DataServiceClass {
    * @returns Promise<User>
    */
   async getCurrentUser(): Promise<User> {
-    return this.adapter.get('/auth/me');
+    return this.adapter.get('/users/me');
   }
 
   /**
@@ -87,7 +88,8 @@ class DataServiceClass {
    * @returns Promise<Work[]>
    */
   async getWorks(): Promise<Work[]> {
-    return this.adapter.get('/works');
+    const response = await this.adapter.get<{ items: Work[] }>('/works');
+    return response.items || [];
   }
 
   /**
@@ -135,7 +137,8 @@ class DataServiceClass {
    * @returns Promise<Chapter[]>
    */
   async getChapters(workId: string): Promise<Chapter[]> {
-    return this.adapter.get(`/works/${workId}/chapters`);
+    const response = await this.adapter.get<Chapter[] | { items: Chapter[] }>(`/chapters/work/${workId}`);
+    return Array.isArray(response) ? response : (response.items || []);
   }
 
   /**

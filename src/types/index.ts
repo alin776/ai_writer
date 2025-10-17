@@ -12,33 +12,42 @@
 export type UserRole = 'admin' | 'user';
 
 /**
- * 用户接口
+ * 用户接口（后端 snake_case 格式）
  */
 export interface User {
   id: string;
-  name: string;
+  username: string;
   email: string;
-  role: UserRole;
-  avatar?: string;
-  registrationDate: string;
-  status: 'active' | 'disabled';
-  dailyAiQuota: number;
-  usedAiQuota: number;
+  is_active: boolean;
+  is_admin: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 /**
  * 登录凭证
  */
 export interface LoginCredentials {
-  email: string;
+  username: string;
   password: string;
 }
 
 /**
  * 注册数据
  */
-export interface RegisterData extends LoginCredentials {
-  name: string;
+export interface RegisterData {
+  username: string;
+  email: string;
+  password: string;
+}
+
+/**
+ * Token 响应（登录后返回）
+ */
+export interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
 }
 
 /**
@@ -57,22 +66,17 @@ export interface AuthResponse {
 export type WorkStatus = 'draft' | 'writing' | 'completed' | 'archived';
 
 /**
- * 作品接口
+ * 作品接口（后端 snake_case 格式）
  */
 export interface Work {
   id: string;
   title: string;
   description: string;
-  coverImage?: string;
-  authorId: string;
-  totalWords: number;
-  chapterCount: number;
-  status: WorkStatus;
-  aiModelUsed: string;
-  createTime: string;
-  updateTime: string;
-  tags?: string[];
-  genre?: string;
+  author_id: string;
+  total_words: number;
+  total_chapters: number;
+  created_at: string;
+  updated_at: string;
 }
 
 /**
@@ -81,9 +85,6 @@ export interface Work {
 export interface CreateWorkData {
   title: string;
   description: string;
-  aiModelUsed: string;
-  genre?: string;
-  tags?: string[];
 }
 
 // ==================== 章节相关类型 ====================
@@ -94,28 +95,28 @@ export interface CreateWorkData {
 export type ChapterStatus = 'draft' | 'published';
 
 /**
- * 章节接口
+ * 章节接口（后端 snake_case 格式）
  */
 export interface Chapter {
   id: string;
-  workId: string;
+  work_id: string;
   title: string;
   content: string;
-  wordCount: number;
-  status: ChapterStatus;
+  word_count: number;
+  is_published: boolean;
   order: number;
-  createTime: string;
-  updateTime: string;
-  lastSaveTime?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 /**
  * 创建章节数据
  */
 export interface CreateChapterData {
-  workId: string;
+  work_id: string;
   title: string;
   content?: string;
+  order?: number;
 }
 
 // ==================== AI 相关类型 ====================
