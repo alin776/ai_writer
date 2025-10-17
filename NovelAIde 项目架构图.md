@@ -1,6 +1,19 @@
 # NovelAIde 项目架构图
 
-## 📐 完整架构总览
+> **更新时间**: 2025-01-16  
+> **当前状态**: 开发中  
+> **整体完成度**: 约 75%  
+> - ✅ 后端核心: 85-90%（用户、作品、章节管理已完成）
+> - ✅ 前端基础: 70%（编辑器已集成，使用Mock数据）
+> - ❌ AI服务: 0%（后端未实现，前端已准备）
+> - ❌ 世界观系统: 0%（数据库模型未实现）
+
+## 图例说明
+- 🟢 **绿色**: 已完成（90%以上）
+- 🟡 **黄色**: 进行中（30-90%）
+- 🔴 **红色**: 未开始（0-30%）
+
+## 📐 完整架构总览（当前实现状态）
 
 ```mermaid
 graph TB
@@ -9,37 +22,37 @@ graph TB
         Mobile[移动端 PWA]
     end
 
-    subgraph "前端层 - React 19 + Vite"
-        UI[UI 组件层]
-        Editor[编辑器 Tiptap/Novel]
-        State[状态管理 Zustand]
-        API_Client[API 客户端]
-        Router[路由 React Router]
+    subgraph "前端层 - React 19 + Vite ✅ 70%"
+        UI[🟡 UI 组件层<br/>基础完成60%]
+        Editor[🟢 编辑器 Tiptap 3.7.0<br/>已集成100%]
+        State[🟢 状态管理 Zustand<br/>已完成100%]
+        API_Client[🔴 API 客户端<br/>使用Mock 30%]
+        Router[🟢 路由 React Router v7<br/>已完成100%]
     end
 
-    subgraph "网关层"
-        NGINX[Nginx 反向代理]
-        CORS[CORS 中间件]
+    subgraph "网关层 ⚠️ 未部署"
+        NGINX[🔴 Nginx 反向代理<br/>未配置 0%]
+        CORS[🟢 CORS 中间件<br/>FastAPI已配置 100%]
     end
 
-    subgraph "后端层 - FastAPI"
-        Auth[认证模块]
-        Works[作品管理]
-        Chapters[章节管理]
-        AI_Service[AI 服务]
-        WorldView[世界观系统]
-        Prompt[提示词管理]
+    subgraph "后端层 - FastAPI ✅ 85%"
+        Auth[🟢 认证模块<br/>JWT已完成 100%]
+        Works[🟢 作品管理<br/>CRUD已完成 100%]
+        Chapters[🟢 章节管理<br/>CRUD已完成 100%]
+        AI_Service[🔴 AI 服务<br/>未实现 0%]
+        WorldView[🔴 世界观系统<br/>未实现 0%]
+        Prompt[🔴 提示词管理<br/>未实现 0%]
     end
 
     subgraph "数据层"
-        PostgreSQL[(PostgreSQL 数据库)]
-        Redis[(Redis 缓存)]
-        OSS[阿里云 OSS 对象存储]
+        PostgreSQL[🟢 PostgreSQL 数据库<br/>核心表已完成 90%]
+        Redis[🟡 Redis 缓存<br/>已配置未使用 30%]
+        OSS[🔴 阿里云 OSS<br/>未配置 0%]
     end
 
     subgraph "第三方服务"
-        OpenAI[OpenAI API<br/>https://204992.xyz]
-        CDN[CDN 加速]
+        OpenAI[🔴 OpenAI API<br/>https://204992.xyz<br/>已配置未集成 0%]
+        CDN[🔴 CDN 加速<br/>未配置 0%]
     end
 
     Browser --> UI
@@ -71,11 +84,24 @@ graph TB
     
     style Browser fill:#e1f5ff
     style Mobile fill:#e1f5ff
-    style Editor fill:#fff3e0
-    style AI_Service fill:#f3e5f5
-    style OpenAI fill:#f3e5f5
+    style Editor fill:#c8e6c9
+    style State fill:#c8e6c9
+    style Router fill:#c8e6c9
+    style Auth fill:#c8e6c9
+    style Works fill:#c8e6c9
+    style Chapters fill:#c8e6c9
     style PostgreSQL fill:#c8e6c9
-    style Redis fill:#ffcdd2
+    style CORS fill:#c8e6c9
+    style UI fill:#fff3e0
+    style API_Client fill:#ffcdd2
+    style Redis fill:#fff3e0
+    style AI_Service fill:#ffcdd2
+    style WorldView fill:#ffcdd2
+    style Prompt fill:#ffcdd2
+    style OpenAI fill:#ffcdd2
+    style OSS fill:#ffcdd2
+    style CDN fill:#ffcdd2
+    style NGINX fill:#ffcdd2
 ```
 
 ---
@@ -285,6 +311,9 @@ graph TB
 ---
 
 ## 🗄️ 数据库 ER 图
+
+> **已实现**: USERS ✅, WORKS ✅, CHAPTERS ✅  
+> **未实现**: CHARACTERS ❌, LOCATIONS ❌, FACTIONS ❌, SETTING_RELATIONS ❌, PROMPTS ❌, AI_REQUESTS ❌
 
 ```mermaid
 erDiagram
@@ -874,3 +903,299 @@ graph TB
 - 🔍 定位具体功能的实现位置
 - 🚀 规划新功能的开发
 - 🤝 团队协作和技术交流
+
+---
+
+## 🎯 当前项目实现状态（详细）
+
+### ✅ 已完成模块（90%+）
+
+#### 后端 (85-90%)
+
+**1. 用户认证系统 - 100%**
+- ✅ 用户注册 `POST /api/v1/auth/register`
+- ✅ 用户登录 `POST /api/v1/auth/login`
+- ✅ Token 刷新 `POST /api/v1/auth/refresh`
+- ✅ JWT Token 生成和验证
+- ✅ 密码加密（bcrypt）
+- ✅ 获取当前用户 `GET /api/v1/users/me`
+
+**2. 作品管理系统 - 100%**
+- ✅ 创建作品 `POST /api/v1/works`
+- ✅ 获取作品列表 `GET /api/v1/works`
+- ✅ 获取作品详情 `GET /api/v1/works/{id}`
+- ✅ 更新作品 `PUT /api/v1/works/{id}`
+- ✅ 删除作品 `DELETE /api/v1/works/{id}`
+- ✅ 作品统计（字数、章节数）
+
+**3. 章节管理系统 - 100%**
+- ✅ 创建章节 `POST /api/v1/chapters`
+- ✅ 获取章节列表 `GET /api/v1/chapters/work/{id}`
+- ✅ 获取章节详情 `GET /api/v1/chapters/{id}`
+- ✅ 更新章节 `PUT /api/v1/chapters/{id}`
+- ✅ 删除章节 `DELETE /api/v1/chapters/{id}`
+- ✅ 章节排序 `POST /api/v1/chapters/reorder`
+- ✅ 字数统计自动更新
+
+**4. 数据库模型 - 90%**
+- ✅ User 模型（完整）
+- ✅ Work 模型（完整）
+- ✅ Chapter 模型（完整）
+- ✅ SQLAlchemy Async ORM
+- ✅ PostgreSQL 异步驱动（asyncpg）
+- ✅ Alembic 数据库迁移
+
+**5. 基础设施 - 70%**
+- ✅ FastAPI 应用配置
+- ✅ CORS 中间件
+- ✅ JWT 认证中间件
+- ✅ 全局异常处理
+- ✅ 日志系统（基础）
+- ✅ Pydantic 数据验证
+- 🟡 Redis 配置（已配置，未实际使用）
+
+#### 前端 (70%)
+
+**1. 核心技术栈 - 100%**
+- ✅ React 19.1.1
+- ✅ TypeScript 5.9.3
+- ✅ Vite 7.1.7
+- ✅ Tailwind CSS 4.1.8
+- ✅ React Router DOM 7.5.1
+- ✅ Zustand 5.0.4
+
+**2. 编辑器系统 - 100%**
+- ✅ Tiptap 3.7.0 集成
+- ✅ 富文本编辑功能
+- ✅ Markdown 支持
+- ✅ 代码块语法高亮
+- ✅ 图片上传
+- ✅ 任务列表
+- ✅ 斜杠命令（/）
+- ✅ 自动保存
+- ✅ 实时字数统计
+- ✅ 拖拽处理（GlobalDragHandle）
+- ✅ 气泡菜单（BubbleMenu）
+
+**3. 页面视图 - 100%**
+- ✅ LoginView - 登录页
+- ✅ RegisterView - 注册页
+- ✅ HomeView - 首页
+- ✅ WorksView - 作品列表
+- ✅ WorkDetailView - 作品详情
+- ✅ EditorView - 编辑器页面
+- ✅ SettingsView - 设置页
+- ✅ AdminDashboardView - 管理后台
+- ✅ AdminUsersView - 用户管理
+- ✅ AdminAIModelsView - AI模型管理
+- ✅ AdminCostView - 成本统计
+- ✅ NotFoundView - 404页面
+
+**4. 编辑器组件 - 100%**
+- ✅ NovelEditor.tsx - 主编辑器
+- ✅ EditorToolbar.tsx - 工具栏
+- ✅ BubbleMenu.tsx - 气泡菜单
+- ✅ AIMenu.tsx - AI助手菜单
+- ✅ AIContinueDrawer.tsx - AI续写抽屉
+- ✅ AIContinueDialog.tsx - AI续写对话框
+- ✅ AIAutoComplete.tsx - AI自动补全
+- ✅ SlashCommands.tsx - 斜杠命令
+- ✅ ChapterTree.tsx - 章节树
+- ✅ EditorSidebar.tsx - 编辑器侧边栏
+- ✅ WorldManager.tsx - 世界观管理器
+
+**5. 状态管理 - 100%**
+- ✅ authStore.ts - 认证状态（含持久化）
+- ✅ editorStore.ts - 编辑器状态
+- ✅ globalStore.ts - 全局状态（Toast、Loading）
+
+**6. 服务架构 - 60%**
+- ✅ DataService.ts - 统一数据服务
+- ✅ AIService.ts - AI服务类
+- ✅ IDataAdapter.ts - 适配器接口
+- ✅ MockAdapter.ts - Mock数据适配器
+- 🟡 ApiAdapter.ts - 真实API适配器（文件存在，未实现）
+
+**7. Mock数据 - 100%**
+- ✅ users.ts - 用户数据
+- ✅ works.ts - 作品数据
+- ✅ chapters.ts - 章节数据
+- ✅ aiModels.ts - AI模型配置
+- ✅ worldData.ts - 世界观数据
+- ✅ costMetrics.ts - 成本统计
+
+### 🟡 部分完成模块（30-90%）
+
+#### 前端
+
+**1. API客户端 - 30%**
+- ✅ ApiAdapter 文件已创建
+- ✅ 接口定义完整
+- ❌ 未实现实际的HTTP请求
+- ❌ Token管理未对接后端
+- ❌ 错误处理不完整
+- ❌ 拦截器未配置
+
+**2. UI组件库 - 20%**
+- ✅ Toast通知组件
+- ❌ 缺少完整的组件库（Button、Input、Modal等使用原生HTML）
+
+#### 后端
+
+**1. Redis集成 - 30%**
+- ✅ Redis配置完成（config.py）
+- ✅ 依赖已安装（redis==5.0.1, aioredis==2.0.1）
+- ❌ 未创建Redis连接池
+- ❌ 未实现Token缓存
+- ❌ 未实现数据缓存服务
+
+### ❌ 未实现模块（0-30%）
+
+#### 后端
+
+**1. AI服务系统 - 0%**
+- ❌ OpenAI API 集成
+- ❌ AI 续写接口 `POST /api/v1/ai/complete`
+- ❌ 流式响应（SSE）
+- ❌ Token 计数
+- ❌ 成本追踪
+- ❌ AI 对话接口
+- ❌ 大纲生成
+- ❌ 内容润色
+
+**2. 世界观构建系统 - 0%**
+- ❌ Character 模型和接口
+- ❌ Location 模型和接口
+- ❌ Faction 模型和接口
+- ❌ 关系网络模型
+- ❌ 世界观数据API
+
+**3. 提示词管理系统 - 0%**
+- ❌ Prompt 模型和接口
+- ❌ 系统预设提示词
+- ❌ 用户自定义提示词
+- ❌ 提示词分类
+- ❌ 快捷使用功能
+
+**4. 数据统计和监控 - 0%**
+- ❌ 个人写作统计
+- ❌ 每日字数图表
+- ❌ AI 使用统计
+- ❌ 成本分析报告
+
+#### 基础设施
+
+**1. 部署架构 - 0%**
+- ❌ Docker 容器化
+- ❌ Nginx 配置
+- ❌ 负载均衡
+- ❌ 监控系统（Prometheus + Grafana）
+- ❌ 日志系统（ELK）
+- ❌ CI/CD 流程
+
+**2. 对象存储 - 0%**
+- ❌ 阿里云 OSS 配置
+- ❌ 图片上传服务
+- ❌ 文件管理服务
+
+**3. CDN 加速 - 0%**
+- ❌ CDN 配置
+- ❌ 静态资源优化
+
+#### 其他功能
+
+**1. 文件导入导出 - 0%**
+- ❌ TXT 导入
+- ❌ Markdown 导入
+- ❌ DOCX 导入
+- ❌ EPUB 导出
+- ❌ PDF 导出
+
+**2. 协作功能 - 0%**
+- ❌ 作品分享
+- ❌ 权限控制
+- ❌ 实时协作编辑
+- ❌ 评论系统
+- ❌ WebSocket 集成
+
+---
+
+## 🚀 下一步开发优先级
+
+### Phase 1: 前后端对接（1-2天）⚠️ P0 紧急
+
+```
+核心任务：
+1. [4小时] 实现 ApiAdapter.ts - HTTP客户端
+2. [2小时] 配置 axios 拦截器和Token管理
+3. [2小时] 替换Mock数据为真实API调用
+4. [2小时] 测试完整的用户注册-登录-作品-章节流程
+
+预期成果：
+✅ 前端可以调用后端真实接口
+✅ Token自动刷新机制工作
+✅ 错误处理完整
+✅ 前后端完全打通
+```
+
+### Phase 2: AI 服务集成（3-5天）⚠️ P0 紧急
+
+```
+核心任务：
+1. [1天] 后端集成OpenAI API
+2. [1天] 实现AI续写接口（流式响应SSE）
+3. [1天] 前端对接AI续写功能
+4. [1天] 实现Token计数和成本追踪
+5. [1天] 测试和优化AI响应速度
+
+预期成果：
+✅ 用户可以在编辑器中使用AI续写
+✅ 流式响应工作正常
+✅ Token使用统计准确
+✅ MVP核心功能完成
+```
+
+### Phase 3: Redis 缓存实现（1-2天）- P1 重要
+
+```
+核心任务：
+1. [4小时] 创建Redis连接池
+2. [2小时] 实现Token缓存
+3. [2小时] 实现热门数据缓存
+4. [2小时] 配置缓存失效策略
+
+预期成果：
+✅ Token存储在Redis中
+✅ 频繁访问数据被缓存
+✅ 系统性能提升
+```
+
+### Phase 4: 世界观系统（1周）- P2 可延后
+
+```
+核心任务：
+1. [2天] 实现Character/Location/Faction模型和API
+2. [2天] 前端世界观管理界面对接
+3. [2天] 实现关系网络可视化
+4. [1天] 测试完整世界观管理流程
+
+预期成果：
+✅ 完整的世界观管理系统
+✅ 可视化关系图
+✅ 设定引用功能
+```
+
+---
+
+## 📌 关键待解决问题
+
+1. **前后端未对接** - 前端仍使用Mock数据（最高优先级）
+2. **AI服务未实现** - 核心功能缺失（最高优先级）
+3. **Redis未使用** - 已配置但未实际使用（中等优先级）
+4. **世界观数据库模型缺失** - 功能不完整（低优先级）
+5. **缺少测试** - 前后端都缺少单元测试（低优先级）
+
+---
+
+**更新日期**: 2025-01-16  
+**文档维护**: 请在完成新模块后及时更新本架构文档
