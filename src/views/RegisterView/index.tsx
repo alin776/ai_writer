@@ -81,7 +81,7 @@ const RegisterView: React.FC = () => {
     try {
       // 调用 DataService 注册
       const response = await DataService.register({
-        name: formData.name,
+        username: formData.name,
         email: formData.email,
         password: formData.password,
       });

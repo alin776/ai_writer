@@ -91,6 +91,19 @@ export class ApiAdapter implements IDataAdapter {
    * POST 请求
    */
   async post<T>(url: string, data?: any): Promise<T> {
+    // 特殊处理登录接口，使用 FormData
+    if (url === '/auth/login') {
+      const formData = new URLSearchParams();
+      formData.append('username', data.username);
+      formData.append('password', data.password);
+      
+      return this.axiosInstance.post(url, formData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+    }
+    
     return this.axiosInstance.post(url, data);
   }
 

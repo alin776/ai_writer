@@ -155,7 +155,7 @@ const ChapterTree: React.FC<ChapterTreeProps> = ({
             <div className="chapter-meta">
               {getStatusIcon(chapter.status)}
               <span className="status-text">{getStatusText(chapter.status)}</span>
-              <span className="word-count">{chapter.wordCount.toLocaleString()} 字</span>
+              <span className="word-count">{(chapter.wordCount || 0).toLocaleString()} 字</span>
             </div>
           </div>
 

@@ -47,8 +47,27 @@ const WorksView: React.FC = () => {
   /**
    * 处理创建新作品
    */
-  const handleCreateWork = () => {
-    showToast('info', '创建作品功能待实现');
+  const handleCreateWork = async () => {
+    const title = prompt('请输入作品标题：');
+    if (!title || !title.trim()) {
+      showToast('warning', '作品标题不能为空');
+      return;
+    }
+
+    const description = prompt('请输入作品简介（可选）：') || '暂无描述';
+
+    try {
+      const newWork = await DataService.createWork({
+        title: title.trim(),
+        description: description.trim(),
+      });
+
+      setWorks((prev) => [newWork, ...prev]);
+      showToast('success', '作品创建成功');
+    } catch (error) {
+      showToast('error', '作品创建失败');
+      console.error('Failed to create work:', error);
+    }
   };
 
   if (isLoading) {
@@ -109,13 +128,13 @@ const WorksView: React.FC = () => {
               </p>
               <div className={styles.cardMeta}>
                 <span className={styles.cardMetaItem}>
-                  {formatDate(work.createTime)}
+                  {formatDate(work.created_at)}
                 </span>
                 <span className={styles.cardMetaItem}>
-                  {work.chapterCount || 0} 章节
+                  {work.total_chapters || 0} 章节
                 </span>
                 <span className={styles.cardMetaItem}>
-                  {work.totalWords?.toLocaleString() || 0} 字
+                  {work.total_words?.toLocaleString() || 0} 字
                 </span>
               </div>
               <div className={styles.cardActions}>

@@ -49,12 +49,12 @@ const WorkDetailView: React.FC = () => {
     return chapters.map((chapter) => ({
       id: chapter.id,
       title: chapter.title,
-      wordCount: chapter.wordCount,
-      status: chapter.status,
+      wordCount: chapter.word_count,
+      status: chapter.is_published ? 'published' : 'draft',
       order: chapter.order,
       content: chapter.content,
-      createdAt: new Date(chapter.createTime),
-      updatedAt: new Date(chapter.updateTime),
+      createdAt: new Date(chapter.created_at),
+      updatedAt: new Date(chapter.updated_at),
     }));
   };
 
@@ -122,27 +122,23 @@ const WorkDetailView: React.FC = () => {
     }
 
     try {
-      const newChapter: Chapter = {
-        id: Date.now().toString(),
-        workId,
+      // 只发送后端需要的字段
+      const chapterData = {
+        work_id: workId,
         title: title.trim(),
         content: '',
-        order: chapters.length,
-        wordCount: 0,
-        status: 'draft',
-        createTime: new Date().toISOString(),
-        updateTime: new Date().toISOString(),
+        order: chapters.length + 1,
       };
 
-      // 添加到状态
-      setChapters((prev) => [...prev, newChapter]);
+      // 调用后端接口，后端会生成 ID
+      const savedChapter = await DataService.createChapter(chapterData);
 
-      // 保存到后端
-      await DataService.createChapter(newChapter as any);
+      // 使用后端返回的完整章节对象
+      setChapters((prev) => [...prev, savedChapter]);
 
       // 选中新章节
-      setCurrentChapterId(newChapter.id);
-      setCurrentChapterContent(newChapter.content);
+      setCurrentChapterId(savedChapter.id);
+      setCurrentChapterContent(savedChapter.content);
 
       showToast('success', '章节添加成功');
     } catch (error) {
@@ -170,7 +166,7 @@ const WorkDetailView: React.FC = () => {
       const updatedChapter = {
         ...chapter,
         title: newTitle.trim(),
-        updateTime: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       };
 
       // 更新状态
@@ -282,8 +278,8 @@ const WorkDetailView: React.FC = () => {
         const updatedChapter = {
           ...chapter,
           content,
-          wordCount,
-          updateTime: new Date().toISOString(),
+          word_count: wordCount,
+          updated_at: new Date().toISOString(),
         };
 
         // 异步保存到后端（不阻塞UI更新）
