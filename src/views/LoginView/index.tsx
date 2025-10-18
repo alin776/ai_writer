@@ -83,15 +83,19 @@ const LoginView: React.FC = () => {
         username: formData.username,
         password: formData.password,
       });
+      
+      console.log('[LoginView] Token response:', tokenResponse);
+      console.log('[LoginView] Access token:', tokenResponse.accessToken);
 
-      // 保存 Token
-      localStorage.setItem('token', tokenResponse.access_token);
-
+      // 登录成功 - authStore 会自动持久化 token
+      login(null as any, tokenResponse.accessToken);  // 先存token，再获取用户信息
+      
       // 第二步：获取用户信息
       const user = await DataService.getCurrentUser();
-
-      // 登录成功
-      login(user, tokenResponse.access_token);
+      console.log('[LoginView] User info:', user);
+      
+      // 更新用户信息
+      login(user, tokenResponse.accessToken);
       navigate('/works');
     } catch (error) {
       setErrors({ submit: '登录失败，请检查用户名和密码' });

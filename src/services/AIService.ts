@@ -39,11 +39,27 @@ class AIService {
    * 获取认证 Token
    */
   private getAuthToken(): string {
-    const token = localStorage.getItem('token');
-    if (!token) {
+    const authStorage = localStorage.getItem('auth-storage');
+    if (!authStorage) {
+      console.error('[AIService] No auth-storage in localStorage');
       throw new Error('未登录，请先登录');
     }
-    return token;
+    
+    try {
+      const authState = JSON.parse(authStorage);
+      const token = authState.state?.token;
+      
+      if (!token) {
+        console.error('[AIService] No token in auth-storage');
+        throw new Error('未找到认证令牌');
+      }
+      
+      console.log('[AIService] Token retrieved successfully');
+      return token;
+    } catch (error) {
+      console.error('[AIService] Failed to parse auth storage:', error);
+      throw new Error('认证信息格式错误');
+    }
   }
 
   /**
@@ -54,6 +70,107 @@ class AIService {
       console.log('[AIService] 取消 AI 请求');
       this.abortController.abort();
       this.abortController = null;
+    }
+  }
+
+  /**
+   * AI生成阶段二内容（创作规范→核心设定）
+   * @param phase1Data - 阶段一用户输入的15个字段
+   * @returns 阶段二AI生成的17个字段
+   */
+  async generatePhase2Content(phase1Data: {
+    businessGoal?: string;
+    targetAudience?: string;
+    commercialBenchmark?: string;
+    highConcept?: string;
+    coreParadox?: string;
+    dominantEmotion?: string;
+    coreIpSymbols?: string;
+    protagonistArc?: string;
+    coreConflict?: string;
+    narrativeRhythm?: string;
+    writingStyle?: string;
+    styleNotes?: string;
+    chapterLength?: string;
+    contentTaboos?: string;
+  }): Promise<{
+    primaryGenre?: string;
+    secondaryTags?: string;
+    creativeTone?: string;
+    worldIntro?: string;
+    mainLocations?: string;
+    worldRules?: string;
+    powerSystemName?: string;
+    powerLevels?: string;
+    powerCost?: string;
+    protagonistName?: string;
+    protagonistIdentity?: string;
+    protagonistTraits?: string;
+    protagonistGoal?: string;
+    conflictDesign?: string;
+    actOne?: string;
+    actTwo?: string;
+    actThree?: string;
+  }> {
+    try {
+      console.log('[AIService] 开始生成阶段二内容');
+      
+      const apiUrl = `${this.baseUrl}/worldview/ai-guidelines/generate`;
+      const token = this.getAuthToken();
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          business_goal: phase1Data.businessGoal,
+          target_audience: phase1Data.targetAudience,
+          commercial_benchmark: phase1Data.commercialBenchmark,
+          high_concept: phase1Data.highConcept,
+          core_paradox: phase1Data.coreParadox,
+          dominant_emotion: phase1Data.dominantEmotion,
+          core_ip_symbols: phase1Data.coreIpSymbols,
+          protagonist_arc: phase1Data.protagonistArc,
+          core_conflict: phase1Data.coreConflict,
+          narrative_rhythm: phase1Data.narrativeRhythm,
+          writing_style: phase1Data.writingStyle,
+          style_notes: phase1Data.styleNotes,
+          chapter_length: phase1Data.chapterLength,
+          content_taboos: phase1Data.contentTaboos,
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API请求失败: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // 转换字段名：snake_case -> camelCase
+      return {
+        primaryGenre: data.primary_genre,
+        secondaryTags: data.secondary_tags,
+        creativeTone: data.creative_tone,
+        worldIntro: data.world_intro,
+        mainLocations: data.main_locations,
+        worldRules: data.world_rules,
+        powerSystemName: data.power_system_name,
+        powerLevels: data.power_levels,
+        powerCost: data.power_cost,
+        protagonistName: data.protagonist_name,
+        protagonistIdentity: data.protagonist_identity,
+        protagonistTraits: data.protagonist_traits,
+        protagonistGoal: data.protagonist_goal,
+        conflictDesign: data.conflict_design,
+        actOne: data.act_one,
+        actTwo: data.act_two,
+        actThree: data.act_three,
+      };
+    } catch (error) {
+      console.error('[AIService] 生成阶段二内容失败:', error);
+      throw error;
     }
   }
 

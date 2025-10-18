@@ -12,16 +12,22 @@
 export type UserRole = 'admin' | 'user';
 
 /**
- * 用户接口（后端 snake_case 格式）
+ * 用户接口
+ * 注意：后端返回snake_case，ApiAdapter会自动转换为camelCase
  */
 export interface User {
   id: string;
   username: string;
   email: string;
-  is_active: boolean;
-  is_admin: boolean;
-  created_at: string;
-  updated_at: string;
+  fullName?: string;      // 后端: full_name
+  avatar?: string;
+  bio?: string;
+  isActive: boolean;      // 后端: is_active
+  isAdmin: boolean;       // 后端: is_admin
+  isVerified: boolean;    // 后端: is_verified
+  createdAt: string;      // 后端: created_at
+  updatedAt: string;      // 后端: updated_at
+  lastLoginAt?: string;   // 后端: last_login_at
 }
 
 /**
@@ -43,21 +49,21 @@ export interface RegisterData {
 
 /**
  * Token 响应（登录后返回）
+ * 注意：后端返回snake_case，ApiAdapter会自动转换为camelCase
  */
 export interface TokenResponse {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
+  accessToken: string;  // 后端: access_token
+  tokenType: string;     // 后端: token_type
 }
 
 /**
  * 认证响应（注册后返回）
+ * 注意：后端返回snake_case，ApiAdapter会自动转换为camelCase
  */
 export interface AuthResponse {
   user: User;
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
+  accessToken: string;   // 后端: access_token
+  tokenType: string;     // 后端: token_type
 }
 
 // ==================== 作品相关类型 ====================
@@ -65,20 +71,31 @@ export interface AuthResponse {
 /**
  * 作品状态
  */
-export type WorkStatus = 'draft' | 'writing' | 'completed' | 'archived';
+export type WorkStatus = 'draft' | 'writing' | 'completed' | 'abandoned';
 
 /**
- * 作品接口（后端 snake_case 格式）
+ * 作品类型
+ */
+export type WorkGenre = 'fantasy' | 'urban' | 'romance' | 'scifi' | 'wuxia' | 'game' | 'history' | 'military' | 'other';
+
+/**
+ * 作品接口
+ * 注意：后端返回snake_case，ApiAdapter会自动转换为camelCase
  */
 export interface Work {
   id: string;
   title: string;
-  description: string;
-  author_id: string;
-  total_words: number;
-  total_chapters: number;
-  created_at: string;
-  updated_at: string;
+  description?: string;
+  authorId: string;        // 后端: author_id
+  genre: WorkGenre;
+  status: WorkStatus;
+  coverImage?: string;     // 后端: cover_image
+  totalWords: number;      // 后端: total_words
+  totalChapters: number;   // 后端: total_chapters
+  viewCount: number;       // 后端: view_count
+  createdAt: string;       // 后端: created_at
+  updatedAt: string;       // 后端: updated_at
+  publishedAt?: string;    // 后端: published_at
 }
 
 /**
@@ -86,7 +103,10 @@ export interface Work {
  */
 export interface CreateWorkData {
   title: string;
-  description: string;
+  description?: string; // 可选，与后端一致
+  genre?: WorkGenre;
+  status?: WorkStatus;
+  cover_image?: string;
 }
 
 // ==================== 章节相关类型 ====================
@@ -97,27 +117,28 @@ export interface CreateWorkData {
 export type ChapterStatus = 'draft' | 'published';
 
 /**
- * 章节接口（后端 snake_case 格式）
+ * 章节接口
+ * 注意：后端返回snake_case，ApiAdapter会自动转换为camelCase
  */
 export interface Chapter {
   id: string;
-  work_id: string;
+  workId: string;            // 后端: work_id
   title: string;
   content: string;
-  word_count: number;
-  view_count: number;
-  is_published: boolean;
+  wordCount: number;         // 后端: word_count
+  viewCount: number;         // 后端: view_count
+  isPublished: boolean;      // 后端: is_published
   order: number;
-  published_at: string | null;
-  created_at: string;
-  updated_at: string;
+  publishedAt: string | null; // 后端: published_at
+  createdAt: string;         // 后端: created_at
+  updatedAt: string;         // 后端: updated_at
 }
 
 /**
- * 创建章节数据
+ * 创建章节数据（发送到后端时使用snake_case）
  */
 export interface CreateChapterData {
-  work_id: string;
+  work_id: string;  // 后端需要snake_case
   title: string;
   content?: string;
   order?: number;

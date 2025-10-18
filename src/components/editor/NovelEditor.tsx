@@ -30,6 +30,7 @@ import { AIAutoCompleteExtension } from './AIAutoCompleteExtension';
 import { ToastContainer } from '@/components/ui/Toast';
 import { useToast } from '@/hooks/useToast';
 import AIService from '@/services/AIService';
+import { getEditorWordCount, countCharactersInHtml } from '@/utils/wordCount';
 import './editor-styles.css';
 import './interactive-styles.css';
 import './sidebar-styles.css';
@@ -151,7 +152,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     },
     onUpdate: ({ editor }) => {
       setSaveStatus('unsaved');
-      setWordCount(editor.storage.characterCount.words());
+      // 使用自定义字数统计（与后端一致）
+      setWordCount(getEditorWordCount(editor));
 
       if (autoSave) {
         debouncedSave(editor);
@@ -183,7 +185,22 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     autoSaveInterval
   );
 
-  // 从 localStorage 恢复内容
+  // 当 content prop 变化时更新编辑器内容
+  useEffect(() => {
+    if (editor && content !== undefined) {
+      const currentContent = editor.getHTML();
+      // 只有当内容真的不同时才更新，避免不必要的重新渲染
+      if (currentContent !== content) {
+        console.log('[NovelEditor] 更新编辑器内容:', {
+          contentLength: content?.length || 0,
+          contentPreview: content?.substring(0, 50) + '...',
+        });
+        editor.commands.setContent(content || '<p></p>');
+      }
+    }
+  }, [editor, content]);
+
+  // 从 localStorage 恢复内容（仅在初始化且没有传入 content 时）
   useEffect(() => {
     if (!content && editor) {
       const savedContent = localStorage.getItem('novel-editor-content');
@@ -191,7 +208,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         editor.commands.setContent(savedContent);
       }
     }
-  }, [editor, content]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 组件卸载时保存
   useEffect(() => {
@@ -234,7 +252,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             </div>
             <div className="flex items-center space-x-2">
               <span className="font-medium">字符:</span>
-              <span>{editor.storage.characterCount.characters()}</span>
+              <span>{countCharactersInHtml(editor.getHTML())}</span>
             </div>
           </div>
 

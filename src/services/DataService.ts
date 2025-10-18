@@ -81,7 +81,7 @@ class DataServiceClass {
    * 登出
    */
   async logout(): Promise<void> {
-    localStorage.removeItem('token');
+    localStorage.removeItem('auth-storage');
   }
 
   // ==================== 作品相关 ====================
@@ -91,7 +91,8 @@ class DataServiceClass {
    * @returns Promise<Work[]>
    */
   async getWorks(): Promise<Work[]> {
-    const response = await this.adapter.get<{ items: Work[] }>('/works');
+    // 后端返回分页格式：{ total, page, page_size, items }
+    const response = await this.adapter.get<{ items: Work[]; total: number }>('/works');
     return response.items || [];
   }
 
@@ -233,7 +234,7 @@ class DataServiceClass {
    * @returns Promise<Character[]>
    */
   async getCharacters(workId: string): Promise<Character[]> {
-    return this.adapter.get(`/works/${workId}/characters`);
+    return this.adapter.get(`/worldview/works/${workId}/characters`);
   }
 
   /**
@@ -242,7 +243,7 @@ class DataServiceClass {
    * @returns Promise<Character>
    */
   async createCharacter(character: Partial<Character>): Promise<Character> {
-    return this.adapter.post('/characters', character);
+    return this.adapter.post('/worldview/characters', character);
   }
 
   /**
@@ -252,7 +253,16 @@ class DataServiceClass {
    * @returns Promise<Character>
    */
   async updateCharacter(id: string, character: Partial<Character>): Promise<Character> {
-    return this.adapter.put(`/characters/${id}`, character);
+    return this.adapter.put(`/worldview/characters/${id}`, character);
+  }
+
+  /**
+   * 删除角色
+   * @param id 角色ID
+   * @returns Promise<void>
+   */
+  async deleteCharacter(id: string): Promise<void> {
+    return this.adapter.delete(`/worldview/characters/${id}`);
   }
 
   /**
@@ -261,7 +271,7 @@ class DataServiceClass {
    * @returns Promise<Location[]>
    */
   async getLocations(workId: string): Promise<Location[]> {
-    return this.adapter.get(`/works/${workId}/locations`);
+    return this.adapter.get(`/worldview/works/${workId}/locations`);
   }
 
   /**
@@ -270,7 +280,7 @@ class DataServiceClass {
    * @returns Promise<Location>
    */
   async createLocation(location: Partial<Location>): Promise<Location> {
-    return this.adapter.post('/locations', location);
+    return this.adapter.post('/worldview/locations', location);
   }
 
   /**
@@ -280,7 +290,7 @@ class DataServiceClass {
    * @returns Promise<Location>
    */
   async updateLocation(id: string, location: Partial<Location>): Promise<Location> {
-    return this.adapter.put(`/locations/${id}`, location);
+    return this.adapter.put(`/worldview/locations/${id}`, location);
   }
 
   /**
@@ -289,7 +299,7 @@ class DataServiceClass {
    * @returns Promise<void>
    */
   async deleteLocation(id: string): Promise<void> {
-    return this.adapter.delete(`/locations/${id}`);
+    return this.adapter.delete(`/worldview/locations/${id}`);
   }
 
   /**
@@ -307,7 +317,7 @@ class DataServiceClass {
    * @returns Promise<Setting[]>
    */
   async getSettings(workId: string): Promise<Setting[]> {
-    return this.adapter.get(`/works/${workId}/settings`);
+    return this.adapter.get(`/worldview/works/${workId}/settings`);
   }
 
   /**
@@ -316,7 +326,7 @@ class DataServiceClass {
    * @returns Promise<Setting>
    */
   async createSetting(setting: Partial<Setting>): Promise<Setting> {
-    return this.adapter.post('/settings', setting);
+    return this.adapter.post('/worldview/settings', setting);
   }
 
   /**
@@ -326,7 +336,7 @@ class DataServiceClass {
    * @returns Promise<Setting>
    */
   async updateSetting(id: string, setting: Partial<Setting>): Promise<Setting> {
-    return this.adapter.put(`/settings/${id}`, setting);
+    return this.adapter.put(`/worldview/settings/${id}`, setting);
   }
 
   /**
@@ -335,7 +345,90 @@ class DataServiceClass {
    * @returns Promise<void>
    */
   async deleteSetting(id: string): Promise<void> {
-    return this.adapter.delete(`/settings/${id}`);
+    return this.adapter.delete(`/worldview/settings/${id}`);
+  }
+
+  /**
+   * 获取作品规范
+   * @param workId 作品ID
+   * @returns Promise<WorkGuidelines | null>
+   */
+  async getGuidelines(workId: string): Promise<any | null> {
+    try {
+      const result = await this.adapter.get(`/worldview/works/${workId}/guidelines`);
+      return result;
+    } catch (error: any) {
+      // 404说明还没创建规范，返回null（不要抛出异常影响其他数据）
+      // error 可能是 {detail: 'Guidelines not found'} 或标准 axios 错误
+      return null;
+    }
+  }
+
+  /**
+   * 创建或更新作品规范
+   * @param workId 作品ID
+   * @param guidelines 规范数据
+   * @returns Promise<any>
+   */
+  async saveGuidelines(workId: string, guidelines: any): Promise<any> {
+    return this.adapter.post(`/worldview/works/${workId}/guidelines`, guidelines);
+  }
+
+  /**
+   * 删除作品规范
+   * @param workId 作品ID
+   * @returns Promise<void>
+   */
+  async deleteGuidelines(workId: string): Promise<void> {
+    return this.adapter.delete(`/worldview/works/${workId}/guidelines`);
+  }
+
+  /**
+   * 获取AI创作规范
+   * @param workId 作品ID
+   * @returns Promise<any | null>
+   */
+  async getAIGuidelines(workId: string): Promise<any | null> {
+    try {
+      // ApiAdapter 已经自动将 snake_case 转换为 camelCase，直接返回
+      const data = await this.adapter.get(`/worldview/works/${workId}/ai-guidelines`);
+      return data || null;
+    } catch (error: any) {
+      if (error?.response?.status === 404 || error?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * 创建或更新AI创作规范
+   * @param workId 作品ID
+   * @param guidelines AI规范数据（camelCase）
+   * @returns Promise<any>
+   */
+  async saveAIGuidelines(workId: string, guidelines: any): Promise<any> {
+    // ApiAdapter 会自动处理字段名转换，直接发送 camelCase 数据
+    // 后端会接收到 snake_case（由 Pydantic 自动处理）
+    return this.adapter.post(`/worldview/works/${workId}/ai-guidelines`, guidelines);
+  }
+
+  /**
+   * 创建或更新AI规范（别名方法）
+   * @param workId 作品ID
+   * @param guidelines AI规范数据（31个字段）
+   */
+  async createOrUpdateAIGuidelines(workId: string, guidelines: any): Promise<any> {
+    return this.saveAIGuidelines(workId, guidelines);
+  }
+
+  /**
+   * 删除AI创作规范
+   * @param workId 作品ID
+   * @returns Promise<void>
+   */
+  async deleteAIGuidelines(workId: string): Promise<void> {
+    return this.adapter.delete(`/worldview/works/${workId}/ai-guidelines`);
   }
 
   /**
@@ -344,12 +437,21 @@ class DataServiceClass {
    * @returns Promise<WorldData>
    */
   async getWorldData(workId: string): Promise<WorldData> {
-    const [characters, locations, settings] = await Promise.all([
+    const [characters, locations, settings, guidelines, aiGuidelines] = await Promise.all([
       this.getCharacters(workId),
       this.getLocations(workId),
       this.getSettings(workId),
+      this.getGuidelines(workId),
+      this.getAIGuidelines(workId),
     ]);
-    return { characters, locations, settings };
+    
+    return { 
+      characters, 
+      locations, 
+      settings, 
+      guidelines: guidelines || undefined,
+      aiGuidelines: aiGuidelines || undefined
+    };
   }
 
   // ==================== 用户管理相关 ====================

@@ -65,11 +65,90 @@ export interface Setting {
   updatedAt?: Date;
 }
 
+// 作品规范
+export interface WorkGuidelines {
+  id?: string;
+  workId?: string;
+  // 基本信息
+  outline?: string; // 大纲流程
+  style?: string; // 整体风格
+  tone?: string; // 语言风格
+  // 写作规范
+  wordsPerChapter?: number; // 每章字数
+  updateFrequency?: string; // 更新频率
+  // 设定约束
+  powerSystem?: string; // 力量体系
+  worldRules?: string; // 世界规则
+  // 创作目标
+  targetAudience?: string; // 目标读者
+  mainTheme?: string; // 主题
+  plotDirection?: string; // 剧情走向
+  // 其他
+  notes?: string; // 备注
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+// AI创作规范（基于商业化小说创作框架）
+export interface AIGuidelines {
+  id?: string;
+  workId?: string;
+  
+  // 第一部分：创作规范
+  businessGoal?: string;        // 商业目标
+  targetAudience?: string;      // 目标读者
+  commercialBenchmark?: string; // 商业对标
+  highConcept?: string;         // 高概念卖点
+  
+  coreParadox?: string;         // 核心悖论/设定
+  dominantEmotion?: string;     // 主导情感
+  coreIpSymbols?: string;       // 核心IP符号
+  
+  protagonistArc?: string;      // 主角弧光
+  coreConflict?: string;        // 核心关系冲突
+  narrativeRhythm?: string;     // 叙事节奏
+  
+  writingStyle?: string;        // 文笔风格
+  styleNotes?: string;          // 文风注意事项
+  
+  chapterLength?: string;       // 章节长度
+  contentTaboos?: string;       // 内容禁忌
+  
+  // 第二部分：核心设定
+  primaryGenre?: string;        // 一级类型
+  secondaryTags?: string;       // 二级标签
+  creativeTone?: string;        // 创作基调
+  
+  worldIntro?: string;          // 核心世界观
+  mainLocations?: string;       // 主要场景/地点
+  worldRules?: string;          // 世界规则
+  
+  powerSystemName?: string;     // 体系名称与原理
+  powerLevels?: string;         // 等级划分
+  powerCost?: string;           // 能力获取与代价
+  
+  protagonistName?: string;     // 主角姓名/代号
+  protagonistIdentity?: string; // 核心身份
+  protagonistTraits?: string;   // 强化缺陷与能力
+  protagonistGoal?: string;     // 核心目标与动机
+  
+  conflictDesign?: string;      // 冲突点设计
+  actOne?: string;              // 第一幕
+  actTwo?: string;              // 第二幕
+  actThree?: string;            // 第三幕
+  
+  isActive?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 // 世界观数据
 export interface WorldData {
   characters: Character[];
   locations: Location[];
   settings: Setting[];
+  guidelines?: WorkGuidelines; // 作品规范
+  aiGuidelines?: AIGuidelines; // AI创作规范
 }
 
 // 小说项目

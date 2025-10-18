@@ -1,9 +1,40 @@
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+import re
 
 from app.models.chapter import Chapter
 from app.schemas.chapter import ChapterCreate, ChapterUpdate
+
+
+def calculate_word_count(content: str) -> int:
+    """
+    计算文本字数（去除HTML标签）
+    - 移除所有HTML标签
+    - 中文：按字符数
+    - 英文：按单词数
+    - 数字：按字符数
+    """
+    if not content:
+        return 0
+    
+    # 移除HTML标签
+    text = re.sub(r'<[^>]+>', '', content)
+    
+    # 移除多余的空白字符
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    # 计算中文字符数
+    chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text))
+    
+    # 计算英文单词数
+    english_words = len(re.findall(r'[a-zA-Z]+', text))
+    
+    # 计算数字字符数
+    digits = len(re.findall(r'[0-9]', text))
+    
+    # 返回总字数（中文字符 + 英文单词 + 数字）
+    return chinese_chars + english_words + digits
 
 
 class ChapterService:
@@ -48,8 +79,8 @@ class ChapterService:
         else:
             order = chapter_data.order
         
-        # 计算字数
-        word_count = len(chapter_data.content)
+        # 计算字数（去除HTML标签）
+        word_count = calculate_word_count(chapter_data.content)
         
         chapter = Chapter(
             work_id=chapter_data.work_id,
@@ -74,9 +105,9 @@ class ChapterService:
         # 更新字段
         update_data = chapter_data.model_dump(exclude_unset=True)
         
-        # 如果更新了内容，重新计算字数
+        # 如果更新了内容，重新计算字数（去除HTML标签）
         if "content" in update_data:
-            update_data["word_count"] = len(update_data["content"])
+            update_data["word_count"] = calculate_word_count(update_data["content"])
         
         for field, value in update_data.items():
             setattr(chapter, field, value)

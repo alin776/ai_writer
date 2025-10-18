@@ -19,6 +19,12 @@ from app.schemas.chapter import (
     ChapterUpdate,
     ChapterResponse,
 )
+from app.schemas.ai_guidelines import (
+    AIGuidelinesBase,
+    AIGuidelinesCreate,
+    AIGuidelinesUpdate,
+    AIGuidelinesResponse,
+)
 
 __all__ = [
     # User
@@ -39,4 +45,9 @@ __all__ = [
     "ChapterCreate",
     "ChapterUpdate",
     "ChapterResponse",
+    # AI Guidelines
+    "AIGuidelinesBase",
+    "AIGuidelinesCreate",
+    "AIGuidelinesUpdate",
+    "AIGuidelinesResponse",
 ]

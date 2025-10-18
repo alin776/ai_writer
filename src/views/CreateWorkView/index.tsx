@@ -14,15 +14,54 @@ import styles from './CreateWorkView.module.css';
 type CreateMode = 'choice' | 'manual' | 'ai';
 
 /**
- * 世界观数据结构
+ * 世界观数据结构（对应后端AIGuidelines的31个字段）
  */
 export interface WorldViewData {
-  genre?: string; // 小说类型（玄幻、都市、科幻等）
-  setting?: string; // 背景设定
-  powerSystem?: string; // 力量体系
-  mainCharacter?: string; // 主角设定
-  plotIdea?: string; // 剧情构思
+  // 阶段一：创作规范（用户回答的15个字段）
+  // 战略定位
+  businessGoal?: string; // 商业目标
+  targetAudience?: string; // 目标读者
+  commercialBenchmark?: string; // 商业对标
+  highConcept?: string; // 高概念卖点
+  // IP架构
+  coreParadox?: string; // 核心悖论/设定
+  dominantEmotion?: string; // 主导情感
+  coreIpSymbols?: string; // 核心IP符号
+  // 叙事引擎
+  protagonistArc?: string; // 主角弧光
+  coreConflict?: string; // 核心关系冲突
+  narrativeRhythm?: string; // 叙事节奏
+  // 文字质感
+  writingStyle?: string; // 文笔风格
+  styleNotes?: string; // 文风注意事项
+  // 技术规范
+  chapterLength?: string; // 章节长度
+  contentTaboos?: string; // 内容禁忌
+  
+  // 阶段二：核心设定（AI自动生成的17个字段）
+  // 小说类型
+  primaryGenre?: string; // 一级类型
+  secondaryTags?: string; // 二级标签
+  creativeTone?: string; // 创作基调
+  // 世界背景
+  worldIntro?: string; // 核心世界观简介
+  mainLocations?: string; // 主要场景/地点
   worldRules?: string; // 世界规则
+  // 力量体系
+  powerSystemName?: string; // 体系名称
+  powerLevels?: string; // 等级划分
+  powerCost?: string; // 代价与限制
+  // 主角设定
+  protagonistName?: string; // 主角名字
+  protagonistIdentity?: string; // 身份与背景
+  protagonistTraits?: string; // 性格特点
+  protagonistGoal?: string; // 终极目标
+  // 剧情构思
+  conflictDesign?: string; // 冲突设计
+  actOne?: string; // 第一幕
+  actTwo?: string; // 第二幕
+  actThree?: string; // 第三幕
+  
   [key: string]: string | undefined;
 }
 
@@ -72,6 +111,18 @@ const CreateWorkView: React.FC = () => {
         description: data.description,
       });
       
+      // 如果有世界观数据，保存AI规范到数据库
+      if (Object.keys(worldView).length > 0) {
+        try {
+          console.log('[CreateWorkView] 保存AI规范数据...');
+          await DataService.createOrUpdateAIGuidelines(newWork.id, worldView);
+          console.log('[CreateWorkView] AI规范保存成功');
+        } catch (error) {
+          console.error('[CreateWorkView] 保存AI规范失败:', error);
+          // 不影响主流程，只记录错误
+        }
+      }
+      
       showToast('success', '作品创建成功！');
       
       // 跳转到作品详情页
@@ -96,6 +147,18 @@ const CreateWorkView: React.FC = () => {
         title: data.title,
         description: data.description,
       });
+      
+      // 如果有世界观数据，保存AI规范到数据库
+      if (Object.keys(worldView).length > 0) {
+        try {
+          console.log('[CreateWorkView] 保存AI规范数据...');
+          await DataService.createOrUpdateAIGuidelines(newWork.id, worldView);
+          console.log('[CreateWorkView] AI规范保存成功');
+        } catch (error) {
+          console.error('[CreateWorkView] 保存AI规范失败:', error);
+          // 不影响主流程，只记录错误
+        }
+      }
       
       showToast('success', '作品创建成功！');
       

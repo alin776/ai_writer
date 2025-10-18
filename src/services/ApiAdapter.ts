@@ -22,9 +22,27 @@ export class ApiAdapter implements IDataAdapter {
     // 请求拦截器：添加 Token
     this.axiosInstance.interceptors.request.use(
       (config) => {
-        const token = localStorage.getItem('token');
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        // 从 Zustand persist 存储中读取 token
+        const authStorage = localStorage.getItem('auth-storage');
+        if (authStorage) {
+          try {
+            const authState = JSON.parse(authStorage);
+            console.log('[ApiAdapter] Auth storage:', authState);
+            
+            const token = authState.state?.token;
+            console.log('[ApiAdapter] Token:', token);
+            
+            if (token) {
+              config.headers.Authorization = `Bearer ${token}`;
+              console.log('[ApiAdapter] Authorization header set');
+            } else {
+              console.warn('[ApiAdapter] No token found in auth storage');
+            }
+          } catch (error) {
+            console.error('[ApiAdapter] Failed to parse auth storage:', error);
+          }
+        } else {
+          console.warn('[ApiAdapter] No auth-storage in localStorage');
         }
         return config;
       },
@@ -58,13 +76,22 @@ export class ApiAdapter implements IDataAdapter {
             return Promise.resolve([]);
           }
 
-          // 非世界观错误，正常打印
-          console.error('API Error:', error);
+          // 特殊处理：guidelines相关的404是正常情况（可能还未创建）
+          const isGuidelinesNotFound = status === 404 && 
+            (url.includes('/guidelines') || url.includes('/ai-guidelines'));
+          
+          if (isGuidelinesNotFound) {
+            // 静默处理 guidelines 的404，这是正常情况
+            console.debug('Guidelines不存在（尚未创建）:', url);
+          } else {
+            // 其他错误正常打印
+            console.error('API Error:', error);
+          }
 
           switch (status) {
             case 401:
               // 未授权，清除 token 并跳转登录
-              localStorage.removeItem('token');
+              localStorage.removeItem('auth-storage');
               window.location.href = '/login';
               break;
             case 403:
@@ -72,8 +99,10 @@ export class ApiAdapter implements IDataAdapter {
               console.error('无权限访问');
               break;
             case 404:
-              // 资源不存在
-              console.error('资源不存在:', url);
+              // 资源不存在 - 静默处理，由调用方决定如何处理
+              if (!isGuidelinesNotFound) {
+                console.debug('资源不存在:', url);
+              }
               break;
             case 500:
               // 服务器错误
@@ -98,10 +127,63 @@ export class ApiAdapter implements IDataAdapter {
   }
 
   /**
+   * 将snake_case转换为camelCase
+   */
+  private toCamelCase(str: string): string {
+    return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+  }
+
+  /**
+   * 递归转换对象的键名从snake_case到camelCase
+   */
+  private convertKeysToCamelCase(obj: any): any {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj !== 'object') return obj;
+    if (obj instanceof Date) return obj;
+    if (Array.isArray(obj)) return obj.map(item => this.convertKeysToCamelCase(item));
+
+    const result: any = {};
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        const camelKey = this.toCamelCase(key);
+        result[camelKey] = this.convertKeysToCamelCase(obj[key]);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * 将camelCase转换为snake_case
+   */
+  private toSnakeCase(str: string): string {
+    return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+  }
+
+  /**
+   * 递归转换对象的键名从camelCase到snake_case
+   */
+  private convertKeysToSnakeCase(obj: any): any {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj !== 'object') return obj;
+    if (obj instanceof Date) return obj;
+    if (Array.isArray(obj)) return obj.map(item => this.convertKeysToSnakeCase(item));
+
+    const result: any = {};
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        const snakeKey = this.toSnakeCase(key);
+        result[snakeKey] = this.convertKeysToSnakeCase(obj[key]);
+      }
+    }
+    return result;
+  }
+
+  /**
    * GET 请求
    */
   async get<T>(url: string, params?: any): Promise<T> {
-    return this.axiosInstance.get(url, { params });
+    const response = await this.axiosInstance.get(url, { params });
+    return this.convertKeysToCamelCase(response);
   }
 
   /**
@@ -114,27 +196,35 @@ export class ApiAdapter implements IDataAdapter {
       formData.append('username', data.username);
       formData.append('password', data.password);
       
-      return this.axiosInstance.post(url, formData, {
+      const response = await this.axiosInstance.post(url, formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
       });
+      return this.convertKeysToCamelCase(response);
     }
     
-    return this.axiosInstance.post(url, data);
+    // 将请求体从 camelCase 转换为 snake_case
+    const snakeCaseData = this.convertKeysToSnakeCase(data);
+    const response = await this.axiosInstance.post(url, snakeCaseData);
+    return this.convertKeysToCamelCase(response);
   }
 
   /**
    * PUT 请求
    */
   async put<T>(url: string, data?: any): Promise<T> {
-    return this.axiosInstance.put(url, data);
+    // 将请求体从 camelCase 转换为 snake_case
+    const snakeCaseData = this.convertKeysToSnakeCase(data);
+    const response = await this.axiosInstance.put(url, snakeCaseData);
+    return this.convertKeysToCamelCase(response);
   }
 
   /**
    * DELETE 请求
    */
   async delete<T>(url: string): Promise<T> {
-    return this.axiosInstance.delete(url);
+    const response = await this.axiosInstance.delete(url);
+    return this.convertKeysToCamelCase(response);
   }
 }

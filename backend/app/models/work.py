@@ -59,6 +59,11 @@ class Work(Base):
     # 关联关系
     author = relationship("User", back_populates="works")
     chapters = relationship("Chapter", back_populates="work", cascade="all, delete-orphan", order_by="Chapter.order")
+    characters = relationship("Character", back_populates="work", cascade="all, delete-orphan")
+    locations = relationship("Location", back_populates="work", cascade="all, delete-orphan")
+    settings = relationship("Setting", back_populates="work", cascade="all, delete-orphan")
+    guidelines = relationship("WorkGuidelines", back_populates="work", cascade="all, delete-orphan", uselist=False)
+    ai_guidelines = relationship("AIGuidelines", back_populates="work", cascade="all, delete-orphan", uselist=False)
     
     def __repr__(self):
         return f"<Work {self.title}>"

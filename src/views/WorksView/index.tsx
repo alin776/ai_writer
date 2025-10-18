@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, Plus } from 'lucide-react';
+import { BookOpen, Plus, Trash2 } from 'lucide-react';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
+import { useConfirm } from '../../hooks/useConfirm';
+import ConfirmDialog from '../../components/common/ConfirmDialog';
 import type { Work } from '../../types';
 import { formatDate } from '../../utils/formatDate';
 import styles from './WorksView.module.css';
@@ -22,6 +24,7 @@ const WorksView: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { showToast } = useGlobalStore();
+  const { confirmState, confirm, closeConfirm } = useConfirm();
 
   /**
    * 加载作品列表
@@ -52,6 +55,31 @@ const WorksView: React.FC = () => {
     navigate('/works/create');
   };
 
+  /**
+   * 处理删除作品
+   */
+  const handleDeleteWork = async (work: Work, event: React.MouseEvent) => {
+    event.preventDefault(); // 防止触发Link跳转
+    event.stopPropagation();
+
+    const confirmed = await confirm({
+      title: '删除作品',
+      message: `确定要删除《${work.title}》吗？此操作不可撤销，将同时删除所有章节和设定。`,
+      variant: 'danger',
+    });
+
+    if (!confirmed) return;
+
+    try {
+      await DataService.deleteWork(work.id);
+      setWorks(works.filter((w) => w.id !== work.id));
+      showToast('success', '作品已删除');
+    } catch (error) {
+      console.error('删除作品失败:', error);
+      showToast('error', '删除作品失败');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className={styles.loading}>
@@ -74,6 +102,16 @@ const WorksView: React.FC = () => {
 
   return (
     <div className={styles.page}>
+      <ConfirmDialog
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText={confirmState.confirmText}
+        cancelText={confirmState.cancelText}
+        variant={confirmState.variant}
+        onConfirm={confirmState.onConfirm}
+        onCancel={closeConfirm}
+      />
       {/* 页面标题 */}
       <div className={styles.header}>
         <h1 className={styles.title}>我的作品</h1>
@@ -110,19 +148,26 @@ const WorksView: React.FC = () => {
               </p>
               <div className={styles.cardMeta}>
                 <span className={styles.cardMetaItem}>
-                  {formatDate(work.created_at)}
+                  {formatDate(work.createdAt)}
                 </span>
                 <span className={styles.cardMetaItem}>
-                  {work.total_chapters || 0} 章节
+                  {work.totalChapters || 0} 章节
                 </span>
                 <span className={styles.cardMetaItem}>
-                  {work.total_words?.toLocaleString() || 0} 字
+                  {work.totalWords?.toLocaleString() || 0} 字
                 </span>
               </div>
               <div className={styles.cardActions}>
                 <Link to={`/works/${work.id}`} className={styles.cardButton}>
                   查看详情
                 </Link>
+                <button
+                  className={styles.cardButtonDanger}
+                  onClick={(e) => handleDeleteWork(work, e)}
+                  title="删除作品"
+                >
+                  <Trash2 size={16} />
+                </button>
               </div>
             </div>
           ))}

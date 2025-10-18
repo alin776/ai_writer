@@ -2,14 +2,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit, Trash2, Plus, BookOpen } from 'lucide-react';
 import { Button, Card, Loading } from '../../components/common';
+import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
 import type { Work, Chapter, CreateChapterData } from '../../types';
-import type { Chapter as NovelChapter, WorldData, Character, Location, Setting } from '../../types/novel';
+import type { Chapter as NovelChapter, WorldData, Character, Location, Setting, WorkGuidelines } from '../../types/novel';
 import { formatDate } from '../../utils/formatDate';
 import NovelEditor from '../../components/editor/NovelEditor';
 import ChapterTree from '../../components/editor/ChapterTree';
 import WorldManager from '../../components/editor/WorldManager';
+import { useConfirm } from '../../hooks/useConfirm';
 import styles from './WorkDetailView.module.css';
 
 /**
@@ -25,6 +27,7 @@ const WorkDetailView: React.FC = () => {
   const { workId } = useParams<{ workId: string }>();
   const navigate = useNavigate();
   const { showToast } = useGlobalStore();
+  const { confirmState, confirm, closeConfirm } = useConfirm();
 
   const [work, setWork] = useState<Work | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -40,6 +43,8 @@ const WorkDetailView: React.FC = () => {
     characters: [],
     locations: [],
     settings: [],
+    guidelines: undefined,
+    aiGuidelines: undefined,
   });
 
   /**
@@ -49,12 +54,12 @@ const WorkDetailView: React.FC = () => {
     return chapters.map((chapter) => ({
       id: chapter.id,
       title: chapter.title,
-      wordCount: chapter.word_count,
-      status: chapter.is_published ? 'published' : 'draft',
+      wordCount: chapter.wordCount,
+      status: chapter.isPublished ? 'published' : 'draft',
       order: chapter.order,
       content: chapter.content,
-      createdAt: new Date(chapter.created_at),
-      updatedAt: new Date(chapter.updated_at),
+      createdAt: new Date(chapter.createdAt),
+      updatedAt: new Date(chapter.updatedAt),
     }));
   };
 
@@ -75,7 +80,7 @@ const WorkDetailView: React.FC = () => {
         const [workData, chaptersData, worldDataFromServer] = await Promise.all([
           DataService.getWork(workId),
           DataService.getChapters(workId),
-          DataService.getWorldData(workId).catch(() => ({ characters: [], locations: [], settings: [] })),
+          DataService.getWorldData(workId),
         ]);
         setWork(workData);
         setChapters(chaptersData);
@@ -104,8 +109,16 @@ const WorkDetailView: React.FC = () => {
   const handleChapterSelect = useCallback((chapterId: string) => {
     const chapter = chapters.find((c) => c.id === chapterId);
     if (chapter) {
+      // 先更新章节ID，再更新内容，确保编辑器使用正确的章节数据
       setCurrentChapterId(chapterId);
       setCurrentChapterContent(chapter.content);
+      
+      // 调试日志
+      console.log('[WorkDetailView] 切换章节:', {
+        chapterId,
+        title: chapter.title,
+        contentLength: chapter.content?.length || 0,
+      });
     }
   }, [chapters]);
 
@@ -215,7 +228,15 @@ const WorkDetailView: React.FC = () => {
     const chapter = chapters.find((c) => c.id === chapterId);
     if (!chapter) return;
 
-    if (!confirm(`确定要删除章节"${chapter.title}"吗？此操作不可恢复。`)) {
+    const confirmed = await confirm({
+      title: '删除章节',
+      message: `确定要删除章节"${chapter.title}"吗？此操作不可恢复。`,
+      confirmText: '删除',
+      cancelText: '取消',
+      variant: 'danger',
+    });
+
+    if (!confirmed) {
       return;
     }
 
@@ -287,32 +308,53 @@ const WorkDetailView: React.FC = () => {
    * 处理编辑器保存
    */
   const handleEditorSave = useCallback(async (content: string, json: any) => {
-    if (!currentChapterId) return;
+    if (!currentChapterId) {
+      console.warn('[WorkDetailView] 保存失败：没有选中的章节');
+      return;
+    }
 
     try {
-      // 计算字数
-      const text = content.replace(/<[^>]*>/g, ''); // 移除 HTML 标签
-      const wordCount = text.length;
+      // 调试日志
+      console.log('[WorkDetailView] 保存章节:', {
+        chapterId: currentChapterId,
+        contentPreview: content.substring(0, 50) + '...',
+      });
 
       // 更新章节内容
       setChapters((prevChapters) => {
         const chapter = prevChapters.find((c) => c.id === currentChapterId);
-        if (!chapter) return prevChapters;
+        if (!chapter) {
+          console.warn('[WorkDetailView] 保存失败：章节不存在', currentChapterId);
+          return prevChapters;
+        }
 
-        const updatedChapter = {
-          ...chapter,
+        // 只发送content，让后端自动计算字数
+        const updateData = {
           content,
-          word_count: wordCount,
-          updated_at: new Date().toISOString(),
         };
 
-        // 异步保存到后端（不阻塞UI更新）
-        DataService.updateChapter(currentChapterId, updatedChapter).catch((error) => {
-          console.error('Failed to save chapter:', error);
-        });
+        // 先乐观更新本地状态
+        const optimisticChapter = {
+          ...chapter,
+          content,
+          updatedAt: new Date().toISOString(),
+        };
 
+        // 异步保存到后端，获取后端返回的完整数据（包括计算后的字数）
+        DataService.updateChapter(currentChapterId, updateData)
+          .then((savedChapter) => {
+            // 使用后端返回的数据更新状态（包含准确的wordCount）
+            setChapters((prev) =>
+              prev.map((c) => (c.id === currentChapterId ? savedChapter : c))
+            );
+          })
+          .catch((error) => {
+            console.error('Failed to save chapter:', error);
+          });
+
+        // 先返回乐观更新的状态
         return prevChapters.map((c) =>
-          c.id === currentChapterId ? updatedChapter : c
+          c.id === currentChapterId ? optimisticChapter : c
         );
       });
     } catch (error) {
@@ -347,41 +389,49 @@ const WorkDetailView: React.FC = () => {
       const isNew = character.id?.startsWith('temp-');
 
       if (isNew) {
-        // 创建新人物
-        const newCharacter = {
-          ...character,
-          id: 'character-' + Date.now(),
-          workId,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+        // 准备发送到后端的数据（使用snake_case）
+        const characterData = {
+          work_id: workId,
+          name: character.name!,
+          description: character.description!,
+          role: character.role,
+          avatar: character.avatar,
+          tags: character.tags,
+          relationships: character.relationships,
         };
 
-        // 更新本地状态
+        // 保存到后端，获取真实ID
+        const savedCharacter = await DataService.createCharacter(characterData as any);
+
+        // 更新本地状态（使用后端返回的数据）
         setWorldData((prev) => ({
           ...prev,
-          characters: [...prev.characters, newCharacter as any],
+          characters: [...prev.characters, savedCharacter as any],
         }));
 
-        // 保存到后端
-        await DataService.createCharacter(newCharacter as any);
         showToast('success', '人物添加成功');
       } else {
-        // 更新现有人物
-        const updatedCharacter = {
-          ...character,
-          updatedAt: new Date(),
+        // 准备更新数据（只发送可更新的字段）
+        const updateData = {
+          name: character.name,
+          description: character.description,
+          role: character.role,
+          avatar: character.avatar,
+          tags: character.tags,
+          relationships: character.relationships,
         };
 
-        // 更新本地状态
+        // 保存到后端
+        const savedCharacter = await DataService.updateCharacter(character.id!, updateData as any);
+
+        // 更新本地状态（使用后端返回的数据）
         setWorldData((prev) => ({
           ...prev,
           characters: prev.characters.map((c) =>
-            c.id === character.id ? updatedCharacter as any : c
+            c.id === character.id ? savedCharacter as any : c
           ),
         }));
 
-        // 保存到后端
-        await DataService.updateCharacter(character.id!, updatedCharacter as any);
         showToast('success', '人物更新成功');
       }
     } catch (error) {
@@ -391,20 +441,36 @@ const WorkDetailView: React.FC = () => {
     }
   }, [workId, showToast]);
 
-  const handleCharacterDelete = useCallback((id: string) => {
+  const handleCharacterDelete = useCallback(async (id: string) => {
     const character = worldData.characters.find((c) => c.id === id);
     if (!character) return;
 
-    if (!confirm(`确定要删除人物"${character.name}"吗？`)) {
+    const confirmed = await confirm({
+      title: '删除人物',
+      message: `确定要删除人物"${character.name}"吗？删除后相关数据将无法恢复。`,
+      confirmText: '删除',
+      cancelText: '取消',
+      variant: 'danger',
+    });
+
+    if (!confirmed) {
       return;
     }
 
-    setWorldData((prev) => ({
-      ...prev,
-      characters: prev.characters.filter((c) => c.id !== id),
-    }));
+    try {
+      // 从状态中删除
+      setWorldData((prev) => ({
+        ...prev,
+        characters: prev.characters.filter((c) => c.id !== id),
+      }));
 
-    showToast('success', '人物删除成功');
+      // 从后端删除
+      await DataService.deleteCharacter(id);
+      showToast('success', '人物删除成功');
+    } catch (error) {
+      showToast('error', '人物删除失败');
+      console.error('Failed to delete character:', error);
+    }
   }, [worldData.characters, showToast]);
 
   /**
@@ -417,41 +483,49 @@ const WorkDetailView: React.FC = () => {
       const isNew = location.id?.startsWith('temp-');
 
       if (isNew) {
-        // 创建新地点
-        const newLocation = {
-          ...location,
-          id: 'location-' + Date.now(),
-          workId,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+        // 准备发送到后端的数据（使用snake_case）
+        const locationData = {
+          work_id: workId,
+          name: location.name!,
+          description: location.description!,
+          type: location.type,
+          image: location.image,
+          tags: location.tags,
+          related_locations: location.relatedLocations,
         };
 
-        // 更新本地状态
+        // 保存到后端，获取真实ID
+        const savedLocation = await DataService.createLocation(locationData as any);
+
+        // 更新本地状态（使用后端返回的数据）
         setWorldData((prev) => ({
           ...prev,
-          locations: [...prev.locations, newLocation as any],
+          locations: [...prev.locations, savedLocation as any],
         }));
 
-        // 保存到后端
-        await DataService.createLocation(newLocation as any);
         showToast('success', '地点添加成功');
       } else {
-        // 更新现有地点
-        const updatedLocation = {
-          ...location,
-          updatedAt: new Date(),
+        // 准备更新数据（只发送可更新的字段）
+        const updateData = {
+          name: location.name,
+          description: location.description,
+          type: location.type,
+          image: location.image,
+          tags: location.tags,
+          related_locations: location.relatedLocations,
         };
 
-        // 更新本地状态
+        // 保存到后端
+        const savedLocation = await DataService.updateLocation(location.id!, updateData as any);
+
+        // 更新本地状态（使用后端返回的数据）
         setWorldData((prev) => ({
           ...prev,
           locations: prev.locations.map((l) =>
-            l.id === location.id ? updatedLocation as any : l
+            l.id === location.id ? savedLocation as any : l
           ),
         }));
 
-        // 保存到后端
-        await DataService.updateLocation(location.id!, updatedLocation as any);
         showToast('success', '地点更新成功');
       }
     } catch (error) {
@@ -461,20 +535,36 @@ const WorkDetailView: React.FC = () => {
     }
   }, [workId, showToast]);
 
-  const handleLocationDelete = useCallback((id: string) => {
+  const handleLocationDelete = useCallback(async (id: string) => {
     const location = worldData.locations.find((l) => l.id === id);
     if (!location) return;
 
-    if (!confirm(`确定要删除地点"${location.name}"吗？`)) {
+    const confirmed = await confirm({
+      title: '删除地点',
+      message: `确定要删除地点"${location.name}"吗？删除后相关数据将无法恢复。`,
+      confirmText: '删除',
+      cancelText: '取消',
+      variant: 'danger',
+    });
+
+    if (!confirmed) {
       return;
     }
 
-    setWorldData((prev) => ({
-      ...prev,
-      locations: prev.locations.filter((l) => l.id !== id),
-    }));
+    try {
+      // 从状态中删除
+      setWorldData((prev) => ({
+        ...prev,
+        locations: prev.locations.filter((l) => l.id !== id),
+      }));
 
-    showToast('success', '地点删除成功');
+      // 从后端删除
+      await DataService.deleteLocation(id);
+      showToast('success', '地点删除成功');
+    } catch (error) {
+      showToast('error', '地点删除失败');
+      console.error('Failed to delete location:', error);
+    }
   }, [worldData.locations, showToast]);
 
   /**
@@ -487,41 +577,47 @@ const WorkDetailView: React.FC = () => {
       const isNew = setting.id?.startsWith('temp-');
 
       if (isNew) {
-        // 创建新设定
-        const newSetting = {
-          ...setting,
-          id: 'setting-' + Date.now(),
-          workId,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+        // 准备发送到后端的数据（使用snake_case）
+        const settingData = {
+          work_id: workId,
+          title: setting.title!,
+          category: setting.category,
+          content: setting.content,
+          tags: setting.tags,
+          related_items: setting.relatedItems,
         };
 
-        // 更新本地状态
+        // 保存到后端，获取真实ID
+        const savedSetting = await DataService.createSetting(settingData as any);
+
+        // 更新本地状态（使用后端返回的数据）
         setWorldData((prev) => ({
           ...prev,
-          settings: [...prev.settings, newSetting as any],
+          settings: [...prev.settings, savedSetting as any],
         }));
 
-        // 保存到后端
-        await DataService.createSetting(newSetting as any);
         showToast('success', '设定添加成功');
       } else {
-        // 更新现有设定
-        const updatedSetting = {
-          ...setting,
-          updatedAt: new Date(),
+        // 准备更新数据（只发送可更新的字段）
+        const updateData = {
+          title: setting.title,
+          category: setting.category,
+          content: setting.content,
+          tags: setting.tags,
+          related_items: setting.relatedItems,
         };
 
-        // 更新本地状态
+        // 保存到后端
+        const savedSetting = await DataService.updateSetting(setting.id!, updateData as any);
+
+        // 更新本地状态（使用后端返回的数据）
         setWorldData((prev) => ({
           ...prev,
           settings: prev.settings.map((s) =>
-            s.id === setting.id ? updatedSetting as any : s
+            s.id === setting.id ? savedSetting as any : s
           ),
         }));
 
-        // 保存到后端
-        await DataService.updateSetting(setting.id!, updatedSetting as any);
         showToast('success', '设定更新成功');
       }
     } catch (error) {
@@ -531,21 +627,92 @@ const WorkDetailView: React.FC = () => {
     }
   }, [workId, showToast]);
 
-  const handleSettingDelete = useCallback((id: string) => {
+  const handleSettingDelete = useCallback(async (id: string) => {
     const setting = worldData.settings.find((s) => s.id === id);
     if (!setting) return;
 
-    if (!confirm(`确定要删除设定"${setting.title}"吗？`)) {
+    const confirmed = await confirm({
+      title: '删除设定',
+      message: `确定要删除设定"${setting.title}"吗？删除后相关数据将无法恢复。`,
+      confirmText: '删除',
+      cancelText: '取消',
+      variant: 'danger',
+    });
+
+    if (!confirmed) {
       return;
     }
 
-    setWorldData((prev) => ({
-      ...prev,
-      settings: prev.settings.filter((s) => s.id !== id),
-    }));
+    try {
+      // 从状态中删除
+      setWorldData((prev) => ({
+        ...prev,
+        settings: prev.settings.filter((s) => s.id !== id),
+      }));
 
-    showToast('success', '设定删除成功');
+      // 从后端删除
+      await DataService.deleteSetting(id);
+      showToast('success', '设定删除成功');
+    } catch (error) {
+      showToast('error', '设定删除失败');
+      console.error('Failed to delete setting:', error);
+    }
   }, [worldData.settings, showToast]);
+
+  /**
+   * 作品规范 - 保存规范
+   */
+  const handleGuidelinesSave = useCallback(async (guidelines: Partial<WorkGuidelines>) => {
+    if (!workId) return;
+
+    try {
+      // 更新本地状态
+      setWorldData((prev) => ({
+        ...prev,
+        guidelines: {
+          ...prev.guidelines,
+          ...guidelines,
+          workId,
+          updatedAt: new Date(),
+        } as any,
+      }));
+
+      // 保存到后端
+      await DataService.saveGuidelines(workId, guidelines);
+
+      showToast('success', '作品规范保存成功');
+      console.log('[WorkDetailView] 作品规范已保存:', guidelines);
+    } catch (error) {
+      showToast('error', '作品规范保存失败');
+      console.error('Failed to save guidelines:', error);
+    }
+  }, [workId, showToast]);
+
+  /**
+   * AI创作规范 - 保存规范
+   */
+  const handleAIGuidelinesSave = useCallback(async (aiGuidelines: any) => {
+    if (!workId) return;
+
+    try {
+      // 更新本地状态
+      setWorldData((prev) => ({
+        ...prev,
+        aiGuidelines: {
+          ...prev.aiGuidelines,
+          ...aiGuidelines,
+          workId,
+        },
+      }));
+
+      // 保存到后端
+      await DataService.saveAIGuidelines(workId, aiGuidelines);
+      showToast('success', 'AI创作规范保存成功');
+    } catch (error) {
+      showToast('error', 'AI创作规范保存失败');
+      console.error('Failed to save AI guidelines:', error);
+    }
+  }, [workId, showToast]);
 
   if (isLoading) {
     return <Loading />;
@@ -566,22 +733,24 @@ const WorkDetailView: React.FC = () => {
   const novelChapters = convertToNovelChapters(chapters);
 
   return (
-    <div style={{ display: 'flex', width: '100%', height: '100vh', overflow: 'hidden' }}>
-      {/* 左侧章节树 */}
-      <div style={{ width: '280px', height: '100%', flexShrink: 0 }}>
-        <ChapterTree
-          chapters={novelChapters}
-          currentChapterId={currentChapterId}
-          onChapterSelect={handleChapterSelect}
-          onChapterSave={handleSaveChapter}
-          onChapterDelete={handleDeleteChapter}
-          onChapterMove={handleChapterMove}
-        />
-      </div>
+    <>
+      <div style={{ display: 'flex', width: '100%', height: '100vh', overflow: 'hidden' }}>
+        {/* 左侧章节树 */}
+        <div style={{ width: '280px', height: '100%', flexShrink: 0 }}>
+          <ChapterTree
+            chapters={novelChapters}
+            currentChapterId={currentChapterId}
+            onChapterSelect={handleChapterSelect}
+            onChapterSave={handleSaveChapter}
+            onChapterDelete={handleDeleteChapter}
+            onChapterMove={handleChapterMove}
+          />
+        </div>
 
       {/* 中间编辑器区域 */}
       <div style={{ flex: 1, height: '100%', overflow: 'hidden' }}>
         <NovelEditor
+          key={currentChapterId} // 关键：章节切换时重新创建编辑器实例
           content={currentChapterContent}
           onSave={handleEditorSave}
           placeholder="开始写作..."
@@ -600,9 +769,24 @@ const WorkDetailView: React.FC = () => {
           onLocationDelete={handleLocationDelete}
           onSettingSave={handleSettingSave}
           onSettingDelete={handleSettingDelete}
+          onGuidelinesSave={handleGuidelinesSave}
+          onAIGuidelinesSave={handleAIGuidelinesSave}
         />
       </div>
     </div>
+
+    {/* 确认对话框 */}
+    <ConfirmDialog
+      isOpen={confirmState.isOpen}
+      title={confirmState.title}
+      message={confirmState.message}
+      confirmText={confirmState.confirmText}
+      cancelText={confirmState.cancelText}
+      variant={confirmState.variant}
+      onConfirm={confirmState.onConfirm}
+      onCancel={closeConfirm}
+    />
+    </>
   );
 };
 
