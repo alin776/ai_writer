@@ -60,6 +60,11 @@ class AISummarizeRequest(BaseModel):
     text: str = Field(..., description="待总结的文本", min_length=1)
 
 
+class AISummarizeResponse(BaseModel):
+    """AI 总结响应"""
+    summary: str = Field(..., description="剧情概括内容")
+
+
 # ==================== API 路由 ====================
 
 @router.post(
@@ -321,52 +326,55 @@ async def ai_expand(
 
 @router.post(
     "/summarize",
-    summary="AI 总结",
+    summary="AI 剧情概括",
+    response_model=AISummarizeResponse,
     description="""
-    AI 总结功能，提取核心信息，生成简洁摘要。
+    AI 剧情概括功能，提炼章节核心剧情和事件发展。
     
     **请求示例**:
     ```json
     {
-      "text": "很长的一段文本..."
+      "text": "章节内容..."
     }
     ```
-    """,
-    response_class=StreamingResponse
+    
+    **返回示例**:
+    ```json
+    {
+      "summary": "本章剧情概括内容..."
+    }
+    ```
+    """
 )
 async def ai_summarize(
     request: AISummarizeRequest,
     current_user: User = Depends(get_current_active_user)
-):
-    """AI 总结接口（流式响应）"""
+) -> AISummarizeResponse:
+    """AI 剧情概括接口（返回JSON对象）"""
     logger.info(
-        f"[AI总结] 用户: {current_user.username}({current_user.id}), "
+        f"[AI剧情概括] 用户: {current_user.username}({current_user.id}), "
         f"文本长度: {len(request.text)}"
     )
     
-    ai_service = HTTPAIService()
-    
-    async def event_generator():
-        try:
-            async for chunk in ai_service.stream_summarize(request.text):
-                yield f"data: {chunk}\n\n"
-            
-            yield "data: [DONE]\n\n"
-            logger.info(f"[AI总结] 用户 {current_user.username} 请求完成")
-            
-        except Exception as e:
-            error_msg = str(e)
-            logger.error(f"[AI总结] 用户 {current_user.username} 请求失败: {error_msg}")
-            yield f"data: [ERROR] {error_msg}\n\n"
-    
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        }
-    )
+    try:
+        ai_service = HTTPAIService()
+        
+        # 调用非流式总结
+        summary_text = ""
+        async for chunk in ai_service.stream_summarize(request.text):
+            summary_text += chunk
+        
+        logger.info(f"[AI剧情概括] 用户 {current_user.username} 请求完成，概括长度: {len(summary_text)}")
+        
+        return AISummarizeResponse(summary=summary_text)
+        
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"[AI剧情概括] 用户 {current_user.username} 请求失败: {error_msg}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"生成剧情概括失败: {error_msg}"
+        )
 
 
 @router.get(

@@ -19,7 +19,6 @@ import type {
   User,
   AIModel,
   Item,
-  AuthResponse,
   TokenResponse,
   LoginCredentials,
   RegisterData,
@@ -30,6 +29,9 @@ import type {
   AIPolishRequest,
   AISummaryRequest,
   CostMetric,
+  AnalysisStatusResponse,
+  AnalysisResultResponse,
+  StartAnalysisResponse,
 } from '@/types';
 import type { WorldData, Setting, Character, Location } from '@/types/novel';
 
@@ -217,13 +219,32 @@ class DataServiceClass {
   }
 
   /**
-   * AI 摘要
-   * @param request 摘要请求
+   * AI 剧情概括（返回JSON对象）- 已废弃，请使用 generateChapterSummary
+   * @deprecated
+   * @param request 概括请求
    * @returns Promise<string>
    */
-  async aiSummary(request: AISummaryRequest): Promise<string> {
-    const response = await this.adapter.post<{ result: string }>('/ai/summary', request);
-    return response.result;
+  async aiSummarize(request: AISummaryRequest): Promise<string> {
+    console.log('[DataService.aiSummarize] 请求参数:', request);
+    const response = await this.adapter.post<{ summary: string }>('/ai/summarize', request);
+    console.log('[DataService.aiSummarize] 响应数据:', response);
+    return response.summary;
+  }
+
+  /**
+   * 生成章节剧情概括（会自动保存到数据库）
+   * @param chapterId 章节ID
+   * @param regenerate 是否强制重新生成
+   * @returns Promise<string> 章节概括
+   */
+  async generateChapterSummary(chapterId: string, regenerate: boolean = false): Promise<string> {
+    console.log('[DataService.generateChapterSummary] chapterId:', chapterId, 'regenerate:', regenerate);
+    const response = await this.adapter.post<{ summary: string }>(
+      `/chapters/${chapterId}/summary?regenerate=${regenerate}`,
+      {}
+    );
+    console.log('[DataService.generateChapterSummary] 响应数据:', response);
+    return response.summary;
   }
 
   // ==================== 世界观相关 ====================
@@ -520,6 +541,77 @@ class DataServiceClass {
    */
   async getCostMetrics(): Promise<CostMetric[]> {
     return this.adapter.get('/cost-metrics');
+  }
+
+  // ==================== 小说分析相关方法 ====================
+
+  /**
+   * 触发小说分析
+   * @param workId 作品ID
+   * @returns Promise<StartAnalysisResponse>
+   */
+  async startNovelAnalysis(workId: string): Promise<StartAnalysisResponse> {
+    return this.adapter.post(`/analysis/works/${workId}/start`, {});
+  }
+
+  /**
+   * 查询分析状态
+   * @param workId 作品ID
+   * @returns Promise<AnalysisStatusResponse>
+   */
+  async getAnalysisStatus(workId: string): Promise<AnalysisStatusResponse> {
+    return this.adapter.get(`/analysis/works/${workId}/status`);
+  }
+
+  /**
+   * 获取分析结果
+   * @param workId 作品ID
+   * @returns Promise<AnalysisResultResponse>
+   */
+  async getAnalysisResult(workId: string): Promise<AnalysisResultResponse> {
+    return this.adapter.get(`/analysis/works/${workId}/result`);
+  }
+
+  /**
+   * 删除分析数据
+   * @param workId 作品ID
+   * @returns Promise<void>
+   */
+  async deleteAnalysis(workId: string): Promise<void> {
+    return this.adapter.delete(`/analysis/works/${workId}`);
+  }
+
+  /**
+   * 从分析结果提取世界观数据
+   * @param workId 作品ID
+   * @param options 提取选项
+   * @returns Promise<{characters: {created: number, updated: number}, locations: {created: number, updated: number}, settings: {created: number, updated: number}}>
+   */
+  async extractWorldviewFromAnalysis(
+    workId: string,
+    options?: {
+      extractCharacters?: boolean;
+      extractLocations?: boolean;
+      extractSettings?: boolean;
+    }
+  ): Promise<{
+    characters: { created: number; updated: number };
+    locations: { created: number; updated: number };
+    settings: { created: number; updated: number };
+  }> {
+    const params = new URLSearchParams();
+    if (options?.extractCharacters !== undefined) {
+      params.append('extract_characters', String(options.extractCharacters));
+    }
+    if (options?.extractLocations !== undefined) {
+      params.append('extract_locations', String(options.extractLocations));
+    }
+    if (options?.extractSettings !== undefined) {
+      params.append('extract_settings', String(options.extractSettings));
+    }
+    
+    const url = `/analysis/works/${workId}/extract-worldview${params.toString() ? `?${params.toString()}` : ''}`;
+    return this.adapter.post(url, {});
   }
 }
 

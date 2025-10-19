@@ -64,6 +64,8 @@ class Work(Base):
     settings = relationship("Setting", back_populates="work", cascade="all, delete-orphan")
     guidelines = relationship("WorkGuidelines", back_populates="work", cascade="all, delete-orphan", uselist=False)
     ai_guidelines = relationship("AIGuidelines", back_populates="work", cascade="all, delete-orphan", uselist=False)
+    novel_analysis = relationship("NovelAnalysis", back_populates="work", cascade="all, delete-orphan", uselist=False)
+    analysis_vectors = relationship("NovelAnalysisVector", back_populates="work", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Work {self.title}>"

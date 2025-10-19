@@ -29,6 +29,10 @@ langchain==0.1.5
 langchain-openai==0.0.5
 tiktoken==0.5.2
 
+# Vector Database & Embeddings
+pgvector==0.4.1
+sentence-transformers==5.1.1
+
 # HTTP Requests
 httpx==0.26.0
 aiohttp==3.9.1

@@ -1,0 +1,102 @@
+========================================
+PostgreSQL pgvector 扩展安装（必须）
+========================================
+
+【问题】
+运行 alembic upgrade head 时出现错误：
+extension "vector" is not available
+
+【原因】
+PostgreSQL服务器还没有安装pgvector扩展
+注意：pgvector没有提供Windows预编译文件，必须自己编译
+
+【Windows编译安装步骤】
+
+=== 第一步：准备环境 ===
+
+1. 检查是否已安装Visual Studio编译工具：
+   开始菜单搜索 "x64 Native Tools Command Prompt"
+   
+   如果没有，有两个选择：
+   
+   选项A - 只安装编译工具（推荐，体积小）⭐：
+   https://aka.ms/vs/17/release/vs_BuildTools.exe
+   运行后勾选："使用C++的桌面开发"
+   大小：约2-3GB
+   
+   选项B - 安装完整Visual Studio Community（免费）：
+   https://visualstudio.microsoft.com/downloads/
+   安装时勾选："使用C++的桌面开发"
+   大小：约10GB+
+   
+   注意：Cursor/VSCode等编辑器不包含编译工具，无法替代
+
+2. 检查是否已安装Git：
+   git --version
+   
+   如果没有，下载安装：
+   https://git-scm.com/download/win
+
+=== 第二步：查看PostgreSQL版本 ===
+
+运行命令：
+psql --version
+
+记下版本号，例如：PostgreSQL 16.1
+
+=== 第三步：编译安装pgvector ===
+
+1. 以管理员身份打开：
+   "x64 Native Tools Command Prompt for VS 2022"
+   （在开始菜单的Visual Studio文件夹中找）
+
+2. 复制粘贴以下命令（修改版本号16为你的版本）：
+
+set "PGROOT=C:\Program Files\PostgreSQL\16"
+cd %TEMP%
+git clone --branch v0.8.1 https://github.com/pgvector/pgvector.git
+cd pgvector
+nmake /F Makefile.win
+nmake /F Makefile.win install
+
+3. 如果成功，会看到文件被复制到PostgreSQL目录
+
+=== 第四步：重启PostgreSQL ===
+   1. Win + R → services.msc
+   2. 找到PostgreSQL服务
+   3. 右键 → 重新启动
+
+=== 第五步：在数据库中启用 ===
+
+psql -U postgres -d novelaide
+
+执行SQL：
+CREATE EXTENSION vector;
+
+验证：
+SELECT * FROM pg_extension WHERE extname = 'vector';
+
+如果看到一行结果，说明成功！
+
+=== 第六步：运行项目迁移 ===
+
+cd C:\Users\Administrator\Desktop\ai-writer\backend
+.\venv\Scripts\python.exe -m alembic upgrade head
+
+如果成功，说明向量数据库配置完成！
+
+【常见问题】
+
+Q: 找不到 x64 Native Tools Command Prompt？
+A: 说明Visual Studio没有安装C++组件，重新运行安装程序添加
+
+Q: git命令不存在？
+A: 安装Git for Windows后需要重启命令提示符
+
+Q: nmake命令失败？
+A: 检查PGROOT路径是否正确，注意版本号
+
+【详细文档】
+INSTALL_PGVECTOR_EXTENSION.md
+
+========================================

@@ -207,11 +207,7 @@ const WorldManager: React.FC<WorldManagerProps> = ({
                         </svg>
                       </button>
                       <button
-                        onClick={() => {
-                          if (confirm(`确定要删除人物"${character.name}"吗？`)) {
-                            onCharacterDelete(character.id);
-                          }
-                        }}
+                        onClick={() => onCharacterDelete(character.id)}
                         className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                         title="删除"
                       >
@@ -333,11 +329,7 @@ const WorldManager: React.FC<WorldManagerProps> = ({
                         </svg>
                       </button>
                       <button
-                        onClick={() => {
-                          if (confirm(`确定要删除地点"${location.name}"吗？`)) {
-                            onLocationDelete(location.id);
-                          }
-                        }}
+                        onClick={() => onLocationDelete(location.id)}
                         className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                         title="删除"
                       >
@@ -459,11 +451,7 @@ const WorldManager: React.FC<WorldManagerProps> = ({
                         </svg>
                       </button>
                       <button
-                        onClick={() => {
-                          if (confirm(`确定要删除设定"${setting.title}"吗？`)) {
-                            onSettingDelete(setting.id);
-                          }
-                        }}
+                        onClick={() => onSettingDelete(setting.id)}
                         className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                         title="删除"
                       >

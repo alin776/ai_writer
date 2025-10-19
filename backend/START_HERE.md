@@ -11,6 +11,8 @@
 ## ⚡ 快速启动（3步）
 
 ### 1️⃣ 安装 PostgreSQL
+**必须先安装PostgreSQL数据库**
+
 下载：https://get.enterprisedb.com/postgresql/postgresql-15.14-2-windows-x64.exe
 
 详细步骤：[docs/POSTGRESQL_SETUP.md](./docs/POSTGRESQL_SETUP.md)
@@ -20,10 +22,26 @@
 双击 setup.bat
 ```
 
+**setup.bat 会自动完成**：
+- ✅ 检查Python和PostgreSQL环境
+- ✅ 创建虚拟环境并安装依赖
+- ✅ 询问是否安装向量数据库依赖（小说分析功能）
+- ✅ 配置环境变量（.env）
+- ✅ 初始化数据库表结构
+- ✅ 创建必要的目录
+
+⚠️ **如需小说分析功能**：
+- 在setup.bat中选择"Y"安装向量依赖
+- 按照标准步骤安装pgvector扩展：
+  - 📄 [安装pgvector扩展步骤.txt](./安装pgvector扩展步骤.txt) ⭐（推荐）
+  - 📖 [INSTALL_PGVECTOR_EXTENSION.md](./INSTALL_PGVECTOR_EXTENSION.md)（详细版）
+
 ### 3️⃣ 启动服务
 ```bash
 双击 quick_start.bat
 ```
+
+访问：http://localhost:8000/docs
 
 ## 📚 常用文档快速链接
 

@@ -9,9 +9,16 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DB_ECHO,
     future=True,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
+    pool_pre_ping=True,      # 连接前ping测试，确保连接有效
+    pool_size=10,             # 连接池大小
+    max_overflow=20,          # 最大溢出连接数
+    pool_recycle=3600,        # 1小时后回收连接，防止长时间连接失效
+    connect_args={
+        "server_settings": {
+            "statement_timeout": "3600000",  # SQL语句超时：1小时（毫秒）
+            "idle_in_transaction_session_timeout": "3600000"  # 事务空闲超时：1小时
+        }
+    }
 )
 
 # 创建异步会话工厂

@@ -19,9 +19,15 @@
 + ✅ **字数统计系统优化 - 2025-10-18**
 + ✅ **确认对话框专业化 - 2025-10-18**
 + ✅ **AI规范生成与智能分散功能 - 2025-10-18**
++ ✅ **章节剧情概括功能 - 2025-10-19** ⭐
++ ✅ **小说分析系统完善（微观+宏观） - 2025-10-19** ⭐
++ ✅ **世界观自动提取功能 - 2025-10-19** ⭐
++ ✅ **AI提示词优化（清晰格式） - 2025-10-19**
++ ✅ **实体验证与质量控制 - 2025-10-19**
++ ✅ **UI简约化改造 - 2025-10-19**
 
 **技术方案**: React 19 + Vite + FastAPI + PostgreSQL  
-**状态**: 🎉 Milestone 1 已完成 (100%) - 核心编辑功能全部就绪，进入 Milestone 2
+**状态**: 🚀 Milestone 1 已完成 (100%)，Milestone 2 进行中 - 世界观自动提取与章节概括已完成
 
 ---
 
@@ -572,6 +578,146 @@ fix bug
 
 ## 🎉 最新更新记录
 
+### ✅ 小说分析与世界观提取完整功能（2025-10-19）⭐ 核心功能
+
+#### 1. 章节剧情概括功能
+**概括标签重新设计**
+   - ✅ "分析"标签改为"概括"标签
+   - ✅ 实现两个子功能：
+     - **小说概括** - 显示整本小说的宏观分析报告（三大报告：人物成长轨迹、世界观图谱、核心矛盾演变）
+     - **当前章节概括** - 生成单个章节的剧情概括
+
+2. **数据库增强**
+   - ✅ chapters表添加summary字段（Text类型，可空）
+   - ✅ 创建数据库迁移文件（add_summary_to_chapters）
+   - ✅ 修复Python虚拟环境版本问题（3.13 → 3.11）
+
+3. **后端API实现**
+   - ✅ 新增接口：`POST /chapters/{chapter_id}/summary`
+     - 支持regenerate参数（是否强制重新生成）
+     - 如果已有概括则直接返回
+     - 生成后自动保存到数据库
+   - ✅ 修改ChapterUpdate schema，添加summary字段
+   - ✅ 修改ChapterResponse schema，包含summary字段
+   - ✅ AI提示词专门优化为剧情概括（聚焦主要事件、人物行动、冲突转折、情节推进）
+
+4. **前端功能实现**
+   - ✅ NovelAnalysisPanel组件重新设计
+     - 两个标签：小说概括 / 当前章节概括
+     - 小说概括：自动加载已生成的宏观分析报告
+     - 章节概括：手动点击"生成概括"按钮
+   - ✅ 智能加载逻辑
+     - 切换到章节概括时，优先显示已有概括
+     - 没有概括时显示提示："该章节还没有生成概括，请点击'生成概括'按钮"
+     - 不会自动生成，避免浪费API调用
+   - ✅ DataService新增方法：generateChapterSummary()
+   - ✅ 修复ApiAdapter超时问题（10秒 → 60秒）
+   - ✅ 修复数据转换问题（统一在响应拦截器中转换）
+
+5. **AI提示词优化**
+   - ✅ 从"总结"改为"剧情概括"
+   - ✅ 聚焦四大重点：
+     - 主要事件：本章发生了什么关键事件？
+     - 人物行动：主要角色做了什么？
+     - 冲突与转折：是否有矛盾冲突？
+     - 情节推进：如何推动整体故事发展？
+   - ✅ 目标长度：150-300字
+   - ✅ 客观描述：使用第三人称叙述
+
+6. **用户体验优化**
+   - ✅ 概括自动保存到数据库（刷新页面不丢失）
+   - ✅ 切换章节时自动显示已有概括
+   - ✅ 手动生成模式（避免重复消耗API资源）
+   - ✅ 完整的加载状态和错误处理
+
+#### 2. 世界观自动提取功能 ⭐ 核心创新
+**功能概述**
+   - ✅ 从小说分析结果中自动提取结构化世界观数据
+   - ✅ 支持提取人物、地点、设定三大类实体
+   - ✅ 智能合并微观和宏观分析数据
+   - ✅ 实体验证与质量控制（黑名单+正则匹配）
+
+**后端实现**
+   - ✅ WorldviewExtractionService服务（650行）
+   - ✅ 关键方法：
+     - `extract_from_analysis()` - 主提取流程
+     - `_extract_entities_from_micro()` - 从微观分析提取实体
+     - `_extract_from_macro()` - 从宏观分析提取关键信息
+     - `_is_valid_entity_name()` - 实体名称验证（多级黑名单）
+     - `_merge_entity_data()` - 智能合并微观+宏观数据
+   - ✅ API接口：`POST /analysis/works/{work_id}/extract-worldview`
+     - 支持选择性提取（extract_characters/locations/settings参数）
+     - 返回提取统计信息
+
+**数据质量控制**
+   - ✅ 实体名称验证：
+     - 长度限制（2-20字符）
+     - 通用黑名单（章节、报告、初期等40+词汇）
+     - 角色特定黑名单（他、她、某人等20+词汇）
+     - 地点特定黑名单（这里、那里、某处等15+词汇）
+   - ✅ 描述质量过滤：
+     - 最小长度要求（10字符）
+     - 最大长度限制（200字符）
+     - 去重与合并（最多保留3条描述）
+   - ✅ 正则表达式严格匹配：
+     - 角色：只匹配2-8个汉字/英文字母
+     - 地点：必须包含地点关键词（城/山/河等）或2-10个汉字
+     - 额外动词过滤：地名不能包含"发生"、"进行"等动词
+
+**前端实现**
+   - ✅ NovelAnalysisPanel组件集成"提取世界观"按钮
+   - ✅ DataService.extractWorldviewFromAnalysis()方法
+   - ✅ 提取完成后自动刷新世界观数据
+   - ✅ 完整的加载状态和成功提示
+
+**智能合并策略**
+   - ✅ 主角识别：自动标记为"主角"角色
+   - ✅ 描述追加：新描述追加到已有数据，不覆盖
+   - ✅ 文本去重：通过标准化比对避免重复
+   - ✅ 优先级处理：宏观分析补充微观分析的细节
+
+#### 3. AI提示词优化
+**格式要求强化**
+   - ✅ 禁止装饰性分割线（═══、━━━等）
+   - ✅ 章节引用使用"第X章"格式（不显示UUID）
+   - ✅ 使用简单Markdown格式（## 标题）
+   - ✅ 段落间空行分隔
+   - ✅ 提供清晰的输出示例
+
+**提示词文件**
+   - ✅ novel_analysis.json更新
+   - ✅ system提示词简化
+   - ✅ user_prefix添加格式要求说明
+
+#### 4. UI简约化改造
+**设计理念**
+   - ✅ 专业写作工具风格（VS Code / Notion / Typora）
+   - ✅ 去除所有装饰元素（卡片、阴影、hover效果、图标）
+   - ✅ 简单分隔线（1px灰色）
+   - ✅ 小号灰色标题（14px uppercase）
+   - ✅ 专注内容展示
+
+**样式优化**
+   - ✅ NovelAnalysisPanel.module.css重写
+   - ✅ reportSection简化（去除背景、圆角、边框）
+   - ✅ reportTitle最小化（灰色、小字、全大写）
+   - ✅ 阅读体字体（系统默认优先）
+
+**智能分段展示**
+   - ✅ parseReportIntoSections()方法
+   - ✅ 三种分段策略：
+     - 方式1：按Markdown标题拆分（##、###、**标题**、【标题】）
+     - 方式2：按大段落拆分（空行分隔）
+     - 方式3：按固定长度分段（800字符，智能截断）
+   - ✅ 卡片式列表展示（标题+内容）
+
+#### 5. Bug修复
+**双重弹窗问题**
+   - ✅ 删除WorldManager组件中的原生confirm()
+   - ✅ 统一使用父组件的自定义确认对话框
+   - ✅ 修复人物、地点、设定删除的重复确认
+   - ✅ Toast提示（生成成功/失败）
+
 ### ✅ AI规范生成与智能分散功能（2025-10-18）
 1. **AI规范生成修复**
    - ✅ 修复AI生成接口从硬编码改为真实调用HTTPAIService
@@ -703,13 +849,18 @@ fix bug
    - ✅ 支持热重载（`reload()` 方法）
 
 ### 📊 完成度提升
-- **整体进度**: 88% → 100% (Milestone 1)
+- **整体进度**: 88% → 100% (Milestone 1) → 100% (Milestone 2 部分完成)
 - **章节模块**: 60% → 100%
 - **AI服务**: 0% → 100%
 - **作品模块**: 60% → 100%
 - **世界观模块**: 0% → 100%
 - **AI规范智能分散**: 0% → 100% ⭐ 核心创新功能
-- **下一步**: 进入 Milestone 2 - AI增强功能
+- **章节剧情概括**: 0% → 100% ⭐ 核心功能
+- **小说分析系统**: 0% → 100% ⭐ 核心功能（微观+宏观）
+- **世界观自动提取**: 0% → 100% ⭐ 核心创新功能
+- **AI提示词优化**: 0% → 100%
+- **UI简约化改造**: 0% → 100%
+- **下一步**: 继续Milestone 2 - 提示词管理系统、大纲生成功能
 
 ---
 
@@ -1094,53 +1245,146 @@ interface ChapterAPI {
 ---
 
 ### 🟢 P2 - 中优先级任务（增强功能）
-#### 7. 世界观构建系统 (预计2周)
-**状态**: ❌ 未开始
+#### 7. 世界观构建系统
+**状态**: ✅ **核心功能已完成 (85%)** - 2025-10-18
 
-**功能需求**:
+**已完成功能**:
 
-- [ ] 创建世界观管理页面 (`/worldbuilding/:workId`)
-- [ ] 设定条目管理
-    - [ ] 角色设定 (Characters)
-    - [ ] 地点设定 (Locations)
-    - [ ] 势力设定 (Factions)
-    - [ ] 物品设定 (Items)
-    - [ ] 设定关系网络 (Relations)
-- [ ] AI 辅助生成设定
-    - [ ] 根据作品描述生成角色
-    - [ ] 根据情节生成地点
-    - [ ] 自动提取设定信息
++ ✅ 世界观管理集成到作品详情页（WorkDetailView右侧5个标签页）
++ ✅ 设定条目管理
+    - ✅ 角色设定 (Characters) - 完整CRUD
+    - ✅ 地点设定 (Locations) - 完整CRUD
+    - ✅ 设定管理 (Settings) - 完整CRUD
+    - ✅ 作品规范 (WorkGuidelines) - 创建/编辑/删除
+    - ✅ AI创作规范 (AIGuidelines) - 31字段完整管理
++ ✅ AI智能生成规范（商业目标、文笔风格、世界观、剧情等31个字段）
++ ✅ AI规范智能分散功能
+    - ✅ 自动提取人物信息到人物标签
+    - ✅ 自动提取地点信息到地点标签
+    - ✅ 自动提取设定信息到设定标签
+    - ✅ 自动提取类型题材到规范标签
++ ✅ 数据库完整实现
+    - ✅ characters 表（人物）
+    - ✅ locations 表（地点）
+    - ✅ settings 表（设定）
+    - ✅ work_guidelines 表（作品规范）
+    - ✅ ai_guidelines 表（AI创作规范）
++ ✅ 后端API完整实现（15个RESTful接口）
+
+**待完成功能**:
+
+- ✅ AI 辅助生成设定（已完成 2025-10-19）
+    - ✅ 完善小说分析系统（微观+宏观分层分析）
+    - ✅ 根据小说分析系统描述生成、更新角色信息
+    - ✅ 根据小说分析系统生成、更新地点信息
+    - ✅ 自动提取设定信息（从小说分析系统中）
+    - ✅ 实体验证与质量控制（多级黑名单+正则匹配）
+    - ✅ 智能合并策略（追加描述，不覆盖）
 - [ ] 可视化展示
     - [ ] 使用 ReactFlow 展示关系图
-    - [ ] 设定卡片视图
+    - [ ] 设定卡片视图优化
     - [ ] 时间线视图
 - [ ] 在编辑器中引用设定
     - [ ] @character 标记
     - [ ] @location 标记
     - [ ] 悬浮卡片显示详情
 
-**数据库设计**:
+**实际数据库设计**:
 
 ```sql
--- 设定表
-CREATE TABLE settings (
+-- 人物表
+CREATE TABLE characters (
   id UUID PRIMARY KEY,
   work_id UUID REFERENCES works(id),
-  type VARCHAR(50), -- character/location/faction/item
   name VARCHAR(200),
+  role VARCHAR(100),
   description TEXT,
-  attributes JSONB, -- 灵活存储各类属性
+  tags TEXT[],
   created_at TIMESTAMP,
   updated_at TIMESTAMP
 );
 
--- 设定关系表
-CREATE TABLE setting_relations (
+-- 地点表
+CREATE TABLE locations (
   id UUID PRIMARY KEY,
-  from_setting_id UUID REFERENCES settings(id),
-  to_setting_id UUID REFERENCES settings(id),
-  relation_type VARCHAR(50), -- family/enemy/friend/belongs_to
-  description TEXT
+  work_id UUID REFERENCES works(id),
+  name VARCHAR(200),
+  type VARCHAR(100),
+  description TEXT,
+  tags TEXT[],
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+);
+
+-- 设定表
+CREATE TABLE settings (
+  id UUID PRIMARY KEY,
+  work_id UUID REFERENCES works(id),
+  title VARCHAR(200),
+  category VARCHAR(100),
+  content TEXT,
+  tags TEXT[],
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+);
+
+-- 作品规范表
+CREATE TABLE work_guidelines (
+  id UUID PRIMARY KEY,
+  work_id UUID REFERENCES works(id),
+  genre VARCHAR(100),
+  tone VARCHAR(100),
+  theme TEXT,
+  target_audience TEXT,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+);
+
+-- AI创作规范表（31个字段）
+CREATE TABLE ai_guidelines (
+  id UUID PRIMARY KEY,
+  work_id UUID REFERENCES works(id),
+  -- 战略定位（4字段）
+  business_goal TEXT,
+  target_readers TEXT,
+  business_benchmark TEXT,
+  unique_selling_points TEXT,
+  -- IP架构（3字段）
+  core_concept TEXT,
+  dominant_emotion TEXT,
+  ip_symbols TEXT,
+  -- 叙事引擎（3字段）
+  protagonist_arc TEXT,
+  core_conflict TEXT,
+  narrative_rhythm TEXT,
+  -- 文字质感（2字段）
+  writing_style TEXT,
+  writing_guidelines TEXT,
+  -- 技术规范（2字段）
+  chapter_length TEXT,
+  content_taboos TEXT,
+  -- 小说类型（3字段）
+  primary_genre TEXT,
+  sub_genres TEXT,
+  creative_tone TEXT,
+  -- 世界背景（3字段）
+  world_intro TEXT,
+  main_locations TEXT,
+  world_rules TEXT,
+  -- 力量体系（3字段）
+  power_system_name TEXT,
+  power_levels TEXT,
+  power_cost TEXT,
+  -- 主角设定（4字段）
+  protagonist_name TEXT,
+  protagonist_identity TEXT,
+  protagonist_personality TEXT,
+  protagonist_goal TEXT,
+  -- 剧情构思（2字段）
+  conflict_design TEXT,
+  three_act_structure TEXT,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
 );
 ```
 
@@ -1672,19 +1916,22 @@ const { data: works, isLoading, error } = useQuery({
 
 ---
 
-### Milestone 3: 世界观和组织工具 (3周)
+### Milestone 3: 增强功能和工具 (3周)
 **目标**: 提供专业的创作辅助工具
 
 **任务**:
 
-- [ ] 世界观构建系统 (P2-7)
+- [ ] 世界观增强功能 (P2-7 待完成部分)
+    - [ ] AI辅助生成设定（根据作品描述生成角色/地点）
+    - [ ] 可视化展示（ReactFlow关系图/时间线）
+    - [ ] 编辑器引用设定（@character/@location标记）
 - [ ] 数据统计和可视化 (P2-10)
 - [ ] 搜索功能 (P3-14)
 - [ ] 文件导入导出 (P3-11)
 
 **交付物**:
 
-+ 世界观管理功能
++ 世界观高级功能（AI生成、可视化、引用）
 + 创作统计分析
 + 全局搜索
 + 文件导入导出
@@ -1846,6 +2093,42 @@ const { data: works, isLoading, error } = useQuery({
 ---
 
 ## 📋 文档更新日志
+### v2.6 (2025-10-19) ⭐ 重大更新
++ ⭐ **小说分析与世界观提取完整功能** - Milestone 2 核心功能完成
++ ✅ **小说分析系统完善**
+  - 微观分析（逐章节JSON结构化）
+  - 宏观分析（人物成长轨迹、世界观图谱、核心矛盾演变）
+  - 向量存储与相似度检索
++ ✅ **世界观自动提取功能**（650行核心服务）
+  - 从分析结果中提取人物、地点、设定
+  - 多级验证（黑名单+正则+描述质量）
+  - 智能合并微观+宏观数据
++ ✅ **章节剧情概括功能**
+  - 数据库增强 - chapters表添加summary字段
+  - 后端API实现 - `/chapters/{chapter_id}/summary`接口
+  - AI提示词优化（剧情专注，150-300字）
++ ✅ **AI提示词全面优化**
+  - 禁止装饰符号（═══、━━━）
+  - 章节使用"第X章"格式（不显示UUID）
+  - 简洁Markdown格式
++ ✅ **UI简约化改造**
+  - 去除所有装饰元素（卡片、阴影、图标）
+  - 专业写作工具风格
+  - 智能分段展示（三种策略）
++ ✅ **Bug修复**
+  - 修复世界观删除双重弹窗问题
+
+### v2.5 (2025-10-19)
++ ⭐ **章节剧情概括功能完成** - Milestone 2 部分完成
++ ✅ 数据库增强 - chapters表添加summary字段
++ ✅ 后端API实现 - `/chapters/{chapter_id}/summary`接口
++ ✅ 前端功能实现 - NovelAnalysisPanel重新设计
++ ✅ AI提示词优化 - 专注剧情概括（150-300字）
++ ✅ 智能加载逻辑 - 优先显示已有概括，手动生成新概括
++ ✅ 用户体验优化 - 概括自动保存到数据库
++ ✅ 技术债务修复 - ApiAdapter超时问题、数据转换问题
++ ✅ 依赖环境修复 - Python虚拟环境版本问题（3.13 → 3.11）
+
 ### v2.4 (2025-10-18)
 + 🎉 **Milestone 1 完成** - 核心编辑功能100%
 + ✅ **作品和章节管理完善** - 核心功能100%
@@ -1859,11 +2142,13 @@ const { data: works, isLoading, error } = useQuery({
     - 智能分散到5个标签（人物/地点/设定/规范/AI规范）
     - 避免数据重复显示
     - 完整错误处理和日志
-+ ✅ 更新世界观模块完成状态
-    - 后端完整实现（4个模型，15个API）
++ ✅ **世界观构建系统** - 核心功能完成85%
+    - 后端完整实现（5个模型：characters/locations/settings/work_guidelines/ai_guidelines）
     - 前后端字段名统一（camelCase ↔ snake_case）
-    - 数据库迁移完成
-    - AI规范自动提取和分散
+    - 数据库迁移完成（15个RESTful接口）
+    - 世界观管理集成到作品详情页（右侧5个标签页）
+    - AI规范自动提取和分散到各标签
+    - 保留待完成功能：AI辅助生成设定、可视化展示、编辑器引用设定
 + ✅ 字数统计系统优化
     - 创建统一的字数统计工具
     - 前后端算法一致（去除HTML标签）
@@ -1933,9 +2218,9 @@ const { data: works, isLoading, error } = useQuery({
 ## 📊 项目信息
 + **项目名称**: NovelAIde
 + **创建时间**: 2025-01-05
-+ **当前版本**: v2.4 (Milestone 1 完成版)
-+ **最后更新**: 2025-10-18
-+ **项目状态**: 🎉 Milestone 1 完成 - 核心编辑功能100%，进入Milestone 2
++ **当前版本**: v2.6 (Milestone 2 核心功能完成)
++ **最后更新**: 2025-10-19
++ **项目状态**: 🚀 Milestone 1 完成100%，Milestone 2 核心完成（小说分析✅ + 世界观提取✅ + 章节概括✅）
 + **技术栈**: React 19 + Vite + FastAPI + PostgreSQL
 + **团队规模**: 建议2-3人起步（MVP阶段）
 + **编辑器方案**: Tiptap（优先）/ Novel（备选） ⭐
@@ -1955,13 +2240,22 @@ const { data: works, isLoading, error } = useQuery({
 5. ✅ 字数统计系统优化
 6. ✅ 用户体验优化（专业对话框）
 
-### 立即要做的事（进入Milestone 2）🟡 高优先级
-1. **AI规范编辑功能** (预计2天) ⭐ **推荐优先**
+### 立即要做的事（Milestone 2核心完成）🟢 已完成
+1. ✅ **小说分析与世界观提取** - 已完成 (2025-10-19) ⭐
+    - ✅ 小说分析系统完善（微观+宏观）
+    - ✅ 世界观自动提取（人物/地点/设定）
+    - ✅ 实体验证与质量控制
+    - ✅ 章节剧情概括功能
+    - ✅ AI提示词优化
+    - ✅ UI简约化改造
+    - ✅ 前端界面实现（手动生成模式）
+    - ✅ AI提示词优化（专注剧情概括）
+2. **AI规范编辑功能** (预计2天) ⭐ **推荐优先**
     - [ ] 实现AI规范编辑界面（31个字段表单）
     - [ ] 保存后自动更新关联数据（人物/地点/设定/规范）
     - [ ] 支持手动编辑已分散的数据
     - [ ] 版本历史和回滚功能
-2. **提示词管理系统** (预计5天)
+3. **提示词管理系统** (预计5天)
     - [ ] 创建提示词管理页面（/prompts）
     - [ ] 提示词分类（系统/用户/作品）
     - [ ] 提示词编辑器（支持变量）

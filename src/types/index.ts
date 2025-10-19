@@ -125,6 +125,7 @@ export interface Chapter {
   workId: string;            // 后端: work_id
   title: string;
   content: string;
+  summary?: string | null;   // 后端: summary - 章节剧情概括
   wordCount: number;         // 后端: word_count
   viewCount: number;         // 后端: view_count
   isPublished: boolean;      // 后端: is_published
@@ -362,3 +363,6 @@ export interface ToastMessage {
   message: string;
   duration?: number;
 }
+
+// ==================== 小说分析相关类型 ====================
+export * from './novel_analysis';

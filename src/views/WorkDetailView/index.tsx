@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Plus, BookOpen } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Plus, BookOpen, BarChart3, BookMarked } from 'lucide-react';
 import { Button, Card, Loading } from '../../components/common';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { DataService } from '../../services/DataService';
@@ -11,6 +11,7 @@ import { formatDate } from '../../utils/formatDate';
 import NovelEditor from '../../components/editor/NovelEditor';
 import ChapterTree from '../../components/editor/ChapterTree';
 import WorldManager from '../../components/editor/WorldManager';
+import NovelAnalysisPanel from '../../components/editor/NovelAnalysisPanel';
 import { useConfirm } from '../../hooks/useConfirm';
 import styles from './WorkDetailView.module.css';
 
@@ -46,6 +47,9 @@ const WorkDetailView: React.FC = () => {
     guidelines: undefined,
     aiGuidelines: undefined,
   });
+
+  // 右侧面板状态：'world' | 'analysis'
+  const [rightPanel, setRightPanel] = useState<'world' | 'analysis'>('world');
 
   /**
    * 转换 Chapter 到 NovelChapter 格式
@@ -759,19 +763,78 @@ const WorkDetailView: React.FC = () => {
         />
       </div>
 
-      {/* 右侧世界观管理 */}
-      <div style={{ width: '320px', height: '100%', flexShrink: 0 }}>
-        <WorldManager
-          worldData={worldData}
-          onCharacterSave={handleCharacterSave}
-          onCharacterDelete={handleCharacterDelete}
-          onLocationSave={handleLocationSave}
-          onLocationDelete={handleLocationDelete}
-          onSettingSave={handleSettingSave}
-          onSettingDelete={handleSettingDelete}
-          onGuidelinesSave={handleGuidelinesSave}
-          onAIGuidelinesSave={handleAIGuidelinesSave}
-        />
+      {/* 右侧面板 */}
+      <div style={{ width: '320px', height: '100%', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+        {/* 面板切换按钮 */}
+        <div style={{ display: 'flex', borderBottom: '1px solid #333', background: '#1e1e1e' }}>
+          <button
+            onClick={() => setRightPanel('world')}
+            style={{
+              flex: 1,
+              padding: '12px',
+              background: rightPanel === 'world' ? '#252525' : 'transparent',
+              color: rightPanel === 'world' ? '#fff' : '#9ca3af',
+              border: 'none',
+              borderBottom: rightPanel === 'world' ? '2px solid #3b82f6' : 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              fontSize: '14px',
+              fontWeight: 500,
+              transition: 'all 0.2s',
+            }}
+          >
+            <BookMarked size={16} />
+            <span>世界观</span>
+          </button>
+          <button
+            onClick={() => setRightPanel('analysis')}
+            style={{
+              flex: 1,
+              padding: '12px',
+              background: rightPanel === 'analysis' ? '#252525' : 'transparent',
+              color: rightPanel === 'analysis' ? '#fff' : '#9ca3af',
+              border: 'none',
+              borderBottom: rightPanel === 'analysis' ? '2px solid #3b82f6' : 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              fontSize: '14px',
+              fontWeight: 500,
+              transition: 'all 0.2s',
+            }}
+          >
+            <BarChart3 size={16} />
+            <span>概括</span>
+          </button>
+        </div>
+
+        {/* 面板内容 */}
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          {rightPanel === 'world' ? (
+            <WorldManager
+              worldData={worldData}
+              onCharacterSave={handleCharacterSave}
+              onCharacterDelete={handleCharacterDelete}
+              onLocationSave={handleLocationSave}
+              onLocationDelete={handleLocationDelete}
+              onSettingSave={handleSettingSave}
+              onSettingDelete={handleSettingDelete}
+              onGuidelinesSave={handleGuidelinesSave}
+              onAIGuidelinesSave={handleAIGuidelinesSave}
+            />
+          ) : (
+            <NovelAnalysisPanel
+              workId={workId!}
+              currentChapterId={currentChapterId}
+              onToast={showToast}
+            />
+          )}
+        </div>
       </div>
     </div>
 

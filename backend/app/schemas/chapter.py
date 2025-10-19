@@ -20,6 +20,7 @@ class ChapterUpdate(BaseModel):
     """更新章节"""
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     content: Optional[str] = None
+    summary: Optional[str] = None
     order: Optional[int] = None
     is_published: Optional[bool] = None
 
@@ -32,6 +33,7 @@ class ChapterResponse(ChapterBase):
     is_published: bool
     word_count: int
     view_count: int
+    summary: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     published_at: Optional[datetime] = None
@@ -49,3 +51,8 @@ class ChapterListResponse(BaseModel):
     """章节列表响应"""
     total: int
     items: list[ChapterResponse]
+
+
+class ChapterSummaryResponse(BaseModel):
+    """章节概括响应"""
+    summary: str = Field(..., description="章节剧情概括")

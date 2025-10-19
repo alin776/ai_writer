@@ -18,6 +18,7 @@ class Chapter(Base):
     # 基本信息
     title = Column(String(200), nullable=False)
     content = Column(Text, nullable=True, default="")
+    summary = Column(Text, nullable=True, comment="章节剧情概括")
     
     # 排序和状态
     order = Column(Integer, nullable=False, index=True)
@@ -34,6 +35,7 @@ class Chapter(Base):
     
     # 关联关系
     work = relationship("Work", back_populates="chapters")
+    analysis_vectors = relationship("NovelAnalysisVector", back_populates="chapter", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Chapter {self.title}>"

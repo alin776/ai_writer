@@ -6,6 +6,8 @@ from app.models.location import Location
 from app.models.setting import Setting
 from app.models.work_guidelines import WorkGuidelines
 from app.models.ai_guidelines import AIGuidelines
+from app.models.novel_analysis import NovelAnalysis, AnalysisStatus, AnalysisStage
+from app.models.novel_analysis_vector import NovelAnalysisVector
 
 __all__ = [
     "User", 
@@ -17,5 +19,9 @@ __all__ = [
     "Location",
     "Setting",
     "WorkGuidelines",
-    "AIGuidelines"
+    "AIGuidelines",
+    "NovelAnalysis",
+    "AnalysisStatus",
+    "AnalysisStage",
+    "NovelAnalysisVector"
 ]
