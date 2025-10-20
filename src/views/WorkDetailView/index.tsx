@@ -10,7 +10,7 @@ import type { Chapter as NovelChapter, WorldData, Character, Location, Setting, 
 import { formatDate } from '../../utils/formatDate';
 import NovelEditor from '../../components/editor/NovelEditor';
 import ChapterTree from '../../components/editor/ChapterTree';
-import WorldManager from '../../components/editor/WorldManager';
+import WorldviewSidebar from '../../components/editor/WorldviewSidebar';
 import NovelAnalysisPanel from '../../components/editor/NovelAnalysisPanel';
 import { useConfirm } from '../../hooks/useConfirm';
 import styles from './WorkDetailView.module.css';
@@ -816,16 +816,9 @@ const WorkDetailView: React.FC = () => {
         {/* 面板内容 */}
         <div style={{ flex: 1, overflow: 'hidden' }}>
           {rightPanel === 'world' ? (
-            <WorldManager
+            <WorldviewSidebar
+              workId={workId!}
               worldData={worldData}
-              onCharacterSave={handleCharacterSave}
-              onCharacterDelete={handleCharacterDelete}
-              onLocationSave={handleLocationSave}
-              onLocationDelete={handleLocationDelete}
-              onSettingSave={handleSettingSave}
-              onSettingDelete={handleSettingDelete}
-              onGuidelinesSave={handleGuidelinesSave}
-              onAIGuidelinesSave={handleAIGuidelinesSave}
             />
           ) : (
             <NovelAnalysisPanel
