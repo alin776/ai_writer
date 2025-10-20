@@ -8,6 +8,7 @@ import traceback
 
 from app.core.config import settings
 from app.core.database import init_db, close_db
+from app.core.redis import redis_client
 from app.api import api_router
 
 # 配置日志
@@ -23,9 +24,11 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 启动时执行
     await init_db()
+    # await redis_client.init()  # TODO: Redis 暂时禁用
     yield
     # 关闭时执行
     await close_db()
+    # await redis_client.close()  # TODO: Redis 暂时禁用
 
 
 # 创建 FastAPI 应用

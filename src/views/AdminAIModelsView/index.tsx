@@ -62,12 +62,32 @@ const AdminAIModelsView: React.FC = () => {
       </div>
 
       <Card>
-        {models.length === 0 ? (
+        {/* 功能开发中占位符 */}
+        <div className="p-12 text-center">
+          <Cpu className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">功能开发中</h3>
+          <p className="text-gray-500 mb-4">AI模型管理功能将在未来版本中开放</p>
+          <div className="max-w-md mx-auto text-left bg-gray-50 rounded-lg p-4">
+            <p className="text-sm text-gray-600 mb-2">
+              <strong>当前配置方式：</strong>
+            </p>
+            <p className="text-xs text-gray-500">
+              请通过后端 <code className="bg-white px-1 py-0.5 rounded">.env</code> 文件配置AI模型：
+            </p>
+            <pre className="text-xs text-gray-600 mt-2 bg-white p-2 rounded">
+OPENAI_API_KEY=your_key{'\n'}
+OPENAI_MODEL=gemini-2.5-pro
+            </pre>
+          </div>
+        </div>
+        
+        {/* 原来的代码 - 暂时隐藏 */}
+        {false && models.length === 0 ? (
           <div className="p-6 text-center text-gray-500">
             <Cpu className="w-12 h-12 mx-auto mb-4 text-gray-400" />
             <p>暂无 AI 模型配置</p>
           </div>
-        ) : (
+        ) : false && (
           <div className="p-6">
             <div className="overflow-x-auto">
               <table className="w-full">

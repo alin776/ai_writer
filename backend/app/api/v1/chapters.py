@@ -23,17 +23,21 @@ async def get_chapters(
     db: AsyncSession = Depends(get_db)
 ):
     """获取作品的章节列表"""
+    logger.info(f"[GET chapters] work_id={work_id}, user_id={current_user.id}")
+    
     # 验证作品权限
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(work_id)
     
     if not work:
+        logger.error(f"[GET chapters] Work not found: {work_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Work not found"
         )
     
     if str(work.author_id) != str(current_user.id):
+        logger.error(f"[GET chapters] Permission denied: work.author_id={work.author_id}, user_id={current_user.id}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to access this work"
@@ -42,6 +46,8 @@ async def get_chapters(
     # 获取章节列表
     chapter_service = ChapterService(db)
     chapters = await chapter_service.get_chapters_by_work(work_id)
+    
+    logger.info(f"[GET chapters] Returning {len(chapters)} chapters")
     
     return ChapterListResponse(
         total=len(chapters),

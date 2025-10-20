@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, users, works, chapters, ai, worldview, novel_analysis
+from app.api.v1 import auth, users, works, chapters, ai, worldview, novel_analysis, admin
 
 api_router = APIRouter()
 
@@ -11,3 +11,4 @@ api_router.include_router(chapters.router, prefix="/chapters", tags=["chapters"]
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
 api_router.include_router(worldview.router, prefix="/worldview", tags=["worldview"])
 api_router.include_router(novel_analysis.router, prefix="/analysis", tags=["novel-analysis"])
+api_router.include_router(admin.router, prefix="/admin", tags=["admin"])

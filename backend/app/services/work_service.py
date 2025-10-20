@@ -6,6 +6,8 @@ from sqlalchemy.orm import selectinload
 from app.models.work import Work
 from app.models.chapter import Chapter
 from app.schemas.work import WorkCreate, WorkUpdate
+from app.utils.cache import cache_result, CacheInvalidator
+from app.core.redis import CacheKey, CacheExpire
 
 
 class WorkService:
@@ -14,14 +16,26 @@ class WorkService:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_work_by_id(self, work_id: str) -> Optional[Work]:
-        """根据 ID 获取作品"""
+    async def get_work_by_id(self, work_id: str, use_cache: bool = True) -> Optional[Work]:
+        """
+        根据 ID 获取作品
+        
+        Args:
+            work_id: 作品ID
+            use_cache: 是否使用缓存（暂时禁用读取，只保留失效功能）
+        """
+        # TODO: 暂时禁用缓存读取，因为 SQLAlchemy 模型序列化有问题
+        # 需要使用 Pydantic 模型或其他序列化方案
+        
+        # 从数据库查询
         result = await self.db.execute(
             select(Work)
             .options(selectinload(Work.chapters))
             .where(Work.id == work_id)
         )
-        return result.scalar_one_or_none()
+        work = result.scalar_one_or_none()
+        
+        return work
     
     async def get_works(
         self,
@@ -68,7 +82,7 @@ class WorkService:
     
     async def update_work(self, work_id: str, work_data: WorkUpdate) -> Optional[Work]:
         """更新作品"""
-        work = await self.get_work_by_id(work_id)
+        work = await self.get_work_by_id(work_id, use_cache=False)
         if not work:
             return None
         
@@ -80,16 +94,22 @@ class WorkService:
         await self.db.commit()
         await self.db.refresh(work)
         
+        # 使缓存失效
+        await CacheInvalidator.invalidate_work(work_id)
+        
         return work
     
     async def delete_work(self, work_id: str) -> bool:
         """删除作品"""
-        work = await self.get_work_by_id(work_id)
+        work = await self.get_work_by_id(work_id, use_cache=False)
         if not work:
             return False
         
         await self.db.delete(work)
         await self.db.commit()
+        
+        # 使缓存失效
+        await CacheInvalidator.invalidate_work(work_id)
         
         return True
     

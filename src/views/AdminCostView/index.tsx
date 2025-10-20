@@ -113,6 +113,50 @@ const AdminCostView: React.FC = () => {
     },
   ];
 
+  // 功能开发中 - 显示占位符
+  const isFeatureAvailable = false;
+
+  if (!isFeatureAvailable) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">成本监控</h1>
+          <p className="mt-2 text-gray-600">查看和分析 AI 使用成本</p>
+        </div>
+
+        <Card>
+          <div className="p-12 text-center">
+            <DollarSign className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">功能开发中</h3>
+            <p className="text-gray-500 mb-4">成本监控功能将在未来版本中开放</p>
+            <div className="max-w-lg mx-auto text-left bg-gray-50 rounded-lg p-4">
+              <p className="text-sm text-gray-600 mb-3">
+                <strong>实现此功能需要：</strong>
+              </p>
+              <ul className="text-xs text-gray-600 space-y-2">
+                <li className="flex items-start">
+                  <span className="text-blue-600 mr-2">•</span>
+                  <span>AI调用日志表（记录每次AI调用的Token和成本）</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-600 mr-2">•</span>
+                  <span>成本统计服务（按日期/用户/模型汇总）</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-600 mr-2">•</span>
+                  <span>实时费率配置（不同模型的定价策略）</span>
+                </li>
+              </ul>
+              <p className="text-xs text-gray-500 mt-3">
+                等有真实AI使用量后，我们会优先开发此功能。
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* 页面标题和操作栏 */}

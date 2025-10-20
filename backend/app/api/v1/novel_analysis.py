@@ -41,9 +41,24 @@ async def _run_analysis_in_background_async(work_id: str):
     """
     from app.core.database import AsyncSessionLocal
     
+    # 短暂延迟，确保主记录的commit完成
+    # 避免后台任务在主记录commit前就开始执行
+    await asyncio.sleep(0.1)
+    
     async with AsyncSessionLocal() as db:
         try:
             logger.info(f"后台任务开始：分析作品 {work_id}")
+            
+            # 验证主记录是否可见
+            analysis_service = NovelAnalysisService(db)
+            analysis = await analysis_service.get_analysis_by_work(work_id)
+            
+            if not analysis:
+                logger.error(f"后台任务失败：找不到分析记录 work_id={work_id}")
+                return
+            
+            logger.info(f"后台任务已找到分析记录 analysis_id={analysis.id}")
+            
             orchestrator = NovelAnalysisOrchestrator(db)
             success = await orchestrator.run_full_analysis(work_id)
             

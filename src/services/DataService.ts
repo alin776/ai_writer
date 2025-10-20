@@ -495,6 +495,33 @@ class DataServiceClass {
     return this.adapter.put(`/users/${id}`, user);
   }
 
+  /**
+   * 封禁用户
+   * @param id 用户ID
+   * @returns Promise<void>
+   */
+  async banUser(id: string): Promise<void> {
+    return this.adapter.patch(`/admin/users/${id}/ban`);
+  }
+
+  /**
+   * 解封用户
+   * @param id 用户ID
+   * @returns Promise<void>
+   */
+  async unbanUser(id: string): Promise<void> {
+    return this.adapter.patch(`/admin/users/${id}/unban`);
+  }
+
+  /**
+   * 切换用户管理员角色
+   * @param id 用户ID
+   * @returns Promise<void>
+   */
+  async toggleAdminRole(id: string): Promise<void> {
+    return this.adapter.patch(`/admin/users/${id}/toggle-admin`);
+  }
+
   // ==================== AI 模型管理 ====================
 
   /**
@@ -541,6 +568,42 @@ class DataServiceClass {
    */
   async getCostMetrics(): Promise<CostMetric[]> {
     return this.adapter.get('/cost-metrics');
+  }
+
+  // ==================== 管理后台统计 ====================
+
+  /**
+   * 获取系统统计数据
+   * @returns Promise<AdminStatistics>
+   */
+  async getAdminStatistics(): Promise<any> {
+    return this.adapter.get('/admin/statistics');
+  }
+
+  /**
+   * 获取用户增长趋势
+   * @param days 统计天数（默认7天）
+   * @returns Promise<any>
+   */
+  async getUsersGrowth(days: number = 7): Promise<any> {
+    return this.adapter.get(`/admin/users-growth?days=${days}`);
+  }
+
+  /**
+   * 获取 AI 使用统计
+   * @returns Promise<any>
+   */
+  async getAIUsage(): Promise<any> {
+    return this.adapter.get('/admin/ai-usage');
+  }
+
+  /**
+   * 获取最近活动
+   * @param limit 返回记录数量（默认10条）
+   * @returns Promise<any>
+   */
+  async getRecentActivities(limit: number = 10): Promise<any> {
+    return this.adapter.get(`/admin/recent-activities?limit=${limit}`);
   }
 
   // ==================== 小说分析相关方法 ====================

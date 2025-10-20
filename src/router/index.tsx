@@ -1,6 +1,6 @@
 import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
-import { AuthLayout } from '../components/layout';
+import { AuthLayout, AdminLayout } from '../components/layout';
 
 /**
  * 路由配置文件
@@ -140,9 +140,26 @@ export const router = createBrowserRouter([
       },
 
       /**
-       * 后台管理路由
-       * 需要 admin 角色权限
+       * 设置路由
        */
+      {
+        path: '/settings',
+        element: (
+          <SuspenseWrapper>
+            <SettingsView />
+          </SuspenseWrapper>
+        ),
+      },
+    ],
+  },
+
+  /**
+   * 管理后台路由（独立布局）
+   * 需要 admin 权限，使用 AdminLayout 守卫
+   */
+  {
+    element: <AdminLayout />,
+    children: [
       {
         path: '/admin',
         children: [
@@ -183,18 +200,6 @@ export const router = createBrowserRouter([
             ),
           },
         ],
-      },
-
-      /**
-       * 设置路由
-       */
-      {
-        path: '/settings',
-        element: (
-          <SuspenseWrapper>
-            <SettingsView />
-          </SuspenseWrapper>
-        ),
       },
     ],
   },

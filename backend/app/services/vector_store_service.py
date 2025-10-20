@@ -129,6 +129,16 @@ class VectorStoreService:
             logger.info(f"生成向量维度: {len(embedding_list)}")
             
             # 3. 存储到数据库
+            from uuid import UUID
+            
+            # 确保所有ID都是UUID类型
+            if isinstance(work_id, str):
+                work_id = UUID(work_id)
+            if isinstance(chapter_id, str):
+                chapter_id = UUID(chapter_id)
+            if isinstance(analysis_id, str):
+                analysis_id = UUID(analysis_id)
+            
             vector_record = NovelAnalysisVector(
                 work_id=work_id,
                 chapter_id=chapter_id,
@@ -140,14 +150,30 @@ class VectorStoreService:
             )
             
             self.db.add(vector_record)
-            await self.db.commit()
-            await self.db.refresh(vector_record)
             
-            logger.info(f"向量存储成功: vector_id={vector_record.id}")
-            return vector_record
+            try:
+                await self.db.commit()
+                await self.db.refresh(vector_record)
+                logger.info(f"向量存储成功: vector_id={vector_record.id}")
+                return vector_record
+            except Exception as commit_error:
+                await self.db.rollback()
+                # 检查是否是外键约束错误
+                error_msg = str(commit_error)
+                if "ForeignKeyViolationError" in error_msg or "analysis_id_fkey" in error_msg:
+                    logger.warning(f"向量存储失败：主分析记录不可见（可能是事务隔离问题）")
+                    logger.warning(f"  analysis_id={analysis_id} 在当前Session中不可见")
+                    logger.warning(f"  这不影响分析主流程，向量可以稍后重新生成")
+                    raise ValueError(f"Analysis record not visible: {analysis_id}")
+                else:
+                    logger.error(f"向量存储失败: {commit_error}", exc_info=True)
+                    raise
             
+        except ValueError as ve:
+            # 外键问题，向上传递但标记为非致命
+            raise
         except Exception as e:
-            logger.error(f"向量存储失败: {e}", exc_info=True)
+            logger.error(f"向量化失败: {e}", exc_info=True)
             await self.db.rollback()
             raise
     

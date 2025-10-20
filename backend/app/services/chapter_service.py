@@ -5,6 +5,8 @@ import re
 
 from app.models.chapter import Chapter
 from app.schemas.chapter import ChapterCreate, ChapterUpdate
+from app.utils.cache import CacheInvalidator
+from app.core.redis import redis_client, CacheKey, CacheExpire
 
 
 def calculate_word_count(content: str) -> int:
@@ -57,14 +59,32 @@ class ChapterService:
         limit: int = 1000
     ) -> List[Chapter]:
         """获取作品的章节列表"""
+        from uuid import UUID
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # 将字符串转换为UUID对象
+        if isinstance(work_id, str):
+            work_id_uuid = UUID(work_id)
+        else:
+            work_id_uuid = work_id
+        
+        logger.info(f"[ChapterService] Querying chapters for work_id={work_id_uuid}, type={type(work_id_uuid)}")
+        
         result = await self.db.execute(
             select(Chapter)
-            .where(Chapter.work_id == work_id)
+            .where(Chapter.work_id == work_id_uuid)
             .order_by(Chapter.order)
             .offset(skip)
             .limit(limit)
         )
-        return result.scalars().all()
+        chapters = list(result.scalars().all())
+        
+        logger.info(f"[ChapterService] Found {len(chapters)} chapters")
+        for ch in chapters:
+            logger.info(f"  - Chapter: {ch.title}, order={ch.order}")
+        
+        return chapters
     
     async def create_chapter(self, chapter_data: ChapterCreate) -> Chapter:
         """创建章节"""
@@ -102,6 +122,8 @@ class ChapterService:
         if not chapter:
             return None
         
+        work_id = str(chapter.work_id)
+        
         # 更新字段
         update_data = chapter_data.model_dump(exclude_unset=True)
         
@@ -115,6 +137,9 @@ class ChapterService:
         await self.db.commit()
         await self.db.refresh(chapter)
         
+        # 使缓存失效
+        await CacheInvalidator.invalidate_chapter(chapter_id, work_id)
+        
         return chapter
     
     async def delete_chapter(self, chapter_id: str) -> bool:
@@ -124,6 +149,7 @@ class ChapterService:
             return False
         
         work_id = chapter.work_id
+        work_id_str = str(work_id)
         order = chapter.order
         
         # 删除章节
@@ -140,6 +166,9 @@ class ChapterService:
             ch.order -= 1
         
         await self.db.commit()
+        
+        # 使缓存失效
+        await CacheInvalidator.invalidate_chapter(chapter_id, work_id_str)
         
         return True
     

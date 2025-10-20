@@ -167,7 +167,7 @@ const Header: React.FC = () => {
                         <span>个人设置</span>
                       </Link>
 
-                      {user.role === 'admin' && (
+                      {user.isAdmin && (
                         <Link
                           to="/admin/dashboard"
                           className="flex items-center space-x-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
