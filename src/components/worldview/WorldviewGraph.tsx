@@ -2,7 +2,7 @@
  * 世界观关系图可视化组件
  * 使用 ReactFlow 展示角色、地点、设定之间的关系
  */
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   ReactFlow,
   Node,
@@ -19,7 +19,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { WorldData } from '@/types/novel';
-import { Users, MapPin, BookOpen } from 'lucide-react';
+import { Users, MapPin, BookOpen, X, HelpCircle } from 'lucide-react';
 import './WorldviewGraph.css';
 
 interface WorldviewGraphProps {
@@ -223,6 +223,20 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({ worldData, onNodeClick 
   
   const [nodes, , onNodesChange] = useNodesState(graphData.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(graphData.edges);
+  
+  // 提示框状态
+  const [showHint, setShowHint] = useState(true);
+  const [showHelpButton, setShowHelpButton] = useState(false);
+
+  // 首次进入显示提示，3秒后自动隐藏
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowHint(false);
+      setShowHelpButton(true);
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   // 连接节点时触发
   const onConnect = useCallback(
@@ -285,12 +299,35 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({ worldData, onNodeClick 
           </div>
         </Panel>
 
-        {/* 提示面板 */}
-        <Panel position="top-right" className="worldview-hint-panel">
-          <div className="hint-text">
-            💡 提示：拖动节点调整位置，滚轮缩放视图
-          </div>
-        </Panel>
+        {/* 自动消失的提示框 */}
+        {showHint && (
+          <Panel position="top-right" className="worldview-hint-toast">
+            <div className="hint-content">
+              <span className="hint-icon">💡</span>
+              <span className="hint-text">拖动节点调整位置，滚轮缩放视图</span>
+              <button 
+                onClick={() => setShowHint(false)}
+                className="hint-close"
+                aria-label="关闭提示"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          </Panel>
+        )}
+
+        {/* 帮助按钮（提示消失后显示） */}
+        {showHelpButton && !showHint && (
+          <Panel position="top-right" className="worldview-help-button">
+            <button
+              onClick={() => setShowHint(true)}
+              className="help-btn"
+              title="显示操作提示"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
+          </Panel>
+        )}
       </ReactFlow>
     </div>
   );
