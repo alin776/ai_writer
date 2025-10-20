@@ -194,9 +194,9 @@ const WorldviewView: React.FC = () => {
     }
   };
 
-  // 返回编辑器
+  // 返回上一页（更灵活）
   const handleBack = () => {
-    navigate(`/work/${workId}`);
+    navigate(-1);
   };
 
   if (loading) {
