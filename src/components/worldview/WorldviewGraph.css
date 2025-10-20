@@ -1,0 +1,211 @@
+/* 世界观关系图样式 */
+
+.worldview-graph-container {
+  width: 100%;
+  height: 600px;
+  background: #fafafa;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+/* 自定义节点基础样式 */
+.worldview-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+  min-width: 180px;
+  cursor: pointer;
+}
+
+.worldview-node:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+/* 角色节点 */
+.character-node {
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, #fff 0%, #eff6ff 100%);
+}
+
+.character-node .node-icon {
+  color: #3b82f6;
+}
+
+.character-node:hover {
+  border-color: #2563eb;
+}
+
+/* 地点节点 */
+.location-node {
+  border-color: #10b981;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf5 100%);
+}
+
+.location-node .node-icon {
+  color: #10b981;
+}
+
+.location-node:hover {
+  border-color: #059669;
+}
+
+/* 设定节点 */
+.setting-node {
+  border-color: #f59e0b;
+  background: linear-gradient(135deg, #fff 0%, #fef3c7 100%);
+}
+
+.setting-node .node-icon {
+  color: #f59e0b;
+}
+
+.setting-node:hover {
+  border-color: #d97706;
+}
+
+/* 节点内容 */
+.node-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.node-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.node-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-subtitle {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 统计面板 */
+.worldview-stats-panel {
+  background: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  gap: 16px;
+}
+
+.stats-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #374151;
+  font-weight: 500;
+}
+
+.stats-item svg {
+  color: #6b7280;
+}
+
+/* 提示面板 */
+.worldview-hint-panel {
+  background: #fef3c7;
+  padding: 8px 12px;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.hint-text {
+  font-size: 12px;
+  color: #78350f;
+}
+
+/* ReactFlow 边的样式覆盖 */
+.react-flow__edge-path {
+  stroke-width: 2;
+}
+
+.react-flow__edge-textbg {
+  fill: white;
+}
+
+.react-flow__edge-text {
+  font-size: 11px;
+  fill: #6b7280;
+  font-weight: 500;
+}
+
+/* 选中节点时的样式 */
+.react-flow__node.selected .worldview-node {
+  border-width: 3px;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+}
+
+/* 控制按钮美化 */
+.react-flow__controls {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  transition: all 0.2s;
+}
+
+.react-flow__controls-button:hover {
+  background: #f3f4f6;
+}
+
+.react-flow__controls-button svg {
+  fill: #374151;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .worldview-graph-container {
+    height: 400px;
+  }
+
+  .worldview-stats-panel {
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .worldview-node {
+    min-width: 140px;
+    padding: 8px 12px;
+  }
+
+  .node-title {
+    font-size: 13px;
+  }
+
+  .node-subtitle {
+    font-size: 11px;
+  }
+}

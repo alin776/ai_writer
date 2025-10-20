@@ -12,10 +12,12 @@ import {
   Trash2,
   Save,
   X,
+  Network,
 } from 'lucide-react';
 import { WorldData, Character, Location, Setting } from '@/types/novel';
+import WorldviewGraph from '@/components/worldview/WorldviewGraph';
 
-type TabType = 'characters' | 'locations' | 'settings' | 'guidelines' | 'ai-guidelines';
+type TabType = 'characters' | 'locations' | 'settings' | 'guidelines' | 'ai-guidelines' | 'graph';
 
 interface WorldManagerProps {
   worldData: WorldData;
@@ -529,12 +531,23 @@ const WorldManager: React.FC<WorldManagerProps> = ({
           </svg>
           AI规范
         </button>
+        <button
+          className={`flex-1 px-3 py-2.5 text-sm font-medium transition-colors ${
+            activeTab === 'graph'
+              ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+          }`}
+          onClick={() => setActiveTab('graph')}
+        >
+          <Network className="w-4 h-4 inline-block mr-1" />
+          关系图
+        </button>
       </div>
 
       {/* 内容区域 */}
       <div className="flex-1 overflow-y-auto p-3">
-        {/* 添加按钮 - 作品规范和AI规范不显示 */}
-        {activeTab !== 'guidelines' && activeTab !== 'ai-guidelines' && (
+        {/* 添加按钮 - 作品规范、AI规范和关系图不显示 */}
+        {activeTab !== 'guidelines' && activeTab !== 'ai-guidelines' && activeTab !== 'graph' && (
           <button
             onClick={handleAdd}
             disabled={!!editingId}
@@ -551,6 +564,7 @@ const WorldManager: React.FC<WorldManagerProps> = ({
         {activeTab === 'settings' && renderSettings()}
         {activeTab === 'guidelines' && renderGuidelines()}
         {activeTab === 'ai-guidelines' && renderAIGuidelines()}
+        {activeTab === 'graph' && <WorldviewGraph worldData={worldData} />}
       </div>
     </div>
   );
