@@ -37,9 +37,14 @@
 **技术方案**: React 19 + Vite + FastAPI + PostgreSQL + ReactFlow  
 **状态**: ✅ Milestone 1 完成 (100%)，🔥 Milestone 2 设计完成 + 开始实施 (4大AI增强功能)
 
-> ⚠️ **重要说明**: 本文档v2.7版本（2025-10-20晚）新增管理后台完成记录和导入导出功能。前端管理员路由守卫、用户管理功能已完成。AI模型管理和成本监控显示占位符，等有实际需求再开发。
+> ⚠️ **重要说明**: 本文档v2.8版本（2025-10-21）新增AI框架选型讨论章节。详细分析LangChain/LangGraph的适用场景，并给出明确的技术决策建议。
 > 
-> 🎉 **v2.7更新**: 完整的导入导出系统已实现（JSON/Markdown导出，JSON/TXT/Markdown导入，智能章节分割，导入预览）。
+> 🎉 **v2.8更新**: 
+> - **AI框架选型讨论**：分析Milestone 2功能是否适合使用LangChain/LangGraph
+> - **推荐方案**：逐步引入LangChain，提供完整实施路径和代码示例
+> - **风险评估**：全面评估引入与不引入的风险
+> 
+> 📌 **v2.7更新**（2025-10-20）：完整的导入导出系统已实现（JSON/Markdown导出，JSON/TXT/Markdown导入，智能章节分割，导入预览）。
 
 ---
 
@@ -210,13 +215,159 @@
 
 #### AI核心 ⭐
 + **主要AI提供商**: 第三方OpenAI兼容API ([https://204992.xyz](https://204992.xyz))
-+ **AI框架**: LangChain 0.1+
++ **AI框架**: LangChain 0.1+ （可选，见下方选型讨论）
 + **AI集成**:
     - `openai` - OpenAI SDK（配置自定义base_url）
-    - `langchain-openai` - LangChain OpenAI集成
+    - `langchain-openai` - LangChain OpenAI集成（可选）
 + **Token计数**: tiktoken
 + **向量数据库**: ChromaDB/PGSQL
 + **Embeddings**: sentence-transformers
+
+#### AI框架选型讨论 ⭐⭐ **重要决策**
+
+> **背景**: 项目已完成Milestone 1（基础AI调用），现规划Milestone 2的4大AI增强功能。团队讨论是否引入LangChain/LangGraph框架。
+
+##### 当前状态
++ ✅ **已有实现**: `HTTPAIService` - 简单的OpenAI API调用封装
++ ✅ **提示词管理**: JSON配置文件 (`backend/app/services/ai/prompts/default.json`)
++ ⚠️ **复杂度增长**: Milestone 2需要多步骤AI Pipeline（反馈系统、去痕迹、评审）
+
+##### 适合使用LangChain的场景
+
+**🟢 强烈推荐使用的功能**:
+
+1. **AI交互式反馈系统**（P0）
+   - 需求：生成内容 → 自我评价 → 改进建议 → 重新生成
+   - LangChain方案：`SequentialChain` 串联多步骤
+   - 优势：清晰的Pipeline管理，易于调试
+
+2. **去AI痕迹功能**（P0）
+   - 需求：检测痕迹 → 规则处理 → AI润色 → 验证
+   - LangChain方案：`TransformChain` + `LLMChain` 组合
+   - 优势：规则引擎与AI调用统一管理
+
+3. **小说评审增强**（P1）
+   - 需求：分析 → 评分 → 诊断 → 生成任务清单
+   - LangChain方案：`SequentialChain` + `TransformChain`
+   - 优势：多维度分析的模块化组合
+
+4. **提示词管理系统**
+   - 需求：模板管理、变量替换、Few-shot示例
+   - LangChain方案：`PromptTemplate` + `FewShotPromptTemplate`
+   - 优势：内置强大的模板引擎，支持变量和条件逻辑
+
+**🟡 可选使用的功能**:
+
+5. **多模型对比竞技场**（P1）
+   - 需求：并发调用多个模型 → 收集结果 → 用户投票
+   - 当前方案：`asyncio.gather` 足够简单
+   - LangChain优势：不明显（反而增加复杂度）
+
+**🔴 不建议使用LangGraph的场景**:
+
+- 当前所有功能都是**线性Pipeline**，不需要复杂的状态机
+- LangGraph适合：Agent应用、条件分支、循环迭代
+- 建议：6个月后，产品成熟后再考虑LangGraph
+
+##### 推荐方案：逐步引入LangChain ⭐⭐⭐⭐⭐
+
+**实施策略**:
+
+```python
+# Week 1: 为"去AI痕迹"试用LangChain
+from langchain.chains import SequentialChain, TransformChain
+from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
+
+class HumanizeServiceV2:
+    def __init__(self):
+        self.llm = ChatOpenAI(
+            base_url="https://204992.xyz",
+            api_key=settings.OPENAI_API_KEY
+        )
+        
+        # Prompt模板
+        self.detect_prompt = PromptTemplate(
+            input_variables=["text"],
+            template="检测以下文本的AI痕迹（0-100分）：\n{text}"
+        )
+        
+        self.humanize_prompt = PromptTemplate(
+            input_variables=["text", "intensity"],
+            template="去除AI痕迹（强度{intensity}/10）：\n{text}"
+        )
+        
+        # 构建Pipeline
+        detect_chain = LLMChain(llm=self.llm, prompt=self.detect_prompt)
+        humanize_chain = LLMChain(llm=self.llm, prompt=self.humanize_prompt)
+        
+        self.pipeline = SequentialChain(
+            chains=[detect_chain, humanize_chain],
+            input_variables=["text", "intensity"],
+            output_variables=["trace_score", "humanized_text"]
+        )
+    
+    async def humanize(self, text: str, intensity: int):
+        result = await self.pipeline.arun(text=text, intensity=intensity)
+        return result
+```
+
+**优点**:
+- ✅ 代码更清晰（Chain组合 vs 手动串联）
+- ✅ Prompt管理更强（变量、条件、Few-shot）
+- ✅ 可观测性更好（LangSmith调试工具）
+- ✅ 与现有代码共存（无需重构）
+
+**实施路径**:
+
+1. **Week 1（本周）**: 为"去AI痕迹"功能试用LangChain
+2. **Week 2-3**: 评估效果，决定是否扩大使用
+3. **如果效果好**: 迁移"AI反馈"、"评审"到LangChain
+4. **如果效果一般**: 保持现状，仅在复杂场景使用
+
+##### 对比分析表
+
+| 方案 | 适用场景 | 学习成本 | 开发效率 | 代码复杂度 | 推荐度 |
+|------|---------|---------|---------|-----------|--------|
+| **逐步引入LangChain** | Milestone 2核心功能 | 中等 | ⬆️ 提升30% | 适中 | ⭐⭐⭐⭐⭐ |
+| **保持现状（简单调用）** | 简单AI调用 | 低 | → 不变 | 低 | ⭐⭐⭐ |
+| **直接用LangGraph** | 复杂Agent | 高 | ⬇️ 初期降低 | 高 | ⭐ 不推荐 |
+
+##### 风险评估
+
+**引入LangChain的风险**:
+- 🟡 增加依赖包大小（~50MB）
+- 🟡 团队学习成本（2-3天熟悉）
+- 🟢 生态成熟，社区活跃，风险可控
+
+**不引入的风险**:
+- 🔴 手动管理复杂Pipeline易出错
+- 🔴 Prompt模板管理混乱（JSON文件不够用）
+- 🔴 后期重构成本更高
+
+##### 最终建议 ⭐
+
+**决策**: ✅ **推荐逐步引入LangChain**
+
+**理由**:
+1. Milestone 2的4个核心功能都能从中受益
+2. 可与现有代码共存，风险低
+3. 提升开发效率和代码可维护性
+4. 为未来的复杂AI功能打好基础
+
+**下一步行动**:
+- [ ] 安装LangChain依赖: `pip install langchain langchain-openai`
+- [ ] 为"去AI痕迹"功能创建LangChain版本
+- [ ] 对比效果，评估是否继续使用
+- [ ] 1周后团队评审决策
+
+##### 参考资源
++ **LangChain官方文档**: [https://python.langchain.com](https://python.langchain.com)
++ **LangChain中文教程**: [https://www.langchain.com.cn](https://www.langchain.com.cn)
++ **LangSmith调试工具**: [https://smith.langchain.com](https://smith.langchain.com)
++ **LangGraph文档**: [https://langchain-ai.github.io/langgraph](https://langchain-ai.github.io/langgraph)
+
+---
 
 #### 认证与安全
 + **JWT**: python-jose[cryptography]
@@ -4341,6 +4492,29 @@ const { data: works, isLoading, error } = useQuery({
 ---
 
 ## 📋 文档更新日志
+### v2.8 (2025-10-21) ⭐⭐ **LangChain/LangGraph技术选型讨论**
++ 🎉 **新增AI框架选型讨论章节** - 重要技术决策
++ ✅ **详细分析LangChain适用场景**
+  - 4个强烈推荐使用的功能（AI反馈/去痕迹/评审/提示词）
+  - 1个可选使用的功能（多模型竞技场）
+  - 明确不推荐使用LangGraph的原因
++ ✅ **提供完整的实施建议**
+  - 逐步引入LangChain的策略（Week 1试用→Week 2-3评估→扩大使用）
+  - 完整的代码示例（HumanizeServiceV2）
+  - 对比分析表（3种方案的学习成本/开发效率/推荐度）
++ ✅ **风险评估**
+  - 引入LangChain的风险（依赖包大小/学习成本）
+  - 不引入的风险（手动管理Pipeline/Prompt混乱/重构成本）
++ ✅ **最终建议和行动计划**
+  - 决策：推荐逐步引入LangChain
+  - 4条理由说明
+  - 具体的下一步行动清单
++ ✅ **参考资源**
+  - LangChain官方文档和中文教程
+  - LangSmith调试工具
+  - LangGraph文档
++ 📍 **章节位置**: 技术栈规划 → 后端技术栈 → AI核心 → AI框架选型讨论
+
 ### v2.7 (2025-10-21) ⭐⭐ 用户需求驱动的AI增强功能
 + 🎉 **新增四大AI智能增强功能规划** - 差异化竞争力核心
 + ⭐ **功能1：AI交互式反馈系统** (P0 - 最高优先级)
@@ -4498,7 +4672,7 @@ const { data: works, isLoading, error } = useQuery({
 ## 📊 项目信息
 + **项目名称**: NovelAIde
 + **创建时间**: 2025-01-05
-+ **当前版本**: v2.7 (用户需求驱动的AI增强功能规划)
++ **当前版本**: v2.8 (AI框架选型讨论 + 用户需求驱动的AI增强功能规划)
 + **最后更新**: 2025-10-21
 + **项目状态**: 
   - ✅ Milestone 1 完成100%（核心编辑功能）
