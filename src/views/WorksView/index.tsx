@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, Plus, Trash2 } from 'lucide-react';
+import { BookOpen, Plus, Trash2, Upload } from 'lucide-react';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
 import { useConfirm } from '../../hooks/useConfirm';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
+import ImportDialog from '../../components/import/ImportDialog';
 import type { Work } from '../../types';
 import { formatDate } from '../../utils/formatDate';
 import styles from './WorksView.module.css';
@@ -25,6 +26,7 @@ const WorksView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const { showToast } = useGlobalStore();
   const { confirmState, confirm, closeConfirm } = useConfirm();
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   /**
    * 加载作品列表
@@ -112,6 +114,20 @@ const WorksView: React.FC = () => {
         onConfirm={confirmState.onConfirm}
         onCancel={closeConfirm}
       />
+      
+      {/* 导入对话框 */}
+      {showImportDialog && (
+        <ImportDialog
+          onClose={() => setShowImportDialog(false)}
+          onSuccess={(workId) => {
+            setShowImportDialog(false);
+            // 重新加载作品列表
+            DataService.getWorks().then(setWorks);
+            // 跳转到新导入的作品
+            navigate(`/works/${workId}`);
+          }}
+        />
+      )}
       {/* 页面标题 */}
       <div className={styles.header}>
         <h1 className={styles.title}>我的作品</h1>
@@ -123,10 +139,20 @@ const WorksView: React.FC = () => {
         <div className={styles.filterGroup}>
           {/* 可以在这里添加筛选按钮 */}
         </div>
-        <button className={styles.button} onClick={handleCreateWork}>
-          <Plus size={16} style={{ marginRight: '8px', display: 'inline-block', verticalAlign: 'middle' }} />
-          创建新作品
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button 
+            className={styles.button} 
+            onClick={() => setShowImportDialog(true)}
+            style={{ background: '#059669', borderColor: '#059669' }}
+          >
+            <Upload size={16} style={{ marginRight: '8px', display: 'inline-block', verticalAlign: 'middle' }} />
+            导入作品
+          </button>
+          <button className={styles.button} onClick={handleCreateWork}>
+            <Plus size={16} style={{ marginRight: '8px', display: 'inline-block', verticalAlign: 'middle' }} />
+            创建新作品
+          </button>
+        </div>
       </div>
 
       {/* 作品列表 */}

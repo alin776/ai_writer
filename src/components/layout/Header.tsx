@@ -1,7 +1,7 @@
 /**
  * 顶部导航栏组件
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LogOut,
@@ -20,6 +20,7 @@ import { useAuthStore } from '@/store/authStore';
 import { DataService } from '@/services/DataService';
 import { useNavigate } from 'react-router-dom';
 import Button from '@/components/common/Button';
+import { GlobalSearch } from '@/components/search/GlobalSearch';
 
 const Header: React.FC = () => {
   const { user, logout } = useAuthStore();
@@ -27,6 +28,20 @@ const Header: React.FC = () => {
   const location = useLocation();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [lastSaved] = useState<Date>(new Date());
+  const [showSearch, setShowSearch] = useState(false);
+
+  // 监听 Cmd+K / Ctrl+K 快捷键打开搜索
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setShowSearch(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleLogout = async () => {
     await DataService.logout();
@@ -116,7 +131,11 @@ const Header: React.FC = () => {
           )}
 
           {/* 通用操作：搜索和通知 */}
-          <button className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors">
+          <button 
+            className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+            onClick={() => setShowSearch(true)}
+            title="搜索 (Cmd+K)"
+          >
             <Search className="w-4 h-4" />
           </button>
 
@@ -195,6 +214,9 @@ const Header: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* 全局搜索对话框 */}
+      <GlobalSearch isOpen={showSearch} onClose={() => setShowSearch(false)} />
     </header>
   );
 };

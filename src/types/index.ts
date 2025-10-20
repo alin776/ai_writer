@@ -366,3 +366,9 @@ export interface ToastMessage {
 
 // ==================== 小说分析相关类型 ====================
 export * from './novel_analysis';
+
+// ==================== 搜索相关类型 ====================
+export * from './search';
+
+// ==================== 导入导出相关类型 ====================
+export * from './export';

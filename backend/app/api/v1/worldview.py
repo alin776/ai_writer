@@ -167,7 +167,11 @@ async def get_world_data(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """获取作品的完整世界观数据"""
+    """
+    获取作品的完整世界观数据
+    
+    包含：角色、地点、设定、作品规范
+    """
     # 验证作品权限
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(work_id)

@@ -34,6 +34,13 @@ import type {
   StartAnalysisResponse,
 } from '@/types';
 import type { WorldData, Setting, Character, Location } from '@/types/novel';
+import type {
+  ExportOptions,
+  ExportResponse,
+  ImportOptions,
+  ImportPreviewResponse,
+  ImportResponse
+} from '@/types/export';
 
 class DataServiceClass {
   private adapter: IDataAdapter;
@@ -675,6 +682,97 @@ class DataServiceClass {
     
     const url = `/analysis/works/${workId}/extract-worldview${params.toString() ? `?${params.toString()}` : ''}`;
     return this.adapter.post(url, {});
+  }
+
+  // ==================== 搜索相关 ====================
+
+  /**
+   * 全局搜索
+   * @param query 搜索关键词
+   * @param type 搜索类型（可选）
+   * @param workId 限定作品ID（可选）
+   * @param limit 每类最大结果数
+   * @returns Promise<SearchResponse>
+   */
+  async globalSearch(
+    query: string,
+    type?: string,
+    workId?: string,
+    limit: number = 10
+  ): Promise<any> {
+    const params = new URLSearchParams({ q: query, limit: limit.toString() });
+    if (type) params.append('type', type);
+    if (workId) params.append('work_id', workId);
+    
+    return this.adapter.get(`/search?${params.toString()}`);
+  }
+
+  // ==================== 导出相关 ====================
+
+  /**
+   * 导出作品
+   * @param workId 作品ID
+   * @param options 导出选项
+   * @returns Promise<ExportResponse>
+   */
+  async exportWork(workId: string, options: ExportOptions): Promise<ExportResponse> {
+    return this.adapter.post(`/works/${workId}/export`, options);
+  }
+
+  /**
+   * 下载导出的文件（返回下载URL）
+   * @param fileId 文件ID
+   * @returns 下载URL
+   */
+  getDownloadUrl(fileId: string): string {
+    // baseUrl已经包含/api/v1（来自.env的VITE_API_BASE_URL），所以直接拼接/downloads
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+    return `${baseUrl}/downloads/${fileId}`;
+  }
+
+  /**
+   * 删除导出的临时文件
+   * @param fileId 文件ID
+   */
+  async deleteExportFile(fileId: string): Promise<void> {
+    return this.adapter.delete(`/downloads/${fileId}`);
+  }
+
+  // ==================== 导入相关 ====================
+
+  /**
+   * 预览导入数据
+   * @param file 文件对象
+   * @param format 文件格式
+   * @returns Promise<ImportPreviewResponse>
+   */
+  async previewImport(file: File, format: string): Promise<ImportPreviewResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('format', format);
+    
+    return this.adapter.post('/works/import/preview', formData);
+  }
+
+  /**
+   * 导入作品
+   * @param file 文件对象
+   * @param options 导入选项
+   * @returns Promise<ImportResponse>
+   */
+  async importWork(file: File, options: ImportOptions): Promise<ImportResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('format', options.format);
+    formData.append('create_new', String(options.createNew));
+    formData.append('include_worldview', String(options.includeWorldview));
+    formData.append('include_guidelines', String(options.includeGuidelines));
+    
+    if (options.workId) {
+      formData.append('work_id', options.workId);
+    }
+    
+    return this.adapter.post('/works/import', formData);
   }
 }
 

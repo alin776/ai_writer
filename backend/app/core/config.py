@@ -30,7 +30,12 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     
     # CORS 配置
-    CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://localhost:5174"
+    ]
     
     @validator("CORS_ORIGINS", pre=True)
     def assemble_cors_origins(cls, v):

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Plus, BookOpen, BarChart3, BookMarked } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Plus, BookOpen, BarChart3, BookMarked, Download } from 'lucide-react';
 import { Button, Card, Loading } from '../../components/common';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
+import ExportDialog from '../../components/export/ExportDialog';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
 import type { Work, Chapter, CreateChapterData } from '../../types';
@@ -50,6 +51,9 @@ const WorkDetailView: React.FC = () => {
 
   // 右侧面板状态：'world' | 'analysis'
   const [rightPanel, setRightPanel] = useState<'world' | 'analysis'>('world');
+  
+  // 导出对话框状态
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   /**
    * 转换 Chapter 到 NovelChapter 格式
@@ -740,15 +744,46 @@ const WorkDetailView: React.FC = () => {
     <>
       <div style={{ display: 'flex', width: '100%', height: '100vh', overflow: 'hidden' }}>
         {/* 左侧章节树 */}
-        <div style={{ width: '280px', height: '100%', flexShrink: 0 }}>
-          <ChapterTree
-            chapters={novelChapters}
-            currentChapterId={currentChapterId}
-            onChapterSelect={handleChapterSelect}
-            onChapterSave={handleSaveChapter}
-            onChapterDelete={handleDeleteChapter}
-            onChapterMove={handleChapterMove}
-          />
+        <div style={{ width: '280px', height: '100%', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+          {/* 顶部导出按钮 */}
+          <div style={{ padding: '12px', borderBottom: '1px solid #333', background: '#1e1e1e' }}>
+            <button
+              onClick={() => setShowExportDialog(true)}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                padding: '8px 12px',
+                background: '#2563eb',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = '#1d4ed8')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = '#2563eb')}
+            >
+              <Download size={16} />
+              <span>导出作品</span>
+            </button>
+          </div>
+          
+          {/* 章节树 */}
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <ChapterTree
+              chapters={novelChapters}
+              currentChapterId={currentChapterId}
+              onChapterSelect={handleChapterSelect}
+              onChapterSave={handleSaveChapter}
+              onChapterDelete={handleDeleteChapter}
+              onChapterMove={handleChapterMove}
+            />
+          </div>
         </div>
 
       {/* 中间编辑器区域 */}
@@ -842,6 +877,15 @@ const WorkDetailView: React.FC = () => {
       onConfirm={confirmState.onConfirm}
       onCancel={closeConfirm}
     />
+    
+    {/* 导出对话框 */}
+    {showExportDialog && (
+      <ExportDialog
+        workId={workId!}
+        workTitle={work.title}
+        onClose={() => setShowExportDialog(false)}
+      />
+    )}
     </>
   );
 };

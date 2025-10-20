@@ -2,13 +2,23 @@
 缓存工具模块
 
 提供缓存装饰器和缓存管理工具
+
+TODO: Redis暂时禁用，所有缓存操作为空操作
 """
 import functools
 import logging
 from typing import Any, Callable, Optional
-from app.core.redis import redis_client, CacheExpire
+# from app.core.redis import redis_client, CacheExpire  # TODO: Redis暂时禁用
 
 logger = logging.getLogger(__name__)
+
+
+# TODO: Redis暂时禁用，定义占位符类
+class CacheExpire:
+    """缓存过期时间常量 (占位符)"""
+    STATIC = 3600  # 1小时
+    DYNAMIC = 300  # 5分钟
+    SHORT = 60     # 1分钟
 
 
 def cache_result(
@@ -42,42 +52,9 @@ def cache_result(
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
-            # 生成缓存键
-            if key_builder:
-                # 使用自定义键生成器
-                try:
-                    cache_key = key_builder(*args, **kwargs)
-                except Exception as e:
-                    logger.warning(f"Key builder failed: {e}, falling back to default")
-                    cache_key = f"{key_prefix}:{':'.join(map(str, args))}"
-            else:
-                # 默认键生成：prefix:arg1:arg2...
-                if args:
-                    cache_key = f"{key_prefix}:{':'.join(map(str, args))}"
-                else:
-                    cache_key = key_prefix
-            
-            # 尝试从缓存获取
-            try:
-                cached_value = await redis_client.get(cache_key)
-                if cached_value is not None:
-                    logger.info(f"🎯 Cache HIT: {cache_key}")
-                    return cached_value
-                
-                logger.info(f"❌ Cache MISS: {cache_key}")
-            except Exception as e:
-                logger.error(f"Cache get error [{cache_key}]: {e}")
-            
-            # 执行原函数
+            # TODO: Redis暂时禁用，直接执行原函数
+            logger.debug(f"Cache disabled, executing function directly: {func.__name__}")
             result = await func(*args, **kwargs)
-            
-            # 存入缓存
-            try:
-                await redis_client.set(cache_key, result, expire)
-                logger.info(f"✅ Cache SET: {cache_key} (expire={expire}s)")
-            except Exception as e:
-                logger.error(f"Cache set error [{cache_key}]: {e}")
-            
             return result
         
         return wrapper
@@ -88,99 +65,59 @@ async def invalidate_cache(pattern: str) -> int:
     """
     使缓存失效
     
-    Args:
-        pattern: 缓存键模式（支持通配符 *）
-        
-    Returns:
-        删除的键数量
-        
-    示例：
-    ```python
-    # 删除所有作品相关缓存
-    await invalidate_cache("works:*")
-    
-    # 删除特定作品的缓存
-    await invalidate_cache(f"works:detail:{work_id}")
-    ```
+    TODO: Redis暂时禁用，返回0
     """
-    try:
-        deleted = await redis_client.delete_pattern(pattern)
-        logger.info(f"🗑️ Invalidated {deleted} cache keys: {pattern}")
-        return deleted
-    except Exception as e:
-        logger.error(f"Cache invalidation error [{pattern}]: {e}")
-        return 0
+    logger.debug(f"Cache invalidation skipped (Redis disabled): {pattern}")
+    return 0
 
 
 async def get_cached(key: str) -> Any:
     """
     直接获取缓存值
     
-    Args:
-        key: 缓存键
-        
-    Returns:
-        缓存值或 None
+    TODO: Redis暂时禁用，返回None
     """
-    return await redis_client.get(key)
+    logger.debug(f"Cache get skipped (Redis disabled): {key}")
+    return None
 
 
 async def set_cached(key: str, value: Any, expire: Optional[int] = None) -> bool:
     """
     直接设置缓存值
     
-    Args:
-        key: 缓存键
-        value: 缓存值
-        expire: 过期时间（秒）
-        
-    Returns:
-        是否设置成功
+    TODO: Redis暂时禁用，返回False
     """
-    return await redis_client.set(key, value, expire)
+    logger.debug(f"Cache set skipped (Redis disabled): {key}")
+    return False
 
 
 class CacheInvalidator:
-    """缓存失效管理器"""
+    """缓存失效管理器 - TODO: Redis暂时禁用，所有操作为空"""
     
     @staticmethod
     async def invalidate_work(work_id: str) -> None:
         """使作品相关的所有缓存失效"""
-        patterns = [
-            "works:list",  # 作品列表
-            f"works:detail:{work_id}",  # 作品详情
-            f"works:{work_id}:*",  # 作品的章节等
-            f"worldview:{work_id}:*",  # 世界观数据
-            f"analysis:{work_id}:*",  # 分析数据
-        ]
-        for pattern in patterns:
-            await invalidate_cache(pattern)
+        # TODO: Redis暂时禁用
+        logger.debug(f"Cache invalidation skipped (Redis disabled): work {work_id}")
+        pass
     
     @staticmethod
     async def invalidate_chapter(chapter_id: str, work_id: str) -> None:
         """使章节相关的所有缓存失效"""
-        patterns = [
-            f"chapters:detail:{chapter_id}",  # 章节详情
-            f"works:{work_id}:chapters",  # 章节列表
-            f"chapters:{chapter_id}:*",  # 章节相关数据
-        ]
-        for pattern in patterns:
-            await invalidate_cache(pattern)
+        # TODO: Redis暂时禁用
+        logger.debug(f"Cache invalidation skipped (Redis disabled): chapter {chapter_id}")
+        pass
     
     @staticmethod
     async def invalidate_worldview(work_id: str) -> None:
         """使世界观相关的所有缓存失效"""
-        patterns = [
-            f"worldview:{work_id}:*",  # 所有世界观数据
-        ]
-        for pattern in patterns:
-            await invalidate_cache(pattern)
+        # TODO: Redis暂时禁用
+        logger.debug(f"Cache invalidation skipped (Redis disabled): worldview {work_id}")
+        pass
     
     @staticmethod
     async def invalidate_analysis(work_id: str) -> None:
         """使分析相关的所有缓存失效"""
-        patterns = [
-            f"analysis:{work_id}:*",  # 所有分析数据
-        ]
-        for pattern in patterns:
-            await invalidate_cache(pattern)
+        # TODO: Redis暂时禁用
+        logger.debug(f"Cache invalidation skipped (Redis disabled): analysis {work_id}")
+        pass

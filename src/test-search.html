@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>测试搜索功能</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+    #status { margin-top: 20px; padding: 10px; background: #f0f0f0; }
+    .error { color: red; }
+    .success { color: green; }
+  </style>
+</head>
+<body>
+  <h1>搜索功能测试</h1>
+  
+  <button onclick="testSearch()">测试搜索API</button>
+  
+  <div id="status"></div>
+  
+  <script>
+    async function testSearch() {
+      const status = document.getElementById('status');
+      status.innerHTML = '正在测试...';
+      
+      try {
+        // 1. 测试后端健康检查
+        status.innerHTML += '<br>1. 检查后端服务...';
+        const healthRes = await fetch('http://localhost:8000/health');
+        if (healthRes.ok) {
+          status.innerHTML += '<span class="success"> ✓ 后端正常</span>';
+        } else {
+          status.innerHTML += '<span class="error"> ✗ 后端异常</span>';
+          return;
+        }
+        
+        // 2. 获取token (假设已登录)
+        const token = localStorage.getItem('auth-storage');
+        if (!token) {
+          status.innerHTML += '<br><span class="error">未找到登录Token，请先登录！</span>';
+          return;
+        }
+        
+        const authData = JSON.parse(token);
+        const accessToken = authData.state?.token;
+        
+        if (!accessToken) {
+          status.innerHTML += '<br><span class="error">Token格式错误，请重新登录！</span>';
+          return;
+        }
+        
+        status.innerHTML += '<br>2. Token: ' + accessToken.substring(0, 20) + '...';
+        
+        // 3. 测试搜索API
+        status.innerHTML += '<br>3. 测试搜索API...';
+        const searchRes = await fetch('http://localhost:8000/api/v1/search?q=小说&limit=5', {
+          headers: {
+            'Authorization': 'Bearer ' + accessToken
+          }
+        });
+        
+        if (searchRes.ok) {
+          const data = await searchRes.json();
+          status.innerHTML += '<span class="success"> ✓ 搜索成功</span>';
+          status.innerHTML += '<br><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        } else {
+          const error = await searchRes.text();
+          status.innerHTML += '<span class="error"> ✗ 搜索失败: ' + error + '</span>';
+        }
+        
+      } catch (error) {
+        status.innerHTML += '<br><span class="error">错误: ' + error.message + '</span>';
+      }
+    }
+  </script>
+</body>
+</html>
