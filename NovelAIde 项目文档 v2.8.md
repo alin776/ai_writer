@@ -272,10 +272,11 @@
 
 **🟡 可选使用的功能**:
 
-5. **多模型对比竞技场**（P1）
-   - 需求：并发调用多个模型 → 收集结果 → 用户投票
-   - 当前方案：`asyncio.gather` 足够简单
+5. **AI写作竞技场**（P1 - 明星功能）⭐⭐
+   - 需求：当用户不满意AI生成时，同时调用4-6个模型对比选择最佳
+   - 当前方案：`asyncio.gather` 并发调用，足够简单高效
    - LangChain优势：不明显（反而增加复杂度）
+   - 备注：独立页面设计，作为产品差异化核心卖点
 
 **🔴 不建议使用LangGraph的场景**:
 
@@ -2703,301 +2704,101 @@ async def regenerate_with_feedback(
 
 ---
 
-#### 10.2 多模型对比竞技场 (预计1周) ⭐⭐⭐⭐
+#### 10.2 AI写作竞技场 (预计1周) ⭐⭐ **明星功能 - 独立页面**
 **状态**: ❌ 未开始  
-**优先级**: 🟡 **P1 - 高价值功能**
+**优先级**: 🟡 **P1 - 明星功能（差异化核心）**  
+**路由**: `/ai-arena`
 
-**功能描述**: 类似 LMSYS Chatbot Arena，同时调用多个AI模型生成内容，用户盲测投票选择最佳结果
+**功能定位**: 当用户对AI生成的内容不满意时，同时调用4-6个顶级AI模型重新生成，用户对比选择最满意的版本
 
 **核心价值**:
-- 🎯 帮助用户找到最适合自己风格的模型
-- 📊 收集用户偏好数据，优化模型推荐
-- 🏆 提升内容质量（多个选项中选最好的）
-- 💰 平衡成本与质量（不同场景用不同模型）
+- 🎯 **解决用户痛点**: AI生成质量不稳定时的救援方案
+- 🚀 **差异化竞争**: 市场少见的多模型并发对比功能
+- 💡 **提高满意度**: 一次生成多个选项，总有满意的
+- 🏆 **展示技术实力**: 证明接入了多个顶级模型
+- 📈 **营销价值**: "6个顶级AI同时为你改写"
 
 **功能模块**:
 
-1. **竞技场模式**
-   - 同时调用2-4个模型
-   - 盲测显示（不显示模型名称，用A/B/C/D标识）
-   - 用户投票选择最佳结果
-   - 投票后显示各模型名称
+1. **输入配置区**
+   - 原始文本输入框（支持粘贴/输入）
+   - 改写要求输入（可选）
+   - 模型选择器（4-6个模型可选）：
+     - GPT-4
+     - Claude-3.5-Sonnet
+     - Gemini-Pro
+     - Qwen-Max（通义千问）
+     - 文心4.0
+     - 智谱GLM-4（可选）
+   - 生成参数配置：
+     - 长度：短(100字) / 中(300字) / 长(500字)
+     - 风格：严肃 / 幽默 / 诗意 / 简洁
+     - 温度：0.0-1.0（保守 ↔ 创意）
 
-2. **模型配置**
-   - 支持的模型列表：
-     - GPT-4（OpenAI）
-     - GPT-3.5-turbo（OpenAI）
-     - Claude-3（Anthropic）
-     - Gemini-Pro（Google）
-     - 通义千问（阿里云）
-     - 文心一言（百度）
-   - 用户可选择参与对比的模型（2-4个）
-   - 每个模型使用相同的Prompt
+2. **战斗竞技场风格UI**
+   - 卡片式网格布局（3x2或2x3）
+   - 每个卡片显示：
+     - 模型名称（直接显示，无盲测）
+     - 生成状态（⏳生成中 / ✅已完成 / ❌失败）
+     - 生成时长（实时显示）
+     - 内容预览（前100字+展开按钮）
+     - 字数统计
+     - 质量评分（AI自动评分 0-10）
+   - 🥇🥈🥉 排名标识（按质量分排序）
 
-3. **对比视图**
-   - 并排显示（2个模型）或网格显示（3-4个模型）
-   - 实时流式输出（同步滚动）
-   - 字数统计对比
-   - 生成速度对比
+3. **实时生成展示**
+   - 并发调用所有选中模型
+   - 实时显示生成进度
+   - 流式渲染（如果模型支持）
+   - 生成完成后自动按质量分排序
 
-4. **投票系统**
-   - 单选投票（最佳）
-   - 多选投票（可接受）
-   - 评分投票（1-5星）
-   - 评价标签（连贯/创意/文笔/节奏）
+4. **用户交互**
+   - [展开] 按钮查看完整内容
+   - [选择] 按钮选择最佳结果
+   - [评分] 用户可给每个结果打1-5星
+   - [复制] 复制内容到剪贴板
+   - [应用] 将选中结果应用到编辑器
 
-5. **数据统计**
-   - 个人偏好统计（最常选择的模型）
-   - 全局排行榜（各模型胜率）
-   - 场景推荐（续写用A，扩写用B）
-   - 成本效益分析
+5. **历史记录与统计**
+   - 对比历史列表（最近10次）
+   - 个人统计：
+     - 总对比次数
+     - 最常用模型
+     - 最常获胜模型
+   - 模型胜率排行（基于用户选择）
+   - 成本统计（每次对比消耗）
 
 **技术实现**:
 
-```typescript
-// 数据结构
-interface ArenaResult {
-  id: string;
-  models: Array<{
-    id: string;          // 盲测时隐藏
-    label: 'A' | 'B' | 'C' | 'D';
-    name: string;        // 投票后显示
-    content: string;
-    wordCount: number;
-    generationTime: number; // 毫秒
-    cost: number;        // 成本
-  }>;
-  prompt: string;
-  context: string;
-  userVote?: {
-    winner: string;      // 模型ID
-    rating: number;      // 1-5星
-    tags: string[];      // 评价标签
-  };
-  createdAt: Date;
-}
-```
+> 💡 **详细技术方案**: 请参见文档末尾的 "🏟️ AI写作竞技场 - 明星功能详细设计" 章节，包含完整的：
+> - 数据模型设计（TypeScript接口）
+> - 数据库设计（2张表 + 索引）
+> - 后端API设计（5个接口 + 完整代码）
+> - 前端组件结构（10个组件）
+> - 核心逻辑实现（并发调用 + 轮询）
 
-```typescript
-// 前端组件
-const AIArena: React.FC<{
-  prompt: string;
-  context: string;
-  onSelect: (result: ArenaResult) => void;
-}> = ({ prompt, context, onSelect }) => {
-  const [results, setResults] = useState<ArenaResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [voted, setVoted] = useState(false);
-
-  const startArena = async (selectedModels: string[]) => {
-    setLoading(true);
-    setVoted(false);
-    
-    // 并发调用多个模型
-    const arenaResult = await AIService.runArena({
-      prompt,
-      context,
-      models: selectedModels
-    });
-    
-    setResults(arenaResult);
-    setLoading(false);
-  };
-
-  const handleVote = (winnerId: string, rating: number, tags: string[]) => {
-    setVoted(true);
-    AIService.submitVote({
-      arenaId: results.id,
-      winnerId,
-      rating,
-      tags
-    });
-  };
-
-  return (
-    <div className="ai-arena">
-      {/* 模型选择器 */}
-      <div className="model-selector">
-        <h3>选择参与对比的模型（2-4个）</h3>
-        <ModelCheckboxes 
-          onChange={setSelectedModels}
-          max={4}
-        />
-        <button onClick={() => startArena(selectedModels)}>
-          🚀 开始竞技
-        </button>
-      </div>
-
-      {loading && <LoadingSpinner />}
-
-      {/* 对比视图 */}
-      {results && (
-        <div className="arena-results">
-          <div className={`result-grid cols-${results.models.length}`}>
-            {results.models.map((model) => (
-              <div key={model.label} className="result-card">
-                <div className="result-header">
-                  <h4>
-                    {voted ? model.name : `选项 ${model.label}`}
-                  </h4>
-                  {voted && (
-                    <div className="result-meta">
-                      <span>⏱️ {model.generationTime}ms</span>
-                      <span>💰 ${model.cost.toFixed(4)}</span>
-                      <span>📝 {model.wordCount}字</span>
-                    </div>
-                  )}
-                </div>
-                <div className="result-content">
-                  {model.content}
-                </div>
-                {!voted && (
-                  <button 
-                    className="vote-button"
-                    onClick={() => handleVote(model.id, 5, [])}
-                  >
-                    👍 选择此项
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* 投票后的详细评价 */}
-          {voted && (
-            <div className="vote-detail">
-              <h4>请评价你选择的理由</h4>
-              <RatingStars onChange={setRating} />
-              <TagSelector 
-                options={['连贯', '创意', '文笔', '节奏', '情感']}
-                onChange={setTags}
-              />
-              <button onClick={() => onSelect(results)}>
-                ✅ 使用此结果
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 历史统计 */}
-      <ArenaStats />
-    </div>
-  );
-};
-```
-
-**后端API**:
-
-```python
-# backend/app/api/v1/arena.py
-from fastapi import APIRouter, Depends, BackgroundTasks
-from app.services.ai.arena_service import ArenaService
-
-router = APIRouter()
-
-@router.post("/run")
-async def run_arena(
-    prompt: str,
-    context: str,
-    models: List[str],  # ["gpt-4", "claude-3", "gemini-pro"]
-    current_user = Depends(get_current_user)
-):
-    """并发调用多个模型"""
-    service = ArenaService()
-    
-    # 并发调用
-    results = await asyncio.gather(*[
-        service.generate(model, prompt, context)
-        for model in models
-    ])
-    
-    # 打乱顺序（盲测）
-    shuffled = service.shuffle_with_labels(results)
-    
-    return {
-        "id": str(uuid.uuid4()),
-        "models": shuffled,
-        "prompt": prompt,
-        "context": context
-    }
-
-@router.post("/vote")
-async def submit_vote(
-    arena_id: str,
-    winner_id: str,
-    rating: int,
-    tags: List[str],
-    current_user = Depends(get_current_user)
-):
-    """提交投票"""
-    service = ArenaService()
-    await service.save_vote(
-        arena_id=arena_id,
-        user_id=current_user.id,
-        winner_id=winner_id,
-        rating=rating,
-        tags=tags
-    )
-    return {"success": True}
-
-@router.get("/stats")
-async def get_arena_stats(
-    current_user = Depends(get_current_user)
-):
-    """获取竞技场统计数据"""
-    service = ArenaService()
-    return await service.get_user_stats(current_user.id)
-```
-
-**数据库设计**:
-
-```sql
--- 竞技场记录表
-CREATE TABLE arena_battles (
-  id UUID PRIMARY KEY,
-  user_id UUID REFERENCES users(id),
-  prompt TEXT NOT NULL,
-  context TEXT,
-  models JSONB NOT NULL,  -- [{"id": "gpt-4", "label": "A", "content": "..."}]
-  winner_model_id VARCHAR(50),
-  rating INT,  -- 1-5
-  tags TEXT[],
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
--- 模型胜率统计表（物化视图）
-CREATE MATERIALIZED VIEW model_win_rates AS
-SELECT 
-  winner_model_id,
-  COUNT(*) as total_wins,
-  AVG(rating) as avg_rating,
-  COUNT(*) * 100.0 / (SELECT COUNT(*) FROM arena_battles) as win_rate
-FROM arena_battles
-WHERE winner_model_id IS NOT NULL
-GROUP BY winner_model_id;
-```
+**核心技术点**:
+- 后端：`asyncio.gather` 实现并发调用
+- 前端：轮询机制实时更新生成状态
+- 数据库：2张表（compare_tasks, compare_results）
+- API：5个接口（创建/查询/选择/历史/统计）
 
 **UI集成位置**:
-- 在 AI 菜单中增加"竞技场模式"按钮
-- 独立的竞技场弹窗（全屏）
-- 设置页面中显示个人偏好统计
+- 独立页面路由：`/ai-arena`
+- 编辑器内入口：工具栏"AI竞技场"按钮
+- 作品管理页面：快速入口
 
-**成本控制**:
-- 用户可选择参与的模型数量（2-4个）
-- 使用低成本模型作为默认选项
-- 设置每日竞技场使用次数限制
-- VIP 用户无限制使用
+**成本控制与优化**:
+- 用户可选择参与的模型数量（4-6个）
+- 默认推荐性价比模型组合
+- 设置每日对比次数限制（普通用户5次，VIP无限）
+- 智能推荐：根据历史数据推荐最适合的模型
 
-**推荐策略**:
-- 根据历史投票数据，推荐最适合用户的模型组合
-- 不同场景推荐不同模型（续写/扩写/润色）
-- 显示成本效益比（性价比最高的模型）
-
-**实施优先级**: 🟡 **P1 - 高价值功能**
-- 需要多个AI提供商的API接入
-- 成本较高（每次生成调用多个模型）
-- 适合作为高级功能或VIP功能
+**实施优先级**: ⭐⭐ **P1 - 明星功能（差异化核心）**
+- 工期：1周（MVP版本）
+- 技术难度：中等（asyncio.gather足够）
+- 营销价值：极高（"6个顶级AI同时为你改写"）
+- 差异化竞争：市场少见的核心功能
 
 ---
 
@@ -4858,14 +4659,18 @@ const { data: works, isLoading, error } = useQuery({
     - [ ] 版本对比功能
     - [ ] 3种评审模板
 
-**Week 3: 多模型对比竞技场 + 提示词管理**
-- Day 1-3: 多模型对比竞技场
-    - [ ] 盲测机制实现
-    - [ ] 并发调用多个模型
-    - [ ] 投票系统UI
-    - [ ] 数据库设计和实现
+**Week 3: AI写作竞技场 + 提示词管理** ⭐⭐ **明星功能**
+- Day 1-3: AI写作竞技场（独立页面）
+    - [ ] 战斗竞技场风格UI设计
+    - [ ] 并发调用4-6个模型（asyncio.gather）
+    - [ ] 实时生成状态展示
+    - [ ] 智能质量评分系统
+    - [ ] 卡片式对比展示
+    - [ ] 数据库设计（2张表）+ 5个API接口
     
-- Day 4-5: 提示词管理系统
+- Day 4-5: 提示词管理系统 + 历史记录
+    - [ ] 历史记录列表与查询
+    - [ ] 统计分析面板（模型胜率、用户偏好）
     - [ ] 提示词管理页面
     - [ ] 提示词分类和编辑
     - [ ] 变量支持
