@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, users, works, chapters, ai, worldview, novel_analysis, admin, search
+from app.api.v1 import auth, users, works, chapters, ai, worldview, novel_analysis, admin, search, relationships, timeline, groups
 from app.api.v1 import export as export_routes
 from app.api.v1 import import_routes
 
@@ -12,6 +12,9 @@ api_router.include_router(works.router, prefix="/works", tags=["works"])
 api_router.include_router(chapters.router, prefix="/chapters", tags=["chapters"])
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
 api_router.include_router(worldview.router, prefix="/worldview", tags=["worldview"])
+api_router.include_router(relationships.router, prefix="/relationships", tags=["relationships"])
+api_router.include_router(timeline.router, prefix="/timeline", tags=["timeline"])
+api_router.include_router(groups.router, prefix="/groups", tags=["groups"])
 api_router.include_router(novel_analysis.router, prefix="/analysis", tags=["novel-analysis"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(search.router, prefix="/search", tags=["search"])

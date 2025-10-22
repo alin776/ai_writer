@@ -2,7 +2,7 @@
  * 世界观关系图可视化组件
  * 使用 ReactFlow 展示角色、地点、设定之间的关系
  */
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   Node,
@@ -10,27 +10,63 @@ import {
   Controls,
   Background,
   BackgroundVariant,
+  MiniMap,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   addEdge,
   Connection,
   MarkerType,
   Panel,
+  Handle,
+  Position,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { WorldData } from '@/types/novel';
+import { Relationship, EntityType, RELATIONSHIP_COLORS } from '@/types/relationship';
 import { Users, MapPin, BookOpen, X, HelpCircle } from 'lucide-react';
 import './WorldviewGraph.css';
+import {
+  LayoutAlgorithm,
+  GlobalLayoutConfig,
+  applyForceLayout,
+  applyHierarchicalLayout,
+  applyCircularLayout,
+  applyGridLayout,
+  applyTimelineLayout,
+} from './layouts';
+import CustomBezierEdge from './CustomBezierEdge';
 
 interface WorldviewGraphProps {
   worldData: WorldData;
+  relationships?: Relationship[];
+  editable?: boolean;
   onNodeClick?: (nodeId: string, nodeType: 'character' | 'location' | 'setting') => void;
+  onConnect?: (sourceId: string, sourceType: EntityType, targetId: string, targetType: EntityType) => void;
+  onEdgeClick?: (relationshipId: string) => void;
+  selectedNodeId?: string; // 选中的节点ID（用于高亮显示）
+  layoutConfig?: GlobalLayoutConfig; // 布局配置
+  onLayoutApplied?: () => void; // 布局应用完成的回调
+  searchText?: string; // 搜索文本
+  filteredNodeTypes?: { character: boolean; location: boolean; setting: boolean }; // 过滤的节点类型
+  focusMode?: boolean; // 焦点模式
+  focusNodeId?: string; // 焦点节点ID
+  focusNodeToView?: string; // 需要定位的节点ID（触发视野移动）
 }
 
 // 自定义节点组件 - 角色节点
 const CharacterNode = ({ data }: any) => {
   return (
     <div className="worldview-node character-node">
+      {/* 4个方向的连接点 - 每个方向同时有source和target */}
+      <Handle type="source" position={Position.Top} id="top-source" style={{ top: -6 }} />
+      <Handle type="target" position={Position.Top} id="top-target" style={{ top: -6 }} />
+      <Handle type="source" position={Position.Right} id="right-source" style={{ right: -6 }} />
+      <Handle type="target" position={Position.Right} id="right-target" style={{ right: -6 }} />
+      <Handle type="source" position={Position.Bottom} id="bottom-source" style={{ bottom: -6 }} />
+      <Handle type="target" position={Position.Bottom} id="bottom-target" style={{ bottom: -6 }} />
+      <Handle type="source" position={Position.Left} id="left-source" style={{ left: -6 }} />
+      <Handle type="target" position={Position.Left} id="left-target" style={{ left: -6 }} />
       <div className="node-icon">
         <Users className="w-4 h-4" />
       </div>
@@ -46,6 +82,15 @@ const CharacterNode = ({ data }: any) => {
 const LocationNode = ({ data }: any) => {
   return (
     <div className="worldview-node location-node">
+      {/* 4个方向的连接点 - 每个方向同时有source和target */}
+      <Handle type="source" position={Position.Top} id="top-source" style={{ top: -6 }} />
+      <Handle type="target" position={Position.Top} id="top-target" style={{ top: -6 }} />
+      <Handle type="source" position={Position.Right} id="right-source" style={{ right: -6 }} />
+      <Handle type="target" position={Position.Right} id="right-target" style={{ right: -6 }} />
+      <Handle type="source" position={Position.Bottom} id="bottom-source" style={{ bottom: -6 }} />
+      <Handle type="target" position={Position.Bottom} id="bottom-target" style={{ bottom: -6 }} />
+      <Handle type="source" position={Position.Left} id="left-source" style={{ left: -6 }} />
+      <Handle type="target" position={Position.Left} id="left-target" style={{ left: -6 }} />
       <div className="node-icon">
         <MapPin className="w-4 h-4" />
       </div>
@@ -61,6 +106,15 @@ const LocationNode = ({ data }: any) => {
 const SettingNode = ({ data }: any) => {
   return (
     <div className="worldview-node setting-node">
+      {/* 4个方向的连接点 - 每个方向同时有source和target */}
+      <Handle type="source" position={Position.Top} id="top-source" style={{ top: -6 }} />
+      <Handle type="target" position={Position.Top} id="top-target" style={{ top: -6 }} />
+      <Handle type="source" position={Position.Right} id="right-source" style={{ right: -6 }} />
+      <Handle type="target" position={Position.Right} id="right-target" style={{ right: -6 }} />
+      <Handle type="source" position={Position.Bottom} id="bottom-source" style={{ bottom: -6 }} />
+      <Handle type="target" position={Position.Bottom} id="bottom-target" style={{ bottom: -6 }} />
+      <Handle type="source" position={Position.Left} id="left-source" style={{ left: -6 }} />
+      <Handle type="target" position={Position.Left} id="left-target" style={{ left: -6 }} />
       <div className="node-icon">
         <BookOpen className="w-4 h-4" />
       </div>
@@ -79,13 +133,20 @@ const nodeTypes = {
   setting: SettingNode,
 };
 
+// 边类型映射（自定义贝塞尔曲线边）
+const edgeTypes = {
+  customBezier: CustomBezierEdge,
+};
+
 /**
  * 将后端数据转换为 ReactFlow 的 nodes 和 edges
  */
-const convertToGraphData = (worldData: WorldData): { nodes: Node[]; edges: Edge[] } => {
+const convertToGraphData = (
+  worldData: WorldData, 
+  relationships?: Relationship[]
+): { nodes: Node[]; edges: Edge[] } => {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
-  const edgeSet = new Set<string>(); // 用于去重边
 
   // 布局配置
   const SPACING_X = 300;
@@ -94,9 +155,12 @@ const convertToGraphData = (worldData: WorldData): { nodes: Node[]; edges: Edge[
 
   // 1. 添加角色节点
   const characters = worldData.characters || [];
+  console.log('[convertToGraphData] 开始创建节点，角色数量:', characters.length);
   characters.forEach((character, index) => {
+    const nodeId = `character-${character.id}`;
+    console.log(`[convertToGraphData] 创建角色节点: ${nodeId} (${character.name})`);
     nodes.push({
-      id: `char-${character.id}`,
+      id: nodeId,
       type: 'character',
       position: { x: 100, y: START_Y + index * SPACING_Y },
       data: { 
@@ -105,39 +169,15 @@ const convertToGraphData = (worldData: WorldData): { nodes: Node[]; edges: Edge[
         entityId: character.id,
         entityType: 'character',
       },
+      className: '', // 后面会动态设置
     });
-
-    // 处理角色关系 (relationships 字段)
-    if (character.relationships && Array.isArray(character.relationships)) {
-      character.relationships.forEach((rel: any) => {
-        if (rel.characterId) {
-          const edgeId = `char-${character.id}-char-${rel.characterId}`;
-          if (!edgeSet.has(edgeId)) {
-            edges.push({
-              id: edgeId,
-              source: `char-${character.id}`,
-              target: `char-${rel.characterId}`,
-              label: rel.relationship || '关系',
-              type: 'smoothstep',
-              animated: false,
-              markerEnd: {
-                type: MarkerType.ArrowClosed,
-                width: 15,
-                height: 15,
-              },
-            });
-            edgeSet.add(edgeId);
-          }
-        }
-      });
-    }
   });
 
   // 2. 添加地点节点
   const locations = worldData.locations || [];
   locations.forEach((location, index) => {
     nodes.push({
-      id: `loc-${location.id}`,
+      id: `location-${location.id}`,
       type: 'location',
       position: { x: 100 + SPACING_X, y: START_Y + index * SPACING_Y },
       data: { 
@@ -147,38 +187,13 @@ const convertToGraphData = (worldData: WorldData): { nodes: Node[]; edges: Edge[
         entityType: 'location',
       },
     });
-
-    // 处理地点关系 (related_locations 字段)
-    if (location.relatedLocations && Array.isArray(location.relatedLocations)) {
-      location.relatedLocations.forEach((relatedId: string) => {
-        const edgeId = `loc-${location.id}-loc-${relatedId}`;
-        if (!edgeSet.has(edgeId)) {
-          edges.push({
-            id: edgeId,
-            source: `loc-${location.id}`,
-            target: `loc-${relatedId}`,
-            label: '相关',
-            type: 'smoothstep',
-            animated: false,
-            style: { stroke: '#10b981' },
-            markerEnd: {
-              type: MarkerType.ArrowClosed,
-              width: 15,
-              height: 15,
-              color: '#10b981',
-            },
-          });
-          edgeSet.add(edgeId);
-        }
-      });
-    }
   });
 
   // 3. 添加设定节点
   const settings = worldData.settings || [];
   settings.forEach((setting, index) => {
     nodes.push({
-      id: `set-${setting.id}`,
+      id: `setting-${setting.id}`,
       type: 'setting',
       position: { x: 100 + SPACING_X * 2, y: START_Y + index * SPACING_Y },
       data: { 
@@ -190,39 +205,335 @@ const convertToGraphData = (worldData: WorldData): { nodes: Node[]; edges: Edge[
     });
   });
 
-  // 4. 自动创建一些合理的跨类型关系（示例）
-  // 主角与第一个地点的关系
-  if (characters.length > 0 && locations.length > 0) {
-    const mainCharacter = characters.find(c => c.role === '主角') || characters[0];
-    const firstLocation = locations[0];
-    if (mainCharacter && firstLocation) {
-      edges.push({
-        id: `cross-char-${mainCharacter.id}-loc-${firstLocation.id}`,
-        source: `char-${mainCharacter.id}`,
-        target: `loc-${firstLocation.id}`,
-        label: '活动于',
-        type: 'smoothstep',
-        animated: true,
-        style: { stroke: '#8b5cf6', strokeDasharray: '5,5' },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: 15,
-          height: 15,
-          color: '#8b5cf6',
-        },
+  // 4. 添加关系边（从relationships数据）- 智能偏移支持多关系排版
+  console.log('[convertToGraphData] 开始创建边，关系数量:', relationships?.length || 0);
+  console.log('[convertToGraphData] 当前节点总数:', nodes.length);
+  
+  // 先分组：找出同一对节点之间的多条边
+  const edgeGroups = new Map<string, Relationship[]>();
+  
+  if (relationships && relationships.length > 0) {
+    // 第一遍：按节点对分组
+    relationships.forEach((rel) => {
+      // 验证关系数据的完整性
+      if (!rel.sourceId || !rel.sourceType || !rel.targetId || !rel.targetType) {
+        console.warn('[WorldviewGraph] 跳过无效关系（缺少必要字段）:', rel);
+        return;
+      }
+      
+      // 后端返回的是驼峰命名
+      const sourceNodeId = `${rel.sourceType}-${rel.sourceId}`;
+      const targetNodeId = `${rel.targetType}-${rel.targetId}`;
+      
+      // 验证节点是否存在
+      const sourceExists = nodes.some(n => n.id === sourceNodeId);
+      const targetExists = nodes.some(n => n.id === targetNodeId);
+      
+      if (!sourceExists || !targetExists) {
+        console.warn(`[WorldviewGraph] 节点不存在，跳过关系: ${sourceNodeId} → ${targetNodeId}`);
+        return;
+      }
+      
+      // 创建边组key（不区分方向，A->B和B->A算同一组）
+      const groupKey = [sourceNodeId, targetNodeId].sort().join('|');
+      
+      if (!edgeGroups.has(groupKey)) {
+        edgeGroups.set(groupKey, []);
+      }
+      edgeGroups.get(groupKey)!.push(rel);
+    });
+    
+    // 第二遍：为每组边计算偏移量并创建edges
+    edgeGroups.forEach((rels, groupKey) => {
+      const edgeCount = rels.length;
+      console.log(`[convertToGraphData] 边组 ${groupKey} 有 ${edgeCount} 条边`);
+      
+      rels.forEach((rel, index) => {
+        const sourceNodeId = `${rel.sourceType}-${rel.sourceId}`;
+        const targetNodeId = `${rel.targetType}-${rel.targetId}`;
+        
+        // 计算线条粗细（根据强度1-10映射到1-5px）
+        const strokeWidth = 1 + (rel.strength / 10) * 4;
+      
+      // 获取颜色
+      const color = rel.color || RELATIONSHIP_COLORS[rel.relationshipType] || RELATIONSHIP_COLORS.DEFAULT;
+      
+        // 线条样式
+        let strokeDasharray = undefined;
+        if (rel.lineStyle === 'dashed') {
+          strokeDasharray = '10,5';
+        } else if (rel.lineStyle === 'dotted') {
+          strokeDasharray = '2,4';
+        }
+        
+        // 🎯 终极升级：智能Handle选择 + 自定义贝塞尔曲线
+        // undefined = ReactFlow从8个Handle中自动选择最近的
+        // 偏移计算逻辑已移至 CustomBezierEdge 组件中
+        edges.push({
+          id: `rel-${rel.id}`,
+          source: sourceNodeId,
+          target: targetNodeId,
+          
+          // 🎯 智能Handle选择：ReactFlow自动选择8个Handle中距离最近的
+          sourceHandle: undefined,
+          targetHandle: undefined,
+          
+          // 🎯 使用自定义贝塞尔曲线边（平滑曲线）
+          type: 'customBezier',
+          
+          label: edgeCount > 1 ? `${rel.label} (${index + 1})` : rel.label, // 多条边时显示序号
+          animated: rel.strength >= 8,
+          style: { 
+            stroke: color,
+            strokeWidth,
+            strokeDasharray,
+          },
+          
+          markerEnd: rel.direction === 'one-way' ? {
+            type: MarkerType.ArrowClosed,
+            width: 20,
+            height: 20,
+            color: color,
+          } : undefined,
+          markerStart: rel.direction === 'two-way' ? {
+            type: MarkerType.ArrowClosed,
+            width: 20,
+            height: 20,
+            color: color,
+          } : undefined,
+          data: {
+            relationshipId: rel.id,
+            relationship: rel,
+            edgeIndex: index + 1, // 边的索引（从1开始）
+            edgeCount: edgeCount, // 总边数
+          },
+        });
+        console.log(`[convertToGraphData] 成功创建边: rel-${rel.id} (${rel.label}) - 使用动态锚点 + 贝塞尔曲线`);
       });
-    }
+    });
   }
 
   return { nodes, edges };
 };
 
-const WorldviewGraph: React.FC<WorldviewGraphProps> = ({ worldData, onNodeClick }) => {
-  // 转换数据
-  const graphData = useMemo(() => convertToGraphData(worldData), [worldData]);
+// 视野控制组件（必须在ReactFlow内部使用）
+const ViewportController: React.FC<{ focusNodeToView?: string; nodes: Node[] }> = ({ focusNodeToView, nodes }) => {
+  const { fitView } = useReactFlow();
   
-  const [nodes, , onNodesChange] = useNodesState(graphData.nodes);
+  useEffect(() => {
+    if (focusNodeToView) {
+      // 构建完整的节点ID
+      const fullNodeId = focusNodeToView.includes('-') 
+        ? focusNodeToView 
+        : `character-${focusNodeToView}`;
+      
+      // 检查节点是否存在
+      const node = nodes.find(n => 
+        n.id === fullNodeId || 
+        n.id === `character-${focusNodeToView}` ||
+        n.id === `location-${focusNodeToView}` ||
+        n.id === `setting-${focusNodeToView}`
+      );
+      
+      if (node) {
+        // 定位到节点，带动画效果
+        setTimeout(() => {
+          fitView({
+            nodes: [{ id: node.id }],
+            duration: 800,
+            padding: 0.3,
+          });
+        }, 100);
+      }
+    }
+  }, [focusNodeToView, nodes, fitView]);
+  
+  return null;
+};
+
+const WorldviewGraph: React.FC<WorldviewGraphProps> = ({ 
+  worldData, 
+  relationships,
+  editable = false,
+  onNodeClick,
+  onConnect: onConnectCallback,
+  onEdgeClick,
+  selectedNodeId,
+  layoutConfig,
+  onLayoutApplied,
+  searchText = '',
+  filteredNodeTypes = { character: true, location: true, setting: true },
+  focusMode = false,
+  focusNodeId,
+  focusNodeToView,
+}) => {
+  // 转换数据
+  const graphData = useMemo(() => convertToGraphData(worldData, relationships), [worldData, relationships]);
+  
+  const [nodes, setNodes, onNodesChange] = useNodesState(graphData.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(graphData.edges);
+  
+  // 使用ref保存最新的nodes和edges
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  
+  useEffect(() => {
+    nodesRef.current = nodes;
+    edgesRef.current = edges;
+  }, [nodes, edges]);
+  
+  // 同步外部relationships到edges
+  useEffect(() => {
+    const newGraphData = convertToGraphData(worldData, relationships);
+    setEdges(newGraphData.edges);
+  }, [relationships, worldData, setEdges]);
+  
+  // 应用布局算法
+  useEffect(() => {
+    if (!layoutConfig || layoutConfig.algorithm === 'custom') return;
+    
+    const applyLayout = () => {
+      let newNodes: Node[] = [];
+      
+      // 获取当前nodes和edges的快照
+      const currentNodes = nodesRef.current;
+      const currentEdges = edgesRef.current;
+      
+      switch (layoutConfig.algorithm) {
+        case 'force':
+          newNodes = applyForceLayout(currentNodes, currentEdges, layoutConfig);
+          break;
+        case 'hierarchical':
+          newNodes = applyHierarchicalLayout(currentNodes, currentEdges, layoutConfig);
+          break;
+        case 'circular':
+          newNodes = applyCircularLayout(currentNodes, currentEdges, layoutConfig);
+          break;
+        case 'grid':
+          newNodes = applyGridLayout(currentNodes, currentEdges, layoutConfig);
+          break;
+        case 'timeline':
+          newNodes = applyTimelineLayout(currentNodes, currentEdges, layoutConfig);
+          break;
+        default:
+          return;
+      }
+      
+      // 更新节点位置
+      setNodes(newNodes);
+      
+      // 通知布局应用完成
+      if (onLayoutApplied) {
+        setTimeout(() => onLayoutApplied(), layoutConfig.duration || 1000);
+      }
+    };
+    
+    // 如果启用动画，使用requestAnimationFrame
+    if (layoutConfig.animation) {
+      requestAnimationFrame(applyLayout);
+    } else {
+      applyLayout();
+    }
+  }, [layoutConfig?.algorithm, layoutConfig?.direction, layoutConfig?.spacing]);
+  
+  // 将filteredNodeTypes转换为稳定的字符串，避免对象引用变化导致无限循环
+  const filterKey = `${filteredNodeTypes?.character}-${filteredNodeTypes?.location}-${filteredNodeTypes?.setting}`;
+  
+  // 搜索过滤和焦点模式逻辑
+  useEffect(() => {
+    // 计算相关节点ID（用于焦点模式）
+    const relatedNodeIds = new Set<string>();
+    if (focusMode && focusNodeId) {
+      relatedNodeIds.add(focusNodeId);
+      
+      edgesRef.current.forEach(edge => {
+        const sourceId = (edge.source as string).replace(/^(character|location|setting)-/, '');
+        const targetId = (edge.target as string).replace(/^(character|location|setting)-/, '');
+        
+        if (sourceId === focusNodeId) {
+          relatedNodeIds.add(targetId);
+        }
+        if (targetId === focusNodeId) {
+          relatedNodeIds.add(sourceId);
+        }
+      });
+    }
+    
+    // 处理节点
+    const processedNodes = nodesRef.current.map((node) => {
+      let className = '';
+      let hidden = false;
+      
+      // 1. 检查是否被选中
+      if (node.data.entityId === selectedNodeId) {
+        className = 'selected-node';
+      }
+      
+      // 2. 检查节点类型过滤
+      const nodeType = node.data.entityType as 'character' | 'location' | 'setting';
+      if (filteredNodeTypes && !filteredNodeTypes[nodeType]) {
+        hidden = true;
+      }
+      
+      // 3. 检查搜索文本匹配
+      if (searchText && !hidden) {
+        const label = (node.data.label as string | undefined)?.toLowerCase() || '';
+        const searchLower = searchText.toLowerCase();
+        const matches = label.includes(searchLower);
+        
+        if (matches) {
+          className += ' search-match';
+        } else {
+          className += ' search-dimmed';
+        }
+      }
+      
+      // 4. 焦点模式逻辑
+      if (focusMode && focusNodeId) {
+        const entityId = node.data.entityId as string;
+        if (!relatedNodeIds.has(entityId)) {
+          className += ' focus-dimmed';
+        } else if (entityId === focusNodeId) {
+          className += ' focus-center';
+        } else {
+          className += ' focus-related';
+        }
+      }
+      
+      return {
+        ...node,
+        className: className.trim(),
+        hidden,
+      };
+    });
+    
+    // 处理边
+    const processedEdges = edgesRef.current.map((edge) => {
+      let className = '';
+      let hidden = false;
+      
+      // 焦点模式下，只显示与焦点节点相关的边
+      if (focusMode && focusNodeId) {
+        const sourceId = (edge.source as string).replace(/^(character|location|setting)-/, '');
+        const targetId = (edge.target as string).replace(/^(character|location|setting)-/, '');
+        
+        if (sourceId !== focusNodeId && targetId !== focusNodeId) {
+          hidden = true;
+        }
+      }
+      
+      return {
+        ...edge,
+        className: className.trim(),
+        hidden,
+      };
+    });
+    
+    // 更新nodes和edges
+    setNodes(processedNodes);
+    setEdges(processedEdges);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedNodeId, searchText, filterKey, focusMode, focusNodeId]);
   
   // 提示框状态
   const [showHint, setShowHint] = useState(true);
@@ -240,8 +551,33 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({ worldData, onNodeClick 
 
   // 连接节点时触发
   const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges]
+    (params: Connection) => {
+      if (!editable || !onConnectCallback) return;
+      
+      // 从节点ID中提取实际的entityId和entityType
+      const sourceNode = nodes.find(n => n.id === params.source);
+      const targetNode = nodes.find(n => n.id === params.target);
+      
+      if (sourceNode && targetNode) {
+        const sourceId = sourceNode.data.entityId;
+        const sourceType = sourceNode.data.entityType as EntityType;
+        const targetId = targetNode.data.entityId;
+        const targetType = targetNode.data.entityType as EntityType;
+        
+        onConnectCallback(sourceId, sourceType, targetId, targetType);
+      }
+    },
+    [editable, onConnectCallback, nodes]
+  );
+  
+  // Edge点击事件
+  const onEdgeClickHandler = useCallback(
+    (_: React.MouseEvent, edge: Edge) => {
+      if (onEdgeClick && edge.data?.relationshipId) {
+        onEdgeClick(edge.data.relationshipId);
+      }
+    },
+    [onEdgeClick]
   );
 
   // 节点点击事件
@@ -269,19 +605,45 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({ worldData, onNodeClick 
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
+        onConnect={editable ? onConnect : undefined}
         onNodeClick={onNodeClickHandler}
+        onEdgeClick={onEdgeClickHandler}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         minZoom={0.2}
         maxZoom={4}
+        connectOnClick={editable}
         defaultEdgeOptions={{
-          type: 'smoothstep',
+          type: 'customBezier',
           animated: false,
         }}
       >
+        {/* 视野控制组件 */}
+        <ViewportController focusNodeToView={focusNodeToView} nodes={nodes} />
+        
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
         <Controls />
+        <MiniMap 
+          nodeColor={(node) => {
+            switch (node.type) {
+              case 'character':
+                return '#3b82f6'; // blue
+              case 'location':
+                return '#10b981'; // green
+              case 'setting':
+                return '#f59e0b'; // amber
+              default:
+                return '#6b7280'; // gray
+            }
+          }}
+          maskColor="rgba(0, 0, 0, 0.6)"
+          position="bottom-right"
+          style={{
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #2a2a2a',
+          }}
+        />
         
         {/* 统计面板 */}
         <Panel position="top-left" className="worldview-stats-panel">

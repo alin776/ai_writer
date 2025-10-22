@@ -6,7 +6,7 @@ echo ========================================
 echo.
 
 :: 设置PostgreSQL路径
-set "PATH=%PATH%;C:\Program Files\PostgreSQL\15\bin"
+set "PATH=%PATH%;C:\Program Files\PostgreSQL\18\bin"
 
 :: 检查 Python
 echo [1/6] 检查 Python 环境...

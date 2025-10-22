@@ -738,6 +738,46 @@ class DataServiceClass {
     return this.adapter.delete(`/downloads/${fileId}`);
   }
 
+  // ==================== 关系管理相关 ====================
+
+  /**
+   * 获取作品的所有关系
+   * @param workId 作品ID
+   * @returns Promise<Relationship[]>
+   */
+  async getRelationships(workId: string): Promise<any[]> {
+    const response = await this.adapter.get<{ items: any[]; total: number }>(`/relationships/work/${workId}`);
+    return response.items || [];
+  }
+
+  /**
+   * 创建关系
+   * @param relationship 关系数据
+   * @returns Promise<any>
+   */
+  async createRelationship(relationship: any): Promise<any> {
+    return this.adapter.post('/relationships', relationship);
+  }
+
+  /**
+   * 更新关系
+   * @param id 关系ID
+   * @param relationship 更新的数据
+   * @returns Promise<any>
+   */
+  async updateRelationship(id: string, relationship: any): Promise<any> {
+    return this.adapter.put(`/relationships/${id}`, relationship);
+  }
+
+  /**
+   * 删除关系
+   * @param id 关系ID
+   * @returns Promise<void>
+   */
+  async deleteRelationship(id: string): Promise<void> {
+    return this.adapter.delete(`/relationships/${id}`);
+  }
+
   // ==================== 导入相关 ====================
 
   /**
@@ -773,6 +813,142 @@ class DataServiceClass {
     }
     
     return this.adapter.post('/works/import', formData);
+  }
+
+  // ==================== 时间线相关方法 ====================
+
+  /**
+   * 创建时间线事件
+   * @param eventData 事件数据
+   * @returns Promise<TimelineEvent>
+   */
+  async createTimelineEvent(eventData: any): Promise<any> {
+    return this.adapter.post('/timeline/', eventData);
+  }
+
+  /**
+   * 获取时间线事件详情
+   * @param eventId 事件ID
+   * @returns Promise<TimelineEvent>
+   */
+  async getTimelineEvent(eventId: string): Promise<any> {
+    return this.adapter.get(`/timeline/${eventId}`);
+  }
+
+  /**
+   * 获取作品的所有时间线事件
+   * @param workId 作品ID
+   * @returns Promise<TimelineEvent[]>
+   */
+  async getTimelineEvents(workId: string): Promise<any[]> {
+    const response = await this.adapter.get(`/timeline/work/${workId}`);
+    return response.items || [];
+  }
+
+  /**
+   * 更新时间线事件
+   * @param eventId 事件ID
+   * @param eventData 更新数据
+   * @returns Promise<TimelineEvent>
+   */
+  async updateTimelineEvent(eventId: string, eventData: any): Promise<any> {
+    return this.adapter.put(`/timeline/${eventId}`, eventData);
+  }
+
+  /**
+   * 删除时间线事件
+   * @param eventId 事件ID
+   * @returns Promise<void>
+   */
+  async deleteTimelineEvent(eventId: string): Promise<void> {
+    return this.adapter.delete(`/timeline/${eventId}`);
+  }
+
+  /**
+   * 获取作品的章节锚点列表
+   * @param workId 作品ID
+   * @returns Promise<ChapterAnchor[]>
+   */
+  async getChapterAnchors(workId: string): Promise<any[]> {
+    return this.adapter.get(`/timeline/work/${workId}/chapter-anchors`);
+  }
+
+  // ==================== 实体分组管理 ====================
+
+  /**
+   * 创建实体分组
+   * @param groupData 分组数据
+   * @returns Promise<EntityGroup>
+   */
+  async createGroup(groupData: any): Promise<any> {
+    return this.adapter.post('/groups/', groupData);
+  }
+
+  /**
+   * 获取分组详情
+   * @param groupId 分组ID
+   * @returns Promise<EntityGroup>
+   */
+  async getGroup(groupId: string): Promise<any> {
+    return this.adapter.get(`/groups/${groupId}`);
+  }
+
+  /**
+   * 获取作品的所有分组
+   * @param workId 作品ID
+   * @returns Promise<EntityGroup[]>
+   */
+  async getWorkGroups(workId: string): Promise<any[]> {
+    return this.adapter.get(`/groups/work/${workId}`);
+  }
+
+  /**
+   * 更新分组信息
+   * @param groupId 分组ID
+   * @param groupData 更新数据
+   * @returns Promise<EntityGroup>
+   */
+  async updateGroup(groupId: string, groupData: any): Promise<any> {
+    return this.adapter.put(`/groups/${groupId}`, groupData);
+  }
+
+  /**
+   * 删除分组
+   * @param groupId 分组ID
+   * @returns Promise<void>
+   */
+  async deleteGroup(groupId: string): Promise<void> {
+    return this.adapter.delete(`/groups/${groupId}`);
+  }
+
+  /**
+   * 批量添加分组成员
+   * @param groupId 分组ID
+   * @param members 成员列表
+   * @returns Promise<GroupMember[]>
+   */
+  async addGroupMembers(groupId: string, members: any[]): Promise<any[]> {
+    return this.adapter.post(`/groups/${groupId}/members`, { members });
+  }
+
+  /**
+   * 移除分组成员
+   * @param groupId 分组ID
+   * @param memberId 成员ID
+   * @returns Promise<void>
+   */
+  async removeGroupMember(groupId: string, memberId: string): Promise<void> {
+    return this.adapter.delete(`/groups/${groupId}/members/${memberId}`);
+  }
+
+  /**
+   * 批量移除分组成员
+   * @param groupId 分组ID
+   * @param memberIds 成员ID列表
+   * @returns Promise<void>
+   */
+  async batchRemoveGroupMembers(groupId: string, memberIds: string[]): Promise<void> {
+    return this.adapter.post(`/groups/${groupId}/members/batch-remove`, { memberIds });
   }
 }
 

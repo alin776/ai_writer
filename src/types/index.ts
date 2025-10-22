@@ -372,3 +372,15 @@ export * from './search';
 
 // ==================== 导入导出相关类型 ====================
 export * from './export';
+
+// ==================== 关系相关类型 ====================
+export * from './relationship';
+
+// ==================== 时间线相关类型 ====================
+// 注意：timeline 模块也导出了 EntityType，为避免冲突，我们明确导出其他类型
+export type { TimelineEntityType, EventType } from './timeline';
+export type { TimelineEvent, CreateTimelineEventData, UpdateTimelineEventData, ChapterAnchor, TimelineTrack } from './timeline';
+export { EVENT_TYPE_OPTIONS, ENTITY_TYPE_COLORS } from './timeline';
+
+// ==================== 分组相关类型 ====================
+export * from './group';

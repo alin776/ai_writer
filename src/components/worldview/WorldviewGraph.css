@@ -216,22 +216,70 @@
 /* ReactFlow 边的样式覆盖 */
 .react-flow__edge-path {
   stroke-width: 2;
+  transition: stroke-width 0.2s ease, filter 0.2s ease;
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-width: 3;
+  filter: drop-shadow(0 0 4px currentColor);
 }
 
 .react-flow__edge-textbg {
   fill: white;
+  fill-opacity: 0.9;
+  rx: 4;
 }
 
 .react-flow__edge-text {
   font-size: 11px;
+  fill: #374151;
+  font-weight: 600;
+}
+
+/* 多边标签优化 - 让序号更明显 */
+.react-flow__edge-text tspan {
+  font-size: 10px;
   fill: #6b7280;
-  font-weight: 500;
+}
+
+/* 自定义贝塞尔边标签样式 */
+.custom-edge-label {
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 2px 6px;
+  borderRadius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.custom-edge-label:hover {
+  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transform: scale(1.05);
 }
 
 /* 选中节点时的样式 */
 .react-flow__node.selected .worldview-node {
   border-width: 3px;
   box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+}
+
+/* 点击选中模式的高亮样式 */
+.react-flow__node.selected-node .worldview-node {
+  border-width: 3px;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2), 0 4px 16px rgba(59, 130, 246, 0.3);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2), 0 4px 16px rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.1), 0 4px 16px rgba(59, 130, 246, 0.3);
+  }
 }
 
 /* 控制按钮美化 */
@@ -278,5 +326,115 @@
 
   .node-subtitle {
     font-size: 11px;
+  }
+}
+
+/* 搜索匹配高亮 */
+.react-flow__node.search-match .worldview-node {
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.6);
+  animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+  0%, 100% {
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.4);
+  }
+}
+
+/* 搜索不匹配时变暗 */
+.react-flow__node.search-dimmed .worldview-node {
+  opacity: 0.3;
+}
+
+/* 焦点模式 - 中心节点 */
+.react-flow__node.focus-center .worldview-node {
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.8);
+  border-color: #f59e0b !important;
+  animation: pulse-orange 2s infinite;
+  z-index: 10;
+  border-width: 3px;
+}
+
+@keyframes pulse-orange {
+  0%, 100% {
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.8);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.4);
+  }
+}
+
+/* 焦点模式 - 相关节点 */
+.react-flow__node.focus-related .worldview-node {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+}
+
+/* 焦点模式 - 不相关节点变暗 */
+.react-flow__node.focus-dimmed .worldview-node {
+  opacity: 0.2;
+}
+
+/* 焦点模式下的边 */
+.react-flow__edge.hidden {
+  display: none;
+}
+
+
+/* ���ӵ���ʽ�Ż� - 4���������ӵ� */
+.worldview-node .react-flow__handle {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #1f2937;
+  background: #374151;
+  transition: all 0.2s ease;
+  opacity: 0;
+}
+
+/* Hoverʱ��ʾ���ӵ� */
+.worldview-node:hover .react-flow__handle {
+  opacity: 1;
+  transform: scale(1.3);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}
+
+/* ��ͬ���ͽڵ�����ӵ���ɫ */
+.character-node .react-flow__handle {
+  background: #3b82f6;
+  border-color: #60a5fa;
+}
+
+.location-node .react-flow__handle {
+  background: #10b981;
+  border-color: #34d399;
+}
+
+.setting-node .react-flow__handle {
+  background: #f59e0b;
+  border-color: #fbbf24;
+}
+
+/* ����״̬������ʱ�� */
+.worldview-node .react-flow__handle.connecting {
+  opacity: 1;
+  transform: scale(1.5);
+  animation: handle-pulse 1s infinite;
+}
+
+.worldview-node .react-flow__handle.valid {
+  background: #10b981;
+  border-color: #34d399;
+}
+
+/* ���ӵ��������� */
+@keyframes handle-pulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.8);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(59, 130, 246, 1);
   }
 }

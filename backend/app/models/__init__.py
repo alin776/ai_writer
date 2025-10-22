@@ -8,6 +8,9 @@ from app.models.work_guidelines import WorkGuidelines
 from app.models.ai_guidelines import AIGuidelines
 from app.models.novel_analysis import NovelAnalysis, AnalysisStatus, AnalysisStage
 from app.models.novel_analysis_vector import NovelAnalysisVector
+from app.models.relationship import EntityRelationship
+from app.models.timeline_event import TimelineEvent
+from app.models.entity_group import EntityGroup, GroupMember
 
 __all__ = [
     "User", 
@@ -23,5 +26,9 @@ __all__ = [
     "NovelAnalysis",
     "AnalysisStatus",
     "AnalysisStage",
-    "NovelAnalysisVector"
+    "NovelAnalysisVector",
+    "EntityRelationship",
+    "TimelineEvent",
+    "EntityGroup",
+    "GroupMember"
 ]

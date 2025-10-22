@@ -746,7 +746,7 @@ const WorkDetailView: React.FC = () => {
         {/* 左侧章节树 */}
         <div style={{ width: '280px', height: '100%', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
           {/* 顶部导出按钮 */}
-          <div style={{ padding: '12px', borderBottom: '1px solid #333', background: '#1e1e1e' }}>
+          <div style={{ padding: '12px', borderBottom: '1px solid #333' }}>
             <button
               onClick={() => setShowExportDialog(true)}
               style={{

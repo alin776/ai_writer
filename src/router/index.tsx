@@ -19,7 +19,7 @@ const RegisterView = React.lazy(() => import('../views/RegisterView'));
 const WorksView = React.lazy(() => import('../views/WorksView'));
 const CreateWorkView = React.lazy(() => import('../views/CreateWorkView'));
 const WorkDetailView = React.lazy(() => import('../views/WorkDetailView'));
-const WorldviewView = React.lazy(() => import('../views/WorldviewView'));
+const WorldviewGraphFullscreen = React.lazy(() => import('../views/WorldviewGraphFullscreen'));
 const EditorView = React.lazy(() => import('../views/EditorView'));
 const AdminDashboardView = React.lazy(() => import('../views/AdminDashboardView'));
 const AdminUsersView = React.lazy(() => import('../views/AdminUsersView'));
@@ -123,7 +123,7 @@ export const router = createBrowserRouter([
         path: '/worldview/:workId',
         element: (
           <SuspenseWrapper>
-            <WorldviewView />
+            <WorldviewGraphFullscreen />
           </SuspenseWrapper>
         ),
       },

@@ -37,7 +37,7 @@ export const AdminLayout: React.FC = () => {
 
         {/* 内容区域 */}
         <main className="flex-1 overflow-y-auto">
-          <div className="container mx-auto p-6">
+          <div className="container mx-auto">
             {/* 使用 Outlet 渲染子路由 */}
             <Outlet />
           </div>
