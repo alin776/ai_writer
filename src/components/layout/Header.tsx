@@ -154,10 +154,14 @@ const Header: React.FC = () => {
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 className="flex items-center space-x-2 px-2 py-1 hover:bg-gray-100 rounded transition-colors"
               >
-                <div className="w-7 h-7 bg-gray-900 rounded-full flex items-center justify-center">
-                  <span className="text-xs font-medium text-white">
-                    {user.username ? user.username[0].toUpperCase() : 'U'}
-                  </span>
+                <div className="w-7 h-7 bg-gray-900 rounded-full flex items-center justify-center overflow-hidden">
+                  {user.avatar ? (
+                    <img src={user.avatar} alt="用户头像" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-xs font-medium text-white">
+                      {user.username ? user.username[0].toUpperCase() : 'U'}
+                    </span>
+                  )}
                 </div>
                 <ChevronDown className="w-3 h-3 text-gray-500" />
               </button>

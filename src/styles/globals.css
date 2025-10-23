@@ -376,3 +376,18 @@ h1, h2, h3, h4, h5, h6 {
     --spacing-xl: 1rem;
   }
 }
+
+/**
+ * Select 下拉框选项样式统一为浅蓝色
+ */
+select option:checked,
+select option:hover {
+  background-color: #eff6ff !important; /* bg-blue-50 */
+  color: #1d4ed8 !important; /* text-blue-700 */
+}
+
+select option {
+  background-color: white;
+  color: #111827;
+  padding: 8px 12px;
+}

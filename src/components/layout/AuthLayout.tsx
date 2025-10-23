@@ -45,7 +45,7 @@ export const AuthLayout: React.FC = () => {
    */
   if (isChecking) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center min-h-screen bg-white">
         <Loading size="lg" text="加载中..." />
       </div>
     );
@@ -55,7 +55,7 @@ export const AuthLayout: React.FC = () => {
    * 已认证，显示完整布局
    */
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex flex-col h-screen bg-white">
       {/* 顶部导航栏 */}
       <Header />
 
@@ -65,8 +65,8 @@ export const AuthLayout: React.FC = () => {
         <Sidebar />
 
         {/* 内容区域 */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="container mx-auto">
+        <main className="flex-1 overflow-y-auto bg-gray-50">
+          <div className="container mx-auto py-6 px-4">
             {/* 使用 Outlet 渲染子路由 */}
             <Outlet />
           </div>
