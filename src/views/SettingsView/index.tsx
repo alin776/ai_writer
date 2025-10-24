@@ -624,7 +624,7 @@ const SettingsView: React.FC = () => {
             {sessions.map((session) => (
               <div
                 key={session.id}
-                className="flex items-start justify-between gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                className="flex items-start justify-between gap-4 p-4 border-2 border-blue-200 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors"
               >
                 <div className="flex items-start gap-3">
                   <div className="mt-1">
@@ -632,31 +632,31 @@ const SettingsView: React.FC = () => {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-medium text-gray-900 dark:text-gray-100">
+                      <p className="font-medium text-gray-900">
                         {session.deviceName || '未知设备'}
                       </p>
                       {session.isCurrent && (
-                        <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-200 rounded-full">
+                        <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
                           当前设备
                         </span>
                       )}
                       {!session.isActive && (
-                        <span className="px-2 py-0.5 text-xs font-medium bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 rounded-full">
+                        <span className="px-2 py-0.5 text-xs font-medium bg-gray-200 text-gray-600 rounded-full">
                           已退出
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    <p className="text-sm text-gray-800 mt-1">
                       {(session.browser || '未知浏览器')}{session.browserVersion ? ` · ${session.browserVersion}` : ''}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <p className="text-xs text-gray-700 mt-1">
                       {session.operatingSystem ? `系统: ${session.operatingSystem}` : '系统: 未知'}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <p className="text-xs text-gray-700 mt-1">
                       {session.ipAddress ? `IP: ${session.ipAddress}` : 'IP: 未知'}
                       {session.location ? ` · 位置: ${session.location}` : ''}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <p className="text-xs text-gray-700 mt-1">
                       最近活动: {formatTimestamp(session.lastActiveAt)}
                     </p>
                   </div>
