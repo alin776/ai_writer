@@ -1,11 +1,18 @@
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-from datetime import datetime
+from sqlalchemy import select, and_
+from datetime import datetime, timedelta
+from uuid import UUID
 
 from app.models.user import User
-from app.schemas.user import UserCreate, UserUpdate
+from app.models.user_session import UserSession
+from app.schemas.user import (
+    UserCreate,
+    UserUpdate,
+    NotificationSettings,
+    Preferences,
+    UserSessionResponse,
+)
 from app.core.security import get_password_hash, verify_password
 
 
@@ -137,3 +144,267 @@ class UserService:
         await self.db.commit()
         
         return user
+
+    async def get_notification_settings(self, user_id: str) -> NotificationSettings:
+        """获取用户通知设置"""
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            raise ValueError("User not found")
+
+        data = user.notification_settings or {}
+        return NotificationSettings.model_validate(data)
+
+    async def update_notification_settings(
+        self,
+        user_id: str,
+        settings: NotificationSettings
+    ) -> NotificationSettings:
+        """更新用户通知设置"""
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            raise ValueError("User not found")
+
+        user.notification_settings = settings.model_dump()
+        await self.db.commit()
+        await self.db.refresh(user)
+        return NotificationSettings.model_validate(user.notification_settings or {})
+
+    async def get_preferences(self, user_id: str) -> Preferences:
+        """获取用户偏好设置"""
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            raise ValueError("User not found")
+
+        data = user.preferences or {}
+        return Preferences.model_validate(data)
+
+    async def update_preferences(
+        self,
+        user_id: str,
+        preferences: Preferences
+    ) -> Preferences:
+        """更新用户偏好设置"""
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            raise ValueError("User not found")
+
+        user.preferences = preferences.model_dump()
+        await self.db.commit()
+        await self.db.refresh(user)
+        return Preferences.model_validate(user.preferences or {})
+
+    async def change_password(self, user_id: str, current_password: str, new_password: str) -> None:
+        """修改用户密码"""
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            raise ValueError("User not found")
+
+        if not verify_password(current_password, user.hashed_password):
+            raise ValueError("Current password is incorrect")
+
+        if verify_password(new_password, user.hashed_password):
+            raise ValueError("New password must be different from current password")
+
+        if len(new_password) < 6:
+            raise ValueError("Password must be at least 6 characters long")
+
+        user.hashed_password = get_password_hash(new_password)
+        await self.db.commit()
+
+    async def soft_delete_user(self, user_id: str, password: str) -> None:
+        """软删除用户账号"""
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            raise ValueError("User not found")
+
+        if not verify_password(password, user.hashed_password):
+            raise ValueError("Password is incorrect")
+
+        user.is_active = False
+        user.is_verified = False
+        user.username = f"deleted_{user.id}"
+        user.email = None
+        user.full_name = None
+        user.bio = None
+        user.avatar = None
+        user.notification_settings = {}
+        user.preferences = {}
+
+        await self.db.commit()
+
+    async def update_avatar(self, user_id: str, avatar_url: str) -> User:
+        """更新用户头像"""
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            raise ValueError("User not found")
+
+        user.avatar = avatar_url
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user
+
+    # ==================== 会话管理 ====================
+
+    async def create_session(
+        self,
+        user_id: str,
+        session_token: str,
+        device_info: dict,
+        ip_address: Optional[str] = None
+    ) -> UserSession:
+        """
+        创建用户会话
+
+        Args:
+            user_id: 用户ID
+            session_token: 会话令牌（access_token）
+            device_info: 设备信息字典
+            ip_address: IP地址
+
+        Returns:
+            UserSession 对象
+        """
+        # 计算过期时间（与 access_token 一致）
+        from app.core.config import settings
+        expires_at = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+
+        session = UserSession(
+            user_id=UUID(user_id),
+            session_token=session_token,
+            device_type=device_info.get('device_type'),
+            device_name=device_info.get('device_name'),
+            browser=device_info.get('browser'),
+            browser_version=device_info.get('browser_version'),
+            operating_system=device_info.get('operating_system'),
+            ip_address=ip_address,
+            user_agent=device_info.get('user_agent'),
+            is_active=True,
+            last_active_at=datetime.utcnow(),
+            expires_at=expires_at,
+        )
+
+        self.db.add(session)
+        await self.db.commit()
+        await self.db.refresh(session)
+
+        return session
+
+    async def get_user_sessions(
+        self,
+        user_id: str,
+        current_token: Optional[str] = None
+    ) -> List[UserSessionResponse]:
+        """
+        获取用户所有活跃会话
+
+        Args:
+            user_id: 用户ID
+            current_token: 当前会话token，用于标记当前设备
+
+        Returns:
+            会话列表
+        """
+        result = await self.db.execute(
+            select(UserSession)
+            .where(
+                and_(
+                    UserSession.user_id == UUID(user_id),
+                    UserSession.is_active == True
+                )
+            )
+            .order_by(UserSession.last_active_at.desc())
+        )
+        sessions = result.scalars().all()
+
+        # 转换为响应格式，并标记当前会话
+        session_responses = []
+        for session in sessions:
+            response = UserSessionResponse.model_validate(session)
+            # 判断是否为当前会话
+            if current_token and session.session_token == current_token:
+                response.is_current = True
+            session_responses.append(response)
+
+        return session_responses
+
+    async def logout_session(self, user_id: str, session_id: str) -> bool:
+        """
+        退出指定会话
+
+        Args:
+            user_id: 用户ID
+            session_id: 会话ID
+
+        Returns:
+            是否成功
+        """
+        result = await self.db.execute(
+            select(UserSession)
+            .where(
+                and_(
+                    UserSession.id == UUID(session_id),
+                    UserSession.user_id == UUID(user_id)
+                )
+            )
+        )
+        session = result.scalar_one_or_none()
+
+        if not session:
+            raise ValueError("Session not found")
+
+        # 标记会话为非活跃
+        session.is_active = False
+        session.logged_out_at = datetime.utcnow()
+
+        await self.db.commit()
+        return True
+
+    async def logout_other_sessions(self, user_id: str, current_token: str) -> int:
+        """
+        退出除当前会话外的所有会话
+
+        Args:
+            user_id: 用户ID
+            current_token: 当前会话token
+
+        Returns:
+            退出的会话数量
+        """
+        result = await self.db.execute(
+            select(UserSession)
+            .where(
+                and_(
+                    UserSession.user_id == UUID(user_id),
+                    UserSession.is_active == True,
+                    UserSession.session_token != current_token
+                )
+            )
+        )
+        sessions = result.scalars().all()
+
+        count = 0
+        for session in sessions:
+            session.is_active = False
+            session.logged_out_at = datetime.utcnow()
+            count += 1
+
+        await self.db.commit()
+        return count
+
+    async def update_session_activity(self, session_token: str) -> None:
+        """
+        更新会话活动时间
+
+        Args:
+            session_token: 会话token
+        """
+        result = await self.db.execute(
+            select(UserSession)
+            .where(UserSession.session_token == session_token)
+        )
+        session = result.scalar_one_or_none()
+
+        if session:
+            session.last_active_at = datetime.utcnow()
+            await self.db.commit()
+

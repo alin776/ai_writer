@@ -25,7 +25,76 @@ import type {
   RegisterData,
   CreateWorkData,
   CreateChapterData,
+  UserSession,
 } from '@/types';
+
+const defaultNotificationSettings = {
+  emailNotifications: true,
+  browserNotifications: false,
+  newChapter: true,
+  comments: true,
+  mentions: true,
+  systemUpdates: false,
+};
+
+const defaultPreferences = {
+  theme: 'light' as const,
+  language: 'zh-CN' as const,
+  fontSize: 'medium' as const,
+  autoSave: true,
+  autoSaveInterval: 30,
+};
+
+let cachedNotificationSettings = { ...defaultNotificationSettings };
+let cachedPreferences = { ...defaultPreferences };
+let cachedAvatarUrl = 'https://api.dicebear.com/7.x/avataaars/svg?seed=mock';
+let cachedSessions: UserSession[] = [
+  {
+    id: 'session-current',
+    deviceType: 'desktop',
+    deviceName: 'Windows 桌面端',
+    browser: 'Chrome',
+    browserVersion: '121.0',
+    operatingSystem: 'Windows 11',
+    ipAddress: '222.132.58.45',
+    location: '北京',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
+    lastActiveAt: new Date().toISOString(),
+    isActive: true,
+    isCurrent: true,
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)...',
+  },
+  {
+    id: 'session-mobile',
+    deviceType: 'mobile',
+    deviceName: 'iPhone 15',
+    browser: 'Safari',
+    browserVersion: '17.0',
+    operatingSystem: 'iOS 17',
+    ipAddress: '120.55.32.10',
+    location: '上海',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+    lastActiveAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+    isActive: true,
+    isCurrent: false,
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)...',
+  },
+  {
+    id: 'session-tablet',
+    deviceType: 'tablet',
+    deviceName: 'iPad Pro',
+    browser: 'Safari',
+    browserVersion: '16.6',
+    operatingSystem: 'iPadOS 16',
+    ipAddress: '58.34.190.9',
+    location: '广州',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
+    lastActiveAt: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
+    isActive: true,
+    isCurrent: false,
+    userAgent: 'Mozilla/5.0 (iPad; CPU OS 16_6 like Mac OS X)...',
+  },
+];
 
 export class MockAdapter implements IDataAdapter {
   /**
@@ -41,6 +110,18 @@ export class MockAdapter implements IDataAdapter {
    */
   async get<T>(url: string): Promise<T> {
     await this.delay();
+
+    if (url === '/users/me/notification-settings') {
+      return { ...cachedNotificationSettings } as T;
+    }
+
+    if (url === '/users/me/preferences') {
+      return { ...cachedPreferences } as T;
+    }
+
+    if (url === '/users/me/sessions') {
+      return cachedSessions.map((session) => ({ ...session })) as T;
+    }
 
     // 用户认证
     if (url === '/auth/me') {
@@ -212,6 +293,30 @@ export class MockAdapter implements IDataAdapter {
       } as T;
     }
 
+    if (url === '/users/me/change-password') {
+      if (data?.currentPassword !== '123456') {
+        throw new Error('当前密码错误');
+      }
+      return { detail: '密码修改成功' } as T;
+    }
+
+    if (url === '/users/me/avatar') {
+      cachedAvatarUrl = data?.get?.('file')
+        ? `${cachedAvatarUrl}?t=${Date.now()}`
+        : cachedAvatarUrl;
+      return { avatarUrl: cachedAvatarUrl } as T;
+    }
+
+    if (url === '/users/me/sessions/logout-others') {
+      cachedSessions = cachedSessions.map((session) =>
+        session.isCurrent
+          ? session
+          : { ...session, isActive: false }
+      );
+      cachedSessions = cachedSessions.filter((session) => session.isCurrent);
+      return { detail: '已退出其他设备' } as T;
+    }
+
     // AI 润色
     if (url === '/ai/polish') {
       await this.delay(1000);
@@ -267,6 +372,35 @@ export class MockAdapter implements IDataAdapter {
   async put<T>(url: string, data?: any): Promise<T> {
     await this.delay();
 
+    if (url === '/users/me/notification-settings') {
+      cachedNotificationSettings = { ...cachedNotificationSettings, ...data };
+      return { ...cachedNotificationSettings } as T;
+    }
+
+    if (url === '/users/me/preferences') {
+      cachedPreferences = { ...cachedPreferences, ...data };
+      return { ...cachedPreferences } as T;
+    }
+
+    if (url === '/users/me') {
+      cachedAvatarUrl = data?.avatar ?? cachedAvatarUrl;
+      return {
+        id: 'user-1',
+        username: data?.username ?? 'mock-user',
+        email: data?.email ?? 'mock@example.com',
+        fullName: data?.fullName,
+        avatar: cachedAvatarUrl,
+        bio: data?.bio,
+        notificationSettings: { ...cachedNotificationSettings },
+        preferences: { ...cachedPreferences },
+        isActive: true,
+        isAdmin: true,
+        isVerified: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      } as T;
+    }
+
     // 更新作品
     if (url.startsWith('/works/')) {
       const id = url.split('/')[2];
@@ -319,8 +453,30 @@ export class MockAdapter implements IDataAdapter {
   /**
    * DELETE 请求实现
    */
-  async delete<T>(url: string): Promise<T> {
+  async delete<T>(url: string, _data?: any): Promise<T> {
     await this.delay();
+
+    if (url.startsWith('/users/me/sessions/')) {
+      const sessionId = url.split('/').pop();
+      if (!sessionId) {
+        throw new Error('未指定会话 ID');
+      }
+      const session = cachedSessions.find((item) => item.id === sessionId);
+      if (!session) {
+        throw new Error('会话不存在');
+      }
+      if (session.isCurrent) {
+        throw new Error('无法在当前设备退出当前会话');
+      }
+      cachedSessions = cachedSessions.filter((item) => item.id !== sessionId);
+      return { detail: '会话已退出' } as T;
+    }
+
+    if (url === '/users/me') {
+      cachedNotificationSettings = { ...defaultNotificationSettings };
+      cachedPreferences = { ...defaultPreferences };
+      return { detail: '账号已删除' } as T;
+    }
 
     // 删除作品
     if (url.startsWith('/works/')) {
@@ -350,5 +506,48 @@ export class MockAdapter implements IDataAdapter {
     }
 
     throw new Error(`Mock DELETE route not implemented: ${url}`);
+  }
+
+  /**
+   * PATCH 请求实现
+   */
+  async patch<T>(url: string, data?: any): Promise<T> {
+    await this.delay();
+
+    // 封禁用户
+    if (url.match(/\/admin\/users\/.+\/ban$/)) {
+      const id = url.split('/')[3];
+      const index = mockUsers.findIndex((u) => u.id === id);
+      if (index === -1) throw new Error('用户不存在');
+      mockUsers[index] = { ...mockUsers[index], status: 'banned' };
+      return { message: '用户已封禁', user: mockUsers[index] } as T;
+    }
+
+    // 解封用户
+    if (url.match(/\/admin\/users\/.+\/unban$/)) {
+      const id = url.split('/')[3];
+      const index = mockUsers.findIndex((u) => u.id === id);
+      if (index === -1) throw new Error('用户不存在');
+      mockUsers[index] = { ...mockUsers[index], status: 'active' };
+      return { message: '用户已解封', user: mockUsers[index] } as T;
+    }
+
+    // 切换管理员角色
+    if (url.match(/\/admin\/users\/.+\/toggle-admin$/)) {
+      const id = url.split('/')[3];
+      const index = mockUsers.findIndex((u) => u.id === id);
+      if (index === -1) throw new Error('用户不存在');
+      const isAdmin = mockUsers[index].role === 'admin';
+      mockUsers[index] = {
+        ...mockUsers[index],
+        role: isAdmin ? 'user' : 'admin',
+      };
+      return {
+        message: isAdmin ? '已取消管理员权限' : '已设置为管理员',
+        user: mockUsers[index],
+      } as T;
+    }
+
+    throw new Error(`Mock PATCH route not implemented: ${url}`);
   }
 }

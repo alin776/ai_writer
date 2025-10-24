@@ -3,7 +3,7 @@ import React from 'react';
 /**
  * 按钮变体类型
  */
-export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'outline' | 'ghost';
+export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'outline' | 'ghost' | 'danger-outline' | 'gray-outline';
 
 /**
  * 按钮尺寸类型
@@ -70,7 +70,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
  * 按钮组件
  *
  * 功能：
- * - 支持多种变体样式 (primary, secondary, danger, outline, ghost)
+ * - 支持多种变体样式 (primary, secondary, danger, outline, danger-outline, gray-outline, ghost)
  * - 支持多种尺寸 (sm, md, lg)
  * - 支持 loading 和 disabled 状态
  * - 使用 Tailwind CSS 进行样式设计
@@ -82,7 +82,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
  *   点击我
  * </Button>
  *
- * <Button variant="danger" loading disabled>
+ * <Button variant="danger-outline" loading disabled>
  *   加载中...
  * </Button>
  * ```
@@ -106,11 +106,20 @@ const Button: React.FC<ButtonProps> = ({
    */
   const getVariantStyles = (): string => {
     const variants: Record<ButtonVariant, string> = {
-      primary: 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 focus:ring-blue-500',
-      secondary: 'bg-gray-600 text-white hover:bg-gray-700 active:bg-gray-800 focus:ring-gray-500',
-      danger: 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 focus:ring-red-500',
-      outline: 'bg-transparent border-2 border-blue-600 text-blue-600 hover:bg-blue-50 active:bg-blue-100 focus:ring-blue-500',
-      ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 active:bg-gray-200 focus:ring-gray-500',
+      primary:
+        'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 focus:ring-blue-500 dark:bg-blue-500 dark:hover:bg-blue-400 dark:active:bg-blue-600',
+      secondary:
+        'bg-gray-600 text-white hover:bg-gray-700 active:bg-gray-800 focus:ring-gray-500 dark:bg-gray-500 dark:hover:bg-gray-400 dark:active:bg-gray-600',
+      danger:
+        'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 focus:ring-red-500 dark:bg-red-500 dark:hover:bg-red-400 dark:active:bg-red-600',
+      outline:
+        'bg-transparent border-2 border-blue-700 text-blue-700 hover:bg-blue-50 active:bg-blue-100 focus:ring-blue-500 dark:text-blue-400 dark:border-blue-500 dark:hover:bg-blue-900/40 dark:active:bg-blue-900/60',
+      'danger-outline':
+        'bg-transparent border-2 border-red-700 text-red-700 hover:bg-red-50 active:bg-red-100 focus:ring-red-500 dark:text-red-400 dark:border-red-500 dark:hover:bg-red-900/40 dark:active:bg-red-900/60',
+      'gray-outline':
+        'bg-transparent border-2 border-gray-700 text-gray-800 hover:bg-gray-50 active:bg-gray-100 focus:ring-gray-500 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-800/40 dark:active:bg-gray-800/60',
+      ghost:
+        'bg-transparent text-gray-700 hover:bg-gray-100 active:bg-gray-200 focus:ring-gray-500 dark:text-gray-200 dark:hover:bg-gray-700 dark:active:bg-gray-600',
     };
 
     return variants[variant];
@@ -149,7 +158,8 @@ const Button: React.FC<ButtonProps> = ({
   /**
    * 基础样式
    */
-  const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2';
+  const baseStyles =
+    'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900';
 
   /**
    * 组合所有样式

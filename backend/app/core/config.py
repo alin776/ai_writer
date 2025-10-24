@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from pydantic_settings import BaseSettings
 from pydantic import validator
 
@@ -51,6 +51,15 @@ class Settings(BaseSettings):
     # 文件上传配置
     MAX_UPLOAD_SIZE: int = 10485760  # 10MB
     UPLOAD_DIR: str = "./uploads"
+
+    # 腾讯云 COS 配置
+    COS_HOST: Optional[str] = None
+    COS_SECRET_ID: Optional[str] = None
+    COS_SECRET_KEY: Optional[str] = None
+    COS_REGION: Optional[str] = None
+    COS_BUCKET: Optional[str] = None
+    COS_SCHEME: str = "https"
+    COS_PREFIX: Optional[str] = "uploads"
     
     # 日志配置
     LOG_LEVEL: str = "INFO"

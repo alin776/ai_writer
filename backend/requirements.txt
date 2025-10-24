@@ -41,6 +41,7 @@ aiohttp==3.9.1
 python-dotenv==1.0.0
 loguru==0.7.2
 beautifulsoup4==4.12.3
+cos-python-sdk-v5>=1.9.0
 
 # Testing
 pytest==7.4.4

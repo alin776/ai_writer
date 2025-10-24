@@ -11,7 +11,7 @@ interface InputField {
   placeholder?: string;
   required?: boolean;
   defaultValue?: string;
-  type?: 'text' | 'textarea';
+  type?: 'text' | 'textarea' | 'password';
   rows?: number;
 }
 
@@ -125,7 +125,7 @@ const InputDialog: React.FC<InputDialogProps> = ({
                 ) : (
                   <input
                     ref={index === 0 ? (firstInputRef as React.RefObject<HTMLInputElement>) : undefined}
-                    type="text"
+                    type={field.type === 'password' ? 'password' : 'text'}
                     value={values[field.name] || ''}
                     onChange={(e) => handleChange(field.name, e.target.value)}
                     placeholder={field.placeholder}

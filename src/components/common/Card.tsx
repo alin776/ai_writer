@@ -168,7 +168,7 @@ const Card: React.FC<CardProps> = ({
    * 获取边框样式
    */
   const getBorderStyles = (): string => {
-    return bordered ? 'border border-gray-200' : '';
+    return bordered ? 'border border-gray-200 dark:border-gray-700' : '';
   };
 
   /**
@@ -176,8 +176,8 @@ const Card: React.FC<CardProps> = ({
    */
   const getBackgroundStyles = (): string => {
     const backgrounds = {
-      white: 'bg-white',
-      gray: 'bg-gray-50',
+      white: 'bg-white dark:bg-gray-800',
+      gray: 'bg-gray-50 dark:bg-gray-800/70',
       transparent: 'bg-transparent',
     };
 
@@ -248,7 +248,7 @@ export interface CardHeaderProps {
 
 export const CardHeader: React.FC<CardHeaderProps> = ({ children, className = '' }) => {
   return (
-    <div className={`border-b border-gray-200 pb-3 mb-3 ${className}`}>
+    <div className={`border-b border-gray-200 dark:border-gray-700 pb-3 mb-3 ${className}`}>
       {children}
     </div>
   );
@@ -276,7 +276,7 @@ export interface CardFooterProps {
 
 export const CardFooter: React.FC<CardFooterProps> = ({ children, className = '' }) => {
   return (
-    <div className={`border-t border-gray-200 pt-3 mt-3 ${className}`}>
+    <div className={`border-t border-gray-200 dark:border-gray-700 pt-3 mt-3 ${className}`}>
       {children}
     </div>
   );

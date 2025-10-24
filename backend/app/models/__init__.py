@@ -1,4 +1,5 @@
 from app.models.user import User
+from app.models.user_session import UserSession
 from app.models.work import Work, WorkStatus, WorkGenre
 from app.models.chapter import Chapter
 from app.models.character import Character
@@ -13,7 +14,8 @@ from app.models.timeline_event import TimelineEvent
 from app.models.entity_group import EntityGroup, GroupMember
 
 __all__ = [
-    "User", 
+    "User",
+    "UserSession",
     "Work", 
     "WorkStatus", 
     "WorkGenre", 

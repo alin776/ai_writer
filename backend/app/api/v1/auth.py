@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from fastapi.security import OAuth2PasswordRequestForm
@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.core.security import create_access_token, create_refresh_token
 from app.schemas.user import UserCreate, UserResponse, Token, AuthResponse
 from app.services.user_service import UserService
+from app.utils.device_parser import parse_user_agent, get_client_ip
 
 router = APIRouter()
 
@@ -65,41 +66,63 @@ async def register(
 
 @router.post("/login", response_model=Token)
 async def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db)
 ):
     """
     用户登录
-    
+
     - **username**: 用户名或邮箱
     - **password**: 密码
-    
+
     返回 JWT Token
     """
     user_service = UserService(db)
-    
+
     user = await user_service.authenticate_user(
         form_data.username,
         form_data.password
     )
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive"
         )
-    
+
     # 创建访问令牌和刷新令牌
     access_token = create_access_token(data={"sub": str(user.id)})
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
-    
+
+    # 解析设备信息
+    user_agent = request.headers.get("user-agent", "")
+    device_info = parse_user_agent(user_agent)
+    device_info['user_agent'] = user_agent  # 保存完整的 User-Agent
+
+    # 获取客户端 IP
+    ip_address = get_client_ip(request)
+
+    # 创建会话记录
+    try:
+        await user_service.create_session(
+            user_id=str(user.id),
+            session_token=access_token,
+            device_info=device_info,
+            ip_address=ip_address
+        )
+    except Exception as e:
+        # 会话创建失败不影响登录，但记录错误
+        import logging
+        logging.error(f"Failed to create session: {e}")
+
     return Token(
         access_token=access_token,
         refresh_token=refresh_token,

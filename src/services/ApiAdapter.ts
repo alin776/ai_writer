@@ -229,6 +229,16 @@ export class ApiAdapter implements IDataAdapter {
       });
       return response;
     }
+
+    // FormData 直接透传，避免键名转换破坏 multipart 结构
+    if (data instanceof FormData) {
+      const response = await this.axiosInstance.post(url, data, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response;
+    }
     
     // 将请求体从 camelCase 转换为 snake_case
     const snakeCaseData = this.convertKeysToSnakeCase(data);
@@ -255,9 +265,30 @@ export class ApiAdapter implements IDataAdapter {
   /**
    * DELETE 请求
    */
-  async delete<T>(url: string): Promise<T> {
-    // 响应拦截器已经处理了 camelCase 转换
-    const response = await this.axiosInstance.delete(url);
+  async delete<T>(url: string, data?: any): Promise<T> {
+    let payload = data;
+    if (payload && !(payload instanceof FormData)) {
+      payload = this.convertKeysToSnakeCase(payload);
+    }
+    const response = await this.axiosInstance.delete(url, payload ? { data: payload } : undefined);
+    return response;
+  }
+
+  /**
+   * PATCH 请求
+   */
+  async patch<T>(url: string, data?: any): Promise<T> {
+    console.log('[ApiAdapter.patch] URL:', url);
+    console.log('[ApiAdapter.patch] 请求数据:', data);
+    
+    // 将请求体从 camelCase 转换为 snake_case
+    const snakeCaseData = this.convertKeysToSnakeCase(data);
+    console.log('[ApiAdapter.patch] 转换后的数据 (snake_case):', snakeCaseData);
+    
+    // 响应拦截器已经处理了 camelCase 转换，直接返回
+    const response = await this.axiosInstance.patch(url, snakeCaseData);
+    console.log('[ApiAdapter.patch] 收到响应 (已转camelCase):', response);
+    
     return response;
   }
 }

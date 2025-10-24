@@ -1,5 +1,5 @@
-from sqlalchemy import Column, String, DateTime, Boolean, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, DateTime, Boolean, Text, text
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import uuid
@@ -21,6 +21,16 @@ class User(Base):
     full_name = Column(String(100), nullable=True)
     avatar = Column(String(500), nullable=True)
     bio = Column(Text, nullable=True)
+    notification_settings = Column(
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb")
+    )
+    preferences = Column(
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb")
+    )
     
     # 状态
     is_active = Column(Boolean, default=True, nullable=False)
@@ -34,6 +44,11 @@ class User(Base):
     
     # 关联关系
     works = relationship("Work", back_populates="author", cascade="all, delete-orphan")
+    sessions = relationship(
+        "UserSession",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
     
     def __repr__(self):
         return f"<User {self.username}>"

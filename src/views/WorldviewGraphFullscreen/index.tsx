@@ -39,6 +39,7 @@ import { useToast } from '@/hooks/useToast';
 import { Relationship, RelationshipFormData, CreateRelationshipData, EntityType } from '@/types/relationship';
 import { TimelineEvent, ChapterAnchor } from '@/types/timeline';
 import { EntityGroup, CreateEntityGroupData } from '@/types/group';
+import { exportGraphAsPng, exportGraphAsSvg, exportGraphAsJson } from '@/utils/exportGraph';
 
 type ViewMode = 'graph' | 'timeline';
 
@@ -72,6 +73,10 @@ const WorldviewGraphFullscreen: React.FC = () => {
   const [currentLayout, setCurrentLayout] = useState<LayoutAlgorithm>('force');
   const [layoutConfig, setLayoutConfig] = useState<GlobalLayoutConfig>(DEFAULT_LAYOUT_CONFIG);
   const [showLayoutSelector, setShowLayoutSelector] = useState(false);
+  
+  // 导出相关状态
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exporting, setExporting] = useState(false);
   
   // 搜索和焦点模式状态
   const [searchFilter, setSearchFilter] = useState<SearchFilter>({
@@ -305,6 +310,49 @@ const WorldviewGraphFullscreen: React.FC = () => {
       showToast('success', '已进入连线模式，点击两个节点建立关系');
     }
   };
+
+  // 导出功能
+  const handleExport = async (format: 'png' | 'svg' | 'json') => {
+    setExporting(true);
+    setShowExportMenu(false);
+    
+    try {
+      if (format === 'json') {
+        // 导出JSON数据
+        const exportData = {
+          workId,
+          workTitle,
+          worldData,
+          relationships,
+          timelineEvents,
+          chapterAnchors,
+          groups,
+          exportDate: new Date().toISOString(),
+        };
+        exportGraphAsJson(exportData, `${workTitle}-世界观数据.json`);
+        showToast('success', 'JSON 数据导出成功');
+      } else {
+        // 导出PNG或SVG图片
+        const graphElement = document.querySelector('.react-flow') as HTMLElement;
+        if (!graphElement) {
+          throw new Error('找不到图谱元素');
+        }
+        
+        if (format === 'png') {
+          await exportGraphAsPng(graphElement, `${workTitle}-世界观图谱.png`);
+          showToast('success', 'PNG 图片导出成功');
+        } else {
+          await exportGraphAsSvg(graphElement, `${workTitle}-世界观图谱.svg`);
+          showToast('success', 'SVG 图片导出成功');
+        }
+      }
+    } catch (error: any) {
+      console.error('导出失败:', error);
+      showToast('error', error.message || '导出失败');
+    } finally {
+      setExporting(false);
+    }
+  };
   
   // 处理连接创建（拖拽连线 - 备用，目前不使用）
   const handleConnect = (sourceId: string, sourceType: EntityType, targetId: string, targetType: EntityType) => {
@@ -501,13 +549,40 @@ const WorldviewGraphFullscreen: React.FC = () => {
               </div>
             </>
           )}
-          <button
-            onClick={handleExport}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            导出
-          </button>
+          {/* 导出按钮 */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              disabled={exporting}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              {exporting ? '导出中...' : '导出'}
+            </button>
+            
+            {showExportMenu && !exporting && (
+              <div className="absolute top-full right-0 mt-2 z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-2 w-40">
+                <button
+                  onClick={() => handleExport('png')}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  导出为 PNG
+                </button>
+                <button
+                  onClick={() => handleExport('svg')}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  导出为 SVG
+                </button>
+                <button
+                  onClick={() => handleExport('json')}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  导出为 JSON
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

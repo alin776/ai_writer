@@ -32,6 +32,9 @@ import type {
   AnalysisStatusResponse,
   AnalysisResultResponse,
   StartAnalysisResponse,
+  NotificationSettings,
+  UserPreferences,
+  UserSession,
 } from '@/types';
 import type { WorldData, Setting, Character, Location } from '@/types/novel';
 import type {
@@ -91,6 +94,112 @@ class DataServiceClass {
    */
   async logout(): Promise<void> {
     localStorage.removeItem('auth-storage');
+  }
+
+  /**
+   * 更新当前用户信息
+   * @param data 更新数据
+   * @returns Promise<User>
+   */
+  async updateUserProfile(data: {
+    username?: string;
+    email?: string;
+    fullName?: string;
+    bio?: string;
+    website?: string;
+  }): Promise<User> {
+    return this.adapter.put('/users/me', data);
+  }
+
+  /**
+   * 获取通知设置
+   * @returns Promise<NotificationSettings>
+   */
+  async getNotificationSettings(): Promise<NotificationSettings> {
+    return this.adapter.get('/users/me/notification-settings');
+  }
+
+  /**
+   * 更新通知设置
+   * @param settings 通知配置
+   * @returns Promise<NotificationSettings>
+   */
+  async updateNotificationSettings(settings: NotificationSettings): Promise<NotificationSettings> {
+    return this.adapter.put('/users/me/notification-settings', settings);
+  }
+
+  /**
+   * 获取偏好设置
+   * @returns Promise<UserPreferences>
+   */
+  async getPreferences(): Promise<UserPreferences> {
+    return this.adapter.get('/users/me/preferences');
+  }
+
+  /**
+   * 更新偏好设置
+   * @param preferences 偏好配置
+   * @returns Promise<UserPreferences>
+   */
+  async updatePreferences(preferences: UserPreferences): Promise<UserPreferences> {
+    return this.adapter.put('/users/me/preferences', preferences);
+  }
+
+  /**
+   * 修改密码
+   * @param currentPassword 当前密码
+   * @param newPassword 新密码
+   * @returns Promise<string> 提示消息
+   */
+  async changePassword(currentPassword: string, newPassword: string): Promise<string> {
+    const response = await this.adapter.post<{ detail: string }>('/users/me/change-password', {
+      currentPassword,
+      newPassword,
+    });
+    return response.detail;
+  }
+
+  /**
+   * 删除账号
+   * @param password 密码确认
+   */
+  async deleteAccount(password: string): Promise<void> {
+    await this.adapter.delete('/users/me', { password });
+  }
+
+  /**
+   * 上传头像
+   * @param file 头像文件
+   * @returns Promise<string> 头像地址
+   */
+  async uploadAvatar(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await this.adapter.post<{ avatarUrl: string }>('/users/me/avatar', formData);
+    return response.avatarUrl;
+  }
+
+  /**
+   * 获取当前用户的活跃会话列表
+   * @returns Promise<UserSession[]>
+   */
+  async getSessions(): Promise<UserSession[]> {
+    return this.adapter.get('/users/me/sessions');
+  }
+
+  /**
+   * 注销指定会话
+   * @param sessionId 会话 ID
+   */
+  async logoutSession(sessionId: string): Promise<void> {
+    await this.adapter.delete(`/users/me/sessions/${sessionId}`);
+  }
+
+  /**
+   * 注销除当前会话外的所有会话
+   */
+  async logoutOtherSessions(): Promise<void> {
+    await this.adapter.post('/users/me/sessions/logout-others');
   }
 
   // ==================== 作品相关 ====================

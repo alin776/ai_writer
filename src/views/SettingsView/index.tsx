@@ -260,6 +260,34 @@ const SettingsView: React.FC = () => {
     }
   };
 
+  // 取消修改
+  const handleCancel = () => {
+    if (activeTab === 'profile') {
+      // 重置个人信息表单
+      setProfileForm({
+        username: user?.username || '',
+        email: user?.email || '',
+        fullName: user?.fullName || '',
+        bio: user?.bio || '',
+        website: '',
+      });
+      showInfo('已取消修改');
+    } else if (activeTab === 'notifications') {
+      // 重置通知设置
+      setNotificationSettings(user?.notificationSettings || notificationDefaults);
+      showInfo('已取消修改');
+    } else if (activeTab === 'preferences') {
+      // 重置偏好设置
+      const originalPreferences = user?.preferences || preferenceDefaults;
+      setPreferences(originalPreferences);
+      // 恢复主题
+      if (originalPreferences?.theme) {
+        applyTheme(originalPreferences.theme, { persist: false });
+      }
+      showInfo('已取消修改');
+    }
+  };
+
   const handleAvatarSelect = () => {
     fileInputRef.current?.click();
   };
@@ -554,7 +582,7 @@ const SettingsView: React.FC = () => {
             />
           </div>
           <Button
-            variant="outline"
+            variant="secondary"
             onClick={handleChangePassword}
             disabled={isChangingPassword}
           >
@@ -570,11 +598,11 @@ const SettingsView: React.FC = () => {
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">查看并管理所有已登录设备</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={handleRefreshSessions} disabled={isSessionsLoading}>
+            <Button variant="gray-outline" size="sm" onClick={handleRefreshSessions} disabled={isSessionsLoading}>
               {isSessionsLoading ? '加载中...' : '刷新'}
             </Button>
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={handleLogoutOtherSessions}
               disabled={isLoggingOutOthers || isSessionsLoading || sessions.length <= 1}
@@ -635,7 +663,7 @@ const SettingsView: React.FC = () => {
                 </div>
                 {!session.isCurrent && session.isActive && (
                   <Button
-                    variant="outline"
+                    variant="gray-outline"
                     size="sm"
                     onClick={() => handleLogoutSession(session)}
                     disabled={sessionActionId === session.id}
@@ -653,7 +681,7 @@ const SettingsView: React.FC = () => {
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">危险操作</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">删除账号后将无法恢复，请谨慎操作</p>
         <Button
-          variant="outline"
+          variant="danger"
           onClick={handleDeleteAccount}
           disabled={isDeletingAccount}
         >
@@ -869,18 +897,23 @@ const SettingsView: React.FC = () => {
               </>
             )}
 
-            {/* 保存按钮 */}
-            <div className="border-t border-gray-200 mt-6 pt-6">
-              <div className="flex items-center justify-end space-x-3">
-                <Button variant="outline" disabled={isSaving}>
-                  取消
-                </Button>
-                <Button variant="primary" onClick={handleSave} disabled={isSaving || isInitializing}>
-                  <Save className="w-4 h-4 mr-2" />
-                  {isSaving ? '保存中...' : '保存更改'}
-                </Button>
+            {/* 保存按钮区域 - 仅在非安全设置标签页显示 */}
+            {activeTab !== 'security' ? (
+              <div className="border-t border-gray-200 mt-6 pt-6">
+                <div className="flex items-center justify-end space-x-3">
+                  <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
+                    取消
+                  </Button>
+                  <Button variant="primary" onClick={handleSave} disabled={isSaving || isInitializing}>
+                    <Save className="w-4 h-4 mr-2" />
+                    {isSaving ? '保存中...' : '保存更改'}
+                  </Button>
+                </div>
               </div>
-            </div>
+            ) : (
+              // 安全设置页 - 保持相同高度的底部留白
+              <div className="mt-6 pt-6"></div>
+            )}
           </div>
         </Card>
       </div>

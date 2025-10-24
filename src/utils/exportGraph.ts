@@ -1,106 +1,76 @@
 /**
- * 图表导出工具函数
+ * 世界观图谱导出工具
+ * 支持导出为 PNG、SVG、JSON 格式
  */
 import { toPng, toSvg } from 'html-to-image';
-import { Node, Edge } from '@xyflow/react';
-
-export interface ExportOptions {
-  format: 'png' | 'svg' | 'json';
-  filename?: string;
-  quality?: number; // 0-1, for PNG
-  backgroundColor?: string;
-}
 
 /**
- * 导出为PNG图片
+ * 导出为 PNG 图片
+ * @param element HTML 元素
+ * @param filename 文件名
  */
-export async function exportToPng(
-  element: HTMLElement,
-  options: ExportOptions = { format: 'png' }
-): Promise<void> {
+export async function exportGraphAsPng(element: HTMLElement, filename: string = 'worldview-graph.png'): Promise<void> {
   try {
     const dataUrl = await toPng(element, {
-      quality: options.quality || 0.95,
-      backgroundColor: options.backgroundColor || '#111827',
-      cacheBust: true,
-      pixelRatio: 2, // 2x resolution for better quality
+      quality: 1.0,
+      backgroundColor: '#ffffff',
+      pixelRatio: 2, // 2倍分辨率，更清晰
     });
 
-    // 下载图片
+    // 触发下载
     const link = document.createElement('a');
-    link.download = options.filename || `worldview-graph-${Date.now()}.png`;
+    link.download = filename;
     link.href = dataUrl;
     link.click();
   } catch (error) {
-    console.error('导出PNG失败:', error);
-    throw error;
+    console.error('导出 PNG 失败:', error);
+    throw new Error('导出 PNG 失败');
   }
 }
 
 /**
- * 导出为SVG图片
+ * 导出为 SVG 矢量图
+ * @param element HTML 元素
+ * @param filename 文件名
  */
-export async function exportToSvg(
-  element: HTMLElement,
-  options: ExportOptions = { format: 'svg' }
-): Promise<void> {
+export async function exportGraphAsSvg(element: HTMLElement, filename: string = 'worldview-graph.svg'): Promise<void> {
   try {
     const dataUrl = await toSvg(element, {
-      backgroundColor: options.backgroundColor || '#111827',
-      cacheBust: true,
+      backgroundColor: '#ffffff',
     });
 
-    // 下载SVG
+    // 触发下载
     const link = document.createElement('a');
-    link.download = options.filename || `worldview-graph-${Date.now()}.svg`;
+    link.download = filename;
     link.href = dataUrl;
     link.click();
   } catch (error) {
-    console.error('导出SVG失败:', error);
-    throw error;
+    console.error('导出 SVG 失败:', error);
+    throw new Error('导出 SVG 失败');
   }
 }
 
 /**
- * 导出为JSON数据
+ * 导出为 JSON 数据
+ * @param data 数据对象
+ * @param filename 文件名
  */
-export function exportToJson(
-  nodes: Node[],
-  edges: Edge[],
-  options: ExportOptions = { format: 'json' }
-): void {
+export function exportGraphAsJson(data: any, filename: string = 'worldview-data.json'): void {
   try {
-    const data = {
-      exportTime: new Date().toISOString(),
-      version: '1.0',
-      nodes: nodes.map(node => ({
-        id: node.id,
-        type: node.type,
-        position: node.position,
-        data: node.data,
-      })),
-      edges: edges.map(edge => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        type: edge.type,
-        data: edge.data,
-        style: edge.style,
-      })),
-    };
-
-    const json = JSON.stringify(data, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
+    const jsonString = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
 
+    // 触发下载
     const link = document.createElement('a');
-    link.download = options.filename || `worldview-graph-${Date.now()}.json`;
+    link.download = filename;
     link.href = url;
     link.click();
 
+    // 清理 URL 对象
     URL.revokeObjectURL(url);
   } catch (error) {
-    console.error('导出JSON失败:', error);
-    throw error;
+    console.error('导出 JSON 失败:', error);
+    throw new Error('导出 JSON 失败');
   }
 }

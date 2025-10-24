@@ -22,12 +22,56 @@ export interface User {
   fullName?: string;      // 后端: full_name
   avatar?: string;
   bio?: string;
+  notificationSettings?: NotificationSettings; // 后端: notification_settings
+  preferences?: UserPreferences;              // 后端: preferences
   isActive: boolean;      // 后端: is_active
   isAdmin: boolean;       // 后端: is_admin
   isVerified: boolean;    // 后端: is_verified
   createdAt: string;      // 后端: created_at
   updatedAt: string;      // 后端: updated_at
   lastLoginAt?: string;   // 后端: last_login_at
+}
+
+/**
+ * 用户通知设置
+ */
+export interface NotificationSettings {
+  emailNotifications: boolean;
+  browserNotifications: boolean;
+  newChapter: boolean;
+  comments: boolean;
+  mentions: boolean;
+  systemUpdates: boolean;
+}
+
+/**
+ * 用户偏好设置
+ */
+export interface UserPreferences {
+  theme: 'light' | 'dark' | 'auto';
+  language: 'zh-CN' | 'en-US';
+  fontSize: 'small' | 'medium' | 'large';
+  autoSave: boolean;
+  autoSaveInterval: number;
+}
+
+/**
+ * 用户会话信息
+ */
+export interface UserSession {
+  id: string;
+  deviceType: 'desktop' | 'mobile' | 'tablet' | 'unknown';
+  deviceName?: string;
+  browser?: string;
+  browserVersion?: string;
+  operatingSystem?: string;
+  ipAddress?: string;
+  location?: string;
+  createdAt: string;
+  lastActiveAt?: string;
+  isActive: boolean;
+  isCurrent?: boolean;
+  userAgent?: string;
 }
 
 /**

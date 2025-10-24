@@ -31,7 +31,16 @@ export interface IDataAdapter {
   /**
    * DELETE 请求
    * @param url 请求路径
+   * @param data 请求数据
    * @returns Promise<T>
    */
-  delete<T>(url: string): Promise<T>;
+  delete<T>(url: string, data?: any): Promise<T>;
+
+  /**
+   * PATCH 请求
+   * @param url 请求路径
+   * @param data 请求数据
+   * @returns Promise<T>
+   */
+  patch<T>(url: string, data?: any): Promise<T>;
 }
