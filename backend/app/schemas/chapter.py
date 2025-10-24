@@ -1,7 +1,15 @@
+from enum import Enum
 from pydantic import BaseModel, Field, field_serializer
 from typing import Optional
 from datetime import datetime
 from uuid import UUID
+
+
+class ChapterStatusEnum(str, Enum):
+    """章节状态枚举"""
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
 
 
 class ChapterBase(BaseModel):
@@ -14,6 +22,8 @@ class ChapterCreate(ChapterBase):
     """创建章节"""
     work_id: UUID
     order: Optional[int] = None
+    status: ChapterStatusEnum = ChapterStatusEnum.DRAFT
+    is_published: Optional[bool] = None
 
 
 class ChapterUpdate(BaseModel):
@@ -23,6 +33,7 @@ class ChapterUpdate(BaseModel):
     summary: Optional[str] = None
     order: Optional[int] = None
     is_published: Optional[bool] = None
+    status: Optional[ChapterStatusEnum] = None
 
 
 class ChapterResponse(ChapterBase):
@@ -31,6 +42,7 @@ class ChapterResponse(ChapterBase):
     work_id: UUID
     order: int
     is_published: bool
+    status: ChapterStatusEnum
     word_count: int
     view_count: int
     summary: Optional[str] = None

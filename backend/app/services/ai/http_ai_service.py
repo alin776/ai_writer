@@ -32,7 +32,10 @@ class HTTPAIService:
                 "Accept-Encoding": "gzip, deflate",
                 "Connection": "keep-alive",
             },
-            timeout=httpx.Timeout(60.0, connect=10.0),
+            timeout=httpx.Timeout(
+                settings.OPENAI_TIMEOUT, 
+                connect=10.0
+            ),
             follow_redirects=True,
             http2=False,  # 使用 HTTP/1.1
         )

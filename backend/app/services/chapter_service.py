@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 import re
 
-from app.models.chapter import Chapter
+from app.models.chapter import Chapter, ChapterStatus
 from app.schemas.chapter import ChapterCreate, ChapterUpdate
 from app.utils.cache import CacheInvalidator
 from app.core.redis import redis_client, CacheKey, CacheExpire
@@ -101,6 +101,20 @@ class ChapterService:
         
         # 计算字数（去除HTML标签）
         word_count = calculate_word_count(chapter_data.content)
+
+        # 解析章节状态
+        status_value = ChapterStatus.DRAFT
+        if getattr(chapter_data, "status", None) is not None:
+            raw_status = chapter_data.status.value if hasattr(chapter_data.status, "value") else chapter_data.status
+            status_value = ChapterStatus(raw_status)
+        elif getattr(chapter_data, "is_published", None) is not None:
+            status_value = ChapterStatus.PUBLISHED if chapter_data.is_published else ChapterStatus.DRAFT
+        
+        is_published = (
+            chapter_data.is_published
+            if getattr(chapter_data, "is_published", None) is not None
+            else status_value == ChapterStatus.PUBLISHED
+        )
         
         chapter = Chapter(
             work_id=chapter_data.work_id,
@@ -108,6 +122,8 @@ class ChapterService:
             content=chapter_data.content,
             order=order,
             word_count=word_count,
+            status=status_value,
+            is_published=is_published,
         )
         
         self.db.add(chapter)
@@ -130,6 +146,16 @@ class ChapterService:
         # 如果更新了内容，重新计算字数（去除HTML标签）
         if "content" in update_data:
             update_data["word_count"] = calculate_word_count(update_data["content"])
+
+        # 协调 status 与 is_published 字段
+        if "status" in update_data:
+            raw_status = update_data["status"].value if hasattr(update_data["status"], "value") else update_data["status"]
+            status_enum = ChapterStatus(raw_status)
+            update_data["status"] = status_enum
+            update_data["is_published"] = status_enum == ChapterStatus.PUBLISHED
+        elif "is_published" in update_data:
+            status_enum = ChapterStatus.PUBLISHED if update_data["is_published"] else ChapterStatus.DRAFT
+            update_data["status"] = status_enum
         
         for field, value in update_data.items():
             setattr(chapter, field, value)

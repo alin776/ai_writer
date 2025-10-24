@@ -1,10 +1,18 @@
-from sqlalchemy import Column, String, DateTime, Integer, Text, ForeignKey, Boolean
+from sqlalchemy import Column, String, DateTime, Integer, Text, ForeignKey, Boolean, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import uuid
+import enum
 
 from app.core.database import Base
+
+
+class ChapterStatus(str, enum.Enum):
+    """章节状态"""
+    DRAFT = "draft"       # 草稿
+    PUBLISHED = "published"  # 已发布
+    ARCHIVED = "archived"    # 已归档
 
 
 class Chapter(Base):
@@ -19,6 +27,12 @@ class Chapter(Base):
     title = Column(String(200), nullable=False)
     content = Column(Text, nullable=True, default="")
     summary = Column(Text, nullable=True, comment="章节剧情概括")
+    status = Column(
+        Enum(ChapterStatus, name="chapterstatus", values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=ChapterStatus.DRAFT,
+        index=True
+    )
     
     # 排序和状态
     order = Column(Integer, nullable=False, index=True)
@@ -38,4 +52,4 @@ class Chapter(Base):
     analysis_vectors = relationship("NovelAnalysisVector", back_populates="chapter", cascade="all, delete-orphan")
     
     def __repr__(self):
-        return f"<Chapter {self.title}>"
+        return f"<Chapter {self.title} status={self.status}>"

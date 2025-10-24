@@ -1,7 +1,7 @@
 from app.models.user import User
 from app.models.user_session import UserSession
 from app.models.work import Work, WorkStatus, WorkGenre
-from app.models.chapter import Chapter
+from app.models.chapter import Chapter, ChapterStatus
 from app.models.character import Character
 from app.models.location import Location
 from app.models.setting import Setting
@@ -16,10 +16,11 @@ from app.models.entity_group import EntityGroup, GroupMember
 __all__ = [
     "User",
     "UserSession",
-    "Work", 
-    "WorkStatus", 
-    "WorkGenre", 
+    "Work",
+    "WorkStatus",
+    "WorkGenre",
     "Chapter",
+    "ChapterStatus",
     "Character",
     "Location",
     "Setting",

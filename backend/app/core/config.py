@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str
     OPENAI_BASE_URL: str = "https://204992.xyz/v1"
     OPENAI_MODEL: str = "gpt-5"  # 默认模型，可通过环境变量修改
+    OPENAI_TIMEOUT: int = 120  # AI调用超时时间（秒），默认120秒
+    
+    # 小说分析配置
+    ANALYSIS_MAX_RETRIES: int = 3  # 单章分析失败最大重试次数
+    ANALYSIS_TIMEOUT: int = 3600  # 整体分析超时时间（秒），默认1小时
+    ANALYSIS_RETRY_DELAY: int = 2  # 重试延迟（秒）
     
     # 文件上传配置
     MAX_UPLOAD_SIZE: int = 10485760  # 10MB

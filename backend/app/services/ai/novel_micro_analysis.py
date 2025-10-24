@@ -4,6 +4,7 @@
 """
 import json
 import logging
+import asyncio
 from typing import Dict, Any, Optional
 from app.services.ai.http_ai_service import HTTPAIService
 
@@ -41,7 +42,7 @@ class NovelMicroAnalysisService:
         chapter_id: str,
         chapter_title: str = "",
         chapter_number: int = 0,
-        max_retries: int = 2
+        max_retries: int = None
     ) -> Dict[str, Any]:
         """
         分析单个章节
@@ -59,6 +60,12 @@ class NovelMicroAnalysisService:
         Raises:
             Exception: 分析失败或JSON解析失败
         """
+        from app.core.config import settings
+        
+        # 使用配置的重试次数，如果未指定则使用配置值
+        if max_retries is None:
+            max_retries = settings.ANALYSIS_MAX_RETRIES - 1  # 减1因为第一次不算重试
+        
         logger.info(f"开始分析章节: {chapter_id} - {chapter_title}")
         
         # 构建用户消息
@@ -101,12 +108,18 @@ class NovelMicroAnalysisService:
                 if attempt == max_retries:
                     logger.error(f"章节 {chapter_id} 分析失败：JSON解析失败（已重试{max_retries}次）")
                     raise Exception(f"AI返回的数据不是有效的JSON格式: {e}")
+                # 等待后重试
+                from app.core.config import settings
+                await asyncio.sleep(settings.ANALYSIS_RETRY_DELAY)
             
             except Exception as e:
                 logger.warning(f"第 {attempt + 1} 次尝试失败: {e}")
                 if attempt == max_retries:
                     logger.error(f"章节 {chapter_id} 分析失败: {e}", exc_info=True)
                     raise
+                # 等待后重试
+                from app.core.config import settings
+                await asyncio.sleep(settings.ANALYSIS_RETRY_DELAY)
     
     async def _call_ai_non_stream(self, messages: list) -> str:
         """

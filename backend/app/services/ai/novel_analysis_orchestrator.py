@@ -4,6 +4,7 @@
 """
 import logging
 import asyncio
+import time
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
@@ -13,6 +14,7 @@ from app.services.ai.novel_micro_analysis import NovelMicroAnalysisService
 from app.services.ai.novel_macro_analysis import NovelMacroAnalysisService
 from app.services.vector_store_service import VectorStoreService
 from app.models.novel_analysis import AnalysisStatus, AnalysisStage
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +37,7 @@ class NovelAnalysisOrchestrator:
     
     async def run_full_analysis(self, work_id: str) -> bool:
         """
-        运行完整的小说分析流程
+        运行完整的小说分析流程（带整体超时控制）
         
         Args:
             work_id: 作品ID
@@ -44,6 +46,49 @@ class NovelAnalysisOrchestrator:
             bool: 是否分析成功
         """
         analysis = None
+        start_time = time.time()
+        
+        try:
+            # 使用asyncio.wait_for设置整体超时
+            return await asyncio.wait_for(
+                self._run_analysis_internal(work_id),
+                timeout=settings.ANALYSIS_TIMEOUT
+            )
+        except asyncio.TimeoutError:
+            elapsed = time.time() - start_time
+            logger.error(
+                f"分析超时！作品 {work_id} 分析耗时 {elapsed:.1f}秒，"
+                f"超过最大允许时间 {settings.ANALYSIS_TIMEOUT}秒"
+            )
+            # 标记任务为失败
+            try:
+                analysis = await self.analysis_service.get_analysis_by_work(work_id)
+                if analysis:
+                    await self.analysis_service.mark_as_failed(
+                        analysis_id=str(analysis.id),
+                        error_message=f"分析超时（超过{settings.ANALYSIS_TIMEOUT}秒）"
+                    )
+            except Exception as e:
+                logger.error(f"标记超时失败: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"分析流程异常: {e}", exc_info=True)
+            return False
+        finally:
+            await self._cleanup()
+    
+    async def _run_analysis_internal(self, work_id: str) -> bool:
+        """
+        内部分析流程实现
+        
+        Args:
+            work_id: 作品ID
+            
+        Returns:
+            bool: 是否分析成功
+        """
+        analysis = None
+        start_time = time.time()
         
         try:
             logger.info(f"=" * 60)
@@ -79,18 +124,24 @@ class NovelAnalysisOrchestrator:
             
             # 5. 执行微观分析（逐章分析）
             micro_results = []
+            failed_chapters = []
+            
             for idx, chapter in enumerate(chapters):
+                chapter_start_time = time.time()
                 try:
                     logger.info(f"-" * 40)
                     logger.info(f"[{idx + 1}/{len(chapters)}] 分析章节: {chapter.title}")
                     
-                    # 分析章节
+                    # 分析章节（自动重试3次）
                     micro_result = await self.micro_service.analyze_chapter(
                         chapter_text=chapter.content,
                         chapter_id=str(chapter.id),
                         chapter_title=chapter.title,
                         chapter_number=chapter.order
                     )
+                    
+                    chapter_elapsed = time.time() - chapter_start_time
+                    logger.info(f"章节分析耗时: {chapter_elapsed:.1f}秒")
                     
                     # 保存微观结果
                     await self.analysis_service.save_micro_result(
@@ -122,24 +173,47 @@ class NovelAnalysisOrchestrator:
                         analyzed_chapters=idx + 1
                     )
                     
-                    logger.info(f"✓ 章节 {chapter.title} 分析完成")
+                    logger.info(f"✓ 章节 {chapter.title} 分析完成（耗时 {chapter_elapsed:.1f}秒）")
                     
                     # 短暂延迟，避免API限流
                     await asyncio.sleep(0.5)
                     
                 except Exception as e:
-                    logger.error(f"✗ 章节 {chapter.title} 分析失败: {e}", exc_info=True)
+                    chapter_elapsed = time.time() - chapter_start_time
+                    logger.error(
+                        f"✗ 章节 {chapter.title} 分析失败（耗时 {chapter_elapsed:.1f}秒）: {e}", 
+                        exc_info=True
+                    )
+                    failed_chapters.append({
+                        'title': chapter.title,
+                        'id': str(chapter.id),
+                        'error': str(e)
+                    })
                     # 继续分析其他章节，不中断整个流程
                     continue
             
-            logger.info(f"微观分析完成，成功分析 {len(micro_results)}/{len(chapters)} 个章节")
+            micro_elapsed = time.time() - start_time
+            success_rate = len(micro_results) / len(chapters) * 100
+            
+            logger.info(f"=" * 60)
+            logger.info(f"微观分析完成统计:")
+            logger.info(f"  成功: {len(micro_results)}/{len(chapters)} 章节 ({success_rate:.1f}%)")
+            logger.info(f"  失败: {len(failed_chapters)} 章节")
+            logger.info(f"  总耗时: {micro_elapsed:.1f}秒 (平均 {micro_elapsed/len(chapters):.1f}秒/章)")
+            
+            if failed_chapters:
+                logger.warning(f"失败章节列表:")
+                for fc in failed_chapters:
+                    logger.warning(f"  - {fc['title']}: {fc['error']}")
+            
+            logger.info(f"=" * 60)
             
             # 6. 检查是否有足够的微观结果
             if not micro_results:
                 raise Exception("所有章节的微观分析都失败了")
             
             if len(micro_results) < len(chapters) * 0.5:  # 至少成功50%
-                logger.warning(f"微观分析成功率较低: {len(micro_results)}/{len(chapters)}")
+                logger.warning(f"微观分析成功率较低: {success_rate:.1f}%")
             
             # 7. 更新阶段为"宏观分析"
             await self.analysis_service.update_progress(
@@ -153,9 +227,11 @@ class NovelAnalysisOrchestrator:
             logger.info(f"=" * 60)
             
             # 8. 执行宏观分析
+            macro_start_time = time.time()
             macro_report = await self.macro_service.analyze_novel_macro(micro_results)
+            macro_elapsed = time.time() - macro_start_time
             
-            logger.info(f"宏观分析完成，报告长度: {len(macro_report)} 字符")
+            logger.info(f"宏观分析完成，报告长度: {len(macro_report)} 字符，耗时: {macro_elapsed:.1f}秒")
             
             # 9. 保存宏观结果
             await self.analysis_service.save_macro_result(
@@ -163,15 +239,22 @@ class NovelAnalysisOrchestrator:
                 macro_report=macro_report
             )
             
+            # 计算总耗时
+            total_elapsed = time.time() - start_time
+            
             logger.info(f"=" * 60)
             logger.info(f"作品 {work_id} 分析全部完成！")
-            logger.info(f"微观分析: {len(micro_results)} 章")
-            logger.info(f"宏观报告: {len(macro_report)} 字符")
+            logger.info(f"=" * 60)
+            logger.info(f"📊 分析统计:")
+            logger.info(f"  微观分析: {len(micro_results)}/{len(chapters)} 章 (成功率 {success_rate:.1f}%)")
+            logger.info(f"  宏观报告: {len(macro_report)} 字符")
+            logger.info(f"  总耗时: {total_elapsed:.1f}秒 ({total_elapsed/60:.1f}分钟)")
+            logger.info(f"  平均速度: {total_elapsed/len(chapters):.1f}秒/章")
             
             # 打印向量存储统计
             try:
                 vector_stats = await self.vector_service.get_vector_stats(work_id)
-                logger.info(f"向量存储: {vector_stats['total_vectors']} 条，"
+                logger.info(f"  向量存储: {vector_stats['total_vectors']} 条，"
                           f"覆盖 {vector_stats['total_chapters']} 章")
             except Exception:
                 pass

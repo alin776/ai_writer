@@ -1,5 +1,86 @@
 ---
 
+## Chapter.status 字段修复（2025-10-24）✅ 已完成
+
+- [x] 压测脚本报错：确认 Chapter 模型缺失 `status` 字段且与前端状态枚举不一致
+- [x] 后端模型 / Schema / Service 同步新增 `status` 字段，保持与 `is_published` 联动
+- [x] 编写 Alembic 迁移：添加 `chapterstatus` 枚举并为历史数据回填
+- [x] 修复 SQLAlchemy Enum 定义，添加 `values_callable` 参数
+- [x] 本地自检与结果记录（含压测脚本或针对性检查）
+- [x] 在 review 小节总结本次修复要点与遗留风险
+
+### Review（2025-10-24）
+
+#### ✅ 完成的修复
+
+1. **数据库迁移** (e1f2g3h4i5j6)
+   - ✅ 添加 `chapterstatus` PostgreSQL 枚举类型（值：draft, published, archived）
+   - ✅ 为 chapters 表添加 status 列，设置索引
+   - ✅ 回填历史数据：is_published=true → status='published'，is_published=false → status='draft'
+
+2. **模型层修复** (backend/app/models/chapter.py)
+   - ✅ 新增 `ChapterStatus` Python 枚举类
+   - ✅ 修复 Enum Column 定义，添加 `values_callable=lambda x: [e.value for e in x]`
+   - ✅ 确保 SQLAlchemy 使用枚举的 `.value`（小写）而不是 `.name`（大写）
+
+3. **Schema 层** (backend/app/schemas/chapter.py)
+   - ✅ ChapterCreate/ChapterUpdate/ChapterResponse 已包含 status 字段
+   - ✅ 类型定义正确：ChapterStatusEnum(str, Enum)
+
+4. **性能测试验证**
+   - ✅ 压测脚本完整运行成功
+   - ✅ 20章微观分析：100%成功率（20/20）
+   - ✅ 宏观分析：正常完成（2108字符报告）
+   - ✅ 总耗时：710.9秒（11.8分钟）
+   - ✅ 平均速度：35.5秒/章
+   - ✅ 预估100章：59.2分钟
+   - ✅ 向量存储：20条，覆盖20章
+
+#### 📊 性能对比
+
+| 指标 | 2025-10-24 (本次) | 历史记录 | 状态 |
+|------|------------------|---------|------|
+| 总耗时 | 710.9秒 (11.8min) | 477.0秒 (8.0min) | ⚠️ 略慢 |
+| 平均速度 | 35.5秒/章 | 23.9秒/章 | ⚠️ 可优化 |
+| 成功率 | 100% (20/20) | 100% (20/20) | ✅ 稳定 |
+| 100章预估 | 59.2分钟 | 39.8分钟 | ⚠️ 略慢 |
+
+**速度波动原因**：AI API 响应时间波动（第1章触发重试，耗时69秒），后续章节稳定在20-25秒/章
+
+#### 🔧 技术要点
+
+**SQLAlchemy Enum 最佳实践**：
+```python
+# ✅ 正确方式
+status = Column(
+    Enum(ChapterStatus,
+         name="chapterstatus",
+         values_callable=lambda x: [e.value for e in x]  # ← 关键！
+    ),
+    nullable=False,
+    default=ChapterStatus.DRAFT
+)
+```
+
+**为什么需要 `values_callable`**：
+- Python 枚举有 `.name`（大写：PUBLISHED）和 `.value`（小写：published）
+- PostgreSQL 枚举值大小写敏感
+- `values_callable` 显式告诉 SQLAlchemy 使用小写值
+
+#### 🎯 后续建议
+
+- ✅ **生产环境迁移**：已在开发环境验证，可直接应用到生产
+- 🟡 **前端集成**（可选）：更新前端 Chapter 类型定义，添加 status 字段展示
+- 🟡 **性能优化**（可选）：如需提速，可考虑优化提示词或使用更快的模型（gemini-2.0-flash）
+- ✅ **文档更新**：已创建 `Chapter_Status_修复完成报告.md` 详细记录修复过程
+
+#### 📝 相关文档
+
+- 修复计划：`Chapter_Status_修复计划.md`
+- 完成报告：`Chapter_Status_修复完成报告.md`
+- 错误日志：`ERROR.md` (line 15: 枚举值无效错误)
+- 诊断脚本：`backend/check_enum.py`
+
 ## SettingsView 完整实施计划（2025-10-23 新增）✅ 已完成
 
 ### 📋 总览

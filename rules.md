@@ -33,6 +33,63 @@ Adapter Layer (适配器层: Mock/Real API)
 
 ## 二、代码规范
 
+### 2.0 搜索和工具使用规范
+
+#### 2.0.1 Grep/搜索工具使用原则
+
+**CRITICAL: 必须遵守以下搜索规范，避免工具执行超时或卡死**
+
+1. **优先使用 Grep 工具**
+   - 优先使用封装好的 Grep 工具（基于 ripgrep）
+   - Grep 工具有内部优化和限制，性能更好
+   - 使用 `head_limit` 参数限制结果数量，避免处理过多数据
+
+   ```typescript
+   // ✅ 正确示例
+   Grep("Chapter|chapter", {
+     output_mode: "content",
+     head_limit: 100,  // 限制结果数量
+     case_insensitive: true
+   });
+   ```
+
+2. **Execute 工具执行 grep/rg 必须设置 timeout**
+   - 如果必须使用 Execute 工具执行 grep/rg 命令
+   - **必须明确设置 timeout 参数**，否则可能执行很长时间无法停止
+   - 建议设置 120-300 秒的 timeout
+
+   ```typescript
+   // ✅ 正确示例
+   Execute({
+     command: 'rg "Chapter|chapter" --timeout 120',
+     timeout: 150  // Execute 工具本身也设置 timeout
+   });
+
+   // ❌ 错误示例 - 没有设置 timeout
+   Execute({
+     command: 'rg "Chapter|chapter"'  // 可能会卡死
+   });
+   ```
+
+3. **合理使用限制参数**
+   - 对于可能返回大量结果的搜索，使用 `head_limit` 限制
+   - 使用 `glob_pattern` 或 `type` 参数缩小搜索范围
+   - 避免在大型文件或目录上执行无限制搜索
+
+   ```typescript
+   // ✅ 正确示例 - 限制搜索范围
+   Grep("pattern", {
+     path: "D:\\Java\\ai_writer\\src",  // 限定目录
+     type: "tsx",  // 限定文件类型
+     head_limit: 50  // 限制结果数量
+   });
+   ```
+
+4. **大文件处理**
+   - 对于超过 2400 行的文件，Read 工具会自动截断
+   - 使用 `offset` 和 `limit` 参数分段读取
+   - 避免一次性读取整个大文件
+
 ### 2.1 TypeScript 严格模式
 - **强制类型定义**: 所有函数、变量必须显式声明类型
 - **禁止使用 `any`**: 使用 `unknown` 或具体类型

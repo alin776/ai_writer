@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models.work import Work, WorkGenre, WorkStatus
-from app.models.chapter import Chapter
+from app.models.chapter import Chapter, ChapterStatus
 from app.models.character import Character
 from app.models.location import Location
 from app.models.setting import Setting
@@ -212,6 +212,10 @@ class ImportService:
         # 导入章节
         chapters_created = 0
         for idx, chapter_data in enumerate(chapters_data):
+            is_published = chapter_data.get('is_published', False)
+            raw_status = chapter_data.get('status')
+            status = ChapterStatus(raw_status) if raw_status else (ChapterStatus.PUBLISHED if is_published else ChapterStatus.DRAFT)
+
             chapter = Chapter(
                 work_id=work.id,
                 title=chapter_data['title'],
@@ -219,7 +223,8 @@ class ImportService:
                 summary=chapter_data.get('summary'),
                 order=chapter_data.get('order', idx + 1),
                 word_count=chapter_data.get('word_count', 0),
-                is_published=chapter_data.get('is_published', False)
+                status=status,
+                is_published=is_published
             )
             self.db.add(chapter)
             chapters_created += 1
@@ -372,6 +377,7 @@ class ImportService:
                 content=f"<p>{content.replace(chr(10), '</p><p>')}</p>",  # 简单HTML转换
                 order=idx + 1,
                 word_count=word_count,
+                status=ChapterStatus.DRAFT,
                 is_published=False
             )
             self.db.add(chapter)

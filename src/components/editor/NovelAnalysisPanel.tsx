@@ -164,9 +164,11 @@ const NovelAnalysisPanel: React.FC<NovelAnalysisPanelProps> = ({
       
       onToast('success', '小说分析已启动，请稍等片刻...');
       
-      // 轮询检查分析状态（最多等待10分钟）
-      const maxAttempts = 120; // 120次 * 5秒 = 10分钟
+      // 轮询检查分析状态（最多等待20分钟，适应长文本分析）
+      const maxAttempts = 240; // 240次 * 5秒 = 20分钟（1小时后端超时 / 3 = 足够缓冲）
       let attempts = 0;
+      let lastProgress = 0;
+      let noProgressCount = 0;
       
       const checkStatus = async (): Promise<boolean> => {
         try {
@@ -180,6 +182,28 @@ const NovelAnalysisPanel: React.FC<NovelAnalysisPanelProps> = ({
           } else if (status.status === 'failed') {
             onToast('error', status.errorMessage || '分析失败');
             return true;
+          }
+          
+          // 检测进度停滞（可能后端卡住了）
+          const currentProgress = status.progress?.analyzedChapters || 0;
+          if (currentProgress === lastProgress) {
+            noProgressCount++;
+            if (noProgressCount >= 30) {  // 30次无进度 = 2.5分钟停滞
+              console.warn('[压测优化] 检测到分析进度停滞，可能遇到问题');
+              onToast('warning', '分析进度似乎停滞，请稍后检查或刷新页面');
+            }
+          } else {
+            lastProgress = currentProgress;
+            noProgressCount = 0;
+          }
+          
+          // 显示进度信息（开发模式）
+          if (status.progress) {
+            const progressPercent = (status.progress.analyzedChapters / status.progress.totalChapters * 100).toFixed(1);
+            console.log(
+              `[分析进度] ${status.progress.analyzedChapters}/${status.progress.totalChapters} 章 ` +
+              `(${progressPercent}%) - ${status.currentStage}`
+            );
           }
           
           // 继续等待
@@ -200,10 +224,18 @@ const NovelAnalysisPanel: React.FC<NovelAnalysisPanelProps> = ({
           setIsLoadingNovel(false);
           
           if (!done) {
-            onToast('warning', '分析超时，请稍后刷新查看结果');
+            const waitedMinutes = Math.floor(attempts * 5 / 60);
+            onToast(
+              'warning', 
+              `分析超时（已等待${waitedMinutes}分钟），请稍后刷新查看结果或检查后端日志`
+            );
+            console.error(
+              `[压测优化] 分析轮询超时: 已轮询${attempts}次（${waitedMinutes}分钟），` +
+              `超过最大限制${maxAttempts}次`
+            );
           }
         }
-      }, 5000); // 每5秒检查一次
+      }, 5000); // 每5秒检查一次（长文本分析需要更多时间）
       
     } catch (error: any) {
       console.error('[NovelAnalysisPanel] 生成小说概括失败:', error);
