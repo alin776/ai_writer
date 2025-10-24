@@ -5,7 +5,7 @@ AI调用日志 Schema
 """
 
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 from uuid import UUID
 
@@ -39,6 +39,16 @@ class AICallLogResponse(AICallLogBase):
     id: UUID
     user_id: UUID
     created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AICallLogPaginatedResponse(BaseModel):
+    """AI调用日志分页响应"""
+    logs: List[AICallLogResponse] = Field(..., description="日志列表")
+    total: int = Field(..., description="总记录数")
+    skip: int = Field(0, description="跳过记录数")
+    limit: int = Field(100, description="返回数量限制")
 
     model_config = ConfigDict(from_attributes=True)
 

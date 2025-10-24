@@ -3,7 +3,7 @@
 处理小说分析任务的创建、进度更新、结果存储等业务逻辑
 """
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -150,10 +150,10 @@ class NovelAnalysisService:
             analysis.status = status
             # 如果开始分析，记录开始时间
             if status == AnalysisStatus.ANALYZING and not analysis.started_at:
-                analysis.started_at = datetime.utcnow()
+                analysis.started_at = datetime.now(timezone.utc)
             # 如果完成或失败，记录完成时间
             if status in [AnalysisStatus.COMPLETED, AnalysisStatus.FAILED]:
-                analysis.completed_at = datetime.utcnow()
+                analysis.completed_at = datetime.now(timezone.utc)
         
         await self.db.commit()
         await self.db.refresh(analysis)

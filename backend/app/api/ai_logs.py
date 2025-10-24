@@ -7,7 +7,7 @@ AI调用日志和成本统计 API
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from app.core.database import get_db
@@ -16,6 +16,7 @@ from app.models.user import User
 from app.services.ai_log_service import AILogService
 from app.schemas.ai_call_log import (
     AICallLogResponse,
+    AICallLogPaginatedResponse,
     AICallLogStats,
     CostMetrics
 )
@@ -37,7 +38,7 @@ async def get_current_admin_user(
     return current_user
 
 
-@router.get("/me", response_model=List[AICallLogResponse])
+@router.get("/me", response_model=AICallLogPaginatedResponse)
 async def get_my_logs(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
@@ -47,15 +48,20 @@ async def get_my_logs(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    获取当前用户的AI调用日志
+    获取当前用户的AI调用日志（分页）
 
     Args:
         skip: 跳过记录数
         limit: 返回数量限制
         start_date: 开始时间
         end_date: 结束时间
+
+    Returns:
+        AICallLogPaginatedResponse: 包含日志列表和总数的分页响应
     """
     log_service = AILogService(db)
+
+    # 获取日志列表
     logs = await log_service.get_user_logs(
         user_id=current_user.id,
         skip=skip,
@@ -63,7 +69,20 @@ async def get_my_logs(
         start_date=start_date,
         end_date=end_date
     )
-    return logs
+
+    # 获取总数
+    total = await log_service.get_user_logs_count(
+        user_id=current_user.id,
+        start_date=start_date,
+        end_date=end_date
+    )
+
+    return AICallLogPaginatedResponse(
+        logs=logs,
+        total=total,
+        skip=skip,
+        limit=limit
+    )
 
 
 @router.get("/me/stats", response_model=AICallLogStats)
@@ -79,7 +98,7 @@ async def get_my_stats(
         days: 统计天数（默认30天）
     """
     log_service = AILogService(db)
-    end_date = datetime.utcnow()
+    end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(days=days)
 
     stats = await log_service.get_stats(
@@ -103,7 +122,7 @@ async def get_all_stats(
         days: 统计天数（默认30天）
     """
     log_service = AILogService(db)
-    end_date = datetime.utcnow()
+    end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(days=days)
 
     stats = await log_service.get_stats(

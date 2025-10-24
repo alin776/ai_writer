@@ -1,7 +1,7 @@
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from app.models.user import User
@@ -140,7 +140,7 @@ class UserService:
             return None
         
         # 更新最后登录时间
-        user.last_login_at = datetime.utcnow()
+        user.last_login_at = datetime.now(timezone.utc)
         await self.db.commit()
         
         return user
@@ -266,7 +266,7 @@ class UserService:
         """
         # 计算过期时间（与 access_token 一致）
         from app.core.config import settings
-        expires_at = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
         session = UserSession(
             user_id=UUID(user_id),
@@ -279,7 +279,7 @@ class UserService:
             ip_address=ip_address,
             user_agent=device_info.get('user_agent'),
             is_active=True,
-            last_active_at=datetime.utcnow(),
+            last_active_at=datetime.now(timezone.utc),
             expires_at=expires_at,
         )
 
@@ -354,7 +354,7 @@ class UserService:
 
         # 标记会话为非活跃
         session.is_active = False
-        session.logged_out_at = datetime.utcnow()
+        session.logged_out_at = datetime.now(timezone.utc)
 
         await self.db.commit()
         return True
@@ -385,7 +385,7 @@ class UserService:
         count = 0
         for session in sessions:
             session.is_active = False
-            session.logged_out_at = datetime.utcnow()
+            session.logged_out_at = datetime.now(timezone.utc)
             count += 1
 
         await self.db.commit()
@@ -405,6 +405,6 @@ class UserService:
         session = result.scalar_one_or_none()
 
         if session:
-            session.last_active_at = datetime.utcnow()
+            session.last_active_at = datetime.now(timezone.utc)
             await self.db.commit()
 

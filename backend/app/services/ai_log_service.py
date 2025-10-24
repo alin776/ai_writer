@@ -7,7 +7,7 @@ AI调用日志服务
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, and_, extract, select
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from app.models.ai_call_log import AICallLog
@@ -72,6 +72,33 @@ class AILogService:
 
         result = await self.db.execute(stmt)
         return result.scalars().all()
+
+    async def get_user_logs_count(
+        self,
+        user_id: UUID,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> int:
+        """
+        获取用户AI调用日志总数
+
+        Args:
+            user_id: 用户ID
+            start_date: 起始时间
+            end_date: 结束时间
+
+        Returns:
+            int: 日志总数
+        """
+        stmt = select(func.count(AICallLog.id)).where(AICallLog.user_id == user_id)
+
+        if start_date:
+            stmt = stmt.where(AICallLog.created_at >= start_date)
+        if end_date:
+            stmt = stmt.where(AICallLog.created_at <= end_date)
+
+        result = await self.db.scalar(stmt)
+        return result or 0
 
     async def get_stats(
         self,
@@ -204,7 +231,7 @@ class AILogService:
         Returns:
             CostMetrics: 成本指标数据
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         yesterday_start = today_start - timedelta(days=1)
 
