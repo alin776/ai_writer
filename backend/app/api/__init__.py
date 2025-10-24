@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from app.api.v1 import auth, users, works, chapters, ai, worldview, novel_analysis, admin, search, relationships, timeline, groups
 from app.api.v1 import export as export_routes
 from app.api.v1 import import_routes
+from app.api import ai_logs
 
 api_router = APIRouter()
 
@@ -20,3 +21,4 @@ api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(search.router, prefix="/search", tags=["search"])
 api_router.include_router(export_routes.router, tags=["export"])  # 导出功能（路由已包含/works前缀）
 api_router.include_router(import_routes.router, tags=["import"])  # 导入功能（路由已包含/works前缀）
+api_router.include_router(ai_logs.router)  # AI日志和成本统计

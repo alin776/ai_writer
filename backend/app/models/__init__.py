@@ -12,6 +12,7 @@ from app.models.novel_analysis_vector import NovelAnalysisVector
 from app.models.relationship import EntityRelationship
 from app.models.timeline_event import TimelineEvent
 from app.models.entity_group import EntityGroup, GroupMember
+from app.models.ai_call_log import AICallLog
 
 __all__ = [
     "User",
@@ -33,5 +34,6 @@ __all__ = [
     "EntityRelationship",
     "TimelineEvent",
     "EntityGroup",
-    "GroupMember"
+    "GroupMember",
+    "AICallLog"
 ]
