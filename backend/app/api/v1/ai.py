@@ -21,6 +21,8 @@ from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.user import User
 from app.services.ai.http_ai_service import HTTPAIService
+from app.services.ai.ai_log_middleware import AILogMiddleware
+from app.core.config import settings
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -119,25 +121,50 @@ async def ai_complete(
     )
     logger.info(f"[AI续写] context内容: '{request.context[:200]}'")
     logger.info(f"[AI续写] prompt: '{request.prompt}', max_tokens: {request.max_tokens}")
-    
+
     ai_service = HTTPAIService()
-    
+
+    # 创建日志中间件
+    log_middleware = AILogMiddleware(
+        db=db,
+        user_id=current_user.id,
+        model_name=settings.OPENAI_MODEL
+    )
+
     async def event_generator():
         """SSE 事件生成器"""
+        accumulated_text = ""
         try:
-            async for chunk in ai_service.stream_complete(
-                context=request.context,
-                prompt=request.prompt,
-                style=request.style,
-                max_tokens=request.max_tokens
-            ):
-                # SSE 格式: data: {content}\n\n
-                yield f"data: {chunk}\n\n"
-            
+            # 使用日志中间件记录 AI 调用
+            async with log_middleware.log_call(
+                operation_type="continue",
+                extra_data={
+                    "style": request.style,
+                    "prompt": request.prompt,
+                    "max_tokens": request.max_tokens,
+                    "context_length": len(request.context)
+                }
+            ) as token_counter:
+                async for chunk in ai_service.stream_complete(
+                    context=request.context,
+                    prompt=request.prompt,
+                    style=request.style,
+                    max_tokens=request.max_tokens
+                ):
+                    accumulated_text += chunk
+                    # SSE 格式: data: {content}\n\n
+                    yield f"data: {chunk}\n\n"
+
+                # 估算 token 数量
+                token_counter.estimate_tokens(
+                    prompt_text=request.context,
+                    completion_text=accumulated_text
+                )
+
             # 流结束标记
             yield "data: [DONE]\n\n"
-            logger.info(f"[AI续写] 用户 {current_user.username} 请求完成")
-            
+            logger.info(f"[AI续写] 用户 {current_user.username} 请求完成，生成字数: {len(accumulated_text)}")
+
         except Exception as e:
             error_msg = str(e)
             logger.error(f"[AI续写] 用户 {current_user.username} 请求失败: {error_msg}")
@@ -181,24 +208,46 @@ async def ai_complete(
 )
 async def ai_polish(
     request: AIPolishRequest,
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """AI 润色接口（流式响应）"""
     logger.info(
         f"[AI润色] 用户: {current_user.username}({current_user.id}), "
         f"文本长度: {len(request.text)}"
     )
-    
+
     ai_service = HTTPAIService()
-    
+
+    # 创建日志中间件
+    log_middleware = AILogMiddleware(
+        db=db,
+        user_id=current_user.id,
+        model_name=settings.OPENAI_MODEL
+    )
+
     async def event_generator():
+        accumulated_text = ""
         try:
-            async for chunk in ai_service.stream_polish(request.text):
-                yield f"data: {chunk}\n\n"
-            
+            async with log_middleware.log_call(
+                operation_type="polish",
+                extra_data={
+                    "text_length": len(request.text)
+                }
+            ) as token_counter:
+                async for chunk in ai_service.stream_polish(request.text):
+                    accumulated_text += chunk
+                    yield f"data: {chunk}\n\n"
+
+                # 估算 token 数量
+                token_counter.estimate_tokens(
+                    prompt_text=request.text,
+                    completion_text=accumulated_text
+                )
+
             yield "data: [DONE]\n\n"
-            logger.info(f"[AI润色] 用户 {current_user.username} 请求完成")
-            
+            logger.info(f"[AI润色] 用户 {current_user.username} 请求完成，生成字数: {len(accumulated_text)}")
+
         except Exception as e:
             error_msg = str(e)
             logger.error(f"[AI润色] 用户 {current_user.username} 请求失败: {error_msg}")
@@ -237,7 +286,8 @@ async def ai_polish(
 )
 async def ai_translate(
     request: AITranslateRequest,
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """AI 翻译接口（流式响应）"""
     logger.info(
@@ -245,20 +295,42 @@ async def ai_translate(
         f"文本长度: {len(request.text)}, "
         f"目标语言: {request.target_lang}"
     )
-    
+
     ai_service = HTTPAIService()
-    
+
+    # 创建日志中间件
+    log_middleware = AILogMiddleware(
+        db=db,
+        user_id=current_user.id,
+        model_name=settings.OPENAI_MODEL
+    )
+
     async def event_generator():
+        accumulated_text = ""
         try:
-            async for chunk in ai_service.stream_translate(
-                request.text,
-                request.target_lang
-            ):
-                yield f"data: {chunk}\n\n"
-            
+            async with log_middleware.log_call(
+                operation_type="translate",
+                extra_data={
+                    "text_length": len(request.text),
+                    "target_lang": request.target_lang
+                }
+            ) as token_counter:
+                async for chunk in ai_service.stream_translate(
+                    request.text,
+                    request.target_lang
+                ):
+                    accumulated_text += chunk
+                    yield f"data: {chunk}\n\n"
+
+                # 估算 token 数量
+                token_counter.estimate_tokens(
+                    prompt_text=request.text,
+                    completion_text=accumulated_text
+                )
+
             yield "data: [DONE]\n\n"
-            logger.info(f"[AI翻译] 用户 {current_user.username} 请求完成")
-            
+            logger.info(f"[AI翻译] 用户 {current_user.username} 请求完成，生成字数: {len(accumulated_text)}")
+
         except Exception as e:
             error_msg = str(e)
             logger.error(f"[AI翻译] 用户 {current_user.username} 请求失败: {error_msg}")
@@ -291,24 +363,46 @@ async def ai_translate(
 )
 async def ai_expand(
     request: AIExpandRequest,
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """AI 扩写接口（流式响应）"""
     logger.info(
         f"[AI扩写] 用户: {current_user.username}({current_user.id}), "
         f"文本长度: {len(request.text)}"
     )
-    
+
     ai_service = HTTPAIService()
-    
+
+    # 创建日志中间件
+    log_middleware = AILogMiddleware(
+        db=db,
+        user_id=current_user.id,
+        model_name=settings.OPENAI_MODEL
+    )
+
     async def event_generator():
+        accumulated_text = ""
         try:
-            async for chunk in ai_service.stream_expand(request.text):
-                yield f"data: {chunk}\n\n"
-            
+            async with log_middleware.log_call(
+                operation_type="expand",
+                extra_data={
+                    "text_length": len(request.text)
+                }
+            ) as token_counter:
+                async for chunk in ai_service.stream_expand(request.text):
+                    accumulated_text += chunk
+                    yield f"data: {chunk}\n\n"
+
+                # 估算 token 数量
+                token_counter.estimate_tokens(
+                    prompt_text=request.text,
+                    completion_text=accumulated_text
+                )
+
             yield "data: [DONE]\n\n"
-            logger.info(f"[AI扩写] 用户 {current_user.username} 请求完成")
-            
+            logger.info(f"[AI扩写] 用户 {current_user.username} 请求完成，生成字数: {len(accumulated_text)}")
+
         except Exception as e:
             error_msg = str(e)
             logger.error(f"[AI扩写] 用户 {current_user.username} 请求失败: {error_msg}")
@@ -348,26 +442,46 @@ async def ai_expand(
 )
 async def ai_summarize(
     request: AISummarizeRequest,
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ) -> AISummarizeResponse:
     """AI 剧情概括接口（返回JSON对象）"""
     logger.info(
         f"[AI剧情概括] 用户: {current_user.username}({current_user.id}), "
         f"文本长度: {len(request.text)}"
     )
-    
+
     try:
         ai_service = HTTPAIService()
-        
+
+        # 创建日志中间件
+        log_middleware = AILogMiddleware(
+            db=db,
+            user_id=current_user.id,
+            model_name=settings.OPENAI_MODEL
+        )
+
         # 调用非流式总结
         summary_text = ""
-        async for chunk in ai_service.stream_summarize(request.text):
-            summary_text += chunk
-        
+        async with log_middleware.log_call(
+            operation_type="summarize",
+            extra_data={
+                "text_length": len(request.text)
+            }
+        ) as token_counter:
+            async for chunk in ai_service.stream_summarize(request.text):
+                summary_text += chunk
+
+            # 估算 token 数量
+            token_counter.estimate_tokens(
+                prompt_text=request.text,
+                completion_text=summary_text
+            )
+
         logger.info(f"[AI剧情概括] 用户 {current_user.username} 请求完成，概括长度: {len(summary_text)}")
-        
+
         return AISummarizeResponse(summary=summary_text)
-        
+
     except Exception as e:
         error_msg = str(e)
         logger.error(f"[AI剧情概括] 用户 {current_user.username} 请求失败: {error_msg}")

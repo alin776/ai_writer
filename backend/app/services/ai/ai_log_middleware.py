@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any
 from uuid import UUID
 from contextlib import asynccontextmanager
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.ai_call_log import AICallLogCreate
 from app.services.ai_log_service import AILogService
 from app.utils.cost_calculator import CostCalculator
@@ -23,7 +23,7 @@ class AILogMiddleware:
 
     def __init__(
         self,
-        db: Session,
+        db: AsyncSession,
         user_id: UUID,
         model_name: str
     ):
@@ -105,7 +105,7 @@ class AILogMiddleware:
                     extra_data=extra_data or {}
                 )
 
-                self.log_service.create_log(log_data)
+                await self.log_service.create_log(log_data)
 
                 logger.info(
                     f"AI调用日志已记录: operation={operation_type}, "
@@ -139,7 +139,23 @@ class TokenCounter:
         """累加生成token数"""
         self.completion_tokens += tokens
 
-    def estimate_tokens(self, text: str) -> int:
+    def estimate_tokens(self, prompt_text: str = "", completion_text: str = ""):
+        """
+        估算并设置 token 数量
+
+        Args:
+            prompt_text: 提示文本
+            completion_text: 生成文本
+        """
+        # 估算 prompt tokens
+        if prompt_text:
+            self.prompt_tokens = self._estimate_text_tokens(prompt_text)
+
+        # 估算 completion tokens
+        if completion_text:
+            self.completion_tokens = self._estimate_text_tokens(completion_text)
+
+    def _estimate_text_tokens(self, text: str) -> int:
         """
         估算文本的token数量
 

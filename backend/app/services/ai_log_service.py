@@ -4,8 +4,8 @@ AI调用日志服务
 提供AI调用日志的创建、查询和统计功能
 """
 
-from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, extract
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, and_, extract, select
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 from uuid import UUID
@@ -21,10 +21,10 @@ from app.schemas.ai_call_log import (
 class AILogService:
     """AI日志服务"""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
 
-    def create_log(self, log_data: AICallLogCreate) -> AICallLog:
+    async def create_log(self, log_data: AICallLogCreate) -> AICallLog:
         """
         创建AI调用日志
 
@@ -36,11 +36,11 @@ class AILogService:
         """
         log = AICallLog(**log_data.model_dump())
         self.db.add(log)
-        self.db.commit()
-        self.db.refresh(log)
+        await self.db.commit()
+        await self.db.refresh(log)
         return log
 
-    def get_user_logs(
+    async def get_user_logs(
         self,
         user_id: UUID,
         skip: int = 0,
@@ -61,16 +61,19 @@ class AILogService:
         Returns:
             List[AICallLog]: 日志列表
         """
-        query = self.db.query(AICallLog).filter(AICallLog.user_id == user_id)
+        stmt = select(AICallLog).where(AICallLog.user_id == user_id)
 
         if start_date:
-            query = query.filter(AICallLog.created_at >= start_date)
+            stmt = stmt.where(AICallLog.created_at >= start_date)
         if end_date:
-            query = query.filter(AICallLog.created_at <= end_date)
+            stmt = stmt.where(AICallLog.created_at <= end_date)
 
-        return query.order_by(AICallLog.created_at.desc()).offset(skip).limit(limit).all()
+        stmt = stmt.order_by(AICallLog.created_at.desc()).offset(skip).limit(limit)
 
-    def get_stats(
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
+
+    async def get_stats(
         self,
         user_id: Optional[UUID] = None,
         start_date: Optional[datetime] = None,
@@ -80,24 +83,28 @@ class AILogService:
         获取AI调用统计数据
 
         Args:
-            user_id: 用户ID（可选，不传则统计所有用户）
+            user_id: 用户ID(可选,不传则统计所有用户)
             start_date: 起始时间
             end_date: 结束时间
 
         Returns:
             AICallLogStats: 统计数据
         """
-        query = self.db.query(AICallLog)
-
+        # 构建基础查询条件
+        conditions = []
         if user_id:
-            query = query.filter(AICallLog.user_id == user_id)
+            conditions.append(AICallLog.user_id == user_id)
         if start_date:
-            query = query.filter(AICallLog.created_at >= start_date)
+            conditions.append(AICallLog.created_at >= start_date)
         if end_date:
-            query = query.filter(AICallLog.created_at <= end_date)
+            conditions.append(AICallLog.created_at <= end_date)
 
-        # 总体统计
-        total_calls = query.count()
+        # 总体统计 - 总调用次数
+        total_calls_stmt = select(func.count(AICallLog.id))
+        if conditions:
+            total_calls_stmt = total_calls_stmt.where(and_(*conditions))
+        total_calls = await self.db.scalar(total_calls_stmt) or 0
+
         if total_calls == 0:
             return AICallLogStats(
                 total_calls=0,
@@ -111,29 +118,43 @@ class AILogService:
                 end_date=end_date
             )
 
-        total_tokens = query.with_entities(func.sum(AICallLog.total_tokens)).scalar() or 0
-        total_cost = query.with_entities(func.sum(AICallLog.total_cost)).scalar() or 0.0
-        success_count = query.filter(AICallLog.is_success == True).count()
+        # 总 tokens
+        total_tokens_stmt = select(func.sum(AICallLog.total_tokens))
+        if conditions:
+            total_tokens_stmt = total_tokens_stmt.where(and_(*conditions))
+        total_tokens = await self.db.scalar(total_tokens_stmt) or 0
+
+        # 总成本
+        total_cost_stmt = select(func.sum(AICallLog.total_cost))
+        if conditions:
+            total_cost_stmt = total_cost_stmt.where(and_(*conditions))
+        total_cost = await self.db.scalar(total_cost_stmt) or 0.0
+
+        # 成功次数
+        success_conditions = conditions + [AICallLog.is_success == True]
+        success_count_stmt = select(func.count(AICallLog.id)).where(and_(*success_conditions))
+        success_count = await self.db.scalar(success_count_stmt) or 0
         success_rate = (success_count / total_calls * 100) if total_calls > 0 else 0.0
 
-        avg_duration = query.filter(AICallLog.duration_ms.isnot(None)).with_entities(
-            func.avg(AICallLog.duration_ms)
-        ).scalar()
+        # 平均耗时
+        avg_duration_conditions = conditions + [AICallLog.duration_ms.isnot(None)]
+        avg_duration_stmt = select(func.avg(AICallLog.duration_ms)).where(and_(*avg_duration_conditions))
+        avg_duration = await self.db.scalar(avg_duration_stmt)
 
         # 按模型统计
         by_model = {}
-        model_stats = self.db.query(
+        model_stats_stmt = select(
             AICallLog.model_name,
             func.count(AICallLog.id).label('calls'),
             func.sum(AICallLog.total_tokens).label('tokens'),
             func.sum(AICallLog.total_cost).label('cost')
-        ).filter(
-            and_(
-                AICallLog.user_id == user_id if user_id else True,
-                AICallLog.created_at >= start_date if start_date else True,
-                AICallLog.created_at <= end_date if end_date else True
-            )
-        ).group_by(AICallLog.model_name).all()
+        )
+        if conditions:
+            model_stats_stmt = model_stats_stmt.where(and_(*conditions))
+        model_stats_stmt = model_stats_stmt.group_by(AICallLog.model_name)
+
+        result = await self.db.execute(model_stats_stmt)
+        model_stats = result.all()
 
         for stat in model_stats:
             by_model[stat.model_name] = {
@@ -144,18 +165,18 @@ class AILogService:
 
         # 按操作类型统计
         by_operation = {}
-        operation_stats = self.db.query(
+        operation_stats_stmt = select(
             AICallLog.operation_type,
             func.count(AICallLog.id).label('calls'),
             func.sum(AICallLog.total_tokens).label('tokens'),
             func.sum(AICallLog.total_cost).label('cost')
-        ).filter(
-            and_(
-                AICallLog.user_id == user_id if user_id else True,
-                AICallLog.created_at >= start_date if start_date else True,
-                AICallLog.created_at <= end_date if end_date else True
-            )
-        ).group_by(AICallLog.operation_type).all()
+        )
+        if conditions:
+            operation_stats_stmt = operation_stats_stmt.where(and_(*conditions))
+        operation_stats_stmt = operation_stats_stmt.group_by(AICallLog.operation_type)
+
+        result = await self.db.execute(operation_stats_stmt)
+        operation_stats = result.all()
 
         for stat in operation_stats:
             by_operation[stat.operation_type] = {
@@ -176,9 +197,9 @@ class AILogService:
             end_date=end_date
         )
 
-    def get_cost_metrics(self) -> CostMetrics:
+    async def get_cost_metrics(self) -> CostMetrics:
         """
-        获取成本指标（用于管理后台）
+        获取成本指标(用于管理后台)
 
         Returns:
             CostMetrics: 成本指标数据
@@ -196,67 +217,77 @@ class AILogService:
             last_month_start = now.replace(month=now.month - 1, day=1, hour=0, minute=0, second=0, microsecond=0)
 
         # 今日成本
-        today_cost = self.db.query(func.sum(AICallLog.total_cost)).filter(
+        today_cost_stmt = select(func.sum(AICallLog.total_cost)).where(
             AICallLog.created_at >= today_start
-        ).scalar() or 0.0
+        )
+        today_cost = await self.db.scalar(today_cost_stmt) or 0.0
 
         # 昨日成本
-        yesterday_cost = self.db.query(func.sum(AICallLog.total_cost)).filter(
+        yesterday_cost_stmt = select(func.sum(AICallLog.total_cost)).where(
             and_(
                 AICallLog.created_at >= yesterday_start,
                 AICallLog.created_at < today_start
             )
-        ).scalar() or 0.0
+        )
+        yesterday_cost = await self.db.scalar(yesterday_cost_stmt) or 0.0
 
         # 本月成本
-        this_month_cost = self.db.query(func.sum(AICallLog.total_cost)).filter(
+        this_month_cost_stmt = select(func.sum(AICallLog.total_cost)).where(
             AICallLog.created_at >= this_month_start
-        ).scalar() or 0.0
+        )
+        this_month_cost = await self.db.scalar(this_month_cost_stmt) or 0.0
 
         # 上月成本
-        last_month_cost = self.db.query(func.sum(AICallLog.total_cost)).filter(
+        last_month_cost_stmt = select(func.sum(AICallLog.total_cost)).where(
             and_(
                 AICallLog.created_at >= last_month_start,
                 AICallLog.created_at < this_month_start
             )
-        ).scalar() or 0.0
+        )
+        last_month_cost = await self.db.scalar(last_month_cost_stmt) or 0.0
 
         # 今日调用次数
-        today_calls = self.db.query(func.count(AICallLog.id)).filter(
+        today_calls_stmt = select(func.count(AICallLog.id)).where(
             AICallLog.created_at >= today_start
-        ).scalar() or 0
+        )
+        today_calls = await self.db.scalar(today_calls_stmt) or 0
 
         # 本月调用次数
-        this_month_calls = self.db.query(func.count(AICallLog.id)).filter(
+        this_month_calls_stmt = select(func.count(AICallLog.id)).where(
             AICallLog.created_at >= this_month_start
-        ).scalar() or 0
+        )
+        this_month_calls = await self.db.scalar(this_month_calls_stmt) or 0
 
         # 最近7天成本趋势
         daily_costs = []
         for i in range(6, -1, -1):
             day_start = today_start - timedelta(days=i)
             day_end = day_start + timedelta(days=1)
-            day_cost = self.db.query(func.sum(AICallLog.total_cost)).filter(
+            day_cost_stmt = select(func.sum(AICallLog.total_cost)).where(
                 and_(
                     AICallLog.created_at >= day_start,
                     AICallLog.created_at < day_end
                 )
-            ).scalar() or 0.0
+            )
+            day_cost = await self.db.scalar(day_cost_stmt) or 0.0
             daily_costs.append({
                 'date': day_start.strftime('%Y-%m-%d'),
                 'cost': float(day_cost)
             })
 
         # Top 5 用户
-        top_users_data = self.db.query(
+        top_users_stmt = select(
             AICallLog.user_id,
             func.sum(AICallLog.total_cost).label('total_cost'),
             func.count(AICallLog.id).label('total_calls')
-        ).filter(
+        ).where(
             AICallLog.created_at >= this_month_start
         ).group_by(AICallLog.user_id).order_by(
             func.sum(AICallLog.total_cost).desc()
-        ).limit(5).all()
+        ).limit(5)
+
+        result = await self.db.execute(top_users_stmt)
+        top_users_data = result.all()
 
         top_users = [
             {
@@ -268,15 +299,18 @@ class AILogService:
         ]
 
         # Top 5 模型
-        top_models_data = self.db.query(
+        top_models_stmt = select(
             AICallLog.model_name,
             func.sum(AICallLog.total_cost).label('total_cost'),
             func.count(AICallLog.id).label('total_calls')
-        ).filter(
+        ).where(
             AICallLog.created_at >= this_month_start
         ).group_by(AICallLog.model_name).order_by(
             func.sum(AICallLog.total_cost).desc()
-        ).limit(5).all()
+        ).limit(5)
+
+        result = await self.db.execute(top_models_stmt)
+        top_models_data = result.all()
 
         top_models = [
             {
