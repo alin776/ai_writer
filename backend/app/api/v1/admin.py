@@ -15,6 +15,7 @@ from app.core.security import get_current_active_user
 from app.models.user import User
 from app.models.work import Work
 from app.models.chapter import Chapter
+from app.models.ai_call_log import AICallLog
 
 router = APIRouter()
 
@@ -57,22 +58,80 @@ async def get_statistics(
     
     # 统计总字数
     total_words = await db.scalar(select(func.sum(Work.total_words))) or 0
+
+    # 统计 AI 调用次数（从 ai_call_logs 表）
+    ai_calls_count = await db.scalar(select(func.count(AICallLog.id))) or 0
+
+    # 统计总成本（从 ai_call_logs 表，单位：美元）
+    total_cost = await db.scalar(select(func.sum(AICallLog.total_cost))) or 0.0
+
+    # 计算本月的 AI 调用次数和成本
+    current_month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    this_month_ai_calls = await db.scalar(
+        select(func.count(AICallLog.id)).where(AICallLog.created_at >= current_month_start)
+    ) or 0
+    this_month_cost = await db.scalar(
+        select(func.sum(AICallLog.total_cost)).where(AICallLog.created_at >= current_month_start)
+    ) or 0.0
+
+    # 计算上月的 AI 调用次数和成本
+    last_month_start = (current_month_start - timedelta(days=1)).replace(day=1)
+    last_month_end = current_month_start
+    last_month_ai_calls = await db.scalar(
+        select(func.count(AICallLog.id)).where(
+            AICallLog.created_at >= last_month_start,
+            AICallLog.created_at < last_month_end
+        )
+    ) or 0
+    last_month_cost = await db.scalar(
+        select(func.sum(AICallLog.total_cost)).where(
+            AICallLog.created_at >= last_month_start,
+            AICallLog.created_at < last_month_end
+        )
+    ) or 0.0
     
-    # TODO: AI 调用次数需要从日志表或 Redis 统计
-    # 暂时返回模拟数据
-    ai_calls_count = 0
-    
-    # TODO: 总成本需要从成本记录表统计
-    # 暂时返回模拟数据
-    total_cost = 0
-    
-    # 计算变化率（与上月对比）
-    # TODO: 实现真实的时间范围统计
-    # 暂时返回模拟数据
-    users_change = "+12.5%"
-    works_change = "+8.2%"
-    ai_calls_change = "+23.1%"
-    cost_change = "-5.3%"
+    # 计算本月的用户数和作品数
+    this_month_users = await db.scalar(
+        select(func.count(User.id)).where(User.created_at >= current_month_start)
+    ) or 0
+    this_month_works = await db.scalar(
+        select(func.count(Work.id)).where(Work.created_at >= current_month_start)
+    ) or 0
+
+    # 计算上月的用户数和作品数
+    last_month_users = await db.scalar(
+        select(func.count(User.id)).where(
+            User.created_at >= last_month_start,
+            User.created_at < last_month_end
+        )
+    ) or 0
+    last_month_works = await db.scalar(
+        select(func.count(Work.id)).where(
+            Work.created_at >= last_month_start,
+            Work.created_at < last_month_end
+        )
+    ) or 0
+
+    # 计算变化率
+    def calculate_change(current: int, previous: int) -> str:
+        """计算变化率百分比"""
+        if previous == 0:
+            return "+100%" if current > 0 else "0%"
+        change = ((current - previous) / previous) * 100
+        sign = "+" if change >= 0 else ""
+        return f"{sign}{change:.1f}%"
+
+    users_change = calculate_change(this_month_users, last_month_users)
+    works_change = calculate_change(this_month_works, last_month_works)
+    ai_calls_change = calculate_change(this_month_ai_calls, last_month_ai_calls)
+
+    # 成本变化率（注意：成本下降是好事）
+    if last_month_cost == 0:
+        cost_change = "+100%" if this_month_cost > 0 else "0%"
+    else:
+        cost_change_value = ((this_month_cost - last_month_cost) / last_month_cost) * 100
+        sign = "+" if cost_change_value >= 0 else ""
+        cost_change = f"{sign}{cost_change_value:.1f}%"
     
     return {
         "users": {
@@ -108,25 +167,37 @@ async def get_users_growth(
 ):
     """
     获取用户增长趋势数据
-    
+
     Args:
         days: 统计天数（默认7天）
     """
-    # TODO: 实现真实的用户增长统计
-    # 需要按日期分组统计
-    
-    # 暂时返回模拟数据
-    mock_data = []
+    # 获取最近 N 天的用户和作品增长数据
+    growth_data = []
+
     for i in range(days):
-        date = (datetime.now() - timedelta(days=days-i-1)).strftime("%m-%d")
-        mock_data.append({
-            "date": date,
-            "users": 820 + i * 50,
-            "works": 1200 + i * 200
+        # 计算日期范围
+        target_date = datetime.now() - timedelta(days=days - i - 1)
+        day_start = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start + timedelta(days=1)
+
+        # 统计截止到该日期的累计用户数
+        users_count = await db.scalar(
+            select(func.count(User.id)).where(User.created_at < day_end)
+        ) or 0
+
+        # 统计截止到该日期的累计作品数
+        works_count = await db.scalar(
+            select(func.count(Work.id)).where(Work.created_at < day_end)
+        ) or 0
+
+        growth_data.append({
+            "date": target_date.strftime("%m-%d"),
+            "users": users_count,
+            "works": works_count
         })
-    
+
     return {
-        "data": mock_data
+        "data": growth_data
     }
 
 
@@ -137,19 +208,36 @@ async def get_ai_usage(
 ):
     """
     获取 AI 模型使用统计
+
+    统计每个模型的调用次数和总成本
     """
-    # TODO: 实现真实的 AI 使用统计
-    # 需要从日志表或 Redis 统计
-    
-    # 暂时返回模拟数据
+    # 按模型分组统计
+    from sqlalchemy import desc
+
+    results = await db.execute(
+        select(
+            AICallLog.model_name,
+            func.count(AICallLog.id).label('calls'),
+            func.sum(AICallLog.total_cost).label('cost')
+        )
+        .group_by(AICallLog.model_name)
+        .order_by(desc('calls'))
+    )
+
+    model_stats = []
+    for row in results:
+        model_stats.append({
+            "model": row.model_name,
+            "calls": row.calls,
+            "cost": float(row.cost) if row.cost else 0.0
+        })
+
+    # 如果没有数据,返回空数组
+    if not model_stats:
+        model_stats = []
+
     return {
-        "data": [
-            {
-                "model": "Gemini-2.5-Pro",
-                "calls": 0,
-                "cost": 0
-            }
-        ]
+        "data": model_stats
     }
 
 
