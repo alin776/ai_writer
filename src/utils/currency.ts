@@ -23,12 +23,30 @@ export function usdToCny(usd: number): number {
 /**
  * 将美元转换为人民币并格式化显示
  * @param usd - 美元金额
- * @param decimals - 保留小数位数（默认2位）
- * @returns 格式化后的人民币字符串，如 "¥7.19"
+ * @param decimals - 保留小数位数（默认为智能模式）
+ * @returns 格式化后的人民币字符串，如 "¥7.19" 或 "< ¥0.01"
  */
-export function formatUsdToCny(usd: number, decimals: number = 2): string {
+export function formatUsdToCny(usd: number, decimals?: number): string {
   const cny = usdToCny(usd);
-  return `¥${cny.toFixed(decimals)}`;
+
+  // 如果指定了小数位数，直接使用
+  if (decimals !== undefined) {
+    return `¥${cny.toFixed(decimals)}`;
+  }
+
+  // 智能显示模式
+  if (cny === 0) {
+    return '¥0.00';
+  } else if (cny < 0.01) {
+    // 小于 0.01 元，显示 4 位小数
+    return `¥${cny.toFixed(4)}`;
+  } else if (cny < 1) {
+    // 小于 1 元，显示 3 位小数
+    return `¥${cny.toFixed(3)}`;
+  } else {
+    // 大于等于 1 元，显示 2 位小数
+    return `¥${cny.toFixed(2)}`;
+  }
 }
 
 /**

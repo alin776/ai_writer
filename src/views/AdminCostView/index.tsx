@@ -122,7 +122,7 @@ const AdminCostView: React.FC = () => {
   // 成本趋势数据（最近7天）
   const costTrendData = metrics.dailyCosts.map(item => ({
     date: item.date.slice(5), // 只显示 MM-DD
-    cost: parseFloat((item.cost * 7.19).toFixed(2)), // 转换为人民币
+    cost: parseFloat((item.cost * 7.19).toFixed(4)), // 转换为人民币，保留4位小数
   }));
 
   // 模型成本分布
@@ -130,7 +130,7 @@ const AdminCostView: React.FC = () => {
     const colors = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444'];
     return {
       name: model.modelName,
-      value: parseFloat((model.totalCost * 7.19).toFixed(2)), // 转换为人民币
+      value: parseFloat((model.totalCost * 7.19).toFixed(4)), // 转换为人民币，保留4位小数
       color: colors[index % colors.length],
     };
   });
@@ -141,7 +141,7 @@ const AdminCostView: React.FC = () => {
     return {
       userId: user.userId,
       calls: user.totalCalls,
-      cost: parseFloat((user.totalCost * 7.19).toFixed(2)), // 转换为人民币
+      cost: parseFloat((user.totalCost * 7.19).toFixed(4)), // 转换为人民币，保留4位小数
       percentage: maxCost > 0 ? Math.round((user.totalCost / maxCost) * 100) : 0,
     };
   });
@@ -151,7 +151,7 @@ const AdminCostView: React.FC = () => {
     name: model.modelName,
     calls: model.totalCalls,
     totalTokens: 0, // 后端暂未返回 Token 总数
-    cost: parseFloat((model.totalCost * 7.19).toFixed(2)), // 转换为人民币
+    cost: parseFloat((model.totalCost * 7.19).toFixed(4)), // 转换为人民币，保留4位小数
     avgCost: model.totalCalls > 0
       ? parseFloat(((model.totalCost * 7.19) / model.totalCalls).toFixed(4))
       : 0,
@@ -235,7 +235,11 @@ const AdminCostView: React.FC = () => {
               <LineChart data={costTrendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="date" stroke="#6B7280" style={{ fontSize: '12px' }} />
-                <YAxis stroke="#6B7280" style={{ fontSize: '12px' }} />
+                <YAxis
+                  stroke="#6B7280"
+                  style={{ fontSize: '12px' }}
+                  tickFormatter={(value) => `¥${value.toFixed(4)}`}
+                />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: '#ffffff',
@@ -243,16 +247,16 @@ const AdminCostView: React.FC = () => {
                     borderRadius: '8px',
                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                   }}
-                  formatter={(value: number) => `¥${value.toFixed(2)}`}
+                  formatter={(value: number) => [`¥${value.toFixed(4)}`, '成本']}
                 />
                 <Legend />
                 <Line
                   type="monotone"
                   dataKey="cost"
                   stroke="#3B82F6"
-                  strokeWidth={2}
-                  dot={{ fill: '#3B82F6', r: 4 }}
-                  activeDot={{ r: 6 }}
+                  strokeWidth={3}
+                  dot={{ fill: '#3B82F6', r: 6, strokeWidth: 2, stroke: '#fff' }}
+                  activeDot={{ r: 8, strokeWidth: 2 }}
                   name="成本 (¥)"
                 />
               </LineChart>
@@ -264,32 +268,49 @@ const AdminCostView: React.FC = () => {
         <Card background="blue">
           <div className="p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">模型成本分布</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={modelCostData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {modelCostData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #E5E7EB',
-                    borderRadius: '8px',
-                  }}
-                  formatter={(value: number) => `¥${value}`}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            {modelCostData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={modelCostData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={false}
+                    outerRadius={90}
+                    innerRadius={40}
+                    fill="#8884d8"
+                    dataKey="value"
+                    paddingAngle={2}
+                  >
+                    {modelCostData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #E5E7EB',
+                      borderRadius: '8px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    }}
+                    formatter={(value: number) => [`¥${value.toFixed(4)}`, '成本']}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    height={36}
+                    formatter={(value, entry: any) => {
+                      const percent = entry.payload?.percent || 0;
+                      return `${value} (${(percent * 100).toFixed(1)}%)`;
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-gray-400">
+                <p>暂无数据</p>
+              </div>
+            )}
           </div>
         </Card>
       </div>
@@ -347,7 +368,7 @@ const AdminCostView: React.FC = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-sm font-medium text-gray-900 truncate">{user.userId.slice(0, 8)}...</p>
-                    <p className="text-sm font-semibold text-gray-900">¥{user.cost.toFixed(2)}</p>
+                    <p className="text-sm font-semibold text-gray-900">¥{user.cost.toFixed(4)}</p>
                   </div>
                   <div className="flex items-center space-x-2">
                     <div className="flex-1 bg-gray-200 rounded-full h-2">
