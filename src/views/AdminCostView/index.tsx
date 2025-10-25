@@ -93,8 +93,8 @@ const AdminCostView: React.FC = () => {
         ? `${((metrics.thisMonthCost - metrics.lastMonthCost) / metrics.lastMonthCost * 100).toFixed(1)}%`
         : 'N/A',
       icon: Cpu,
-      bgColor: 'bg-green-100',
-      iconColor: 'text-green-600',
+      bgColor: 'bg-blue-100',
+      iconColor: 'text-blue-600',
       description: `${metrics.thisMonthCalls} 次调用`,
     },
     {
@@ -104,8 +104,8 @@ const AdminCostView: React.FC = () => {
         : '¥0.00',
       change: '-',
       icon: TrendingUp,
-      bgColor: 'bg-purple-100',
-      iconColor: 'text-purple-600',
+      bgColor: 'bg-blue-100',
+      iconColor: 'text-blue-600',
       description: '本月平均',
     },
     {
@@ -113,8 +113,8 @@ const AdminCostView: React.FC = () => {
       value: formatUsdToCny(metrics.yesterdayCost),
       change: '-',
       icon: AlertCircle,
-      bgColor: 'bg-orange-100',
-      iconColor: 'text-orange-600',
+      bgColor: 'bg-blue-100',
+      iconColor: 'text-blue-600',
       description: '对比参考',
     },
   ];
@@ -199,7 +199,7 @@ const AdminCostView: React.FC = () => {
         {costStats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className="hover:shadow-lg transition-shadow">
+            <Card key={stat.label} background="blue" className="hover:shadow-lg transition-shadow">
               <div className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -223,7 +223,7 @@ const AdminCostView: React.FC = () => {
       {/* 图表区域 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 成本趋势 - 占2列 */}
-        <Card className="lg:col-span-2">
+        <Card background="blue" className="lg:col-span-2">
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -261,7 +261,7 @@ const AdminCostView: React.FC = () => {
         </Card>
 
         {/* 模型成本分布 */}
-        <Card>
+        <Card background="blue">
           <div className="p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">模型成本分布</h3>
             <ResponsiveContainer width="100%" height={300}>
@@ -295,7 +295,7 @@ const AdminCostView: React.FC = () => {
       </div>
 
       {/* 模型详细使用情况 */}
-      <Card>
+      <Card background="blue">
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">模型详细使用</h3>
           <div className="overflow-x-auto">
@@ -332,7 +332,7 @@ const AdminCostView: React.FC = () => {
       </Card>
 
       {/* 用户成本排行 */}
-      <Card>
+      <Card background="blue">
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">用户成本排行 TOP 5</h3>
           <div className="space-y-4">

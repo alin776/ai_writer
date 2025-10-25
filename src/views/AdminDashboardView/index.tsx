@@ -83,8 +83,8 @@ const AdminDashboardView: React.FC = () => {
       change: statistics.works?.change || '+0%',
       trend: (statistics.works?.change || '+0%').startsWith('+') ? 'up' as const : 'down' as const,
       icon: BookOpen,
-      bgColor: 'bg-green-100',
-      iconColor: 'text-green-600',
+      bgColor: 'bg-blue-100',
+      iconColor: 'text-blue-600',
       trendColor: (statistics.works?.change || '+0%').startsWith('+') ? 'text-green-600' : 'text-red-600',
     },
     {
@@ -93,8 +93,8 @@ const AdminDashboardView: React.FC = () => {
       change: aiCalls.change || '+0%',
       trend: (aiCalls.change || '+0%').startsWith('+') ? 'up' as const : 'down' as const,
       icon: Cpu,
-      bgColor: 'bg-purple-100',
-      iconColor: 'text-purple-600',
+      bgColor: 'bg-blue-100',
+      iconColor: 'text-blue-600',
       trendColor: (aiCalls.change || '+0%').startsWith('+') ? 'text-green-600' : 'text-red-600',
     },
     {
@@ -103,8 +103,8 @@ const AdminDashboardView: React.FC = () => {
       change: cost.change || '+0%',
       trend: (cost.change || '+0%').startsWith('+') ? 'up' as const : 'down' as const,
       icon: DollarSign,
-      bgColor: 'bg-orange-100',
-      iconColor: 'text-orange-600',
+      bgColor: 'bg-blue-100',
+      iconColor: 'text-blue-600',
       trendColor: (cost.change || '+0%').startsWith('-') ? 'text-green-600' : 'text-red-600',
     },
   ];
@@ -123,7 +123,7 @@ const AdminDashboardView: React.FC = () => {
           const Icon = stat.icon;
           const TrendIcon = stat.trend === 'up' ? TrendingUp : TrendingDown;
           return (
-            <Card key={stat.label} className="hover:shadow-lg transition-shadow">
+            <Card key={stat.label} background="blue" className="hover:shadow-lg transition-shadow">
               <div className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -148,7 +148,7 @@ const AdminDashboardView: React.FC = () => {
       {/* 图表区域 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 用户与作品增长趋势 */}
-        <Card>
+        <Card background="blue">
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">增长趋势</h3>
@@ -215,7 +215,7 @@ const AdminDashboardView: React.FC = () => {
         </Card>
 
         {/* AI 模型使用统计 */}
-        <Card>
+        <Card background="blue">
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">AI 模型使用</h3>
@@ -258,7 +258,7 @@ const AdminDashboardView: React.FC = () => {
 
       {/* 额外信息卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
+        <Card background="blue">
           <div className="p-6">
             <h4 className="text-sm font-medium text-gray-600 mb-2">总章节数</h4>
             <p className="text-2xl font-bold text-gray-900">
@@ -266,8 +266,8 @@ const AdminDashboardView: React.FC = () => {
             </p>
           </div>
         </Card>
-        
-        <Card>
+
+        <Card background="blue">
           <div className="p-6">
             <h4 className="text-sm font-medium text-gray-600 mb-2">总字数</h4>
             <p className="text-2xl font-bold text-gray-900">
@@ -275,12 +275,12 @@ const AdminDashboardView: React.FC = () => {
             </p>
           </div>
         </Card>
-        
-        <Card>
+
+        <Card background="blue">
           <div className="p-6">
             <h4 className="text-sm font-medium text-gray-600 mb-2">平均作品字数</h4>
             <p className="text-2xl font-bold text-gray-900">
-              {(statistics.works?.total || 0) > 0 
+              {(statistics.works?.total || 0) > 0
                 ? Math.round((statistics.words?.total || 0) / (statistics.works?.total || 1)).toLocaleString()
                 : '0'
               }

@@ -49,7 +49,7 @@ export interface CardProps {
    * 背景颜色
    * @default 'white'
    */
-  background?: 'white' | 'gray' | 'transparent';
+  background?: 'white' | 'gray' | 'transparent' | 'blue';
 
   /**
    * 点击事件
@@ -179,6 +179,7 @@ const Card: React.FC<CardProps> = ({
       white: 'bg-white dark:bg-gray-800',
       gray: 'bg-gray-50 dark:bg-gray-800/70',
       transparent: 'bg-transparent',
+      blue: 'bg-blue-50 dark:bg-blue-900/20',
     };
 
     return backgrounds[background];

@@ -160,7 +160,7 @@ const AdminUsersView: React.FC = () => {
         {/* 添加用户按钮已隐藏 - 用户可以自己注册 */}
       </div>
 
-      <Card>
+      <Card background="blue">
         <div className="p-6 space-y-4">
           <Input
             placeholder="搜索用户..."
