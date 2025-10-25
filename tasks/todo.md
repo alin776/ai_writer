@@ -507,3 +507,586 @@
 - 向后兼容：`formatUsdToCny()` 仍支持指定 `decimals` 参数
 - 无破坏性修改：仅增强显示精度
 
+---
+
+## 📊 数据面板模块Bug修复计划 (2025-10-25)
+
+### 项目概述
+
+**目标**: 修复数据面板模块的严重bug并实现缺失的功能
+**优先级**: P0 (最高优先级)
+**预计时间**: 3-5个工作日
+**负责人**: 待分配
+**开始日期**: 2025-10-25
+**状态**: 计划中
+
+---
+
+### 问题清单
+
+根据代码审查,发现以下问题:
+
+#### 🔴 P0 - 严重Bug (必须立即修复)
+
+**Bug 1: AdminUsersView 存在重复的 loadUsers() 函数定义**
+- **位置**: `src/views/AdminUsersView/index.tsx:30-46` 和 `69-81`
+- **问题**: 完全相同的函数定义了两次,造成代码冗余
+- **影响**: 代码维护困难,可能导致逻辑不一致
+- **修复**: 删除第二个定义 (lines 69-81)
+
+**Bug 2: AdminDashboardView 成本显示精度不足**
+- **位置**: `src/views/AdminDashboardView/index.tsx:102`
+- **问题**: 成本卡片使用 `toLocaleString()` 会四舍五入小数
+- **代码**:
+  ```typescript
+  value: `¥${(cost.total || 0).toLocaleString()}`
+  ```
+- **影响**: 小额成本显示为 ¥0,用户无法感知真实成本
+- **修复**: 使用 `formatUsdToCny()` 工具函数
+
+**Bug 3: AdminDashboardView 成本趋势颜色逻辑错误**
+- **位置**: `src/views/AdminDashboardView/index.tsx:108`
+- **问题**: 成本上升显示红色,下降显示绿色 (应该相反)
+- **代码**:
+  ```typescript
+  trendColor: (cost.change || '+0%').startsWith('-') ? 'text-green-600' : 'text-red-600',
+  ```
+- **影响**: 用户误解成本趋势,认为成本下降是坏事
+- **修复**: 交换颜色逻辑
+
+**Bug 4: AdminDashboardView AI使用图表成本单位错误**
+- **位置**: `src/views/AdminDashboardView/index.tsx:247`
+- **问题**: 图表显示 "成本 (¥)" 但数据实际是美元
+- **代码**:
+  ```typescript
+  <Bar dataKey="cost" fill="#F59E0B" name="成本 (¥)" radius={[8, 8, 0, 0]} />
+  ```
+- **影响**: 数据误导,用户看到的金额与实际不符
+- **修复**: 数据转换为人民币 或 修改标签为 "成本 ($)"
+
+---
+
+#### 🟡 P1 - 主要缺失功能 (本周内完成)
+
+**缺失 1: AI模型管理功能完全未实现**
+- **位置**: `src/views/AdminAIModelsView/index.tsx`
+- **问题**:
+  - 前端显示 "功能开发中,敬请期待"
+  - 后端没有任何 AI 模型相关的数据库模型
+  - 后端没有 AI 模型的 CRUD API
+- **影响**: 管理员无法管理 AI 模型配置
+- **所需工作**:
+  1. 后端: 创建 AIModel 数据库模型
+  2. 后端: 实现 AI 模型 CRUD API (6个端点)
+  3. 前端: 实现模型列表/添加/编辑/删除功能
+  4. 前端: 连接后端 API
+- **预计时间**: 2-3 天
+
+**缺失 2: 管理员统计数据使用 Mock 数据**
+- **位置**: `src/services/DataService.ts:620-634`
+- **问题**: `getAdminStatistics()` 返回硬编码的测试数据
+- **代码分析**:
+  ```typescript
+  static async getAdminStatistics() {
+    const response = await apiClient.get<AdminStatistics>('/admin/statistics');
+    return response.data;
+  }
+  ```
+- **后端状态**: 未验证 `/admin/statistics` API 是否返回真实数据
+- **影响**: 管理后台显示的统计数据不准确
+- **修复**: 检查后端实现,确保从数据库统计真实数据
+
+**缺失 3: 用户增长趋势使用 Mock 数据**
+- **位置**: `src/services/DataService.ts:636-644`
+- **问题**: `getUsersGrowth()` 可能返回测试数据
+- **后端状态**: 未验证数据来源
+- **影响**: 增长趋势图不准确
+- **修复**: 验证后端是否从用户表统计真实增长数据
+
+**缺失 4: AI 使用统计未连接真实日志数据**
+- **位置**: `src/services/DataService.ts:646-649`
+- **问题**: `getAIUsage()` 未确认是否使用 `ai_call_logs` 表
+- **期望**: 应该从 `ai_call_logs` 表统计模型使用情况
+- **影响**: AI 使用图表可能显示假数据
+- **修复**: 确认后端实现使用真实日志数据
+
+---
+
+#### 🟢 P2 - 优化建议 (未来改进)
+
+**优化 1: 用户列表缺少分页功能**
+- **位置**: `src/views/AdminUsersView/index.tsx`
+- **问题**: 一次性加载所有用户,数据量大时性能差
+- **建议**: 实现分页或虚拟滚动
+
+**优化 2: 缺少用户活动日志系统**
+- **问题**: 无法追踪用户操作历史
+- **建议**: 实现活动日志记录和查看功能
+
+---
+
+### 实施计划
+
+#### Phase 1: 修复严重 Bug (0.5天)
+
+**任务清单**:
+- [ ] Bug 1: 删除 AdminUsersView 重复的 loadUsers() 函数
+- [ ] Bug 2: 修复 AdminDashboardView 成本显示精度
+- [ ] Bug 3: 修复 AdminDashboardView 成本趋势颜色逻辑
+- [ ] Bug 4: 修复 AdminDashboardView AI使用图表成本单位
+
+**实施细节**:
+
+**1.1 删除重复函数 (5分钟)**
+```typescript
+// 文件: src/views/AdminUsersView/index.tsx
+// 删除 lines 69-81 的重复定义
+// 保留 lines 30-46 的第一个定义
+```
+
+**1.2 修复成本显示精度 (10分钟)**
+```typescript
+// 文件: src/views/AdminDashboardView/index.tsx:102
+// 修改前:
+value: `¥${(cost.total || 0).toLocaleString()}`
+
+// 修改后:
+value: formatUsdToCny(cost.total || 0)
+
+// 同时需要导入:
+import { formatUsdToCny } from '../../utils/currency';
+```
+
+**1.3 修复成本趋势颜色 (5分钟)**
+```typescript
+// 文件: src/views/AdminDashboardView/index.tsx:108
+// 修改前:
+trendColor: (cost.change || '+0%').startsWith('-') ? 'text-green-600' : 'text-red-600',
+
+// 修改后:
+trendColor: (cost.change || '+0%').startsWith('+') ? 'text-red-600' : 'text-green-600',
+```
+
+**1.4 修复AI成本单位 (15分钟)**
+
+**方案A**: 转换数据为人民币
+```typescript
+// 文件: src/views/AdminDashboardView/index.tsx
+// 在 loadData() 中转换 aiUsageData:
+const aiUsage = await DataService.getAIUsage();
+const convertedData = (aiUsage.data || []).map(item => ({
+  ...item,
+  cost: parseFloat((item.cost * 7.19).toFixed(4))
+}));
+setAiUsageData(convertedData);
+```
+
+**方案B**: 修改标签
+```typescript
+// 文件: src/views/AdminDashboardView/index.tsx:247
+<Bar dataKey="cost" fill="#F59E0B" name="成本 ($)" radius={[8, 8, 0, 0]} />
+```
+
+**推荐**: 方案A (统一显示人民币)
+
+---
+
+#### Phase 2: 验证数据统计 API (1天)
+
+**任务清单**:
+- [ ] 检查后端 `/admin/statistics` API 实现
+- [ ] 检查后端 `/users/growth` API 实现
+- [ ] 检查后端 `/ai/usage` API 实现
+- [ ] 确认所有 API 使用真实数据库数据
+- [ ] 修复发现的 Mock 数据问题
+
+**实施步骤**:
+
+**2.1 检查后端统计 API**
+```bash
+# 搜索后端 API 定义
+cd backend
+grep -r "admin/statistics" app/api/
+grep -r "users/growth" app/api/
+grep -r "ai/usage" app/api/
+```
+
+**2.2 验证数据查询逻辑**
+- 检查 API 是否从数据库表查询
+- 确认没有硬编码的测试数据
+- 验证统计计算逻辑正确
+
+**2.3 测试 API 返回数据**
+```bash
+# 使用 curl 或 Postman 测试
+curl -H "Authorization: Bearer <token>" http://localhost:8000/api/v1/admin/statistics
+```
+
+**2.4 修复发现的问题**
+- 如果发现 Mock 数据,替换为真实查询
+- 如果 API 不存在,创建对应的 API 端点
+
+---
+
+#### Phase 3: 实现 AI 模型管理功能 (2-3天)
+
+**任务清单**:
+- [ ] 后端: 创建 AIModel 数据库模型
+- [ ] 后端: 创建 AIModel Schema
+- [ ] 后端: 实现 AI 模型 CRUD API
+- [ ] 前端: 移除 "功能开发中" 占位符
+- [ ] 前端: 实现模型列表展示
+- [ ] 前端: 实现添加模型功能
+- [ ] 前端: 实现编辑模型功能
+- [ ] 前端: 实现删除模型功能
+- [ ] 前端: 连接后端 API
+- [ ] 测试完整功能
+
+**3.1 后端数据库模型 (30分钟)**
+
+**文件**: `backend/app/models/ai_model.py` (新建)
+
+```python
+from sqlalchemy import Column, String, Float, Boolean, DateTime, Text
+from sqlalchemy.dialects.postgresql import UUID
+import uuid
+from datetime import datetime
+
+from app.database import Base
+
+class AIModel(Base):
+    """AI 模型配置表"""
+    __tablename__ = "ai_models"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(100), nullable=False, comment="模型名称")
+    provider = Column(String(50), nullable=False, comment="提供商")
+    model_id = Column(String(100), nullable=False, unique=True, comment="模型ID")
+    input_price = Column(Float, nullable=False, comment="输入价格 (USD/1M tokens)")
+    output_price = Column(Float, nullable=False, comment="输出价格 (USD/1M tokens)")
+    context_window = Column(Integer, comment="上下文窗口大小")
+    description = Column(Text, comment="模型描述")
+    is_active = Column(Boolean, default=True, comment="是否启用")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+```
+
+**3.2 后端 Schema (20分钟)**
+
+**文件**: `backend/app/schemas/ai_model.py` (新建)
+
+```python
+from pydantic import BaseModel, Field
+from datetime import datetime
+from typing import Optional
+from uuid import UUID
+
+class AIModelBase(BaseModel):
+    name: str = Field(..., description="模型名称")
+    provider: str = Field(..., description="提供商")
+    model_id: str = Field(..., description="模型ID")
+    input_price: float = Field(..., description="输入价格")
+    output_price: float = Field(..., description="输出价格")
+    context_window: Optional[int] = Field(None, description="上下文窗口")
+    description: Optional[str] = Field(None, description="模型描述")
+    is_active: bool = Field(True, description="是否启用")
+
+class AIModelCreate(AIModelBase):
+    pass
+
+class AIModelUpdate(BaseModel):
+    name: Optional[str] = None
+    provider: Optional[str] = None
+    input_price: Optional[float] = None
+    output_price: Optional[float] = None
+    context_window: Optional[int] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class AIModelResponse(AIModelBase):
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+```
+
+**3.3 后端 API 端点 (1小时)**
+
+**文件**: `backend/app/api/ai_models.py` (新建)
+
+```python
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from typing import List
+from uuid import UUID
+
+from app.database import get_db
+from app.models.ai_model import AIModel
+from app.schemas.ai_model import AIModelCreate, AIModelUpdate, AIModelResponse
+from app.api.auth import get_current_admin_user
+
+router = APIRouter(prefix="/api/v1/admin/ai-models", tags=["AI Models"])
+
+@router.get("", response_model=List[AIModelResponse])
+async def get_ai_models(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_admin_user)
+):
+    """获取所有 AI 模型"""
+    models = db.query(AIModel).all()
+    return models
+
+@router.post("", response_model=AIModelResponse, status_code=status.HTTP_201_CREATED)
+async def create_ai_model(
+    model_data: AIModelCreate,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_admin_user)
+):
+    """创建 AI 模型"""
+    # 检查 model_id 是否已存在
+    existing = db.query(AIModel).filter(AIModel.model_id == model_data.model_id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="模型ID已存在")
+
+    model = AIModel(**model_data.dict())
+    db.add(model)
+    db.commit()
+    db.refresh(model)
+    return model
+
+@router.get("/{model_id}", response_model=AIModelResponse)
+async def get_ai_model(
+    model_id: UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_admin_user)
+):
+    """获取单个 AI 模型"""
+    model = db.query(AIModel).filter(AIModel.id == model_id).first()
+    if not model:
+        raise HTTPException(status_code=404, detail="模型不存在")
+    return model
+
+@router.put("/{model_id}", response_model=AIModelResponse)
+async def update_ai_model(
+    model_id: UUID,
+    model_data: AIModelUpdate,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_admin_user)
+):
+    """更新 AI 模型"""
+    model = db.query(AIModel).filter(AIModel.id == model_id).first()
+    if not model:
+        raise HTTPException(status_code=404, detail="模型不存在")
+
+    for field, value in model_data.dict(exclude_unset=True).items():
+        setattr(model, field, value)
+
+    db.commit()
+    db.refresh(model)
+    return model
+
+@router.delete("/{model_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_ai_model(
+    model_id: UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_admin_user)
+):
+    """删除 AI 模型"""
+    model = db.query(AIModel).filter(AIModel.id == model_id).first()
+    if not model:
+        raise HTTPException(status_code=404, detail="模型不存在")
+
+    db.delete(model)
+    db.commit()
+    return None
+```
+
+**3.4 前端类型定义 (10分钟)**
+
+**文件**: `src/types/index.ts` (添加)
+
+```typescript
+export interface AIModel {
+  id: string;
+  name: string;
+  provider: string;
+  modelId: string;
+  inputPrice: number;
+  outputPrice: number;
+  contextWindow?: number;
+  description?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AIModelCreate {
+  name: string;
+  provider: string;
+  modelId: string;
+  inputPrice: number;
+  outputPrice: number;
+  contextWindow?: number;
+  description?: string;
+  isActive?: boolean;
+}
+
+export interface AIModelUpdate {
+  name?: string;
+  provider?: string;
+  inputPrice?: number;
+  outputPrice?: number;
+  contextWindow?: number;
+  description?: string;
+  isActive?: boolean;
+}
+```
+
+**3.5 前端 DataService 方法 (15分钟)**
+
+**文件**: `src/services/DataService.ts:651-681` (替换现有 Mock 方法)
+
+```typescript
+// AI 模型管理
+static async getAIModels(): Promise<AIModel[]> {
+  const response = await apiClient.get<AIModel[]>('/admin/ai-models');
+  return response.data;
+}
+
+static async getAIModel(id: string): Promise<AIModel> {
+  const response = await apiClient.get<AIModel>(`/admin/ai-models/${id}`);
+  return response.data;
+}
+
+static async createAIModel(data: AIModelCreate): Promise<AIModel> {
+  const response = await apiClient.post<AIModel>('/admin/ai-models', data);
+  return response.data;
+}
+
+static async updateAIModel(id: string, data: AIModelUpdate): Promise<AIModel> {
+  const response = await apiClient.put<AIModel>(`/admin/ai-models/${id}`, data);
+  return response.data;
+}
+
+static async deleteAIModel(id: string): Promise<void> {
+  await apiClient.delete(`/admin/ai-models/${id}`);
+}
+```
+
+**3.6 前端 UI 实现 (1.5天)**
+
+**文件**: `src/views/AdminAIModelsView/index.tsx` (完全重写)
+
+需要实现:
+- 模型列表表格
+- 添加模型弹窗
+- 编辑模型弹窗
+- 删除确认弹窗
+- 加载状态
+- 错误处理
+- 搜索过滤
+
+(详细代码略,参考 AdminUsersView 的实现模式)
+
+---
+
+#### Phase 4: 测试和优化 (0.5天)
+
+**任务清单**:
+- [ ] 启动后端服务
+- [ ] 启动前端服务
+- [ ] 测试所有修复的 Bug
+- [ ] 测试 AI 模型管理完整流程
+- [ ] 检查控制台无报错
+- [ ] 检查 TypeScript 类型无错误
+- [ ] 优化 UI 细节
+- [ ] 编写测试用例
+
+---
+
+### 时间估算
+
+| Phase | 任务 | 预计时间 | 实际时间 |
+|-------|------|---------|---------|
+| Phase 1 | 修复严重 Bug | 0.5天 | - |
+| Phase 2 | 验证数据统计 API | 1天 | - |
+| Phase 3 | 实现 AI 模型管理 | 2-3天 | - |
+| Phase 4 | 测试和优化 | 0.5天 | - |
+| **总计** | | **4-5天** | - |
+
+---
+
+### 验收标准
+
+#### Phase 1 验收
+- [ ] AdminUsersView 无重复函数
+- [ ] AdminDashboardView 成本卡片显示正确精度 (如 ¥0.0015)
+- [ ] AdminDashboardView 成本趋势颜色正确 (上升红色,下降绿色)
+- [ ] AdminDashboardView AI成本图表单位正确 (统一为人民币)
+- [ ] 控制台无报错
+- [ ] TypeScript 类型检查通过
+
+#### Phase 2 验收
+- [ ] 所有统计 API 返回真实数据库数据
+- [ ] 用户增长趋势显示真实历史数据
+- [ ] AI 使用统计连接 ai_call_logs 表
+- [ ] 数据面板显示数据准确
+
+#### Phase 3 验收
+- [ ] AI 模型数据库表创建成功
+- [ ] 可以添加新的 AI 模型
+- [ ] 可以编辑现有 AI 模型
+- [ ] 可以删除 AI 模型
+- [ ] 可以查看模型列表
+- [ ] 模型列表显示所有字段正确
+- [ ] AdminAIModelsView 不再显示 "功能开发中"
+
+#### Phase 4 验收
+- [ ] 所有功能测试通过
+- [ ] UI 体验流畅
+- [ ] 无性能问题
+- [ ] 错误处理完善
+
+---
+
+### 技术决策
+
+**决策 1: 成本显示统一使用人民币**
+- 理由: 用户主要在中国,人民币更直观
+- 实现: 使用 `formatUsdToCny()` 工具函数
+- 影响: AdminDashboardView 需要转换 AI 成本数据
+
+**决策 2: AI 模型管理使用完整的 CRUD API**
+- 理由: 管理员需要灵活管理模型配置
+- 实现: RESTful API 设计
+- 数据库: 独立的 ai_models 表
+
+**决策 3: 优先修复严重 Bug,再实现新功能**
+- 理由: 确保现有功能正确运行
+- 顺序: Phase 1 → Phase 2 → Phase 3
+
+---
+
+### 风险和依赖
+
+**风险**:
+1. 后端统计 API 可能需要复杂的数据库查询优化
+2. AI 模型管理的数据迁移可能影响现有系统
+3. Phase 3 工作量可能超出估算
+
+**依赖**:
+- 后端 FastAPI 框架
+- 数据库迁移工具 (Alembic)
+- ai_call_logs 表已存在且有数据
+
+---
+
+**创建时间**: 2025-10-25
+**预计完成时间**: 2025-10-30 (5个工作日)
+**优先级**: P0 (最高优先级)
+**当前状态**: 计划已完成,等待开始实施
+
+---
+

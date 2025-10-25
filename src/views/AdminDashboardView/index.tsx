@@ -4,6 +4,7 @@ import { Card } from '../../components/common';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
+import { formatUsdToCny } from '../../utils/currency';
 
 /**
  * AdminDashboardView 组件 - 管理员仪表板
@@ -37,7 +38,13 @@ const AdminDashboardView: React.FC = () => {
 
       setStatistics(stats);
       setGrowthData(growth.data || []);
-      setAiUsageData(aiUsage.data || []);
+
+      // 转换 AI 使用数据的成本为人民币
+      const convertedAiUsage = (aiUsage.data || []).map(item => ({
+        ...item,
+        cost: parseFloat((item.cost * 7.19).toFixed(4))
+      }));
+      setAiUsageData(convertedAiUsage);
     } catch (error) {
       console.error('加载管理后台数据失败:', error);
       showToast('error', '加载数据失败');
@@ -99,13 +106,13 @@ const AdminDashboardView: React.FC = () => {
     },
     {
       label: '总成本',
-      value: `¥${(cost.total || 0).toLocaleString()}`,
+      value: formatUsdToCny(cost.total || 0),
       change: cost.change || '+0%',
       trend: (cost.change || '+0%').startsWith('+') ? 'up' as const : 'down' as const,
       icon: DollarSign,
       bgColor: 'bg-blue-100',
       iconColor: 'text-blue-600',
-      trendColor: (cost.change || '+0%').startsWith('-') ? 'text-green-600' : 'text-red-600',
+      trendColor: (cost.change || '+0%').startsWith('+') ? 'text-red-600' : 'text-green-600',
     },
   ];
 

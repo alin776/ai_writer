@@ -64,25 +64,6 @@ const AdminUsersView: React.FC = () => {
   }, [searchQuery, users]);
 
   /**
-   * 加载用户列表
-   */
-  const loadUsers = async () => {
-    try {
-      setIsLoading(true);
-      const data = await DataService.getUsers();
-      setUsers(data);
-      setFilteredUsers(data);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : '加载用户失败';
-      showToast('error', message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-
-
-  /**
    * 处理封禁用户
    */
   const handleBanUser = async (userId: string, username: string) => {
