@@ -1,12 +1,56 @@
 # 文档更新日志
 
-> 📋 **文档**: 12-changelog.md | **最后更新**: 2025-10-24
+> 📋 **文档**: 12-changelog.md | **最后更新**: 2025-10-25
 
 [← 返回文档导航](./README.md)
 
 ---
 
 ## 📋 版本历史
+
+### v2.14 (2025-10-25) ⭐⭐ 管理后台数据接入完成
+
+**重大更新**:
+- ✅ **管理后台数据接入完成**
+  - 统计API全面重构，接入真实数据库数据
+  - AdminDashboardView 展示真实统计（用户/作品/章节/字数/AI调用/成本）
+  - 本月/上月数据对比和变化率计算
+  - 从 ai_call_logs 表获取真实成本数据
+  - 修复数据面板4个严重Bug（Phase 1）
+  - 修复所有Mock数据接口（Phase 2）
+
+- ✅ **成本监控前端完成**
+  - AdminCostView 完整实现
+  - 真实成本指标展示（今日/本月/总成本）
+  - 趋势图表和模型分布图
+  - 支持时间范围筛选（7天/30天/90天）
+  - 成本数据实时更新
+
+- ✅ **前端编译错误修复**
+  - 修复 WorldviewGraphFullscreen 函数调用顺序错误
+  - getLayoutName 函数提升到 handleLayoutChange 之前
+  - 原始标识符冲突错误已解决
+
+**整体完成度更新**:
+- 整体：92% → **93%**
+- 前端：88% → **90%**
+- 视图页面：85% → **90%**
+- API 路由：90% → **95%**
+- Milestone 2：部分完成 → **85%完成**
+
+**技术实现**:
+- 后端：backend/app/api/v1/admin.py（166行重构）
+- 前端：src/views/AdminCostView/index.tsx（成本监控完整实现）
+- 前端：src/views/AdminDashboardView/index.tsx（接入真实统计数据）
+
+**提交记录**:
+- `11ea462` feat(admin): 修复数据面板所有Mock数据接口 (Phase 2)
+- `feb58ab` fix(admin): 修复数据面板模块4个严重Bug (Phase 1)
+- `cc02b00` fix(cost-monitor): 修复成本监控页面显示精度和图表渲染问题
+- `8ff6a94` style(admin): 统一管理后台卡片为蓝色配色方案
+- `538634f` feat(cost-monitor): 完成成本监控前端对接和代码修复
+
+---
 
 ### v2.13 (2025-10-24) ⭐⭐ 文档系统全面更新
 

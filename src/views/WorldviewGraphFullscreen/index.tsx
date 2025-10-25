@@ -388,19 +388,6 @@ const WorldviewGraphFullscreen: React.FC = () => {
     navigate(`/works/${workId}`);
   };
 
-  // 导出功能（占位）
-  const handleExport = () => {
-    showToast('info', '导出功能开发中...');
-  };
-
-  // 布局切换
-  const handleLayoutChange = (algorithm: LayoutAlgorithm) => {
-    setCurrentLayout(algorithm);
-    const newConfig = { ...layoutConfig, algorithm };
-    setLayoutConfig(newConfig);
-    showToast('info', `正在应用${getLayoutName(algorithm)}...`);
-  };
-  
   // 获取布局名称
   const getLayoutName = (algorithm: LayoutAlgorithm): string => {
     const names: Record<LayoutAlgorithm, string> = {
@@ -412,6 +399,14 @@ const WorldviewGraphFullscreen: React.FC = () => {
       custom: '自定义布局',
     };
     return names[algorithm];
+  };
+
+  // 布局切换
+  const handleLayoutChange = (algorithm: LayoutAlgorithm) => {
+    setCurrentLayout(algorithm);
+    const newConfig = { ...layoutConfig, algorithm };
+    setLayoutConfig(newConfig);
+    showToast('info', `正在应用${getLayoutName(algorithm)}...`);
   };
 
   // 统计数据
