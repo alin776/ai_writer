@@ -5,7 +5,7 @@
 ## 📊 数据库概览
 
 - **数据库**: PostgreSQL 15+
-- **表数量**: 3 个主表
+- **表数量**: 5 个主表 ⭐️ **更新**
 - **ORM**: SQLAlchemy (异步)
 - **迁移工具**: Alembic
 
@@ -127,6 +127,75 @@
 
 ---
 
+### 4. rewrite_sessions（改写会话表）⭐️ **NEW**
+
+存储 AI 改写助手的改写会话记录。
+
+| 字段名 | 类型 | 约束 | 说明 |
+|--------|------|------|------|
+| id | UUID | PRIMARY KEY | 会话ID（自动生成） |
+| user_id | UUID | FOREIGN KEY, NOT NULL, INDEX | 用户ID（关联users.id） |
+| original_text | TEXT | NOT NULL | 原文 |
+| context_before | TEXT | | 前文上下文 |
+| context_after | TEXT | | 后文上下文 |
+| mode | VARCHAR(50) | NOT NULL | 改写模式（optimize/expand/compress/custom） |
+| custom_requirement | TEXT | | 自定义要求（mode=custom时） |
+| created_at | TIMESTAMP | NOT NULL, DEFAULT now() | 创建时间 |
+
+**索引**:
+- PRIMARY KEY: id
+- INDEX: user_id
+- INDEX: created_at（用于按时间排序）
+
+**外键**:
+- user_id → users(id) ON DELETE CASCADE
+
+**关系**:
+- 多对一关系：多个会话属于一个用户（user）
+- 一对多关系：一个会话有多个改写结果（rewrite_results）
+
+**说明**:
+- 记录每次使用 AI 改写助手的会话
+- 保存原文、上下文和改写模式
+- 支持按用户和时间查询
+
+---
+
+### 5. rewrite_results（改写结果表）⭐️ **NEW**
+
+存储每个模型的改写结果。
+
+| 字段名 | 类型 | 约束 | 说明 |
+|--------|------|------|------|
+| id | UUID | PRIMARY KEY | 结果ID（自动生成） |
+| session_id | UUID | FOREIGN KEY, NOT NULL, INDEX | 会话ID（关联rewrite_sessions.id） |
+| model_name | VARCHAR(100) | NOT NULL | 模型名称 |
+| rewritten_text | TEXT | NOT NULL | 改写后的文本 |
+| word_count | INTEGER | NOT NULL, DEFAULT 0 | 改写后的字数 |
+| elapsed_time | FLOAT | NOT NULL | 改写耗时（秒） |
+| error | TEXT | | 错误信息（失败时） |
+| is_selected | BOOLEAN | NOT NULL, DEFAULT false | 用户是否选中这个结果 |
+| created_at | TIMESTAMP | NOT NULL, DEFAULT now() | 创建时间 |
+
+**索引**:
+- PRIMARY KEY: id
+- INDEX: session_id
+- INDEX: created_at
+
+**外键**:
+- session_id → rewrite_sessions(id) ON DELETE CASCADE
+
+**关系**:
+- 多对一关系：多个结果属于一个会话（session）
+
+**说明**:
+- 存储每个 AI 模型的改写结果
+- 支持保存多个模型的对比结果
+- 记录性能数据（字数、耗时）
+- 标记用户最终选择的结果
+
+---
+
 ## 🔗 关系图
 
 ```
@@ -134,6 +203,11 @@ users (1) ──────< (N) works (1) ──────< (N) chapters
   |                    |                      |
   id                   author_id              work_id
                        work.author            chapter.work
+
+users (1) ──────< (N) rewrite_sessions (1) ──────< (N) rewrite_results
+  |                          |                              |
+  id                         user_id                        session_id
+                             session.user                   result.session
 ```
 
 **说明**:
@@ -141,10 +215,15 @@ users (1) ──────< (N) works (1) ──────< (N) chapters
 - 一个作品（Work）属于一个用户（User）
 - 一个作品（Work）可以有多个章节（Chapters）
 - 一个章节（Chapter）属于一个作品（Work）
+- **NEW** 一个用户（User）可以有多个改写会话（RewriteSessions）
+- **NEW** 一个改写会话（RewriteSession）属于一个用户（User）
+- **NEW** 一个改写会话（RewriteSession）可以有多个改写结果（RewriteResults）
+- **NEW** 一个改写结果（RewriteResult）属于一个改写会话（RewriteSession）
 
 **级联删除**:
-- 删除用户时，自动删除其所有作品
+- 删除用户时，自动删除其所有作品和改写会话
 - 删除作品时，自动删除其所有章节
+- 删除改写会话时，自动删除其所有改写结果
 
 ---
 
@@ -186,12 +265,19 @@ alembic history
 ## 📝 现有迁移记录
 
 1. **initial_migration** (c02326821f1e)
-   - 创建初始表结构
+   - 创建初始表结构（users, works, chapters）
    - 日期：2025-10-15 23:03
 
 2. **make_email_optional** (dfef30e5f344)
    - 将 email 字段改为可选
    - 日期：2025-10-16 09:23
+
+3. **add_rewrite_history_tables** (f1g2h3i4j5k6) ⭐️ **NEW**
+   - 创建 rewrite_sessions 表
+   - 创建 rewrite_results 表
+   - 添加外键和索引
+   - 日期：2025-10-25 22:00
+   - 文件：`backend/alembic/versions/20251025_2200_add_rewrite_history_tables.py`
 
 ---
 

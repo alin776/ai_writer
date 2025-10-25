@@ -10,6 +10,8 @@
 - [用户接口](#用户接口)
 - [作品接口](#作品接口)
 - [章节接口](#章节接口)
+- [AI 改写助手接口](#ai-改写助手接口) ⭐️ **NEW**
+- [改写历史接口](#改写历史接口) ⭐️ **NEW**
 - [数据模型](#数据模型)
 - [错误码说明](#错误码说明)
 
@@ -810,6 +812,486 @@ Authorization: Bearer {access_token}
 - `401`: 未登录
 
 **注意**：删除章节后会自动更新作品的章节数和总字数。
+
+---
+
+## AI 改写助手接口
+
+> **新功能** 🎉 AI 改写助手可以帮助作者智能分析文本质量，并使用多个 AI 模型同时改写文本，提供多样化选择。
+
+### 19. 获取可用模型列表
+
+**GET** `/api/v1/ai/rewrite-arena/models`
+
+获取所有支持改写功能的 AI 模型列表。
+
+**请求头**：
+
+```
+Authorization: Bearer {access_token}
+```
+
+**响应示例**：
+
+```json
+{
+  "models": [
+    {
+      "id": "gemini-2.5-pro",
+      "name": "Gemini 2.5 Pro",
+      "provider": "google",
+      "description": "擅长创意写作和细节描写，适合扩写和优化",
+      "enabled": true
+    },
+    {
+      "id": "gpt-5",
+      "name": "GPT-5",
+      "provider": "openai",
+      "description": "平衡全能，适合各种改写需求",
+      "enabled": true
+    }
+  ],
+  "default_models": ["gemini-2.5-pro", "gpt-5"],
+  "max_models": 4
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| models | array | 模型列表 |
+| models[].id | string | 模型ID |
+| models[].name | string | 模型显示名称 |
+| models[].provider | string | 提供商 |
+| models[].description | string | 模型特点说明 |
+| models[].enabled | boolean | 是否启用 |
+| default_models | array | 默认使用的模型ID列表 |
+| max_models | int | 最多同时使用的模型数 |
+
+**状态码**：
+- `200`: 成功
+- `401`: 未登录
+
+---
+
+### 20. 智能分析文本
+
+**POST** `/api/v1/ai/rewrite-arena/analyze`
+
+使用 AI 智能分析文本质量，检测问题并给出改写建议。
+
+**请求头**：
+
+```
+Authorization: Bearer {access_token}
+```
+
+**请求参数**：
+
+```json
+{
+  "text": "主角走进房间，看到了桌子上的剑。",
+  "context_before": "经过三天的跋涉，主角终于来到了目的地...",
+  "context_after": "他拿起剑，走出了房间..."
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| text | string | 是 | 要分析的文本（10-5000字） |
+| context_before | string | 否 | 前文上下文 |
+| context_after | string | 否 | 后文上下文 |
+
+**响应示例**：
+
+```json
+{
+  "quality_score": 45,
+  "issues": [
+    {
+      "type": "lack_of_detail",
+      "severity": "high",
+      "description": "描写过于简单，缺少细节"
+    },
+    {
+      "type": "weak_emotion",
+      "severity": "medium",
+      "description": "缺少情感渲染"
+    }
+  ],
+  "suggested_mode": "expand",
+  "reason": "建议增加细节描写和情感渲染，使画面更生动",
+  "available_modes": [
+    {
+      "id": "optimize",
+      "name": "优化提升",
+      "description": "让文字更优美、更生动、更有感染力"
+    },
+    {
+      "id": "expand",
+      "name": "扩写丰富",
+      "description": "增加细节描写和情感渲染"
+    },
+    {
+      "id": "compress",
+      "name": "精简压缩",
+      "description": "保留核心信息，删除冗余"
+    }
+  ]
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| quality_score | int | 质量评分 (0-100) |
+| issues | array | 检测到的问题列表 |
+| issues[].type | string | 问题类型 |
+| issues[].severity | string | 严重程度：high/medium/low |
+| issues[].description | string | 问题描述 |
+| suggested_mode | string | 推荐的改写模式 |
+| reason | string | 推荐理由 |
+| available_modes | array | 所有可用的改写模式 |
+
+**状态码**：
+- `200`: 分析成功
+- `400`: 参数错误（文本过长或过短）
+- `401`: 未登录
+- `500`: AI 服务异常
+
+**性能**：通常 0.5-2 秒完成分析
+
+---
+
+### 21. 多模型改写文本
+
+**POST** `/api/v1/ai/rewrite-arena/rewrite`
+
+使用多个 AI 模型同时改写文本，返回所有模型的改写结果。
+
+**请求头**：
+
+```
+Authorization: Bearer {access_token}
+```
+
+**请求参数**：
+
+```json
+{
+  "text": "主角走进房间，看到了桌子上的剑。",
+  "mode": "expand",
+  "context_before": "经过三天的跋涉，主角终于来到了目的地...",
+  "context_after": "他拿起剑，走出了房间...",
+  "custom_requirement": null,
+  "model_ids": ["gemini-2.5-pro", "gpt-5"]
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| text | string | 是 | 要改写的文本（10-5000字） |
+| mode | string | 是 | 改写模式：optimize/expand/compress/custom |
+| context_before | string | 否 | 前文上下文 |
+| context_after | string | 否 | 后文上下文 |
+| custom_requirement | string | 否 | 自定义要求（当 mode=custom 时必填） |
+| model_ids | array | 否 | 指定使用的模型ID（默认使用全部启用的模型） |
+
+**响应示例**：
+
+```json
+{
+  "results": [
+    {
+      "model_id": "gemini-2.5-pro",
+      "model_name": "Gemini 2.5 Pro",
+      "rewritten_text": "主角推开那扇厚重的木门，缓缓走进了这间房间。昏暗的光线中，唯有桌上那柄长剑泛着幽冷的寒光，吸引着他的目光...",
+      "word_count": 156,
+      "elapsed_time": 2.3,
+      "success": true,
+      "error": null
+    },
+    {
+      "model_id": "gpt-5",
+      "model_name": "GPT-5",
+      "rewritten_text": "房门在主角的推动下缓缓打开，他迈步走了进去。视线立刻被桌上那柄寒光闪烁的长剑锁定...",
+      "word_count": 142,
+      "elapsed_time": 1.8,
+      "success": true,
+      "error": null
+    }
+  ],
+  "original_word_count": 15,
+  "mode": "expand"
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| results | array | 所有模型的改写结果 |
+| results[].model_id | string | 模型ID |
+| results[].model_name | string | 模型名称 |
+| results[].rewritten_text | string | 改写后的文本 |
+| results[].word_count | int | 改写后的字数 |
+| results[].elapsed_time | float | 耗时（秒） |
+| results[].success | boolean | 是否成功 |
+| results[].error | string | 错误信息（失败时） |
+| original_word_count | int | 原文字数 |
+| mode | string | 使用的改写模式 |
+
+**状态码**：
+- `200`: 改写成功（即使部分模型失败也返回 200）
+- `400`: 参数错误
+- `401`: 未登录
+- `500`: 所有模型都失败
+
+**性能**：
+- 单模型：1-3 秒
+- 双模型并发：2-4 秒
+- 超时时间：30 秒
+
+**注意**：
+- 使用 `asyncio.gather()` 并发调用，提升性能
+- 即使部分模型失败，也会返回成功模型的结果
+- 可以通过 `success` 字段判断每个模型是否成功
+
+---
+
+## 改写历史接口
+
+> 保存和管理改写历史记录，支持分页查询和详情查看。
+
+### 22. 保存改写记录
+
+**POST** `/api/v1/rewrite-history/sessions`
+
+保存一次改写会话及其所有模型的改写结果。
+
+**请求头**：
+
+```
+Authorization: Bearer {access_token}
+```
+
+**请求参数**：
+
+```json
+{
+  "original_text": "主角走进房间，看到了桌子上的剑。",
+  "context_before": "经过三天的跋涉...",
+  "context_after": "他拿起剑...",
+  "mode": "expand",
+  "custom_requirement": null,
+  "results": [
+    {
+      "model_name": "gemini-2.5-pro",
+      "rewritten_text": "主角推开那扇厚重的木门...",
+      "word_count": 156,
+      "elapsed_time": 2.3,
+      "error": null,
+      "is_selected": true
+    },
+    {
+      "model_name": "gpt-5",
+      "rewritten_text": "房门在主角的推动下...",
+      "word_count": 142,
+      "elapsed_time": 1.8,
+      "error": null,
+      "is_selected": false
+    }
+  ]
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| original_text | string | 是 | 原文 |
+| context_before | string | 否 | 前文上下文 |
+| context_after | string | 否 | 后文上下文 |
+| mode | string | 是 | 改写模式 |
+| custom_requirement | string | 否 | 自定义要求 |
+| results | array | 是 | 改写结果列表 |
+| results[].model_name | string | 是 | 模型名称 |
+| results[].rewritten_text | string | 是 | 改写文本 |
+| results[].word_count | int | 是 | 字数 |
+| results[].elapsed_time | float | 是 | 耗时（秒） |
+| results[].error | string | 否 | 错误信息 |
+| results[].is_selected | boolean | 否 | 是否被用户选中（默认 false） |
+
+**响应示例**：
+
+```json
+{
+  "id": "123e4567-e89b-12d3-a456-426614174003",
+  "user_id": "123e4567-e89b-12d3-a456-426614174000",
+  "original_text": "主角走进房间，看到了桌子上的剑。",
+  "context_before": "经过三天的跋涉...",
+  "context_after": "他拿起剑...",
+  "mode": "expand",
+  "custom_requirement": null,
+  "created_at": "2024-01-01T12:00:00",
+  "results": [
+    {
+      "id": "result-id-1",
+      "model_name": "gemini-2.5-pro",
+      "rewritten_text": "主角推开那扇厚重的木门...",
+      "word_count": 156,
+      "elapsed_time": 2.3,
+      "error": null,
+      "is_selected": true,
+      "created_at": "2024-01-01T12:00:00"
+    },
+    {
+      "id": "result-id-2",
+      "model_name": "gpt-5",
+      "rewritten_text": "房门在主角的推动下...",
+      "word_count": 142,
+      "elapsed_time": 1.8,
+      "error": null,
+      "is_selected": false,
+      "created_at": "2024-01-01T12:00:00"
+    }
+  ]
+}
+```
+
+**状态码**：
+- `200`: 保存成功
+- `400`: 参数错误
+- `401`: 未登录
+- `500`: 保存失败
+
+---
+
+### 23. 获取改写历史列表
+
+**GET** `/api/v1/rewrite-history/sessions`
+
+获取当前用户的改写历史记录列表（分页）。
+
+**请求头**：
+
+```
+Authorization: Bearer {access_token}
+```
+
+**查询参数**：
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| page | int | 否 | 1 | 页码（从1开始） |
+| page_size | int | 否 | 20 | 每页数量（1-100） |
+
+**请求示例**：
+
+```
+GET /api/v1/rewrite-history/sessions?page=1&page_size=20
+```
+
+**响应示例**：
+
+```json
+{
+  "sessions": [
+    {
+      "id": "session-id-1",
+      "original_text": "主角走进房间，看到了桌子上的剑。（原文如果超过100字会被截断...）",
+      "mode": "expand",
+      "result_count": 2,
+      "created_at": "2024-01-01T12:00:00"
+    },
+    {
+      "id": "session-id-2",
+      "original_text": "另一段文本...",
+      "mode": "optimize",
+      "result_count": 3,
+      "created_at": "2024-01-01T11:00:00"
+    }
+  ],
+  "total": 25,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| sessions | array | 会话列表 |
+| sessions[].id | string | 会话ID |
+| sessions[].original_text | string | 原文（最多100字，超出截断） |
+| sessions[].mode | string | 改写模式 |
+| sessions[].result_count | int | 结果数量 |
+| sessions[].created_at | string | 创建时间 |
+| total | int | 总记录数 |
+| page | int | 当前页码 |
+| page_size | int | 每页数量 |
+
+**状态码**：
+- `200`: 成功
+- `401`: 未登录
+- `500`: 查询失败
+
+**性能优化**：使用子查询避免 N+1 查询问题
+
+---
+
+### 24. 获取改写会话详情
+
+**GET** `/api/v1/rewrite-history/sessions/{session_id}`
+
+获取指定改写会话的完整详情，包括所有模型的改写结果。
+
+**请求头**：
+
+```
+Authorization: Bearer {access_token}
+```
+
+**路径参数**：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| session_id | string | 会话ID（UUID） |
+
+**响应示例**：同"保存改写记录"的响应格式
+
+**状态码**：
+- `200`: 成功
+- `404`: 会话不存在
+- `403`: 无权访问（只能访问自己的会话）
+- `401`: 未登录
+
+---
+
+### 25. 删除改写会话
+
+**DELETE** `/api/v1/rewrite-history/sessions/{session_id}`
+
+删除指定的改写会话及其所有结果（级联删除）。
+
+**请求头**：
+
+```
+Authorization: Bearer {access_token}
+```
+
+**路径参数**：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| session_id | string | 会话ID（UUID） |
+
+**响应示例**：
+
+```json
+{
+  "detail": "删除成功"
+}
+```
+
+**状态码**：
+- `200`: 删除成功
+- `404`: 会话不存在
+- `403`: 无权操作（只能删除自己的会话）
+- `401`: 未登录
 
 ---
 

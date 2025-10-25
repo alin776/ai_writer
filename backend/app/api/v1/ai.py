@@ -512,3 +512,251 @@ async def ai_health_check():
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"AI 服务不可用: {str(e)}"
         )
+
+
+# ==================== AI 改写助手路由 ====================
+
+from app.schemas.text_analysis import (
+    TextAnalysisRequest,
+    TextAnalysisResult,
+    RewriteRequest,
+    RewriteResponse,
+    ModelResult
+)
+from app.services.ai.text_analyzer import TextAnalyzer
+from app.services.ai.rewrite_arena_service import get_arena_service
+
+
+@router.get(
+    "/rewrite-arena/models",
+    summary="获取可用模型列表",
+    description="""
+    获取改写助手的可用模型列表。
+
+    **返回示例**:
+    ```json
+    {
+      "models": [
+        {
+          "id": "gemini-2.5-pro",
+          "name": "Gemini 2.5 Pro",
+          "description": "擅长创意和细节描写",
+          "enabled": true
+        },
+        {
+          "id": "gpt-5",
+          "name": "GPT-5",
+          "description": "平衡全能，表现稳定",
+          "enabled": true
+        }
+      ],
+      "default_models": ["gemini-2.5-pro", "gpt-5"],
+      "max_models": 4
+    }
+    ```
+    """
+)
+async def get_rewrite_models(
+    current_user: User = Depends(get_current_active_user)
+):
+    """获取可用模型列表"""
+    logger.info(f"[获取模型列表] 用户: {current_user.username}({current_user.id})")
+
+    # 从配置中获取模型列表
+    models = [
+        {
+            "id": model_id,
+            "name": model_info["name"],
+            "description": model_info["description"],
+            "enabled": model_info["enabled"]
+        }
+        for model_id, model_info in settings.REWRITE_MODELS.items()
+    ]
+
+    return {
+        "models": models,
+        "default_models": settings.REWRITE_DEFAULT_MODELS,
+        "max_models": settings.REWRITE_MAX_MODELS
+    }
+
+
+@router.post(
+    "/rewrite-arena/analyze",
+    summary="智能分析文本",
+    response_model=TextAnalysisResult,
+    description="""
+    智能分析文本质量，检测问题，给出改写建议。
+
+    **请求示例**:
+    ```json
+    {
+      "text": "主角走进房间，看到了桌子上的剑。",
+      "context_before": "经过三天的跋涉，主角终于来到了目的地...",
+      "context_after": "他拿起剑，准备离开..."
+    }
+    ```
+
+    **返回示例**:
+    ```json
+    {
+      "quality_score": 45,
+      "issues": [
+        {
+          "type": "too_simple",
+          "severity": "high",
+          "description": "描写过于简单"
+        }
+      ],
+      "recommended_mode": "expand",
+      "reason": "建议增加细节和情感描写，使画面更生动"
+    }
+    ```
+    """
+)
+async def analyze_text(
+    request: TextAnalysisRequest,
+    current_user: User = Depends(get_current_active_user)
+) -> TextAnalysisResult:
+    """智能分析文本接口"""
+    logger.info(
+        f"[文本分析] 用户: {current_user.username}({current_user.id}), "
+        f"文本长度: {len(request.text)}"
+    )
+
+    try:
+        analyzer = TextAnalyzer()
+
+        result = await analyzer.analyze_text(
+            text=request.text,
+            context_before=request.context_before,
+            context_after=request.context_after
+        )
+
+        await analyzer.close()
+
+        logger.info(
+            f"[文本分析] 用户 {current_user.username} 分析完成，"
+            f"评分: {result.quality_score}, 推荐模式: {result.recommended_mode}"
+        )
+
+        return result
+
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"[文本分析] 用户 {current_user.username} 分析失败: {error_msg}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"文本分析失败: {error_msg}"
+        )
+
+
+@router.post(
+    "/rewrite-arena/rewrite",
+    summary="多模型改写",
+    response_model=RewriteResponse,
+    description="""
+    使用多个模型并发改写文本，对比不同模型的效果。
+
+    **请求示例**:
+    ```json
+    {
+      "text": "主角走进房间，看到了桌子上的剑。",
+      "mode": "expand",
+      "context_before": "经过三天的跋涉...",
+      "context_after": "他拿起剑...",
+      "model_names": ["gemini-2.5-pro", "gpt-5"]
+    }
+    ```
+
+    **返回示例**:
+    ```json
+    {
+      "original_text": "主角走进房间，看到了桌子上的剑。",
+      "mode": "expand",
+      "results": [
+        {
+          "model_name": "gemini-2.5-pro",
+          "rewritten_text": "主角推开那扇厚重的木门...",
+          "word_count": 156,
+          "elapsed_time": 2.3,
+          "error": null
+        }
+      ]
+    }
+    ```
+    """
+)
+async def rewrite_text(
+    request: RewriteRequest,
+    current_user: User = Depends(get_current_active_user)
+) -> RewriteResponse:
+    """多模型改写接口"""
+    logger.info(
+        f"[多模型改写] 用户: {current_user.username}({current_user.id}), "
+        f"文本长度: {len(request.text)}, 模式: {request.mode}"
+    )
+
+    try:
+        # 获取要使用的模型列表
+        if request.model_names:
+            # 验证模型数量
+            if len(request.model_names) > settings.REWRITE_MAX_MODELS:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"最多只能选择 {settings.REWRITE_MAX_MODELS} 个模型"
+                )
+
+            # 验证模型是否启用
+            for model_name in request.model_names:
+                if model_name not in settings.REWRITE_MODELS:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"模型 {model_name} 不存在"
+                    )
+                if not settings.REWRITE_MODELS[model_name]["enabled"]:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"模型 {model_name} 未启用"
+                    )
+
+            model_names = request.model_names
+        else:
+            # 使用默认模型
+            model_names = settings.REWRITE_DEFAULT_MODELS
+
+        logger.info(f"[多模型改写] 使用模型: {model_names}")
+
+        # 获取改写服务
+        arena_service = get_arena_service()
+
+        # 并发改写
+        results = await arena_service.rewrite_with_multiple_models(
+            model_names=model_names,
+            text=request.text,
+            mode=request.mode,
+            custom_requirement=request.custom_requirement,
+            context_before=request.context_before,
+            context_after=request.context_after
+        )
+
+        success_count = sum(1 for r in results if not r.error)
+        logger.info(
+            f"[多模型改写] 用户 {current_user.username} 改写完成，"
+            f"成功: {success_count}/{len(results)}"
+        )
+
+        return RewriteResponse(
+            original_text=request.text,
+            mode=request.mode,
+            results=results
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"[多模型改写] 用户 {current_user.username} 改写失败: {error_msg}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"改写失败: {error_msg}"
+        )

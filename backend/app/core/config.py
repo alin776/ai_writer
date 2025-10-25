@@ -48,7 +48,38 @@ class Settings(BaseSettings):
     OPENAI_BASE_URL: str = "https://204992.xyz/v1"
     OPENAI_MODEL: str = "gpt-5"  # 默认模型，可通过环境变量修改
     OPENAI_TIMEOUT: int = 120  # AI调用超时时间（秒），默认120秒
-    
+
+    # AI 改写助手配置
+    # 可用模型列表（可通过修改 enabled 字段启用/禁用模型）
+    REWRITE_MODELS: dict = {
+        "gemini-2.5-pro": {
+            "name": "Gemini 2.5 Pro",
+            "description": "擅长创意和细节描写",
+            "enabled": True
+        },
+        "gpt-5": {
+            "name": "GPT-5",
+            "description": "平衡全能，表现稳定",
+            "enabled": True
+        },
+        "claude-3-opus": {
+            "name": "Claude 3 Opus",
+            "description": "擅长深度思考和逻辑",
+            "enabled": False
+        },
+        "gpt-4-turbo": {
+            "name": "GPT-4 Turbo",
+            "description": "快速高效",
+            "enabled": False
+        }
+    }
+
+    # 默认使用的模型列表
+    REWRITE_DEFAULT_MODELS: List[str] = ["gemini-2.5-pro", "gpt-5"]
+
+    # 最多可同时使用的模型数量
+    REWRITE_MAX_MODELS: int = 4
+
     # 小说分析配置
     ANALYSIS_MAX_RETRIES: int = 3  # 单章分析失败最大重试次数
     ANALYSIS_TIMEOUT: int = 3600  # 整体分析超时时间（秒），默认1小时
