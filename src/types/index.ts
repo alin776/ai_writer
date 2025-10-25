@@ -428,3 +428,84 @@ export { EVENT_TYPE_OPTIONS, ENTITY_TYPE_COLORS } from './timeline';
 
 // ==================== 分组相关类型 ====================
 export * from './group';
+
+// ==================== AI调用日志相关类型 ====================
+
+/**
+ * AI调用日志 - 单条日志记录
+ */
+export interface AICallLog {
+  id: string;
+  userId: string;
+  modelName: string;
+  operationType: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  promptCost: number;
+  completionCost: number;
+  totalCost: number;
+  durationMs?: number | null;
+  isSuccess: boolean;
+  errorMessage?: string | null;
+  createdAt: string;
+}
+
+/**
+ * AI调用日志分页响应
+ */
+export interface AICallLogPaginatedResponse {
+  logs: AICallLog[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
+/**
+ * AI调用统计数据
+ */
+export interface AICallLogStats {
+  totalCalls: number;
+  totalTokens: number;
+  totalCost: number;
+  successRate: number;
+  avgDurationMs?: number | null;
+  byModel: Record<string, {
+    calls: number;
+    tokens: number;
+    cost: number;
+  }>;
+  byOperation: Record<string, {
+    calls: number;
+    tokens: number;
+    cost: number;
+  }>;
+  startDate?: string | null;
+  endDate?: string | null;
+}
+
+/**
+ * 成本指标数据 - 用于管理后台成本监控页面
+ */
+export interface CostMetrics {
+  todayCost: number;
+  yesterdayCost: number;
+  thisMonthCost: number;
+  lastMonthCost: number;
+  todayCalls: number;
+  thisMonthCalls: number;
+  dailyCosts: Array<{
+    date: string;
+    cost: number;
+  }>;
+  topUsers: Array<{
+    userId: string;
+    totalCost: number;
+    totalCalls: number;
+  }>;
+  topModels: Array<{
+    modelName: string;
+    totalCost: number;
+    totalCalls: number;
+  }>;
+}

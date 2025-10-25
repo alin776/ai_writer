@@ -35,6 +35,10 @@ import type {
   NotificationSettings,
   UserPreferences,
   UserSession,
+  AICallLog,
+  AICallLogPaginatedResponse,
+  AICallLogStats,
+  CostMetrics,
 } from '@/types';
 import type { WorldData, Setting, Character, Location } from '@/types/novel';
 import type {
@@ -676,13 +680,14 @@ class DataServiceClass {
     return this.adapter.delete(`/ai-models/${id}`);
   }
 
-  // ==================== 成本统计 ====================
+  // ==================== 成本统计（旧版，已废弃） ====================
 
   /**
-   * 获取成本统计数据
+   * 获取成本统计数据（旧版，已废弃）
+   * @deprecated 请使用 AI 日志部分的 getCostMetrics() 方法
    * @returns Promise<CostMetric[]>
    */
-  async getCostMetrics(): Promise<CostMetric[]> {
+  async getOldCostMetrics(): Promise<CostMetric[]> {
     return this.adapter.get('/cost-metrics');
   }
 
@@ -1058,6 +1063,87 @@ class DataServiceClass {
    */
   async batchRemoveGroupMembers(groupId: string, memberIds: string[]): Promise<void> {
     return this.adapter.post(`/groups/${groupId}/members/batch-remove`, { memberIds });
+  }
+
+  // ==================== AI调用日志相关 ====================
+
+  /**
+   * 获取当前用户的AI调用日志（分页）
+   * @param params 查询参数
+   * @returns Promise<AICallLogPaginatedResponse>
+   */
+  async getMyAILogs(params?: {
+    skip?: number;
+    limit?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<AICallLogPaginatedResponse> {
+    const queryParams = new URLSearchParams();
+    if (params?.skip !== undefined) queryParams.append('skip', params.skip.toString());
+    if (params?.limit !== undefined) queryParams.append('limit', params.limit.toString());
+    if (params?.startDate) queryParams.append('start_date', params.startDate);
+    if (params?.endDate) queryParams.append('end_date', params.endDate);
+
+    const url = `/ai-logs/me${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return this.adapter.get(url);
+  }
+
+  /**
+   * 获取当前用户的AI使用统计
+   * @param days 统计天数（默认30天）
+   * @returns Promise<AICallLogStats>
+   */
+  async getMyAIStats(days: number = 30): Promise<AICallLogStats> {
+    return this.adapter.get(`/ai-logs/me/stats?days=${days}`);
+  }
+
+  /**
+   * 获取所有用户的AI使用统计（仅管理员）
+   * @param days 统计天数（默认30天）
+   * @returns Promise<AICallLogStats>
+   */
+  async getAllAIStats(days: number = 30): Promise<AICallLogStats> {
+    return this.adapter.get(`/ai-logs/admin/stats?days=${days}`);
+  }
+
+  /**
+   * 获取成本指标（仅管理员）- 核心方法
+   * @returns Promise<CostMetrics>
+   */
+  async getCostMetrics(): Promise<CostMetrics> {
+    return this.adapter.get('/ai-logs/admin/cost-metrics');
+  }
+
+  /**
+   * 获取指定用户的AI调用日志（仅管理员）
+   * @param userId 用户ID
+   * @param params 查询参数
+   * @returns Promise<AICallLog[]>
+   */
+  async getUserAILogs(userId: string, params?: {
+    skip?: number;
+    limit?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<AICallLog[]> {
+    const queryParams = new URLSearchParams();
+    if (params?.skip !== undefined) queryParams.append('skip', params.skip.toString());
+    if (params?.limit !== undefined) queryParams.append('limit', params.limit.toString());
+    if (params?.startDate) queryParams.append('start_date', params.startDate);
+    if (params?.endDate) queryParams.append('end_date', params.endDate);
+
+    const url = `/ai-logs/admin/user/${userId}/logs${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return this.adapter.get(url);
+  }
+
+  /**
+   * 获取指定用户的AI使用统计（仅管理员）
+   * @param userId 用户ID
+   * @param days 统计天数（默认30天）
+   * @returns Promise<AICallLogStats>
+   */
+  async getUserAIStats(userId: string, days: number = 30): Promise<AICallLogStats> {
+    return this.adapter.get(`/ai-logs/admin/user/${userId}/stats?days=${days}`);
   }
 }
 

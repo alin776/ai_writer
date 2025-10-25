@@ -1,161 +1,162 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DollarSign, TrendingUp, Cpu, AlertCircle, Download, Calendar } from 'lucide-react';
 import { Card, Button } from '../../components/common';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
+import { DataService } from '@/services/DataService';
+import { formatUsdToCny } from '@/utils/currency';
+import type { CostMetrics } from '@/types';
 
 /**
  * AdminCostView 组件 - 成本监控页面
  */
 const AdminCostView: React.FC = () => {
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('7d');
+  const [metrics, setMetrics] = useState<CostMetrics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // 成本趋势数据
-  const costTrendData = [
-    { date: '10-09', cost: 124, calls: 1234 },
-    { date: '10-10', cost: 156, calls: 1456 },
-    { date: '10-11', cost: 143, calls: 1324 },
-    { date: '10-12', cost: 189, calls: 1678 },
-    { date: '10-13', cost: 167, calls: 1523 },
-    { date: '10-14', cost: 198, calls: 1789 },
-    { date: '10-15', cost: 234, calls: 2134 },
-  ];
+  // 加载成本指标数据
+  const loadCostMetrics = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await DataService.getCostMetrics();
+      setMetrics(data);
+    } catch (err: any) {
+      console.error('Failed to load cost metrics:', err);
+      setError(err.message || '加载成本数据失败');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // 模型成本分布
-  const modelCostData = [
-    { name: 'GPT-4', value: 456, color: '#3B82F6' },
-    { name: 'GPT-3.5', value: 234, color: '#10B981' },
-    { name: 'Claude', value: 344, color: '#8B5CF6' },
-    { name: 'DALL-E', value: 200, color: '#F59E0B' },
-  ];
+  // 组件挂载时加载数据
+  useEffect(() => {
+    loadCostMetrics();
+  }, []);
 
-  // 成本统计
-  const costStats = [
-    {
-      label: '总成本',
-      value: '¥1,234',
-      change: '+15.2%',
-      icon: DollarSign,
-      bgColor: 'bg-blue-100',
-      iconColor: 'text-blue-600',
-      description: '本月累计',
-    },
-    {
-      label: 'AI 调用次数',
-      value: '12,345',
-      change: '+23.1%',
-      icon: Cpu,
-      bgColor: 'bg-green-100',
-      iconColor: 'text-green-600',
-      description: '本月累计',
-    },
-    {
-      label: '平均每次成本',
-      value: '¥0.10',
-      change: '-5.3%',
-      icon: TrendingUp,
-      bgColor: 'bg-purple-100',
-      iconColor: 'text-purple-600',
-      description: '优化后降低',
-    },
-    {
-      label: '预计月度成本',
-      value: '¥2,468',
-      change: '+12.8%',
-      icon: AlertCircle,
-      bgColor: 'bg-orange-100',
-      iconColor: 'text-orange-600',
-      description: '基于当前趋势',
-    },
-  ];
-
-  // 用户成本排行
-  const topUsers = [
-    { name: '张三', calls: 2345, cost: 234.5, percentage: 19 },
-    { name: '李四', calls: 1987, cost: 198.7, percentage: 16 },
-    { name: '王五', calls: 1654, cost: 165.4, percentage: 13 },
-    { name: '赵六', calls: 1432, cost: 143.2, percentage: 12 },
-    { name: '钱七', calls: 1234, cost: 123.4, percentage: 10 },
-  ];
-
-  // 模型详细使用
-  const modelDetails = [
-    {
-      name: 'GPT-4',
-      calls: 5234,
-      totalTokens: 2345678,
-      cost: 456.78,
-      avgCost: 0.087,
-      trend: '+12%',
-    },
-    {
-      name: 'GPT-3.5 Turbo',
-      calls: 4123,
-      totalTokens: 1876543,
-      cost: 234.56,
-      avgCost: 0.057,
-      trend: '+8%',
-    },
-    {
-      name: 'Claude 2',
-      calls: 2988,
-      totalTokens: 1234567,
-      cost: 344.23,
-      avgCost: 0.115,
-      trend: '+15%',
-    },
-    {
-      name: 'DALL-E 3',
-      calls: 1567,
-      totalTokens: 0,
-      cost: 200.12,
-      avgCost: 0.128,
-      trend: '+5%',
-    },
-  ];
-
-  // 功能开发中 - 显示占位符
-  const isFeatureAvailable = false;
-
-  if (!isFeatureAvailable) {
+  // 加载状态
+  if (loading) {
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">成本监控</h1>
           <p className="mt-2 text-gray-600">查看和分析 AI 使用成本</p>
         </div>
-
         <Card>
           <div className="p-12 text-center">
-            <DollarSign className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">功能开发中</h3>
-            <p className="text-gray-500 mb-4">成本监控功能将在未来版本中开放</p>
-            <div className="max-w-lg mx-auto text-left bg-gray-50 rounded-lg p-4">
-              <p className="text-sm text-gray-600 mb-3">
-                <strong>实现此功能需要：</strong>
-              </p>
-              <ul className="text-xs text-gray-600 space-y-2">
-                <li className="flex items-start">
-                  <span className="text-blue-600 mr-2">•</span>
-                  <span>AI调用日志表（记录每次AI调用的Token和成本）</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="text-blue-600 mr-2">•</span>
-                  <span>成本统计服务（按日期/用户/模型汇总）</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="text-blue-600 mr-2">•</span>
-                  <span>实时费率配置（不同模型的定价策略）</span>
-                </li>
-              </ul>
-              <p className="text-xs text-gray-500 mt-3">
-                等有真实AI使用量后，我们会优先开发此功能。
-              </p>
-            </div>
+            <DollarSign className="w-16 h-16 mx-auto mb-4 text-gray-300 animate-pulse" />
+            <p className="text-gray-500">加载中...</p>
           </div>
         </Card>
       </div>
     );
   }
+
+  // 错误状态
+  if (error || !metrics) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">成本监控</h1>
+          <p className="mt-2 text-gray-600">查看和分析 AI 使用成本</p>
+        </div>
+        <Card>
+          <div className="p-12 text-center">
+            <AlertCircle className="w-16 h-16 mx-auto mb-4 text-red-400" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">加载失败</h3>
+            <p className="text-gray-500 mb-4">{error || '无法加载成本数据'}</p>
+            <Button onClick={loadCostMetrics}>重试</Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  // 成本统计卡片数据（基于真实数据）
+  const costStats = [
+    {
+      label: '今日成本',
+      value: formatUsdToCny(metrics.todayCost),
+      change: metrics.yesterdayCost > 0
+        ? `${((metrics.todayCost - metrics.yesterdayCost) / metrics.yesterdayCost * 100).toFixed(1)}%`
+        : 'N/A',
+      icon: DollarSign,
+      bgColor: 'bg-blue-100',
+      iconColor: 'text-blue-600',
+      description: `${metrics.todayCalls} 次调用`,
+    },
+    {
+      label: '本月成本',
+      value: formatUsdToCny(metrics.thisMonthCost),
+      change: metrics.lastMonthCost > 0
+        ? `${((metrics.thisMonthCost - metrics.lastMonthCost) / metrics.lastMonthCost * 100).toFixed(1)}%`
+        : 'N/A',
+      icon: Cpu,
+      bgColor: 'bg-green-100',
+      iconColor: 'text-green-600',
+      description: `${metrics.thisMonthCalls} 次调用`,
+    },
+    {
+      label: '平均每次成本',
+      value: metrics.thisMonthCalls > 0
+        ? formatUsdToCny(metrics.thisMonthCost / metrics.thisMonthCalls)
+        : '¥0.00',
+      change: '-',
+      icon: TrendingUp,
+      bgColor: 'bg-purple-100',
+      iconColor: 'text-purple-600',
+      description: '本月平均',
+    },
+    {
+      label: '昨日成本',
+      value: formatUsdToCny(metrics.yesterdayCost),
+      change: '-',
+      icon: AlertCircle,
+      bgColor: 'bg-orange-100',
+      iconColor: 'text-orange-600',
+      description: '对比参考',
+    },
+  ];
+
+  // 成本趋势数据（最近7天）
+  const costTrendData = metrics.dailyCosts.map(item => ({
+    date: item.date.slice(5), // 只显示 MM-DD
+    cost: parseFloat((item.cost * 7.19).toFixed(2)), // 转换为人民币
+  }));
+
+  // 模型成本分布
+  const modelCostData = metrics.topModels.map((model, index) => {
+    const colors = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444'];
+    return {
+      name: model.modelName,
+      value: parseFloat((model.totalCost * 7.19).toFixed(2)), // 转换为人民币
+      color: colors[index % colors.length],
+    };
+  });
+
+  // 用户成本排行 Top 5
+  const topUsers = metrics.topUsers.slice(0, 5).map(user => {
+    const maxCost = Math.max(...metrics.topUsers.map(u => u.totalCost));
+    return {
+      userId: user.userId,
+      calls: user.totalCalls,
+      cost: parseFloat((user.totalCost * 7.19).toFixed(2)), // 转换为人民币
+      percentage: maxCost > 0 ? Math.round((user.totalCost / maxCost) * 100) : 0,
+    };
+  });
+
+  // 模型详细使用（基于 topModels 数据）
+  const modelDetails = metrics.topModels.map(model => ({
+    name: model.modelName,
+    calls: model.totalCalls,
+    totalTokens: 0, // 后端暂未返回 Token 总数
+    cost: parseFloat((model.totalCost * 7.19).toFixed(2)), // 转换为人民币
+    avgCost: model.totalCalls > 0
+      ? parseFloat(((model.totalCost * 7.19) / model.totalCalls).toFixed(4))
+      : 0,
+    trend: '-', // 趋势数据需要历史对比，暂不实现
+  }));
 
   return (
     <div className="space-y-6">
@@ -227,15 +228,14 @@ const AdminCostView: React.FC = () => {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">成本趋势</h3>
-                <p className="text-sm text-gray-600 mt-1">每日成本和调用次数变化</p>
+                <p className="text-sm text-gray-600 mt-1">最近7天每日成本变化</p>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={costTrendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="date" stroke="#6B7280" style={{ fontSize: '12px' }} />
-                <YAxis yAxisId="left" stroke="#6B7280" style={{ fontSize: '12px' }} />
-                <YAxis yAxisId="right" orientation="right" stroke="#6B7280" style={{ fontSize: '12px' }} />
+                <YAxis stroke="#6B7280" style={{ fontSize: '12px' }} />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: '#ffffff',
@@ -243,10 +243,10 @@ const AdminCostView: React.FC = () => {
                     borderRadius: '8px',
                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                   }}
+                  formatter={(value: number) => `¥${value.toFixed(2)}`}
                 />
                 <Legend />
                 <Line
-                  yAxisId="left"
                   type="monotone"
                   dataKey="cost"
                   stroke="#3B82F6"
@@ -254,16 +254,6 @@ const AdminCostView: React.FC = () => {
                   dot={{ fill: '#3B82F6', r: 4 }}
                   activeDot={{ r: 6 }}
                   name="成本 (¥)"
-                />
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="calls"
-                  stroke="#10B981"
-                  strokeWidth={2}
-                  dot={{ fill: '#10B981', r: 4 }}
-                  activeDot={{ r: 6 }}
-                  name="调用次数"
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -347,17 +337,17 @@ const AdminCostView: React.FC = () => {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">用户成本排行 TOP 5</h3>
           <div className="space-y-4">
             {topUsers.map((user, index) => (
-              <div key={index} className="flex items-center space-x-4">
+              <div key={user.userId} className="flex items-center space-x-4">
                 <div className="flex-shrink-0 w-8 text-center">
                   <span className="text-lg font-bold text-gray-400">#{index + 1}</span>
                 </div>
                 <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-blue-600">{user.name[0]}</span>
+                  <span className="text-sm font-medium text-blue-600">{(index + 1)}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                    <p className="text-sm font-semibold text-gray-900">¥{user.cost}</p>
+                    <p className="text-sm font-medium text-gray-900 truncate">{user.userId.slice(0, 8)}...</p>
+                    <p className="text-sm font-semibold text-gray-900">¥{user.cost.toFixed(2)}</p>
                   </div>
                   <div className="flex items-center space-x-2">
                     <div className="flex-1 bg-gray-200 rounded-full h-2">
