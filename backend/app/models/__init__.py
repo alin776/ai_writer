@@ -19,6 +19,7 @@ from app.models.user_profile import UserProfile
 from app.models.review_session import ReviewSession, ReviewLevel, ReviewType
 from app.models.review_task import ReviewTask, TaskPriority, TaskStatus, TaskSource
 from app.models.chapter_version import ChapterVersion, VersionType
+from app.models.knowledge_item import KnowledgeItem, KnowledgeCategory, KnowledgeSource
 
 __all__ = [
     "User",
@@ -54,5 +55,8 @@ __all__ = [
     "TaskStatus",
     "TaskSource",
     "ChapterVersion",
-    "VersionType"
+    "VersionType",
+    "KnowledgeItem",
+    "KnowledgeCategory",
+    "KnowledgeSource"
 ]

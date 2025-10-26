@@ -1,17 +1,17 @@
 # NovelAIde 项目文档索引
 
-> 📚 **完整文档导航** | 最后更新: 2025-10-26 v2.16
+> 📚 **完整文档导航** | 最后更新: 2025-10-26 v2.19
 
 ## 📁 文档结构总览
 
 ```
 docs/
-├── 核心文档/ (14个)
+├── 核心文档/ (16个)
 │   ├── README.md - 文档总览
 │   ├── 01-overview.md - 项目概述
 │   ├── 02-tech-stack.md - 技术栈规划
 │   ├── 03-current-status.md - 当前项目状态 ⭐
-│   ├── 04-milestones.md - 开发路线图
+│   ├── 04-milestones.md - 开发路线图 🔥
 │   ├── 05-tasks.md - 开发任务清单
 │   ├── 06-frontend-specs.md - 前端开发规范
 │   ├── 07-api-reference.md - API参考文档 (v2.14) 🔥
@@ -21,7 +21,9 @@ docs/
 │   ├── 11-feature-ai-arena.md - AI写作竞技场
 │   ├── 12-changelog.md - 文档更新日志
 │   ├── 13-build-and-deploy.md - 构建部署指南
-│   └── 14-ai-evaluation-summary.md - AI评价功能总结 ⭐⭐ 🔥
+│   ├── 14-ai-evaluation-summary.md - AI评价功能总结 ⭐⭐
+│   ├── 15-feature-ai-book-breakdown.md - AI拆书功能设计 ⭐⭐ 🔥
+│   └── 16-feature-knowledge-base.md - 个人知识库功能设计 ⭐⭐ 🔥
 ├── AI功能文档/ (4个)
 │   ├── HUMANIZE_SUMMARY.md - AI去痕迹功能总结 ⭐⭐
 │   ├── HUMANIZE_QUICKSTART.md - 快速开始指南
@@ -119,7 +121,9 @@ backend/docs/
 
 **其他AI功能**:
 - [11-feature-ai-arena.md](./11-feature-ai-arena.md) - AI写作竞技场设计
-- [14-ai-evaluation-summary.md](./14-ai-evaluation-summary.md) - AI评价功能总结 ⭐⭐ 🔥
+- [14-ai-evaluation-summary.md](./14-ai-evaluation-summary.md) - AI评价功能总结 ⭐⭐
+- [15-feature-ai-book-breakdown.md](./15-feature-ai-book-breakdown.md) - AI拆书功能设计 ⭐⭐ 🔥
+- [16-feature-knowledge-base.md](./16-feature-knowledge-base.md) - 个人知识库设计 ⭐⭐ 🔥
 
 ### 产品规划
 
@@ -140,12 +144,12 @@ backend/docs/
 
 | 分类 | 文档数量 | 总字数估计 |
 |------|---------|----------|
-| 核心文档 | 14个 | ~30,000字 |
-| AI功能文档 | 4个 | ~15,000字 |
+| 核心文档 | 16个 | ~40,000字 |
+| AI功能文档 | 6个 | ~25,000字 |
 | 测试文档 | 8个 | ~15,000字 |
 | 后端文档 | 17个 | ~20,000字 |
 | 任务文档 | 5个 | ~8,000字 |
-| **总计** | **48个** | **~88,000字** |
+| **总计** | **52个** | **~108,000字** |
 
 ---
 
@@ -163,7 +167,25 @@ backend/docs/
 
 ## 🔄 最近更新
 
-### 2025-10-26 (v2.17) 🔥
+### 2025-10-26 (v2.19) 🔥
+- 🔥 **知识库MVP后端完成** (Day 4完成) ⭐⭐⭐
+- 🔥 7个REST API端点全部实现 ✅
+- 🔥 自动化测试100%通过 (9/9) ✅
+- 🔥 更新知识库功能文档 (16-feature-knowledge-base.md)
+- 🔥 更新任务进度 (tasks/knowledge_base_todo.md)
+- 📝 后端开发完成度: 100%
+- 📝 新增测试脚本: backend/scripts/test_knowledge_api.py
+
+### 2025-10-26 (v2.18)
+- 🔥 **新增Milestone 2.5: 个人知识库 + AI拆书系统** ⭐⭐⭐
+- 🔥 新增2个功能设计文档 (15/16)
+- 🔥 更新开发路线图 (04-milestones.md)
+- 📝 战略定位: 从"写作助手"升级为"写作教练"
+- 📝 核心价值: 建立长期价值积累的竞争壁垒
+- 📝 文档总数 50个 → 52个
+- 📝 总字数 ~88,000字 → ~108,000字
+
+### 2025-10-26 (v2.17)
 - 🔥 **更新AI改写助手/写作竞技场状态** ⭐⭐
 - 🔥 确认AI改写助手=AI写作竞技场(同一功能)
 - 🔥 标记为后端100%完成(7个API端点)
@@ -226,4 +248,4 @@ backend/docs/
 
 **维护者**: NovelAIde 团队
 **最后更新**: 2025-10-26
-**版本**: v2.17
+**版本**: v2.19

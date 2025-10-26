@@ -312,3 +312,193 @@ class VectorStoreService:
                 'vector_dimension': self.VECTOR_DIM,
                 'model_name': self.MODEL_NAME
             }
+
+    # ==================== 知识库向量方法 ====================
+
+    async def add_knowledge(self, knowledge_item) -> NovelAnalysisVector:
+        """
+        添加知识条目到向量库
+
+        Args:
+            knowledge_item: KnowledgeItem模型实例
+
+        Returns:
+            NovelAnalysisVector: 向量记录
+        """
+        try:
+            logger.info(f"开始向量化知识条目: {knowledge_item.id}")
+
+            # 1. 生成文本表示 (标题 + 内容 + 标签)
+            text_parts = [knowledge_item.title, knowledge_item.content]
+            if knowledge_item.tags:
+                text_parts.append(f"标签: {', '.join(knowledge_item.tags)}")
+
+            content_text = " | ".join(text_parts)
+
+            # 2. 生成embedding
+            model = self._get_model()
+            embedding = model.encode(content_text, normalize_embeddings=True)
+            embedding_list = embedding.tolist()
+
+            logger.info(f"生成向量维度: {len(embedding_list)}")
+
+            # 3. 存储向量
+            from uuid import UUID
+
+            # 确保ID是UUID类型
+            user_id = knowledge_item.user_id if isinstance(knowledge_item.user_id, UUID) else UUID(str(knowledge_item.user_id))
+            item_id = knowledge_item.id if isinstance(knowledge_item.id, UUID) else UUID(str(knowledge_item.id))
+
+            vector_record = NovelAnalysisVector(
+                user_id=user_id,
+                source_type="knowledge",
+                source_id=item_id,
+                embedding=embedding_list,
+                content_text=content_text,
+                micro_data=None,  # 知识库不需要micro_data
+                chunk_index=0
+            )
+
+            self.db.add(vector_record)
+            await self.db.commit()
+            await self.db.refresh(vector_record)
+
+            logger.info(f"知识库向量存储成功: vector_id={vector_record.id}")
+            return vector_record
+
+        except Exception as e:
+            logger.error(f"知识库向量化失败: {e}", exc_info=True)
+            await self.db.rollback()
+            raise
+
+    async def search_knowledge(
+        self,
+        query: str,
+        user_id: str,
+        top_k: int = 10,
+        similarity_threshold: float = 0.3
+    ) -> List[Dict[str, Any]]:
+        """
+        搜索知识库
+
+        Args:
+            query: 查询文本
+            user_id: 用户ID
+            top_k: 返回前K个最相关的结果
+            similarity_threshold: 相似度阈值（0-1）
+
+        Returns:
+            List[Dict]: 相关的知识条目，每项包含：
+                - source_id: 知识条目ID
+                - similarity: 相似度分数
+                - text: 文本内容
+        """
+        try:
+            logger.info(f"知识库RAG检索: user_id={user_id}, query={query[:50]}...")
+
+            # 1. 向量化查询
+            model = self._get_model()
+            query_embedding = model.encode(query, normalize_embeddings=True)
+            query_embedding_list = query_embedding.tolist()
+
+            # 2. 执行相似度搜索
+            from uuid import UUID
+            user_uuid = UUID(user_id) if isinstance(user_id, str) else user_id
+
+            stmt = (
+                select(
+                    NovelAnalysisVector,
+                    (1 - NovelAnalysisVector.embedding.cosine_distance(query_embedding_list)).label('similarity')
+                )
+                .where(NovelAnalysisVector.user_id == user_uuid)
+                .where(NovelAnalysisVector.source_type == "knowledge")
+                .order_by(NovelAnalysisVector.embedding.cosine_distance(query_embedding_list))
+                .limit(top_k)
+            )
+
+            result = await self.db.execute(stmt)
+            rows = result.all()
+
+            # 3. 过滤和格式化结果
+            relevant_results = []
+            for vector_record, similarity in rows:
+                if similarity >= similarity_threshold:
+                    relevant_results.append({
+                        'source_id': str(vector_record.source_id),
+                        'similarity': float(similarity),
+                        'text': vector_record.content_text
+                    })
+
+            logger.info(f"检索到 {len(relevant_results)} 个相关知识条目（阈值={similarity_threshold}）")
+
+            return relevant_results
+
+        except Exception as e:
+            logger.error(f"知识库RAG检索失败: {e}", exc_info=True)
+            return []
+
+    async def update_knowledge_vector(self, knowledge_item) -> Optional[NovelAnalysisVector]:
+        """
+        更新知识条目的向量
+
+        Args:
+            knowledge_item: KnowledgeItem模型实例
+
+        Returns:
+            NovelAnalysisVector: 更新后的向量记录
+        """
+        try:
+            from uuid import UUID
+            from sqlalchemy import delete as sql_delete
+
+            item_id = knowledge_item.id if isinstance(knowledge_item.id, UUID) else UUID(str(knowledge_item.id))
+
+            # 1. 删除旧向量
+            stmt = sql_delete(NovelAnalysisVector).where(
+                NovelAnalysisVector.source_type == "knowledge",
+                NovelAnalysisVector.source_id == item_id
+            )
+            await self.db.execute(stmt)
+
+            # 2. 创建新向量
+            vector_record = await self.add_knowledge(knowledge_item)
+
+            logger.info(f"知识库向量更新成功: item_id={item_id}")
+            return vector_record
+
+        except Exception as e:
+            logger.error(f"知识库向量更新失败: {e}", exc_info=True)
+            await self.db.rollback()
+            raise
+
+    async def delete_knowledge_vector(self, item_id: str) -> int:
+        """
+        删除知识条目的向量
+
+        Args:
+            item_id: 知识条目ID
+
+        Returns:
+            int: 删除的记录数
+        """
+        try:
+            from sqlalchemy import delete as sql_delete
+            from uuid import UUID
+
+            item_uuid = UUID(item_id) if isinstance(item_id, str) else item_id
+
+            stmt = sql_delete(NovelAnalysisVector).where(
+                NovelAnalysisVector.source_type == "knowledge",
+                NovelAnalysisVector.source_id == item_uuid
+            )
+            result = await self.db.execute(stmt)
+            await self.db.commit()
+
+            deleted_count = result.rowcount
+            logger.info(f"删除知识条目 {item_id} 的向量记录: {deleted_count} 条")
+            return deleted_count
+
+        except Exception as e:
+            logger.error(f"删除知识库向量失败: {e}", exc_info=True)
+            await self.db.rollback()
+            raise

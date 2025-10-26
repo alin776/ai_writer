@@ -25,6 +25,16 @@ from app.schemas.ai_guidelines import (
     AIGuidelinesUpdate,
     AIGuidelinesResponse,
 )
+from app.schemas.knowledge import (
+    KnowledgeItemBase,
+    KnowledgeItemCreate,
+    KnowledgeItemUpdate,
+    KnowledgeItemResponse,
+    KnowledgeItemListResponse,
+    KnowledgeSearchRequest,
+    KnowledgeSearchResult,
+    KnowledgeSearchResponse,
+)
 
 __all__ = [
     # User
@@ -50,4 +60,13 @@ __all__ = [
     "AIGuidelinesCreate",
     "AIGuidelinesUpdate",
     "AIGuidelinesResponse",
+    # Knowledge
+    "KnowledgeItemBase",
+    "KnowledgeItemCreate",
+    "KnowledgeItemUpdate",
+    "KnowledgeItemResponse",
+    "KnowledgeItemListResponse",
+    "KnowledgeSearchRequest",
+    "KnowledgeSearchResult",
+    "KnowledgeSearchResponse",
 ]
