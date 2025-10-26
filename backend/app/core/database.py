@@ -30,6 +30,9 @@ AsyncSessionLocal = async_sessionmaker(
     autoflush=False,
 )
 
+# 导出别名，供测试使用
+async_session_maker = AsyncSessionLocal
+
 # 创建基础模型类
 Base = declarative_base()
 

@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.core.database import init_db, close_db
 from app.core.redis import redis_client
 from app.api import api_router
+from app.tasks import start_scheduler, stop_scheduler
 
 # 配置日志
 logging.basicConfig(
@@ -25,8 +26,10 @@ async def lifespan(app: FastAPI):
     # 启动时执行
     await init_db()
     # await redis_client.init()  # TODO: Redis 暂时禁用
+    start_scheduler()  # 启动定时任务
     yield
     # 关闭时执行
+    stop_scheduler()  # 停止定时任务
     await close_db()
     # await redis_client.close()  # TODO: Redis 暂时禁用
 
