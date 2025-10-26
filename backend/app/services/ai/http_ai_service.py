@@ -259,12 +259,73 @@ class HTTPAIService:
         """判断内容是否应该被过滤"""
         if not content:
             return True
-        
+
         # 检查思考标签
         filter_patterns = ['<think>', '</think>', '<thinking>', '</thinking>']
-        
+
         for pattern in filter_patterns:
             if pattern in content.lower():
                 return True
-        
+
         return False
+
+    async def call_ai(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int = 2000,
+        temperature: float = 0.7
+    ) -> str:
+        """
+        非流式AI调用 (用于评审等需要完整响应的场景)
+
+        Args:
+            system_prompt: 系统提示词
+            user_prompt: 用户提示词
+            max_tokens: 最大token数
+            temperature: 温度参数
+
+        Returns:
+            完整的AI响应文本
+        """
+        url = f"{self.base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": False  # 非流式
+        }
+
+        logger.info(
+            f"开始非流式AI调用: max_tokens={max_tokens}, temp={temperature}"
+        )
+
+        try:
+            response = await self.client.post(url, json=payload, headers=headers)
+
+            if response.status_code != 200:
+                error_text = response.text
+                logger.error(f"API错误: {response.status_code}, {error_text[:500]}")
+                raise Exception(f"API请求失败: {response.status_code}")
+
+            data = response.json()
+            content = data['choices'][0]['message']['content']
+
+            logger.info(f"AI响应成功, 长度={len(content)}")
+            return content
+
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP请求错误: {type(e).__name__}: {str(e)}")
+            raise Exception(f"网络请求失败: {str(e)}")
+        except Exception as e:
+            logger.error(f"AI调用错误: {type(e).__name__}: {str(e)}")
+            raise

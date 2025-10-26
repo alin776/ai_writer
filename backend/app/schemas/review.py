@@ -283,3 +283,53 @@ class ChapterReviewResponse(BaseModel):
     session: ReviewSessionResponse
     generated_tasks: List[ReviewTaskResponse]
     version: Optional[ChapterVersionResponse] = None
+
+
+# ==================== 段落级评审 Schema ====================
+
+class ParagraphReviewRequest(BaseModel):
+    """段落评审请求"""
+    text: str = Field(..., min_length=50, max_length=2000, description="段落文本 (50-2000字)")
+    context: Optional[str] = Field(default=None, max_length=500, description="上下文信息 (可选)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "text": "林风深吸一口气，推开木门。房间里灰尘飞舞，一把古剑静静地躺在桌上，散发着淡淡的青光。",
+                "context": "这是主角第一次进入师父的密室"
+            }
+        }
+
+
+class ParagraphDimensionScores(BaseModel):
+    """段落评审维度分数"""
+    language: float = Field(..., ge=0, le=100, description="语言质量")
+    vividness: float = Field(..., ge=0, le=100, description="描写生动度")
+    dialogue: float = Field(..., ge=0, le=100, description="对话真实性")
+    emotion: float = Field(..., ge=0, le=100, description="情感表达")
+
+
+class ParagraphReviewResponse(BaseModel):
+    """段落评审响应"""
+    overall_score: float = Field(..., ge=0, le=100, description="总分")
+    dimension_scores: ParagraphDimensionScores = Field(..., description="4维度评分")
+    quick_feedback: str = Field(..., max_length=200, description="简短反馈")
+    suggestions: List[str] = Field(default_factory=list, description="改进建议")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "overall_score": 82.5,
+                "dimension_scores": {
+                    "language": 85,
+                    "vividness": 88,
+                    "dialogue": 75,
+                    "emotion": 82
+                },
+                "quick_feedback": "语言流畅，环境描写生动，但对话略显僵硬",
+                "suggestions": [
+                    "可以加入人物的内心独白，增强情感表达",
+                    "对话可以更口语化，更贴近人物性格"
+                ]
+            }
+        }

@@ -29,7 +29,9 @@ from app.schemas.review import (
     ChapterVersionListResponse,
     VersionMilestoneUpdate,
     TaskPriorityEnum,
-    TaskStatusEnum
+    TaskStatusEnum,
+    ParagraphReviewRequest,
+    ParagraphReviewResponse
 )
 from app.services.review.novel_review_service import NovelReviewService
 from app.services.review.task_generator_service import TaskGeneratorService
@@ -419,4 +421,83 @@ async def compare_versions(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
+        )
+
+
+# ==================== 段落级评审接口 ====================
+
+@router.post(
+    "/paragraphs",
+    response_model=ParagraphReviewResponse,
+    summary="段落级评审",
+    description="对选中的段落进行快速4维度评审 (5秒内返回)"
+)
+async def review_paragraph(
+    request: ParagraphReviewRequest,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    段落级评审
+
+    **使用场景**:
+    - 用户正在编辑器中写作
+    - 选中一段文字 (50-2000字)
+    - 想要即时反馈: "这段写得怎么样?"
+
+    **评审维度** (4个):
+    1. 语言质量 - 文字流畅度、修辞手法
+    2. 描写生动度 - 画面感、细节描写
+    3. 对话真实性 - 符合人物性格、对话自然
+    4. 情感表达 - 感染力、情绪传递
+
+    **特点**:
+    - ⚡ 快速 - 5秒内返回
+    - 🎯 聚焦 - 只评价这一段
+    - 💡 即时 - 边写边改
+    - 💾 缓存 - 相同文本1小时内不重复调用AI
+
+    **参数**:
+    - **text**: 段落文本 (50-2000字)
+    - **context**: 上下文信息 (可选，帮助AI理解段落含义)
+
+    **返回**:
+    - overall_score: 总分 (0-100)
+    - dimension_scores: 4维度评分
+    - quick_feedback: 简短反馈
+    - suggestions: 改进建议列表
+    """
+    logger.info(
+        f"[POST /review/paragraphs] user_id={current_user.id}, "
+        f"text_length={len(request.text)}"
+    )
+
+    # 导入服务
+    from app.services.review.paragraph_review_service import ParagraphReviewService
+
+    try:
+        # 调用服务
+        service = ParagraphReviewService()
+        result = await service.review_paragraph(
+            text=request.text,
+            context=request.context
+        )
+
+        # 转换为响应格式
+        from app.schemas.review import ParagraphDimensionScores
+
+        response = ParagraphReviewResponse(
+            overall_score=result.get("overall_score", 0),
+            dimension_scores=ParagraphDimensionScores(**result.get("dimension_scores", {})),
+            quick_feedback=result.get("quick_feedback", ""),
+            suggestions=result.get("suggestions", [])
+        )
+
+        logger.info(f"[POST /review/paragraphs] 评审完成, 总分={response.overall_score}")
+        return response
+
+    except Exception as e:
+        logger.error(f"[POST /review/paragraphs] 错误: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"评审失败: {str(e)}"
         )

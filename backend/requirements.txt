@@ -95,6 +95,8 @@ python-jose==3.3.0
 python-multipart==0.0.6
 PyYAML==6.0.3
 redis==5.0.1
+celery==5.3.4
+flower==2.0.1
 regex==2025.9.18
 requests==2.32.5
 requests-toolbelt==1.0.0
