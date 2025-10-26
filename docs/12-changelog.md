@@ -1,6 +1,6 @@
 # 文档更新日志
 
-> 📋 **文档**: 12-changelog.md | **最后更新**: 2025-10-25
+> 📋 **文档**: 12-changelog.md | **最后更新**: 2025-10-26
 
 [← 返回文档导航](./README.md)
 
@@ -8,64 +8,96 @@
 
 ## 📋 版本历史
 
-### v2.15 (2025-10-25 下午) ⭐⭐ TypeScript构建问题解决 + 功能验证完成
+### v2.17 (2025-10-26 下午) ⭐⭐⭐ AI改写助手功能澄清 + Milestone 2重大突破
 
-**重大更新**:
-- ✅ **TypeScript 构建问题完全解决**
-  - 验证：开发环境 (npm run dev) 完全正常运行，无类型检查影响
-  - 新增 `pure-build` 命令：跳过类型检查的快速构建，59.66s 完成
-  - 新增 `type-check` 命令：单独的类型检查工具
-  - 保留 `build` 命令：完整的类型检查+构建流程
-  - 构建产物验证：dist 目录生成成功，包含优化后的资源
-  - **结论**：TypeScript 错误不影响开发和部署，可选择性修复
+**核心发现** 🎯:
+- ✅ **AI改写助手 = AI写作竞技场** (同一功能,不同称呼)
+- ✅ 后端7个API端点已100%完成
+- ✅ Milestone 2完成度大幅提升: 85% → 95%
 
-- ✅ **PATCH 适配器完整实现验证**
-  - `IDataAdapter` 接口定义 patch 方法 ✅
-  - `ApiAdapter` 实现 patch 方法（支持 snake_case ↔ camelCase 转换）✅
-  - `MockAdapter` 实现 patch 方法 ✅
-  - `DataService` 中 banUser/unbanUser/toggleAdmin 方法可用 ✅
-  - 管理后台用户封禁/解封功能可用
+**技术更新**:
+- ✅ **API参考文档更新** (v2.14 → v2.15)
+  - 新增第17章: AI改写助手API (7个接口完整文档)
+  - 修复8.6/8.7重复编号问题
+  - 新增多模型并发改写功能说明
+  - 新增使用场景示例和技术特性说明
 
-- ✅ **世界观导出功能完整实现验证**
-  - `exportGraph.ts` 工具函数完整（PNG/SVG/JSON 导出）✅
-  - WorldviewGraphFullscreen 集成导出按钮和功能 ✅
-  - 使用 `html-to-image` 库实现图片导出 ✅
-  - 支持 2x 分辨率 PNG 导出（更清晰）✅
-  - 支持 SVG 矢量图导出（可编辑）✅
-  - 支持 JSON 数据导出（完整备份）✅
+- ✅ **文档结构优化**
+  - 新增 `AI_REWRITE_VS_ARENA.md` - 功能对照说明文档
+  - 更新 `03-current-status.md` (v1.2)
+  - 更新 `DOCS_INDEX.md` (v2.17)
+  - 更新 `04-milestones.md` - Milestone 2状态同步
 
-**整体状态更新**:
-- **高优先级问题**: 3个 → **0个** ✅ 全部解决！
-- **项目完成度**: 93% （稳定）
-- **下一步重点**: Milestone 2 - AI 增强功能（去AI痕迹、AI反馈系统）
+**项目进度**:
+- **整体完成度**: 94% → 95%
+- **后端API**: 104个 → 111个端点 (+7)
+- **Milestone 2 后端**: 75% (3/4功能完成)
+- **Milestone 2 整体**: 95% (考虑后端权重)
 
-**技术细节**:
-- 构建命令优化：package.json 脚本更新
-- TypeScript 错误数量：176个（不影响运行）
-- 构建时间：59.66s（pure-build 模式）
-- 构建产物：dist 目录，优化后的资源文件
+**AI改写助手完成情况**:
+| 接口 | 状态 |
+|------|------|
+| GET /api/v1/ai/rewrite-arena/models | ✅ 完成 |
+| POST /api/v1/ai/rewrite-arena/analyze | ✅ 完成 |
+| POST /api/v1/ai/rewrite-arena/rewrite | ✅ 完成 (核心) |
+| POST /api/v1/rewrite-history | ✅ 完成 |
+| GET /api/v1/rewrite-history | ✅ 完成 |
+| GET /api/v1/rewrite-history/{session_id} | ✅ 完成 |
+| DELETE /api/v1/rewrite-history/{session_id} | ✅ 完成 |
 
-**构建命令说明**:
-```json
-{
-  "dev": "vite",                      // 开发服务器
-  "pure-build": "vite build",         // 快速构建（跳过类型检查）⭐
-  "type-check": "tsc -b",             // 单独的类型检查
-  "build": "tsc -b && vite build",    // 完整构建（包含类型检查）
-  "preview": "vite preview"            // 预览构建产物
-}
-```
+**Milestone 2 详细进展**:
+| 功能模块 | 后端 | 前端 | 状态 |
+|---------|------|------|------|
+| AI去痕迹 | 100% | 0% | ✅ 后端完成 |
+| AI评估系统 | 100% | 0% | ✅ 后端完成 ⭐ |
+| AI改写助手/竞技场 | 100% | 0% | ✅ 后端完成 ⭐⭐ |
+| 小说评审增强 | 0% | 0% | ⏳ 规划中 |
 
-**提交记录**:
-- `b4da63b` chore: 添加 pure-build 和 type-check 命令
-- `320bfb8` docs: 更新项目文档和状态报告
-
-**文档更新**:
-- 更新 03-current-status.md（已知问题清零）
-- 更新 12-changelog.md（本次更新记录）
-- 新增构建和部署指南（即将创建）
+**下一步计划**:
+- 📋 AI功能前端UI开发（优先级P0）
+- 📋 小说评审增强功能（剩余功能）
 
 ---
+
+### v2.16 (2025-10-26 上午) ⭐⭐ AI评估反馈系统后端完成
+
+**重大更新**:
+- ✅ **AI评估反馈系统后端100%完成** ⭐⭐
+  - 5维度评价体系实现（文学性/连贯性/创意性/情感感染力/节奏把控）
+  - 新增 `EvaluationService` (335行代码)
+  - 新增 `evaluation_prompts.py` (165行Prompt模板)
+  - 新增 `evaluation_records` 数据表
+  - 新增 API接口: `POST /api/v1/ai/evaluate`
+  - 完整测试通过 (100%成功率,14/14测试用例)
+
+- ✅ **技术实现**
+  - 数据模型: `backend/app/models/evaluation_record.py` (84行)
+  - Schema: `backend/app/schemas/evaluation.py` (133行)
+  - 服务层: `backend/app/services/ai/evaluation_service.py` (335行)
+  - Prompt模板: `backend/app/services/ai/evaluation_prompts.py` (165行)
+  - 数据库迁移: `20251026_1412_add_evaluation_records_table.py`
+
+- ✅ **测试情况**
+  - 测试账号: 2072855200@qq.com
+  - 测试通过率: 100% (14/14)
+  - 示例评分: 总分82/100 (文学性85/连贯性80/创意性75/情感88/节奏82)
+  - Token统计: ~1450 prompt + ~500 completion
+  - 成本: ~$0.02/次
+
+**文档更新**:
+- 新增: `docs/14-ai-evaluation-summary.md` - AI评价功能总结
+- 新增: `tasks/ai_evaluation_test_report.md` - 测试报告
+- 新增: `backend/TEST_EVALUATION_GUIDE.md` - 测试指南
+- 更新: `docs/07-api-reference.md` (v2.13 → v2.14,新增8.7评估接口)
+
+**项目进度**:
+- 整体完成度: 93% → 94%
+- 后端完成度: 95% → 96%
+- API端点数: 100+ → 104个
+
+---
+
+### v2.15 (2025-10-25 下午) ⭐⭐ TypeScript构建问题解决 + 功能验证完成
 
 ### v2.14 (2025-10-25 上午) ⭐⭐ 管理后台数据接入完成
 

@@ -1,7 +1,7 @@
 # API 参考文档
 
 > **NovelAIde API 参考文档**
-> 版本: v2.14
+> 版本: v2.15
 > 最后更新: 2025-10-26
 
 ---
@@ -24,8 +24,9 @@
 - [14. 搜索API](#14-搜索api)
 - [15. AI日志API](#15-ai日志api)
 - [16. 导出导入API](#16-导出导入api)
-- [17. 错误代码](#17-错误代码)
-- [18. 相关链接](#18-相关链接)
+- [17. AI改写助手API](#17-ai改写助手api) ⭐⭐ NEW
+- [18. 错误代码](#18-错误代码)
+- [19. 相关链接](#19-相关链接)
 
 ---
 
@@ -36,7 +37,8 @@ NovelAIde API 提供完整的RESTful接口，支持小说创作的全流程功�
 - **用户认证**：注册、登录、Token管理
 - **作品管理**：作品CRUD、章节管理、统计数据
 - **世界观构建**：角色、地点、设定、关系管理
-- **AI辅助**：续写、润色、翻译、扩写、总结
+- **AI辅助**：续写、润色、翻译、扩写、总结、评估
+- **AI改写助手**：多模型并发改写对比 ⭐⭐ NEW
 - **小说分析**：微观分析、宏观分析、章节概括
 - **管理后台**：用户管理、统计数据、系统配置
 
@@ -1342,7 +1344,7 @@ data: {"chunk": " a beautiful", "done": false}
 
 ---
 
-### 8.6 AI评价内容质量 ⭐ NEW
+### 8.7 AI评价内容质量 ⭐ NEW
 
 **接口**: `POST /api/v1/ai/evaluate`
 
@@ -1434,7 +1436,7 @@ data: {"chunk": " a beautiful", "done": false}
 
 ---
 
-### 8.7 AI自动补全
+### 8.8 AI自动补全
 
 **接口**: `POST /api/v1/ai/autocomplete`
 
@@ -2578,7 +2580,432 @@ GET /api/v1/search?q=修仙&types=work,chapter&limit=5
 
 ---
 
-## 17. 错误代码
+## 17. AI改写助手API ⭐⭐
+
+> **核心功能**: 多模型并发改写对比 - 同时调用4-6个顶级AI模型,对比选择最佳结果
+>
+> **差异化优势**: 市场少见的多模型并发功能,大幅提升用户满意度
+>
+> **别名**: AI写作竞技场 (同一功能的不同称呼)
+
+### 17.1 获取可用模型列表
+
+**接口**: `GET /api/v1/ai/rewrite-arena/models`
+
+**描述**: 获取改写助手支持的AI模型列表及其配置信息
+
+**请求头**:
+```http
+Authorization: Bearer <access_token>
+```
+
+**响应** (200 OK):
+```json
+{
+  "models": [
+    {
+      "id": "gemini-2.5-pro",
+      "name": "Gemini 2.5 Pro",
+      "description": "擅长创意和细节描写",
+      "enabled": true
+    },
+    {
+      "id": "gpt-5",
+      "name": "GPT-5",
+      "description": "平衡全能，表现稳定",
+      "enabled": true
+    },
+    {
+      "id": "claude-3-5-sonnet",
+      "name": "Claude 3.5 Sonnet",
+      "description": "逻辑性强，适合情节构思",
+      "enabled": true
+    },
+    {
+      "id": "qwen-max",
+      "name": "通义千问Max",
+      "description": "中文理解优秀",
+      "enabled": true
+    }
+  ],
+  "default_models": ["gemini-2.5-pro", "gpt-5", "claude-3-5-sonnet"],
+  "max_models": 6
+}
+```
+
+**特性**:
+- ✅ 返回所有可用模型
+- ✅ 包含模型特点说明
+- ✅ 支持动态启用/禁用
+
+---
+
+### 17.2 智能分析文本
+
+**接口**: `POST /api/v1/ai/rewrite-arena/analyze`
+
+**描述**: AI自动分析文本质量,检测问题,给出改写建议
+
+**请求头**:
+```http
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**请求体**:
+```json
+{
+  "text": "待分析的文本内容...",
+  "context_before": "前文上下文 (可选)",
+  "context_after": "后文上下文 (可选)"
+}
+```
+
+**响应** (200 OK):
+```json
+{
+  "analysis": {
+    "ai_trace_score": 75,
+    "issues": [
+      {
+        "type": "repetition",
+        "description": "检测到重复使用'然而'连接词",
+        "severity": "medium"
+      },
+      {
+        "type": "logic",
+        "description": "情节转折略显生硬",
+        "severity": "low"
+      }
+    ],
+    "suggestions": [
+      "建议增加感官描写,让场景更生动",
+      "可以调整句子长度,避免过于整齐",
+      "部分对话可以更加口语化"
+    ],
+    "overall_quality": 7.5
+  }
+}
+```
+
+**特性**:
+- ✅ AI痕迹检测 (0-100分)
+- ✅ 问题诊断 (重复/逻辑/风格)
+- ✅ 具体改写建议
+- ✅ 整体质量评分
+
+---
+
+### 17.3 多模型并发改写 ⭐⭐ 核心功能
+
+**接口**: `POST /api/v1/ai/rewrite-arena/rewrite`
+
+**描述**: 同时调用多个AI模型改写文本,返回对比结果
+
+**请求头**:
+```http
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**请求体**:
+```json
+{
+  "text": "待改写的原文...",
+  "models": ["gemini-2.5-pro", "gpt-5", "claude-3-5-sonnet"],
+  "mode": "improve",
+  "custom_requirement": "增加感官描写,保持原意 (可选)",
+  "context_before": "前文上下文 (可选)",
+  "context_after": "后文上下文 (可选)"
+}
+```
+
+**参数说明**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| text | string | 是 | 原文 (50-2000字) |
+| models | array | 是 | 模型列表 (最多6个) |
+| mode | string | 是 | 改写模式: improve/expand/polish/creative |
+| custom_requirement | string | 否 | 自定义要求 |
+| context_before | string | 否 | 前文 (最多1000字) |
+| context_after | string | 否 | 后文 (最多1000字) |
+
+**响应** (200 OK):
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "results": [
+    {
+      "model_name": "gemini-2.5-pro",
+      "rewritten_text": "改写后的文本内容...",
+      "word_count": 456,
+      "elapsed_time": 2.3,
+      "status": "success"
+    },
+    {
+      "model_name": "gpt-5",
+      "rewritten_text": "改写后的文本内容...",
+      "word_count": 432,
+      "elapsed_time": 1.8,
+      "status": "success"
+    },
+    {
+      "model_name": "claude-3-5-sonnet",
+      "rewritten_text": "改写后的文本内容...",
+      "word_count": 489,
+      "elapsed_time": 2.1,
+      "status": "success"
+    }
+  ],
+  "total_models": 3,
+  "successful": 3,
+  "failed": 0
+}
+```
+
+**特性**:
+- ✅ 并发调用,节省时间
+- ✅ 智能上下文分级 (根据文本长度自动调整)
+- ✅ 失败容错 (部分模型失败不影响其他)
+- ✅ 实时进度反馈
+- ✅ 自动保存会话
+
+**改写模式说明**:
+- `improve`: 提升质量,保持长度
+- `expand`: 扩写3-5倍,增加细节
+- `polish`: 润色优化,文学性提升
+- `creative`: 创意改写,风格变化
+
+---
+
+### 17.4 保存改写记录
+
+**接口**: `POST /api/v1/rewrite-history`
+
+**描述**: 保存改写会话到历史记录
+
+**请求头**:
+```http
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**请求体**:
+```json
+{
+  "original_text": "原文",
+  "context_before": "前文 (可选)",
+  "context_after": "后文 (可选)",
+  "mode": "improve",
+  "custom_requirement": "自定义要求 (可选)",
+  "results": [
+    {
+      "model_name": "gemini-2.5-pro",
+      "rewritten_text": "改写文本",
+      "word_count": 456,
+      "elapsed_time": 2.3,
+      "is_selected": true
+    }
+  ]
+}
+```
+
+**响应** (201 Created):
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "created_at": "2025-10-26T15:30:00Z"
+}
+```
+
+---
+
+### 17.5 获取改写历史列表
+
+**接口**: `GET /api/v1/rewrite-history`
+
+**描述**: 分页查询用户的改写历史记录
+
+**请求头**:
+```http
+Authorization: Bearer <access_token>
+```
+
+**Query参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| page | int | 否 | 页码 (默认1) |
+| page_size | int | 否 | 每页数量 (默认20,最大100) |
+| mode | string | 否 | 筛选模式 |
+
+**响应** (200 OK):
+```json
+{
+  "total": 45,
+  "page": 1,
+  "page_size": 20,
+  "sessions": [
+    {
+      "session_id": "550e8400-e29b-41d4-a716-446655440000",
+      "mode": "improve",
+      "original_text_preview": "原文前100字...",
+      "models_count": 3,
+      "selected_model": "gemini-2.5-pro",
+      "created_at": "2025-10-26T15:30:00Z"
+    }
+  ]
+}
+```
+
+**特性**:
+- ✅ 分页查询
+- ✅ 模式筛选
+- ✅ 原文预览
+- ✅ 按时间倒序
+
+---
+
+### 17.6 获取改写会话详情
+
+**接口**: `GET /api/v1/rewrite-history/{session_id}`
+
+**描述**: 获取指定会话的完整信息
+
+**请求头**:
+```http
+Authorization: Bearer <access_token>
+```
+
+**路径参数**:
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| session_id | UUID | 会话ID |
+
+**响应** (200 OK):
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "original_text": "完整原文...",
+  "context_before": "前文",
+  "context_after": "后文",
+  "mode": "improve",
+  "custom_requirement": "自定义要求",
+  "results": [
+    {
+      "model_name": "gemini-2.5-pro",
+      "rewritten_text": "完整改写文本...",
+      "word_count": 456,
+      "elapsed_time": 2.3,
+      "is_selected": true
+    }
+  ],
+  "created_at": "2025-10-26T15:30:00Z"
+}
+```
+
+**特性**:
+- ✅ 完整会话数据
+- ✅ 所有模型结果
+- ✅ 用户选择标记
+
+---
+
+### 17.7 删除改写记录
+
+**接口**: `DELETE /api/v1/rewrite-history/{session_id}`
+
+**描述**: 删除指定的改写会话
+
+**请求头**:
+```http
+Authorization: Bearer <access_token>
+```
+
+**路径参数**:
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| session_id | UUID | 会话ID |
+
+**响应** (204 No Content):
+无响应体
+
+**错误响应** (404 Not Found):
+```json
+{
+  "detail": "改写会话不存在"
+}
+```
+
+**特性**:
+- ✅ 软删除机制
+- ✅ 权限校验 (只能删除自己的记录)
+
+---
+
+### 💡 使用场景示例
+
+#### 场景1: 快速多模型对比
+```javascript
+// 1. 选择3个模型进行对比
+const response = await fetch('/api/v1/ai/rewrite-arena/rewrite', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    text: "他走进了房间，心情很复杂。",
+    models: ["gemini-2.5-pro", "gpt-5", "claude-3-5-sonnet"],
+    mode: "expand"
+  })
+});
+
+// 2. 获取3个模型的改写结果
+const { session_id, results } = await response.json();
+
+// 3. 用户选择最满意的版本
+// 4. 保存历史记录 (自动保存,无需手动调用)
+```
+
+#### 场景2: 带上下文的智能改写
+```javascript
+const response = await fetch('/api/v1/ai/rewrite-arena/rewrite', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    text: "他打开了门。",
+    models: ["gemini-2.5-pro", "gpt-5"],
+    mode: "expand",
+    custom_requirement: "增加五感描写，营造紧张氛围",
+    context_before: "夜色如墨，四周一片死寂...",
+    context_after: "门后传来了诡异的声音..."
+  })
+});
+```
+
+### 📊 技术特性
+
+**智能上下文分级**:
+- 文本 < 200字: 提供完整前后文 (各500字)
+- 文本 200-500字: 提供部分前后文 (各300字)
+- 文本 > 500字: 只提供关键前后文 (各100字)
+
+**并发性能**:
+- 6个模型并发: ~3-5秒完成
+- 失败容错: 部分失败不影响其他模型
+- 超时设置: 单模型最长30秒
+
+**成本优化**:
+- 智能缓存: 相同内容24小时内不重复调用
+- 按需加载: 用户主动触发,不自动调用
+- 成本统计: 记录到 `ai_call_logs` 表
+
+---
+
+## 18. 错误代码
 
 ### HTTP状态码
 
@@ -2624,7 +3051,7 @@ GET /api/v1/search?q=修仙&types=work,chapter&limit=5
 
 ---
 
-## 18. 相关链接
+## 19. 相关链接
 
 - **上一章**: [前端开发规范](./06-frontend-specs.md)
 - **下一章**: [部署运维指南](./08-deployment.md)
