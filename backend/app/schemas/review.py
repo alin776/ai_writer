@@ -333,3 +333,165 @@ class ParagraphReviewResponse(BaseModel):
                 ]
             }
         }
+
+
+# ==================== 作品级评审 Schema ====================
+
+class ChapterInput(BaseModel):
+    """章节输入"""
+    title: str = Field(..., description="章节标题")
+    content: str = Field(..., description="章节内容")
+    order: int = Field(..., ge=1, description="章节顺序")
+
+
+class BookReviewRequest(BaseModel):
+    """作品级评审请求"""
+    novel_id: UUID = Field(..., description="小说ID")
+    book_title: str = Field(..., min_length=1, max_length=200, description="书名")
+    chapters: List[ChapterInput] = Field(..., min_items=3, description="章节列表 (至少3章)")
+    author_notes: Optional[str] = Field(None, max_length=1000, description="作者备注")
+    quick_mode: bool = Field(default=False, description="快速模式 (仅分析前10章)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "novel_id": "123e4567-e89b-12d3-a456-426614174000",
+                "book_title": "剑仙传说",
+                "chapters": [
+                    {"title": "第一章 入门", "content": "林风来到剑宗山门...", "order": 1},
+                    {"title": "第二章 试炼", "content": "试炼大会开始了...", "order": 2},
+                    {"title": "第三章 突破", "content": "林风终于突破了...", "order": 3}
+                ],
+                "author_notes": "这是我的第一部作品",
+                "quick_mode": False
+            }
+        }
+
+
+class PlotAnalysis(BaseModel):
+    """情节分析结果"""
+    structure_type: str = Field(..., description="结构类型")
+    acts: List[Dict[str, Any]] = Field(..., description="章节分幕")
+    climax_points: List[int] = Field(..., description="高潮章节")
+    rhythm_score: float = Field(..., ge=0, le=100, description="节奏评分")
+    rhythm_analysis: str = Field(..., description="节奏分析")
+    foreshadowing: Dict[str, Any] = Field(..., description="伏笔分析")
+    issues: List[str] = Field(..., description="问题列表")
+    strengths: List[str] = Field(..., description="优点列表")
+
+
+class CharacterAnalysis(BaseModel):
+    """人物分析结果"""
+    main_characters: List[Dict[str, Any]] = Field(..., description="主要角色")
+    relationships: List[Dict[str, Any]] = Field(..., description="人物关系")
+    character_score: float = Field(..., ge=0, le=100, description="人物塑造评分")
+    issues: List[str] = Field(..., description="问题列表")
+    strengths: List[str] = Field(..., description="优点列表")
+
+
+class WorldviewAnalysis(BaseModel):
+    """世界观分析结果"""
+    setting: Dict[str, Any] = Field(..., description="背景设定")
+    rules: List[str] = Field(..., description="规则列表")
+    uniqueness_score: float = Field(..., ge=0, le=100, description="独特性评分")
+    consistency_score: float = Field(..., ge=0, le=100, description="一致性评分")
+    depth_score: float = Field(..., ge=0, le=100, description="深度评分")
+    issues: List[str] = Field(..., description="问题列表")
+    strengths: List[str] = Field(..., description="优点列表")
+
+
+class WritingStyleAnalysis(BaseModel):
+    """文风分析结果"""
+    style_tags: List[str] = Field(..., description="风格标签")
+    language_score: float = Field(..., ge=0, le=100, description="语言评分")
+    description_score: float = Field(..., ge=0, le=100, description="描写评分")
+    dialogue_score: float = Field(..., ge=0, le=100, description="对话评分")
+    readability_score: float = Field(..., ge=0, le=100, description="可读性评分")
+    analysis: str = Field(..., description="整体分析")
+    issues: List[str] = Field(..., description="问题列表")
+    strengths: List[str] = Field(..., description="优点列表")
+
+
+class Recommendations(BaseModel):
+    """综合建议"""
+    core_strengths: List[str] = Field(..., description="核心优势")
+    critical_issues: List[str] = Field(..., description="关键问题")
+    priority_actions: List[Dict[str, Any]] = Field(..., description="优先修改建议")
+    next_steps: str = Field(..., description="下一步建议")
+
+
+class BookReviewResponse(BaseModel):
+    """作品级评审响应"""
+    book_title: str = Field(..., description="书名")
+    novel_id: str = Field(..., description="小说ID")
+    total_chapters: int = Field(..., description="章节总数")
+    analysis_date: str = Field(..., description="分析日期")
+    overall_score: float = Field(..., ge=0, le=100, description="综合评分")
+    plot_analysis: PlotAnalysis = Field(..., description="情节分析")
+    character_analysis: CharacterAnalysis = Field(..., description="人物分析")
+    worldview_analysis: WorldviewAnalysis = Field(..., description="世界观分析")
+    writing_style: WritingStyleAnalysis = Field(..., description="文风分析")
+    recommendations: Recommendations = Field(..., description="综合建议")
+    is_quick_review: Optional[bool] = Field(default=False, description="是否快速评审")
+    sampled_chapters: Optional[int] = Field(default=None, description="采样章节数")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "book_title": "剑仙传说",
+                "novel_id": "123e4567-e89b-12d3-a456-426614174000",
+                "total_chapters": 20,
+                "analysis_date": "2025-10-26T21:30:00",
+                "overall_score": 82.5,
+                "plot_analysis": {
+                    "structure_type": "三幕式结构",
+                    "acts": [
+                        {"act": 1, "chapters": [1, 5], "summary": "世界观建立"},
+                        {"act": 2, "chapters": [6, 15], "summary": "冲突升级"}
+                    ],
+                    "climax_points": [5, 10, 18],
+                    "rhythm_score": 85,
+                    "rhythm_analysis": "节奏控制良好，高潮分布合理",
+                    "foreshadowing": {"count": 5, "examples": []},
+                    "issues": ["中期节奏略显拖沓"],
+                    "strengths": ["开局吸引人", "高潮设计合理"]
+                },
+                "character_analysis": {
+                    "main_characters": [
+                        {"name": "林风", "role": "主角", "traits": ["坚韧", "聪明"]}
+                    ],
+                    "relationships": [],
+                    "character_score": 80,
+                    "issues": ["配角塑造不足"],
+                    "strengths": ["主角性格鲜明"]
+                },
+                "worldview_analysis": {
+                    "setting": {"era": "修仙时代", "location": "东洲大陆"},
+                    "rules": ["修炼体系", "宗门制度"],
+                    "uniqueness_score": 75,
+                    "consistency_score": 90,
+                    "depth_score": 80,
+                    "issues": [],
+                    "strengths": ["世界观逻辑严谨"]
+                },
+                "writing_style": {
+                    "style_tags": ["简洁", "流畅"],
+                    "language_score": 85,
+                    "description_score": 80,
+                    "dialogue_score": 88,
+                    "readability_score": 90,
+                    "analysis": "文风简洁流畅，适合网文阅读",
+                    "issues": [],
+                    "strengths": ["语言精练"]
+                },
+                "recommendations": {
+                    "core_strengths": ["情节紧凑", "人物鲜明"],
+                    "critical_issues": ["配角需要加强"],
+                    "priority_actions": [
+                        {"priority": 1, "action": "丰富配角", "reason": "增强故事层次"}
+                    ],
+                    "next_steps": "继续保持节奏，加强配角塑造"
+                },
+                "is_quick_review": False
+            }
+        }

@@ -31,7 +31,9 @@ from app.schemas.review import (
     TaskPriorityEnum,
     TaskStatusEnum,
     ParagraphReviewRequest,
-    ParagraphReviewResponse
+    ParagraphReviewResponse,
+    BookReviewRequest,
+    BookReviewResponse
 )
 from app.services.review.novel_review_service import NovelReviewService
 from app.services.review.task_generator_service import TaskGeneratorService
@@ -501,3 +503,140 @@ async def review_paragraph(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"评审失败: {str(e)}"
         )
+
+
+# ==================== 作品级评审接口 ====================
+
+@router.post(
+    "/books",
+    response_model=BookReviewResponse,
+    summary="作品级评审",
+    description="对完整作品进行深度分析 (情节/人物/世界观/文风)"
+)
+async def review_book(
+    request: BookReviewRequest,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    作品级评审
+
+    **使用场景**:
+    - 完成了多个章节,想要整体评估
+    - 分析整体情节脉络、人物关系
+    - 检查世界观一致性
+    - 了解文风特色
+
+    **分析维度** (4个):
+    1. **情节分析** - 结构、节奏、伏笔、高潮设计
+    2. **人物分析** - 主要角色、关系网络、性格一致性
+    3. **世界观分析** - 设定完整性、规则一致性、独特性
+    4. **文风分析** - 语言风格、描写手法、对话质量
+
+    **要求**:
+    - 至少3个章节
+    - 每章不少于500字
+    - 建议10章以内 (使用quick_mode可分析前10章)
+
+    **参数**:
+    - **novel_id**: 小说ID
+    - **book_title**: 书名
+    - **chapters**: 章节列表 [{title, content, order}, ...]
+    - **author_notes**: 作者备注 (可选)
+    - **quick_mode**: 快速模式 (仅分析前10章)
+
+    **返回**:
+    - overall_score: 综合评分 (0-100)
+    - plot_analysis: 情节分析详情
+    - character_analysis: 人物分析详情
+    - worldview_analysis: 世界观分析详情
+    - writing_style: 文风分析详情
+    - recommendations: 综合修改建议
+    """
+    logger.info(
+        f"[POST /review/books] user_id={current_user.id}, "
+        f"novel_id={request.novel_id}, chapters={len(request.chapters)}, "
+        f"quick_mode={request.quick_mode}"
+    )
+
+    # 参数验证
+    if len(request.chapters) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="至少需要3个章节才能进行作品级评审"
+        )
+
+    # 导入服务
+    from app.services.review.book_review_service import BookReviewService
+
+    try:
+        # 转换章节格式
+        chapters_data = [
+            {
+                "title": ch.title,
+                "content": ch.content,
+                "order": ch.order
+            }
+            for ch in request.chapters
+        ]
+
+        # 调用服务
+        service = BookReviewService()
+
+        if request.quick_mode:
+            result = await service.quick_review_book(
+                novel_id=request.novel_id,
+                book_title=request.book_title,
+                chapters=chapters_data
+            )
+        else:
+            result = await service.review_book(
+                novel_id=request.novel_id,
+                book_title=request.book_title,
+                chapters=chapters_data,
+                author_notes=request.author_notes
+            )
+
+        # 转换为响应格式
+        from app.schemas.review import (
+            PlotAnalysis,
+            CharacterAnalysis,
+            WorldviewAnalysis,
+            WritingStyleAnalysis,
+            Recommendations
+        )
+
+        response = BookReviewResponse(
+            book_title=result["book_title"],
+            novel_id=result["novel_id"],
+            total_chapters=result["total_chapters"],
+            analysis_date=result["analysis_date"],
+            overall_score=result["overall_score"],
+            plot_analysis=PlotAnalysis(**result["plot_analysis"]),
+            character_analysis=CharacterAnalysis(**result["character_analysis"]),
+            worldview_analysis=WorldviewAnalysis(**result["worldview_analysis"]),
+            writing_style=WritingStyleAnalysis(**result["writing_style"]),
+            recommendations=Recommendations(**result["recommendations"]),
+            is_quick_review=result.get("is_quick_review", False),
+            sampled_chapters=result.get("sampled_chapters")
+        )
+
+        logger.info(
+            f"[POST /review/books] 评审完成, "
+            f"novel_id={request.novel_id}, overall_score={response.overall_score}"
+        )
+
+        return response
+
+    except ValueError as e:
+        logger.error(f"[POST /review/books] 参数错误: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"[POST /review/books] 错误: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"评审失败: {str(e)}"
+        )
+

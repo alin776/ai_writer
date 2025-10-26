@@ -112,6 +112,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # 忽略额外字段 (如 VITE_* 前端变量)
 
 
 settings = Settings()
