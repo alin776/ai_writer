@@ -1,0 +1,422 @@
+"""
+评审相关 API 路由
+提供章节评审、任务管理、版本管理的接口
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List, Optional
+from uuid import UUID
+import logging
+
+from app.core.database import get_db
+from app.core.security import get_current_active_user
+from app.models.user import User
+from app.schemas.review import (
+    ReviewSessionCreate,
+    ReviewSessionResponse,
+    ChapterReviewResponse,
+    ReviewTaskCreate,
+    ReviewTaskUpdate,
+    ReviewTaskResponse,
+    ReviewTaskStatusUpdate,
+    ReviewTaskListResponse,
+    TaskStatsResponse,
+    BatchOperationRequest,
+    ChapterVersionCreate,
+    ChapterVersionResponse,
+    ChapterVersionDetailResponse,
+    ChapterVersionListResponse,
+    VersionMilestoneUpdate,
+    TaskPriorityEnum,
+    TaskStatusEnum
+)
+from app.services.review.novel_review_service import NovelReviewService
+from app.services.review.task_generator_service import TaskGeneratorService
+from app.services.review.version_manager_service import VersionManagerService
+from app.services.chapter_service import ChapterService
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+
+# ==================== 评审接口 ====================
+
+@router.post("/chapters/{chapter_id}/review", response_model=ChapterReviewResponse)
+async def review_chapter(
+    chapter_id: UUID,
+    request: ReviewSessionCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    发起章节评审
+
+    - **chapter_id**: 章节ID
+    - **review_type**: 评审深度 (quick/standard/deep)
+    - **auto_generate_tasks**: 是否自动生成任务
+    - **create_version**: 是否创建版本快照
+    """
+    logger.info(
+        f"[POST /review/chapters/{chapter_id}] user_id={current_user.id}, "
+        f"review_type={request.review_type}"
+    )
+
+    # 验证章节权限
+    chapter_service = ChapterService(db)
+    chapter = await chapter_service.get_chapter_by_id(str(chapter_id))
+
+    if not chapter:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="章节不存在"
+        )
+
+    # TODO: 验证作品权限 (通过 chapter.work_id)
+
+    # 1. 执行评审
+    review_service = NovelReviewService(db)
+    session = await review_service.review_chapter(
+        chapter_id=chapter_id,
+        user_id=current_user.id,
+        request=request
+    )
+
+    # 2. 自动生成任务 (如果需要)
+    generated_tasks = []
+    if request.auto_generate_tasks:
+        task_service = TaskGeneratorService(db)
+        generated_tasks = await task_service.generate_tasks_from_review(
+            review_session_id=session.id,
+            chapter_id=chapter_id,
+            user_id=current_user.id
+        )
+
+    # 3. 创建版本快照 (如果需要)
+    version = None
+    if request.create_version:
+        version_service = VersionManagerService(db)
+        version = await version_service.create_version(
+            chapter_id=chapter_id,
+            user_id=current_user.id,
+            request=ChapterVersionCreate(
+                is_milestone=False,
+                version_tag="评审后版本",
+                change_summary=f"评审总分: {session.overall_score}"
+            ),
+            review_session_id=session.id
+        )
+
+    logger.info(
+        f"[POST /review/chapters/{chapter_id}] 评审完成: session_id={session.id}, "
+        f"tasks={len(generated_tasks)}, version={version.id if version else None}"
+    )
+
+    return ChapterReviewResponse(
+        session=session,
+        generated_tasks=[ReviewTaskResponse.model_validate(t) for t in generated_tasks],
+        version=ChapterVersionResponse.model_validate(version) if version else None
+    )
+
+
+@router.get("/sessions/{session_id}", response_model=ReviewSessionResponse)
+async def get_review_session(
+    session_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取评审结果"""
+    review_service = NovelReviewService(db)
+    session = await review_service.get_review_session(session_id)
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="评审会话不存在"
+        )
+
+    if session.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权访问此评审结果"
+        )
+
+    return ReviewSessionResponse.model_validate(session)
+
+
+@router.get("/chapters/{chapter_id}/review-history", response_model=List[ReviewSessionResponse])
+async def get_chapter_review_history(
+    chapter_id: UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=50),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取章节的评审历史"""
+    review_service = NovelReviewService(db)
+    sessions = await review_service.get_chapter_review_history(
+        chapter_id=chapter_id,
+        skip=skip,
+        limit=limit
+    )
+
+    return [ReviewSessionResponse.model_validate(s) for s in sessions]
+
+
+# ==================== 任务管理接口 ====================
+
+@router.get("/chapters/{chapter_id}/tasks", response_model=ReviewTaskListResponse)
+async def get_chapter_tasks(
+    chapter_id: UUID,
+    status: Optional[TaskStatusEnum] = Query(None),
+    priority: Optional[TaskPriorityEnum] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    获取章节的任务清单
+
+    - **status**: 任务状态筛选 (pending/in_progress/completed/skipped)
+    - **priority**: 优先级筛选 (P0/P1/P2)
+    """
+    task_service = TaskGeneratorService(db)
+    tasks = await task_service.get_tasks_by_chapter(
+        chapter_id=chapter_id,
+        status=status,
+        priority=priority,
+        skip=skip,
+        limit=limit
+    )
+
+    return ReviewTaskListResponse(
+        total=len(tasks),
+        items=[ReviewTaskResponse.model_validate(t) for t in tasks]
+    )
+
+
+@router.post("/tasks", response_model=ReviewTaskResponse, status_code=status.HTTP_201_CREATED)
+async def create_task(
+    request: ReviewTaskCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """手动创建任务"""
+    task_service = TaskGeneratorService(db)
+    task = await task_service.create_manual_task(
+        user_id=current_user.id,
+        request=request
+    )
+
+    logger.info(f"[POST /tasks] 手动创建任务: task_id={task.id}")
+
+    return ReviewTaskResponse.model_validate(task)
+
+
+@router.patch("/tasks/{task_id}", response_model=ReviewTaskResponse)
+async def update_task(
+    task_id: UUID,
+    request: ReviewTaskUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """更新任务"""
+    task_service = TaskGeneratorService(db)
+
+    try:
+        task = await task_service.update_task(task_id, request)
+        return ReviewTaskResponse.model_validate(task)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+
+@router.patch("/tasks/{task_id}/status", response_model=ReviewTaskResponse)
+async def update_task_status(
+    task_id: UUID,
+    request: ReviewTaskStatusUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """更新任务状态"""
+    task_service = TaskGeneratorService(db)
+
+    try:
+        task = await task_service.update_task_status(task_id, request)
+        return ReviewTaskResponse.model_validate(task)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+
+@router.post("/tasks/batch-operations")
+async def batch_operations(
+    request: BatchOperationRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    批量操作任务
+
+    - **action**: complete/skip/delete/update_priority/reorder
+    - **task_ids**: 任务ID列表
+    """
+    task_service = TaskGeneratorService(db)
+    result = await task_service.batch_operation(request)
+
+    logger.info(
+        f"[POST /tasks/batch-operations] action={request.action}, "
+        f"success={result['success']}, failed={result['failed']}"
+    )
+
+    return result
+
+
+@router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task(
+    task_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """删除任务"""
+    task_service = TaskGeneratorService(db)
+    await task_service.delete_task(task_id)
+    logger.info(f"[DELETE /tasks/{task_id}] 任务已删除")
+
+
+@router.get("/tasks/stats", response_model=TaskStatsResponse)
+async def get_task_stats(
+    chapter_id: Optional[UUID] = Query(None),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取任务统计"""
+    task_service = TaskGeneratorService(db)
+    stats = await task_service.get_task_stats(
+        chapter_id=chapter_id,
+        user_id=current_user.id
+    )
+
+    return stats
+
+
+# ==================== 版本管理接口 ====================
+
+@router.post("/chapters/{chapter_id}/versions", response_model=ChapterVersionResponse, status_code=status.HTTP_201_CREATED)
+async def create_chapter_version(
+    chapter_id: UUID,
+    request: ChapterVersionCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """创建章节版本快照"""
+    version_service = VersionManagerService(db)
+
+    version = await version_service.create_version(
+        chapter_id=chapter_id,
+        user_id=current_user.id,
+        request=request
+    )
+
+    logger.info(
+        f"[POST /chapters/{chapter_id}/versions] 版本创建成功: "
+        f"version_id={version.id}, version_number={version.version_number}"
+    )
+
+    return ChapterVersionResponse.model_validate(version)
+
+
+@router.get("/chapters/{chapter_id}/versions", response_model=ChapterVersionListResponse)
+async def get_chapter_versions(
+    chapter_id: UUID,
+    milestones_only: bool = Query(False),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取章节的版本列表"""
+    version_service = VersionManagerService(db)
+
+    versions = await version_service.get_chapter_versions(
+        chapter_id=chapter_id,
+        include_milestones_only=milestones_only,
+        skip=skip,
+        limit=limit
+    )
+
+    return ChapterVersionListResponse(
+        total=len(versions),
+        versions=[ChapterVersionResponse.model_validate(v) for v in versions]
+    )
+
+
+@router.get("/versions/{version_id}", response_model=ChapterVersionDetailResponse)
+async def get_version_detail(
+    version_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取版本详情 (包含内容)"""
+    version_service = VersionManagerService(db)
+
+    version = await version_service.get_version_by_id(version_id)
+    if not version:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="版本不存在"
+        )
+
+    # 获取完整内容
+    content = await version_service.get_version_content(version_id)
+
+    response = ChapterVersionDetailResponse.model_validate(version)
+    response.content = content
+
+    return response
+
+
+@router.patch("/versions/{version_id}/milestone", response_model=ChapterVersionResponse)
+async def update_version_milestone(
+    version_id: UUID,
+    request: VersionMilestoneUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """更新版本的里程碑状态"""
+    version_service = VersionManagerService(db)
+
+    try:
+        version = await version_service.update_milestone_status(version_id, request)
+        return ChapterVersionResponse.model_validate(version)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+
+@router.get("/versions/compare")
+async def compare_versions(
+    version1_id: UUID = Query(...),
+    version2_id: UUID = Query(...),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """对比两个版本"""
+    version_service = VersionManagerService(db)
+
+    try:
+        result = await version_service.compare_versions(version1_id, version2_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )

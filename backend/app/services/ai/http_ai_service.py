@@ -92,42 +92,49 @@ class HTTPAIService:
                     error_msg = error_text.decode('utf-8', errors='ignore')[:500]
                     logger.error(f"API 错误: {response.status_code}, {error_msg}")
                     raise Exception(f"API 请求失败: {response.status_code}")
-                
+
                 logger.info("API 流式响应已建立，开始接收数据...")
                 chunk_count = 0
-                
+                total_content = ""
+
                 async for line in response.aiter_lines():
                     line = line.strip()
-                    
+
                     # SSE 格式: data: {...}
                     if not line or not line.startswith("data: "):
                         continue
-                    
+
                     # 移除 "data: " 前缀
                     data_str = line[6:]
-                    
+
                     # 结束标记
                     if data_str == "[DONE]":
-                        logger.info(f"API 响应完成，共接收 {chunk_count} 个数据块")
+                        logger.info(f"API 响应完成，共接收 {chunk_count} 个数据块，总长度: {len(total_content)}")
                         break
-                    
+
                     try:
                         data = json.loads(data_str)
-                        
+
                         # 提取内容
                         if "choices" in data and len(data["choices"]) > 0:
                             choice = data["choices"][0]
-                            
+
                             if "delta" in choice and "content" in choice["delta"]:
                                 content = choice["delta"]["content"]
-                                
-                                if content and not self._should_filter(content):
+
+                                # 修复: Gemini API 第一个块的 content 可能是 null
+                                if content is not None and content and not self._should_filter(content):
                                     chunk_count += 1
+                                    total_content += content
                                     yield content
-                    
+
                     except json.JSONDecodeError as e:
                         logger.warning(f"JSON 解析错误: {e}, 数据: {data_str[:100]}")
                         continue
+
+                # 如果没有接收到任何内容，记录警告
+                if chunk_count == 0:
+                    logger.error(f"警告: AI 响应为空！未接收到任何内容块。")
         
         except httpx.HTTPError as e:
             logger.error(f"HTTP 请求错误: {type(e).__name__}: {str(e)}")

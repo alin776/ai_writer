@@ -16,6 +16,9 @@ from app.models.ai_call_log import AICallLog
 from app.models.evaluation_record import EvaluationRecord
 from app.models.humanize_session import HumanizeSession, HumanizeSessionDetail
 from app.models.user_profile import UserProfile
+from app.models.review_session import ReviewSession, ReviewLevel, ReviewType
+from app.models.review_task import ReviewTask, TaskPriority, TaskStatus, TaskSource
+from app.models.chapter_version import ChapterVersion, VersionType
 
 __all__ = [
     "User",
@@ -42,5 +45,14 @@ __all__ = [
     "EvaluationRecord",
     "HumanizeSession",
     "HumanizeSessionDetail",
-    "UserProfile"
+    "UserProfile",
+    "ReviewSession",
+    "ReviewLevel",
+    "ReviewType",
+    "ReviewTask",
+    "TaskPriority",
+    "TaskStatus",
+    "TaskSource",
+    "ChapterVersion",
+    "VersionType"
 ]

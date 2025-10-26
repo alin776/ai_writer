@@ -9,6 +9,7 @@ from sqlalchemy import func, and_, extract, select
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
+import uuid as uuid_lib
 
 from app.models.ai_call_log import AICallLog
 from app.schemas.ai_call_log import (
@@ -23,6 +24,118 @@ class AILogService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    # ==================== 新增: 便捷日志方法 ====================
+
+    async def log_ai_call_start(
+        self,
+        user_id: UUID,
+        operation: str,
+        prompt_text: str,
+        model_name: str
+    ) -> UUID:
+        """
+        记录 AI 调用开始
+
+        Args:
+            user_id: 用户ID
+            operation: 操作类型 (如 "chapter_review", "task_generation")
+            prompt_text: 提示词
+            model_name: 模型名称
+
+        Returns:
+            UUID: 日志ID
+        """
+        log_id = uuid_lib.uuid4()
+        log = AICallLog(
+            id=log_id,
+            user_id=user_id,
+            operation_type=operation,
+            model_name=model_name,
+            is_success=False,  # 初始为失败,成功时更新
+            extra_data={"prompt_preview": prompt_text[:500]}  # 存储提示词预览到 extra_data
+            # created_at 会自动使用 server_default
+        )
+        self.db.add(log)
+        await self.db.flush()  # 立即写入,获取ID
+        return log_id
+
+    async def log_ai_call_success(
+        self,
+        log_id: UUID,
+        response_text: str,
+        tokens_used: int
+    ):
+        """
+        记录 AI 调用成功
+
+        Args:
+            log_id: 日志ID
+            response_text: AI 响应文本
+            tokens_used: 使用的 token 数
+        """
+        result = await self.db.execute(
+            select(AICallLog).where(AICallLog.id == log_id)
+        )
+        log = result.scalar_one_or_none()
+
+        if log:
+            log.is_success = True
+            log.total_tokens = tokens_used
+            log.prompt_tokens = int(tokens_used * 0.7)  # 估算
+            log.completion_tokens = int(tokens_used * 0.3)  # 估算
+
+            # TODO: 根据模型计算成本
+            log.total_cost = tokens_used * 0.00001  # 临时成本估算
+            log.prompt_cost = log.total_cost * 0.7
+            log.completion_cost = log.total_cost * 0.3
+
+            # 存储响应预览到 extra_data
+            if log.extra_data:
+                log.extra_data["response_preview"] = response_text[:500]
+            else:
+                log.extra_data = {"response_preview": response_text[:500]}
+
+            # 计算耗时
+            if log.created_at:
+                from datetime import datetime, timezone
+                now = datetime.now(timezone.utc)
+                duration = (now - log.created_at).total_seconds() * 1000
+                log.duration_ms = int(duration)
+
+            await self.db.commit()
+
+    async def log_ai_call_error(
+        self,
+        log_id: UUID,
+        error_message: str
+    ):
+        """
+        记录 AI 调用失败
+
+        Args:
+            log_id: 日志ID
+            error_message: 错误信息
+        """
+        result = await self.db.execute(
+            select(AICallLog).where(AICallLog.id == log_id)
+        )
+        log = result.scalar_one_or_none()
+
+        if log:
+            log.is_success = False
+            log.error_message = error_message[:1000]  # 限制长度
+
+            # 计算耗时
+            if log.created_at:
+                from datetime import datetime, timezone
+                now = datetime.now(timezone.utc)
+                duration = (now - log.created_at).total_seconds() * 1000
+                log.duration_ms = int(duration)
+
+            await self.db.commit()
+
+    # ==================== 原有方法 ====================
 
     async def create_log(self, log_data: AICallLogCreate) -> AICallLog:
         """
