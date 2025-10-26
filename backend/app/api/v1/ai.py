@@ -22,7 +22,18 @@ from app.core.security import get_current_active_user
 from app.models.user import User
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.ai.ai_log_middleware import AILogMiddleware
+from app.services.ai.evaluation_service import EvaluationService
+from app.services.ai.text_analyzer import TextAnalyzer
+from app.services.ai.rewrite_arena_service import get_arena_service
 from app.core.config import settings
+from app.schemas.evaluation import EvaluationRequest, EvaluationResponse
+from app.schemas.text_analysis import (
+    TextAnalysisRequest,
+    TextAnalysisResult,
+    RewriteRequest,
+    RewriteResponse,
+    ModelResult
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -516,17 +527,6 @@ async def ai_health_check():
 
 # ==================== AI 改写助手路由 ====================
 
-from app.schemas.text_analysis import (
-    TextAnalysisRequest,
-    TextAnalysisResult,
-    RewriteRequest,
-    RewriteResponse,
-    ModelResult
-)
-from app.services.ai.text_analyzer import TextAnalyzer
-from app.services.ai.rewrite_arena_service import get_arena_service
-
-
 @router.get(
     "/rewrite-arena/models",
     summary="获取可用模型列表",
@@ -760,3 +760,102 @@ async def rewrite_text(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"改写失败: {error_msg}"
         )
+
+
+# ==================== AI 评价功能路由 ====================
+
+@router.post(
+    "/evaluate",
+    summary="评价AI生成内容",
+    response_model=EvaluationResponse,
+    description="""
+    对AI生成的内容进行专业评价,返回5维度评分和改进建议。
+
+    **评价维度**:
+    1. **文学性** (literary_quality) - 语言质量、修辞手法、文字美感
+    2. **连贯性** (coherence) - 与前文衔接、逻辑流畅度
+    3. **创意性** (creativity) - 新颖度、想象力、打破常规
+    4. **情感感染力** (emotional_impact) - 情感表达、读者共鸣度
+    5. **节奏把控** (pacing) - 快慢适度、张弛有度
+
+    **请求示例**:
+    ```json
+    {
+      "text": "这是AI生成的一段小说内容...",
+      "operation_type": "continue",
+      "context": {
+        "work_title": "我的小说",
+        "chapter_title": "第一章",
+        "previous_text": "前文片段..."
+      }
+    }
+    ```
+
+    **返回示例**:
+    ```json
+    {
+      "overall_score": 82.0,
+      "dimensions": {
+        "literary_quality": 85.0,
+        "coherence": 80.0,
+        "creativity": 75.0,
+        "emotional_impact": 88.0,
+        "pacing": 82.0
+      },
+      "highlights": [
+        "语言流畅,文字优美",
+        "情感表达细腻,有感染力"
+      ],
+      "issues": [
+        "部分描写过于抽象,缺乏具体细节"
+      ],
+      "suggestions": [
+        "增加感官描写,让场景更生动"
+      ],
+      "evaluation_id": "770e8400-e29b-41d4-a716-446655440000",
+      "created_at": "2025-10-26T14:12:00Z"
+    }
+    ```
+    """
+)
+async def evaluate_generated_content(
+    request: EvaluationRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+) -> EvaluationResponse:
+    """评价AI生成内容接口"""
+    logger.info(
+        f"[AI评价] 用户: {current_user.username}({current_user.id}), "
+        f"操作类型: {request.operation_type}, "
+        f"文本长度: {len(request.text)}"
+    )
+
+    try:
+        # 创建评价服务
+        evaluation_service = EvaluationService(
+            db=db,
+            user_id=current_user.id
+        )
+
+        # 执行评价
+        result = await evaluation_service.evaluate_text(
+            request=request,
+            model_name=settings.OPENAI_MODEL
+        )
+
+        logger.info(
+            f"[AI评价] 用户 {current_user.username} 评价完成, "
+            f"总分: {result.overall_score}, "
+            f"评价ID: {result.evaluation_id}"
+        )
+
+        return result
+
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"[AI评价] 用户 {current_user.username} 评价失败: {error_msg}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"评价失败: {error_msg}"
+        )
+

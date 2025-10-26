@@ -105,7 +105,8 @@ class AILogMiddleware:
                     extra_data=extra_data or {}
                 )
 
-                await self.log_service.create_log(log_data)
+                log_record = await self.log_service.create_log(log_data)
+                token_counter.log_id = log_record.id  # 保存日志ID
 
                 logger.info(
                     f"AI调用日志已记录: operation={operation_type}, "
@@ -125,6 +126,7 @@ class TokenCounter:
     def __init__(self):
         self.prompt_tokens = 0
         self.completion_tokens = 0
+        self.log_id = None  # 存储关联的日志ID
 
     @property
     def total_tokens(self) -> int:

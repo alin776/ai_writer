@@ -1,8 +1,8 @@
 # API 参考文档
 
 > **NovelAIde API 参考文档**
-> 版本: v2.13
-> 最后更新: 2025-10-24
+> 版本: v2.14
+> 最后更新: 2025-10-26
 
 ---
 
@@ -1327,6 +1327,114 @@ data: {"chunk": " a beautiful", "done": false}
 ---
 
 ### 8.6 AI自动补全
+
+**接口**: `POST /api/v1/ai/autocomplete`
+
+**描述**: 根据当前输入实时提供补全建议
+
+**请求体**:
+```json
+{
+  "context": "他打开门，看到",
+  "maxLength": 50
+}
+```
+
+---
+
+### 8.6 AI评价内容质量 ⭐ NEW
+
+**接口**: `POST /api/v1/ai/evaluate`
+
+**描述**: 对AI生成的内容进行专业评价,返回5维度评分和改进建议
+
+**请求体**:
+```json
+{
+  "text": "林风深吸一口气,缓缓推开了那扇厚重的木门...",
+  "operation_type": "continue",
+  "context": {
+    "work_id": "work_001",
+    "chapter_id": "chapter_001",
+    "work_title": "我的小说",
+    "chapter_title": "第一章",
+    "previous_text": "这是前文片段..."
+  }
+}
+```
+
+**参数说明**:
+- `text` (required): 待评价的AI生成内容 (10-10000字符)
+- `operation_type` (required): 操作类型
+  - `continue`: 续写
+  - `polish`: 润色
+  - `expand`: 扩写
+  - `translate`: 翻译
+  - `summarize`: 总结
+- `context` (optional): 上下文信息
+  - `work_id`: 作品ID
+  - `chapter_id`: 章节ID
+  - `work_title`: 作品标题
+  - `chapter_title`: 章节标题
+  - `previous_text`: 前文片段 (最多1000字)
+
+**响应**:
+```json
+{
+  "overall_score": 82.0,
+  "dimensions": {
+    "literary_quality": 85.0,
+    "coherence": 80.0,
+    "creativity": 75.0,
+    "emotional_impact": 88.0,
+    "pacing": 82.0
+  },
+  "highlights": [
+    "语言流畅,文字优美",
+    "情感表达细腻,有感染力",
+    "节奏把控得当,张弛有度"
+  ],
+  "issues": [
+    "部分描写过于抽象,缺乏具体细节",
+    "某些情节转折略显生硬"
+  ],
+  "suggestions": [
+    "增加感官描写,让场景更生动",
+    "在情节转折处增加铺垫"
+  ],
+  "evaluation_id": "770e8400-e29b-41d4-a716-446655440000",
+  "created_at": "2025-10-26T14:30:00Z"
+}
+```
+
+**5维度评价体系**:
+
+| 维度 | 说明 | 评分范围 |
+|------|------|---------|
+| literary_quality | 文学性 - 语言质量、修辞手法、文字美感 | 0-100 |
+| coherence | 连贯性 - 与前文衔接、逻辑流畅度 | 0-100 |
+| creativity | 创意性 - 新颖度、想象力、打破常规 | 0-100 |
+| emotional_impact | 情感感染力 - 情感表达、读者共鸣度 | 0-100 |
+| pacing | 节奏把控 - 快慢适度、张弛有度 | 0-100 |
+
+**特性**:
+- ✅ 5维度专业评分
+- ✅ 具体优点/问题/建议列表
+- ✅ 自动记录到AI日志系统
+- ✅ Token消耗和成本统计
+- ✅ 评价记录持久化
+
+**成本估算**:
+- 评价500字文本: ~1,450 prompt tokens + ~500 completion tokens ≈ $0.02 (GPT-4)
+
+**注意事项**:
+- 评价由用户主动触发,不会自动执行
+- 评价结果保存到 `evaluation_records` 表
+- AI调用记录到 `ai_call_logs` 表,operation_type 为 `evaluate`
+
+---
+
+### 8.7 AI自动补全
 
 **接口**: `POST /api/v1/ai/autocomplete`
 

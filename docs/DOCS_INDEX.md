@@ -6,7 +6,7 @@
 
 ```
 docs/
-├── 核心文档/ (13个)
+├── 核心文档/ (14个)
 │   ├── README.md - 文档总览
 │   ├── 01-overview.md - 项目概述
 │   ├── 02-tech-stack.md - 技术栈规划
@@ -14,17 +14,19 @@ docs/
 │   ├── 04-milestones.md - 开发路线图
 │   ├── 05-tasks.md - 开发任务清单
 │   ├── 06-frontend-specs.md - 前端开发规范
-│   ├── 07-api-reference.md - API参考文档
+│   ├── 07-api-reference.md - API参考文档 (v2.14) 🔥
 │   ├── 08-deployment.md - 部署运维指南
 │   ├── 09-references.md - 参考资源
 │   ├── 10-feature-import-export.md - 导入导出功能
 │   ├── 11-feature-ai-arena.md - AI写作竞技场
 │   ├── 12-changelog.md - 文档更新日志
-│   └── 13-build-and-deploy.md - 构建部署指南
-├── AI功能文档/ (3个)
+│   ├── 13-build-and-deploy.md - 构建部署指南
+│   └── 14-ai-evaluation-summary.md - AI评价功能总结 ⭐⭐ 🔥
+├── AI功能文档/ (4个)
 │   ├── HUMANIZE_SUMMARY.md - AI去痕迹功能总结 ⭐⭐
 │   ├── HUMANIZE_QUICKSTART.md - 快速开始指南
-│   └── HUMANIZE_BUGFIX.md - Bug修复记录
+│   ├── HUMANIZE_BUGFIX.md - Bug修复记录
+│   └── 14-ai-evaluation-summary.md - AI评价功能开发总结 ⭐⭐ 🔥
 ├── 测试文档/ (2个)
 │   ├── TESTING_GUIDE.md - 测试指南
 │   └── TESTING_SUMMARY.md - 测试总结
@@ -32,7 +34,7 @@ docs/
 │   ├── core-workflow.md - 核心流程图
 │   └── 数据面板模块完整检查报告.md
 └── 索引文档/ (2个)
-    ├── DOCS_INDEX.md - 本文档
+    ├── DOCS_INDEX.md - 本文档 🔥
     └── DOCS_UPDATE_2025-10-26.md - 最新更新记录
 
 backend/docs/
@@ -117,6 +119,7 @@ backend/docs/
 
 **其他AI功能**:
 - [11-feature-ai-arena.md](./11-feature-ai-arena.md) - AI写作竞技场设计
+- [14-ai-evaluation-summary.md](./14-ai-evaluation-summary.md) - AI评价功能总结 ⭐⭐ 🔥
 
 ### 产品规划
 
@@ -137,11 +140,11 @@ backend/docs/
 
 | 分类 | 文档数量 | 总字数估计 |
 |------|---------|----------|
-| 核心文档 | 13个 | ~25,000字 |
-| AI功能文档 | 3个 | ~8,000字 |
+| 核心文档 | 14个 | ~30,000字 |
+| AI功能文档 | 4个 | ~12,000字 |
 | 测试文档 | 6个 | ~12,000字 |
 | 后端文档 | 17个 | ~20,000字 |
-| **总计** | **39个** | **~65,000字** |
+| **总计** | **41个** | **~74,000字** |
 
 ---
 
@@ -158,6 +161,13 @@ backend/docs/
 ---
 
 ## 🔄 最近更新
+
+### 2025-10-26 (v2.15)
+- 🔥 新增AI评价功能文档 (14-ai-evaluation-summary.md)
+- 🔥 更新API参考文档 v2.13 → v2.14 (新增评价接口)
+- 🔥 新增测试报告 (tasks/ai_evaluation_test_report.md)
+- 🔥 更新任务清单 (tasks/todo.md - Day 1完成)
+- 📝 文档总数 39个 → 41个
 
 ### 2025-10-26 (v2.14)
 - 🔥 新增AI去痕迹功能文档 (3个)
@@ -195,6 +205,6 @@ backend/docs/
 
 ---
 
-**维护者**: NovelAIde 团队  
-**最后更新**: 2025-10-26  
-**版本**: v2.14
+**维护者**: NovelAIde 团队
+**最后更新**: 2025-10-26
+**版本**: v2.15
