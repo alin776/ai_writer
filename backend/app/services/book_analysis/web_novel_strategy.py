@@ -214,7 +214,17 @@ class WebNovelStrategy(BookAnalysisStrategy):
 - 重复已有网文的套路而不加创新
 - 忽略"爽点密度"与"期待感钩子"的布局
 
-**重要**: 你必须且只能返回纯 JSON 格式,不要使用 markdown 代码块包裹。"""
+【方案B】JSON格式严格要求 (务必遵守):
+1. ✅ 必须使用英文标点: 英文双引号("), 英文逗号(,), 英文冒号(:)
+2. ❌ 禁止使用中文标点: 中文引号("")('')、中文逗号(,)、中文冒号(:)
+3. ❌ 禁止使用markdown代码块包裹 (不要写 ```json 或 ```)
+4. ✅ 直接返回纯JSON,第一个字符必须是 {,最后一个字符必须是 }
+5. ✅ 所有字符串值必须用英文双引号包裹,内部如需引号请用转义 \"
+
+错误示例: {"name": "食神阁"}  ← 包含中文引号,会导致解析失败
+正确示例: {"name": "食神阁"}  ← 使用英文引号
+
+**重要**: 你必须且只能返回纯 JSON 格式,严格使用英文标点符号。"""
 
     def build_user_prompt(
         self,
@@ -305,16 +315,28 @@ JSON Schema:
         """
         解析AI返回结果
 
-        支持3种格式:
+        支持多种格式和容错策略:
         1. 纯JSON
         2. markdown代码块包裹的JSON
         3. 前后有额外文本的JSON
+        4. 包含中文标点的JSON (自动修复)
+        5. 格式错误的JSON (使用json-repair自动修复)
         """
         import logging
         logger = logging.getLogger(__name__)
 
         logger.info(f"🔍 开始解析AI响应,长度={len(response)}")
         logger.debug(f"📝 原始响应前500字符: {response[:500]}")
+
+        # 【方案A】预处理: 替换中文标点符号为英文标点
+        original_response = response
+        response = response.replace('"', '"').replace('"', '"')  # 中文双引号 → 英文双引号
+        response = response.replace(''', "'").replace(''', "'")  # 中文单引号 → 英文单引号
+        response = response.replace('，', ',')  # 中文逗号 → 英文逗号 (保守,仅在JSON关键位置)
+
+        if response != original_response:
+            logger.info(f"✅ 预处理: 已替换中文标点符号")
+            logger.debug(f"📝 替换后前500字符: {response[:500]}")
 
         # 尝试直接解析
         try:
@@ -346,11 +368,33 @@ JSON Schema:
                 logger.info(f"✅ 花括号内容解析成功")
                 return self._normalize_response(data)
             except json.JSONDecodeError as e:
-                logger.error(f"❌ 花括号内容解析失败: {e}")
-                logger.error(f"📝 提取的内容: {extracted[:500]}...")
+                logger.debug(f"❌ 花括号内容解析失败: {e}")
+                logger.debug(f"📝 提取的内容: {extracted[:500]}...")
+
+                # 【方案D】最后的手段: 使用json-repair自动修复
+                try:
+                    from json_repair import repair_json
+                    logger.info(f"🔧 尝试使用json-repair修复JSON...")
+                    repaired = repair_json(extracted)
+                    data = json.loads(repaired)
+                    logger.info(f"✅ json-repair修复成功!")
+                    return self._normalize_response(data)
+                except Exception as repair_error:
+                    logger.error(f"❌ json-repair修复失败: {repair_error}")
+
+        # 如果提取花括号也失败,对整个响应尝试json-repair
+        try:
+            from json_repair import repair_json
+            logger.info(f"🔧 对完整响应尝试json-repair...")
+            repaired = repair_json(response)
+            data = json.loads(repaired)
+            logger.info(f"✅ json-repair修复完整响应成功!")
+            return self._normalize_response(data)
+        except Exception as e:
+            logger.error(f"❌ json-repair修复完整响应失败: {e}")
 
         # 解析失败,记录完整响应
-        logger.error(f"❌ 所有解析方法都失败")
+        logger.error(f"❌ 所有解析方法都失败 (包括json-repair)")
         logger.error(f"📝 完整响应内容:\n{response}")
         raise ValueError(f"无法解析AI响应为JSON格式,请查看日志获取详细信息")
 

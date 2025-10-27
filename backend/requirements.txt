@@ -47,6 +47,7 @@ iniconfig==2.1.0
 isort==5.13.2
 Jinja2==3.1.6
 joblib==1.5.2
+json-repair==0.52.3
 jsonpatch==1.33
 jsonpointer==3.0.0
 langchain-community==0.3.15
@@ -65,7 +66,7 @@ mypy_extensions==1.1.0
 networkx==3.5
 nodeenv==1.9.1
 numpy==1.26.4
-openai==1.10.0
+openai==1.58.1
 orjson==3.11.4
 packaging==23.2
 passlib==1.7.4
@@ -115,7 +116,7 @@ starlette==0.35.1
 sympy==1.14.0
 tenacity==8.5.0
 threadpoolctl==3.6.0
-tiktoken==0.5.2
+tiktoken==0.7.0
 tokenizers==0.22.1
 torch==2.9.0
 tqdm==4.67.1

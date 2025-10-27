@@ -1,136 +1,162 @@
-```json
 {
   "root_nodes": [
     {
       "id": "core_selling_point",
       "name": "核心卖点",
-      "description": "美食系统+厨艺逆袭双核驱动，主角以市井食材碾压高端厨具，通过'食材溯源'新功能揭开隐藏的美食异能世界",
+      "description": "重生+美食系统双核驱动，展现小人物逆袭餐饮帝国的爽快征程",
       "children": []
     },
     {
       "id": "protagonist_setting",
       "name": "主角设定",
-      "description": "市井小厨逆袭者，天赋异禀却遭同行排挤，系统觉醒后开启美食开挂人生",
+      "description": "落魄星厨继承人，性格冷静隐忍，被家族除名后在小餐馆挣扎求生",
       "children": [
         {
           "id": "identity",
           "name": "身份背景",
-          "description": "20岁餐饮学徒出身，因系统觉醒成为华夏最年轻国宴大师，掌握食材溯源能力"
+          "description": "30岁重生回20岁的落魄厨师，原为星厨世家继承人，因家族内斗被除名"
         },
         {
           "id": "personality",
           "name": "性格标签",
-          "description": "表面谦逊实则腹黑，擅长用'敬畏之心'伪装实力，对美食有极致追求"
+          "description": "表面温和实则腹黑，擅长隐藏实力，对美食有极致追求"
         },
         {
           "id": "initial_crisis",
           "name": "初始困境",
-          "description": "遭米其林二星厨师排挤，在全国大赛前缺乏高端食材与人脉资源"
+          "description": "被家族剥夺继承权，靠在小餐馆打工维生，遭遇同行排挤与食材短缺"
         }
       ]
     },
     {
       "id": "cheat_system",
       "name": "金手指系统",
-      "description": "绑定美食图鉴系统的味觉天才，可通过料理解锁食材本源力量",
+      "description": "可进化的美食评鉴系统，构建完整能力闭环",
       "children": [
         {
           "id": "mechanism",
           "name": "核心机理",
-          "description": "通过'食材溯源'追溯最佳产地，结合味觉共鸣实现食材力量增幅，比赛时自动匹配最优料理方案"
+          "description": "通过料理解析火候刀工，实时生成料理评分并提供优化建议"
         },
         {
           "id": "growth_path",
           "name": "成长路径",
-          "description": "从复制配方到创造新菜式，最终解锁'本味罗盘'掌控食材本源，每晋升一境解锁特殊火候掌控能力"
+          "description": "从基础评鉴→配方复制→食材溯源→味觉粒子操控的四阶进化体系"
         },
         {
           "id": "usage_examples",
           "name": "用法示例",
-          "description": "全国大赛中用普通白菜还原米其林三星菜品，通过溯源功能发现云南野生菌的隐藏药用价值"
+          "description": "第5章解锁食材溯源功能，精准定位云南松茸最佳产地，碾压对手"
         }
       ]
     },
     {
       "id": "world_framework",
       "name": "世界观框架",
-      "description": "现代都市隐藏'美食异能者'体系，顶级厨师可通过'味觉共鸣'引发元素异象",
+      "description": "2014年现实世界与美食异能的融合时空",
       "children": []
     },
     {
       "id": "power_system",
       "name": "等级力量体系",
-      "description": "厨艺境界分九段：学徒→见习→专业→大师→宗师→厨神，每段对应'火候掌控''食材共鸣'等特殊能力",
-      "children": []
+      "description": "五维成长体系构建厨艺金字塔",
+      "children": [
+        {
+          "id": "tier_1",
+          "name": "学徒→见习→专业",
+          "description": "基础料理能力，掌握刀工火候基础"
+        },
+        {
+          "id": "tier_2",
+          "name": "大师→宗师→厨神",
+          "description": "料理成品可影响情绪，第5章解锁国宴大师称号"
+        }
+      ]
     },
     {
       "id": "antagonist_forces",
       "name": "反派势力",
-      "description": "从黑帮到神秘组织的三重压迫，每个层级都有料理杀手和禁忌食谱",
+      "description": "三级递进式敌对体系制造持续冲突",
       "children": [
         {
           "id": "tier_1",
           "name": "前期反派",
-          "description": "米其林星级厨师联盟，通过食材垄断打压异军突起的年轻厨师"
+          "description": "米其林二星厨师张天鹏，代表地方餐饮势力"
         },
         {
           "id": "tier_2",
           "name": "中期反派",
-          "description": "暗黑料理黑市头目，掌握能致人失明的'幻味毒经'"
+          "description": "尚未登场的国际餐饮集团"
         },
         {
           "id": "tier_3",
           "name": "后期反派",
-          "description": "神秘组织'食神殿'，企图用'本味罗盘'控制全球食材命脉"
+          "description": "厨皇会幕后黑手"
         }
       ]
     },
     {
       "id": "romance_line",
       "name": "情感线设定",
-      "description": "与美食记者苏璃从'暗访对手'到'厨艺擂台死敌'再到'破解暗黑料理阴谋'的双向救赎",
+      "description": "与美食评论家苏璃从互相看不顺眼到并肩作战",
       "children": []
     },
     {
       "id": "satisfaction_points",
       "name": "爽点布局",
-      "description": "每章设置料理对决，通过市井食材碾压高端厨具，用信息差制造连续打脸",
+      "description": "三阶段递进式爽点设计",
       "children": [
         {
           "id": "chapter_1_10",
           "name": "前10章爽点",
-          "description": "全国大赛决赛用普通食材满分胜出，揭露评委收受贿赂的'食材黑幕'"
+          "description": "第5章全国烹饪大赛决赛，用普通食材做出满分料理，反杀米其林二星"
         },
         {
           "id": "chapter_10_30",
           "name": "10-30章爽点",
-          "description": "溯源发现被篡改的有机蔬菜认证，用'火候掌控'烧出能驱虫的特殊烟雾"
+          "description": "暂未展开"
         },
         {
           "id": "chapter_30_plus",
           "name": "30章后爽点",
-          "description": "以'刀工斩铁'破解暗黑料理封印，用'本味罗盘'定位被劫持的食神雕像"
+          "description": "暂未展开"
         }
       ]
     },
     {
       "id": "anticipation_hooks",
       "name": "期待感钩子",
-      "description": "每章结尾抛出'神秘食盒''消失的调味圣物''评委突然失明'等未解谜题",
-      "children": []
+      "description": "多层悬念构建追更引力",
+      "children": [
+        {
+          "id": "hook_1",
+          "name": "隐藏食谱解锁进度",
+          "description": "系统提示中暗示存在更高阶料理配方"
+        },
+        {
+          "id": "hook_2",
+          "name": "反派阴谋线索",
+          "description": "张天鹏败北后暗示有幕后黑手操控"
+        }
+      ]
     },
     {
       "id": "sub_plots",
       "name": "支线剧情",
-      "description": "寻找散落的'本味罗盘'碎片/收服叛逃的'食神雕像'/破解古代食神留下的'食材迷宫'",
+      "description": "三条支线增强叙事厚度",
       "children": []
     },
     {
       "id": "unique_features",
       "name": "特色设定",
-      "description": "将'厨艺境界'异能化，创造'刀工可斩铁''火候能焚妖'的超现实美食世界",
-      "children": []
+      "description": "差异化三重创新体系",
+      "children": [
+        {
+          "id": "feature_1",
+          "name": "料理科学化",
+          "description": "引入食材相位变化理论，解释料理升维原理"
+        }
+      ]
     }
   ]
 }
-```
