@@ -30,10 +30,7 @@ def extract_json_from_response(text: str) -> Dict[str, Any]:
     """
     从 AI 响应中提取 JSON 对象
 
-    处理以下情况:
-    1. 纯 JSON: {"key": "value"}
-    2. Markdown 包裹: ```json\n{...}\n```
-    3. 前后有额外文本: 这是评审结果:\n{...}\n\n希望有帮助
+    使用统一的JSON解析工具,支持多种格式和容错策略。
 
     Args:
         text: AI 返回的原始文本
@@ -44,46 +41,19 @@ def extract_json_from_response(text: str) -> Dict[str, Any]:
     Raises:
         ValueError: 无法提取或解析 JSON
     """
-    text = text.strip()
+    from app.utils.json_parser import parse_ai_json
 
-    # 方法 1: 尝试直接解析
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
+    result = parse_ai_json(
+        response=text,
+        log_prefix="NovelReviewService"
+    )
 
-    # 方法 2: 提取 markdown 代码块中的 JSON
-    # 匹配: ```json\n{...}\n``` 或 ```\n{...}\n```
-    markdown_pattern = r'```(?:json)?\s*\n(.*?)\n```'
-    match = re.search(markdown_pattern, text, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group(1).strip())
-        except json.JSONDecodeError:
-            pass
+    # 检查是否解析失败
+    if "error" in result and result["error"] == "解析失败":
+        logger.error(f"JSON解析失败")
+        raise ValueError(f"无法解析AI响应为JSON: {result.get('raw_response', '')[:200]}")
 
-    # 方法 3: 查找第一个完整的 JSON 对象
-    # 从第一个 { 到对应的 } (处理嵌套)
-    start = text.find('{')
-    if start == -1:
-        raise ValueError("响应中未找到 JSON 对象")
-
-    # 使用栈匹配括号
-    stack = 0
-    for i in range(start, len(text)):
-        if text[i] == '{':
-            stack += 1
-        elif text[i] == '}':
-            stack -= 1
-            if stack == 0:
-                # 找到完整的 JSON 对象
-                try:
-                    json_str = text[start:i+1]
-                    return json.loads(json_str)
-                except json.JSONDecodeError as e:
-                    raise ValueError(f"JSON 解析失败: {str(e)}")
-
-    raise ValueError("未找到完整的 JSON 对象")
+    return result
 
 
 class NovelReviewService:

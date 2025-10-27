@@ -434,26 +434,19 @@ class BookReviewAnalyzer:
         return summaries
 
     def _parse_json_response(self, response: str) -> Dict[str, Any]:
-        """解析JSON响应"""
-        try:
-            return json.loads(response)
-        except json.JSONDecodeError:
-            # 移除markdown标记
-            response = response.strip()
-            if response.startswith("```json"):
-                response = response[7:]
-            elif response.startswith("```"):
-                response = response[3:]
-            if response.endswith("```"):
-                response = response[:-3]
-            response = response.strip()
+        """
+        解析JSON响应
 
-            try:
-                return json.loads(response)
-            except json.JSONDecodeError as e:
-                logger.error(f"JSON解析失败: {e}")
-                logger.error(f"原始响应: {response[:500]}")
-                return {
-                    "error": "解析失败",
-                    "raw_response": response[:500]
-                }
+        使用统一的JSON解析工具,支持:
+        - 纯JSON
+        - markdown代码块
+        - 前后有额外文本
+        - 中文标点自动修复
+        - json-repair自动修复
+        """
+        from app.utils.json_parser import parse_ai_json
+
+        return parse_ai_json(
+            response=response,
+            log_prefix="BookReviewAnalyzer"
+        )
