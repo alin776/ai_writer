@@ -1,0 +1,363 @@
+"""
+网文11维度分析策略
+
+参考番茄小说平台的网文分析方法,提供11个维度的深度分析:
+1. 核心卖点
+2. 主角设定
+3. 金手指系统
+4. 世界观框架
+5. 等级力量体系
+6. 反派势力
+7. 情感线设定
+8. 爽点布局
+9. 期待感钩子
+10. 支线剧情
+11. 特色设定
+"""
+
+import json
+import re
+from typing import Dict, List, Optional, Any
+
+from .strategy import (
+    BookAnalysisStrategy,
+    AnalysisDimension,
+    DimensionType,
+    strategy_registry
+)
+
+
+class WebNovelStrategy(BookAnalysisStrategy):
+    """
+    网文11维度分析策略
+
+    专为网络小说(特别是爽文)设计的分析策略
+    """
+
+    @property
+    def strategy_id(self) -> str:
+        return "web_novel_11d"
+
+    @property
+    def strategy_name(self) -> str:
+        return "网文11维度分析"
+
+    @property
+    def description(self) -> str:
+        return "专为网络小说设计的11维度深度分析,包括核心卖点、金手指系统、爽点布局等网文特有元素"
+
+    def get_dimensions(self) -> List[AnalysisDimension]:
+        """定义11个分析维度"""
+        return [
+            # 1. 核心卖点
+            AnalysisDimension(
+                id="core_selling_point",
+                name="核心卖点",
+                description="一句话概括小说的最大吸引力点",
+                priority=1,
+                output_length="50-80字",
+                dimension_type=DimensionType.TECHNIQUE,
+                tags=["卖点", "核心定位"]
+            ),
+
+            # 2. 主角设定
+            AnalysisDimension(
+                id="protagonist_setting",
+                name="主角设定",
+                description="主角的身份背景、性格标签、初始困境",
+                priority=2,
+                output_length="100-200字",
+                dimension_type=DimensionType.CHARACTER_TEMPLATE,
+                tags=["角色", "主角"],
+                sub_elements=[
+                    {"id": "identity", "name": "身份背景"},
+                    {"id": "personality", "name": "性格标签"},
+                    {"id": "initial_crisis", "name": "初始困境"}
+                ]
+            ),
+
+            # 3. 金手指系统
+            AnalysisDimension(
+                id="cheat_system",
+                name="金手指系统",
+                description="主角的外挂、系统或核心优势",
+                priority=3,
+                output_length="150-250字",
+                dimension_type=DimensionType.POWER_SYSTEM,
+                tags=["金手指", "系统"],
+                sub_elements=[
+                    {"id": "mechanism", "name": "核心机理"},
+                    {"id": "growth_path", "name": "成长路径"},
+                    {"id": "usage_examples", "name": "用法示例"}
+                ]
+            ),
+
+            # 4. 世界观框架
+            AnalysisDimension(
+                id="world_framework",
+                name="世界观框架",
+                description="故事发生的时代背景与底层规则",
+                priority=4,
+                output_length="100-200字",
+                dimension_type=DimensionType.SETTING,
+                tags=["世界观", "背景设定"]
+            ),
+
+            # 5. 等级力量体系
+            AnalysisDimension(
+                id="power_system",
+                name="等级力量体系",
+                description="角色成长的分层体系与战力规则",
+                priority=5,
+                output_length="100-200字",
+                dimension_type=DimensionType.POWER_SYSTEM,
+                tags=["力量体系", "等级"]
+            ),
+
+            # 6. 反派势力
+            AnalysisDimension(
+                id="antagonist_forces",
+                name="反派势力",
+                description="敌对体系,层级递进的反派设计",
+                priority=6,
+                output_length="100-200字",
+                dimension_type=DimensionType.CHARACTER_TEMPLATE,
+                tags=["反派", "势力"],
+                sub_elements=[
+                    {"id": "tier_1", "name": "前期反派"},
+                    {"id": "tier_2", "name": "中期反派"},
+                    {"id": "tier_3", "name": "后期反派"}
+                ]
+            ),
+
+            # 7. 情感线设定
+            AnalysisDimension(
+                id="romance_line",
+                name="情感线设定",
+                description="情感关系的发展路径",
+                priority=7,
+                output_length="100-150字",
+                dimension_type=DimensionType.RELATIONSHIP,
+                tags=["情感线", "感情"]
+            ),
+
+            # 8. 爽点布局
+            AnalysisDimension(
+                id="satisfaction_points",
+                name="爽点布局",
+                description="打脸、反差、碾压、绝境翻盘等爽点设计",
+                priority=8,
+                output_length="150-250字",
+                dimension_type=DimensionType.TECHNIQUE,
+                tags=["爽点", "节奏"],
+                sub_elements=[
+                    {"id": "chapter_1_10", "name": "前10章爽点"},
+                    {"id": "chapter_10_30", "name": "10-30章爽点"},
+                    {"id": "chapter_30_plus", "name": "30章后爽点"}
+                ]
+            ),
+
+            # 9. 期待感钩子
+            AnalysisDimension(
+                id="anticipation_hooks",
+                name="期待感钩子",
+                description="悬念、伏笔、预告等拉期待的设计",
+                priority=9,
+                output_length="150-250字",
+                dimension_type=DimensionType.TECHNIQUE,
+                tags=["悬念", "伏笔", "期待感"]
+            ),
+
+            # 10. 支线剧情
+            AnalysisDimension(
+                id="sub_plots",
+                name="支线剧情",
+                description="增强可读性的副线",
+                priority=10,
+                output_length="100-200字",
+                dimension_type=DimensionType.PLOT_STRUCTURE,
+                tags=["支线", "副线"]
+            ),
+
+            # 11. 特色设定
+            AnalysisDimension(
+                id="unique_features",
+                name="特色设定",
+                description="差异化卖点与母题",
+                priority=11,
+                output_length="100-150字",
+                dimension_type=DimensionType.TECHNIQUE,
+                tags=["特色", "差异化"]
+            ),
+        ]
+
+    def build_system_prompt(self) -> str:
+        """构建系统提示词"""
+        return """你是一位在番茄小说平台孵化多本爆款的白金大神作家兼策划。
+
+核心理念 (必须贯彻):
+- **金手指**: 独特且具成长性的优势/系统,避免平庸或单纯数值堆砌
+- **爽点**: 反差、打脸、扮猪吃虎、绝境翻盘、信息差等,每隔几章必须有一波"大爽"
+- **期待感**: 悬念、伏笔、信息差形成闭环,每一章都让读者想看下一章
+- **网感**: 始终围绕"读者体验"与"商业化结果"思考
+
+输出要求:
+1. 严格遵循JSON Schema结构
+2. 根节点 (11个维度) 每个50-80字精炼概括
+3. 叶子节点 (详细内容) 每个100-200字深度阐述
+4. 必须体现"拉期待—给爽点—再拉期待"的循环结构
+5. 所有内容必须可落地执行,避免空洞理论
+
+禁止行为:
+- 生成与网文商业逻辑脱节的"文学化"设定
+- 使用模糊词汇 ("可能"、"也许"、"或许")
+- 重复已有网文的套路而不加创新
+- 忽略"爽点密度"与"期待感钩子"的布局
+
+**重要**: 你必须且只能返回纯 JSON 格式,不要使用 markdown 代码块包裹。"""
+
+    def build_user_prompt(
+        self,
+        content: str,
+        existing_settings: Optional[Dict[str, Any]] = None,
+        is_incremental: bool = False,
+        chapter_num: Optional[int] = None
+    ) -> str:
+        """构建用户提示词"""
+
+        # 基础提示词
+        prompt = f"""小说内容:
+{content}
+
+"""
+
+        # 增量分析模式
+        if is_incremental and existing_settings:
+            prompt += f"""=== 增量分析模式 ===
+当前章节: 第{chapter_num}章
+
+已知设定 (请避免重复):
+{self._format_existing_settings(existing_settings)}
+
+你的任务:
+ONLY 提取 **新增的** 或 **变化的** 设定元素:
+1. 新角色出现?
+2. 新技能/装备/系统功能?
+3. 新反派/势力?
+4. 新的爽点类型?
+5. 世界观扩展?
+
+如果本章没有新元素,返回: {{"no_new_content": true}}
+
+"""
+
+        # 维度清单
+        dimensions = self.get_dimensions()
+        prompt += """根节点清单 (必须包含,顺序不可变):
+"""
+        for i, dim in enumerate(dimensions, 1):
+            prompt += f"{i}. {dim.name} ({dim.id}): {dim.description}\n"
+            if dim.sub_elements:
+                for sub in dim.sub_elements:
+                    prompt += f"   - {sub['name']} ({sub['id']})\n"
+
+        # 输出格式要求
+        prompt += """
+输出格式要求:
+- 使用纯 JSON 格式 (不要用 markdown 代码块包裹)
+- 每个维度必须包含: id、name、description、children (如有)
+- description 为核心内容,根节点50-80字,叶子节点100-200字
+- 所有子节点必须在 children 数组中,不得遗漏
+- 必须包含所有11个根节点,不得擅自合并或删减
+
+JSON Schema:
+{
+  "root_nodes": [
+    {
+      "id": "core_selling_point",
+      "name": "核心卖点",
+      "description": "...",
+      "children": []  // 可选
+    },
+    ...
+  ]
+}
+
+特别提醒:
+- 番茄小说读者偏好"快节奏+高爽点密度",前3章必须有至少2个爽点
+- 金手指必须"独特+可成长+有具体用法"
+- 反派必须有"层级递进"
+- 情感线不能"无脑倒贴",必须有情感张力
+"""
+
+        return prompt
+
+    def _format_existing_settings(self, settings: Dict[str, Any]) -> str:
+        """格式化已有设定为文本摘要"""
+        lines = []
+        for dim_id, data in settings.items():
+            dim = self.get_dimension_by_id(dim_id)
+            if dim:
+                lines.append(f"- {dim.name}: {data.get('description', '')[:50]}...")
+        return "\n".join(lines)
+
+    def parse_ai_response(self, response: str) -> Dict[str, Any]:
+        """
+        解析AI返回结果
+
+        支持3种格式:
+        1. 纯JSON
+        2. markdown代码块包裹的JSON
+        3. 前后有额外文本的JSON
+        """
+        # 尝试直接解析
+        try:
+            data = json.loads(response)
+            return self._normalize_response(data)
+        except json.JSONDecodeError:
+            pass
+
+        # 尝试提取JSON (处理markdown代码块)
+        json_match = re.search(r'```(?:json)?\s*\n(.*?)\n```', response, re.DOTALL)
+        if json_match:
+            try:
+                data = json.loads(json_match.group(1))
+                return self._normalize_response(data)
+            except json.JSONDecodeError:
+                pass
+
+        # 尝试提取花括号内容
+        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        if json_match:
+            try:
+                data = json.loads(json_match.group(0))
+                return self._normalize_response(data)
+            except json.JSONDecodeError:
+                pass
+
+        # 解析失败
+        raise ValueError(f"无法解析AI响应为JSON格式: {response[:200]}...")
+
+    def _normalize_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        标准化响应数据结构
+
+        将 {root_nodes: [...]} 转换为 {dimension_id: {...}}
+        """
+        if "root_nodes" in data:
+            # 标准格式
+            result = {}
+            for node in data["root_nodes"]:
+                result[node["id"]] = node
+            return result
+        elif "no_new_content" in data:
+            # 增量分析无新内容
+            return data
+        else:
+            # 直接是字典格式
+            return data
+
+
+# 注册策略到全局注册器
+web_novel_strategy = WebNovelStrategy()
+strategy_registry.register(web_novel_strategy)

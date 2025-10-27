@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-5"  # 默认模型，可通过环境变量修改
     OPENAI_TIMEOUT: int = 120  # AI调用超时时间（秒），默认120秒
 
+    # 图书分析专用模型配置
+    BOOK_ANALYSIS_MODEL: str = "deepseek-r1-free"  # 图书分析专用模型,默认使用免费的推理模型
+    BOOK_ANALYSIS_TIMEOUT: int = 60  # 图书分析超时时间(秒),推理模型速度更快
+
     # AI 改写助手配置
     # 可用模型列表（可通过修改 enabled 字段启用/禁用模型）
     REWRITE_MODELS: dict = {

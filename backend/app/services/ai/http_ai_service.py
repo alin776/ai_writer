@@ -16,14 +16,20 @@ logger = logging.getLogger(__name__)
 
 class HTTPAIService:
     """基于 HTTP 的 AI 服务 - 直接调用 API 绕过 Cloudflare"""
-    
-    def __init__(self):
-        """Initialize HTTP client and prompts manager"""
+
+    def __init__(self, model: str = None, timeout: int = None):
+        """Initialize HTTP client and prompts manager
+
+        Args:
+            model: 指定模型名称,如果不提供则使用默认配置
+            timeout: 超时时间(秒),如果不提供则使用默认配置
+        """
         self.api_key = settings.OPENAI_API_KEY
         self.base_url = settings.OPENAI_BASE_URL
-        self.model = settings.OPENAI_MODEL
+        self.model = model or settings.OPENAI_MODEL  # 支持自定义模型
+        timeout_value = timeout or settings.OPENAI_TIMEOUT  # 支持自定义超时
         self.prompts = get_prompts_manager()
-        
+
         # 创建持久化客户端，模拟普通浏览器/应用
         self.client = httpx.AsyncClient(
             headers={
@@ -33,16 +39,16 @@ class HTTPAIService:
                 "Connection": "keep-alive",
             },
             timeout=httpx.Timeout(
-                settings.OPENAI_TIMEOUT, 
+                timeout_value,  # 使用可配置的超时
                 connect=10.0
             ),
             follow_redirects=True,
             http2=False,  # 使用 HTTP/1.1
         )
-        
+
         logger.info(
             f"HTTP AI Service 初始化成功，Base URL: {self.base_url}, "
-            f"Model: {self.model}"
+            f"Model: {self.model}, Timeout: {timeout_value}s"
         )
     
     async def close(self):
