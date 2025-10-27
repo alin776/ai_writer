@@ -9,7 +9,16 @@ import httpx
 import json
 import logging
 from typing import Optional
-from langchain_core.output_parsers import PydanticOutputParser
+
+try:
+    from langchain_core.output_parsers import PydanticOutputParser
+except ImportError:
+    # 如果导入失败,尝试从旧位置导入
+    try:
+        from langchain.output_parsers import PydanticOutputParser
+    except ImportError:
+        # 如果都失败了,创建一个简单的替代品
+        PydanticOutputParser = None
 
 from app.core.config import settings
 from app.schemas.text_analysis import (
@@ -46,7 +55,11 @@ class TextAnalyzer:
         )
 
         # 创建 Pydantic 输出解析器
-        self.parser = PydanticOutputParser(pydantic_object=TextAnalysisResult)
+        if PydanticOutputParser is not None:
+            self.parser = PydanticOutputParser(pydantic_object=TextAnalysisResult)
+        else:
+            self.parser = None
+            logger.warning("PydanticOutputParser 不可用，将使用简化的解析方式")
 
         logger.info(
             f"TextAnalyzer 初始化成功，Base URL: {self.base_url}, "

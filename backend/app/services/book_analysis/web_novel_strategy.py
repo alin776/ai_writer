@@ -310,52 +310,80 @@ JSON Schema:
         2. markdown代码块包裹的JSON
         3. 前后有额外文本的JSON
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.info(f"🔍 开始解析AI响应,长度={len(response)}")
+        logger.debug(f"📝 原始响应前500字符: {response[:500]}")
+
         # 尝试直接解析
         try:
             data = json.loads(response)
+            logger.info(f"✅ 直接解析JSON成功")
             return self._normalize_response(data)
-        except json.JSONDecodeError:
-            pass
+        except json.JSONDecodeError as e:
+            logger.debug(f"❌ 直接解析失败: {e}")
 
         # 尝试提取JSON (处理markdown代码块)
         json_match = re.search(r'```(?:json)?\s*\n(.*?)\n```', response, re.DOTALL)
         if json_match:
             try:
-                data = json.loads(json_match.group(1))
+                extracted = json_match.group(1)
+                logger.info(f"🔍 从markdown代码块提取JSON,长度={len(extracted)}")
+                data = json.loads(extracted)
+                logger.info(f"✅ markdown格式解析成功")
                 return self._normalize_response(data)
-            except json.JSONDecodeError:
-                pass
+            except json.JSONDecodeError as e:
+                logger.debug(f"❌ markdown格式解析失败: {e}")
 
         # 尝试提取花括号内容
         json_match = re.search(r'\{.*\}', response, re.DOTALL)
         if json_match:
             try:
-                data = json.loads(json_match.group(0))
+                extracted = json_match.group(0)
+                logger.info(f"🔍 提取花括号内容,长度={len(extracted)}")
+                data = json.loads(extracted)
+                logger.info(f"✅ 花括号内容解析成功")
                 return self._normalize_response(data)
-            except json.JSONDecodeError:
-                pass
+            except json.JSONDecodeError as e:
+                logger.error(f"❌ 花括号内容解析失败: {e}")
+                logger.error(f"📝 提取的内容: {extracted[:500]}...")
 
-        # 解析失败
-        raise ValueError(f"无法解析AI响应为JSON格式: {response[:200]}...")
+        # 解析失败,记录完整响应
+        logger.error(f"❌ 所有解析方法都失败")
+        logger.error(f"📝 完整响应内容:\n{response}")
+        raise ValueError(f"无法解析AI响应为JSON格式,请查看日志获取详细信息")
 
     def _normalize_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         标准化响应数据结构
 
         将 {root_nodes: [...]} 转换为 {dimension_id: {...}}
+        并补充 dimension_type 字段
         """
         if "root_nodes" in data:
             # 标准格式
             result = {}
             for node in data["root_nodes"]:
-                result[node["id"]] = node
+                dim_id = node["id"]
+                # 从策略定义中获取 dimension_type
+                dimension = self.get_dimension_by_id(dim_id)
+                if dimension:
+                    node["dimension_type"] = dimension.dimension_type.value
+                result[dim_id] = node
             return result
         elif "no_new_content" in data:
             # 增量分析无新内容
             return data
         else:
-            # 直接是字典格式
-            return data
+            # 直接是字典格式,也需要补充 dimension_type
+            result = {}
+            for dim_id, node in data.items():
+                dimension = self.get_dimension_by_id(dim_id)
+                if dimension:
+                    node["dimension_type"] = dimension.dimension_type.value
+                result[dim_id] = node
+            return result
 
 
 # 注册策略到全局注册器

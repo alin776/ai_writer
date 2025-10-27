@@ -257,12 +257,29 @@ class BookAnalysisService:
                 response_text = await self.ai_service.call_ai(
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
-                    max_tokens=1000,  # 降低token数加快响应
+                    max_tokens=3000,  # 需要足够的tokens来完整输出11个维度的JSON
                     temperature=0.3
                 )
 
+                # 保存AI响应到临时文件(调试用)
+                import tempfile
+                import os
+                debug_dir = os.path.join(os.getcwd(), 'debug_ai_responses')
+                os.makedirs(debug_dir, exist_ok=True)
+                debug_file = os.path.join(debug_dir, f'ch{i+1}_{chapter.title[:10]}.txt')
+                with open(debug_file, 'w', encoding='utf-8') as f:
+                    f.write(response_text)
+                logger.info(f"💾 AI响应已保存到: {debug_file}")
+
                 # 解析响应
                 chapter_result = strategy.parse_ai_response(response_text)
+                logger.info(f"✅ AI响应解析成功,获得 {len(chapter_result)} 个维度")
+
+                # 检查第一个维度的结构(调试)
+                if chapter_result:
+                    first_key = list(chapter_result.keys())[0]
+                    first_data = chapter_result[first_key]
+                    logger.info(f"📋 示例维度 '{first_key}': has dimension_type={first_data.get('dimension_type', 'MISSING')}")
 
                 # 检查是否无新内容
                 if chapter_result.get("no_new_content"):
@@ -306,25 +323,30 @@ class BookAnalysisService:
         将 TECHNIQUE 类型的维度创建为知识库条目
         """
         items = []
+        logger.info(f"📚 开始提取知识点,共 {len(analysis_result)} 个维度")
 
         for dim_id, data in analysis_result.items():
             dimension_type = data.get("dimension_type")
+            logger.info(f"  - 维度 '{dim_id}': dimension_type={dimension_type}")
 
             # 只有 TECHNIQUE 和 PLOT_STRUCTURE 类型创建为知识条目
             if dimension_type not in ["technique", "plot_structure"]:
+                logger.info(f"    ❌ 跳过(类型不匹配)")
                 continue
 
             name = data.get("name", "")
             description = data.get("description", "")
+            logger.info(f"    ✅ 创建知识点: {name}")
 
-            # 创建知识条目
-            item = await self.knowledge_service.create(
-                user_id=user_id,
+            # 创建知识条目 - 使用 KnowledgeItemCreate schema
+            from app.schemas.knowledge import KnowledgeItemCreate
+
+            knowledge_create = KnowledgeItemCreate(
                 title=f"💡 {name}",
                 content=description,
                 category=KnowledgeCategory.TECHNIQUE,
                 tags=[job.book_title, name],
-                source_type="BOOK_ANALYSIS",
+                source_type="book_analysis",  # 小写格式
                 source_id=str(job.id),
                 source_reference=f"{job.book_title} - {name}",
                 extra_data={
@@ -335,8 +357,14 @@ class BookAnalysisService:
                 }
             )
 
+            item = await self.knowledge_service.create_item(
+                user_id=str(user_id),
+                data=knowledge_create
+            )
+
             items.append(item)
 
+        logger.info(f"📚 知识点提取完成,共创建 {len(items)} 个知识条目")
         return items
 
     async def _create_suggestions(
@@ -348,6 +376,8 @@ class BookAnalysisService:
         """
         从分析结果生成智能建议
         """
+        logger.info(f"💡 开始生成智能建议,共 {len(analysis_result)} 个维度")
+
         work_id = job.extra_data.get("work_id") if job.extra_data else None
         if work_id:
             work_id = UUID(work_id)
@@ -361,6 +391,8 @@ class BookAnalysisService:
             strategy_id=job.strategy_id
         )
 
+        logger.info(f"💡 建议生成器返回 {len(suggestion_dicts)} 个建议")
+
         # 创建建议对象
         suggestions = []
         for suggestion_data in suggestion_dicts:
@@ -370,6 +402,7 @@ class BookAnalysisService:
 
         await self.db.commit()
 
+        logger.info(f"💡 智能建议生成完成,共创建 {len(suggestions)} 个建议")
         return suggestions
 
     async def _calculate_file_hash(self, file_path: str) -> str:

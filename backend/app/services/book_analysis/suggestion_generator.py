@@ -5,6 +5,7 @@
 """
 
 import json
+import logging
 from typing import Dict, List, Optional, Any
 from uuid import UUID
 
@@ -15,6 +16,8 @@ from app.models.worldview_suggestion import (
     SuggestionStatus
 )
 from app.services.book_analysis.strategy import DimensionType
+
+logger = logging.getLogger(__name__)
 
 
 class SuggestionGenerator:
@@ -66,6 +69,7 @@ class SuggestionGenerator:
             建议列表 (字典格式,待存入数据库)
         """
         suggestions = []
+        logger.info(f"🎯 开始生成建议,共 {len(analysis_result)} 个维度")
 
         # 遍历分析结果
         for dim_id, data in analysis_result.items():
@@ -75,15 +79,24 @@ class SuggestionGenerator:
 
             # 获取维度类型
             dimension_type = data.get("dimension_type")
+            logger.info(f"  - 维度 '{dim_id}': dimension_type={dimension_type}")
+
             if not dimension_type:
+                logger.warning(f"    ⚠️ 缺少 dimension_type,跳过")
                 continue
 
             # 检查是否可以生成建议
-            suggestion_type = self.DIMENSION_TO_SUGGESTION.get(
-                DimensionType(dimension_type)
-            )
+            try:
+                suggestion_type = self.DIMENSION_TO_SUGGESTION.get(
+                    DimensionType(dimension_type)
+                )
+            except ValueError:
+                logger.warning(f"    ⚠️ 无效的 dimension_type: {dimension_type}")
+                continue
+
             if not suggestion_type:
                 # 不可关联的维度类型,跳过
+                logger.info(f"    ❌ 维度类型不可关联,跳过")
                 continue
 
             # 生成建议
@@ -97,8 +110,12 @@ class SuggestionGenerator:
             )
 
             if suggestion and suggestion["confidence_score"] >= self.MIN_CONFIDENCE:
+                logger.info(f"    ✅ 创建建议: {suggestion_type.value}, 置信度={suggestion['confidence_score']:.2f}")
                 suggestions.append(suggestion)
+            elif suggestion:
+                logger.info(f"    ❌ 置信度不足 ({suggestion['confidence_score']:.2f} < {self.MIN_CONFIDENCE})")
 
+        logger.info(f"🎯 建议生成完成,共 {len(suggestions)} 个")
         return suggestions
 
     def _create_suggestion(
