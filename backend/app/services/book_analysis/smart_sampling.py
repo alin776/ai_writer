@@ -53,7 +53,7 @@ class SmartSamplingAnalyzer:
     def __init__(
         self,
         max_chapters_to_analyze: int = 150,  # 最大分析章节数
-        deep_analysis_chapters: int = 30,  # 深度分析章节数
+        deep_analysis_chapters: int = 3,  # 深度分析章节数（默认3章，支持并行优化）
         min_chapter_length: int = 100,  # 最小章节长度 (降低以支持测试和短章节)
         max_chapter_length: int = 8000,  # 单章最大分析长度
     ):

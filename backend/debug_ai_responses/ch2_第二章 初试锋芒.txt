@@ -1,0 +1,130 @@
+{
+  "root_nodes": [
+    {
+      "id": "core_selling_point",
+      "name": "核心卖点",
+      "description": "美食系统+厨艺逆袭，主角用'复制顶级配方'能力在餐饮界掀起腥风血雨",
+      "children": []
+    },
+    {
+      "id": "protagonist_setting",
+      "name": "主角设定",
+      "children": [
+        {
+          "id": "identity",
+          "name": "身份背景",
+          "description": "外卖员出身的废柴厨师，因系统觉醒成为'美食通才'，背负家族厨艺没落的隐秘使命"
+        },
+        {
+          "id": "personality",
+          "name": "性格标签",
+          "description": "表面木讷实则腹黑，对美食有极致追求，擅长用'厨艺伪装'制造打脸效果"
+        },
+        {
+          "id": "initial_crisis",
+          "name": "初始困境",
+          "description": "被餐厅开除后流落街头，在'厨神挑战赛'报名处遭遇系统觉醒契机"
+        }
+      ]
+    },
+    {
+      "id": "cheat_system",
+      "name": "金手指系统",
+      "children": [
+        {
+          "id": "mechanism",
+          "name": "核心机理",
+          "description": "【美食觉醒系统】可复制全球顶级厨师的招牌菜配方，通过'味觉共鸣'获取美食点数进化技能"
+        },
+        {
+          "id": "growth_path",
+          "name": "成长路径",
+          "description": "复制→解析→改良→创新四阶段，每突破阶段解锁'食材对话''火焰操控'等超现实厨艺能力"
+        },
+        {
+          "id": "usage_examples",
+          "name": "用法示例",
+          "description": "紧急复制三星米其林佛跳墙配方→用街头食材改良→创造'地狱级辣度'变种版本反杀评委"
+        }
+      ]
+    },
+    {
+      "id": "world_framework",
+      "name": "世界观框架",
+      "description": "现代都市隐藏'美食异能者'体系，顶级厨师可通过'味觉共鸣'引发元素异象，餐饮界存在'暗黑料理'黑市",
+      "children": []
+    },
+    {
+      "id": "power_system",
+      "name": "等级力量体系",
+      "description": "厨艺境界分九段：学徒→见习→专业→大师→宗师→厨神，每段对应'火候掌控''食材共鸣'等特殊能力",
+      "children": []
+    },
+    {
+      "id": "antagonist_forces",
+      "name": "反派势力",
+      "children": [
+        {
+          "id": "tier_1",
+          "name": "前期反派",
+          "description": "本地黑心连锁餐厅'食王阁'，用'毒药增鲜剂'垄断市场，派卧底阻挠主角参赛"
+        },
+        {
+          "id": "tier_2",
+          "name": "中期反派",
+          "description": "跨国美食集团'味觉帝国'，掌握失传的'诅咒料理'秘术，企图控制全球餐饮业"
+        },
+        {
+          "id": "tier_3",
+          "name": "后期反派",
+          "description": "上古'饕餮血脉'继承者，能吞噬他人厨艺修为，企图复刻洪荒时代的'混沌宴'"
+        }
+      ]
+    },
+    {
+      "id": "romance_line",
+      "name": "情感线设定",
+      "description": "与美食记者苏璃从'暗访对手'到'厨艺擂台死敌'再到'破解暗黑料理阴谋'的双向救赎",
+      "children": []
+    },
+    {
+      "id": "satisfaction_points",
+      "name": "爽点布局",
+      "children": [
+        {
+          "id": "chapter_1_10",
+          "name": "前10章爽点",
+          "description": "街头摆摊用系统复制'法式舒芙蕾'，用5毛钱食材做出米其林效果，让五星酒店经理下跪求合作"
+        },
+        {
+          "id": "chapter_10_30",
+          "name": "10-30章爽点",
+          "description": "在'国际黑暗料理大赛'上，用系统解析评委的'毒药增鲜'手法，反制出'解毒养生宴'全场封杀"
+        },
+        {
+          "id": "chapter_30_plus",
+          "name": "30章后爽点",
+          "description": "终极厨艺对决中，召唤'食材灵体'具象化厨艺，用'百家菜系融合技'击碎饕餮血脉的时空壁垒"
+        }
+      ]
+    },
+    {
+      "id": "anticipation_hooks",
+      "name": "期待感钩子",
+      "description": "每章结尾抛出'神秘食盒''消失的调味圣物''评委突然失明'等未解谜题，与后续章节的'暗黑料理阴谋'形成闭环",
+      "children": []
+    },
+    {
+      "id": "sub_plots",
+      "name": "支线剧情",
+      "description": "寻找散落的'本味罗盘'碎片/收服叛逃的'食神雕像'/破解古代食神留下的'食材迷宫'",
+      "children": []
+    },
+    {
+      "id": "unique_features",
+      "name": "特色设定",
+      "description": "将'厨艺境界'异能化，创造'刀工可斩铁''火候能焚妖'的超现实美食世界，每道菜对应特殊能力",
+      "children": []
+    }
+  ]
+}

@@ -24,14 +24,32 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 启动时执行
+    logger.info("🚀 应用启动中...")
+
     await init_db()
     # await redis_client.init()  # TODO: Redis 暂时禁用
     start_scheduler()  # 启动定时任务
+
+    # 预加载Embedding模型（性能优化）
+    try:
+        from app.services.vector_store_service import VectorStoreService
+        logger.info("🔄 开始预加载Embedding模型...")
+        VectorStoreService.preload_model()
+        logger.info("✅ Embedding模型预加载完成")
+    except Exception as e:
+        logger.warning(f"⚠️ Embedding模型预加载失败: {e}")
+        logger.warning("   首次向量化时将自动加载模型")
+
+    logger.info("✅ 应用启动完成")
+
     yield
+
     # 关闭时执行
+    logger.info("🛑 应用关闭中...")
     stop_scheduler()  # 停止定时任务
     await close_db()
     # await redis_client.close()  # TODO: Redis 暂时禁用
+    logger.info("✅ 应用已关闭")
 
 
 # 创建 FastAPI 应用

@@ -31,7 +31,8 @@ class KnowledgeService:
     async def create_item(
         self,
         user_id: str,
-        data: KnowledgeItemCreate
+        data: KnowledgeItemCreate,
+        skip_vectorization: bool = False
     ) -> KnowledgeItem:
         """
         创建知识条目
@@ -39,6 +40,7 @@ class KnowledgeService:
         Args:
             user_id: 用户ID
             data: 创建数据
+            skip_vectorization: 是否跳过向量化 (用于批量向量化优化)
 
         Returns:
             KnowledgeItem: 创建的知识条目
@@ -54,13 +56,14 @@ class KnowledgeService:
             self.db.add(item)
             await self.db.flush()
 
-            # 2. 生成并存储向量
-            try:
-                await self.vector_service.add_knowledge(item)
-                logger.info(f"知识条目向量生成成功: item_id={item.id}")
-            except Exception as ve:
-                logger.warning(f"向量生成失败，但条目已创建: {ve}")
-                # 向量生成失败不影响条目创建
+            # 2. 生成并存储向量 (可选跳过用于批量优化)
+            if not skip_vectorization:
+                try:
+                    await self.vector_service.add_knowledge(item)
+                    logger.info(f"知识条目向量生成成功: item_id={item.id}")
+                except Exception as ve:
+                    logger.warning(f"向量生成失败，但条目已创建: {ve}")
+                    # 向量生成失败不影响条目创建
 
             await self.db.commit()
             await self.db.refresh(item)
