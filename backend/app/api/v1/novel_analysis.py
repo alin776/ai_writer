@@ -78,25 +78,33 @@ async def _verify_work_ownership(
 ) -> None:
     """
     验证作品归属于当前用户
-    
+
     Args:
         work_id: 作品ID
         current_user: 当前用户
         db: 数据库会话
-        
+
     Raises:
         HTTPException: 如果作品不存在或不属于当前用户
     """
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(work_id)
-    
+
     if not work:
+        logger.warning(f"Work not found: {work_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Work with id {work_id} not found"
         )
-    
-    if str(work.author_id) != str(current_user.id):
+
+    # 统一转换为字符串进行比较，并去除大括号和空格
+    work_author_id = str(work.author_id).strip('{}').lower()
+    current_user_id = str(current_user.id).strip('{}').lower()
+
+    logger.debug(f"Verifying work ownership: work_id={work_id}, work_author_id={work_author_id}, current_user_id={current_user_id}")
+
+    if work_author_id != current_user_id:
+        logger.warning(f"Permission denied: user {current_user_id} tried to access work {work_id} owned by {work_author_id}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to analyze this work"
@@ -162,6 +170,56 @@ async def start_analysis(
 
 
 @router.get(
+    "/works/{work_id}",
+    response_model=AnalysisProgress,
+    summary="查询分析状态（简化路径）",
+    description="查询指定作品的分析任务状态和进度信息"
+)
+async def get_analysis(
+    work_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+) -> AnalysisProgress:
+    """
+    查询分析状态（简化路径）
+
+    - **work_id**: 作品UUID
+    - 返回分析进度信息
+    """
+    try:
+        # 1. 验证作品归属
+        await _verify_work_ownership(work_id, current_user, db)
+
+        # 2. 获取分析任务
+        analysis_service = NovelAnalysisService(db)
+        analysis = await analysis_service.get_analysis_by_work(work_id)
+
+        if not analysis:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No analysis found for work {work_id}"
+            )
+
+        return AnalysisProgress(
+            status=analysis.status,
+            current_stage=analysis.current_stage,
+            total_chapters=analysis.total_chapters,
+            analyzed_chapters=analysis.analyzed_chapters,
+            progress_percentage=analysis.progress_percentage,
+            error_message=analysis.error_message
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting analysis status: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get analysis status: {str(e)}"
+        )
+
+
+@router.get(
     "/works/{work_id}/status",
     response_model=AnalysisProgress,
     summary="查询分析状态",
@@ -174,41 +232,12 @@ async def get_analysis_status(
 ) -> AnalysisProgress:
     """
     查询分析状态
-    
+
     - **work_id**: 作品UUID
     - 返回分析进度信息
     """
-    try:
-        # 1. 验证作品归属
-        await _verify_work_ownership(work_id, current_user, db)
-        
-        # 2. 获取分析任务
-        analysis_service = NovelAnalysisService(db)
-        analysis = await analysis_service.get_analysis_by_work(work_id)
-        
-        if not analysis:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No analysis found for work {work_id}"
-            )
-        
-        return AnalysisProgress(
-            status=analysis.status,
-            current_stage=analysis.current_stage,
-            total_chapters=analysis.total_chapters,
-            analyzed_chapters=analysis.analyzed_chapters,
-            progress_percentage=analysis.progress_percentage,
-            error_message=analysis.error_message
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting analysis status: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get analysis status: {str(e)}"
-        )
+    # 直接调用上面的函数，避免重复代码
+    return await get_analysis(work_id, current_user, db)
 
 
 @router.get(

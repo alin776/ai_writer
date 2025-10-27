@@ -646,6 +646,99 @@ async def generate_study_notes(book_analysis_id: str):
 
 ---
 
+## 🛠️ 技术优化历程 (2025-10-27)
+
+### 问题发现与解决
+
+#### 阶段1: 发现并发数据库冲突问题
+**症状**: 并发分析20章时,成功率仅10%(2/20章)
+**错误**: "cannot perform operation: another operation is in progress"
+**原因**: 多个并发协程共享同一个数据库会话,导致事务冲突
+
+#### 阶段2: 尝试Lock方案 (失败)
+**方案**: 使用AsyncIO Lock串行化数据库操作
+**结果**: ❌ 失败,成功率仍然10%
+**问题**: Lock无法解决会话共享的根本问题
+
+#### 阶段3: 独立会话方案 (发现新问题)
+**方案**: 每个并发任务使用独立数据库会话
+**问题**: 发现"丢失更新"问题 - 多个会话并发修改同一记录会覆盖数据
+
+#### 阶段4: 批量保存方案 (成功) ✅
+**方案**: 并发执行AI分析,批量保存结果
+**架构**:
+```
+阶段1: 并发AI分析 (5个协程) → 返回结果
+阶段2: 批量保存 (单次事务) → 保存所有结果
+阶段3: 批量向量存储 → 完成
+```
+
+**效果**:
+- ✅ 成功率: 100% (20/20章)
+- ✅ 性能: 平均2.6秒/章
+- ✅ 无数据丢失
+- ✅ 无并发冲突
+
+### 核心代码改进
+
+#### 1. 批量保存方法
+```python
+# backend/app/services/novel_analysis_service.py
+async def batch_save_micro_results(
+    self,
+    analysis_id: str,
+    results: List[Dict[str, Any]]
+) -> Optional[NovelAnalysis]:
+    """批量保存微观分析结果(解决并发冲突问题)"""
+    analysis = await self.get_analysis_by_id(analysis_id)
+
+    # 批量添加所有结果
+    for result in results:
+        analysis.micro_results.append({
+            "chapter_id": result['chapter_id'],
+            **result['data']
+        })
+
+    # 一次性提交
+    await self.db.commit()
+    return analysis
+```
+
+#### 2. 并发分析重构
+```python
+# backend/app/services/ai/novel_analysis_orchestrator.py
+async def _analyze_chapters_parallel(...):
+    # 并发执行AI分析
+    results = await asyncio.gather(*tasks)
+
+    # 分类结果
+    successful = [r for r in results if r['status'] == 'success']
+
+    # 批量保存
+    await self.analysis_service.batch_save_micro_results(
+        analysis_id, successful
+    )
+```
+
+### 测试验证
+
+**测试时间**: 2025-10-27 22:39
+**测试结果**:
+```
+✅ 成功率: 100% (20/20章)
+✅ 总耗时: 52.5秒
+✅ 平均速度: 2.6秒/章
+✅ 批量保存: 一次完成
+✅ 向量存储: 20条全部成功
+```
+
+**详细文档**:
+- [批量保存方案实现总结](../../tasks/批量保存方案实现总结.md)
+- [问题修复总结](../../tasks/问题修复总结_进度更新逻辑.md)
+- [Code Review报告](../../tasks/Code_Review_批量保存方案问题.md)
+
+---
+
 ## 🔗 相关文档
 
 - [个人知识库功能设计](./16-feature-knowledge-base.md)
@@ -657,10 +750,12 @@ async def generate_study_notes(book_analysis_id: str):
 
 **维护者**: NovelAIde 开发团队
 **最后更新**: 2025-10-27
-**版本**: v2.0
-**状态**: ✅ MVP版本已完成并测试通过
+**版本**: v2.1
+**状态**: ✅ MVP版本已完成并测试通过,并发问题已解决
 
 **相关文档**:
 - [AI拆书功能实施总结](./AI拆书功能实施总结_2025-10-27.md) ⭐ 必读
-- [自动化测试脚本](../backend/tests/test_book_analysis_auto.py)
+- [批量保存方案实现总结](../../tasks/批量保存方案实现总结.md) ⭐ 最新
+- [自动化测试脚本](../backend/tests/automated_performance_test.py)
 - [测试日志](../INFO.md)
+

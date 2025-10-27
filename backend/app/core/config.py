@@ -88,6 +88,11 @@ class Settings(BaseSettings):
     ANALYSIS_MAX_RETRIES: int = 3  # 单章分析失败最大重试次数
     ANALYSIS_TIMEOUT: int = 3600  # 整体分析超时时间（秒），默认1小时
     ANALYSIS_RETRY_DELAY: int = 2  # 重试延迟（秒）
+
+    # 小说分析并发配置
+    NOVEL_ANALYSIS_MAX_CONCURRENT: int = 5  # 最大并发章节数（推荐5，平衡性能与稳定性）
+    NOVEL_ANALYSIS_CHAPTER_TIMEOUT: int = 120  # 单章超时时间（秒）
+    NOVEL_ANALYSIS_BATCH_UPDATE_SIZE: int = 10  # 批量更新进度的间隔（章节数）
     
     # 文件上传配置
     MAX_UPLOAD_SIZE: int = 10485760  # 10MB

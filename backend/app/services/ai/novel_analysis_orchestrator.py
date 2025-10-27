@@ -5,7 +5,7 @@
 import logging
 import asyncio
 import time
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
@@ -80,10 +80,10 @@ class NovelAnalysisOrchestrator:
     async def _run_analysis_internal(self, work_id: str) -> bool:
         """
         内部分析流程实现
-        
+
         Args:
             work_id: 作品ID
-            
+
         Returns:
             bool: 是否分析成功
         """
@@ -121,76 +121,14 @@ class NovelAnalysisOrchestrator:
                 raise Exception(f"作品 {work_id} 没有章节可供分析")
             
             logger.info(f"共获取 {len(chapters)} 个章节，开始微观分析...")
-            
-            # 5. 执行微观分析（逐章分析）
-            micro_results = []
-            failed_chapters = []
-            
-            for idx, chapter in enumerate(chapters):
-                chapter_start_time = time.time()
-                try:
-                    logger.info(f"-" * 40)
-                    logger.info(f"[{idx + 1}/{len(chapters)}] 分析章节: {chapter.title}")
-                    
-                    # 分析章节（自动重试3次）
-                    micro_result = await self.micro_service.analyze_chapter(
-                        chapter_text=chapter.content,
-                        chapter_id=str(chapter.id),
-                        chapter_title=chapter.title,
-                        chapter_number=chapter.order
-                    )
-                    
-                    chapter_elapsed = time.time() - chapter_start_time
-                    logger.info(f"章节分析耗时: {chapter_elapsed:.1f}秒")
-                    
-                    # 保存微观结果
-                    await self.analysis_service.save_micro_result(
-                        analysis_id=str(analysis.id),
-                        chapter_id=str(chapter.id),
-                        micro_data=micro_result
-                    )
-                    
-                    micro_results.append(micro_result)
-                    
-                    # 存储向量（用于RAG检索）
-                    try:
-                        logger.info(f"存储章节 {chapter.title} 的向量...")
-                        await self.vector_service.store_micro_analysis_vector(
-                            work_id=work_id,
-                            chapter_id=str(chapter.id),
-                            analysis_id=str(analysis.id),
-                            micro_data=micro_result,
-                            chunk_index=0
-                        )
-                        logger.info(f"✓ 向量存储成功")
-                    except Exception as ve:
-                        # 向量存储失败不影响主流程
-                        logger.warning(f"向量存储失败（不影响分析）: {ve}")
-                    
-                    # 更新进度
-                    await self.analysis_service.update_progress(
-                        analysis_id=str(analysis.id),
-                        analyzed_chapters=idx + 1
-                    )
-                    
-                    logger.info(f"✓ 章节 {chapter.title} 分析完成（耗时 {chapter_elapsed:.1f}秒）")
-                    
-                    # 短暂延迟，避免API限流
-                    await asyncio.sleep(0.5)
-                    
-                except Exception as e:
-                    chapter_elapsed = time.time() - chapter_start_time
-                    logger.error(
-                        f"✗ 章节 {chapter.title} 分析失败（耗时 {chapter_elapsed:.1f}秒）: {e}", 
-                        exc_info=True
-                    )
-                    failed_chapters.append({
-                        'title': chapter.title,
-                        'id': str(chapter.id),
-                        'error': str(e)
-                    })
-                    # 继续分析其他章节，不中断整个流程
-                    continue
+
+            # 5. 执行微观分析（并行版本）⚡
+            logger.info(f"⚡ 使用并行分析模式 (并发数: {settings.NOVEL_ANALYSIS_MAX_CONCURRENT})")
+            micro_results, failed_chapters = await self._analyze_chapters_parallel(
+                chapters=chapters,
+                analysis_id=str(analysis.id),
+                work_id=work_id
+            )
             
             micro_elapsed = time.time() - start_time
             success_rate = len(micro_results) / len(chapters) * 100
@@ -274,11 +212,193 @@ class NovelAnalysisOrchestrator:
                 )
             
             return False
-            
+
         finally:
             # 清理资源
             await self._cleanup()
-    
+
+    async def _analyze_chapters_parallel(
+        self,
+        chapters: list,
+        analysis_id: str,
+        work_id: str
+    ) -> tuple[list, list]:
+        """
+        并行分析章节（批量保存模式）- 解决并发冲突
+
+        Args:
+            chapters: 章节列表
+            analysis_id: 分析任务ID
+            work_id: 作品ID
+
+        Returns:
+            (成功结果列表, 失败章节列表)
+        """
+        from app.core.config import settings
+
+        # 创建Semaphore限制并发数
+        semaphore = asyncio.Semaphore(settings.NOVEL_ANALYSIS_MAX_CONCURRENT)
+        successful_results = []
+        failed_chapters = []
+        completed_count = 0
+
+        # 用于线程安全的计数
+        progress_lock = asyncio.Lock()
+
+        async def analyze_single_chapter(idx: int, chapter):
+            """分析单个章节 - 只返回结果,不保存"""
+            nonlocal completed_count
+
+            async with semaphore:
+                chapter_start_time = time.time()
+                try:
+                    logger.info(f"[{idx+1}/{len(chapters)}] 🔄 开始分析: {chapter.title}")
+
+                    # 添加超时控制
+                    micro_result = await asyncio.wait_for(
+                        self.micro_service.analyze_chapter(
+                            chapter_text=chapter.content,
+                            chapter_id=str(chapter.id),
+                            chapter_title=chapter.title,
+                            chapter_number=chapter.order
+                        ),
+                        timeout=settings.NOVEL_ANALYSIS_CHAPTER_TIMEOUT
+                    )
+
+                    chapter_elapsed = time.time() - chapter_start_time
+                    logger.info(f"[{idx+1}/{len(chapters)}] ✓ 分析完成: {chapter.title} ({chapter_elapsed:.1f}秒)")
+
+                    # 更新计数(用于进度显示)
+                    async with progress_lock:
+                        completed_count += 1
+                        if completed_count % settings.NOVEL_ANALYSIS_BATCH_UPDATE_SIZE == 0:
+                            logger.info(f"📊 进度更新: {completed_count}/{len(chapters)} 章")
+
+                    # 只返回结果,不保存
+                    return {
+                        'status': 'success',
+                        'chapter_id': str(chapter.id),
+                        'chapter_title': chapter.title,
+                        'data': micro_result
+                    }
+
+                except asyncio.TimeoutError:
+                    chapter_elapsed = time.time() - chapter_start_time
+                    error_msg = f"分析超时({settings.NOVEL_ANALYSIS_CHAPTER_TIMEOUT}秒)"
+                    logger.error(
+                        f"[{idx+1}/{len(chapters)}] ⏰ 超时: {chapter.title} ({chapter_elapsed:.1f}秒)"
+                    )
+                    return {
+                        'status': 'failed',
+                        'chapter_id': str(chapter.id),
+                        'chapter_title': chapter.title,
+                        'error': error_msg
+                    }
+
+                except Exception as e:
+                    chapter_elapsed = time.time() - chapter_start_time
+                    logger.error(
+                        f"[{idx+1}/{len(chapters)}] ✗ 失败: {chapter.title} ({chapter_elapsed:.1f}秒) - {e}"
+                    )
+                    return {
+                        'status': 'failed',
+                        'chapter_id': str(chapter.id),
+                        'chapter_title': chapter.title,
+                        'error': str(e)
+                    }
+
+        # 创建所有并发任务
+        tasks = [
+            analyze_single_chapter(idx, chapter)
+            for idx, chapter in enumerate(chapters)
+        ]
+
+        logger.info(f"⚡ 启动 {len(tasks)} 个并发分析任务...")
+
+        # 并发执行所有任务
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # 分类处理结果
+        for result in results:
+            if isinstance(result, Exception):
+                # 处理未捕获的异常
+                logger.error(f"Unexpected error in task: {result}")
+                failed_chapters.append({
+                    'title': 'Unknown',
+                    'id': 'unknown',
+                    'error': str(result)
+                })
+            elif result['status'] == 'success':
+                successful_results.append(result)
+            else:
+                failed_chapters.append({
+                    'title': result['chapter_title'],
+                    'id': result['chapter_id'],
+                    'error': result['error']
+                })
+
+        logger.info(f"⚡ 并行分析完成: 成功 {len(successful_results)}/{len(chapters)} 章")
+
+        # 批量保存成功的结果
+        if successful_results:
+            logger.info(f"💾 开始批量保存 {len(successful_results)} 个分析结果...")
+            try:
+                await self.analysis_service.batch_save_micro_results(
+                    analysis_id=analysis_id,
+                    results=successful_results
+                )
+                logger.info(f"✅ 批量保存完成: {len(successful_results)} 个结果")
+            except Exception as e:
+                logger.error(f"❌ 批量保存失败: {e}", exc_info=True)
+                # 批量保存失败,将所有结果标记为失败
+                for result in successful_results:
+                    failed_chapters.append({
+                        'title': result['chapter_title'],
+                        'id': result['chapter_id'],
+                        'error': f"保存失败: {str(e)}"
+                    })
+                # 保存失败,直接返回,不继续向量存储
+                return [], failed_chapters
+
+        # 批量存储向量
+        if successful_results:
+            logger.info(f"🔍 开始批量存储向量...")
+            try:
+                await self._batch_store_vectors(
+                    work_id=work_id,
+                    analysis_id=analysis_id,
+                    results=successful_results
+                )
+                logger.info(f"✅ 批量向量存储完成")
+            except Exception as e:
+                logger.warning(f"⚠️ 批量向量存储失败(不影响分析): {e}")
+
+        # 注意: 进度已在batch_save_micro_results中更新,无需重复更新
+
+        # 提取微观分析数据返回
+        micro_results = [r['data'] for r in successful_results]
+
+        return micro_results, failed_chapters
+
+    async def _batch_store_vectors(
+        self,
+        work_id: str,
+        analysis_id: str,
+        results: List[Dict[str, Any]]
+    ):
+        """批量存储向量"""
+        for result in results:
+            try:
+                await self.vector_service.store_micro_analysis_vector(
+                    work_id=work_id,
+                    chapter_id=result['chapter_id'],
+                    analysis_id=analysis_id,
+                    micro_data=result['data'],
+                    chunk_index=0
+                )
+            except Exception as e:
+                logger.warning(f"向量存储失败(章节 {result['chapter_id']}): {e}")
+
     async def _cleanup(self):
         """清理资源"""
         try:

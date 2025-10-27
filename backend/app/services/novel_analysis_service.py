@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class NovelAnalysisService:
     """小说分析服务"""
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
     
@@ -123,43 +123,48 @@ class NovelAnalysisService:
     ) -> Optional[NovelAnalysis]:
         """
         更新分析进度
-        
+
         Args:
             analysis_id: 分析任务ID
             analyzed_chapters: 已分析章节数
             current_stage: 当前阶段（可选）
             status: 任务状态（可选）
-            
+
         Returns:
             Optional[NovelAnalysis]: 更新后的分析任务
         """
-        analysis = await self.get_analysis_by_id(analysis_id)
-        if not analysis:
-            logger.error(f"Analysis {analysis_id} not found")
-            return None
-        
-        # 更新进度
-        analysis.analyzed_chapters = analyzed_chapters
-        
-        # 更新阶段
-        if current_stage:
-            analysis.current_stage = current_stage
-        
-        # 更新状态
-        if status:
-            analysis.status = status
-            # 如果开始分析，记录开始时间
-            if status == AnalysisStatus.ANALYZING and not analysis.started_at:
-                analysis.started_at = datetime.now(timezone.utc)
-            # 如果完成或失败，记录完成时间
-            if status in [AnalysisStatus.COMPLETED, AnalysisStatus.FAILED]:
-                analysis.completed_at = datetime.now(timezone.utc)
-        
-        await self.db.commit()
-        await self.db.refresh(analysis)
-        
-        logger.info(f"Updated analysis {analysis_id} progress: {analyzed_chapters}/{analysis.total_chapters}, stage: {current_stage}, status: {status}")
-        return analysis
+        try:
+            analysis = await self.get_analysis_by_id(analysis_id)
+            if not analysis:
+                logger.error(f"Analysis {analysis_id} not found")
+                return None
+
+            # 更新进度
+            analysis.analyzed_chapters = analyzed_chapters
+
+            # 更新阶段
+            if current_stage:
+                analysis.current_stage = current_stage
+
+            # 更新状态
+            if status:
+                analysis.status = status
+                # 如果开始分析，记录开始时间
+                if status == AnalysisStatus.ANALYZING and not analysis.started_at:
+                    analysis.started_at = datetime.now(timezone.utc)
+                # 如果完成或失败，记录完成时间
+                if status in [AnalysisStatus.COMPLETED, AnalysisStatus.FAILED]:
+                    analysis.completed_at = datetime.now(timezone.utc)
+
+            await self.db.commit()
+            await self.db.refresh(analysis)
+
+            logger.info(f"Updated analysis {analysis_id} progress: {analyzed_chapters}/{analysis.total_chapters}, stage: {current_stage}, status: {status}")
+            return analysis
+        except Exception as e:
+            logger.error(f"Error updating progress: {e}", exc_info=True)
+            await self.db.rollback()
+            raise
     
     async def save_micro_result(
         self,
@@ -169,39 +174,96 @@ class NovelAnalysisService:
     ) -> Optional[NovelAnalysis]:
         """
         保存单个章节的微观分析结果
-        
+
         Args:
             analysis_id: 分析任务ID
             chapter_id: 章节ID
             micro_data: 微观分析JSON数据
-            
+
         Returns:
             Optional[NovelAnalysis]: 更新后的分析任务
         """
-        analysis = await self.get_analysis_by_id(analysis_id)
-        if not analysis:
-            logger.error(f"Analysis {analysis_id} not found")
-            return None
-        
-        # 初始化 micro_results（如果为空）
-        if analysis.micro_results is None:
-            analysis.micro_results = []
-        
-        # 添加新的微观分析结果
-        micro_results = analysis.micro_results if isinstance(analysis.micro_results, list) else []
-        micro_results.append({
-            "chapter_id": chapter_id,
-            **micro_data
-        })
-        
-        analysis.micro_results = micro_results
-        analysis.analyzed_chapters = len(micro_results)
-        
-        await self.db.commit()
-        await self.db.refresh(analysis)
-        
-        logger.info(f"Saved micro result for analysis {analysis_id}, chapter {chapter_id}, total: {len(micro_results)}")
-        return analysis
+        try:
+            analysis = await self.get_analysis_by_id(analysis_id)
+            if not analysis:
+                logger.error(f"Analysis {analysis_id} not found")
+                return None
+
+            # 初始化 micro_results（如果为空）
+            if analysis.micro_results is None:
+                analysis.micro_results = []
+
+            # 添加新的微观分析结果
+            micro_results = analysis.micro_results if isinstance(analysis.micro_results, list) else []
+            micro_results.append({
+                "chapter_id": chapter_id,
+                **micro_data
+            })
+
+            analysis.micro_results = micro_results
+            analysis.analyzed_chapters = len(micro_results)
+
+            await self.db.commit()
+            await self.db.refresh(analysis)
+
+            logger.info(f"Saved micro result for analysis {analysis_id}, chapter {chapter_id}, total: {len(micro_results)}")
+            return analysis
+        except Exception as e:
+            logger.error(f"Error saving micro result: {e}", exc_info=True)
+            await self.db.rollback()
+            raise
+
+    async def batch_save_micro_results(
+        self,
+        analysis_id: str,
+        results: List[Dict[str, Any]]
+    ) -> Optional[NovelAnalysis]:
+        """
+        批量保存微观分析结果(解决并发冲突问题)
+
+        Args:
+            analysis_id: 分析任务ID
+            results: 结果列表,每个元素格式:
+                {
+                    'chapter_id': str,
+                    'data': Dict[str, Any]  # 微观分析数据
+                }
+
+        Returns:
+            Optional[NovelAnalysis]: 更新后的分析任务
+        """
+        try:
+            analysis = await self.get_analysis_by_id(analysis_id)
+            if not analysis:
+                logger.error(f"Analysis {analysis_id} not found")
+                return None
+
+            # 初始化 micro_results
+            if analysis.micro_results is None:
+                analysis.micro_results = []
+
+            # 批量添加所有结果
+            micro_results = analysis.micro_results if isinstance(analysis.micro_results, list) else []
+
+            for result in results:
+                micro_results.append({
+                    "chapter_id": result['chapter_id'],
+                    **result['data']
+                })
+
+            analysis.micro_results = micro_results
+            analysis.analyzed_chapters = len(micro_results)
+
+            # 一次性提交所有结果
+            await self.db.commit()
+            await self.db.refresh(analysis)
+
+            logger.info(f"Batch saved {len(results)} micro results for analysis {analysis_id}, total: {len(micro_results)}")
+            return analysis
+        except Exception as e:
+            logger.error(f"Error batch saving micro results: {e}", exc_info=True)
+            await self.db.rollback()
+            raise
     
     async def save_macro_result(
         self,
@@ -210,30 +272,35 @@ class NovelAnalysisService:
     ) -> Optional[NovelAnalysis]:
         """
         保存宏观分析报告
-        
+
         Args:
             analysis_id: 分析任务ID
             macro_report: 宏观分析报告文本
-            
+
         Returns:
             Optional[NovelAnalysis]: 更新后的分析任务
         """
-        analysis = await self.get_analysis_by_id(analysis_id)
-        if not analysis:
-            logger.error(f"Analysis {analysis_id} not found")
-            return None
-        
-        # 保存宏观分析结果
-        analysis.macro_results = macro_report
-        analysis.current_stage = AnalysisStage.COMPLETED
-        analysis.status = AnalysisStatus.COMPLETED
-        analysis.completed_at = datetime.utcnow()
-        
-        await self.db.commit()
-        await self.db.refresh(analysis)
-        
-        logger.info(f"Saved macro result for analysis {analysis_id}, marked as completed")
-        return analysis
+        try:
+            analysis = await self.get_analysis_by_id(analysis_id)
+            if not analysis:
+                logger.error(f"Analysis {analysis_id} not found")
+                return None
+
+            # 保存宏观分析结果
+            analysis.macro_results = macro_report
+            analysis.current_stage = AnalysisStage.COMPLETED
+            analysis.status = AnalysisStatus.COMPLETED
+            analysis.completed_at = datetime.now(timezone.utc)
+
+            await self.db.commit()
+            await self.db.refresh(analysis)
+
+            logger.info(f"Saved macro result for analysis {analysis_id}, marked as completed")
+            return analysis
+        except Exception as e:
+            logger.error(f"Error saving macro result: {e}", exc_info=True)
+            await self.db.rollback()
+            raise
     
     async def get_analysis_result(self, work_id: str) -> Optional[NovelAnalysis]:
         """
@@ -262,28 +329,33 @@ class NovelAnalysisService:
     ) -> Optional[NovelAnalysis]:
         """
         标记分析任务为失败
-        
+
         Args:
             analysis_id: 分析任务ID
             error_message: 错误消息
-            
+
         Returns:
             Optional[NovelAnalysis]: 更新后的分析任务
         """
-        analysis = await self.get_analysis_by_id(analysis_id)
-        if not analysis:
-            logger.error(f"Analysis {analysis_id} not found")
-            return None
-        
-        analysis.status = AnalysisStatus.FAILED
-        analysis.error_message = error_message
-        analysis.completed_at = datetime.utcnow()
-        
-        await self.db.commit()
-        await self.db.refresh(analysis)
-        
-        logger.error(f"Marked analysis {analysis_id} as failed: {error_message}")
-        return analysis
+        try:
+            analysis = await self.get_analysis_by_id(analysis_id)
+            if not analysis:
+                logger.error(f"Analysis {analysis_id} not found")
+                return None
+
+            analysis.status = AnalysisStatus.FAILED
+            analysis.error_message = error_message
+            analysis.completed_at = datetime.now(timezone.utc)
+
+            await self.db.commit()
+            await self.db.refresh(analysis)
+
+            logger.error(f"Marked analysis {analysis_id} as failed: {error_message}")
+            return analysis
+        except Exception as e:
+            logger.error(f"Error marking analysis as failed: {e}", exc_info=True)
+            await self.db.rollback()
+            raise
     
     async def delete_analysis(self, work_id: str) -> bool:
         """

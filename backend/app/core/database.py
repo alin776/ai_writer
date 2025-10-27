@@ -13,7 +13,10 @@ engine = create_async_engine(
     pool_size=10,             # 连接池大小
     max_overflow=20,          # 最大溢出连接数
     pool_recycle=3600,        # 1小时后回收连接，防止长时间连接失效
+    pool_timeout=30,          # 连接池获取连接的超时时间（秒）
     connect_args={
+        "timeout": 10,        # TCP连接超时：10秒
+        "command_timeout": 60,  # 命令执行超时：60秒
         "server_settings": {
             "statement_timeout": "3600000",  # SQL语句超时：1小时（毫秒）
             "idle_in_transaction_session_timeout": "3600000"  # 事务空闲超时：1小时
@@ -40,7 +43,7 @@ Base = declarative_base()
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     数据库会话依赖
-    
+
     使用方法:
     async def some_route(db: AsyncSession = Depends(get_db)):
         ...
@@ -58,10 +61,43 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
+async def create_db_session() -> AsyncSession:
+    """
+    创建独立的数据库会话(用于并发任务)
+
+    使用方法:
+    async with create_db_session() as session:
+        # 使用session
+        await session.commit()
+    """
+    return AsyncSessionLocal()
+
+
 async def init_db():
-    """初始化数据库表"""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """初始化数据库表，带重试机制"""
+    import asyncio
+    import logging
+
+    logger = logging.getLogger(__name__)
+    max_retries = 3
+    retry_delay = 2
+
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"正在初始化数据库... (尝试 {attempt + 1}/{max_retries})")
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("✅ 数据库初始化成功")
+            return
+        except Exception as e:
+            logger.warning(f"数据库初始化失败 (尝试 {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"等待 {retry_delay} 秒后重试...")
+                await asyncio.sleep(retry_delay)
+                retry_delay *= 2  # 指数退避
+            else:
+                logger.error("❌ 数据库初始化失败，已达到最大重试次数")
+                raise
 
 
 async def close_db():
