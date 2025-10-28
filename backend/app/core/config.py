@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-5"  # 默认模型，可通过环境变量修改
     OPENAI_TIMEOUT: int = 120  # AI调用超时时间（秒），默认120秒
 
+    # 评审功能专用模型配置
+    REVIEW_MODEL: str = "gemini-2.5-flash"  # 评审专用模型,速度快,响应快
+    REVIEW_TIMEOUT: int = 60  # 评审超时时间(秒),gemini速度快
+
     # 图书分析专用模型配置
     BOOK_ANALYSIS_MODEL: str = "deepseek-r1-free"  # 图书分析专用模型,默认使用免费的推理模型
     BOOK_ANALYSIS_TIMEOUT: int = 60  # 图书分析超时时间(秒),推理模型速度更快

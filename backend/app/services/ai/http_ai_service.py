@@ -7,6 +7,7 @@ Direct httpx calls to OpenAI API, not using openai-python SDK
 import httpx
 import json
 import logging
+import asyncio
 from typing import AsyncGenerator
 from app.core.config import settings
 from app.services.ai.prompts import get_prompts_manager
@@ -280,16 +281,18 @@ class HTTPAIService:
         system_prompt: str,
         user_prompt: str,
         max_tokens: int = 2000,
-        temperature: float = 0.7
+        temperature: float = 0.7,
+        max_retries: int = 3
     ) -> str:
         """
-        非流式AI调用 (用于评审等需要完整响应的场景)
+        非流式AI调用 (用于评审等需要完整响应的场景,带重试机制)
 
         Args:
             system_prompt: 系统提示词
             user_prompt: 用户提示词
             max_tokens: 最大token数
             temperature: 温度参数
+            max_retries: 最大重试次数(默认3次)
 
         Returns:
             完整的AI响应文本
@@ -311,27 +314,73 @@ class HTTPAIService:
             "stream": False  # 非流式
         }
 
-        logger.info(
-            f"开始非流式AI调用: max_tokens={max_tokens}, temp={temperature}"
-        )
+        # 重试机制
+        for attempt in range(max_retries):
+            try:
+                if attempt > 0:
+                    # 指数退避: 2秒, 4秒, 8秒
+                    wait_time = 2 ** attempt
+                    logger.warning(
+                        f"AI调用失败,进行第{attempt}次重试 (共{max_retries - 1}次重试机会), "
+                        f"等待 {wait_time}秒后重试..."
+                    )
+                    await asyncio.sleep(wait_time)
 
-        try:
-            response = await self.client.post(url, json=payload, headers=headers)
+                logger.info(
+                    f"开始非流式AI调用: max_tokens={max_tokens}, temp={temperature}, "
+                    f"尝试={attempt + 1}/{max_retries}"
+                )
 
-            if response.status_code != 200:
-                error_text = response.text
-                logger.error(f"API错误: {response.status_code}, {error_text[:500]}")
-                raise Exception(f"API请求失败: {response.status_code}")
+                response = await self.client.post(url, json=payload, headers=headers)
 
-            data = response.json()
-            content = data['choices'][0]['message']['content']
+                if response.status_code != 200:
+                    error_text = response.text
+                    logger.error(f"API错误: {response.status_code}, {error_text[:500]}")
 
-            logger.info(f"AI响应成功, 长度={len(content)}")
-            return content
+                    # 如果是服务器错误(5xx)或超时(429),可以重试
+                    if response.status_code >= 500 or response.status_code == 429:
+                        if attempt < max_retries - 1:
+                            continue  # 重试
 
-        except httpx.HTTPError as e:
-            logger.error(f"HTTP请求错误: {type(e).__name__}: {str(e)}")
-            raise Exception(f"网络请求失败: {str(e)}")
-        except Exception as e:
-            logger.error(f"AI调用错误: {type(e).__name__}: {str(e)}")
-            raise
+                    raise Exception(f"API请求失败: {response.status_code}")
+
+                data = response.json()
+                content = data['choices'][0]['message']['content']
+
+                logger.info(
+                    f"AI响应成功, 长度={len(content)}, "
+                    f"尝试次数={attempt + 1}"
+                )
+                return content
+
+            except httpx.ReadTimeout as e:
+                logger.error(
+                    f"AI调用超时 (尝试 {attempt + 1}/{max_retries}): {str(e)}"
+                )
+                if attempt < max_retries - 1:
+                    continue  # 重试
+                else:
+                    logger.error(f"AI调用超时,已重试{max_retries}次,全部失败")
+                    raise Exception(f"网络请求超时,已重试{max_retries}次")
+
+            except httpx.HTTPError as e:
+                logger.error(
+                    f"HTTP请求错误 (尝试 {attempt + 1}/{max_retries}): "
+                    f"{type(e).__name__}: {str(e)}"
+                )
+                if attempt < max_retries - 1:
+                    continue  # 重试
+                else:
+                    logger.error(f"HTTP请求失败,已重试{max_retries}次,全部失败")
+                    raise Exception(f"网络请求失败: {str(e)}")
+
+            except Exception as e:
+                logger.error(
+                    f"AI调用错误 (尝试 {attempt + 1}/{max_retries}): "
+                    f"{type(e).__name__}: {str(e)}"
+                )
+                # 其他异常不重试
+                raise
+
+        # 理论上不会到这里
+        raise Exception(f"AI调用失败,已重试{max_retries}次")
