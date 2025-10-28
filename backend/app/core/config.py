@@ -88,6 +88,10 @@ class Settings(BaseSettings):
     # 最多可同时使用的模型数量
     REWRITE_MAX_MODELS: int = 4
 
+    # 改写竞技场性能优化配置
+    REWRITE_MAX_CONCURRENT: int = 3  # 最大并发API请求数（避免触发限流）
+    REWRITE_TIMEOUT_PER_MODEL: int = 30  # 单个模型超时时间（秒）
+
     # 小说分析配置
     ANALYSIS_MAX_RETRIES: int = 3  # 单章分析失败最大重试次数
     ANALYSIS_TIMEOUT: int = 3600  # 整体分析超时时间（秒），默认1小时

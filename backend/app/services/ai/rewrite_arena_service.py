@@ -28,7 +28,12 @@ class RewriteArenaService:
         self.base_url = settings.OPENAI_BASE_URL
         self.default_model = settings.OPENAI_MODEL
 
+        # 从配置文件读取性能参数
+        self.MAX_CONCURRENT_REQUESTS = settings.REWRITE_MAX_CONCURRENT
+        self.TIMEOUT_PER_MODEL = settings.REWRITE_TIMEOUT_PER_MODEL
+
         # 创建 HTTP 客户端
+        # 注意: HTTP超时应该大于asyncio超时,避免冲突
         self.client = httpx.AsyncClient(
             headers={
                 "User-Agent": "okhttp/4.12.0",
@@ -36,12 +41,22 @@ class RewriteArenaService:
                 "Accept-Encoding": "gzip, deflate",
                 "Connection": "keep-alive",
             },
-            timeout=httpx.Timeout(60.0, connect=10.0),
+            timeout=httpx.Timeout(
+                self.TIMEOUT_PER_MODEL + 10.0,  # 总超时 = asyncio超时 + 10秒缓冲
+                connect=10.0  # 连接超时
+            ),
             follow_redirects=True,
             http2=False,
         )
 
-        logger.info("RewriteArenaService 初始化成功")
+        # 并发限流器 (Semaphore)
+        self.semaphore = asyncio.Semaphore(self.MAX_CONCURRENT_REQUESTS)
+
+        logger.info(
+            f"RewriteArenaService 初始化成功 "
+            f"(最大并发: {self.MAX_CONCURRENT_REQUESTS}, "
+            f"超时时间: {self.TIMEOUT_PER_MODEL}s)"
+        )
 
     async def close(self):
         """关闭 HTTP 客户端"""
@@ -135,53 +150,70 @@ class RewriteArenaService:
         start_time = time.time()
 
         try:
-            prompt = self._build_rewrite_prompt(
-                text, mode, custom_requirement,
-                context_before, context_after
-            )
+            # 🔥 并发限流控制 - 获取信号量
+            async with self.semaphore:
+                logger.info(f"[{model_name}] 开始改写")
 
-            messages = [
-                {
-                    "role": "system",
-                    "content": "你是一位专业的小说改写助手，擅长根据要求改写文本。"
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
+                prompt = self._build_rewrite_prompt(
+                    text, mode, custom_requirement,
+                    context_before, context_after
+                )
 
-            logger.info(f"开始使用 {model_name} 改写文本")
+                messages = [
+                    {
+                        "role": "system",
+                        "content": "你是一位专业的小说改写助手，擅长根据要求改写文本。"
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
 
-            # 调用 API
-            rewritten_text = await self._call_api(
-                messages,
-                model=model_name,
-                temperature=0.7,
-                max_tokens=2000
-            )
+                # 🔥 超时控制 - 使用 asyncio.wait_for
+                try:
+                    rewritten_text = await asyncio.wait_for(
+                        self._call_api(
+                            messages,
+                            model=model_name,
+                            temperature=0.7,
+                            max_tokens=2000
+                        ),
+                        timeout=self.TIMEOUT_PER_MODEL
+                    )
+                except asyncio.TimeoutError:
+                    elapsed_time = time.time() - start_time
+                    logger.warning(f"[{model_name}] 改写超时 ({self.TIMEOUT_PER_MODEL}s)")
 
-            elapsed_time = time.time() - start_time
-            word_count = len(rewritten_text)
+                    return ModelResult(
+                        model_name=model_name,
+                        rewritten_text="",
+                        word_count=0,
+                        elapsed_time=round(elapsed_time, 2),
+                        error=f"请求超时 (>{self.TIMEOUT_PER_MODEL}s)"
+                    )
 
-            logger.info(
-                f"{model_name} 改写完成，耗时: {elapsed_time:.2f}s, "
-                f"字数: {word_count}"
-            )
+                elapsed_time = time.time() - start_time
+                word_count = len(rewritten_text)
 
-            return ModelResult(
-                model_name=model_name,
-                rewritten_text=rewritten_text,
-                word_count=word_count,
-                elapsed_time=round(elapsed_time, 2),
-                error=None
-            )
+                logger.info(
+                    f"[{model_name}] 改写完成，耗时: {elapsed_time:.2f}s, "
+                    f"字数: {word_count}"
+                )
+
+                return ModelResult(
+                    model_name=model_name,
+                    rewritten_text=rewritten_text,
+                    word_count=word_count,
+                    elapsed_time=round(elapsed_time, 2),
+                    error=None
+                )
 
         except Exception as e:
             elapsed_time = time.time() - start_time
             error_msg = f"{type(e).__name__}: {str(e)}"
 
-            logger.error(f"{model_name} 改写失败: {error_msg}")
+            logger.error(f"[{model_name}] 改写失败: {error_msg}")
 
             return ModelResult(
                 model_name=model_name,
@@ -214,7 +246,13 @@ class RewriteArenaService:
         Returns:
             List[ModelResult]: 各模型的改写结果
         """
-        logger.info(f"开始多模型改写，模型数量: {len(model_names)}")
+        logger.info(
+            f"开始多模型改写 - 模型数量: {len(model_names)}, "
+            f"最大并发: {self.MAX_CONCURRENT_REQUESTS}, "
+            f"超时限制: {self.TIMEOUT_PER_MODEL}s"
+        )
+
+        start_time = time.time()
 
         # 创建所有任务
         tasks = [
@@ -229,10 +267,18 @@ class RewriteArenaService:
             for model_name in model_names
         ]
 
-        # 并发执行所有任务
+        # 并发执行所有任务 (受限于semaphore控制)
         results = await asyncio.gather(*tasks, return_exceptions=False)
 
-        logger.info(f"多模型改写完成，成功: {sum(1 for r in results if not r.error)}/{len(results)}")
+        total_time = time.time() - start_time
+        success_count = sum(1 for r in results if not r.error)
+        timeout_count = sum(1 for r in results if r.error and '超时' in r.error)
+
+        logger.info(
+            f"多模型改写完成 - 总耗时: {total_time:.2f}s, "
+            f"成功: {success_count}/{len(results)}, "
+            f"超时: {timeout_count}/{len(results)}"
+        )
 
         return results
 
