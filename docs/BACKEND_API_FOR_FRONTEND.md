@@ -1,9 +1,10 @@
 # 后端已完成但前端未实现的API接口文档
 
-> **文档生成时间**: 2025-10-28
+> **文档最后更新**: 2025-01-28
 > **目标**: 为前端开发提供完整的API接口清单
 > **状态**: 后端100%完成,前端0%完成
 > **优先级**: P0 (最高优先级)
+> **实际API路由**: 所有API均已在backend/app/api/v1/目录下实现
 
 ---
 
@@ -300,9 +301,10 @@ POST /api/v1/knowledge/{item_id}/reference
 
 ## 2. AI拆书功能
 
-> **后端状态**: ✅ 100%完成 (2025-10-27)
+> **后端状态**: ✅ 100%完成 (2025-01-27)
 > **差异化优势**: 市场首个网文11维度分析系统
-> **Base URL**: `/api/v1/books`
+> **Base URL**: `/api/v1/books` (实际路由在 `backend/app/api/v1/endpoints/books.py`)
+> **注意**: 此API路由在endpoints子目录下
 
 ### 2.1 上传图书并启动分析
 
@@ -593,9 +595,10 @@ PATCH /api/v1/books/suggestions/{suggestion_id}
 
 ## 3. AI改写助手/写作竞技场
 
-> **后端状态**: ✅ 100%完成 (2025-10-26)
+> **后端状态**: ✅ 100%完成 (2025-01-26)
 > **营销卖点**: "6个顶级AI同时为你改写"
 > **Base URL**: `/api/v1/ai/rewrite-arena`
+> **实际实现**: 在 `backend/app/api/v1/ai.py` 中实现
 
 ### 3.1 获取可用模型列表
 
@@ -808,9 +811,10 @@ POST /api/v1/ai/rewrite-arena/rewrite
 
 ## 4. 小说评审增强系统
 
-> **后端状态**: ✅ 100%完成 (2025-10-26)
+> **后端状态**: ✅ 100%完成 (2025-01-26)
 > **功能价值**: 专业的小说质量评审系统
 > **Base URL**: `/api/v1/review`
+> **实际实现**: 在 `backend/app/api/v1/review.py` 中实现
 
 ### 4.1 发起章节评审
 
@@ -1311,9 +1315,10 @@ GET /api/v1/review/versions/compare?version_a={version_id_1}&version_b={version_
 
 ## 5. AI评估反馈系统
 
-> **后端状态**: ✅ 100%完成 (2025-10-26)
+> **后端状态**: ✅ 100%完成 (2025-01-26)
 > **功能价值**: 5维度AI内容质量评价
 > **Base URL**: `/api/v1/ai`
+> **实际实现**: 在 `backend/app/api/v1/ai.py` 中实现 (evaluate接口)
 
 ### 5.1 评估AI生成内容
 
@@ -1410,9 +1415,10 @@ POST /api/v1/ai/evaluate
 
 ## 6. 去AI痕迹功能
 
-> **后端状态**: ✅ 100%完成 (2025-10-28)
+> **后端状态**: ✅ 100%完成 (2025-01-28)
 > **功能价值**: 检测并去除AI生成文本的机器痕迹
 > **Base URL**: `/api/v1/humanize`
+> **实际实现**: 在 `backend/app/api/v1/humanize.py` 中完整实现
 
 ### 6.1 获取用户画像
 
@@ -1662,6 +1668,7 @@ POST /api/v1/humanize/rewrite
 > **后端状态**: ✅ 100%完成
 > **功能价值**: 管理AI改写助手的历史会话
 > **Base URL**: `/api/v1/rewrite-history`
+> **实际实现**: 在 `backend/app/api/v1/rewrite_history.py` 中实现
 
 ### 7.1 保存改写会话
 
@@ -1872,7 +1879,7 @@ async humanizeText(request: HumanizeRequest): Promise<HumanizeSessionResponse> /
 
 **问题**: `DimensionScore` 对象无法序列化为JSON
 **影响**: 去痕迹功能完全不可用 (HTTP 500)
-**修复时间**: 2025-10-28
+**修复时间**: 2025-01-28
 **修复方案**: 使用Pydantic BaseModel和FastAPI默认序列化
 
 ```python
@@ -1922,6 +1929,15 @@ class DimensionScore(BaseModel):
 
 ---
 
-**文档生成时间**: 2025-10-28
-**最后更新**: 2025-10-28
+**文档最后更新**: 2025-01-28
+**最后更新**: 2025-01-28
 **维护者**: 前端开发团队
+
+## 📝 更新日志
+
+**2025-01-28**:
+- 修正文档日期从10月改为1月
+- 确认所有API路由实际实现位置
+- 标注books.py在endpoints子目录下
+- 明确各API在哪个文件中实现
+- 更新序列化Bug修复时间
