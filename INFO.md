@@ -1,331 +1,94 @@
-(venv) PS D:\Java\ai_writer\backend> python tests/test_database_performance.py
+(venv) PS D:\Java\ai_writer\backend> python test_evaluation_with_flash.py
 
-🚀 开始数据库性能审查...
+启动测试...
+API地址: http://localhost:8000
+测试时间: 2025-10-28 13:36:06
 
-======================================================================
-📊 数据库索引审查
-======================================================================
+############################################################
+#  AI评估系统测试 - gemini-2.5-flash 模型验证
+############################################################
 
-📋 表: ai_call_logs
-   索引数量: 13
-   - ai_call_logs_pkey: id
-   - ix_ai_call_logs_analysis_id: analysis_id
-   - ix_ai_call_logs_chapter_id: chapter_id
-   - ix_ai_call_logs_created_at: created_at
-   - ix_ai_call_logs_id: id
-   - ix_ai_call_logs_model_name: model_name
-   - ix_ai_call_logs_operation_type: operation_type
-   - ix_ai_call_logs_user_id: user_id
-   - ix_ai_call_logs_work_id: work_id
-   - ix_ai_logs_model_created: model_name, created_at
-   - ix_ai_logs_operation_created: operation_type, created_at
-   - ix_ai_logs_user_created: user_id, created_at
-   - ix_ai_logs_work_created: work_id, created_at
 
-📋 表: ai_guidelines
-   索引数量: 3
-   - ai_guidelines_pkey: id
-   - ix_ai_guidelines_id: id
-   - ix_ai_guidelines_work_id: work_id
+============================================================
+步骤 1: 用户登录
+============================================================
 
-📋 表: alembic_version
-   索引数量: 1
-   - alembic_version_pkc: version_num
+用户名: 2072855200@qq.com
+✅ 登录成功!
+   Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2M...
 
-📋 表: book_analysis_jobs
-   索引数量: 4
-   - book_analysis_jobs_pkey: id
-   - ix_book_analysis_jobs_file_hash: file_hash
-   - ix_book_analysis_jobs_status: status
-   - ix_book_analysis_jobs_user_id: user_id
+============================================================
+步骤 2: 调用评估接口
+============================================================
 
-📋 表: chapter_versions
-   索引数量: 6
-   - chapter_versions_pkey: id
-   - ix_chapter_versions_chapter_id: chapter_id
-   - ix_chapter_versions_id: id
-   - ix_chapter_versions_is_milestone: is_milestone
-   - ix_chapter_versions_review_session_id: review_session_id
-   - ix_chapter_versions_user_id: user_id
+操作类型: continue
+文本长度: 164 字符
 
-📋 表: chapters
-   索引数量: 5
-   - chapters_pkey: id
-   - ix_chapters_id: id
-   - ix_chapters_order: "order"
-   - ix_chapters_status: status
-   - ix_chapters_work_id: work_id
+测试文本:
 
-📋 表: characters
-   索引数量: 3
-   - characters_pkey: id
-   - ix_characters_id: id
-   - ix_characters_work_id: work_id
+夜幕降临,月光如水般倾泻而下,洒在静谧的湖面上。林间传来阵阵虫鸣,仿佛在诉说着夏夜的故事。
+微风拂过,带来阵阵花香,沁人心脾。远处的山峦在月光下显得格外朦胧,宛如一幅水墨画。
 
-📋 表: entity_groups
-   索引数量: 2
-   - entity_groups_pkey: id
-   - ix_entity_groups_work_id: work_id
+他站在湖边,望着粼粼...
 
-📋 表: entity_relationships
-   索引数量: 1
-   - entity_relationships_pkey: id
+⏳ 正在调用评估API (使用 gemini-2.5-flash)...
+✅ 评估成功! (耗时: 15.38秒)
 
-📋 表: evaluation_records
-   索引数量: 11
-   - evaluation_records_pkey: id
-   - ix_eval_operation_created: operation_type, created_at
-   - ix_eval_user_created: user_id, created_at
-   - ix_eval_work_created: work_id, created_at
-   - ix_evaluation_records_ai_call_log_id: ai_call_log_id
-   - ix_evaluation_records_chapter_id: chapter_id
-   - ix_evaluation_records_created_at: created_at
-   - ix_evaluation_records_id: id
-   - ix_evaluation_records_operation_type: operation_type
-   - ix_evaluation_records_user_id: user_id
-   - ix_evaluation_records_work_id: work_id
+============================================================
+步骤 3: 评估结果
+============================================================
 
-📋 表: group_members
-   索引数量: 3
-   - group_members_pkey: id
-   - ix_group_members_entity_id: entity_id
-   - ix_group_members_group_id: group_id
 
-📋 表: humanize_session_details
-   索引数量: 3
-   - humanize_session_details_pkey: id
-   - ix_humanize_session_details_expires_at: expires_at
-   - ix_humanize_session_details_session_id: session_id
+📊 总分: 83.0/100
+   等级: 良好 👍
 
-📋 表: humanize_sessions
-   索引数量: 5
-   - humanize_sessions_pkey: id
-   - ix_humanize_sessions_ai_function: ai_function
-   - ix_humanize_sessions_created_at: created_at
-   - ix_humanize_sessions_id: id
-   - ix_humanize_sessions_user_id: user_id
+📈 5维度评分:
+   文学性         : █████████████████░░░ 85.0
+   连贯性         : ██████████████████░░ 90.0
+   创意性         : ██████████████░░░░░░ 70.0
+   情感感染力       : ████████████████░░░░ 80.0
+   节奏把控        : ██████████████████░░ 90.0
 
-📋 表: knowledge_items
-   索引数量: 7
-   - ix_knowledge_items_category: category
-   - ix_knowledge_items_chapter_id: chapter_id
-   - ix_knowledge_items_id: id
-   - ix_knowledge_items_title: title
-   - ix_knowledge_items_user_id: user_id
-   - ix_knowledge_items_work_id: work_id
-   - knowledge_items_pkey: id
+✨ 优点:
+   1. 意境优美,通过多感官描写营造了静谧而富有诗意的夏夜氛围。
+   2. 情感表达细腻,成功刻画了人物面对景物时油然而生的感慨与怀旧情愫。
+   3. 语言流畅自然,修辞手法运用得当,如“月光如水”、“宛如一幅水墨画”等。
 
-📋 表: locations
-   索引数量: 3
-   - ix_locations_id: id
-   - ix_locations_work_id: work_id
-   - locations_pkey: id
+⚠️  问题:
+   1. 部分意象和表达略显陈旧,如“月光如水”、“沁人心脾”、“时光荏苒,物是人非”等,缺乏新颖的视角。
+   2. 人物情感的“无限感慨”略显宽泛,若能稍加暗示具体的回忆或情感来源,感染力会更强。
 
-📋 表: novel_analyses
-   索引数量: 4
-   - ix_novel_analyses_id: id
-   - ix_novel_analyses_status: status
-   - ix_novel_analyses_work_id: work_id
-   - novel_analyses_pkey: id
+💡 改进建议:
+   1. 尝试在描写中融入更具个人风格或独特视角的意象,避免使用过于常见的比喻和短语。
+   2. 在表达人物情感时,可以考虑通过一两个具体的细节或闪回片段,让“感慨”具象化,增强读者的代入感。
+   3. 如果后续有情节发展,可以考虑如何将这种静谧的氛围与人物的内心活动更紧密地结合,推动故事。
 
-📋 表: novel_analysis_vectors
-   索引数量: 9
-   - idx_novel_vectors_analysis_id: analysis_id
-   - idx_novel_vectors_chapter_id: chapter_id
-   - idx_novel_vectors_source: source_type, source_id
-   - idx_novel_vectors_user_source: user_id, source_type
-   - idx_novel_vectors_work_id: work_id
-   - ix_novel_analysis_vectors_source_id: source_id
-   - ix_novel_analysis_vectors_source_type: source_type
-   - ix_novel_analysis_vectors_user_id: user_id
-   - novel_analysis_vectors_pkey: id
+============================================================
+步骤 4: 验证模型使用
+============================================================
 
-📋 表: review_sessions
-   索引数量: 5
-   - ix_review_sessions_id: id
-   - ix_review_sessions_review_level: review_level
-   - ix_review_sessions_target_id: target_id
-   - ix_review_sessions_user_id: user_id
-   - review_sessions_pkey: id
+ℹ️  查询AI调用日志以验证使用的模型...
+✅ ✅ 模型验证通过: gemini-2.5-flash
+ℹ️     Token消耗: 811
+ℹ️     成本: $0.0000
 
-📋 表: review_tasks
-   索引数量: 7
-   - ix_review_tasks_chapter_id: chapter_id
-   - ix_review_tasks_id: id
-   - ix_review_tasks_priority: priority
-   - ix_review_tasks_review_session_id: review_session_id
-   - ix_review_tasks_status: status
-   - ix_review_tasks_user_id: user_id
-   - review_tasks_pkey: id
+============================================================
+步骤 5: 性能分析
+============================================================
 
-📋 表: rewrite_results
-   索引数量: 3
-   - ix_rewrite_results_id: id
-   - ix_rewrite_results_session_id: session_id
-   - rewrite_results_pkey: id
+⏱️  响应时间: 15.38秒
+❌ 性能较慢 (> 10秒)
 
-📋 表: rewrite_sessions
-   索引数量: 4
-   - ix_rewrite_sessions_created_at: created_at
-   - ix_rewrite_sessions_id: id
-   - ix_rewrite_sessions_user_id: user_id
-   - rewrite_sessions_pkey: id
+============================================================
+测试总结
+============================================================
 
-📋 表: settings
-   索引数量: 3
-   - ix_settings_id: id
-   - ix_settings_work_id: work_id
-   - settings_pkey: id
+✅ ✅ 登录成功
+✅ ✅ 评估API调用成功
+✅ ✅ 获得评分: 83.0/100
+✅ ✅ 5维度评分完整
+✅ ✅ 响应时间: 15.38秒
 
-📋 表: timeline_events
-   索引数量: 1
-   - timeline_events_pkey: id
+🎉 测试完成!
 
-📋 表: user_profiles
-   索引数量: 2
-   - ix_user_profiles_user_id: user_id
-   - user_profiles_pkey: id
-
-📋 表: user_sessions
-   索引数量: 4
-   - ix_user_sessions_id: id
-   - ix_user_sessions_user_id: user_id
-   - user_sessions_pkey: id
-   - user_sessions_session_token_key: session_token
-
-📋 表: users
-   索引数量: 4
-   - ix_users_email: email
-   - ix_users_id: id
-   - ix_users_username: username
-   - users_pkey: id
-
-📋 表: work_guidelines
-   索引数量: 3
-   - ix_work_guidelines_id: id
-   - ix_work_guidelines_work_id: work_id
-   - work_guidelines_pkey: id
-
-📋 表: works
-   索引数量: 4
-   - ix_works_author_id: author_id
-   - ix_works_id: id
-   - ix_works_title: title
-   - works_pkey: id
-
-📋 表: worldview_suggestions
-   索引数量: 4
-   - ix_worldview_suggestions_job_id: job_id
-   - ix_worldview_suggestions_status: status
-   - ix_worldview_suggestions_user_id: user_id
-   - worldview_suggestions_pkey: id
-
-======================================================================
-🔍 缺失索引检测
-======================================================================
-
-⚠️ 发现缺失的索引:
-
-   - chapters.author_id
-   - relationships.work_id
-   - relationships.source_id
-   - relationships.target_id
-   - timeline_events.work_id
-
-======================================================================
-⏱️ 查询性能测试
-======================================================================
-
-📊 作品列表查询 (带章节)
-   耗时: 22.57ms
-   行数: 17
-   ✅ 查询快速 (<50ms)
-
-📊 章节列表查询
-   耗时: 0.00ms
-   行数: 0
-   ✅ 查询快速 (<50ms)
-
-📊 AI日志统计查询
-   耗时: 15.92ms
-   行数: 1
-   ✅ 查询快速 (<50ms)
-
-======================================================================
-💾 表大小分析
-======================================================================
-
-表名                             大小              行数
-----------------------------------------------------------------------
-chapters                       1064 kB                713
-novel_analysis_vectors         688 kB                 120
-ai_call_logs                   264 kB                  17
-novel_analyses                 232 kB                   4
-knowledge_items                216 kB                  60
-evaluation_records             192 kB                   1
-user_sessions                  176 kB                  91
-review_tasks                   128 kB                  15
-users                          112 kB                  78
-chapter_versions               112 kB                   9
-review_sessions                112 kB                   5
-book_analysis_jobs             112 kB                   5
-humanize_sessions              88 kB                   22
-worldview_suggestions          88 kB                    0
-works                          80 kB                   17
-user_profiles                  80 kB                   39
-settings                       64 kB                    1
-locations                      64 kB                    1
-humanize_session_details       64 kB                   13
-characters                     64 kB                    2
-ai_guidelines                  64 kB                    1
-rewrite_sessions               40 kB                    0
-work_guidelines                32 kB                    0
-entity_relationships           32 kB                    1
-rewrite_results                32 kB                    0
-entity_groups                  24 kB                    0
-alembic_version                24 kB                    1
-group_members                  24 kB                    0
-timeline_events                16 kB                    0
-
-======================================================================
-🔍 N+1查询模式检测
-======================================================================
-
-检查 Service 文件中的 selectinload/joinedload 使用情况...
-
-⚠️ 无法执行 grep 命令: [WinError 2] 系统找不到指定的文件。
-
-📝 N+1查询优化建议:
-
-1. ✅ 在查询作品时预加载章节:
-   .options(selectinload(Work.chapters))
-
-2. ✅ 在查询世界观时预加载关系:
-   .options(selectinload(Character.relationships))
-
-3. ⚠️ 避免在循环中查询关联数据:
-   # ❌ 错误
-   for work in works:
-       chapters = await get_chapters(work.id)
-
-   # ✅ 正确
-   works = await db.execute(
-       select(Work).options(selectinload(Work.chapters))
-   )
-
-======================================================================
-📊 性能审查总结
-======================================================================
-
-⚠️ 发现 5 个缺失的索引
-   建议创建这些索引以提升查询性能
-
-📝 下一步建议:
-   1. 如有缺失索引,运行 Day2 索引优化脚本
-   2. 监控慢查询日志
-   3. 定期运行性能测试
-
-======================================================================
-✅ 审查完成!
-======================================================================
 (venv) PS D:\Java\ai_writer\backend>

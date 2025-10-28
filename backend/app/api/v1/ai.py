@@ -837,10 +837,10 @@ async def evaluate_generated_content(
             user_id=current_user.id
         )
 
-        # 执行评价
+        # 执行评价 (使用 gemini-2.5-flash - 成本低,速度快)
         result = await evaluation_service.evaluate_text(
             request=request,
-            model_name=settings.OPENAI_MODEL
+            model_name="gemini-2.5-flash"
         )
 
         logger.info(

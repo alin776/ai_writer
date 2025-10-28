@@ -44,12 +44,11 @@ class EvaluationService:
         """
         self.db = db
         self.user_id = user_id
-        self.http_ai = HTTPAIService()
 
     async def evaluate_text(
         self,
         request: EvaluationRequest,
-        model_name: str = "gpt-4"
+        model_name: str = "gemini-2.5-flash"
     ) -> EvaluationResponse:
         """
         评价AI生成的文本
@@ -67,56 +66,64 @@ class EvaluationService:
             f"text_length={len(request.text)}"
         )
 
-        # 1. 获取上下文信息
-        context = await self._get_context(request.context)
+        # 1. 创建指定模型的 AI 服务
+        http_ai = HTTPAIService(model=model_name)
 
-        # 2. 生成评价Prompt
-        prompt = get_evaluation_prompt(
-            text=request.text,
-            work_title=context.get("work_title"),
-            chapter_title=context.get("chapter_title"),
-            previous_text=context.get("previous_text"),
-            operation_type=request.operation_type
-        )
+        try:
+            # 2. 获取上下文信息
+            context = await self._get_context(request.context)
 
-        # 3. 调用AI进行评价 (使用日志中间件)
-        log_middleware = AILogMiddleware(
-            db=self.db,
-            user_id=self.user_id,
-            model_name=model_name
-        )
-
-        ai_call_log_id = None
-        evaluation_result = None
-
-        async with log_middleware.log_call(
-            operation_type="evaluate",
-            work_id=context.get("work_id"),
-            chapter_id=context.get("chapter_id"),
-            extra_data={"operation_type": request.operation_type}
-        ) as token_counter:
-            # 构造消息
-            messages = [
-                {"role": "system", "content": EVALUATION_SYSTEM_PROMPT},
-                {"role": "user", "content": prompt}
-            ]
-
-            # 调用AI (非流式)
-            result_text = await self._call_ai_non_stream(messages)
-
-            # 估算token数 (用于成本计算)
-            token_counter.estimate_tokens(
-                prompt_text=EVALUATION_SYSTEM_PROMPT + prompt,
-                completion_text=result_text
+            # 3. 生成评价Prompt
+            prompt = get_evaluation_prompt(
+                text=request.text,
+                work_title=context.get("work_title"),
+                chapter_title=context.get("chapter_title"),
+                previous_text=context.get("previous_text"),
+                operation_type=request.operation_type
             )
 
-            # 解析AI返回的JSON
-            evaluation_result = self._parse_evaluation_result(result_text)
+            # 4. 调用AI进行评价 (使用日志中间件)
+            log_middleware = AILogMiddleware(
+                db=self.db,
+                user_id=self.user_id,
+                model_name=model_name
+            )
 
-        # 获取AI调用日志ID
-        ai_call_log_id = token_counter.log_id
+            ai_call_log_id = None
+            evaluation_result = None
 
-        # 4. 保存评价记录
+            async with log_middleware.log_call(
+                operation_type="evaluate",
+                work_id=context.get("work_id"),
+                chapter_id=context.get("chapter_id"),
+                extra_data={"operation_type": request.operation_type}
+            ) as token_counter:
+                # 构造消息
+                messages = [
+                    {"role": "system", "content": EVALUATION_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt}
+                ]
+
+                # 调用AI (非流式)
+                result_text = await self._call_ai_non_stream(http_ai, messages)
+
+                # 估算token数 (用于成本计算)
+                token_counter.estimate_tokens(
+                    prompt_text=EVALUATION_SYSTEM_PROMPT + prompt,
+                    completion_text=result_text
+                )
+
+                # 解析AI返回的JSON
+                evaluation_result = self._parse_evaluation_result(result_text)
+
+            # 获取AI调用日志ID
+            ai_call_log_id = token_counter.log_id
+
+        finally:
+            # 5. 确保关闭 HTTP 客户端,防止资源泄漏
+            await http_ai.close()
+
+        # 6. 保存评价记录
         evaluation_record = await self._save_evaluation_record(
             request=request,
             evaluation_result=evaluation_result,
@@ -124,7 +131,7 @@ class EvaluationService:
             ai_call_log_id=ai_call_log_id
         )
 
-        # 5. 构造响应
+        # 7. 构造响应
         response = EvaluationResponse(
             overall_score=evaluation_result["overall_score"],
             dimensions=DimensionScores(**evaluation_result["dimensions"]),
@@ -184,18 +191,19 @@ class EvaluationService:
 
         return result
 
-    async def _call_ai_non_stream(self, messages: list) -> str:
+    async def _call_ai_non_stream(self, http_ai: HTTPAIService, messages: list) -> str:
         """
         调用AI (非流式)
 
         Args:
+            http_ai: HTTP AI Service 实例
             messages: 消息列表
 
         Returns:
             AI返回的完整文本
         """
         chunks = []
-        async for chunk in self.http_ai._stream_chat(
+        async for chunk in http_ai._stream_chat(
             messages=messages,
             max_tokens=2000,
             temperature=0.3  # 评价任务用较低温度,保证一致性
