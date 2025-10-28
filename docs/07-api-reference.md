@@ -16,6 +16,11 @@
 - [6. 章节管理API](#6-章节管理api)
 - [7. 世界观API](#7-世界观api)
 - [8. AI服务API](#8-ai服务api)
+  - [8.9 AI人性化重写](#89-ai人性化重写-new) ⭐⭐ NEW
+  - [8.10 获取人性化重写用户画像](#810-获取人性化重写用户画像)
+  - [8.11 更新人性化重写设置](#811-更新人性化重写设置)
+  - [8.12 获取人性化重写历史](#812-获取人性化重写历史)
+  - [8.13 获取人性化重写统计](#813-获取人性化重写统计)
 - [9. 小说分析API](#9-小说分析api)
 - [10. 管理后台API](#10-管理后台api)
 - [11. 时间线API](#11-时间线api)
@@ -1454,6 +1459,265 @@ data: {"chunk": " a beautiful", "done": false}
 ```json
 {
   "suggestion": "一个陌生的男子站在门外，手里拿着一封信"
+}
+```
+
+---
+
+### 8.9 AI人性化重写 ⭐⭐ NEW
+
+**接口**: `POST /api/v1/humanize/rewrite`
+
+**描述**: 检测并去除AI生成文本的机器痕迹,使其更加自然、人性化
+
+**请求头**:
+```http
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**请求体**:
+```json
+{
+  "text": "首先,我们需要认真分析这个问题。其次,我们应该制定详细的计划。",
+  "intensity": "medium",
+  "function_type": "continue",
+  "enable_detection": true,
+  "enable_validation": false
+}
+```
+
+**请求参数**:
+- `text` (string, 必填): 待处理的文本 (10-5000字符)
+- `intensity` (enum, 默认medium): 去痕迹强度
+  - `light` - 轻度去痕迹 (保守)
+  - `medium` - 中度去痕迹 (平衡)
+  - `strong` - 强度去痕迹 (激进)
+- `function_type` (enum, 必填): 功能类型
+  - `continue` - 续写
+  - `polish` - 润色
+  - `expand` - 扩写
+  - `translate` - 翻译
+  - `summarize` - 总结
+- `enable_detection` (bool, 默认true): 是否执行AI痕迹检测
+- `enable_validation` (bool, 默认false): 是否执行结果验证
+
+**响应** (200 OK):
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "original_text": "首先,我们需要认真分析这个问题...",
+  "humanized_text": "我们先分析一下这个问题，再决定怎么做。",
+  "intensity": "medium",
+  "overall_score_before": 77.0,
+  "overall_score_after": 45.0,
+  "improvement_rate": 0.42,
+  "dimensions_before": {
+    "structure": {
+      "score": 80,
+      "description": "文本结构规整度",
+      "issues": ["使用'首先...其次'结构"]
+    },
+    "language": {
+      "score": 75,
+      "description": "语言风格",
+      "issues": ["书面语过多", "词汇过于正式"]
+    },
+    "expression": {
+      "score": 70,
+      "description": "表达方式",
+      "issues": ["缺乏口语化表达"]
+    }
+  },
+  "dimensions_after": {
+    "structure": {
+      "score": 45,
+      "description": "文本结构规整度",
+      "issues": []
+    },
+    "language": {
+      "score": 40,
+      "description": "语言风格",
+      "issues": []
+    },
+    "expression": {
+      "score": 50,
+      "description": "表达方式",
+      "issues": []
+    }
+  },
+  "detected_patterns": [
+    "首先...其次...最后...",
+    "需要认真",
+    "详细的计划"
+  ],
+  "processing_time": 8.5,
+  "created_at": "2025-10-28T10:00:00Z"
+}
+```
+
+**特性**:
+- ✅ **三阶段智能处理**: 检测 → 改写 → 验证(可选)
+- ✅ **7维度AI痕迹评分**: 结构/语言/表达/逻辑/情感/创意/整体
+- ✅ **双AI架构**: 快速模型(gemini-2.5-flash-lite)检测+标准模型改写
+- ✅ **智能画像学习**: 自动记录用户偏好,动态调整策略
+- ✅ **分级数据存储**: 核心数据永久保存,详情数据7天过期
+- ✅ **改写支持流式输出**: 实时显示改写进度
+
+**处理流程**:
+1. **检测阶段** (~3-5秒): 使用快速AI模型检测7维度AI痕迹
+2. **改写阶段** (~5-10秒): 使用标准AI模型进行人性化改写(支持流式)
+3. **验证阶段** (~3-5秒,可选): 再次检测确认改写效果
+
+**7维度评分说明**:
+
+| 维度 | 说明 | 高分特征(AI痕迹) | 低分特征(自然) |
+|------|------|----------------|---------------|
+| structure | 文本结构 | 规整、模板化 | 自然、灵活 |
+| language | 语言风格 | 书面、正式 | 口语、随意 |
+| expression | 表达方式 | 客观、理性 | 主观、感性 |
+| logic | 逻辑连贯 | 过于严密 | 适度跳跃 |
+| emotion | 情感表达 | 平淡、客观 | 丰富、真实 |
+| creativity | 创意性 | 套路、常见 | 独特、新颖 |
+| overall | 整体印象 | 综合评分 | 综合评分 |
+
+**成本估算**:
+- 检测: ~1,500 tokens → $0.001
+- 改写: ~2,000 tokens → $0.003
+- 验证: ~1,500 tokens → $0.001
+- 总计: ~$0.005/次 (含验证)
+
+**注意事项**:
+- 文本长度限制: 10-5000字符
+- 检测和验证使用快速模型,改写使用标准模型
+- 改写结果自动保存到 `humanize_sessions` 表
+- AI调用记录到 `ai_call_logs` 表
+
+**相关接口**:
+- GET /api/v1/humanize/profile - 获取用户画像
+- GET /api/v1/humanize/history - 获取历史记录
+- GET /api/v1/humanize/stats - 获取统计数据
+- POST /api/v1/humanize/feedback - 提交用户反馈
+
+---
+
+### 8.10 获取人性化重写用户画像
+
+**接口**: `GET /api/v1/humanize/profile`
+
+**描述**: 获取当前用户的人性化重写偏好设置和使用统计
+
+**响应** (200 OK):
+```json
+{
+  "id": "profile-uuid",
+  "user_id": "user-uuid",
+  "total_uses": 15,
+  "avg_text_length": 250,
+  "most_used_function": "continue",
+  "preferred_intensity": "medium",
+  "preferred_speed_over_quality": false,
+  "is_novel_writer": true,
+  "total_accepted": 12,
+  "total_rejected": 3,
+  "accept_rate": 0.8,
+  "humanize_enabled_global": true,
+  "humanize_enabled_by_function": {
+    "continue": true,
+    "polish": false,
+    "expand": true
+  },
+  "display_mode": "full",
+  "created_at": "2025-10-20T10:00:00Z",
+  "updated_at": "2025-10-28T10:00:00Z"
+}
+```
+
+---
+
+### 8.11 更新人性化重写设置
+
+**接口**: `PUT /api/v1/humanize/profile/settings`
+
+**描述**: 更新用户的人性化重写偏好设置
+
+**请求体**:
+```json
+{
+  "humanize_enabled_global": true,
+  "humanize_enabled_by_function": {
+    "continue": true,
+    "polish": false,
+    "expand": true
+  },
+  "preferred_intensity": "strong",
+  "display_mode": "simplified"
+}
+```
+
+**响应** (200 OK): 返回更新后的画像对象
+
+---
+
+### 8.12 获取人性化重写历史
+
+**接口**: `GET /api/v1/humanize/history?page=1&page_size=20`
+
+**描述**: 获取用户的人性化重写历史记录列表
+
+**响应** (200 OK):
+```json
+{
+  "sessions": [
+    {
+      "id": "session1",
+      "original_text_preview": "首先,我们需要...",
+      "humanized_text_preview": "我们先分析...",
+      "overall_score_before": 77.0,
+      "overall_score_after": 45.0,
+      "intensity": "medium",
+      "user_feedback": "accepted",
+      "created_at": "2025-10-28T10:00:00Z"
+    }
+  ],
+  "total": 15,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+---
+
+### 8.13 获取人性化重写统计
+
+**接口**: `GET /api/v1/humanize/stats`
+
+**描述**: 获取用户的人性化重写使用统计
+
+**响应** (200 OK):
+```json
+{
+  "total_uses": 15,
+  "total_accepted": 12,
+  "total_rejected": 3,
+  "accept_rate": 0.8,
+  "avg_improvement_rate": 0.38,
+  "most_common_patterns": [
+    "首先...其次...最后...",
+    "综上所述",
+    "值得注意的是"
+  ],
+  "avg_text_length": 250,
+  "by_intensity": {
+    "light": 3,
+    "medium": 10,
+    "strong": 2
+  },
+  "by_function": {
+    "continue": 8,
+    "polish": 5,
+    "expand": 2
+  }
 }
 ```
 
