@@ -157,11 +157,59 @@ class BookAnalysisService:
             await self.db.commit()
             logger.info(f"📄 开始解析文件: {job.file_path}")
 
-            # 2. 解析图书
-            chapters = await asyncio.to_thread(
-                self.sampler.parse_txt_file,
-                job.file_path
-            )
+            # 2. 尝试从缓存获取章节解析结果
+            chapters = None
+            file_content = None  # 只读一次
+
+            if self.cache_service:
+                try:
+                    # 读取文件内容(只读一次)
+                    with open(job.file_path, 'r', encoding='utf-8') as f:
+                        file_content = f.read()
+
+                    cached_chapters = await self.cache_service.get_cached_chapters(file_content)
+                    if cached_chapters:
+                        # 重建Chapter对象
+                        from app.services.book_analysis.smart_sampling import Chapter
+                        chapters = [
+                            Chapter(
+                                title=ch['title'],
+                                content=ch['content'],
+                                word_count=ch['word_count']
+                            )
+                            for ch in cached_chapters
+                        ]
+                        logger.info(f"⚡ 使用缓存的章节解析结果: {len(chapters)} 个章节")
+                except Exception as cache_e:
+                    logger.warning(f"获取章节缓存失败: {cache_e}")
+
+            # 2b. 如果缓存未命中,执行解析
+            if chapters is None:
+                chapters = await asyncio.to_thread(
+                    self.sampler.parse_txt_file,
+                    job.file_path
+                )
+
+                # 缓存解析结果
+                if self.cache_service:
+                    try:
+                        # 如果之前没读过文件,现在读
+                        if file_content is None:
+                            with open(job.file_path, 'r', encoding='utf-8') as f:
+                                file_content = f.read()
+
+                        chapters_dict = [
+                            {
+                                'title': ch.title,
+                                'content': ch.content,
+                                'word_count': ch.word_count
+                            }
+                            for ch in chapters
+                        ]
+                        await self.cache_service.cache_chapters(file_content, chapters_dict)
+                    except Exception as cache_e:
+                        logger.warning(f"缓存章节失败: {cache_e}")
+
             logger.info(f"📊 解析完成,识别到 {len(chapters)} 个章节")
             if len(chapters) == 0:
                 logger.warning(f"⚠️ 未识别到任何章节!文件: {job.file_path}")
@@ -216,6 +264,10 @@ class BookAnalysisService:
             job.progress = 100
             job.completed_at = datetime.utcnow()
             await self.db.commit()
+
+            # 8. 输出缓存统计
+            if self.cache_service:
+                self.cache_service.log_cache_stats()
 
         except Exception as e:
             # 错误处理
@@ -581,7 +633,8 @@ class BookAnalysisService:
         if items:
             logger.info(f"🚀 开始批量向量化 {len(items)} 个知识条目...")
             try:
-                await self.knowledge_service.vector_service.add_knowledge_batch(items)
+                # 传递缓存服务以启用向量缓存
+                await self.knowledge_service.vector_service.add_knowledge_batch(items, cache_service=self.cache_service)
                 logger.info(f"✅ 批量向量化成功")
             except Exception as e:
                 logger.error(f"❌ 批量向量化失败: {e}")

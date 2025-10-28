@@ -341,14 +341,17 @@ class VectorStoreService:
 
     # ==================== 知识库向量方法 ====================
 
-    async def add_knowledge_batch(self, knowledge_items: List) -> List[NovelAnalysisVector]:
+    async def add_knowledge_batch(self, knowledge_items: List, cache_service=None) -> List[NovelAnalysisVector]:
         """
-        批量添加知识条目到向量库 (优化版本)
+        批量添加知识条目到向量库 (优化版本 + 缓存)
 
-        优化点: 批量生成embedding,比逐个生成快3倍
+        优化点:
+        1. 批量生成embedding,比逐个生成快3倍
+        2. Redis缓存,避免重复向量化相同内容
 
         Args:
             knowledge_items: KnowledgeItem模型实例列表
+            cache_service: Redis缓存服务(可选)
 
         Returns:
             List[NovelAnalysisVector]: 向量记录列表
@@ -369,11 +372,55 @@ class VectorStoreService:
                     text_parts.append(f"标签: {', '.join(item.tags)}")
                 texts.append(" | ".join(text_parts))
 
-            # 2. 批量生成embedding (这是关键优化点!)
-            model = self._get_model()
-            embeddings = model.encode(texts, normalize_embeddings=True, batch_size=len(texts))
+            # 2. 尝试从缓存获取向量
+            cached_embeddings = None
+            if cache_service:
+                cached_embeddings = await cache_service.get_cached_vectors(texts)
 
-            # 3. 批量创建向量记录
+            # 3. 处理缓存结果
+            embeddings = []
+            texts_to_compute = []
+            indices_to_compute = []
+
+            if cached_embeddings:
+                # 有部分或全部缓存命中
+                for i, cached_emb in enumerate(cached_embeddings):
+                    if cached_emb is not None:
+                        # 使用缓存的向量
+                        embeddings.append(cached_emb)
+                    else:
+                        # 需要计算的文本
+                        embeddings.append(None)  # 占位
+                        texts_to_compute.append(texts[i])
+                        indices_to_compute.append(i)
+
+                # 批量计算未命中的向量
+                if texts_to_compute:
+                    logger.info(f"⚡ 需要计算 {len(texts_to_compute)}/{len(texts)} 个向量")
+                    model = self._get_model()
+                    computed_embeddings = model.encode(texts_to_compute, normalize_embeddings=True, batch_size=len(texts_to_compute))
+
+                    # 填充计算结果
+                    for idx, computed_emb in zip(indices_to_compute, computed_embeddings):
+                        embeddings[idx] = computed_emb.tolist()
+
+                    # 缓存新计算的向量
+                    if cache_service:
+                        await cache_service.cache_vectors(texts_to_compute, [emb.tolist() for emb in computed_embeddings])
+                else:
+                    logger.info("⚡ 100%缓存命中,跳过所有向量计算")
+            else:
+                # 完全未命中,批量计算所有向量
+                logger.info(f"🔄 缓存未命中,计算全部 {len(texts)} 个向量")
+                model = self._get_model()
+                embeddings_array = model.encode(texts, normalize_embeddings=True, batch_size=len(texts))
+                embeddings = [emb.tolist() for emb in embeddings_array]
+
+                # 缓存所有向量
+                if cache_service:
+                    await cache_service.cache_vectors(texts, embeddings)
+
+            # 4. 批量创建向量记录
             from uuid import UUID
             vector_records = []
 
@@ -385,7 +432,7 @@ class VectorStoreService:
                     user_id=user_id,
                     source_type="knowledge",
                     source_id=item_id,
-                    embedding=embedding.tolist(),
+                    embedding=embedding,  # 已经是list了
                     content_text=texts[i],
                     micro_data=None,
                     chunk_index=0
@@ -393,10 +440,10 @@ class VectorStoreService:
                 vector_records.append(vector_record)
                 self.db.add(vector_record)
 
-            # 4. 批量提交
+            # 5. 批量提交
             await self.db.commit()
 
-            # 5. 批量刷新
+            # 6. 批量刷新
             for record in vector_records:
                 await self.db.refresh(record)
 
