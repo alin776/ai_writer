@@ -61,17 +61,19 @@ class HTTPAIService:
         messages: list,
         max_tokens: int = 1000,
         temperature: float = 0.7
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[tuple[str, dict | None], None]:
         """
         通用流式聊天方法
-        
+
         Args:
             messages: 消息列表
             max_tokens: 最大token数
             temperature: 温度参数
-            
+
         Yields:
-            str: 流式响应的文本片段
+            tuple: (文本片段, usage统计或None)
+                - 文本片段: str
+                - usage: 仅在最后一个块返回完整usage,其他为None
         """
         url = f"{self.base_url}/chat/completions"
         headers = {
@@ -103,6 +105,7 @@ class HTTPAIService:
                 logger.info("API 流式响应已建立，开始接收数据...")
                 chunk_count = 0
                 total_content = ""
+                usage_info = None  # 用于存储最终的usage信息
 
                 async for line in response.aiter_lines():
                     line = line.strip()
@@ -116,11 +119,24 @@ class HTTPAIService:
 
                     # 结束标记
                     if data_str == "[DONE]":
-                        logger.info(f"API 响应完成，共接收 {chunk_count} 个数据块，总长度: {len(total_content)}")
+                        logger.info(
+                            f"API 响应完成，共接收 {chunk_count} 个数据块，总长度: {len(total_content)}"
+                        )
+                        # 记录usage统计
+                        if usage_info:
+                            logger.info(
+                                f"流式响应Token统计: {usage_info.get('total_tokens', 0)} "
+                                f"(prompt={usage_info.get('prompt_tokens', 0)}, "
+                                f"completion={usage_info.get('completion_tokens', 0)})"
+                            )
                         break
 
                     try:
                         data = json.loads(data_str)
+
+                        # 提取usage信息(通常在最后一个块)
+                        if "usage" in data:
+                            usage_info = data["usage"]
 
                         # 提取内容
                         if "choices" in data and len(data["choices"]) > 0:
@@ -133,11 +149,17 @@ class HTTPAIService:
                                 if content is not None and content and not self._should_filter(content):
                                     chunk_count += 1
                                     total_content += content
-                                    yield content
+                                    yield content, None  # 中间块不返回usage
 
                     except json.JSONDecodeError as e:
                         logger.warning(f"JSON 解析错误: {e}, 数据: {data_str[:100]}")
                         continue
+
+                # 循环结束后,yield最终的usage信息
+                if usage_info:
+                    yield "", usage_info  # 空内容块 + 完整usage统计
+                else:
+                    logger.warning("流式响应未返回usage信息")
 
                 # 如果没有接收到任何内容，记录警告
                 if chunk_count == 0:
@@ -158,8 +180,12 @@ class HTTPAIService:
         style: str = "",
         max_tokens: int = 500,
         temperature: float = 0.7
-    ) -> AsyncGenerator[str, None]:
-        """AI 续写（流式响应）"""
+    ) -> AsyncGenerator[tuple[str, dict | None], None]:
+        """AI 续写（流式响应）
+
+        Yields:
+            tuple: (文本片段, usage统计或None)
+        """
         # 区分自动补全和正式续写
         is_autocomplete = max_tokens <= 150
         
@@ -174,17 +200,21 @@ class HTTPAIService:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": context}
         ]
-        
-        async for chunk in self._stream_chat(messages, max_tokens, temperature):
-            yield chunk
+
+        async for chunk, usage in self._stream_chat(messages, max_tokens, temperature):
+            yield chunk, usage
     
     async def stream_polish(
         self,
         text: str,
         max_tokens: int = 1000,
         temperature: float = 0.5
-    ) -> AsyncGenerator[str, None]:
-        """AI Polish (streaming response)"""
+    ) -> AsyncGenerator[tuple[str, dict | None], None]:
+        """AI Polish (streaming response)
+
+        Yields:
+            tuple: (文本片段, usage统计或None)
+        """
         system_prompt, user_prefix = self.prompts.get_polish_prompt()
         
         messages = [
@@ -193,17 +223,21 @@ class HTTPAIService:
         ]
         
         logger.info(f"AI Polish request - text length: {len(text)}")
-        
-        async for chunk in self._stream_chat(messages, max_tokens, temperature):
-            yield chunk
+
+        async for chunk, usage in self._stream_chat(messages, max_tokens, temperature):
+            yield chunk, usage
     
     async def stream_translate(
         self,
         text: str,
         target_lang: str = "auto",
         max_tokens: int = 1000
-    ) -> AsyncGenerator[str, None]:
-        """AI Translate (streaming response)"""
+    ) -> AsyncGenerator[tuple[str, dict | None], None]:
+        """AI Translate (streaming response)
+
+        Yields:
+            tuple: (文本片段, usage统计或None)
+        """
         system_prompt = self.prompts.get_translate_prompt(target_lang)
         
         messages = [
@@ -212,17 +246,21 @@ class HTTPAIService:
         ]
         
         logger.info(f"AI Translate request - text length: {len(text)}, target: {target_lang}")
-        
-        async for chunk in self._stream_chat(messages, max_tokens, temperature=0.3):
-            yield chunk
+
+        async for chunk, usage in self._stream_chat(messages, max_tokens, temperature=0.3):
+            yield chunk, usage
     
     async def stream_expand(
         self,
         text: str,
         max_tokens: int = 1000,
         temperature: float = 0.7
-    ) -> AsyncGenerator[str, None]:
-        """AI Expand (streaming response)"""
+    ) -> AsyncGenerator[tuple[str, dict | None], None]:
+        """AI Expand (streaming response)
+
+        Yields:
+            tuple: (文本片段, usage统计或None)
+        """
         system_prompt, user_prefix = self.prompts.get_expand_prompt()
         
         messages = [
@@ -231,17 +269,21 @@ class HTTPAIService:
         ]
         
         logger.info(f"AI Expand request - text length: {len(text)}")
-        
-        async for chunk in self._stream_chat(messages, max_tokens, temperature):
-            yield chunk
+
+        async for chunk, usage in self._stream_chat(messages, max_tokens, temperature):
+            yield chunk, usage
     
     async def stream_summarize(
         self,
         text: str,
         max_tokens: int = 500,
         temperature: float = 0.3
-    ) -> AsyncGenerator[str, None]:
-        """AI Summarize (streaming response)"""
+    ) -> AsyncGenerator[tuple[str, dict | None], None]:
+        """AI Summarize (streaming response)
+
+        Yields:
+            tuple: (文本片段, usage统计或None)
+        """
         system_prompt, user_prefix = self.prompts.get_summarize_prompt()
         
         messages = [
@@ -250,9 +292,9 @@ class HTTPAIService:
         ]
         
         logger.info(f"AI Summarize request - text length: {len(text)}")
-        
-        async for chunk in self._stream_chat(messages, max_tokens, temperature):
-            yield chunk
+
+        async for chunk, usage in self._stream_chat(messages, max_tokens, temperature):
+            yield chunk, usage
     
     def _build_autocomplete_system_prompt(self) -> str:
         """Build autocomplete system prompt from config"""

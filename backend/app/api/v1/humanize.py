@@ -383,11 +383,30 @@ async def humanize_rewrite(
         verification = result.get("verification")
         processing_time = result.get("processing_time", 0)
 
-        # 5. 计算token和成本 (简化估算)
-        # TODO: 从AI服务获取实际token消耗
-        text_length = len(request.text)
-        estimated_tokens = int(text_length * 1.5 * 3)  # 检测+改写+(可选)验证
-        estimated_cost = estimated_tokens * 0.000002  # 简化估算
+        # 5. 计算token和成本 (使用实际值)
+        total_tokens = result.get("total_tokens", 0)
+        detection_tokens = result.get("detection_tokens", 0)
+        rewrite_tokens = result.get("rewrite_tokens", 0)
+        verification_tokens = result.get("verification_tokens", 0)
+
+        # 如果没有获取到实际token,使用估算
+        if total_tokens == 0:
+            text_length = len(request.text)
+            total_tokens = int(text_length * 1.5 * 3)  # 降级估算
+            logger.warning(f"未获取到实际token消耗,使用估算值: {total_tokens}")
+
+        # 计算成本 (gemini-2.5-flash-lite + gpt-4o-mini混合定价)
+        # 检测+验证使用快速模型,改写使用标准模型
+        detection_cost = detection_tokens * 0.0000002  # flash-lite更便宜
+        rewrite_cost = rewrite_tokens * 0.000002  # 标准模型
+        verification_cost = verification_tokens * 0.0000002
+        estimated_cost = detection_cost + rewrite_cost + verification_cost
+
+        logger.info(
+            f"Token统计 - 总计: {total_tokens} "
+            f"(检测:{detection_tokens}, 改写:{rewrite_tokens}, 验证:{verification_tokens}), "
+            f"成本: ${estimated_cost:.6f}"
+        )
 
         # 6. 构建会话数据
         score_before = detection.overall_score if detection else 70.0
@@ -403,8 +422,8 @@ async def humanize_rewrite(
             improvement=improvement,
             intensity=request.intensity,
             processing_time=processing_time,
-            tokens_used=estimated_tokens,
-            cost=estimated_cost,
+            tokens_used=total_tokens,  # 使用实际token
+            cost=estimated_cost,  # 使用实际成本
             user_accepted=None  # 用户稍后反馈
         )
 

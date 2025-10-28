@@ -246,9 +246,11 @@ async def ai_polish(
                     "text_length": len(request.text)
                 }
             ) as token_counter:
-                async for chunk in ai_service.stream_polish(request.text):
-                    accumulated_text += chunk
-                    yield f"data: {chunk}\n\n"
+                async for chunk, usage in ai_service.stream_polish(request.text):
+                    # 只处理内容块,忽略最后的usage块(chunk为空字符串)
+                    if chunk:
+                        accumulated_text += chunk
+                        yield f"data: {chunk}\n\n"
 
                 # 估算 token 数量
                 token_counter.estimate_tokens(
@@ -326,12 +328,14 @@ async def ai_translate(
                     "target_lang": request.target_lang
                 }
             ) as token_counter:
-                async for chunk in ai_service.stream_translate(
+                async for chunk, usage in ai_service.stream_translate(
                     request.text,
                     request.target_lang
                 ):
-                    accumulated_text += chunk
-                    yield f"data: {chunk}\n\n"
+                    # 只处理内容块,忽略最后的usage块
+                    if chunk:
+                        accumulated_text += chunk
+                        yield f"data: {chunk}\n\n"
 
                 # 估算 token 数量
                 token_counter.estimate_tokens(
@@ -401,9 +405,11 @@ async def ai_expand(
                     "text_length": len(request.text)
                 }
             ) as token_counter:
-                async for chunk in ai_service.stream_expand(request.text):
-                    accumulated_text += chunk
-                    yield f"data: {chunk}\n\n"
+                async for chunk, usage in ai_service.stream_expand(request.text):
+                    # 只处理内容块,忽略最后的usage块
+                    if chunk:
+                        accumulated_text += chunk
+                        yield f"data: {chunk}\n\n"
 
                 # 估算 token 数量
                 token_counter.estimate_tokens(
@@ -480,8 +486,10 @@ async def ai_summarize(
                 "text_length": len(request.text)
             }
         ) as token_counter:
-            async for chunk in ai_service.stream_summarize(request.text):
-                summary_text += chunk
+            async for chunk, usage in ai_service.stream_summarize(request.text):
+                # 只处理内容块,忽略最后的usage块
+                if chunk:
+                    summary_text += chunk
 
             # 估算 token 数量
             token_counter.estimate_tokens(

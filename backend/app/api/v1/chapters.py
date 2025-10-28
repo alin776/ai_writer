@@ -281,9 +281,11 @@ async def generate_chapter_summary(
         # 调用 AI 生成概括
         ai_service = HTTPAIService()
         summary_text = ""
-        async for chunk in ai_service.stream_summarize(chapter.content):
-            summary_text += chunk
-        
+        async for chunk, usage in ai_service.stream_summarize(chapter.content):
+            # 只处理内容块,忽略最后的usage块
+            if chunk:
+                summary_text += chunk
+
         logger.info(f"[章节概括] 生成完成: chapter_id={chapter_id}, summary_length={len(summary_text)}")
         
         # 保存概括到数据库

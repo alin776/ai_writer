@@ -52,7 +52,7 @@ class HumanizeService:
             f"验证: {self.config.enable_verification})"
         )
 
-    async def detect_ai_traces(self, text: str) -> AIDetectionResult:
+    async def detect_ai_traces(self, text: str) -> tuple[AIDetectionResult, dict]:
         """
         阶段1: 检测AI痕迹 (使用快速模型)
 
@@ -60,7 +60,7 @@ class HumanizeService:
             text: 待检测的文本
 
         Returns:
-            AIDetectionResult: AI特征检测结果
+            tuple: (AIDetectionResult检测结果, usage统计字典)
         """
         start_time = time.time()
         logger.info(f"开始检测AI痕迹 (使用快速模型: {self.fast_ai_service.model}),文本长度: {len(text)}")
@@ -70,7 +70,7 @@ class HumanizeService:
 
         # 使用快速AI服务进行检测 (非流式,更快)
         try:
-            full_response = await self.fast_ai_service.detect_ai_traces(
+            full_response, usage = await self.fast_ai_service.detect_ai_traces(
                 text=text,
                 prompt=detection_prompt  # ← 修复: 改为prompt参数
             )
@@ -96,10 +96,11 @@ class HumanizeService:
             logger.info(
                 f"AI痕迹检测完成 (快速模型): overall_score={detection_result.overall_score:.1f}, "
                 f"needs_humanization={detection_result.needs_humanization}, "
+                f"tokens={usage.get('total_tokens', 0)}, "
                 f"耗时: {elapsed_time:.2f}秒"
             )
 
-            return detection_result
+            return detection_result, usage
 
         except Exception as e:
             logger.error(f"快速AI检测失败: {e}")
@@ -109,13 +110,13 @@ class HumanizeService:
                 dimensions={},
                 detected_patterns=["检测失败,默认需要去痕迹"],
                 needs_humanization=True
-            )
+            ), {}
 
     async def humanize_stream(
         self,
         text: str,
         intensity: Literal["light", "medium", "strong"] = "medium"
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[tuple[str, dict | None], None]:
         """
         阶段2: 流式人性化改写
 
@@ -124,7 +125,9 @@ class HumanizeService:
             intensity: 改写强度 (light/medium/strong)
 
         Yields:
-            str: 流式输出的改写文本片段
+            tuple: (改写文本片段, usage统计或None)
+                - 文本片段: str
+                - usage: 仅在最后一个块返回完整usage,其他为None
         """
         start_time = time.time()
         logger.info(f"开始人性化改写: intensity={intensity}, 文本长度={len(text)}")
@@ -148,13 +151,13 @@ class HumanizeService:
         max_tokens = self.config.get_rewrite_max_tokens(len(text))
         temperature = self.config.get_rewrite_temperature(intensity)
 
-        async for chunk in self.ai_service._stream_chat(
+        async for chunk, usage in self.ai_service._stream_chat(
             messages=messages,
             max_tokens=max_tokens,
             temperature=temperature
         ):
             chunk_count += 1
-            yield chunk
+            yield chunk, usage
 
         elapsed_time = time.time() - start_time
         logger.info(f"人性化改写完成: 输出了 {chunk_count} 个片段, 耗时: {elapsed_time:.2f}秒")
@@ -163,7 +166,7 @@ class HumanizeService:
         self,
         original_text: str,
         humanized_text: str
-    ) -> HumanizeVerification:
+    ) -> tuple[HumanizeVerification, dict]:
         """
         阶段3: 验证改写效果 (使用快速模型)
 
@@ -172,7 +175,7 @@ class HumanizeService:
             humanized_text: 改写后文本
 
         Returns:
-            HumanizeVerification: 验证结果
+            tuple: (HumanizeVerification验证结果, usage统计字典)
         """
         start_time = time.time()
         logger.info(f"开始验证改写效果 (使用快速模型: {self.fast_ai_service.model})")
@@ -182,7 +185,7 @@ class HumanizeService:
 
         # 使用快速AI服务进行验证 (非流式,更快)
         try:
-            full_response = await self.fast_ai_service.verify_humanization(
+            full_response, usage = await self.fast_ai_service.verify_humanization(
                 original_text=original_text,
                 humanized_text=humanized_text,
                 prompt=verification_prompt  # ← 修复: 改为prompt参数
@@ -210,10 +213,11 @@ class HumanizeService:
                 f"score_after={verification.score_after:.1f}, "
                 f"improvement={verification.improvement:.1f}, "
                 f"success={verification.success}, "
+                f"tokens={usage.get('total_tokens', 0)}, "
                 f"耗时: {elapsed_time:.2f}秒"
             )
 
-            return verification
+            return verification, usage
 
         except Exception as e:
             logger.error(f"快速AI验证失败: {e}")
@@ -223,7 +227,7 @@ class HumanizeService:
                 score_after=50.0,
                 improvement=20.0,
                 success=True
-            )
+            ), {}
 
     async def full_humanize_process(
         self,
@@ -248,7 +252,11 @@ class HumanizeService:
             "detection": None,
             "humanized_text": "",
             "verification": None,
-            "processing_time": 0
+            "processing_time": 0,
+            "total_tokens": 0,  # 新增: 总token消耗
+            "detection_tokens": 0,  # 新增: 检测阶段token
+            "rewrite_tokens": 0,  # 新增: 改写阶段token
+            "verification_tokens": 0  # 新增: 验证阶段token
         }
 
         start_time = time.time()
@@ -262,7 +270,9 @@ class HumanizeService:
 
         # 阶段1: 检测 (可选)
         if not skip_detection and self.config.enable_detection:
-            result["detection"] = await self.detect_ai_traces(text)
+            result["detection"], detection_usage = await self.detect_ai_traces(text)
+            result["detection_tokens"] = detection_usage.get("total_tokens", 0)
+            result["total_tokens"] += result["detection_tokens"]
 
             # 如果分数低于阈值,不需要去痕迹
             if result["detection"].overall_score < self.config.detection_threshold:
@@ -275,23 +285,38 @@ class HumanizeService:
 
         # 阶段2: 改写
         humanized_chunks = []
-        async for chunk in self.humanize_stream(text, intensity):
+        rewrite_usage = None
+        async for chunk, usage in self.humanize_stream(text, intensity):
             humanized_chunks.append(chunk)
+            if usage:  # 最后一个块会带usage
+                rewrite_usage = usage
 
         result["humanized_text"] = "".join(humanized_chunks)
 
+        # 统计改写阶段token
+        if rewrite_usage:
+            result["rewrite_tokens"] = rewrite_usage.get("total_tokens", 0)
+            result["total_tokens"] += result["rewrite_tokens"]
+
         # 阶段3: 验证 (可选)
         if enable_verification:
-            result["verification"] = await self.verify_humanization(
+            result["verification"], verification_usage = await self.verify_humanization(
                 text, result["humanized_text"]
             )
+            result["verification_tokens"] = verification_usage.get("total_tokens", 0)
+            result["total_tokens"] += result["verification_tokens"]
             logger.info("✅ 已启用验证阶段")
         else:
             logger.info("⏭️  已跳过验证阶段 (根据配置)")
 
         result["processing_time"] = time.time() - start_time
 
-        logger.info(f"完整去痕迹流程完成,总耗时: {result['processing_time']:.2f}秒")
+        logger.info(
+            f"完整去痕迹流程完成,总耗时: {result['processing_time']:.2f}秒, "
+            f"总Token: {result['total_tokens']} "
+            f"(检测:{result['detection_tokens']}, 改写:{result['rewrite_tokens']}, "
+            f"验证:{result['verification_tokens']})"
+        )
 
         return result
 

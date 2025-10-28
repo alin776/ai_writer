@@ -70,7 +70,7 @@ class FastAIService:
         messages: list,
         max_tokens: int = 1500,
         temperature: float = 0.3
-    ) -> str:
+    ) -> tuple[str, dict]:
         """
         非流式聊天完成（用于检测和验证）
 
@@ -80,7 +80,8 @@ class FastAIService:
             temperature: 温度参数（默认0.3，保证稳定性）
 
         Returns:
-            完整的AI响应文本
+            tuple: (完整的AI响应文本, usage统计字典)
+                usage包含: prompt_tokens, completion_tokens, total_tokens
 
         Raises:
             Exception: API调用失败时抛出异常
@@ -126,7 +127,14 @@ class FastAIService:
                 f"(prompt={prompt_tokens}, completion={completion_tokens})"
             )
 
-            return content
+            # 返回内容和usage统计
+            usage_stats = {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens
+            }
+
+            return content, usage_stats
 
         except httpx.TimeoutException:
             logger.error(f"快速AI调用超时 (>{self.timeout}秒)")
@@ -216,7 +224,7 @@ class FastAIService:
             logger.error(f"快速AI流式调用失败: {type(e).__name__}: {e}")
             raise
 
-    async def detect_ai_traces(self, text: str, prompt: str) -> str:
+    async def detect_ai_traces(self, text: str, prompt: str) -> tuple[str, dict]:
         """
         AI痕迹检测（便捷方法）
 
@@ -225,7 +233,7 @@ class FastAIService:
             prompt: 完整的检测prompt（已经format好的，不是模板）
 
         Returns:
-            检测结果的JSON字符串
+            tuple: (检测结果的JSON字符串, usage统计字典)
         """
         messages = [
             {
@@ -240,20 +248,20 @@ class FastAIService:
 
         logger.info(f"开始快速AI痕迹检测: 文本长度={len(text)}")
 
-        result = await self.chat_completion(
+        result, usage = await self.chat_completion(
             messages=messages,
             max_tokens=1500,
             temperature=0.3  # 低温度保证稳定
         )
 
-        return result
+        return result, usage
 
     async def verify_humanization(
         self,
         original_text: str,
         humanized_text: str,
         prompt: str
-    ) -> str:
+    ) -> tuple[str, dict]:
         """
         去痕迹效果验证（便捷方法）
 
@@ -263,7 +271,7 @@ class FastAIService:
             prompt: 完整的验证prompt（已经format好的，不是模板）
 
         Returns:
-            验证结果的JSON字符串
+            tuple: (验证结果的JSON字符串, usage统计字典)
         """
         messages = [
             {
@@ -281,13 +289,13 @@ class FastAIService:
             f"改写后={len(humanized_text)}字"
         )
 
-        result = await self.chat_completion(
+        result, usage = await self.chat_completion(
             messages=messages,
             max_tokens=500,  # 验证结果通常较短
             temperature=0.3
         )
 
-        return result
+        return result, usage
 
 
 # 便捷的单例访问（可选）
