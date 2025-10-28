@@ -1,0 +1,322 @@
+"""
+Fast AI Service - 使用 gemini-2.5-flash-lite 快速模型
+
+专门用于AI去痕迹功能的检测和验证阶段，这些阶段不需要高质量的生成能力，
+使用快速模型可以大幅降低响应时间和成本。
+
+性能优势:
+- 响应速度: ~3-5秒 (vs gpt-4的15-30秒)
+- 成本: ~1/10 (vs gpt-4)
+- 适用场景: 检测、验证、分类等不需要复杂生成的任务
+"""
+
+import httpx
+import json
+import logging
+from typing import AsyncGenerator, Optional
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+class FastAIService:
+    """基于 gemini-2.5-flash-lite 的快速 AI 服务
+
+    专门用于需要快速响应但不需要高质量生成的场景：
+    - AI痕迹检测
+    - 改写效果验证
+    - 文本分类
+    """
+
+    def __init__(self, timeout: int = 15):
+        """初始化快速AI服务
+
+        Args:
+            timeout: 超时时间(秒)，默认15秒（比标准模型更短）
+        """
+        self.api_key = settings.OPENAI_API_KEY
+        self.base_url = settings.OPENAI_BASE_URL
+        self.model = "gemini-2.5-flash-lite"  # 固定使用快速模型
+        self.timeout = timeout
+
+        # 创建HTTP客户端
+        self.client = httpx.AsyncClient(
+            headers={
+                "User-Agent": "okhttp/4.12.0",
+                "Accept": "application/json",
+                "Accept-Encoding": "gzip, deflate",
+                "Connection": "keep-alive",
+            },
+            timeout=httpx.Timeout(
+                timeout,
+                connect=5.0  # 连接超时5秒
+            ),
+            follow_redirects=True,
+            http2=False,
+        )
+
+        logger.info(
+            f"Fast AI Service 初始化成功，Model: {self.model}, "
+            f"Timeout: {timeout}s (专用于检测/验证)"
+        )
+
+    async def close(self):
+        """关闭HTTP客户端"""
+        await self.client.aclose()
+        logger.debug("Fast AI Service 已关闭")
+
+    async def chat_completion(
+        self,
+        messages: list,
+        max_tokens: int = 1500,
+        temperature: float = 0.3
+    ) -> str:
+        """
+        非流式聊天完成（用于检测和验证）
+
+        Args:
+            messages: 消息列表
+            max_tokens: 最大token数
+            temperature: 温度参数（默认0.3，保证稳定性）
+
+        Returns:
+            完整的AI响应文本
+
+        Raises:
+            Exception: API调用失败时抛出异常
+        """
+        url = f"{self.base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": False  # 非流式
+        }
+
+        logger.debug(
+            f"调用快速AI: model={self.model}, "
+            f"max_tokens={max_tokens}, temp={temperature}"
+        )
+
+        try:
+            response = await self.client.post(url, json=payload, headers=headers)
+
+            if response.status_code != 200:
+                error_text = response.text[:500]
+                logger.error(f"快速AI API错误: {response.status_code}, {error_text}")
+                raise Exception(f"API错误: {response.status_code}")
+
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+
+            # 统计token使用情况
+            usage = data.get("usage", {})
+            prompt_tokens = usage.get("prompt_tokens", 0)
+            completion_tokens = usage.get("completion_tokens", 0)
+            total_tokens = usage.get("total_tokens", 0)
+
+            logger.info(
+                f"快速AI响应成功: tokens={total_tokens} "
+                f"(prompt={prompt_tokens}, completion={completion_tokens})"
+            )
+
+            return content
+
+        except httpx.TimeoutException:
+            logger.error(f"快速AI调用超时 (>{self.timeout}秒)")
+            raise Exception(f"API超时 (>{self.timeout}秒)")
+        except httpx.RequestError as e:
+            logger.error(f"快速AI网络错误: {e}")
+            raise Exception(f"网络错误: {e}")
+        except KeyError as e:
+            logger.error(f"快速AI响应格式错误: {e}")
+            raise Exception(f"响应格式错误: {e}")
+        except Exception as e:
+            logger.error(f"快速AI调用失败: {type(e).__name__}: {e}")
+            raise
+
+    async def stream_chat_completion(
+        self,
+        messages: list,
+        max_tokens: int = 1500,
+        temperature: float = 0.3
+    ) -> AsyncGenerator[str, None]:
+        """
+        流式聊天完成（一般不用于检测/验证，但保留接口）
+
+        Args:
+            messages: 消息列表
+            max_tokens: 最大token数
+            temperature: 温度参数
+
+        Yields:
+            str: 流式响应的文本片段
+        """
+        url = f"{self.base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": True
+        }
+
+        logger.debug(
+            f"开始流式快速AI调用: model={self.model}, "
+            f"max_tokens={max_tokens}, temp={temperature}"
+        )
+
+        try:
+            async with self.client.stream("POST", url, json=payload, headers=headers) as response:
+                if response.status_code != 200:
+                    error_text = await response.aread()
+                    error_msg = error_text.decode('utf-8', errors='ignore')[:500]
+                    logger.error(f"快速AI流式错误: {response.status_code}, {error_msg}")
+                    raise Exception(f"API错误: {response.status_code}")
+
+                async for line in response.aiter_lines():
+                    if not line or not line.startswith("data: "):
+                        continue
+
+                    data_str = line[6:]  # 移除 "data: " 前缀
+
+                    if data_str == "[DONE]":
+                        break
+
+                    try:
+                        data = json.loads(data_str)
+                        delta = data["choices"][0]["delta"]
+
+                        if "content" in delta:
+                            yield delta["content"]
+
+                    except (json.JSONDecodeError, KeyError, IndexError):
+                        continue
+
+                logger.debug("快速AI流式响应完成")
+
+        except httpx.TimeoutException:
+            logger.error(f"快速AI流式调用超时 (>{self.timeout}秒)")
+            raise Exception(f"API超时 (>{self.timeout}秒)")
+        except httpx.RequestError as e:
+            logger.error(f"快速AI流式网络错误: {e}")
+            raise Exception(f"网络错误: {e}")
+        except Exception as e:
+            logger.error(f"快速AI流式调用失败: {type(e).__name__}: {e}")
+            raise
+
+    async def detect_ai_traces(self, text: str, prompt: str) -> str:
+        """
+        AI痕迹检测（便捷方法）
+
+        Args:
+            text: 待检测文本（仅用于日志）
+            prompt: 完整的检测prompt（已经format好的，不是模板）
+
+        Returns:
+            检测结果的JSON字符串
+        """
+        messages = [
+            {
+                "role": "system",
+                "content": "你是一位专业的AI文本检测专家,请严格按照JSON格式返回检测结果。"
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+
+        logger.info(f"开始快速AI痕迹检测: 文本长度={len(text)}")
+
+        result = await self.chat_completion(
+            messages=messages,
+            max_tokens=1500,
+            temperature=0.3  # 低温度保证稳定
+        )
+
+        return result
+
+    async def verify_humanization(
+        self,
+        original_text: str,
+        humanized_text: str,
+        prompt: str
+    ) -> str:
+        """
+        去痕迹效果验证（便捷方法）
+
+        Args:
+            original_text: 原始文本（仅用于日志）
+            humanized_text: 改写后文本（仅用于日志）
+            prompt: 完整的验证prompt（已经format好的，不是模板）
+
+        Returns:
+            验证结果的JSON字符串
+        """
+        messages = [
+            {
+                "role": "system",
+                "content": "你是一位AI文本检测专家,请严格按照JSON格式返回验证结果。"
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+
+        logger.info(
+            f"开始快速AI效果验证: 原文={len(original_text)}字, "
+            f"改写后={len(humanized_text)}字"
+        )
+
+        result = await self.chat_completion(
+            messages=messages,
+            max_tokens=500,  # 验证结果通常较短
+            temperature=0.3
+        )
+
+        return result
+
+
+# 便捷的单例访问（可选）
+_fast_ai_service_instance: Optional[FastAIService] = None
+
+
+def get_fast_ai_service() -> FastAIService:
+    """
+    获取FastAIService单例
+
+    注意: 这是一个全局单例，适合在无并发配置需求的场景使用。
+    如果需要自定义超时等参数，请直接实例化FastAIService。
+
+    Returns:
+        FastAIService实例
+    """
+    global _fast_ai_service_instance
+
+    if _fast_ai_service_instance is None:
+        _fast_ai_service_instance = FastAIService()
+
+    return _fast_ai_service_instance
+
+
+async def close_fast_ai_service():
+    """关闭全局FastAIService单例"""
+    global _fast_ai_service_instance
+
+    if _fast_ai_service_instance is not None:
+        await _fast_ai_service_instance.close()
+        _fast_ai_service_instance = None
+        logger.info("全局Fast AI Service已关闭")

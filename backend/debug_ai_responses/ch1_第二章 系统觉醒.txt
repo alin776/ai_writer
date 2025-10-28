@@ -1,0 +1,134 @@
+{
+  "root_nodes": [
+    {
+      "id": "core_selling_point",
+      "name": "核心卖点",
+      "description": "美食评鉴系统+厨艺逆袭，用舌尖征服世界。系统赋予主角复制顶级厨艺、解锁神级技能的能力，打造舌尖上的逆袭爽文",
+      "children": []
+    },
+    {
+      "id": "protagonist_setting",
+      "name": "主角设定",
+      "description": "落魄厨师的逆袭之路",
+      "children": [
+        {
+          "id": "identity",
+          "name": "身份背景",
+          "description": "25岁失业厨师，曾是米其林三星主厨学徒，因车祸失去味觉被餐厅开除，靠送外卖维持生计"
+        },
+        {
+          "id": "personality",
+          "name": "性格标签",
+          "description": "隐忍坚韧的美食狂人，对食材有近乎偏执的敏锐度，擅长用普通食材创造惊艳料理"
+        },
+        {
+          "id": "initial_crisis",
+          "name": "初始困境",
+          "description": "被前女友兼餐厅老板陷害导致味觉受损，身无分文时偶遇美食黑市拍卖会，意外激活系统"
+        }
+      ]
+    },
+    {
+      "id": "cheat_system",
+      "name": "金手指系统",
+      "description": "可成长的美食评鉴系统，通过品鉴积累点数解锁厨艺奥秘",
+      "children": [
+        {
+          "id": "mechanism",
+          "name": "核心机理",
+          "description": "品鉴食物可复制顶级配方，系统根据食材品质和烹饪难度给予1-1000点美食点数，点数可解锁刀工、火候、调味等专项技能"
+        },
+        {
+          "id": "growth_path",
+          "name": "成长路径",
+          "description": "从复制家常菜到复刻米其林料理，最终自创菜系。技能树包含分子料理、古法烹饪、食材觉醒等分支"
+        },
+        {
+          "id": "usage_examples",
+          "name": "用法示例",
+          "description": "用系统复制黑松露酱配方反杀前雇主；通过品鉴路边摊获得古法发酵技能；用系统解析食材特性创造新菜系"
+        }
+      ]
+    },
+    {
+      "id": "world_framework",
+      "name": "世界观框架",
+      "description": "美食即权力的架空世界，存在美食协会、黑市组织、厨艺世家三大势力",
+      "children": []
+    },
+    {
+      "id": "power_system",
+      "name": "等级力量体系",
+      "description": "双轨制成长体系：厨艺等级（学徒-宗师）与技能等级（普通-传说）",
+      "children": []
+    },
+    {
+      "id": "antagonist_forces",
+      "name": "反派势力",
+      "description": "三重压迫式反派体系",
+      "children": [
+        {
+          "id": "tier_1",
+          "name": "前期反派",
+          "description": "前雇主联合黑市拍卖行，试图夺取主角获得的「龙须面」配方"
+        },
+        {
+          "id": "tier_2",
+          "name": "中期反派",
+          "description": "美食协会副会长，掌握着封印古代厨神力量的「味觉锁链」"
+        },
+        {
+          "id": "tier_3",
+          "name": "后期反派",
+          "description": "企图用「混沌料理」吞噬世界味觉的神秘组织「无味教团」"
+        }
+      ]
+    },
+    {
+      "id": "romance_line",
+      "name": "情感线设定",
+      "description": "与美食记者的相爱相杀，从互相试探到并肩作战",
+      "children": []
+    },
+    {
+      "id": "satisfaction_points",
+      "name": "爽点布局",
+      "description": "高密度打脸与逆袭爽点",
+      "children": [
+        {
+          "id": "chapter_1_10",
+          "name": "前10章爽点",
+          "description": "第3章用复制的「黯然销魂饭」反杀黑市拍卖师；第7章用系统解析路边摊获得失传「二十四节气调味法」"
+        },
+        {
+          "id": "chapter_10_30",
+          "name": "10-30章爽点",
+          "description": "第18章用分子料理技术破解美食协会试炼；第25章揭露副会长用「假味觉」控制评委的阴谋"
+        },
+        {
+          "id": "chapter_30_plus",
+          "name": "30章后爽点",
+          "description": "最终厨艺大赛用「混沌料理」反制教团首领，创造融合中西的「新纪元菜系」"
+        }
+      ]
+    },
+    {
+      "id": "anticipation_hooks",
+      "name": "期待感钩子",
+      "description": "每章结尾埋设系统新功能预告",
+      "children": []
+    },
+    {
+      "id": "sub_plots",
+      "name": "支线剧情",
+      "description": "美食探险支线：寻找散落各地的古代厨具；黑市卧底支线：渗透拍卖行揭露食材走私链",
+      "children": []
+    },
+    {
+      "id": "unique_features",
+      "name": "特色设定",
+      "description": "将厨艺与武道结合，刀工境界对应实战技巧，火候掌控影响技能释放",
+      "children": []
+    }
+  ]
+}

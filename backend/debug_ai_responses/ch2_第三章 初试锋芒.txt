@@ -1,0 +1,150 @@
+{
+  "root_nodes": [
+    {
+      "id": "core_selling_point",
+      "name": "核心卖点",
+      "description": "美食界逆袭+传承系统双核驱动，主角以神级厨艺打脸群雄，每章必现味觉暴击与系统升级的爽感闭环",
+      "children": []
+    },
+    {
+      "id": "protagonist_setting",
+      "name": "主角设定",
+      "description": "落魄私厨转型美食战神，背负家族厨艺诅咒的逆袭者",
+      "children": [
+        {
+          "id": "identity",
+          "name": "身份背景",
+          "description": "出身厨神世家却因基因缺陷无法识味，靠嗅觉与触觉在夜市经营小馆的32岁厨师，手持祖传残缺菜谱"
+        },
+        {
+          "id": "personality",
+          "name": "性格标签",
+          "description": "表面慵懒实则缜密，对食材有近乎偏执的敏感度，遇强则强的战斗厨艺本能"
+        },
+        {
+          "id": "initial_crisis",
+          "name": "初始困境",
+          "description": "被米其林评委当众打假，家族秘方遭同行窃取，面临祖宅被拍卖的三重绝境"
+        }
+      ]
+    },
+    {
+      "id": "cheat_system",
+      "name": "金手指系统",
+      "description": "可逆向解析顶级料理的美食传承系统，随厨艺造诣自动升级",
+      "children": [
+        {
+          "id": "mechanism",
+          "name": "核心机理",
+          "description": "接触顶级料理时自动弹出复制选项，可解构菜品至分子级，存储至虚拟料理空间，每解锁新技能需完成对应厨艺试炼"
+        },
+        {
+          "id": "growth_path",
+          "name": "成长路径",
+          "description": "青铜厨师→银匙主厨→金厨大师→厨神境界，每个阶段解锁特殊烹饪维度（如时间火候控制、食材灵魂共鸣）"
+        },
+        {
+          "id": "usage_examples",
+          "name": "用法示例",
+          "description": "复制佛跳墙时同步获得鲍鱼发制秘法，制作寿司时触发刺身厚度自动校准，遭遇食材匮乏时激活异界灵田召唤"
+        }
+      ]
+    },
+    {
+      "id": "world_framework",
+      "name": "世界观框架",
+      "description": "现代美食界暗藏厨神传承体系，顶级料理可引发灵异级味觉现象",
+      "children": []
+    },
+    {
+      "id": "power_system",
+      "name": "等级力量体系",
+      "description": "双轨制厨艺评级与味觉感知力体系",
+      "children": [
+        {
+          "id": "tier_1",
+          "name": "初级厨师",
+          "description": "能精准控制火候（1-3星）"
+        },
+        {
+          "id": "tier_2",
+          "name": "中级主厨",
+          "description": "掌握食材本味共鸣（4-6星）"
+        },
+        {
+          "id": "tier_3",
+          "name": "顶级厨神",
+          "description": "创造可改变物质的料理（7星以上）"
+        }
+      ]
+    },
+    {
+      "id": "antagonist_forces",
+      "name": "反派势力",
+      "description": "从商业竞争到厨艺教派的立体化敌对阵营",
+      "children": [
+        {
+          "id": "tier_1",
+          "name": "前期反派",
+          "description": "米其林黑卡持有者王胖子，操控食材供应链的餐饮集团"
+        },
+        {
+          "id": "tier_2",
+          "name": "中期反派",
+          "description": "味觉修会少主，能品尝出料理缺陷的美食通灵者"
+        },
+        {
+          "id": "tier_3",
+          "name": "后期反派",
+          "description": "企图垄断厨神传承的千年食妖，掌控食材异变的黑暗料理部"
+        }
+      ]
+    },
+    {
+      "id": "romance_line",
+      "name": "情感线设定",
+      "description": "与敌对米其林主厨的相爱相杀，以及神秘食材鉴定师的救赎羁绊",
+      "children": []
+    },
+    {
+      "id": "satisfaction_points",
+      "name": "爽点布局",
+      "description": "每3章设置厨艺碾压事件，穿插系统解锁的惊喜时刻",
+      "children": [
+        {
+          "id": "chapter_1_10",
+          "name": "前10章爽点",
+          "description": "佛跳墙打脸→复制秘方→觉醒刀工→夜市料理大赛夺冠，系统提示音贯穿关键节点"
+        },
+        {
+          "id": "chapter_10_30",
+          "name": "10-30章爽点",
+          "description": "单挑米其林评审团，用残缺菜谱逆向研发失传名菜，系统激活异界食材库"
+        },
+        {
+          "id": "chapter_30_plus",
+          "name": "30章后爽点",
+          "description": "以一敌百的厨艺擂台，用系统解析反制食妖禁术，最终料理引发食材异变危机"
+        }
+      ]
+    },
+    {
+      "id": "anticipation_hooks",
+      "name": "期待感钩子",
+      "description": "每章结尾埋设系统新功能预告与反派阴谋线索",
+      "children": []
+    },
+    {
+      "id": "sub_plots",
+      "name": "支线剧情",
+      "description": "夜市帮派争夺战/百年厨艺试炼秘境/神秘顾客的复仇料理",
+      "children": []
+    },
+    {
+      "id": "unique_features",
+      "name": "特色设定",
+      "description": "将味觉体验具象化描写，系统升级伴随料理美学突破，情感线融入厨艺理念碰撞",
+      "children": []
+    }
+  ]
+}

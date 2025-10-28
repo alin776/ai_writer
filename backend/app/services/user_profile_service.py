@@ -256,3 +256,58 @@ class UserProfileService:
             f"accept_rate={profile.accept_rate:.2%}"
         )
         return profile
+
+    async def record_humanize_use(
+        self,
+        user_id: UUID,
+        text_length: int,
+        ai_function: str,
+        intensity: str,
+        improvement: float
+    ) -> UserProfile:
+        """
+        记录去痕迹使用情况
+
+        Args:
+            user_id: 用户ID
+            text_length: 文本长度
+            ai_function: AI功能类型
+            intensity: 使用的强度
+            improvement: 改进幅度
+
+        Returns:
+            UserProfile: 更新后的用户画像
+        """
+        profile = await self.get_or_create_profile(user_id)
+
+        # 更新使用统计
+        profile.total_uses += 1
+
+        # 更新平均文本长度
+        if profile.avg_text_length is None:
+            profile.avg_text_length = text_length
+        else:
+            # 滑动平均
+            profile.avg_text_length = int(
+                (profile.avg_text_length * (profile.total_uses - 1) + text_length) / profile.total_uses
+            )
+
+        # 更新最常用功能
+        profile.most_used_function = ai_function
+
+        # 更新偏好强度（如果用户多次使用某个强度，记录为偏好）
+        if profile.total_uses >= 3:
+            profile.preferred_intensity = intensity
+
+        # 自动检测用户类型
+        self._auto_detect_user_type(profile)
+
+        await self.db.commit()
+        await self.db.refresh(profile)
+
+        logger.info(
+            f"记录去痕迹使用: user_id={user_id}, "
+            f"total_uses={profile.total_uses}, intensity={intensity}, "
+            f"improvement={improvement:.1f}"
+        )
+        return profile

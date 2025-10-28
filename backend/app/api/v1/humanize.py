@@ -2,6 +2,7 @@
 Humanize API - AI去痕迹功能管理接口
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
@@ -16,14 +17,19 @@ from app.models.humanize_session import HumanizeSession, HumanizeSessionDetail
 from app.schemas.humanize import (
     UserProfileResponse,
     UserProfileUpdateRequest,
+    HumanizeRequest,
     HumanizeSessionResponse,
     HumanizeHistoryResponse,
     HumanizeStatsResponse,
     UserFeedbackRequest,
+    HumanizeSessionCreate,
 )
 from app.services.user_profile_service import UserProfileService
+from app.services.ai.humanize_service import HumanizeService
+from app.core.humanize_config import HumanizeConfig
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/profile", response_model=UserProfileResponse)
@@ -326,3 +332,149 @@ async def submit_feedback(
     await db.commit()
 
     return {"detail": "Feedback submitted successfully"}
+
+
+@router.post("/rewrite", response_model=HumanizeSessionResponse)
+async def humanize_rewrite(
+    request: HumanizeRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    执行去痕迹改写并保存会话
+
+    完整流程:
+    1. 检测AI痕迹 (使用快速模型)
+    2. 执行改写 (使用标准模型)
+    3. (可选)验证效果 (使用快速模型)
+    4. 保存会话到数据库
+    5. 更新用户画像
+
+    Args:
+        request: 去痕迹请求 (text, intensity, ai_function)
+
+    Returns:
+        HumanizeSessionResponse: 包含改写结果和会话ID的响应
+    """
+    # 1. 获取用户画像，根据用户配置决定是否启用验证
+    profile_service = UserProfileService(db)
+    profile = await profile_service.get_or_create_profile(current_user.id)
+
+    # 2. 创建配置 (根据用户画像)
+    config = HumanizeConfig(
+        enable_detection=True,  # 总是启用检测
+        enable_verification=profile.humanize_enabled_by_function.get("rewrite", False),  # 根据用户配置
+    )
+
+    # 3. 初始化HumanizeService
+    humanize_service = HumanizeService(config=config)
+
+    try:
+        # 4. 执行完整的去痕迹流程
+        result = await humanize_service.full_humanize_process(
+            text=request.text,
+            intensity=request.intensity,
+            skip_detection=False,
+            skip_verification=None  # 使用config配置
+        )
+
+        detection = result.get("detection")
+        humanized_text = result.get("humanized_text", "")
+        verification = result.get("verification")
+        processing_time = result.get("processing_time", 0)
+
+        # 5. 计算token和成本 (简化估算)
+        # TODO: 从AI服务获取实际token消耗
+        text_length = len(request.text)
+        estimated_tokens = int(text_length * 1.5 * 3)  # 检测+改写+(可选)验证
+        estimated_cost = estimated_tokens * 0.000002  # 简化估算
+
+        # 6. 构建会话数据
+        score_before = detection.overall_score if detection else 70.0
+        score_after = verification.score_after if verification else 50.0
+        improvement = score_before - score_after
+
+        # 创建会话记录
+        session = HumanizeSession(
+            user_id=current_user.id,
+            ai_function=request.ai_function or "rewrite",
+            score_before=score_before,
+            score_after=score_after,
+            improvement=improvement,
+            intensity=request.intensity,
+            processing_time=processing_time,
+            tokens_used=estimated_tokens,
+            cost=estimated_cost,
+            user_accepted=None  # 用户稍后反馈
+        )
+
+        db.add(session)
+        await db.flush()  # 刷新以获取session.id
+
+        # 转换DimensionScore对象为字典 (JSONB字段需要纯字典)
+        dimensions_before_dict = {}
+        if detection and detection.dimensions:
+            dimensions_before_dict = {
+                key: dim.model_dump()  # Pydantic v2: model_dump(), v1: dict()
+                for key, dim in detection.dimensions.items()
+            }
+
+        # 创建会话详情 (包含完整数据,7天后过期)
+        detail = HumanizeSessionDetail(
+            session_id=session.id,
+            original_preview=request.text[:200],  # 仅保存前200字符
+            humanized_preview=humanized_text[:200],
+            dimensions_before=dimensions_before_dict,  # ← 使用转换后的字典
+            dimensions_after={},  # 验证阶段不返回详细维度
+            detected_patterns=detection.detected_patterns if detection else [],
+            expires_at=datetime.utcnow() + timedelta(days=7)
+        )
+
+        db.add(detail)
+
+        # 7. 更新用户画像统计
+        await profile_service.record_humanize_use(
+            user_id=current_user.id,
+            text_length=text_length,
+            ai_function=request.ai_function or "rewrite",
+            intensity=request.intensity,
+            improvement=improvement
+        )
+
+        # 8. 提交事务
+        await db.commit()
+        await db.refresh(session)
+        await db.refresh(detail)
+
+        logger.info(
+            f"去痕迹会话已保存: session_id={session.id}, "
+            f"improvement={improvement:.1f}, tokens={estimated_tokens}"
+        )
+
+        # 9. 返回响应
+        return HumanizeSessionResponse(
+            id=session.id,
+            user_id=session.user_id,
+            ai_function=session.ai_function,
+            score_before=session.score_before,
+            score_after=session.score_after,
+            improvement=session.improvement,
+            intensity=session.intensity,
+            user_accepted=session.user_accepted,
+            processing_time=session.processing_time,
+            tokens_used=session.tokens_used,
+            cost=session.cost,
+            created_at=session.created_at,
+            detail=detail
+        )
+
+    except Exception as e:
+        logger.error(f"去痕迹改写失败: {type(e).__name__}: {e}")
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"AI去痕迹处理失败: {str(e)}"
+        )
+    finally:
+        # 确保关闭Service
+        await humanize_service.close()
