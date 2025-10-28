@@ -1,80 +1,33 @@
 # NovelAIde 项目文档索引
 
-> 📚 **完整文档导航** | 最后更新: 2025-10-28 v2.20
+> 📚 **完整文档导航** | 最后更新: 2025-10-28 v2.21
 
 ## 📁 文档结构总览
 
 ```
 docs/
-├── 核心文档/ (19个)
-│   ├── README.md - 文档总览
+├── 核心文档/ (11个)
+│   ├── README.md - 文档总览 ⭐⭐⭐
 │   ├── 01-overview.md - 项目概述
 │   ├── 02-tech-stack.md - 技术栈规划
 │   ├── 03-current-status.md - 当前项目状态 ⭐
 │   ├── 04-milestones.md - 开发路线图 🔥
 │   ├── 05-tasks.md - 开发任务清单
 │   ├── 06-frontend-specs.md - 前端开发规范
-│   ├── 07-api-reference.md - API参考文档 (v2.14) 🔥
+│   ├── 07-api-reference.md - API参考文档 🔥
 │   ├── 08-deployment.md - 部署运维指南
 │   ├── 09-references.md - 参考资源
-│   ├── 10-feature-import-export.md - 导入导出功能
-│   ├── 11-feature-ai-arena.md - AI写作竞技场
-│   ├── 12-changelog.md - 文档更新日志
-│   ├── 13-build-and-deploy.md - 构建部署指南
+│   └── core-workflow.md - 核心流程图
+├── AI功能文档/ (3个)
 │   ├── 14-ai-evaluation-summary.md - AI评价功能总结 ⭐⭐
 │   ├── 15-feature-ai-book-breakdown.md - AI拆书功能设计 ⭐⭐ 🔥
-│   ├── 16-feature-knowledge-base.md - 个人知识库功能设计 ⭐⭐ 🔥
-│   ├── 17-json-parser-fix-summary.md - JSON解析修复总结
-│   ├── 18-json-parser-code-review.md - JSON解析代码审查
-│   ├── 19-concurrent-optimization-code-review.md - 并发优化代码审查
-│   ├── 20-concurrent-optimization-fix-summary.md - 并发优化修复总结
-│   ├── 21-performance-optimization-fix-summary.md - 性能优化修复总结 ⭐
-│   ├── 22-final-performance-report.md - 评审性能最终报告 ⭐⭐⭐ 🔥
-│   └── 23-review-optimization-completed.md - 评审优化完成总结 ⭐⭐ 🔥
-├── AI功能文档/ (4个)
-│   ├── HUMANIZE_SUMMARY.md - AI去痕迹功能总结 ⭐⭐
-│   ├── HUMANIZE_QUICKSTART.md - 快速开始指南
-│   ├── HUMANIZE_BUGFIX.md - Bug修复记录
-│   └── 14-ai-evaluation-summary.md - AI评价功能开发总结 ⭐⭐ 🔥
-├── 测试文档/ (2个)
-│   ├── TESTING_GUIDE.md - 测试指南
-│   └── TESTING_SUMMARY.md - 测试总结
-├── 其他文档/ (2个)
-│   ├── core-workflow.md - 核心流程图
-│   └── 数据面板模块完整检查报告.md
-└── 索引文档/ (2个)
-    ├── DOCS_INDEX.md - 本文档 🔥
-    └── DOCS_UPDATE_2025-10-26.md - 最新更新记录
-
-backend/docs/
-├── API文档/ (3个)
-│   ├── API_REFERENCE.md - 后端API参考
-│   ├── AI_REWRITE_ASSISTANT_API.md - AI改写助手API ⭐
-│   └── AI_REWRITE_ASSISTANT_API_QUICK_REFERENCE.md - API快速参考
-├── 配置文档/ (4个)
-│   ├── CONFIG_GUIDE.md - 配置指南
-│   ├── DATABASE_SCHEMA.md - 数据库Schema
-│   ├── POSTGRESQL_SETUP.md - PostgreSQL安装
-│   └── TEST_ACCOUNT_CONFIG.md - 测试账号配置
-├── 部署文档/ (3个)
-│   ├── QUICKSTART_SETUP.md - 快速开始
-│   ├── TROUBLESHOOTING.md - 故障排除
-│   └── 一键部署包说明.md
-├── 测试文档/ (4个)
-│   ├── TEST_FIX_SUMMARY.md - 测试修复总结 ⭐
-│   ├── TEST_RESULTS.md - 测试结果报告
-│   ├── CONFTEST_FIX.md - conftest修复 (已归档)
-│   └── TESTING_GUIDE.md - 测试指南
-├── 错误修复/ (4个 - 已归档)
-│   ├── ERROR.md
-│   ├── ERROR_FIX_COMPLETE.md
-│   ├── ERROR_FIX_ROUND2.md
-│   └── INFO.md
-└── 其他/ (3个)
-    ├── MIGRATION_FIX.md - 数据库迁移修复
-    ├── 前端开发者指南.md
-    ├── 数据库配置说明.md
-    └── 数据库迁移指南.md
+│   └── 16-feature-knowledge-base.md - 个人知识库功能设计 ⭐⭐ 🔥
+├── 性能优化/ (1个)
+│   └── performance-optimization-2025-10-28.md - Redis缓存性能优化 ⭐⭐⭐ 🔥
+├── 历史文档/ (archive/)
+│   └── 30+ 个已归档的历史文档
+└── 索引文档/
+    └── DOCS_INDEX.md - 本文档 🔥
 ```
 
 ---
@@ -94,40 +47,16 @@ backend/docs/
 **核心文档**:
 - [06-frontend-specs.md](./06-frontend-specs.md) - 前端开发规范
 - [07-api-reference.md](./07-api-reference.md) - API调用文档
-- [backend/docs/前端开发者指南.md](../backend/docs/前端开发者指南.md) - 前端快速上手
-
-**功能开发**:
-- [10-feature-import-export.md](./10-feature-import-export.md) - 导入导出功能
-- [11-feature-ai-arena.md](./11-feature-ai-arena.md) - AI写作竞技场
-- [HUMANIZE_QUICKSTART.md](./HUMANIZE_QUICKSTART.md) - AI去痕迹功能
 
 ### 后端开发
 
 **核心文档**:
 - [02-tech-stack.md](./02-tech-stack.md) - 后端技术栈
-- [backend/docs/API_REFERENCE.md](../backend/docs/API_REFERENCE.md) - 完整API文档
-- [backend/docs/DATABASE_SCHEMA.md](../backend/docs/DATABASE_SCHEMA.md) - 数据库设计
-
-**配置部署**:
-- [backend/docs/CONFIG_GUIDE.md](../backend/docs/CONFIG_GUIDE.md) - 配置指南
-- [backend/docs/POSTGRESQL_SETUP.md](../backend/docs/POSTGRESQL_SETUP.md) - 数据库安装
-- [backend/docs/QUICKSTART_SETUP.md](../backend/docs/QUICKSTART_SETUP.md) - 快速开始
-
-**测试相关**:
-- [backend/docs/TEST_FIX_SUMMARY.md](../backend/docs/TEST_FIX_SUMMARY.md) - 测试修复总结 ⭐
-- [backend/docs/TEST_RESULTS.md](../backend/docs/TEST_RESULTS.md) - 测试结果
-- [TESTING_GUIDE.md](./TESTING_GUIDE.md) - 测试指南
+- [performance-optimization-2025-10-28.md](./performance-optimization-2025-10-28.md) - 性能优化实践 ⭐⭐⭐
 
 ### AI功能开发
 
-**AI去痕迹**:
-- [HUMANIZE_SUMMARY.md](./HUMANIZE_SUMMARY.md) - 功能总结 ⭐⭐
-- [HUMANIZE_QUICKSTART.md](./HUMANIZE_QUICKSTART.md) - 快速开始
-- [HUMANIZE_BUGFIX.md](./HUMANIZE_BUGFIX.md) - Bug修复
-- [backend/docs/AI_REWRITE_ASSISTANT_API.md](../backend/docs/AI_REWRITE_ASSISTANT_API.md) - 完整API文档
-
-**其他AI功能**:
-- [11-feature-ai-arena.md](./11-feature-ai-arena.md) - AI写作竞技场设计
+**核心AI功能**:
 - [14-ai-evaluation-summary.md](./14-ai-evaluation-summary.md) - AI评价功能总结 ⭐⭐
 - [15-feature-ai-book-breakdown.md](./15-feature-ai-book-breakdown.md) - AI拆书功能设计 ⭐⭐ 🔥
 - [16-feature-knowledge-base.md](./16-feature-knowledge-base.md) - 个人知识库设计 ⭐⭐ 🔥
@@ -141,22 +70,18 @@ backend/docs/
 ### 运维部署
 
 - [08-deployment.md](./08-deployment.md) - 部署指南
-- [13-build-and-deploy.md](./13-build-and-deploy.md) - 构建部署
-- [backend/docs/一键部署包说明.md](../backend/docs/一键部署包说明.md)
-- [backend/docs/TROUBLESHOOTING.md](../backend/docs/TROUBLESHOOTING.md) - 故障排除
 
 ---
 
 ## 📊 文档统计
 
-| 分类 | 文档数量 | 总字数估计 |
-|------|---------|----------|
-| 核心文档 | 16个 | ~40,000字 |
-| AI功能文档 | 6个 | ~25,000字 |
-| 测试文档 | 8个 | ~15,000字 |
-| 后端文档 | 17个 | ~20,000字 |
-| 任务文档 | 5个 | ~8,000字 |
-| **总计** | **52个** | **~108,000字** |
+| 分类 | 文档数量 |
+|------|---------|
+| 核心文档 | 11个 |
+| AI功能文档 | 3个 |
+| 性能优化 | 1个 |
+| 历史归档 | 30+个 |
+| **总计** | **15个核心 + 30+归档** |
 
 ---
 
@@ -174,63 +99,24 @@ backend/docs/
 
 ## 🔄 最近更新
 
-### 2025-10-26 (v2.19) 🔥
+### 2025-10-28 (v2.21) 🔥
+- 🔥 **Redis缓存性能优化完成** ⭐⭐⭐
+- 🔥 性能提升16.7x (目标3-4x)
+- 🔥 支持章节解析、AI分析、向量缓存三级缓存
+- 🔥 支持部分缓存命中优化
+- 🔥 新增缓存统计监控
+- 🔥 新增 performance-optimization-2025-10-28.md
+- 📝 大规模文档整理: 30+个历史文档归档
+- 📝 核心文档精简至15个
+
+### 2025-10-26 (v2.19)
 - 🔥 **知识库MVP后端完成** (Day 4完成) ⭐⭐⭐
 - 🔥 7个REST API端点全部实现 ✅
 - 🔥 自动化测试100%通过 (9/9) ✅
-- 🔥 更新知识库功能文档 (16-feature-knowledge-base.md)
-- 🔥 更新任务进度 (tasks/knowledge_base_todo.md)
-- 📝 后端开发完成度: 100%
-- 📝 新增测试脚本: backend/scripts/test_knowledge_api.py
 
 ### 2025-10-26 (v2.18)
 - 🔥 **新增Milestone 2.5: 个人知识库 + AI拆书系统** ⭐⭐⭐
 - 🔥 新增2个功能设计文档 (15/16)
-- 🔥 更新开发路线图 (04-milestones.md)
-- 📝 战略定位: 从"写作助手"升级为"写作教练"
-- 📝 核心价值: 建立长期价值积累的竞争壁垒
-- 📝 文档总数 50个 → 52个
-- 📝 总字数 ~88,000字 → ~108,000字
-
-### 2025-10-26 (v2.17)
-- 🔥 **更新AI改写助手/写作竞技场状态** ⭐⭐
-- 🔥 确认AI改写助手=AI写作竞技场(同一功能)
-- 🔥 标记为后端100%完成(7个API端点)
-- 🔥 更新Milestone 2完成度: 85% → 95%
-- 🔥 更新项目整体完成度: 94% → 95%
-- 📝 后端API端点总数: 104个 → 111个
-
-### 2025-10-26 (v2.16) 🔥
-- 🔥 **AI评估反馈系统后端完成** (Day 1完成) ⭐⭐
-- 🔥 新增评估服务和Prompt模板（2个核心文件，500+行代码）
-- 🔥 新增evaluation_records数据表和数据迁移
-- 🔥 新增AI评估接口 POST /api/v1/ai/evaluate
-- 🔥 完整测试通过（100%成功率）
-- 🔥 更新API参考文档 v2.14 → v2.15
-- 🔥 更新项目状态文档 93% → 94%
-- 📝 文档总数 41个 → 45个（新增4个测试和总结文档）
-
-### 2025-10-26 (v2.15)
-- 🔥 新增AI评价功能文档 (14-ai-evaluation-summary.md)
-- 🔥 更新API参考文档 v2.13 → v2.14 (新增评价接口)
-- 🔥 新增测试报告 (tasks/ai_evaluation_test_report.md)
-- 🔥 更新任务清单 (tasks/todo.md - Day 1完成)
-- 📝 文档总数 39个 → 41个
-
-### 2025-10-26 (v2.14)
-- 🔥 新增AI去痕迹功能文档 (3个)
-- 🔥 更新项目整体完成度 92% → 94%
-- 🔥 更新后端完成度 95% → 97%
-- 🔥 新增测试修复文档 (2个)
-- 📝 更新README.md和03-current-status.md
-
-### 2025-10-25
-- 更新管理后台数据接入文档
-- 更新AI调用日志系统文档
-
-### 2025-10-24
-- 补充API参考文档(6个遗漏模块)
-- 更新任务清单同步实际完成情况
 
 ---
 
@@ -240,8 +126,7 @@ backend/docs/
 
 1. **修改文档** - 直接编辑对应的.md文件
 2. **更新版本** - 修改文档顶部的更新日期
-3. **记录变更** - 在 12-changelog.md 中记录
-4. **更新索引** - 如有新增文档,更新本索引
+3. **更新索引** - 如有新增文档,更新本索引
 
 ### 文档规范
 
@@ -254,5 +139,5 @@ backend/docs/
 ---
 
 **维护者**: NovelAIde 团队
-**最后更新**: 2025-10-26
-**版本**: v2.19
+**最后更新**: 2025-10-28
+**版本**: v2.21
