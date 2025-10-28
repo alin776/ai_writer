@@ -1,12 +1,12 @@
 # NovelAIde 项目文档索引
 
-> 📚 **完整文档导航** | 最后更新: 2025-10-26 v2.19
+> 📚 **完整文档导航** | 最后更新: 2025-10-28 v2.20
 
 ## 📁 文档结构总览
 
 ```
 docs/
-├── 核心文档/ (16个)
+├── 核心文档/ (19个)
 │   ├── README.md - 文档总览
 │   ├── 01-overview.md - 项目概述
 │   ├── 02-tech-stack.md - 技术栈规划
@@ -23,7 +23,14 @@ docs/
 │   ├── 13-build-and-deploy.md - 构建部署指南
 │   ├── 14-ai-evaluation-summary.md - AI评价功能总结 ⭐⭐
 │   ├── 15-feature-ai-book-breakdown.md - AI拆书功能设计 ⭐⭐ 🔥
-│   └── 16-feature-knowledge-base.md - 个人知识库功能设计 ⭐⭐ 🔥
+│   ├── 16-feature-knowledge-base.md - 个人知识库功能设计 ⭐⭐ 🔥
+│   ├── 17-json-parser-fix-summary.md - JSON解析修复总结
+│   ├── 18-json-parser-code-review.md - JSON解析代码审查
+│   ├── 19-concurrent-optimization-code-review.md - 并发优化代码审查
+│   ├── 20-concurrent-optimization-fix-summary.md - 并发优化修复总结
+│   ├── 21-performance-optimization-fix-summary.md - 性能优化修复总结 ⭐
+│   ├── 22-final-performance-report.md - 评审性能最终报告 ⭐⭐⭐ 🔥
+│   └── 23-review-optimization-completed.md - 评审优化完成总结 ⭐⭐ 🔥
 ├── AI功能文档/ (4个)
 │   ├── HUMANIZE_SUMMARY.md - AI去痕迹功能总结 ⭐⭐
 │   ├── HUMANIZE_QUICKSTART.md - 快速开始指南
