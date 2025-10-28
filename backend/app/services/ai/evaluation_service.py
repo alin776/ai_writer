@@ -202,15 +202,27 @@ class EvaluationService:
         Returns:
             AI返回的完整文本
         """
+        logger.info("🔄 开始调用AI进行评价...")
+        logger.debug(f"📝 消息数量: {len(messages)}, max_tokens: 3500")
+
         chunks = []
+        chunk_count = 0
+
         async for chunk in http_ai._stream_chat(
             messages=messages,
-            max_tokens=2000,
+            max_tokens=3500,  # 增加到3500,确保JSON完整
             temperature=0.3  # 评价任务用较低温度,保证一致性
         ):
+            chunk_count += 1
             chunks.append(chunk)
+            logger.debug(f"📦 接收第 {chunk_count} 个数据块, 长度: {len(chunk)}")
 
-        return "".join(chunks)
+        result = "".join(chunks)
+        logger.info(f"✅ AI调用完成, 共接收 {chunk_count} 个数据块, 总长度: {len(result)} 字符")
+        logger.debug(f"📄 AI返回内容前200字符: {result[:200]}")
+        logger.debug(f"📄 AI返回内容后200字符: {result[-200:]}")
+
+        return result
 
     def _parse_evaluation_result(self, result_text: str) -> Dict[str, Any]:
         """
@@ -222,14 +234,22 @@ class EvaluationService:
         Returns:
             解析后的评价结果字典
         """
+        logger.info(f"🔍 开始解析AI评价结果, 文本长度: {len(result_text)} 字符")
+
+        # 检测JSON截断
+        self._check_json_truncation(result_text)
+
         try:
             # 尝试直接解析JSON
+            logger.debug("📝 尝试直接解析JSON...")
             result = json.loads(result_text)
+            logger.info("✅ JSON解析成功 (方法: 直接解析)")
 
             # 验证必需字段
             required_fields = ["overall_score", "dimensions"]
             for field in required_fields:
                 if field not in result:
+                    logger.error(f"❌ 缺少必需字段: {field}")
                     raise ValueError(f"缺少必需字段: {field}")
 
             # 验证维度评分
@@ -242,35 +262,88 @@ class EvaluationService:
             ]
             for dim in required_dimensions:
                 if dim not in result["dimensions"]:
+                    logger.error(f"❌ 缺少维度评分: {dim}")
                     raise ValueError(f"缺少维度评分: {dim}")
 
+            logger.info(f"✅ JSON验证通过, overall_score={result['overall_score']}")
             return result
 
         except json.JSONDecodeError as e:
-            logger.error(f"JSON解析失败: {e}, 原文: {result_text[:500]}")
+            logger.warning(f"⚠️ JSON直接解析失败: {e}")
+            logger.warning(f"📄 错误位置: line {e.lineno}, column {e.colno}")
+            logger.debug(f"📄 原文前500字符:\n{result_text[:500]}")
+            logger.debug(f"📄 原文后500字符:\n{result_text[-500:]}")
 
             # 尝试提取JSON部分
             try:
+                logger.info("🔄 尝试提取JSON代码块...")
                 # 查找JSON代码块
                 if "```json" in result_text:
+                    logger.debug("发现 ```json 标记")
                     start = result_text.index("```json") + 7
                     end = result_text.index("```", start)
                     json_text = result_text[start:end].strip()
-                    return json.loads(json_text)
+                    logger.debug(f"提取的JSON长度: {len(json_text)} 字符")
+                    result = json.loads(json_text)
+                    logger.info("✅ JSON解析成功 (方法: markdown代码块提取)")
+                    return result
                 elif "{" in result_text and "}" in result_text:
+                    logger.debug("发现 { } 标记,尝试提取")
                     start = result_text.index("{")
                     end = result_text.rindex("}") + 1
                     json_text = result_text[start:end]
-                    return json.loads(json_text)
+                    logger.debug(f"提取的JSON长度: {len(json_text)} 字符")
+                    logger.debug(f"提取的JSON前100字符: {json_text[:100]}")
+                    logger.debug(f"提取的JSON后100字符: {json_text[-100:]}")
+                    result = json.loads(json_text)
+                    logger.info("✅ JSON解析成功 (方法: 大括号提取)")
+                    return result
+                else:
+                    logger.error("❌ 未找到JSON标记")
+            except json.JSONDecodeError as e2:
+                logger.error(f"❌ JSON提取后解析失败: {e2}")
+                logger.error(f"错误位置: line {e2.lineno}, column {e2.colno}")
             except Exception as e2:
-                logger.error(f"提取JSON失败: {e2}")
+                logger.error(f"❌ JSON提取过程异常: {e2}")
 
             # 返回默认评价
+            logger.warning("⚠️ 使用默认评价结果")
             return self._get_default_evaluation()
 
         except Exception as e:
-            logger.error(f"评价结果解析异常: {e}")
+            logger.error(f"❌ 评价结果解析异常: {e}")
+            logger.exception("详细错误信息:")
             return self._get_default_evaluation()
+
+    def _check_json_truncation(self, text: str) -> None:
+        """检查JSON是否可能被截断"""
+        if not text:
+            logger.error("⚠️ AI返回内容为空!")
+            return
+
+        # 检查是否有起始大括号
+        if "{" not in text:
+            logger.error("⚠️ 未发现JSON起始符号 '{'")
+            return
+
+        # 检查是否有结束大括号
+        if "}" not in text:
+            logger.error("⚠️ 未发现JSON结束符号 '}' - 可能被截断!")
+            return
+
+        # 统计大括号数量
+        open_braces = text.count("{")
+        close_braces = text.count("}")
+
+        if open_braces != close_braces:
+            logger.warning(f"⚠️ 大括号不匹配! 开括号: {open_braces}, 闭括号: {close_braces} - JSON可能不完整")
+
+        # 检查是否有未完成的数组
+        open_brackets = text.count("[")
+        close_brackets = text.count("]")
+
+        if open_brackets != close_brackets:
+            logger.warning(f"⚠️ 方括号不匹配! 开括号: {open_brackets}, 闭括号: {close_brackets} - 数组可能不完整")
 
     def _get_default_evaluation(self) -> Dict[str, Any]:
         """

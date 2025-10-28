@@ -1,11 +1,10 @@
-(venv) PS D:\Java\ai_writer\backend> python test_evaluation_with_flash.py
+(venv) PS D:\Java\ai_writer\backend> python test_book_cache.py
 
 启动测试...
-API地址: http://localhost:8000
-测试时间: 2025-10-28 13:36:06
+测试时间: 2025-10-28 15:25:56
 
 ############################################################
-#  AI评估系统测试 - gemini-2.5-flash 模型验证
+#  AI拆书Redis缓存功能测试
 ############################################################
 
 
@@ -18,77 +17,116 @@ API地址: http://localhost:8000
    Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2M...
 
 ============================================================
-步骤 2: 调用评估接口
+步骤 2: 首次分析 - 缓存未命中
 ============================================================
 
-操作类型: continue
-文本长度: 164 字符
-
-测试文本:
-
-夜幕降临,月光如水般倾泻而下,洒在静谧的湖面上。林间传来阵阵虫鸣,仿佛在诉说着夏夜的故事。
-微风拂过,带来阵阵花香,沁人心脾。远处的山峦在月光下显得格外朦胧,宛如一幅水墨画。
-
-他站在湖边,望着粼粼...
-
-⏳ 正在调用评估API (使用 gemini-2.5-flash)...
-✅ 评估成功! (耗时: 15.38秒)
+ℹ️  测试文件: test_cache_v1_1761636359.txt
+ℹ️  ⏳ 正在上传并分析 (首次,应该调用AI)...
+ℹ️  任务ID: 015e9e24-274b-4118-9a79-013f9f6cbfcc
+✅ 首次分析完成! 耗时: 62.09秒
+ℹ️  分析章节: 0
+ℹ️  提取知识: 0
 
 ============================================================
-步骤 3: 评估结果
+步骤 3: 重复分析 - 缓存命中测试
 ============================================================
 
-
-📊 总分: 83.0/100
-   等级: 良好 👍
-
-📈 5维度评分:
-   文学性         : █████████████████░░░ 85.0
-   连贯性         : ██████████████████░░ 90.0
-   创意性         : ██████████████░░░░░░ 70.0
-   情感感染力       : ████████████████░░░░ 80.0
-   节奏把控        : ██████████████████░░ 90.0
-
-✨ 优点:
-   1. 意境优美,通过多感官描写营造了静谧而富有诗意的夏夜氛围。
-   2. 情感表达细腻,成功刻画了人物面对景物时油然而生的感慨与怀旧情愫。
-   3. 语言流畅自然,修辞手法运用得当,如“月光如水”、“宛如一幅水墨画”等。
-
-⚠️  问题:
-   1. 部分意象和表达略显陈旧,如“月光如水”、“沁人心脾”、“时光荏苒,物是人非”等,缺乏新颖的视角。
-   2. 人物情感的“无限感慨”略显宽泛,若能稍加暗示具体的回忆或情感来源,感染力会更强。
-
-💡 改进建议:
-   1. 尝试在描写中融入更具个人风格或独特视角的意象,避免使用过于常见的比喻和短语。
-   2. 在表达人物情感时,可以考虑通过一两个具体的细节或闪回片段,让“感慨”具象化,增强读者的代入感。
-   3. 如果后续有情节发展,可以考虑如何将这种静谧的氛围与人物的内心活动更紧密地结合,推动故事。
+ℹ️  测试文件: test_cache_v1_1761636359.txt
+ℹ️  ⏳ 正在上传并分析 (相同内容,应该命中缓存)...
+ℹ️  任务ID: 807dd020-a35e-479c-b33b-a2324f7a2718
+✅ 第二次分析完成! 耗时: 33.21秒
+ℹ️  分析章节: 0
 
 ============================================================
-步骤 4: 验证模型使用
+步骤 4: 性能对比分析
 ============================================================
 
-ℹ️  查询AI调用日志以验证使用的模型...
-✅ ✅ 模型验证通过: gemini-2.5-flash
-ℹ️     Token消耗: 811
-ℹ️     成本: $0.0000
+📊 首次分析 (缓存未命中): 62.09秒
+📊 重复分析 (缓存命中):   33.21秒
+⚡ 性能提升: 1.9x
+⏱️  节省时间: 28.89秒
+
+❌ ❌ 缓存未生效! 两次耗时相近
 
 ============================================================
-步骤 5: 性能分析
+步骤 5: 不同内容测试 - 验证缓存键隔离
 ============================================================
 
-⏱️  响应时间: 15.38秒
-❌ 性能较慢 (> 10秒)
+ℹ️  测试文件: test_cache_v2_1761636458.txt
+ℹ️  ⏳ 正在分析不同内容 (应该重新调用AI)...
+ℹ️  任务ID: f4a6520c-f6df-4f1b-a75a-da9c7f47bdd7
 
-============================================================
-测试总结
-============================================================
+测试失败:
+Traceback (most recent call last):
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpx\_transports\default.py", line 67, in map_httpcore_exceptions
+    yield
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpx\_transports\default.py", line 371, in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpcore\_async\connection_pool.py", line 256, in handle_async_request
+    raise exc from None
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpcore\_async\connection_pool.py", line 236, in handle_async_request
+    response = await connection.handle_async_request(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpcore\_async\http_proxy.py", line 206, in handle_async_request
+    return await self._connection.handle_async_request(proxy_request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpcore\_async\connection.py", line 103, in handle_async_request
+    return await self._connection.handle_async_request(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpcore\_async\http11.py", line 136, in handle_async_request
+    raise exc
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpcore\_async\http11.py", line 106, in handle_async_request
+    ) = await self._receive_response_headers(**kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpcore\_async\http11.py", line 177, in _receive_response_headers
+    event = await self._receive_event(timeout=timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpcore\_async\http11.py", line 217, in _receive_event
+    data = await self._network_stream.read(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpcore\_backends\anyio.py", line 32, in read
+    with map_exceptions(exc_map):
+  File "C:\Program Files\Python312\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(value)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpcore\_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+httpcore.ReadError
 
-✅ ✅ 登录成功
-✅ ✅ 评估API调用成功
-✅ ✅ 获得评分: 83.0/100
-✅ ✅ 5维度评分完整
-✅ ✅ 响应时间: 15.38秒
+The above exception was the direct cause of the following exception:
 
-🎉 测试完成!
-
+Traceback (most recent call last):
+  File "D:\Java\ai_writer\backend\test_book_cache.py", line 403, in main
+    await runner.run_cache_test()
+  File "D:\Java\ai_writer\backend\test_book_cache.py", line 362, in run_cache_test
+    result3 = await self.upload_and_analyze(client, test_file3)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\test_book_cache.py", line 222, in upload_and_analyze
+    status_resp = await client.get(
+                  ^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpx\_client.py", line 1786, in get
+    return await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpx\_client.py", line 1559, in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpx\_client.py", line 1646, in send
+    response = await self._send_handling_auth(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpx\_client.py", line 1674, in _send_handling_auth
+    response = await self._send_handling_redirects(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpx\_client.py", line 1711, in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpx\_client.py", line 1748, in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpx\_transports\default.py", line 370, in handle_async_request
+    with map_httpcore_exceptions():
+  File "C:\Program Files\Python312\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(value)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\httpx\_transports\default.py", line 84, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx.ReadError
 (venv) PS D:\Java\ai_writer\backend>

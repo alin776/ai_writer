@@ -17,13 +17,14 @@ from sqlalchemy import select
 from app.models.book_analysis import BookAnalysisJob, JobStatus
 from app.models.worldview_suggestion import WorldviewSuggestion
 from app.models.knowledge_item import KnowledgeItem, KnowledgeCategory
+from app.services.ai.http_ai_service import HTTPAIService
 from app.services.book_analysis.strategy import strategy_registry
 from app.services.book_analysis.smart_sampling import SmartSamplingAnalyzer, ChapterData
+from app.services.book_analysis.suggestion_generator import SuggestionGenerator
+from app.services.knowledge_service import KnowledgeService
+from app.services.redis_cache_service import RedisCacheService
 
 logger = logging.getLogger(__name__)
-from app.services.book_analysis.suggestion_generator import SuggestionGenerator
-from app.services.ai.http_ai_service import HTTPAIService
-from app.services.knowledge_service import KnowledgeService
 
 
 class BookAnalysisService:
@@ -44,6 +45,26 @@ class BookAnalysisService:
         self.knowledge_service = knowledge_service
         self.sampler = SmartSamplingAnalyzer()
         self.suggestion_generator = SuggestionGenerator(ai_service)
+        self.cache_service: Optional[RedisCacheService] = None  # 延迟初始化
+
+    async def _ensure_cache_service(self):
+        """
+        确保缓存服务已初始化
+
+        注意: 缓存失败不应该影响主流程,所以有完善的异常处理
+        - None: 未初始化
+        - RedisCacheService实例: 初始化成功
+        - False: 初始化失败,避免重复尝试
+        """
+        if self.cache_service is None:
+            try:
+                from app.services.redis_cache_service import get_cache_service
+                self.cache_service = await get_cache_service()
+                logger.info("✅ Redis缓存服务初始化成功")
+            except Exception as e:
+                logger.warning(f"⚠️ Redis缓存服务初始化失败: {e}, 将跳过缓存功能继续分析")
+                # 设置为False表示已尝试初始化但失败,避免重复尝试
+                self.cache_service = False
 
     async def create_job(
         self,
@@ -228,8 +249,31 @@ class BookAnalysisService:
             (章节索引, 分析结果dict, 错误信息)
         """
         try:
+            # 确保缓存服务已初始化
+            await self._ensure_cache_service()
+
             # 构建提示词
             content = self.sampler.truncate_content(chapter.content)
+
+            # 1. 检查缓存 (基于章节内容哈希 + 策略ID)
+            cache_key_data = f"{content}|{strategy.strategy_id}|incremental={is_incremental}"
+            cached_result = None
+
+            # 尝试从缓存读取 (失败不影响主流程)
+            if self.cache_service and self.cache_service is not False:
+                try:
+                    cached_result = await self.cache_service.get_cached_analysis(
+                        chapter_content=cache_key_data,
+                        analysis_type="book_breakdown"
+                    )
+                except Exception as e:
+                    logger.warning(f"⚠️ 章节{chapter_index+1}缓存读取失败: {e}, 将继续执行AI分析")
+
+            if cached_result:
+                logger.info(f"✅ 缓存命中! 章节{chapter_index+1} '{chapter.title}' (跳过AI调用)")
+                return (chapter_index, cached_result, None)
+
+            # 2. 缓存未命中,调用AI
             user_prompt = strategy.build_user_prompt(
                 content=content,
                 existing_settings=existing_settings if is_incremental else None,
@@ -246,7 +290,6 @@ class BookAnalysisService:
             )
 
             # 保存AI响应到临时文件(调试用)
-            import os
             debug_dir = os.path.join(os.getcwd(), 'debug_ai_responses')
             os.makedirs(debug_dir, exist_ok=True)
             debug_file = os.path.join(debug_dir, f'ch{chapter_index+1}_{chapter.title[:10]}.txt')
@@ -257,6 +300,19 @@ class BookAnalysisService:
             # 解析响应
             chapter_result = strategy.parse_ai_response(response_text)
             logger.info(f"✅ 章节{chapter_index+1} '{chapter.title}' 分析成功,获得 {len(chapter_result)} 个维度")
+
+            # 3. 缓存分析结果 (失败不影响主流程)
+            if self.cache_service and self.cache_service is not False:
+                try:
+                    await self.cache_service.cache_analysis_result(
+                        chapter_content=cache_key_data,
+                        result=chapter_result,
+                        analysis_type="book_breakdown",
+                        ttl=60 * 60 * 24 * 7  # 7天
+                    )
+                    logger.debug(f"✅ 章节{chapter_index+1}分析结果已缓存")
+                except Exception as e:
+                    logger.warning(f"⚠️ 章节{chapter_index+1}缓存写入失败: {e}, 但分析结果已保存")
 
             # 检查是否无新内容
             if chapter_result.get("no_new_content"):
