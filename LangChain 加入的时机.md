@@ -1492,7 +1492,7 @@ graph TB
 
 ```mermaid
 graph TB
-    A[用户请求:<br/>"生成5个章节大纲"] --> B[任务分解]
+    A["用户请求<br/>生成5个章节大纲"] --> B[任务分解]
 
     B --> C1[子任务1<br/>第一章大纲]
     B --> C2[子任务2<br/>第二章大纲]
@@ -1500,21 +1500,21 @@ graph TB
     B --> C4[子任务4<br/>第四章大纲]
     B --> C5[子任务5<br/>第五章大纲]
 
-    C1 & C2 & C3 & C4 & C5 --> D[等待全部完成]
+    C1 --> D[等待全部完成]
+    C2 --> D
+    C3 --> D
+    C4 --> D
+    C5 --> D
 
     D --> E[合并结果]
     E --> F[返回5个大纲]
-
-    note right of C1
-        并发执行
-        时间: 10秒
-        (串行需要50秒)
-    end note
 
     style B fill:#fff3e0
     style D fill:#e3f2fd
     style E fill:#c8e6c9
 ```
+
+**说明**: 并发执行5个任务,时间约10秒(串行需要50秒)
 
 #### 串行 vs 并行对比
 
@@ -1565,7 +1565,7 @@ graph LR
 
 ```mermaid
 graph TB
-    A[用户目标:<br/>"我想写玄幻小说"] --> B[Planning Agent<br/>分解任务]
+    A["用户目标<br/>我想写玄幻小说"] --> B[Planning Agent<br/>分解任务]
 
     B --> C[任务分解结果]
     C --> T1[任务1: 生成世界观]
@@ -1604,18 +1604,18 @@ sequenceDiagram
     participant P as Planning Agent
     participant E as 执行引擎
 
-    U->>P: "我想写玄幻小说"
+    U->>P: 我想写玄幻小说
     P->>P: 分解为5个任务
     P->>E: 执行任务1
-    E-->>P: ✅ 成功
+    E-->>P: 成功
 
     P->>E: 执行任务2
-    E-->>P: ❌ 失败(知识库为空)
+    E-->>P: 失败(知识库为空)
 
     P->>P: 重新规划<br/>跳过任务2<br/>调整后续任务
 
     P->>E: 执行调整后的任务3
-    E-->>P: ✅ 成功
+    E-->>P: 成功
 
     P-->>U: 最终完成
 ```
