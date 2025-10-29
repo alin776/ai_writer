@@ -53,19 +53,25 @@
 
 ### 核心设计理念
 
-```
-┌─────────────────────────────────────────────────┐
-│                  用户选择入口                     │
-│                                                 │
-│  ┌──────────────┐         ┌──────────────┐     │
-│  │  传统工作台   │   OR    │  Agent助手   │     │
-│  │  (专业模式)   │         │  (智能模式)   │     │
-│  └──────────────┘         └──────────────┘     │
-│       ↓                          ↓             │
-│   精准控制139个API          对话式AI助手        │
-│   手动组合功能              自动编排任务         │
-│   复杂但强大                简单但智能           │
-└─────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    A[用户选择入口] --> B{选择模式}
+    B -->|专业用户| C[传统工作台<br/>专业模式]
+    B -->|新手用户| D[Agent助手<br/>智能模式]
+
+    C --> C1[精准控制139个API]
+    C --> C2[手动组合功能]
+    C --> C3[复杂但强大]
+
+    D --> D1[对话式AI助手]
+    D --> D2[自动编排任务]
+    D --> D3[简单但智能]
+
+    C <-.随时切换.-> D
+
+    style A fill:#e1f5ff
+    style C fill:#ffe0b2
+    style D fill:#c8e6c9
 ```
 
 ### 为什么选择"双模式并行"?
@@ -86,80 +92,70 @@
 
 ### 整体架构图
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    前端用户界面                          │
-│                                                         │
-│  ┌────────────────┐              ┌────────────────┐   │
-│  │  传统工作台     │    双向切换   │  Agent对话框   │   │
-│  │  (现有UI)      │   ←────→    │  (新增UI)      │   │
-│  │                │              │  - 对话窗口     │   │
-│  │  - 编辑器      │              │  - 思考过程     │   │
-│  │  - 章节管理    │              │  - 快速指令     │   │
-│  │  - 世界观      │              │  - 历史会话     │   │
-│  └────────────────┘              └────────────────┘   │
-└─────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────┐
-│              Agent中间层 (LangGraph Orchestrator)        │
-│                                                         │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ │
-│  │ 写作Agent │ │ 编辑Agent │ │ 分析Agent │ │ 规划Agent │ │
-│  │          │ │          │ │          │ │          │ │
-│  │ - 续写   │ │ - 润色   │ │ - 评估   │ │ - 大纲   │ │
-│  │ - 扩写   │ │ - 改写   │ │ - 诊断   │ │ - 世界观 │ │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ │
-│                                                         │
-│  ┌──────────────────────────────────────────────────┐ │
-│  │      Agent记忆系统 (ConversationMemory)           │ │
-│  │  - 对话历史 (最近10轮)                            │ │
-│  │  - 当前作品上下文 (章节/世界观/大纲)              │ │
-│  │  - 用户偏好 (风格/习惯)                           │ │
-│  └──────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────┐
-│         工具层 (复用现有139个API - 零重构!)              │
-│                                                         │
-│  📝 创作工具:                                            │
-│    - POST /api/v1/ai/continue (续写)                    │
-│    - POST /api/v1/ai/polish (润色)                      │
-│    - POST /api/v1/ai/expand (扩写)                      │
-│    - POST /api/v1/ai/rewrite-arena/rewrite (多模型改写) │
-│                                                         │
-│  🔍 分析工具:                                            │
-│    - POST /api/v1/ai/evaluate (AI评估)                  │
-│    - POST /api/v1/novel-analysis/start (小说分析)       │
-│    - GET /api/v1/novel-analysis/result (分析结果)       │
-│                                                         │
-│  📚 知识工具:                                            │
-│    - POST /api/v1/knowledge/search (语义搜索)           │
-│    - GET /api/v1/knowledge (知识库列表)                 │
-│                                                         │
-│  🌍 世界观工具:                                          │
-│    - GET /api/v1/worldview/characters (角色列表)        │
-│    - GET /api/v1/worldview/locations (地点列表)         │
-│    - GET /api/v1/worldview/settings (设定列表)          │
-│                                                         │
-│  📖 章节工具:                                            │
-│    - GET /api/v1/chapters (章节列表)                    │
-│    - POST /api/v1/chapters/{id}/summary (生成概括)      │
-│                                                         │
-│  🎯 规划工具:                                            │
-│    - POST /api/v1/worldview/ai-guidelines (AI规范生成)  │
-│    - POST /api/v1/books/upload (AI拆书)                 │
-│                                                         │
-│  ... (139个API全部可作为Agent工具)                      │
-└─────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────┐
-│      数据层 (PostgreSQL + Redis + pgvector)              │
-│                                                         │
-│  - 作品/章节数据                                         │
-│  - 世界观/知识库                                         │
-│  - 向量存储 (RAG检索)                                    │
-│  - Agent对话历史                                         │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph "前端层"
+        UI1[传统工作台<br/>现有UI]
+        UI2[Agent对话框<br/>新增UI]
+        UI1 <-.双向切换.-> UI2
+    end
+
+    subgraph "Agent中间层 - LangGraph Orchestrator"
+        AG1[写作Agent<br/>续写/扩写]
+        AG2[编辑Agent<br/>润色/改写]
+        AG3[分析Agent<br/>评估/诊断]
+        AG4[规划Agent<br/>大纲/世界观]
+
+        MEM[Agent记忆系统<br/>ConversationMemory]
+    end
+
+    subgraph "工具层 - 139个现有API"
+        T1[创作工具<br/>续写/润色/扩写]
+        T2[分析工具<br/>评估/分析]
+        T3[知识工具<br/>语义搜索]
+        T4[世界观工具<br/>角色/地点/设定]
+        T5[章节工具<br/>章节管理]
+        T6[规划工具<br/>AI规范/拆书]
+    end
+
+    subgraph "数据层"
+        DB[(PostgreSQL<br/>作品/章节数据)]
+        RD[(Redis<br/>缓存/对话历史)]
+        VEC[(pgvector<br/>向量存储)]
+    end
+
+    UI1 --> T1
+    UI1 --> T2
+    UI2 --> AG1
+    UI2 --> AG2
+    UI2 --> AG3
+    UI2 --> AG4
+
+    AG1 --> MEM
+    AG2 --> MEM
+    AG3 --> MEM
+    AG4 --> MEM
+
+    AG1 --> T1
+    AG2 --> T1
+    AG3 --> T2
+    AG4 --> T6
+
+    T1 --> DB
+    T2 --> DB
+    T3 --> VEC
+    T4 --> DB
+    T5 --> DB
+    T6 --> DB
+
+    MEM --> RD
+
+    style UI2 fill:#c8e6c9
+    style AG1 fill:#bbdefb
+    style AG2 fill:#bbdefb
+    style AG3 fill:#bbdefb
+    style AG4 fill:#bbdefb
+    style MEM fill:#fff3e0
 ```
 
 ---
@@ -179,6 +175,25 @@
 
 ### 为什么选择 LangGraph 而不是 LangChain?
 
+```mermaid
+graph LR
+    A[LangChain] --> A1[简单Chain]
+    A --> A2[不支持多Agent]
+    A --> A3[简单Memory]
+    A --> A4[难调试]
+
+    B[LangGraph] --> B1[有向图DAG]
+    B --> B2[原生多Agent]
+    B --> B3[Checkpointer]
+    B --> B4[可视化调试]
+
+    style B fill:#c8e6c9
+    style B1 fill:#a5d6a7
+    style B2 fill:#a5d6a7
+    style B3 fill:#a5d6a7
+    style B4 fill:#a5d6a7
+```
+
 | 对比维度 | LangChain | LangGraph | 选择理由 |
 |---------|-----------|-----------|---------|
 | **复杂任务编排** | ⭐⭐⭐ (Sequential Chain) | ⭐⭐⭐⭐⭐ (有向图DAG) | 你的场景需要复杂流程 |
@@ -194,9 +209,68 @@
 
 ## 📅 实施计划 (8周渐进式)
 
+### 实施时间线
+
+```mermaid
+gantt
+    title Agent化改造实施计划
+    dateFormat YYYY-MM-DD
+
+    section Phase 1 快速原型
+    环境搭建           :p1-1, 2025-11-01, 2d
+    实现单个Agent      :p1-2, after p1-1, 3d
+    后端API集成        :p1-3, after p1-2, 2d
+    前端原型           :p1-4, after p1-3, 3d
+
+    section Phase 2 核心场景
+    场景A实现          :p2-1, after p1-4, 2d
+    场景B实现          :p2-2, after p2-1, 3d
+    场景C实现          :p2-3, after p2-2, 3d
+    场景D实现          :p2-4, after p2-3, 2d
+
+    section Phase 3 多Agent
+    Supervisor设计     :p3-1, after p2-4, 2d
+    子Agent实现        :p3-2, after p3-1, 3d
+    协作机制           :p3-3, after p3-2, 2d
+    复杂场景测试       :p3-4, after p3-3, 3d
+
+    section Phase 4 优化
+    前端UI优化         :p4-1, after p3-4, 3d
+    记忆系统增强       :p4-2, after p4-1, 3d
+    智能推荐           :p4-3, after p4-2, 2d
+    成本优化           :p4-4, after p4-3, 2d
+```
+
 ### Phase 1: 快速原型 (Week 1-2) ⭐ 优先级P0
 
 **目标**: 验证Agent可行性,实现最小原型
+
+```mermaid
+graph LR
+    A[Day 1-2<br/>环境搭建] --> B[Day 3-5<br/>单个Agent]
+    B --> C[Day 6-7<br/>API集成]
+    C --> D[Day 8-10<br/>前端原型]
+
+    A --> A1[安装LangGraph]
+    A --> A2[创建目录结构]
+    A --> A3[配置LangSmith]
+
+    B --> B1[包装5个核心工具]
+    B --> B2[ReAct Agent]
+    B --> B3[测试场景]
+
+    C --> C1[POST /agent/chat]
+    C --> C2[对话历史管理]
+
+    D --> D1[对话框组件]
+    D --> D2[流式响应]
+    D --> D3[思考过程展示]
+
+    style A fill:#e3f2fd
+    style B fill:#bbdefb
+    style C fill:#90caf9
+    style D fill:#64b5f6
+```
 
 **任务清单**:
 - [ ] **Day 1-2**: 环境搭建
@@ -224,13 +298,37 @@
 - ✅ 支持基础对话 "帮我写第三章"
 - ✅ 前后端打通
 
-**关键代码** (见下方代码示例)
-
 ---
 
 ### Phase 2: 核心场景完善 (Week 3-4) ⭐ 优先级P0
 
 **目标**: 实现4个核心场景
+
+```mermaid
+graph TB
+    A[Phase 2 开始] --> B[场景A: 帮我写第三章]
+    B --> C[场景B: 我想写玄幻小说]
+    C --> D[场景C: 分析这段文字]
+    D --> E[场景D: 我卡文了]
+
+    B --> B1[✅ Phase 1完成]
+
+    C --> C1[添加规划Agent]
+    C --> C2[工作流设计]
+    C --> C3[测试全流程]
+
+    D --> D1[添加分析Agent]
+    D --> D2[诊断→建议→执行]
+
+    E --> E1[上下文分析]
+    E --> E2[生成3种方向]
+    E --> E3[用户选择执行]
+
+    style C fill:#fff3e0
+    style C1 fill:#ffecb3
+    style C2 fill:#ffecb3
+    style C3 fill:#ffecb3
+```
 
 **任务清单**:
 - [ ] **场景A**: "帮我写第三章" (已在Phase 1完成)
@@ -260,17 +358,35 @@
 **目标**: 实现多Agent系统,提升智能化
 
 **多Agent架构**:
-```python
-┌────────────────────────────────────────┐
-│        主Agent (Supervisor)            │
-│  - 理解用户意图                         │
-│  - 分配任务给子Agent                    │
-│  - 协调各Agent工作                      │
-└────────────────────────────────────────┘
-        ↓         ↓         ↓         ↓
-  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
-  │ 写作Agent │ │ 编辑Agent │ │ 分析Agent │ │ 规划Agent │
-  └──────────┘ └──────────┘ └──────────┘ └──────────┘
+
+```mermaid
+graph TB
+    SV[Supervisor Agent<br/>主Agent] --> AG1[写作Agent]
+    SV --> AG2[编辑Agent]
+    SV --> AG3[分析Agent]
+    SV --> AG4[规划Agent]
+
+    SV --> SV1[理解用户意图]
+    SV --> SV2[分配任务]
+    SV --> SV3[协调工作]
+
+    AG1 --> AG1-1[续写工具]
+    AG1 --> AG1-2[扩写工具]
+
+    AG2 --> AG2-1[润色工具]
+    AG2 --> AG2-2[改写工具]
+
+    AG3 --> AG3-1[评估工具]
+    AG3 --> AG3-2[诊断工具]
+
+    AG4 --> AG4-1[大纲工具]
+    AG4 --> AG4-2[世界观工具]
+
+    style SV fill:#fff3e0
+    style AG1 fill:#e3f2fd
+    style AG2 fill:#f3e5f5
+    style AG3 fill:#e8f5e9
+    style AG4 fill:#fce4ec
 ```
 
 **任务清单**:
@@ -289,6 +405,36 @@
 ### Phase 4: 用户体验优化 (Week 7-8) ⭐ 优先级P1
 
 **目标**: 优化交互体验,增加差异化功能
+
+```mermaid
+graph LR
+    A[Phase 4 优化] --> B[前端优化]
+    A --> C[记忆系统增强]
+    A --> D[智能推荐]
+    A --> E[成本优化]
+
+    B --> B1[优化对话UI]
+    B --> B2[思考过程展示]
+    B --> B3[快捷指令]
+    B --> B4[历史会话]
+
+    C --> C1[跨会话记忆]
+    C --> C2[知识库集成]
+    C --> C3[用户画像]
+
+    D --> D1[素材推荐]
+    D --> D2[操作提示]
+
+    E --> E1[调用日志]
+    E --> E2[Token分析]
+    E --> E3[Prompt优化]
+
+    style A fill:#fff3e0
+    style B fill:#e3f2fd
+    style C fill:#e8f5e9
+    style D fill:#f3e5f5
+    style E fill:#fce4ec
+```
 
 **任务清单**:
 - [ ] **前端优化**
@@ -878,7 +1024,25 @@ multi_agent_system = workflow.compile()
 | Phase 4 (优化) | 2周 | 1人 | - | 2周工作量 |
 | **总计** | **8周** | **1人** | **1周** | **9周工作量** |
 
-### API成本 (初期)
+### API成本对比
+
+```mermaid
+graph LR
+    A[传统模式] --> A1[续写章节<br/>~2000 tokens]
+    A[传统模式] --> A2[润色文本<br/>~1500 tokens]
+
+    B[Agent模式] --> B1[续写章节<br/>~3500 tokens<br/>+75%]
+    B[Agent模式] --> B2[润色文本<br/>~2000 tokens<br/>+33%]
+
+    C[优化后] --> C1[缓存优化<br/>-30%]
+    C --> C2[智能评估<br/>-20%]
+    C --> C3[Prompt优化<br/>-15%]
+    C --> C4[便宜模型<br/>-50%成本]
+
+    style A fill:#e3f2fd
+    style B fill:#fff3e0
+    style C fill:#c8e6c9
+```
 
 | 场景 | 传统模式Token | Agent模式Token | 成本增加 |
 |------|--------------|---------------|---------|
@@ -896,6 +1060,30 @@ multi_agent_system = workflow.compile()
 **优化后总成本增加**: 预计 +10-15% (可接受范围)
 
 ### 商业收益
+
+```mermaid
+graph TB
+    A[商业收益分析] --> B[用户转化]
+    A --> C[用户留存]
+    A --> D[活跃度]
+    A --> E[付费转化]
+
+    B --> B1[新手转化率<br/>30% → 55%<br/>+83%]
+
+    C --> C1[30天留存<br/>40% → 65%<br/>+62%]
+
+    D --> D1[日活跃度<br/>2次 → 4次<br/>+100%]
+
+    E --> E1[付费转化<br/>5% → 8%<br/>+60%]
+    E --> E2[客单价<br/>¥99 → ¥149<br/>+50%]
+
+    style A fill:#fff3e0
+    style B1 fill:#c8e6c9
+    style C1 fill:#c8e6c9
+    style D1 fill:#c8e6c9
+    style E1 fill:#c8e6c9
+    style E2 fill:#c8e6c9
+```
 
 | 收益维度 | 传统模式 | Agent模式 | 提升幅度 |
 |---------|---------|----------|---------|
@@ -918,6 +1106,34 @@ multi_agent_system = workflow.compile()
 ---
 
 ## 🎯 成功指标
+
+### 各阶段成功标准
+
+```mermaid
+graph TB
+    P1[Phase 1<br/>Week 2] --> P1-1[✅ 响应场景A]
+    P1 --> P1-2[✅ 调用3个工具]
+    P1 --> P1-3[✅ 响应<30秒]
+    P1 --> P1-4[✅ 成功率>80%]
+
+    P2[Phase 2<br/>Week 4] --> P2-1[✅ 4个场景可用]
+    P2 --> P2-2[✅ 自动编排任务]
+    P2 --> P2-3[✅ 满意度>4.0]
+
+    P3[Phase 3<br/>Week 6] --> P3-1[✅ 多Agent稳定]
+    P3 --> P3-2[✅ 复杂任务支持]
+    P3 --> P3-3[✅ 协作无冲突]
+
+    P4[Phase 4<br/>Week 8] --> P4-1[✅ 功能上线]
+    P4 --> P4-2[✅ 成本<20%]
+    P4 --> P4-3[✅ 转化率>50%]
+    P4 --> P4-4[✅ 留存率>60%]
+
+    style P1 fill:#e3f2fd
+    style P2 fill:#f3e5f5
+    style P3 fill:#e8f5e9
+    style P4 fill:#fff3e0
+```
 
 ### Phase 1 成功标准 (Week 2)
 - ✅ Agent可成功响应 "帮我写第三章"
@@ -1017,7 +1233,30 @@ multi_agent_system = workflow.compile()
 
 ---
 
-### 📊 **功能缺失清单总览**
+### 📊 功能缺失清单总览
+
+```mermaid
+graph TB
+    A[功能缺失分析] --> B[P0级 - 必须实现]
+    A --> C[P1级 - 建议实现]
+
+    B --> B1[1. 长期记忆系统<br/>⭐⭐⭐⭐⭐<br/>3天]
+    B --> B2[2. 人机协同HITL<br/>⭐⭐⭐⭐⭐<br/>5天]
+    B --> B3[5. 规划Agent<br/>⭐⭐⭐⭐⭐<br/>5天]
+
+    C --> C1[3. 自我反思<br/>⭐⭐⭐⭐<br/>2天]
+    C --> C2[4. 并行任务<br/>⭐⭐⭐⭐<br/>3天]
+    C --> C3[7. Story Bible检查<br/>⭐⭐⭐⭐<br/>4天]
+    C --> C4[9. 风格学习<br/>⭐⭐⭐⭐<br/>3天]
+    C --> C5[6. 工具动态注册<br/>⭐⭐⭐<br/>2天]
+    C --> C6[8. 感官描写<br/>⭐⭐⭐<br/>1天]
+
+    style B fill:#ffcdd2
+    style C fill:#fff3e0
+    style B1 fill:#ef9a9a
+    style B2 fill:#ef9a9a
+    style B3 fill:#ef9a9a
+```
 
 | 功能 | 重要性 | 实施难度 | 推荐阶段 | 预计时间 | 状态 |
 |------|--------|---------|---------|---------|-----|
@@ -1037,7 +1276,7 @@ multi_agent_system = workflow.compile()
 
 ### **1. 长期记忆系统 (Long-Term Memory)** ⭐⭐⭐⭐⭐
 
-#### **现状分析**
+#### 现状分析
 
 **你现在有什么**:
 - ✅ 知识库 (RAG检索) - 基于向量的语义搜索
@@ -1045,37 +1284,48 @@ multi_agent_system = workflow.compile()
 
 **你还缺什么**:
 - ❌ **跨会话持久化记忆** (Cross-Session Memory)
-  - 用户的写作风格偏好 (喜欢快节奏 vs 慢节奏)
-  - 常用的世界观模板 (修仙体系/都市爽文)
-  - 个人习惯和禁忌词 (不喜欢某些表达方式)
-
 - ❌ **用户画像系统** (User Profile)
-  - 分析用户是"快节奏爽文"作者 还是 "慢节奏文艺"作者
-  - 记住用户喜欢的AI模型 (Gemini vs GPT)
-  - 自动调整Prompt风格适配用户
 
-#### **2025年最佳实践**
+#### Agent记忆系统架构
 
-**MongoDB Store for LangGraph** (2025年8月发布):
-```python
-from langgraph.checkpoint.mongodb import MongoDBSaver
+```mermaid
+graph TB
+    subgraph "短期记忆 - 单次会话"
+        STM1[对话历史<br/>最近10轮]
+        STM2[当前作品上下文<br/>章节/世界观]
+    end
 
-# 长期记忆存储 - 跨会话持久化
-checkpointer = MongoDBSaver(
-    namespace="user_preferences",  # 跨会话命名空间
-    ttl=None  # 永久保存用户偏好
-)
+    subgraph "长期记忆 - 跨会话"
+        LTM1[用户偏好<br/>写作风格/习惯]
+        LTM2[历史交互<br/>常用功能/模型]
+        LTM3[个人禁忌<br/>不喜欢的表达]
+    end
 
-# 保存用户风格
-checkpointer.put(
-    config={"configurable": {"user_id": "user_123"}},
-    checkpoint={
-        "writing_style": "快节奏爽文",
-        "favorite_genres": ["修仙", "都市"],
-        "dislike_patterns": ["过度描写", "拖沓情节"]
-    }
-)
+    subgraph "知识库 - 作品知识"
+        KB1[世界观设定]
+        KB2[人物卡片]
+        KB3[情节伏笔]
+    end
+
+    Agent[Agent决策] --> STM1
+    Agent --> STM2
+    Agent --> LTM1
+    Agent --> LTM2
+    Agent --> KB1
+
+    STM1 -.存储到.-> Redis[(Redis<br/>对话缓存)]
+    LTM1 -.存储到.-> Redis
+    KB1 -.存储到.-> PG[(PostgreSQL<br/>+ pgvector)]
+
+    style Agent fill:#fff3e0
+    style STM1 fill:#e3f2fd
+    style STM2 fill:#e3f2fd
+    style LTM1 fill:#c8e6c9
+    style LTM2 fill:#c8e6c9
+    style LTM3 fill:#c8e6c9
 ```
+
+#### 2025年最佳实践
 
 **Redis持久化** (2025年新集成 - langgraph-checkpoint-redis):
 ```python
@@ -1087,97 +1337,32 @@ redis_client = redis.Redis(host='localhost', port=6379, db=1)
 checkpointer = RedisSaver(redis_client, namespace="user_memory")
 ```
 
-#### **实施建议**
+#### 实施建议 - Week 3-4 (Phase 2)
 
-**Week 3-4 加入 (Phase 2)**
+**记忆系统工作流**:
 
-**文件结构**:
-```
-backend/app/services/agent/
-├── memory_service.py       # 长期记忆服务 (新增)
-├── user_profile_service.py # 用户画像服务 (新增)
-└── writing_agent.py        # 集成记忆系统
-```
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant A as Agent
+    participant M as 记忆服务
+    participant R as Redis
 
-**实现代码**:
-```python
-# backend/app/services/agent/memory_service.py
+    U->>A: 发送请求
+    A->>M: 加载用户记忆
+    M->>R: 查询用户偏好
+    R-->>M: 返回偏好数据
+    M-->>A: 提供用户上下文
 
-from redis import Redis
-import json
-from typing import Dict, Any, List
+    A->>A: 根据偏好调整策略
+    A-->>U: 返回个性化结果
 
-class AgentMemoryService:
-    """Agent长期记忆服务"""
-
-    def __init__(self):
-        self.redis = Redis(host='localhost', port=6379, db=1)
-
-    def save_user_preference(self, user_id: str, key: str, value: Any):
-        """保存用户偏好"""
-        memory_key = f"user:{user_id}:preference:{key}"
-        self.redis.set(memory_key, json.dumps(value))
-
-    def get_user_preference(self, user_id: str, key: str) -> Any:
-        """获取用户偏好"""
-        memory_key = f"user:{user_id}:preference:{key}"
-        value = self.redis.get(memory_key)
-        return json.loads(value) if value else None
-
-    def learn_from_feedback(self, user_id: str, action: str, feedback: str):
-        """从用户反馈中学习"""
-        if feedback == "dislike":
-            # 记录用户不喜欢的内容模式
-            dislike_key = f"user:{user_id}:dislike_patterns"
-            self.redis.sadd(dislike_key, action)
-        elif feedback == "like":
-            # 记录用户喜欢的内容模式
-            like_key = f"user:{user_id}:like_patterns"
-            self.redis.sadd(like_key, action)
-
-    def get_context_for_agent(self, user_id: str) -> Dict[str, Any]:
-        """获取Agent需要的用户上下文"""
-        return {
-            "writing_style": self.get_user_preference(user_id, "writing_style"),
-            "favorite_models": self.get_user_preference(user_id, "favorite_models"),
-            "favorite_genres": self.get_user_preference(user_id, "favorite_genres"),
-            "dislike_patterns": list(self.redis.smembers(f"user:{user_id}:dislike_patterns") or []),
-            "like_patterns": list(self.redis.smembers(f"user:{user_id}:like_patterns") or [])
-        }
-
-    def auto_analyze_user_style(self, user_id: str, works: List[str]) -> Dict:
-        """自动分析用户写作风格"""
-        # 调用AI分析用户历史作品
-        from app.services.ai.openai_service import OpenAIService
-        ai_service = OpenAIService()
-
-        analysis = ai_service.analyze_writing_style(works)
-
-        # 保存分析结果
-        self.save_user_preference(user_id, "auto_detected_style", analysis)
-        return analysis
+    U->>A: 反馈(喜欢/不喜欢)
+    A->>M: 更新用户偏好
+    M->>R: 保存学习结果
 ```
 
-**API集成**:
-```python
-# backend/app/api/v1/agent.py
-
-@router.post("/chat")
-async def chat(request: ChatRequest, current_user: User = Depends(get_current_user)):
-    # 加载用户记忆
-    memory_service = AgentMemoryService()
-    user_context = memory_service.get_context_for_agent(current_user.id)
-
-    # Agent会自动使用用户偏好
-    result = await chat_with_agent(
-        user_input=request.message,
-        user_context=user_context  # ⭐ 传入用户记忆
-    )
-
-    return result
-```
-
-#### **预期效果**
+#### 预期效果
 
 - ✅ 用户第2次使用时,Agent自动记住偏好
 - ✅ 生成内容自动符合用户风格
@@ -1188,7 +1373,7 @@ async def chat(request: ChatRequest, current_user: User = Depends(get_current_us
 
 ### **2. 人机协同 (Human-in-the-Loop)** ⭐⭐⭐⭐⭐
 
-#### **现状分析**
+#### 现状分析
 
 **你现在有什么**:
 - ✅ Agent自动执行任务
@@ -1196,146 +1381,59 @@ async def chat(request: ChatRequest, current_user: User = Depends(get_current_us
 
 **你还缺什么**:
 - ❌ **暂停等待人工确认**
-  - Agent生成大纲后,暂停等待用户确认再继续
-  - 关键操作 (删除章节/修改世界观) 需要人工批准
-
 - ❌ **人工干预能力**
-  - 用户可以中途修改Agent的决策
-  - "这个方向不对,换个思路"
-  - Agent可以理解人工修改并调整策略
 
-#### **2025年最佳实践 (LangGraph原生支持)**
+#### HITL工作流架构
 
-**Human-in-the-Loop工作流**:
-```python
-from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import MemorySaver
+```mermaid
+stateDiagram-v2
+    [*] --> 生成大纲
+    生成大纲 --> 等待批准: 大纲完成
 
-class HITLAgent:
-    """支持人机协同的Agent"""
+    等待批准 --> 用户批准: ✅ 批准
+    等待批准 --> 用户修改: ✏️ 修改
+    等待批准 --> 重新生成: ❌ 拒绝
 
-    def __init__(self):
-        self.workflow = self._build_workflow()
-        self.checkpointer = MemorySaver()  # 保存暂停状态
+    用户批准 --> 执行计划
+    用户修改 --> 执行计划: 应用修改
+    重新生成 --> 生成大纲: 调整策略
 
-    def _build_workflow(self):
-        workflow = StateGraph(AgentState)
+    执行计划 --> [*]
 
-        # 添加需要人工批准的节点
-        workflow.add_node("generate_outline", self.generate_outline)
-        workflow.add_node("wait_approval", self.wait_approval)  # ⭐ 暂停等待
-        workflow.add_node("execute_plan", self.execute_plan)
-
-        # 工作流: 生成 → 等待批准 → 执行
-        workflow.set_entry_point("generate_outline")
-        workflow.add_edge("generate_outline", "wait_approval")
-        workflow.add_conditional_edges(
-            "wait_approval",
-            self.check_approval,
-            {
-                "approved": "execute_plan",
-                "rejected": "generate_outline",  # 重新生成
-                "waiting": END  # 暂停,等待前端恢复
-            }
-        )
-
-        return workflow.compile(checkpointer=self.checkpointer)
-
-    def wait_approval(self, state):
-        """等待人工批准"""
-        if "approval_status" not in state:
-            # 第一次进入,返回等待状态
-            return {
-                "status": "waiting_approval",
-                "pause": True,
-                "generated_outline": state["outline"]
-            }
-
-        # 前端提交批准/拒绝后,继续执行
-        return {"status": state["approval_status"]}
-
-    def check_approval(self, state):
-        """检查批准状态"""
-        if state.get("pause"):
-            return "waiting"  # 暂停,前端可恢复
-        elif state.get("approval_status") == "approved":
-            return "approved"
-        else:
-            return "rejected"  # 重新生成
+    note right of 等待批准
+        暂停状态
+        保存到Checkpointer
+        前端可恢复
+    end note
 ```
 
-**前端恢复执行**:
-```python
-# 用户点击"批准"后
-agent.invoke(
-    {"approval_status": "approved"},
-    config={"configurable": {"thread_id": "session_123"}}
-)
+#### 2025年最佳实践 (LangGraph原生支持)
+
+```mermaid
+graph LR
+    A[Agent执行] --> B{需要批准?}
+    B -->|是| C[暂停并保存状态]
+    B -->|否| D[继续执行]
+
+    C --> E[前端展示<br/>批准对话框]
+    E --> F{用户操作}
+
+    F -->|批准| G[恢复执行]
+    F -->|修改| H[应用修改后执行]
+    F -->|拒绝| I[重新规划]
+
+    G --> D
+    H --> D
+    I --> A
+
+    style C fill:#fff3e0
+    style E fill:#e3f2fd
+    style F fill:#f3e5f5
 ```
 
-#### **实施建议**
+#### 实施建议 - Week 5-6 (Phase 3)
 
-**Week 5-6 加入 (Phase 3)**
-
-**前端UI组件**:
-```tsx
-// src/components/agent/ApprovalDialog.tsx
-
-import React from 'react';
-
-interface ApprovalDialogProps {
-  outline: string;
-  onApprove: () => void;
-  onReject: () => void;
-  onModify: (newOutline: string) => void;
-}
-
-const ApprovalDialog: React.FC<ApprovalDialogProps> = ({
-  outline,
-  onApprove,
-  onReject,
-  onModify
-}) => {
-  const [editing, setEditing] = React.useState(false);
-  const [modifiedOutline, setModifiedOutline] = React.useState(outline);
-
-  return (
-    <div className="approval-dialog">
-      <h3>⏸️ Agent已暂停,等待您的批准</h3>
-
-      {editing ? (
-        <textarea
-          value={modifiedOutline}
-          onChange={(e) => setModifiedOutline(e.target.value)}
-          rows={10}
-        />
-      ) : (
-        <pre className="outline-preview">{outline}</pre>
-      )}
-
-      <div className="actions">
-        <button onClick={onApprove} className="approve">
-          ✅ 批准执行
-        </button>
-        <button onClick={() => setEditing(!editing)} className="modify">
-          ✏️ 修改后执行
-        </button>
-        <button onClick={onReject} className="reject">
-          ❌ 重新生成
-        </button>
-      </div>
-
-      {editing && (
-        <button onClick={() => onModify(modifiedOutline)}>
-          提交修改
-        </button>
-      )}
-    </div>
-  );
-};
-```
-
-#### **预期效果**
+#### 预期效果
 
 - ✅ 用户信任度提升 (可控制Agent行为)
 - ✅ 避免Agent执行错误决策
@@ -1346,147 +1444,41 @@ const ApprovalDialog: React.FC<ApprovalDialogProps> = ({
 
 ### **3. 自我反思与优化 (Reflection)** ⭐⭐⭐⭐
 
-#### **现状分析**
+#### Reflection工作流
 
-**你现在有什么**:
-- ✅ AI评估功能 (5维度评分)
-- ✅ 用户可以手动查看评估结果
+```mermaid
+graph TB
+    A[开始生成] --> B[第1次生成]
+    B --> C[自我评估]
+    C --> D{质量达标?}
 
-**你还缺什么**:
-- ❌ **Agent自我审查**
-  - Agent生成内容后,自己评估质量
-  - 如果不满意,自动重试或改进
-  - 无需用户干预
+    D -->|是<br/>>=80分| E[返回结果]
+    D -->|否<br/><80分| F[分析问题]
 
-- ❌ **从错误中学习**
-  - 记录用户的修改行为
-  - 下次生成时避免同样的问题
-  - 持续优化Prompt
+    F --> G[第2次改进]
+    G --> H[自我评估]
+    H --> I{质量达标?}
 
-#### **2025年最佳实践 (Reflection Pattern)**
+    I -->|是| E
+    I -->|否| J[第3次改进]
+
+    J --> K[自我评估]
+    K --> L{质量达标?}
+
+    L -->|是| E
+    L -->|否| M[返回最佳结果<br/>附带警告]
+
+    style D fill:#fff3e0
+    style I fill:#fff3e0
+    style L fill:#fff3e0
+    style E fill:#c8e6c9
+```
 
 这是**Agentic AI的9大核心工作流模式之一**,Agent通过自我审查和反馈循环不断改进输出质量。
 
-```python
-# backend/app/services/agent/reflection_agent.py
+#### 实施建议 - Week 5-6 (Phase 3)
 
-from typing import Optional
-import logging
-
-logger = logging.getLogger(__name__)
-
-class ReflectionAgent:
-    """支持自我反思的Agent"""
-
-    def __init__(self, writing_tool, evaluation_tool, max_iterations: int = 3):
-        self.writing_tool = writing_tool
-        self.evaluation_tool = evaluation_tool
-        self.max_iterations = max_iterations
-
-    async def generate_with_reflection(
-        self,
-        prompt: str,
-        quality_threshold: int = 80
-    ) -> dict:
-        """
-        带自我反思的生成
-
-        Args:
-            prompt: 生成提示词
-            quality_threshold: 质量阈值 (0-100)
-
-        Returns:
-            dict: 最终生成结果 + 反思过程
-        """
-        reflection_history = []
-
-        for iteration in range(self.max_iterations):
-            logger.info(f"🤔 反思第{iteration + 1}轮开始...")
-
-            # 1. 生成内容
-            if iteration == 0:
-                # 第一次生成
-                content = await self.writing_tool.generate(prompt)
-            else:
-                # 根据上一轮反馈改进
-                improvement_prompt = f"""
-                上一次生成的内容存在以下问题:
-                {reflection_history[-1]['issues']}
-
-                请针对这些问题改进以下内容:
-                {content}
-                """
-                content = await self.writing_tool.generate(improvement_prompt)
-
-            # 2. 自我评估
-            evaluation = await self.evaluation_tool.evaluate(content)
-            score = evaluation["total_score"]
-            issues = evaluation["issues"]
-
-            # 记录反思过程
-            reflection_history.append({
-                "iteration": iteration + 1,
-                "score": score,
-                "issues": issues,
-                "content_preview": content[:200]
-            })
-
-            logger.info(f"📊 反思第{iteration + 1}轮评分: {score}/100")
-
-            # 3. 如果质量足够,返回
-            if score >= quality_threshold:
-                logger.info(f"✅ 质量达标 ({score} >= {quality_threshold}),停止反思")
-                return {
-                    "content": content,
-                    "final_score": score,
-                    "iterations": iteration + 1,
-                    "reflection_history": reflection_history
-                }
-
-            # 4. 如果是最后一轮,返回最佳结果
-            if iteration == self.max_iterations - 1:
-                logger.warning(f"⚠️ 达到最大迭代次数,返回当前最佳结果 (评分: {score})")
-                return {
-                    "content": content,
-                    "final_score": score,
-                    "iterations": iteration + 1,
-                    "reflection_history": reflection_history,
-                    "warning": "未达到质量阈值,已返回最佳结果"
-                }
-
-        return {"error": "反思流程异常终止"}
-```
-
-#### **集成到Agent**:
-```python
-# 在writing_agent中使用
-@tool
-async def generate_high_quality_content(prompt: str) -> str:
-    """生成高质量内容 (带自我反思)"""
-    reflection_agent = ReflectionAgent(
-        writing_tool=continue_writing,
-        evaluation_tool=evaluate_text,
-        max_iterations=3
-    )
-
-    result = await reflection_agent.generate_with_reflection(
-        prompt=prompt,
-        quality_threshold=80
-    )
-
-    return result["content"]
-```
-
-#### **实施建议**
-
-**Week 5-6 加入 (Phase 3)**
-
-**优势**:
-- ✅ 复用你现有的 `evaluate` API
-- ✅ 代码量小 (约100行)
-- ✅ 效果显著 (质量提升20-30%)
-
-#### **预期效果**
+#### 预期效果
 
 - ✅ 生成内容质量提升 20-30%
 - ✅ 减少用户返工次数
@@ -1496,112 +1488,71 @@ async def generate_high_quality_content(prompt: str) -> str:
 
 ### **4. 并行任务执行 (Parallelization)** ⭐⭐⭐⭐
 
-#### **现状分析**
+#### 并行执行架构
 
-**你现在有什么**:
-- ✅ 多模型并发改写 (RewriteArenaService)
-- ✅ 串行执行Agent任务
+```mermaid
+graph TB
+    A[用户请求:<br/>"生成5个章节大纲"] --> B[任务分解]
 
-**你还缺什么**:
-- ❌ **Agent并行协作**
-  - 同时调用"写作Agent"和"分析Agent"
-  - 一边生成内容,一边检索知识库
+    B --> C1[子任务1<br/>第一章大纲]
+    B --> C2[子任务2<br/>第二章大纲]
+    B --> C3[子任务3<br/>第三章大纲]
+    B --> C4[子任务4<br/>第四章大纲]
+    B --> C5[子任务5<br/>第五章大纲]
 
-- ❌ **任务拆分并行**
-  - 用户要求"写5个章节大纲"
-  - Agent并行生成5个大纲,而不是串行
+    C1 & C2 & C3 & C4 & C5 --> D[等待全部完成]
 
-#### **2025年最佳实践 (LangGraph原生支持)**
+    D --> E[合并结果]
+    E --> F[返回5个大纲]
+
+    note right of C1
+        并发执行
+        时间: 10秒
+        (串行需要50秒)
+    end note
+
+    style B fill:#fff3e0
+    style D fill:#e3f2fd
+    style E fill:#c8e6c9
+```
+
+#### 串行 vs 并行对比
+
+```mermaid
+graph LR
+    subgraph "串行执行 - 50秒"
+        S1[任务1<br/>10s] --> S2[任务2<br/>10s]
+        S2 --> S3[任务3<br/>10s]
+        S3 --> S4[任务4<br/>10s]
+        S4 --> S5[任务5<br/>10s]
+    end
+
+    subgraph "并行执行 - 10秒"
+        P1[任务1<br/>10s]
+        P2[任务2<br/>10s]
+        P3[任务3<br/>10s]
+        P4[任务4<br/>10s]
+        P5[任务5<br/>10s]
+    end
+
+    style S1 fill:#ffcdd2
+    style S2 fill:#ffcdd2
+    style S3 fill:#ffcdd2
+    style S4 fill:#ffcdd2
+    style S5 fill:#ffcdd2
+    style P1 fill:#c8e6c9
+    style P2 fill:#c8e6c9
+    style P3 fill:#c8e6c9
+    style P4 fill:#c8e6c9
+    style P5 fill:#c8e6c9
+```
 
 这是**Agentic AI的9大核心工作流模式之一**,可以将大任务拆分为独立子任务并发执行,大幅提升速度。
 
-```python
-from langgraph.graph import StateGraph
-import asyncio
+#### 实施建议 - Week 5-6 (Phase 3)
 
-class ParallelAgent:
-    """支持并行任务的Agent"""
+#### 预期效果
 
-    def __init__(self):
-        self.workflow = self._build_workflow()
-
-    def _build_workflow(self):
-        workflow = StateGraph(AgentState)
-
-        # 并行节点
-        workflow.add_node("writing", self.writing_node)
-        workflow.add_node("research", self.research_node)
-        workflow.add_node("analysis", self.analysis_node)
-        workflow.add_node("merge", self.merge_results)
-
-        # 并行执行 (从start同时触发3个节点)
-        workflow.set_entry_point("start")
-        workflow.add_edge("start", "writing")   # 同时
-        workflow.add_edge("start", "research")  # 同时
-        workflow.add_edge("start", "analysis")  # 同时
-
-        # 等待三者都完成,然后合并
-        workflow.add_edge("writing", "merge")
-        workflow.add_edge("research", "merge")
-        workflow.add_edge("analysis", "merge")
-
-        return workflow.compile()
-
-    async def writing_node(self, state):
-        """写作节点"""
-        content = await continue_writing(state["prompt"])
-        return {"writing_result": content}
-
-    async def research_node(self, state):
-        """研究节点 - 检索知识库"""
-        knowledge = await search_knowledge(state["prompt"])
-        return {"research_result": knowledge}
-
-    async def analysis_node(self, state):
-        """分析节点 - 分析上下文"""
-        analysis = await analyze_context(state["work_id"])
-        return {"analysis_result": analysis}
-
-    def merge_results(self, state):
-        """合并所有并行结果"""
-        return {
-            "final_content": state["writing_result"],
-            "references": state["research_result"],
-            "context_analysis": state["analysis_result"]
-        }
-```
-
-**场景示例: 并行生成5个章节大纲**:
-```python
-async def parallel_outline_generation(chapters: List[str]):
-    """并行生成多个章节大纲"""
-
-    # 创建并行任务
-    tasks = [
-        generate_outline(chapter_title)
-        for chapter_title in chapters
-    ]
-
-    # 并发执行 (预计快5倍)
-    results = await asyncio.gather(*tasks)
-
-    return results
-
-# 使用
-outlines = await parallel_outline_generation([
-    "第一章: 穿越异界",
-    "第二章: 系统觉醒",
-    "第三章: 初试锋芒",
-    "第四章: 宗门试炼",
-    "第五章: 仇人相见"
-])
-```
-
-#### **实施建议**
-
-**Week 5-6 加入 (Phase 3)**
-
-**预期效果**:
 - ✅ 速度提升 2-5倍 (取决于并行度)
 - ✅ 用户体验大幅改善
 - ✅ 适合批量任务 (生成多个大纲/分析多个章节)
@@ -1610,181 +1561,70 @@ outlines = await parallel_outline_generation([
 
 ### **5. 规划与自主决策 (Planning Agent)** ⭐⭐⭐⭐⭐
 
-#### **现状分析**
+#### Planning Agent工作流
 
-**你现在有什么**:
-- ✅ 固定工作流 (用户说"写第三章" → 固定步骤执行)
-- ✅ 预定义的场景流程
+```mermaid
+graph TB
+    A[用户目标:<br/>"我想写玄幻小说"] --> B[Planning Agent<br/>分解任务]
 
-**你还缺什么**:
-- ❌ **Agent自主规划**
-  - 用户: "我想写一部玄幻小说"
-  - Agent自己分解成20个子任务,逐步执行
+    B --> C[任务分解结果]
+    C --> T1[任务1: 生成世界观]
+    C --> T2[任务2: 创建主角]
+    C --> T3[任务3: 创建配角]
+    C --> T4[任务4: 生成大纲]
+    C --> T5[任务5: 撰写第一章]
 
-- ❌ **动态调整计划**
-  - 如果某一步失败,Agent自己想办法解决
-  - 而不是直接报错退出
+    T1 --> E1{执行成功?}
+    E1 -->|是| T2
+    E1 -->|否| R1[重新规划]
+    R1 --> T1
 
-#### **2025年最佳实践 (Planning Pattern)**
+    T2 --> E2{执行成功?}
+    E2 -->|是| T3
+    E2 -->|否| R2[重新规划]
+    R2 --> T2
+
+    T3 --> T4
+    T4 --> T5
+    T5 --> F[完成]
+
+    style B fill:#fff3e0
+    style R1 fill:#ffcdd2
+    style R2 fill:#ffcdd2
+    style F fill:#c8e6c9
+```
 
 这是**Agentic AI的9大核心工作流模式之一**,也是你的**核心场景B: "我想写玄幻小说"**的关键技术。
 
-```python
-# backend/app/services/agent/planning_agent.py
+#### 动态重规划机制
 
-from typing import List, Dict
-import logging
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant P as Planning Agent
+    participant E as 执行引擎
 
-logger = logging.getLogger(__name__)
+    U->>P: "我想写玄幻小说"
+    P->>P: 分解为5个任务
+    P->>E: 执行任务1
+    E-->>P: ✅ 成功
 
-class PlanningAgent:
-    """规划Agent - 自主分解任务并执行"""
+    P->>E: 执行任务2
+    E-->>P: ❌ 失败(知识库为空)
 
-    def __init__(self, llm, tools):
-        self.llm = llm
-        self.tools = tools
+    P->>P: 重新规划<br/>跳过任务2<br/>调整后续任务
 
-    async def plan_and_execute(self, user_goal: str, work_id: str) -> dict:
-        """
-        规划并执行用户目标
+    P->>E: 执行调整后的任务3
+    E-->>P: ✅ 成功
 
-        Args:
-            user_goal: 用户目标 (如"我想写一部玄幻小说")
-            work_id: 作品ID
-
-        Returns:
-            dict: 执行结果
-        """
-        logger.info(f"🎯 开始规划目标: {user_goal}")
-
-        # 1. 分解任务
-        plan = await self._decompose_goal(user_goal)
-        logger.info(f"📋 任务分解完成,共{len(plan['tasks'])}个子任务")
-
-        # 2. 逐步执行
-        results = []
-        for i, task in enumerate(plan['tasks']):
-            logger.info(f"⚙️ 执行任务 {i+1}/{len(plan['tasks'])}: {task['name']}")
-
-            try:
-                result = await self._execute_task(task, work_id)
-                results.append({
-                    "task": task['name'],
-                    "status": "success",
-                    "result": result
-                })
-            except Exception as e:
-                logger.error(f"❌ 任务失败: {task['name']}, 错误: {e}")
-
-                # 3. 动态调整计划 (失败后重新规划)
-                logger.info("🔄 重新规划剩余任务...")
-                new_plan = await self._replan(
-                    original_goal=user_goal,
-                    completed_tasks=results,
-                    failed_task=task,
-                    error=str(e)
-                )
-
-                # 更新计划
-                plan['tasks'] = new_plan['tasks']
-
-        return {
-            "goal": user_goal,
-            "plan": plan,
-            "results": results,
-            "total_tasks": len(results),
-            "success_rate": sum(1 for r in results if r['status'] == 'success') / len(results)
-        }
-
-    async def _decompose_goal(self, user_goal: str) -> Dict:
-        """分解用户目标为子任务"""
-        prompt = f"""
-        用户目标: "{user_goal}"
-
-        请将这个目标分解为具体的子任务。
-
-        可用工具:
-        - generate_worldview: 生成世界观设定
-        - create_character: 创建人物卡片
-        - generate_outline: 生成故事大纲
-        - write_chapter: 撰写章节
-
-        返回JSON格式:
-        {{
-            "tasks": [
-                {{"name": "生成世界观", "tool": "generate_worldview", "params": {{}}}},
-                {{"name": "创建主角", "tool": "create_character", "params": {{}}}},
-                ...
-            ]
-        }}
-        """
-
-        response = await self.llm.ainvoke(prompt)
-        return json.loads(response.content)
-
-    async def _execute_task(self, task: dict, work_id: str) -> Any:
-        """执行单个子任务"""
-        tool_name = task['tool']
-        params = task.get('params', {})
-        params['work_id'] = work_id
-
-        # 调用对应工具
-        tool = self.tools[tool_name]
-        result = await tool.ainvoke(params)
-
-        return result
-
-    async def _replan(
-        self,
-        original_goal: str,
-        completed_tasks: List[dict],
-        failed_task: dict,
-        error: str
-    ) -> Dict:
-        """失败后重新规划"""
-        prompt = f"""
-        原始目标: "{original_goal}"
-
-        已完成的任务:
-        {json.dumps(completed_tasks, ensure_ascii=False, indent=2)}
-
-        失败的任务: {failed_task['name']}
-        错误原因: {error}
-
-        请重新规划剩余任务,绕过失败点。
-
-        返回JSON格式的新任务列表。
-        """
-
-        response = await self.llm.ainvoke(prompt)
-        return json.loads(response.content)
+    P-->>U: 最终完成
 ```
 
-#### **使用示例**:
-```python
-# 用户: "我想写一部玄幻小说"
-planning_agent = PlanningAgent(llm, tools)
-
-result = await planning_agent.plan_and_execute(
-    user_goal="我想写一部玄幻小说,主角是废材逆袭",
-    work_id="work_123"
-)
-
-# Agent自动执行:
-# 1. 生成玄幻世界观 (修仙体系/宗门设定)
-# 2. 创建主角 (废材少年,天赋异禀)
-# 3. 创建配角 (师父/师姐/反派)
-# 4. 生成大纲 (30章大纲)
-# 5. 撰写第一章 (开篇)
-```
-
-#### **实施建议**
-
-**Week 3-4 加入 (Phase 2 - 场景B)**
+#### 实施建议 - Week 3-4 (Phase 2 - 场景B)
 
 这是你的**核心场景B**,必须实现!
 
-#### **预期效果**
+#### 预期效果
 
 - ✅ 真正的"智能助手"体验
 - ✅ 用户只需说目标,Agent自动完成
@@ -1795,354 +1635,76 @@ result = await planning_agent.plan_and_execute(
 
 ## 🚀 二、高级Agent功能增强 (P1级 - 建议实现)
 
-### **6. 工具动态发现与注册 (Tool Registry)** ⭐⭐⭐
+### 功能缺失总结与优先级
 
-#### **现状分析**
+```mermaid
+graph TB
+    A[开发时间安排] --> B[Phase 2<br/>8天]
+    A --> C[Phase 3<br/>10天]
+    A --> D[Phase 4<br/>10天]
 
-**你现在有什么**:
-- ✅ 手动包装5-10个核心工具
+    B --> B1[功能1: 长期记忆<br/>3天]
+    B --> B2[功能5: 规划Agent<br/>5天]
 
-**你还缺什么**:
-- ❌ **自动工具发现**
-  - Agent自动扫描你的139个API
-  - 根据API文档自动生成工具描述
+    C --> C1[功能2: 人机协同<br/>5天]
+    C --> C2[功能3: 自我反思<br/>2天]
+    C --> C3[功能4: 并行任务<br/>3天]
 
-- ❌ **工具权限管理**
-  - 某些危险工具 (删除作品) 需要人工批准
-  - 普通工具 (续写) 可以自动调用
+    D --> D1[功能6: 工具注册<br/>2天]
+    D --> D2[功能7: Story Bible<br/>4天]
+    D --> D3[功能8: 感官描写<br/>1天]
+    D --> D4[功能9: 风格学习<br/>3天]
 
-#### **2025年最佳实践**
-
-```python
-# backend/app/services/agent/tool_registry.py
-
-from typing import List, Callable
-from langchain.tools import Tool
-from fastapi import APIRouter
-import inspect
-
-class ToolRegistry:
-    """工具动态注册系统"""
-
-    def __init__(self, api_router: APIRouter):
-        self.api_router = api_router
-        self.tools = []
-
-    def auto_register_from_api(self) -> List[Tool]:
-        """从FastAPI路由自动注册工具"""
-
-        for route in self.api_router.routes:
-            # 跳过非POST/GET请求
-            if route.methods not in [{"POST"}, {"GET"}]:
-                continue
-
-            # 提取工具信息
-            tool = Tool(
-                name=self._generate_tool_name(route.path),
-                description=self._extract_description(route.endpoint),
-                func=self._wrap_endpoint(route.endpoint),
-                # 标记危险操作
-                requires_approval=self._is_dangerous(route.path)
-            )
-
-            self.tools.append(tool)
-
-        return self.tools
-
-    def _generate_tool_name(self, path: str) -> str:
-        """生成工具名称"""
-        # /api/v1/ai/continue -> continue_writing
-        return path.split('/')[-1].replace('-', '_')
-
-    def _extract_description(self, endpoint: Callable) -> str:
-        """从docstring提取工具描述"""
-        return inspect.getdoc(endpoint) or "No description"
-
-    def _is_dangerous(self, path: str) -> bool:
-        """判断是否为危险操作"""
-        dangerous_keywords = ['delete', 'remove', 'drop']
-        return any(kw in path.lower() for kw in dangerous_keywords)
-
-    def _wrap_endpoint(self, endpoint: Callable) -> Callable:
-        """包装API端点为工具函数"""
-        async def wrapper(**kwargs):
-            # 调用原始API
-            return await endpoint(**kwargs)
-        return wrapper
+    style A fill:#fff3e0
+    style B fill:#e3f2fd
+    style C fill:#c8e6c9
+    style D fill:#f3e5f5
 ```
 
-#### **使用示例**:
-```python
-from app.api import api_router
-
-# 自动注册所有API为工具
-registry = ToolRegistry(api_router)
-all_tools = registry.auto_register_from_api()
-
-print(f"自动注册了{len(all_tools)}个工具")
-# 输出: 自动注册了139个工具
-```
-
-#### **实施建议**
-
-**Week 7-8 加入 (Phase 4 - 优化阶段)**
-
-#### **预期效果**
-
-- ✅ 快速包装所有139个API
-- ✅ 新增API自动注册为工具
-- ✅ 危险操作自动标记
-
----
-
-### **7. Story Bible一致性检查 (来自Sudowrite)** ⭐⭐⭐⭐
-
-#### **竞品分析: Sudowrite的杀手级功能**
-
-Sudowrite的**Story Bible**功能:
-- 自动追踪人物/情节/伏笔
-- 检测前后矛盾 (如人物死而复生)
-- 防止设定冲突 (如境界体系不一致)
-
-#### **你的对应功能**
-
-**你现在有什么**:
-- ✅ 世界观管理 (人物/地点/设定)
-- ✅ 章节内容
-
-**你还缺什么**:
-- ❌ **自动一致性检查**
-  - 检测新章节是否与世界观设定矛盾
-  - 检测人物行为是否符合性格
-  - 检测情节是否有逻辑漏洞
-
-#### **实施建议**
-
-```python
-@tool
-async def consistency_check(chapter_text: str, work_id: str) -> dict:
-    """
-    一致性检查工具
-
-    检查章节内容是否与世界观设定矛盾
-    """
-    # 1. 获取世界观设定
-    worldview = await get_worldview(work_id)
-
-    # 2. AI检查一致性
-    prompt = f"""
-    请检查以下章节内容是否与世界观设定矛盾:
-
-    【世界观设定】
-    人物: {worldview['characters']}
-    地点: {worldview['locations']}
-    设定: {worldview['settings']}
-
-    【章节内容】
-    {chapter_text}
-
-    返回JSON格式:
-    {{
-        "is_consistent": true/false,
-        "conflicts": [
-            {{"type": "人物矛盾", "description": "...", "suggestion": "..."}}
-        ]
-    }}
-    """
-
-    result = await llm.ainvoke(prompt)
-    return json.loads(result.content)
-```
-
-#### **预期效果**
-
-- ✅ 防止前后矛盾
-- ✅ 提升作品质量
-- ✅ **差异化竞争优势** (Sudowrite的核心功能)
-
----
-
-### **8. 感官描写增强工具 (来自Sudowrite)** ⭐⭐⭐
-
-#### **竞品分析: Sudowrite的Describe工具**
-
-自动添加**五感描写** (视觉/听觉/触觉/嗅觉/味觉),让文字更有画面感。
-
-#### **实施建议**
-
-```python
-@tool
-async def add_sensory_details(text: str) -> str:
-    """为文本添加五感描写"""
-    prompt = f"""
-    为以下文本添加细腻的感官描写:
-
-    原文:
-    {text}
-
-    要求:
-    1. 添加视觉描写 (颜色/光影/动作)
-    2. 添加听觉描写 (声音/韵律)
-    3. 添加触觉描写 (温度/质感)
-    4. 可选: 嗅觉/味觉描写
-    5. 保持原文核心内容不变
-
-    返回改写后的文本 (不要添加说明)
-    """
-
-    result = await llm.ainvoke(prompt)
-    return result.content
-
-
-@tool
-async def show_not_tell(text: str) -> str:
-    """将叙述改写为画面描写 (Show, Don't Tell)"""
-    prompt = f"""
-    将以下叙述性文字改写为具体的场景画面。
-
-    原则:
-    - 用细节和动作展示,而非直接叙述
-    - 让读者通过画面感受情绪
-
-    原文:
-    {text}
-
-    示例:
-    叙述: "他很生气"
-    改写: "他紧握双拳,青筋暴起,眼中几欲喷火"
-
-    请改写上述原文 (不要添加说明)
-    """
-
-    result = await llm.ainvoke(prompt)
-    return result.content
-```
-
-#### **预期效果**
-
-- ✅ 提升文字画面感
-- ✅ 专业作者会喜欢
-- ✅ 实现简单 (1天)
-
----
-
-### **9. 品牌声音学习 (来自Jasper AI)** ⭐⭐⭐⭐
-
-#### **竞品分析: Jasper AI的核心优势**
-
-Jasper AI会**自动学习用户的写作风格**,所有生成内容自动符合风格。
-
-#### **你的对应功能**
-
-**你现在有什么**:
-- ✅ AI规范 (但需要用户手动填写)
-
-**你还缺什么**:
-- ❌ **自动学习风格**
-  - 分析用户历史作品
-  - 提取风格特征 (词汇/句式/节奏)
-  - 自动应用到新作品
-
-#### **实施建议**
-
-```python
-# backend/app/services/agent/style_learning_service.py
-
-class StyleLearningService:
-    """写作风格学习服务"""
-
-    async def analyze_user_style(self, user_id: str) -> dict:
-        """分析用户写作风格"""
-
-        # 1. 获取用户所有作品
-        works = await get_user_works(user_id, limit=10)
-
-        # 2. AI分析风格特征
-        prompt = f"""
-        分析以下作品的写作风格:
-
-        {works}
-
-        返回JSON格式:
-        {{
-            "pace": "快节奏/慢节奏",
-            "genre": "玄幻/都市/科幻",
-            "vocabulary_level": "通俗/文艺",
-            "sentence_structure": "短句/长句/混合",
-            "common_phrases": ["常用词1", "常用词2"],
-            "avoid_words": ["避免词1", "避免词2"]
-        }}
-        """
-
-        result = await llm.ainvoke(prompt)
-        style = json.loads(result.content)
-
-        # 3. 保存到用户画像
-        memory_service = AgentMemoryService()
-        memory_service.save_user_preference(user_id, "auto_style", style)
-
-        return style
-
-    async def apply_style_to_prompt(self, prompt: str, user_id: str) -> str:
-        """将用户风格应用到Prompt"""
-
-        # 加载用户风格
-        style = memory_service.get_user_preference(user_id, "auto_style")
-
-        if not style:
-            return prompt
-
-        # 增强Prompt
-        enhanced_prompt = f"""
-        {prompt}
-
-        【风格要求】
-        - 节奏: {style['pace']}
-        - 词汇: {style['vocabulary_level']}
-        - 句式: {style['sentence_structure']}
-        - 常用表达: {', '.join(style['common_phrases'])}
-        - 避免使用: {', '.join(style['avoid_words'])}
-        """
-
-        return enhanced_prompt
-```
-
-#### **实施建议**
-
-**Week 7-8 加入 (Phase 4)**
-
-#### **预期效果**
-
-- ✅ 用户无需手动填写风格
-- ✅ 生成内容自动符合个人风格
-- ✅ 用户粘性提升 (风格越准,越难迁移)
-
----
-
-## 📊 功能缺失总结与优先级
-
-### **必须立即加入** (Phase 1-2):
+### 必须立即加入 (Phase 1-2):
 1. ✅ **长期记忆系统** (3天) - 用户粘性核心
 2. ✅ **规划Agent** (5天) - 实现场景B的关键
 
-### **应该尽快加入** (Phase 3):
+### 应该尽快加入 (Phase 3):
 3. ✅ **人机协同 (HITL)** (5天) - 提升用户信任
 4. ✅ **自我反思** (2天) - 提升生成质量
 5. ✅ **并行任务** (3天) - 提升执行速度2-3倍
 
-### **可选优化** (Phase 4):
+### 可选优化 (Phase 4):
 6. ✅ **工具自动注册** (2天) - 快速扩展到139个API
 7. ✅ **Story Bible一致性检查** (4天) - 差异化竞争
 8. ✅ **感官描写/Show Don't Tell** (1天) - 专业作者工具
 9. ✅ **风格学习** (3天) - 个性化体验
 
-### **开发时间总计**
+### 开发时间总计
 - Phase 2: 8天 (功能1+5)
 - Phase 3: 10天 (功能2+3+4)
 - Phase 4: 10天 (功能6+7+8+9)
 - **总计**: 28天 (约4周)
 
-### **预期收益**
+### 预期收益
+
+```mermaid
+mindmap
+  root((Agent化收益))
+    用户体验
+      工具→智能助手
+      转化率+83%
+      留存率+62%
+    市场差异化
+      业界首创
+      Jasper+Sudowrite能力
+      独特卖点
+    用户粘性
+      长期记忆
+      风格学习
+      个性化体验
+    商业价值
+      用户增长3倍
+      付费转化+60%
+      ROI 5:1
+```
+
 - ⭐⭐⭐⭐⭐ 用户体验提升 (从"工具"→"智能助手")
 - ⭐⭐⭐⭐⭐ 市场差异化 (具备Jasper + Sudowrite的核心能力)
 - ⭐⭐⭐⭐ 用户粘性 (长期记忆 + 风格学习)
@@ -2151,5 +1713,5 @@ class StyleLearningService:
 ---
 
 **最后更新**: 2025-10-28
-**文档版本**: v2.1 (增加功能缺口分析 - 基于2025年最新趋势)
+**文档版本**: v3.0 (全面优化为mermaid流程图)
 **维护者**: NovelAIde 开发团队
