@@ -135,7 +135,7 @@ async def agent_chat(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Agent 智能对话（基于 LangGraph 框架）
+    Agent 智能对话（基于 LangGraph 框架）- 非流式响应
 
     支持的场景：
     - "帮我写第三章" (writing)
@@ -214,6 +214,161 @@ async def agent_chat(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Agent对话失败: {str(e)}"
         )
+
+
+@router.post("/chat/stream")
+async def agent_chat_stream(
+    request: AgentChatRequest,
+    current_user: User = Depends(get_current_active_user),
+    memory: MemoryManager = Depends(get_memory_manager),
+    ai_service: HTTPAIService = Depends(get_ai_service),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Agent 智能对话 - 流式响应（SSE）with Planning + Execution
+
+    使用 Planning + Execution 模式：
+    1. 先生成 To-Do List（规划）
+    2. 逐步执行任务
+    3. 实时显示进度
+
+    Args:
+        request: 对话请求
+        current_user: 当前用户
+        memory: 记忆管理器
+        ai_service: AI服务
+        db: 数据库会话
+
+    Returns:
+        StreamingResponse: SSE流式响应
+    """
+    import asyncio
+    import time
+
+    async def event_generator():
+        # 使用队列实现实时事件发送
+        event_queue = asyncio.Queue()
+        agent_task = None
+        result = None
+
+        try:
+            user_id = str(current_user.id)
+            conversation_id = request.conversation_id or str(uuid.uuid4())
+
+            logger.info(f"[LangGraph Agent Stream] User: {user_id}, Message: {request.message[:50]}...")
+
+            # 发送开始事件
+            yield f"data: {json.dumps({'type': 'start', 'conversation_id': conversation_id}, ensure_ascii=False)}\n\n"
+
+            # 获取用户记忆上下文
+            user_context = memory.get_complete_context(user_id)
+            memory_context = memory.format_context_for_agent(user_id, mode="chat")
+
+            # 创建 LangGraph Agent
+            agent_graph = WritingAgentGraph(ai_service, use_chatgpt=settings.AGENT_USE_CHATGPT)
+
+            # 准备上下文
+            context = request.context or {}
+            context["memory_context"] = memory_context
+            context["user_context"] = user_context
+
+            # 定义回调函数 - 实时放入队列
+            async def on_plan(plan_data):
+                """规划生成回调"""
+                await event_queue.put(('plan', plan_data))
+                logger.info(f"[Stream] 规划生成: {len(plan_data.get('tasks', []))} 个任务")
+
+            async def on_task_start(task):
+                """任务开始回调"""
+                await event_queue.put(('task_start', task))
+                logger.info(f"[Stream] 任务开始: {task.get('description')}")
+
+            async def on_task_progress(task, status):
+                """任务进度回调"""
+                await event_queue.put(('task_progress', {'task_id': task.get('task_id'), 'status': status}))
+
+            async def on_task_done(task, result_data):
+                """任务完成回调"""
+                elapsed_time = task.get('elapsed_time', 0)
+                await event_queue.put(('task_done', {
+                    'task_id': task.get('task_id'),
+                    'description': task.get('description'),
+                    'elapsed_time': elapsed_time
+                }))
+                logger.info(f"[Stream] 任务完成: {task.get('description')} ({elapsed_time:.1f}s)")
+
+            async def on_content(chunk):
+                """内容生成回调"""
+                await event_queue.put(('content', chunk))
+
+            # 在后台运行 Agent
+            async def run_agent():
+                nonlocal result
+                result = await agent_graph.chat_with_planning(
+                    message=request.message,
+                    work_id=request.work_id,
+                    chapter_id=request.chapter_id,
+                    conversation_id=conversation_id,
+                    context=context,
+                    on_plan=on_plan,
+                    on_task_start=on_task_start,
+                    on_task_progress=on_task_progress,
+                    on_task_done=on_task_done,
+                    on_content=on_content
+                )
+                # Agent 完成后放入结束标记
+                await event_queue.put(('__done__', None))
+
+            # 启动 Agent 任务
+            agent_task = asyncio.create_task(run_agent())
+
+            # 实时从队列中取出事件并发送
+            while True:
+                event_type, event_data = await event_queue.get()
+
+                if event_type == '__done__':
+                    # Agent 执行完成
+                    break
+
+                # 实时发送事件
+                yield f"data: {json.dumps({'type': event_type, 'data': event_data}, ensure_ascii=False)}\n\n"
+
+            # 等待 Agent 任务完成
+            await agent_task
+
+            # 记录交互
+            memory.record_user_interaction(
+                user_id,
+                "agent_chat",
+                {
+                    "message": request.message,
+                    "intent": result["metadata"].get("intent"),
+                    "conversation_id": conversation_id,
+                    "mode": "planning_execution"
+                }
+            )
+
+            # 发送完成事件
+            yield f"data: {json.dumps({'type': 'done', 'metadata': result['metadata'], 'suggested_actions': result.get('suggested_actions', [])}, ensure_ascii=False)}\n\n"
+
+            logger.info(f"[LangGraph Agent Stream] User {user_id} - Stream completed")
+
+        except Exception as e:
+            logger.error(f"[LangGraph Agent Stream] Error: {str(e)}", exc_info=True)
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)}, ensure_ascii=False)}\n\n"
+            # 取消 Agent 任务
+            if agent_task and not agent_task.done():
+                agent_task.cancel()
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # 禁用 nginx 缓冲
+        }
+    )
 
 
 # ==================== 执行计划管理 ====================

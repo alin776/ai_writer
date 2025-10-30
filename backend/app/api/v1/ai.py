@@ -156,15 +156,17 @@ async def ai_complete(
                     "context_length": len(request.context)
                 }
             ) as token_counter:
-                async for chunk in ai_service.stream_complete(
+                async for chunk, usage in ai_service.stream_complete(
                     context=request.context,
                     prompt=request.prompt,
                     style=request.style,
                     max_tokens=request.max_tokens
                 ):
-                    accumulated_text += chunk
-                    # SSE 格式: data: {content}\n\n
-                    yield f"data: {chunk}\n\n"
+                    # 只处理内容块,忽略最后的usage块(chunk为空字符串)
+                    if chunk:
+                        accumulated_text += chunk
+                        # SSE 格式: data: {content}\n\n
+                        yield f"data: {chunk}\n\n"
 
                 # 估算 token 数量
                 token_counter.estimate_tokens(

@@ -20,6 +20,9 @@ from app.models.review_session import ReviewSession, ReviewLevel, ReviewType
 from app.models.review_task import ReviewTask, TaskPriority, TaskStatus, TaskSource
 from app.models.chapter_version import ChapterVersion, VersionType
 from app.models.knowledge_item import KnowledgeItem, KnowledgeCategory, KnowledgeSource
+from app.models.rewrite_history import RewriteSession, RewriteResult
+from app.models.book_analysis import BookAnalysisJob, JobStatus
+from app.models.worldview_suggestion import WorldviewSuggestion, SuggestionType, SuggestionAction, SuggestionStatus
 
 __all__ = [
     "User",
@@ -58,5 +61,13 @@ __all__ = [
     "VersionType",
     "KnowledgeItem",
     "KnowledgeCategory",
-    "KnowledgeSource"
+    "KnowledgeSource",
+    "RewriteSession",
+    "RewriteResult",
+    "BookAnalysisJob",
+    "JobStatus",
+    "WorldviewSuggestion",
+    "SuggestionType",
+    "SuggestionAction",
+    "SuggestionStatus"
 ]

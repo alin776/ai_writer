@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Plus, BookOpen, BarChart3, BookMarked, Download } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Plus, BookOpen, BarChart3, BookMarked, Download, MessageSquare } from 'lucide-react';
 import { Button, Card, Loading } from '../../components/common';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import ExportDialog from '../../components/export/ExportDialog';
@@ -13,6 +13,7 @@ import NovelEditor from '../../components/editor/NovelEditor';
 import ChapterTree from '../../components/editor/ChapterTree';
 import WorldviewSidebar from '../../components/editor/WorldviewSidebar';
 import NovelAnalysisPanel from '../../components/editor/NovelAnalysisPanel';
+import AgentChatPanel from '../../components/agent/AgentChatPanel';
 import { useConfirm } from '../../hooks/useConfirm';
 import styles from './WorkDetailView.module.css';
 
@@ -49,8 +50,8 @@ const WorkDetailView: React.FC = () => {
     aiGuidelines: undefined,
   });
 
-  // 右侧面板状态：'world' | 'analysis'
-  const [rightPanel, setRightPanel] = useState<'world' | 'analysis'>('world');
+  // 右侧面板状态：'world' | 'analysis' | 'agent'
+  const [rightPanel, setRightPanel] = useState<'world' | 'analysis' | 'agent'>('world');
   
   // 导出对话框状态
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -846,6 +847,28 @@ const WorkDetailView: React.FC = () => {
             <BarChart3 size={16} />
             <span>概括</span>
           </button>
+          <button
+            onClick={() => setRightPanel('agent')}
+            style={{
+              flex: 1,
+              padding: '12px',
+              background: rightPanel === 'agent' ? '#252525' : 'transparent',
+              color: rightPanel === 'agent' ? '#fff' : '#9ca3af',
+              border: 'none',
+              borderBottom: rightPanel === 'agent' ? '2px solid #3b82f6' : 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              fontSize: '14px',
+              fontWeight: 500,
+              transition: 'all 0.2s',
+            }}
+          >
+            <MessageSquare size={16} />
+            <span>Agent</span>
+          </button>
         </div>
 
         {/* 面板内容 */}
@@ -855,12 +878,20 @@ const WorkDetailView: React.FC = () => {
               workId={workId!}
               worldData={worldData}
             />
-          ) : (
+          ) : rightPanel === 'analysis' ? (
             <NovelAnalysisPanel
               workId={workId!}
               currentChapterId={currentChapterId}
               onToast={showToast}
             />
+          ) : (
+            <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <AgentChatPanel
+                workId={workId!}
+                chapterId={currentChapterId}
+                className="h-full"
+              />
+            </div>
           )}
         </div>
       </div>

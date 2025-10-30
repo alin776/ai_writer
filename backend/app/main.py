@@ -12,7 +12,7 @@ from app.core.redis import redis_client
 from app.api import api_router
 from app.tasks import start_scheduler, stop_scheduler
 
-# 配置日志
+# 配置日志 - 使用简单配置，不覆盖 uvicorn 的默认行为
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 启动时执行
-    logger.info("🚀 应用启动中...")
+    logger.info("[STARTUP] 应用启动中...")
 
     await init_db()
     # await redis_client.init()  # TODO: Redis 暂时禁用
@@ -33,23 +33,23 @@ async def lifespan(app: FastAPI):
     # 预加载Embedding模型（性能优化）
     try:
         from app.services.vector_store_service import VectorStoreService
-        logger.info("🔄 开始预加载Embedding模型...")
+        logger.info("[STARTUP] 开始预加载Embedding模型...")
         VectorStoreService.preload_model()
-        logger.info("✅ Embedding模型预加载完成")
+        logger.info("[STARTUP] Embedding模型预加载完成")
     except Exception as e:
-        logger.warning(f"⚠️ Embedding模型预加载失败: {e}")
+        logger.warning(f"[STARTUP] Embedding模型预加载失败: {e}")
         logger.warning("   首次向量化时将自动加载模型")
 
-    logger.info("✅ 应用启动完成")
+    logger.info("[STARTUP] 应用启动完成")
 
     yield
 
     # 关闭时执行
-    logger.info("🛑 应用关闭中...")
+    logger.info("[SHUTDOWN] 应用关闭中...")
     stop_scheduler()  # 停止定时任务
     await close_db()
     # await redis_client.close()  # TODO: Redis 暂时禁用
-    logger.info("✅ 应用已关闭")
+    logger.info("[SHUTDOWN] 应用已关闭")
 
 
 # 创建 FastAPI 应用
@@ -129,10 +129,17 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    
+
+    # 配置 uvicorn 日志
+    log_config = uvicorn.config.LOGGING_CONFIG
+    log_config["formatters"]["default"]["fmt"] = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    log_config["formatters"]["access"]["fmt"] = '%(asctime)s - %(levelname)s - %(client_addr)s - "%(request_line)s" %(status_code)s'
+
     uvicorn.run(
         "app.main:app",
         host=settings.HOST,
         port=settings.PORT,
         reload=settings.DEBUG,
+        log_config=log_config,
+        log_level="info"
     )

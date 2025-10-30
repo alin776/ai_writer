@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Wand2, FileText, Check, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, FileText, Check, AlertCircle, BookOpen, MessageSquare, X } from 'lucide-react';
 import { Loading } from '../../components/common';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
 import { useEditorStore } from '../../store/editorStore';
 import NovelEditor from '../../components/editor/NovelEditor';
+import AgentChatPanel from '../../components/agent/AgentChatPanel';
 import type { Chapter } from '../../types';
 import styles from './EditorView.module.css';
+
+/**
+ * 侧边栏类型
+ */
+type SidebarType = 'worldview' | 'agent' | null;
 
 /**
  * EditorView 组件 - 编辑器页面
@@ -17,6 +23,10 @@ import styles from './EditorView.module.css';
  * - 纯净背景：白色或极浅灰
  * - 高对比度：确保可读性
  * - 扁平化工具栏：图标为主
+ *
+ * 新增功能：
+ * - 右侧浮动切换按钮（世界观/概括 vs Agent对话）
+ * - AI智能助手完整集成
  */
 const EditorView: React.FC = () => {
   const { chapterId } = useParams<{ chapterId?: string }>();
@@ -31,7 +41,7 @@ const EditorView: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showSidebar, setShowSidebar] = useState(false);
+  const [sidebarType, setSidebarType] = useState<SidebarType>(null);
 
   /**
    * 加载章节数据
@@ -100,11 +110,14 @@ const EditorView: React.FC = () => {
   };
 
   /**
-   * 处理 AI 辅助
+   * 切换侧边栏
    */
-  const handleAIAssist = () => {
-    setShowSidebar(!showSidebar);
-    showToast('info', 'AI 辅助功能待实现');
+  const toggleSidebar = (type: SidebarType) => {
+    if (sidebarType === type) {
+      setSidebarType(null);
+    } else {
+      setSidebarType(type);
+    }
   };
 
   /**
@@ -147,6 +160,33 @@ const EditorView: React.FC = () => {
 
   return (
     <div className={styles.page}>
+      {/* 右侧浮动切换按钮 - 移到最外层确保可见 */}
+      <div className={styles.sidebarToggle} style={{
+        position: 'fixed' as const,
+        right: '24px',
+        top: '50%',
+        transform: 'translateY(-50%)',
+        zIndex: 9999,
+        pointerEvents: 'auto'
+      }}>
+        <button
+          className={`${styles.toggleButton} ${sidebarType === 'worldview' ? styles.active : ''}`}
+          onClick={() => toggleSidebar('worldview')}
+          title="世界观/概括"
+          style={{ display: 'flex', marginBottom: '12px' }}
+        >
+          <BookOpen className="w-5 h-5" />
+        </button>
+        <button
+          className={`${styles.toggleButton} ${sidebarType === 'agent' ? styles.active : ''}`}
+          onClick={() => toggleSidebar('agent')}
+          title="AI智能助手"
+          style={{ display: 'flex' }}
+        >
+          <MessageSquare className="w-5 h-5" />
+        </button>
+      </div>
+
       <div className={styles.container}>
         {/* 工具栏 - 极简扁平化 */}
         <div className={styles.toolbar}>
@@ -158,14 +198,6 @@ const EditorView: React.FC = () => {
           </div>
 
           <div className={styles.toolbarRight}>
-            <button
-              className={`${styles.toolbarButton} ${styles.outline}`}
-              onClick={handleAIAssist}
-              title="AI 辅助"
-            >
-              <Wand2 className="w-4 h-4" />
-              <span>AI 辅助</span>
-            </button>
             <button
               className={`${styles.toolbarButton} ${styles.primary}`}
               onClick={handleSave}
@@ -201,7 +233,6 @@ const EditorView: React.FC = () => {
                 content={content}
                 onSave={(html, json) => {
                   setContent(html);
-                  // 可以选择保存 JSON 格式用于未来的高级功能
                   console.log('Editor JSON:', json);
                 }}
                 placeholder="开始写作..."
@@ -211,14 +242,56 @@ const EditorView: React.FC = () => {
             </div>
           </div>
 
-          {/* AI 辅助侧边栏 */}
-          {showSidebar && (
+          {/* 世界观/概括侧边栏 */}
+          {sidebarType === 'worldview' && (
             <div className={styles.sidebar}>
               <div className={styles.sidebarHeader}>
-                <h3 className={styles.sidebarTitle}>AI 辅助</h3>
+                <h3 className={styles.sidebarTitle}>
+                  <BookOpen className="w-4 h-4" />
+                  <span>世界观 & 概括</span>
+                </h3>
+                <button
+                  className={styles.closeButton}
+                  onClick={() => setSidebarType(null)}
+                  title="关闭"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
               <div className={styles.sidebarContent}>
-                <div className={styles.sidebarPlaceholder}>AI 辅助功能待实现</div>
+                <div className={styles.sidebarPlaceholder}>
+                  世界观和概括功能
+                  <br />
+                  <small style={{ color: '#9ca3af', marginTop: '8px', display: 'block' }}>
+                    （可在此集成 WorldviewSidebar 和 NovelAnalysisPanel）
+                  </small>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Agent对话侧边栏 */}
+          {sidebarType === 'agent' && chapter && (
+            <div className={styles.sidebar}>
+              <div className={styles.sidebarHeader}>
+                <h3 className={styles.sidebarTitle}>
+                  <MessageSquare className="w-4 h-4" />
+                  <span>AI智能助手</span>
+                </h3>
+                <button
+                  className={styles.closeButton}
+                  onClick={() => setSidebarType(null)}
+                  title="关闭"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className={styles.sidebarContent} style={{ padding: 0, height: '100%' }}>
+                <AgentChatPanel
+                  workId={chapter.workId}
+                  chapterId={chapter.id}
+                  className="h-full"
+                />
               </div>
             </div>
           )}

@@ -5,7 +5,17 @@
       "Bash(npm run build)",
       "Read(//c/Users/Administrator/Desktop/**)",
       "WebSearch",
-      "Bash(dir C:UsersAdministratorDesktop)"
+      "Bash(dir C:UsersAdministratorDesktop)",
+      "Bash(./venv/Scripts/python.exe:*)",
+      "Bash(./venv/Scripts/alembic.exe revision:*)",
+      "Bash(find:*)",
+      "Bash(tree:*)",
+      "Bash(dir:*)",
+      "Bash(./venv/Scripts/pip.exe install:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []

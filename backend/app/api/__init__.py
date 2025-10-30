@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, users, works, chapters, ai, worldview, novel_analysis, admin, search, relationships, timeline, groups, rewrite_history, humanize, review, ws, knowledge
+from app.api.v1 import auth, users, works, chapters, ai, worldview, novel_analysis, admin, search, relationships, timeline, groups, rewrite_history, humanize, review, ws, knowledge, agent
 from app.api.v1.endpoints import books
 from app.api.v1 import export as export_routes
 from app.api.v1 import import_routes
@@ -24,6 +24,7 @@ api_router.include_router(rewrite_history.router, prefix="/rewrite-history", tag
 api_router.include_router(humanize.router, prefix="/humanize", tags=["humanize"])  # AI去痕迹功能
 api_router.include_router(review.router, prefix="/review", tags=["review"])  # 小说评审功能
 api_router.include_router(knowledge.router, prefix="/knowledge", tags=["knowledge"])  # 知识库功能
+api_router.include_router(agent.router, prefix="/agent", tags=["agent"])  # Agent智能助手
 api_router.include_router(books.router, prefix="/books", tags=["books"])  # AI拆书功能
 api_router.include_router(ws.router, tags=["websocket"])  # WebSocket实时推送
 api_router.include_router(export_routes.router, tags=["export"])  # 导出功能（路由已包含/works前缀）
