@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import Header from './Header';
 import Sidebar from './Sidebar';
@@ -13,11 +13,20 @@ import Loading from '../common/Loading';
  * - 未登录用户重定向到登录页
  * - 已登录用户显示完整布局（Header + Sidebar + 内容区域）
  * - 使用 Outlet 渲染子路由内容
+ * - 根据路由条件渲染是否添加 padding
  */
 export const AuthLayout: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, user } = useAuthStore();
   const [isChecking, setIsChecking] = React.useState(true);
+
+  // 检查是否是需要全屏显示的页面（不需要 padding）
+  const isFullWidthPage = location.pathname === '/works' ||
+                          location.pathname.startsWith('/works/') ||
+                          location.pathname.startsWith('/editor/') ||
+                          location.pathname.startsWith('/worldview/') ||
+                          location.pathname.startsWith('/worldview-graph/');
 
   /**
    * 检查认证状态
@@ -66,10 +75,15 @@ export const AuthLayout: React.FC = () => {
 
         {/* 内容区域 */}
         <main className="flex-1 overflow-y-auto bg-gray-50">
-          <div className="container mx-auto py-6 px-4">
-            {/* 使用 Outlet 渲染子路由 */}
+          {isFullWidthPage ? (
+            /* 全宽页面：不添加 container 和 padding */
             <Outlet />
-          </div>
+          ) : (
+            /* 普通页面：添加 container 和 padding */
+            <div className="container mx-auto py-6 px-4">
+              <Outlet />
+            </div>
+          )}
         </main>
       </div>
     </div>
