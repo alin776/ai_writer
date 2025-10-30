@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     OPENAI_TIMEOUT: int = 120  # AI调用超时时间（秒），默认120秒
 
     # LangGraph Agent 配置
-    AGENT_USE_CHATGPT: bool = False  # False=HTTPAIService模式（绕过Cloudflare），True=ChatOpenAI模式（原生工具调用）
+    AGENT_USE_CHATGPT: bool = True  # False=HTTPAIService模式（绕过Cloudflare），True=ChatOpenAI模式（原生工具调用）
 
     # 评审功能专用模型配置
     REVIEW_MODEL: str = "gemini-2.5-flash"  # 评审专用模型,速度快,响应快
