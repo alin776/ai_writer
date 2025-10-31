@@ -5,7 +5,9 @@ Agent 工具模块 (Agent Tools)
 1. 工具类型系统 (tool_types)
 2. 工具注册表 (tool_registry)
 3. 写作工具集 (writing_tools)
-4. 人机协同工具 (hitl)
+4. 分析工具集 (analysis_tools)
+5. 工具监控系统 (tool_monitor)
+6. 人机协同工具 (hitl)
 """
 
 # ==================== 工具类型系统 ====================
@@ -48,6 +50,25 @@ from .writing_tools import (
     ExpandTextInput,
     ExpandTextOutput,
     expand_text_tool
+)
+
+# ==================== 分析工具 ====================
+from .analysis_tools import (
+    # 内容分析工具
+    AnalyzeContentInput,
+    AnalyzeContentOutput,
+    analyze_content_tool,
+    # 质量评估工具
+    EvaluateQualityInput,
+    EvaluateQualityOutput,
+    evaluate_quality_tool
+)
+
+# ==================== 工具监控系统 ====================
+from .tool_monitor import (
+    ToolMonitor,
+    get_tool_monitor,
+    set_tool_monitor
 )
 
 # ==================== 人机协同工具 ====================
@@ -94,6 +115,21 @@ __all__ = [
     "ExpandTextInput",
     "ExpandTextOutput",
     "expand_text_tool",
+
+    # ==================== 分析工具 ====================
+    # 内容分析工具
+    "AnalyzeContentInput",
+    "AnalyzeContentOutput",
+    "analyze_content_tool",
+    # 质量评估工具
+    "EvaluateQualityInput",
+    "EvaluateQualityOutput",
+    "evaluate_quality_tool",
+
+    # ==================== 工具监控系统 ====================
+    "ToolMonitor",
+    "get_tool_monitor",
+    "set_tool_monitor",
 
     # ==================== 人机协同工具 ====================
     "HITLManager",

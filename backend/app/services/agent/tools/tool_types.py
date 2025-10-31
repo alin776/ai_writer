@@ -300,6 +300,10 @@ class StandardTool(Generic[InputT, OutputT]):
         """
         记录工具执行日志
 
+        将日志同时记录到:
+        1. 本地日志文件(logger)
+        2. 工具监控系统(如果已启用)
+
         Args:
             success: 是否成功
             execution_time: 执行时间(秒)
@@ -314,9 +318,26 @@ class StandardTool(Generic[InputT, OutputT]):
             "error": error_message
         }
 
-        # TODO: 将日志写入Redis/数据库
-        # 当前仅记录到日志文件
+        # 记录到日志文件
         logger.debug(f"工具执行日志: {json.dumps(log_entry, ensure_ascii=False)}")
+
+        # 记录到监控系统(如果可用)
+        try:
+            from .tool_monitor import get_tool_monitor
+            monitor = get_tool_monitor()
+            monitor.log_execution(
+                tool_name=self.name,
+                execution_time=execution_time,
+                success=success,
+                error=error_message,
+                metadata={
+                    "category": self.category.value,
+                    "version": self.version
+                }
+            )
+        except Exception as e:
+            # 监控系统出错不应该影响工具执行
+            logger.warning(f"Failed to log to monitor: {e}")
 
     def get_statistics(self) -> Dict[str, Any]:
         """
