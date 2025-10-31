@@ -15,7 +15,11 @@
       "Bash(tasklist:*)",
       "Bash(findstr:*)",
       "Bash(netstat:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "mcp__figma__get_screenshot",
+      "mcp__figma__get_design_context",
+      "mcp__figma__get_metadata",
+      "WebFetch(domain:www.figma.com)"
     ],
     "deny": [],
     "ask": []
