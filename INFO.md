@@ -1,155 +1,209 @@
-# 📂 文档目录结构
+(venv) PS D:\Java\ai_writer\backend> python tests/test_memory_system.py
+19:03:13 [INFO] __main__ - ================================================================================
+19:03:13 [INFO] __main__ - 🧪 增强记忆管理系统自动化测试
+19:03:13 [INFO] __main__ - 🌐 后端地址: http://localhost:8000
+19:03:13 [INFO] __main__ - 📧 测试账号: 2072855200@qq.com
+19:03:13 [INFO] __main__ - ================================================================================
+19:03:13 [INFO] __main__ -
+================================================================================
+19:03:13 [INFO] __main__ - 📝 测试1: 用户登录 (OAuth2 form data)
+19:03:13 [INFO] __main__ - ================================================================================
+19:03:13 [INFO] __main__ - ➤ 发送登录请求...
+19:03:14 [INFO] httpx - HTTP Request: POST http://localhost:8000/api/v1/auth/login "HTTP/1.1 200 OK"
+19:03:14 [INFO] __main__ - ✓ 响应时间: 0.291s
+19:03:14 [INFO] __main__ - ✓ 状态码: 200
+19:03:14 [INFO] __main__ - ✓ 获取到 Token: eyJhbGciOiJIUzI1NiIs...
+19:03:14 [INFO] __main__ - ✓ User ID: 2072855200@qq.com
+19:03:14 [INFO] __main__ - ✅ 测试1通过: 登录成功
+19:03:14 [INFO] __main__ -
+➤ 连接Redis...
+19:03:14 [INFO] __main__ - ✓ Redis连接成功
+19:03:14 [INFO] __main__ -
+================================================================================
+19:03:14 [INFO] __main__ - 📝 测试0: 清理测试数据
+19:03:14 [INFO] __main__ - ================================================================================
+19:03:14 [INFO] __main__ - ➤ 清理用户 2072855200@qq.com 的记忆数据...
+19:03:16 [INFO] __main__ - ✓ 清理完成,删除了 0 个key
+19:03:16 [INFO] __main__ - ✅ 测试0通过: 数据清理成功
+19:03:16 [INFO] __main__ -
+➤ 初始化EnhancedMemoryManager...
+19:03:16 [INFO] app.services.agent.memory.enhanced_memory_manager - EnhancedMemoryManager initialized: short=10, medium=100, threshold=0.1
+19:03:16 [INFO] __main__ - ✓ MemoryManager初始化成功
+19:03:16 [INFO] __main__ -
+================================================================================
+19:03:16 [INFO] __main__ - 📝 测试2: 添加记忆
+19:03:16 [INFO] __main__ - ================================================================================
+19:03:16 [INFO] __main__ - ➤ 准备添加 10 条记忆...
+D:\Java\ai_writer\backend\app\services\agent\memory\enhanced_memory_manager.py:417: RuntimeWarning: coroutine 'Redis.execute_command' was never awaited
+  self.redis.lpush(key, memory.model_dump_json())
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+D:\Java\ai_writer\backend\app\services\agent\memory\enhanced_memory_manager.py:419: RuntimeWarning: coroutine 'Redis.execute_command' was never awaited
+  self.redis.ltrim(key, 0, self.short_term_size - 1)
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+D:\Java\ai_writer\backend\app\services\agent\memory\enhanced_memory_manager.py:421: RuntimeWarning: coroutine 'Redis.execute_command' was never awaited
+  self.redis.expire(key, 3600)  # 1小时
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+19:03:16 [INFO] app.services.agent.memory.enhanced_memory_manager - Memory mem_ce02cac37475 added to short-term for user 2072855200@qq.com
+19:03:16 [WARNING] app.services.agent.memory.enhanced_memory_manager - Forgetting failed for user 2072855200@qq.com: 'coroutine' object is not iterable
+D:\Java\ai_writer\backend\app\services\agent\memory\enhanced_memory_manager.py:141: RuntimeWarning: coroutine 'Redis.execute_command' was never awaited
+  logger.warning(f"Forgetting failed for user {user_id}: {e}")
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+19:03:16 [INFO] __main__ -   1. [user] 我想写一部玄幻小说... (importance=0.9)
+19:03:16 [INFO] app.services.agent.memory.enhanced_memory_manager - Memory mem_501d94d2ae7c added to short-term for user 2072855200@qq.com
+19:03:16 [WARNING] app.services.agent.memory.enhanced_memory_manager - Forgetting failed for user 2072855200@qq.com: 'coroutine' object is not iterable
+19:03:16 [INFO] __main__ -   2. [assistant] 好的,我可以帮您创作玄幻小说... (importance=0.7)
+19:03:16 [INFO] app.services.agent.memory.enhanced_memory_manager - Memory mem_8c623de027ff added to short-term for user 2072855200@qq.com
+19:03:16 [WARNING] app.services.agent.memory.enhanced_memory_manager - Forgetting failed for user 2072855200@qq.com: 'coroutine' object is not iterable
+19:03:16 [INFO] __main__ -   3. [user] 主角叫李云天,是一个天才修士... (importance=0.95)
+19:03:16 [INFO] app.services.agent.memory.enhanced_memory_manager - Memory mem_02142f2eb270 added to short-term for user 2072855200@qq.com
+19:03:16 [WARNING] app.services.agent.memory.enhanced_memory_manager - Forgetting failed for user 2072855200@qq.com: 'coroutine' object is not iterable
+19:03:16 [INFO] __main__ -   4. [assistant] 李云天这个名字不错,很有仙侠风格... (importance=0.6)
+19:03:16 [INFO] app.services.agent.memory.enhanced_memory_manager - Memory mem_391ab8daf9b4 added to short-term for user 2072855200@qq.com
+19:03:16 [WARNING] app.services.agent.memory.enhanced_memory_manager - Forgetting failed for user 2072855200@qq.com: 'coroutine' object is not iterable
+19:03:16 [INFO] __main__ -   5. [user] 世界观设定在九州大陆... (importance=0.85)
+19:03:16 [INFO] app.services.agent.memory.enhanced_memory_manager - Memory mem_eaf7cee0cae4 added to short-term for user 2072855200@qq.com
+19:03:16 [WARNING] app.services.agent.memory.enhanced_memory_manager - Forgetting failed for user 2072855200@qq.com: 'coroutine' object is not iterable
+19:03:16 [INFO] __main__ -   6. [assistant] 九州大陆可以分为中州、东域、西荒等区域... (importance=0.7)
+19:03:16 [INFO] app.services.agent.memory.enhanced_memory_manager - Memory mem_eda657cf9746 added to short-term for user 2072855200@qq.com
+19:03:16 [WARNING] app.services.agent.memory.enhanced_memory_manager - Forgetting failed for user 2072855200@qq.com: 'coroutine' object is not iterable
+19:03:16 [INFO] __main__ -   7. [user] 修炼体系分为炼气、筑基、金丹、元婴... (importance=0.9)
+19:03:16 [INFO] app.services.agent.memory.enhanced_memory_manager - Memory mem_4c2d04d604b7 added to short-term for user 2072855200@qq.com
+19:03:16 [WARNING] app.services.agent.memory.enhanced_memory_manager - Forgetting failed for user 2072855200@qq.com: 'coroutine' object is not iterable
+19:03:16 [INFO] __main__ -   8. [assistant] 这是经典的修仙体系... (importance=0.5)
+19:03:16 [INFO] app.services.agent.memory.enhanced_memory_manager - Memory mem_4e03f0169641 added to short-term for user 2072855200@qq.com
+19:03:16 [WARNING] app.services.agent.memory.enhanced_memory_manager - Forgetting failed for user 2072855200@qq.com: 'coroutine' object is not iterable
+19:03:16 [INFO] __main__ -   9. [user] 第一章从李云天被逐出家族开始... (importance=0.8)
+19:03:16 [INFO] app.services.agent.memory.enhanced_memory_manager - Memory mem_de75fd8a5d68 added to short-term for user 2072855200@qq.com
+19:03:16 [WARNING] app.services.agent.memory.enhanced_memory_manager - Forgetting failed for user 2072855200@qq.com: 'coroutine' object is not iterable
+19:03:16 [INFO] __main__ -   10. [assistant] 废材逆袭的开局很吸引人... (importance=0.6)
+19:03:16 [INFO] __main__ - ✓ 成功添加 10 条记忆
+19:03:16 [INFO] __main__ - ✓ 所有记忆ID唯一
+19:03:16 [INFO] __main__ - ✅ 测试2通过: 记忆添加成功
+19:03:16 [INFO] __main__ -
+================================================================================
+19:03:16 [INFO] __main__ - 📝 测试3: 获取最近记忆
+19:03:16 [INFO] __main__ - ================================================================================
+19:03:16 [INFO] __main__ - ➤ 获取最近5条短期记忆...
+19:03:16 [ERROR] __main__ - ✗ 测试3失败: 'coroutine' object is not iterable
+19:03:16 [ERROR] __main__ - Traceback (most recent call last):
+  File "D:\Java\ai_writer\backend\tests\test_memory_system.py", line 273, in test_3_get_recent_memories
+    recent = memory_manager.get_recent_memories(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\app\services\agent\memory\enhanced_memory_manager.py", line 176, in get_recent_memories
+    return self._get_short_term_memories(user_id, limit)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\app\services\agent\memory\enhanced_memory_manager.py", line 429, in _get_short_term_memories
+    for data in data_list:
+TypeError: 'coroutine' object is not iterable
 
-```
-docs/Agent/tasks/
-├── 00_实施总览.md              ✅ 已完成
-├── 01_改造原则和目标.md        ✅ 已完成
-├── 02_技术架构设计.md          ✅ 已完成
-├── 03_Memory系统设计.md        ✅ 已完成
-├── 04_工具系统设计.md          ✅ 已完成
-├── 05_版本管理设计.md          ✅ 已完成
-├── 06_质量循环设计.md          ✅ 已完成
-├── 07_Prompt库设计.md          ✅ 已完成
-├── 08_模型选择器设计.md        ✅ 已完成
-├── 09_实施路线图.md            ✅ 已完成
-├── 10_阶段一任务清单.md        ✅ 已完成 (新增)
-├── 11_阶段二任务清单.md        ✅ 已完成 (新增)
-├── 12_阶段三任务清单.md        ✅ 已完成 (新增)
-├── 13_API接口设计.md           ✅ 已完成 (新增)
-├── 14_数据库设计.md            ✅ 已完成 (新增)
-├── 15_测试计划.md              ✅ 已完成 (新增)
-├── 16_风险控制.md              ✅ 已完成 (新增)
-├── 17_成功指标.md              ✅ 已完成 (新增)
-├── 18_快速开始指南.md          ✅ 已完成 (新增)
-└── README.md                   ✅ 状态汇总
-```
+D:\Java\ai_writer\backend\tests\test_memory_system.py:325: RuntimeWarning: coroutine 'Redis.execute_command' was never awaited
+  return False
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+19:03:16 [INFO] __main__ -
+================================================================================
+19:03:16 [INFO] __main__ - 📝 测试4: 关键词搜索
+19:03:16 [INFO] __main__ - ================================================================================
+19:03:16 [INFO] __main__ - ➤ 搜索关键词: ['主角', '李云天']
+19:03:16 [ERROR] __main__ - ✗ 测试4失败: 'coroutine' object is not iterable
+19:03:16 [ERROR] __main__ - Traceback (most recent call last):
+  File "D:\Java\ai_writer\backend\tests\test_memory_system.py", line 343, in test_4_search_keywords
+    results = memory_manager.search_memories(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\app\services\agent\memory\enhanced_memory_manager.py", line 224, in search_memories
+    self._get_short_term_memories(user_id, self.short_term_size)
+  File "D:\Java\ai_writer\backend\app\services\agent\memory\enhanced_memory_manager.py", line 429, in _get_short_term_memories
+    for data in data_list:
+TypeError: 'coroutine' object is not iterable
 
----
+D:\Java\ai_writer\backend\tests\test_memory_system.py:371: RuntimeWarning: coroutine 'Redis.execute_command' was never awaited
+  return False
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+19:03:16 [INFO] __main__ -
+================================================================================
+19:03:16 [INFO] __main__ - 📝 测试5: 智能遗忘策略
+19:03:16 [INFO] __main__ - ================================================================================
+19:03:16 [INFO] __main__ - ➤ 获取遗忘前的统计信息...
+19:03:16 [ERROR] __main__ - ✗ 测试5失败: 'coroutine' object is not iterable
+19:03:16 [ERROR] __main__ - Traceback (most recent call last):
+  File "D:\Java\ai_writer\backend\tests\test_memory_system.py", line 388, in test_5_smart_forgetting
+    stats_before = memory_manager.get_stats(self.user_id)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\app\services\agent\memory\enhanced_memory_manager.py", line 543, in get_stats
+    short_memories = self._get_short_term_memories(user_id, self.short_term_size)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\app\services\agent\memory\enhanced_memory_manager.py", line 429, in _get_short_term_memories
+    for data in data_list:
+TypeError: 'coroutine' object is not iterable
 
-## 🎯 当前状态
+D:\Java\ai_writer\backend\tests\test_memory_system.py:414: RuntimeWarning: coroutine 'Redis.execute_command' was never awaited
+  return False
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+19:03:16 [INFO] __main__ -
+================================================================================
+19:03:16 [INFO] __main__ - 📝 测试6: 快照创建和恢复
+19:03:16 [INFO] __main__ - ================================================================================
+19:03:16 [INFO] __main__ - ➤ 创建记忆快照...
+19:03:16 [ERROR] __main__ - ✗ 测试6失败: 'coroutine' object is not iterable
+19:03:16 [ERROR] __main__ - Traceback (most recent call last):
+  File "D:\Java\ai_writer\backend\tests\test_memory_system.py", line 432, in test_6_snapshot
+    snapshot_id = memory_manager.create_snapshot(
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\app\services\agent\memory\enhanced_memory_manager.py", line 361, in create_snapshot
+    short_term_memories=self._get_short_term_memories(user_id, self.short_term_size),
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\app\services\agent\memory\enhanced_memory_manager.py", line 429, in _get_short_term_memories
+    for data in data_list:
+TypeError: 'coroutine' object is not iterable
 
-- **核心文档完成度**: 100% ✅✅✅
-- **总体文档完成度**: 100% (21/21) 🎉
-- **已完成文档**: 21个，约 **110,000 字**
-- **待补充文档**: 0个 - 所有文档已完成！
+D:\Java\ai_writer\backend\tests\test_memory_system.py:475: RuntimeWarning: coroutine 'Redis.execute_command' was never awaited
+  return False
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+19:03:16 [INFO] __main__ -
+================================================================================
+19:03:16 [INFO] __main__ - 📝 测试7: 统计信息
+19:03:16 [INFO] __main__ - ================================================================================
+19:03:16 [INFO] __main__ - ➤ 获取记忆统计信息...
+19:03:16 [ERROR] __main__ - ✗ 测试7失败: 'coroutine' object is not iterable
+19:03:16 [ERROR] __main__ - Traceback (most recent call last):
+  File "D:\Java\ai_writer\backend\tests\test_memory_system.py", line 492, in test_7_stats
+    stats = memory_manager.get_stats(self.user_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\app\services\agent\memory\enhanced_memory_manager.py", line 543, in get_stats
+    short_memories = self._get_short_term_memories(user_id, self.short_term_size)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\app\services\agent\memory\enhanced_memory_manager.py", line 429, in _get_short_term_memories
+    for data in data_list:
+TypeError: 'coroutine' object is not iterable
 
----
-
-## 📚 核心模块设计文档
-
-### 核心架构文档 (00-02)
-- `00_实施总览.md` - 项目概览和改造目标
-- `01_改造原则和目标.md` - 设计原则和技术选型
-- `02_技术架构设计.md` - 完整技术架构
-
-### 核心模块设计 (03-08)
-- `03_Memory系统设计.md` - 分层记忆和智能遗忘
-- `04_工具系统设计.md` - 强类型工具和监控
-- `05_版本管理设计.md` - 补丁式版本控制
-- `06_质量循环设计.md` - 生成→评估→改进流程
-- `07_Prompt库设计.md` - 四维度爽感优化
-- `08_模型选择器设计.md` - 智能模型分级选择
-
-### 实施指南 (09-12)
-- `09_实施路线图.md` - 7-10周详细路线图
-- `10_阶段一任务清单.md` - Memory/工具/版本管理 (2-3周)
-- `11_阶段二任务清单.md` - 质量循环/Prompt/模型 (3-4周)
-- `12_阶段三任务清单.md` - ARE架构/优化/监控 (2-3周)
-
-### 技术文档 (13-15)
-- `13_API接口设计.md` - 完整API文档和示例
-- `14_数据库设计.md` - 数据表结构和Redis设计
-- `15_测试计划.md` - 单元/集成/性能/A/B测试
-
-### 管理文档 (16-18)
-- `16_风险控制.md` - 技术/进度/质量/成本风险
-- `17_成功指标.md` - 技术/业务/质量指标
-- `18_快速开始指南.md` - 新人上手指南
-
----
-
-## 💡 开发建议
-
-### ✨ 所有文档已完成，可以立即开始开发！
-
-所有21个文档已创建完毕，包含:
-- ✅ 完整的技术架构设计
-- ✅ 8个核心模块的详细设计
-- ✅ 3个阶段的详细任务清单
-- ✅ 完整的API、数据库、测试文档
-- ✅ 风险控制和成功指标
-- ✅ 快速开始指南
-- ✅ 总计约 **110,000 字**的技术文档
-
-### 📅 推荐开发顺序
-
-按照阶段任务清单顺序执行:
-
-#### 📖 阶段一: 核心基础 (Week 1-3)
-参考 `10_阶段一任务清单.md`
-- Week 1: Memory系统增强
-- Week 2: 工具系统标准化
-- Week 3: 版本管理系统
-
-#### 📖 阶段二: 高价值功能 (Week 4-7)
-参考 `11_阶段二任务清单.md`
-- Week 4-5: 质量循环机制
-- Week 6: Prompt库优化
-- Week 7: 模型选择器
-
-#### 📖 阶段三: 架构优化 (Week 8-10)
-参考 `12_阶段三任务清单.md`
-- Week 8-9: ARE设计理念
-- Week 10: 完善和优化
-
-### 🚀 快速开始
-
-1. **环境准备**: 参考 `18_快速开始指南.md`
-2. **理解架构**: 阅读 `02_技术架构设计.md`
-3. **开始开发**: 按照 `10_阶段一任务清单.md` 执行
-4. **测试验证**: 参考 `15_测试计划.md`
-5. **风险管理**: 关注 `16_风险控制.md`
-
----
-
-## 🎉 总结
-
-### 已完成的工作
-
-1. ✅ 创建了21个完整文档 (约110,000字)
-2. ✅ 涵盖了所有核心模块的详细设计
-3. ✅ 包含大量代码示例和使用指南
-4. ✅ 提供了完整的实施路线图和任务清单
-5. ✅ 完整的API、数据库、测试、风险、指标文档
-6. ✅ 快速开始指南便于新人上手
-
-### 文档特点
-
-- **完整性**: 覆盖所有核心功能模块
-- **实用性**: 包含大量可直接使用的代码
-- **清晰性**: 结构清晰，易于阅读
-- **可执行性**: 提供详细的实施步骤
-
-### 立即可用
-
-所有文档已完成，您现在可以:
-
-1. **立即开始开发** - 所有技术细节已明确
-2. **参考代码示例** - 直接复制修改即可使用
-3. **按照路线图实施** - 清晰的阶段划分和任务清单
-4. **快速上手** - 查看 `18_快速开始指南.md`
-5. **风险管理** - 参考 `16_风险控制.md` 提前规避风险
-6. **质量保证** - 遵循 `15_测试计划.md` 确保质量
-
----
-
-## 🚀 下一步
-
-**推荐**: 立即开始开发
-
-1. **第一步**: 阅读 `18_快速开始指南.md` 配置环境
-2. **第二步**: 阅读 `02_技术架构设计.md` 理解架构
-3. **第三步**: 开始 Week 1 的 Memory 系统开发 (参考 `10_阶段一任务清单.md`)
-4. **持续**: 按照路线图逐周推进，定期Review进度
-
-核心文档已经非常完整，可以直接开始开发！
+D:\Java\ai_writer\backend\tests\test_memory_system.py:512: RuntimeWarning: coroutine 'Redis.execute_command' was never awaited
+  return False
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+D:\Java\ai_writer\backend\tests\test_memory_system.py:590: DeprecationWarning: Call to deprecated close. (Use aclose() instead) -- Deprecated since version 5.0.0.
+  await redis_client.close()
+19:03:16 [INFO] __main__ -
+✓ Redis连接已关闭
+19:03:16 [INFO] __main__ -
+================================================================================
+19:03:16 [INFO] __main__ - 📊 测试结果总结
+19:03:16 [INFO] __main__ - ================================================================================
+19:03:16 [INFO] __main__ -
+总测试数: 8
+19:03:16 [INFO] __main__ - ✅ 通过: 3
+19:03:16 [INFO] __main__ - ✗ 失败: 5
+19:03:16 [INFO] __main__ - ⊘ 跳过: 0
+19:03:16 [INFO] __main__ -
+详细结果:
+19:03:16 [INFO] __main__ -   login: ✅ 通过
+19:03:16 [INFO] __main__ -   cleanup: ✅ 通过
+19:03:16 [INFO] __main__ -   add_memory: ✅ 通过
+19:03:16 [INFO] __main__ -   get_recent: ✗ 失败
+19:03:16 [INFO] __main__ -   search_keywords: ✗ 失败
+19:03:16 [INFO] __main__ -   smart_forgetting: ✗ 失败
+19:03:16 [INFO] __main__ -   snapshot: ✗ 失败
+19:03:16 [INFO] __main__ -   stats: ✗ 失败
+19:03:16 [INFO] __main__ -
+成功率: 37.5%
+19:03:16 [WARNING] __main__ -
+⚠ 有 5 个测试失败,请检查日志
+19:03:16 [INFO] __main__ - ================================================================================
+(venv) PS D:\Java\ai_writer\backend>
