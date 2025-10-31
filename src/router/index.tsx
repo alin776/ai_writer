@@ -14,8 +14,7 @@ import { AuthLayout, AdminLayout } from '../components/layout';
  * 使用 React.lazy 进行代码分割，优化初始加载性能
  */
 const HomeView = React.lazy(() => import('../views/HomeView'));
-const LoginView = React.lazy(() => import('../views/LoginView'));
-const RegisterView = React.lazy(() => import('../views/RegisterView'));
+const AuthView = React.lazy(() => import('../views/AuthView'));
 const WorksView = React.lazy(() => import('../views/WorksView'));
 const CreateWorkView = React.lazy(() => import('../views/CreateWorkView'));
 const WorkDetailView = React.lazy(() => import('../views/WorkDetailView'));
@@ -72,7 +71,7 @@ export const router = createBrowserRouter([
     path: '/login',
     element: (
       <SuspenseWrapper>
-        <LoginView />
+        <AuthView />
       </SuspenseWrapper>
     ),
   },
@@ -80,7 +79,7 @@ export const router = createBrowserRouter([
     path: '/register',
     element: (
       <SuspenseWrapper>
-        <RegisterView />
+        <AuthView />
       </SuspenseWrapper>
     ),
   },

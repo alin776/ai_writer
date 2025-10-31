@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Plus, BookOpen, BarChart3, BookMarked, Download, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Plus, BookOpen, BarChart3, BookMarked, Download, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button, Card, Loading } from '../../components/common';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import ExportDialog from '../../components/export/ExportDialog';
@@ -9,11 +9,10 @@ import { useGlobalStore } from '../../store/globalStore';
 import type { Work, Chapter, CreateChapterData } from '../../types';
 import type { Chapter as NovelChapter, WorldData, Character, Location, Setting, WorkGuidelines } from '../../types/novel';
 import { formatDate } from '../../utils/formatDate';
-import NovelEditor from '../../components/editor/NovelEditor';
-import ChapterTree from '../../components/editor/ChapterTree';
-import WorldviewSidebar from '../../components/editor/WorldviewSidebar';
-import NovelAnalysisPanel from '../../components/editor/NovelAnalysisPanel';
-import AgentChatPanel from '../../components/agent/AgentChatPanel';
+import { NovelEditorWrapper } from '../../components/editor/NovelEditorWrapper';
+import { WorldviewPanel } from '../../components/editor/WorldviewPanel';
+import { SummaryPanel } from '../../components/editor/SummaryPanel';
+import { AIPanel } from '../../components/editor/AIPanel';
 import { useConfirm } from '../../hooks/useConfirm';
 import styles from './WorkDetailView.module.css';
 
@@ -52,9 +51,17 @@ const WorkDetailView: React.FC = () => {
 
   // 右侧面板状态：'world' | 'analysis' | 'agent'
   const [rightPanel, setRightPanel] = useState<'world' | 'analysis' | 'agent'>('world');
-  
+
   // 导出对话框状态
   const [showExportDialog, setShowExportDialog] = useState(false);
+
+  // 折叠状态
+  const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
+  const [isRightCollapsed, setIsRightCollapsed] = useState(false);
+
+  // 添加章节输入框状态
+  const [isAddingChapter, setIsAddingChapter] = useState(false);
+  const [newChapterTitle, setNewChapterTitle] = useState('');
 
   /**
    * 转换 Chapter 到 NovelChapter 格式
@@ -135,10 +142,16 @@ const WorkDetailView: React.FC = () => {
    * 处理添加章节
    */
   const handleAddChapter = useCallback(async (parentId?: string) => {
-    if (!workId) return;
+    // 显示输入框
+    setIsAddingChapter(true);
+  }, []);
 
-    const title = prompt('请输入章节标题：');
-    if (!title || !title.trim()) {
+  /**
+   * 保存新章节
+   */
+  const handleSaveNewChapter = useCallback(async () => {
+    if (!workId) return;
+    if (!newChapterTitle.trim()) {
       showToast('warning', '章节标题不能为空');
       return;
     }
@@ -147,7 +160,7 @@ const WorkDetailView: React.FC = () => {
       // 只发送后端需要的字段
       const chapterData = {
         work_id: workId,
-        title: title.trim(),
+        title: newChapterTitle.trim(),
         content: '',
         order: chapters.length + 1,
       };
@@ -162,12 +175,24 @@ const WorkDetailView: React.FC = () => {
       setCurrentChapterId(savedChapter.id);
       setCurrentChapterContent(savedChapter.content);
 
+      // 清空输入框并关闭
+      setNewChapterTitle('');
+      setIsAddingChapter(false);
+
       showToast('success', '章节添加成功');
     } catch (error) {
       showToast('error', '章节添加失败');
       console.error('Failed to add chapter:', error);
     }
-  }, [workId, chapters.length, showToast]);
+  }, [workId, chapters.length, newChapterTitle, showToast]);
+
+  /**
+   * 取消添加章节
+   */
+  const handleCancelAddChapter = useCallback(() => {
+    setNewChapterTitle('');
+    setIsAddingChapter(false);
+  }, []);
 
   /**
    * 处理保存章节（新增或编辑）
@@ -743,180 +768,325 @@ const WorkDetailView: React.FC = () => {
 
   return (
     <>
-      <div style={{ display: 'flex', width: '100%', height: '100vh', overflow: 'hidden' }}>
-        {/* 左侧章节树 */}
-        <div style={{ width: '280px', height: '100%', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
-          {/* 顶部导出按钮 */}
-          <div style={{ padding: '12px', borderBottom: '1px solid #333' }}>
-            <button
-              onClick={() => setShowExportDialog(true)}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                padding: '8px 12px',
-                background: '#2563eb',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '14px',
-                fontWeight: 500,
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = '#1d4ed8')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = '#2563eb')}
-            >
-              <Download size={16} />
-              <span>导出作品</span>
-            </button>
-          </div>
-          
-          {/* 章节树 */}
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <ChapterTree
-              chapters={novelChapters}
-              currentChapterId={currentChapterId}
-              onChapterSelect={handleChapterSelect}
-              onChapterSave={handleSaveChapter}
-              onChapterDelete={handleDeleteChapter}
-              onChapterMove={handleChapterMove}
-            />
-          </div>
-        </div>
-
-      {/* 中间编辑器区域 */}
-      <div style={{ flex: 1, height: '100%', overflow: 'hidden' }}>
-        <NovelEditor
-          key={currentChapterId} // 关键：章节切换时重新创建编辑器实例
-          content={currentChapterContent}
-          onSave={handleEditorSave}
-          placeholder="开始写作..."
-          autoSave={true}
-          autoSaveInterval={3000}
-        />
-      </div>
-
-      {/* 右侧面板 */}
-      <div style={{ width: '320px', height: '100%', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
-        {/* 面板切换按钮 */}
-        <div style={{ display: 'flex', borderBottom: '1px solid #333', background: '#1e1e1e' }}>
-          <button
-            onClick={() => setRightPanel('world')}
-            style={{
-              flex: 1,
-              padding: '12px',
-              background: rightPanel === 'world' ? '#252525' : 'transparent',
-              color: rightPanel === 'world' ? '#fff' : '#9ca3af',
-              border: 'none',
-              borderBottom: rightPanel === 'world' ? '2px solid #3b82f6' : 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              fontSize: '14px',
-              fontWeight: 500,
-              transition: 'all 0.2s',
-            }}
-          >
-            <BookMarked size={16} />
-            <span>世界观</span>
-          </button>
-          <button
-            onClick={() => setRightPanel('analysis')}
-            style={{
-              flex: 1,
-              padding: '12px',
-              background: rightPanel === 'analysis' ? '#252525' : 'transparent',
-              color: rightPanel === 'analysis' ? '#fff' : '#9ca3af',
-              border: 'none',
-              borderBottom: rightPanel === 'analysis' ? '2px solid #3b82f6' : 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              fontSize: '14px',
-              fontWeight: 500,
-              transition: 'all 0.2s',
-            }}
-          >
-            <BarChart3 size={16} />
-            <span>概括</span>
-          </button>
-          <button
-            onClick={() => setRightPanel('agent')}
-            style={{
-              flex: 1,
-              padding: '12px',
-              background: rightPanel === 'agent' ? '#252525' : 'transparent',
-              color: rightPanel === 'agent' ? '#fff' : '#9ca3af',
-              border: 'none',
-              borderBottom: rightPanel === 'agent' ? '2px solid #3b82f6' : 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              fontSize: '14px',
-              fontWeight: 500,
-              transition: 'all 0.2s',
-            }}
-          >
-            <MessageSquare size={16} />
-            <span>Agent</span>
-          </button>
-        </div>
-
-        {/* 面板内容 */}
-        <div style={{ flex: 1, overflow: 'hidden' }}>
-          {rightPanel === 'world' ? (
-            <WorldviewSidebar
-              workId={workId!}
-              worldData={worldData}
-            />
-          ) : rightPanel === 'analysis' ? (
-            <NovelAnalysisPanel
-              workId={workId!}
-              currentChapterId={currentChapterId}
-              onToast={showToast}
-            />
+      <div className="flex bg-zinc-50/30" style={{ height: 'calc(100vh - 60px)' }}>
+        {/* 左侧章节面板 */}
+        <div
+          className={`bg-gradient-to-b from-white to-zinc-50/30 flex flex-col border-r border-zinc-100/80 transition-all duration-300 h-full ${
+            isLeftCollapsed ? 'w-12' : 'w-60'
+          }`}
+        >
+          {isLeftCollapsed ? (
+            /* 折叠状态 */
+            <div className="flex flex-col items-center py-5 gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsLeftCollapsed(false)}
+                className="h-10 w-10 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+              >
+                <ChevronRight className="h-6 w-6" />
+              </Button>
+              <div className="writing-mode-vertical text-[11px] text-zinc-400 tracking-widest" style={{ writingMode: 'vertical-rl' }}>
+                目录
+              </div>
+            </div>
           ) : (
-            <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <AgentChatPanel
-                workId={workId!}
-                chapterId={currentChapterId}
-                className="h-full"
-              />
+            /* 展开状态 */
+            <div className="px-4 py-3 flex-1 flex flex-col">
+              {/* 标题区域 */}
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-1">
+                  <h2 className="text-[15px] text-zinc-800 tracking-tight">目录</h2>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleAddChapter()}
+                      className="h-9 w-9 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+                    >
+                      <Plus className="h-6 w-6" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsLeftCollapsed(true)}
+                      className="h-9 w-9 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+                    >
+                      <ChevronLeft className="h-6 w-6" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="h-px bg-gradient-to-r from-zinc-200 via-zinc-100 to-transparent" />
+              </div>
+
+              {/* 章节列表 */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar -mx-2">
+                <div className="px-2 space-y-1">
+                  {/* 新章节输入框 */}
+                  {isAddingChapter && (
+                    <div className="relative px-3 py-2.5 rounded-xl bg-white shadow-lg shadow-zinc-200/60 ring-1 ring-zinc-900/5 transition-all">
+                      {/* 顶部装饰线 */}
+                      <div className="absolute top-0 left-3 right-3 h-0.5 rounded-full bg-gradient-to-r from-zinc-400 via-zinc-600 to-zinc-400" />
+
+                      <div className="flex items-start gap-3 pt-0.5">
+                        {/* 章节编号占位 */}
+                        <div className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[11px] bg-zinc-100/80 text-zinc-400">
+                          {chapters.length + 1}
+                        </div>
+
+                        {/* 输入框 */}
+                        <div className="flex-1 min-w-0">
+                          <input
+                            autoFocus
+                            type="text"
+                            value={newChapterTitle}
+                            onChange={(e) => setNewChapterTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleSaveNewChapter();
+                              } else if (e.key === 'Escape') {
+                                handleCancelAddChapter();
+                              }
+                            }}
+                            placeholder="章节标题"
+                            className="h-7 w-full text-[13px] border-0 px-0 bg-transparent focus:ring-0 focus:outline-none placeholder:text-zinc-400"
+                          />
+
+                          {/* 操作按钮 */}
+                          <div className="flex items-center justify-between mt-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleCancelAddChapter}
+                              className="h-6 px-2 text-[10px] bg-transparent hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 border-0 shadow-none"
+                            >
+                              取消
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={handleSaveNewChapter}
+                              className="h-6 px-2 text-[10px] bg-zinc-800 hover:bg-zinc-900 text-white border-0"
+                            >
+                              保存
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {novelChapters.map((chapter, index) => (
+                    <div
+                      key={chapter.id}
+                      onClick={() => handleChapterSelect(chapter.id)}
+                      className={`group relative px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-300 ${
+                        chapter.id === currentChapterId
+                          ? 'bg-white shadow-lg shadow-zinc-200/60 ring-1 ring-zinc-900/5'
+                          : 'text-zinc-700 hover:bg-white/60 hover:shadow-md hover:shadow-zinc-100'
+                      }`}
+                    >
+                      {/* 顶部装饰线 */}
+                      <div className={`absolute top-0 left-3 right-3 h-0.5 rounded-full transition-all duration-300 ${
+                        chapter.id === currentChapterId
+                          ? 'bg-gradient-to-r from-zinc-400 via-zinc-600 to-zinc-400'
+                          : 'bg-transparent group-hover:bg-zinc-200'
+                      }`} />
+
+                      <div className="flex items-start gap-3 pt-0.5">
+                        {/* 章节编号 */}
+                        <div className={`flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-medium transition-all duration-300 ${
+                          chapter.id === currentChapterId
+                            ? 'bg-gradient-to-br from-zinc-700 to-zinc-900 text-white shadow-md shadow-zinc-900/20'
+                            : 'bg-zinc-100/80 text-zinc-500 group-hover:bg-zinc-200 group-hover:text-zinc-700'
+                        }`}>
+                          {index + 1}
+                        </div>
+
+                        {/* 章节内容 */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className={`text-[13px] leading-snug truncate flex-1 transition-colors duration-300 ${
+                              chapter.id === currentChapterId ? 'text-zinc-900' : 'text-zinc-700'
+                            }`}>
+                              {chapter.title.replace(/^第\d+章\s*/, '')}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteChapter(chapter.id);
+                              }}
+                              className={`h-6 w-6 p-0 opacity-0 group-hover:opacity-100 flex-shrink-0 transition-all ${
+                                chapter.id === currentChapterId
+                                  ? 'text-zinc-400 hover:text-red-500 hover:bg-red-50/80'
+                                  : 'text-zinc-400 hover:text-red-500 hover:bg-red-50'
+                              }`}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+
+                          {/* 字数统计与进度 */}
+                          <div className="flex items-center gap-2 mt-2">
+                            <div className={`text-[10px] transition-colors duration-300 ${
+                              chapter.id === currentChapterId ? 'text-zinc-500' : 'text-zinc-400'
+                            }`}>
+                              {chapter.wordCount.toLocaleString()} 字
+                            </div>
+                            {/* 进度指示器 */}
+                            <div className={`flex-1 h-1 rounded-full transition-all duration-300 ${
+                              chapter.id === currentChapterId ? 'bg-zinc-100' : 'bg-zinc-100/60'
+                            }`}>
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${
+                                  chapter.id === currentChapterId
+                                    ? 'bg-gradient-to-r from-zinc-500 via-zinc-600 to-zinc-700 shadow-sm'
+                                    : 'bg-zinc-300 group-hover:bg-zinc-400'
+                                }`}
+                                style={{ width: `${Math.min((chapter.wordCount / 5000) * 100, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 底部微光效果 */}
+                      {chapter.id === currentChapterId && (
+                        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-zinc-200/50 to-transparent" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
-      </div>
-    </div>
 
-    {/* 确认对话框 */}
-    <ConfirmDialog
-      isOpen={confirmState.isOpen}
-      title={confirmState.title}
-      message={confirmState.message}
-      confirmText={confirmState.confirmText}
-      cancelText={confirmState.cancelText}
-      variant={confirmState.variant}
-      onConfirm={confirmState.onConfirm}
-      onCancel={closeConfirm}
-    />
-    
-    {/* 导出对话框 */}
-    {showExportDialog && (
-      <ExportDialog
-        workId={workId!}
-        workTitle={work.title}
-        onClose={() => setShowExportDialog(false)}
+        {/* 中间编辑器区域 */}
+        <div className="flex-1 flex flex-col bg-white overflow-hidden">
+          <NovelEditorWrapper
+            key={currentChapterId}
+            content={currentChapterContent}
+            onSave={handleEditorSave}
+            placeholder="开始写作..."
+            autoSave={true}
+            autoSaveInterval={3000}
+          />
+        </div>
+
+        {/* 右侧面板 */}
+        <div
+          className={`bg-white border-l border-zinc-100 flex flex-col transition-all duration-300 ${
+            isRightCollapsed ? 'w-12' : 'w-72'
+          }`}
+        >
+          {isRightCollapsed ? (
+            /* 折叠状态 */
+            <div className="flex flex-col items-center py-5 gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsRightCollapsed(false)}
+                className="h-10 w-10 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-50 hover:shadow-sm rounded-lg transition-all"
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </Button>
+              <div className="writing-mode-vertical text-[11px] text-zinc-400 tracking-widest" style={{ writingMode: 'vertical-rl' }}>
+                {rightPanel === 'world' ? '世界观' : rightPanel === 'analysis' ? '概括' : 'AI'}
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* 标签栏 */}
+              <div className="border-b border-zinc-100 px-2 py-2">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setRightPanel('world')}
+                    className={`flex-1 px-3 py-1.5 rounded-lg text-[12px] text-center transition-all duration-200 ${
+                      rightPanel === 'world'
+                        ? 'bg-zinc-900 text-white shadow-sm'
+                        : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
+                    }`}
+                  >
+                    世界观
+                  </button>
+                  <button
+                    onClick={() => setRightPanel('analysis')}
+                    className={`flex-1 px-3 py-1.5 rounded-lg text-[12px] text-center transition-all duration-200 ${
+                      rightPanel === 'analysis'
+                        ? 'bg-zinc-900 text-white shadow-sm'
+                        : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
+                    }`}
+                  >
+                    概括
+                  </button>
+                  <button
+                    onClick={() => setRightPanel('agent')}
+                    className={`flex-1 px-3 py-1.5 rounded-lg text-[12px] text-center transition-all duration-200 ${
+                      rightPanel === 'agent'
+                        ? 'bg-zinc-900 text-white shadow-sm'
+                        : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
+                    }`}
+                  >
+                    AI
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsRightCollapsed(true)}
+                    className="h-9 w-9 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-50 rounded-lg transition-all flex-shrink-0"
+                  >
+                    <ChevronRight className="h-6 w-6" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* 内容区 */}
+              <div className="flex-1 overflow-hidden">
+                {rightPanel === 'world' ? (
+                  <WorldviewPanel
+                    workId={workId!}
+                    worldData={worldData}
+                  />
+                ) : rightPanel === 'analysis' ? (
+                  <SummaryPanel
+                    workId={workId!}
+                    currentChapterId={currentChapterId}
+                    onToast={showToast}
+                  />
+                ) : (
+                  <AIPanel
+                    workId={workId!}
+                    chapterId={currentChapterId}
+                  />
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* 确认对话框 */}
+      <ConfirmDialog
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText={confirmState.confirmText}
+        cancelText={confirmState.cancelText}
+        variant={confirmState.variant}
+        onConfirm={confirmState.onConfirm}
+        onCancel={closeConfirm}
       />
-    )}
+
+      {/* 导出对话框 */}
+      {showExportDialog && (
+        <ExportDialog
+          workId={workId!}
+          workTitle={work.title}
+          onClose={() => setShowExportDialog(false)}
+        />
+      )}
     </>
   );
 };
