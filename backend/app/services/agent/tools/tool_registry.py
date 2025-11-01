@@ -480,3 +480,268 @@ def register_all_tools_from_api_definitions(api_definitions_path: str):
         tool_id = api_def["tool_id"]
         # ... 其他逻辑
         pass
+
+
+# ==================== StandardToolRegistry 标准化工具注册表 ====================
+
+from .tool_types import StandardTool, ToolInput, ToolOutput
+
+
+class StandardToolRegistry:
+    """
+    标准化工具注册表 (兼容DynamicToolRegistry)
+
+    新增功能:
+    1. 支持 StandardTool 强类型工具
+    2. 自动 Dict -> Pydantic 转换
+    3. 与 DynamicToolRegistry 共存
+    4. 统一的工具调用接口
+
+    特性:
+    - 向后兼容: 保留对旧工具系统的支持
+    - 类型安全: 使用 Pydantic 验证输入输出
+    - 统一接口: call_tool() 可调用两种类型的工具
+    """
+
+    def __init__(self):
+        """
+        初始化标准化工具注册表
+
+        包含:
+        - _standard_tools: 新的 StandardTool 工具字典
+        - _dynamic_registry: 旧的 DynamicToolRegistry 实例(兼容)
+        """
+        self._standard_tools: Dict[str, StandardTool] = {}
+        self._dynamic_registry = DynamicToolRegistry()
+
+    # ==================== 标准化工具注册 ====================
+
+    def register_standard_tool(self, tool: StandardTool):
+        """
+        注册标准化工具
+
+        Args:
+            tool: StandardTool 实例
+
+        Example:
+            >>> tool = StandardTool(
+            ...     name="my_tool",
+            ...     description="示例工具",
+            ...     category=ToolCategory.UTILITY,
+            ...     input_schema=MyInput,
+            ...     output_schema=MyOutput,
+            ...     executor=my_executor
+            ... )
+            >>> registry.register_standard_tool(tool)
+        """
+        self._standard_tools[tool.name] = tool
+        # print(f"✓ 注册标准化工具: {tool.name} ({tool.category.value})")  # Windows编码问题
+
+    def get_standard_tool(self, name: str) -> Optional[StandardTool]:
+        """
+        获取标准化工具
+
+        Args:
+            name: 工具名称
+
+        Returns:
+            StandardTool 实例,如果不存在则返回 None
+        """
+        return self._standard_tools.get(name)
+
+    def list_standard_tools(self) -> List[StandardTool]:
+        """
+        列出所有标准化工具
+
+        Returns:
+            StandardTool 列表
+        """
+        return list(self._standard_tools.values())
+
+    def unregister_standard_tool(self, name: str):
+        """
+        注销标准化工具
+
+        Args:
+            name: 工具名称
+        """
+        if name in self._standard_tools:
+            del self._standard_tools[name]
+            # print(f"✓ 注销标准化工具: {name}")  # Windows编码问题
+
+    # ==================== 兼容层 - 统一调用接口 ====================
+
+    async def call_tool(
+        self,
+        tool_id: str,
+        parameters: Dict[str, Any]
+    ) -> Any:
+        """
+        统一的工具调用接口 (兼容两种工具类型)
+
+        调用优先级:
+        1. 优先使用 StandardTool (如果存在)
+        2. 回退到 DynamicToolRegistry (如果存在)
+        3. 抛出异常 (工具不存在)
+
+        Args:
+            tool_id: 工具ID/名称
+            parameters: 参数字典
+
+        Returns:
+            工具执行结果
+
+        Raises:
+            ValueError: 工具不存在
+            ValidationError: 输入验证失败
+        """
+        # 1. 尝试使用 StandardTool
+        if tool_id in self._standard_tools:
+            tool = self._standard_tools[tool_id]
+
+            try:
+                # 自动将 Dict 转换为 Pydantic 模型
+                input_obj = tool.input_schema(**parameters)
+
+                # 执行工具
+                result = await tool.execute(input_obj)
+
+                # 返回字典格式(兼容旧接口)
+                return result.dict()
+
+            except Exception as e:
+                raise ValueError(f"StandardTool 执行失败: {str(e)}")
+
+        # 2. 回退到 DynamicToolRegistry
+        if tool_id in self._dynamic_registry.tools:
+            return await self._dynamic_registry.call_tool(tool_id, parameters)
+
+        # 3. 工具不存在
+        raise ValueError(
+            f"工具 '{tool_id}' 不存在\n"
+            f"可用的 StandardTool: {list(self._standard_tools.keys())}\n"
+            f"可用的 DynamicTool: {list(self._dynamic_registry.tools.keys())}"
+        )
+
+    # ==================== 兼容 DynamicToolRegistry 的方法 ====================
+
+    def register_tool(self, tool_def: ToolDefinition, executor: Callable):
+        """
+        注册动态工具 (委托给 DynamicToolRegistry)
+
+        Args:
+            tool_def: 工具定义
+            executor: 执行函数
+        """
+        self._dynamic_registry.register_tool(tool_def, executor)
+
+    def register_from_function(
+        self,
+        func: Callable,
+        tool_id: str,
+        category: str,
+        description: str = None,
+        examples: List[Dict] = None
+    ):
+        """
+        从函数注册工具 (委托给 DynamicToolRegistry)
+
+        Args:
+            func: 函数
+            tool_id: 工具ID
+            category: 分类
+            description: 描述
+            examples: 示例
+        """
+        self._dynamic_registry.register_from_function(
+            func, tool_id, category, description, examples
+        )
+
+    def get_tool(self, tool_id: str) -> Optional[ToolDefinition]:
+        """
+        获取动态工具定义 (委托给 DynamicToolRegistry)
+
+        Args:
+            tool_id: 工具ID
+
+        Returns:
+            ToolDefinition 或 None
+        """
+        return self._dynamic_registry.get_tool(tool_id)
+
+    def list_tools(
+        self,
+        category: Optional[str] = None,
+        tags: Optional[List[str]] = None
+    ) -> List[ToolDefinition]:
+        """
+        列出动态工具 (委托给 DynamicToolRegistry)
+
+        Args:
+            category: 分类筛选
+            tags: 标签筛选
+
+        Returns:
+            ToolDefinition 列表
+        """
+        return self._dynamic_registry.list_tools(category, tags)
+
+    def get_tool_stats(self, tool_id: str) -> Optional[ToolMetadata]:
+        """
+        获取工具统计 (委托给 DynamicToolRegistry)
+
+        Args:
+            tool_id: 工具ID
+
+        Returns:
+            ToolMetadata 或 None
+        """
+        return self._dynamic_registry.get_tool_stats(tool_id)
+
+    # ==================== 工具信息汇总 ====================
+
+    def get_all_tools_info(self) -> Dict[str, Any]:
+        """
+        获取所有工具信息 (包括两种类型)
+
+        Returns:
+            工具信息字典
+        """
+        return {
+            "standard_tools": {
+                "count": len(self._standard_tools),
+                "tools": [
+                    {
+                        "name": tool.name,
+                        "category": tool.category.value,
+                        "description": tool.description,
+                        "version": tool.version,
+                        "stats": tool.get_statistics()
+                    }
+                    for tool in self._standard_tools.values()
+                ]
+            },
+            "dynamic_tools": {
+                "count": len(self._dynamic_registry.tools),
+                "tools": [
+                    {
+                        "tool_id": tool.tool_id,
+                        "name": tool.name,
+                        "category": tool.category,
+                        "description": tool.description,
+                        "version": tool.version
+                    }
+                    for tool in self._dynamic_registry.tools.values()
+                ]
+            }
+        }
+
+
+# ==================== 全局统一注册表实例 ====================
+
+# 新的全局注册表 (兼容旧系统)
+registry = StandardToolRegistry()
+
+# 保留旧的全局注册表变量 (向后兼容)
+# global_registry 仍然可以使用,但建议使用新的 registry
+# global_registry = DynamicToolRegistry() # 已在上面定义

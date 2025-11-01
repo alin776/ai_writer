@@ -1,0 +1,14 @@
+{
+  "timestamp": "2025-11-01T19:17:42.216521",
+  "total_tests": 6,
+  "passed_tests": 6,
+  "pass_rate": 100.0,
+  "detailed_results": {
+    "基础导入": true,
+    "系统监控器": true,
+    "业务指标": true,
+    "健康检查": true,
+    "告警系统": true,
+    "报告生成": true
+  }
+}
