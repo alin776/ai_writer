@@ -4,12 +4,22 @@ import { ArrowLeft, Edit, Trash2, Plus, BookOpen, BarChart3, BookMarked, Downloa
 import { Button, Card, Loading } from '../../components/common';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import ExportDialog from '../../components/export/ExportDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../components/ui/alert-dialog';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
 import type { Work, Chapter, CreateChapterData } from '../../types';
 import type { Chapter as NovelChapter, WorldData, Character, Location, Setting, WorkGuidelines } from '../../types/novel';
 import { formatDate } from '../../utils/formatDate';
-import { NovelEditorWrapper } from '../../components/editor/NovelEditorWrapper';
+import NovelEditor from '../../components/editor/NovelEditor';
 import { WorldviewPanel } from '../../components/editor/WorldviewPanel';
 import { SummaryPanel } from '../../components/editor/SummaryPanel';
 import { AIPanel } from '../../components/editor/AIPanel';
@@ -59,9 +69,20 @@ const WorkDetailView: React.FC = () => {
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
 
+  // 右侧面板宽度
+  const [rightPanelWidth, setRightPanelWidth] = useState(() => {
+    const saved = localStorage.getItem('rightPanelWidth');
+    return saved ? parseInt(saved, 10) : 288; // 默认 288px (w-72)
+  });
+  const [isResizing, setIsResizing] = useState(false);
+
   // 添加章节输入框状态
   const [isAddingChapter, setIsAddingChapter] = useState(false);
   const [newChapterTitle, setNewChapterTitle] = useState('');
+
+  // 删除章节确认对话框状态
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [chapterToDelete, setChapterToDelete] = useState<string | null>(null);
 
   /**
    * 转换 Chapter 到 NovelChapter 格式
@@ -748,6 +769,53 @@ const WorkDetailView: React.FC = () => {
     }
   }, [workId, showToast]);
 
+  /**
+   * 拖动调整右侧面板宽度
+   */
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+
+      // 计算新宽度（从右边缘往左计算）
+      const newWidth = window.innerWidth - e.clientX;
+
+      // 限制最小和最大宽度
+      const minWidth = 240; // 最小 240px
+      const maxWidth = 600; // 最大 600px
+      const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+
+      setRightPanelWidth(clampedWidth);
+    };
+
+    const handleMouseUp = () => {
+      if (isResizing) {
+        setIsResizing(false);
+        // 保存到 localStorage
+        localStorage.setItem('rightPanelWidth', rightPanelWidth.toString());
+      }
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      // 防止文本选中
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'col-resize';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, [isResizing, rightPanelWidth]);
+
   if (isLoading) {
     return <Loading />;
   }
@@ -849,7 +917,8 @@ const WorkDetailView: React.FC = () => {
                               }
                             }}
                             placeholder="章节标题"
-                            className="h-7 w-full text-[13px] border-0 px-0 bg-transparent focus:ring-0 focus:outline-none placeholder:text-zinc-400"
+                            className="h-7 w-full text-[13px] border-0 px-0 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-zinc-400"
+                            style={{ outline: 'none', boxShadow: 'none' }}
                           />
 
                           {/* 操作按钮 */}
@@ -910,21 +979,38 @@ const WorkDetailView: React.FC = () => {
                             }`}>
                               {chapter.title.replace(/^第\d+章\s*/, '')}
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
+                            <button
+                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDeleteChapter(chapter.id);
+                                setChapterToDelete(chapter.id);
+                                setDeleteDialogOpen(true);
                               }}
-                              className={`h-6 w-6 p-0 opacity-0 group-hover:opacity-100 flex-shrink-0 transition-all ${
+                              className={`h-6 w-6 p-0 rounded flex items-center justify-center border-0 bg-transparent opacity-0 group-hover:opacity-100 flex-shrink-0 transition-all ${
                                 chapter.id === currentChapterId
                                   ? 'text-zinc-400 hover:text-red-500 hover:bg-red-50/80'
                                   : 'text-zinc-400 hover:text-red-500 hover:bg-red-50'
                               }`}
+                              aria-label="删除章节"
                             >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="12"
+                                height="12"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M3 6h18"></path>
+                                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                <line x1="10" x2="10" y1="11" y2="17"></line>
+                                <line x1="14" x2="14" y1="11" y2="17"></line>
+                              </svg>
+                            </button>
                           </div>
 
                           {/* 字数统计与进度 */}
@@ -965,7 +1051,7 @@ const WorkDetailView: React.FC = () => {
 
         {/* 中间编辑器区域 */}
         <div className="flex-1 flex flex-col bg-white overflow-hidden">
-          <NovelEditorWrapper
+          <NovelEditor
             key={currentChapterId}
             content={currentChapterContent}
             onSave={handleEditorSave}
@@ -977,10 +1063,21 @@ const WorkDetailView: React.FC = () => {
 
         {/* 右侧面板 */}
         <div
-          className={`bg-white border-l border-zinc-100 flex flex-col transition-all duration-300 ${
-            isRightCollapsed ? 'w-12' : 'w-72'
+          className={`relative bg-white border-l border-zinc-100 flex flex-col transition-all duration-300 ${
+            isRightCollapsed ? 'w-12' : ''
           }`}
+          style={!isRightCollapsed ? { width: `${rightPanelWidth}px` } : undefined}
         >
+          {/* 可拖动的分隔条 */}
+          {!isRightCollapsed && (
+            <div
+              onMouseDown={handleMouseDown}
+              className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 transition-colors z-10 group"
+              style={{ marginLeft: '-2px' }}
+            >
+              <div className="absolute inset-y-0 -left-1 -right-1" />
+            </div>
+          )}
           {isRightCollapsed ? (
             /* 折叠状态 */
             <div className="flex flex-col items-center py-5 gap-4">
@@ -1087,6 +1184,59 @@ const WorkDetailView: React.FC = () => {
           onClose={() => setShowExportDialog(false)}
         />
       )}
+
+      {/* 删除章节确认对话框 */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[15px] text-zinc-900">删除章节</AlertDialogTitle>
+            <AlertDialogDescription className="text-[13px] text-zinc-500 leading-relaxed">
+              确定要删除这个章节吗？此操作无法撤销，章节内容将永久丢失。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="text-[12px] h-8 bg-transparent hover:bg-zinc-100 text-zinc-600 hover:text-zinc-900 border-zinc-200">
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (chapterToDelete) {
+                  const chapter = chapters.find((c) => c.id === chapterToDelete);
+                  if (!chapter) return;
+
+                  try {
+                    // 从状态中删除
+                    setChapters((prev) => prev.filter((c) => c.id !== chapterToDelete));
+
+                    // 如果删除的是当前章节，切换到第一个章节
+                    if (currentChapterId === chapterToDelete) {
+                      const remainingChapters = chapters.filter((c) => c.id !== chapterToDelete);
+                      if (remainingChapters.length > 0) {
+                        setCurrentChapterId(remainingChapters[0].id);
+                        setCurrentChapterContent(remainingChapters[0].content);
+                      } else {
+                        setCurrentChapterId(undefined);
+                        setCurrentChapterContent('');
+                      }
+                    }
+
+                    // 从后端删除
+                    await DataService.deleteChapter(chapterToDelete);
+                    showToast('success', '章节删除成功');
+                  } catch (error) {
+                    showToast('error', '章节删除失败');
+                  } finally {
+                    setChapterToDelete(null);
+                  }
+                }
+              }}
+              className="text-[12px] h-8 bg-red-500 hover:bg-red-600 text-white"
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
