@@ -26,6 +26,7 @@ from redis import Redis
 from .types import MemoryItem, MemoryLayer, MemorySnapshot, MemoryStats
 from .memory_strategy import SmartForgetStrategy
 from app.core.config import settings
+from ..utils import robust_retry, safe_execute_async, global_error_handler, ErrorCategory
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ class EnhancedMemoryManager:
 
     # ==================== 记忆添加 ====================
 
-    def add_memory(
+    async def add_memory(
         self,
         user_id: str,
         conversation_id: str,
@@ -130,23 +131,39 @@ class EnhancedMemoryManager:
                 metadata=metadata or {}
             )
 
-            # 2. 添加到短期记忆
-            self._add_to_short_term(user_id, memory)
+            # 2. 添加到短期记忆（使用重试机制）
+            await self._safe_add_to_short_term(user_id, memory)
             logger.info(f"Memory {memory.id} added to short-term for user {user_id}")
 
             # 3. 应用智能遗忘策略（失败不影响主流程）
-            try:
-                self.apply_forgetting(user_id, conversation_id)
-            except Exception as e:
-                logger.warning(f"Forgetting failed for user {user_id}: {e}")
+            await safe_execute_async(
+                self.apply_forgetting,
+                user_id,
+                conversation_id,
+                context={"user_id": user_id, "action": "apply_forgetting"},
+                fallback_result=None
+            )
 
             return memory
 
         except redis.RedisError as e:
-            logger.error(f"Redis error when adding memory: {e}")
-            raise
+            # 记录Redis错误并尝试降级处理
+            error_info = global_error_handler.classify_error(
+                e,
+                {"user_id": user_id, "conversation_id": conversation_id, "action": "add_memory"}
+            )
+            global_error_handler.handle_error(error_info)
+            # Redis错误时的降级策略：返回内存中的记忆条目
+            logger.warning(f"Redis error, using in-memory fallback for user {user_id}")
+            return memory
+
         except Exception as e:
-            logger.error(f"Unexpected error when adding memory: {e}")
+            # 其他异常直接抛出
+            error_info = global_error_handler.classify_error(
+                e,
+                {"user_id": user_id, "conversation_id": conversation_id, "action": "add_memory"}
+            )
+            global_error_handler.handle_error(error_info)
             raise
 
     # ==================== 记忆检索 ====================
@@ -529,6 +546,62 @@ class EnhancedMemoryManager:
     def _generate_snapshot_id(self) -> str:
         """生成快照ID"""
         return f"snap_{uuid.uuid4().hex[:12]}"
+
+    @robust_retry(max_attempts=3, delay=0.5, fallback_result=None)
+    async def _safe_add_to_short_term(self, user_id: str, memory: MemoryItem):
+        """安全添加到短期记忆（带重试机制）"""
+        self._add_to_short_term(user_id, memory)
+
+    @robust_retry(max_attempts=3, delay=0.5, fallback_result=None)
+    async def _safe_get_short_term_memories(self, user_id: str, limit: int) -> List[MemoryItem]:
+        """安全获取短期记忆（带重试机制）"""
+        return self._get_short_term_memories(user_id, limit)
+
+    @robust_retry(max_attempts=3, delay=0.5, fallback_result=[])
+    async def _safe_get_medium_term_memories(self, user_id: str, limit: int) -> List[MemoryItem]:
+        """安全获取中期记忆（带重试机制）"""
+        return self._get_medium_term_memories(user_id, limit)
+
+    async def get_recent_memories_safe(
+        self,
+        user_id: str,
+        limit: int = 10,
+        fallback_to_empty: bool = True
+    ) -> List[MemoryItem]:
+        """
+        安全获取最近记忆（带降级处理）
+
+        Args:
+            user_id: 用户ID
+            limit: 返回数量限制
+            fallback_to_empty: Redis失败时是否返回空列表
+
+        Returns:
+            List[MemoryItem]: 记忆列表
+        """
+        try:
+            # 尝试获取短期记忆
+            short_memories = await self._safe_get_short_term_memories(user_id, limit)
+
+            # 如果短期记忆不足，获取中期记忆
+            if len(short_memories) < limit:
+                medium_memories = await self._safe_get_medium_term_memories(user_id, limit - len(short_memories))
+                return short_memories + medium_memories[:limit - len(short_memories)]
+
+            return short_memories[:limit]
+
+        except Exception as e:
+            error_info = global_error_handler.classify_error(
+                e,
+                {"user_id": user_id, "action": "get_recent_memories"}
+            )
+            global_error_handler.handle_error(error_info)
+
+            if fallback_to_empty:
+                logger.warning(f"Memory retrieval failed for user {user_id}, returning empty list")
+                return []
+            else:
+                raise
 
     def get_stats(self, user_id: str) -> MemoryStats:
         """

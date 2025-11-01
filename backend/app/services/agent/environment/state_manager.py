@@ -9,6 +9,8 @@ import logging
 from datetime import datetime
 from copy import deepcopy
 
+from ..utils import robust_retry, safe_execute_async, global_error_handler, ErrorCategory
+
 logger = logging.getLogger(__name__)
 
 
@@ -254,39 +256,31 @@ class StateManager:
         """生成Redis key"""
         return f"agent:state:{conversation_id}"
 
+    @robust_retry(max_attempts=3, delay=0.5, fallback_result=None)
     async def _get_from_redis(self, conversation_id: str) -> Optional[Dict[str, Any]]:
-        """从Redis读取状态"""
-        try:
-            key = self._get_redis_key(conversation_id)
-            state_json = await self.redis.get(key)
+        """从Redis读取状态（带重试机制）"""
+        key = self._get_redis_key(conversation_id)
+        state_json = await self.redis.get(key)
 
-            if state_json:
-                if isinstance(state_json, bytes):
-                    state_json = state_json.decode('utf-8')
-                return json.loads(state_json)
+        if state_json:
+            if isinstance(state_json, bytes):
+                state_json = state_json.decode('utf-8')
+            return json.loads(state_json)
 
-            return None
+        return None
 
-        except Exception as e:
-            logger.error(f"[StateManager] Redis读取失败: {e}")
-            return None
-
+    @robust_retry(max_attempts=3, delay=0.5, fallback_result=False)
     async def _save_to_redis(
         self,
         conversation_id: str,
         state: Dict[str, Any]
     ) -> bool:
-        """保存状态到Redis"""
-        try:
-            key = self._get_redis_key(conversation_id)
-            state_json = json.dumps(state, ensure_ascii=False)
+        """保存状态到Redis（带重试机制）"""
+        key = self._get_redis_key(conversation_id)
+        state_json = json.dumps(state, ensure_ascii=False)
 
-            await self.redis.set(key, state_json, ex=self.default_ttl)
-            return True
-
-        except Exception as e:
-            logger.error(f"[StateManager] Redis保存失败: {e}")
-            return False
+        await self.redis.set(key, state_json, ex=self.default_ttl)
+        return True
 
     # ========== 数据库相关方法 ==========
 
