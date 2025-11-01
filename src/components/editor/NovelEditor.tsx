@@ -7,7 +7,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import CharacterCount from '@tiptap/extension-character-count';
-// 注意：StarterKit 3.7.0+ 已包含 Link 和 Underline，不要重复导入
+import Underline from '@tiptap/extension-underline';
 import Image from '@tiptap/extension-image';
 import HorizontalRule from '@tiptap/extension-horizontal-rule';
 import { TextStyle } from '@tiptap/extension-text-style';
@@ -66,17 +66,17 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         },
         codeBlock: false, // 禁用默认代码块，使用 CodeBlockLowlight
         horizontalRule: false, // 禁用默认水平线，稍后单独引入
-        // Link 和 Underline 在 StarterKit 3.7.0+ 中已包含，无需单独引入
         link: {
           openOnClick: false,
           HTMLAttributes: {
             class: 'text-blue-600 hover:text-blue-800 underline cursor-pointer',
           },
         },
-        // underline: true, // 启用下划线（StarterKit 3.7.0+ 已包含）
       }),
       // 水平分割线（单独引入以便自定义）
       HorizontalRule,
+      // 下划线（显式添加）
+      Underline,
       // 代码块语法高亮
       CodeBlockLowlight.configure({
         lowlight: createLowlight(common),
@@ -95,7 +95,6 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         emptyEditorClass: 'is-editor-empty',
       }),
       CharacterCount,
-      // Link 和 Underline 已在 StarterKit 中配置，无需重复
       Image.configure({
         HTMLAttributes: {
           class: 'rounded-lg max-w-full h-auto',
@@ -147,7 +146,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     editorProps: {
       attributes: {
         class:
-          'prose prose-lg dark:prose-invert max-w-[900px] mx-auto focus:outline-none min-h-screen px-16 py-12',
+          'prose prose-lg dark:prose-invert w-full max-w-full mx-auto focus:outline-none min-h-screen px-8 py-8',
       },
     },
     onUpdate: ({ editor }) => {
@@ -244,31 +243,31 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         <EditorToolbar editor={editor} />
 
         {/* 状态栏 - 极简设计 */}
-        <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-gray-100">
-          <div className="flex items-center space-x-4 text-sm text-gray-600">
-            <div className="flex items-center space-x-2">
-              <span className="font-medium">字数:</span>
-              <span>{wordCount}</span>
+        <div className="flex items-center justify-between px-5 py-1.5 bg-zinc-50/40 border-b border-zinc-100">
+          <div className="flex items-center gap-3 text-[11px] text-zinc-600">
+            <div className="flex items-center gap-1.5">
+              <span>字数:</span>
+              <span className="text-zinc-900">{wordCount}</span>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className="font-medium">字符:</span>
-              <span>{countCharactersInHtml(editor.getHTML())}</span>
+            <div className="flex items-center gap-1.5">
+              <span>字符:</span>
+              <span className="text-zinc-900">{countCharactersInHtml(editor.getHTML())}</span>
             </div>
           </div>
 
           {/* 保存状态 */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center">
             {saveStatus === 'saved' && (
-              <div className="flex items-center space-x-1 text-green-600">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="flex items-center gap-1 text-green-600">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                <span className="text-sm">已保存</span>
+                <span className="text-[11px]">已保存</span>
               </div>
             )}
             {saveStatus === 'saving' && (
-              <div className="flex items-center space-x-1 text-blue-600">
-                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <div className="flex items-center gap-1 text-blue-600">
+                <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path
                     className="opacity-75"
@@ -276,12 +275,12 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   />
                 </svg>
-                <span className="text-sm">保存中...</span>
+                <span className="text-[11px]">保存中...</span>
               </div>
             )}
             {saveStatus === 'unsaved' && (
-              <div className="flex items-center space-x-1 text-orange-600">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="flex items-center gap-1 text-orange-600">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -289,7 +288,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
                     d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg>
-                <span className="text-sm">未保存</span>
+                <span className="text-[11px]">未保存</span>
               </div>
             )}
           </div>

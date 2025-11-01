@@ -1025,7 +1025,7 @@ class WritingAgentGraph:
             elif tool_name == "read_chapter_tool":
                 tool_result = await read_chapter_tool.ainvoke({
                     "work_id": state.get("work_id", ""),
-                    "chapter_id": tool_args.get("chapter_id", state.get("chapter_id", ""))
+                    "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or ""
                 })
             elif tool_name == "get_chapter_by_order_tool":
                 logger.info(f"[LangGraph] 🚀 准备调用 get_chapter_by_order_tool, work_id={state.get('work_id')}, chapter_order={tool_args.get('chapter_order')}")
@@ -1688,7 +1688,7 @@ class WritingAgentGraph:
         elif tool_name == "get_context_tool":
             result = await get_context_tool.ainvoke({
                 "work_id": work_id,
-                "chapter_id": chapter_id
+                "chapter_id": chapter_id or ""
             })
         elif tool_name == "read_chapter_tool":
             # 检查是否提供了 chapter_id 参数
@@ -1701,7 +1701,7 @@ class WritingAgentGraph:
 
             result = await read_chapter_tool.ainvoke({
                 "work_id": work_id,
-                "chapter_id": params.get("chapter_id", chapter_id)
+                "chapter_id": params.get("chapter_id") or chapter_id or ""
             })
         elif tool_name == "search_analysis_fragments_tool":
             result = await search_analysis_fragments_tool.ainvoke({

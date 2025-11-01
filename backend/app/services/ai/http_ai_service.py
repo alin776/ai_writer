@@ -8,6 +8,7 @@ import httpx
 import json
 import logging
 import asyncio
+import hashlib
 from typing import AsyncGenerator, Optional
 from datetime import datetime
 from app.core.config import settings
@@ -564,3 +565,46 @@ class HTTPAIService:
 
         # 理论上不会到这里
         raise Exception(f"AI调用失败,已重试{max_retries}次")
+
+    def _generate_cache_key(
+        self,
+        messages: list,
+        model: str,
+        temperature: float,
+        max_tokens: int
+    ) -> str:
+        """
+        生成缓存键
+
+        Args:
+            messages: 消息列表
+            model: 模型名称
+            temperature: 温度参数
+            max_tokens: 最大token数
+
+        Returns:
+            str: 缓存键
+        """
+        # 限制消息长度以避免内存问题
+        max_message_length = 10000  # 10k字符限制
+        messages_str = json.dumps(messages, sort_keys=True, ensure_ascii=False)
+
+        if len(messages_str) > max_message_length:
+            # 对过长消息进行截断并添加标记
+            messages_str = messages_str[:max_message_length] + "...[TRUNCATED]"
+            logger.warning(f"Message truncated for cache key generation, original length: {len(messages_str)}")
+
+        # 创建缓存键的组成部分，标准化温度精度
+        key_components = [
+            messages_str,
+            model,
+            f"{temperature:.3f}",  # 限制温度为3位小数
+            str(max_tokens)
+        ]
+
+        # 组合并生成MD5哈希
+        key_string = "|".join(key_components)
+        cache_key = hashlib.md5(key_string.encode('utf-8')).hexdigest()
+
+        logger.debug(f"Generated cache key: {cache_key}")
+        return cache_key
