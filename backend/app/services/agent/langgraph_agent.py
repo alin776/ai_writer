@@ -21,6 +21,8 @@ import logging
 
 from app.services.ai.http_ai_service import HTTPAIService
 from app.core.config import settings
+from app.services.agent.prompts import NovelPhase, PhaseCharacteristics
+from app.services.agent.prompt_library import get_content_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -1072,12 +1074,73 @@ class WritingAgentGraph:
         return state
 
     async def _handle_writing(self, state: AgentState) -> AgentState:
-        """处理写作场景"""
+        """处理写作场景 - 使用 Prompt 库优化"""
         work_id = state.get("work_id")
         chapter_id = state.get("chapter_id")
         context_info = state.get("context", {})
 
-        system_prompt = f"""你是专业的网络小说写作助手Agent，专注于创作网文故事。
+        # 尝试识别章节号,确定创作阶段
+        phase = None
+        chapter_num = None
+
+        # 从用户消息中提取章节号
+        last_message = state["messages"][-1].content if state["messages"] else ""
+        import re
+        chapter_match = re.search(r'第(\d+)章|chapter\s*(\d+)', last_message, re.IGNORECASE)
+        if chapter_match:
+            chapter_num = int(chapter_match.group(1) or chapter_match.group(2))
+            phase = PhaseCharacteristics.get_phase_by_chapter(chapter_num)
+            logger.info(f"[Writing] 识别到章节号: {chapter_num}, 阶段: {phase.value}")
+
+        # 使用 Prompt 库生成系统 Prompt
+        if phase:
+            # 使用阶段 Prompt (包含爽感优化)
+            base_system_prompt = get_content_prompt(
+                phase=phase,
+                scene_type=None,  # 可以根据需要添加场景识别
+                context={
+                    'current_chapter': chapter_num,
+                    'total_chapters': 50  # 默认50章,可配置
+                }
+            )
+
+            # 添加工具使用说明
+            tools_instruction = f"""
+
+---
+
+【工具使用】
+可用工具：
+- get_context_tool: 获取作品/章节上下文（包含作品信息、章节内容、相关分析）
+- read_chapter_tool: 读取指定章节的完整内容（需要chapter_id）
+- get_chapter_by_order_tool: 通过章节序号获取章节（用户说"第X章"时用这个）
+- search_analysis_fragments_tool: 从向量数据库检索相关的小说分析片段（RAG）
+- continue_writing_tool: 续写内容
+- polish_text_tool: 润色文本
+
+当前信息：作品ID={work_id}, 当前页面章节ID={chapter_id}
+
+【重要】章节处理流程：
+1. 用户说"续写第X章"或"读第X章"时：
+   - 先调用 get_chapter_by_order_tool 获取第X章的 chapter_id 和内容
+   - 例如：用户说"续写第二章"，你应该调用 get_chapter_by_order_tool(chapter_order=2)
+
+2. 用户说"续写"但没指定章节时：
+   - 使用当前页面的 chapter_id 调用 read_chapter_tool
+
+3. 续写要求：
+   - 必须先读取章节的真实内容
+   - 续写必须紧接章节结尾，不要重新开头
+   - 保持原文的写作风格、人物性格、情节发展
+   - 写网络小说故事，不是技术文档或编程内容
+   - 可调用 search_analysis_fragments_tool 获取世界观、角色设定
+
+根据用户需求，决定调用合适的工具。"""
+
+            system_prompt = base_system_prompt + tools_instruction
+        else:
+            # 没有识别到章节,使用默认 Prompt
+            system_prompt = f"""你是专业的网络小说写作助手Agent，专注于创作网文故事。
 
 【重要】你的写作风格：
 - 你是网文作家，不是程序员或技术文档作者
