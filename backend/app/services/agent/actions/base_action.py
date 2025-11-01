@@ -145,10 +145,16 @@ class BaseAction(ABC):
         Returns:
             bool: 是否有效
         """
-        # 默认实现: 检查state是否为字典
-        if not isinstance(state, dict):
-            self.logger.error(f"[{self.name}] 无效的输入类型: {type(state)}")
+        # 检查state是否为None
+        if state is None:
+            self.logger.error(f"[{self.name}] 输入state为None")
             return False
+
+        # 检查state是否为字典
+        if not isinstance(state, dict):
+            self.logger.error(f"[{self.name}] 无效的输入类型: {type(state)}, 期望dict")
+            return False
+
         return True
 
     async def before_execute(self, state: Dict[str, Any]):

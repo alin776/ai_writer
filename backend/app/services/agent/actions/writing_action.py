@@ -152,25 +152,35 @@ class WritingAction(BaseAction):
                 metadata={"action": "writing"}
             )
 
-    def _detect_phase(self, message: str) -> tuple[Optional[NovelPhase], Optional[int]]:
+    def _detect_phase(self, message: str | int) -> tuple[Optional[NovelPhase], Optional[int]]:
         """
         检测章节阶段
 
         从用户消息中提取章节号，并根据章节号判断创作阶段
 
         Args:
-            message: 用户消息
+            message: 用户消息(字符串)或章节号(整数)
 
         Returns:
             (phase, chapter_num): 阶段和章节号
         """
-        # 从用户消息中提取章节号
-        chapter_match = re.search(r'第(\d+)章|chapter\s*(\d+)', message, re.IGNORECASE)
+        chapter_num = None
 
-        if chapter_match:
-            chapter_num = int(chapter_match.group(1) or chapter_match.group(2))
+        # 处理整数输入(直接传入章节号)
+        if isinstance(message, int):
+            chapter_num = message
+            self.logger.info(f"[{self.name}] 直接输入章节号: {chapter_num}")
+        # 处理字符串输入(从消息中提取章节号)
+        elif isinstance(message, str):
+            chapter_match = re.search(r'第(\d+)章|chapter\s*(\d+)', message, re.IGNORECASE)
+            if chapter_match:
+                chapter_num = int(chapter_match.group(1) or chapter_match.group(2))
+                self.logger.info(f"[{self.name}] 从消息中识别到章节号: {chapter_num}")
+
+        # 根据章节号判断阶段
+        if chapter_num is not None:
             phase = PhaseCharacteristics.get_phase_by_chapter(chapter_num)
-            self.logger.info(f"[{self.name}] 识别到章节号: {chapter_num}, 阶段: {phase.value}")
+            self.logger.info(f"[{self.name}] 章节 {chapter_num} 属于阶段: {phase.value}")
             return phase, chapter_num
 
         return None, None
