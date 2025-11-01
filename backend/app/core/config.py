@@ -98,6 +98,33 @@ class Settings(BaseSettings):
     # 小说分析配置
     ANALYSIS_MAX_RETRIES: int = 3  # 单章分析失败最大重试次数
     ANALYSIS_TIMEOUT: int = 3600  # 整体分析超时时间（秒），默认1小时
+
+    # ==================== Agent 增强功能配置 ====================
+
+    # 功能开关
+    ENABLE_ENHANCED_MEMORY: bool = True  # 启用增强的Memory系统
+    ENABLE_QUALITY_LOOP: bool = True  # 启用质量循环机制
+    ENABLE_VERSION_CONTROL: bool = True  # 启用版本管理系统
+    ENABLE_MODEL_SELECTION: bool = True  # 启用智能模型选择
+    ENABLE_SMART_PROMPTS: bool = True  # 启用智能Prompt库
+
+    # Memory 系统配置
+    MEMORY_SHORT_TERM_SIZE: int = 10  # 短期记忆容量（最近N条）
+    MEMORY_MEDIUM_TERM_SIZE: int = 100  # 中期记忆容量（最近N条）
+    MEMORY_FORGET_THRESHOLD: float = 0.1  # 遗忘阈值（重要度低于此值将被遗忘）
+
+    # 质量循环配置
+    QUALITY_LOOP_MAX_ITERATIONS: int = 3  # 质量循环最大迭代次数
+    QUALITY_LOOP_PASS_THRESHOLD: float = 8.0  # 质量通过阈值（0-10分）
+
+    # 模型选择配置
+    MODEL_SIMPLE_TASK: str = "deepseek-chat"  # 简单任务使用的模型
+    MODEL_MEDIUM_TASK: str = "gpt-3.5-turbo"  # 中等任务使用的模型
+    MODEL_COMPLEX_TASK: str = "gpt-4-turbo"  # 复杂任务使用的模型
+
+    # 成本控制配置
+    ENABLE_COST_TRACKING: bool = True  # 启用成本追踪
+    DAILY_COST_LIMIT_PER_USER: float = 10.0  # 每用户每天成本限额（元）
     ANALYSIS_RETRY_DELAY: int = 2  # 重试延迟（秒）
 
     # 小说分析并发配置

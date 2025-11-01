@@ -1,0 +1,53 @@
+# Agent 系统配置文件模板
+# 复制此文件为 .env 或相应的环境配置文件
+
+# ==================== 模型配置 ====================
+DEFAULT_MODEL="gemini-2.5-flash"
+FALLBACK_MODEL="gemini-2.5-flash-lite"
+ENABLE_MODEL_SELECTOR=true
+ENABLE_COST_TRACKING=true
+
+# ==================== 性能配置 ====================
+MAX_CONCURRENT_ACTIONS=5
+MAX_CONCURRENT_TOOLS=3
+ACTION_TIMEOUT=300
+TOOL_TIMEOUT=60
+LLM_TIMEOUT=120
+
+# ==================== 缓存配置 ====================
+MEMORY_SHORT_TERM_SIZE=10
+MEMORY_MEDIUM_TERM_SIZE=100
+MEMORY_CACHE_SIZE=1000
+MEMORY_FORGET_THRESHOLD=0.1
+REDIS_TTL=3600
+REDIS_CONNECTION_POOL_SIZE=20
+
+# ==================== 质量控制配置 ====================
+QUALITY_THRESHOLD=8.0
+MAX_QUALITY_RETRIES=3
+ENABLE_QUALITY_CACHE=true
+
+# ==================== 错误处理配置 ====================
+DEFAULT_MAX_RETRIES=3
+DEFAULT_RETRY_DELAY=1.0
+CIRCUIT_BREAKER_THRESHOLD=5
+CIRCUIT_BREAKER_TIMEOUT=60.0
+
+# ==================== 日志配置 ====================
+LOG_LEVEL=INFO
+LOG_FORMAT=json
+ENABLE_STRUCTURED_LOGGING=true
+
+# ==================== 监控配置 ====================
+ENABLE_PERFORMANCE_MONITORING=true
+SLOW_QUERY_THRESHOLD=10.0
+COST_ALERT_THRESHOLD=10.0
+DAILY_COST_LIMIT=50.0
+
+# ==================== 安全配置 ====================
+ENABLE_DATA_ENCRYPTION=false
+MAX_CONTENT_LENGTH=10000
+
+# ==================== 实验性功能 ====================
+ENABLE_EXPERIMENTAL_FEATURES=false
+ENABLE_ADVANCED_CACHING=false
