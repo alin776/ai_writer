@@ -26,9 +26,12 @@ from redis import Redis
 from .types import MemoryItem, MemoryLayer, MemorySnapshot, MemoryStats
 from .memory_strategy import SmartForgetStrategy
 from app.core.config import settings
-from ..utils import robust_retry, safe_execute_async, global_error_handler, ErrorCategory
+from ..utils import robust_retry, safe_execute_async, global_error_handler, ErrorCategory, cache_result, performance_optimizer
 
 logger = logging.getLogger(__name__)
+
+# 内存缓存将在需要时创建
+_memory_index_cache = None
 
 
 class EnhancedMemoryManager:
@@ -135,7 +138,10 @@ class EnhancedMemoryManager:
             await self._safe_add_to_short_term(user_id, memory)
             logger.info(f"Memory {memory.id} added to short-term for user {user_id}")
 
-            # 3. 应用智能遗忘策略（失败不影响主流程）
+            # 3. 更新缓存索引
+            self._update_cache_index(user_id, memory)
+
+            # 4. 应用智能遗忘策略（失败不影响主流程）
             await safe_execute_async(
                 self.apply_forgetting,
                 user_id,
@@ -562,6 +568,7 @@ class EnhancedMemoryManager:
         """安全获取中期记忆（带重试机制）"""
         return self._get_medium_term_memories(user_id, limit)
 
+    @cache_result(ttl=300)  # 5分钟缓存
     async def get_recent_memories_safe(
         self,
         user_id: str,
@@ -580,6 +587,125 @@ class EnhancedMemoryManager:
             List[MemoryItem]: 记忆列表
         """
         try:
+            # 首先尝试从缓存索引获取
+            memory_index = self.get_user_memory_index(user_id)
+
+            if memory_index:
+                # 从索引中获取最新的记忆ID
+                latest_ids = [item['id'] for item in memory_index[-limit:]]
+
+                # 批量获取记忆条目
+                memories = await self._get_memories_by_ids(user_id, latest_ids)
+
+                if memories:
+                    logger.debug(f"Retrieved {len(memories)} memories from cache index for user {user_id}")
+                    return memories[:limit]
+
+            # 缓存未命中，回退到Redis查询
+            return await self._get_memories_from_redis(user_id, limit, fallback_to_empty)
+
+        except Exception as e:
+            error_info = global_error_handler.classify_error(
+                e,
+                {"user_id": user_id, "action": "get_recent_memories"}
+            )
+            global_error_handler.handle_error(error_info)
+
+            if fallback_to_empty:
+                logger.warning(f"Memory retrieval failed for user {user_id}, returning empty list")
+                return []
+            else:
+                raise
+
+    def _update_cache_index(self, user_id: str, memory: MemoryItem) -> None:
+        """更新缓存索引"""
+        try:
+            global _memory_index_cache
+            if _memory_index_cache is None:
+                _memory_index_cache = performance_optimizer.cache
+
+            # 为用户的记忆创建索引
+            index_key = f"user_memories:{user_id}"
+
+            # 从缓存获取现有索引
+            cached_memories = _memory_index_cache.get(index_key)
+            if cached_memories is None:
+                cached_memories = []
+
+            # 添加新缓存记忆ID
+            cached_memories.append({
+                'id': memory.id,
+                'conversation_id': memory.conversation_id,
+                'role': memory.role,
+                'timestamp': memory.timestamp.isoformat(),
+                'importance': memory.importance
+            })
+
+            # 保持索引大小合理
+            if len(cached_memories) > 100:
+                cached_memories = cached_memories[-100:]  # 保留最新的100条
+
+            # 更新缓存
+            _memory_index_cache.set(index_key, cached_memories, ttl=1800)  # 30分钟
+
+        except Exception as e:
+            logger.warning(f"Failed to update cache index for user {user_id}: {e}")
+
+    @cache_result(ttl=300)  # 5分钟缓存
+    def get_user_memory_index(self, user_id: str) -> List[Dict[str, Any]]:
+        """获取用户的记忆索引"""
+        global _memory_index_cache
+        if _memory_index_cache is None:
+            _memory_index_cache = performance_optimizer.cache
+
+        index_key = f"user_memories:{user_id}"
+        return _memory_index_cache.get(index_key) or []
+
+    async def _get_memories_by_ids(self, user_id: str, memory_ids: List[str]) -> List[MemoryItem]:
+        """根据ID列表获取记忆条目"""
+        memories = []
+
+        # 尝试从短期记忆获取
+        short_key = f"memory:{user_id}:short_term"
+        try:
+            short_ids = self.redis.lrange(short_key, 0, -1)
+            for mem_data in short_ids:
+                try:
+                    mem_dict = json.loads(mem_data.decode('utf-8'))
+                    if mem_dict['id'] in memory_ids:
+                        memories.append(MemoryItem(**mem_dict))
+                        if len(memories) >= len(memory_ids):
+                            break
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.debug(f"Failed to get memories by IDs from short term: {e}")
+
+        # 如果短期记忆不足，从中期记忆获取
+        if len(memories) < len(memory_ids):
+            remaining_ids = [mid for mid in memory_ids if mid not in [m.id for m in memories]]
+
+            if remaining_ids:
+                medium_key = f"memory:{user_id}:medium_term"
+                try:
+                    medium_ids = self.redis.zrevrange(medium_key, 0, -1)
+                    for mem_data in medium_ids:
+                        try:
+                            mem_dict = json.loads(mem_data.decode('utf-8'))
+                            if mem_dict['id'] in remaining_ids:
+                                memories.append(MemoryItem(**mem_dict))
+                                if len(memories) >= len(memory_ids):
+                                    break
+                        except Exception:
+                            continue
+                except Exception as e:
+                    logger.debug(f"Failed to get memories by IDs from medium term: {e}")
+
+        return memories
+
+    async def _get_memories_from_redis(self, user_id: str, limit: int, fallback_to_empty: bool) -> List[MemoryItem]:
+        """从Redis获取记忆"""
+        try:
             # 尝试获取短期记忆
             short_memories = await self._safe_get_short_term_memories(user_id, limit)
 
@@ -593,12 +719,12 @@ class EnhancedMemoryManager:
         except Exception as e:
             error_info = global_error_handler.classify_error(
                 e,
-                {"user_id": user_id, "action": "get_recent_memories"}
+                {"user_id": user_id, "action": "get_memories_from_redis"}
             )
             global_error_handler.handle_error(error_info)
 
             if fallback_to_empty:
-                logger.warning(f"Memory retrieval failed for user {user_id}, returning empty list")
+                logger.warning(f"Redis memory retrieval failed for user {user_id}, returning empty list")
                 return []
             else:
                 raise

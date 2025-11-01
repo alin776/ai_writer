@@ -32,6 +32,27 @@ from .logger import (
     default_logger
 )
 
+from .performance import (
+    MemoryCache,
+    IndexManager,
+    BatchProcessor,
+    PerformanceOptimizer,
+    get_performance_optimizer,
+    cache_result,
+    parallel_execute,
+    clear_all_caches,
+    get_performance_summary,
+    performance_optimizer
+)
+
+from .llm_optimizer import (
+    LLMOptimizer,
+    get_llm_optimizer,
+    optimized_llm_call,
+    clear_llm_cache,
+    get_llm_performance_stats
+)
+
 __all__ = [
     # 错误处理
     "ErrorHandler",
@@ -53,5 +74,24 @@ __all__ = [
     "setup_logging",
     "log_performance",
     "log_operation_context",
-    "default_logger"
+    "default_logger",
+
+    # 性能优化
+    "MemoryCache",
+    "IndexManager",
+    "BatchProcessor",
+    "PerformanceOptimizer",
+    "get_performance_optimizer",
+    "cache_result",
+    "parallel_execute",
+    "clear_all_caches",
+    "get_performance_summary",
+    "performance_optimizer",
+
+    # LLM优化
+    "LLMOptimizer",
+    "get_llm_optimizer",
+    "optimized_llm_call",
+    "clear_llm_cache",
+    "get_llm_performance_stats"
 ]

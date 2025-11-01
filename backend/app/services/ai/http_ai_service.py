@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.services.ai.prompts import get_prompts_manager
 from app.services.agent.model_selector import ModelSelector, TaskType
 from app.services.agent.cost_tracker import get_cost_tracker
+from ..agent.utils.llm_optimizer import get_llm_optimizer, optimized_llm_call
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +133,9 @@ class HTTPAIService:
 
         # 记录开始时间 (用于成本追踪)
         start_time = datetime.now()
+
+        # Week 10: 添加缓存索引键生成
+        cache_key = self._generate_cache_key(messages, self.model, temperature, max_tokens)
 
         try:
             async with self.client.stream("POST", url, json=payload, headers=headers) as response:
@@ -314,12 +318,12 @@ class HTTPAIService:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"{user_prefix}{text}"}
         ]
-        
+
         logger.info(f"AI Expand request - text length: {len(text)}")
 
         async for chunk, usage in self._stream_chat(messages, max_tokens, temperature):
             yield chunk, usage
-    
+
     async def stream_summarize(
         self,
         text: str,
