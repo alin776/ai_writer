@@ -1,3 +1,23 @@
+# 上传代码到GitHub仓库
+
+## 待办事项
+
+- [ ] 查看所有待提交的文件内容
+- [ ] 添加所有更改到暂存区
+- [ ] 创建提交记录
+- [ ] 推送代码到GitHub远程仓库
+
+## 当前状态
+
+- 远程仓库: https://github.com/alin776/ai_writer.git
+- 当前分支: alin3.0
+- 待提交文件:
+  - 3个已修改的文档文件
+  - 2个新增代码目录 (actions相关)
+  - 5个新增文档文件
+
+---
+
 # Week 7: Model Selector & Cost Tracking - Overall Progress
 
 > **Current Date**: 2025-11-01
