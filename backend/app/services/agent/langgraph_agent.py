@@ -1074,176 +1074,170 @@ class WritingAgentGraph:
         return state
 
     async def _handle_writing(self, state: AgentState) -> AgentState:
-        """处理写作场景 - 使用 Prompt 库优化"""
-        work_id = state.get("work_id")
-        chapter_id = state.get("chapter_id")
-        context_info = state.get("context", {})
+        """处理写作场景 - 委托给WritingAction"""
+        from app.services.agent.actions import WritingAction
 
-        # 尝试识别章节号,确定创作阶段
-        phase = None
-        chapter_num = None
+        logger.info("[LangGraph] 委托给WritingAction处理写作请求")
 
-        # 从用户消息中提取章节号
-        last_message = state["messages"][-1].content if state["messages"] else ""
-        import re
-        chapter_match = re.search(r'第(\d+)章|chapter\s*(\d+)', last_message, re.IGNORECASE)
-        if chapter_match:
-            chapter_num = int(chapter_match.group(1) or chapter_match.group(2))
-            phase = PhaseCharacteristics.get_phase_by_chapter(chapter_num)
-            logger.info(f"[Writing] 识别到章节号: {chapter_num}, 阶段: {phase.value}")
+        # 创建WritingAction实例
+        writing_action = WritingAction(
+            ai_service=self.ai_service,
+            use_chatgpt=self.use_chatgpt
+        )
 
-        # 使用 Prompt 库生成系统 Prompt
-        if phase:
-            # 使用阶段 Prompt (包含爽感优化)
-            base_system_prompt = get_content_prompt(
-                phase=phase,
-                scene_type=None,  # 可以根据需要添加场景识别
-                context={
-                    'current_chapter': chapter_num,
-                    'total_chapters': 50  # 默认50章,可配置
-                }
-            )
+        # 调用Action执行
+        action_result = await writing_action.run(state)
 
-            # 添加工具使用说明
-            tools_instruction = f"""
+        # 检查Action执行结果
+        if not action_result.is_success():
+            logger.error(f"[LangGraph] WritingAction执行失败: {action_result.error}")
+            # 返回错误消息
+            from langchain_core.messages import AIMessage
+            error_msg = AIMessage(content=f"抱歉，写作请求处理失败: {action_result.error}")
+            state["messages"].append(error_msg)
+            state["final_response"] = error_msg.content
+            return state
 
----
+        # 获取Action生成的system_prompt
+        system_prompt = action_result.data.get("system_prompt")
+        agent_type = action_result.data.get("agent_type", "writing")
 
-【工具使用】
-可用工具：
-- get_context_tool: 获取作品/章节上下文（包含作品信息、章节内容、相关分析）
-- read_chapter_tool: 读取指定章节的完整内容（需要chapter_id）
-- get_chapter_by_order_tool: 通过章节序号获取章节（用户说"第X章"时用这个）
-- search_analysis_fragments_tool: 从向量数据库检索相关的小说分析片段（RAG）
-- continue_writing_tool: 续写内容
-- polish_text_tool: 润色文本
+        logger.info(
+            f"[LangGraph] WritingAction返回: "
+            f"phase={action_result.data.get('phase')}, "
+            f"chapter_num={action_result.data.get('chapter_num')}"
+        )
 
-当前信息：作品ID={work_id}, 当前页面章节ID={chapter_id}
-
-【重要】章节处理流程：
-1. 用户说"续写第X章"或"读第X章"时：
-   - 先调用 get_chapter_by_order_tool 获取第X章的 chapter_id 和内容
-   - 例如：用户说"续写第二章"，你应该调用 get_chapter_by_order_tool(chapter_order=2)
-
-2. 用户说"续写"但没指定章节时：
-   - 使用当前页面的 chapter_id 调用 read_chapter_tool
-
-3. 续写要求：
-   - 必须先读取章节的真实内容
-   - 续写必须紧接章节结尾，不要重新开头
-   - 保持原文的写作风格、人物性格、情节发展
-   - 写网络小说故事，不是技术文档或编程内容
-   - 可调用 search_analysis_fragments_tool 获取世界观、角色设定
-
-根据用户需求，决定调用合适的工具。"""
-
-            system_prompt = base_system_prompt + tools_instruction
-        else:
-            # 没有识别到章节,使用默认 Prompt
-            system_prompt = f"""你是专业的网络小说写作助手Agent，专注于创作网文故事。
-
-【重要】你的写作风格：
-- 你是网文作家，不是程序员或技术文档作者
-- 写作类型：玄幻、都市、言情、武侠、仙侠等网络小说
-- 绝对禁止写编程、代码、技术相关的内容
-- 必须写人物、情节、对话、情感、动作、场景描写
-- 保持网文的节奏感和代入感
-
-可用工具：
-- get_context_tool: 获取作品/章节上下文（包含作品信息、章节内容、相关分析）
-- read_chapter_tool: 读取指定章节的完整内容（需要chapter_id）
-- get_chapter_by_order_tool: 通过章节序号获取章节（用户说"第X章"时用这个）
-- search_analysis_fragments_tool: 从向量数据库检索相关的小说分析片段（RAG）
-- continue_writing_tool: 续写内容
-- polish_text_tool: 润色文本
-
-当前信息：作品ID={work_id}, 当前页面章节ID={chapter_id}
-
-【重要】章节处理流程：
-1. 用户说"续写第X章"或"读第X章"时：
-   - 先调用 get_chapter_by_order_tool 获取第X章的 chapter_id 和内容
-   - 例如：用户说"续写第二章"，你应该调用 get_chapter_by_order_tool(chapter_order=2)
-
-2. 用户说"续写"但没指定章节时：
-   - 使用当前页面的 chapter_id 调用 read_chapter_tool
-
-3. 续写要求：
-   - 必须先读取章节的真实内容
-   - 续写必须紧接章节结尾，不要重新开头
-   - 保持原文的写作风格、人物性格、情节发展
-   - 写网络小说故事，不是技术文档或编程内容
-   - 可调用 search_analysis_fragments_tool 获取世界观、角色设定
-
-根据用户需求，决定调用合适的工具。"""
-
-        return await self._handle_agent_with_tools(state, "writing", system_prompt)
+        # 继续LangGraph的工具调用流程
+        return await self._handle_agent_with_tools(state, agent_type, system_prompt)
 
     async def _handle_planning(self, state: AgentState) -> AgentState:
-        """处理规划场景"""
-        system_prompt = """你是专业的规划助手Agent。
+        """处理规划场景 - 委托给PlanningAction"""
+        from app.services.agent.actions import PlanningAction
 
-可用工具：
-- get_context_tool: 获取作品信息
-- read_chapter_tool: 读取已有章节内容
-- search_analysis_fragments_tool: 检索相关分析片段（RAG）
-- analyze_text_tool: 分析现有内容
+        logger.info("[LangGraph] 委托给PlanningAction处理规划请求")
 
-帮助用户规划小说创作，包括世界观、角色、大纲等。根据需要调用工具。"""
+        # 创建PlanningAction实例
+        planning_action = PlanningAction(
+            ai_service=self.ai_service,
+            use_chatgpt=self.use_chatgpt
+        )
 
-        return await self._handle_agent_with_tools(state, "planning", system_prompt)
+        # 调用Action执行
+        action_result = await planning_action.run(state)
+
+        # 检查Action执行结果
+        if not action_result.is_success():
+            logger.error(f"[LangGraph] PlanningAction执行失败: {action_result.error}")
+            from langchain_core.messages import AIMessage
+            error_msg = AIMessage(content=f"抱歉，规划请求处理失败: {action_result.error}")
+            state["messages"].append(error_msg)
+            state["final_response"] = error_msg.content
+            return state
+
+        # 获取Action生成的system_prompt
+        system_prompt = action_result.data.get("system_prompt")
+        agent_type = action_result.data.get("agent_type", "planning")
+
+        logger.info(f"[LangGraph] PlanningAction返回成功")
+
+        # 继续LangGraph的工具调用流程
+        return await self._handle_agent_with_tools(state, agent_type, system_prompt)
 
     async def _handle_analysis(self, state: AgentState) -> AgentState:
-        """处理分析场景"""
-        system_prompt = """你是专业的文本分析Agent。
+        """处理分析场景 - 委托给AnalysisAction"""
+        from app.services.agent.actions import AnalysisAction
 
-可用工具：
-- analyze_text_tool: 深度分析文本
-- get_context_tool: 获取上下文信息
-- read_chapter_tool: 读取章节内容
-- search_analysis_fragments_tool: 检索历史分析片段（RAG）
+        logger.info("[LangGraph] 委托给AnalysisAction处理分析请求")
 
-帮助用户分析文本质量、逻辑、风格等。根据需要调用工具。"""
+        # 创建AnalysisAction实例
+        analysis_action = AnalysisAction(
+            ai_service=self.ai_service,
+            use_chatgpt=self.use_chatgpt
+        )
 
-        return await self._handle_agent_with_tools(state, "analysis", system_prompt)
+        # 调用Action执行
+        action_result = await analysis_action.run(state)
+
+        # 检查Action执行结果
+        if not action_result.is_success():
+            logger.error(f"[LangGraph] AnalysisAction执行失败: {action_result.error}")
+            from langchain_core.messages import AIMessage
+            error_msg = AIMessage(content=f"抱歉，分析请求处理失败: {action_result.error}")
+            state["messages"].append(error_msg)
+            state["final_response"] = error_msg.content
+            return state
+
+        # 获取Action生成的system_prompt
+        system_prompt = action_result.data.get("system_prompt")
+        agent_type = action_result.data.get("agent_type", "analysis")
+
+        logger.info(f"[LangGraph] AnalysisAction返回成功")
+
+        # 继续LangGraph的工具调用流程
+        return await self._handle_agent_with_tools(state, agent_type, system_prompt)
 
     async def _handle_stuck(self, state: AgentState) -> AgentState:
-        """处理卡文场景"""
-        system_prompt = """你是专业的写作指导Agent。
+        """处理卡文场景 - 委托给StuckAction"""
+        from app.services.agent.actions import StuckAction
 
-可用工具：
-- get_context_tool: 获取当前创作背景
-- read_chapter_tool: 读取已写章节
-- search_analysis_fragments_tool: 检索相关创作灵感和分析（RAG）
-- analyze_text_tool: 分析现有内容
-- continue_writing_tool: 尝试续写方向
+        logger.info("[LangGraph] 委托给StuckAction处理卡文请求")
 
-帮助卡文的用户突破瓶颈，提供多个创作方向建议。根据需要调用工具。"""
+        # 创建StuckAction实例
+        stuck_action = StuckAction(
+            ai_service=self.ai_service,
+            use_chatgpt=self.use_chatgpt
+        )
 
-        return await self._handle_agent_with_tools(state, "stuck", system_prompt)
+        # 调用Action执行
+        action_result = await stuck_action.run(state)
+
+        # 检查Action执行结果
+        if not action_result.is_success():
+            logger.error(f"[LangGraph] StuckAction执行失败: {action_result.error}")
+            from langchain_core.messages import AIMessage
+            error_msg = AIMessage(content=f"抱歉，卡文请求处理失败: {action_result.error}")
+            state["messages"].append(error_msg)
+            state["final_response"] = error_msg.content
+            return state
+
+        # 获取Action生成的system_prompt
+        system_prompt = action_result.data.get("system_prompt")
+        agent_type = action_result.data.get("agent_type", "stuck")
+
+        logger.info(f"[LangGraph] StuckAction返回成功")
+
+        # 继续LangGraph的工具调用流程
+        return await self._handle_agent_with_tools(state, agent_type, system_prompt)
 
     async def _handle_general(self, state: AgentState) -> AgentState:
-        """处理一般对话 - 使用 HTTPAIService"""
-        logger.info("[LangGraph] 处理一般对话")
+        """处理一般对话 - 委托给GeneralChatAction"""
+        from app.services.agent.actions import GeneralChatAction
 
-        messages = state["messages"]
-        last_message = messages[-1].content
-        system_prompt = "你是友好的AI写作助手，以专业、简洁的方式回复用户。"
+        logger.info("[LangGraph] 委托给GeneralChatAction处理一般对话")
 
-        prompt = f"""{system_prompt}
+        # 创建GeneralChatAction实例
+        general_action = GeneralChatAction(
+            ai_service=self.ai_service,
+            use_chatgpt=self.use_chatgpt
+        )
 
-用户消息：{last_message}
+        # 调用Action执行
+        action_result = await general_action.run(state)
 
-请回复："""
+        # 检查Action执行结果
+        if not action_result.is_success():
+            logger.error(f"[LangGraph] GeneralChatAction执行失败: {action_result.error}")
+            from langchain_core.messages import AIMessage
+            error_msg = AIMessage(content=f"抱歉，无法处理您的请求: {action_result.error}")
+            state["messages"].append(error_msg)
+            state["final_response"] = error_msg.content
+            return state
 
-        response_text = ""
-        async for chunk, _ in self.ai_service._stream_chat(
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=500,
-            temperature=0.7
-        ):
-            if chunk:
-                response_text += chunk
+        # 获取Action生成的响应
+        response_text = action_result.data.get("response", "抱歉，我无法回答您的问题。")
 
+        from langchain_core.messages import AIMessage
         response = AIMessage(content=response_text)
         state["messages"].append(response)
         state["final_response"] = response_text
@@ -1251,6 +1245,8 @@ class WritingAgentGraph:
             "step": "general_chat",
             "result": "一般对话响应"
         })
+
+        logger.info(f"[LangGraph] GeneralChatAction返回成功")
 
         return state
 
