@@ -8,9 +8,12 @@ import httpx
 import json
 import logging
 import asyncio
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
+from datetime import datetime
 from app.core.config import settings
 from app.services.ai.prompts import get_prompts_manager
+from app.services.agent.model_selector import ModelSelector, TaskType
+from app.services.agent.cost_tracker import get_cost_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -18,18 +21,45 @@ logger = logging.getLogger(__name__)
 class HTTPAIService:
     """基于 HTTP 的 AI 服务 - 直接调用 API 绕过 Cloudflare"""
 
-    def __init__(self, model: str = None, timeout: int = None):
+    def __init__(
+        self,
+        model: str = None,
+        timeout: int = None,
+        enable_model_selector: bool = True,
+        enable_cost_tracking: bool = True,
+        user_id: Optional[str] = None
+    ):
         """Initialize HTTP client and prompts manager
 
         Args:
             model: 指定模型名称,如果不提供则使用默认配置
             timeout: 超时时间(秒),如果不提供则使用默认配置
+            enable_model_selector: 是否启用智能模型选择 (默认True)
+            enable_cost_tracking: 是否启用成本追踪 (默认True)
+            user_id: 用户ID (用于成本追踪)
         """
         self.api_key = settings.OPENAI_API_KEY
         self.base_url = settings.OPENAI_BASE_URL
         self.model = model or settings.OPENAI_MODEL  # 支持自定义模型
         timeout_value = timeout or settings.OPENAI_TIMEOUT  # 支持自定义超时
         self.prompts = get_prompts_manager()
+
+        # Week 7: 模型选择器和成本追踪
+        self.enable_model_selector = enable_model_selector
+        self.enable_cost_tracking = enable_cost_tracking
+        self.user_id = user_id
+
+        if enable_model_selector:
+            self.model_selector = ModelSelector(enable_cost_optimization=True)
+            logger.info("ModelSelector 已启用")
+        else:
+            self.model_selector = None
+
+        if enable_cost_tracking:
+            self.cost_tracker = get_cost_tracker()
+            logger.info("CostTracker 已启用")
+        else:
+            self.cost_tracker = None
 
         # 创建持久化客户端，模拟普通浏览器/应用
         self.client = httpx.AsyncClient(
@@ -49,7 +79,8 @@ class HTTPAIService:
 
         logger.info(
             f"HTTP AI Service 初始化成功，Base URL: {self.base_url}, "
-            f"Model: {self.model}, Timeout: {timeout_value}s"
+            f"Model: {self.model}, Timeout: {timeout_value}s, "
+            f"ModelSelector: {enable_model_selector}, CostTracking: {enable_cost_tracking}"
         )
     
     async def close(self):
@@ -60,7 +91,8 @@ class HTTPAIService:
         self,
         messages: list,
         max_tokens: int = 1000,
-        temperature: float = 0.7
+        temperature: float = 0.7,
+        task_type: Optional[TaskType] = None
     ) -> AsyncGenerator[tuple[str, dict | None], None]:
         """
         通用流式聊天方法
@@ -69,18 +101,22 @@ class HTTPAIService:
             messages: 消息列表
             max_tokens: 最大token数
             temperature: 温度参数
+            task_type: 任务类型 (用于模型选择和成本追踪)
 
         Yields:
             tuple: (文本片段, usage统计或None)
                 - 文本片段: str
                 - usage: 仅在最后一个块返回完整usage,其他为None
         """
+        # Week 7: 使用模型选择器选择合适的模型 (可选)
+        # 注意: 当前实现仍使用self.model,未来可以根据task_type动态选择
+
         url = f"{self.base_url}/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
-        
+
         payload = {
             "model": self.model,
             "messages": messages,
@@ -88,12 +124,15 @@ class HTTPAIService:
             "max_tokens": max_tokens,
             "stream": True
         }
-        
+
         logger.info(
             f"开始调用 AI API: model={self.model}, "
-            f"max_tokens={max_tokens}, temp={temperature}"
+            f"max_tokens={max_tokens}, temp={temperature}, task_type={task_type}"
         )
-        
+
+        # 记录开始时间 (用于成本追踪)
+        start_time = datetime.now()
+
         try:
             async with self.client.stream("POST", url, json=payload, headers=headers) as response:
                 if response.status_code != 200:
@@ -155,6 +194,14 @@ class HTTPAIService:
                         logger.warning(f"JSON 解析错误: {e}, 数据: {data_str[:100]}")
                         continue
 
+                # Week 7: 追踪成本
+                if self.enable_cost_tracking and usage_info and self.cost_tracker:
+                    await self._track_api_cost(
+                        usage_info=usage_info,
+                        task_type=task_type,
+                        start_time=start_time
+                    )
+
                 # 循环结束后,yield最终的usage信息
                 if usage_info:
                     yield "", usage_info  # 空内容块 + 完整usage统计
@@ -164,11 +211,11 @@ class HTTPAIService:
                 # 如果没有接收到任何内容，记录警告
                 if chunk_count == 0:
                     logger.error(f"警告: AI 响应为空！未接收到任何内容块。")
-        
+
         except httpx.HTTPError as e:
             logger.error(f"HTTP 请求错误: {type(e).__name__}: {str(e)}")
             raise Exception(f"网络请求失败: {str(e)}")
-        
+
         except Exception as e:
             logger.error(f"AI API 调用错误: {type(e).__name__}: {str(e)}")
             raise
@@ -318,13 +365,88 @@ class HTTPAIService:
 
         return False
 
+    async def _track_api_cost(
+        self,
+        usage_info: dict,
+        task_type: Optional[TaskType],
+        start_time: datetime
+    ):
+        """追踪API调用成本
+
+        Args:
+            usage_info: usage统计信息
+            task_type: 任务类型
+            start_time: 调用开始时间
+        """
+        if not self.cost_tracker:
+            return
+
+        try:
+            # 提取token使用情况
+            input_tokens = usage_info.get('prompt_tokens', 0)
+            output_tokens = usage_info.get('completion_tokens', 0)
+
+            # 使用模型选择器估算成本 (基于当前使用的模型)
+            # 注意: 这里使用简化的成本估算,实际成本取决于具体的API定价
+            if self.model_selector:
+                from app.services.agent.model_selector import MODEL_TIERS, TaskComplexity
+                # 根据模型名称确定复杂度 (简化处理)
+                complexity = TaskComplexity.MEDIUM  # 默认
+                if 'flash-lite' in self.model.lower() or 'mini' in self.model.lower():
+                    complexity = TaskComplexity.SIMPLE
+                elif 'pro' in self.model.lower() or 'gpt-4' in self.model.lower():
+                    complexity = TaskComplexity.COMPLEX
+
+                model_config = MODEL_TIERS.get(complexity)
+                if model_config:
+                    input_cost = (input_tokens / 1_000_000) * model_config.cost_per_1m_input
+                    output_cost = (output_tokens / 1_000_000) * model_config.cost_per_1m_output
+                else:
+                    # 默认成本 (如果找不到配置)
+                    input_cost = (input_tokens / 1_000_000) * 0.50
+                    output_cost = (output_tokens / 1_000_000) * 1.50
+            else:
+                # 没有模型选择器,使用默认成本
+                input_cost = (input_tokens / 1_000_000) * 0.50
+                output_cost = (output_tokens / 1_000_000) * 1.50
+
+            # 计算响应时间
+            response_time = (datetime.now() - start_time).total_seconds()
+
+            # 记录到成本追踪器
+            await self.cost_tracker.track_api_call(
+                user_id=self.user_id,
+                model_provider="openai",  # 根据实际情况调整
+                model_id=self.model,
+                model_name=self.model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                input_cost=input_cost,
+                output_cost=output_cost,
+                task_type=task_type.value if task_type else None,
+                response_time=response_time,
+                success=True
+            )
+
+            logger.info(
+                f"[CostTracker] API调用已记录: "
+                f"tokens={input_tokens}+{output_tokens}, "
+                f"cost=${input_cost + output_cost:.6f}, "
+                f"time={response_time:.2f}s"
+            )
+
+        except Exception as e:
+            logger.error(f"成本追踪失败: {type(e).__name__}: {str(e)}")
+            # 成本追踪失败不应影响主流程
+
     async def call_ai(
         self,
         system_prompt: str,
         user_prompt: str,
         max_tokens: int = 2000,
         temperature: float = 0.7,
-        max_retries: int = 3
+        max_retries: int = 3,
+        task_type: Optional[TaskType] = None
     ) -> str:
         """
         非流式AI调用 (用于评审等需要完整响应的场景,带重试机制)
@@ -335,6 +457,7 @@ class HTTPAIService:
             max_tokens: 最大token数
             temperature: 温度参数
             max_retries: 最大重试次数(默认3次)
+            task_type: 任务类型 (用于成本追踪)
 
         Returns:
             完整的AI响应文本
@@ -356,6 +479,9 @@ class HTTPAIService:
             "stream": False  # 非流式
         }
 
+        # 记录开始时间 (用于成本追踪)
+        start_time = datetime.now()
+
         # 重试机制
         for attempt in range(max_retries):
             try:
@@ -370,7 +496,7 @@ class HTTPAIService:
 
                 logger.info(
                     f"开始非流式AI调用: max_tokens={max_tokens}, temp={temperature}, "
-                    f"尝试={attempt + 1}/{max_retries}"
+                    f"尝试={attempt + 1}/{max_retries}, task_type={task_type}"
                 )
 
                 response = await self.client.post(url, json=payload, headers=headers)
@@ -388,6 +514,14 @@ class HTTPAIService:
 
                 data = response.json()
                 content = data['choices'][0]['message']['content']
+
+                # Week 7: 追踪成本 (如果API返回了usage信息)
+                if self.enable_cost_tracking and 'usage' in data:
+                    await self._track_api_cost(
+                        usage_info=data['usage'],
+                        task_type=task_type,
+                        start_time=start_time
+                    )
 
                 logger.info(
                     f"AI响应成功, 长度={len(content)}, "
