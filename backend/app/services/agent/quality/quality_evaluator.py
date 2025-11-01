@@ -6,6 +6,7 @@
 
 import re
 import logging
+import hashlib
 from typing import List, Optional, Dict, Any
 from app.services.agent.quality.quality_types import (
     QualityDimension,
@@ -22,15 +23,33 @@ logger = logging.getLogger(__name__)
 class QualityEvaluatorService:
     """质量评估服务"""
 
-    def __init__(self, ai_service):
+    def __init__(
+        self,
+        ai_service,
+        evaluation_model: Optional[str] = None,
+        enable_cache: bool = True
+    ):
         """
         初始化质量评估服务
 
         Args:
             ai_service: AI服务实例 (HTTPAIService)
+            evaluation_model: 评估使用的模型名称,None使用默认模型
+                可选: "qwen3-32b" (快速), "deepseek-chat" (低成本), "gemini-2.5-flash" (平衡)
+            enable_cache: 是否启用缓存
         """
         self.ai_service = ai_service
         self.prompts = QualityPrompts()
+        self.evaluation_model = evaluation_model  # None表示使用HTTPAIService的默认模型
+        self.enable_cache = enable_cache
+
+        # 简单的内存缓存 (key: content_hash + dimension, value: DimensionScore)
+        self._evaluation_cache: Dict[str, DimensionScore] = {}
+
+        logger.info(
+            f"质量评估服务初始化: model={evaluation_model or 'default'}, "
+            f"cache={'enabled' if enable_cache else 'disabled'}"
+        )
 
     async def evaluate(
         self,
@@ -143,6 +162,13 @@ class QualityEvaluatorService:
         if dimension == QualityDimension.LENGTH_CHECK:
             return self._evaluate_length(content, context.target_length)
 
+        # 检查缓存
+        if self.enable_cache:
+            cache_key = self._get_cache_key(content, dimension)
+            if cache_key in self._evaluation_cache:
+                logger.debug(f"缓存命中: {dimension.value}")
+                return self._evaluation_cache[cache_key]
+
         # 其他维度调用LLM评估
         prompt = self._get_dimension_prompt(dimension, content, context)
 
@@ -154,12 +180,18 @@ class QualityEvaluatorService:
             logger.error(f"LLM调用失败: {e}")
             score, feedback = 5.0, f"评估失败: {str(e)}"
 
-        return DimensionScore(
+        result = DimensionScore(
             dimension=dimension,
             score=score,
             feedback=feedback,
             weight=DIMENSION_WEIGHTS[dimension]
         )
+
+        # 保存到缓存
+        if self.enable_cache:
+            self._evaluation_cache[cache_key] = result
+
+        return result
 
     def _evaluate_length(self, content: str, target_length: int) -> DimensionScore:
         """
@@ -227,6 +259,9 @@ class QualityEvaluatorService:
 
         使用HTTPAIService的流式聊天接口
         使用低温度(0.1)保证评估稳定性
+
+        注意: evaluation_model在初始化HTTPAIService时指定,
+        这里直接使用self.ai_service即可
         """
         try:
             messages = [{"role": "user", "content": prompt}]
@@ -237,7 +272,7 @@ class QualityEvaluatorService:
             # 使用HTTPAIService的_stream_chat方法
             async for chunk, usage in self.ai_service._stream_chat(
                 messages=messages,
-                max_tokens=350,  # 增加token数量避免反馈截断(从200→350)
+                max_tokens=300,  # 从350减少到300,优化性能
                 temperature=0.1  # 低温度保证稳定性和一致性
             ):
                 full_response += chunk
@@ -384,3 +419,26 @@ class QualityEvaluatorService:
             QualityDimension.GRAMMAR: "语法"
         }
         return name_map.get(dimension, dimension.value)
+
+    def _get_cache_key(self, content: str, dimension: QualityDimension) -> str:
+        """
+        生成缓存key
+
+        基于内容hash和维度名称,确保相同内容的评估结果可以复用
+        """
+        content_hash = hashlib.md5(content.encode('utf-8')).hexdigest()[:16]
+        return f"{content_hash}_{dimension.value}"
+
+    def clear_cache(self):
+        """清空评估缓存"""
+        cache_size = len(self._evaluation_cache)
+        self._evaluation_cache.clear()
+        logger.info(f"已清空评估缓存,清除了{cache_size}条记录")
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """获取缓存统计信息"""
+        return {
+            "cache_size": len(self._evaluation_cache),
+            "cache_enabled": self.enable_cache,
+            "evaluation_model": self.evaluation_model or "default"
+        }
