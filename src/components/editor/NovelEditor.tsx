@@ -148,6 +148,36 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         class:
           'prose prose-lg dark:prose-invert w-full max-w-full mx-auto focus:outline-none min-h-screen px-8 py-8',
       },
+      // 处理粘贴的HTML，去除所有样式，只保留基本结构
+      transformPastedHTML(html) {
+        // 创建一个临时div来解析HTML
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+
+        // 递归清理所有节点的样式属性
+        const cleanNode = (node: Node) => {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const element = node as HTMLElement;
+            // 移除所有样式属性
+            element.removeAttribute('style');
+            element.removeAttribute('class');
+            element.removeAttribute('color');
+            element.removeAttribute('face');
+            element.removeAttribute('size');
+
+            // 递归处理子节点
+            Array.from(element.childNodes).forEach(cleanNode);
+          }
+        };
+
+        cleanNode(tempDiv);
+        return tempDiv.innerHTML;
+      },
+      // 处理粘贴的纯文本
+      transformPastedText(text) {
+        // 保持换行，将纯文本转换为段落
+        return text;
+      },
     },
     onUpdate: ({ editor }) => {
       setSaveStatus('unsaved');
