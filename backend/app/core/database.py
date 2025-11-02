@@ -1,8 +1,12 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from typing import AsyncGenerator
+import logging
+from contextlib import asynccontextmanager
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # 创建异步引擎
 engine = create_async_engine(
@@ -12,14 +16,14 @@ engine = create_async_engine(
     pool_pre_ping=True,      # 连接前ping测试，确保连接有效
     pool_size=10,             # 连接池大小
     max_overflow=20,          # 最大溢出连接数
-    pool_recycle=3600,        # 1小时后回收连接，防止长时间连接失效
+    pool_recycle=1800,        # 30分钟后回收连接，防止长时间连接失效（减少回收时间）
     pool_timeout=30,          # 连接池获取连接的超时时间（秒）
     connect_args={
         "timeout": 10,        # TCP连接超时：10秒
         "command_timeout": 60,  # 命令执行超时：60秒
         "server_settings": {
-            "statement_timeout": "3600000",  # SQL语句超时：1小时（毫秒）
-            "idle_in_transaction_session_timeout": "3600000"  # 事务空闲超时：1小时
+            "statement_timeout": "1800000",  # SQL语句超时：30分钟（毫秒）
+            "idle_in_transaction_session_timeout": "1800000"  # 事务空闲超时：30分钟
         }
     }
 )
@@ -58,10 +62,16 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
         finally:
             # 确保会话被正确关闭
-            await session.close()
+            try:
+                await session.close()
+            except Exception as e:
+                logger.warning(f"关闭数据库会话时出错: {e}")
+                # 强制关闭连接
+                await session.invalidate()
 
 
-async def create_db_session() -> AsyncSession:
+@asynccontextmanager
+async def create_db_session():
     """
     创建独立的数据库会话(用于并发任务)
 
@@ -70,7 +80,14 @@ async def create_db_session() -> AsyncSession:
         # 使用session
         await session.commit()
     """
-    return AsyncSessionLocal()
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
 
 
 async def init_db():

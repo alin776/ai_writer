@@ -42,12 +42,59 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [i.strip() for i in v.split(",")]
         return v
-    
+
     # OpenAI 配置
     OPENAI_API_KEY: str
     OPENAI_BASE_URL: str = "https://204992.xyz/v1"
     OPENAI_MODEL: str = "gpt-5"  # 默认模型，可通过环境变量修改
+
+    @validator("OPENAI_TIMEOUT", pre=True)
+    @classmethod
+    def validate_openai_timeout(cls, v):
+        if isinstance(v, (int, str)):
+            timeout = int(v)
+            if timeout < 1 or timeout > 600:  # 1秒到10分钟
+                raise ValueError("OPENAI_TIMEOUT 必须在 1-600 秒之间")
+            return timeout
+        raise ValueError("OPENAI_TIMEOUT 必须是数字")
+
     OPENAI_TIMEOUT: int = 120  # AI调用超时时间（秒），默认120秒
+
+    @validator("OPENAI_CONNECT_TIMEOUT", pre=True)
+    @classmethod
+    def validate_openai_connect_timeout(cls, v):
+        if isinstance(v, (int, str)):
+            timeout = int(v)
+            if timeout < 1 or timeout > 60:  # 1秒到1分钟
+                raise ValueError("OPENAI_CONNECT_TIMEOUT 必须在 1-60 秒之间")
+            return timeout
+        raise ValueError("OPENAI_CONNECT_TIMEOUT 必须是数字")
+
+    OPENAI_CONNECT_TIMEOUT: int = 30  # 连接超时时间（秒），默认30秒
+
+    @validator("OPENAI_MAX_RETRIES", pre=True)
+    @classmethod
+    def validate_openai_max_retries(cls, v):
+        if isinstance(v, (int, str)):
+            retries = int(v)
+            if retries < 0 or retries > 10:  # 0到10次
+                raise ValueError("OPENAI_MAX_RETRIES 必须在 0-10 之间")
+            return retries
+        raise ValueError("OPENAI_MAX_RETRIES 必须是整数")
+
+    OPENAI_MAX_RETRIES: int = 3  # 最大重试次数，默认3次
+
+    @validator("OPENAI_RETRY_DELAY", pre=True)
+    @classmethod
+    def validate_openai_retry_delay(cls, v):
+        if isinstance(v, (int, float, str)):
+            delay = float(v)
+            if delay < 0.1 or delay > 60.0:  # 0.1秒到60秒
+                raise ValueError("OPENAI_RETRY_DELAY 必须在 0.1-60.0 秒之间")
+            return delay
+        raise ValueError("OPENAI_RETRY_DELAY 必须是数字")
+
+    OPENAI_RETRY_DELAY: float = 2.0  # 重试延迟（秒），默认2秒
 
     # LangGraph Agent 配置
     AGENT_USE_CHATGPT: bool = True  # False=HTTPAIService模式（绕过Cloudflare），True=ChatOpenAI模式（原生工具调用）
@@ -124,17 +171,85 @@ class Settings(BaseSettings):
 
     # 成本控制配置
     ENABLE_COST_TRACKING: bool = True  # 启用成本追踪
+
+    @validator("DAILY_COST_LIMIT_PER_USER", pre=True)
+    @classmethod
+    def validate_daily_cost_limit(cls, v):
+        if isinstance(v, (int, float, str)):
+            limit = float(v)
+            if limit < 0 or limit > 1000:  # 0到1000元
+                raise ValueError("DAILY_COST_LIMIT_PER_USER 必须在 0-1000 元之间")
+            return limit
+        raise ValueError("DAILY_COST_LIMIT_PER_USER 必须是数字")
+
     DAILY_COST_LIMIT_PER_USER: float = 10.0  # 每用户每天成本限额（元）
+
+    @validator("ANALYSIS_RETRY_DELAY", pre=True)
+    @classmethod
+    def validate_analysis_retry_delay(cls, v):
+        if isinstance(v, (int, str)):
+            delay = int(v)
+            if delay < 1 or delay > 300:  # 1秒到5分钟
+                raise ValueError("ANALYSIS_RETRY_DELAY 必须在 1-300 秒之间")
+            return delay
+        raise ValueError("ANALYSIS_RETRY_DELAY 必须是整数")
+
     ANALYSIS_RETRY_DELAY: int = 2  # 重试延迟（秒）
 
-    # 小说分析并发配置
+    @validator("NOVEL_ANALYSIS_MAX_CONCURRENT", pre=True)
+    @classmethod
+    def validate_novel_analysis_max_concurrent(cls, v):
+        if isinstance(v, (int, str)):
+            concurrent = int(v)
+            if concurrent < 1 or concurrent > 20:  # 1到20个并发
+                raise ValueError("NOVEL_ANALYSIS_MAX_CONCURRENT 必须在 1-20 之间")
+            return concurrent
+        raise ValueError("NOVEL_ANALYSIS_MAX_CONCURRENT 必须是整数")
+
     NOVEL_ANALYSIS_MAX_CONCURRENT: int = 5  # 最大并发章节数（推荐5，平衡性能与稳定性）
+
+    @validator("NOVEL_ANALYSIS_CHAPTER_TIMEOUT", pre=True)
+    @classmethod
+    def validate_novel_analysis_chapter_timeout(cls, v):
+        if isinstance(v, (int, str)):
+            timeout = int(v)
+            if timeout < 30 or timeout > 1800:  # 30秒到30分钟
+                raise ValueError("NOVEL_ANALYSIS_CHAPTER_TIMEOUT 必须在 30-1800 秒之间")
+            return timeout
+        raise ValueError("NOVEL_ANALYSIS_CHAPTER_TIMEOUT 必须是整数")
+
     NOVEL_ANALYSIS_CHAPTER_TIMEOUT: int = 120  # 单章超时时间（秒）
+
+    @validator("NOVEL_ANALYSIS_BATCH_UPDATE_SIZE", pre=True)
+    @classmethod
+    def validate_novel_analysis_batch_update_size(cls, v):
+        if isinstance(v, (int, str)):
+            size = int(v)
+            if size < 1 or size > 100:  # 1到100个章节
+                raise ValueError("NOVEL_ANALYSIS_BATCH_UPDATE_SIZE 必须在 1-100 之间")
+            return size
+        raise ValueError("NOVEL_ANALYSIS_BATCH_UPDATE_SIZE 必须是整数")
+
     NOVEL_ANALYSIS_BATCH_UPDATE_SIZE: int = 10  # 批量更新进度的间隔（章节数）
     
     # 文件上传配置
     MAX_UPLOAD_SIZE: int = 10485760  # 10MB
     UPLOAD_DIR: str = "./uploads"
+
+    # ==================== 世界观提取配置 ====================
+
+    # 批次处理配置
+    WORLDVIEW_CHARACTER_BATCH_SIZE: int = 20  # 角色批次大小
+    WORLDVIEW_LOCATION_BATCH_SIZE: int = 15  # 地点批次大小
+    WORLDVIEW_SETTING_BATCH_SIZE: int = 10  # 设定批次大小
+
+    # 重试机制配置
+    WORLDVIEW_BATCH_MAX_RETRIES: int = 3  # 单批次失败最大重试次数
+    WORLDVIEW_RETRY_DELAY: int = 5  # 重试延迟（秒）
+
+    # 进度持久化配置
+    WORLDVIEW_ENABLE_PROGRESS_PERSISTENCE: bool = True  # 启用进度持久化
+    WORLDVIEW_PROGRESS_SAVE_INTERVAL: int = 10  # 每处理N个批次保存一次进度
 
     # 腾讯云 COS 配置
     COS_HOST: Optional[str] = None
