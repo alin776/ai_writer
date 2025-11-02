@@ -78,6 +78,11 @@ async def login(
 
     返回 JWT Token
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"[LOGIN] 尝试登录: {form_data.username}")
+
     user_service = UserService(db)
 
     user = await user_service.authenticate_user(
@@ -86,6 +91,7 @@ async def login(
     )
 
     if not user:
+        logger.warning(f"[LOGIN] 登录失败: {form_data.username} - 用户名或密码错误")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -93,6 +99,7 @@ async def login(
         )
 
     if not user.is_active:
+        logger.warning(f"[LOGIN] 登录失败: {form_data.username} - 账户已禁用")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive"
@@ -118,10 +125,12 @@ async def login(
             device_info=device_info,
             ip_address=ip_address
         )
+        logger.info(f"[LOGIN] 会话创建成功: {user.id} ({ip_address})")
     except Exception as e:
         # 会话创建失败不影响登录，但记录错误
-        import logging
-        logging.error(f"Failed to create session: {e}")
+        logger.error(f"[LOGIN] 会话创建失败: {user.id} - {e}")
+
+    logger.info(f"[LOGIN] 登录成功: {user.username} ({user.id}) from {ip_address}")
 
     return Token(
         access_token=access_token,

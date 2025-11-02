@@ -12,10 +12,28 @@ from app.core.redis import redis_client
 from app.api import api_router
 from app.tasks import start_scheduler, stop_scheduler
 
-# 配置日志 - 使用简单配置，不覆盖 uvicorn 的默认行为
+# 配置日志
+import os
+from logging.handlers import RotatingFileHandler
+
+# 确保logs目录存在
+os.makedirs("./logs", exist_ok=True)
+
+# 配置根日志记录器
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        # 控制台输出
+        logging.StreamHandler(),
+        # 文件输出
+        RotatingFileHandler(
+            './logs/app.log',
+            maxBytes=10*1024*1024,  # 10MB
+            backupCount=5,
+            encoding='utf-8'
+        )
+    ]
 )
 logger = logging.getLogger(__name__)
 
