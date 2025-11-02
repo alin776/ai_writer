@@ -141,6 +141,9 @@ export function useAgentChat(): UseAgentChatReturn {
           }
         ]);
 
+        // 用于记录每个任务的开始时间
+        const taskStartTimes = new Map<number, number>();
+
         // 调用流式API
         await agentApi.chatStream(request, {
           onStart: (convId) => {
@@ -161,6 +164,9 @@ export function useAgentChat(): UseAgentChatReturn {
             console.log('[Stream] 规划生成:', initialTasks.length, '个任务');
           },
           onTaskStart: (task) => {
+            // 记录任务开始时间
+            taskStartTimes.set(task.task_id, Date.now());
+
             // 标记任务为运行中
             setCurrentTaskId(task.task_id);
             setTasks((prev) =>
@@ -176,6 +182,15 @@ export function useAgentChat(): UseAgentChatReturn {
             console.log('[Stream] 任务进度:', progress);
           },
           onTaskDone: (taskDone) => {
+            // 计算实际执行时间（前端计算）
+            const startTime = taskStartTimes.get(taskDone.task_id);
+            let elapsedTime = taskDone.elapsed_time || 0;
+
+            if (startTime && elapsedTime === 0) {
+              // 如果后端没有提供时间（为0），则使用前端计算的时间
+              elapsedTime = (Date.now() - startTime) / 1000; // 转换为秒
+            }
+
             // 标记任务完成
             setTasks((prev) =>
               prev.map((t) =>
@@ -183,13 +198,17 @@ export function useAgentChat(): UseAgentChatReturn {
                   ? {
                       ...t,
                       status: 'completed' as const,
-                      elapsed_time: taskDone.elapsed_time
+                      elapsed_time: elapsedTime
                     }
                   : t
               )
             );
             setCurrentTaskId(null);
-            console.log('[Stream] 任务完成:', taskDone.description, `(${taskDone.elapsed_time}s)`);
+
+            // 清理已完成任务的开始时间记录
+            taskStartTimes.delete(taskDone.task_id);
+
+            console.log('[Stream] 任务完成:', taskDone.description, `(${elapsedTime.toFixed(1)}s)`);
           },
           onContent: (chunk) => {
             // 累积内容
