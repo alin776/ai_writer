@@ -211,10 +211,14 @@ class ImportService:
         
         # 导入章节
         chapters_created = 0
+        total_words = 0  # 累计总字数
         for idx, chapter_data in enumerate(chapters_data):
             is_published = chapter_data.get('is_published', False)
             raw_status = chapter_data.get('status')
             status = ChapterStatus(raw_status) if raw_status else (ChapterStatus.PUBLISHED if is_published else ChapterStatus.DRAFT)
+
+            word_count = chapter_data.get('word_count', 0)
+            total_words += word_count  # 累计字数
 
             chapter = Chapter(
                 work_id=work.id,
@@ -222,7 +226,7 @@ class ImportService:
                 content=chapter_data.get('content', ''),
                 summary=chapter_data.get('summary'),
                 order=chapter_data.get('order', idx + 1),
-                word_count=chapter_data.get('word_count', 0),
+                word_count=word_count,
                 status=status,
                 is_published=is_published
             )
@@ -316,7 +320,7 @@ class ImportService:
         
         # 更新作品统计
         work.total_chapters = chapters_created
-        work.total_words = sum(c.word_count for c in work.chapters)
+        work.total_words = total_words  # 使用累计的字数，避免查询数据库
         
         await self.db.commit()
         
@@ -367,10 +371,12 @@ class ImportService:
         
         # 导入章节
         chapters_created = 0
+        total_words = 0  # 累计总字数
         for idx, chapter_data in enumerate(chapters):
             content = chapter_data['content']
             word_count = len(content.replace('\n', '').replace(' ', ''))
-            
+            total_words += word_count  # 累计字数
+
             chapter = Chapter(
                 work_id=work.id,
                 title=chapter_data['title'],
@@ -382,10 +388,10 @@ class ImportService:
             )
             self.db.add(chapter)
             chapters_created += 1
-        
+
         # 更新作品统计
         work.total_chapters = chapters_created
-        work.total_words = sum(c.word_count for c in work.chapters)
+        work.total_words = total_words  # 使用累计的字数，避免查询数据库
         
         await self.db.commit()
         
