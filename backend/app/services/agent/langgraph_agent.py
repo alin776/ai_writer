@@ -18,6 +18,7 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 import operator
 import logging
+import httpx
 
 from app.services.ai.http_ai_service import HTTPAIService
 from app.core.config import settings
@@ -1524,11 +1525,56 @@ class WritingAgentGraph:
 
 现在直接返回JSON，不要任何解释："""
 
-            plan_result = await self._generate_text(plan_prompt, temperature=0.3, max_tokens=1000)
-            plan_text = plan_result.get("text", "").strip()
+            try:
+                plan_result = await self._generate_text(plan_prompt, temperature=0.3, max_tokens=1000)
+                plan_text = plan_result.get("text", "").strip()
 
-            # 解析规划JSON
-            plan_data = self._extract_json_from_text(plan_text)
+                # 解析规划JSON
+                plan_data = self._extract_json_from_text(plan_text)
+
+            except Exception as e:
+                logger.error(f"[Planning Agent] 执行失败: {e}", exc_info=True)
+
+                # 定义网络相关异常类型
+                network_related_errors = (
+                    httpx.ConnectTimeout,
+                    httpx.ReadTimeout,
+                    httpx.NetworkError,
+                    httpx.HTTPError,
+                    ConnectionError,
+                    TimeoutError,
+                    # 移除过于宽泛的 OSError，只保留特定的网络错误
+                )
+
+                # 检查是否是网络相关错误
+                is_network_error = (
+                    isinstance(e, network_related_errors) or
+                    any(keyword in str(e).lower() for keyword in ["网络", "连接", "超时", "timeout", "connection", "network"])
+                )
+
+                if is_network_error:
+                    logger.warning(f"[Planning] 检测到网络错误，使用简化规划流程")
+                    # 使用简化的规划，避免再次调用AI
+                    plan_data = {
+                        "user_intent": "执行用户请求",
+                        "tasks": [
+                            {
+                                "task_id": 1,
+                                "description": "直接执行用户请求",
+                                "tool": "get_context_tool",
+                                "estimated_time": "5秒"
+                            }
+                        ]
+                    }
+                else:
+                    # 其他错误，返回错误响应
+                    return {
+                        "response": f"抱歉，规划阶段出现问题：{str(e)}。请稍后重试。",
+                        "conversation_id": conversation_id or "default",
+                        "agent_steps": [],
+                        "suggested_actions": [],
+                        "metadata": {"error": str(e), "stage": "planning", "error_type": type(e).__name__}
+                    }
 
             if not plan_data:
                 logger.warning(f"[Planning] 无法解析规划JSON，AI返回: {plan_text[:500]}")

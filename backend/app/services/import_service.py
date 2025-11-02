@@ -62,12 +62,12 @@ class ImportService:
         options: ImportOptions
     ) -> ImportResponse:
         """导入作品
-        
+
         Args:
             content: 文件内容
             user_id: 用户ID
             options: 导入选项
-        
+
         Returns:
             导入结果
         """
@@ -80,7 +80,10 @@ class ImportService:
                 raise ValueError(f"不支持的导入格式: {options.format}")
         except Exception as e:
             logger.error(f"导入作品失败: {e}", exc_info=True)
-            await self.db.rollback()
+            try:
+                await self.db.rollback()
+            except Exception as rollback_error:
+                logger.error(f"回滚失败: {rollback_error}", exc_info=True)
             raise
     
     async def _preview_json(self, content: bytes) -> ImportPreviewResponse:
