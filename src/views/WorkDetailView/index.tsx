@@ -49,6 +49,8 @@ const WorkDetailView: React.FC = () => {
   // 编辑器相关状态
   const [currentChapterId, setCurrentChapterId] = useState<string | undefined>(undefined);
   const [currentChapterContent, setCurrentChapterContent] = useState<string>('');
+  // 用于追踪编辑器当前加载的章节 ID，防止异步保存时的竞态条件
+  const editorChapterIdRef = React.useRef<string | undefined>(undefined);
 
   // 世界观数据
   const [worldData, setWorldData] = useState<WorldData>({
@@ -127,6 +129,7 @@ const WorkDetailView: React.FC = () => {
         if (chaptersData.length > 0) {
           setCurrentChapterId(chaptersData[0].id);
           setCurrentChapterContent(chaptersData[0].content);
+          editorChapterIdRef.current = chaptersData[0].id; // 更新 ref
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : '加载数据失败';
@@ -149,7 +152,8 @@ const WorkDetailView: React.FC = () => {
       // 先更新章节ID，再更新内容，确保编辑器使用正确的章节数据
       setCurrentChapterId(chapterId);
       setCurrentChapterContent(chapter.content);
-      
+      editorChapterIdRef.current = chapterId; // 更新 ref
+
       // 调试日志
       console.log('[WorkDetailView] 切换章节:', {
         chapterId,
@@ -192,9 +196,14 @@ const WorkDetailView: React.FC = () => {
       // 使用后端返回的完整章节对象
       setChapters((prev) => [...prev, savedChapter]);
 
-      // 选中新章节
-      setCurrentChapterId(savedChapter.id);
-      setCurrentChapterContent(savedChapter.content);
+      // 先清空当前内容，再选中新章节（确保编辑器内容被清空）
+      setCurrentChapterContent('');
+      // 使用 setTimeout 确保状态更新顺序正确
+      setTimeout(() => {
+        setCurrentChapterId(savedChapter.id);
+        setCurrentChapterContent('');
+        editorChapterIdRef.current = savedChapter.id; // 更新 ref
+      }, 0);
 
       // 清空输入框并关闭
       setNewChapterTitle('');
@@ -305,9 +314,11 @@ const WorkDetailView: React.FC = () => {
         if (remainingChapters.length > 0) {
           setCurrentChapterId(remainingChapters[0].id);
           setCurrentChapterContent(remainingChapters[0].content);
+          editorChapterIdRef.current = remainingChapters[0].id; // 更新 ref
         } else {
           setCurrentChapterId(undefined);
           setCurrentChapterContent('');
+          editorChapterIdRef.current = undefined; // 更新 ref
         }
       }
 
@@ -365,6 +376,17 @@ const WorkDetailView: React.FC = () => {
   const handleEditorSave = useCallback(async (content: string, json: any) => {
     if (!currentChapterId) {
       console.warn('[WorkDetailView] 保存失败：没有选中的章节');
+      return;
+    }
+
+    // 验证：确保保存的是当前编辑器正在编辑的章节
+    // 防止章节切换时的竞态条件导致保存到错误的章节
+    const chapterIdToSave = editorChapterIdRef.current;
+    if (!chapterIdToSave || chapterIdToSave !== currentChapterId) {
+      console.warn('[WorkDetailView] 保存失败：章节ID不匹配', {
+        editorChapterId: chapterIdToSave,
+        currentChapterId,
+      });
       return;
     }
 
@@ -839,7 +861,7 @@ const WorkDetailView: React.FC = () => {
       <div className="flex bg-zinc-50/30" style={{ height: 'calc(100vh - 60px)' }}>
         {/* 左侧章节面板 */}
         <div
-          className={`bg-gradient-to-b from-white to-zinc-50/30 flex flex-col border-r border-zinc-100/80 transition-all duration-300 h-full ${
+          className={`bg-gradient-to-b from-white to-zinc-50/30 flex flex-col border-r border-zinc-100/80 transition-all duration-300 h-full overflow-hidden ${
             isLeftCollapsed ? 'w-12' : 'w-60'
           }`}
         >
@@ -860,9 +882,9 @@ const WorkDetailView: React.FC = () => {
             </div>
           ) : (
             /* 展开状态 */
-            <div className="px-4 py-3 flex-1 flex flex-col">
+            <div className="px-4 py-3 flex-1 flex flex-col min-h-0">
               {/* 标题区域 */}
-              <div className="mb-3">
+              <div className="mb-3 flex-shrink-0">
                 <div className="flex items-center justify-between mb-1">
                   <h2 className="text-[15px] text-zinc-800 tracking-tight">目录</h2>
                   <div className="flex items-center gap-1">
@@ -888,7 +910,7 @@ const WorkDetailView: React.FC = () => {
               </div>
 
               {/* 章节列表 */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar -mx-2">
+              <div className="flex-1 overflow-y-auto custom-scrollbar -mx-2 min-h-0">
                 <div className="px-2 space-y-1">
                   {/* 新章节输入框 */}
                   {isAddingChapter && (
@@ -1214,9 +1236,11 @@ const WorkDetailView: React.FC = () => {
                       if (remainingChapters.length > 0) {
                         setCurrentChapterId(remainingChapters[0].id);
                         setCurrentChapterContent(remainingChapters[0].content);
+                        editorChapterIdRef.current = remainingChapters[0].id; // 更新 ref
                       } else {
                         setCurrentChapterId(undefined);
                         setCurrentChapterContent('');
+                        editorChapterIdRef.current = undefined; // 更新 ref
                       }
                     }
 

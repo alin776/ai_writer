@@ -1,14 +1,103 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Bot, Send, Loader2 } from 'lucide-react';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import type { AgentChatRequest } from '../../types/agent';
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface AIPanelProps {
   workId: string;
   chapterId?: string;
 }
+
+// Markdown渲染组件
+const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
+  return (
+    <div className="text-[11px] leading-relaxed markdown-content">
+      <ReactMarkdown
+        components={{
+          // 代码块
+          code({ node, inline, className, children, ...props }: any) {
+            const match = /language-(\w+)/.exec(className || '');
+            return !inline && match ? (
+              <SyntaxHighlighter
+                style={vscDarkPlus}
+                language={match[1]}
+                PreTag="div"
+                className="rounded-md text-[9px] my-1.5"
+                {...props}
+              >
+                {String(children).replace(/\n$/, '')}
+              </SyntaxHighlighter>
+            ) : (
+              <code className="bg-zinc-100 text-zinc-800 px-1 py-0.5 rounded text-[9px] font-mono" {...props}>
+                {children}
+              </code>
+            );
+          },
+          // 段落
+          p({ children }) {
+            return <p className="mb-1.5 last:mb-0 text-[11px]">{children}</p>;
+          },
+          // 标题
+          h1({ children }) {
+            return <h1 className="text-[12px] font-semibold mb-1.5 mt-2 first:mt-0">{children}</h1>;
+          },
+          h2({ children }) {
+            return <h2 className="text-[11px] font-semibold mb-1.5 mt-2 first:mt-0">{children}</h2>;
+          },
+          h3({ children }) {
+            return <h3 className="text-[11px] font-medium mb-1 mt-1.5 first:mt-0">{children}</h3>;
+          },
+          // 列表
+          ul({ children }) {
+            return <ul className="list-disc list-inside mb-1.5 space-y-0.5 text-[11px]">{children}</ul>;
+          },
+          ol({ children }) {
+            return <ol className="list-decimal list-inside mb-1.5 space-y-0.5 text-[11px]">{children}</ol>;
+          },
+          li({ children }) {
+            return <li className="text-[11px]">{children}</li>;
+          },
+          // 链接
+          a({ href, children }) {
+            return (
+              <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-[11px]">
+                {children}
+              </a>
+            );
+          },
+          // 引用
+          blockquote({ children }) {
+            return <blockquote className="border-l-2 border-zinc-300 pl-2 my-1.5 text-zinc-600 text-[11px]">{children}</blockquote>;
+          },
+          // 分割线
+          hr() {
+            return <hr className="my-2 border-zinc-200" />;
+          },
+          // 表格
+          table({ children }) {
+            return <table className="border-collapse border border-zinc-200 my-1.5 text-[9px]">{children}</table>;
+          },
+          thead({ children }) {
+            return <thead className="bg-zinc-50">{children}</thead>;
+          },
+          th({ children }) {
+            return <th className="border border-zinc-200 px-1.5 py-0.5 font-semibold text-[9px]">{children}</th>;
+          },
+          td({ children }) {
+            return <td className="border border-zinc-200 px-1.5 py-0.5 text-[9px]">{children}</td>;
+          },
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+};
 
 export function AIPanel({ workId, chapterId }: AIPanelProps) {
   const {
@@ -23,11 +112,44 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
 
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScrollRef = useRef(true); // 用于追踪是否应该自动滚动
 
-  // 自动滚动到底部
-  useEffect(() => {
+  // 检测用户是否在底部
+  const checkIfAtBottom = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return false;
+
+    // 检测滚动位置是否接近底部（允许50px的误差）
+    const threshold = 50;
+    const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+    return isAtBottom;
+  }, []);
+
+  // 滚动到底部
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, tasks]);
+  }, []);
+
+  // 监听滚动事件，更新是否应该自动滚动的标志
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      shouldAutoScrollRef.current = checkIfAtBottom();
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [checkIfAtBottom]);
+
+  // 当消息或任务更新时，如果用户在底部就自动滚动
+  useEffect(() => {
+    if (shouldAutoScrollRef.current) {
+      scrollToBottom();
+    }
+  }, [messages, tasks, scrollToBottom]);
 
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
@@ -43,6 +165,9 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
 
     setInputValue('');
 
+    // 用户发送消息时，标记应该自动滚动
+    shouldAutoScrollRef.current = true;
+
     try {
       await sendMessageStream(request);
     } catch (err) {
@@ -52,7 +177,7 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
 
   return (
     <div className="p-3 h-full flex flex-col">
-      <div className="flex-1 mb-3 space-y-2.5 overflow-y-auto custom-scrollbar">
+      <div ref={messagesContainerRef} className="flex-1 mb-3 space-y-2.5 overflow-y-auto custom-scrollbar">
         {/* 欢迎消息 */}
         {messages.length === 0 && (
           <div className="flex items-start gap-2">
@@ -68,46 +193,64 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
         )}
 
         {/* 消息列表 */}
-        {messages.map((message, index) => (
-          <div key={index} className={`flex items-start gap-2 ${message.role === 'user' ? 'justify-end' : ''}`}>
-            {message.role === 'agent' && (
-              <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
-                <Bot className="h-3.5 w-3.5 text-white" />
-              </div>
-            )}
+        {messages.map((message, index) => {
+          // 判断是否是最后一条消息
+          const isLastMessage = index === messages.length - 1;
+          // 判断这条消息是否是正在streaming的agent消息
+          const isStreamingMessage = isLastMessage && message.role === 'agent' && isLoading;
 
-            <div
-              className={`flex-1 max-w-[85%] p-2.5 rounded-lg ${
-                message.role === 'user'
-                  ? 'bg-zinc-800 text-zinc-50 shadow-sm ml-auto'
-                  : 'bg-zinc-50/70 border border-zinc-100'
-              }`}
-            >
-              <p className="text-[11px] leading-relaxed whitespace-pre-wrap" style={{ color: message.role === 'user' ? 'inherit' : 'rgb(113, 113, 122)' }}>
-                {message.content}
-              </p>
+          // 如果是正在streaming的消息，先不渲染它，等渲染完todolist后再渲染
+          if (isStreamingMessage) {
+            return null;
+          }
 
-              {/* Agent步骤展示（可选） */}
-              {message.role === 'agent' && message.agentSteps && message.agentSteps.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-zinc-200/50">
-                  <details className="text-[10px] text-zinc-400">
-                    <summary className="cursor-pointer hover:text-zinc-600">查看执行步骤</summary>
-                    <div className="mt-1 space-y-1">
-                      {message.agentSteps.map((step, idx) => (
-                        <div key={idx} className="pl-2 border-l-2 border-zinc-200">
-                          <div className="font-medium">{step.step}</div>
-                          <div className="text-zinc-500">{step.result}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
+          return (
+            <div key={index} className={`flex items-start gap-2 ${message.role === 'user' ? 'justify-end' : ''}`}>
+              {message.role === 'agent' && (
+                <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
+                  <Bot className="h-3.5 w-3.5 text-white" />
                 </div>
               )}
-            </div>
-          </div>
-        ))}
 
-        {/* 任务执行进度 */}
+              <div
+                className={`flex-1 max-w-[85%] p-2.5 rounded-lg ${
+                  message.role === 'user'
+                    ? 'bg-zinc-800 text-zinc-50 shadow-sm ml-auto'
+                    : 'bg-zinc-50/70 border border-zinc-100'
+                }`}
+              >
+                {message.role === 'agent' ? (
+                  <div style={{ color: 'rgb(113, 113, 122)' }}>
+                    <MarkdownContent content={message.content} />
+                  </div>
+                ) : (
+                  <p className="text-[11px] leading-relaxed whitespace-pre-wrap">
+                    {message.content}
+                  </p>
+                )}
+
+                {/* Agent步骤展示（可选） */}
+                {message.role === 'agent' && message.agentSteps && message.agentSteps.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-zinc-200/50">
+                    <details className="text-[10px] text-zinc-400">
+                      <summary className="cursor-pointer hover:text-zinc-600">查看执行步骤</summary>
+                      <div className="mt-1 space-y-1">
+                        {message.agentSteps.map((step, idx) => (
+                          <div key={idx} className="pl-2 border-l-2 border-zinc-200">
+                            <div className="font-medium">{step.step}</div>
+                            <div className="text-zinc-500">{step.result}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* 任务执行进度（todolist）- 显示在所有历史消息之后，streaming消息之前 */}
         {isLoading && tasks.length > 0 && (
           <div className="flex items-start gap-2">
             <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
@@ -161,6 +304,20 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
                   className="absolute left-0 top-0 h-full bg-zinc-400 transition-all duration-500"
                   style={{ width: `${(tasks.filter(t => t.status === 'completed').length / tasks.length) * 100}%` }}
                 ></div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 正在streaming的agent消息 - 显示在todolist之后 */}
+        {isLoading && messages.length > 0 && messages[messages.length - 1].role === 'agent' && messages[messages.length - 1].content && (
+          <div className="flex items-start gap-2">
+            <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
+              <Bot className="h-3.5 w-3.5 text-white" />
+            </div>
+            <div className="flex-1 max-w-[85%] p-2.5 rounded-lg bg-zinc-50/70 border border-zinc-100">
+              <div style={{ color: 'rgb(113, 113, 122)' }}>
+                <MarkdownContent content={messages[messages.length - 1].content} />
               </div>
             </div>
           </div>
