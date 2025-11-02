@@ -463,12 +463,36 @@ async def get_guidelines(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
     worldview_service = WorldviewService(db)
     guidelines = await worldview_service.get_guidelines_by_work(work_id)
     if not guidelines:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guidelines not found")
-    
+        # 返回默认的空guidelines而不是404
+        from datetime import datetime
+        from uuid import uuid4
+        now = datetime.now()
+        return WorkGuidelinesResponse(
+            id=uuid4(),  # 生成新的UUID作为临时ID
+            work_id=UUID(work_id),
+            genre="",
+            theme="",
+            background="",
+            plot_outline="",
+            main_conflict="",
+            tone="",
+            target_audience="",
+            narrative_style="",
+            pacing="",
+            point_of_view="",
+            setting_description="",
+            world_rules="",
+            magic_system="",
+            technology_level="",
+            cultural_elements="",
+            created_at=now,
+            updated_at=now
+        )
+
     return guidelines
 
 
@@ -526,15 +550,56 @@ async def get_ai_guidelines(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
     ai_service = AIGuidelinesService(db)
     # 将 str 转换为 UUID
     work_uuid = UUID(work_id)
     guidelines = await ai_service.get_by_work_id(work_uuid)
-    
+
     if not guidelines:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AI Guidelines not found")
-    
+        # 返回默认的空ai-guidelines而不是404
+        from datetime import datetime
+        from uuid import uuid4
+        now = datetime.now()
+        return AIGuidelinesResponse(
+            id=uuid4(),  # 生成新的UUID作为临时ID
+            work_id=work_uuid,
+            business_goal="",
+            target_audience="",
+            commercial_benchmark="",
+            high_concept="",
+            core_paradox="",
+            dominant_emotion="",
+            core_ip_symbols="",
+            protagonist_arc="",
+            core_conflict="",
+            narrative_rhythm="",
+            writing_style="",
+            style_notes="",
+            chapter_length="",
+            content_taboos="",
+            primary_genre="",
+            secondary_tags="",
+            creative_tone="",
+            world_intro="",
+            main_locations="",
+            world_rules="",
+            power_system_name="",
+            power_levels="",
+            power_cost="",
+            protagonist_name="",
+            protagonist_identity="",
+            protagonist_traits="",
+            protagonist_goal="",
+            conflict_design="",
+            act_one="",
+            act_two="",
+            act_three="",
+            is_active=True,
+            created_at=now,
+            updated_at=now
+        )
+
     return guidelines
 
 
