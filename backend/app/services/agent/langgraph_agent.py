@@ -37,8 +37,8 @@ class AgentState(TypedDict):
     chapter_id: Optional[str]  # 章节ID
     intent: Optional[str]  # 用户意图
     context: Dict[str, Any]  # 上下文信息
-    agent_steps: List[Dict[str, Any]]  # Agent执行步骤
-    suggested_actions: List[str]  # 建议操作
+    agent_steps: Annotated[List[Dict[str, Any]], operator.add]  # Agent执行步骤
+    suggested_actions: Annotated[List[str], operator.add]  # 建议操作
     final_response: Optional[str]  # 最终响应
 
 
@@ -709,14 +709,15 @@ class WritingAgentGraph:
         result = await self._generate_text(prompt=prompt, temperature=0.3, max_tokens=50)
         intent = result.get("text", "general").strip().lower()
 
-        state["intent"] = intent
-        state["agent_steps"].append({
-            "step": "intent_classification",
-            "result": f"识别意图: {intent}",
-            "usage": result.get("usage", {})
-        })
-
-        return state
+        # ✅ 只返回节点新增/修改的字段，避免 operator.add 重复添加
+        return {
+            "intent": intent,
+            "agent_steps": [{
+                "step": "intent_classification",
+                "result": f"识别意图: {intent}",
+                "usage": result.get("usage", {})
+            }]
+        }
 
     def _route_intent(self, state: AgentState) -> str:
         """路由决策函数"""
@@ -748,29 +749,34 @@ class WritingAgentGraph:
         if messages and isinstance(messages[-1], ToolMessage):
             logger.info(f"[LangGraph] {agent_type} - 处理工具执行结果 (ChatOpenAI)")
             response = await self.llm.ainvoke(messages)
-            state["messages"].append(response)
-            state["final_response"] = response.content
-            state["agent_steps"].append({
-                "step": f"{agent_type}_final_response",
-                "result": "基于工具结果生成最终响应 (ChatOpenAI)"
-            })
-            return state
+            # ✅ 只返回新消息，避免 operator.add 重复添加
+            return {
+                "messages": [response],
+                "final_response": response.content,
+                "agent_steps": [{
+                    "step": f"{agent_type}_final_response",
+                    "result": "基于工具结果生成最终响应 (ChatOpenAI)"
+                }]
+            }
 
         # 第一次进入：让 LLM 决定是否需要工具
         messages_with_system = [SystemMessage(content=system_prompt)] + messages
         response = await self.llm_with_tools.ainvoke(messages_with_system)
 
-        state["messages"].append(response)
-        state["agent_steps"].append({
-            "step": f"{agent_type}_decision",
-            "result": f"LLM决策 (ChatOpenAI): {'调用工具' if response.tool_calls else '直接响应'}",
-            "tool_calls": len(response.tool_calls) if response.tool_calls else 0
-        })
+        # ✅ 只返回新消息，避免 operator.add 重复添加
+        result = {
+            "messages": [response],
+            "agent_steps": [{
+                "step": f"{agent_type}_decision",
+                "result": f"LLM决策 (ChatOpenAI): {'调用工具' if response.tool_calls else '直接响应'}",
+                "tool_calls": len(response.tool_calls) if response.tool_calls else 0
+            }]
+        }
 
         if not response.tool_calls:
-            state["final_response"] = response.content
+            result["final_response"] = response.content
 
-        return state
+        return result
 
     async def _handle_with_httpai(self, state: AgentState, agent_type: str, system_prompt: str) -> AgentState:
         """HTTPAIService 模式 - 手动工具调用（绕过 Cloudflare）"""
@@ -920,13 +926,15 @@ class WritingAgentGraph:
                     final_text += chunk
 
             response = AIMessage(content=final_text)
-            state["messages"].append(response)
-            state["final_response"] = final_text
-            state["agent_steps"].append({
-                "step": f"{agent_type}_final_response",
-                "result": "基于工具结果生成最终响应 (HTTPAIService)"
-            })
-            return state
+            # ✅ 只返回新消息，避免 operator.add 重复添加
+            return {
+                "messages": [response],
+                "final_response": final_text,
+                "agent_steps": [{
+                    "step": f"{agent_type}_final_response",
+                    "result": "基于工具结果生成最终响应 (HTTPAIService)"
+                }]
+            }
 
         # 第一次进入：使用 HTTPAIService 决定是否需要工具
         last_user_message = messages[-1].content
@@ -1045,34 +1053,44 @@ class WritingAgentGraph:
                 tool_result = f"未知工具: {tool_name}"
                 logger.warning(f"[LangGraph] 尝试调用未知工具: {tool_name}")
 
-            # 添加消息
+            # ✅ 创建新消息（不直接修改 state，避免重复）
             ai_decision = AIMessage(content=f"我需要使用 {tool_name} 工具来帮助你。")
-            state["messages"].append(ai_decision)
-
             tool_message = ToolMessage(content=tool_result, tool_call_id="manual_call")
-            state["messages"].append(tool_message)
 
-            state["agent_steps"].append({
+            new_step = {
                 "step": f"{agent_type}_tool_call",
                 "result": f"调用工具 (HTTPAIService): {tool_name}",
                 "tool_result_length": len(tool_result)
-            })
+            }
+
+            # ✅ 创建更新后的 state（不修改原 state）
+            updated_state = state.copy()
+            updated_state["messages"] = state["messages"] + [ai_decision, tool_message]
+            updated_state["agent_steps"] = state["agent_steps"] + [new_step]
 
             # 递归处理工具结果
-            return await self._handle_with_httpai(state, agent_type, system_prompt)
+            result = await self._handle_with_httpai(updated_state, agent_type, system_prompt)
+
+            # ✅ 递归返回时，合并所有新消息（包括工具调用的消息 + 最终响应）
+            return {
+                "messages": [ai_decision, tool_message] + result.get("messages", []),
+                "final_response": result.get("final_response"),
+                "agent_steps": [new_step] + result.get("agent_steps", [])
+            }
 
         else:
             # 不需要工具：直接响应
             direct_response = decision.get("direct_response", "抱歉，我无法处理您的请求。")
             response = AIMessage(content=direct_response)
-            state["messages"].append(response)
-            state["final_response"] = direct_response
-            state["agent_steps"].append({
-                "step": f"{agent_type}_direct_response",
-                "result": "直接响应用户 (HTTPAIService)"
-            })
-
-        return state
+            # ✅ 只返回新消息，避免 operator.add 重复添加
+            return {
+                "messages": [response],
+                "final_response": direct_response,
+                "agent_steps": [{
+                    "step": f"{agent_type}_direct_response",
+                    "result": "直接响应用户 (HTTPAIService)"
+                }]
+            }
 
     async def _handle_writing(self, state: AgentState) -> AgentState:
         """处理写作场景 - 委托给WritingAction"""
@@ -1095,9 +1113,15 @@ class WritingAgentGraph:
             # 返回错误消息
             from langchain_core.messages import AIMessage
             error_msg = AIMessage(content=f"抱歉，写作请求处理失败: {action_result.error}")
-            state["messages"].append(error_msg)
-            state["final_response"] = error_msg.content
-            return state
+            # ✅ 只返回新消息，避免 operator.add 重复添加
+            return {
+                "messages": [error_msg],
+                "final_response": error_msg.content,
+                "agent_steps": [{
+                    "step": "writing_error",
+                    "result": f"执行失败: {action_result.error}"
+                }]
+            }
 
         # 获取Action生成的system_prompt
         system_prompt = action_result.data.get("system_prompt")
@@ -1132,9 +1156,15 @@ class WritingAgentGraph:
             logger.error(f"[LangGraph] PlanningAction执行失败: {action_result.error}")
             from langchain_core.messages import AIMessage
             error_msg = AIMessage(content=f"抱歉，规划请求处理失败: {action_result.error}")
-            state["messages"].append(error_msg)
-            state["final_response"] = error_msg.content
-            return state
+            # ✅ 只返回新消息，避免 operator.add 重复添加
+            return {
+                "messages": [error_msg],
+                "final_response": error_msg.content,
+                "agent_steps": [{
+                    "step": "planning_error",
+                    "result": f"执行失败: {action_result.error}"
+                }]
+            }
 
         # 获取Action生成的system_prompt
         system_prompt = action_result.data.get("system_prompt")
@@ -1165,9 +1195,15 @@ class WritingAgentGraph:
             logger.error(f"[LangGraph] AnalysisAction执行失败: {action_result.error}")
             from langchain_core.messages import AIMessage
             error_msg = AIMessage(content=f"抱歉，分析请求处理失败: {action_result.error}")
-            state["messages"].append(error_msg)
-            state["final_response"] = error_msg.content
-            return state
+            # ✅ 只返回新消息，避免 operator.add 重复添加
+            return {
+                "messages": [error_msg],
+                "final_response": error_msg.content,
+                "agent_steps": [{
+                    "step": "analysis_error",
+                    "result": f"执行失败: {action_result.error}"
+                }]
+            }
 
         # 获取Action生成的system_prompt
         system_prompt = action_result.data.get("system_prompt")
@@ -1198,9 +1234,15 @@ class WritingAgentGraph:
             logger.error(f"[LangGraph] StuckAction执行失败: {action_result.error}")
             from langchain_core.messages import AIMessage
             error_msg = AIMessage(content=f"抱歉，卡文请求处理失败: {action_result.error}")
-            state["messages"].append(error_msg)
-            state["final_response"] = error_msg.content
-            return state
+            # ✅ 只返回新消息，避免 operator.add 重复添加
+            return {
+                "messages": [error_msg],
+                "final_response": error_msg.content,
+                "agent_steps": [{
+                    "step": "stuck_error",
+                    "result": f"执行失败: {action_result.error}"
+                }]
+            }
 
         # 获取Action生成的system_prompt
         system_prompt = action_result.data.get("system_prompt")
@@ -1219,8 +1261,7 @@ class WritingAgentGraph:
 
         # 创建GeneralChatAction实例
         general_action = GeneralChatAction(
-            ai_service=self.ai_service,
-            use_chatgpt=self.use_chatgpt
+            ai_service=self.ai_service
         )
 
         # 调用Action执行
@@ -1231,25 +1272,33 @@ class WritingAgentGraph:
             logger.error(f"[LangGraph] GeneralChatAction执行失败: {action_result.error}")
             from langchain_core.messages import AIMessage
             error_msg = AIMessage(content=f"抱歉，无法处理您的请求: {action_result.error}")
-            state["messages"].append(error_msg)
-            state["final_response"] = error_msg.content
-            return state
+            # ✅ 只返回新消息，避免 operator.add 重复添加
+            return {
+                "messages": [error_msg],
+                "final_response": error_msg.content,
+                "agent_steps": [{
+                    "step": "general_chat_error",
+                    "result": f"执行失败: {action_result.error}"
+                }]
+            }
 
         # 获取Action生成的响应
-        response_text = action_result.data.get("response", "抱歉，我无法回答您的问题。")
+        response_text = action_result.data.get("final_response", "抱歉，我无法回答您的问题。")
 
         from langchain_core.messages import AIMessage
         response = AIMessage(content=response_text)
-        state["messages"].append(response)
-        state["final_response"] = response_text
-        state["agent_steps"].append({
-            "step": "general_chat",
-            "result": "一般对话响应"
-        })
 
         logger.info(f"[LangGraph] GeneralChatAction返回成功")
 
-        return state
+        # ✅ 只返回新消息，避免 operator.add 重复添加
+        return {
+            "messages": [response],
+            "final_response": response_text,
+            "agent_steps": [{
+                "step": "general_chat",
+                "result": "一般对话响应"
+            }]
+        }
 
     async def chat(
         self,
@@ -1294,6 +1343,7 @@ class WritingAgentGraph:
             return {
                 "response": result["final_response"],
                 "conversation_id": conversation_id or "default",
+                "messages": result["messages"],  # ✅ 添加 messages 到返回值
                 "agent_steps": result["agent_steps"],
                 "suggested_actions": result["suggested_actions"],
                 "metadata": {
