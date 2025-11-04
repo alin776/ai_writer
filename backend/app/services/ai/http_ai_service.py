@@ -76,12 +76,17 @@ class HTTPAIService:
                 connect=10.0
             ),
             follow_redirects=True,
-            http2=False,  # 使用 HTTP/1.1
+            http2=True,  # 启用 HTTP/2 - 支持多路复用和头部压缩
+            limits=httpx.Limits(
+                max_connections=20,           # 最大连接数
+                max_keepalive_connections=10  # 保持活动连接数（支持连接复用）
+            ),
         )
 
         logger.info(
             f"HTTP AI Service 初始化成功，Base URL: {self.base_url}, "
             f"Model: {self.model}, Timeout: {timeout_value}s, "
+            f"HTTP/2: Enabled (多路复用), "
             f"ModelSelector: {enable_model_selector}, CostTracking: {enable_cost_tracking}"
         )
     
