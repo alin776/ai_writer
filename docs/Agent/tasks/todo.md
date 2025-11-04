@@ -266,4 +266,155 @@ grep "Stream completed" backend/INFO.md | tail -10
 
 ---
 
+# 🔴 **新发现的关键问题** 🔴
+
+## 📅 2025-11-04 22:30 - 深度代码分析
+
+### ❌ 问题根源已定位
+
+**核心问题：** Execution阶段显示 `task_type=None`，导致强制使用默认的gemini-2.5-pro（慢且贵）
+
+### 🔍 日志证据
+```
+22:25:14 - 开始调用 AI API: model=gemini-2.5-pro, max_tokens=2000, temp=0.8, task_type=None  ← 问题！
+```
+
+### 💡 根本原因
+
+**在 `langgraph_agent.py` 中存在旧版工具，它们没有传递task_type：**
+
+1. **旧版工具定义：** Line 131-193
+   - `continue_writing_tool` (Line 131)
+   - `polish_text_tool` (Line 155)
+   - `analyze_text_tool` (Line 176)
+
+2. **辅助函数缺陷：** Line 89-128 的 `_generate_text_helper`
+   - ❌ **没有接受task_type参数**
+   - ❌ **调用_stream_chat时没有传递task_type**（Line 101-107）
+
+3. **调用链路：**
+   ```
+   旧版工具 (Line 151)
+   → _generate_text_helper (Line 89, 缺少task_type参数)
+   → _stream_chat (Line 101, 未传递task_type)
+   → 导致task_type=None！
+   ```
+
+4. **对比：**
+   - ✅ 新版工具（`writing_tools.py`）：正确传递task_type
+   - ❌ 旧版工具（`langgraph_agent.py`）：未传递task_type
+   - **系统正在使用旧版工具！**
+
+### 🎯 精确修复方案
+
+#### 修改1：修复 `_generate_text_helper` 函数（核心）
+
+**位置：** `langgraph_agent.py:89-128`
+
+```python
+# 修改前：
+async def _generate_text_helper(prompt: str, temperature: float = 0.7, max_tokens: int = 1000) -> str:
+    """辅助函数：使用 HTTPAIService 生成文本（带重试机制）"""
+    ...
+    async for chunk, _ in _global_ai_service._stream_chat(
+        messages=messages,
+        max_tokens=max_tokens,
+        temperature=temperature
+        # ❌ 缺少 task_type
+    ):
+
+# 修改后：
+async def _generate_text_helper(
+    prompt: str,
+    temperature: float = 0.7,
+    max_tokens: int = 1000,
+    task_type: Optional[TaskType] = None  # ← 新增参数
+) -> str:
+    """辅助函数：使用 HTTPAIService 生成文本（带重试机制）"""
+    ...
+    async for chunk, _ in _global_ai_service._stream_chat(
+        messages=messages,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        task_type=task_type  # ← 传递参数
+    ):
+```
+
+#### 修改2：修复旧版 `continue_writing_tool`
+
+**位置：** `langgraph_agent.py:151`
+
+```python
+# 修改前：
+return await _generate_text_helper(prompt, temperature=0.8, max_tokens=2000)
+
+# 修改后：
+return await _generate_text_helper(
+    prompt,
+    temperature=0.8,
+    max_tokens=2000,
+    task_type=TaskType.CONTENT_CREATION  # ← 新增
+)
+```
+
+#### 修改3：修复旧版 `polish_text_tool`
+
+**位置：** `langgraph_agent.py:172`
+
+```python
+# 修改前：
+return await _generate_text_helper(prompt, temperature=0.7, max_tokens=2000)
+
+# 修改后：
+return await _generate_text_helper(
+    prompt,
+    temperature=0.7,
+    max_tokens=2000,
+    task_type=TaskType.TEXT_POLISH  # ← 新增
+)
+```
+
+#### 修改4：修复旧版 `analyze_text_tool`
+
+**位置：** `langgraph_agent.py:193`
+
+```python
+# 修改前：
+return await _generate_text_helper(prompt, temperature=0.3, max_tokens=1500)
+
+# 修改后：
+return await _generate_text_helper(
+    prompt,
+    temperature=0.3,
+    max_tokens=1500,
+    task_type=TaskType.DEEP_ANALYSIS  # ← 新增
+)
+```
+
+### 📊 预期效果
+
+#### 修复前（当前）
+```
+[Planning] task_type=SIMPLE_QA, time=25s, model=flash-lite ✅
+[Execution] task_type=None, time=42s, model=pro ❌
+[Summarization] task_type=SUMMARIZATION, time=34s, model=flash ✅
+总时间: 101s
+```
+
+#### 修复后（目标）
+```
+[Planning] task_type=SIMPLE_QA, time=10s, model=flash-lite ✅
+[Execution] task_type=CONTENT_CREATION, time=15s, model=flash ✅
+[Summarization] task_type=SUMMARIZATION, time=20s, model=flash ✅
+总时间: 45s（提升56%！）
+```
+
+---
+
+## 🚦 下一步行动
+
+**等待用户确认，然后开始修复代码！**
+
+---
+
 **准备好了吗？等待确认后开始执行！** 🚀

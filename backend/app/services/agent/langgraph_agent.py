@@ -86,7 +86,12 @@ async def _retry_on_failure(func, *args, max_retries=3, **kwargs):
     raise Exception(f"{func.__name__} 失败，已重试{max_retries}次")
 
 
-async def _generate_text_helper(prompt: str, temperature: float = 0.7, max_tokens: int = 1000) -> str:
+async def _generate_text_helper(
+    prompt: str,
+    temperature: float = 0.7,
+    max_tokens: int = 1000,
+    task_type: Optional[TaskType] = None  # ← 新增参数
+) -> str:
     """辅助函数：使用 HTTPAIService 生成文本（带重试机制）"""
     if not _global_ai_service:
         return "错误：AI服务未初始化"
@@ -101,7 +106,8 @@ async def _generate_text_helper(prompt: str, temperature: float = 0.7, max_token
             async for chunk, _ in _global_ai_service._stream_chat(
                 messages=messages,
                 max_tokens=max_tokens,
-                temperature=temperature
+                temperature=temperature,
+                task_type=task_type  # ← 传递task_type参数
             ):
                 if chunk:
                     generated_text += chunk
@@ -148,7 +154,12 @@ async def continue_writing_tool(context: str, requirements: str = "") -> str:
 
 重要：请直接输出续写的小说正文，不要输出任何说明文字、建议或问题。立即开始续写："""
 
-    return await _generate_text_helper(prompt, temperature=0.8, max_tokens=2000)
+    return await _generate_text_helper(
+        prompt,
+        temperature=0.8,
+        max_tokens=2000,
+        task_type=TaskType.CONTENT_CREATION  # ← 新增：续写任务
+    )
 
 
 @tool
@@ -169,7 +180,12 @@ async def polish_text_tool(text: str, style: str = "professional") -> str:
 
 请提供润色后的版本："""
 
-    return await _generate_text_helper(prompt, temperature=0.7, max_tokens=2000)
+    return await _generate_text_helper(
+        prompt,
+        temperature=0.7,
+        max_tokens=2000,
+        task_type=TaskType.TEXT_POLISH  # ← 新增：润色任务
+    )
 
 
 @tool
@@ -190,7 +206,12 @@ async def analyze_text_tool(text: str, focus: str = "all") -> str:
 
 请提供详细的分析报告："""
 
-    return await _generate_text_helper(prompt, temperature=0.3, max_tokens=1500)
+    return await _generate_text_helper(
+        prompt,
+        temperature=0.3,
+        max_tokens=1500,
+        task_type=TaskType.DEEP_ANALYSIS  # ← 新增：分析任务
+    )
 
 
 @tool
