@@ -85,24 +85,33 @@ class GeneralChatAction(BaseAction):
             ActionResult: 执行结果
         """
         try:
-            # 1. 提取用户消息
+            # 1. 提取所有消息历史
             messages = state.get("messages", [])
-            last_message = messages[-1].content if messages else ""
 
-            self.logger.info(f"[{self.name}] 处理一般对话: {last_message[:50]}...")
+            self.logger.info(f"[{self.name}] 处理一般对话，历史消息数: {len(messages)}")
 
-            # 2. 构建Prompt
+            # 2. 转换消息格式：LangChain消息 -> AI服务消息
+            from langchain_core.messages import HumanMessage, AIMessage
+
+            chat_messages = []
+
+            # 先添加系统提示
             system_prompt = self._build_system_prompt()
-            prompt = f"""{system_prompt}
+            chat_messages.append({"role": "system", "content": system_prompt})
 
-用户消息：{last_message}
+            # 转换历史消息
+            for msg in messages:
+                if isinstance(msg, HumanMessage):
+                    chat_messages.append({"role": "user", "content": msg.content})
+                elif isinstance(msg, AIMessage):
+                    chat_messages.append({"role": "assistant", "content": msg.content})
 
-请回复："""
+            self.logger.info(f"[{self.name}] 传入AI的消息数: {len(chat_messages)} (含system)")
 
             # 3. 调用AI服务生成回复
             response_text = ""
             async for chunk, _ in self.ai_service._stream_chat(
-                messages=[{"role": "user", "content": prompt}],
+                messages=chat_messages,  # ✅ 传入完整历史
                 max_tokens=500,
                 temperature=0.7
             ):
@@ -123,7 +132,7 @@ class GeneralChatAction(BaseAction):
                 },
                 metadata={
                     "action": "general_chat",
-                    "input_length": len(last_message),
+                    "input_length": len(messages[-1].content) if messages else 0,
                     "output_length": len(response_text)
                 }
             )
