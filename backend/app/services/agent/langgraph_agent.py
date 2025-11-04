@@ -210,7 +210,7 @@ async def analyze_text_tool(text: str, focus: str = "all") -> str:
         prompt,
         temperature=0.3,
         max_tokens=1500,
-        task_type=TaskType.DEEP_ANALYSIS  # ← 新增：分析任务
+        task_type=TaskType.SUMMARIZATION  # ← 修正：分析任务实际是摘要/总结任务，使用flash
     )
 
 
