@@ -1501,25 +1501,18 @@ class WritingAgentGraph:
             # ========== 加载对话历史 ==========
             conversation_history = ""
 
-            # Debug日志
-            logger.info(f"[Planning Debug] conversation_id={conversation_id}, has_checkpointer={self.checkpointer is not None}")
-
             if conversation_id and self.checkpointer:
                 try:
                     # 从checkpointer加载历史状态
                     from langgraph.checkpoint.base import CheckpointTuple
                     config = {"configurable": {"thread_id": conversation_id, "checkpoint_ns": ""}}
-                    logger.info(f"[Planning Debug] 加载config={config}")
                     checkpoint_tuple = await self.checkpointer.aget_tuple(config)
-
-                    logger.info(f"[Planning Debug] checkpoint_tuple={checkpoint_tuple is not None}")
 
                     if checkpoint_tuple and checkpoint_tuple.checkpoint:
                         messages = checkpoint_tuple.checkpoint.get("channel_values", {}).get("messages", [])
-                        logger.info(f"[Planning Debug] messages_count={len(messages) if messages else 0}")
 
                         if messages:
-                            logger.info(f"[Planning] ✅ 从checkpointer加载了 {len(messages)} 条历史消息")
+                            logger.info(f"[Planning] 从checkpointer加载了 {len(messages)} 条历史消息")
                             # 格式化历史消息
                             history_lines = []
                             for msg in messages:
@@ -1529,14 +1522,8 @@ class WritingAgentGraph:
                                     history_lines.append(f"助手: {msg.content}")
                             if history_lines:
                                 conversation_history = "\n".join(history_lines)
-                        else:
-                            logger.warning(f"[Planning Debug] ❌ checkpoint中messages为空")
-                    else:
-                        logger.warning(f"[Planning Debug] ❌ checkpoint_tuple或checkpoint为None")
                 except Exception as e:
                     logger.warning(f"[Planning] 加载历史失败: {e}", exc_info=True)
-            else:
-                logger.warning(f"[Planning Debug] ❌ conversation_id或checkpointer不存在")
 
             # ========== 阶段1: 规划（Planning） ==========
             logger.info(f"[Planning] 开始规划: {message[:50]}...")
@@ -1792,7 +1779,6 @@ class WritingAgentGraph:
 
                     # 从checkpointer加载现有消息
                     config = {"configurable": {"thread_id": conversation_id, "checkpoint_ns": ""}}
-                    logger.info(f"[Planning Debug] 保存config={config}")
                     checkpoint_tuple = await self.checkpointer.aget_tuple(config)
 
                     existing_messages = []
