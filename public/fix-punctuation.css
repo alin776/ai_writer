@@ -1,0 +1,29 @@
+/* 终极修复：强制禁用所有可能导致标点符号重叠的CSS特性 */
+.ProseMirror,
+.ProseMirror *,
+.ProseMirror p,
+.ProseMirror p *,
+.ProseMirror span,
+.prose,
+.prose *,
+[contenteditable="true"],
+[contenteditable="true"] * {
+  font-kerning: none !important;
+  -webkit-font-kerning: none !important;
+  -moz-font-kerning: none !important;
+  font-variant-ligatures: none !important;
+  -webkit-font-variant-ligatures: none !important;
+  -moz-font-variant-ligatures: none !important;
+  font-feature-settings: "kern" 0, "liga" 0, "calt" 0, "palt" 0, "halt" 0, "vpal" 0, "vkrn" 0 !important;
+  -webkit-font-feature-settings: "kern" 0, "liga" 0, "calt" 0, "palt" 0, "halt" 0, "vpal" 0, "vkrn" 0 !important;
+  -moz-font-feature-settings: "kern" 0, "liga" 0, "calt" 0, "palt" 0, "halt" 0, "vpal" 0, "vkrn" 0 !important;
+  letter-spacing: 0 !important;
+  word-spacing: 0 !important;
+  text-rendering: geometricPrecision !important;
+  -webkit-text-rendering: geometricPrecision !important;
+  -moz-text-rendering: geometricPrecision !important;
+  font-synthesis: none !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  text-spacing: none !important;
+}

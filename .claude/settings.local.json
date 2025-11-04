@@ -19,7 +19,9 @@
       "mcp__figma__get_screenshot",
       "mcp__figma__get_design_context",
       "mcp__figma__get_metadata",
-      "WebFetch(domain:www.figma.com)"
+      "WebFetch(domain:www.figma.com)",
+      "Bash(cat:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": [],
     "ask": []

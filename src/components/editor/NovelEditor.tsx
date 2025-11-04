@@ -66,17 +66,11 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         },
         codeBlock: false, // 禁用默认代码块，使用 CodeBlockLowlight
         horizontalRule: false, // 禁用默认水平线，稍后单独引入
-        link: {
-          openOnClick: false,
-          HTMLAttributes: {
-            class: 'text-blue-600 hover:text-blue-800 underline cursor-pointer',
-          },
-        },
       }),
       // 水平分割线（单独引入以便自定义）
       HorizontalRule,
-      // 下划线（显式添加）
-      Underline,
+      // 下划线（显式添加） - 暂时注释测试
+      // Underline,
       // 代码块语法高亮
       CodeBlockLowlight.configure({
         lowlight: createLowlight(common),
@@ -146,7 +140,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     editorProps: {
       attributes: {
         class:
-          'prose prose-lg dark:prose-invert w-full max-w-full mx-auto focus:outline-none min-h-screen px-8 py-8',
+          'novel-editor-content w-full focus:outline-none min-h-screen px-8 py-8',
+        style: 'font-kerning: none !important; font-feature-settings: "kern" 0, "liga" 0, "calt" 0, "palt" 0, "halt" 0 !important; letter-spacing: 0 !important;',
       },
       // 处理粘贴的HTML，去除所有样式，只保留基本结构
       transformPastedHTML(html) {
