@@ -50,6 +50,7 @@ export function useAgentChat(): UseAgentChatReturn {
   const [lastRequest, setLastRequest] = useState<AgentChatRequest | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentTaskId, setCurrentTaskId] = useState<number | null>(null);
+  const [conversationId, setConversationId] = useState<string | undefined>(undefined); // ✅ 添加conversation_id状态
 
   const sendMessage = useCallback(
     async (request: AgentChatRequest): Promise<AgentChatResponse | null> => {
@@ -126,7 +127,6 @@ export function useAgentChat(): UseAgentChatReturn {
         // 创建一个空的Agent消息，用于实时更新
         let streamingContent = '';
         let agentSteps: any[] = [];
-        let conversationId = '';
 
         const agentMessageIndex = messages.length + 1;
 
@@ -141,12 +141,17 @@ export function useAgentChat(): UseAgentChatReturn {
           }
         ]);
 
-        // 调用流式API
-        await agentApi.chatStream(request, {
-          onStart: (convId) => {
-            conversationId = convId;
-            console.log('[Stream] Started, conversation_id:', convId);
+        // ✅ 调用流式API（传递保存的conversation_id）
+        await agentApi.chatStream(
+          {
+            ...request,
+            conversation_id: conversationId // 传递保存的conversation_id
           },
+          {
+            onStart: (convId) => {
+              setConversationId(convId); // ✅ 保存conversation_id到状态
+              console.log('[Stream] Started, conversation_id:', convId);
+            },
           onPlan: (plan) => {
             // 初始化任务列表
             const initialTasks: Task[] = plan.tasks.map((t: any) => ({
@@ -252,7 +257,7 @@ export function useAgentChat(): UseAgentChatReturn {
         setIsLoading(false);
       }
     },
-    [messages.length]
+    [messages.length, conversationId] // ✅ 添加conversationId依赖
   );
 
   const clearMessages = useCallback(() => {
@@ -262,6 +267,7 @@ export function useAgentChat(): UseAgentChatReturn {
     setLastRequest(null);
     setTasks([]);
     setCurrentTaskId(null);
+    setConversationId(undefined); // ✅ 清空conversation_id
   }, []);
 
   const retryLastMessage = useCallback(async () => {

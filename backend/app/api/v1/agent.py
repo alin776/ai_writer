@@ -42,6 +42,25 @@ def get_redis_client():
         decode_responses=False
     )
 
+# 全局Agent实例（跨请求共享，保持MemorySaver持久化）
+_global_agent_graph = None
+
+def get_agent_graph() -> WritingAgentGraph:
+    """
+    获取全局共享的Agent实例
+
+    使用全局单例模式，确保MemorySaver在请求间共享，
+    从而实现对话历史的持久化
+    """
+    global _global_agent_graph
+    if _global_agent_graph is None:
+        # 创建AI服务
+        ai_service = HTTPAIService()
+        # 创建Agent实例（只创建一次）
+        _global_agent_graph = WritingAgentGraph(ai_service, use_chatgpt=settings.AGENT_USE_CHATGPT)
+        logger.info("[Global Agent] 创建全局Agent实例，MemorySaver将在请求间共享")
+    return _global_agent_graph
+
 
 # ==================== 请求/响应数据模型 ====================
 
@@ -264,8 +283,8 @@ async def agent_chat_stream(
             user_context = memory.get_complete_context(user_id)
             memory_context = memory.format_context_for_agent(user_id, mode="chat")
 
-            # 创建 LangGraph Agent
-            agent_graph = WritingAgentGraph(ai_service, use_chatgpt=settings.AGENT_USE_CHATGPT)
+            # 获取全局共享的 LangGraph Agent（而不是每次创建新实例）
+            agent_graph = get_agent_graph()
 
             # 准备上下文
             context = request.context or {}

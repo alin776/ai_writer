@@ -19,6 +19,7 @@ from langchain_openai import ChatOpenAI
 import operator
 import logging
 import httpx
+import uuid
 
 from app.services.ai.http_ai_service import HTTPAIService
 from app.core.config import settings
@@ -1334,8 +1335,8 @@ class WritingAgentGraph:
             "final_response": None
         }
 
-        # 运行图
-        config = {"configurable": {"thread_id": conversation_id or "default"}}
+        # 运行图（✅ 修复：统一config结构，添加checkpoint_ns以保持与手动保存/加载一致）
+        config = {"configurable": {"thread_id": conversation_id or "default", "checkpoint_ns": ""}}
 
         try:
             result = await self.graph.ainvoke(initial_state, config)
@@ -1497,10 +1498,59 @@ class WritingAgentGraph:
             Dict: Agent响应
         """
         try:
+            # ========== 加载对话历史 ==========
+            conversation_history = ""
+
+            # Debug日志
+            logger.info(f"[Planning Debug] conversation_id={conversation_id}, has_checkpointer={self.checkpointer is not None}")
+
+            if conversation_id and self.checkpointer:
+                try:
+                    # 从checkpointer加载历史状态
+                    from langgraph.checkpoint.base import CheckpointTuple
+                    config = {"configurable": {"thread_id": conversation_id, "checkpoint_ns": ""}}
+                    logger.info(f"[Planning Debug] 加载config={config}")
+                    checkpoint_tuple = await self.checkpointer.aget_tuple(config)
+
+                    logger.info(f"[Planning Debug] checkpoint_tuple={checkpoint_tuple is not None}")
+
+                    if checkpoint_tuple and checkpoint_tuple.checkpoint:
+                        messages = checkpoint_tuple.checkpoint.get("channel_values", {}).get("messages", [])
+                        logger.info(f"[Planning Debug] messages_count={len(messages) if messages else 0}")
+
+                        if messages:
+                            logger.info(f"[Planning] ✅ 从checkpointer加载了 {len(messages)} 条历史消息")
+                            # 格式化历史消息
+                            history_lines = []
+                            for msg in messages:
+                                if isinstance(msg, HumanMessage):
+                                    history_lines.append(f"用户: {msg.content}")
+                                elif isinstance(msg, AIMessage):
+                                    history_lines.append(f"助手: {msg.content}")
+                            if history_lines:
+                                conversation_history = "\n".join(history_lines)
+                        else:
+                            logger.warning(f"[Planning Debug] ❌ checkpoint中messages为空")
+                    else:
+                        logger.warning(f"[Planning Debug] ❌ checkpoint_tuple或checkpoint为None")
+                except Exception as e:
+                    logger.warning(f"[Planning] 加载历史失败: {e}", exc_info=True)
+            else:
+                logger.warning(f"[Planning Debug] ❌ conversation_id或checkpointer不存在")
+
             # ========== 阶段1: 规划（Planning） ==========
             logger.info(f"[Planning] 开始规划: {message[:50]}...")
 
-            plan_prompt = f"""你是专业的AI写作助手。用户请求如下：
+            # 构建规划prompt（包含历史）
+            history_section = ""
+            if conversation_history:
+                history_section = f"""
+【对话历史】
+{conversation_history}
+
+"""
+
+            plan_prompt = f"""你是专业的AI写作助手。{history_section}用户请求如下：
 
 用户请求：{message}
 作品ID：{work_id}
@@ -1730,6 +1780,61 @@ class WritingAgentGraph:
                     # 回调：内容生成
                     if on_content:
                         await on_content(chunk)
+
+            # ========== 保存对话到checkpointer ==========
+            if conversation_id and self.checkpointer:
+                try:
+                    # 构建新消息
+                    new_messages = [
+                        HumanMessage(content=message),
+                        AIMessage(content=final_content)
+                    ]
+
+                    # 从checkpointer加载现有消息
+                    config = {"configurable": {"thread_id": conversation_id, "checkpoint_ns": ""}}
+                    logger.info(f"[Planning Debug] 保存config={config}")
+                    checkpoint_tuple = await self.checkpointer.aget_tuple(config)
+
+                    existing_messages = []
+                    if checkpoint_tuple and checkpoint_tuple.checkpoint:
+                        existing_messages = checkpoint_tuple.checkpoint.get("channel_values", {}).get("messages", [])
+
+                    # 合并消息
+                    all_messages = existing_messages + new_messages
+
+                    # 构建新checkpoint
+                    checkpoint_id = str(uuid.uuid4())
+                    new_checkpoint = {
+                        "v": 1,
+                        "id": checkpoint_id,
+                        "ts": datetime.now().isoformat(),
+                        "channel_values": {
+                            "messages": all_messages,
+                            "work_id": work_id,
+                            "chapter_id": chapter_id
+                        },
+                        "channel_versions": {
+                            "messages": checkpoint_id,
+                            "work_id": checkpoint_id,
+                            "chapter_id": checkpoint_id
+                        },
+                        "versions_seen": {
+                            "__start__": checkpoint_id
+                        }
+                    }
+
+                    # 构建new_versions（用于标识哪些channel被更新了）
+                    new_versions = {
+                        "messages": checkpoint_id,
+                        "work_id": checkpoint_id,
+                        "chapter_id": checkpoint_id
+                    }
+
+                    # 保存checkpoint（提供完整的4个参数）
+                    await self.checkpointer.aput(config, new_checkpoint, {}, new_versions)
+                    logger.info(f"[Planning] 已保存 {len(new_messages)} 条新消息到checkpointer (总计: {len(all_messages)})")
+                except Exception as e:
+                    logger.warning(f"[Planning] 保存消息到checkpointer失败: {e}")
 
             return {
                 "response": final_content,
