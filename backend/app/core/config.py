@@ -270,7 +270,10 @@ class Settings(BaseSettings):
     # 管理员配置
     ADMIN_EMAIL: str = "admin@example.com"
     ADMIN_PASSWORD: str
-    
+
+    # ==================== 模型智能选择配置（P0优化）====================
+    MODEL_SELECTION_ENABLED: bool = True  # 启用ModelSelector智能选择
+
     class Config:
         env_file = ".env"
         case_sensitive = True

@@ -110,8 +110,30 @@ class HTTPAIService:
                 - 文本片段: str
                 - usage: 仅在最后一个块返回完整usage,其他为None
         """
-        # Week 7: 使用模型选择器选择合适的模型 (可选)
-        # 注意: 当前实现仍使用self.model,未来可以根据task_type动态选择
+        # ==================== 模型选择逻辑 ====================
+        # 根据task_type智能选择模型
+        if self.model_selector and task_type:
+            try:
+                # 使用ModelSelector智能选择
+                selection = self.model_selector.select_model(
+                    task_type=task_type,
+                    input_tokens=len(str(messages)) // 4,  # 粗略估算
+                    output_tokens=max_tokens
+                )
+                model = selection.model.model_id
+                logger.info(
+                    f"[ModelSelector] 任务={task_type.value}, "
+                    f"模型={model}, 原因={selection.reason}"
+                )
+            except Exception as e:
+                logger.warning(f"[ModelSelector] 选择失败: {e}, 使用默认模型")
+                model = self.model
+        else:
+            # 使用默认模型
+            model = self.model
+            if task_type and not self.model_selector:
+                logger.debug(f"[ModelSelector] 未启用，使用默认模型: {model}")
+        # ======================================================
 
         url = f"{self.base_url}/chat/completions"
         headers = {
@@ -120,7 +142,7 @@ class HTTPAIService:
         }
 
         payload = {
-            "model": self.model,
+            "model": model,  # ← 使用动态选择的模型
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
@@ -128,7 +150,7 @@ class HTTPAIService:
         }
 
         logger.info(
-            f"开始调用 AI API: model={self.model}, "
+            f"开始调用 AI API: model={model}, "  # ← 记录实际模型
             f"max_tokens={max_tokens}, temp={temperature}, task_type={task_type}"
         )
 
@@ -136,7 +158,7 @@ class HTTPAIService:
         start_time = datetime.now()
 
         # Week 10: 添加缓存索引键生成
-        cache_key = self._generate_cache_key(messages, self.model, temperature, max_tokens)
+        cache_key = self._generate_cache_key(messages, model, temperature, max_tokens)  # ← 使用model而不是self.model
 
         try:
             async with self.client.stream("POST", url, json=payload, headers=headers) as response:

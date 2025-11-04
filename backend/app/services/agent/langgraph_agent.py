@@ -25,6 +25,7 @@ from app.services.ai.http_ai_service import HTTPAIService
 from app.core.config import settings
 from app.services.agent.prompts import NovelPhase, PhaseCharacteristics
 from app.services.agent.prompt_library import get_content_prompt
+from app.services.agent.model_selector import TaskType
 
 logger = logging.getLogger(__name__)
 
@@ -482,6 +483,114 @@ WRITING_TOOLS = [
 ]
 
 
+# ==================== Summarization上下文压缩工具 ====================
+
+def _compress_task_result(
+    task_id: int,
+    task_description: str,
+    task_result: str,
+    max_length: int = 500
+) -> str:
+    """智能压缩任务结果
+
+    Args:
+        task_id: 任务ID
+        task_description: 任务描述
+        task_result: 原始任务结果
+        max_length: 最大保留长度
+
+    Returns:
+        压缩后的结果
+    """
+    # 如果结果很短，直接返回
+    if len(task_result) <= max_length:
+        return task_result
+
+    # 章节内容：只保留摘要
+    if "章" in task_result and ("第" in task_result or "标题" in task_result):
+        lines = task_result.split('\n')
+        summary_lines = []
+
+        for line in lines[:10]:  # 只看前10行
+            if "标题" in line or "章" in line or "摘要" in line:
+                summary_lines.append(line)
+
+        if summary_lines:
+            compressed = '\n'.join(summary_lines)
+            return f"[章节信息摘要]\n{compressed}\n[完整内容已压缩]"
+        else:
+            # 保留开头和结尾
+            return f"[章节内容摘要]\n{task_result[:200]}...\n{task_result[-100:]}"
+
+    # RAG检索结果
+    if "检索" in task_description or "搜索" in task_description:
+        # 只保留关键信息
+        return f"[检索结果摘要]\n{task_result[:max_length]}"
+
+    # 其他类型结果：保留前后部分
+    half = max_length // 2
+    return f"{task_result[:half]}...[省略{len(task_result)-max_length}字符]...{task_result[-half:]}"
+
+
+def _build_summarization_context(
+    user_message: str,
+    task_results: List[Dict[str, Any]],
+    max_context_length: int = 3000
+) -> str:
+    """构建Summarization的压缩上下文
+
+    Args:
+        user_message: 用户原始请求
+        task_results: 任务执行结果列表 [{"task_id": 1, "description": "...", "result": "...", "status": "completed"}, ...]
+        max_context_length: 最大上下文长度（字符）
+
+    Returns:
+        压缩后的上下文字符串
+    """
+    context_parts = [f"用户请求：{user_message}\n\n执行结果："]
+    current_length = len(context_parts[0])
+
+    for task in task_results:
+        task_id = task["task_id"]
+        description = task["description"]
+        result = task["result"]
+        status = task["status"]
+
+        # 压缩结果
+        if status == "completed":
+            compressed_result = _compress_task_result(
+                task_id=task_id,
+                task_description=description,
+                task_result=result,
+                max_length=500
+            )
+        else:
+            # 失败的任务保留错误信息
+            compressed_result = result[:200]
+
+        # 构建任务文本
+        task_text = f"\n任务{task_id}（{description}）：\n{compressed_result}\n"
+
+        # 检查是否超过限制
+        if current_length + len(task_text) > max_context_length:
+            # 超过限制，进一步简化
+            task_text = f"\n任务{task_id}：[结果已省略]\n"
+
+        context_parts.append(task_text)
+        current_length += len(task_text)
+
+        # 如果已经接近限制，停止添加
+        if current_length >= max_context_length * 0.95:
+            remaining_tasks = len(task_results) - (task_id)
+            if remaining_tasks > 0:
+                context_parts.append(f"\n[还有{remaining_tasks}个任务结果已省略]\n")
+            break
+
+    return ''.join(context_parts)
+
+# ==================================================================
+
+
 # ==================== Agent 节点定义 ====================
 
 class WritingAgentGraph:
@@ -667,8 +776,24 @@ class WritingAgentGraph:
         logger.info(f"[LangGraph] 工具执行完毕，路由回: {intent}_agent")
         return intent
 
-    async def _generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 1000) -> dict:
-        """使用 HTTPAIService 生成文本的辅助方法"""
+    async def _generate_text(
+        self,
+        prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 1000,
+        task_type: Optional[TaskType] = None  # ← 新增参数
+    ) -> dict:
+        """使用 HTTPAIService 生成文本的辅助方法
+
+        Args:
+            prompt: 提示词
+            temperature: 温度参数
+            max_tokens: 最大token数
+            task_type: 任务类型（用于模型选择）
+
+        Returns:
+            dict: {"text": str, "usage": dict}
+        """
         messages = [{"role": "user", "content": prompt}]
 
         generated_text = ""
@@ -677,7 +802,8 @@ class WritingAgentGraph:
         async for chunk, chunk_usage in self.ai_service._stream_chat(
             messages=messages,
             max_tokens=max_tokens,
-            temperature=temperature
+            temperature=temperature,
+            task_type=task_type  # ← 传递task_type
         ):
             if chunk:
                 generated_text += chunk
@@ -1613,7 +1739,12 @@ class WritingAgentGraph:
 现在直接返回JSON，不要任何解释："""
 
             try:
-                plan_result = await self._generate_text(plan_prompt, temperature=0.3, max_tokens=1000)
+                plan_result = await self._generate_text(
+                    plan_prompt,
+                    temperature=0.3,
+                    max_tokens=1000,
+                    task_type=TaskType.SIMPLE_QA  # ← Planning阶段用轻量模型快速生成任务列表
+                )
                 plan_text = plan_result.get("text", "").strip()
 
                 # 解析规划JSON
@@ -1744,9 +1875,24 @@ class WritingAgentGraph:
             # ========== 阶段3: 总结（Summarization） ==========
             logger.info("[Summarization] 生成最终响应")
 
+            # ====== 使用智能压缩 ======
+            compressed_context = _build_summarization_context(
+                user_message=message,
+                task_results=task_results,
+                max_context_length=3000  # 限制在3000字符（约1500 tokens）
+            )
+
+            logger.info(
+                f"[Summarization] 上下文压缩: "
+                f"原始={len(all_context)}字符, "
+                f"压缩后={len(compressed_context)}字符, "
+                f"压缩率={(100 - len(compressed_context) * 100 // len(all_context)) if len(all_context) > 0 else 0}%"
+            )
+            # ==========================
+
             summary_prompt = f"""基于以下任务执行结果，生成最终的响应给用户。
 
-{all_context}
+{compressed_context}
 
 要求：
 1. 综合所有任务结果
@@ -1760,7 +1906,8 @@ class WritingAgentGraph:
             async for chunk, _ in self.ai_service._stream_chat(
                 messages=[{"role": "user", "content": summary_prompt}],
                 max_tokens=2000,
-                temperature=0.7
+                temperature=0.7,
+                task_type=TaskType.SUMMARIZATION  # ← 新增：总结任务
             ):
                 if chunk:
                     final_content += chunk

@@ -15,6 +15,7 @@ from pydantic import Field
 
 from .tool_types import ToolInput, ToolOutput, ToolCategory, StandardTool
 from app.services.ai.http_ai_service import HTTPAIService
+from app.services.agent.model_selector import TaskType
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,8 @@ def _ensure_ai_service() -> HTTPAIService:
 async def _generate_text(
     prompt: str,
     temperature: float = 0.7,
-    max_tokens: int = 2000
+    max_tokens: int = 2000,
+    task_type: Optional[TaskType] = None  # ← 新增参数
 ) -> str:
     """
     使用 HTTPAIService 生成文本的辅助函数
@@ -60,6 +62,7 @@ async def _generate_text(
         prompt: 提示词
         temperature: 温度参数(0.0-1.0)
         max_tokens: 最大token数
+        task_type: 任务类型（用于模型选择）
 
     Returns:
         生成的文本
@@ -74,7 +77,8 @@ async def _generate_text(
         async for chunk, _ in ai_service._stream_chat(
             messages=messages,
             max_tokens=max_tokens,
-            temperature=temperature
+            temperature=temperature,
+            task_type=task_type  # ← 传递task_type
         ):
             generated_text += chunk
 
@@ -180,7 +184,8 @@ async def continue_writing_executor(
         generated_text = await _generate_text(
             prompt=prompt,
             temperature=0.8,
-            max_tokens=min(input_data.target_length * 2, 4000)
+            max_tokens=min(input_data.target_length * 2, 4000),
+            task_type=TaskType.CONTENT_CREATION  # ← 新增：指定为创作任务
         )
 
         # 计算字数
@@ -330,7 +335,8 @@ async def polish_text_executor(
         result_text = await _generate_text(
             prompt=prompt,
             temperature=0.7,
-            max_tokens=3000
+            max_tokens=3000,
+            task_type=TaskType.CONTENT_CREATION  # ← 新增：指定为创作任务
         )
 
         # 解析结果
@@ -505,7 +511,8 @@ async def expand_text_executor(
         expanded_text = await _generate_text(
             prompt=prompt,
             temperature=0.75,
-            max_tokens=min(input_data.target_length * 2, 5000)
+            max_tokens=min(input_data.target_length * 2, 5000),
+            task_type=TaskType.CONTENT_CREATION  # ← 新增：指定为创作任务
         )
 
         # 计算扩写统计

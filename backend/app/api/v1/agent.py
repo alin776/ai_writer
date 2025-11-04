@@ -54,8 +54,10 @@ def get_agent_graph() -> WritingAgentGraph:
     """
     global _global_agent_graph
     if _global_agent_graph is None:
-        # 创建AI服务
-        ai_service = HTTPAIService()
+        # 创建AI服务（使用配置中的MODEL_SELECTION_ENABLED）
+        ai_service = HTTPAIService(
+            enable_model_selector=settings.MODEL_SELECTION_ENABLED
+        )
         # 创建Agent实例（只创建一次）
         _global_agent_graph = WritingAgentGraph(ai_service, use_chatgpt=settings.AGENT_USE_CHATGPT)
         logger.info("[Global Agent] 创建全局Agent实例，MemorySaver将在请求间共享")
