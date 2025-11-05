@@ -284,11 +284,20 @@ async def agent_chat_stream(
             # 发送开始事件
             yield f"data: {json.dumps({'type': 'start', 'conversation_id': conversation_id}, ensure_ascii=False)}\n\n"
 
-            # ⏱️ 性能诊断：获取记忆上下文
+            # ⏱️ 性能诊断：获取记忆上下文（详细分解）
             memory_start = time.time()
+
+            logger.info(f"[Memory诊断] 开始调用 get_complete_context")
+            context_start = time.time()
             user_context = memory.get_complete_context(user_id)
+            logger.info(f"[Memory诊断] get_complete_context 完成，耗时: {time.time() - context_start:.2f}s")
+
+            logger.info(f"[Memory诊断] 开始调用 format_context_for_agent")
+            format_start = time.time()
             memory_context = memory.format_context_for_agent(user_id, mode="chat")
-            logger.info(f"[LangGraph Agent Stream] ⏱️ 记忆上下文加载完成，耗时: {time.time() - memory_start:.2f}s")
+            logger.info(f"[Memory诊断] format_context_for_agent 完成，耗时: {time.time() - format_start:.2f}s")
+
+            logger.info(f"[LangGraph Agent Stream] ⏱️ 记忆上下文加载完成，总耗时: {time.time() - memory_start:.2f}s")
 
             # ⏱️ 性能诊断：获取Agent实例
             agent_start = time.time()
