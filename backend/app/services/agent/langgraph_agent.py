@@ -1732,28 +1732,24 @@ class WritingAgentGraph:
             Dict: Agent响应
         """
         try:
-            # ⏱️ 性能诊断：chat_with_planning方法开始
             import time
-            method_start_time = time.time()
-            logger.info(f"[Planning] ⏱️ chat_with_planning方法开始")
 
             # ========== 加载对话历史 ==========
             conversation_history = ""
 
             if conversation_id and self.checkpointer:
                 try:
-                    # ⏱️ 性能诊断：加载历史消息
-                    history_start = time.time()
                     # 从checkpointer加载历史状态
                     from langgraph.checkpoint.base import CheckpointTuple
                     config = {"configurable": {"thread_id": conversation_id, "checkpoint_ns": ""}}
+
                     checkpoint_tuple = await self.checkpointer.aget_tuple(config)
 
                     if checkpoint_tuple and checkpoint_tuple.checkpoint:
                         messages = checkpoint_tuple.checkpoint.get("channel_values", {}).get("messages", [])
 
                         if messages:
-                            logger.info(f"[Planning] 从checkpointer加载了 {len(messages)} 条历史消息，耗时: {time.time() - history_start:.2f}s")
+                            logger.info(f"[Planning] 从checkpointer加载了 {len(messages)} 条历史消息")
                             # 格式化历史消息
                             history_lines = []
                             for msg in messages:
@@ -1763,15 +1759,8 @@ class WritingAgentGraph:
                                     history_lines.append(f"助手: {msg.content}")
                             if history_lines:
                                 conversation_history = "\n".join(history_lines)
-                        else:
-                            logger.info(f"[Planning] ⏱️ 历史消息为空，耗时: {time.time() - history_start:.2f}s")
-                    else:
-                        logger.info(f"[Planning] ⏱️ 无历史checkpoint，耗时: {time.time() - history_start:.2f}s")
                 except Exception as e:
-                    logger.warning(f"[Planning] 加载历史失败: {e}, 耗时: {time.time() - history_start:.2f}s", exc_info=True)
-
-            # ⏱️ 性能诊断：规划前的准备时间
-            logger.info(f"[Planning] ⏱️ 规划前准备完成，总耗时: {time.time() - method_start_time:.2f}s")
+                    logger.warning(f"[Planning] 加载历史失败: {e}", exc_info=True)
 
             # ========== 阶段1: 规划（Planning） ==========
             planning_start = time.time()
@@ -1940,16 +1929,13 @@ class WritingAgentGraph:
                     ]
                 }
 
-            # ⏱️ 性能诊断：规划完成
             logger.info(f"[Planning] 规划生成成功，共{len(plan_data['tasks'])}个任务，耗时: {time.time() - planning_start:.2f}s")
-            logger.info(f"[Planning] ⏱️ 从方法开始到规划完成总耗时: {time.time() - method_start_time:.2f}s")
 
             # 回调：发送规划
             if on_plan:
                 await on_plan(plan_data)
 
             # ========== 阶段2: 执行（Execution）- 智能并行执行 ==========
-            execution_start = time.time()
             logger.info("[Execution] 开始智能并行执行任务")
 
             initial_context = f"用户请求：{message}\n\n"

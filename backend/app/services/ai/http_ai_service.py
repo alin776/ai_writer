@@ -619,7 +619,6 @@ class HTTPAIService:
         if len(messages_str) > max_message_length:
             # 对过长消息进行截断并添加标记
             messages_str = messages_str[:max_message_length] + "...[TRUNCATED]"
-            logger.warning(f"Message truncated for cache key generation, original length: {len(messages_str)}")
 
         # 创建缓存键的组成部分，标准化温度精度
         key_components = [

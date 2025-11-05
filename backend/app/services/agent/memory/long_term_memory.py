@@ -19,7 +19,6 @@ from datetime import datetime, timedelta
 import json
 import redis
 import logging
-import time
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -104,26 +103,16 @@ class LongTermMemoryService:
         Returns:
             UserPreferences: 用户偏好对象
         """
-        logger.info(f"[LongTermMemory诊断] get_user_preferences 开始")
-        start_time = time.time()
-
         key = f"user:{user_id}:preferences"
-        logger.info(f"[LongTermMemory诊断] 执行 redis.get({key})")
-
-        get_start = time.time()
         data = self.redis.get(key)
-        logger.info(f"[LongTermMemory诊断] redis.get 完成，耗时: {time.time() - get_start:.2f}s, 结果: {'有数据' if data else '无数据'}")
 
         if data:
-            result = UserPreferences(**json.loads(data))
+            return UserPreferences(**json.loads(data))
         else:
             # 返回默认偏好
-            result = UserPreferences(
+            return UserPreferences(
                 updated_at=datetime.now().isoformat()
             )
-
-        logger.info(f"[LongTermMemory诊断] get_user_preferences 总耗时: {time.time() - start_time:.2f}s")
-        return result
 
     def update_user_preferences(
         self,
@@ -444,28 +433,16 @@ class LongTermMemoryService:
         Returns:
             List[Dict]: 会话摘要列表
         """
-        logger.info(f"[LongTermMemory诊断] get_recent_conversations 开始，limit={limit}")
-        start_time = time.time()
-
         list_key = f"user:{user_id}:conversation_list"
-
-        # Redis LRANGE 操作
-        lrange_start = time.time()
-        logger.info(f"[LongTermMemory诊断] 执行 redis.lrange")
         conv_ids = self.redis.lrange(list_key, 0, limit - 1)
-        logger.info(f"[LongTermMemory诊断] redis.lrange 完成，获取到 {len(conv_ids)} 个会话ID，耗时: {time.time() - lrange_start:.2f}s")
 
         summaries = []
-        for idx, conv_id in enumerate(conv_ids):
-            get_start = time.time()
+        for conv_id in conv_ids:
             key = f"user:{user_id}:conv_summary:{conv_id.decode()}"
-            logger.info(f"[LongTermMemory诊断] 循环{idx+1}/{len(conv_ids)}：执行 redis.get({key})")
             data = self.redis.get(key)
-            logger.info(f"[LongTermMemory诊断] 循环{idx+1}/{len(conv_ids)}：redis.get 完成，耗时: {time.time() - get_start:.2f}s")
             if data:
                 summaries.append(json.loads(data))
 
-        logger.info(f"[LongTermMemory诊断] get_recent_conversations 总耗时: {time.time() - start_time:.2f}s")
         return summaries
 
     # ==================== 综合记忆检索 ====================
@@ -481,34 +458,10 @@ class LongTermMemoryService:
         Returns:
             Dict: 完整的用户上下文
         """
-        logger.info(f"[LongTermMemory诊断] get_user_context 开始")
-        start_time = time.time()
-
-        # 调用 get_user_preferences
-        pref_start = time.time()
-        logger.info(f"[LongTermMemory诊断] 调用 get_user_preferences")
         preferences = self.get_user_preferences(user_id)
-        logger.info(f"[LongTermMemory诊断] get_user_preferences 完成，耗时: {time.time() - pref_start:.2f}s")
-
-        # 调用 get_writing_style
-        style_start = time.time()
-        logger.info(f"[LongTermMemory诊断] 调用 get_writing_style")
         style = self.get_writing_style(user_id)
-        logger.info(f"[LongTermMemory诊断] get_writing_style 完成，耗时: {time.time() - style_start:.2f}s")
-
-        # 调用 get_feedback_stats
-        feedback_start = time.time()
-        logger.info(f"[LongTermMemory诊断] 调用 get_feedback_stats")
         feedback_stats = self.get_feedback_stats(user_id)
-        logger.info(f"[LongTermMemory诊断] get_feedback_stats 完成，耗时: {time.time() - feedback_start:.2f}s")
-
-        # 调用 get_recent_conversations
-        conv_start = time.time()
-        logger.info(f"[LongTermMemory诊断] 调用 get_recent_conversations")
         recent_convs = self.get_recent_conversations(user_id, limit=3)
-        logger.info(f"[LongTermMemory诊断] get_recent_conversations 完成，耗时: {time.time() - conv_start:.2f}s")
-
-        logger.info(f"[LongTermMemory诊断] get_user_context 总耗时: {time.time() - start_time:.2f}s")
 
         return {
             "preferences": preferences.dict(),

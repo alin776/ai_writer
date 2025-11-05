@@ -137,20 +137,8 @@ async def get_memory_manager(
     db: AsyncSession = Depends(get_db)
 ) -> MemoryManager:
     """获取记忆管理器"""
-    import time
-
-    # 测试Redis连接速度
-    redis_start = time.time()
-    logger.info(f"[Redis诊断] 开始创建Redis客户端")
     redis_client = get_redis_client()
-    logger.info(f"[Redis诊断] Redis客户端创建完成，耗时: {time.time() - redis_start:.2f}s")
-
-    # 创建MemoryManager
-    mm_start = time.time()
-    logger.info(f"[Redis诊断] 开始创建MemoryManager")
     manager = MemoryManager(redis_client)
-    logger.info(f"[Redis诊断] MemoryManager创建完成，耗时: {time.time() - mm_start:.2f}s")
-
     return manager
 
 
@@ -291,56 +279,28 @@ async def agent_chat_stream(
         StreamingResponse: SSE流式响应
     """
     import asyncio
-    import time
-
-    # ⏱️ 性能诊断：endpoint函数体开始（依赖注入已完成）
-    endpoint_start = time.time()
-    logger.info(f"[诊断] agent_chat_stream endpoint开始，依赖注入已完成")
 
     async def event_generator():
-        # ⏱️ 性能诊断：event_generator开始执行
-        generator_start = time.time()
-        logger.info(f"[诊断] event_generator 开始执行")
-
         # 使用队列实现实时事件发送
         event_queue = asyncio.Queue()
         agent_task = None
         result = None
 
         try:
-            # ⏱️ 性能诊断：请求开始时间
-            start_time = time.time()
             user_id = str(current_user.id)
             conversation_id = request.conversation_id or str(uuid.uuid4())
 
             logger.info(f"[LangGraph Agent Stream] ⏱️ 请求开始 - User: {user_id}, Message: {request.message[:50]}...")
-            logger.info(f"[诊断] 从endpoint进入到event_generator开始耗时: {time.time() - generator_start:.2f}s")
 
             # 发送开始事件
             yield f"data: {json.dumps({'type': 'start', 'conversation_id': conversation_id}, ensure_ascii=False)}\n\n"
 
-            # ⏱️ 性能诊断：获取记忆上下文（详细分解）
-            memory_start = time.time()
-
-            logger.info(f"[Memory诊断] 开始调用 get_complete_context")
-            context_start = time.time()
-            # 🔧 修复：使用await调用async方法
+            # 获取记忆上下文
             user_context = await memory.get_complete_context(user_id)
-            logger.info(f"[Memory诊断] get_complete_context 完成，耗时: {time.time() - context_start:.2f}s")
-
-            logger.info(f"[Memory诊断] 开始调用 format_context_for_agent")
-            format_start = time.time()
             memory_context = memory.format_context_for_agent(user_id, mode="chat")
-            logger.info(f"[Memory诊断] format_context_for_agent 完成，耗时: {time.time() - format_start:.2f}s")
 
-            logger.info(f"[LangGraph Agent Stream] ⏱️ 记忆上下文加载完成，总耗时: {time.time() - memory_start:.2f}s")
-
-            # ⏱️ 性能诊断：获取Agent实例
-            agent_start = time.time()
-            # 获取全局共享的 LangGraph Agent（而不是每次创建新实例）
+            # 获取全局共享的 LangGraph Agent
             agent_graph = get_agent_graph()
-            logger.info(f"[LangGraph Agent Stream] ⏱️ Agent实例获取完成，耗时: {time.time() - agent_start:.2f}s")
-            logger.info(f"[LangGraph Agent Stream] ⏱️ 初始化总耗时: {time.time() - start_time:.2f}s")
 
             # 准备上下文
             context = request.context or {}
