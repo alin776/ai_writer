@@ -59,7 +59,8 @@ langchain-core==1.0.1
 langchain-openai==1.0.1
 langchain-text-splitters==1.0.0
 langgraph==1.0.1
-langgraph-checkpoint==3.0.0
+langgraph-checkpoint==2.1.2
+langgraph-checkpoint-redis==0.1.2
 langgraph-prebuilt==1.0.1
 langgraph-sdk==0.2.9
 langsmith==0.4.38
@@ -105,7 +106,7 @@ python-dotenv==1.0.0
 python-jose==3.3.0
 python-multipart==0.0.6
 PyYAML==6.0.3
-redis==5.0.1
+redis==5.2.1
 celery==5.3.4
 flower==2.0.1
 regex==2025.9.18

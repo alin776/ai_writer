@@ -250,7 +250,7 @@ async def read_chapter_tool(work_id: str, chapter_id: str) -> str:
                 "chapter_id": str(chapter.id),
                 "title": chapter.title,
                 "order": chapter.order,
-                "content": chapter.content[:2000] if chapter.content else "",  # 限制长度避免token溢出
+                "content": chapter.content[:5000] if chapter.content else "",  # 增加长度限制以保留更多上下文
                 "content_length": len(chapter.content) if chapter.content else 0,
                 "word_count": chapter.word_count,
                 "status": chapter.status.value if hasattr(chapter, 'status') else "unknown"
@@ -315,7 +315,7 @@ async def get_chapter_by_order_tool(work_id: str, chapter_order: int) -> str:
                 "chapter_id": str(target_chapter.id),
                 "title": target_chapter.title,
                 "order": target_chapter.order,
-                "content": target_chapter.content[:2000] if target_chapter.content else "",
+                "content": target_chapter.content[:5000] if target_chapter.content else "",
                 "content_length": len(target_chapter.content) if target_chapter.content else 0,
                 "word_count": target_chapter.word_count,
                 "status": target_chapter.status.value if hasattr(target_chapter, 'status') else "unknown"
@@ -377,7 +377,7 @@ async def search_analysis_fragments_tool(work_id: str, query: str, top_k: int = 
                     "rank": i + 1,
                     "similarity": result['similarity'],
                     "chapter_id": result['chapter_id'],
-                    "content": result['content_text'][:500],  # 限制长度
+                    "content": result['content_text'][:2000],  # 增加长度限制以保留更多上下文
                     "micro_data_summary": {
                         "theme": result['micro_data'].get('chapter_theme', 'N/A') if result['micro_data'] else 'N/A'
                     }
@@ -454,7 +454,7 @@ async def get_context_tool(work_id: str, chapter_id: str = "") -> str:
                         "chapter_id": str(chapter.id),
                         "title": chapter.title,
                         "order": chapter.order,
-                        "content_preview": chapter.content[:500] if chapter.content else "",
+                        "content_preview": chapter.content[:1000] if chapter.content else "",
                         "word_count": chapter.word_count
                     }
                 else:
@@ -475,7 +475,7 @@ async def get_context_tool(work_id: str, chapter_id: str = "") -> str:
                         {
                             "chapter_id": r['chapter_id'],
                             "similarity": r['similarity'],
-                            "summary": r['content_text'][:200]
+                            "summary": r['content_text'][:500]
                         }
                         for r in analysis_results
                     ]
@@ -512,7 +512,7 @@ def _compress_task_result(
     task_id: int,
     task_description: str,
     task_result: str,
-    max_length: int = 500
+    max_length: int = 2000  # 提高默认限制，保留更多上下文
 ) -> str:
     """智能压缩任务结果
 
@@ -529,6 +529,19 @@ def _compress_task_result(
     if len(task_result) <= max_length:
         return task_result
 
+    # 【修复】尝试解析JSON格式的工具返回结果（如get_chapter_by_order_tool）
+    import json
+    try:
+        data = json.loads(task_result)
+        # 如果是JSON且有content字段，提取真正的内容
+        if isinstance(data, dict) and 'content' in data:
+            task_result = data['content'] or ""
+            # 重新检查长度
+            if len(task_result) <= max_length:
+                return task_result
+    except:
+        pass  # 不是JSON或解析失败，继续原有逻辑
+
     # 章节内容：只保留摘要
     if "章" in task_result and ("第" in task_result or "标题" in task_result):
         lines = task_result.split('\n')
@@ -542,8 +555,8 @@ def _compress_task_result(
             compressed = '\n'.join(summary_lines)
             return f"[章节信息摘要]\n{compressed}\n[完整内容已压缩]"
         else:
-            # 保留开头和结尾
-            return f"[章节内容摘要]\n{task_result[:200]}...\n{task_result[-100:]}"
+            # 保留开头和结尾（增加保留长度）
+            return f"[章节内容摘要]\n{task_result[:1500]}...\n{task_result[-500:]}"
 
     # RAG检索结果
     if "检索" in task_description or "搜索" in task_description:
@@ -585,7 +598,7 @@ def _build_summarization_context(
                 task_id=task_id,
                 task_description=description,
                 task_result=result,
-                max_length=500
+                max_length=2000  # 提高压缩限制，保留更多上下文
             )
         else:
             # 失败的任务保留错误信息
@@ -1689,11 +1702,18 @@ class WritingAgentGraph:
             Dict: Agent响应
         """
         try:
+            # ⏱️ 性能诊断：chat_with_planning方法开始
+            import time
+            method_start_time = time.time()
+            logger.info(f"[Planning] ⏱️ chat_with_planning方法开始")
+
             # ========== 加载对话历史 ==========
             conversation_history = ""
 
             if conversation_id and self.checkpointer:
                 try:
+                    # ⏱️ 性能诊断：加载历史消息
+                    history_start = time.time()
                     # 从checkpointer加载历史状态
                     from langgraph.checkpoint.base import CheckpointTuple
                     config = {"configurable": {"thread_id": conversation_id, "checkpoint_ns": ""}}
@@ -1703,7 +1723,7 @@ class WritingAgentGraph:
                         messages = checkpoint_tuple.checkpoint.get("channel_values", {}).get("messages", [])
 
                         if messages:
-                            logger.info(f"[Planning] 从checkpointer加载了 {len(messages)} 条历史消息")
+                            logger.info(f"[Planning] 从checkpointer加载了 {len(messages)} 条历史消息，耗时: {time.time() - history_start:.2f}s")
                             # 格式化历史消息
                             history_lines = []
                             for msg in messages:
@@ -1713,10 +1733,18 @@ class WritingAgentGraph:
                                     history_lines.append(f"助手: {msg.content}")
                             if history_lines:
                                 conversation_history = "\n".join(history_lines)
+                        else:
+                            logger.info(f"[Planning] ⏱️ 历史消息为空，耗时: {time.time() - history_start:.2f}s")
+                    else:
+                        logger.info(f"[Planning] ⏱️ 无历史checkpoint，耗时: {time.time() - history_start:.2f}s")
                 except Exception as e:
-                    logger.warning(f"[Planning] 加载历史失败: {e}", exc_info=True)
+                    logger.warning(f"[Planning] 加载历史失败: {e}, 耗时: {time.time() - history_start:.2f}s", exc_info=True)
+
+            # ⏱️ 性能诊断：规划前的准备时间
+            logger.info(f"[Planning] ⏱️ 规划前准备完成，总耗时: {time.time() - method_start_time:.2f}s")
 
             # ========== 阶段1: 规划（Planning） ==========
+            planning_start = time.time()
             logger.info(f"[Planning] 开始规划: {message[:50]}...")
 
             # 构建规划prompt（包含历史）
@@ -1882,13 +1910,16 @@ class WritingAgentGraph:
                     ]
                 }
 
-            logger.info(f"[Planning] 规划生成成功，共{len(plan_data['tasks'])}个任务")
+            # ⏱️ 性能诊断：规划完成
+            logger.info(f"[Planning] 规划生成成功，共{len(plan_data['tasks'])}个任务，耗时: {time.time() - planning_start:.2f}s")
+            logger.info(f"[Planning] ⏱️ 从方法开始到规划完成总耗时: {time.time() - method_start_time:.2f}s")
 
             # 回调：发送规划
             if on_plan:
                 await on_plan(plan_data)
 
             # ========== 阶段2: 执行（Execution）- 智能并行执行 ==========
+            execution_start = time.time()
             logger.info("[Execution] 开始智能并行执行任务")
 
             initial_context = f"用户请求：{message}\n\n"
@@ -1911,48 +1942,15 @@ class WritingAgentGraph:
 
             logger.info(f"[Execution] 所有任务执行完成，共{len(task_results)}个任务")
 
-            # ========== 阶段3: 总结（Summarization） ==========
-            logger.info("[Summarization] 生成最终响应")
+            # ========== 阶段3: 智能返回（Response） ==========
+            logger.info("[Response] 生成最终响应")
 
-            # ====== 使用智能压缩 ======
-            compressed_context = _build_summarization_context(
-                user_message=message,
+            # 使用新的智能判断方法
+            final_content = await self._build_final_response(
                 task_results=task_results,
-                max_context_length=3000  # 限制在3000字符（约1500 tokens）
+                message=message,
+                on_content=on_content
             )
-
-            logger.info(
-                f"[Summarization] 上下文压缩: "
-                f"原始={len(all_context)}字符, "
-                f"压缩后={len(compressed_context)}字符, "
-                f"压缩率={(100 - len(compressed_context) * 100 // len(all_context)) if len(all_context) > 0 else 0}%"
-            )
-            # ==========================
-
-            summary_prompt = f"""基于以下任务执行结果，生成最终的响应给用户。
-
-{compressed_context}
-
-要求：
-1. 综合所有任务结果
-2. 用清晰、友好的语言呈现
-3. 如果是创作内容，直接输出创作结果
-4. 如果是分析/规划，给出详细说明
-
-请生成最终响应："""
-
-            final_content = ""
-            async for chunk, _ in self.ai_service._stream_chat(
-                messages=[{"role": "user", "content": summary_prompt}],
-                max_tokens=2000,
-                temperature=0.7,
-                task_type=TaskType.SUMMARIZATION  # ← 新增：总结任务
-            ):
-                if chunk:
-                    final_content += chunk
-                    # 回调：内容生成
-                    if on_content:
-                        await on_content(chunk)
 
             # ========== 保存对话到checkpointer ==========
             if conversation_id and self.checkpointer:
@@ -2066,8 +2064,8 @@ class WritingAgentGraph:
             "get_context_tool",
             "read_chapter_tool",
             "get_chapter_by_order_tool",
-            "search_analysis_fragments_tool",
-            "analyze_text_tool"  # 分析工具也是独立的
+            "search_analysis_fragments_tool"
+            # analyze_text_tool 移除：它依赖其他任务的结果，应该串行执行
         }
 
         # 分组任务：独立任务 vs 依赖任务
@@ -2100,6 +2098,7 @@ class WritingAgentGraph:
                 async with semaphore:
                     task_id = task["task_id"]
                     description = task["description"]
+                    tool_name = task.get("tool", "unknown")  # 获取工具名称
 
                     logger.info(f"[ParallelExecution] 并行任务{task_id}开始: {description}")
 
@@ -2123,6 +2122,7 @@ class WritingAgentGraph:
                         return {
                             "task_id": task_id,
                             "description": description,
+                            "tool": tool_name,  # 添加工具名称
                             "result": result,
                             "status": "completed"
                         }
@@ -2131,6 +2131,7 @@ class WritingAgentGraph:
                         return {
                             "task_id": task_id,
                             "description": description,
+                            "tool": tool_name,  # 添加工具名称
                             "result": f"错误: {str(e)}",
                             "status": "failed"
                         }
@@ -2154,6 +2155,7 @@ class WritingAgentGraph:
             for task in sequential_tasks:
                 task_id = task["task_id"]
                 description = task["description"]
+                tool_name = task.get("tool", "unknown")  # 获取工具名称
 
                 logger.info(f"[ParallelExecution] 串行任务{task_id}开始: {description}")
 
@@ -2172,6 +2174,7 @@ class WritingAgentGraph:
                     task_results.append({
                         "task_id": task_id,
                         "description": description,
+                        "tool": tool_name,  # 添加工具名称
                         "result": result,
                         "status": "completed"
                     })
@@ -2188,6 +2191,7 @@ class WritingAgentGraph:
                     task_results.append({
                         "task_id": task_id,
                         "description": description,
+                        "tool": tool_name,  # 添加工具名称
                         "result": f"错误: {str(e)}",
                         "status": "failed"
                     })
@@ -2196,6 +2200,204 @@ class WritingAgentGraph:
         task_results.sort(key=lambda x: x["task_id"])
 
         return task_results
+
+    def _classify_tasks(self, task_results: List[Dict]) -> Dict[str, List]:
+        """分类任务：输入型 vs 输出型
+
+        Args:
+            task_results: 任务结果列表
+
+        Returns:
+            分类后的任务字典，包含 input_tasks 和 output_tasks
+        """
+        # 定义输入型工具（只是获取数据，不产生最终输出）
+        INPUT_TOOLS = {
+            "get_context_tool",
+            "read_chapter_tool",
+            "get_chapter_by_order_tool",
+            "search_analysis_fragments_tool"
+        }
+
+        # 定义输出型工具（产生用户需要的最终内容）
+        OUTPUT_TOOLS = {
+            "continue_writing_tool",   # 续写
+            "polish_text_tool",        # 润色
+            "analyze_text_tool"        # 分析
+        }
+
+        input_tasks = []
+        output_tasks = []
+
+        for task in task_results:
+            tool = task.get("tool", "")
+            if tool in INPUT_TOOLS:
+                input_tasks.append(task)
+            elif tool in OUTPUT_TOOLS:
+                output_tasks.append(task)
+            else:
+                # 未分类的工具，保守起见归为输出型
+                output_tasks.append(task)
+
+        logger.info(
+            f"[TaskClassify] 任务分类: 输入型={len(input_tasks)}, 输出型={len(output_tasks)}"
+        )
+
+        return {
+            "input_tasks": input_tasks,
+            "output_tasks": output_tasks
+        }
+
+    async def _build_final_response(
+        self,
+        task_results: List[Dict],
+        message: str,
+        on_content: Optional[callable] = None
+    ) -> str:
+        """智能构建最终响应
+
+        根据任务类型智能判断是否需要AI整合：
+        - 单个创作任务 → 直接返回（节省AI调用）
+        - 多个输出任务 → 简单拼接（节省AI调用）
+        - 其他情况 → AI整合
+
+        Args:
+            task_results: 任务结果列表
+            message: 用户原始消息
+            on_content: 内容回调函数
+
+        Returns:
+            最终响应内容
+        """
+        # 分类任务
+        classified = self._classify_tasks(task_results)
+        output_tasks = classified["output_tasks"]
+
+        # 情况1：没有输出任务（极少见）
+        if len(output_tasks) == 0:
+            logger.warning("[Response] 没有明确输出任务，使用AI整合")
+            return await self._ai_summarization(task_results, message, on_content)
+
+        # 情况2：单个输出任务（主要场景，约85%）
+        elif len(output_tasks) == 1:
+            task = output_tasks[0]
+            tool_name = task["tool"]
+            result = task.get("result", "") or ""  # 处理None的情况
+
+            # 创作类任务，且输出充分 → 直接返回
+            if tool_name in ["continue_writing_tool", "polish_text_tool"]:
+                if len(result) > 500:
+                    logger.info(
+                        f"[Response] 单个创作任务({tool_name})，"
+                        f"输出{len(result)}字符，直接返回（跳过AI调用）"
+                    )
+
+                    # 模拟流式输出（保持用户体验一致）
+                    if on_content:
+                        # 分块发送，模拟流式输出效果
+                        chunk_size = 50  # 每次发送50个字符
+                        for i in range(0, len(result), chunk_size):
+                            chunk = result[i:i + chunk_size]
+                            await on_content(chunk)
+
+                    return result
+
+            # 分析类任务，可能需要格式化
+            logger.info(f"[Response] 单个分析任务({tool_name})，使用AI格式化")
+            return await self._ai_summarization(task_results, message, on_content)
+
+        # 情况3：多个输出任务（约15%）
+        else:
+            logger.info(f"[Response] {len(output_tasks)}个输出任务，简单拼接")
+
+            parts = []
+            for task in output_tasks:
+                tool_name = task["tool"]
+                result = task.get("result", "") or ""  # 处理None的情况
+
+                # 添加标题
+                if tool_name == "analyze_text_tool":
+                    parts.append(f"## 分析结果\n\n{result}")
+                elif tool_name == "continue_writing_tool":
+                    parts.append(f"## 续写内容\n\n{result}")
+                elif tool_name == "polish_text_tool":
+                    parts.append(f"## 润色结果\n\n{result}")
+                else:
+                    parts.append(result)
+
+            final_content = "\n\n".join(parts)
+
+            # 模拟流式输出（保持用户体验一致）
+            if on_content:
+                # 分块发送，模拟流式输出效果
+                chunk_size = 50  # 每次发送50个字符
+                for i in range(0, len(final_content), chunk_size):
+                    chunk = final_content[i:i + chunk_size]
+                    await on_content(chunk)
+
+            return final_content
+
+    async def _ai_summarization(
+        self,
+        task_results: List[Dict],
+        message: str,
+        on_content: Optional[callable] = None
+    ) -> str:
+        """AI整合（保留原有的Summarization逻辑）
+
+        Args:
+            task_results: 任务结果列表
+            message: 用户原始消息
+            on_content: 内容回调函数
+
+        Returns:
+            AI整合后的最终响应
+        """
+        logger.info("[Summarization] 使用AI整合任务结果")
+
+        # 构建完整上下文
+        all_context = f"用户请求：{message}\n\n"
+        for result in task_results:
+            all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
+
+        # 上下文压缩
+        compressed_context = _build_summarization_context(
+            user_message=message,
+            task_results=task_results,
+            max_context_length=8000  # 提高上下文限制，Gemini 2.5 Pro可以处理更多tokens
+        )
+
+        logger.info(
+            f"[Summarization] 上下文压缩: "
+            f"原始={len(all_context)}字符, "
+            f"压缩后={len(compressed_context)}字符, "
+            f"压缩率={(100 - len(compressed_context) * 100 // len(all_context)) if len(all_context) > 0 else 0}%"
+        )
+
+        summary_prompt = f"""基于以下任务执行结果，生成最终的响应给用户。
+
+{compressed_context}
+
+要求：
+1. 综合所有任务结果
+2. 用清晰、友好的语言呈现
+3. 如果是创作内容，直接输出创作结果
+4. 如果是分析/规划，给出详细说明
+
+请生成最终响应："""
+
+        final_content = ""
+        async for chunk, _ in self.ai_service._stream_chat(
+            messages=[{"role": "user", "content": summary_prompt}],
+            max_tokens=2000,
+            temperature=0.7,
+            task_type=TaskType.SUMMARIZATION
+        ):
+            if chunk:
+                final_content += chunk
+                if on_content:
+                    await on_content(chunk)
+
+        return final_content
 
     def _normalize_tool_params(self, tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """标准化工具参数，将不符合格式的参数转换为正确格式
@@ -2299,8 +2501,13 @@ class WritingAgentGraph:
                 "style": params.get("style", "professional")
             })
         elif tool_name == "analyze_text_tool":
+            # 【修复】如果params.text为空，使用context（包含其他任务的结果）
+            text_input = params.get("text", "")
+            if not text_input or text_input.strip() == "":
+                text_input = context  # 使用包含其他任务结果的context
+
             result = await analyze_text_tool.ainvoke({
-                "text": params.get("text", ""),
+                "text": text_input,
                 "focus": params.get("focus", "all")
             })
         else:

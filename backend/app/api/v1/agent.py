@@ -274,20 +274,28 @@ async def agent_chat_stream(
         result = None
 
         try:
+            # ⏱️ 性能诊断：请求开始时间
+            start_time = time.time()
             user_id = str(current_user.id)
             conversation_id = request.conversation_id or str(uuid.uuid4())
 
-            logger.info(f"[LangGraph Agent Stream] User: {user_id}, Message: {request.message[:50]}...")
+            logger.info(f"[LangGraph Agent Stream] ⏱️ 请求开始 - User: {user_id}, Message: {request.message[:50]}...")
 
             # 发送开始事件
             yield f"data: {json.dumps({'type': 'start', 'conversation_id': conversation_id}, ensure_ascii=False)}\n\n"
 
-            # 获取用户记忆上下文
+            # ⏱️ 性能诊断：获取记忆上下文
+            memory_start = time.time()
             user_context = memory.get_complete_context(user_id)
             memory_context = memory.format_context_for_agent(user_id, mode="chat")
+            logger.info(f"[LangGraph Agent Stream] ⏱️ 记忆上下文加载完成，耗时: {time.time() - memory_start:.2f}s")
 
+            # ⏱️ 性能诊断：获取Agent实例
+            agent_start = time.time()
             # 获取全局共享的 LangGraph Agent（而不是每次创建新实例）
             agent_graph = get_agent_graph()
+            logger.info(f"[LangGraph Agent Stream] ⏱️ Agent实例获取完成，耗时: {time.time() - agent_start:.2f}s")
+            logger.info(f"[LangGraph Agent Stream] ⏱️ 初始化总耗时: {time.time() - start_time:.2f}s")
 
             # 准备上下文
             context = request.context or {}
