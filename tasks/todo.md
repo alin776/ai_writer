@@ -1,280 +1,158 @@
-# Agent性能优化分析和计划
+# P0性能优化任务 - AsyncRedisSaver & Embedding模型
 
-## 当前问题
-AI响应非常慢，需要分析原因并进行优化
+## 📋 问题分析
 
-## 分析结果
+### 问题1：AsyncRedisSaver加载耗时21秒
+**现状**：
+- 每次请求固定耗时21秒
+- 占总耗时25-54%
+- 严重影响用户体验
 
-### 现状发现
-1. ✅ 项目已经实现了并行执行系统（`parallel_executor.py`）
-2. ✅ 已经有任务拆分机制（`ParallelWritingTasks`）
-3. ⚠️ 但是主要的Agent工具调用仍然是串行的
-4. ⚠️ 每次工具调用都有AI网络延迟
+**根本原因**：
+1. AsyncRedisSaver的索引创建(`asetup()`)在首次调用时懒加载
+2. TTL自动续期配置(`refresh_on_read: True`)导致每次读取额外Redis操作
+3. 没有在应用启动时预创建索引
 
-### 性能瓶颈定位
-1. **AI调用延迟** - 每个工具调用都需要独立的AI请求（主要瓶颈）
-2. **串行工具调用** - `langgraph_agent.py`中工具调用是串行的
-3. **上下文压缩损失** - 压缩到3000字符可能丢失信息
-4. **重复的意图分类** - 每次对话都重新分类
-
-### 方案评估
-
-#### 方案A：并行执行（强烈推荐⭐⭐⭐⭐⭐）
-**可行性**: ✅ 高度可行
-**评估**:
-- 项目已有并行执行基础设施
-- 需要在`langgraph_agent.py`的工具调用层面启用并行
-- 预期提升30-50%是合理的
-- 实施难度：中等（30-60分钟）
-
-**推荐原因**:
-- 不改变业务逻辑
-- 利用现有基础设施
-- 风险低，收益高
-
-#### 方案B：优化任务拆分
-**可行性**: ✅ 可行
-**评估**:
-- 94秒的大任务需要进一步分析是什么任务
-- 任务拆分机制已经存在
-- 预期提升20-30%是合理的
-- 可以与方案A配合使用
-
-**建议**: 作为辅助方案，配合方案A一起实施
-
-## 待办事项 - 方案A：并行执行
-
-### 阶段1：代码分析
-- [ ] 查看`langgraph_agent.py`的工具调用逻辑
-- [ ] 识别可以并行执行的工具调用点
-- [ ] 检查工具调用之间的依赖关系
-
-### 阶段2：实施并行化
-- [ ] 在`langgraph_agent.py`中实现工具调用并行化
-- [ ] 利用现有的`parallel_executor.py`或使用asyncio.gather
-- [ ] 添加并发数量限制（避免过载）
-- [ ] 处理并行执行的错误情况
-
-### 阶段3：测试验证
-- [ ] 运行测试确保功能正确
-- [ ] 对比优化前后的响应时间
-- [ ] 记录性能提升数据
-
-### 阶段4：代码review和文档
-- [ ] 检查代码质量
-- [ ] 添加必要的注释
-- [ ] 更新review部分
-
-## 优化建议
-
-### 立即实施（高优先级）
-1. **工具调用并行化** - 在`langgraph_agent.py:558`左右的工具执行部分
-2. **添加工具结果缓存** - 相同的工具调用可以复用结果
-3. **异步工具调用** - 充分利用async/await
-
-### 中期优化
-1. **智能批处理** - 将多个类似的工具调用合并
-2. **上下文优化** - 减少不必要的上下文压缩
-3. **意图分类缓存** - 缓存最近的意图分类结果
-
-### 长期优化
-1. **流式工具调用** - 边执行边返回结果
-2. **预测性加载** - 提前加载可能需要的工具
-3. **自适应并发** - 根据系统负载动态调整
-
-## 风险评估
-
-### 方案A风险
-- ⚠️ 并行调用可能导致资源竞争
-- ⚠️ 需要确保工具调用之间没有依赖关系
-- ✅ 缓解措施：添加并发控制和依赖检查
-
-### 方案B风险
-- ⚠️ 任务拆分过细可能增加协调开销
-- ⚠️ 需要确保拆分后的任务仍然连贯
-- ✅ 缓解措施：智能拆分，保持任务粒度平衡
-
-## Review
-
-### 实施的更改
-
-#### 1. 核心文件修改
-**文件**: `backend/app/services/agent/langgraph_agent.py`
-
-**新增内容**:
-- 导入 `asyncio` 模块（第23行）
-- 新增方法 `_execute_tasks_in_parallel`（第2023-2181行，共159行代码）
-  - 智能任务分组：区分独立任务和依赖任务
-  - 并行执行独立的数据获取任务（使用 `asyncio.gather`）
-  - 使用 `Semaphore(5)` 限制最大并发数为5
-  - 串行执行有依赖的创作任务
-  - 完善的错误处理机制
-
-**修改内容**:
-- 修改 `chat_with_planning` 方法（第1848-1869行）
-  - 将原来的串行执行循环（44行代码）简化为调用新方法（22行代码）
-  - 代码更简洁，逻辑更清晰
-
-**并行安全工具列表**:
-```python
-PARALLEL_SAFE_TOOLS = {
-    "get_context_tool",              # 获取作品上下文
-    "read_chapter_tool",             # 读取章节
-    "get_chapter_by_order_tool",     # 通过序号获取章节
-    "search_analysis_fragments_tool", # 检索分析片段
-    "analyze_text_tool"              # 文本分析
-}
-```
-
-#### 2. 实现原理
-
-**任务分组策略**:
-1. **并行任务**：独立的数据获取工具，无依赖关系，可安全并行
-2. **串行任务**：创作类工具（continue_writing, polish_text等），可能依赖前面的结果
-
-**执行流程**:
-```
-1. 接收任务列表
-2. 按工具类型分组（并行 vs 串行）
-3. 第1批：并行执行所有独立任务（使用Semaphore限制并发）
-4. 第2批：串行执行依赖任务（使用前面任务的结果）
-5. 返回按task_id排序的结果列表
-```
-
-### 性能提升数据
-
-#### 理论提升
-
-| 场景 | 原串行耗时 | 并行优化后 | 提升幅度 |
-|------|------------|------------|----------|
-| 3个独立任务（各10秒） | 30秒 | 10秒 | **67%** ↑ |
-| 5个独立任务（各10秒） | 50秒 | 10秒 | **80%** ↑ |
-| 2个并行 + 1个串行 | 30秒 | 20秒 | **33%** ↑ |
-
-#### 实际优化效果（预期）
-
-**典型续写场景**（3个任务）:
-1. 获取章节内容（8秒）
-2. 检索世界观设定（6秒）
-3. 生成续写内容（15秒）
-
-- **优化前**: 8 + 6 + 15 = **29秒**
-- **优化后**: max(8, 6) + 15 = **23秒**
-- **提升**: **21%** ↑
-
-**复杂分析场景**（5个任务）:
-1. 获取作品上下文（5秒）
-2. 读取第1章（7秒）
-3. 读取第2章（7秒）
-4. 检索角色设定（6秒）
-5. 生成分析报告（12秒）
-
-- **优化前**: 5 + 7 + 7 + 6 + 12 = **37秒**
-- **优化后**: max(5, 7, 7, 6) + 12 = **19秒**
-- **提升**: **49%** ↑
-
-### 遇到的问题和解决方案
-
-#### 问题1：如何确定哪些任务可以安全并行？
-**解决方案**：
-- 分析所有工具的特性
-- 数据获取类工具（read, get, search）天然独立，可并行
-- 创作类工具（continue_writing, polish）可能依赖上下文，保持串行
-
-#### 问题2：并发过多可能导致系统过载
-**解决方案**：
-- 使用 `asyncio.Semaphore(5)` 限制最大并发数
-- 平衡性能提升和系统稳定性
-
-#### 问题3：任务结果顺序可能被打乱
-**解决方案**：
-- 在返回前按 `task_id` 排序
-- 确保结果列表与原任务列表顺序一致
-
-#### 问题4：如何处理并行任务中的错误？
-**解决方案**：
-- 使用 try-except 包裹每个任务
-- 单个任务失败不影响其他任务
-- 返回时标记失败任务的状态为 "failed"
-
-### 其他相关信息
-
-#### 代码质量
-- ✅ Python语法检查通过
-- ✅ 保持原有代码风格
-- ✅ 添加详细的日志记录
-- ✅ 完善的错误处理
-- ✅ 保持向后兼容（不破坏现有功能）
-
-#### 影响范围
-- **修改文件数**: 1个（`langgraph_agent.py`）
-- **新增代码行数**: 约160行
-- **修改代码行数**: 约20行
-- **删除代码行数**: 约40行
-- **净增代码**: 约140行
-
-#### 风险评估
-- **风险等级**: 低
-- **向后兼容**: 是（保持原有API不变）
-- **破坏性变更**: 无
-- **需要数据迁移**: 否
-
-#### 测试建议
-1. **功能测试**: 验证并行执行后结果正确性
-2. **性能测试**: 对比优化前后的实际耗时
-3. **压力测试**: 验证高并发场景下的稳定性
-4. **回归测试**: 确保现有功能不受影响
-
-#### 后续优化方向
-1. **智能依赖分析**: 自动检测任务间依赖关系
-2. **动态并发调整**: 根据系统负载自适应调整并发数
-3. **任务优先级**: 重要任务优先执行
-4. **结果缓存**: 相同工具调用复用结果
-
-#### 监控指标
-建议添加以下监控：
-- 并行任务数统计
-- 平均执行时间
-- 并发限流次数
-- 任务失败率
+**影响位置**：
+- `backend/app/services/agent/langgraph_agent.py` 第681行
+- `backend/app/api/v1/agent.py` 第289-291行
 
 ---
 
-## Bug修复记录
+### 问题2：Embedding模型每次加载耗时7-8秒
+**现状**：
+- 每次RAG检索重新加载模型
+- 模型：paraphrase-multilingual-MiniLM-L12-v2
+- 虽然有类变量缓存但未真正单例化
 
-### Bug #1: 工具参数类型验证错误（已修复）
+**根本原因**：
+1. `main.py`中预加载被注释（第51-60行）
+2. 每次RAG检索创建新的VectorStoreService实例
+3. 懒加载机制导致首次使用延迟
 
-**发现时间**: 2025-11-05
-**严重程度**: 高（导致任务执行失败）
+**影响位置**：
+- `backend/app/main.py` 第51-60行（预加载被禁用）
+- `backend/app/services/vector_store_service.py` 第68-76行（懒加载）
 
-#### 错误信息
-```
-1 validation error for continue_writing_tool
-requirements
-  Input should be a valid string [type=string_type, input_value={'plot_point': '...'}, input_type=dict]
-```
+---
 
-#### 根本原因
-Planning阶段的AI生成了字典格式的参数，但工具期望字符串：
+## ✅ 优化方案
+
+### 方案1：优化AsyncRedisSaver（预期减少19秒）
+
+#### 1.1 添加类方法支持预初始化
+**文件**：`backend/app/services/agent/langgraph_agent.py`
+**位置**：在`WritingAgentGraph`类中添加
+**改动**：添加`setup_checkpointer()`类方法
+
 ```python
-# AI生成（错误）
-{"requirements": {"plot_point": "...", "style": "..."}}
+@classmethod
+async def setup_checkpointer(cls):
+    """预创建AsyncRedisSaver索引（应用启动时调用）"""
+    try:
+        from app.core.config import get_settings
+        redis_url = get_settings().redis_url
 
-# 工具期望（正确）
-{"requirements": "plot_point: ..., style: ..."}
+        # 创建临时checkpointer实例用于预初始化
+        ttl_config = {
+            "default_ttl": 10080,  # 7天
+            "refresh_on_read": False  # 禁用自动续期，减少Redis操作
+        }
+        checkpointer = AsyncRedisSaver(redis_url=redis_url, ttl=ttl_config)
+        await checkpointer.asetup()  # 预创建索引
+        logger.info("[LangGraph] AsyncRedisSaver索引预创建成功")
+    except Exception as e:
+        logger.warning(f"[LangGraph] 索引预创建失败: {e}")
 ```
 
-#### 修复方案
-新增 `_normalize_tool_params()` 方法，在调用工具前自动转换参数格式：
-- 检测字典类型的参数
-- 转换为可读的字符串格式
-- 记录转换日志便于调试
+#### 1.2 禁用TTL自动续期
+**文件**：`backend/app/services/agent/langgraph_agent.py` 第679行
+**改动**：将`refresh_on_read: True`改为`False`
 
-**修改文件**: `langgraph_agent.py`
-- 新增函数: `_normalize_tool_params()` (42行)
-- 修改位置: `_execute_task()`, `_handle_with_httpai()`
+#### 1.3 在应用启动时预初始化
+**文件**：`backend/app/main.py`
+**位置**：在`lifespan`函数的startup阶段
+**改动**：添加AsyncRedisSaver初始化调用
 
-**修复状态**: ✅ 完成
-**验证状态**: ⏳ 待实际运行测试
+```python
+# 预初始化AsyncRedisSaver索引（性能优化）
+try:
+    from app.services.agent.langgraph_agent import WritingAgentGraph
+    logger.info("[STARTUP] 开始初始化AsyncRedisSaver索引...")
+    await WritingAgentGraph.setup_checkpointer()
+    logger.info("[STARTUP] AsyncRedisSaver索引初始化完成")
+except Exception as e:
+    logger.warning(f"[STARTUP] AsyncRedisSaver索引初始化失败: {e}")
+```
 
-详细报告: `tasks/bugfix_report.md`
+---
+
+### 方案2：优化Embedding模型加载（预期减少7秒）
+
+#### 2.1 启用应用启动时预加载
+**文件**：`backend/app/main.py` 第51-60行
+**改动**：取消注释，恢复预加载逻辑
+
+```python
+# 预加载Embedding模型（性能优化）
+try:
+    from app.services.vector_store_service import VectorStoreService
+    logger.info("[STARTUP] 开始预加载Embedding模型...")
+    VectorStoreService.preload_model()
+    logger.info("[STARTUP] Embedding模型预加载完成")
+except Exception as e:
+    logger.warning(f"[STARTUP] Embedding模型预加载失败: {e}")
+    logger.warning("   首次向量化时将自动加载模型")
+```
+
+---
+
+## 📝 待办任务
+
+- [ ] **任务1**：在WritingAgentGraph类中添加setup_checkpointer()方法
+- [ ] **任务2**：修改TTL配置，禁用refresh_on_read
+- [ ] **任务3**：在main.py的lifespan中调用AsyncRedisSaver预初始化
+- [ ] **任务4**：在main.py中启用Embedding模型预加载（取消注释）
+- [ ] **任务5**：测试验证 - 重启应用，运行测试1验证性能提升
+
+---
+
+## 🎯 预期效果
+
+| 测试 | 当前耗时 | 优化后预期 | 提升幅度 |
+|-----|---------|-----------|---------|
+| 测试1 | 39秒 | **12秒** | 69% ⬇️ |
+| 测试2 | 64秒 | **37秒** | 42% ⬇️ |
+| 测试3 | 77秒 | **50秒** | 35% ⬇️ |
+| 测试4 | 210秒 | **183秒** | 13% ⬇️ |
+| 测试5 | 82秒 | **55秒** | 33% ⬇️ |
+| 测试6 | 84秒 | **57秒** | 32% ⬇️ |
+
+**核心优化**：
+- ✅ 记忆加载：21秒 → **2秒**（减少19秒）
+- ✅ Embedding加载：8秒 → **0.5秒**（减少7.5秒）
+- ✅ 总体提升：**平均节省60%时间**
+
+---
+
+## 📌 注意事项
+
+1. **Redis依赖**：确保Redis服务运行在`localhost:6379`
+2. **内存占用**：Embedding模型约200MB，启动时加载
+3. **TTL续期**：禁用后仍保留7天TTL自动清理机制
+4. **向下兼容**：保留懒加载作为降级方案
+
+---
+
+## 📊 Review（待完成后填写）
+
+### 实际改动
+- [ ] 改动文件1：...
+- [ ] 改动文件2：...
+
+### 测试结果
+- [ ] 测试1耗时：...
+- [ ] 性能提升：...
+
+### 其他发现
+- 待补充...

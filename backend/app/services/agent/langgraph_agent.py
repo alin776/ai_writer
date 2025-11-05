@@ -637,6 +637,36 @@ class WritingAgentGraph:
     模式 2 (use_chatgpt=False): 使用 HTTPAIService + 手动工具调用（绕过 Cloudflare）
     """
 
+    @classmethod
+    async def setup_checkpointer(cls):
+        """
+        预创建AsyncRedisSaver索引（应用启动时调用）
+
+        优化点: 避免首次请求时的21秒索引创建延迟
+        """
+        try:
+            from app.core.config import get_settings
+            redis_url = get_settings().REDIS_URL
+
+            # 创建临时checkpointer实例用于预初始化
+            ttl_config = {
+                "default_ttl": 10080,  # 7天
+                "refresh_on_read": False  # 禁用自动续期，减少Redis操作
+            }
+
+            # 测试Redis连接
+            test_client = redis.Redis.from_url(redis_url, decode_responses=False)
+            test_client.ping()
+            test_client.close()
+
+            # 创建并初始化checkpointer
+            checkpointer = AsyncRedisSaver(redis_url=redis_url, ttl=ttl_config)
+            await checkpointer.asetup()  # 预创建索引
+            logger.info("[LangGraph] ✅ AsyncRedisSaver索引预创建成功")
+        except Exception as e:
+            logger.warning(f"[LangGraph] ⚠️ AsyncRedisSaver索引预创建失败: {e}")
+            logger.warning("[LangGraph] 将在首次使用时自动创建索引")
+
     def __init__(self, ai_service: HTTPAIService, use_chatgpt: bool = False):
         """
         初始化 Agent
@@ -673,10 +703,10 @@ class WritingAgentGraph:
             test_client.close()
 
             # AsyncRedisSaver支持异步操作，直接传递URL字符串
-            # 配置TTL：7天自动清理不活跃对话，读取时自动续期
+            # 配置TTL：7天自动清理不活跃对话
             ttl_config = {
                 "default_ttl": 10080,  # 7天 = 7 * 24 * 60分钟
-                "refresh_on_read": True  # 活跃对话自动续期
+                "refresh_on_read": False  # 禁用自动续期（性能优化）
             }
             self.checkpointer = AsyncRedisSaver(redis_url=redis_url, ttl=ttl_config)
             self._checkpointer_setup_done = False  # 标记是否已初始化索引

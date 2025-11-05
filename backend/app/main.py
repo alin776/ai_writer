@@ -48,16 +48,24 @@ async def lifespan(app: FastAPI):
     # await redis_client.init()  # TODO: Redis 暂时禁用
     await start_scheduler()  # 启动定时任务
 
-    # 预加载Embedding模型（性能优化）- 因内存限制暂时禁用，改用懒加载
-    # try:
-    #     from app.services.vector_store_service import VectorStoreService
-    #     logger.info("[STARTUP] 开始预加载Embedding模型...")
-    #     VectorStoreService.preload_model()
-    #     logger.info("[STARTUP] Embedding模型预加载完成")
-    # except Exception as e:
-    #     logger.warning(f"[STARTUP] Embedding模型预加载失败: {e}")
-    #     logger.warning("   首次向量化时将自动加载模型")
-    logger.info("[STARTUP] Embedding模型使用懒加载模式（首次使用时自动加载）")
+    # 预初始化AsyncRedisSaver索引（性能优化）
+    try:
+        from app.services.agent.langgraph_agent import WritingAgentGraph
+        logger.info("[STARTUP] 开始初始化AsyncRedisSaver索引...")
+        await WritingAgentGraph.setup_checkpointer()
+        logger.info("[STARTUP] AsyncRedisSaver索引初始化完成")
+    except Exception as e:
+        logger.warning(f"[STARTUP] AsyncRedisSaver索引初始化失败: {e}")
+
+    # 预加载Embedding模型（性能优化）
+    try:
+        from app.services.vector_store_service import VectorStoreService
+        logger.info("[STARTUP] 开始预加载Embedding模型...")
+        VectorStoreService.preload_model()
+        logger.info("[STARTUP] Embedding模型预加载完成")
+    except Exception as e:
+        logger.warning(f"[STARTUP] Embedding模型预加载失败: {e}")
+        logger.warning("[STARTUP] 首次向量化时将自动加载模型")
 
     logger.info("[STARTUP] 应用启动完成")
 
