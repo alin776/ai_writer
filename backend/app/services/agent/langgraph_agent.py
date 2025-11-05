@@ -12,7 +12,7 @@ from typing import TypedDict, Annotated, List, Dict, Any, Optional, Literal
 from datetime import datetime
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
-from langgraph.checkpoint.redis import RedisSaver
+from langgraph.checkpoint.redis import AsyncRedisSaver
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
@@ -648,24 +648,27 @@ class WritingAgentGraph:
             self.llm_with_tools = None
 
         # 创建 Checkpointer（记忆系统）
-        # 使用 RedisSaver 替代 MemorySaver，解决内存泄漏和数据持久化问题
+        # 使用 AsyncRedisSaver 替代 MemorySaver，解决内存泄漏和数据持久化问题
         try:
-            # 使用 db3 避免与现有服务冲突（db0=缓存, db1=Celery队列, db2=Celery结果）
-            redis_url = settings.REDIS_URL.replace("/0", "/3")
+            # AsyncRedisSaver必须使用db0（RediSearch索引限制）
+            # 使用checkpoint:前缀避免与缓存key冲突
+            redis_url = settings.REDIS_URL  # 使用db0
 
             # 测试Redis连接
             test_client = redis.Redis.from_url(redis_url, decode_responses=False)
             test_client.ping()
             test_client.close()
 
-            # RedisSaver需要传递URL字符串（不是Redis对象）
-            self.checkpointer = RedisSaver(redis_url)
-            logger.info(f"[LangGraph] OK 使用 RedisSaver（{redis_url}）")
+            # AsyncRedisSaver支持异步操作，直接传递URL字符串
+            self.checkpointer = AsyncRedisSaver(redis_url=redis_url)
+            self._checkpointer_setup_done = False  # 标记是否已初始化索引
+            logger.info(f"[LangGraph] OK 使用 AsyncRedisSaver（{redis_url}）")
         except Exception as e:
             logger.warning(f"[LangGraph] 警告 Redis连接失败，降级使用MemorySaver: {e}")
             # 降级方案：如果Redis不可用，使用MemorySaver
             from langgraph.checkpoint.memory import MemorySaver
             self.checkpointer = MemorySaver()
+            self._checkpointer_setup_done = True  # MemorySaver不需要setup
 
         # 构建图
         self.graph = self._build_graph()
@@ -1492,6 +1495,16 @@ class WritingAgentGraph:
             Dict: Agent响应
         """
 
+        # 懒加载：第一次使用时初始化AsyncRedisSaver索引
+        if isinstance(self.checkpointer, AsyncRedisSaver) and not self._checkpointer_setup_done:
+            try:
+                await self.checkpointer.asetup()
+                self._checkpointer_setup_done = True
+                logger.info(f"[LangGraph] AsyncRedisSaver索引创建成功")
+            except Exception as setup_error:
+                logger.error(f"[LangGraph] AsyncRedisSaver索引创建失败: {setup_error}")
+                raise
+
         # 构建初始状态
         initial_state = {
             "messages": [HumanMessage(content=message)],
@@ -1523,13 +1536,17 @@ class WritingAgentGraph:
             }
 
         except Exception as e:
-            logger.error(f"[LangGraph] Agent执行失败: {e}")
+            import traceback
+            error_msg = str(e) or repr(e)
+            error_trace = traceback.format_exc()
+            logger.error(f"[LangGraph] Agent执行失败: {error_msg}")
+            logger.error(f"[LangGraph] 错误堆栈:\n{error_trace}")
             return {
-                "response": f"抱歉，处理您的请求时出错了：{str(e)}",
+                "response": f"抱歉，处理您的请求时出错了：{error_msg}",
                 "conversation_id": conversation_id or "default",
                 "agent_steps": [],
                 "suggested_actions": [],
-                "metadata": {"error": str(e)}
+                "metadata": {"error": error_msg, "traceback": error_trace}
             }
 
     def _extract_json_from_text(self, text: str) -> Optional[dict]:

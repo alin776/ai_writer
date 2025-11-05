@@ -151,3 +151,6 @@ backend/test_report.json
 # 临时清理脚本
 backend/clear_cache.bat
 
+# 临时日志文件
+INFO.md
+

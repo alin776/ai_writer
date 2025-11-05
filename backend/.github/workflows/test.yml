@@ -1,0 +1,64 @@
+# Agent自动化测试工作流
+
+name: Agent Tests
+
+on:
+  push:
+    branches: [ main, develop, alin3.0 ]
+    paths:
+      - 'backend/app/services/agent/**'
+      - 'backend/app/api/v1/agent.py'
+      - 'backend/test_*.py'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/app/services/agent/**'
+      - 'backend/app/api/v1/agent.py'
+      - 'backend/test_*.py'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        cd backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run memory tests
+      env:
+        REDIS_URL: redis://localhost:6379/3
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL || 'https://api.openai.com/v1' }}
+        SECRET_KEY: test-secret-key
+        DATABASE_URL: sqlite:///./test.db
+      run: |
+        cd backend
+        python test_memory_debug.py
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: backend/test-results/
