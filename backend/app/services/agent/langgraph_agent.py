@@ -22,6 +22,7 @@ import httpx
 import uuid
 import asyncio
 import redis
+import json
 
 from app.services.ai.http_ai_service import HTTPAIService
 from app.core.config import settings
@@ -525,22 +526,31 @@ def _compress_task_result(
     Returns:
         压缩后的结果
     """
+    # 类型安全检查
+    if not isinstance(task_result, str):
+        logger.warning(
+            f"[Compress] 任务{task_id}结果不是字符串: {type(task_result)}, "
+            f"已转换为字符串"
+        )
+        task_result = str(task_result) if task_result is not None else ""
+
     # 如果结果很短，直接返回
     if len(task_result) <= max_length:
         return task_result
 
     # 【修复】尝试解析JSON格式的工具返回结果（如get_chapter_by_order_tool）
-    import json
     try:
         data = json.loads(task_result)
         # 如果是JSON且有content字段，提取真正的内容
         if isinstance(data, dict) and 'content' in data:
-            task_result = data['content'] or ""
+            content = data.get('content')
+            task_result = content if content is not None else ""
             # 重新检查长度
             if len(task_result) <= max_length:
                 return task_result
-    except:
-        pass  # 不是JSON或解析失败，继续原有逻辑
+    except (json.JSONDecodeError, TypeError, ValueError) as e:
+        logger.debug(f"任务结果不是JSON格式: {e}")
+        # 不是JSON或解析失败，继续原有逻辑
 
     # 章节内容：只保留摘要
     if "章" in task_result and ("第" in task_result or "标题" in task_result):
@@ -589,7 +599,8 @@ def _build_summarization_context(
     for task in task_results:
         task_id = task["task_id"]
         description = task["description"]
-        result = task["result"]
+        result = task.get("result")
+        result = result if result is not None else ""  # 防御性编程：处理None值
         status = task["status"]
 
         # 压缩结果
@@ -602,7 +613,7 @@ def _build_summarization_context(
             )
         else:
             # 失败的任务保留错误信息
-            compressed_result = result[:200]
+            compressed_result = result[:200] if result else ""
 
         # 构建任务文本
         task_text = f"\n任务{task_id}（{description}）：\n{compressed_result}\n"
@@ -619,7 +630,10 @@ def _build_summarization_context(
         if current_length >= max_context_length * 0.95:
             remaining_tasks = len(task_results) - (task_id)
             if remaining_tasks > 0:
-                context_parts.append(f"\n[还有{remaining_tasks}个任务结果已省略]\n")
+                omit_msg = f"\n[还有{remaining_tasks}个任务结果已省略]\n"
+                # 检查提示信息本身是否会超限
+                if current_length + len(omit_msg) <= max_context_length:
+                    context_parts.append(omit_msg)
             break
 
     return ''.join(context_parts)
