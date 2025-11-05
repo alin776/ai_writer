@@ -13,9 +13,14 @@
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import redis
+import logging
+import time
+import asyncio
 
 from .long_term_memory import LongTermMemoryService
 from .user_profile import UserProfileMemory
+
+logger = logging.getLogger(__name__)
 
 
 class MemoryManager:
@@ -34,7 +39,7 @@ class MemoryManager:
 
     # ==================== 统一记忆检索接口 ====================
 
-    def get_complete_context(
+    async def get_complete_context(
         self,
         user_id: str,
         include_profile: bool = True,
@@ -54,23 +59,46 @@ class MemoryManager:
         Returns:
             Dict: 完整上下文
         """
+        logger.info(f"[Memory诊断] get_complete_context 开始")
+        start_time = time.time()
+
         context = {
             "user_id": user_id,
             "retrieved_at": datetime.now().isoformat()
         }
 
         if include_preferences:
-            context["user_context"] = self.long_term_memory.get_user_context(user_id)
+            pref_start = time.time()
+            logger.info(f"[Memory诊断] 调用 get_user_context (使用 asyncio.to_thread)")
+            # 🔧 修复：使用 asyncio.to_thread() 包装同步Redis调用，避免阻塞事件循环
+            context["user_context"] = await asyncio.to_thread(
+                self.long_term_memory.get_user_context,
+                user_id
+            )
+            logger.info(f"[Memory诊断] get_user_context 完成，耗时: {time.time() - pref_start:.2f}s")
 
         if include_profile:
-            context["user_profile"] = self.user_profile.get_full_profile(user_id)
+            profile_start = time.time()
+            logger.info(f"[Memory诊断] 调用 get_full_profile (使用 asyncio.to_thread)")
+            # 🔧 修复：同样包装同步Redis调用
+            context["user_profile"] = await asyncio.to_thread(
+                self.user_profile.get_full_profile,
+                user_id
+            )
+            logger.info(f"[Memory诊断] get_full_profile 完成，耗时: {time.time() - profile_start:.2f}s")
 
         if include_recent_conversations:
-            context["recent_conversations"] = self.long_term_memory.get_recent_conversations(
+            conv_start = time.time()
+            logger.info(f"[Memory诊断] 调用 get_recent_conversations (使用 asyncio.to_thread)")
+            # 🔧 修复：同样包装同步Redis调用
+            context["recent_conversations"] = await asyncio.to_thread(
+                self.long_term_memory.get_recent_conversations,
                 user_id,
-                limit=3
+                3  # limit参数
             )
+            logger.info(f"[Memory诊断] get_recent_conversations 完成，耗时: {time.time() - conv_start:.2f}s")
 
+        logger.info(f"[Memory诊断] get_complete_context 总耗时: {time.time() - start_time:.2f}s")
         return context
 
     def format_context_for_agent(
@@ -89,28 +117,53 @@ class MemoryManager:
         Returns:
             str: 格式化的上下文文本
         """
+        logger.info(f"[Memory诊断] format_context_for_agent 开始，mode={mode}")
+        start_time = time.time()
+
         if mode == "preferences_only":
-            return self.long_term_memory.format_memory_for_prompt(user_id)
+            pref_start = time.time()
+            logger.info(f"[Memory诊断] 调用 format_memory_for_prompt")
+            result = self.long_term_memory.format_memory_for_prompt(user_id)
+            logger.info(f"[Memory诊断] format_memory_for_prompt 完成，耗时: {time.time() - pref_start:.2f}s")
+            logger.info(f"[Memory诊断] format_context_for_agent 总耗时: {time.time() - start_time:.2f}s")
+            return result
 
         elif mode == "minimal":
             # 只包含最关键的信息
+            pref_start = time.time()
+            logger.info(f"[Memory诊断] 调用 get_user_preferences (minimal)")
             prefs = self.long_term_memory.get_user_preferences(user_id)
-            skill = self.user_profile.get_skill_level(user_id)
+            logger.info(f"[Memory诊断] get_user_preferences 完成，耗时: {time.time() - pref_start:.2f}s")
 
-            return f"""# 用户基本信息
+            skill_start = time.time()
+            logger.info(f"[Memory诊断] 调用 get_skill_level")
+            skill = self.user_profile.get_skill_level(user_id)
+            logger.info(f"[Memory诊断] get_skill_level 完成，耗时: {time.time() - skill_start:.2f}s")
+
+            result = f"""# 用户基本信息
 - 技能等级: {skill.overall_level}
 - 偏好风格: {prefs.preferred_style or '未设置'}
 - 偏好长度: {prefs.preferred_length}
 """
+            logger.info(f"[Memory诊断] format_context_for_agent 总耗时: {time.time() - start_time:.2f}s")
+            return result
 
         else:  # full
             # 完整上下文
-            parts = [
-                self.long_term_memory.format_memory_for_prompt(user_id),
-                "\n",
-                self.user_profile.format_profile_for_agent(user_id)
-            ]
-            return "\n".join(parts)
+            format_start = time.time()
+            logger.info(f"[Memory诊断] 调用 format_memory_for_prompt (full)")
+            part1 = self.long_term_memory.format_memory_for_prompt(user_id)
+            logger.info(f"[Memory诊断] format_memory_for_prompt 完成，耗时: {time.time() - format_start:.2f}s")
+
+            profile_start = time.time()
+            logger.info(f"[Memory诊断] 调用 format_profile_for_agent")
+            part2 = self.user_profile.format_profile_for_agent(user_id)
+            logger.info(f"[Memory诊断] format_profile_for_agent 完成，耗时: {time.time() - profile_start:.2f}s")
+
+            parts = [part1, "\n", part2]
+            result = "\n".join(parts)
+            logger.info(f"[Memory诊断] format_context_for_agent 总耗时: {time.time() - start_time:.2f}s")
+            return result
 
     # ==================== 记忆更新接口 ====================
 

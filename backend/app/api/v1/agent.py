@@ -32,15 +32,27 @@ import redis
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# 创建同步Redis客户端（用于Agent系统）
+# 创建同步Redis连接池（全局复用，避免每次请求都建立新连接）
+_redis_pool = None
+
 def get_redis_client():
-    """获取同步Redis客户端"""
-    return redis.Redis(
-        host='localhost',
-        port=6379,
-        db=1,  # 使用db1，避免与缓存服务冲突
-        decode_responses=False
-    )
+    """获取同步Redis客户端（使用连接池）"""
+    global _redis_pool
+
+    # 🔧 修复：使用全局连接池，避免每次都创建新连接
+    if _redis_pool is None:
+        _redis_pool = redis.ConnectionPool(
+            host='localhost',
+            port=6379,
+            db=1,  # 使用db1，避免与缓存服务冲突
+            decode_responses=False,
+            max_connections=10,  # 最大连接数
+            socket_connect_timeout=5,  # 连接超时5秒
+            socket_timeout=5,  # 操作超时5秒
+        )
+        logger.info("[Redis] 全局连接池已创建")
+
+    return redis.Redis(connection_pool=_redis_pool)
 
 # 全局Agent实例（跨请求共享，保持MemorySaver持久化）
 _global_agent_graph = None
@@ -125,8 +137,21 @@ async def get_memory_manager(
     db: AsyncSession = Depends(get_db)
 ) -> MemoryManager:
     """获取记忆管理器"""
+    import time
+
+    # 测试Redis连接速度
+    redis_start = time.time()
+    logger.info(f"[Redis诊断] 开始创建Redis客户端")
     redis_client = get_redis_client()
-    return MemoryManager(redis_client)
+    logger.info(f"[Redis诊断] Redis客户端创建完成，耗时: {time.time() - redis_start:.2f}s")
+
+    # 创建MemoryManager
+    mm_start = time.time()
+    logger.info(f"[Redis诊断] 开始创建MemoryManager")
+    manager = MemoryManager(redis_client)
+    logger.info(f"[Redis诊断] MemoryManager创建完成，耗时: {time.time() - mm_start:.2f}s")
+
+    return manager
 
 
 async def get_planning_agent() -> PlanningAgent:
@@ -181,7 +206,8 @@ async def agent_chat(
         logger.info(f"[LangGraph Agent] User: {user_id}, Message: {request.message[:50]}...")
 
         # 获取用户记忆上下文
-        user_context = memory.get_complete_context(user_id)
+        # 🔧 修复：使用await调用async方法
+        user_context = await memory.get_complete_context(user_id)
         memory_context = memory.format_context_for_agent(user_id, mode="chat")
 
         # 获取全局共享的 LangGraph Agent（修复记忆功能）
@@ -267,7 +293,15 @@ async def agent_chat_stream(
     import asyncio
     import time
 
+    # ⏱️ 性能诊断：endpoint函数体开始（依赖注入已完成）
+    endpoint_start = time.time()
+    logger.info(f"[诊断] agent_chat_stream endpoint开始，依赖注入已完成")
+
     async def event_generator():
+        # ⏱️ 性能诊断：event_generator开始执行
+        generator_start = time.time()
+        logger.info(f"[诊断] event_generator 开始执行")
+
         # 使用队列实现实时事件发送
         event_queue = asyncio.Queue()
         agent_task = None
@@ -280,6 +314,7 @@ async def agent_chat_stream(
             conversation_id = request.conversation_id or str(uuid.uuid4())
 
             logger.info(f"[LangGraph Agent Stream] ⏱️ 请求开始 - User: {user_id}, Message: {request.message[:50]}...")
+            logger.info(f"[诊断] 从endpoint进入到event_generator开始耗时: {time.time() - generator_start:.2f}s")
 
             # 发送开始事件
             yield f"data: {json.dumps({'type': 'start', 'conversation_id': conversation_id}, ensure_ascii=False)}\n\n"
@@ -289,7 +324,8 @@ async def agent_chat_stream(
 
             logger.info(f"[Memory诊断] 开始调用 get_complete_context")
             context_start = time.time()
-            user_context = memory.get_complete_context(user_id)
+            # 🔧 修复：使用await调用async方法
+            user_context = await memory.get_complete_context(user_id)
             logger.info(f"[Memory诊断] get_complete_context 完成，耗时: {time.time() - context_start:.2f}s")
 
             logger.info(f"[Memory诊断] 开始调用 format_context_for_agent")

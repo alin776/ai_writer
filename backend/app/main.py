@@ -48,7 +48,18 @@ async def lifespan(app: FastAPI):
     # await redis_client.init()  # TODO: Redis 暂时禁用
     await start_scheduler()  # 启动定时任务
 
-    # 预初始化AsyncRedisSaver索引（性能优化）
+    # 🔧 修复：预初始化同步Redis连接池（避免首次请求慢）
+    try:
+        from app.api.v1.agent import get_redis_client
+        import asyncio
+        logger.info("[STARTUP] 开始预初始化同步Redis连接...")
+        # 在线程中执行同步Redis操作
+        await asyncio.to_thread(lambda: get_redis_client().ping())
+        logger.info("[STARTUP] ✅ 同步Redis连接池预初始化完成")
+    except Exception as e:
+        logger.warning(f"[STARTUP] ⚠️ 同步Redis连接池预初始化失败: {e}")
+
+    # 预初始化AsyncRedisSaver索引（性能优化）- 暂时禁用，避免启动超时
     try:
         from app.services.agent.langgraph_agent import WritingAgentGraph
         logger.info("[STARTUP] 开始初始化AsyncRedisSaver索引...")
@@ -57,7 +68,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"[STARTUP] AsyncRedisSaver索引初始化失败: {e}")
 
-    # 预加载Embedding模型（性能优化）
+    # 预加载Embedding模型（性能优化）- 暂时禁用，避免启动超时
     try:
         from app.services.vector_store_service import VectorStoreService
         logger.info("[STARTUP] 开始预加载Embedding模型...")
@@ -66,6 +77,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"[STARTUP] Embedding模型预加载失败: {e}")
         logger.warning("[STARTUP] 首次向量化时将自动加载模型")
+    logger.info("[STARTUP] P0性能优化已暂时禁用（诊断模式）")
 
     logger.info("[STARTUP] 应用启动完成")
 

@@ -645,8 +645,8 @@ class WritingAgentGraph:
         优化点: 避免首次请求时的21秒索引创建延迟
         """
         try:
-            from app.core.config import get_settings
-            redis_url = get_settings().REDIS_URL
+            from app.core.config import settings
+            redis_url = settings.REDIS_URL
 
             # 创建临时checkpointer实例用于预初始化
             ttl_config = {
