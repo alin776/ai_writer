@@ -660,9 +660,14 @@ class WritingAgentGraph:
             test_client.close()
 
             # AsyncRedisSaver支持异步操作，直接传递URL字符串
-            self.checkpointer = AsyncRedisSaver(redis_url=redis_url)
+            # 配置TTL：7天自动清理不活跃对话，读取时自动续期
+            ttl_config = {
+                "default_ttl": 10080,  # 7天 = 7 * 24 * 60分钟
+                "refresh_on_read": True  # 活跃对话自动续期
+            }
+            self.checkpointer = AsyncRedisSaver(redis_url=redis_url, ttl=ttl_config)
             self._checkpointer_setup_done = False  # 标记是否已初始化索引
-            logger.info(f"[LangGraph] OK 使用 AsyncRedisSaver（{redis_url}）")
+            logger.info(f"[LangGraph] OK 使用 AsyncRedisSaver（{redis_url}，TTL=7天）")
         except Exception as e:
             logger.warning(f"[LangGraph] 警告 Redis连接失败，降级使用MemorySaver: {e}")
             # 降级方案：如果Redis不可用，使用MemorySaver
