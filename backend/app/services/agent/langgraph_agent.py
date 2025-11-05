@@ -12,7 +12,7 @@ from typing import TypedDict, Annotated, List, Dict, Any, Optional, Literal
 from datetime import datetime
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.redis import RedisSaver
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
@@ -21,6 +21,7 @@ import logging
 import httpx
 import uuid
 import asyncio
+import redis
 
 from app.services.ai.http_ai_service import HTTPAIService
 from app.core.config import settings
@@ -647,7 +648,24 @@ class WritingAgentGraph:
             self.llm_with_tools = None
 
         # 创建 Checkpointer（记忆系统）
-        self.checkpointer = MemorySaver()
+        # 使用 RedisSaver 替代 MemorySaver，解决内存泄漏和数据持久化问题
+        try:
+            # 使用 db3 避免与现有服务冲突（db0=缓存, db1=Celery队列, db2=Celery结果）
+            redis_url = settings.REDIS_URL.replace("/0", "/3")
+
+            # 测试Redis连接
+            test_client = redis.Redis.from_url(redis_url, decode_responses=False)
+            test_client.ping()
+            test_client.close()
+
+            # RedisSaver需要传递URL字符串（不是Redis对象）
+            self.checkpointer = RedisSaver(redis_url)
+            logger.info(f"[LangGraph] OK 使用 RedisSaver（{redis_url}）")
+        except Exception as e:
+            logger.warning(f"[LangGraph] 警告 Redis连接失败，降级使用MemorySaver: {e}")
+            # 降级方案：如果Redis不可用，使用MemorySaver
+            from langgraph.checkpoint.memory import MemorySaver
+            self.checkpointer = MemorySaver()
 
         # 构建图
         self.graph = self._build_graph()

@@ -184,8 +184,9 @@ async def agent_chat(
         user_context = memory.get_complete_context(user_id)
         memory_context = memory.format_context_for_agent(user_id, mode="chat")
 
-        # 创建 LangGraph Agent（使用配置中的模式）
-        agent_graph = WritingAgentGraph(ai_service, use_chatgpt=settings.AGENT_USE_CHATGPT)
+        # 获取全局共享的 LangGraph Agent（修复记忆功能）
+        # 使用全局单例模式，确保MemorySaver在请求间共享
+        agent_graph = get_agent_graph()
 
         # 准备上下文（将记忆上下文加入到请求上下文中）
         context = request.context or {}
