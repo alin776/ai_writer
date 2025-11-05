@@ -20,6 +20,7 @@ import operator
 import logging
 import httpx
 import uuid
+import asyncio
 
 from app.services.ai.http_ai_service import HTTPAIService
 from app.core.config import settings
@@ -1154,6 +1155,9 @@ class WritingAgentGraph:
             tool_name = decision.get("tool_name", "continue_writing_tool")
             tool_args = decision.get("tool_args", {})
 
+            # 标准化参数格式
+            tool_args = self._normalize_tool_params(tool_name, tool_args)
+
             # 调用工具（使用 .ainvoke() 方法，因为 @tool 装饰器返回的是 StructuredTool 对象）
             tool_result = ""
             if tool_name == "continue_writing_tool":
@@ -1844,54 +1848,28 @@ class WritingAgentGraph:
             if on_plan:
                 await on_plan(plan_data)
 
-            # ========== 阶段2: 执行（Execution） ==========
-            task_results = []
-            all_context = f"用户请求：{message}\n\n"
+            # ========== 阶段2: 执行（Execution）- 智能并行执行 ==========
+            logger.info("[Execution] 开始智能并行执行任务")
 
-            for task in plan_data["tasks"]:
-                task_id = task["task_id"]
-                description = task["description"]
-                tool_name = task.get("tool", "auto")
+            initial_context = f"用户请求：{message}\n\n"
 
-                logger.info(f"[Execution] 开始任务{task_id}: {description}")
+            # 使用新的并行执行方法
+            task_results = await self._execute_tasks_in_parallel(
+                tasks=plan_data["tasks"],
+                work_id=work_id,
+                chapter_id=chapter_id,
+                context=initial_context,
+                on_task_start=on_task_start,
+                on_task_progress=on_task_progress,
+                on_task_done=on_task_done
+            )
 
-                # 回调：任务开始
-                if on_task_start:
-                    await on_task_start(task)
+            # 构建完整上下文用于后续总结
+            all_context = initial_context
+            for result in task_results:
+                all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
 
-                try:
-                    # 执行任务
-                    task_result = await self._execute_task(
-                        task=task,
-                        work_id=work_id,
-                        chapter_id=chapter_id,
-                        context=all_context,
-                        on_progress=on_task_progress
-                    )
-
-                    task_results.append({
-                        "task_id": task_id,
-                        "description": description,
-                        "result": task_result,
-                        "status": "completed"
-                    })
-
-                    all_context += f"\n任务{task_id}结果：\n{task_result}\n"
-
-                    logger.info(f"[Execution] 任务{task_id}完成")
-
-                    # 回调：任务完成
-                    if on_task_done:
-                        await on_task_done(task, task_result)
-
-                except Exception as e:
-                    logger.error(f"[Execution] 任务{task_id}失败: {e}")
-                    task_results.append({
-                        "task_id": task_id,
-                        "description": description,
-                        "result": f"错误: {str(e)}",
-                        "status": "failed"
-                    })
+            logger.info(f"[Execution] 所有任务执行完成，共{len(task_results)}个任务")
 
             # ========== 阶段3: 总结（Summarization） ==========
             logger.info("[Summarization] 生成最终响应")
@@ -2019,6 +1997,209 @@ class WritingAgentGraph:
                 "metadata": {"error": str(e)}
             }
 
+    async def _execute_tasks_in_parallel(
+        self,
+        tasks: List[Dict[str, Any]],
+        work_id: str,
+        chapter_id: str,
+        context: str,
+        on_task_start: Optional[callable] = None,
+        on_task_progress: Optional[callable] = None,
+        on_task_done: Optional[callable] = None
+    ) -> List[Dict[str, Any]]:
+        """智能并行执行任务
+
+        Args:
+            tasks: 任务列表
+            work_id: 作品ID
+            chapter_id: 章节ID
+            context: 上下文
+            on_task_start: 任务开始回调
+            on_task_progress: 任务进度回调
+            on_task_done: 任务完成回调
+
+        Returns:
+            任务结果列表
+        """
+        # 定义可以并行执行的独立数据获取工具
+        PARALLEL_SAFE_TOOLS = {
+            "get_context_tool",
+            "read_chapter_tool",
+            "get_chapter_by_order_tool",
+            "search_analysis_fragments_tool",
+            "analyze_text_tool"  # 分析工具也是独立的
+        }
+
+        # 分组任务：独立任务 vs 依赖任务
+        parallel_tasks = []
+        sequential_tasks = []
+
+        for task in tasks:
+            tool_name = task.get("tool", "auto")
+            if tool_name in PARALLEL_SAFE_TOOLS:
+                parallel_tasks.append(task)
+            else:
+                sequential_tasks.append(task)
+
+        logger.info(
+            f"[ParallelExecution] 任务分组: "
+            f"并行={len(parallel_tasks)}, 串行={len(sequential_tasks)}"
+        )
+
+        task_results = []
+        all_context = context
+
+        # 第1批：并行执行独立的数据获取任务
+        if parallel_tasks:
+            logger.info(f"[ParallelExecution] 开始并行执行{len(parallel_tasks)}个任务")
+
+            # 使用Semaphore限制并发数为5
+            semaphore = asyncio.Semaphore(5)
+
+            async def execute_with_semaphore(task):
+                async with semaphore:
+                    task_id = task["task_id"]
+                    description = task["description"]
+
+                    logger.info(f"[ParallelExecution] 并行任务{task_id}开始: {description}")
+
+                    if on_task_start:
+                        await on_task_start(task)
+
+                    try:
+                        result = await self._execute_task(
+                            task=task,
+                            work_id=work_id,
+                            chapter_id=chapter_id,
+                            context=all_context,
+                            on_progress=on_task_progress
+                        )
+
+                        logger.info(f"[ParallelExecution] 并行任务{task_id}完成")
+
+                        if on_task_done:
+                            await on_task_done(task, result)
+
+                        return {
+                            "task_id": task_id,
+                            "description": description,
+                            "result": result,
+                            "status": "completed"
+                        }
+                    except Exception as e:
+                        logger.error(f"[ParallelExecution] 并行任务{task_id}失败: {e}")
+                        return {
+                            "task_id": task_id,
+                            "description": description,
+                            "result": f"错误: {str(e)}",
+                            "status": "failed"
+                        }
+
+            # 并行执行所有独立任务
+            parallel_results = await asyncio.gather(
+                *[execute_with_semaphore(task) for task in parallel_tasks],
+                return_exceptions=False
+            )
+
+            task_results.extend(parallel_results)
+
+            # 更新上下文
+            for result in parallel_results:
+                all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
+
+        # 第2批：串行执行依赖任务（它们可能需要前面的结果）
+        if sequential_tasks:
+            logger.info(f"[ParallelExecution] 开始串行执行{len(sequential_tasks)}个任务")
+
+            for task in sequential_tasks:
+                task_id = task["task_id"]
+                description = task["description"]
+
+                logger.info(f"[ParallelExecution] 串行任务{task_id}开始: {description}")
+
+                if on_task_start:
+                    await on_task_start(task)
+
+                try:
+                    result = await self._execute_task(
+                        task=task,
+                        work_id=work_id,
+                        chapter_id=chapter_id,
+                        context=all_context,
+                        on_progress=on_task_progress
+                    )
+
+                    task_results.append({
+                        "task_id": task_id,
+                        "description": description,
+                        "result": result,
+                        "status": "completed"
+                    })
+
+                    all_context += f"\n任务{task_id}结果：\n{result}\n"
+
+                    logger.info(f"[ParallelExecution] 串行任务{task_id}完成")
+
+                    if on_task_done:
+                        await on_task_done(task, result)
+
+                except Exception as e:
+                    logger.error(f"[ParallelExecution] 串行任务{task_id}失败: {e}")
+                    task_results.append({
+                        "task_id": task_id,
+                        "description": description,
+                        "result": f"错误: {str(e)}",
+                        "status": "failed"
+                    })
+
+        # 按task_id排序，保持原始顺序
+        task_results.sort(key=lambda x: x["task_id"])
+
+        return task_results
+
+    def _normalize_tool_params(self, tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        """标准化工具参数，将不符合格式的参数转换为正确格式
+
+        Args:
+            tool_name: 工具名称
+            params: 原始参数
+
+        Returns:
+            标准化后的参数
+        """
+        import json
+
+        normalized = params.copy()
+
+        # continue_writing_tool 的 requirements 必须是字符串
+        if tool_name == "continue_writing_tool":
+            requirements = params.get("requirements", "")
+            if isinstance(requirements, dict):
+                # 将字典转换为可读的字符串
+                parts = []
+                for key, value in requirements.items():
+                    parts.append(f"{key}: {value}")
+                normalized["requirements"] = "，".join(parts)
+                logger.info(f"[参数标准化] continue_writing_tool.requirements: dict → str")
+
+        # polish_text_tool 的 text 和 style 必须是字符串
+        elif tool_name == "polish_text_tool":
+            if "text" in params and not isinstance(params["text"], str):
+                normalized["text"] = str(params["text"])
+                logger.info(f"[参数标准化] polish_text_tool.text: {type(params['text']).__name__} → str")
+            if "style" in params and not isinstance(params["style"], str):
+                normalized["style"] = str(params["style"])
+
+        # analyze_text_tool 的参数必须是字符串
+        elif tool_name == "analyze_text_tool":
+            if "text" in params and not isinstance(params["text"], str):
+                normalized["text"] = str(params["text"])
+                logger.info(f"[参数标准化] analyze_text_tool.text: {type(params['text']).__name__} → str")
+            if "focus" in params and not isinstance(params["focus"], str):
+                normalized["focus"] = str(params["focus"])
+
+        return normalized
+
     async def _execute_task(
         self,
         task: Dict[str, Any],
@@ -2030,6 +2211,9 @@ class WritingAgentGraph:
         """执行单个任务"""
         tool_name = task.get("tool", "auto")
         params = task.get("params", {})
+
+        # 标准化参数格式
+        params = self._normalize_tool_params(tool_name, params)
 
         if on_progress:
             await on_progress(task, "正在执行...")
