@@ -21,6 +21,7 @@ from datetime import datetime
 from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.user import User
+from app.models.chat_models import ChatMode, ChatRequest as UnifiedChatRequest, format_react_event_to_sse, format_planning_event_to_sse, format_error_event
 from app.services.agent.memory import MemoryManager
 from app.services.agent.agents import PlanningAgent, ReflectionAgent
 from app.services.agent.tools import HITLManager
@@ -81,6 +82,7 @@ def get_agent_graph() -> WritingAgentGraph:
 class AgentChatRequest(BaseModel):
     """Agent 对话请求"""
     message: str = Field(..., description="用户消息", min_length=1)
+    mode: Optional[str] = Field(None, description="聊天模式：planning/react（默认planning）")
     work_id: Optional[str] = Field(None, description="作品ID")
     chapter_id: Optional[str] = Field(None, description="章节ID")
     conversation_id: Optional[str] = Field(None, description="会话ID（用于继续对话）")
@@ -258,15 +260,19 @@ async def agent_chat_stream(
     current_user: User = Depends(get_current_active_user),
     memory: MemoryManager = Depends(get_memory_manager),
     ai_service: HTTPAIService = Depends(get_ai_service),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    mode: Optional[str] = None  # 新增：支持mode参数（通过查询参数或Body）
 ):
     """
-    Agent 智能对话 - 流式响应（SSE）with Planning + Execution
+    Agent 智能对话 - 统一流式响应（SSE）
 
-    使用 Planning + Execution 模式：
-    1. 先生成 To-Do List（规划）
-    2. 逐步执行任务
-    3. 实时显示进度
+    支持两种模式：
+    - Planning模式（默认）：先规划再执行
+    - React模式：边思考边执行
+
+    使用方式：
+    1. Planning模式（默认）: 不传mode或mode="planning"
+    2. React模式: mode="react"
 
     Args:
         request: 对话请求
@@ -274,11 +280,26 @@ async def agent_chat_stream(
         memory: 记忆管理器
         ai_service: AI服务
         db: 数据库会话
+        mode: 聊天模式（planning/react，默认planning）
 
     Returns:
         StreamingResponse: SSE流式响应
     """
     import asyncio
+
+    # 确定使用的模式
+    # 优先级：URL查询参数 > Body参数 > 默认planning
+    actual_mode = mode or request.mode or ChatMode.PLANNING
+
+    # 字符串转枚举
+    if isinstance(actual_mode, str):
+        try:
+            actual_mode = ChatMode(actual_mode.lower())
+        except (ValueError, AttributeError):
+            logger.warning(f"[Chat Stream] 无效的mode值: {actual_mode}, 使用默认planning")
+            actual_mode = ChatMode.PLANNING
+
+    logger.info(f"[Chat Stream] Mode: {actual_mode}")
 
     async def event_generator():
         # 使用队列实现实时事件发送
@@ -290,10 +311,11 @@ async def agent_chat_stream(
             user_id = str(current_user.id)
             conversation_id = request.conversation_id or str(uuid.uuid4())
 
-            logger.info(f"[LangGraph Agent Stream] ⏱️ 请求开始 - User: {user_id}, Message: {request.message[:50]}...")
+            logger.info(f"[LangGraph Agent Stream] ⏱️ 请求开始 - User: {user_id}, Mode: {actual_mode}, Message: {request.message[:50]}...")
 
-            # 发送开始事件
-            yield f"data: {json.dumps({'type': 'start', 'conversation_id': conversation_id}, ensure_ascii=False)}\n\n"
+            # 发送开始事件（包含mode信息）
+            start_event = {'type': 'start', 'conversation_id': conversation_id, 'mode': str(actual_mode)}
+            yield f"data: {json.dumps(start_event, ensure_ascii=False)}\n\n"
 
             # 获取记忆上下文
             user_context = await memory.get_complete_context(user_id)
@@ -302,8 +324,8 @@ async def agent_chat_stream(
             # 获取全局共享的 LangGraph Agent
             agent_graph = get_agent_graph()
 
-            # 准备上下文
-            context = request.context or {}
+            # 准备上下文（创建新dict避免修改原request）
+            context = dict(request.context) if request.context else {}
             context["memory_context"] = memory_context
             context["user_context"] = user_context
 
@@ -339,20 +361,53 @@ async def agent_chat_stream(
             # 在后台运行 Agent
             async def run_agent():
                 nonlocal result
-                result = await agent_graph.chat_with_planning(
-                    message=request.message,
-                    work_id=request.work_id,
-                    chapter_id=request.chapter_id,
-                    conversation_id=conversation_id,
-                    context=context,
-                    on_plan=on_plan,
-                    on_task_start=on_task_start,
-                    on_task_progress=on_task_progress,
-                    on_task_done=on_task_done,
-                    on_content=on_content
-                )
-                # Agent 完成后放入结束标记
-                await event_queue.put(('__done__', None))
+                try:
+                    # 根据模式调用不同的方法
+                    if actual_mode == ChatMode.REACT:
+                        # React模式：使用chat_stream()
+                        # 定义React模式的回调
+                        async def on_progress_react(event):
+                            await event_queue.put(('progress', event))
+
+                        async def on_tool_call_react(tool_name: str, tool_args: dict):
+                            await event_queue.put(('tool_call', {'tool': tool_name, 'args': tool_args}))
+
+                        async def on_content_react(content: str):
+                            await event_queue.put(('content', {'content': content}))
+
+                        result = await agent_graph.chat_stream(
+                            message=request.message,
+                            work_id=request.work_id,
+                            chapter_id=request.chapter_id,
+                            conversation_id=conversation_id,
+                            context=context,
+                            on_progress=on_progress_react,
+                            on_tool_call=on_tool_call_react,
+                            on_content=on_content_react
+                        )
+                    else:
+                        # Planning模式：使用chat_with_planning()
+                        result = await agent_graph.chat_with_planning(
+                            message=request.message,
+                            work_id=request.work_id,
+                            chapter_id=request.chapter_id,
+                            conversation_id=conversation_id,
+                            context=context,
+                            on_plan=on_plan,
+                            on_task_start=on_task_start,
+                            on_task_progress=on_task_progress,
+                            on_task_done=on_task_done,
+                            on_content=on_content
+                        )
+                    # Agent 完成后放入结束标记
+                    await event_queue.put(('__done__', None))
+                except Exception as e:
+                    # Agent执行异常，通过队列发送错误
+                    logger.error(f"[Stream] Agent执行失败: {str(e)}", exc_info=True)
+                    await event_queue.put(('__error__', {
+                        'error': str(e),
+                        'error_type': type(e).__name__
+                    }))
 
             # 启动 Agent 任务
             agent_task = asyncio.create_task(run_agent())
@@ -365,11 +420,38 @@ async def agent_chat_stream(
                     # Agent 执行完成
                     break
 
-                # 实时发送事件
-                yield f"data: {json.dumps({'type': event_type, 'data': event_data}, ensure_ascii=False)}\n\n"
+                if event_type == '__error__':
+                    # Agent执行失败
+                    error_event = {
+                        'type': 'error',
+                        'data': event_data,
+                        'mode': str(actual_mode)
+                    }
+                    yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
+                    # 结束流式响应
+                    return
+
+                # 实时发送事件（添加mode标识）
+                event_payload = {
+                    'type': event_type,
+                    'data': event_data,
+                    'mode': str(actual_mode)
+                }
+                yield f"data: {json.dumps(event_payload, ensure_ascii=False)}\n\n"
 
             # 等待 Agent 任务完成
             await agent_task
+
+            # 检查result是否有效
+            if result is None:
+                logger.error(f"[LangGraph Agent Stream] Result is None, Agent可能执行失败")
+                error_event = {
+                    'type': 'error',
+                    'error': 'Agent执行失败，未返回结果',
+                    'mode': str(actual_mode)
+                }
+                yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
+                return
 
             # 记录交互
             memory.record_user_interaction(
@@ -377,20 +459,33 @@ async def agent_chat_stream(
                 "agent_chat",
                 {
                     "message": request.message,
-                    "intent": result["metadata"].get("intent"),
+                    "intent": result.get("metadata", {}).get("intent"),
                     "conversation_id": conversation_id,
-                    "mode": "planning_execution"
+                    "mode": str(actual_mode)  # 记录使用的模式
                 }
             )
 
             # 发送完成事件
-            yield f"data: {json.dumps({'type': 'done', 'metadata': result['metadata'], 'suggested_actions': result.get('suggested_actions', [])}, ensure_ascii=False)}\n\n"
+            done_event = {
+                'type': 'done',
+                'mode': str(actual_mode),
+                'metadata': result.get('metadata', {}),
+                'suggested_actions': result.get('suggested_actions', [])
+            }
+            yield f"data: {json.dumps(done_event, ensure_ascii=False)}\n\n"
 
-            logger.info(f"[LangGraph Agent Stream] User {user_id} - Stream completed")
+            logger.info(f"[LangGraph Agent Stream] User {user_id} - Mode: {actual_mode}, Stream completed")
 
         except Exception as e:
             logger.error(f"[LangGraph Agent Stream] Error: {str(e)}", exc_info=True)
-            yield f"data: {json.dumps({'type': 'error', 'error': str(e)}, ensure_ascii=False)}\n\n"
+            # 发送错误事件（包含mode标识）
+            error_event = {
+                'type': 'error',
+                'error': str(e),
+                'error_type': type(e).__name__,
+                'mode': str(actual_mode)
+            }
+            yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
             # 取消 Agent 任务
             if agent_task and not agent_task.done():
                 agent_task.cancel()
