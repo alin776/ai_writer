@@ -1,6 +1,6 @@
 import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
-import { AuthLayout, AdminLayout } from '../components/layout';
+import { AuthLayout, AdminLayout, ProtectedRoute } from '../components/layout';
 
 /**
  * 路由配置文件
@@ -85,6 +85,21 @@ export const router = createBrowserRouter([
   },
 
   /**
+   * 创建作品路由（需要认证但无布局）
+   * 独立路由，不显示侧边栏和顶部导航栏
+   */
+  {
+    path: '/works/create',
+    element: (
+      <ProtectedRoute>
+        <SuspenseWrapper>
+          <CreateWorkView />
+        </SuspenseWrapper>
+      </ProtectedRoute>
+    ),
+  },
+
+  /**
    * 需要认证的路由
    * 使用 AuthLayout 进行保护
    */
@@ -99,14 +114,6 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <WorksView />
-          </SuspenseWrapper>
-        ),
-      },
-      {
-        path: '/works/create',
-        element: (
-          <SuspenseWrapper>
-            <CreateWorkView />
           </SuspenseWrapper>
         ),
       },

@@ -49,6 +49,11 @@ const EditorView: React.FC = () => {
   useEffect(() => {
     const loadChapter = async () => {
       if (!chapterId) {
+        // 没有章节ID，清空编辑器
+        setChapter(null);
+        setTitle('');
+        setContent('');
+        setCurrentChapter(null);
         setIsLoading(false);
         return;
       }

@@ -7,7 +7,18 @@
 /**
  * Google Fonts 导入
  */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=ZCOOL+XiaoWei&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;500;600;700&display=swap');
+
+/**
+ * 自定义字体 - HYShangWeiShouShuW
+ */
+@font-face {
+  font-family: 'HYShangWeiShouShuW';
+  src: url('/fonts/HYShangWeiShouShuW.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
 
 /**
  * shadcn/ui CSS 变量

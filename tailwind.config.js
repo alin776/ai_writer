@@ -33,6 +33,13 @@ export default {
           900: '#0f172a',
         },
       },
+      fontFamily: {
+        'shufa': ['HYShangWeiShouShuW', 'Ma Shan Zheng', 'cursive'],
+        'serif': ['Noto Serif SC', 'serif'],
+      },
+      backgroundImage: {
+        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+      },
     },
   },
   plugins: [],

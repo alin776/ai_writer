@@ -7,6 +7,7 @@ import type { AgentChatRequest } from '../../types/agent';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import rehypeRaw from 'rehype-raw';
 
 interface AIPanelProps {
   workId: string;
@@ -18,6 +19,7 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
   return (
     <div className="text-[11px] leading-relaxed markdown-content">
       <ReactMarkdown
+        rehypePlugins={[rehypeRaw]}
         components={{
           // 代码块
           code({ node, inline, className, children, ...props }: any) {

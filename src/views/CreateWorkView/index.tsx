@@ -6,7 +6,6 @@ import CreateWorkWithAI from './CreateWorkWithAI';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
 import type { CreateWorkData } from '../../types';
-import styles from './CreateWorkView.module.css';
 
 /**
  * 创建模式
@@ -182,21 +181,21 @@ const CreateWorkView: React.FC = () => {
   };
 
   return (
-    <div className={styles.container}>
+    <div className="w-screen min-h-screen">
       {mode === 'choice' && (
         <CreateWorkChoice
           onSelect={handleModeSelect}
           onBack={handleBack}
         />
       )}
-      
+
       {mode === 'manual' && (
         <CreateWorkManual
           onSubmit={handleManualSubmit}
           onBack={handleBack}
         />
       )}
-      
+
       {mode === 'ai' && (
         <CreateWorkWithAI
           onComplete={handleAIComplete}
