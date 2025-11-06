@@ -1,30 +1,70 @@
-# 合并 alin3.0 和 alin_qianduan 分支功能
+# 文档Review任务 - 验证docs/Agent/tasks目录是否符合实际
 
-## 任务列表
+## 任务目标
+验证`docs/Agent/tasks`目录下约50个文档的准确性，确保文档描述与实际代码一致
 
-- [ ] 分析两个分支的代码差异
-- [ ] 合并 useAgentChat.ts 文件，同时保留两个功能
-  - 保留 alin3.0 的会话ID状态管理功能
-  - 保留 alin_qianduan 的任务时间记录功能
-- [ ] 测试合并后的代码是否能正常工作
+## Review计划
 
-## 详细说明
+### Phase 1: 文档分类验证 ⏸️
+- [ ] 1.1 验证文档分类是否合理
+  - [ ] 检查"最新完成"文档（9个）
+  - [ ] 检查"已完成"文档（13个）
+  - [ ] 检查"暂缓"文档（22个）
+  - [ ] 检查"参考文档"（5个）
 
-### alin3.0 分支的特性：
-1. ✅ 在组件级别定义 `conversationId` 状态
-2. ✅ 在 API 调用时传递保存的 `conversation_id`
-3. ✅ 在 `onStart` 回调中保存会话ID到状态
-4. ✅ 在清空消息时重置会话ID
+### Phase 2: 代码修复验证 ⏸️
+- [ ] 2.1 验证P0工具参数修复
+  - [ ] Line 1407-1426: 工具错误处理机制
+  - [ ] Line 1212-1264: AI决策Prompt优化
+  - [ ] Line 1448-1494: 智能消息清理策略
 
-### alin_qianduan 分支的特性：
-1. ✅ 使用 `taskStartTimes` Map 记录每个任务的开始时间
-2. ✅ 在 `onTaskStart` 中记录任务开始时间
-3. ✅ 在 `onTaskDone` 中计算实际执行时间（如果后端没提供则使用前端计算）
-4. ✅ 任务完成后清理时间记录
+- [ ] 2.2 验证task_type修复
+  - [ ] Line 941: _classify_intent
+  - [ ] Line 113 (general_chat_action.py): _stream_chat
+  - [ ] Line 1192: _handle_with_httpai决策
+  - [ ] Line 1157: 智能task_type选择
 
-### 合并策略：
-- 保持 alin3.0 的会话ID管理方式（作为组件状态）
-- 在 `sendMessageStream` 函数中添加 alin_qianduan 的任务时间追踪逻辑
-- 合并两个版本的回调处理逻辑
+- [ ] 2.3 验证ReAct Stream功能
+  - [ ] backend/app/core/features.py 是否存在
+  - [ ] backend/app/api/v1/agent_react_stream.py 是否存在
+  - [ ] 前端文件是否存在
 
-## 审查
+### Phase 3: 数据准确性验证 ⏸️
+- [ ] 3.1 验证文档中的数据
+  - [ ] 代码行数统计
+  - [ ] 修复问题数量
+  - [ ] 测试通过率
+  - [ ] 工作量估算
+
+### Phase 4: 文档状态验证 ⏸️
+- [ ] 4.1 检查"暂缓"状态是否合理
+  - [ ] chat优化P0/P1/P2/P3系列
+  - [ ] 是否真的应该暂缓
+
+- [ ] 4.2 检查"已完成"状态是否准确
+  - [ ] ReAct Stream功能
+  - [ ] Code Review修复
+
+### Phase 5: 文档内容一致性 ⏸️
+- [ ] 5.1 检查多个文档之间的数据是否一致
+- [ ] 5.2 检查是否有冲突或矛盾的描述
+
+## Review发现
+
+### 发现的问题
+（待填写）
+
+### 准确的内容
+（待填写）
+
+### 需要修正的内容
+（待填写）
+
+## Review总结
+（待完成后填写）
+
+---
+
+**创建时间**: 2025-01-06
+**Review范围**: docs/Agent/tasks 目录下所有文档
+**预计耗时**: 2-3小时

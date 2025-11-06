@@ -109,11 +109,13 @@ class GeneralChatAction(BaseAction):
             self.logger.info(f"[{self.name}] 传入AI的消息数: {len(chat_messages)} (含system)")
 
             # 3. 调用AI服务生成回复
+            from app.services.agent.model_selector import TaskType
             response_text = ""
             async for chunk, _ in self.ai_service._stream_chat(
                 messages=chat_messages,  # ✅ 传入完整历史
                 max_tokens=500,
-                temperature=0.7
+                temperature=0.7,
+                task_type=TaskType.SIMPLE_QA  # 一般对话任务，使用flash
             ):
                 if chunk:
                     response_text += chunk

@@ -938,7 +938,12 @@ class WritingAgentGraph:
 
 只返回意图类型，不要其他内容。"""
 
-        result = await self._generate_text(prompt=prompt, temperature=0.3, max_tokens=50)
+        result = await self._generate_text(
+            prompt=prompt,
+            temperature=0.3,
+            max_tokens=50,
+            task_type=TaskType.TEXT_CLASSIFICATION  # 意图分类任务，使用flash-lite
+        )
         intent = result.get("text", "general").strip().lower()
 
         # ✅ 只返回节点新增/修改的字段，避免 operator.add 重复添加
@@ -1148,11 +1153,35 @@ class WritingAgentGraph:
 
 请基于材料，生成详细的分析报告。"""
 
+            # 根据 agent_type 和用户意图智能选择 task_type
+            if agent_type == "writing":
+                # 写作场景：根据用户意图区分
+                if is_read_request and not is_write_request:
+                    selected_task_type = TaskType.SUMMARIZATION  # 展示数据
+                else:
+                    selected_task_type = TaskType.CONTENT_CREATION  # 续写创作
+            elif agent_type == "stuck":
+                selected_task_type = TaskType.SIMPLE_QA  # 提供建议
+            elif agent_type == "planning":
+                selected_task_type = TaskType.STORY_PLANNING  # 规划方案
+            elif agent_type == "analysis":
+                # 分析场景：根据复杂度区分
+                if is_read_request and not is_write_request:
+                    selected_task_type = TaskType.SUMMARIZATION  # 展示数据
+                else:
+                    selected_task_type = TaskType.DEEP_ANALYSIS  # 深度分析
+            else:
+                # 其他场景：默认摘要
+                selected_task_type = TaskType.SUMMARIZATION
+
+            logger.info(f"[LangGraph] {agent_type} 最终响应使用模型: task_type={selected_task_type.value}")
+
             final_text = ""
             async for chunk, _ in self.ai_service._stream_chat(
                 messages=[{"role": "user", "content": final_prompt}],
                 max_tokens=1500,
-                temperature=0.7
+                temperature=0.7,
+                task_type=selected_task_type  # 智能选择的task_type
             ):
                 if chunk:
                     final_text += chunk
@@ -1171,23 +1200,85 @@ class WritingAgentGraph:
         # 第一次进入：使用 HTTPAIService 决定是否需要工具
         last_user_message = messages[-1].content
 
+        # ✅ P0修复：改进AI决策Prompt，明确当前上下文
+        current_work_id = state.get("work_id")
+        current_chapter_id = state.get("chapter_id")
+
+        # ✅ P2修复：显示实际的ID值（安全截断）
+        def _format_id(value: Optional[str], max_len: int = 20) -> str:
+            """格式化ID值，安全截断过长ID"""
+            if not value:
+                return "未设置"
+            if len(value) <= max_len:
+                return f"{value}"
+            return f"{value[:max_len]}..."
+
+        context_info = f"""
+当前上下文：
+- 作品ID (work_id): {_format_id(current_work_id)}
+- 章节ID (chapter_id): {_format_id(current_chapter_id)}
+"""
+
         decision_prompt = f"""{system_prompt}
 
 用户消息：{last_user_message}
 
-请判断是否需要调用工具来帮助用户。
+{context_info}
 
-如果需要工具，请返回 JSON 格式：
+**你的任务**：判断是否需要调用工具来完成用户请求。
+
+**决策流程**：
+1. 分析用户请求的意图
+2. 检查是否需要调用工具
+3. 如果需要工具，检查必需参数是否齐全
+4. 如果参数不齐全，友好地询问用户
+
+**可用工具列表**：
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+需要work_id的工具（必须先设置作品）：
+• get_chapter_by_order_tool - 获取指定序号的章节
+• get_context_tool - 获取作品和章节上下文
+• read_chapter_tool - 读取指定章节
+• search_analysis_fragments_tool - 搜索分析片段
+
+不需要work_id的工具（可直接使用）：
+• continue_writing_tool - 续写内容
+• polish_text_tool - 润色文本
+• analyze_text_tool - 分析文本
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**返回格式**：
+
+情况A - 需要工具且参数齐全：
 {{"need_tools": true, "tool_name": "工具名", "tool_args": {{"参数": "值"}}}}
 
-如果不需要工具，请返回 JSON 格式：
-{{"need_tools": false, "direct_response": "直接回复用户的内容"}}"""
+情况B - 需要工具但work_id未设置：
+{{"need_tools": false, "direct_response": "请先告诉我您要操作的是哪部作品？"}}
+
+情况C - 不需要工具，直接回答：
+{{"need_tools": false, "direct_response": "您的回答内容"}}
+
+**示例**：
+
+用户："帮我获取第3章"
+当前：work_id=已设置
+决策：{{"need_tools": true, "tool_name": "get_chapter_by_order_tool", "tool_args": {{"chapter_order": 3}}}}
+
+用户："帮我获取第3章"
+当前：work_id=未设置
+决策：{{"need_tools": false, "direct_response": "我很乐意帮您获取章节！请先告诉我是哪部作品的第3章？"}}
+
+用户："今天天气怎么样？"
+决策：{{"need_tools": false, "direct_response": "抱歉，我是小说创作助手，无法查询天气信息。"}}
+
+现在请处理当前用户请求："""
 
         decision_text = ""
         async for chunk, _ in self.ai_service._stream_chat(
             messages=[{"role": "user", "content": decision_prompt}],
             max_tokens=500,
-            temperature=0.3
+            temperature=0.3,
+            task_type=TaskType.SIMPLE_QA  # 工具决策任务，使用flash
         ):
             if chunk:
                 decision_text += chunk
@@ -1259,33 +1350,78 @@ class WritingAgentGraph:
                     "focus": tool_args.get("focus", "all")
                 })
             elif tool_name == "get_context_tool":
-                logger.info(f"[LangGraph] 🚀 准备调用 get_context_tool, work_id={state.get('work_id')}, chapter_id={state.get('chapter_id')}")
-                tool_result = await get_context_tool.ainvoke({
-                    "work_id": state.get("work_id", ""),
-                    "chapter_id": state.get("chapter_id", "")
-                })
-                logger.info(f"[LangGraph] ✅ get_context_tool 返回结果长度: {len(tool_result)} 字符")
-                logger.info(f"[LangGraph] ✅ get_context_tool 返回内容预览: {tool_result[:200]}")
+                # ✅ P0修复：添加参数完整性检查
+                work_id_value = state.get("work_id")
+                if not work_id_value:
+                    logger.warning(f"[LangGraph] ⚠️ get_context_tool 缺少必需参数 work_id")
+                    tool_result = json.dumps({
+                        "error": "missing_work_id",
+                        "message": "需要提供作品ID才能获取上下文",
+                        "user_prompt": "请先告诉我您要操作哪部作品？"
+                    }, ensure_ascii=False)
+                else:
+                    logger.info(f"[LangGraph] 🚀 准备调用 get_context_tool, work_id={work_id_value}, chapter_id={state.get('chapter_id')}")
+                    tool_result = await get_context_tool.ainvoke({
+                        "work_id": work_id_value,
+                        "chapter_id": state.get("chapter_id", "")
+                    })
+                    logger.info(f"[LangGraph] ✅ get_context_tool 返回结果长度: {len(tool_result)} 字符")
+                    logger.info(f"[LangGraph] ✅ get_context_tool 返回内容预览: {tool_result[:200]}")
             elif tool_name == "read_chapter_tool":
-                tool_result = await read_chapter_tool.ainvoke({
-                    "work_id": state.get("work_id", ""),
-                    "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or ""
-                })
+                # ✅ P0修复：添加参数完整性检查
+                work_id_value = state.get("work_id")
+                if not work_id_value:
+                    logger.warning(f"[LangGraph] ⚠️ read_chapter_tool 缺少必需参数 work_id")
+                    tool_result = json.dumps({
+                        "error": "missing_work_id",
+                        "message": "需要提供作品ID才能读取章节",
+                        "user_prompt": "请先告诉我您要读取哪部作品的章节？"
+                    }, ensure_ascii=False)
+                else:
+                    tool_result = await read_chapter_tool.ainvoke({
+                        "work_id": work_id_value,
+                        "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or ""
+                    })
             elif tool_name == "get_chapter_by_order_tool":
-                logger.info(f"[LangGraph] 🚀 准备调用 get_chapter_by_order_tool, work_id={state.get('work_id')}, chapter_order={tool_args.get('chapter_order')}")
-                tool_result = await get_chapter_by_order_tool.ainvoke({
-                    "work_id": state.get("work_id", ""),
-                    "chapter_order": tool_args.get("chapter_order", 1)
-                })
-                logger.info(f"[LangGraph] ✅ get_chapter_by_order_tool 返回结果长度: {len(tool_result)} 字符")
+                # ✅ P0修复：添加参数完整性检查
+                work_id_value = state.get("work_id")
+                if not work_id_value:
+                    logger.warning(f"[LangGraph] ⚠️ get_chapter_by_order_tool 缺少必需参数 work_id")
+                    tool_result = json.dumps({
+                        "error": "missing_work_id",
+                        "message": "需要提供作品ID才能查询章节",
+                        "user_prompt": "请先告诉我您要查看哪部作品的章节？您可以说：\n- 「我想看《作品名》的第X章」\n- 或者先创建一部新作品"
+                    }, ensure_ascii=False)
+                else:
+                    logger.info(f"[LangGraph] 🚀 准备调用 get_chapter_by_order_tool, work_id={work_id_value}, chapter_order={tool_args.get('chapter_order')}")
+                    tool_result = await get_chapter_by_order_tool.ainvoke({
+                        "work_id": work_id_value,
+                        "chapter_order": tool_args.get("chapter_order", 1)
+                    })
+                    logger.info(f"[LangGraph] ✅ get_chapter_by_order_tool 返回结果长度: {len(tool_result)} 字符")
             elif tool_name == "search_analysis_fragments_tool":
-                tool_result = await search_analysis_fragments_tool.ainvoke({
-                    "work_id": state.get("work_id", ""),
-                    "query": tool_args.get("query", last_user_message),
-                    "top_k": tool_args.get("top_k", 5)
-                })
+                # ✅ P0修复：添加参数完整性检查
+                work_id_value = state.get("work_id")
+                if not work_id_value:
+                    logger.warning(f"[LangGraph] ⚠️ search_analysis_fragments_tool 缺少必需参数 work_id")
+                    tool_result = json.dumps({
+                        "error": "missing_work_id",
+                        "message": "需要提供作品ID才能搜索分析片段",
+                        "user_prompt": "请先告诉我您要搜索哪部作品的分析片段？"
+                    }, ensure_ascii=False)
+                else:
+                    tool_result = await search_analysis_fragments_tool.ainvoke({
+                        "work_id": work_id_value,
+                        "query": tool_args.get("query", last_user_message),
+                        "top_k": tool_args.get("top_k", 5)
+                    })
             else:
-                tool_result = f"未知工具: {tool_name}"
+                # ✅ P1修复：未知工具返回标准JSON错误格式
+                tool_result = json.dumps({
+                    "error": "unknown_tool",
+                    "message": f"未知工具: {tool_name}",
+                    "user_prompt": "抱歉，我在处理您的请求时遇到了问题。能否换个方式描述？"
+                }, ensure_ascii=False)
                 logger.warning(f"[LangGraph] 尝试调用未知工具: {tool_name}")
 
             # ✅ 创建新消息（不直接修改 state，避免重复）
@@ -1303,10 +1439,96 @@ class WritingAgentGraph:
             updated_state["messages"] = state["messages"] + [ai_decision, tool_message]
             updated_state["agent_steps"] = state["agent_steps"] + [new_step]
 
+            # ✅ P0修复：检查工具是否返回错误，如果是错误则直接返回友好提示
+            try:
+                tool_result_obj = json.loads(tool_result)
+                error_type = tool_result_obj.get("error")
+                if error_type in ["missing_work_id", "unknown_tool"]:
+                    logger.info(f"[LangGraph] 🎯 检测到工具错误({error_type})，直接返回友好提示")
+                    direct_response = tool_result_obj.get("user_prompt", "请先告诉我您要操作哪部作品？")
+                    return {
+                        "messages": [AIMessage(content=direct_response)],
+                        "final_response": direct_response,
+                        "agent_steps": [{
+                            "step": f"{agent_type}_{error_type}",
+                            "result": f"检测到错误: {error_type}"
+                        }]
+                    }
+            except json.JSONDecodeError:
+                # 正常的工具返回结果，继续处理
+                pass
+            except Exception as e:
+                logger.warning(f"[LangGraph] 解析工具结果异常: {e}")
+                # 继续处理，不返回错误
+
+            # ✅ P1修复：智能清理累积的消息，防止上下文无限增长
+            current_messages = updated_state["messages"]
+            message_count = len(current_messages)
+
+            # 智能清理策略：根据消息数量动态调整
+            if message_count > 8:  # 降低阈值，更早触发清理
+                logger.info(f"[LangGraph] 🧹 智能清理累积消息：{message_count}条 -> ", end="")
+
+                # 分类消息
+                system_messages = []
+                user_messages = []
+                ai_messages = []
+                tool_messages = []
+
+                for msg in current_messages:
+                    if isinstance(msg, SystemMessage):
+                        system_messages.append(msg)
+                    elif isinstance(msg, HumanMessage):
+                        user_messages.append(msg)
+                    elif isinstance(msg, AIMessage):
+                        ai_messages.append(msg)
+                    elif isinstance(msg, ToolMessage):
+                        tool_messages.append(msg)
+
+                # 智能保留策略：
+                # 1. 保留所有系统消息（通常只有1条）
+                # 2. 保留最近的1条用户消息（当前请求）
+                # 3. 保留最近的2对AI-Tool交互（最多4条）
+                # 总共最多保留: 1(system) + 1(user) + 4(ai+tool) = 6条
+
+                cleaned_messages = system_messages.copy()
+
+                # 保留最近的用户消息
+                if user_messages:
+                    cleaned_messages.append(user_messages[-1])
+
+                # ✅ P2修复：智能成对保留最近的AI-Tool交互
+                # 确保AI消息和Tool消息成对保留，避免破坏对话连贯性
+                recent_pairs = []
+                ai_idx = len(ai_messages) - 1
+                tool_idx = len(tool_messages) - 1
+
+                # 从最新的开始，成对保留最多2对交互（4条消息）
+                pairs_count = 0
+                while pairs_count < 2 and ai_idx >= 0 and tool_idx >= 0:
+                    # 成对添加（先AI后Tool）
+                    recent_pairs.insert(0, tool_messages[tool_idx])
+                    recent_pairs.insert(0, ai_messages[ai_idx])
+                    ai_idx -= 1
+                    tool_idx -= 1
+                    pairs_count += 1
+
+                # 按原始顺序重组
+                for msg in current_messages:
+                    if msg in recent_pairs and msg not in cleaned_messages:
+                        cleaned_messages.append(msg)
+
+                updated_state["messages"] = cleaned_messages
+                logger.info(f"保留{len(cleaned_messages)}条（压缩率{100 - len(cleaned_messages) * 100 // message_count}%）")
+            else:
+                logger.debug(f"[LangGraph] 消息数量{message_count}条，无需清理")
+
             # 递归处理工具结果
             result = await self._handle_with_httpai(updated_state, agent_type, system_prompt)
 
-            # ✅ 递归返回时，合并所有新消息（包括工具调用的消息 + 最终响应）
+            # ✅ 返回所有新增的消息（工具调用消息 + 递归结果）
+            # 注意：updated_state是局部变量，不会影响外部state
+            # 所以需要在返回时包含ai_decision和tool_message
             return {
                 "messages": [ai_decision, tool_message] + result.get("messages", []),
                 "final_response": result.get("final_response"),
@@ -1610,6 +1832,291 @@ class WritingAgentGraph:
                 "suggested_actions": [],
                 "metadata": {"error": error_msg, "traceback": error_trace}
             }
+
+    async def chat_stream(
+        self,
+        message: str,
+        work_id: Optional[str] = None,
+        chapter_id: Optional[str] = None,
+        conversation_id: Optional[str] = None,
+        context: Optional[dict] = None,
+        on_progress: Optional[callable] = None,
+        on_tool_call: Optional[callable] = None,
+        on_content: Optional[callable] = None
+    ) -> dict:
+        """
+        流式执行chat()，提供实时进度反馈
+
+        Args:
+            message: 用户消息
+            work_id: 作品ID
+            chapter_id: 章节ID
+            conversation_id: 会话ID
+            context: 额外上下文
+            on_progress: 进度回调 async def on_progress(event: dict)
+            on_tool_call: 工具调用回调 async def on_tool_call(tool_name: str, tool_args: dict)
+            on_content: 内容生成回调 async def on_content(content: str)
+
+        Returns:
+            Dict: Agent响应（同chat()方法）
+        """
+
+        logger.info(f"[LangGraph Stream] 开始流式执行: {message[:50]}...")
+
+        # 懒加载AsyncRedisSaver索引
+        if isinstance(self.checkpointer, AsyncRedisSaver) and not self._checkpointer_setup_done:
+            try:
+                await self.checkpointer.asetup()
+                self._checkpointer_setup_done = True
+                logger.info(f"[LangGraph] AsyncRedisSaver索引创建成功")
+            except Exception as setup_error:
+                logger.error(f"[LangGraph] AsyncRedisSaver索引创建失败: {setup_error}")
+                raise
+
+        # 构建初始状态（与chat()相同）
+        initial_state = {
+            "messages": [HumanMessage(content=message)],
+            "work_id": work_id,
+            "chapter_id": chapter_id,
+            "intent": None,
+            "context": context or {},
+            "agent_steps": [],
+            "suggested_actions": [],
+            "final_response": None
+        }
+
+        # 配置
+        config = {
+            "configurable": {
+                "thread_id": conversation_id or "default",
+                "checkpoint_ns": ""
+            }
+        }
+
+        try:
+            # 使用astream()流式执行
+            event_count = 0
+
+            async for event in self.graph.astream(initial_state, config):
+                event_count += 1
+
+                # 处理事件并触发回调
+                await self._handle_stream_event(
+                    event,
+                    on_progress=on_progress,
+                    on_tool_call=on_tool_call,
+                    on_content=on_content
+                )
+
+            logger.info(f"[LangGraph Stream] 流式执行完成，共{event_count}个事件")
+
+            # 获取最终状态
+            final_state = await self.graph.aget_state(config)
+
+            # 构建返回结果（与chat()相同的格式）
+            if final_state and final_state.values:
+                result = final_state.values
+                return {
+                    "response": result.get("final_response"),
+                    "conversation_id": conversation_id or "default",
+                    "messages": result.get("messages", []),
+                    "agent_steps": result.get("agent_steps", []),
+                    "suggested_actions": result.get("suggested_actions", []),
+                    "metadata": {
+                        "intent": result.get("intent"),
+                        "timestamp": str(datetime.now()),
+                        "stream_events": event_count
+                    }
+                }
+            else:
+                logger.error("[LangGraph Stream] 无法获取最终状态")
+                return {
+                    "response": "执行完成，但无法获取结果",
+                    "conversation_id": conversation_id or "default",
+                    "agent_steps": [],
+                    "suggested_actions": [],
+                    "metadata": {"error": "No final state"}
+                }
+
+        except Exception as e:
+            import traceback
+            error_msg = str(e) or repr(e)
+            error_trace = traceback.format_exc()
+            logger.error(f"[LangGraph Stream] 执行失败: {error_msg}")
+            logger.error(f"[LangGraph Stream] 错误堆栈:\n{error_trace}")
+            return {
+                "response": f"抱歉，处理您的请求时出错了：{error_msg}",
+                "conversation_id": conversation_id or "default",
+                "agent_steps": [],
+                "suggested_actions": [],
+                "metadata": {"error": error_msg, "traceback": error_trace}
+            }
+
+    async def _handle_stream_event(
+        self,
+        event: dict,
+        on_progress: Optional[callable] = None,
+        on_tool_call: Optional[callable] = None,
+        on_content: Optional[callable] = None
+    ):
+        """处理astream事件，转换为用户友好的进度信息并触发回调"""
+
+        if not event:
+            return
+
+        # 提取节点名和数据
+        node_name = list(event.keys())[0]
+        node_data = event[node_name]
+
+        logger.debug(f"[Stream Event] 节点: {node_name}")
+
+        # 1. 解析进度事件并触发on_progress
+        if on_progress:
+            progress_event = self._parse_node_event(node_name, node_data)
+            if progress_event:
+                try:
+                    await on_progress(progress_event)
+                except Exception as e:
+                    logger.error(f"[Stream] 进度回调失败: {e}")
+
+        # 2. 检测工具调用并触发on_tool_call
+        if on_tool_call and node_name == "tools":
+            tool_calls = self._extract_tool_calls(node_data)
+            for tool_name, tool_args in tool_calls:
+                try:
+                    await on_tool_call(tool_name, tool_args)
+                except Exception as e:
+                    logger.error(f"[Stream] 工具回调失败: {e}")
+
+        # 3. 检测内容生成并触发on_content
+        if on_content:
+            content = self._extract_content(node_name, node_data)
+            if content:
+                try:
+                    await on_content(content)
+                except Exception as e:
+                    logger.error(f"[Stream] 内容回调失败: {e}")
+
+    def _parse_node_event(self, node_name: str, node_data: dict) -> Optional[dict]:
+        """将LangGraph节点事件转换为用户友好的进度信息"""
+
+        # 节点映射表
+        node_mapping = {
+            "intent_classifier": {
+                "step": "intent_analysis",
+                "description": "正在分析您的需求..."
+            },
+            "writing_agent": {
+                "step": "thinking",
+                "description": "正在思考如何帮助您..."
+            },
+            "planning_agent": {
+                "step": "thinking",
+                "description": "正在规划方案..."
+            },
+            "analysis_agent": {
+                "step": "thinking",
+                "description": "正在分析内容..."
+            },
+            "stuck_agent": {
+                "step": "thinking",
+                "description": "正在寻找解决方案..."
+            },
+            "general_chat": {
+                "step": "thinking",
+                "description": "正在思考回复..."
+            },
+            "tools": {
+                "step": "tool_execution",
+                "description": "正在调用工具..."
+            }
+        }
+
+        mapping = node_mapping.get(node_name)
+        if not mapping:
+            return None
+
+        # 提取额外信息
+        details = {}
+
+        if node_name == "intent_classifier":
+            # 提取识别的意图
+            intent = node_data.get("intent")
+            if intent:
+                details["intent"] = intent
+                # 更新描述
+                intent_names = {
+                    "writing": "写作任务",
+                    "planning": "规划任务",
+                    "analysis": "分析任务",
+                    "stuck": "卡文求助",
+                    "general": "一般对话"
+                }
+                intent_display = intent_names.get(intent, intent)
+                mapping["description"] = f"识别为：{intent_display}"
+
+        elif node_name == "tools":
+            # 提取工具名称
+            messages = node_data.get("messages", [])
+            tool_names = []
+            for msg in messages:
+                if hasattr(msg, "name"):
+                    tool_names.append(msg.name)
+
+            if tool_names:
+                details["tools"] = tool_names
+                # 更新描述（显示工具名）
+                tool_display_names = {
+                    "get_chapter_by_order_tool": "读取章节",
+                    "continue_writing_tool": "继续创作",
+                    "search_analysis_fragments_tool": "检索设定",
+                    "search_memory_tool": "搜索记忆",
+                    "add_todo_tool": "添加待办",
+                    "get_work_details_tool": "获取作品信息",
+                    "update_work_metadata_tool": "更新元数据"
+                }
+                display_names = [tool_display_names.get(t, t) for t in tool_names]
+                mapping["description"] = f"正在{', '.join(display_names[:2])}..."
+
+        return {
+            "type": "progress",
+            "step": mapping["step"],
+            "description": mapping["description"],
+            "node": node_name,
+            "details": details,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    def _extract_tool_calls(self, node_data: dict) -> list:
+        """提取工具调用信息"""
+        tool_calls = []
+        messages = node_data.get("messages", [])
+
+        for msg in messages:
+            if isinstance(msg, ToolMessage) and hasattr(msg, "name"):
+                tool_name = msg.name
+                tool_args = {}
+                tool_calls.append((tool_name, tool_args))
+
+        return tool_calls
+
+    def _extract_content(self, node_name: str, node_data: dict) -> Optional[str]:
+        """提取生成的内容"""
+        # 只处理agent节点
+        if not node_name.endswith("_agent") and node_name != "general_chat":
+            return None
+
+        messages = node_data.get("messages", [])
+        if not messages:
+            return None
+
+        last_message = messages[-1]
+        if isinstance(last_message, AIMessage) and last_message.content:
+            # 避免返回工具调用指令
+            if not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
+                return last_message.content
+
+        return None
 
     def _extract_json_from_text(self, text: str) -> Optional[dict]:
         """从文本中提取JSON对象
