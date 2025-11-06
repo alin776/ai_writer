@@ -695,6 +695,11 @@ class WritingAgentGraph:
         # 设置全局 AI Service（供工具使用）
         set_global_ai_service(ai_service)
 
+        # 初始化上下文管理器（用于chat_stream的长对话管理）
+        from app.services.context import ContextManager
+        self.context_manager = ContextManager()
+        logger.info("[LangGraph] ✅ ContextManager已初始化")
+
         # 根据模式初始化
         if use_chatgpt:
             logger.info("[LangGraph] 使用 ChatOpenAI 模式（原生工具调用）")
@@ -1845,7 +1850,7 @@ class WritingAgentGraph:
         on_content: Optional[callable] = None
     ) -> dict:
         """
-        流式执行chat()，提供实时进度反馈
+        流式执行chat()，提供实时进度反馈（已集成上下文管理）
 
         Args:
             message: 用户消息
@@ -1873,9 +1878,27 @@ class WritingAgentGraph:
                 logger.error(f"[LangGraph] AsyncRedisSaver索引创建失败: {setup_error}")
                 raise
 
-        # 构建初始状态（与chat()相同）
+        # 🔧 新增：构建上下文（加载历史对话）
+        session_id = conversation_id or "default"
+        context_bundle = await self.context_manager.build_context(
+            session_id=session_id,
+            system_prompt="你是一个专业的AI写作助手，擅长创意写作、内容规划和写作指导。"
+        )
+        logger.info(f"[Context] 加载上下文: {context_bundle['metadata']}")
+
+        # 🔧 新增：将历史消息转换为LangGraph消息格式
+        history_messages = []
+        for msg in context_bundle["messages"]:
+            if msg["role"] == "system":
+                history_messages.append(SystemMessage(content=msg["content"]))
+            elif msg["role"] == "user":
+                history_messages.append(HumanMessage(content=msg["content"]))
+            elif msg["role"] == "assistant":
+                history_messages.append(AIMessage(content=msg["content"]))
+
+        # 构建初始状态（包含历史上下文）
         initial_state = {
-            "messages": [HumanMessage(content=message)],
+            "messages": history_messages + [HumanMessage(content=message)],  # 历史消息 + 当前消息
             "work_id": work_id,
             "chapter_id": chapter_id,
             "intent": None,
@@ -1916,8 +1939,21 @@ class WritingAgentGraph:
             # 构建返回结果（与chat()相同的格式）
             if final_state and final_state.values:
                 result = final_state.values
+                final_response = result.get("final_response")
+
+                # 🔧 新增：更新上下文（保存本轮对话）
+                await self.context_manager.update_context(
+                    session_id=session_id,
+                    new_messages=[
+                        {"role": "user", "content": message},
+                        {"role": "assistant", "content": final_response or ""}
+                    ],
+                    context=context_bundle.get("context")
+                )
+                logger.info(f"[Context] 上下文已更新: {session_id}")
+
                 return {
-                    "response": result.get("final_response"),
+                    "response": final_response,
                     "conversation_id": conversation_id or "default",
                     "messages": result.get("messages", []),
                     "agent_steps": result.get("agent_steps", []),
@@ -1925,7 +1961,8 @@ class WritingAgentGraph:
                     "metadata": {
                         "intent": result.get("intent"),
                         "timestamp": str(datetime.now()),
-                        "stream_events": event_count
+                        "stream_events": event_count,
+                        "context_token_count": context_bundle["metadata"]["token_count"]
                     }
                 }
             else:
