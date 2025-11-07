@@ -905,7 +905,7 @@ class WritingAgentGraph:
         max_tokens: int = 1000,
         task_type: Optional[TaskType] = None  # ← 新增参数
     ) -> dict:
-        """使用 HTTPAIService 生成文本的辅助方法
+        """生成文本的辅助方法（根据use_chatgpt选择使用ChatOpenAI或HTTPAIService）
 
         Args:
             prompt: 提示词
@@ -916,26 +916,64 @@ class WritingAgentGraph:
         Returns:
             dict: {"text": str, "usage": dict}
         """
-        messages = [{"role": "user", "content": prompt}]
+        # 🔧 修复：根据use_chatgpt选择使用ChatOpenAI还是HTTPAIService
+        if self.use_chatgpt:
+            # 模式1：使用ChatOpenAI（触发监控）
+            from langchain_core.messages import HumanMessage
+            messages = [HumanMessage(content=prompt)]
 
-        generated_text = ""
-        usage = None
+            # 调用ChatOpenAI（会触发MonitoringCallbackHandler）
+            response = await self.llm.ainvoke(
+                messages,
+                config={
+                    "temperature": temperature,
+                    "max_tokens": max_tokens
+                }
+            )
 
-        async for chunk, chunk_usage in self.ai_service._stream_chat(
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            task_type=task_type  # ← 传递task_type
-        ):
-            if chunk:
-                generated_text += chunk
-            if chunk_usage:
-                usage = chunk_usage
+            generated_text = response.content
 
-        return {
-            "text": generated_text,
-            "usage": usage or {}
-        }
+            # 提取token使用情况
+            usage = {}
+            if hasattr(response, 'response_metadata'):
+                token_usage = response.response_metadata.get('token_usage', {})
+                if token_usage:
+                    usage = {
+                        "prompt_tokens": token_usage.get('prompt_tokens', 0),
+                        "completion_tokens": token_usage.get('completion_tokens', 0),
+                        "total_tokens": token_usage.get('total_tokens', 0)
+                    }
+
+            logger.info(f"[_generate_text] 使用ChatOpenAI生成文本，tokens={usage.get('total_tokens', 0)}")
+
+            return {
+                "text": generated_text,
+                "usage": usage
+            }
+        else:
+            # 模式2：使用HTTPAIService（兼容模式）
+            messages = [{"role": "user", "content": prompt}]
+
+            generated_text = ""
+            usage = None
+
+            async for chunk, chunk_usage in self.ai_service._stream_chat(
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                task_type=task_type  # ← 传递task_type
+            ):
+                if chunk:
+                    generated_text += chunk
+                if chunk_usage:
+                    usage = chunk_usage
+
+            logger.info(f"[_generate_text] 使用HTTPAIService生成文本，tokens={usage.get('total_tokens', 0) if usage else 0}")
+
+            return {
+                "text": generated_text,
+                "usage": usage or {}
+            }
 
     async def _classify_intent(self, state: AgentState) -> AgentState:
         """意图分类节点"""
