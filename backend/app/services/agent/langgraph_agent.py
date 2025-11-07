@@ -749,6 +749,7 @@ class WritingAgentGraph:
     def _init_chatgpt_mode(self):
         """初始化 ChatOpenAI 模式"""
         import httpx
+        from app.api.callbacks import MonitoringCallbackHandler
 
         # 创建自定义 httpx 客户端（尝试绕过 Cloudflare）
         sync_http_client = httpx.Client(
@@ -775,17 +776,22 @@ class WritingAgentGraph:
             http2=False,
         )
 
-        # 创建 LLM
+        # 🔧 监控：创建监控回调
+        monitoring_callback = MonitoringCallbackHandler()
+        logger.info("[LangGraph] 已创建MonitoringCallbackHandler")
+
+        # 创建 LLM（附加监控回调）
         self.llm = ChatOpenAI(
             model=settings.OPENAI_MODEL,
             api_key=settings.OPENAI_API_KEY,
             base_url=settings.OPENAI_BASE_URL,
             temperature=0.7,
             http_client=sync_http_client,
-            http_async_client=async_http_client
+            http_async_client=async_http_client,
+            callbacks=[monitoring_callback]  # ← 添加监控回调
         )
 
-        # 绑定工具
+        # 绑定工具（工具调用也会触发回调）
         self.llm_with_tools = self.llm.bind_tools(WRITING_TOOLS)
 
     def _build_graph(self) -> StateGraph:
@@ -1561,212 +1567,211 @@ class WritingAgentGraph:
             }
 
     async def _handle_writing(self, state: AgentState) -> AgentState:
-        """处理写作场景 - 委托给WritingAction"""
+        """
+        处理写作场景 - 使用新架构
+
+        新架构流程：
+        1. 使用WritingAction.prepare()准备参数
+        2. 调用_handle_agent_with_tools统一处理（触发监控）
+        """
         from app.services.agent.actions import WritingAction
 
-        logger.info("[LangGraph] 委托给WritingAction处理写作请求")
+        logger.info("[LangGraph] 处理写作请求（新架构）")
 
-        # 创建WritingAction实例
-        writing_action = WritingAction(
-            ai_service=self.ai_service,
-            use_chatgpt=self.use_chatgpt
-        )
+        # 1. 使用Action准备参数（业务逻辑）
+        writing_action = WritingAction()  # 新架构不需要ai_service
+        prep_result = await writing_action.prepare(state)
 
-        # 调用Action执行
-        action_result = await writing_action.run(state)
-
-        # 检查Action执行结果
-        if not action_result.is_success():
-            logger.error(f"[LangGraph] WritingAction执行失败: {action_result.error}")
-            # 返回错误消息
+        # 2. 检查准备结果
+        if not prep_result.success:
+            logger.error(f"[LangGraph] WritingAction.prepare()失败: {prep_result.error}")
             from langchain_core.messages import AIMessage
-            error_msg = AIMessage(content=f"抱歉，写作请求处理失败: {action_result.error}")
-            # ✅ 只返回新消息，避免 operator.add 重复添加
+            error_msg = AIMessage(content=f"抱歉，写作请求处理失败: {prep_result.error}")
             return {
                 "messages": [error_msg],
                 "final_response": error_msg.content,
                 "agent_steps": [{
                     "step": "writing_error",
-                    "result": f"执行失败: {action_result.error}"
+                    "result": f"准备失败: {prep_result.error}"
                 }]
             }
 
-        # 获取Action生成的system_prompt
-        system_prompt = action_result.data.get("system_prompt")
-        agent_type = action_result.data.get("agent_type", "writing")
-
+        # 3. 记录业务信息
         logger.info(
-            f"[LangGraph] WritingAction返回: "
-            f"phase={action_result.data.get('phase')}, "
-            f"chapter_num={action_result.data.get('chapter_num')}"
+            f"[LangGraph] WritingAction准备完成: "
+            f"phase={prep_result.metadata.get('phase')}, "
+            f"chapter_num={prep_result.metadata.get('chapter_num')}"
         )
 
-        # 继续LangGraph的工具调用流程
-        return await self._handle_agent_with_tools(state, agent_type, system_prompt)
+        # 4. 统一使用框架调用LLM（触发监控）
+        return await self._handle_agent_with_tools(
+            state,
+            agent_type=prep_result.metadata.get("agent_type", "writing"),
+            system_prompt=prep_result.system_prompt
+        )
 
     async def _handle_planning(self, state: AgentState) -> AgentState:
-        """处理规划场景 - 委托给PlanningAction"""
+        """
+        处理规划场景 - 使用新架构
+
+        新架构流程：
+        1. 使用PlanningAction.prepare()准备参数
+        2. 调用_handle_agent_with_tools统一处理（触发监控）
+        """
         from app.services.agent.actions import PlanningAction
 
-        logger.info("[LangGraph] 委托给PlanningAction处理规划请求")
+        logger.info("[LangGraph] 处理规划请求（新架构）")
 
-        # 创建PlanningAction实例
-        planning_action = PlanningAction(
-            ai_service=self.ai_service,
-            use_chatgpt=self.use_chatgpt
-        )
+        # 1. 使用Action准备参数（业务逻辑）
+        planning_action = PlanningAction()  # 新架构不需要ai_service
+        prep_result = await planning_action.prepare(state)
 
-        # 调用Action执行
-        action_result = await planning_action.run(state)
-
-        # 检查Action执行结果
-        if not action_result.is_success():
-            logger.error(f"[LangGraph] PlanningAction执行失败: {action_result.error}")
+        # 2. 检查准备结果
+        if not prep_result.success:
+            logger.error(f"[LangGraph] PlanningAction.prepare()失败: {prep_result.error}")
             from langchain_core.messages import AIMessage
-            error_msg = AIMessage(content=f"抱歉，规划请求处理失败: {action_result.error}")
-            # ✅ 只返回新消息，避免 operator.add 重复添加
+            error_msg = AIMessage(content=f"抱歉，规划请求处理失败: {prep_result.error}")
             return {
                 "messages": [error_msg],
                 "final_response": error_msg.content,
                 "agent_steps": [{
                     "step": "planning_error",
-                    "result": f"执行失败: {action_result.error}"
+                    "result": f"准备失败: {prep_result.error}"
                 }]
             }
 
-        # 获取Action生成的system_prompt
-        system_prompt = action_result.data.get("system_prompt")
-        agent_type = action_result.data.get("agent_type", "planning")
-
-        logger.info(f"[LangGraph] PlanningAction返回成功")
-
-        # 继续LangGraph的工具调用流程
-        return await self._handle_agent_with_tools(state, agent_type, system_prompt)
-
-    async def _handle_analysis(self, state: AgentState) -> AgentState:
-        """处理分析场景 - 委托给AnalysisAction"""
-        from app.services.agent.actions import AnalysisAction
-
-        logger.info("[LangGraph] 委托给AnalysisAction处理分析请求")
-
-        # 创建AnalysisAction实例
-        analysis_action = AnalysisAction(
-            ai_service=self.ai_service,
-            use_chatgpt=self.use_chatgpt
+        # 3. 统一使用框架调用LLM（触发监控）
+        return await self._handle_agent_with_tools(
+            state,
+            agent_type=prep_result.metadata.get("agent_type", "planning"),
+            system_prompt=prep_result.system_prompt
         )
 
-        # 调用Action执行
-        action_result = await analysis_action.run(state)
+    async def _handle_analysis(self, state: AgentState) -> AgentState:
+        """
+        处理分析场景 - 使用新架构
 
-        # 检查Action执行结果
-        if not action_result.is_success():
-            logger.error(f"[LangGraph] AnalysisAction执行失败: {action_result.error}")
+        新架构流程：
+        1. 使用AnalysisAction.prepare()准备参数
+        2. 调用_handle_agent_with_tools统一处理（触发监控）
+        """
+        from app.services.agent.actions import AnalysisAction
+
+        logger.info("[LangGraph] 处理分析请求（新架构）")
+
+        # 1. 使用Action准备参数（业务逻辑）
+        analysis_action = AnalysisAction()  # 新架构不需要ai_service
+        prep_result = await analysis_action.prepare(state)
+
+        # 2. 检查准备结果
+        if not prep_result.success:
+            logger.error(f"[LangGraph] AnalysisAction.prepare()失败: {prep_result.error}")
             from langchain_core.messages import AIMessage
-            error_msg = AIMessage(content=f"抱歉，分析请求处理失败: {action_result.error}")
-            # ✅ 只返回新消息，避免 operator.add 重复添加
+            error_msg = AIMessage(content=f"抱歉，分析请求处理失败: {prep_result.error}")
             return {
                 "messages": [error_msg],
                 "final_response": error_msg.content,
                 "agent_steps": [{
                     "step": "analysis_error",
-                    "result": f"执行失败: {action_result.error}"
+                    "result": f"准备失败: {prep_result.error}"
                 }]
             }
 
-        # 获取Action生成的system_prompt
-        system_prompt = action_result.data.get("system_prompt")
-        agent_type = action_result.data.get("agent_type", "analysis")
-
-        logger.info(f"[LangGraph] AnalysisAction返回成功")
-
-        # 继续LangGraph的工具调用流程
-        return await self._handle_agent_with_tools(state, agent_type, system_prompt)
-
-    async def _handle_stuck(self, state: AgentState) -> AgentState:
-        """处理卡文场景 - 委托给StuckAction"""
-        from app.services.agent.actions import StuckAction
-
-        logger.info("[LangGraph] 委托给StuckAction处理卡文请求")
-
-        # 创建StuckAction实例
-        stuck_action = StuckAction(
-            ai_service=self.ai_service,
-            use_chatgpt=self.use_chatgpt
+        # 3. 记录业务信息
+        logger.info(
+            f"[LangGraph] AnalysisAction准备完成: "
+            f"work_id={prep_result.metadata.get('work_id')}, "
+            f"chapter_id={prep_result.metadata.get('chapter_id')}"
         )
 
-        # 调用Action执行
-        action_result = await stuck_action.run(state)
+        # 4. 统一使用框架调用LLM（触发监控）
+        return await self._handle_agent_with_tools(
+            state,
+            agent_type=prep_result.metadata.get("agent_type", "analysis"),
+            system_prompt=prep_result.system_prompt
+        )
 
-        # 检查Action执行结果
-        if not action_result.is_success():
-            logger.error(f"[LangGraph] StuckAction执行失败: {action_result.error}")
+    async def _handle_stuck(self, state: AgentState) -> AgentState:
+        """
+        处理卡文场景 - 使用新架构
+
+        新架构流程：
+        1. 使用StuckAction.prepare()准备参数
+        2. 调用_handle_agent_with_tools统一处理（触发监控）
+        """
+        from app.services.agent.actions import StuckAction
+
+        logger.info("[LangGraph] 处理卡文请求（新架构）")
+
+        # 1. 使用Action准备参数（业务逻辑）
+        stuck_action = StuckAction()  # 新架构不需要ai_service
+        prep_result = await stuck_action.prepare(state)
+
+        # 2. 检查准备结果
+        if not prep_result.success:
+            logger.error(f"[LangGraph] StuckAction.prepare()失败: {prep_result.error}")
             from langchain_core.messages import AIMessage
-            error_msg = AIMessage(content=f"抱歉，卡文请求处理失败: {action_result.error}")
-            # ✅ 只返回新消息，避免 operator.add 重复添加
+            error_msg = AIMessage(content=f"抱歉，卡文请求处理失败: {prep_result.error}")
             return {
                 "messages": [error_msg],
                 "final_response": error_msg.content,
                 "agent_steps": [{
                     "step": "stuck_error",
-                    "result": f"执行失败: {action_result.error}"
+                    "result": f"准备失败: {prep_result.error}"
                 }]
             }
 
-        # 获取Action生成的system_prompt
-        system_prompt = action_result.data.get("system_prompt")
-        agent_type = action_result.data.get("agent_type", "stuck")
-
-        logger.info(f"[LangGraph] StuckAction返回成功")
-
-        # 继续LangGraph的工具调用流程
-        return await self._handle_agent_with_tools(state, agent_type, system_prompt)
-
-    async def _handle_general(self, state: AgentState) -> AgentState:
-        """处理一般对话 - 委托给GeneralChatAction"""
-        from app.services.agent.actions import GeneralChatAction
-
-        logger.info("[LangGraph] 委托给GeneralChatAction处理一般对话")
-
-        # 创建GeneralChatAction实例
-        general_action = GeneralChatAction(
-            ai_service=self.ai_service
+        # 3. 记录业务信息
+        logger.info(
+            f"[LangGraph] StuckAction准备完成: "
+            f"work_id={prep_result.metadata.get('work_id')}, "
+            f"chapter_id={prep_result.metadata.get('chapter_id')}"
         )
 
-        # 调用Action执行
-        action_result = await general_action.run(state)
+        # 4. 统一使用框架调用LLM（触发监控）
+        return await self._handle_agent_with_tools(
+            state,
+            agent_type=prep_result.metadata.get("agent_type", "stuck"),
+            system_prompt=prep_result.system_prompt
+        )
 
-        # 检查Action执行结果
-        if not action_result.is_success():
-            logger.error(f"[LangGraph] GeneralChatAction执行失败: {action_result.error}")
+    async def _handle_general(self, state: AgentState) -> AgentState:
+        """
+        处理一般对话 - 使用新架构
+
+        新架构流程：
+        1. 使用GeneralChatAction.prepare()准备参数
+        2. 调用_handle_agent_with_tools统一处理（触发监控）
+        """
+        from app.services.agent.actions import GeneralChatAction
+
+        logger.info("[LangGraph] 处理一般对话（新架构）")
+
+        # 1. 使用Action准备参数（业务逻辑）
+        general_action = GeneralChatAction()  # 新架构不需要ai_service
+        prep_result = await general_action.prepare(state)
+
+        # 2. 检查准备结果
+        if not prep_result.success:
+            logger.error(f"[LangGraph] GeneralChatAction.prepare()失败: {prep_result.error}")
             from langchain_core.messages import AIMessage
-            error_msg = AIMessage(content=f"抱歉，无法处理您的请求: {action_result.error}")
-            # ✅ 只返回新消息，避免 operator.add 重复添加
+            error_msg = AIMessage(content=f"抱歉，无法处理您的请求: {prep_result.error}")
             return {
                 "messages": [error_msg],
                 "final_response": error_msg.content,
                 "agent_steps": [{
                     "step": "general_chat_error",
-                    "result": f"执行失败: {action_result.error}"
+                    "result": f"准备失败: {prep_result.error}"
                 }]
             }
 
-        # 获取Action生成的响应
-        response_text = action_result.data.get("final_response", "抱歉，我无法回答您的问题。")
-
-        from langchain_core.messages import AIMessage
-        response = AIMessage(content=response_text)
-
-        logger.info(f"[LangGraph] GeneralChatAction返回成功")
-
-        # ✅ 只返回新消息，避免 operator.add 重复添加
-        return {
-            "messages": [response],
-            "final_response": response_text,
-            "agent_steps": [{
-                "step": "general_chat",
-                "result": "一般对话响应"
-            }]
-        }
+        # 3. 统一使用框架调用LLM（触发监控）
+        logger.info(f"[LangGraph] 使用system_prompt调用LLM: {prep_result.system_prompt[:100]}...")
+        return await self._handle_agent_with_tools(
+            state,
+            agent_type=prep_result.metadata.get("agent_type", "general"),
+            system_prompt=prep_result.system_prompt
+        )
 
     async def chat(
         self,
@@ -1872,6 +1877,13 @@ class WritingAgentGraph:
             Dict: Agent响应（同chat()方法）
         """
 
+        # 🔧 监控：导入监控工具
+        import time
+        from app.services.agent.utils.monitoring import increment_counter, record_timer
+
+        # 🔧 监控：记录总体开始时间
+        overall_start = time.time()
+
         logger.info(f"[LangGraph Stream] 开始流式执行: {message[:50]}...")
 
         # 懒加载AsyncRedisSaver索引
@@ -1887,6 +1899,9 @@ class WritingAgentGraph:
         # 🔧 新增：构建上下文（加载历史对话）
         session_id = conversation_id or "default"
 
+        # 🔧 监控：意图识别计时
+        intent_start = time.time()
+
         # 🔧 新增：意图识别
         intent_data = await self._classify_intent_async(
             user_message=message,
@@ -1895,6 +1910,12 @@ class WritingAgentGraph:
         detected_intent = intent_data.get("intent", "writing")
         confidence = intent_data.get("confidence", 0)
         reasoning = intent_data.get("reasoning", "N/A")
+
+        # 🔧 监控：记录意图识别耗时
+        record_timer("intent_classification_duration", time.time() - intent_start)
+
+        # 🔧 监控：记录意图分布
+        increment_counter("intent_distribution", labels={"intent": detected_intent})
 
         logger.info(
             f"[Intent] 用户意图: {detected_intent}, "
@@ -1926,6 +1947,9 @@ class WritingAgentGraph:
             f"版本: {self.prompt_manager.get_version(template_name)}"
         )
 
+        # 🔧 监控：Prompt渲染计时
+        prompt_start = time.time()
+
         # 使用PromptManager渲染对应模板（根据模板类型准备参数）
         render_params = {"user_message": message, "context_summary": ""}
 
@@ -1948,10 +1972,20 @@ class WritingAgentGraph:
 
         system_prompt = self.prompt_manager.render(template_name, **render_params)
 
+        # 🔧 监控：记录Prompt渲染耗时
+        record_timer("prompt_render_duration", time.time() - prompt_start)
+
+        # 🔧 监控：上下文构建计时
+        context_start = time.time()
+
         context_bundle = await self.context_manager.build_context(
             session_id=session_id,
             system_prompt=system_prompt
         )
+
+        # 🔧 监控：记录上下文构建耗时
+        record_timer("context_build_duration", time.time() - context_start)
+
         logger.info(f"[Context] 加载上下文: {context_bundle['metadata']}")
 
         # 🔧 新增：将历史消息转换为LangGraph消息格式
@@ -1985,6 +2019,9 @@ class WritingAgentGraph:
         }
 
         try:
+            # 🔧 监控：LangGraph执行计时
+            graph_start = time.time()
+
             # 使用astream()流式执行
             event_count = 0
 
@@ -1998,6 +2035,9 @@ class WritingAgentGraph:
                     on_tool_call=on_tool_call,
                     on_content=on_content
                 )
+
+            # 🔧 监控：记录LangGraph执行耗时
+            record_timer("graph_execution_duration", time.time() - graph_start)
 
             logger.info(f"[LangGraph Stream] 流式执行完成，共{event_count}个事件")
 
@@ -2020,6 +2060,10 @@ class WritingAgentGraph:
                 )
                 logger.info(f"[Context] 上下文已更新: {session_id}")
 
+                # 🔧 监控：记录成功
+                increment_counter("chat_stream_success")
+                record_timer("chat_stream_total_duration", time.time() - overall_start)
+
                 return {
                     "response": final_response,
                     "conversation_id": conversation_id or "default",
@@ -2035,6 +2079,11 @@ class WritingAgentGraph:
                 }
             else:
                 logger.error("[LangGraph Stream] 无法获取最终状态")
+
+                # 🔧 监控：记录失败（无最终状态）
+                increment_counter("chat_stream_error", labels={"error_type": "NoFinalState"})
+                record_timer("chat_stream_total_duration", time.time() - overall_start)
+
                 return {
                     "response": "执行完成，但无法获取结果",
                     "conversation_id": conversation_id or "default",
@@ -2047,6 +2096,11 @@ class WritingAgentGraph:
             import traceback
             error_msg = str(e) or repr(e)
             error_trace = traceback.format_exc()
+
+            # 🔧 监控：记录异常
+            increment_counter("chat_stream_error", labels={"error_type": type(e).__name__})
+            record_timer("chat_stream_total_duration", time.time() - overall_start)
+
             logger.error(f"[LangGraph Stream] 执行失败: {error_msg}")
             logger.error(f"[LangGraph Stream] 错误堆栈:\n{error_trace}")
             return {

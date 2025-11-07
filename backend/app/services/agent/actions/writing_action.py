@@ -44,22 +44,82 @@ class WritingAction(BaseAction):
     ```
     """
 
-    def __init__(self, ai_service, use_chatgpt: bool = False):
+    def __init__(self, ai_service=None, use_chatgpt: bool = False):
         """
         初始化WritingAction
 
         Args:
-            ai_service: AI服务实例(HTTPAIService或ChatOpenAI)
-            use_chatgpt: 是否使用ChatGPT模式
+            ai_service: AI服务实例(HTTPAIService或ChatOpenAI) - 可选，新架构不需要
+            use_chatgpt: 是否使用ChatGPT模式（已废弃，保留兼容）
         """
         super().__init__("writing", "处理写作相关请求")
-        self.ai_service = ai_service
-        self.use_chatgpt = use_chatgpt
+        self.ai_service = ai_service  # 向后兼容，新架构不使用
+        self.use_chatgpt = use_chatgpt  # 向后兼容
 
         # 🔧 新增：初始化 PromptManager
         from app.prompts import get_prompt_manager
         self.prompt_manager = get_prompt_manager()
-        logger.info("[WritingAction] ✅ PromptManager已初始化")
+        logger.info("[WritingAction] PromptManager已初始化")
+
+    async def prepare(self, state: Dict[str, Any]) -> ActionResult:
+        """
+        准备写作场景的参数和Prompt（新架构方法）
+
+        职责：
+        1. 识别章节号和创作阶段（业务逻辑）
+        2. 构建系统Prompt
+        3. 返回准备好的参数，不调用LLM
+
+        Args:
+            state: AgentState
+
+        Returns:
+            ActionResult: 包含system_prompt和metadata
+        """
+        try:
+            # 1. 提取上下文
+            work_id = state.get("work_id")
+            chapter_id = state.get("chapter_id")
+            messages = state.get("messages", [])
+
+            # 2. 识别章节和阶段（核心业务逻辑）
+            last_message = messages[-1].content if messages else ""
+            phase, chapter_num = self._detect_phase(last_message)
+
+            self.logger.info(
+                f"[{self.name}] work_id={work_id}, chapter_id={chapter_id}, "
+                f"phase={phase.value if phase else None}, chapter_num={chapter_num}"
+            )
+
+            # 3. 生成系统Prompt
+            system_prompt = self._build_system_prompt(
+                phase=phase,
+                chapter_num=chapter_num,
+                work_id=work_id,
+                chapter_id=chapter_id
+            )
+
+            # 4. 返回准备好的参数
+            return ActionResult(
+                status=ActionStatus.COMPLETED,
+                system_prompt=system_prompt,  # 新架构：使用system_prompt参数
+                metadata={
+                    "agent_type": "writing",
+                    "action": "writing",
+                    "phase": phase.value if phase else None,
+                    "chapter_num": chapter_num,
+                    "work_id": work_id,
+                    "chapter_id": chapter_id
+                }
+            )
+
+        except Exception as e:
+            self.logger.error(f"[{self.name}] prepare()失败: {e}", exc_info=True)
+            return ActionResult(
+                status=ActionStatus.FAILED,
+                error=str(e),
+                metadata={"action": "writing"}
+            )
 
     async def validate_input(self, state: Dict[str, Any]) -> bool:
         """
@@ -82,14 +142,20 @@ class WritingAction(BaseAction):
 
     async def execute(self, state: Dict[str, Any]) -> ActionResult:
         """
-        执行写作逻辑
+        执行写作逻辑（旧架构方法）
+
+        ⚠️ TODO: 迁移到prepare()后删除此方法
+
+        这是旧架构的execute()方法，虽然不直接调用LLM，但会被run()包装。
+        新架构使用prepare()方法替代，语义更清晰。
+
+        保留此方法仅为向后兼容，待所有Action迁移完成后删除。
 
         主要流程:
         1. 提取上下文信息(work_id, chapter_id)
         2. 识别章节号和创作阶段
         3. 生成系统Prompt(使用阶段优化)
-        4. 生成响应内容
-        5. 返回结果
+        4. 返回结果
 
         Args:
             state: AgentState

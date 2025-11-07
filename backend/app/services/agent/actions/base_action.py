@@ -31,6 +31,7 @@ class ActionResult:
     - 返回数据
     - 错误信息
     - 元数据
+    - 系统提示词（新架构）
     """
 
     def __init__(
@@ -38,7 +39,8 @@ class ActionResult:
         status: ActionStatus,
         data: Any = None,
         error: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        system_prompt: Optional[str] = None  # 新增：用于新架构的prepare()方法
     ):
         """
         初始化Action结果
@@ -48,25 +50,41 @@ class ActionResult:
             data: 返回数据(可以是任意类型)
             error: 错误信息(仅在失败时使用)
             metadata: 元数据(如执行时间、token用量等)
+            system_prompt: 系统提示词(新架构使用，prepare()方法返回)
         """
         self.status = status
         self.data = data
         self.error = error
         self.metadata = metadata or {}
+        self.system_prompt = system_prompt  # 新架构：存储准备好的prompt
         self.timestamp = datetime.now()
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""
-        return {
+        result = {
             "status": self.status.value,
             "data": self.data,
             "error": self.error,
             "metadata": self.metadata,
             "timestamp": str(self.timestamp)
         }
+        # 如果有system_prompt，也包含在字典中（新架构）
+        if self.system_prompt is not None:
+            result["system_prompt"] = self.system_prompt
+        return result
 
     def is_success(self) -> bool:
-        """是否执行成功"""
+        """是否执行成功（向后兼容方法）"""
+        return self.status == ActionStatus.COMPLETED
+
+    @property
+    def success(self) -> bool:
+        """
+        是否成功（新架构简化属性）
+
+        这是一个便捷属性，等价于 is_success()
+        新架构推荐使用此属性进行判断
+        """
         return self.status == ActionStatus.COMPLETED
 
     def __repr__(self) -> str:
@@ -113,10 +131,52 @@ class BaseAction(ABC):
         self.execution_count = 0
         self.total_duration = 0.0
 
+    async def prepare(self, state: Dict[str, Any]) -> ActionResult:
+        """
+        准备Action所需的参数和Prompt（新架构方法）
+
+        这是新架构的核心方法，职责：
+        1. 从state中提取业务参数
+        2. 应用领域知识（如小说阶段判断）
+        3. 构建场景化的system prompt
+        4. 返回准备好的参数，不调用LLM
+
+        Args:
+            state: 当前AgentState,包含:
+                - messages: 对话历史
+                - work_id: 作品ID
+                - chapter_id: 章节ID
+                - intent: 用户意图
+                - context: 上下文信息
+                - agent_steps: 执行步骤
+
+        Returns:
+            ActionResult: 包含:
+                - success: 是否准备成功
+                - system_prompt: 构建好的系统提示词
+                - metadata: 业务元数据（如agent_type, phase等）
+                - error: 错误信息（如果失败）
+
+        Note:
+            - 此方法不应调用LLM
+            - 仅负责参数准备和Prompt构建
+            - 默认实现返回失败，子类应重写此方法
+        """
+        return ActionResult(
+            status=ActionStatus.FAILED,
+            error=f"{self.name}: prepare()方法未实现",
+            metadata={"action_name": self.name}
+        )
+
     @abstractmethod
     async def execute(self, state: Dict[str, Any]) -> ActionResult:
         """
         执行Action的核心逻辑(抽象方法,子类必须实现)
+
+        ⚠️ 注意：这是旧架构的方法，将逐步被prepare()替代
+
+        新架构推荐使用prepare()方法，该方法仅准备参数，不调用LLM。
+        execute()方法会在未来版本中废弃。
 
         Args:
             state: 当前AgentState,包含:

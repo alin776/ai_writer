@@ -39,15 +39,64 @@ class GeneralChatAction(BaseAction):
     ```
     """
 
-    def __init__(self, ai_service):
+    def __init__(self, ai_service=None):
         """
         初始化GeneralChatAction
 
         Args:
-            ai_service: AI服务实例(HTTPAIService)
+            ai_service: AI服务实例(HTTPAIService) - 可选，新架构中不再需要
         """
         super().__init__("general_chat", "处理一般对话请求")
-        self.ai_service = ai_service
+        self.ai_service = ai_service  # 向后兼容，新架构不使用
+
+    async def prepare(self, state: Dict[str, Any]) -> ActionResult:
+        """
+        准备一般对话的参数和Prompt（新架构方法）
+
+        职责：
+        1. 验证输入（检查messages）
+        2. 构建系统提示词
+        3. 返回准备好的参数，不调用LLM
+
+        Args:
+            state: AgentState，至少包含messages字段
+
+        Returns:
+            ActionResult: 包含system_prompt和metadata
+        """
+        try:
+            # 1. 验证输入
+            messages = state.get("messages", [])
+            if not messages:
+                return ActionResult(
+                    status=ActionStatus.FAILED,
+                    error="state中没有messages",
+                    metadata={"action": "general_chat"}
+                )
+
+            self.logger.info(f"[{self.name}] 准备一般对话，历史消息数: {len(messages)}")
+
+            # 2. 构建系统提示词
+            system_prompt = self._build_system_prompt()
+
+            # 3. 返回准备好的参数
+            return ActionResult(
+                status=ActionStatus.COMPLETED,
+                system_prompt=system_prompt,
+                metadata={
+                    "agent_type": "general",
+                    "action": "general_chat",
+                    "message_count": len(messages)
+                }
+            )
+
+        except Exception as e:
+            self.logger.error(f"[{self.name}] prepare()失败: {e}", exc_info=True)
+            return ActionResult(
+                status=ActionStatus.FAILED,
+                error=str(e),
+                metadata={"action": "general_chat"}
+            )
 
     async def validate_input(self, state: Dict[str, Any]) -> bool:
         """
@@ -70,7 +119,14 @@ class GeneralChatAction(BaseAction):
 
     async def execute(self, state: Dict[str, Any]) -> ActionResult:
         """
-        执行一般对话逻辑
+        执行一般对话逻辑（旧架构方法）
+
+        ⚠️ TODO: 迁移到prepare()后删除此方法
+
+        这是旧架构的execute()方法，会直接调用LLM。
+        新架构使用prepare()方法替代，仅准备参数不调用LLM。
+
+        保留此方法仅为向后兼容，待所有Action迁移完成后删除。
 
         主要流程:
         1. 提取用户消息
