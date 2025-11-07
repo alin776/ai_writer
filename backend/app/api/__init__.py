@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, users, works, chapters, ai, worldview, novel_analysis, admin, search, relationships, timeline, groups, rewrite_history, humanize, review, ws, knowledge, agent, agent_react_stream
+from app.api.v1 import auth, users, works, chapters, ai, worldview, novel_analysis, admin, search, relationships, timeline, groups, rewrite_history, humanize, review, ws, knowledge, agent, agent_react_stream, monitoring
 from app.api.v1.endpoints import books
 from app.api.v1 import export as export_routes
 from app.api.v1 import import_routes
@@ -8,6 +8,10 @@ from app.api import ai_logs
 api_router = APIRouter()
 
 # 注册路由
+# 监控和健康检查（基础设施）
+api_router.include_router(monitoring.router, prefix="/monitoring", tags=["monitoring"])
+
+# 业务路由
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(works.router, prefix="/works", tags=["works"])

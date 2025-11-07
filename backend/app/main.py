@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.core.database import init_db, close_db
 from app.core.redis import redis_client
 from app.api import api_router
+from app.api.middleware import TraceMiddleware, MonitoringMiddleware
 from app.tasks import start_scheduler, stop_scheduler
 
 # 配置日志
@@ -145,6 +146,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 🔧 添加监控中间件
+# 注意：中间件执行顺序是反向的，先添加的后执行
+# 执行顺序：MonitoringMiddleware -> TraceMiddleware -> 业务逻辑
+app.add_middleware(MonitoringMiddleware)  # 监控（使用trace_id）
+app.add_middleware(TraceMiddleware)       # 生成trace_id（最先执行）
+
+logger.info("[STARTUP] 监控中间件已注册: TraceMiddleware, MonitoringMiddleware")
 
 # 注册路由
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
