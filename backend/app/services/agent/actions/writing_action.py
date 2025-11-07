@@ -233,7 +233,13 @@ class WritingAction(BaseAction):
                     writing_constraints=[],
                     examples=[]
                 )
-                # ✅ 修复：不再使用正则移除，保持模板完整性
+                # ✅ 清理空的"当前任务"部分，保持Prompt结构清晰
+                base_prompt = re.sub(
+                    r'# 当前任务\s*\n\s*用户需求：\s*\n+.*?现在请开始创作网络小说内容：\s*\n*',
+                    '',
+                    base_prompt,
+                    flags=re.DOTALL
+                )
             except Exception as e:
                 logger.warning(f"[WritingAction] PromptManager渲染失败，使用备用Prompt: {e}")
                 # 备用方案：使用原有的硬编码 Prompt

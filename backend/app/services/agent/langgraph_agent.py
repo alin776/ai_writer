@@ -23,6 +23,7 @@ import uuid
 import asyncio
 import redis
 import json
+import re
 
 from app.services.ai.http_ai_service import HTTPAIService
 from app.core.config import settings
@@ -3199,9 +3200,6 @@ class WritingAgentGraph:
                     response_text += chunk
 
             # 解析 JSON 响应
-            import json
-            import re
-
             # 尝试从响应中提取 JSON
             json_match = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
             if json_match:
