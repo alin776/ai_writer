@@ -183,17 +183,44 @@ export const useAISuggestion = (editor: Editor | null): UseAISuggestionReturn =>
   const [isGenerating, setIsGenerating] = useState(false);
   const historyRef = useRef<Map<string, AISuggestion>>(new Map());
 
+  // 历史记录最大数量（防止内存泄漏）
+  const MAX_HISTORY = 50;
+
+  /**
+   * 添加到历史记录（自动清理）
+   */
+  const addToHistory = useCallback((suggestion: AISuggestion) => {
+    historyRef.current.set(suggestion.id, suggestion);
+
+    // 超过最大数量时，删除最旧的记录
+    if (historyRef.current.size > MAX_HISTORY) {
+      const firstKey = historyRef.current.keys().next().value;
+      if (firstKey) {
+        historyRef.current.delete(firstKey);
+        console.log('[useAISuggestion] 清理旧记录:', firstKey);
+      }
+    }
+  }, []);
+
   /**
    * 开始新的建议
    * @param insertPosition 插入位置，不传则使用光标位置
    * @returns 建议ID
    */
   const startSuggestion = useCallback((insertPosition?: number) => {
+    // 1. 检查编辑器是否初始化
     if (!editor) {
-      console.warn('[useAISuggestion] Editor未初始化');
-      return '';
+      console.error('[useAISuggestion] Editor未初始化');
+      throw new Error('Editor not initialized');
     }
 
+    // 2. 检查是否已有进行中的建议（防止并发）
+    if (currentSuggestion && isGenerating) {
+      console.warn('[useAISuggestion] 已有进行中的建议，返回现有ID');
+      return currentSuggestion.id;
+    }
+
+    // 3. 创建新建议
     const suggestionId = `suggestion-${Date.now()}`;
     const startPos = insertPosition ?? editor.state.selection.to;
 
@@ -206,13 +233,14 @@ export const useAISuggestion = (editor: Editor | null): UseAISuggestionReturn =>
       createdAt: Date.now(),
     };
 
+    // 4. 更新状态
     setCurrentSuggestion(newSuggestion);
     setIsGenerating(true);
     historyRef.current.set(suggestionId, newSuggestion);
 
     console.log('[useAISuggestion] 开始新建议:', suggestionId);
     return suggestionId;
-  }, [editor]);
+  }, [editor, currentSuggestion, isGenerating]);
 
   /**
    * 流式插入内容

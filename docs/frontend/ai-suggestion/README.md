@@ -51,6 +51,25 @@ EditorView (Container)
 - **流式传输**：SSE (Server-Sent Events)
 - **样式方案**：CSS Modules + 自定义动画
 
+## 🔧 依赖安装
+
+```bash
+# 核心依赖
+npm install @tiptap/react@^2.1.0
+npm install @tiptap/core@^2.1.0
+npm install @tiptap/starter-kit@^2.1.0
+
+# UI组件和工具
+npm install lucide-react@^0.294.0
+npm install use-debounce@^10.0.0
+
+# 开发依赖（可选）
+npm install -D @testing-library/react@^14.0.0
+npm install -D vitest@^1.0.0
+```
+
+**注意**: 项目中可能已安装部分依赖，请检查`package.json`后按需安装。
+
 ## 📚 文档导航
 
 ### 核心实现
@@ -59,12 +78,13 @@ EditorView (Container)
 - [状态管理](./02-state-management.md) - AI建议状态管理系统 (Phase 1)
 - [Agent卡片](./03-agent-card.md) - 右侧卡片UI实现 (Phase 2)
 - [编辑器同步](./04-editor-sync.md) - 实时同步机制 (Phase 3)
-- [交互实现](./05-interaction.md) - 确认/拒绝交互 (Phase 4)
+- [交互与集成](./05-interaction-integration.md) - 确认/拒绝交互与集成测试 (Phase 4&5)
 
-### 集成与优化
+### 优化与指南
 
-- [集成测试](./06-integration.md) - EditorView集成 (Phase 5)
-- [UX优化](./07-ux-optimization.md) - 体验优化 (Phase 6)
+- [UX优化](./06-ux-optimization.md) - 体验优化 (Phase 6)
+- [集成指南](./integration-guide.md) - 与现有项目集成
+- [快速开始](./quick-start.md) - 5分钟快速体验
 
 ### 参考文档
 
@@ -72,6 +92,7 @@ EditorView (Container)
 - [组件Props](./component-props.md) - 组件属性详解
 - [样式规范](./style-guide.md) - CSS样式规范
 - [使用示例](./examples.md) - 完整代码示例
+- [Review报告](./REVIEW-REPORT.md) - 文档质量评估
 
 ## 🎨 符号系统
 
@@ -90,7 +111,9 @@ EditorView (Container)
 
 ## 🚀 快速开始
 
-查看 [集成测试文档](./06-integration.md) 了解如何在项目中使用。
+- **5分钟体验**: 查看 [快速开始](./quick-start.md)
+- **完整集成**: 查看 [集成指南](./integration-guide.md)
+- **代码示例**: 查看 [使用示例](./examples.md)
 
 ## 📝 开发进度
 

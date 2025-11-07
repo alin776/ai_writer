@@ -9,6 +9,9 @@
 ```
 ai-suggestion/
 ├── README.md                           ⭐ 开始这里
+├── quick-start.md                      🚀 快速开始（5分钟）
+├── integration-guide.md                📖 集成指南（完整）
+├── types-definition.md                 📦 类型定义
 ├── 01-architecture.md                  🏗️ 架构设计
 ├── 02-state-management.md              📝 Phase 1: 状态管理
 ├── 03-agent-card.md                    🎴 Phase 2: Agent卡片
@@ -18,7 +21,8 @@ ai-suggestion/
 ├── api-reference.md                    📖 API参考
 ├── component-props.md                  🎛️ 组件Props
 ├── style-guide.md                      🎨 样式规范
-└── examples.md                         💡 使用示例
+├── examples.md                         💡 使用示例
+└── REVIEW-REPORT.md                    📊 文档质量报告
 ```
 
 ---
@@ -27,17 +31,32 @@ ai-suggestion/
 
 ### 新手入门
 
-1. **从这里开始**: [README.md](./README.md)
+1. **快速体验（5分钟）**: [快速开始](./quick-start.md)
+   - 最小化实现
+   - 核心功能演示
+   - 调试技巧
+
+2. **完整集成**: [集成指南](./integration-guide.md)
+   - 分阶段集成计划
+   - 与现有项目集成
+   - 常见问题排查
+
+3. **创建类型**: [类型定义](./types-definition.md)
+   - TypeScript类型定义
+   - 使用示例
+   - 类型扩展
+
+4. **总览文档**: [README.md](./README.md)
    - 功能概述
    - 核心交互流程
-   - 快速开始
+   - 文档导航
 
-2. **了解架构**: [架构设计](./01-architecture.md)
+5. **了解架构**: [架构设计](./01-architecture.md)
    - 整体架构
    - 数据流
    - 核心模块
 
-3. **查看示例**: [使用示例](./examples.md)
+6. **查看示例**: [使用示例](./examples.md)
    - 最小示例
    - 完整集成
    - 测试示例
@@ -178,6 +197,17 @@ ai-suggestion/
 - 单元测试
 - E2E 测试
 - 高级用法
+
+---
+
+#### 文档质量报告
+📄 [REVIEW-REPORT.md](./REVIEW-REPORT.md)
+
+文档评估与改进:
+- 问题分析
+- 修复建议
+- 可行性评估
+- 评分：71.7% - 良好（需要改进）
 
 ---
 

@@ -370,24 +370,33 @@ return selection.to;
 
 ## 🎯 性能优化
 
-### 1. 批处理chunk插入
+### 1. 批处理chunk插入（优化版）
 
 ```typescript
-let pendingChunks: string[] = [];
-let rafId: number | null = null;
+// 使用useRef避免闭包问题
+const pendingChunksRef = useRef<string[]>([]);
+const rafIdRef = useRef<number | null>(null);
 
 const streamInsert = useCallback((chunk: string) => {
-  pendingChunks.push(chunk);
+  if (!editor || !currentSuggestion) {
+    console.warn('[useAISuggestion] 无法插入：editor或suggestion未初始化');
+    return;
+  }
 
-  if (!rafId) {
-    rafId = requestAnimationFrame(() => {
-      const combined = pendingChunks.join('');
-      pendingChunks = [];
-      rafId = null;
+  // 添加到待处理队列
+  pendingChunksRef.current.push(chunk);
+
+  // 如果还没有调度RAF，则调度一个
+  if (rafIdRef.current === null) {
+    rafIdRef.current = requestAnimationFrame(() => {
+      const combined = pendingChunksRef.current.join('');
+      pendingChunksRef.current = [];
+      rafIdRef.current = null;
 
       // 一次性插入合并后的内容
-      if (currentSuggestion) {
-        editor?.chain()
+      try {
+        editor
+          .chain()
           .focus()
           .insertContentAt(currentSuggestion.endPos, {
             type: 'text',
@@ -399,16 +408,38 @@ const streamInsert = useCallback((chunk: string) => {
           })
           .run();
 
-        setCurrentSuggestion(prev => ({
-          ...prev!,
-          content: prev!.content + combined,
-          endPos: prev!.endPos + combined.length,
-        }));
+        // 更新建议状态
+        setCurrentSuggestion(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            content: prev.content + combined,
+            endPos: prev.endPos + combined.length,
+          };
+        });
+      } catch (error) {
+        console.error('[useAISuggestion] 插入错误:', error);
       }
     });
   }
 }, [editor, currentSuggestion]);
+
+// 清理RAF
+useEffect(() => {
+  return () => {
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+  };
+}, []);
 ```
+
+**改进点**:
+1. ✅ 使用useRef避免闭包问题
+2. ✅ 添加清理逻辑防止内存泄漏
+3. ✅ 添加try-catch错误处理
+4. ✅ 使用函数式setState避免竞态条件
 
 ### 2. 防抖滚动
 

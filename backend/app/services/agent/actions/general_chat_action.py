@@ -39,15 +39,13 @@ class GeneralChatAction(BaseAction):
     ```
     """
 
-    def __init__(self, ai_service=None):
+    def __init__(self):
         """
         初始化GeneralChatAction
 
-        Args:
-            ai_service: AI服务实例(HTTPAIService) - 可选，新架构中不再需要
+        注意：新架构不需要ai_service参数，Action只负责准备参数
         """
         super().__init__("general_chat", "处理一般对话请求")
-        self.ai_service = ai_service  # 向后兼容，新架构不使用
 
     async def prepare(self, state: Dict[str, Any]) -> ActionResult:
         """

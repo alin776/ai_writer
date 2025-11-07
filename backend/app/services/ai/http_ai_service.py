@@ -115,6 +115,13 @@ class HTTPAIService:
                 - 文本片段: str
                 - usage: 仅在最后一个块返回完整usage,其他为None
         """
+        # 🔧 监控：导入监控工具
+        import time
+        from app.services.agent.utils.monitoring import increment_counter, record_timer, set_gauge
+
+        # 🔧 监控：记录LLM调用开始时间
+        llm_start_time = time.time()
+
         # ==================== 模型选择逻辑 ====================
         # 根据task_type智能选择模型
         if self.model_selector and task_type:
@@ -234,6 +241,16 @@ class HTTPAIService:
                         start_time=start_time
                     )
 
+                # 🔧 监控：记录Token使用
+                if usage_info:
+                    set_gauge("llm_token_usage_prompt", usage_info.get("prompt_tokens", 0), labels={"model": model})
+                    set_gauge("llm_token_usage_completion", usage_info.get("completion_tokens", 0), labels={"model": model})
+                    set_gauge("llm_token_usage_total", usage_info.get("total_tokens", 0), labels={"model": model})
+
+                # 🔧 监控：记录响应时间和成功
+                record_timer("llm_response_time", time.time() - llm_start_time, labels={"model": model})
+                increment_counter("llm_calls_success", labels={"model": model})
+
                 # 循环结束后,yield最终的usage信息
                 if usage_info:
                     yield "", usage_info  # 空内容块 + 完整usage统计
@@ -245,10 +262,18 @@ class HTTPAIService:
                     logger.error(f"警告: AI 响应为空！未接收到任何内容块。")
 
         except httpx.HTTPError as e:
+            # 🔧 监控：记录HTTP错误
+            increment_counter("llm_calls_error", labels={"model": model, "error_type": "HTTPError"})
+            record_timer("llm_response_time", time.time() - llm_start_time, labels={"model": model})
+
             logger.error(f"HTTP 请求错误: {type(e).__name__}: {str(e)}")
             raise Exception(f"网络请求失败: {str(e)}")
 
         except Exception as e:
+            # 🔧 监控：记录其他错误
+            increment_counter("llm_calls_error", labels={"model": model, "error_type": type(e).__name__})
+            record_timer("llm_response_time", time.time() - llm_start_time, labels={"model": model})
+
             logger.error(f"AI API 调用错误: {type(e).__name__}: {str(e)}")
             raise
     

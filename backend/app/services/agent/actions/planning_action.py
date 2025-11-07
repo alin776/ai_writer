@@ -39,22 +39,18 @@ class PlanningAction(BaseAction):
     ```
     """
 
-    def __init__(self, ai_service=None, use_chatgpt: bool = False):
+    def __init__(self):
         """
         初始化PlanningAction
 
-        Args:
-            ai_service: AI服务实例(HTTPAIService或ChatOpenAI) - 可选，新架构不需要
-            use_chatgpt: 是否使用ChatGPT模式（已废弃，保留兼容）
+        注意：新架构不需要ai_service参数，Action只负责准备参数
         """
         super().__init__("planning", "处理小说规划相关请求")
-        self.ai_service = ai_service  # 向后兼容，新架构不使用
-        self.use_chatgpt = use_chatgpt  # 向后兼容
 
         # 🔧 新增：初始化 PromptManager
         from app.prompts import get_prompt_manager
         self.prompt_manager = get_prompt_manager()
-        logger.info("[PlanningAction] PromptManager已初始化")
+        self.logger.info(f"[{self.name}] PromptManager已初始化")
 
     async def prepare(self, state: Dict[str, Any]) -> ActionResult:
         """
