@@ -1,0 +1,134 @@
+
+
+#### 步骤2: 修改manager.py集成摘要服务（2小时）
+
+**文件**: `backend/app/services/context/manager.py`
+
+**修改位置**: `_generate_summary()` 方法（200-227行）
+
+```python
+# 在文件顶部添加导入
+from app.services.context.summary_service import get_summary_service
+
+class ContextManager:
+    """上下文管理器 - 专为chat_stream优化"""
+
+    def __init__(
+        self,
+        store: Optional[ContextStore] = None,
+        token_budget: Optional[TokenBudget] = None,
+        ai_service = None  # 新增：AI服务实例
+    ):
+        self.store = store or RedisContextStore()
+        self.token_budget = token_budget or TokenBudget()
+        self.ai_service = ai_service  # 新增
+
+        # 初始化摘要服务（如果提供了AI服务）
+        self.summary_service = None
+        if ai_service:
+            self.summary_service = get_summary_service(ai_service)
+
+    async def _generate_summary(self, messages: List[Message]) -> str:
+        """
+        生成对话摘要
+
+        使用两层策略：
+        1. 优先使用LLM生成高质量摘要（如果summary_service可用）
+        2. 降级使用简单策略
+        """
+        if not messages:
+            return ""
+
+        # 策略1: 使用LLM生成摘要
+        if self.summary_service:
+            try:
+                logger.info(f"[ContextManager] 使用LLM生成摘要，消息数={len(messages)}")
+                summary = await self.summary_service.summarize_conversation(
+                    messages=messages,
+                    max_length=200,
+                    target_ratio=0.3
+                )
+
+                if summary:
+                    logger.info(f"[ContextManager] LLM摘要生成成功，长度={len(summary)}")
+                    return summary
+                else:
+                    logger.warning(f"[ContextManager] LLM摘要为空，使用降级策略")
+            except Exception as e:
+                logger.warning(f"[ContextManager] LLM摘要失败: {e}，使用降级策略")
+
+        # 策略2: 降级策略（简单提取）
+        logger.info(f"[ContextManager] 使用降级策略生成摘要")
+        return self._fallback_summary(messages)
+
+    @staticmethod
+    def _fallback_summary(messages: List[Message]) -> str:
+        """降级策略：简单提取关键信息"""
+        summary_parts = []
+
+        user_messages = [m for m in messages if m.role == "user"]
+        assistant_messages = [m for m in messages if m.role == "assistant"]
+
+        if user_messages:
+            first_user = user_messages[0].content[:100]
+            summary_parts.append(f"用户请求: {first_user}...")
+
+        if assistant_messages:
+            first_assistant = assistant_messages[0].content[:100]
+            summary_parts.append(f"助手回复: {first_assistant}...")
+
+        # 统计信息
+        summary_parts.append(f"共{len(messages)}条消息")
+
+        return " | ".join(summary_parts)
+```
+
+**验证脚本**:
+
+```python
+# 创建测试脚本: backend/test_manager_summary.py
+import asyncio
+import sys
+sys.path.insert(0, '/d/Java/ai_writer/backend')
+
+from app.services.context.manager import ContextManager
+from app.services.context.models import Message
+from app.services.ai.http_ai_service import HTTPAIService
+import time
+
+async def test_summary():
+    """测试manager.py的摘要功能"""
+
+    # 创建AI服务实例
+    ai_service = HTTPAIService()
+
+    # 创建ContextManager
+    manager = ContextManager(ai_service=ai_service)
+
+    # 创建测试消息
+    messages = [
+        Message(role="user", content="你好，我想写一本科幻小说", timestamp=time.time()),
+        Message(role="assistant", content="很高兴帮助你！科幻小说是一个很有趣的主题。你有什么具体的想法吗？", timestamp=time.time()),
+        Message(role="user", content="我想写一个关于人工智能觉醒的故事", timestamp=time.time()),
+        Message(role="assistant", content="这个主题很经典！建议你可以从以下几个方面构思：1)AI觉醒的契机 2)人类与AI的冲突 3)最终的和解或对抗", timestamp=time.time()),
+    ]
+
+    # 测试摘要生成
+    print("测试摘要生成...")
+    summary = await manager._generate_summary(messages)
+
+    print(f"\n原始消息数: {len(messages)}")
+    print(f"摘要长度: {len(summary)}")
+    print(f"压缩率: {len(summary) / sum(len(m.content) for m in messages):.2%}")
+    print(f"\n摘要内容:\n{summary}")
+
+    # 验证摘要质量
+    assert len(summary) > 0, "摘要不应为空"
+    assert len(summary) < sum(len(m.content) for m in messages), "摘要应比原文短"
+
+    print("\n✅ 摘要测试通过")
+
+if __name__ == "__main__":
+    asyncio.run(test_summary())
+```
+

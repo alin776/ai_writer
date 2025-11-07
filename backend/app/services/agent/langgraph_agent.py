@@ -2568,6 +2568,7 @@ class WritingAgentGraph:
         # ✅ P0-2: 添加360秒总体超时保护（6分钟）
         try:
             import time
+            from app.services.agent.utils.monitoring import increment_counter, record_timer
             start_time = time.time()
 
             # 设置总体超时
