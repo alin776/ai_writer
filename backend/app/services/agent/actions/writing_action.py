@@ -56,6 +56,11 @@ class WritingAction(BaseAction):
         self.ai_service = ai_service
         self.use_chatgpt = use_chatgpt
 
+        # 🔧 新增：初始化 PromptManager
+        from app.prompts import get_prompt_manager
+        self.prompt_manager = get_prompt_manager()
+        logger.info("[WritingAction] ✅ PromptManager已初始化")
+
     async def validate_input(self, state: Dict[str, Any]) -> bool:
         """
         验证输入是否有效
@@ -208,7 +213,7 @@ class WritingAction(BaseAction):
         """
         # 基础Prompt
         if phase:
-            # 使用阶段优化的Prompt
+            # 使用阶段优化的Prompt（保留原有逻辑）
             base_prompt = get_content_prompt(
                 phase=phase,
                 scene_type=None,
@@ -218,8 +223,21 @@ class WritingAction(BaseAction):
                 }
             )
         else:
-            # 默认Prompt
-            base_prompt = """你是专业的网络小说写作助手Agent，专注于创作网文故事。
+            # 🔧 使用 PromptManager 渲染默认 Prompt
+            try:
+                base_prompt = self.prompt_manager.render(
+                    "writing_agent",
+                    user_message="",  # 此处不需要具体消息
+                    context_summary="",
+                    user_preferences={},
+                    writing_constraints=[],
+                    examples=[]
+                )
+                # ✅ 修复：不再使用正则移除，保持模板完整性
+            except Exception as e:
+                logger.warning(f"[WritingAction] PromptManager渲染失败，使用备用Prompt: {e}")
+                # 备用方案：使用原有的硬编码 Prompt
+                base_prompt = """你是专业的网络小说写作助手Agent，专注于创作网文故事。
 
 【重要】你的写作风格：
 - 你是网文作家，不是程序员或技术文档作者
@@ -228,7 +246,7 @@ class WritingAction(BaseAction):
 - 必须写人物、情节、对话、情感、动作、场景描写
 - 保持网文的节奏感和代入感"""
 
-        # 工具使用说明
+        # 工具使用说明（保持原有逻辑不变）
         tools_instruction = f"""
 
 ---

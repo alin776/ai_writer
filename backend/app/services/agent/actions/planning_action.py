@@ -51,6 +51,11 @@ class PlanningAction(BaseAction):
         self.ai_service = ai_service
         self.use_chatgpt = use_chatgpt
 
+        # 🔧 新增：初始化 PromptManager
+        from app.prompts import get_prompt_manager
+        self.prompt_manager = get_prompt_manager()
+        logger.info("[PlanningAction] ✅ PromptManager已初始化")
+
     async def validate_input(self, state: Dict[str, Any]) -> bool:
         """
         验证输入是否有效
@@ -126,7 +131,43 @@ class PlanningAction(BaseAction):
         Returns:
             str: 系统Prompt
         """
-        return f"""你是专业的规划助手Agent。
+        # 🔧 使用 PromptManager 渲染 planning_agent 模板
+        try:
+            system_prompt = self.prompt_manager.render(
+                "planning_agent",
+                user_message="",  # 规划时不需要具体消息
+                context_summary="",
+                constraints=[]
+            )
+
+            # 添加工具使用说明和当前作品信息
+            tools_instruction = f"""
+
+---
+
+【工具使用】
+可用工具：
+- get_context_tool: 获取作品信息
+- read_chapter_tool: 读取已有章节内容
+- search_analysis_fragments_tool: 检索相关分析片段（RAG）
+- analyze_text_tool: 分析现有内容
+
+当前作品ID: {work_id}
+
+【工作流程】
+1. 理解用户的规划需求（大纲/世界观/角色/情节）
+2. 调用工具获取必要的上下文信息
+3. 基于现有信息提供专业的规划建议
+4. 确保规划的逻辑性和可执行性
+
+帮助用户规划小说创作，包括世界观、角色、大纲等。根据需要调用工具。"""
+
+            return system_prompt + tools_instruction
+
+        except Exception as e:
+            logger.warning(f"[PlanningAction] PromptManager渲染失败，使用备用Prompt: {e}")
+            # 备用方案：使用原有的硬编码 Prompt
+            return f"""你是专业的规划助手Agent。
 
 【核心能力】
 - 小说大纲规划（章节结构、情节走向）

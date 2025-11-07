@@ -700,6 +700,11 @@ class WritingAgentGraph:
         self.context_manager = ContextManager()
         logger.info("[LangGraph] ✅ ContextManager已初始化")
 
+        # 初始化Prompt管理器（用于统一管理各类Agent的Prompt模板）
+        from app.prompts import get_prompt_manager
+        self.prompt_manager = get_prompt_manager()
+        logger.info("[LangGraph] ✅ PromptManager已初始化")
+
         # 根据模式初始化
         if use_chatgpt:
             logger.info("[LangGraph] 使用 ChatOpenAI 模式（原生工具调用）")
@@ -1880,9 +1885,71 @@ class WritingAgentGraph:
 
         # 🔧 新增：构建上下文（加载历史对话）
         session_id = conversation_id or "default"
+
+        # 🔧 新增：意图识别
+        intent_data = await self._classify_intent_async(
+            user_message=message,
+            context_summary=None  # 稍后可以传入摘要
+        )
+        detected_intent = intent_data.get("intent", "writing")
+        confidence = intent_data.get("confidence", 0)
+        reasoning = intent_data.get("reasoning", "N/A")
+
+        logger.info(
+            f"[Intent] 用户意图: {detected_intent}, "
+            f"置信度: {confidence:.2f}, "
+            f"原因: {reasoning}"
+        )
+
+        # ✅ 修复：添加置信度检查
+        if confidence < 0.6:
+            logger.warning(
+                f"[Intent] 置信度较低 ({confidence:.2f} < 0.6)，使用默认模板 writing_agent"
+            )
+            template_name = "writing_agent"
+        else:
+            # 🔧 根据意图选择 Prompt 模板
+            if detected_intent == "writing":
+                template_name = "writing_agent"
+            elif detected_intent == "planning":
+                template_name = "planning_agent"
+            elif detected_intent == "tool":
+                template_name = "tool_agent"
+            elif detected_intent == "query":
+                template_name = "query_agent"  # ✅ 修复：query使用专门的问答模板
+            else:
+                template_name = "writing_agent"  # 默认使用writing_agent
+
+        logger.info(
+            f"[Intent] 选择 Prompt 模板: {template_name}, "
+            f"版本: {self.prompt_manager.get_version(template_name)}"
+        )
+
+        # 使用PromptManager渲染对应模板（根据模板类型准备参数）
+        render_params = {"user_message": message, "context_summary": ""}
+
+        if template_name == "writing_agent":
+            render_params.update({
+                "user_preferences": {},
+                "writing_constraints": [],
+                "examples": []
+            })
+        elif template_name == "planning_agent":
+            render_params.update({
+                "constraints": []
+            })
+        elif template_name == "tool_agent":
+            render_params.update({
+                "work_id": work_id,
+                "chapter_id": chapter_id,
+                "available_tools": []  # 使用默认工具列表
+            })
+
+        system_prompt = self.prompt_manager.render(template_name, **render_params)
+
         context_bundle = await self.context_manager.build_context(
             session_id=session_id,
-            system_prompt="你是一个专业的AI写作助手，擅长创意写作、内容规划和写作指导。"
+            system_prompt=system_prompt
         )
         logger.info(f"[Context] 加载上下文: {context_bundle['metadata']}")
 
@@ -1896,12 +1963,12 @@ class WritingAgentGraph:
             elif msg["role"] == "assistant":
                 history_messages.append(AIMessage(content=msg["content"]))
 
-        # 构建初始状态（包含历史上下文）
+        # 构建初始状态（包含历史上下文和识别的意图）
         initial_state = {
             "messages": history_messages + [HumanMessage(content=message)],  # 历史消息 + 当前消息
             "work_id": work_id,
             "chapter_id": chapter_id,
-            "intent": None,
+            "intent": detected_intent,  # 🔧 新增：存储识别的意图
             "context": context or {},
             "agent_steps": [],
             "suggested_actions": [],
@@ -3092,6 +3159,74 @@ class WritingAgentGraph:
             await on_progress(task, "完成")
 
         return result
+
+    async def _classify_intent_async(
+        self,
+        user_message: str,
+        context_summary: Optional[str] = None
+    ) -> dict:
+        """
+        使用 intent_classifier 模板识别用户意图
+
+        Args:
+            user_message: 用户消息
+            context_summary: 对话摘要（可选）
+
+        Returns:
+            dict: 意图数据 {"intent": "writing", "confidence": 0.95, "reasoning": "..."}
+        """
+        try:
+            # 渲染意图分类 Prompt
+            intent_prompt = self.prompt_manager.render(
+                "intent_classifier",
+                user_message=user_message,
+                context_summary=context_summary or "",
+                important_facts=[]
+            )
+
+            # 调用 AI 识别意图
+            logger.info(f"[Intent] 开始识别意图: {user_message[:50]}...")
+
+            # 使用 _stream_chat 获取响应
+            response_text = ""
+            async for chunk, _ in self.ai_service._stream_chat(
+                messages=[{"role": "user", "content": intent_prompt}],
+                max_tokens=300,
+                temperature=0.3,
+                task_type=TaskType.TEXT_CLASSIFICATION
+            ):
+                if chunk:
+                    response_text += chunk
+
+            # 解析 JSON 响应
+            import json
+            import re
+
+            # 尝试从响应中提取 JSON
+            json_match = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(1)
+            else:
+                # 尝试直接解析整个响应
+                json_str = response_text
+
+            intent_data = json.loads(json_str)
+
+            logger.info(
+                f"[Intent] 识别结果: {intent_data.get('intent', 'unknown')}, "
+                f"置信度: {intent_data.get('confidence', 0)}"
+            )
+
+            return intent_data
+
+        except Exception as e:
+            logger.error(f"[Intent] 意图识别失败: {e}")
+            # 默认返回 writing 意图
+            return {
+                "intent": "writing",
+                "confidence": 0.5,
+                "reasoning": f"意图识别失败，使用默认值: {str(e)}"
+            }
 
 
 # ==================== 导出 ====================
