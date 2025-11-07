@@ -90,6 +90,62 @@ async def _retry_on_failure(func, *args, max_retries=3, **kwargs):
     raise Exception(f"{func.__name__} 失败，已重试{max_retries}次")
 
 
+async def _with_timeout_and_retry(
+    coro,
+    timeout_seconds: int = 300,
+    max_retries: int = 2,
+    operation_name: str = "Operation",
+    retry_on_timeout: bool = False
+):
+    """
+    为协程添加超时保护和重试机制
+
+    Args:
+        coro: 要执行的协程
+        timeout_seconds: 超时时间（秒）
+        max_retries: 最大重试次数（不包括首次尝试）
+        operation_name: 操作名称（用于日志）
+        retry_on_timeout: 是否在超时后重试（默认False，超时直接抛出）
+
+    Returns:
+        协程执行结果
+
+    Raises:
+        asyncio.TimeoutError: 超时
+        Exception: 其他异常
+    """
+    retry_count = 0
+
+    # ✅ P0-3: 修复循环条件（<= 改为 <，避免多执行一次）
+    while retry_count < max_retries + 1:
+        try:
+            # 添加超时保护
+            async with asyncio.timeout(timeout_seconds):
+                result = await coro
+                return result
+
+        except asyncio.TimeoutError:
+            logger.error(f"[Timeout] {operation_name} 超时（{timeout_seconds}秒），尝试 {retry_count + 1}/{max_retries + 1}")
+
+            if not retry_on_timeout or retry_count >= max_retries:
+                # 不重试或已达最大重试次数
+                raise
+
+            retry_count += 1
+            await asyncio.sleep(2 ** retry_count)  # 指数退避
+
+        except Exception as e:
+            logger.error(f"[Error] {operation_name} 失败：{e}，尝试 {retry_count + 1}/{max_retries + 1}")
+
+            if retry_count >= max_retries:
+                raise
+
+            retry_count += 1
+            await asyncio.sleep(2 ** retry_count)
+
+    raise Exception(f"{operation_name} 失败，已重试{max_retries}次")
+
+
 async def _generate_text_helper(
     prompt: str,
     temperature: float = 0.7,
@@ -107,14 +163,16 @@ async def _generate_text_helper(
 
     while retry_count < max_retries:
         try:
-            async for chunk, _ in _global_ai_service._stream_chat(
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                task_type=task_type  # ← 传递task_type参数
-            ):
-                if chunk:
-                    generated_text += chunk
+            # ✅ 为单次LLM调用添加超时保护（60秒）
+            async with asyncio.timeout(60):
+                async for chunk, _ in _global_ai_service._stream_chat(
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    task_type=task_type  # ← 传递task_type参数
+                ):
+                    if chunk:
+                        generated_text += chunk
 
             # 成功生成内容，退出循环
             if generated_text:
@@ -123,6 +181,17 @@ async def _generate_text_helper(
             # 如果没有生成内容，重试
             retry_count += 1
             logger.warning(f"[_generate_text_helper] 生成文本为空，重试 {retry_count}/{max_retries}")
+
+        except asyncio.TimeoutError:
+            retry_count += 1
+            logger.error(f"[_generate_text_helper] 生成超时（60秒）(尝试 {retry_count}/{max_retries})")
+
+            if retry_count >= max_retries:
+                return f"错误：AI服务调用超时，已重试{max_retries}次"
+
+            # 等待后重试（指数退避）
+            import asyncio
+            await asyncio.sleep(2 ** retry_count)
 
         except Exception as e:
             retry_count += 1
@@ -916,63 +985,92 @@ class WritingAgentGraph:
         Returns:
             dict: {"text": str, "usage": dict}
         """
-        # 🔧 修复：根据use_chatgpt选择使用ChatOpenAI还是HTTPAIService
-        if self.use_chatgpt:
-            # 模式1：使用ChatOpenAI（触发监控）
-            from langchain_core.messages import HumanMessage
-            messages = [HumanMessage(content=prompt)]
+        # ✅ P0-1: 添加60秒超时保护
+        try:
+            async with asyncio.timeout(60):
+                # 🔧 修复：根据use_chatgpt选择使用ChatOpenAI还是HTTPAIService
+                if self.use_chatgpt:
+                    # 模式1：使用ChatOpenAI（触发监控）
+                    from langchain_core.messages import HumanMessage
+                    messages = [HumanMessage(content=prompt)]
 
-            # 调用ChatOpenAI（会触发MonitoringCallbackHandler）
-            response = await self.llm.ainvoke(
-                messages,
-                config={
-                    "temperature": temperature,
-                    "max_tokens": max_tokens
-                }
-            )
+                    # 调用ChatOpenAI（会触发MonitoringCallbackHandler）
+                    response = await self.llm.ainvoke(
+                        messages,
+                        config={
+                            "temperature": temperature,
+                            "max_tokens": max_tokens
+                        }
+                    )
 
-            generated_text = response.content
+                    generated_text = response.content
 
-            # 提取token使用情况
-            usage = {}
-            if hasattr(response, 'response_metadata'):
-                token_usage = response.response_metadata.get('token_usage', {})
-                if token_usage:
-                    usage = {
-                        "prompt_tokens": token_usage.get('prompt_tokens', 0),
-                        "completion_tokens": token_usage.get('completion_tokens', 0),
-                        "total_tokens": token_usage.get('total_tokens', 0)
+                    # 提取token使用情况
+                    usage = {}
+                    if hasattr(response, 'response_metadata'):
+                        token_usage = response.response_metadata.get('token_usage', {})
+                        if token_usage:
+                            usage = {
+                                "prompt_tokens": token_usage.get('prompt_tokens', 0),
+                                "completion_tokens": token_usage.get('completion_tokens', 0),
+                                "total_tokens": token_usage.get('total_tokens', 0)
+                            }
+
+                    logger.info(f"[_generate_text] 使用ChatOpenAI生成文本，tokens={usage.get('total_tokens', 0)}")
+
+                    return {
+                        "text": generated_text,
+                        "usage": usage
+                    }
+                else:
+                    # 模式2：使用HTTPAIService（兼容模式）
+                    messages = [{"role": "user", "content": prompt}]
+
+                    generated_text = ""
+                    usage = None
+
+                    async for chunk, chunk_usage in self.ai_service._stream_chat(
+                        messages=messages,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        task_type=task_type  # ← 传递task_type
+                    ):
+                        if chunk:
+                            generated_text += chunk
+                        if chunk_usage:
+                            usage = chunk_usage
+
+                    logger.info(f"[_generate_text] 使用HTTPAIService生成文本，tokens={usage.get('total_tokens', 0) if usage else 0}")
+
+                    return {
+                        "text": generated_text,
+                        "usage": usage or {}
                     }
 
-            logger.info(f"[_generate_text] 使用ChatOpenAI生成文本，tokens={usage.get('total_tokens', 0)}")
+        except asyncio.TimeoutError:
+            # 超时处理
+            mode = "ChatOpenAI" if self.use_chatgpt else "HTTPAIService"
+            logger.error(f"[_generate_text] {mode} LLM调用超时（60秒）")
+            increment_counter("generate_text_error", labels={"error_type": "TimeoutError", "mode": mode})
 
+            # 返回错误结果
             return {
-                "text": generated_text,
-                "usage": usage
+                "text": f"抱歉，AI响应超时（超过60秒）。请稍后重试。",
+                "usage": {},
+                "error": "timeout"
             }
-        else:
-            # 模式2：使用HTTPAIService（兼容模式）
-            messages = [{"role": "user", "content": prompt}]
 
-            generated_text = ""
-            usage = None
+        except Exception as e:
+            # 其他异常处理
+            mode = "ChatOpenAI" if self.use_chatgpt else "HTTPAIService"
+            logger.error(f"[_generate_text] {mode} LLM调用失败: {e}", exc_info=True)
+            increment_counter("generate_text_error", labels={"error_type": type(e).__name__, "mode": mode})
 
-            async for chunk, chunk_usage in self.ai_service._stream_chat(
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                task_type=task_type  # ← 传递task_type
-            ):
-                if chunk:
-                    generated_text += chunk
-                if chunk_usage:
-                    usage = chunk_usage
-
-            logger.info(f"[_generate_text] 使用HTTPAIService生成文本，tokens={usage.get('total_tokens', 0) if usage else 0}")
-
+            # 返回错误结果
             return {
-                "text": generated_text,
-                "usage": usage or {}
+                "text": f"抱歉，AI服务调用失败：{str(e)}",
+                "usage": {},
+                "error": str(e)
             }
 
     async def _classify_intent(self, state: AgentState) -> AgentState:
@@ -2063,16 +2161,18 @@ class WritingAgentGraph:
             # 使用astream()流式执行
             event_count = 0
 
-            async for event in self.graph.astream(initial_state, config):
-                event_count += 1
+            # ✅ 添加超时保护（5分钟）
+            async with asyncio.timeout(300):
+                async for event in self.graph.astream(initial_state, config):
+                    event_count += 1
 
-                # 处理事件并触发回调
-                await self._handle_stream_event(
-                    event,
-                    on_progress=on_progress,
-                    on_tool_call=on_tool_call,
-                    on_content=on_content
-                )
+                    # 处理事件并触发回调
+                    await self._handle_stream_event(
+                        event,
+                        on_progress=on_progress,
+                        on_tool_call=on_tool_call,
+                        on_content=on_content
+                    )
 
             # 🔧 监控：记录LangGraph执行耗时
             record_timer("graph_execution_duration", time.time() - graph_start)
@@ -2129,6 +2229,22 @@ class WritingAgentGraph:
                     "suggested_actions": [],
                     "metadata": {"error": "No final state"}
                 }
+
+        except asyncio.TimeoutError:
+            # ✅ 超时异常的特殊处理
+            logger.error(f"[LangGraph Stream] 执行超时（300秒）")
+
+            # 🔧 监控：记录超时
+            increment_counter("chat_stream_error", labels={"error_type": "TimeoutError"})
+            record_timer("chat_stream_total_duration", time.time() - overall_start)
+
+            return {
+                "response": "抱歉，请求处理超时（超过5分钟）。请尝试简化您的问题或稍后再试。",
+                "conversation_id": conversation_id or "default",
+                "agent_steps": [],
+                "suggested_actions": ["简化问题", "稍后重试"],
+                "metadata": {"error": "Request timeout after 300 seconds", "timeout": 300}
+            }
 
         except Exception as e:
             import traceback
@@ -2449,51 +2565,57 @@ class WritingAgentGraph:
         Returns:
             Dict: Agent响应
         """
+        # ✅ P0-2: 添加360秒总体超时保护（6分钟）
         try:
             import time
+            start_time = time.time()
 
-            # ========== 加载对话历史 ==========
-            conversation_history = ""
+            # 设置总体超时
+            async with asyncio.timeout(360):
+                # ========== 加载对话历史 ==========
+                conversation_history = ""
 
-            if conversation_id and self.checkpointer:
-                try:
-                    # 从checkpointer加载历史状态
-                    from langgraph.checkpoint.base import CheckpointTuple
-                    config = {"configurable": {"thread_id": conversation_id, "checkpoint_ns": ""}}
+                if conversation_id and self.checkpointer:
+                    try:
+                        # 从checkpointer加载历史状态
+                        from langgraph.checkpoint.base import CheckpointTuple
+                        config = {"configurable": {"thread_id": conversation_id, "checkpoint_ns": ""}}
 
-                    checkpoint_tuple = await self.checkpointer.aget_tuple(config)
+                        checkpoint_tuple = await self.checkpointer.aget_tuple(config)
 
-                    if checkpoint_tuple and checkpoint_tuple.checkpoint:
-                        messages = checkpoint_tuple.checkpoint.get("channel_values", {}).get("messages", [])
+                        if checkpoint_tuple and checkpoint_tuple.checkpoint:
+                            messages = checkpoint_tuple.checkpoint.get("channel_values", {}).get("messages", [])
 
-                        if messages:
-                            logger.info(f"[Planning] 从checkpointer加载了 {len(messages)} 条历史消息")
-                            # 格式化历史消息
-                            history_lines = []
-                            for msg in messages:
-                                if isinstance(msg, HumanMessage):
-                                    history_lines.append(f"用户: {msg.content}")
-                                elif isinstance(msg, AIMessage):
-                                    history_lines.append(f"助手: {msg.content}")
-                            if history_lines:
-                                conversation_history = "\n".join(history_lines)
-                except Exception as e:
-                    logger.warning(f"[Planning] 加载历史失败: {e}", exc_info=True)
+                            if messages:
+                                logger.info(f"[Planning] 从checkpointer加载了 {len(messages)} 条历史消息")
+                                # 格式化历史消息
+                                history_lines = []
+                                for msg in messages:
+                                    if isinstance(msg, HumanMessage):
+                                        history_lines.append(f"用户: {msg.content}")
+                                    elif isinstance(msg, AIMessage):
+                                        history_lines.append(f"助手: {msg.content}")
+                                if history_lines:
+                                    conversation_history = "\n".join(history_lines)
+                    except Exception as e:
+                        logger.warning(f"[Planning] 加载历史失败: {e}", exc_info=True)
 
-            # ========== 阶段1: 规划（Planning） ==========
-            planning_start = time.time()
-            logger.info(f"[Planning] 开始规划: {message[:50]}...")
+                # ========== 阶段1: 规划（Planning） ==========
+                # ✅ P1-7: 添加监控记录
+                planning_start = time.time()
+                logger.info(f"[Planning] 开始规划: {message[:50]}...")
+                increment_counter("planning_phase_start")
 
-            # 构建规划prompt（包含历史）
-            history_section = ""
-            if conversation_history:
-                history_section = f"""
+                # 构建规划prompt（包含历史）
+                history_section = ""
+                if conversation_history:
+                    history_section = f"""
 【对话历史】
 {conversation_history}
 
 """
 
-            plan_prompt = f"""你是专业的AI写作助手。{history_section}用户请求如下：
+                plan_prompt = f"""你是专业的AI写作助手。{history_section}用户请求如下：
 
 用户请求：{message}
 作品ID：{work_id}
@@ -2568,23 +2690,23 @@ class WritingAgentGraph:
 
 现在直接返回JSON，不要任何解释："""
 
-            try:
-                plan_result = await self._generate_text(
-                    plan_prompt,
-                    temperature=0.3,
-                    max_tokens=1000,
-                    task_type=TaskType.SIMPLE_QA  # ← Planning阶段用轻量模型快速生成任务列表
-                )
-                plan_text = plan_result.get("text", "").strip()
+                try:
+                    plan_result = await self._generate_text(
+                        plan_prompt,
+                        temperature=0.3,
+                        max_tokens=1000,
+                        task_type=TaskType.SIMPLE_QA  # ← Planning阶段用轻量模型快速生成任务列表
+                    )
+                    plan_text = plan_result.get("text", "").strip()
 
-                # 解析规划JSON
-                plan_data = self._extract_json_from_text(plan_text)
+                    # 解析规划JSON
+                    plan_data = self._extract_json_from_text(plan_text)
 
-            except Exception as e:
-                logger.error(f"[Planning Agent] 执行失败: {e}", exc_info=True)
+                except Exception as e:
+                    logger.error(f"[Planning Agent] 执行失败: {e}", exc_info=True)
 
-                # 定义网络相关异常类型
-                network_related_errors = (
+                    # 定义网络相关异常类型
+                    network_related_errors = (
                     httpx.ConnectTimeout,
                     httpx.ReadTimeout,
                     httpx.NetworkError,
@@ -2592,18 +2714,18 @@ class WritingAgentGraph:
                     ConnectionError,
                     TimeoutError,
                     # 移除过于宽泛的 OSError，只保留特定的网络错误
-                )
+                    )
 
-                # 检查是否是网络相关错误
-                is_network_error = (
+                    # 检查是否是网络相关错误
+                    is_network_error = (
                     isinstance(e, network_related_errors) or
                     any(keyword in str(e).lower() for keyword in ["网络", "连接", "超时", "timeout", "connection", "network"])
-                )
+                    )
 
-                if is_network_error:
-                    logger.warning(f"[Planning] 检测到网络错误，使用简化规划流程")
-                    # 使用简化的规划，避免再次调用AI
-                    plan_data = {
+                    if is_network_error:
+                        logger.warning(f"[Planning] 检测到网络错误，使用简化规划流程")
+                        # 使用简化的规划，避免再次调用AI
+                        plan_data = {
                         "user_intent": "执行用户请求",
                         "tasks": [
                             {
@@ -2613,149 +2735,192 @@ class WritingAgentGraph:
                                 "estimated_time": "5秒"
                             }
                         ]
-                    }
-                else:
-                    # 其他错误，返回错误响应
-                    return {
+                        }
+                    else:
+                        # 其他错误，返回错误响应
+                        return {
                         "response": f"抱歉，规划阶段出现问题：{str(e)}。请稍后重试。",
                         "conversation_id": conversation_id or "default",
                         "agent_steps": [],
                         "suggested_actions": [],
                         "metadata": {"error": str(e), "stage": "planning", "error_type": type(e).__name__}
+                        }
+
+                if not plan_data:
+                    logger.warning(f"[Planning] 无法解析规划JSON，AI返回: {plan_text[:500]}")
+
+                if not plan_data or "tasks" not in plan_data:
+                    # 默认规划
+                    plan_data = {
+                        "user_intent": "执行用户请求",
+                        "tasks": [
+                            {
+                                "task_id": 1,
+                                "description": "理解用户意图并获取相关上下文",
+                                "tool": "get_context_tool",
+                                "estimated_time": "5秒"
+                            },
+                            {
+                                "task_id": 2,
+                                "description": "执行用户请求",
+                                "tool": "auto",
+                                "estimated_time": "10秒"
+                            }
+                        ]
                     }
 
-            if not plan_data:
-                logger.warning(f"[Planning] 无法解析规划JSON，AI返回: {plan_text[:500]}")
+                # ✅ P1-7: 记录Planning阶段完成
+                planning_duration = time.time() - planning_start
+                logger.info(f"[Planning] 规划生成成功，共{len(plan_data['tasks'])}个任务，耗时: {planning_duration:.2f}s")
+                increment_counter("planning_phase_completed")
+                record_timer("planning_phase_duration", planning_duration)
 
-            if not plan_data or "tasks" not in plan_data:
-                # 默认规划
-                plan_data = {
-                    "user_intent": "执行用户请求",
-                    "tasks": [
-                        {
-                            "task_id": 1,
-                            "description": "理解用户意图并获取相关上下文",
-                            "tool": "get_context_tool",
-                            "estimated_time": "5秒"
-                        },
-                        {
-                            "task_id": 2,
-                            "description": "执行用户请求",
-                            "tool": "auto",
-                            "estimated_time": "10秒"
-                        }
-                    ]
-                }
+                # 回调：发送规划
+                if on_plan:
+                    await on_plan(plan_data)
 
-            logger.info(f"[Planning] 规划生成成功，共{len(plan_data['tasks'])}个任务，耗时: {time.time() - planning_start:.2f}s")
+                # ========== 阶段2: 执行（Execution）- 智能并行执行 ==========
+                # ✅ P1-7: 添加Execution阶段监控
+                execution_start = time.time()
+                logger.info("[Execution] 开始智能并行执行任务")
+                increment_counter("execution_phase_start")
 
-            # 回调：发送规划
-            if on_plan:
-                await on_plan(plan_data)
+                initial_context = f"用户请求：{message}\n\n"
 
-            # ========== 阶段2: 执行（Execution）- 智能并行执行 ==========
-            logger.info("[Execution] 开始智能并行执行任务")
-
-            initial_context = f"用户请求：{message}\n\n"
-
-            # 使用新的并行执行方法
-            task_results = await self._execute_tasks_in_parallel(
-                tasks=plan_data["tasks"],
-                work_id=work_id,
-                chapter_id=chapter_id,
-                context=initial_context,
-                on_task_start=on_task_start,
-                on_task_progress=on_task_progress,
-                on_task_done=on_task_done
-            )
-
-            # 构建完整上下文用于后续总结
-            all_context = initial_context
-            for result in task_results:
-                all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
-
-            logger.info(f"[Execution] 所有任务执行完成，共{len(task_results)}个任务")
-
-            # ========== 阶段3: 智能返回（Response） ==========
-            logger.info("[Response] 生成最终响应")
-
-            # 使用新的智能判断方法
-            final_content = await self._build_final_response(
-                task_results=task_results,
-                message=message,
-                on_content=on_content
-            )
-
-            # ========== 保存对话到checkpointer ==========
-            if conversation_id and self.checkpointer:
+                # 使用新的并行执行方法
+                # ✅ 为任务执行添加超时保护（4分钟，留1分钟给规划和总结）
                 try:
-                    # 构建新消息
-                    new_messages = [
+                    async with asyncio.timeout(240):
+                        task_results = await self._execute_tasks_in_parallel(
+                            tasks=plan_data["tasks"],
+                            work_id=work_id,
+                            chapter_id=chapter_id,
+                            context=initial_context,
+                            on_task_start=on_task_start,
+                            on_task_progress=on_task_progress,
+                            on_task_done=on_task_done
+                        )
+                except asyncio.TimeoutError:
+                    logger.error(f"[Execution] 任务执行超时（240秒）")
+                    return {
+                        "response": "抱歉，任务执行超时。请尝试简化您的请求。",
+                        "conversation_id": conversation_id or "default",
+                        "plan": plan_data,
+                        "task_results": [],
+                        "agent_steps": [],
+                        "suggested_actions": ["简化请求", "稍后重试"],
+                        "metadata": {"error": "Task execution timeout", "timeout": 240}
+                    }
+
+                # 构建完整上下文用于后续总结
+                all_context = initial_context
+                for result in task_results:
+                    all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
+
+                # ✅ P1-7: 记录Execution阶段完成
+                execution_duration = time.time() - execution_start
+                logger.info(f"[Execution] 所有任务执行完成，共{len(task_results)}个任务，耗时: {execution_duration:.2f}s")
+                increment_counter("execution_phase_completed")
+                record_timer("execution_phase_duration", execution_duration)
+
+                # ========== 阶段3: 智能返回（Response） ==========
+                logger.info("[Response] 生成最终响应")
+
+                # 使用新的智能判断方法
+                final_content = await self._build_final_response(
+                    task_results=task_results,
+                    message=message,
+                    on_content=on_content
+                )
+
+                # ========== 保存对话到checkpointer ==========
+                if conversation_id and self.checkpointer:
+                    try:
+                        # 构建新消息
+                        new_messages = [
                         HumanMessage(content=message),
                         AIMessage(content=final_content)
-                    ]
+                        ]
 
-                    # 从checkpointer加载现有消息
-                    config = {"configurable": {"thread_id": conversation_id, "checkpoint_ns": ""}}
-                    checkpoint_tuple = await self.checkpointer.aget_tuple(config)
+                        # 从checkpointer加载现有消息
+                        config = {"configurable": {"thread_id": conversation_id, "checkpoint_ns": ""}}
+                        checkpoint_tuple = await self.checkpointer.aget_tuple(config)
 
-                    existing_messages = []
-                    if checkpoint_tuple and checkpoint_tuple.checkpoint:
-                        existing_messages = checkpoint_tuple.checkpoint.get("channel_values", {}).get("messages", [])
+                        existing_messages = []
+                        if checkpoint_tuple and checkpoint_tuple.checkpoint:
+                            existing_messages = checkpoint_tuple.checkpoint.get("channel_values", {}).get("messages", [])
 
-                    # 合并消息
-                    all_messages = existing_messages + new_messages
+                            # 合并消息
+                            all_messages = existing_messages + new_messages
 
-                    # 构建新checkpoint
-                    checkpoint_id = str(uuid.uuid4())
-                    new_checkpoint = {
-                        "v": 1,
-                        "id": checkpoint_id,
-                        "ts": datetime.now().isoformat(),
-                        "channel_values": {
+                            # 构建新checkpoint
+                            checkpoint_id = str(uuid.uuid4())
+                            new_checkpoint = {
+                            "v": 1,
+                            "id": checkpoint_id,
+                            "ts": datetime.now().isoformat(),
+                            "channel_values": {
                             "messages": all_messages,
                             "work_id": work_id,
                             "chapter_id": chapter_id
-                        },
-                        "channel_versions": {
+                            },
+                            "channel_versions": {
                             "messages": checkpoint_id,
                             "work_id": checkpoint_id,
                             "chapter_id": checkpoint_id
-                        },
-                        "versions_seen": {
+                            },
+                            "versions_seen": {
                             "__start__": checkpoint_id
-                        }
-                    }
+                            }
+                            }
 
-                    # 构建new_versions（用于标识哪些channel被更新了）
-                    new_versions = {
-                        "messages": checkpoint_id,
-                        "work_id": checkpoint_id,
-                        "chapter_id": checkpoint_id
-                    }
+                            # 构建new_versions（用于标识哪些channel被更新了）
+                            new_versions = {
+                            "messages": checkpoint_id,
+                            "work_id": checkpoint_id,
+                            "chapter_id": checkpoint_id
+                            }
 
-                    # 保存checkpoint（提供完整的4个参数）
-                    await self.checkpointer.aput(config, new_checkpoint, {}, new_versions)
-                    logger.info(f"[Planning] 已保存 {len(new_messages)} 条新消息到checkpointer (总计: {len(all_messages)})")
-                except Exception as e:
-                    logger.warning(f"[Planning] 保存消息到checkpointer失败: {e}")
+                            # 保存checkpoint（提供完整的4个参数）
+                            await self.checkpointer.aput(config, new_checkpoint, {}, new_versions)
+                            logger.info(f"[Planning] 已保存 {len(new_messages)} 条新消息到checkpointer (总计: {len(all_messages)})")
+                    except Exception as e:
+                        logger.warning(f"[Planning] 保存消息到checkpointer失败: {e}")
+
+                return {
+                    "response": final_content,
+                    "conversation_id": conversation_id or "default",
+                    "plan": plan_data,
+                    "task_results": task_results,
+                    "agent_steps": [
+                        {"step": "planning", "result": f"生成了{len(plan_data['tasks'])}个任务"},
+                        {"step": "execution", "result": f"完成了{len(task_results)}个任务"},
+                        {"step": "summarization", "result": "生成最终响应"}
+                    ],
+                    "suggested_actions": [],
+                    "metadata": {
+                        "intent": plan_data.get("user_intent"),
+                        "total_tasks": len(plan_data["tasks"]),
+                        "completed_tasks": len([t for t in task_results if t["status"] == "completed"]),
+                        "timestamp": str(datetime.now())
+                    }
+                }
+
+        except asyncio.TimeoutError:
+            # 总体超时处理
+            elapsed = time.time() - start_time
+            logger.error(f"[Planning] 总体超时（{elapsed:.1f}秒，限制360秒）")
+            increment_counter("chat_with_planning_error", labels={"error_type": "TimeoutError"})
 
             return {
-                "response": final_content,
+                "response": f"抱歉，请求处理超时（超过6分钟）。您的请求可能过于复杂，建议：\n1. 简化请求内容\n2. 分步骤进行操作\n3. 稍后重试",
                 "conversation_id": conversation_id or "default",
-                "plan": plan_data,
-                "task_results": task_results,
-                "agent_steps": [
-                    {"step": "planning", "result": f"生成了{len(plan_data['tasks'])}个任务"},
-                    {"step": "execution", "result": f"完成了{len(task_results)}个任务"},
-                    {"step": "summarization", "result": "生成最终响应"}
-                ],
-                "suggested_actions": [],
+                "agent_steps": [],
+                "suggested_actions": ["简化请求", "分步操作", "稍后重试"],
                 "metadata": {
-                    "intent": plan_data.get("user_intent"),
-                    "total_tasks": len(plan_data["tasks"]),
-                    "completed_tasks": len([t for t in task_results if t["status"] == "completed"]),
-                    "timestamp": str(datetime.now())
+                    "error": "Overall timeout",
+                    "timeout_seconds": 360,
+                    "elapsed_seconds": elapsed
                 }
             }
 
@@ -2839,48 +3004,89 @@ class WritingAgentGraph:
                     if on_task_start:
                         await on_task_start(task)
 
-                    try:
-                        result = await self._execute_task(
-                            task=task,
-                            work_id=work_id,
-                            chapter_id=chapter_id,
-                            context=all_context,
-                            on_progress=on_task_progress
-                        )
+                    # ✅ P1-5: 添加重试机制（最多3次尝试）
+                    max_retries = 2
+                    last_error = None
 
-                        logger.info(f"[ParallelExecution] 并行任务{task_id}完成")
+                    for retry_count in range(max_retries + 1):
+                        try:
+                            result = await self._execute_task(
+                                task=task,
+                                work_id=work_id,
+                                chapter_id=chapter_id,
+                                context=all_context,
+                                on_progress=on_task_progress
+                            )
 
-                        if on_task_done:
-                            await on_task_done(task, result)
+                            logger.info(f"[ParallelExecution] 并行任务{task_id}完成" + (f"（重试{retry_count}次后成功）" if retry_count > 0 else ""))
 
-                        return {
-                            "task_id": task_id,
-                            "description": description,
-                            "tool": tool_name,  # 添加工具名称
-                            "result": result,
-                            "status": "completed"
-                        }
-                    except Exception as e:
-                        logger.error(f"[ParallelExecution] 并行任务{task_id}失败: {e}")
-                        return {
-                            "task_id": task_id,
-                            "description": description,
-                            "tool": tool_name,  # 添加工具名称
-                            "result": f"错误: {str(e)}",
-                            "status": "failed"
-                        }
+                            if on_task_done:
+                                await on_task_done(task, result)
+
+                            return {
+                                "task_id": task_id,
+                                "description": description,
+                                "tool": tool_name,
+                                "result": result,
+                                "status": "completed"
+                            }
+
+                        except Exception as e:
+                            last_error = e
+
+                            # 判断是否为可重试的错误（网络相关）
+                            is_retryable = any(keyword in str(e).lower() for keyword in [
+                                "timeout", "connection", "network", "网络", "连接", "超时"
+                            ])
+
+                            if is_retryable and retry_count < max_retries:
+                                wait_time = 2 ** (retry_count + 1)  # 指数退避：2, 4, 8秒
+                                logger.warning(f"[ParallelExecution] 任务{task_id}失败（{e}），{wait_time}秒后重试（{retry_count + 1}/{max_retries}）")
+                                await asyncio.sleep(wait_time)
+                            else:
+                                # 不可重试或已达最大次数
+                                logger.error(f"[ParallelExecution] 并行任务{task_id}最终失败: {last_error}")
+                                return {
+                                    "task_id": task_id,
+                                    "description": description,
+                                    "tool": tool_name,
+                                    "result": f"错误: {str(last_error)}",
+                                    "status": "failed"
+                                }
+
+                    # 如果所有重试都失败
+                    return {
+                        "task_id": task_id,
+                        "description": description,
+                        "tool": tool_name,
+                        "result": f"错误: {str(last_error)}（已重试{max_retries}次）",
+                        "status": "failed"
+                    }
 
             # 并行执行所有独立任务
+            # ✅ P0-4: 修复 return_exceptions=True，避免一个任务失败导致所有任务取消
             parallel_results = await asyncio.gather(
                 *[execute_with_semaphore(task) for task in parallel_tasks],
-                return_exceptions=False
+                return_exceptions=True
             )
 
-            task_results.extend(parallel_results)
-
-            # 更新上下文
-            for result in parallel_results:
-                all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
+            # ✅ P0-4: 处理可能的异常结果（因为 return_exceptions=True）
+            for i, result in enumerate(parallel_results):
+                if isinstance(result, Exception):
+                    # 异常结果 - 创建失败的任务记录
+                    logger.error(f"[ParallelExecution] 并行任务失败: {result}")
+                    failed_task = {
+                        "task_id": parallel_tasks[i]["task_id"] if i < len(parallel_tasks) else "unknown",
+                        "result": f"任务执行失败: {str(result)}",
+                        "status": "failed",
+                        "error": str(result)
+                    }
+                    task_results.append(failed_task)
+                    all_context += f"\n任务{failed_task['task_id']}失败：{str(result)}\n"
+                else:
+                    # 正常结果
+                    task_results.append(result)
+                    all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
 
         # 第2批：串行执行依赖任务（它们可能需要前面的结果）
         if sequential_tasks:
@@ -2896,37 +3102,63 @@ class WritingAgentGraph:
                 if on_task_start:
                     await on_task_start(task)
 
-                try:
-                    result = await self._execute_task(
-                        task=task,
-                        work_id=work_id,
-                        chapter_id=chapter_id,
-                        context=all_context,
-                        on_progress=on_task_progress
-                    )
+                # ✅ P1-5: 为串行任务也添加重试机制
+                max_retries = 2
+                last_error = None
+                task_succeeded = False
 
+                for retry_count in range(max_retries + 1):
+                    try:
+                        result = await self._execute_task(
+                            task=task,
+                            work_id=work_id,
+                            chapter_id=chapter_id,
+                            context=all_context,
+                            on_progress=on_task_progress
+                        )
+
+                        task_results.append({
+                            "task_id": task_id,
+                            "description": description,
+                            "tool": tool_name,
+                            "result": result,
+                            "status": "completed"
+                        })
+
+                        all_context += f"\n任务{task_id}结果：\n{result}\n"
+
+                        logger.info(f"[ParallelExecution] 串行任务{task_id}完成" + (f"（重试{retry_count}次后成功）" if retry_count > 0 else ""))
+
+                        if on_task_done:
+                            await on_task_done(task, result)
+
+                        task_succeeded = True
+                        break  # 成功，退出重试循环
+
+                    except Exception as e:
+                        last_error = e
+
+                        # 判断是否为可重试的错误（网络相关）
+                        is_retryable = any(keyword in str(e).lower() for keyword in [
+                            "timeout", "connection", "network", "网络", "连接", "超时"
+                        ])
+
+                        if is_retryable and retry_count < max_retries:
+                            wait_time = 2 ** (retry_count + 1)
+                            logger.warning(f"[ParallelExecution] 串行任务{task_id}失败（{e}），{wait_time}秒后重试（{retry_count + 1}/{max_retries}）")
+                            await asyncio.sleep(wait_time)
+                        else:
+                            # 不可重试或已达最大次数
+                            break
+
+                # 如果所有重试都失败
+                if not task_succeeded:
+                    logger.error(f"[ParallelExecution] 串行任务{task_id}最终失败: {last_error}")
                     task_results.append({
                         "task_id": task_id,
                         "description": description,
-                        "tool": tool_name,  # 添加工具名称
-                        "result": result,
-                        "status": "completed"
-                    })
-
-                    all_context += f"\n任务{task_id}结果：\n{result}\n"
-
-                    logger.info(f"[ParallelExecution] 串行任务{task_id}完成")
-
-                    if on_task_done:
-                        await on_task_done(task, result)
-
-                except Exception as e:
-                    logger.error(f"[ParallelExecution] 串行任务{task_id}失败: {e}")
-                    task_results.append({
-                        "task_id": task_id,
-                        "description": description,
-                        "tool": tool_name,  # 添加工具名称
-                        "result": f"错误: {str(e)}",
+                        "tool": tool_name,
+                        "result": f"错误: {str(last_error)}",
                         "status": "failed"
                     })
 
@@ -3119,17 +3351,32 @@ class WritingAgentGraph:
 
 请生成最终响应："""
 
-        final_content = ""
-        async for chunk, _ in self.ai_service._stream_chat(
-            messages=[{"role": "user", "content": summary_prompt}],
-            max_tokens=2000,
-            temperature=0.7,
-            task_type=TaskType.SUMMARIZATION
-        ):
-            if chunk:
-                final_content += chunk
-                if on_content:
-                    await on_content(chunk)
+        # ✅ P1-6: 为Summarization阶段添加60秒独立超时
+        try:
+            final_content = ""
+            async with asyncio.timeout(60):
+                async for chunk, _ in self.ai_service._stream_chat(
+                    messages=[{"role": "user", "content": summary_prompt}],
+                    max_tokens=2000,
+                    temperature=0.7,
+                    task_type=TaskType.SUMMARIZATION
+                ):
+                    if chunk:
+                        final_content += chunk
+                        if on_content:
+                            await on_content(chunk)
+
+        except asyncio.TimeoutError:
+            logger.error("[Summarization] AI整合超时（60秒）")
+            increment_counter("ai_summarization_error", labels={"error_type": "TimeoutError"})
+            # 返回简单的任务结果拼接作为fallback
+            fallback_content = f"抱歉，AI整合超时。以下是任务结果摘要：\n\n"
+            for result in task_results:
+                fallback_content += f"- 任务{result['task_id']}: {result.get('description', 'N/A')}\n"
+                if result.get('status') == 'completed':
+                    result_text = str(result.get('result', ''))[:200]
+                    fallback_content += f"  结果: {result_text}...\n"
+            return fallback_content
 
         return final_content
 

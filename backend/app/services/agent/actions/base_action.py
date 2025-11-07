@@ -168,32 +168,44 @@ class BaseAction(ABC):
             metadata={"action_name": self.name}
         )
 
-    @abstractmethod
     async def execute(self, state: Dict[str, Any]) -> ActionResult:
         """
-        执行Action的核心逻辑(抽象方法,子类必须实现)
+        执行Action的核心逻辑（已废弃，建议使用prepare()）
 
-        ⚠️ 注意：这是旧架构的方法，将逐步被prepare()替代
+        ⚠️⚠️⚠️ 废弃警告 ⚠️⚠️⚠️
+        此方法已被 prepare() 方法替代，将在未来版本中移除。
 
-        新架构推荐使用prepare()方法，该方法仅准备参数，不调用LLM。
-        execute()方法会在未来版本中废弃。
+        新架构说明：
+        - prepare()：仅准备参数和Prompt，不调用LLM（推荐）
+        - execute()：旧方法，包含LLM调用逻辑（已废弃）
+
+        迁移指南：
+        1. 将LLM调用逻辑移到外部（由LangGraph框架处理）
+        2. 在prepare()中只做参数提取和Prompt构建
+        3. 返回ActionResult，包含system_prompt和metadata
 
         Args:
-            state: 当前AgentState,包含:
-                - messages: 对话历史
-                - work_id: 作品ID
-                - chapter_id: 章节ID
-                - intent: 用户意图
-                - context: 上下文信息
-                - agent_steps: 执行步骤
+            state: 当前AgentState
 
         Returns:
-            ActionResult: 执行结果
-
-        Raises:
-            Exception: 执行过程中的任何异常
+            ActionResult: 默认返回失败，提示使用prepare()
         """
-        pass
+        logger.warning(f"[{self.name}] execute()方法已废弃，请使用prepare()方法")
+
+        # 尝试调用prepare()作为fallback
+        try:
+            result = await self.prepare(state)
+            if result.status != ActionStatus.FAILED:
+                return result
+        except Exception as e:
+            logger.debug(f"[{self.name}] prepare()调用失败: {e}")
+
+        # 返回错误提示
+        return ActionResult(
+            status=ActionStatus.FAILED,
+            error=f"{self.name}: execute()方法已废弃，请使用prepare()方法",
+            metadata={"action_name": self.name, "deprecated": True}
+        )
 
     async def validate_input(self, state: Dict[str, Any]) -> bool:
         """
