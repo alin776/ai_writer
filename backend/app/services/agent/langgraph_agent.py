@@ -995,13 +995,12 @@ class WritingAgentGraph:
                     messages = [HumanMessage(content=prompt)]
 
                     # 调用ChatOpenAI（会触发MonitoringCallbackHandler）
-                    response = await self.llm.ainvoke(
-                        messages,
-                        config={
-                            "temperature": temperature,
-                            "max_tokens": max_tokens
-                        }
+                    # ✅ 使用 bind() 动态绑定参数，确保 temperature 和 max_tokens 生效
+                    llm_with_params = self.llm.bind(
+                        temperature=temperature,
+                        max_tokens=max_tokens
                     )
+                    response = await llm_with_params.ainvoke(messages)
 
                     generated_text = response.content
 
@@ -1329,15 +1328,14 @@ class WritingAgentGraph:
 
             logger.info(f"[LangGraph] {agent_type} 最终响应使用模型: task_type={selected_task_type.value}")
 
-            final_text = ""
-            async for chunk, _ in self.ai_service._stream_chat(
-                messages=[{"role": "user", "content": final_prompt}],
+            # ✅ 使用 _generate_text 以支持 ChatOpenAI/HTTPAIService 双模式
+            result = await self._generate_text(
+                prompt=final_prompt,
                 max_tokens=1500,
                 temperature=0.7,
                 task_type=selected_task_type  # 智能选择的task_type
-            ):
-                if chunk:
-                    final_text += chunk
+            )
+            final_text = result.get("text", "")
 
             response = AIMessage(content=final_text)
             # ✅ 只返回新消息，避免 operator.add 重复添加
@@ -1426,15 +1424,14 @@ class WritingAgentGraph:
 
 现在请处理当前用户请求："""
 
-        decision_text = ""
-        async for chunk, _ in self.ai_service._stream_chat(
-            messages=[{"role": "user", "content": decision_prompt}],
+        # ✅ 使用 _generate_text 以支持 ChatOpenAI/HTTPAIService 双模式
+        result = await self._generate_text(
+            prompt=decision_prompt,
             max_tokens=500,
             temperature=0.3,
-            task_type=TaskType.SIMPLE_QA  # 工具决策任务，使用flash
-        ):
-            if chunk:
-                decision_text += chunk
+            task_type=TaskType.SIMPLE_QA  # 工具决策任务
+        )
+        decision_text = result.get("text", "")
 
         # 解析决策
         import json
@@ -3354,18 +3351,19 @@ class WritingAgentGraph:
 
         # ✅ P1-6: 为Summarization阶段添加60秒独立超时
         try:
-            final_content = ""
             async with asyncio.timeout(60):
-                async for chunk, _ in self.ai_service._stream_chat(
-                    messages=[{"role": "user", "content": summary_prompt}],
+                # ✅ 使用 _generate_text 以支持 ChatOpenAI/HTTPAIService 双模式
+                result = await self._generate_text(
+                    prompt=summary_prompt,
                     max_tokens=2000,
                     temperature=0.7,
                     task_type=TaskType.SUMMARIZATION
-                ):
-                    if chunk:
-                        final_content += chunk
-                        if on_content:
-                            await on_content(chunk)
+                )
+                final_content = result.get("text", "")
+
+                # 如果有流式回调，发送完整内容
+                if on_content and final_content:
+                    await on_content(final_content)
 
         except asyncio.TimeoutError:
             logger.error("[Summarization] AI整合超时（60秒）")
@@ -3528,16 +3526,14 @@ class WritingAgentGraph:
             # 调用 AI 识别意图
             logger.info(f"[Intent] 开始识别意图: {user_message[:50]}...")
 
-            # 使用 _stream_chat 获取响应
-            response_text = ""
-            async for chunk, _ in self.ai_service._stream_chat(
-                messages=[{"role": "user", "content": intent_prompt}],
+            # ✅ 使用 _generate_text 以支持 ChatOpenAI/HTTPAIService 双模式
+            result = await self._generate_text(
+                prompt=intent_prompt,
                 max_tokens=300,
                 temperature=0.3,
                 task_type=TaskType.TEXT_CLASSIFICATION
-            ):
-                if chunk:
-                    response_text += chunk
+            )
+            response_text = result.get("text", "")
 
             # 解析 JSON 响应
             # 尝试从响应中提取 JSON

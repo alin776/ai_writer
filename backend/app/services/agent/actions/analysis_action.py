@@ -118,61 +118,6 @@ class AnalysisAction(BaseAction):
                 metadata={"action": "analysis"}
             )
 
-    async def execute(self, state: Dict[str, Any]) -> ActionResult:
-        """
-        执行分析逻辑（旧架构方法）
-
-        ⚠️ TODO: 迁移到prepare()后删除此方法
-
-        这是旧架构的execute()方法，虽然不直接调用LLM，但会被run()包装。
-        新架构使用prepare()方法替代，语义更清晰。
-
-        保留此方法仅为向后兼容，待所有Action迁移完成后删除。
-
-        主要流程:
-        1. 提取上下文信息
-        2. 生成系统Prompt
-        3. 返回结果(实际工具调用由LangGraph处理)
-
-        Args:
-            state: AgentState
-
-        Returns:
-            ActionResult: 执行结果
-        """
-        try:
-            # 1. 提取上下文
-            work_id = state.get("work_id")
-            chapter_id = state.get("chapter_id")
-            messages = state.get("messages", [])
-
-            self.logger.info(f"[{self.name}] work_id={work_id}, chapter_id={chapter_id}")
-
-            # 2. 生成系统Prompt
-            system_prompt = self._build_system_prompt(work_id, chapter_id)
-
-            # 3. 返回结果
-            return ActionResult(
-                status=ActionStatus.COMPLETED,
-                data={
-                    "system_prompt": system_prompt,
-                    "agent_type": "analysis"
-                },
-                metadata={
-                    "action": "analysis",
-                    "work_id": work_id,
-                    "chapter_id": chapter_id
-                }
-            )
-
-        except Exception as e:
-            self.logger.error(f"[{self.name}] 执行失败: {e}", exc_info=True)
-            return ActionResult(
-                status=ActionStatus.FAILED,
-                error=str(e),
-                metadata={"action": "analysis"}
-            )
-
     def _build_system_prompt(
         self,
         work_id: str = None,
