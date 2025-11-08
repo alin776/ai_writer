@@ -190,7 +190,6 @@ async def _generate_text_helper(
                 return f"错误：AI服务调用超时，已重试{max_retries}次"
 
             # 等待后重试（指数退避）
-            import asyncio
             await asyncio.sleep(2 ** retry_count)
 
         except Exception as e:
@@ -201,7 +200,6 @@ async def _generate_text_helper(
                 return f"错误：AI服务调用失败，已重试{max_retries}次。错误信息：{str(e)}"
 
             # 等待后重试（指数退避）
-            import asyncio
             await asyncio.sleep(2 ** retry_count)
 
     return generated_text or "错误：生成内容为空"
@@ -3465,11 +3463,23 @@ class WritingAgentGraph:
                 "chapter_id": params.get("chapter_id") or chapter_id or ""
             })
         elif tool_name == "search_analysis_fragments_tool":
-            result = await search_analysis_fragments_tool.ainvoke({
-                "work_id": work_id,
-                "query": params.get("query", "相关内容"),
-                "top_k": params.get("top_k", 5)
-            })
+            # 验证work_id参数（必需）
+            if not work_id:
+                logger.warning(
+                    f"[_execute_task] search_analysis_fragments_tool 需要 work_id 参数，"
+                    f"但当前 work_id 为空。任务描述: {task.get('description', 'N/A')}"
+                )
+                result = json.dumps({
+                    "error": "需要指定作品ID才能检索分析片段",
+                    "message": "请在聊天时指定作品ID，或在作品详情页使用此功能",
+                    "tool": "search_analysis_fragments_tool"
+                }, ensure_ascii=False, indent=2)
+            else:
+                result = await search_analysis_fragments_tool.ainvoke({
+                    "work_id": work_id,
+                    "query": params.get("query", "相关内容"),
+                    "top_k": params.get("top_k", 5)
+                })
         elif tool_name == "continue_writing_tool":
             result = await continue_writing_tool.ainvoke({
                 "context": params.get("context", context),
