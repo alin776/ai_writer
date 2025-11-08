@@ -163,8 +163,8 @@ async def _generate_text_helper(
 
     while retry_count < max_retries:
         try:
-            # ✅ 为单次LLM调用添加超时保护（60秒）
-            async with asyncio.timeout(60):
+            # ✅ 为单次LLM调用添加超时保护（120秒，匹配_generate_text）
+            async with asyncio.timeout(120):
                 async for chunk, _ in _global_ai_service._stream_chat(
                     messages=messages,
                     max_tokens=max_tokens,
@@ -184,7 +184,7 @@ async def _generate_text_helper(
 
         except asyncio.TimeoutError:
             retry_count += 1
-            logger.error(f"[_generate_text_helper] 生成超时（60秒）(尝试 {retry_count}/{max_retries})")
+            logger.error(f"[_generate_text_helper] 生成超时（120秒）(尝试 {retry_count}/{max_retries})")
 
             if retry_count >= max_retries:
                 return f"错误：AI服务调用超时，已重试{max_retries}次"
@@ -765,8 +765,11 @@ class WritingAgentGraph:
 
         # 初始化上下文管理器（用于chat_stream的长对话管理）
         from app.services.context import ContextManager
-        self.context_manager = ContextManager()
-        logger.info("[LangGraph] ✅ ContextManager已初始化")
+        self.context_manager = ContextManager(
+            ai_service=self.ai_service,  # 传入AI服务（用于LLM摘要）
+            enable_long_term_memory=True  # 启用长期记忆
+        )
+        logger.info("[LangGraph] ✅ ContextManager已初始化（长期记忆已启用）")
 
         # 初始化Prompt管理器（用于统一管理各类Agent的Prompt模板）
         from app.prompts import get_prompt_manager
@@ -853,6 +856,7 @@ class WritingAgentGraph:
             api_key=settings.OPENAI_API_KEY,
             base_url=settings.OPENAI_BASE_URL,
             temperature=0.7,
+            request_timeout=120,  # ← 明确设置120秒超时，避免双重超时冲突
             http_client=sync_http_client,
             http_async_client=async_http_client,
             callbacks=[monitoring_callback]  # ← 添加监控回调
@@ -983,9 +987,11 @@ class WritingAgentGraph:
         Returns:
             dict: {"text": str, "usage": dict}
         """
-        # ✅ P0-1: 添加60秒超时保护
+        from app.services.agent.utils.monitoring import increment_counter
+
+        # ✅ P0-1: 添加120秒超时保护（匹配ChatOpenAI的request_timeout）
         try:
-            async with asyncio.timeout(60):
+            async with asyncio.timeout(120):
                 # 🔧 修复：根据use_chatgpt选择使用ChatOpenAI还是HTTPAIService
                 if self.use_chatgpt:
                     # 模式1：使用ChatOpenAI（触发监控）
@@ -1047,12 +1053,12 @@ class WritingAgentGraph:
         except asyncio.TimeoutError:
             # 超时处理
             mode = "ChatOpenAI" if self.use_chatgpt else "HTTPAIService"
-            logger.error(f"[_generate_text] {mode} LLM调用超时（60秒）")
+            logger.error(f"[_generate_text] {mode} LLM调用超时（120秒）")
             increment_counter("generate_text_error", labels={"error_type": "TimeoutError", "mode": mode})
 
             # 返回错误结果
             return {
-                "text": f"抱歉，AI响应超时（超过60秒）。请稍后重试。",
+                "text": f"抱歉，AI响应超时（超过120秒）。请稍后重试。",
                 "usage": {},
                 "error": "timeout"
             }
@@ -1983,6 +1989,7 @@ class WritingAgentGraph:
     async def chat_stream(
         self,
         message: str,
+        user_id: Optional[str] = None,  # 新增：用户ID（用于长期记忆隔离）
         work_id: Optional[str] = None,
         chapter_id: Optional[str] = None,
         conversation_id: Optional[str] = None,
@@ -1996,6 +2003,7 @@ class WritingAgentGraph:
 
         Args:
             message: 用户消息
+            user_id: 用户ID（用于长期记忆隔离）
             work_id: 作品ID
             chapter_id: 章节ID
             conversation_id: 会话ID
@@ -2029,6 +2037,11 @@ class WritingAgentGraph:
 
         # 🔧 新增：构建上下文（加载历史对话）
         session_id = conversation_id or "default"
+
+        # 动态设置user_id（用于长期记忆隔离）
+        if user_id:
+            self.context_manager.user_id = user_id
+            logger.info(f"[Context] 设置用户ID: {user_id}")
 
         # 🔧 监控：意图识别计时
         intent_start = time.time()
@@ -2111,7 +2124,8 @@ class WritingAgentGraph:
 
         context_bundle = await self.context_manager.build_context(
             session_id=session_id,
-            system_prompt=system_prompt
+            system_prompt=system_prompt,
+            query=message  # 新增：触发长期记忆检索
         )
 
         # 🔧 监控：记录上下文构建耗时
@@ -3314,6 +3328,8 @@ class WritingAgentGraph:
         Returns:
             AI整合后的最终响应
         """
+        from app.services.agent.utils.monitoring import increment_counter
+
         logger.info("[Summarization] 使用AI整合任务结果")
 
         # 构建完整上下文
@@ -3325,7 +3341,7 @@ class WritingAgentGraph:
         compressed_context = _build_summarization_context(
             user_message=message,
             task_results=task_results,
-            max_context_length=8000  # 提高上下文限制，Gemini 2.5 Pro可以处理更多tokens
+            max_context_length=6000  # 减少到6000字符，提高响应速度，避免超时
         )
 
         logger.info(
@@ -3347,33 +3363,32 @@ class WritingAgentGraph:
 
 请生成最终响应："""
 
-        # ✅ P1-6: 为Summarization阶段添加60秒独立超时
-        try:
-            async with asyncio.timeout(60):
-                # ✅ 使用 _generate_text 以支持 ChatOpenAI/HTTPAIService 双模式
-                result = await self._generate_text(
-                    prompt=summary_prompt,
-                    max_tokens=2000,
-                    temperature=0.7,
-                    task_type=TaskType.SUMMARIZATION
-                )
-                final_content = result.get("text", "")
+        # ✅ 直接调用 _generate_text（内部已有120秒超时保护）
+        result = await self._generate_text(
+            prompt=summary_prompt,
+            max_tokens=2000,
+            temperature=0.7,
+            task_type=TaskType.SUMMARIZATION
+        )
 
-                # 如果有流式回调，发送完整内容
-                if on_content and final_content:
-                    await on_content(final_content)
-
-        except asyncio.TimeoutError:
-            logger.error("[Summarization] AI整合超时（60秒）")
-            increment_counter("ai_summarization_error", labels={"error_type": "TimeoutError"})
+        # 检查是否有错误（超时或其他异常）
+        if "error" in result:
+            logger.warning(f"[Summarization] _generate_text 失败: {result.get('error')}")
+            increment_counter("ai_summarization_error", labels={"error_type": result.get('error', 'unknown')})
             # 返回简单的任务结果拼接作为fallback
-            fallback_content = f"抱歉，AI整合超时。以下是任务结果摘要：\n\n"
-            for result in task_results:
-                fallback_content += f"- 任务{result['task_id']}: {result.get('description', 'N/A')}\n"
-                if result.get('status') == 'completed':
-                    result_text = str(result.get('result', ''))[:200]
+            fallback_content = f"抱歉，AI整合失败。以下是任务结果摘要：\n\n"
+            for task_result in task_results:
+                fallback_content += f"- 任务{task_result['task_id']}: {task_result.get('description', 'N/A')}\n"
+                if task_result.get('status') == 'completed':
+                    result_text = str(task_result.get('result', ''))[:200]
                     fallback_content += f"  结果: {result_text}...\n"
             return fallback_content
+
+        final_content = result.get("text", "")
+
+        # 如果有流式回调，发送完整内容
+        if on_content and final_content:
+            await on_content(final_content)
 
         return final_content
 

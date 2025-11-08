@@ -139,6 +139,7 @@ async def agent_react_stream(
                 try:
                     result = await agent_graph.chat_stream(
                         message=request.message,
+                        user_id=user_id,  # 新增：传入用户ID
                         work_id=request.work_id,
                         chapter_id=request.chapter_id,
                         conversation_id=conversation_id,
