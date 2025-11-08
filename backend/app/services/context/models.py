@@ -69,16 +69,68 @@ class SummaryMemory:
 
 @dataclass
 class LongTermMemory:
-    """长期记忆 - 向量存储（可选，暂未实现）"""
+    """长期记忆 - 向量存储"""
     enabled: bool = False
     vector_store: Optional[Any] = None
 
-    def search(self, query: str, top_k: int = 3) -> List[str]:
-        """检索相关记忆"""
+    async def search(self, query: str, user_id: str, top_k: int = 3) -> List[str]:
+        """
+        检索相关记忆
+
+        Args:
+            query: 查询文本
+            user_id: 用户ID（用于过滤）
+            top_k: 返回结果数量
+
+        Returns:
+            相关记忆内容列表
+        """
         if not self.enabled or not self.vector_store:
             return []
-        # TODO: 实现向量检索
-        return []
+
+        # 调用向量检索
+        results = await self.vector_store.search_memories(
+            query=query,
+            user_id=user_id,
+            top_k=top_k,
+            min_similarity=0.3  # 本地模型阈值
+        )
+
+        return [r["content"] for r in results]
+
+    async def add_memory(
+        self,
+        content: str,
+        user_id: str,
+        session_id: Optional[str] = None,
+        memory_type: str = "general",
+        importance: float = 0.5
+    ) -> Optional[str]:
+        """
+        添加记忆到长期存储
+
+        Args:
+            content: 记忆内容
+            user_id: 用户ID
+            session_id: 会话ID（可选）
+            memory_type: 记忆类型
+            importance: 重要度（0.0-1.0）
+
+        Returns:
+            记忆ID（如果成功）
+        """
+        if not self.enabled or not self.vector_store:
+            return None
+
+        memory_id = await self.vector_store.add_memory(
+            content=content,
+            user_id=user_id,
+            session_id=session_id,
+            memory_type=memory_type,
+            importance=importance
+        )
+
+        return memory_id
 
 
 @dataclass

@@ -22,6 +22,15 @@ from app.services.context.token_counter import (
     TokenCounter,
     count_tokens
 )
+from app.services.context.vector_memory_store import (
+    VectorMemoryStore,
+    get_vector_memory_store
+)
+from app.services.context.adaptive_budget import (
+    AdaptiveBudget,
+    TaskType,
+    get_adaptive_budget
+)
 
 __all__ = [
     "Message",
@@ -36,4 +45,9 @@ __all__ = [
     "ContextManager",
     "TokenCounter",
     "count_tokens",
+    "VectorMemoryStore",
+    "get_vector_memory_store",
+    "AdaptiveBudget",
+    "TaskType",
+    "get_adaptive_budget",
 ]
