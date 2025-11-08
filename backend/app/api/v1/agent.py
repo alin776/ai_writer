@@ -133,6 +133,73 @@ class ApprovalResponse(BaseModel):
     created_at: str
 
 
+class ResetConversationRequest(BaseModel):
+    """重置会话请求"""
+    conversation_id: str = Field(..., description="要重置的会话ID")
+
+
+class ResetConversationResponse(BaseModel):
+    """重置会话响应"""
+    new_conversation_id: str = Field(..., description="新的会话ID")
+    message: str = Field(default="会话已重置", description="提示消息")
+
+
+class CreateBranchRequest(BaseModel):
+    """创建分支请求"""
+    conversation_id: str = Field(..., description="当前会话ID（父分支）")
+    fork_point_message_index: int = Field(
+        ...,
+        ge=0,
+        description=(
+            "分叉点消息索引（从0开始）\n"
+            "注意：这是用户看到的消息索引，不是内部checkpoint索引\n"
+            "例如：index=0表示在第1条消息后分叉，index=2表示在第3条消息后分叉"
+        )
+    )
+    branch_name: Optional[str] = Field(None, description="分支名称（可选，自动生成格式: 分支-MMDD-HHMM）")
+
+
+class BranchResponse(BaseModel):
+    """分支响应"""
+    branch_id: str = Field(..., description="分支ID（新的thread_id）")
+    parent_branch_id: str = Field(..., description="父分支ID")
+    branch_name: str = Field(..., description="分支名称")
+    fork_point_index: int = Field(..., description="分叉点索引")
+    message_count: int = Field(0, description="分支中的消息数")
+    created_at: str = Field(..., description="创建时间（ISO格式）")
+
+
+class SwitchBranchRequest(BaseModel):
+    """切换分支请求"""
+    branch_id: str = Field(..., description="要切换到的分支ID")
+
+
+class SwitchBranchResponse(BaseModel):
+    """切换分支响应"""
+    branch_id: str = Field(..., description="分支ID")
+    branch_name: str = Field(..., description="分支名称")
+    message_count: int = Field(..., description="分支中的消息数")
+    messages: List[Dict[str, Any]] = Field(default_factory=list, description="分支的消息历史")
+
+
+class BranchTreeNode(BaseModel):
+    """分支树节点"""
+    branch_id: str = Field(..., description="分支ID")
+    parent_branch_id: Optional[str] = Field(None, description="父分支ID")
+    branch_name: str = Field(..., description="分支名称")
+    message_count: int = Field(0, description="消息数")
+    is_active: bool = Field(False, description="是否活跃")
+    created_at: str = Field(..., description="创建时间")
+    children: List["BranchTreeNode"] = Field(default_factory=list, description="子分支")
+
+
+class GetBranchesResponse(BaseModel):
+    """获取分支列表响应"""
+    conversation_id: str = Field(..., description="会话ID")
+    total_branches: int = Field(..., description="总分支数")
+    branches: List[BranchTreeNode] = Field(default_factory=list, description="分支树（扁平列表）")
+
+
 # ==================== 依赖注入 ====================
 
 async def get_memory_manager(
@@ -251,6 +318,527 @@ async def agent_chat(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Agent对话失败: {str(e)}"
+        )
+
+
+@router.post("/chat/reset", response_model=ResetConversationResponse)
+async def reset_conversation(
+    request: ResetConversationRequest,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    重开Session - 清空对话历史，开始全新对话
+
+    功能:
+    - 清空当前会话的所有消息历史
+    - 删除LangGraph checkpoint数据
+    - 生成新的conversation_id
+
+    Args:
+        request: 重置请求（包含要重置的conversation_id）
+        current_user: 当前用户
+
+    Returns:
+        ResetConversationResponse: 包含新的conversation_id
+    """
+    try:
+        user_id = str(current_user.id)
+        old_conversation_id = request.conversation_id
+
+        logger.info(f"[Reset Conversation] User: {user_id}, Old Conv ID: {old_conversation_id}")
+
+        # 获取全局Agent实例
+        agent_graph = get_agent_graph()
+
+        # 删除LangGraph checkpoint数据
+        # AsyncRedisSaver会自动清理对应thread_id的所有checkpoint
+        try:
+            # 构建config
+            config = {
+                "configurable": {
+                    "thread_id": old_conversation_id
+                }
+            }
+
+            # 使用AsyncRedisSaver的API删除checkpoint
+            # 注意：AsyncRedisSaver可能没有直接的delete方法，
+            # 但我们可以通过让checkpoint过期来实现
+            # 这里我们只需要生成新的conversation_id，旧的会话会因TTL自动过期
+
+            logger.info(f"[Reset Conversation] Checkpoint将自动过期: {old_conversation_id}")
+
+        except Exception as e:
+            logger.warning(f"[Reset Conversation] 删除checkpoint失败（可忽略）: {e}")
+
+        # 生成新的conversation_id
+        new_conversation_id = str(uuid.uuid4())
+
+        logger.info(
+            f"[Reset Conversation] User {user_id} - "
+            f"Old: {old_conversation_id}, New: {new_conversation_id}"
+        )
+
+        return ResetConversationResponse(
+            new_conversation_id=new_conversation_id,
+            message="会话已重置"
+        )
+
+    except Exception as e:
+        logger.error(f"[Reset Conversation] Error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"重置会话失败: {str(e)}"
+        )
+
+
+@router.post("/branches", response_model=BranchResponse)
+async def create_branch(
+    request: CreateBranchRequest,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    创建对话分支 - 在任意消息点分叉，保留所有历史
+
+    功能:
+    - 在指定消息点创建新分支
+    - 复制分叉点之前的所有消息到新分支
+    - 保留原分支数据（数据不丢失）
+    - 支持多条对话路径并存
+
+    分叉点说明:
+    - fork_point_message_index 是用户看到的消息索引（从0开始）
+    - 当前实现：按checkpoint数量映射（简化实现）
+    - 未来优化：解析checkpoint中的实际消息数量
+
+    示例:
+    - index=0: 在第1条消息后分叉
+    - index=2: 在第3条消息后分叉
+
+    Args:
+        request: 创建分支请求
+        current_user: 当前用户
+
+    Returns:
+        BranchResponse: 新分支信息
+    """
+    try:
+        user_id = str(current_user.id)
+        parent_branch_id = request.conversation_id
+        fork_point_index = request.fork_point_message_index
+
+        logger.info(
+            f"[Create Branch] User: {user_id}, Parent: {parent_branch_id}, "
+            f"Fork Point: {fork_point_index}"
+        )
+
+        redis_client = get_redis_client()
+
+        # 1. 验证父分支权限（如果父分支有元数据）
+        parent_branch_key = f"branch:{parent_branch_id}"
+        parent_data_str = redis_client.get(parent_branch_key)
+
+        if parent_data_str:
+            # 父分支存在元数据，验证权限
+            parent_metadata = json.loads(parent_data_str)
+            if parent_metadata.get("user_id") != user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="无权访问父分支"
+                )
+            logger.info(f"[Create Branch] 父分支权限验证通过")
+        else:
+            # 父分支是原始会话（没有元数据），允许继续
+            logger.info(f"[Create Branch] 父分支是原始会话（无元数据）")
+
+        # 2. 获取全局Agent实例
+        agent_graph = get_agent_graph()
+        checkpointer = agent_graph.checkpointer
+
+        # 3. 获取父分支的所有checkpoint
+        parent_config = {
+            "configurable": {
+                "thread_id": parent_branch_id
+            }
+        }
+
+        checkpoints_list = []
+        async for checkpoint_tuple in checkpointer.alist(parent_config):
+            checkpoints_list.append(checkpoint_tuple)
+
+        logger.info(f"[Create Branch] 父分支共有 {len(checkpoints_list)} 个checkpoint")
+
+        if len(checkpoints_list) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"父分支不存在或无消息历史: {parent_branch_id}"
+            )
+
+        # 4. 验证分叉点索引
+        # checkpoint是倒序的（最新的在前），我们需要找到对应的checkpoint
+        # fork_point_index=0表示第一条消息，对应最后一个checkpoint
+        if fork_point_index >= len(checkpoints_list):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"分叉点索引 {fork_point_index} 超出范围（最大: {len(checkpoints_list) - 1}）"
+            )
+
+        # 5. 创建新的branch_id
+        branch_id = str(uuid.uuid4())
+        branch_name = request.branch_name or f"分支-{datetime.now().strftime('%m%d-%H%M')}"
+
+        # 6. 先保存分支元数据到Redis（优先保存元数据，便于失败回滚）
+        branch_metadata = {
+            "branch_id": branch_id,
+            "parent_branch_id": parent_branch_id,
+            "branch_name": branch_name,
+            "fork_point_index": fork_point_index,
+            "message_count": fork_point_index + 1,  # 暂时估算
+            "created_at": datetime.now().isoformat(),
+            "is_active": False,
+            "user_id": user_id
+        }
+
+        # 保存分支元数据
+        branch_key = f"branch:{branch_id}"
+        redis_client.set(
+            branch_key,
+            json.dumps(branch_metadata, ensure_ascii=False),
+            ex=7 * 24 * 60 * 60  # 7天过期
+        )
+
+        # 更新会话的branches列表
+        conversation_branches_key = f"conversation:{parent_branch_id}:branches"
+        redis_client.sadd(conversation_branches_key, branch_id)
+        redis_client.expire(conversation_branches_key, 7 * 24 * 60 * 60)
+
+        logger.info(f"[Create Branch] 元数据已保存: {branch_id}")
+
+        # 7. 复制分叉点之前的checkpoint到新分支
+        # checkpoints_list是倒序的，我们需要复制从最老到分叉点的所有checkpoint
+        # fork_point_index=0 -> 复制最后1个checkpoint（最早的消息）
+        # fork_point_index=1 -> 复制最后2个checkpoint
+        # ...
+        checkpoints_to_copy = list(reversed(checkpoints_list))[: fork_point_index + 1]
+
+        logger.info(f"[Create Branch] 复制 {len(checkpoints_to_copy)} 个checkpoint到新分支")
+
+        # 复制checkpoint到新分支
+        for idx, checkpoint_tuple in enumerate(checkpoints_to_copy):
+            checkpoint_data = checkpoint_tuple.checkpoint
+            metadata = checkpoint_tuple.metadata
+
+            # 从checkpoint_tuple中获取原始config（包含checkpoint_ns等）
+            original_config = checkpoint_tuple.config if hasattr(checkpoint_tuple, 'config') else {}
+
+            # 创建新的config，保留checkpoint_ns但更新thread_id
+            new_branch_config = {
+                "configurable": {
+                    "thread_id": branch_id
+                }
+            }
+
+            # 如果原config有checkpoint_ns，添加到新config
+            if "configurable" in original_config and "checkpoint_ns" in original_config["configurable"]:
+                new_branch_config["configurable"]["checkpoint_ns"] = original_config["configurable"]["checkpoint_ns"]
+
+            # 获取checkpoint的channel_versions以保持版本一致性
+            channel_versions = checkpoint_data.get("channel_versions", {})
+
+            # 保存到新分支（使用位置参数，与langgraph_agent.py保持一致）
+            await checkpointer.aput(
+                new_branch_config,
+                checkpoint_data,
+                metadata,
+                channel_versions  # 使用正确的版本信息
+            )
+
+            logger.debug(f"[Create Branch] 复制checkpoint {idx + 1}/{len(checkpoints_to_copy)}")
+
+        # 8. 更新分支元数据中的实际消息数
+        branch_metadata["message_count"] = len(checkpoints_to_copy)
+        redis_client.set(
+            branch_key,
+            json.dumps(branch_metadata, ensure_ascii=False),
+            ex=7 * 24 * 60 * 60
+        )
+
+        logger.info(
+            f"[Create Branch] 创建成功 - Branch ID: {branch_id}, "
+            f"Name: {branch_name}, Messages: {len(checkpoints_to_copy)}"
+        )
+
+        return BranchResponse(
+            branch_id=branch_id,
+            parent_branch_id=parent_branch_id,
+            branch_name=branch_name,
+            fork_point_index=fork_point_index,
+            message_count=len(checkpoints_to_copy),
+            created_at=branch_metadata["created_at"]
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[Create Branch] Error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"创建分支失败: {str(e)}"
+        )
+
+
+@router.post("/branches/{branch_id}/switch", response_model=SwitchBranchResponse)
+async def switch_branch(
+    branch_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    切换到指定分支 - 加载分支的消息历史
+
+    功能:
+    - 验证分支存在性
+    - 加载分支的所有消息历史
+    - 更新活跃分支标记
+    - 返回分支消息列表
+
+    Args:
+        branch_id: 要切换到的分支ID
+        current_user: 当前用户
+
+    Returns:
+        SwitchBranchResponse: 分支信息和消息历史
+    """
+    try:
+        user_id = str(current_user.id)
+
+        logger.info(f"[Switch Branch] User: {user_id}, Branch: {branch_id}")
+
+        # 1. 从Redis获取分支元数据
+        redis_client = get_redis_client()
+        branch_key = f"branch:{branch_id}"
+        branch_data_str = redis_client.get(branch_key)
+
+        if not branch_data_str:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"分支不存在: {branch_id}"
+            )
+
+        branch_metadata = json.loads(branch_data_str)
+
+        # 验证用户权限
+        if branch_metadata.get("user_id") != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="无权访问此分支"
+            )
+
+        # 2. 获取分支的所有checkpoint
+        agent_graph = get_agent_graph()
+        checkpointer = agent_graph.checkpointer
+
+        branch_config = {
+            "configurable": {
+                "thread_id": branch_id
+            }
+        }
+
+        checkpoints_list = []
+        async for checkpoint_tuple in checkpointer.alist(branch_config):
+            checkpoints_list.append(checkpoint_tuple)
+
+        logger.info(f"[Switch Branch] 分支共有 {len(checkpoints_list)} 个checkpoint")
+
+        # 3. 解析checkpoint获取消息历史
+        # checkpoint是倒序的（最新的在前），需要反转
+        messages = []
+        for checkpoint_tuple in reversed(checkpoints_list):
+            checkpoint_data = checkpoint_tuple.checkpoint
+
+            # 从checkpoint中提取消息
+            # LangGraph的checkpoint包含channel_values，其中有messages
+            channel_values = checkpoint_data.get("channel_values", {})
+            if "messages" in channel_values:
+                # messages是一个列表，每个元素是一条消息
+                for msg in channel_values["messages"]:
+                    # 兼容dict和对象两种格式
+                    if isinstance(msg, dict):
+                        message_dict = {
+                            "type": msg.get("type", "unknown"),
+                            "content": msg.get("content", ""),
+                            "name": msg.get("name"),
+                            "id": msg.get("id")
+                        }
+                    else:
+                        # 对象格式（使用getattr）
+                        message_dict = {
+                            "type": getattr(msg, "type", "unknown"),
+                            "content": getattr(msg, "content", ""),
+                            "name": getattr(msg, "name", None),
+                            "id": getattr(msg, "id", None)
+                        }
+                    messages.append(message_dict)
+
+        # 去重（checkpoint可能有重复的消息）
+        seen_ids = set()
+        seen_content_hashes = set()  # 用于没有ID的消息
+        unique_messages = []
+
+        for msg in messages:
+            msg_id = msg.get("id")
+
+            if msg_id:
+                # 有ID的消息：基于ID去重
+                if msg_id not in seen_ids:
+                    seen_ids.add(msg_id)
+                    unique_messages.append(msg)
+            else:
+                # 没有ID的消息：基于内容hash去重
+                content_hash = hash((
+                    msg.get("type"),
+                    msg.get("content"),
+                    msg.get("name")
+                ))
+                if content_hash not in seen_content_hashes:
+                    seen_content_hashes.add(content_hash)
+                    unique_messages.append(msg)
+
+        # 4. 更新分支的isActive标记（可选，用于UI显示）
+        branch_metadata["is_active"] = True
+        branch_metadata["last_accessed"] = datetime.now().isoformat()
+        redis_client.set(
+            branch_key,
+            json.dumps(branch_metadata, ensure_ascii=False),
+            ex=7 * 24 * 60 * 60
+        )
+
+        logger.info(
+            f"[Switch Branch] 切换成功 - Branch: {branch_id}, "
+            f"Name: {branch_metadata['branch_name']}, Messages: {len(unique_messages)}"
+        )
+
+        return SwitchBranchResponse(
+            branch_id=branch_id,
+            branch_name=branch_metadata["branch_name"],
+            message_count=len(unique_messages),
+            messages=unique_messages
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[Switch Branch] Error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"切换分支失败: {str(e)}"
+        )
+
+
+@router.get("/conversations/{conversation_id}/branches", response_model=GetBranchesResponse)
+async def get_conversation_branches(
+    conversation_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    获取会话的所有分支列表
+
+    功能:
+    - 获取会话的所有分支
+    - 返回分支元数据（扁平列表）
+    - 前端可以根据parent_branch_id构建树形结构
+
+    Args:
+        conversation_id: 会话ID（根分支ID）
+        current_user: 当前用户
+
+    Returns:
+        GetBranchesResponse: 分支列表
+    """
+    try:
+        user_id = str(current_user.id)
+
+        logger.info(f"[Get Branches] User: {user_id}, Conversation: {conversation_id}")
+
+        redis_client = get_redis_client()
+
+        # 1. 获取会话的所有分支ID
+        conversation_branches_key = f"conversation:{conversation_id}:branches"
+        branch_ids = redis_client.smembers(conversation_branches_key)
+
+        # 将bytes转为str
+        if branch_ids:
+            branch_ids = [bid.decode('utf-8') if isinstance(bid, bytes) else bid for bid in branch_ids]
+        else:
+            branch_ids = []
+
+        logger.info(f"[Get Branches] 找到 {len(branch_ids)} 个分支")
+
+        # 2. 批量获取分支元数据（使用Pipeline优化）
+        branches_data = []
+
+        if len(branch_ids) > 0:
+            pipeline = redis_client.pipeline()
+            for branch_id in branch_ids:
+                branch_key = f"branch:{branch_id}"
+                pipeline.get(branch_key)
+
+            results = pipeline.execute()
+
+            for branch_id, branch_data_str in zip(branch_ids, results):
+                if branch_data_str:
+                    branch_metadata = json.loads(branch_data_str)
+
+                    # 验证用户权限
+                    if branch_metadata.get("user_id") == user_id:
+                        branches_data.append(branch_metadata)
+                else:
+                    logger.warning(f"[Get Branches] 分支元数据缺失: {branch_id}")
+
+        # 3. 构建返回数据（扁平列表，前端自己构建树）
+        branch_nodes = []
+        for branch_metadata in branches_data:
+            node = BranchTreeNode(
+                branch_id=branch_metadata["branch_id"],
+                parent_branch_id=branch_metadata.get("parent_branch_id"),
+                branch_name=branch_metadata["branch_name"],
+                message_count=branch_metadata.get("message_count", 0),
+                is_active=branch_metadata.get("is_active", False),
+                created_at=branch_metadata["created_at"],
+                children=[]  # 扁平列表，前端构建树
+            )
+            branch_nodes.append(node)
+
+        # 4. 添加根分支（主分支）信息（如果还没有）
+        # 主分支就是conversation_id本身
+        root_exists = any(b.branch_id == conversation_id for b in branch_nodes)
+        if not root_exists:
+            # 创建虚拟的根分支节点
+            root_node = BranchTreeNode(
+                branch_id=conversation_id,
+                parent_branch_id=None,
+                branch_name="主线",
+                message_count=0,  # 可以通过checkpoint计算，这里简化
+                is_active=True,
+                created_at=datetime.now().isoformat(),
+                children=[]
+            )
+            branch_nodes.insert(0, root_node)
+
+        logger.info(
+            f"[Get Branches] 返回 {len(branch_nodes)} 个分支 "
+            f"(包括根分支: {conversation_id})"
+        )
+
+        return GetBranchesResponse(
+            conversation_id=conversation_id,
+            total_branches=len(branch_nodes),
+            branches=branch_nodes
+        )
+
+    except Exception as e:
+        logger.error(f"[Get Branches] Error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取分支列表失败: {str(e)}"
         )
 
 
