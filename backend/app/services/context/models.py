@@ -10,6 +10,8 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 
+from app.services.context.token_counter import count_tokens
+
 
 @dataclass
 class Message:
@@ -35,8 +37,13 @@ class ShortMemory:
             self.messages = self.messages[-(self.max_turns * 2):]
 
     def get_token_count(self) -> int:
-        """估算Token数量（粗略估计：1 token ≈ 4字符）"""
-        total = sum(len(msg.content) // 4 for msg in self.messages)
+        """计算Token数量（使用精确计数）"""
+        # 旧代码（注释保留）:
+        # total = sum(len(msg.content) // 4 for msg in self.messages)
+        # return total
+
+        # ✅ 新代码：使用Token计数器
+        total = sum(count_tokens(msg.content) for msg in self.messages)
         return total
 
 
@@ -48,9 +55,15 @@ class SummaryMemory:
     important_facts: List[str] = field(default_factory=list)
 
     def get_token_count(self) -> int:
-        """估算Token数量"""
-        summary_tokens = len(self.summary) // 4
-        facts_tokens = sum(len(fact) // 4 for fact in self.important_facts)
+        """计算Token数量（使用精确计数）"""
+        # 旧代码（注释保留）:
+        # summary_tokens = len(self.summary) // 4
+        # facts_tokens = sum(len(fact) // 4 for fact in self.important_facts)
+        # return summary_tokens + facts_tokens
+
+        # ✅ 新代码
+        summary_tokens = count_tokens(self.summary)
+        facts_tokens = sum(count_tokens(fact) for fact in self.important_facts)
         return summary_tokens + facts_tokens
 
 
@@ -78,9 +91,17 @@ class Context:
     system_prompt: str = ""
 
     def get_total_tokens(self) -> int:
-        """计算总Token数"""
+        """计算总Token数（使用精确计数）"""
+        # 旧代码（注释保留）:
+        # return (
+        #     len(self.system_prompt) // 4 +
+        #     self.short_memory.get_token_count() +
+        #     self.summary_memory.get_token_count()
+        # )
+
+        # ✅ 新代码
         return (
-            len(self.system_prompt) // 4 +
+            count_tokens(self.system_prompt) +
             self.short_memory.get_token_count() +
             self.summary_memory.get_token_count()
         )

@@ -1,0 +1,30 @@
+# Pytest 测试依赖
+# 安装命令: pip install -r requirements-test.txt
+
+# 核心pytest框架
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+
+# 异步HTTP客户端
+httpx>=0.24.0
+
+# HTML测试报告
+pytest-html>=3.2.0
+
+# 测试覆盖率
+pytest-cov>=4.1.0
+
+# 失败重试
+pytest-rerunfailures>=12.0
+
+# 超时控制
+pytest-timeout>=2.1.0
+
+# 并发执行（可选）
+pytest-xdist>=3.3.0
+
+# JSON报告（可选）
+pytest-json-report>=1.5.0
+
+# 进度条（可选）
+pytest-progress>=1.2.5

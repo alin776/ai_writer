@@ -18,6 +18,10 @@ from app.services.context.store import (
     MemoryContextStore
 )
 from app.services.context.manager import ContextManager
+from app.services.context.token_counter import (
+    TokenCounter,
+    count_tokens
+)
 
 __all__ = [
     "Message",
@@ -30,4 +34,6 @@ __all__ = [
     "RedisContextStore",
     "MemoryContextStore",
     "ContextManager",
+    "TokenCounter",
+    "count_tokens",
 ]

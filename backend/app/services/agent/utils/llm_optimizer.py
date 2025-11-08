@@ -16,6 +16,7 @@ from collections import defaultdict
 from .performance import cache_result, performance_optimizer
 from .error_handler import robust_retry
 from .logger import get_logger
+from app.services.context.token_counter import count_tokens
 
 logger = get_logger("llm_optimizer")
 
@@ -37,9 +38,12 @@ class LLMRequest:
         return hashlib.md5(content.encode()).hexdigest()
 
     def estimate_tokens(self) -> int:
-        """估算token数量"""
-        # 简单的token估算：约4个字符 = 1个token
-        return len(self.prompt) // 4 + len(self.prompt) % 4
+        """估算token数量（使用精确计数）"""
+        # 旧代码（注释保留）:
+        # return len(self.prompt) // 4 + len(self.prompt) % 4
+
+        # ✅ 新代码
+        return count_tokens(self.prompt, model=self.model)
 
 
 @dataclass
@@ -282,15 +286,16 @@ class LLMOptimizer:
         return optimized
 
     @cache_result(ttl=300)  # 5分钟缓存
-    def estimate_tokens(self, text: str) -> int:
-        """估算token数量"""
-        # 更精确的token估算
-        # 约1个token = 4个字符（中文字符约2个字符）
-        # 英文平均约4个字符，中文平均约2个字符
-        chinese_chars = len([c for c in text if '\u4e00' <= c <= '\u9fff'])
-        english_chars = len(text) - chinese_chars
+    def estimate_tokens(self, text: str, model: str = None) -> int:
+        """估算token数量（使用精确计数）"""
+        # 旧代码（保留作为参考）:
+        # chinese_chars = len([c for c in text if '\u4e00' <= c <= '\u9fff'])
+        # english_chars = len(text) - chinese_chars
+        # return chinese_chars // 2 + english_chars // 4
 
-        return chinese_chars // 2 + english_chars // 4
+        # ✅ 新代码：使用统一的Token计数器
+        model = model or "gpt-4"
+        return count_tokens(text, model=model)
 
     def get_optimal_model(self, complexity: str, max_cost: Optional[float] = None) -> str:
         """获取最优模型"""
