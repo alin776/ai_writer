@@ -143,28 +143,186 @@ await agentApi.chatStream(
 | `onTaskDone` | ✅ | ❌ | 任务完成（Planning 独有） |
 | `onProgress` | ❌ | ✅ | 进度更新（React 独有） |
 | `onToolCall` | ❌ | ✅ | 工具调用（React 独有） |
-| `onContent` | ✅ | ✅ | 内容生成（共同） |
+| `onContent` | ✅ | ✅ | 内容生成（共同）⚠️ 格式不同 |
 | `onDone` | ✅ | ✅ | 对话完成（共同） |
 | `onError` | ✅ | ✅ | 错误处理（共同） |
+
+### ⚠️ 重要：content 事件数据格式差异
+
+两种模式的 `content` 事件数据格式不同：
+
+**Planning模式**:
+```typescript
+// 后端发送
+{ type: 'content', data: "生成的文本内容", mode: 'planning' }
+
+// 前端读取
+onContent: (chunk) => {
+  // chunk 直接是字符串
+  console.log(chunk);
+}
+```
+
+**React模式**:
+```typescript
+// 后端发送
+{ type: 'content', data: { content: "生成的文本内容" }, mode: 'react' }
+
+// 前端读取
+onContent: (chunk) => {
+  // 如果使用统一的chatStream()，需要根据mode处理
+  if (typeof chunk === 'string') {
+    console.log(chunk);  // Planning模式
+  } else {
+    console.log(chunk.content);  // React模式
+  }
+}
+```
+
+**原因**: React模式的content回调包装为对象，以便未来扩展更多字段（如token使用量、元数据等）。
+
+**代码位置**:
+- React模式: `backend/app/api/v1/agent.py:1017-1018`
+- Planning模式: `backend/app/api/v1/agent.py:999-1001`
 
 ---
 
 ## 🚨 已知问题
 
-### ❌ 前端实现错误
+### ❌ 问题1: 前端类型定义缺失mode参数
 
-**问题**：`src/services/agentApi.ts` 中的 `chatReactStream()` 函数调用了不存在的路由
+**文件**: `src/types/agent.ts`
+
+**问题**: `AgentChatRequest` 接口缺少 `mode` 字段
+
+**影响**: 无法在请求中指定聊天模式
+
+**修复优先级**: 🔴 P0 - 立即修复
+
+**修复步骤**:
+```typescript
+// src/types/agent.ts
+export interface AgentChatRequest {
+  message: string;
+  mode?: 'planning' | 'react';  // ✅ 添加此行
+  work_id?: string;
+  chapter_id?: string;
+  conversation_id?: string;
+  context?: Record<string, any>;
+}
+```
+
+---
+
+### ❌ 问题2: chatReactStream() 调用不存在的路由
+
+**文件**: `src/services/agentApi.ts:110`
+
+**问题**: 调用了后端不存在的 `/api/v1/agent/chat/react-stream` 路由
 
 ```typescript
 // ❌ 错误：这个路由不存在
 const url = `${API_BASE_URL}/api/v1/agent/chat/react-stream`;
 ```
 
-**状态**：已识别，待修复
+**影响**: React模式流式对话功能完全不可用
 
-**修复优先级**：🔴 P0 - 立即修复
+**修复优先级**: 🔴 P0 - 立即修复
 
-**详细说明**：参见 [API_QUICK_FIX.md](./API_QUICK_FIX.md)
+**修复方案**: 删除整个 `chatReactStream()` 函数（第97-186行），使用统一的 `chatStream()` 函数
+
+---
+
+### ❌ 问题3: chatStream() 不支持React模式事件
+
+**文件**: `src/services/agentApi.ts:194-294`
+
+**问题**: `chatStream()` 函数缺少 React 模式的事件处理（`progress`, `tool_call`）
+
+**影响**: 使用统一接口时无法接收React模式的特定事件
+
+**修复优先级**: 🟡 P1 - 本周修复
+
+**修复步骤**:
+
+1. **扩展回调函数类型**（第196-206行）:
+```typescript
+async chatStream(
+  request: AgentChatRequest,  // 确保包含mode参数
+  callbacks: {
+    // Planning模式回调
+    onPlan?: (plan: any) => void;
+    onTaskStart?: (task: any) => void;
+    onTaskProgress?: (progress: any) => void;
+    onTaskDone?: (taskDone: any) => void;
+    // React模式回调
+    onProgress?: (progress: any) => void;
+    onToolCall?: (toolCall: any) => void;
+    // 共同回调
+    onStart?: (conversationId: string) => void;
+    onContent?: (chunk: string | any) => void;  // 注意：支持两种格式
+    onDone?: (result: any) => void;
+    onError?: (error: string) => void;
+  }
+): Promise<void>
+```
+
+2. **在switch中添加React事件处理**（第254行后）:
+```typescript
+switch (data.type) {
+  case 'start':
+    callbacks.onStart?.(data.conversation_id);
+    break;
+  // Planning模式事件
+  case 'plan':
+    callbacks.onPlan?.(data.data);
+    break;
+  case 'task_start':
+    callbacks.onTaskStart?.(data.data);
+    break;
+  case 'task_progress':
+    callbacks.onTaskProgress?.(data.data);
+    break;
+  case 'task_done':
+    callbacks.onTaskDone?.(data.data);
+    break;
+  // React模式事件（新增）
+  case 'progress':
+    callbacks.onProgress?.(data.data);
+    break;
+  case 'tool_call':
+    callbacks.onToolCall?.(data.data);
+    break;
+  // 共同事件
+  case 'content':
+    // 处理两种格式的content
+    const content = typeof data.data === 'string'
+      ? data.data
+      : data.data?.content || data.data;
+    callbacks.onContent?.(content);
+    break;
+  case 'done':
+    callbacks.onDone?.(data.data);
+    break;
+  case 'error':
+    callbacks.onError?.(data.error || data.message);
+    break;
+}
+```
+
+**预计修复时间**: 约15分钟
+
+---
+
+### 📋 修复总结
+
+| 问题 | 优先级 | 文件 | 工时 | 状态 |
+|------|--------|------|------|------|
+| 类型定义缺失mode | P0 | types/agent.ts | 2分钟 | ⏳ 待修复 |
+| chatReactStream错误路由 | P0 | services/agentApi.ts | 2分钟 | ⏳ 待修复 |
+| chatStream不支持React | P1 | services/agentApi.ts | 15分钟 | ⏳ 待修复 |
+
+**总计**: 约19分钟
 
 ---
 
@@ -228,6 +386,7 @@ sendMessage('查询主角在第10-15章的行动轨迹', { mode: 'react' });
 
 - **2025-11-09**: 创建文档目录，整理 Agent API 适配文档
 - **2025-11-09**: 移入 AGENT_API_EXAMPLES.md、API_QUICK_FIX.md、API_ADAPTATION_ANALYSIS.md
+- **2025-11-09**: 添加content事件格式差异说明，详细化修复步骤和优先级
 
 ---
 
