@@ -26,13 +26,99 @@ POST /api/v1/agent/chat/stream
 
 ---
 
-## ✅ 快速修复
+## ✅ 完整修复步骤
 
-### 1. 删除错误函数
+### Step 0: 修改类型定义（必须）
+
+修改 `src/types/agent.ts`:
+
+```typescript
+export interface AgentChatRequest {
+  message: string;
+  mode?: 'planning' | 'react';  // ✅ 新增此字段
+  work_id?: string;
+  chapter_id?: string;
+  conversation_id?: string;
+  context?: Record<string, any>;
+}
+```
+
+### Step 1: 扩展 chatStream() 支持 React 模式
+
+修改 `src/services/agentApi.ts`:
+
+**1.1 添加回调参数类型**（第194行附近）：
+
+```typescript
+async chatStream(
+  request: AgentChatRequest,
+  callbacks: {
+    onStart?: (conversationId: string) => void;
+    // Planning 模式回调
+    onPlan?: (plan: any) => void;
+    onTaskStart?: (task: any) => void;
+    onTaskProgress?: (progress: any) => void;
+    onTaskDone?: (taskDone: any) => void;
+    // ✅ 新增：React 模式回调
+    onProgress?: (progress: any) => void;
+    onToolCall?: (toolCall: any) => void;
+    // 共同回调
+    onContent?: (chunk: string) => void;
+    onStep?: (step: any) => void;
+    onDone?: (metadata: any, suggestedActions: string[]) => void;
+    onError?: (error: string) => void;
+  }
+): Promise<void>
+```
+
+**1.2 添加事件处理**（第254-283行的switch语句中）：
+
+```typescript
+switch (data.type) {
+  case 'start':
+    callbacks.onStart?.(data.conversation_id);
+    break;
+  // Planning 模式事件
+  case 'plan':
+    callbacks.onPlan?.(data.data);
+    break;
+  case 'task_start':
+    callbacks.onTaskStart?.(data.data);
+    break;
+  case 'task_progress':
+    callbacks.onTaskProgress?.(data.data);
+    break;
+  case 'task_done':
+    callbacks.onTaskDone?.(data.data);
+    break;
+  // ✅ 新增：React 模式事件
+  case 'progress':
+    callbacks.onProgress?.(data.data);
+    break;
+  case 'tool_call':
+    callbacks.onToolCall?.(data.data);
+    break;
+  // 共同事件
+  case 'content':
+    callbacks.onContent?.(data.data);
+    break;
+  case 'step':
+    callbacks.onStep?.(data.data);
+    break;
+  case 'done':
+    callbacks.onDone?.(data.metadata, data.suggested_actions);
+    break;
+  case 'error':
+    callbacks.onError?.(data.error);
+    break;
+}
+```
+
+### Step 2: 删除错误函数
 
 删除 `src/services/agentApi.ts` 中的 `chatReactStream()` 函数（第97-186行）
 
-### 2. 修改 Hook
+### Step 3: 修改 Hook
 
 修改 `src/hooks/useAgentChatStream.ts:136`：
 
@@ -52,7 +138,8 @@ await agentApi.chatStream(request, {
   onProgress: ...,
   onToolCall: ...,
   onContent: ...,
-  ...
+  onDone: ...,
+  onError: ...,
 });
 ```
 
@@ -116,4 +203,11 @@ await agentApi.chatStream(
 
 **修复优先级**：🔴 P0 - 立即修复
 
-**预估工时**：2-3 小时
+**预估工时**：1.5 小时
+
+详细工时：
+- Step 0 (类型定义)：5分钟
+- Step 1 (扩展chatStream)：40分钟
+- Step 2 (删除函数)：5分钟
+- Step 3 (修改Hook)：10分钟
+- 测试验证：20分钟

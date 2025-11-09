@@ -4,6 +4,25 @@
 
 ---
 
+## ⚠️ 重要前提
+
+在使用以下示例前，**必须先修改类型定义**：
+
+修改 `src/types/agent.ts`:
+
+```typescript
+export interface AgentChatRequest {
+  message: string;
+  mode?: 'planning' | 'react';  // ✅ 添加此行
+  work_id?: string;
+  chapter_id?: string;
+  conversation_id?: string;
+  context?: Record<string, any>;
+}
+```
+
+---
+
 ## 📋 API 概览
 
 ### 后端提供的路由
@@ -156,6 +175,8 @@ function PlanningModeComponent() {
 
 ## ✅ React 模式
 
+⚠️ **当前限制**：`chatStream()` 需要先扩展支持 `progress` 和 `tool_call` 事件，参见 [API_QUICK_FIX.md](./API_QUICK_FIX.md)
+
 ### 特点
 - 边思考边执行（ReAct）
 - 实时显示推理步骤
@@ -181,7 +202,7 @@ async function reactModeExample() {
         console.log('对话开始:', conversationId);
       },
 
-      // 进度更新回调
+      // 进度更新回调（⚠️ 需要先在chatStream中添加）
       onProgress: (progress) => {
         console.log('进度更新:', progress);
         // progress 结构：

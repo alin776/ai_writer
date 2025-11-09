@@ -638,11 +638,25 @@ class ChatMode(str, Enum):
 
 ### C. AgentChatRequest 类型定义
 
+⚠️ **当前状态**：类型定义中**缺少** `mode` 字段
+
+**实际代码** (`src/types/agent.ts`):
 ```typescript
-// src/types/agent.ts
 export interface AgentChatRequest {
   message: string;
-  mode?: 'planning' | 'react';  // 可选，默认 planning
+  // ❌ 缺少 mode 字段
+  work_id?: string;
+  chapter_id?: string;
+  conversation_id?: string;
+  context?: Record<string, any>;
+}
+```
+
+**需要修改为**：
+```typescript
+export interface AgentChatRequest {
+  message: string;
+  mode?: 'planning' | 'react';  // ✅ 新增此行
   work_id?: string;
   chapter_id?: string;
   conversation_id?: string;

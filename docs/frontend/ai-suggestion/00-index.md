@@ -1,5 +1,34 @@
 # AI建议功能 - 文档索引
 
+## ⚠️ 重要说明
+
+**本目录的文档分为两类：**
+
+### ✅ 已更新为实际实现的文档
+
+这些文档反映了**实际代码实现**，可以作为开发参考：
+
+1. **[README.md](./README.md)** - 总览文档（✅ 已更新）
+2. **[01-architecture.md](./01-architecture.md)** - 架构设计（✅ 已更新为实际实现）
+
+### ⚠️ 设计阶段文档（与实际实现有差异）
+
+以下文档描述的是**设计阶段的方案**，与实际实现有较大差异，仅供理解设计思路：
+
+- `02-state-management.md` - 状态管理设计（⚠️ 实际使用 useAI + useAgentChat）
+- `03-agent-card.md` - Agent 卡片设计（⚠️ 实际已实现为 AIMenu + AgentMessage）
+- `04-editor-sync.md` - 编辑器同步设计（⚠️ 仅供参考）
+- `05-interaction-integration.md` - 交互集成设计（⚠️ 仅供参考）
+- `06-ux-optimization.md` - UX 优化设计（⚠️ 仅供参考）
+- `quick-start.md`、`integration-guide.md`、`api-reference.md` 等（⚠️ 基于设计方案编写）
+
+**建议**：
+- ✅ 开发新功能时，请参考 README.md 和 01-architecture.md
+- ✅ 查看实际代码实现时，请直接查看 `src/` 目录下的源码
+- ℹ️ 设计文档可作为理解功能设计思路的参考
+
+---
+
 📚 完整的AI建议功能开发文档
 
 ---
