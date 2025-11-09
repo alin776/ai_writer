@@ -48,6 +48,36 @@ class AgentState(TypedDict):
     final_response: Optional[str]  # 最终响应
 
 
+# ==================== UUID 验证 ====================
+
+# 标准UUID格式正则表达式
+UUID_PATTERN = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+
+def validate_uuid(value: str, field_name: str = "ID") -> Optional[str]:
+    """验证UUID格式
+
+    Args:
+        value: 要验证的UUID字符串
+        field_name: 字段名称（用于错误消息）
+
+    Returns:
+        如果格式正确返回None，否则返回错误消息JSON字符串
+    """
+    if not value:
+        return None
+
+    if not UUID_PATTERN.match(value):
+        return json.dumps({
+            "error": f"无效的{field_name}格式",
+            "provided_value": value,
+            "message": f"{field_name}必须是标准UUID格式（36字符）",
+            "example": "627feba4-2097-4f28-a3f3-7641d10f7f40",
+            "suggestion": "请使用get_context_tool获取章节列表，或使用get_chapter_by_order_tool通过章节序号查询"
+        }, ensure_ascii=False, indent=2)
+
+    return None
+
+
 # ==================== 工具定义 ====================
 
 # 全局 AI Service 实例（用于工具调用）
@@ -350,11 +380,14 @@ async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "")
     """读取指定章节工具：从数据库读取章节内容
 
     Args:
-        work_id: 作品ID（可选，但强烈推荐提供）
-        chapter_id: 章节ID
+        work_id: 作品ID（可选，但强烈推荐提供），必须是标准UUID格式（36字符）
+                 示例: c9dd9cbf-fa57-447e-9605-3020bbde5350
+        chapter_id: 章节ID，必须是标准UUID格式（36字符），不能使用简化ID如"ch_1"
+                    示例: 627feba4-2097-4f28-a3f3-7641d10f7f40
+                    获取方式：从RAG检索结果、用户上下文或get_context_tool返回的章节列表中获取
 
     Returns:
-        章节信息（包含标题和内容）
+        章节信息（包含标题和内容）的JSON字符串
     """
     # 检查work_id是否提供
     if not work_id:
@@ -374,6 +407,15 @@ async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "")
             "user_action_required": True,
             "suggested_response": "请问您想读取第几章？或者告诉我章节ID。"
         }, ensure_ascii=False, indent=2)
+
+    # UUID格式验证
+    uuid_error = validate_uuid(work_id, "作品ID")
+    if uuid_error:
+        return uuid_error
+
+    uuid_error = validate_uuid(chapter_id, "章节ID")
+    if uuid_error:
+        return uuid_error
 
     try:
         from app.core.database import AsyncSessionLocal
@@ -420,11 +462,12 @@ async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order
     """通过章节序号获取章节ID和内容
 
     Args:
-        work_id: 作品ID（可选，但强烈推荐提供）
+        work_id: 作品ID（可选，但强烈推荐提供），必须是标准UUID格式（36字符）
+                 示例: c9dd9cbf-fa57-447e-9605-3020bbde5350
         chapter_order: 章节序号（第1章=1，第2章=2，...）
 
     Returns:
-        章节信息（包含ID、标题和内容）
+        章节信息（包含ID、标题和内容）的JSON字符串
     """
     # 检查work_id是否提供
     if not work_id:
@@ -435,6 +478,11 @@ async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order
             "user_action_required": True,
             "suggested_response": "请问您想查询哪个作品的第{}章？您可以在作品详情页使用此功能，或者告诉我作品ID。".format(chapter_order)
         }, ensure_ascii=False, indent=2)
+
+    # UUID格式验证
+    uuid_error = validate_uuid(work_id, "作品ID")
+    if uuid_error:
+        return uuid_error
 
     try:
         from app.core.database import AsyncSessionLocal
@@ -507,7 +555,9 @@ async def search_analysis_fragments_tool(work_id: Optional[str] = None, query: s
     """检索分析碎片工具：从向量数据库检索相关的小说分析片段（RAG）
 
     Args:
-        work_id: 作品ID（可选，但强烈推荐提供）
+        work_id: 作品ID（可选，但强烈推荐提供），必须是标准UUID格式（36字符）
+                 示例: c9dd9cbf-fa57-447e-9605-3020bbde5350
+                 不能使用简化ID如"YXTW_001"
         query: 查询文本（用户的问题或需求）
         top_k: 返回前K个最相关结果（默认5个）
 
@@ -523,6 +573,11 @@ async def search_analysis_fragments_tool(work_id: Optional[str] = None, query: s
             "user_action_required": True,
             "suggested_response": "请问您想检索哪个作品的分析内容？您可以在作品详情页使用此功能，或者告诉我作品ID。"
         }, ensure_ascii=False, indent=2)
+
+    # UUID格式验证
+    uuid_error = validate_uuid(work_id, "作品ID")
+    if uuid_error:
+        return uuid_error
 
     try:
         from app.core.database import AsyncSessionLocal
@@ -584,8 +639,10 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
     """获取上下文工具：检索作品、章节和世界观信息（真实数据）
 
     Args:
-        work_id: 作品ID（可选，但强烈推荐提供）
-        chapter_id: 章节ID（可选）
+        work_id: 作品ID（可选，但强烈推荐提供），必须是标准UUID格式（36字符）
+                 示例: c9dd9cbf-fa57-447e-9605-3020bbde5350
+        chapter_id: 章节ID（可选），必须是标准UUID格式（36字符）
+                    示例: 627feba4-2097-4f28-a3f3-7641d10f7f40
 
     Returns:
         上下文信息（JSON格式字符串）
@@ -599,6 +656,16 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
             "user_action_required": True,
             "suggested_response": "请问您想查看哪个作品的信息？您可以在作品详情页使用此功能，或者告诉我作品ID。"
         }, ensure_ascii=False, indent=2)
+
+    # UUID格式验证
+    uuid_error = validate_uuid(work_id, "作品ID")
+    if uuid_error:
+        return uuid_error
+
+    if chapter_id:  # chapter_id是可选的，只在提供时验证
+        uuid_error = validate_uuid(chapter_id, "章节ID")
+        if uuid_error:
+            return uuid_error
 
     try:
         from app.core.database import AsyncSessionLocal
@@ -2761,9 +2828,9 @@ class WritingAgentGraph:
 
 2. read_chapter_tool: 通过章节ID读取章节内容
    - 使用场景：已知具体的chapter_id时使用
-   - 参数：chapter_id (字符串UUID)
+   - 参数：chapter_id (字符串UUID，标准36字符格式)
    - 注意：如果不知道具体的chapter_id，不要使用这个工具！应该用get_chapter_by_order_tool
-   - 示例：{{"tool": "read_chapter_tool", "params": {{"chapter_id": "abc-123-def"}}}}
+   - 示例：{{"tool": "read_chapter_tool", "params": {{"chapter_id": "627feba4-2097-4f28-a3f3-7641d10f7f40"}}}}
 
 3. get_context_tool: 获取作品和章节的整体上下文
    - 使用场景：需要了解作品背景、描述、章节列表等
@@ -2787,6 +2854,17 @@ class WritingAgentGraph:
 - 用户说"第X章" → 必须用 get_chapter_by_order_tool
 - 用户说"当前章节"或没指定章节 → 用 read_chapter_tool 配合当前chapter_id
 - 用户说"读取/查看章节" + 章节序号 → 用 get_chapter_by_order_tool
+
+【UUID格式严格要求】⚠️ 必须遵守
+- 所有work_id和chapter_id必须使用标准UUID格式（32-36字符）
+- 格式：xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx（8-4-4-4-12）
+- ✅ 正确示例：627feba4-2097-4f28-a3f3-7641d10f7f40
+- ❌ 严禁使用：ch_1, ch_2, task_1, YXTW_001, abc-123-def 等简化ID
+- ❌ 严禁自己编造UUID，必须从以下来源获取：
+  1. 用户上下文中的work_id/chapter_id
+  2. get_context_tool返回的章节列表
+  3. get_chapter_by_order_tool返回的chapter_id字段
+  4. 上一个任务的输出（使用占位符 $TASK_X.chapter_id$）
 
 【重要】占位符使用规范:
 当任务B需要使用任务A的结果时，使用以下占位符格式:
