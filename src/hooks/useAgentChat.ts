@@ -145,17 +145,23 @@ export function useAgentChat(): UseAgentChatReturn {
         const taskStartTimes = new Map<number, number>();
 
         // ✅ 调用流式API（传递保存的conversation_id）
+        const mode = request.mode || 'planning'; // 默认 planning 模式
+
         await agentApi.chatStream(
           {
             ...request,
             conversation_id: conversationId // 传递保存的conversation_id
           },
           {
+            // 共同回调
             onStart: (convId) => {
               setConversationId(convId); // ✅ 保存conversation_id到状态
-              console.log('[Stream] Started, conversation_id:', convId);
+              console.log('[Stream] Started, conversation_id:', convId, 'mode:', mode);
             },
-          onPlan: (plan) => {
+
+          // Planning 模式回调
+          ...(mode === 'planning' ? {
+            onPlan: (plan) => {
             // 初始化任务列表
             const initialTasks: Task[] = plan.tasks.map((t: any) => ({
               task_id: t.task_id,
@@ -214,7 +220,26 @@ export function useAgentChat(): UseAgentChatReturn {
             taskStartTimes.delete(taskDone.task_id);
 
             console.log('[Stream] 任务完成:', taskDone.description, `(${elapsedTime.toFixed(1)}s)`);
-          },
+          }
+          } : {}),
+
+          // React 模式回调（新增）
+          ...(mode === 'react' ? {
+            onProgress: (progress) => {
+              console.log('[Stream] React 进度:', progress);
+              // React 模式的进度更新（可以显示在 UI 中）
+            },
+            onToolCall: (toolCall) => {
+              console.log('[Stream] 工具调用:', toolCall);
+              // 将工具调用记录到 agentSteps 中
+              agentSteps.push({
+                step: `调用工具: ${toolCall.tool || '未知'}`,
+                result: JSON.stringify(toolCall.args || {})
+              });
+            }
+          } : {}),
+
+          // 共同回调
           onContent: (chunk) => {
             // 累积内容
             streamingContent += chunk;

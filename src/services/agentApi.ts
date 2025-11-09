@@ -87,105 +87,6 @@ class AgentApiService {
   }
 
   /**
-   * Agent对话 - ReAct流式响应（SSE）
-   *
-   * 新的ReAct模式流式接口，提供实时进度显示
-   *
-   * @param request 对话请求
-   * @param callbacks 回调函数集合
-   */
-  async chatReactStream(
-    request: AgentChatRequest,
-    callbacks: {
-      onStart?: (conversationId: string) => void;
-      onProgress?: (progress: any) => void;
-      onToolCall?: (toolCall: any) => void;
-      onContent?: (content: string) => void;
-      onDone?: (result: any) => void;
-      onError?: (error: string) => void;
-    }
-  ): Promise<void> {
-    const token = this.getToken();
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace('/api/v1', '') || 'http://localhost:8000';
-    const url = `${API_BASE_URL}/api/v1/agent/chat/react-stream`;
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-        body: JSON.stringify(request),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-
-      if (!reader) {
-        throw new Error('Response body is not readable');
-      }
-
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-
-        if (done) {
-          break;
-        }
-
-        // 解码数据块
-        buffer += decoder.decode(value, { stream: true });
-
-        // 处理缓冲区中的所有完整事件
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // 保留不完整的行
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.substring(6));
-
-              switch (data.type) {
-                case 'start':
-                  callbacks.onStart?.(data.conversation_id);
-                  break;
-                case 'progress':
-                  callbacks.onProgress?.(data.data);
-                  break;
-                case 'tool_call':
-                  callbacks.onToolCall?.(data.data);
-                  break;
-                case 'content':
-                  callbacks.onContent?.(data.data.content);
-                  break;
-                case 'done':
-                  callbacks.onDone?.(data.data);
-                  break;
-                case 'error':
-                  callbacks.onError?.(data.error);
-                  break;
-              }
-            } catch (error) {
-              console.error('[AgentApi] Failed to parse SSE data:', error);
-            }
-          }
-        }
-      }
-    } catch (error: any) {
-      console.error('[AgentApi] React Stream error:', error);
-      const errorMsg = error.message || 'Stream connection failed';
-      callbacks.onError?.(errorMsg);
-      // 不重新抛出错误，让调用者通过回调处理
-    }
-  }
-
-  /**
    * Agent对话 - 流式响应（SSE）with Planning + Execution
    *
    * @param request 对话请求
@@ -194,15 +95,20 @@ class AgentApiService {
   async chatStream(
     request: AgentChatRequest,
     callbacks: {
+      // 共同回调
       onStart?: (conversationId: string) => void;
-      onPlan?: (plan: any) => void;
-      onTaskStart?: (task: any) => void;
-      onTaskProgress?: (progress: any) => void;
-      onTaskDone?: (taskDone: any) => void;
       onContent?: (chunk: string) => void;
       onStep?: (step: any) => void;
       onDone?: (metadata: any, suggestedActions: string[]) => void;
       onError?: (error: string) => void;
+      // Planning 模式回调
+      onPlan?: (plan: any) => void;
+      onTaskStart?: (task: any) => void;
+      onTaskProgress?: (progress: any) => void;
+      onTaskDone?: (taskDone: any) => void;
+      // React 模式回调（新增）
+      onProgress?: (progress: any) => void;
+      onToolCall?: (toolCall: any) => void;
     }
   ): Promise<void> {
     const token = this.getToken();
@@ -252,9 +158,28 @@ class AgentApiService {
               const data = JSON.parse(line.substring(6));
 
               switch (data.type) {
+                // 共同事件
                 case 'start':
                   callbacks.onStart?.(data.conversation_id);
                   break;
+                case 'content':
+                  // 处理两种格式的 content
+                  const content = typeof data.data === 'string'
+                    ? data.data
+                    : data.data?.content || data.data;
+                  callbacks.onContent?.(content);
+                  break;
+                case 'step':
+                  callbacks.onStep?.(data.data);
+                  break;
+                case 'done':
+                  callbacks.onDone?.(data.metadata, data.suggested_actions);
+                  break;
+                case 'error':
+                  callbacks.onError?.(data.error);
+                  break;
+
+                // Planning 模式事件
                 case 'plan':
                   callbacks.onPlan?.(data.data);
                   break;
@@ -267,17 +192,13 @@ class AgentApiService {
                 case 'task_done':
                   callbacks.onTaskDone?.(data.data);
                   break;
-                case 'content':
-                  callbacks.onContent?.(data.data);
+
+                // React 模式事件（新增）
+                case 'progress':
+                  callbacks.onProgress?.(data.data);
                   break;
-                case 'step':
-                  callbacks.onStep?.(data.data);
-                  break;
-                case 'done':
-                  callbacks.onDone?.(data.metadata, data.suggested_actions);
-                  break;
-                case 'error':
-                  callbacks.onError?.(data.error);
+                case 'tool_call':
+                  callbacks.onToolCall?.(data.data);
                   break;
               }
             } catch (error) {

@@ -4,6 +4,7 @@ import { Input } from '../ui/input';
 import { Bot, Send, Loader2 } from 'lucide-react';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import type { AgentChatRequest } from '../../types/agent';
+import ModeSelector, { type AgentMode } from '../agent/ModeSelector';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -113,6 +114,7 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
   } = useAgentChat();
 
   const [inputValue, setInputValue] = useState('');
+  const [mode, setMode] = useState<AgentMode>('planning'); // ✅ Agent执行模式
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true); // 用于追踪是否应该自动滚动
@@ -158,6 +160,7 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
 
     const request: AgentChatRequest = {
       message: inputValue.trim(),
+      mode,  // ✅ 使用用户选择的模式（动态）
       work_id: workId,
       chapter_id: chapterId,
       context: {
@@ -374,6 +377,18 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
           ))}
         </div>
       )}
+
+      {/* 模式选择器 */}
+      <div className="mb-2 flex items-center gap-2">
+        <ModeSelector
+          mode={mode}
+          onModeChange={setMode}
+          disabled={isLoading}
+        />
+        <span className="text-[10px] text-zinc-400">
+          {mode === 'planning' ? '规划模式：先规划再执行' : 'ReAct模式：边思考边执行'}
+        </span>
+      </div>
 
       {/* 输入框 */}
       <div className="flex gap-2">

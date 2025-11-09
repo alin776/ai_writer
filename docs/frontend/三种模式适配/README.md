@@ -24,6 +24,47 @@
 
 ## 📚 文档导航
 
+### ⚠️ 重要：修复前必读
+
+**[SAFE_FIX_GUIDE.md](./SAFE_FIX_GUIDE.md)** - 🛡️ 安全修复快速指南
+- **核心原则**：绝不破坏Planning模式
+- 5步快速修复流程
+- 每步验收检查清单
+- 紧急回滚方案
+- 零风险实施策略
+
+**[FRONTEND_MODE_ADAPTATION_ISSUES.md](./FRONTEND_MODE_ADAPTATION_ISSUES.md)** - 深度问题分析
+- 14个问题的详细分析
+- 安全修复方案（完整版）
+- 工时估算和实施计划
+- 前后端对比分析
+
+---
+
+### 🎨 模式命名与UI设计（新增）
+
+**[AGENT_MODE_NAMING_RESEARCH.md](./AGENT_MODE_NAMING_RESEARCH.md)** - 模式命名调研报告
+- **核心结论**：采用VS Code的Ask/Plan/Agent命名
+- 业界标准分析（微软、GitHub验证）
+- 用户友好命名 vs 技术命名对比
+- 完整的模式映射方案
+- Web搜索调研数据
+
+**[VSCODE_UI_DESIGN_ANALYSIS.md](./VSCODE_UI_DESIGN_ANALYSIS.md)** - VS Code UI设计深度分析
+- 基于真实截图的设计分析
+- 极简主义设计原理（为什么只显示图标）
+- 完整的技术实现要点
+- 尺寸、间距、颜色规范
+- 用户行为分析
+
+**[MODE_SELECTOR_INTEGRATION_SIMPLE.md](./MODE_SELECTOR_INTEGRATION_SIMPLE.md)** - 集成实施指南
+- ModeSelector组件使用方法
+- AgentChatPanel集成步骤（3步完成）
+- 完整代码示例
+- 视觉效果展示
+
+---
+
 ### 核心文档
 
 1. **[AGENT_API_EXAMPLES.md](./AGENT_API_EXAMPLES.md)** - 推荐阅读
@@ -187,59 +228,132 @@ onContent: (chunk) => {
 
 ---
 
-## 🚨 已知问题
+## 🚨 已知问题（基于代码审查）
 
-### ❌ 问题1: 前端类型定义缺失mode参数
+### ❌ 问题1: 前端类型定义缺失mode参数 ✅ 已确认
 
-**文件**: `src/types/agent.ts`
+**文件**: `src/types/agent.ts:7-18`
 
 **问题**: `AgentChatRequest` 接口缺少 `mode` 字段
 
-**影响**: 无法在请求中指定聊天模式
-
-**修复优先级**: 🔴 P0 - 立即修复
-
-**修复步骤**:
+**实际代码**:
 ```typescript
-// src/types/agent.ts
 export interface AgentChatRequest {
   message: string;
-  mode?: 'planning' | 'react';  // ✅ 添加此行
   work_id?: string;
   chapter_id?: string;
   conversation_id?: string;
   context?: Record<string, any>;
+  // ❌ 缺少: mode?: 'planning' | 'react';
 }
 ```
 
----
-
-### ❌ 问题2: chatReactStream() 调用不存在的路由
-
-**文件**: `src/services/agentApi.ts:110`
-
-**问题**: 调用了后端不存在的 `/api/v1/agent/chat/react-stream` 路由
-
-```typescript
-// ❌ 错误：这个路由不存在
-const url = `${API_BASE_URL}/api/v1/agent/chat/react-stream`;
+**后端已支持**:
+```python
+# backend/app/schemas/agent.py
+class AgentChatRequest(BaseModel):
+    message: str
+    mode: Optional[str] = None  # ✅ 后端已有！
 ```
 
-**影响**: React模式流式对话功能完全不可用
+**影响**: 前端无法传递模式参数给后端
 
 **修复优先级**: 🔴 P0 - 立即修复
 
-**修复方案**: 删除整个 `chatReactStream()` 函数（第97-186行），使用统一的 `chatStream()` 函数
+---
+
+### ❌ 问题2: ModeSelector 命名不匹配 ✅ 已确认
+
+**文件**: `src/components/agent/ModeSelector.tsx:14-49`
+
+**问题**: 前端使用 `ask/plan/agent`，但后端使用 `planning/react`
+
+**实际代码**:
+```typescript
+// 前端
+type AgentMode = 'ask' | 'plan' | 'agent'
+
+// 后端
+class ChatMode(str, Enum):
+    PLANNING = "planning"
+    REACT = "react"
+```
+
+**影响**: 命名不统一，开发者困惑，且 `ask` 模式后端不存在
+
+**修复优先级**: 🔴 P0 - 立即修复
+
+**修复方案**: 统一改为 `planning` 和 `react`
 
 ---
 
-### ❌ 问题3: chatStream() 不支持React模式事件
+### ❌ 问题3: AgentChatPanel 未集成 ModeSelector ✅ 已确认
+
+**文件**: `src/components/agent/AgentChatPanel.tsx:27-79`
+
+**问题**: `ModeSelector` 组件已存在但从未被使用
+
+**实际代码**:
+```typescript
+export default function AgentChatPanel({...}) {
+  const [useStreaming] = useState(true);  // 只是开关，不是模式选择
+  // ❌ 没有导入 ModeSelector
+  // ❌ 没有 mode 状态管理
+}
+```
+
+**影响**: 用户无法在 UI 中选择执行模式
+
+**修复优先级**: 🔴 P0 - 立即修复
+
+---
+
+### ❌ 问题4: useAgentChat Hook 硬编码模式 ✅ 已确认
+
+**文件**: `src/hooks/useAgentChat.ts:148-270`
+
+**问题**: `sendMessageStream()` 总是调用 Planning 模式，无法切换
+
+**实际代码**:
+```typescript
+const sendMessageStream = useCallback(
+  async (request: AgentChatRequest) => {
+    // ❌ 无法指定 mode，总是 Planning
+    await agentApi.chatStream(request, {
+      onPlan: ...,
+      onTaskStart: ...,
+      // 没有 React 模式的回调
+    })
+  }
+)
+```
+
+**影响**: Hook 层面无法支持 React 模式
+
+**修复优先级**: 🟡 P1 - 本周修复
+
+---
+
+### ❌ 问题5: chatStream() 不支持 React 模式事件 ✅ 已确认
 
 **文件**: `src/services/agentApi.ts:194-294`
 
 **问题**: `chatStream()` 函数缺少 React 模式的事件处理（`progress`, `tool_call`）
 
-**影响**: 使用统一接口时无法接收React模式的特定事件
+**实际代码**:
+```typescript
+async chatStream(
+  request: AgentChatRequest,  // 没有 mode 参数
+  callbacks: {
+    // 只有 Planning 模式的回调
+    onPlan?: (plan: any) => void;
+    onTaskStart?: (task: any) => void;
+    // ❌ 缺少: onProgress, onToolCall
+  }
+)
+```
+
+**影响**: 使用统一接口时无法接收 React 模式的特定事件
 
 **修复优先级**: 🟡 P1 - 本周修复
 
@@ -314,15 +428,20 @@ switch (data.type) {
 
 ---
 
-### 📋 修复总结
+### 📋 修复总结（基于代码审查）
 
-| 问题 | 优先级 | 文件 | 工时 | 状态 |
-|------|--------|------|------|------|
-| 类型定义缺失mode | P0 | types/agent.ts | 2分钟 | ⏳ 待修复 |
-| chatReactStream错误路由 | P0 | services/agentApi.ts | 2分钟 | ⏳ 待修复 |
-| chatStream不支持React | P1 | services/agentApi.ts | 15分钟 | ⏳ 待修复 |
+| 问题 | 优先级 | 文件 | 行号 | 工时 | 状态 |
+|------|--------|------|------|------|------|
+| 类型定义缺失mode | 🔴 P0 | src/types/agent.ts | 7-18 | 5分钟 | ⏳ 待修复 |
+| ModeSelector命名混乱 | 🔴 P0 | src/components/agent/ModeSelector.tsx | 14-49 | 30分钟 | ⏳ 待修复 |
+| AgentChatPanel未集成 | 🔴 P0 | src/components/agent/AgentChatPanel.tsx | 27-79 | 45分钟 | ⏳ 待修复 |
+| useAgentChat硬编码 | 🟡 P1 | src/hooks/useAgentChat.ts | 148-270 | 30分钟 | ⏳ 待修复 |
+| chatStream不支持React | 🟡 P1 | src/services/agentApi.ts | 194-294 | 45分钟 | ⏳ 待修复 |
+| 删除冗余后端文件 | 🟡 P1 | backend/app/api/v1/agent_react_stream.py | 全文件 | 2分钟 | ⏳ 待修复 |
 
-**总计**: 约19分钟
+**P0 总计**: 约1.5小时（必须修复）
+**P1 总计**: 约1.5小时（建议修复）
+**总计**: 约3小时
 
 ---
 

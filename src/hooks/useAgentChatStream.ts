@@ -128,12 +128,13 @@ export function useAgentChatStream(
         // 准备请求
         const request: AgentChatRequest = {
           message,
+          mode: 'react',  // ✅ 明确指定 React 模式
           conversation_id: conversationId || undefined,
           ...requestOptions,
         };
 
-        // 调用API
-        await agentApi.chatReactStream(request, {
+        // 调用API（使用统一的 chatStream，通过 mode 参数区分）
+        await agentApi.chatStream(request, {
           onStart: (convId) => {
             setConversationId(convId);
           },

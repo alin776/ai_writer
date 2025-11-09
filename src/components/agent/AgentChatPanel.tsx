@@ -16,6 +16,7 @@ import ChatInput from './ChatInput';
 import SuggestedActions from './SuggestedActions';
 import ThinkingIndicator from './ThinkingIndicator';
 import TaskListPanel from './TaskListPanel';
+import ModeSelector, { type AgentMode } from './ModeSelector';
 
 interface AgentChatPanelProps {
   workId?: string;
@@ -42,8 +43,11 @@ export default function AgentChatPanel({
   } = useAgentChat();
 
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [useStreaming, setUseStreaming] = useState(true); // 默认使用流式响应
+  const [mode, setMode] = useState<AgentMode>('planning'); // Agent执行模式：planning(默认) 或 react
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // 始终使用流式响应
+  const useStreaming = true;
 
   // 自动滚动到底部
   useEffect(() => {
@@ -60,9 +64,10 @@ export default function AgentChatPanel({
   const handleSendMessage = async (message: string, context?: any) => {
     const request = {
       message,
+      mode,  // 传递当前选择的执行模式
       work_id: workId,
       chapter_id: chapterId,
-      conversation_id: conversationId,
+      conversation_id: conversationId || undefined,  // 将 null 转换为 undefined
       context
     };
 
@@ -90,14 +95,25 @@ export default function AgentChatPanel({
       {/* 头部 */}
       <div className="chat-header px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-bold text-gray-800 flex items-center gap-2">
-              <span className="text-base">🤖</span>
-              AI写作助手
-            </h2>
-            <p className="text-xs text-gray-600 mt-0.5">
-              智能规划 · 写作辅助 · 文本分析 · 创意激发
-            </p>
+          <div className="flex items-center gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                <span className="text-base">🤖</span>
+                AI写作助手
+              </h2>
+              <p className="text-xs text-gray-600 mt-0.5">
+                智能规划 · 写作辅助 · 文本分析 · 创意激发
+              </p>
+            </div>
+
+            {/* 模式选择器 */}
+            <div className="ml-2">
+              <ModeSelector
+                mode={mode}
+                onModeChange={setMode}
+                disabled={isLoading}
+              />
+            </div>
           </div>
 
           {messages.length > 0 && (

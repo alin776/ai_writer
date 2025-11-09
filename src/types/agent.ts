@@ -6,6 +6,7 @@
 
 export interface AgentChatRequest {
   message: string;
+  mode?: 'planning' | 'react';  // Agent执行模式：planning(先规划再执行) 或 react(边思考边执行)
   work_id?: string;
   chapter_id?: string;
   conversation_id?: string;
