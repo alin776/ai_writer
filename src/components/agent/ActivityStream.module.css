@@ -1,0 +1,287 @@
+/* ActivityStream 样式 - 简约专业，流畅动画 */
+
+.activityStream {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* 头部 */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+  margin: 0;
+}
+
+.stats {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.statActive,
+.statCompleted {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 12px;
+}
+
+.statActive {
+  color: #3b82f6;
+  background: #eff6ff;
+}
+
+.statCompleted {
+  color: #10b981;
+  background: #f0fdf4;
+}
+
+/* 活动列表 */
+.activityList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* 自定义滚动条 */
+.activityList::-webkit-scrollbar {
+  width: 6px;
+}
+
+.activityList::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.activityList::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.activityList::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* 活动项 */
+.activityItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.activityItem.active {
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.1);
+}
+
+.activityItem.completed {
+  opacity: 0.7;
+}
+
+.activityItem.failed {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+/* 图标 */
+.activityIcon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #f1f5f9;
+}
+
+.iconActive {
+  color: #3b82f6;
+}
+
+.iconCompleted {
+  color: #10b981;
+}
+
+/* 内容区 */
+.activityContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.activityDescription {
+  font-size: 13px;
+  color: #1e293b;
+  font-weight: 500;
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.activityMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.activityType {
+  font-size: 11px;
+  color: #64748b;
+  padding: 2px 6px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.toolName {
+  font-size: 11px;
+  color: #7c3aed;
+  padding: 2px 6px;
+  background: #faf5ff;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.activityTime {
+  font-size: 11px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* 状态图标 */
+.activityStatus {
+  flex-shrink: 0;
+}
+
+.checkIcon {
+  color: #10b981;
+}
+
+/* 进度条 */
+.progressBar {
+  margin-top: 12px;
+  height: 3px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+  transition: width 0.3s ease;
+  border-radius: 2px;
+}
+
+/* ========== 动画 ========== */
+
+/* 脉冲动画（用于思考中） */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* 旋转动画（用于工具调用和加载） */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+/* 淡入动画（新活动出现） */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.activityItem {
+  animation: fadeIn 0.3s ease;
+}
+
+/* 完成时的闪烁效果 */
+@keyframes completionFlash {
+  0%, 100% {
+    background: white;
+  }
+  50% {
+    background: #f0fdf4;
+  }
+}
+
+.activityItem.completed {
+  animation: completionFlash 0.5s ease;
+}
+
+/* ========== 响应式 ========== */
+
+@media (max-width: 640px) {
+  .activityStream {
+    padding: 12px;
+  }
+
+  .activityItem {
+    padding: 8px 10px;
+  }
+
+  .activityIcon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .activityDescription {
+    font-size: 12px;
+  }
+
+  .activityMeta {
+    gap: 6px;
+  }
+}

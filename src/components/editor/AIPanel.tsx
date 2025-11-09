@@ -5,6 +5,8 @@ import { Bot, Send, Loader2 } from 'lucide-react';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import type { AgentChatRequest } from '../../types/agent';
 import ModeSelector, { type AgentMode } from '../agent/ModeSelector';
+import ActivityStream from '../agent/ActivityStream';  // ✅ 导入ActivityStream
+import TaskListPanel from '../agent/TaskListPanel';    // ✅ 导入TaskListPanel
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -110,6 +112,7 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
     suggestedActions,
     tasks,
     currentTaskId,
+    activities,  // ✅ 添加activities
     sendMessageStream,
   } = useAgentChat();
 
@@ -118,6 +121,26 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true); // 用于追踪是否应该自动滚动
+
+  // 🔍 调试：组件挂载/卸载监听
+  useEffect(() => {
+    console.log('🔴 [AIPanel] 组件已挂载！');
+    return () => console.log('🔴 [AIPanel] 组件卸载');
+  }, []);
+
+  // 🔍 调试：activities变化监听
+  useEffect(() => {
+    console.log('🔴 [AIPanel] activities变化！', {
+      length: activities.length,
+      activities: activities,
+      timestamp: new Date().toISOString()
+    });
+  }, [activities]);
+
+  // 🔍 调试：mode变化监听
+  useEffect(() => {
+    console.log('🔴 [AIPanel] mode变化！', mode);
+  }, [mode]);
 
   // 检测用户是否在底部
   const checkIfAtBottom = useCallback(() => {
@@ -255,8 +278,31 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
           );
         })}
 
-        {/* 任务执行进度（todolist）- 显示在所有历史消息之后，streaming消息之前 */}
-        {isLoading && tasks.length > 0 && (
+        {/* ReAct模式活动流 - 显示在所有历史消息之后，streaming消息之前 */}
+        {console.log('🟣 [AIPanel] 渲染检查:', {
+          mode,
+          activitiesLength: activities.length,
+          条件满足: mode === 'react' && activities.length > 0
+        })}
+        {mode === 'react' && activities.length > 0 && (
+          <>
+            {console.log('🟣 [AIPanel] 准备渲染ActivityStream，activities.length =', activities.length)}
+            <div className="flex items-start gap-2">
+              <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
+                <Bot className="h-3.5 w-3.5 text-white" />
+              </div>
+              <div className="flex-1">
+                <ActivityStream
+                  key={`activities-${activities.length}`}
+                  activities={activities}
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Planning模式任务执行进度（todolist）- 显示在所有历史消息之后，streaming消息之前 */}
+        {mode === 'planning' && isLoading && tasks.length > 0 && (
           <div className="flex items-start gap-2">
             <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />

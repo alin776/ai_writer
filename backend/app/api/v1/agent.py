@@ -1080,6 +1080,9 @@ async def agent_chat_stream(
                     'data': event_data,
                     'mode': str(actual_mode)
                 }
+                # 添加调试日志
+                if event_type == 'progress':
+                    logger.info(f"[SSE] 发送 progress 事件: step={event_data.get('step')}, desc={event_data.get('description')}")
                 yield f"data: {json.dumps(event_payload, ensure_ascii=False)}\n\n"
 
             # 等待 Agent 任务完成

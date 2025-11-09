@@ -2475,14 +2475,16 @@ class WritingAgentGraph:
         node_name = list(event.keys())[0]
         node_data = event[node_name]
 
-        logger.debug(f"[Stream Event] 节点: {node_name}")
+        logger.info(f"[Stream Event] 节点: {node_name}")  # 改为info级别
 
         # 1. 解析进度事件并触发on_progress
         if on_progress:
             progress_event = self._parse_node_event(node_name, node_data)
             if progress_event:
+                logger.info(f"[Stream Event] progress_event = {progress_event}")  # 添加日志
                 try:
                     await on_progress(progress_event)
+                    logger.info(f"[Stream Event] on_progress 回调已调用")  # 添加日志
                 except Exception as e:
                     logger.error(f"[Stream] 进度回调失败: {e}")
 

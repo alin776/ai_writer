@@ -178,3 +178,52 @@ export interface ApiError {
   detail: string;
   status_code: number;
 }
+
+// ==================== ActivityStream 活动流 ====================
+
+/**
+ * 活动类型
+ */
+export type ActivityType = 'intent_analysis' | 'thinking' | 'tool_execution' | 'generating';
+
+/**
+ * 活动状态
+ */
+export type ActivityStatus = 'active' | 'completed' | 'failed';
+
+/**
+ * 活动项
+ * 用于ReAct模式的实时进度展示
+ */
+export interface ActivityItem {
+  id: string;
+  type: ActivityType;
+  description: string;
+  timestamp: string;
+  status: ActivityStatus;
+  node?: string;  // LangGraph节点名
+  tool?: string;  // 工具名（如果是工具调用）
+  details?: Record<string, any>;  // 额外信息
+  elapsedTime?: number;  // 执行时间（秒）
+}
+
+/**
+ * 进度事件（从后端接收）
+ */
+export interface ProgressEvent {
+  type: 'progress';
+  step: 'intent_analysis' | 'thinking' | 'tool_execution' | 'generating';
+  description: string;
+  node?: string;
+  details?: Record<string, any>;
+  timestamp: string;
+}
+
+/**
+ * 工具调用事件（从后端接收）
+ */
+export interface ToolCallEvent {
+  tool: string;
+  args: any;
+  timestamp: string;
+}

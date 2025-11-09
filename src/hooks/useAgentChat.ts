@@ -8,9 +8,9 @@
  * - 加载状态
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { agentApi } from '@/services/agentApi';
-import type { AgentChatRequest, AgentChatResponse } from '@/types/agent';
+import type { AgentChatRequest, AgentChatResponse, ActivityItem } from '@/types/agent';
 
 interface Message {
   role: 'user' | 'agent';
@@ -36,6 +36,7 @@ interface UseAgentChatReturn {
   suggestedActions: string[];
   tasks: Task[];
   currentTaskId: number | null;
+  activities: ActivityItem[];  // ✅ 新增：活动流
   sendMessage: (request: AgentChatRequest) => Promise<AgentChatResponse | null>;
   sendMessageStream: (request: AgentChatRequest) => Promise<void>;
   clearMessages: () => void;
@@ -50,7 +51,11 @@ export function useAgentChat(): UseAgentChatReturn {
   const [lastRequest, setLastRequest] = useState<AgentChatRequest | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentTaskId, setCurrentTaskId] = useState<number | null>(null);
-  const [conversationId, setConversationId] = useState<string | undefined>(undefined); // ✅ 添加conversation_id状态
+  const [conversationId, setConversationId] = useState<string | undefined>(undefined);
+  const [activities, setActivities] = useState<ActivityItem[]>([]);  // ✅ 新增：活动流状态
+
+  // 用于记录活动开始时间（计算耗时）
+  const [activityStartTimes] = useState<Map<string, number>>(new Map());
 
   const sendMessage = useCallback(
     async (request: AgentChatRequest): Promise<AgentChatResponse | null> => {
@@ -115,6 +120,10 @@ export function useAgentChat(): UseAgentChatReturn {
         // 重置任务状态
         setTasks([]);
         setCurrentTaskId(null);
+
+        // ✅ 重置活动流状态
+        setActivities([]);
+        activityStartTimes.clear();
 
         // 添加用户消息
         const userMessage: Message = {
@@ -226,16 +235,53 @@ export function useAgentChat(): UseAgentChatReturn {
           // React 模式回调（新增）
           ...(mode === 'react' ? {
             onProgress: (progress) => {
-              console.log('[Stream] React 进度:', progress);
-              // React 模式的进度更新（可以显示在 UI 中）
+              console.log('🔵 [DEBUG] onProgress 被调用', progress);
+
+              // ✅ 转换为 ActivityItem 并添加到活动流
+              const activityId = `${progress.node || progress.step}_${Date.now()}`;
+              const activity: ActivityItem = {
+                id: activityId,
+                type: progress.step as any,  // 'intent_analysis' | 'thinking' | 'tool_execution' | 'generating'
+                description: progress.description,
+                timestamp: progress.timestamp,
+                status: 'active',
+                node: progress.node,
+                details: progress.details
+              };
+
+              // 记录活动开始时间
+              activityStartTimes.set(activityId, Date.now());
+
+              // 添加到活动流
+              setActivities(prev => [...prev, activity]);
             },
             onToolCall: (toolCall) => {
               console.log('[Stream] 工具调用:', toolCall);
+
               // 将工具调用记录到 agentSteps 中
               agentSteps.push({
                 step: `调用工具: ${toolCall.tool || '未知'}`,
                 result: JSON.stringify(toolCall.args || {})
               });
+
+              // ✅ 标记对应的活动为完成（如果有 tool_execution 活动）
+              setActivities(prev =>
+                prev.map(a => {
+                  // 查找最近的tool_execution活动
+                  if (a.type === 'tool_execution' && a.status === 'active') {
+                    const startTime = activityStartTimes.get(a.id);
+                    const elapsedTime = startTime ? (Date.now() - startTime) / 1000 : 0;
+
+                    return {
+                      ...a,
+                      status: 'completed' as const,
+                      tool: toolCall.tool,
+                      elapsedTime
+                    };
+                  }
+                  return a;
+                })
+              );
             }
           } : {}),
 
@@ -263,6 +309,23 @@ export function useAgentChat(): UseAgentChatReturn {
           onDone: (metadata, actions) => {
             console.log('[Stream] Done');
             setSuggestedActions(actions || []);
+
+            // ✅ 标记所有活动为完成
+            setActivities(prev =>
+              prev.map(a => {
+                if (a.status === 'active') {
+                  const startTime = activityStartTimes.get(a.id);
+                  const elapsedTime = startTime ? (Date.now() - startTime) / 1000 : 0;
+
+                  return {
+                    ...a,
+                    status: 'completed' as const,
+                    elapsedTime
+                  };
+                }
+                return a;
+              })
+            );
 
             // 最终更新消息，添加metadata
             setMessages((prev) => {
@@ -311,8 +374,10 @@ export function useAgentChat(): UseAgentChatReturn {
     setLastRequest(null);
     setTasks([]);
     setCurrentTaskId(null);
-    setConversationId(undefined); // ✅ 清空conversation_id
-  }, []);
+    setConversationId(undefined);
+    setActivities([]);  // ✅ 清空活动流
+    activityStartTimes.clear();
+  }, [activityStartTimes]);
 
   const retryLastMessage = useCallback(async () => {
     if (!lastRequest) return;
@@ -331,6 +396,7 @@ export function useAgentChat(): UseAgentChatReturn {
     suggestedActions,
     tasks,
     currentTaskId,
+    activities,  // ✅ 返回活动流
     sendMessage,
     sendMessageStream,
     clearMessages,

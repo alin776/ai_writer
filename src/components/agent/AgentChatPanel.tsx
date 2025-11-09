@@ -16,6 +16,7 @@ import ChatInput from './ChatInput';
 import SuggestedActions from './SuggestedActions';
 import ThinkingIndicator from './ThinkingIndicator';
 import TaskListPanel from './TaskListPanel';
+import ActivityStream from './ActivityStream';  // ✅ 导入ActivityStream
 import ModeSelector, { type AgentMode } from './ModeSelector';
 
 interface AgentChatPanelProps {
@@ -39,15 +40,36 @@ export default function AgentChatPanel({
     suggestedActions,
     tasks,
     currentTaskId,
+    activities,  // ✅ 获取活动流
     clearMessages
   } = useAgentChat();
 
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [mode, setMode] = useState<AgentMode>('planning'); // Agent执行模式：planning(默认) 或 react
+  const [mode, setMode] = useState<AgentMode>('react'); // 🔥 默认react模式用于测试
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 始终使用流式响应
   const useStreaming = true;
+
+  // 🔥 监听activities变化（调试）
+  useEffect(() => {
+    console.log('🔴 [AgentChatPanel] activities变化！', {
+      length: activities.length,
+      activities: activities,
+      timestamp: new Date().toISOString()
+    });
+  }, [activities]);
+
+  // 🔥 监听mode变化（调试）
+  useEffect(() => {
+    console.log('🔴 [AgentChatPanel] mode变化！', mode);
+  }, [mode]);
+
+  // 🔥 组件挂载时打印（调试）
+  useEffect(() => {
+    console.log('🔴 [AgentChatPanel] 组件已挂载！');
+    return () => console.log('🔴 [AgentChatPanel] 组件卸载');
+  }, []);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -129,9 +151,28 @@ export default function AgentChatPanel({
 
       {/* 消息列表 */}
       <div className="messages flex-1 overflow-y-auto px-4 py-3 space-y-4">
-        {/* 任务清单面板 */}
-        {tasks.length > 0 && (
+        {/* 进度展示：根据模式选择不同的组件 */}
+        {console.log('🟣 [AgentChatPanel] 渲染检查:', { mode, activitiesLength: activities.length, tasksLength: tasks.length })}
+
+        {mode === 'planning' && tasks.length > 0 && (
           <TaskListPanel tasks={tasks} currentTaskId={currentTaskId} />
+        )}
+
+        {mode === 'react' && (
+          <>
+            {console.log('🟣 [AgentChatPanel] react模式，activities.length =', activities.length)}
+            {activities.length > 0 ? (
+              <>
+                {console.log('🟣 [AgentChatPanel] 准备渲染ActivityStream')}
+                <ActivityStream
+                  key={`activities-${activities.length}`}  // 🔥 强制重新渲染
+                  activities={activities}
+                />
+              </>
+            ) : (
+              console.log('🟣 [AgentChatPanel] activities为空，不渲染ActivityStream')
+            )}
+          </>
         )}
 
         {messages.length === 0 && (
