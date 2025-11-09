@@ -347,6 +347,26 @@ async def reset_conversation(
 
         logger.info(f"[Reset Conversation] User: {user_id}, Old Conv ID: {old_conversation_id}")
 
+        # ✅ 验证会话归属
+        from app.core.redis import redis_client
+
+        stored_user_id = await redis_client.get(
+            f"conversation:{old_conversation_id}:owner"
+        )
+        if stored_user_id:
+            # RedisClient 已自动解码，无需 decode()
+            if isinstance(stored_user_id, bytes):
+                stored_user_id = stored_user_id.decode('utf-8')
+            if stored_user_id != user_id:
+                # 会话归属验证失败
+                logger.warning(
+                    f"[Security] 用户 {user_id} 尝试重置其他用户的会话 {old_conversation_id}"
+                )
+                raise HTTPException(
+                    status_code=403,
+                    detail="无权访问此会话"
+                )
+
         # 获取全局Agent实例
         agent_graph = get_agent_graph()
 
@@ -898,6 +918,40 @@ async def agent_chat_stream(
         try:
             user_id = str(current_user.id)
             conversation_id = request.conversation_id or str(uuid.uuid4())
+
+            # ✅ 会话归属验证（简化版Redis方案）
+            from app.core.redis import redis_client
+
+            if request.conversation_id:
+                # 验证现有会话的归属
+                stored_user_id = await redis_client.get(
+                    f"conversation:{request.conversation_id}:owner"
+                )
+                if stored_user_id:
+                    # RedisClient 已设置 decode_responses=True，返回字符串
+                    # 但如果返回的是字节，需要解码
+                    if isinstance(stored_user_id, bytes):
+                        stored_user_id = stored_user_id.decode('utf-8')
+                    if stored_user_id != user_id:
+                        # 会话归属验证失败
+                        error_event = {
+                            'type': 'error',
+                            'message': '无权访问此会话',
+                            'code': 'UNAUTHORIZED_CONVERSATION'
+                        }
+                        yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
+                        logger.warning(
+                            f"[Security] 用户 {user_id} 尝试访问其他用户的会话 {request.conversation_id}"
+                        )
+                        return
+            else:
+                # 新会话：存储归属关系
+                await redis_client.set(
+                    f"conversation:{conversation_id}:owner",
+                    user_id,
+                    expire=86400 * 30  # 30天过期（修复：ex -> expire）
+                )
+                logger.info(f"[Session] 创建新会话归属: {conversation_id} -> {user_id}")
 
             logger.info(f"[LangGraph Agent Stream] ⏱️ 请求开始 - User: {user_id}, Mode: {actual_mode}, Message: {request.message[:50]}...")
 

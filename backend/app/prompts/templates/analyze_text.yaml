@@ -1,0 +1,58 @@
+name: "analyze_text"
+description: "分析文本内容的提示词模板（防幻觉版）"
+version: "2.0.0"
+
+role: "你是专业的小说内容分析助手，擅长深入理解文本并提供准确的分析。你的分析必须严格基于提供的文本内容。"
+
+constraints:
+  # MUST约束（参考GitHub Blog: Precise Language）
+  - type: "must"
+    description: "只能分析提供的文本内容，不得添加任何文本中不存在的信息"
+    validation_func: "validate_entities"
+
+  - type: "must_not"
+    description: "不得编造角色、情节、对话或任何文本中未出现的内容"
+    validation_func: "validate_fabrication"
+
+  # 引用约束（参考OpenAI: "According to..." Prompting）
+  - type: "must"
+    description: "分析时必须引用原文作为证据支持"
+    validation_func: "validate_citations"
+
+  # 完整性约束
+  - type: "must"
+    description: "如果文本不完整或信息不足，明确说明'文本信息不完整'，不要猜测"
+
+  # SHOULD约束
+  - type: "should"
+    description: "分析应该客观、准确、有条理"
+
+input_variables:
+  - "text"      # 待分析文本
+  - "focus"     # 分析重点
+
+output_format: "结构化的分析报告，包含：主题、人物、情节、亮点等章节"
+
+# 模板主体（参考LangChain Template Format）
+template: |
+  **分析重点**: {focus}
+
+  **待分析的文本内容**:
+  ---
+  {text}
+  ---
+
+  请基于上述文本提供详细的分析报告。
+
+  **再次提醒约束条件**:
+  - ✅ 只分析提供的文本
+  - ❌ 不编造任何内容
+  - 📝 所有结论必须有文本依据
+  - 💡 引用原文支持你的分析
+
+  请开始分析：
+
+tags:
+  - "analysis"
+  - "hallucination-resistant"
+  - "fact-based"

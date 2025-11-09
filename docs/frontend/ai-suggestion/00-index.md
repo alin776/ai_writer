@@ -8,21 +8,27 @@
 
 ```
 ai-suggestion/
-├── README.md                           ⭐ 开始这里
-├── quick-start.md                      🚀 快速开始（5分钟）
-├── integration-guide.md                📖 集成指南（完整）
-├── types-definition.md                 📦 类型定义
-├── 01-architecture.md                  🏗️ 架构设计
-├── 02-state-management.md              📝 Phase 1: 状态管理
-├── 03-agent-card.md                    🎴 Phase 2: Agent卡片
-├── 04-editor-sync.md                   🔄 Phase 3: 编辑器同步
-├── 05-interaction-integration.md       🤝 Phase 4&5: 交互集成
-├── 06-ux-optimization.md               ✨ Phase 6: UX优化
-├── api-reference.md                    📖 API参考
-├── component-props.md                  🎛️ 组件Props
-├── style-guide.md                      🎨 样式规范
-├── examples.md                         💡 使用示例
-└── REVIEW-REPORT.md                    📊 文档质量报告
+├── 00-index.md                        📑 文档索引
+├── README.md                          ⭐ 总览文档
+├── quick-start.md                     🚀 快速开始（5分钟）
+├── integration-guide.md               📖 集成指南（完整）
+├── types-definition.md                📦 类型定义
+├── 01-architecture.md                 🏗️ 架构设计
+├── 02-state-management.md             📝 Phase 1: 状态管理
+├── 03-agent-card.md                   🎴 Phase 2: Agent卡片
+├── 04-editor-sync.md                  🔄 Phase 3: 编辑器同步
+├── 05-interaction-integration.md      🤝 Phase 4&5: 交互集成
+├── 06-ux-optimization.md              ✨ Phase 6: UX优化
+├── api-reference.md                   📖 API参考
+├── component-props.md                 🎛️ 组件Props
+├── style-guide.md                     🎨 样式规范
+├── examples.md                        💡 使用示例
+├── REVIEW-REPORT.md                   📊 文档质量报告
+├── FRONTEND_MODE_ANALYSIS.md          📜 Mode参数分析（已过时）
+├── API_ADAPTATION_ANALYSIS.md         🔍 API适配深度分析 (NEW)
+├── API_QUICK_FIX.md                   🚨 API问题快速修复 (NEW)
+├── AGENT_API_EXAMPLES.md              💻 Agent API使用示例 (NEW)
+└── DOCUMENT_ORGANIZATION_REPORT.md    📋 文档整理报告 (NEW)
 ```
 
 ---
@@ -146,6 +152,36 @@ ai-suggestion/
 ---
 
 ### 参考文档
+
+#### 🚨 API 适配问题（重要）
+
+**新增文档（2025-11-09）**：
+
+📄 [API_QUICK_FIX.md](./API_QUICK_FIX.md) - **优先阅读** 🔴
+- ❌ 核心问题：React 模式流式对话无法工作
+- ✅ 快速修复指南
+- 📋 使用示例
+- 🔴 优先级：P0
+
+📄 [API_ADAPTATION_ANALYSIS.md](./API_ADAPTATION_ANALYSIS.md) - 深度分析
+- 后端 API 实际实现详解
+- 前后端不匹配问题分析
+- 完整修复方案
+- 测试验证方案
+
+📄 [AGENT_API_EXAMPLES.md](./AGENT_API_EXAMPLES.md) - 使用示例
+- Planning 模式完整示例
+- React 模式完整示例
+- 模式切换示例
+- 统一 Agent 容器实现
+- 回调对比表
+
+📄 [FRONTEND_MODE_ANALYSIS.md](./FRONTEND_MODE_ANALYSIS.md) - 历史分析（已过时）
+- ⚠️ 本文档部分内容已过时
+- 📜 仅作历史参考
+- ✅ 请参考上述最新文档
+
+---
 
 #### API 参考
 📄 [api-reference.md](./api-reference.md)

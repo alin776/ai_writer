@@ -1,5 +1,16 @@
+name: "query_agent"
 version: "2.0.0"
 description: "小说创作问答专家 - 回答创作问题、提供写作建议"
+
+role: "你是专业的小说创作顾问，擅长回答各类网络小说创作相关的问题，提供实用的写作建议和技巧指导。"
+
+constraints: []
+
+input_variables:
+  - "user_message"
+  - "context_summary"
+
+output_format: "结构化的回答，包含核心要点、具体方法、示例参考等"
 
 template: |
   # 角色定位

@@ -261,7 +261,7 @@ async def polish_text_tool(text: str, style: str = "professional") -> str:
 
 @tool
 async def analyze_text_tool(text: str, focus: str = "all") -> str:
-    """分析工具：分析文本问题
+    """分析工具：分析文本问题（V2.0 - 防幻觉版）
 
     Args:
         text: 待分析的文本
@@ -269,20 +269,80 @@ async def analyze_text_tool(text: str, focus: str = "all") -> str:
 
     Returns:
         分析报告
+
+    变更:
+        - ✅ 使用结构化提示词模板（防幻觉）
+        - ✅ 添加输出验证
+        - ✅ 降低temperature从0.3到0.1
+        - ✅ 验证失败时添加警告标记
+        - ✅ 异步执行验证（不阻塞事件循环）
     """
-    prompt = f"""请分析以下文本，重点关注：{focus}
+    from app.prompts.constraint_manager import get_constraint_manager
+    import asyncio
+
+    try:
+        # 1. 使用约束提示词管理器
+        prompt_manager = get_constraint_manager()
+
+        # 2. 格式化提示词（包含约束）
+        prompt = prompt_manager.format_prompt(
+            "analyze_text",
+            text=text,
+            focus=focus
+        )
+
+        # 3. 调用AI（降低创造性）
+        result = await _generate_text_helper(
+            prompt,
+            temperature=0.1,  # ✅ 从0.3降到0.1，减少幻觉
+            max_tokens=1500,
+            task_type=TaskType.SUMMARIZATION
+        )
+
+        # 4. ✅ 异步验证输出（不阻塞事件循环）
+        validation = await asyncio.to_thread(
+            prompt_manager.validate_output,
+            template_name="analyze_text",
+            source_text=text,
+            ai_output=result
+        )
+
+        # 5. ✅ 验证失败时的补救措施
+        if not validation["valid"]:
+            logger.warning(
+                f"⚠️ AI输出验证失败: {validation.get('details', [])}"
+            )
+
+            # 添加警告标记到结果中
+            warning_msg = "\n\n---\n⚠️ **注意**: 此分析可能包含不准确信息，请谨慎参考。\n"
+
+            # 如果发现编造实体，列出来
+            for detail in validation.get('details', []):
+                if not detail['result'].get('valid', True):
+                    fabricated = detail['result'].get('fabricated_entities', [])
+                    if fabricated:
+                        warning_msg += f"检测到可能编造的内容: {', '.join(fabricated[:5])}\n"
+
+            result += warning_msg
+
+        return result
+
+    except Exception as e:
+        # 降级方案：如果新系统失败，使用原来的简单提示词
+        logger.error(f"约束提示词系统失败，使用降级方案: {e}")
+        prompt = f"""请分析以下文本，重点关注：{focus}
 
 文本：
 {text}
 
 请提供详细的分析报告："""
 
-    return await _generate_text_helper(
-        prompt,
-        temperature=0.3,
-        max_tokens=1500,
-        task_type=TaskType.SUMMARIZATION  # ← 修正：分析任务实际是摘要/总结任务，使用flash
-    )
+        return await _generate_text_helper(
+            prompt,
+            temperature=0.1,
+            max_tokens=1500,
+            task_type=TaskType.SUMMARIZATION
+        )
 
 
 @tool
@@ -379,14 +439,27 @@ async def get_chapter_by_order_tool(work_id: str, chapter_order: int) -> str:
                     "total_chapters": len(work.chapters)
                 }, ensure_ascii=False, indent=2)
 
-            # 返回章节信息
+            # 返回章节信息（V2.0 - 添加HTML清理）
+            from app.utils.text_cleaner import text_cleaner
+
+            # ✅ 清理HTML内容
+            clean_content = text_cleaner.html_to_clean_text(
+                target_chapter.content if target_chapter.content else "",
+                preserve_structure=True,
+                max_length=5000
+            )
+
+            # ✅ Token估算
+            token_estimate = text_cleaner.estimate_tokens(clean_content)
+
             chapter_info = {
                 "chapter_id": str(target_chapter.id),
                 "title": target_chapter.title,
                 "order": target_chapter.order,
-                "content": target_chapter.content[:5000] if target_chapter.content else "",
-                "content_length": len(target_chapter.content) if target_chapter.content else 0,
+                "content": clean_content,  # ✅ 使用清理后的文本
+                "content_length": len(clean_content),
                 "word_count": target_chapter.word_count,
+                "token_estimate": token_estimate,  # ✅ 新增：Token估算
                 "status": target_chapter.status.value if hasattr(target_chapter, 'status') else "unknown"
             }
 
@@ -2670,7 +2743,37 @@ class WritingAgentGraph:
 - 用户说"当前章节"或没指定章节 → 用 read_chapter_tool 配合当前chapter_id
 - 用户说"读取/查看章节" + 章节序号 → 用 get_chapter_by_order_tool
 
-示例1：用户说"续写第二章"
+【重要】占位符使用规范:
+当任务B需要使用任务A的结果时，使用以下占位符格式:
+- $TASK_A$ : 任务A的完整输出
+- $TASK_A.field$ : 任务A输出的特定字段（JSON格式）
+- 示例: $TASK_1.content$ 表示任务1输出JSON中的content字段
+
+示例1：用户说"分析第二章"
+{{
+  "user_intent": "分析第二章内容",
+  "tasks": [
+    {{
+      "task_id": 1,
+      "description": "获取第二章内容",
+      "tool": "get_chapter_by_order_tool",
+      "params": {{"chapter_order": 2}},
+      "estimated_time": "5秒"
+    }},
+    {{
+      "task_id": 2,
+      "description": "分析章节内容",
+      "tool": "analyze_text_tool",
+      "params": {{
+        "text": "$TASK_1.content$",
+        "focus": "情节总结"
+      }},
+      "estimated_time": "10秒"
+    }}
+  ]
+}}
+
+示例2：用户说"续写第二章"
 {{
   "user_intent": "续写第二章",
   "tasks": [
@@ -2692,11 +2795,19 @@ class WritingAgentGraph:
       "task_id": 3,
       "description": "基于上下文生成续写内容",
       "tool": "continue_writing_tool",
-      "params": {{"context": "章节内容"}},
+      "params": {{
+        "context": "$TASK_1.content$",
+        "world_view": "$TASK_2$"
+      }},
       "estimated_time": "10秒"
     }}
   ]
 }}
+
+【注意】:
+- 必须使用 $TASK_N.field$ 格式的占位符，不要使用自然语言描述如"章节内容"
+- 如果任务不依赖其他任务，直接填写具体的参数值
+- 占位符会在执行阶段自动替换为实际值
 
 现在直接返回JSON，不要任何解释："""
 
@@ -2781,6 +2892,7 @@ class WritingAgentGraph:
 
                 # ✅ P1-7: 记录Planning阶段完成
                 planning_duration = time.time() - planning_start
+
                 logger.info(f"[Planning] 规划生成成功，共{len(plan_data['tasks'])}个任务，耗时: {planning_duration:.2f}s")
                 increment_counter("planning_phase_completed")
                 record_timer("planning_phase_duration", planning_duration)
@@ -2968,6 +3080,23 @@ class WritingAgentGraph:
         Returns:
             任务结果列表
         """
+        # ✅ 创建参数解析器
+        from app.services.agent.parameter_resolver import ParameterResolver
+
+        resolver = ParameterResolver(strict_mode=False)  # 使用非严格模式，兼容性更好
+        logger.info("[ParameterResolver] 参数解析器已启用")
+
+        # ✅ 【修复-问题3】辅助函数：检查参数中是否包含占位符
+        def _has_placeholder_dependency(params: Dict[str, Any]) -> bool:
+            """检查参数中是否包含占位符（表示依赖其他任务）"""
+            import json
+            try:
+                params_str = json.dumps(params, ensure_ascii=False)
+                return bool(ParameterResolver.PLACEHOLDER_PATTERN.search(params_str))
+            except Exception as e:
+                logger.warning(f"[参数依赖检测] 序列化参数失败: {e}")
+                return False  # 序列化失败，保守处理：假设无依赖
+
         # 定义可以并行执行的独立数据获取工具
         PARALLEL_SAFE_TOOLS = {
             "get_context_tool",
@@ -2981,12 +3110,23 @@ class WritingAgentGraph:
         parallel_tasks = []
         sequential_tasks = []
 
+        # ✅ 【修复-问题3】改进分组策略：同时检查工具类型和参数依赖
         for task in tasks:
             tool_name = task.get("tool", "auto")
-            if tool_name in PARALLEL_SAFE_TOOLS:
+            has_dependency = _has_placeholder_dependency(task.get("params", {}))
+
+            # 只有工具类型安全且无参数依赖的任务才能并行
+            if tool_name in PARALLEL_SAFE_TOOLS and not has_dependency:
                 parallel_tasks.append(task)
+                logger.debug(
+                    f"[任务分组] 任务{task['task_id']}({tool_name}) → 并行组"
+                )
             else:
                 sequential_tasks.append(task)
+                reason = "有依赖" if has_dependency else "工具不支持并行"
+                logger.debug(
+                    f"[任务分组] 任务{task['task_id']}({tool_name}) → 串行组 ({reason})"
+                )
 
         logger.info(
             f"[ParallelExecution] 任务分组: "
@@ -3020,8 +3160,20 @@ class WritingAgentGraph:
 
                     for retry_count in range(max_retries + 1):
                         try:
+                            # ✅ 解析任务参数中的占位符
+                            resolved_task = task.copy()
+                            if "params" in resolved_task:
+                                resolved_task["params"] = await resolver.resolve_params(
+                                    resolved_task["params"],
+                                    current_task_id=task_id
+                                )
+                                logger.debug(
+                                    f"[ParameterResolver] 任务{task_id}参数已解析: "
+                                    f"{resolved_task['params']}"
+                                )
+
                             result = await self._execute_task(
-                                task=task,
+                                task=resolved_task,  # ✅ 使用解析后的任务
                                 work_id=work_id,
                                 chapter_id=chapter_id,
                                 context=all_context,
@@ -3029,6 +3181,10 @@ class WritingAgentGraph:
                             )
 
                             logger.info(f"[ParallelExecution] 并行任务{task_id}完成" + (f"（重试{retry_count}次后成功）" if retry_count > 0 else ""))
+
+                            # ✅ 注册任务结果到参数解析器
+                            await resolver.register_result(task_id, result)
+                            logger.debug(f"[ParameterResolver] 任务{task_id}结果已注册")
 
                             if on_task_done:
                                 await on_task_done(task, result)
@@ -3056,20 +3212,31 @@ class WritingAgentGraph:
                             else:
                                 # 不可重试或已达最大次数
                                 logger.error(f"[ParallelExecution] 并行任务{task_id}最终失败: {last_error}")
+
+                                # ✅ 【修复-问题2】注册失败结果到参数解析器
+                                error_result = f"错误: {str(last_error)}"
+                                await resolver.register_result(task_id, error_result)
+                                logger.debug(f"[ParameterResolver] 任务{task_id}失败结果已注册")
+
                                 return {
                                     "task_id": task_id,
                                     "description": description,
                                     "tool": tool_name,
-                                    "result": f"错误: {str(last_error)}",
+                                    "result": error_result,
                                     "status": "failed"
                                 }
 
                     # 如果所有重试都失败
+                    # ✅ 【修复-问题2】注册重试失败结果到参数解析器
+                    error_result = f"错误: {str(last_error)}（已重试{max_retries}次）"
+                    await resolver.register_result(task_id, error_result)
+                    logger.debug(f"[ParameterResolver] 任务{task_id}重试失败结果已注册")
+
                     return {
                         "task_id": task_id,
                         "description": description,
                         "tool": tool_name,
-                        "result": f"错误: {str(last_error)}（已重试{max_retries}次）",
+                        "result": error_result,
                         "status": "failed"
                     }
 
@@ -3095,6 +3262,7 @@ class WritingAgentGraph:
                     all_context += f"\n任务{failed_task['task_id']}失败：{str(result)}\n"
                 else:
                     # 正常结果
+                    # 注意：任务结果已在execute_with_semaphore内部注册到resolver
                     task_results.append(result)
                     all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
 
@@ -3119,13 +3287,29 @@ class WritingAgentGraph:
 
                 for retry_count in range(max_retries + 1):
                     try:
+                        # ✅ 解析任务参数中的占位符
+                        resolved_task = task.copy()
+                        if "params" in resolved_task:
+                            resolved_task["params"] = await resolver.resolve_params(
+                                resolved_task["params"],
+                                current_task_id=task_id
+                            )
+                            logger.debug(
+                                f"[ParameterResolver] 任务{task_id}参数已解析: "
+                                f"{resolved_task['params']}"
+                            )
+
                         result = await self._execute_task(
-                            task=task,
+                            task=resolved_task,  # ✅ 使用解析后的任务
                             work_id=work_id,
                             chapter_id=chapter_id,
                             context=all_context,
                             on_progress=on_task_progress
                         )
+
+                        # ✅ 注册任务结果到参数解析器
+                        await resolver.register_result(task_id, result)
+                        logger.debug(f"[ParameterResolver] 任务{task_id}结果已注册")
 
                         task_results.append({
                             "task_id": task_id,
@@ -3164,11 +3348,17 @@ class WritingAgentGraph:
                 # 如果所有重试都失败
                 if not task_succeeded:
                     logger.error(f"[ParallelExecution] 串行任务{task_id}最终失败: {last_error}")
+
+                    # ✅ 【修复-问题2】注册失败结果到参数解析器
+                    error_result = f"错误: {str(last_error)}"
+                    await resolver.register_result(task_id, error_result)
+                    logger.debug(f"[ParameterResolver] 任务{task_id}失败结果已注册")
+
                     task_results.append({
                         "task_id": task_id,
                         "description": description,
                         "tool": tool_name,
-                        "result": f"错误: {str(last_error)}",
+                        "result": error_result,
                         "status": "failed"
                     })
 
@@ -3506,13 +3696,9 @@ class WritingAgentGraph:
                 "style": params.get("style", "professional")
             })
         elif tool_name == "analyze_text_tool":
-            # 【修复】如果params.text为空，使用context（包含其他任务的结果）
-            text_input = params.get("text", "")
-            if not text_input or text_input.strip() == "":
-                text_input = context  # 使用包含其他任务结果的context
-
+            # ✅ 参数已由ParameterResolver解析，直接使用
             result = await analyze_text_tool.ainvoke({
-                "text": text_input,
+                "text": params.get("text", ""),
                 "focus": params.get("focus", "all")
             })
         else:

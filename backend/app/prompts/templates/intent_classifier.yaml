@@ -1,5 +1,17 @@
+name: "intent_classifier"
 version: "2.0.0"
 description: "小说创作意图分类Prompt - 识别用户在网络小说创作中的意图"
+
+role: "你是专业的网络小说创作助手，负责识别用户的创作意图。"
+
+constraints: []
+
+input_variables:
+  - "user_message"
+  - "context_summary"
+  - "important_facts"
+
+output_format: "JSON格式，包含intent、confidence、reasoning、keywords字段"
 
 template: |
   你是专业的网络小说创作助手，负责识别用户的创作意图。

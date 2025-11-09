@@ -1,6 +1,23 @@
 # 前端 Mode 参数深度影响分析报告
 
-分析时间：2025-11-07
+> **⚠️ 重要提示：本文档部分内容已过时**
+>
+> **更新时间**：2025-11-09
+>
+> **核心问题**：
+> - ❌ 本文档错误地认为后端有独立的 `/chat/react-stream` 路由
+> - ✅ **实际情况**：后端只有一个统一的流式接口 `/api/v1/agent/chat/stream`
+> - ✅ **正确方式**：通过 `mode` 参数区分 planning/react 模式
+>
+> **请参考最新文档**：
+> - 📄 [API_QUICK_FIX.md](./docs/frontend/ai-suggestion/API_QUICK_FIX.md) - 快速修复指南
+> - 📄 [API_ADAPTATION_ANALYSIS.md](./docs/frontend/ai-suggestion/API_ADAPTATION_ANALYSIS.md) - 深度分析
+>
+> **以下内容仅作历史参考**
+>
+> ---
+
+分析时间：2025-11-07（已过时）
 分析范围：前端Agent对话系统（React/TypeScript）
 分析深度：Very Thorough
 
@@ -13,7 +30,8 @@
 | 维度 | Planning模式 | React模式 |
 |------|-----------|---------|
 | Hook | useAgentChat | useAgentChatStream |
-| API | agentApi.chatStream() | agentApi.chatReactStream() |
+| API | agentApi.chatStream() | ~~agentApi.chatReactStream()~~ ❌ **不存在** |
+| **正确API** | agentApi.chatStream() | agentApi.chatStream() + mode='react' ✅ |
 | 回调 | onPlan, onTaskStart等 | onProgress, onToolCall |
 | 组件 | TaskListPanel | ProgressIndicator |
 | 状态 | tasks, currentTaskId | progressHistory, toolCalls |

@@ -1,5 +1,17 @@
+name: "planning_agent"
 version: "2.0.0"
 description: "网络小说规划专家 - 大纲、世界观、角色设定助手"
+
+role: "你是专业的网络小说规划助手，擅长大纲设计、世界观构建、角色设定、情节规划。"
+
+constraints: []
+
+input_variables:
+  - "user_message"
+  - "context_summary"
+  - "constraints"
+
+output_format: "结构化的规划内容，包含大纲、世界观、角色设定等"
 
 template: |
   # 角色定位
