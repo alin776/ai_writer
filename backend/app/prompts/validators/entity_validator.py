@@ -57,9 +57,15 @@ class EntityValidator:
         concepts = re.findall(r'[《「](.*?)[》」]', text)
         entities.update(concepts)
 
-        # 4. 提取2-4字的中文名字（简单规则）
-        chinese_names = re.findall(r'[\u4e00-\u9fff]{2,4}(?=[说道告诉问答]|的|，)', text)
-        entities.update(chinese_names)
+        # ❌ 4. 提取2-4字的中文名字（简单规则）- 已禁用
+        # 原因：正则 r'[\u4e00-\u9fff]{2,4}(?=[说道告诉问答]|的|，)' 过于宽泛
+        # 会误判大量普通词汇为实体，如："一个有效"、"严格遵守"、"于您提供"等
+        # 导致90%的日志都是误报，掩盖真正的编造问题
+        # jieba的词性标注已经足够准确，不需要这个正则
+        # 修复日期: 2025-11-09
+        # 参见: tasks/P1-1_entity_validator_fix.md
+        # chinese_names = re.findall(r'[\u4e00-\u9fff]{2,4}(?=[说道告诉问答]|的|，)', text)
+        # entities.update(chinese_names)
 
         return entities
 

@@ -346,20 +346,38 @@ async def analyze_text_tool(text: str, focus: str = "all") -> str:
 
 
 @tool
-async def read_chapter_tool(work_id: str, chapter_id: str) -> str:
+async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "") -> str:
     """读取指定章节工具：从数据库读取章节内容
 
     Args:
-        work_id: 作品ID
+        work_id: 作品ID（可选，但强烈推荐提供）
         chapter_id: 章节ID
 
     Returns:
         章节信息（包含标题和内容）
     """
+    # 检查work_id是否提供
+    if not work_id:
+        return json.dumps({
+            "status": "missing_prerequisite",
+            "missing": "work_id",
+            "message": "需要指定作品ID才能读取章节",
+            "user_action_required": True,
+            "suggested_response": "请问您想读取哪个作品的章节？您可以在作品详情页使用此功能，或者告诉我作品ID。"
+        }, ensure_ascii=False, indent=2)
+
+    if not chapter_id:
+        return json.dumps({
+            "status": "missing_prerequisite",
+            "missing": "chapter_id",
+            "message": "需要指定章节ID才能读取章节",
+            "user_action_required": True,
+            "suggested_response": "请问您想读取第几章？或者告诉我章节ID。"
+        }, ensure_ascii=False, indent=2)
+
     try:
         from app.core.database import AsyncSessionLocal
         from app.services.chapter_service import ChapterService
-        import json
 
         # 创建数据库会话
         async with AsyncSessionLocal() as db:
@@ -398,20 +416,29 @@ async def read_chapter_tool(work_id: str, chapter_id: str) -> str:
 
 
 @tool
-async def get_chapter_by_order_tool(work_id: str, chapter_order: int) -> str:
+async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order: int = 1) -> str:
     """通过章节序号获取章节ID和内容
 
     Args:
-        work_id: 作品ID
+        work_id: 作品ID（可选，但强烈推荐提供）
         chapter_order: 章节序号（第1章=1，第2章=2，...）
 
     Returns:
         章节信息（包含ID、标题和内容）
     """
+    # 检查work_id是否提供
+    if not work_id:
+        return json.dumps({
+            "status": "missing_prerequisite",
+            "missing": "work_id",
+            "message": "需要指定作品ID才能查询章节",
+            "user_action_required": True,
+            "suggested_response": "请问您想查询哪个作品的第{}章？您可以在作品详情页使用此功能，或者告诉我作品ID。".format(chapter_order)
+        }, ensure_ascii=False, indent=2)
+
     try:
         from app.core.database import AsyncSessionLocal
         from app.services.work_service import WorkService
-        import json
 
         async with AsyncSessionLocal() as db:
             work_service = WorkService(db)
@@ -476,21 +503,30 @@ async def get_chapter_by_order_tool(work_id: str, chapter_order: int) -> str:
 
 
 @tool
-async def search_analysis_fragments_tool(work_id: str, query: str, top_k: int = 5) -> str:
+async def search_analysis_fragments_tool(work_id: Optional[str] = None, query: str = "", top_k: int = 5) -> str:
     """检索分析碎片工具：从向量数据库检索相关的小说分析片段（RAG）
 
     Args:
-        work_id: 作品ID
+        work_id: 作品ID（可选，但强烈推荐提供）
         query: 查询文本（用户的问题或需求）
         top_k: 返回前K个最相关结果（默认5个）
 
     Returns:
         相关的分析片段列表（JSON格式）
     """
+    # 检查work_id是否提供
+    if not work_id:
+        return json.dumps({
+            "status": "missing_prerequisite",
+            "missing": "work_id",
+            "message": "需要指定作品ID才能检索分析片段",
+            "user_action_required": True,
+            "suggested_response": "请问您想检索哪个作品的分析内容？您可以在作品详情页使用此功能，或者告诉我作品ID。"
+        }, ensure_ascii=False, indent=2)
+
     try:
         from app.core.database import AsyncSessionLocal
         from app.services.vector_store_service import VectorStoreService
-        import json
 
         # 创建数据库会话
         async with AsyncSessionLocal() as db:
@@ -544,22 +580,31 @@ async def search_analysis_fragments_tool(work_id: str, query: str, top_k: int = 
 
 
 @tool
-async def get_context_tool(work_id: str, chapter_id: str = "") -> str:
+async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") -> str:
     """获取上下文工具：检索作品、章节和世界观信息（真实数据）
 
     Args:
-        work_id: 作品ID
+        work_id: 作品ID（可选，但强烈推荐提供）
         chapter_id: 章节ID（可选）
 
     Returns:
         上下文信息（JSON格式字符串）
     """
+    # 检查work_id是否提供
+    if not work_id:
+        return json.dumps({
+            "status": "missing_prerequisite",
+            "missing": "work_id",
+            "message": "需要指定作品ID才能获取上下文",
+            "user_action_required": True,
+            "suggested_response": "请问您想查看哪个作品的信息？您可以在作品详情页使用此功能，或者告诉我作品ID。"
+        }, ensure_ascii=False, indent=2)
+
     try:
         from app.core.database import AsyncSessionLocal
         from app.services.work_service import WorkService
         from app.services.chapter_service import ChapterService
         from app.services.vector_store_service import VectorStoreService
-        import json
 
         logger.info(f"[get_context_tool] 🔥 新版本工具被调用！work_id={work_id}, chapter_id={chapter_id}")
 
@@ -3422,6 +3467,7 @@ class WritingAgentGraph:
         """智能构建最终响应
 
         根据任务类型智能判断是否需要AI整合：
+        - 缺失前置条件 → 直接返回友好提示（优先级最高）
         - 单个创作任务 → 直接返回（节省AI调用）
         - 多个输出任务 → 简单拼接（节省AI调用）
         - 其他情况 → AI整合
@@ -3434,6 +3480,40 @@ class WritingAgentGraph:
         Returns:
             最终响应内容
         """
+        # ✅ 优先检查：是否有缺失前置条件的情况
+        # 如果有工具返回了 missing_prerequisite 状态，直接返回友好提示
+        for result in task_results:
+            try:
+                result_str = result.get('result', '')
+                if not result_str:
+                    continue
+
+                # 尝试解析为JSON
+                result_json = json.loads(result_str)
+
+                # 检查是否为missing_prerequisite状态
+                if result_json.get('status') == 'missing_prerequisite':
+                    suggested = result_json.get('suggested_response', '')
+
+                    if suggested:
+                        logger.info(
+                            f"[Response] 检测到missing_prerequisite "
+                            f"(缺失: {result_json.get('missing', 'unknown')}), "
+                            f"直接返回友好提示，跳过AI整合"
+                        )
+
+                        # 模拟流式输出（保持用户体验一致）
+                        if on_content:
+                            chunk_size = 20  # 每次发送20个字符
+                            for i in range(0, len(suggested), chunk_size):
+                                chunk = suggested[i:i + chunk_size]
+                                await on_content(chunk)
+
+                        return suggested
+            except (json.JSONDecodeError, TypeError, KeyError):
+                # 不是JSON或格式不对，继续下一个
+                continue
+
         # 分类任务
         classified = self._classify_tasks(task_results)
         output_tasks = classified["output_tasks"]
