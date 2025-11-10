@@ -149,31 +149,24 @@ export default function AgentChatPanel({
         </div>
       </div>
 
+      {/* ✅ ActivityStream 独立区域（固定在消息区域上方）*/}
+      {mode === 'react' && activities.length > 0 && (
+        <div className="activity-stream-container px-4 py-2 border-b border-gray-200 bg-gray-50 transition-all duration-300">
+          <ActivityStream
+            activities={activities}
+          />
+        </div>
+      )}
+
+      {/* TaskListPanel for Planning mode */}
+      {mode === 'planning' && tasks.length > 0 && (
+        <div className="px-4 py-2 border-b border-gray-200 bg-gray-50">
+          <TaskListPanel tasks={tasks} currentTaskId={currentTaskId} />
+        </div>
+      )}
+
       {/* 消息列表 */}
       <div className="messages flex-1 overflow-y-auto px-4 py-3 space-y-4">
-        {/* 进度展示：根据模式选择不同的组件 */}
-        {console.log('🟣 [AgentChatPanel] 渲染检查:', { mode, activitiesLength: activities.length, tasksLength: tasks.length })}
-
-        {mode === 'planning' && tasks.length > 0 && (
-          <TaskListPanel tasks={tasks} currentTaskId={currentTaskId} />
-        )}
-
-        {mode === 'react' && (
-          <>
-            {console.log('🟣 [AgentChatPanel] react模式，activities.length =', activities.length)}
-            {activities.length > 0 ? (
-              <>
-                {console.log('🟣 [AgentChatPanel] 准备渲染ActivityStream')}
-                <ActivityStream
-                  key={`activities-${activities.length}`}  // 🔥 强制重新渲染
-                  activities={activities}
-                />
-              </>
-            ) : (
-              console.log('🟣 [AgentChatPanel] activities为空，不渲染ActivityStream')
-            )}
-          </>
-        )}
 
         {messages.length === 0 && (
           <div className="empty-state text-center py-8">

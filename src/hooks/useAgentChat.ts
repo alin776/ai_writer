@@ -253,6 +253,43 @@ export function useAgentChat(): UseAgentChatReturn {
               // 添加到活动流
               setActivities(prev => [...prev, activity]);
             },
+            onActivityComplete: (activity) => {
+              // ✅ 新增：处理活动完成事件
+              console.log('[React] Activity完成:', activity.step, `(${activity.elapsed_time}s)`);
+
+              setActivities(prev => {
+                // ✅ 修复：查找最后一个同类型的active活动（更准确）
+                let updated = false;
+                const newActivities = prev.map((a, index) => {
+                  // 只更新最后一个同类型的active活动
+                  if (!updated && a.type === activity.step && a.status === 'active') {
+                    // 检查是否是最后一个
+                    const isLast = !prev.slice(index + 1).some(
+                      x => x.type === activity.step && x.status === 'active'
+                    );
+
+                    if (isLast) {
+                      updated = true;
+                      const startTime = activityStartTimes.get(a.id);
+                      const elapsedTime = activity.elapsed_time ||
+                        (startTime ? (Date.now() - startTime) / 1000 : 0);
+
+                      // 清理时间记录
+                      activityStartTimes.delete(a.id);
+
+                      return {
+                        ...a,
+                        status: 'completed' as const,
+                        elapsedTime
+                      };
+                    }
+                  }
+                  return a;
+                });
+
+                return newActivities;
+              });
+            },
             onToolCall: (toolCall) => {
               console.log('[Stream] 工具调用:', toolCall);
 

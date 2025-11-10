@@ -109,6 +109,7 @@ class AgentApiService {
       // React 模式回调（新增）
       onProgress?: (progress: any) => void;
       onToolCall?: (toolCall: any) => void;
+      onActivityComplete?: (activity: any) => void;  // ✅ 新增：活动完成回调
     }
   ): Promise<void> {
     const token = this.getToken();
@@ -201,6 +202,10 @@ class AgentApiService {
                 case 'tool_call':
                   console.log('[API] 工具调用:', data.data.tool);
                   callbacks.onToolCall?.(data.data);
+                  break;
+                case 'activity_complete':  // ✅ 新增：处理活动完成事件
+                  console.log('[API] Activity完成:', data.data.step, `(${data.data.elapsed_time?.toFixed(1)}s)`);
+                  callbacks.onActivityComplete?.(data.data);
                   break;
               }
             } catch (error) {

@@ -911,6 +911,7 @@ async def agent_chat_stream(
 
     async def event_generator():
         # 使用队列实现实时事件发送
+        import time  # ✅ 在这里导入，整个函数内都可以使用
         event_queue = asyncio.Queue()
         agent_task = None
         result = None
@@ -971,6 +972,9 @@ async def agent_chat_stream(
             context["memory_context"] = memory_context
             context["user_context"] = user_context
 
+            # ✅ 追踪活动状态（用于发送 activity_complete 事件）
+            last_activity_step = {'step': None, 'start_time': None}
+
             # 定义回调函数 - 实时放入队列
             async def on_plan(plan_data):
                 """规划生成回调"""
@@ -1009,6 +1013,23 @@ async def agent_chat_stream(
                         # React模式：使用chat_stream()
                         # 定义React模式的回调
                         async def on_progress_react(event):
+                            """进度回调 - 添加activity_complete逻辑"""
+                            current_step = event.get('step')
+
+                            # ✅ 如果活动类型改变，发送前一个活动的完成事件
+                            if last_activity_step['step'] is not None and last_activity_step['step'] != current_step:
+                                elapsed_time = time.time() - last_activity_step['start_time'] if last_activity_step['start_time'] else 0
+                                await event_queue.put(('activity_complete', {
+                                    'step': last_activity_step['step'],
+                                    'elapsed_time': elapsed_time
+                                }))
+                                logger.info(f"[Stream] Activity完成: {last_activity_step['step']} ({elapsed_time:.1f}s)")
+
+                            # 更新当前活动
+                            last_activity_step['step'] = current_step
+                            last_activity_step['start_time'] = time.time()
+
+                            # 发送progress事件
                             await event_queue.put(('progress', event))
 
                         async def on_tool_call_react(tool_name: str, tool_args: dict):
@@ -1042,6 +1063,15 @@ async def agent_chat_stream(
                             on_task_done=on_task_done,
                             on_content=on_content
                         )
+                    # ✅ 发送最后一个活动的完成事件
+                    if last_activity_step['step'] is not None:
+                        elapsed_time = time.time() - last_activity_step['start_time'] if last_activity_step['start_time'] else 0
+                        await event_queue.put(('activity_complete', {
+                            'step': last_activity_step['step'],
+                            'elapsed_time': elapsed_time
+                        }))
+                        logger.info(f"[Stream] 最后活动完成: {last_activity_step['step']} ({elapsed_time:.1f}s)")
+
                     # Agent 完成后放入结束标记
                     await event_queue.put(('__done__', None))
                 except Exception as e:
@@ -1083,6 +1113,8 @@ async def agent_chat_stream(
                 # 添加调试日志
                 if event_type == 'progress':
                     logger.info(f"[SSE] 发送 progress 事件: step={event_data.get('step')}, desc={event_data.get('description')}")
+                elif event_type == 'activity_complete':
+                    logger.info(f"[SSE] 发送 activity_complete 事件: step={event_data.get('step')}, elapsed={event_data.get('elapsed_time'):.1f}s")
                 yield f"data: {json.dumps(event_payload, ensure_ascii=False)}\n\n"
 
             # 等待 Agent 任务完成
