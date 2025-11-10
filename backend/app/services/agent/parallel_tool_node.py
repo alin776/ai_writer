@@ -109,24 +109,34 @@ class ParallelToolNode(ToolNode):
             )
 
             # 🟢 复用：处理异常结果
+            # ✅ P0-6修复：正确判断并处理异常对象
             for i, result in enumerate(parallel_results):
+                # 关键修复：Exception是对象，不是结果本身
+                # 正确的判断应该是检查result是否为Exception实例
                 if isinstance(result, Exception):
                     logger.error(
                         f"[ParallelToolNode] 工具{parallel_calls[i]['name']}失败: {result}"
                     )
-                    # 创建失败消息
+                    # ✅ P0-6修复：创建包含错误信息的ToolMessage
+                    # 确保LangGraph能正确序列化
+                    error_msg = f"工具执行失败: {type(result).__name__}: {str(result)}"
                     results.append(ToolMessage(
-                        content=f"工具执行失败: {str(result)}",
+                        content=error_msg,
                         tool_call_id=parallel_calls[i]["id"],
                         name=parallel_calls[i]["name"]
                     ))
                 else:
+                    # 正常结果，直接添加
                     results.append(result)
+
+            # 统计成功和失败数量
+            failed_count = sum(1 for r in parallel_results if isinstance(r, Exception))
+            success_count = len(parallel_results) - failed_count
 
             logger.info(
                 f"[ParallelToolNode] 并行执行完成，"
-                f"成功={len([r for r in results if not isinstance(r, Exception)])}，"
-                f"失败={len([r for r in results if isinstance(r, Exception)])}"
+                f"成功={success_count}，"
+                f"失败={failed_count}"
             )
 
         # 🟢 第2批：串行执行不安全工具

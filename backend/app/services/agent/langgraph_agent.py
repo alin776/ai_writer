@@ -22,6 +22,7 @@ import logging
 import httpx
 import uuid
 import asyncio
+import threading  # ✅ P0-2修复: 添加threading以支持线程锁
 import redis
 import json
 import re
@@ -85,11 +86,19 @@ def validate_uuid(value: str, field_name: str = "ID") -> Optional[str]:
 
 # 全局 AI Service 实例（用于工具调用）
 _global_ai_service: Optional[HTTPAIService] = None
+_global_ai_service_lock = threading.Lock()  # ✅ P0-2修复: 线程安全锁
 
 def set_global_ai_service(ai_service: HTTPAIService):
-    """设置全局 AI Service"""
+    """设置全局 AI Service（线程安全版本）"""
     global _global_ai_service
-    _global_ai_service = ai_service
+    with _global_ai_service_lock:
+        _global_ai_service = ai_service
+        logger.debug("[set_global_ai_service] AI Service已设置（线程安全）")
+
+def get_global_ai_service() -> Optional[HTTPAIService]:
+    """获取全局 AI Service（线程安全版本）✅ P0-2修复"""
+    with _global_ai_service_lock:
+        return _global_ai_service
 
 
 async def _retry_on_failure(func, *args, max_retries=3, **kwargs):
@@ -186,7 +195,9 @@ async def _generate_text_helper(
     task_type: Optional[TaskType] = None  # ← 新增参数
 ) -> str:
     """辅助函数：使用 HTTPAIService 生成文本（带重试机制）"""
-    if not _global_ai_service:
+    # ✅ P0-2修复：使用线程安全的getter
+    ai_service = get_global_ai_service()
+    if not ai_service:
         return "错误：AI服务未初始化"
 
     messages = [{"role": "user", "content": prompt}]
@@ -198,7 +209,7 @@ async def _generate_text_helper(
         try:
             # ✅ 为单次LLM调用添加超时保护（120秒，匹配_generate_text）
             async with asyncio.timeout(120):
-                async for chunk, _ in _global_ai_service._stream_chat(
+                async for chunk, _ in ai_service._stream_chat(
                     messages=messages,
                     max_tokens=max_tokens,
                     temperature=temperature,
@@ -478,8 +489,9 @@ async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "")
                 # 强制失效连接
                 try:
                     await db.invalidate()
-                except:
-                    pass
+                except Exception as invalidate_error:
+                    logger.error(f"[read_chapter_tool] 强制失效连接失败: {invalidate_error}")
+                    # 这是最后的防线，如果失败说明连接可能已泄漏
 
 
 @tool
@@ -591,8 +603,9 @@ async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order
                 logger.warning(f"[get_chapter_by_order_tool] 关闭数据库连接时出错: {close_error}")
                 try:
                     await db.invalidate()
-                except:
-                    pass
+                except Exception as invalidate_error:
+                    logger.error(f"[get_chapter_by_order_tool] 强制失效连接失败: {invalidate_error}")
+                    # 这是最后的防线，如果失败说明连接可能已泄漏
 
 
 @tool
@@ -694,8 +707,9 @@ async def search_analysis_fragments_tool(work_id: Optional[str] = None, query: s
                 logger.warning(f"[search_analysis_fragments_tool] 关闭数据库连接时出错: {close_error}")
                 try:
                     await db.invalidate()
-                except:
-                    pass
+                except Exception as invalidate_error:
+                    logger.error(f"[search_analysis_fragments_tool] 强制失效连接失败: {invalidate_error}")
+                    # 这是最后的防线，如果失败说明连接可能已泄漏
 
 
 @tool
@@ -838,8 +852,9 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
                 logger.warning(f"[get_context_tool] 关闭数据库连接时出错: {close_error}")
                 try:
                     await db.invalidate()
-                except:
-                    pass
+                except Exception as invalidate_error:
+                    logger.error(f"[get_context_tool] 强制失效连接失败: {invalidate_error}")
+                    # 这是最后的防线，如果失败说明连接可能已泄漏
 
 
 # 工具列表
@@ -1015,10 +1030,21 @@ class WritingAgentGraph:
                 "refresh_on_read": False  # 禁用自动续期，减少Redis操作
             }
 
-            # 测试Redis连接
-            test_client = redis.Redis.from_url(redis_url, decode_responses=False)
-            test_client.ping()
-            test_client.close()
+            # ✅ P0-5修复：测试Redis连接（防止NameError）
+            test_client = None
+            try:
+                test_client = redis.Redis.from_url(redis_url, decode_responses=False)
+                test_client.ping()
+                logger.info("[LangGraph] ✅ setup_checkpointer Redis连接验证成功")
+            except Exception as test_error:
+                logger.error(f"[LangGraph] ❌ setup_checkpointer Redis连接测试失败: {test_error}")
+                raise
+            finally:
+                if test_client:
+                    try:
+                        test_client.close()
+                    except Exception as close_error:
+                        logger.warning(f"[LangGraph] setup_checkpointer关闭Redis测试连接时出错: {close_error}")
 
             # 创建并初始化checkpointer
             checkpointer = AsyncRedisSaver(redis_url=redis_url, ttl=ttl_config)
@@ -1071,10 +1097,22 @@ class WritingAgentGraph:
             # 使用checkpoint:前缀避免与缓存key冲突
             redis_url = settings.REDIS_URL  # 使用db0
 
-            # 测试Redis连接
-            test_client = redis.Redis.from_url(redis_url, decode_responses=False)
-            test_client.ping()
-            test_client.close()
+            # ✅ P0-5修复：完善Redis连接验证
+            test_client = None  # ✅ 防止NameError
+            try:
+                test_client = redis.Redis.from_url(redis_url, decode_responses=False)
+                test_client.ping()
+                logger.info("[LangGraph] ✅ Redis连接验证成功")
+            except Exception as test_error:
+                logger.error(f"[LangGraph] ❌ Redis连接测试失败: {test_error}")
+                raise  # 重新抛出异常，触发降级
+            finally:
+                # ✅ P0-5修复：确保test_client正确关闭
+                if test_client:  # ✅ 检查是否已初始化
+                    try:
+                        test_client.close()
+                    except Exception as close_error:
+                        logger.warning(f"[LangGraph] 关闭Redis测试连接时出错: {close_error}")
 
             # AsyncRedisSaver支持异步操作，直接传递URL字符串
             # 配置TTL：7天自动清理不活跃对话
@@ -1478,8 +1516,31 @@ class WritingAgentGraph:
 
         return result
 
-    async def _handle_with_httpai(self, state: AgentState, agent_type: str, system_prompt: str) -> AgentState:
-        """HTTPAIService 模式 - 手动工具调用（绕过 Cloudflare）"""
+    async def _handle_with_httpai(self, state: AgentState, agent_type: str, system_prompt: str, recursion_depth: int = 0) -> AgentState:
+        """HTTPAIService 模式 - 手动工具调用（绕过 Cloudflare）
+
+        Args:
+            state: Agent状态
+            agent_type: Agent类型
+            system_prompt: 系统提示词
+            recursion_depth: 递归深度（默认0）✅ P0-3修复
+        """
+        # ✅ P0-3修复：检查递归深度，防止无限递归
+        MAX_RECURSION_DEPTH = 5  # 最多允许5层递归（原始调用 + 4次工具调用）
+        if recursion_depth > MAX_RECURSION_DEPTH:
+            logger.error(
+                f"[LangGraph] ❌ 递归深度超限: {recursion_depth} > {MAX_RECURSION_DEPTH}，"
+                f"可能存在工具循环调用，强制终止"
+            )
+            return {
+                "messages": [AIMessage(content="抱歉，处理您的请求时遇到了问题（递归深度超限），请简化您的需求后重试。")],
+                "final_response": "递归深度超限，已强制终止",
+                "agent_steps": [{
+                    "step": f"{agent_type}_recursion_limit",
+                    "result": f"递归深度{recursion_depth}超过限制{MAX_RECURSION_DEPTH}"
+                }]
+            }
+
         messages = state["messages"]
 
         # 检查是否已经有工具结果（第二次进入）
@@ -1940,8 +2001,9 @@ class WritingAgentGraph:
             else:
                 logger.debug(f"[LangGraph] 消息数量{message_count}条，无需清理")
 
-            # 递归处理工具结果
-            result = await self._handle_with_httpai(updated_state, agent_type, system_prompt)
+            # ✅ P0-3修复：递归处理工具结果，传递递归深度
+            logger.debug(f"[LangGraph] 递归处理工具结果，当前深度={recursion_depth}")
+            result = await self._handle_with_httpai(updated_state, agent_type, system_prompt, recursion_depth + 1)
 
             # ✅ 返回所有新增的消息（工具调用消息 + 递归结果）
             # 注意：updated_state是局部变量，不会影响外部state

@@ -112,6 +112,17 @@ class ContextManager:
 
         logger.info(f"[ContextManager] Session {session_id}: {total_tokens}/{max_tokens} tokens")
 
+        # ✅ P0-4修复：添加硬限制检查
+        HARD_LIMIT_RATIO = 0.95  # 硬限制：95%
+        if total_tokens > max_tokens * HARD_LIMIT_RATIO:
+            logger.error(
+                f"[ContextManager] ❌ Token超过硬限制({total_tokens}/{max_tokens})，"
+                f"强制截断到{int(max_tokens * 0.7)}tokens"
+            )
+            # 强制截断：只保留最近的消息，确保不超过70%预算
+            context = await self._force_truncate_context(context, int(max_tokens * 0.7))
+            total_tokens = context.get_total_tokens()
+
         # 如果超过80%预算，触发压缩
         if total_tokens > max_tokens * 0.8:
             logger.warning(f"[ContextManager] Token使用率过高 ({total_tokens}/{max_tokens}), 触发压缩")
@@ -354,6 +365,67 @@ class ContextManager:
         summary_parts.append(f"共{len(messages)}条消息")
 
         return " | ".join(summary_parts)
+
+    async def _force_truncate_context(self, context: Context, target_tokens: int) -> Context:
+        """
+        强制截断上下文到目标Token数（✅ P0-4修复）
+
+        当压缩失败或Token超过硬限制时调用
+
+        Args:
+            context: 当前上下文
+            target_tokens: 目标Token数
+
+        Returns:
+            截断后的上下文
+        """
+        logger.warning(
+            f"[ContextManager] 🔪 强制截断上下文: {context.get_total_tokens()} -> {target_tokens} tokens"
+        )
+
+        # 策略：从最新消息开始保留，直到Token数不超过目标值
+        messages = context.short_memory.messages
+        if not messages:
+            return context
+
+        # ✅ P0-4优化：更准确的Token估算函数
+        def estimate_tokens(text: str) -> int:
+            """更准确的Token估算（考虑中英混合）"""
+            # 中文字数（CJK字符：1字≈1.5 tokens）
+            cn_count = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+            # 移除中文后，计算英文单词（1词≈0.3 tokens）
+            text_without_cn = ''.join(c for c in text if not ('\u4e00' <= c <= '\u9fff'))
+            en_count = len(text_without_cn.split())
+            # 其他字符（标点、数字等，1字≈0.2 tokens）
+            other_count = len(text) - cn_count - len(text_without_cn.replace(' ', ''))
+            return int(cn_count * 1.5 + en_count * 0.3 + other_count * 0.2)
+
+        # 从后往前保留消息
+        kept_messages = []
+        current_tokens = 0
+
+        for msg in reversed(messages):
+            # ✅ P0-4优化：使用更准确的估算
+            msg_tokens = estimate_tokens(msg.content)
+
+            if current_tokens + msg_tokens <= target_tokens:
+                kept_messages.insert(0, msg)
+                current_tokens += msg_tokens
+            else:
+                break
+
+        # 至少保留1条消息
+        if not kept_messages and messages:
+            kept_messages = [messages[-1]]
+            logger.warning("[ContextManager] 目标Token过小，仅保留最后1条消息")
+
+        logger.warning(
+            f"[ContextManager] 截断结果: 保留{len(kept_messages)}/{len(messages)}条消息, "
+            f"Token: {context.get_total_tokens()} -> ~{current_tokens}"
+        )
+
+        context.short_memory.messages = kept_messages
+        return context
 
     async def clear_context(self, session_id: str):
         """清除上下文 - 用于重置会话"""
