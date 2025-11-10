@@ -27,6 +27,7 @@ import re
 
 from app.services.ai.http_ai_service import HTTPAIService
 from app.core.config import settings
+from app.core.database import AsyncSessionLocal
 from app.services.agent.prompts import NovelPhase, PhaseCharacteristics
 from app.services.agent.prompt_library import get_content_prompt
 from app.services.agent.model_selector import TaskType
@@ -377,7 +378,7 @@ async def analyze_text_tool(text: str, focus: str = "all") -> str:
 
 @tool
 async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "") -> str:
-    """读取指定章节工具：从数据库读取章节内容
+    """读取指定章节工具：从数据库读取章节内容（连接安全版本 v2）
 
     Args:
         work_id: 作品ID（可选，但强烈推荐提供），必须是标准UUID格式（36字符）
@@ -389,7 +390,7 @@ async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "")
     Returns:
         章节信息（包含标题和内容）的JSON字符串
     """
-    # 检查work_id是否提供
+    # ✅ 优化：提前验证参数，避免不必要的数据库连接
     if not work_id:
         return json.dumps({
             "status": "missing_prerequisite",
@@ -408,7 +409,7 @@ async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "")
             "suggested_response": "请问您想读取第几章？或者告诉我章节ID。"
         }, ensure_ascii=False, indent=2)
 
-    # UUID格式验证
+    # UUID格式验证（提前返回，避免数据库连接）
     uuid_error = validate_uuid(work_id, "作品ID")
     if uuid_error:
         return uuid_error
@@ -417,16 +418,19 @@ async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "")
     if uuid_error:
         return uuid_error
 
-    try:
-        from app.core.database import AsyncSessionLocal
-        from app.services.chapter_service import ChapterService
+    # ✅ 修复：正确使用 async with 管理连接
+    async with AsyncSessionLocal() as db:
+        try:
+            from app.services.chapter_service import ChapterService
 
-        # 创建数据库会话
-        async with AsyncSessionLocal() as db:
             chapter_service = ChapterService(db)
 
-            # 查询章节
-            chapter = await chapter_service.get_chapter_by_id(chapter_id)
+            # 使用重试机制（防止临时网络错误）
+            chapter = await _retry_on_failure(
+                chapter_service.get_chapter_by_id,
+                chapter_id,
+                max_retries=2
+            )
 
             if not chapter:
                 return json.dumps({
@@ -439,27 +443,46 @@ async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "")
                 "chapter_id": str(chapter.id),
                 "title": chapter.title,
                 "order": chapter.order,
-                "content": chapter.content[:5000] if chapter.content else "",  # 增加长度限制以保留更多上下文
+                "content": chapter.content[:5000] if chapter.content else "",
                 "content_length": len(chapter.content) if chapter.content else 0,
                 "word_count": chapter.word_count,
                 "status": chapter.status.value if hasattr(chapter, 'status') else "unknown"
             }
 
-            logger.info(f"[read_chapter_tool] 读取章节成功: {chapter.title}")
+            logger.info(f"[read_chapter_tool] ✅ 读取章节成功: {chapter.title}")
             return json.dumps(chapter_info, ensure_ascii=False, indent=2)
 
-    except Exception as e:
-        logger.error(f"[read_chapter_tool] 读取章节失败: {e}", exc_info=True)
-        return json.dumps({
-            "error": f"读取章节失败: {str(e)}",
-            "work_id": work_id,
-            "chapter_id": chapter_id
-        }, ensure_ascii=False, indent=2)
+        except Exception as e:
+            # ✅ 异常时回滚事务
+            try:
+                await db.rollback()
+            except:
+                pass
+
+            logger.error(f"[read_chapter_tool] ❌ 读取章节失败: {e}", exc_info=True)
+            return json.dumps({
+                "error": f"读取章节失败: {str(e)}",
+                "work_id": work_id,
+                "chapter_id": chapter_id
+            }, ensure_ascii=False, indent=2)
+
+        finally:
+            # ✅ 双重保险：确保连接关闭
+            try:
+                await db.close()
+                logger.debug(f"[read_chapter_tool] 数据库连接已关闭")
+            except Exception as close_error:
+                logger.warning(f"[read_chapter_tool] 关闭数据库连接时出错: {close_error}")
+                # 强制失效连接
+                try:
+                    await db.invalidate()
+                except:
+                    pass
 
 
 @tool
 async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order: int = 1) -> str:
-    """通过章节序号获取章节ID和内容
+    """通过章节序号获取章节ID和内容（连接安全版本 v2）
 
     Args:
         work_id: 作品ID（可选，但强烈推荐提供），必须是标准UUID格式（36字符）
@@ -469,7 +492,7 @@ async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order
     Returns:
         章节信息（包含ID、标题和内容）的JSON字符串
     """
-    # 检查work_id是否提供
+    # ✅ 优化：提前验证参数
     if not work_id:
         return json.dumps({
             "status": "missing_prerequisite",
@@ -479,20 +502,26 @@ async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order
             "suggested_response": "请问您想查询哪个作品的第{}章？您可以在作品详情页使用此功能，或者告诉我作品ID。".format(chapter_order)
         }, ensure_ascii=False, indent=2)
 
-    # UUID格式验证
+    # UUID格式验证（提前返回）
     uuid_error = validate_uuid(work_id, "作品ID")
     if uuid_error:
         return uuid_error
 
-    try:
-        from app.core.database import AsyncSessionLocal
-        from app.services.work_service import WorkService
+    # ✅ 修复：正确使用 async with 管理连接
+    async with AsyncSessionLocal() as db:
+        try:
+            from app.services.work_service import WorkService
+            from app.utils.text_cleaner import text_cleaner
 
-        async with AsyncSessionLocal() as db:
             work_service = WorkService(db)
 
-            # 获取作品及其章节
-            work = await work_service.get_work_by_id(work_id, use_cache=False)
+            # 使用重试机制获取作品
+            work = await _retry_on_failure(
+                work_service.get_work_by_id,
+                work_id,
+                use_cache=False,
+                max_retries=2
+            )
 
             if not work or not work.chapters:
                 return json.dumps({
@@ -515,44 +544,58 @@ async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order
                 }, ensure_ascii=False, indent=2)
 
             # 返回章节信息（V2.0 - 添加HTML清理）
-            from app.utils.text_cleaner import text_cleaner
-
-            # ✅ 清理HTML内容
             clean_content = text_cleaner.html_to_clean_text(
                 target_chapter.content if target_chapter.content else "",
                 preserve_structure=True,
                 max_length=5000
             )
 
-            # ✅ Token估算
             token_estimate = text_cleaner.estimate_tokens(clean_content)
 
             chapter_info = {
                 "chapter_id": str(target_chapter.id),
                 "title": target_chapter.title,
                 "order": target_chapter.order,
-                "content": clean_content,  # ✅ 使用清理后的文本
+                "content": clean_content,
                 "content_length": len(clean_content),
                 "word_count": target_chapter.word_count,
-                "token_estimate": token_estimate,  # ✅ 新增：Token估算
+                "token_estimate": token_estimate,
                 "status": target_chapter.status.value if hasattr(target_chapter, 'status') else "unknown"
             }
 
-            logger.info(f"[get_chapter_by_order_tool] 找到第{chapter_order}章: {target_chapter.title}")
+            logger.info(f"[get_chapter_by_order_tool] ✅ 找到第{chapter_order}章: {target_chapter.title}")
             return json.dumps(chapter_info, ensure_ascii=False, indent=2)
 
-    except Exception as e:
-        logger.error(f"[get_chapter_by_order_tool] 查询失败: {e}", exc_info=True)
-        return json.dumps({
-            "error": f"查询失败: {str(e)}",
-            "work_id": work_id,
-            "chapter_order": chapter_order
-        }, ensure_ascii=False, indent=2)
+        except Exception as e:
+            # ✅ 异常时回滚事务
+            try:
+                await db.rollback()
+            except:
+                pass
+
+            logger.error(f"[get_chapter_by_order_tool] ❌ 查询失败: {e}", exc_info=True)
+            return json.dumps({
+                "error": f"查询失败: {str(e)}",
+                "work_id": work_id,
+                "chapter_order": chapter_order
+            }, ensure_ascii=False, indent=2)
+
+        finally:
+            # ✅ 双重保险：确保连接关闭
+            try:
+                await db.close()
+                logger.debug(f"[get_chapter_by_order_tool] 数据库连接已关闭")
+            except Exception as close_error:
+                logger.warning(f"[get_chapter_by_order_tool] 关闭数据库连接时出错: {close_error}")
+                try:
+                    await db.invalidate()
+                except:
+                    pass
 
 
 @tool
 async def search_analysis_fragments_tool(work_id: Optional[str] = None, query: str = "", top_k: int = 5) -> str:
-    """检索分析碎片工具：从向量数据库检索相关的小说分析片段（RAG）
+    """检索分析碎片工具：从向量数据库检索相关的小说分析片段（RAG）（连接安全版本）
 
     Args:
         work_id: 作品ID（可选，但强烈推荐提供），必须是标准UUID格式（36字符）
@@ -564,7 +607,7 @@ async def search_analysis_fragments_tool(work_id: Optional[str] = None, query: s
     Returns:
         相关的分析片段列表（JSON格式）
     """
-    # 检查work_id是否提供
+    # ✅ 优化：提前验证参数
     if not work_id:
         return json.dumps({
             "status": "missing_prerequisite",
@@ -574,25 +617,26 @@ async def search_analysis_fragments_tool(work_id: Optional[str] = None, query: s
             "suggested_response": "请问您想检索哪个作品的分析内容？您可以在作品详情页使用此功能，或者告诉我作品ID。"
         }, ensure_ascii=False, indent=2)
 
-    # UUID格式验证
+    # UUID格式验证（提前返回）
     uuid_error = validate_uuid(work_id, "作品ID")
     if uuid_error:
         return uuid_error
 
-    try:
-        from app.core.database import AsyncSessionLocal
-        from app.services.vector_store_service import VectorStoreService
+    # ✅ 修复：正确使用 async with 管理连接
+    async with AsyncSessionLocal() as db:
+        try:
+            from app.services.vector_store_service import VectorStoreService
 
-        # 创建数据库会话
-        async with AsyncSessionLocal() as db:
             vector_service = VectorStoreService(db)
 
-            # RAG检索
-            results = await vector_service.retrieve_relevant_analysis(
+            # RAG检索（使用重试机制）
+            results = await _retry_on_failure(
+                vector_service.retrieve_relevant_analysis,
                 work_id=work_id,
                 query=query,
                 top_k=top_k,
-                similarity_threshold=0.3  # 降低阈值以获取更多结果
+                similarity_threshold=0.3,
+                max_retries=2
             )
 
             if not results:
@@ -610,13 +654,13 @@ async def search_analysis_fragments_tool(work_id: Optional[str] = None, query: s
                     "rank": i + 1,
                     "similarity": result['similarity'],
                     "chapter_id": result['chapter_id'],
-                    "content": result['content_text'][:2000],  # 增加长度限制以保留更多上下文
+                    "content": result['content_text'][:2000],
                     "micro_data_summary": {
                         "theme": result['micro_data'].get('chapter_theme', 'N/A') if result['micro_data'] else 'N/A'
                     }
                 })
 
-            logger.info(f"[search_analysis_fragments_tool] RAG检索成功: 找到{len(results)}个相关片段")
+            logger.info(f"[search_analysis_fragments_tool] ✅ RAG检索成功: 找到{len(results)}个相关片段")
 
             return json.dumps({
                 "work_id": work_id,
@@ -625,18 +669,36 @@ async def search_analysis_fragments_tool(work_id: Optional[str] = None, query: s
                 "results": formatted_results
             }, ensure_ascii=False, indent=2)
 
-    except Exception as e:
-        logger.error(f"[search_analysis_fragments_tool] RAG检索失败: {e}", exc_info=True)
-        return json.dumps({
-            "error": f"检索失败: {str(e)}",
-            "work_id": work_id,
-            "query": query
-        }, ensure_ascii=False, indent=2)
+        except Exception as e:
+            # ✅ 异常时回滚事务
+            try:
+                await db.rollback()
+            except:
+                pass
+
+            logger.error(f"[search_analysis_fragments_tool] ❌ RAG检索失败: {e}", exc_info=True)
+            return json.dumps({
+                "error": f"检索失败: {str(e)}",
+                "work_id": work_id,
+                "query": query
+            }, ensure_ascii=False, indent=2)
+
+        finally:
+            # ✅ 双重保险：确保连接关闭
+            try:
+                await db.close()
+                logger.debug(f"[search_analysis_fragments_tool] 数据库连接已关闭")
+            except Exception as close_error:
+                logger.warning(f"[search_analysis_fragments_tool] 关闭数据库连接时出错: {close_error}")
+                try:
+                    await db.invalidate()
+                except:
+                    pass
 
 
 @tool
 async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") -> str:
-    """获取上下文工具：检索作品、章节和世界观信息（真实数据）
+    """获取上下文工具：检索作品、章节和世界观信息（真实数据）（连接安全版本）
 
     Args:
         work_id: 作品ID（可选，但强烈推荐提供），必须是标准UUID格式（36字符）
@@ -647,7 +709,7 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
     Returns:
         上下文信息（JSON格式字符串）
     """
-    # 检查work_id是否提供
+    # ✅ 优化：提前验证参数
     if not work_id:
         return json.dumps({
             "status": "missing_prerequisite",
@@ -657,7 +719,7 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
             "suggested_response": "请问您想查看哪个作品的信息？您可以在作品详情页使用此功能，或者告诉我作品ID。"
         }, ensure_ascii=False, indent=2)
 
-    # UUID格式验证
+    # UUID格式验证（提前返回）
     uuid_error = validate_uuid(work_id, "作品ID")
     if uuid_error:
         return uuid_error
@@ -667,16 +729,15 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
         if uuid_error:
             return uuid_error
 
-    try:
-        from app.core.database import AsyncSessionLocal
-        from app.services.work_service import WorkService
-        from app.services.chapter_service import ChapterService
-        from app.services.vector_store_service import VectorStoreService
+    # ✅ 修复：正确使用 async with 管理连接
+    async with AsyncSessionLocal() as db:
+        try:
+            from app.services.work_service import WorkService
+            from app.services.chapter_service import ChapterService
+            from app.services.vector_store_service import VectorStoreService
 
-        logger.info(f"[get_context_tool] 🔥 新版本工具被调用！work_id={work_id}, chapter_id={chapter_id}")
+            logger.info(f"[get_context_tool] 🔥 新版本工具被调用！work_id={work_id}, chapter_id={chapter_id}")
 
-        # 创建数据库会话
-        async with AsyncSessionLocal() as db:
             work_service = WorkService(db)
             chapter_service = ChapterService(db)
             vector_service = VectorStoreService(db)
@@ -688,8 +749,14 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
                 "related_analysis": []
             }
 
-            # 1. 获取作品信息
-            work = await work_service.get_work_by_id(work_id, use_cache=False)
+            # 1. 获取作品信息（使用重试机制）
+            work = await _retry_on_failure(
+                work_service.get_work_by_id,
+                work_id,
+                use_cache=False,
+                max_retries=2
+            )
+
             if work:
                 context_info["work_info"] = {
                     "title": work.title,
@@ -702,7 +769,12 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
 
             # 2. 获取当前章节（如果提供了chapter_id）
             if chapter_id:
-                chapter = await chapter_service.get_chapter_by_id(chapter_id)
+                chapter = await _retry_on_failure(
+                    chapter_service.get_chapter_by_id,
+                    chapter_id,
+                    max_retries=2
+                )
+
                 if chapter:
                     context_info["current_chapter"] = {
                         "chapter_id": str(chapter.id),
@@ -717,11 +789,13 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
             # 3. RAG检索相关分析（如果有）
             try:
                 query = f"作品背景和设定"
-                analysis_results = await vector_service.retrieve_relevant_analysis(
+                analysis_results = await _retry_on_failure(
+                    vector_service.retrieve_relevant_analysis,
                     work_id=work_id,
                     query=query,
                     top_k=3,
-                    similarity_threshold=0.4
+                    similarity_threshold=0.4,
+                    max_retries=2
                 )
 
                 if analysis_results:
@@ -737,15 +811,33 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
                 logger.warning(f"RAG检索失败（非致命）: {rag_error}")
                 context_info["related_analysis"] = []
 
-            logger.info(f"[get_context_tool] 获取上下文成功: work={work.title if work else 'N/A'}")
+            logger.info(f"[get_context_tool] ✅ 获取上下文成功: work={work.title if work else 'N/A'}")
             return json.dumps(context_info, ensure_ascii=False, indent=2)
 
-    except Exception as e:
-        logger.error(f"[get_context_tool] 获取上下文失败: {e}", exc_info=True)
-        return json.dumps({
-            "error": f"获取上下文失败: {str(e)}",
-            "work_id": work_id
-        }, ensure_ascii=False, indent=2)
+        except Exception as e:
+            # ✅ 异常时回滚事务
+            try:
+                await db.rollback()
+            except:
+                pass
+
+            logger.error(f"[get_context_tool] ❌ 获取上下文失败: {e}", exc_info=True)
+            return json.dumps({
+                "error": f"获取上下文失败: {str(e)}",
+                "work_id": work_id
+            }, ensure_ascii=False, indent=2)
+
+        finally:
+            # ✅ 双重保险：确保连接关闭
+            try:
+                await db.close()
+                logger.debug(f"[get_context_tool] 数据库连接已关闭")
+            except Exception as close_error:
+                logger.warning(f"[get_context_tool] 关闭数据库连接时出错: {close_error}")
+                try:
+                    await db.invalidate()
+                except:
+                    pass
 
 
 # 工具列表
