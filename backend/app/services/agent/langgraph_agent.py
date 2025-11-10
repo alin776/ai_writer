@@ -12,6 +12,7 @@ from typing import TypedDict, Annotated, List, Dict, Any, Optional, Literal
 from datetime import datetime
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
+from app.services.agent.parallel_tool_node import ParallelToolNode
 from langgraph.checkpoint.redis import AsyncRedisSaver
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
@@ -31,6 +32,7 @@ from app.core.database import AsyncSessionLocal
 from app.services.agent.prompts import NovelPhase, PhaseCharacteristics
 from app.services.agent.prompt_library import get_content_prompt
 from app.services.agent.model_selector import TaskType
+from app.services.agent.prompt_cache import get_tool_decision_static_prompt, get_planning_static_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -1179,7 +1181,11 @@ class WritingAgentGraph:
         workflow.add_node("analysis_agent", self._handle_analysis)
         workflow.add_node("stuck_agent", self._handle_stuck)
         workflow.add_node("general_chat", self._handle_general)
-        workflow.add_node("tools", ToolNode(WRITING_TOOLS))
+        # 🟢 Phase 3.7: 使用ParallelToolNode替代标准ToolNode，支持并行执行
+        workflow.add_node("tools", ParallelToolNode(
+            WRITING_TOOLS,
+            max_concurrent=5  # 最大并发数（基于数据库连接池大小）
+        ))
 
         # 设置入口点
         workflow.set_entry_point("intent_classifier")
@@ -1353,39 +1359,63 @@ class WritingAgentGraph:
                 "error": str(e)
             }
 
+    def _classify_intent_by_rules(self, message: str) -> tuple[str, float]:
+        """基于规则的快速意图识别（<1ms）
+
+        Args:
+            message: 用户消息内容
+
+        Returns:
+            tuple[str, float]: (intent类型, 置信度)
+        """
+        msg = message.lower()
+
+        # 1. 写作：续写、扩写、生成内容
+        writing_keywords = ["续写", "扩写", "第", "章", "生成内容", "创作", "写作", "继续写", "完成"]
+        if any(kw in msg for kw in writing_keywords):
+            # 章节特征强相关
+            if re.search(r'第\d+章|chapter\s*\d+', msg, re.IGNORECASE):
+                return "writing", 0.98
+            return "writing", 0.90
+
+        # 2. 规划：大纲、世界观、设定
+        planning_keywords = ["规划", "大纲", "世界观", "设定", "角色", "背景", "剧情", "框架", "结构"]
+        if any(kw in msg for kw in planning_keywords):
+            return "planning", 0.95
+
+        # 3. 分析：评估、诊断、检查
+        analysis_keywords = ["分析", "评估", "诊断", "检查", "质量", "评价", "看看", "怎么样", "如何"]
+        if any(kw in msg for kw in analysis_keywords):
+            return "analysis", 0.93
+
+        # 4. 卡文：灵感、写不下去
+        stuck_keywords = ["卡文", "灵感", "写不下去", "没思路", "瓶颈", "困难", "卡住", "不知道"]
+        if any(kw in msg for kw in stuck_keywords):
+            return "stuck", 0.95
+
+        # 5. 默认：一般对话
+        return "general", 0.85
+
     async def _classify_intent(self, state: AgentState) -> AgentState:
-        """意图分类节点"""
-        logger.info("[LangGraph] 意图分类")
+        """意图分类节点 - 使用规则识别"""
+        logger.info("[LangGraph] 意图分类（规则识别）")
 
         last_message = state["messages"][-1].content
 
-        # 使用 LLM 分类意图
-        prompt = f"""分析用户意图，返回以下之一：
-- writing: 续写、扩写相关
-- planning: 规划、大纲、世界观相关
-- analysis: 分析、评估、诊断相关
-- stuck: 卡文、灵感、方向相关
-- general: 一般对话
+        # 使用规则快速识别
+        intent, confidence = self._classify_intent_by_rules(last_message)
 
-用户消息：{last_message}
-
-只返回意图类型，不要其他内容。"""
-
-        result = await self._generate_text(
-            prompt=prompt,
-            temperature=0.3,
-            max_tokens=50,
-            task_type=TaskType.TEXT_CLASSIFICATION  # 意图分类任务，使用flash-lite
+        logger.info(
+            f"[Intent] 规则识别结果: {intent}, 置信度: {confidence:.2f}"
         )
-        intent = result.get("text", "general").strip().lower()
 
         # ✅ 只返回节点新增/修改的字段，避免 operator.add 重复添加
         return {
             "intent": intent,
             "agent_steps": [{
                 "step": "intent_classification",
-                "result": f"识别意图: {intent}",
-                "usage": result.get("usage", {})
+                "result": f"识别意图: {intent} (规则识别)",
+                "usage": {}  # 无Token消耗
             }]
         }
 
@@ -1651,64 +1681,20 @@ class WritingAgentGraph:
 - 章节ID (chapter_id): {_format_id(current_chapter_id)}
 """
 
+        # ✅ Phase 2.6: 使用缓存的静态 Prompt（节省构建时间和 Token）
+        static_prompt = await get_tool_decision_static_prompt()
+
         decision_prompt = f"""{system_prompt}
 
-用户消息：{last_user_message}
-
+用户: {last_user_message}
 {context_info}
 
-**你的任务**：判断是否需要调用工具来完成用户请求。
-
-**决策流程**：
-1. 分析用户请求的意图
-2. 检查是否需要调用工具
-3. 如果需要工具，检查必需参数是否齐全
-4. 如果参数不齐全，友好地询问用户
-
-**可用工具列表**：
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-需要work_id的工具（必须先设置作品）：
-• get_chapter_by_order_tool - 获取指定序号的章节
-• get_context_tool - 获取作品和章节上下文
-• read_chapter_tool - 读取指定章节
-• search_analysis_fragments_tool - 搜索分析片段
-
-不需要work_id的工具（可直接使用）：
-• continue_writing_tool - 续写内容
-• polish_text_tool - 润色文本
-• analyze_text_tool - 分析文本
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**返回格式**：
-
-情况A - 需要工具且参数齐全：
-{{"need_tools": true, "tool_name": "工具名", "tool_args": {{"参数": "值"}}}}
-
-情况B - 需要工具但work_id未设置：
-{{"need_tools": false, "direct_response": "请先告诉我您要操作的是哪部作品？"}}
-
-情况C - 不需要工具，直接回答：
-{{"need_tools": false, "direct_response": "您的回答内容"}}
-
-**示例**：
-
-用户："帮我获取第3章"
-当前：work_id=已设置
-决策：{{"need_tools": true, "tool_name": "get_chapter_by_order_tool", "tool_args": {{"chapter_order": 3}}}}
-
-用户："帮我获取第3章"
-当前：work_id=未设置
-决策：{{"need_tools": false, "direct_response": "我很乐意帮您获取章节！请先告诉我是哪部作品的第3章？"}}
-
-用户："今天天气怎么样？"
-决策：{{"need_tools": false, "direct_response": "抱歉，我是小说创作助手，无法查询天气信息。"}}
-
-现在请处理当前用户请求："""
+{static_prompt}"""
 
         # ✅ 使用 _generate_text 以支持 ChatOpenAI/HTTPAIService 双模式
         result = await self._generate_text(
             prompt=decision_prompt,
-            max_tokens=500,
+            max_tokens=200,  # ✅ Phase 2.5: 优化从500→200 (JSON响应通常<100 tokens)
             temperature=0.3,
             task_type=TaskType.SIMPLE_QA  # 工具决策任务
         )
@@ -2320,84 +2306,22 @@ class WritingAgentGraph:
             self.context_manager.user_id = user_id
             logger.info(f"[Context] 设置用户ID: {user_id}")
 
-        # 🔧 监控：意图识别计时
-        intent_start = time.time()
-
-        # 🔧 新增：意图识别
-        intent_data = await self._classify_intent_async(
-            user_message=message,
-            context_summary=None  # 稍后可以传入摘要
-        )
-        detected_intent = intent_data.get("intent", "writing")
-        confidence = intent_data.get("confidence", 0)
-        reasoning = intent_data.get("reasoning", "N/A")
-
-        # 🔧 监控：记录意图识别耗时
-        record_timer("intent_classification_duration", time.time() - intent_start)
-
-        # 🔧 监控：记录意图分布
-        increment_counter("intent_distribution", labels={"intent": detected_intent})
-
-        logger.info(
-            f"[Intent] 用户意图: {detected_intent}, "
-            f"置信度: {confidence:.2f}, "
-            f"原因: {reasoning}"
-        )
-
-        # ✅ 修复：添加置信度检查
-        if confidence < 0.6:
-            logger.warning(
-                f"[Intent] 置信度较低 ({confidence:.2f} < 0.6)，使用默认模板 writing_agent"
-            )
-            template_name = "writing_agent"
-        else:
-            # 🔧 根据意图选择 Prompt 模板
-            if detected_intent == "writing":
-                template_name = "writing_agent"
-            elif detected_intent == "planning":
-                template_name = "planning_agent"
-            elif detected_intent == "tool":
-                template_name = "tool_agent"
-            elif detected_intent == "query":
-                template_name = "query_agent"  # ✅ 修复：query使用专门的问答模板
-            else:
-                template_name = "writing_agent"  # 默认使用writing_agent
-
-        logger.info(
-            f"[Intent] 选择 Prompt 模板: {template_name}, "
-            f"版本: {self.prompt_manager.get_version(template_name)}"
-        )
-
-        # 🔧 监控：Prompt渲染计时
-        prompt_start = time.time()
-
-        # 使用PromptManager渲染对应模板（根据模板类型准备参数）
-        render_params = {"user_message": message, "context_summary": ""}
-
-        if template_name == "writing_agent":
-            render_params.update({
-                "user_preferences": {},
-                "writing_constraints": [],
-                "examples": []
-            })
-        elif template_name == "planning_agent":
-            render_params.update({
-                "constraints": []
-            })
-        elif template_name == "tool_agent":
-            render_params.update({
-                "work_id": work_id,
-                "chapter_id": chapter_id,
-                "available_tools": []  # 使用默认工具列表
-            })
-
-        system_prompt = self.prompt_manager.render(template_name, **render_params)
-
-        # 🔧 监控：记录Prompt渲染耗时
-        record_timer("prompt_render_duration", time.time() - prompt_start)
+        # ✅ 优化：移除重复的意图识别
+        # LangGraph的intent_classifier节点会自动完成意图识别
+        # 这里不再预先识别,避免重复调用
 
         # 🔧 监控：上下文构建计时
         context_start = time.time()
+
+        # 使用默认的writing_agent模板（LangGraph会根据实际意图动态切换）
+        system_prompt = self.prompt_manager.render(
+            "writing_agent",
+            user_message=message,
+            context_summary="",
+            user_preferences={},
+            writing_constraints=[],
+            examples=[]
+        )
 
         context_bundle = await self.context_manager.build_context(
             session_id=session_id,
@@ -2420,12 +2344,12 @@ class WritingAgentGraph:
             elif msg["role"] == "assistant":
                 history_messages.append(AIMessage(content=msg["content"]))
 
-        # 构建初始状态（包含历史上下文和识别的意图）
+        # 构建初始状态（不预设intent,由LangGraph的intent_classifier节点识别）
         initial_state = {
             "messages": history_messages + [HumanMessage(content=message)],  # 历史消息 + 当前消息
             "work_id": work_id,
             "chapter_id": chapter_id,
-            "intent": detected_intent,  # 🔧 新增：存储识别的意图
+            "intent": None,  # ✅ 优化：由LangGraph的intent_classifier节点自动识别
             "context": context or {},
             "agent_steps": [],
             "suggested_actions": [],
@@ -2903,135 +2827,21 @@ class WritingAgentGraph:
 
 """
 
-                plan_prompt = f"""你是专业的AI写作助手。{history_section}用户请求如下：
+                # ✅ Phase 2.6: 使用缓存的静态 Prompt（节省构建时间和 Token）
+                static_prompt = await get_planning_static_prompt()
 
-用户请求：{message}
-作品ID：{work_id}
-当前页面章节ID：{chapter_id}
+                plan_prompt = f"""AI写作助手。{history_section}
+用户: {message}
+work_id: {work_id}
+chapter_id: {chapter_id}
 
-请分析这个请求，生成一个详细的To-Do List（任务清单），列出完成这个请求需要执行的步骤。
-
-【重要】你必须只返回纯JSON，不要有任何其他文字、解释、或Markdown格式。
-
-可用工具说明：
-1. get_chapter_by_order_tool: 通过章节序号获取章节
-   - 使用场景：用户说"第1章"、"第2章"、"第N章"等按序号指定章节
-   - 参数：chapter_order (整数，例如 1, 2, 3...)
-   - 示例：{{"tool": "get_chapter_by_order_tool", "params": {{"chapter_order": 2}}}}
-
-2. read_chapter_tool: 通过章节ID读取章节内容
-   - 使用场景：已知具体的chapter_id时使用
-   - 参数：chapter_id (字符串UUID，标准36字符格式)
-   - 注意：如果不知道具体的chapter_id，不要使用这个工具！应该用get_chapter_by_order_tool
-   - 示例：{{"tool": "read_chapter_tool", "params": {{"chapter_id": "627feba4-2097-4f28-a3f3-7641d10f7f40"}}}}
-
-3. get_context_tool: 获取作品和章节的整体上下文
-   - 使用场景：需要了解作品背景、描述、章节列表等
-   - 参数：无需额外参数
-
-4. search_analysis_fragments_tool: 从向量数据库检索相关分析片段
-   - 使用场景：查找世界观、角色设定、情节分析等
-   - 参数：query (搜索关键词)
-
-5. continue_writing_tool: 续写内容
-   - 使用场景：在已有内容基础上继续创作
-   - 参数：context (已有内容), requirements (续写要求)
-
-6. polish_text_tool: 润色文本
-   - 参数：text, style
-
-7. analyze_text_tool: 分析文本
-   - 参数：text, focus
-
-【工具选择规则】
-- 用户说"第X章" → 必须用 get_chapter_by_order_tool
-- 用户说"当前章节"或没指定章节 → 用 read_chapter_tool 配合当前chapter_id
-- 用户说"读取/查看章节" + 章节序号 → 用 get_chapter_by_order_tool
-
-【UUID格式严格要求】⚠️ 必须遵守
-- 所有work_id和chapter_id必须使用标准UUID格式（32-36字符）
-- 格式：xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx（8-4-4-4-12）
-- ✅ 正确示例：627feba4-2097-4f28-a3f3-7641d10f7f40
-- ❌ 严禁使用：ch_1, ch_2, task_1, YXTW_001, abc-123-def 等简化ID
-- ❌ 严禁自己编造UUID，必须从以下来源获取：
-  1. 用户上下文中的work_id/chapter_id
-  2. get_context_tool返回的章节列表
-  3. get_chapter_by_order_tool返回的chapter_id字段
-  4. 上一个任务的输出（使用占位符 $TASK_X.chapter_id$）
-
-【重要】占位符使用规范:
-当任务B需要使用任务A的结果时，使用以下占位符格式:
-- $TASK_A$ : 任务A的完整输出
-- $TASK_A.field$ : 任务A输出的特定字段（JSON格式）
-- 示例: $TASK_1.content$ 表示任务1输出JSON中的content字段
-
-示例1：用户说"分析第二章"
-{{
-  "user_intent": "分析第二章内容",
-  "tasks": [
-    {{
-      "task_id": 1,
-      "description": "获取第二章内容",
-      "tool": "get_chapter_by_order_tool",
-      "params": {{"chapter_order": 2}},
-      "estimated_time": "5秒"
-    }},
-    {{
-      "task_id": 2,
-      "description": "分析章节内容",
-      "tool": "analyze_text_tool",
-      "params": {{
-        "text": "$TASK_1.content$",
-        "focus": "情节总结"
-      }},
-      "estimated_time": "10秒"
-    }}
-  ]
-}}
-
-示例2：用户说"续写第二章"
-{{
-  "user_intent": "续写第二章",
-  "tasks": [
-    {{
-      "task_id": 1,
-      "description": "读取第二章的现有内容",
-      "tool": "get_chapter_by_order_tool",
-      "params": {{"chapter_order": 2}},
-      "estimated_time": "5秒"
-    }},
-    {{
-      "task_id": 2,
-      "description": "检索相关世界观和角色设定",
-      "tool": "search_analysis_fragments_tool",
-      "params": {{"query": "世界观和角色"}},
-      "estimated_time": "3秒"
-    }},
-    {{
-      "task_id": 3,
-      "description": "基于上下文生成续写内容",
-      "tool": "continue_writing_tool",
-      "params": {{
-        "context": "$TASK_1.content$",
-        "world_view": "$TASK_2$"
-      }},
-      "estimated_time": "10秒"
-    }}
-  ]
-}}
-
-【注意】:
-- 必须使用 $TASK_N.field$ 格式的占位符，不要使用自然语言描述如"章节内容"
-- 如果任务不依赖其他任务，直接填写具体的参数值
-- 占位符会在执行阶段自动替换为实际值
-
-现在直接返回JSON，不要任何解释："""
+{static_prompt}"""
 
                 try:
                     plan_result = await self._generate_text(
                         plan_prompt,
                         temperature=0.3,
-                        max_tokens=1000,
+                        max_tokens=600,  # ✅ Phase 2.5: 优化从1000→600 (JSON任务列表)
                         task_type=TaskType.SIMPLE_QA  # ← Planning阶段用轻量模型快速生成任务列表
                     )
                     plan_text = plan_result.get("text", "").strip()
@@ -3960,69 +3770,6 @@ class WritingAgentGraph:
             await on_progress(task, "完成")
 
         return result
-
-    async def _classify_intent_async(
-        self,
-        user_message: str,
-        context_summary: Optional[str] = None
-    ) -> dict:
-        """
-        使用 intent_classifier 模板识别用户意图
-
-        Args:
-            user_message: 用户消息
-            context_summary: 对话摘要（可选）
-
-        Returns:
-            dict: 意图数据 {"intent": "writing", "confidence": 0.95, "reasoning": "..."}
-        """
-        try:
-            # 渲染意图分类 Prompt
-            intent_prompt = self.prompt_manager.render(
-                "intent_classifier",
-                user_message=user_message,
-                context_summary=context_summary or "",
-                important_facts=[]
-            )
-
-            # 调用 AI 识别意图
-            logger.info(f"[Intent] 开始识别意图: {user_message[:50]}...")
-
-            # ✅ 使用 _generate_text 以支持 ChatOpenAI/HTTPAIService 双模式
-            result = await self._generate_text(
-                prompt=intent_prompt,
-                max_tokens=300,
-                temperature=0.3,
-                task_type=TaskType.TEXT_CLASSIFICATION
-            )
-            response_text = result.get("text", "")
-
-            # 解析 JSON 响应
-            # 尝试从响应中提取 JSON
-            json_match = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(1)
-            else:
-                # 尝试直接解析整个响应
-                json_str = response_text
-
-            intent_data = json.loads(json_str)
-
-            logger.info(
-                f"[Intent] 识别结果: {intent_data.get('intent', 'unknown')}, "
-                f"置信度: {intent_data.get('confidence', 0)}"
-            )
-
-            return intent_data
-
-        except Exception as e:
-            logger.error(f"[Intent] 意图识别失败: {e}")
-            # 默认返回 writing 意图
-            return {
-                "intent": "writing",
-                "confidence": 0.5,
-                "reasoning": f"意图识别失败，使用默认值: {str(e)}"
-            }
 
 
 # ==================== 导出 ====================
