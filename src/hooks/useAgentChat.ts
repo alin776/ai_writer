@@ -235,9 +235,7 @@ export function useAgentChat(): UseAgentChatReturn {
           // React 模式回调（新增）
           ...(mode === 'react' ? {
             onProgress: (progress) => {
-              console.log('🔵 [DEBUG] onProgress 被调用', progress);
-
-              // ✅ 转换为 ActivityItem 并添加到活动流
+              // 转换为 ActivityItem 并添加到活动流
               const activityId = `${progress.node || progress.step}_${Date.now()}`;
               const activity: ActivityItem = {
                 id: activityId,

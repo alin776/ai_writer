@@ -122,24 +122,16 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true); // 用于追踪是否应该自动滚动
 
-  // 🔍 调试：组件挂载/卸载监听
+  // 监控：activities状态变化（仅在有数据时记录）
   useEffect(() => {
-    console.log('🔴 [AIPanel] 组件已挂载！');
-    return () => console.log('🔴 [AIPanel] 组件卸载');
-  }, []);
-
-  // 🔍 调试：activities变化监听
-  useEffect(() => {
-    console.log('🔴 [AIPanel] activities变化！', {
-      length: activities.length,
-      activities: activities,
-      timestamp: new Date().toISOString()
-    });
+    if (activities.length > 0) {
+      console.log('[AIPanel] 活动流更新:', activities.length, '个活动');
+    }
   }, [activities]);
 
-  // 🔍 调试：mode变化监听
+  // 监控：mode切换
   useEffect(() => {
-    console.log('🔴 [AIPanel] mode变化！', mode);
+    console.log('[AIPanel] 模式:', mode);
   }, [mode]);
 
   // 检测用户是否在底部
@@ -279,26 +271,18 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
         })}
 
         {/* ReAct模式活动流 - 显示在所有历史消息之后，streaming消息之前 */}
-        {console.log('🟣 [AIPanel] 渲染检查:', {
-          mode,
-          activitiesLength: activities.length,
-          条件满足: mode === 'react' && activities.length > 0
-        })}
         {mode === 'react' && activities.length > 0 && (
-          <>
-            {console.log('🟣 [AIPanel] 准备渲染ActivityStream，activities.length =', activities.length)}
-            <div className="flex items-start gap-2">
-              <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
-                <Bot className="h-3.5 w-3.5 text-white" />
-              </div>
-              <div className="flex-1">
-                <ActivityStream
-                  key={`activities-${activities.length}`}
-                  activities={activities}
-                />
-              </div>
+          <div className="flex items-start gap-2">
+            <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
+              <Bot className="h-3.5 w-3.5 text-white" />
             </div>
-          </>
+            <div className="flex-1">
+              <ActivityStream
+                key={`activities-${activities.length}`}
+                activities={activities}
+              />
+            </div>
+          </div>
         )}
 
         {/* Planning模式任务执行进度（todolist）- 显示在所有历史消息之后，streaming消息之前 */}

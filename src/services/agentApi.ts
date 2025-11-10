@@ -195,11 +195,11 @@ class AgentApiService {
 
                 // React 模式事件（新增）
                 case 'progress':
-                  console.log('🟢 [API] 收到 progress 事件:', data.data);
+                  console.log('[API] Progress:', data.data.step, '-', data.data.description);
                   callbacks.onProgress?.(data.data);
                   break;
                 case 'tool_call':
-                  console.log('🟢 [API] 收到 tool_call 事件:', data.data);
+                  console.log('[API] 工具调用:', data.data.tool);
                   callbacks.onToolCall?.(data.data);
                   break;
               }

@@ -2139,8 +2139,8 @@ class WritingAgentGraph:
             "final_response": None
         }
 
-        # 运行图（✅ 修复：统一config结构，添加checkpoint_ns以保持与手动保存/加载一致）
-        config = {"configurable": {"thread_id": conversation_id or "default", "checkpoint_ns": ""}}
+        # 运行图
+        config = {"configurable": {"thread_id": conversation_id or "default"}}
 
         try:
             result = await self.graph.ainvoke(initial_state, config)
@@ -2343,8 +2343,7 @@ class WritingAgentGraph:
         # 配置
         config = {
             "configurable": {
-                "thread_id": conversation_id or "default",
-                "checkpoint_ns": ""
+                "thread_id": conversation_id or "default"
             }
         }
 

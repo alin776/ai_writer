@@ -72,11 +72,8 @@ const formatTimeAgo = (timestamp: string): string => {
  * ActivityStream 组件
  */
 export default function ActivityStream({ activities, className = '' }: ActivityStreamProps) {
-  console.log('🟠 [ActivityStream] 渲染！activities.length =', activities.length);
-  console.log('🟠 [ActivityStream] activities =', activities);
-
+  // 空数据直接返回
   if (activities.length === 0) {
-    console.log('🟠 [ActivityStream] activities为空，返回null');
     return null;
   }
 
