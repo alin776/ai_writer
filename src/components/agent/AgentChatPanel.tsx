@@ -41,6 +41,7 @@ export default function AgentChatPanel({
     tasks,
     currentTaskId,
     activities,  // ✅ 获取活动流
+    progressData,  // ✅ 获取进度数据
     clearMessages
   } = useAgentChat();
 
@@ -154,6 +155,7 @@ export default function AgentChatPanel({
         <div className="activity-stream-container px-4 py-2 border-b border-gray-200 bg-gray-50 transition-all duration-300">
           <ActivityStream
             activities={activities}
+            progressData={progressData}
           />
         </div>
       )}

@@ -10,7 +10,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { agentApi } from '@/services/agentApi';
-import type { AgentChatRequest, AgentChatResponse, ActivityItem } from '@/types/agent';
+import type { AgentChatRequest, AgentChatResponse, ActivityItem, ProgressData } from '@/types/agent';
 
 interface Message {
   role: 'user' | 'agent';
@@ -37,6 +37,7 @@ interface UseAgentChatReturn {
   tasks: Task[];
   currentTaskId: number | null;
   activities: ActivityItem[];  // ✅ 新增：活动流
+  progressData: ProgressData | null;  // ✅ 新增：进度数据
   sendMessage: (request: AgentChatRequest) => Promise<AgentChatResponse | null>;
   sendMessageStream: (request: AgentChatRequest) => Promise<void>;
   clearMessages: () => void;
@@ -53,6 +54,7 @@ export function useAgentChat(): UseAgentChatReturn {
   const [currentTaskId, setCurrentTaskId] = useState<number | null>(null);
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
   const [activities, setActivities] = useState<ActivityItem[]>([]);  // ✅ 新增：活动流状态
+  const [progressData, setProgressData] = useState<ProgressData | null>(null);  // ✅ 新增：进度数据状态
 
   // 用于记录活动开始时间（计算耗时）
   const [activityStartTimes] = useState<Map<string, number>>(new Map());
@@ -121,8 +123,9 @@ export function useAgentChat(): UseAgentChatReturn {
         setTasks([]);
         setCurrentTaskId(null);
 
-        // ✅ 重置活动流状态
+        // ✅ 重置活动流状态和进度数据
         setActivities([]);
+        setProgressData(null);
         activityStartTimes.clear();
 
         // 添加用户消息
@@ -235,6 +238,21 @@ export function useAgentChat(): UseAgentChatReturn {
           // React 模式回调（新增）
           ...(mode === 'react' ? {
             onProgress: (progress) => {
+              // ✅ 保存完整的进度数据（用于ProgressBar显示）
+              setProgressData({
+                progress: progress.progress || 0,
+                eta: progress.eta ?? null,
+                eta_display: progress.eta_display || '计算中...',
+                eta_confidence: progress.eta_confidence || 'low',
+                current_step: progress.current_step || 1,
+                total_steps: progress.total_steps || 1,
+                step_description: progress.step_description || '',
+                elapsed: progress.elapsed || 0,
+                current_node: progress.node,
+                current_node_display: progress.current_node_display,
+                current_node_description: progress.description
+              });
+
               // 转换为 ActivityItem 并添加到活动流
               const activityId = `${progress.node || progress.step}_${Date.now()}`;
               const activity: ActivityItem = {
@@ -411,6 +429,7 @@ export function useAgentChat(): UseAgentChatReturn {
     setCurrentTaskId(null);
     setConversationId(undefined);
     setActivities([]);  // ✅ 清空活动流
+    setProgressData(null);  // ✅ 清空进度数据
     activityStartTimes.clear();
   }, [activityStartTimes]);
 
@@ -432,6 +451,7 @@ export function useAgentChat(): UseAgentChatReturn {
     tasks,
     currentTaskId,
     activities,  // ✅ 返回活动流
+    progressData,  // ✅ 返回进度数据
     sendMessage,
     sendMessageStream,
     clearMessages,

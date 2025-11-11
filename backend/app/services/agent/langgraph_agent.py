@@ -2427,13 +2427,14 @@ class WritingAgentGraph:
             }
         }
 
-        # ✅ 初始化ProgressTracker（使用通用节点列表，权重归一化会自动处理）
+        # ✅ 初始化ProgressTracker（不预设expected_nodes，完全动态追踪）
         progress_tracker = None
         try:
-            progress_tracker = ProgressTracker(
-                expected_nodes=["intent_classifier", "writing_agent", "tools"]
-            )
-            logger.info("[ProgressTracker] 初始化完成")
+            # 不传expected_nodes/scenario，让ProgressTracker根据实际执行的节点动态计算进度
+            # 这样可以自适应任何intent（general/writing/planning/analysis/stuck）
+            # ProgressTracker内部有平滑处理机制，避免进度倒退
+            progress_tracker = ProgressTracker()
+            logger.info("[ProgressTracker] 初始化完成，使用动态节点追踪模式")
         except Exception as e:
             logger.error(f"[ProgressTracker] 初始化失败: {e}，将继续执行但不提供进度信息")
             progress_tracker = None  # 降级：不使用ProgressTracker
@@ -2703,27 +2704,39 @@ class WritingAgentGraph:
                 mapping["description"] = f"识别为：{intent_display}"
 
         elif node_name == "tools":
-            # 提取工具名称
+            # ✅ 从AIMessage提取tool_calls参数
             messages = node_data.get("messages", [])
-            tool_names = []
-            for msg in messages:
-                if hasattr(msg, "name"):
-                    tool_names.append(msg.name)
+            tool_info = None
 
-            if tool_names:
-                details["tools"] = tool_names
-                # 更新描述（显示工具名）
-                tool_display_names = {
-                    "get_chapter_by_order_tool": "读取章节",
-                    "continue_writing_tool": "继续创作",
-                    "search_analysis_fragments_tool": "检索设定",
-                    "search_memory_tool": "搜索记忆",
-                    "add_todo_tool": "添加待办",
-                    "get_work_details_tool": "获取作品信息",
-                    "update_work_metadata_tool": "更新元数据"
-                }
-                display_names = [tool_display_names.get(t, t) for t in tool_names]
-                mapping["description"] = f"正在{', '.join(display_names[:2])}..."
+            # 寻找AIMessage中的tool_calls（倒序查找最新的）
+            for msg in reversed(messages):
+                if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls") and msg.tool_calls:
+                    # 取第一个tool_call
+                    tool_call = msg.tool_calls[0]
+                    tool_info = {
+                        "name": tool_call.get("name"),
+                        "args": tool_call.get("args", {})
+                    }
+                    break
+
+            # 如果没找到AIMessage的tool_calls，尝试从ToolMessage提取（向后兼容）
+            if not tool_info:
+                for msg in messages:
+                    if hasattr(msg, "name"):
+                        tool_info = {
+                            "name": msg.name,
+                            "args": {}
+                        }
+                        break
+
+            if tool_info:
+                tool_name = tool_info["name"]
+                tool_args = tool_info["args"]
+                details["tools"] = [tool_name]
+                details["tool_args"] = tool_args
+
+                # ✅ 根据工具和参数生成具体描述
+                mapping["description"] = self._generate_tool_description(tool_name, tool_args)
 
         # ✅ 从ProgressTracker获取进度信息
         progress_data = {}
@@ -2778,6 +2791,77 @@ class WritingAgentGraph:
                 tool_calls.append((tool_name, tool_args))
 
         return tool_calls
+
+    def _generate_tool_description(self, tool_name: str, tool_args: dict) -> str:
+        """根据工具名称和参数生成具体描述
+
+        Args:
+            tool_name: 工具名称
+            tool_args: 工具参数字典
+
+        Returns:
+            str: 具体的描述文本
+        """
+        # get_chapter_by_order_tool - 读取章节
+        if tool_name == "get_chapter_by_order_tool":
+            chapter_order = tool_args.get("chapter_order", "?")
+            return f"📚 正在读取第{chapter_order}章..."
+
+        # continue_writing_tool - 续写内容
+        elif tool_name == "continue_writing_tool":
+            target_words = tool_args.get("target_words")
+            if target_words:
+                return f"✍️ 正在创作内容（目标{target_words}字）..."
+            return "✍️ 正在创作内容..."
+
+        # search_analysis_fragments_tool - 检索设定
+        elif tool_name == "search_analysis_fragments_tool":
+            query = tool_args.get("query", "")
+            if query and len(query) <= 20:  # 只显示较短的查询
+                return f"🔍 正在检索「{query}」相关设定..."
+            return "🔍 正在检索设定..."
+
+        # search_memory_tool - 搜索记忆
+        elif tool_name == "search_memory_tool":
+            query = tool_args.get("query", "")
+            if query and len(query) <= 20:
+                return f"💭 正在搜索「{query}」相关记忆..."
+            return "💭 正在搜索记忆..."
+
+        # polish_text_tool - 润色文本
+        elif tool_name == "polish_text_tool":
+            return "✨ 正在润色文本..."
+
+        # analyze_text_tool - 分析文本
+        elif tool_name == "analyze_text_tool":
+            return "🔍 正在分析文本..."
+
+        # add_todo_tool - 添加待办
+        elif tool_name == "add_todo_tool":
+            return "📝 正在添加待办事项..."
+
+        # get_work_details_tool - 获取作品信息
+        elif tool_name == "get_work_details_tool":
+            return "📖 正在获取作品信息..."
+
+        # update_work_metadata_tool - 更新元数据
+        elif tool_name == "update_work_metadata_tool":
+            return "💾 正在更新作品元数据..."
+
+        # 默认描述（向后兼容）
+        tool_display_names = {
+            "get_chapter_by_order_tool": "读取章节",
+            "continue_writing_tool": "继续创作",
+            "search_analysis_fragments_tool": "检索设定",
+            "search_memory_tool": "搜索记忆",
+            "add_todo_tool": "添加待办",
+            "get_work_details_tool": "获取作品信息",
+            "update_work_metadata_tool": "更新元数据",
+            "polish_text_tool": "润色文本",
+            "analyze_text_tool": "分析文本"
+        }
+        display_name = tool_display_names.get(tool_name, tool_name)
+        return f"正在{display_name}..."
 
     def _extract_content(self, node_name: str, node_data: dict) -> Optional[str]:
         """提取生成的内容"""

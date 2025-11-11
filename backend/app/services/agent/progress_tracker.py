@@ -56,6 +56,7 @@ class ProgressTracker:
         # ETA计算相关
         self.eta_history: deque = deque(maxlen=5)  # 保存最近5次ETA，用于平滑
         self.last_progress = 0.0  # 上次进度（用于检测跳跃）
+        self.last_active_nodes: List[str] = []  # ✅ 新增：上次的active_nodes（用于检测节点变化）
 
         # ✅ 新增：线程锁保护（P1任务6）- 使用RLock支持可重入
         self._lock = threading.RLock()
@@ -63,11 +64,17 @@ class ProgressTracker:
         # ✅ 新增：预计算归一化权重
         self._normalized_weights = self._precompute_normalized_weights()
 
-        logger.info(
-            f"[ProgressTracker] 初始化完成，场景={scenario}, "
-            f"预期节点={len(self.expected_nodes)}个, "
-            f"权重总和={sum(self._normalized_weights.values()):.2f}"
-        )
+        # 日志输出
+        if self.expected_nodes:
+            logger.info(
+                f"[ProgressTracker] 初始化完成，场景={scenario}, "
+                f"预期节点={len(self.expected_nodes)}个{self.expected_nodes}, "
+                f"权重总和={sum(self._normalized_weights.values()):.2f}"
+            )
+        else:
+            logger.info(
+                "[ProgressTracker] 初始化完成，使用动态节点追踪模式（根据实际执行的节点自动计算进度）"
+            )
 
     def _precompute_normalized_weights(self) -> Dict[str, float]:
         """预计算归一化权重
@@ -163,9 +170,11 @@ class ProgressTracker:
             elapsed = time.time() - self.start_time
 
             # === 动态归一化权重 ===
+            nodes_changed = False  # 标记active_nodes是否变化
             if self.expected_nodes:
                 # ✅ 使用预计算的归一化权重
                 normalized_weights = self._normalized_weights
+                active_nodes = self.expected_nodes
             else:
                 # 如果没有设置预期节点，使用已完成+当前节点
                 active_nodes = self.completed_nodes + ([self.current_node] if self.current_node else [])
@@ -177,6 +186,14 @@ class ProgressTracker:
                         "current_node": None,
                         "current_node_display": None
                     }
+
+                # ✅ 检测active_nodes变化（用于重置平滑处理）
+                if active_nodes != self.last_active_nodes:
+                    logger.debug(
+                        f"[ProgressTracker] active_nodes变化: {self.last_active_nodes} -> {active_nodes}"
+                    )
+                    nodes_changed = True
+                    self.last_active_nodes = active_nodes.copy()
 
                 total_weight = sum(
                     get_node_info(node)["progress_weight"]
@@ -239,7 +256,14 @@ class ProgressTracker:
             total_progress = min(total_progress, 1.0)
 
             # === 平滑处理（避免进度倒退） ===
-            if total_progress < self.last_progress:
+            # 在动态追踪模式下，当active_nodes变化时（新节点加入），允许进度重新计算
+            if not self.expected_nodes and nodes_changed:
+                # 节点集合变化，重置last_progress允许进度重新计算
+                logger.debug(
+                    f"[ProgressTracker] 节点集合变化，允许进度重新计算（从{self.last_progress*100:.1f}%到{total_progress*100:.1f}%）"
+                )
+                self.last_progress = total_progress
+            elif total_progress < self.last_progress:
                 # 进度不应倒退，保持上次进度
                 total_progress = self.last_progress
             else:

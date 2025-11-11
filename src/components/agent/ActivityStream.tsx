@@ -160,8 +160,8 @@ export default function ActivityStream({
         </div>
       </div>
 
-      {/* ✅ 新增：进度条（如果有progressData） */}
-      {validProgressData && validProgressData.progress < 100 && (
+      {/* ✅ 新增：进度条（如果有progressData）*/}
+      {validProgressData && (
         <div className="mb-4 px-4 py-3 bg-blue-50 rounded-lg border border-blue-100">
           <ProgressBar
             progress={validProgressData.progress}
