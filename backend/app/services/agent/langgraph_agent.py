@@ -34,6 +34,8 @@ from app.services.agent.prompts import NovelPhase, PhaseCharacteristics
 from app.services.agent.prompt_library import get_content_prompt
 from app.services.agent.model_selector import TaskType
 from app.services.agent.prompt_cache import get_tool_decision_static_prompt, get_planning_static_prompt
+from app.services.agent.progress_tracker import ProgressTracker
+from app.services.agent.node_metadata import get_node_info
 
 logger = logging.getLogger(__name__)
 
@@ -2425,6 +2427,17 @@ class WritingAgentGraph:
             }
         }
 
+        # ✅ 初始化ProgressTracker（使用通用节点列表，权重归一化会自动处理）
+        progress_tracker = None
+        try:
+            progress_tracker = ProgressTracker(
+                expected_nodes=["intent_classifier", "writing_agent", "tools"]
+            )
+            logger.info("[ProgressTracker] 初始化完成")
+        except Exception as e:
+            logger.error(f"[ProgressTracker] 初始化失败: {e}，将继续执行但不提供进度信息")
+            progress_tracker = None  # 降级：不使用ProgressTracker
+
         try:
             # 🔧 监控：LangGraph执行计时
             graph_start = time.time()
@@ -2434,16 +2447,42 @@ class WritingAgentGraph:
 
             # ✅ 添加超时保护（5分钟）
             async with asyncio.timeout(300):
-                async for event in self.graph.astream(initial_state, config):
+                async for event in self.graph.astream_events(initial_state, config, version="v2"):
                     event_count += 1
 
-                    # 处理事件并触发回调
-                    await self._handle_stream_event(
-                        event,
-                        on_progress=on_progress,
-                        on_tool_call=on_tool_call,
-                        on_content=on_content
-                    )
+                    # 提取事件类型和数据
+                    event_type = event.get("event")
+                    event_name = event.get("name")
+                    event_data = event.get("data", {})
+
+                    # ✅ 处理节点开始事件
+                    if event_type == "on_chain_start" and event_name:
+                        if progress_tracker:
+                            progress_tracker.start_node(event_name)
+                            logger.debug(f"[ProgressTracker] 节点开始: {event_name}")
+
+                    # ✅ 处理节点结束事件
+                    elif event_type == "on_chain_end" and event_name:
+                        # 构造原格式的event用于现有逻辑，添加降级处理
+                        output_data = event_data.get("output")
+                        if output_data is None:
+                            output_data = event_data  # 降级：使用完整event_data
+                        formatted_event = {event_name: output_data}
+
+                        # 处理事件并触发回调
+                        await self._handle_stream_event(
+                            formatted_event,
+                            on_progress=on_progress,
+                            on_tool_call=on_tool_call,
+                            on_content=on_content,
+                            progress_tracker=progress_tracker  # ✅ 传递ProgressTracker
+                        )
+
+                    # ✅ 处理节点错误事件
+                    elif event_type == "on_chain_error" and event_name:
+                        if progress_tracker:
+                            progress_tracker.end_node(event_name)  # 标记节点完成（即使失败）
+                            logger.error(f"[ProgressTracker] 节点失败: {event_name}")
 
             # 🔧 监控：记录LangGraph执行耗时
             record_timer("graph_execution_duration", time.time() - graph_start)
@@ -2536,12 +2575,24 @@ class WritingAgentGraph:
                 "metadata": {"error": error_msg, "traceback": error_trace}
             }
 
+        finally:
+            # ✅ 新增：清理ProgressTracker（P1任务7）
+            if progress_tracker:
+                try:
+                    # 重置tracker状态，释放资源
+                    progress_tracker.reset()
+                    del progress_tracker
+                    logger.debug("[ProgressTracker] 已清理")
+                except Exception as e:
+                    logger.warning(f"[ProgressTracker] 清理失败: {e}")
+
     async def _handle_stream_event(
         self,
         event: dict,
         on_progress: Optional[callable] = None,
         on_tool_call: Optional[callable] = None,
-        on_content: Optional[callable] = None
+        on_content: Optional[callable] = None,
+        progress_tracker: Optional[ProgressTracker] = None  # ✅ 新增参数
     ):
         """处理astream事件，转换为用户友好的进度信息并触发回调"""
 
@@ -2554,9 +2605,14 @@ class WritingAgentGraph:
 
         logger.info(f"[Stream Event] 节点: {node_name}")  # 改为info级别
 
+        # ✅ 追踪节点完成
+        if progress_tracker:
+            progress_tracker.end_node(node_name)
+            logger.debug(f"[ProgressTracker] 节点完成: {node_name}")
+
         # 1. 解析进度事件并触发on_progress
         if on_progress:
-            progress_event = self._parse_node_event(node_name, node_data)
+            progress_event = self._parse_node_event(node_name, node_data, progress_tracker)  # ✅ 传递tracker
             if progress_event:
                 logger.info(f"[Stream Event] progress_event = {progress_event}")  # 添加日志
                 try:
@@ -2583,7 +2639,12 @@ class WritingAgentGraph:
                 except Exception as e:
                     logger.error(f"[Stream] 内容回调失败: {e}")
 
-    def _parse_node_event(self, node_name: str, node_data: dict) -> Optional[dict]:
+    def _parse_node_event(
+        self,
+        node_name: str,
+        node_data: dict,
+        progress_tracker: Optional[ProgressTracker] = None  # ✅ 新增参数
+    ) -> Optional[dict]:
         """将LangGraph节点事件转换为用户友好的进度信息"""
 
         # 节点映射表
@@ -2664,13 +2725,45 @@ class WritingAgentGraph:
                 display_names = [tool_display_names.get(t, t) for t in tool_names]
                 mapping["description"] = f"正在{', '.join(display_names[:2])}..."
 
+        # ✅ 从ProgressTracker获取进度信息
+        progress_data = {}
+        if progress_tracker:
+            try:
+                progress_event = progress_tracker.get_progress_event()
+                progress_data = {
+                    "progress": progress_event.get("progress"),
+                    "eta": progress_event.get("eta"),
+                    "eta_display": progress_event.get("eta_display"),
+                    "eta_confidence": progress_event.get("eta_confidence"),
+                    "current_step": progress_event.get("current_step"),
+                    "total_steps": progress_event.get("total_steps"),
+                    "step_description": progress_event.get("step_description"),
+                    "elapsed": progress_event.get("elapsed")
+                }
+                logger.debug(
+                    f"[ProgressTracker] 进度: {progress_data['progress']}%, "
+                    f"ETA: {progress_data['eta_display']}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"[ProgressTracker] 获取进度失败: {e}, "
+                    f"类型: {type(e).__name__}, "
+                    f"当前节点: {progress_tracker.current_node if hasattr(progress_tracker, 'current_node') else 'unknown'}, "
+                    f"已完成: {len(progress_tracker.completed_nodes) if hasattr(progress_tracker, 'completed_nodes') else 0}个节点",
+                    exc_info=True  # 包含完整堆栈跟踪
+                )
+                # 失败时使用空数据，不影响主流程
+                progress_data = {}
+
+        # ✅ 合并所有信息
         return {
             "type": "progress",
             "step": mapping["step"],
             "description": mapping["description"],
             "node": node_name,
             "details": details,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            **progress_data  # ✅ 包含进度信息
         }
 
     def _extract_tool_calls(self, node_data: dict) -> list:

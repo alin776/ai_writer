@@ -1,0 +1,53 @@
+/* ProgressBar CSS Module */
+
+/* 容器样式 */
+.progressBarContainer {
+  /* 由组件props控制 */
+}
+
+/* 动画定义 - 只会加载一次 */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* shimmer动画类 */
+.shimmer {
+  animation: shimmer 1.5s infinite;
+}
+
+/* 进度条填充样式 */
+.progressFill {
+  transition: width 500ms ease-out;
+}
+
+.progressFillComplete {
+  background: #10b981; /* green-500 */
+}
+
+.progressFillActive {
+  background: #3b82f6; /* blue-500 */
+}
+
+/* 脉冲动画（已完成时） */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* 紧凑版进度条样式 */
+.compactFill {
+  transition: width 500ms ease-out;
+}

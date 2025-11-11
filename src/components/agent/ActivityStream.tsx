@@ -12,11 +12,13 @@
 
 import React from 'react';
 import { Brain, Wrench, Sparkles, CheckCircle, Loader2, Clock } from 'lucide-react';
-import type { ActivityItem, ActivityType, ActivityStatus } from '@/types/agent';  // ✅ 从类型文件导入
+import type { ActivityItem, ActivityType, ActivityStatus, ProgressData } from '@/types/agent';  // ✅ 从类型文件导入
+import ProgressBar from './ProgressBar';  // ✅ 导入ProgressBar
 import styles from './ActivityStream.module.css';
 
 interface ActivityStreamProps {
   activities: ActivityItem[];
+  progressData?: ProgressData | null;  // ✅ 新增：进度数据（可选）
   className?: string;
 }
 
@@ -69,17 +71,73 @@ const formatTimeAgo = (timestamp: string): string => {
 };
 
 /**
+ * 验证ActivityItem数据完整性
+ */
+const isValidActivity = (activity: any): activity is ActivityItem => {
+  return (
+    activity &&
+    typeof activity === 'object' &&
+    typeof activity.id === 'string' &&
+    typeof activity.type === 'string' &&
+    typeof activity.description === 'string' &&
+    typeof activity.timestamp === 'string' &&
+    typeof activity.status === 'string'
+  );
+};
+
+/**
+ * 验证ProgressData数据完整性
+ */
+const isValidProgressData = (data: any): data is ProgressData => {
+  return (
+    data &&
+    typeof data === 'object' &&
+    typeof data.progress === 'number' &&
+    data.progress >= 0 &&
+    data.progress <= 100
+  );
+};
+
+/**
  * ActivityStream 组件
  */
-export default function ActivityStream({ activities, className = '' }: ActivityStreamProps) {
-  // 空数据直接返回
-  if (activities.length === 0) {
+export default function ActivityStream({
+  activities,
+  progressData,  // ✅ 接收progressData
+  className = ''
+}: ActivityStreamProps) {
+  // ✅ 类型检查和数据验证
+  if (!Array.isArray(activities)) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[ActivityStream] activities不是数组:', typeof activities);
+    }
     return null;
   }
 
+  // 过滤出有效的活动项
+  const validActivities = activities.filter(isValidActivity);
+
+  if (validActivities.length !== activities.length && process.env.NODE_ENV === 'development') {
+    console.warn(
+      `[ActivityStream] ${activities.length - validActivities.length}个无效活动被过滤`
+    );
+  }
+
+  // 空数据直接返回
+  if (validActivities.length === 0) {
+    return null;
+  }
+
+  // 验证progressData
+  const validProgressData = progressData && isValidProgressData(progressData) ? progressData : null;
+
+  if (progressData && !validProgressData && process.env.NODE_ENV === 'development') {
+    console.warn('[ActivityStream] progressData无效:', progressData);
+  }
+
   // 统计
-  const activeCount = activities.filter(a => a.status === 'active').length;
-  const completedCount = activities.filter(a => a.status === 'completed').length;
+  const activeCount = validActivities.filter(a => a.status === 'active').length;
+  const completedCount = validActivities.filter(a => a.status === 'completed').length;
 
   return (
     <div className={`${styles.activityStream} ${className}`}>
@@ -102,9 +160,22 @@ export default function ActivityStream({ activities, className = '' }: ActivityS
         </div>
       </div>
 
+      {/* ✅ 新增：进度条（如果有progressData） */}
+      {validProgressData && validProgressData.progress < 100 && (
+        <div className="mb-4 px-4 py-3 bg-blue-50 rounded-lg border border-blue-100">
+          <ProgressBar
+            progress={validProgressData.progress}
+            etaDisplay={validProgressData.eta_display}
+            etaConfidence={validProgressData.eta_confidence}
+            stepDescription={validProgressData.step_description}
+            currentNodeDescription={validProgressData.current_node_description}
+          />
+        </div>
+      )}
+
       {/* 活动列表 */}
       <div className={styles.activityList}>
-        {activities.map((activity) => (
+        {validActivities.map((activity) => (
           <div
             key={activity.id}
             className={`
@@ -163,11 +234,11 @@ export default function ActivityStream({ activities, className = '' }: ActivityS
       </div>
 
       {/* 进度条（可选） */}
-      {activities.length > 0 && (
+      {validActivities.length > 0 && (
         <div className={styles.progressBar}>
           <div
             className={styles.progressFill}
-            style={{ width: `${(completedCount / activities.length) * 100}%` }}
+            style={{ width: `${(completedCount / validActivities.length) * 100}%` }}
           />
         </div>
       )}

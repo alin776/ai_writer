@@ -2,6 +2,8 @@
  * Agent系统 - TypeScript类型定义
  */
 
+import { z } from 'zod';
+
 // ==================== 基础类型 ====================
 
 export interface AgentChatRequest {
@@ -227,3 +229,96 @@ export interface ToolCallEvent {
   args: any;
   timestamp: string;
 }
+
+// ==================== ProgressTracker 进度追踪 ====================
+
+/**
+ * 进度信息（从后端SSE事件接收）
+ * 由ProgressTracker生成的完整进度数据
+ */
+export interface ProgressData {
+  progress: number;              // 进度百分比 (0-100)
+  eta: number | null;            // 预估剩余时间（秒）
+  eta_display: string;           // ETA友好显示（如"2分钟"、"即将完成"）
+  eta_confidence: 'low' | 'medium' | 'high';  // ETA置信度
+  current_step: number;          // 当前第几步（从1开始）
+  total_steps: number;           // 总步数
+  step_description: string;      // 步骤描述（如"第2/5步"）
+  elapsed: number;               // 已用时间（秒）
+  current_node?: string;         // 当前节点名（LangGraph内部名称）
+  current_node_display?: string; // 当前节点友好名称（如"🧠 意图分析"）
+  current_node_description?: string; // 当前节点描述（如"正在分析您的需求..."）
+}
+
+/**
+ * 增强的进度事件（包含ProgressTracker数据）
+ * 扩展ProgressEvent，添加进度追踪信息
+ */
+export interface EnhancedProgressEvent extends ProgressEvent {
+  // ProgressTracker提供的字段
+  progress?: number;
+  eta?: number | null;
+  eta_display?: string;
+  eta_confidence?: 'low' | 'medium' | 'high';
+  current_step?: number;
+  total_steps?: number;
+  step_description?: string;
+  elapsed?: number;
+}
+
+// ==================== Zod验证Schema ====================
+
+/**
+ * ProgressData的Zod验证Schema
+ * ✅ 用于运行时数据验证，确保后端返回的数据符合预期
+ */
+export const ProgressDataSchema = z.object({
+  progress: z.number().min(0).max(100),
+  eta: z.number().nullable(),
+  eta_display: z.string(),
+  eta_confidence: z.enum(['low', 'medium', 'high']),
+  current_step: z.number().int().positive(),
+  total_steps: z.number().int().positive(),
+  step_description: z.string(),
+  elapsed: z.number().nonnegative(),
+  current_node: z.string().optional(),
+  current_node_display: z.string().nullable().optional(),
+  current_node_description: z.string().nullable().optional()
+});
+
+/**
+ * ActivityItem的Zod验证Schema
+ */
+export const ActivityItemSchema = z.object({
+  id: z.string(),
+  type: z.enum(['intent_analysis', 'thinking', 'tool_execution', 'generating']),
+  description: z.string(),
+  timestamp: z.string(),
+  status: z.enum(['active', 'completed', 'failed']),
+  node: z.string().optional(),
+  tool: z.string().optional(),
+  details: z.record(z.any()).optional(),
+  elapsedTime: z.number().optional()
+});
+
+/**
+ * EnhancedProgressEvent的Zod验证Schema
+ */
+export const EnhancedProgressEventSchema = z.object({
+  type: z.literal('progress'),
+  step: z.enum(['intent_analysis', 'thinking', 'tool_execution', 'generating']),
+  description: z.string(),
+  node: z.string().optional(),
+  details: z.record(z.any()).optional(),
+  timestamp: z.string(),
+  // ProgressTracker字段
+  progress: z.number().min(0).max(100).optional(),
+  eta: z.number().nullable().optional(),
+  eta_display: z.string().optional(),
+  eta_confidence: z.enum(['low', 'medium', 'high']).optional(),
+  current_step: z.number().int().positive().optional(),
+  total_steps: z.number().int().positive().optional(),
+  step_description: z.string().optional(),
+  elapsed: z.number().nonnegative().optional()
+});
+
