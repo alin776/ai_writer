@@ -51,6 +51,7 @@ class Chapter(Base):
     work = relationship("Work", back_populates="chapters")
     analysis_vectors = relationship("NovelAnalysisVector", back_populates="chapter", cascade="all, delete-orphan")
     knowledge_items = relationship("KnowledgeItem", back_populates="chapter", cascade="all, delete-orphan")
+    versions = relationship("ChapterVersion", back_populates="chapter", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Chapter {self.title} status={self.status}>"

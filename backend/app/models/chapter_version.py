@@ -58,7 +58,7 @@ class ChapterVersion(Base):
     archived_at = Column(DateTime(timezone=True), nullable=True, comment="归档时间")
 
     # 关联关系
-    chapter = relationship("Chapter", backref="versions")
+    chapter = relationship("Chapter", back_populates="versions")
     user = relationship("User", backref="chapter_versions")
     review_session = relationship("ReviewSession", back_populates="versions")
 

@@ -362,7 +362,9 @@ class TaskGeneratorService:
                 max_tokens=3000,
                 temperature=0.7
             ):
-                full_response += chunk
+                # chunk 是 tuple (文本片段, usage统计)
+                text_chunk, usage = chunk
+                full_response += text_chunk
 
             logger.info(f"[TaskGeneratorService] AI 响应长度: {len(full_response)} 字符")
             logger.debug(f"[TaskGeneratorService] AI 响应前200字符: {full_response[:200]}")

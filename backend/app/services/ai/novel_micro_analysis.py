@@ -177,7 +177,9 @@ class NovelMicroAnalysisService:
             max_tokens=4000,  # 微观分析可能需要较多token
             temperature=0.3   # 降低温度以获得更稳定的JSON输出
         ):
-            full_response += chunk
+            # chunk 是 tuple (文本片段, usage统计)
+            text_chunk, usage = chunk
+            full_response += text_chunk
 
         full_response = full_response.strip()
 

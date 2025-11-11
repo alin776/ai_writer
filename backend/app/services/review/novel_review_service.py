@@ -182,7 +182,9 @@ class NovelReviewService:
                 max_tokens=max_tokens,
                 temperature=temperature
             ):
-                full_response += chunk
+                # chunk 是 tuple (文本片段, usage统计)
+                text_chunk, usage = chunk
+                full_response += text_chunk
 
             logger.info(f"[NovelReviewService] AI 响应长度: {len(full_response)} 字符")
             logger.debug(f"[NovelReviewService] AI 响应前200字符: {full_response[:200]}")

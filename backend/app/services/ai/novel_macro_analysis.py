@@ -170,14 +170,16 @@ class NovelMacroAnalysisService:
             str: AI返回的完整文本
         """
         full_response = ""
-        
+
         async for chunk in self.ai_service._stream_chat(
             messages=messages,
             max_tokens=6000,  # 宏观分析需要更多token生成报告
             temperature=0.5   # 适中的温度，保持创造性和稳定性
         ):
-            full_response += chunk
-        
+            # chunk 是 tuple (文本片段, usage统计)
+            text_chunk, usage = chunk
+            full_response += text_chunk
+
         return full_response.strip()
     
     def _validate_macro_report(self, report: str) -> bool:

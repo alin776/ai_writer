@@ -214,8 +214,10 @@ class EvaluationService:
             temperature=0.3  # 评价任务用较低温度,保证一致性
         ):
             chunk_count += 1
-            chunks.append(chunk)
-            logger.debug(f"📦 接收第 {chunk_count} 个数据块, 长度: {len(chunk)}")
+            # chunk 是 tuple (文本片段, usage统计)
+            text_chunk, usage = chunk
+            chunks.append(text_chunk)
+            logger.debug(f"📦 接收第 {chunk_count} 个数据块, 长度: {len(text_chunk)}")
 
         result = "".join(chunks)
         logger.info(f"✅ AI调用完成, 共接收 {chunk_count} 个数据块, 总长度: {len(result)} 字符")
