@@ -158,3 +158,6 @@ INFO.md
 backend/data/
 
 backend/nul
+
+# 任务分析和报告文件
+tasks/
