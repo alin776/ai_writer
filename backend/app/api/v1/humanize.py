@@ -375,7 +375,8 @@ async def humanize_rewrite(
             text=request.text,
             intensity=request.intensity,
             skip_detection=False,
-            skip_verification=None  # 使用config配置
+            skip_verification=None,  # 使用config配置
+            use_nlp_preprocessing=None  # 使用config配置
         )
 
         detection = result.get("detection")

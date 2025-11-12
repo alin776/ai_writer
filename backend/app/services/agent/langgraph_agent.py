@@ -1029,7 +1029,7 @@ class WritingAgentGraph:
             # 创建临时checkpointer实例用于预初始化
             ttl_config = {
                 "default_ttl": 10080,  # 7天
-                "refresh_on_read": False  # 禁用自动续期，减少Redis操作
+                "refresh_on_read": True  # 启用自动续期，活跃对话自动续期到7天
             }
 
             # ✅ P0-5修复：测试Redis连接（防止NameError）
@@ -1123,7 +1123,7 @@ class WritingAgentGraph:
             # 配置TTL：7天自动清理不活跃对话
             ttl_config = {
                 "default_ttl": 10080,  # 7天 = 7 * 24 * 60分钟
-                "refresh_on_read": False  # 禁用自动续期（性能优化）
+                "refresh_on_read": True  # 启用自动续期，活跃对话自动续期到7天
             }
             self.checkpointer = AsyncRedisSaver(redis_url=redis_url, ttl=ttl_config)
             self._checkpointer_setup_done = False  # 标记是否已初始化索引
