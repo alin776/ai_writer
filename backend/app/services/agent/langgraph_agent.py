@@ -1067,6 +1067,9 @@ class WritingAgentGraph:
         self.ai_service = ai_service
         self.use_chatgpt = use_chatgpt  # 模式开关
 
+        # 🔧 缓存工具调用参数（用于进度显示）
+        self._cached_tool_calls = {}
+
         # 设置全局 AI Service（供工具使用）
         set_global_ai_service(ai_service)
 
@@ -2611,6 +2614,19 @@ class WritingAgentGraph:
             progress_tracker.end_node(node_name)
             logger.debug(f"[ProgressTracker] 节点完成: {node_name}")
 
+        # 🔧 缓存agent节点的工具调用参数（用于后续tools节点显示）
+        if node_name in ["writing_agent", "planning_agent", "analysis_agent", "stuck_agent", "general_agent"]:
+            messages = node_data.get("messages", [])
+            for msg in reversed(messages):
+                if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls") and msg.tool_calls:
+                    for tool_call in msg.tool_calls:
+                        tool_name = tool_call.get("name")
+                        tool_args = tool_call.get("args", {})
+                        if tool_name:
+                            self._cached_tool_calls[tool_name] = tool_args
+                            logger.debug(f"[Cache] 缓存工具参数: {tool_name} -> {tool_args}")
+                    break  # 只缓存最新的一条AIMessage
+
         # 1. 解析进度事件并触发on_progress
         if on_progress:
             progress_event = self._parse_node_event(node_name, node_data, progress_tracker)  # ✅ 传递tracker
@@ -2708,11 +2724,21 @@ class WritingAgentGraph:
             messages = node_data.get("messages", [])
             tool_info = None
 
+            # 🔍 DEBUG: 输出消息列表
+            logger.debug(f"[Tools Node] messages数量: {len(messages)}")
+
             # 寻找AIMessage中的tool_calls（倒序查找最新的）
             for msg in reversed(messages):
                 if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls") and msg.tool_calls:
+                    # 🔍 DEBUG: 输出tool_calls结构
+                    logger.info(f"[Tools Node] 找到AIMessage with tool_calls: {msg.tool_calls}")
+
                     # 取第一个tool_call
                     tool_call = msg.tool_calls[0]
+
+                    # 🔍 DEBUG: 输出tool_call详情
+                    logger.info(f"[Tools Node] tool_call详情: name={tool_call.get('name')}, args={tool_call.get('args')}")
+
                     tool_info = {
                         "name": tool_call.get("name"),
                         "args": tool_call.get("args", {})
@@ -2721,6 +2747,7 @@ class WritingAgentGraph:
 
             # 如果没找到AIMessage的tool_calls，尝试从ToolMessage提取（向后兼容）
             if not tool_info:
+                logger.warning("[Tools Node] 未找到AIMessage的tool_calls，尝试从ToolMessage提取")
                 for msg in messages:
                     if hasattr(msg, "name"):
                         tool_info = {
@@ -2732,6 +2759,18 @@ class WritingAgentGraph:
             if tool_info:
                 tool_name = tool_info["name"]
                 tool_args = tool_info["args"]
+
+                # 🔧 优先使用缓存的参数（如果有）
+                if tool_name in self._cached_tool_calls:
+                    cached_args = self._cached_tool_calls[tool_name]
+                    logger.info(f"[Tools Node] 使用缓存参数: {tool_name} -> {cached_args}")
+                    tool_args = cached_args
+                    # 使用后清除缓存
+                    del self._cached_tool_calls[tool_name]
+
+                # 🔍 DEBUG: 输出最终使用的参数
+                logger.info(f"[Tools Node] 最终使用: tool_name={tool_name}, tool_args={tool_args}")
+
                 details["tools"] = [tool_name]
                 details["tool_args"] = tool_args
 

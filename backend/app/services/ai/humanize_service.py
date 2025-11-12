@@ -13,12 +13,13 @@ from typing import AsyncGenerator, Dict, Any, Optional, Literal
 
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.ai.fast_ai_service import FastAIService
+from app.services.ai.nlp_preprocessor import NLPPreprocessor
 from app.services.ai.humanize_prompts import (
     get_detection_prompt,
     get_humanize_prompt,
     get_verification_prompt
 )
-from app.schemas.humanize import AIDetectionResult, HumanizeVerification
+from app.schemas.humanize import AIDetectionResult, HumanizeVerification, DimensionScore
 from app.utils.json_parser import parse_ai_json
 from app.core.humanize_config import HumanizeConfig, get_config
 
@@ -45,8 +46,9 @@ class HumanizeService:
         self.ai_service = ai_service or HTTPAIService()
         self.fast_ai_service = fast_ai_service or FastAIService()
         self.config = config or get_config()
+        self.nlp_preprocessor = NLPPreprocessor()  # 新增: NLP预处理器
         logger.info(
-            f"HumanizeService 初始化成功 - 双AI架构 "
+            f"HumanizeService 初始化成功 - 双AI架构 + NLP预处理 "
             f"(标准模型: {self.ai_service.model}, 快速模型: {self.fast_ai_service.model}) "
             f"(检测: {self.config.enable_detection}, "
             f"验证: {self.config.enable_verification})"
@@ -78,7 +80,15 @@ class HumanizeService:
             # 解析 JSON 响应 (使用健壮的解析工具)
             fallback_data = {
                 "overall_score": 70.0,
-                "dimensions": {},
+                "dimensions": {
+                    "pattern_repetition": {"score": 70, "description": "模式重复", "issues": []},
+                    "word_choice": {"score": 70, "description": "词汇选择", "issues": []},
+                    "sentence_structure": {"score": 70, "description": "句式结构", "issues": []},
+                    "tone_style": {"score": 70, "description": "语气风格", "issues": []},
+                    "formatting": {"score": 70, "description": "格式规范", "issues": []},
+                    "emotional_expression": {"score": 70, "description": "情感表达", "issues": []},
+                    "coherence_flow": {"score": 70, "description": "连贯性", "issues": []}
+                },
                 "detected_patterns": ["解析失败,默认需要去痕迹"],
                 "needs_humanization": True
             }
@@ -107,7 +117,15 @@ class HumanizeService:
             # 返回默认值,假设需要去痕迹
             return AIDetectionResult(
                 overall_score=70.0,
-                dimensions={},
+                dimensions={
+                    "pattern_repetition": DimensionScore(score=70, description="模式重复", issues=[]),
+                    "word_choice": DimensionScore(score=70, description="词汇选择", issues=[]),
+                    "sentence_structure": DimensionScore(score=70, description="句式结构", issues=[]),
+                    "tone_style": DimensionScore(score=70, description="语气风格", issues=[]),
+                    "formatting": DimensionScore(score=70, description="格式规范", issues=[]),
+                    "emotional_expression": DimensionScore(score=70, description="情感表达", issues=[]),
+                    "coherence_flow": DimensionScore(score=70, description="连贯性", issues=[])
+                },
                 detected_patterns=["检测失败,默认需要去痕迹"],
                 needs_humanization=True
             ), {}
@@ -115,7 +133,8 @@ class HumanizeService:
     async def humanize_stream(
         self,
         text: str,
-        intensity: Literal["light", "medium", "strong"] = "medium"
+        intensity: Literal["light", "medium", "strong"] = "medium",
+        use_nlp_preprocessing: bool = None  # None表示使用配置默认值
     ) -> AsyncGenerator[tuple[str, dict | None], None]:
         """
         阶段2: 流式人性化改写
@@ -123,6 +142,7 @@ class HumanizeService:
         Args:
             text: 待改写的文本
             intensity: 改写强度 (light/medium/strong)
+            use_nlp_preprocessing: 是否启用NLP预处理 (None=使用配置,True=启用,False=禁用)
 
         Yields:
             tuple: (改写文本片段, usage统计或None)
@@ -130,6 +150,27 @@ class HumanizeService:
                 - usage: 仅在最后一个块返回完整usage,其他为None
         """
         start_time = time.time()
+        original_length = len(text)
+
+        # ===== 新增: NLP预处理 =====
+        # 优先使用参数，其次使用配置
+        should_preprocess = (
+            self.config.enable_nlp_preprocessing
+            if use_nlp_preprocessing is None
+            else use_nlp_preprocessing
+        )
+
+        if should_preprocess:
+            text, changes = self.nlp_preprocessor.preprocess(text)
+            if changes:
+                logger.info(
+                    f"✅ NLP预处理完成: {len(changes)}处修改, "
+                    f"原文{original_length}字 → {len(text)}字 (减少{original_length - len(text)}字)"
+                )
+            else:
+                logger.info("✅ NLP预处理完成: 未发现AI痕迹")
+        # ===========================
+
         logger.info(f"开始人性化改写: intensity={intensity}, 文本长度={len(text)}")
 
         # 构建改写 prompt
@@ -196,7 +237,9 @@ class HumanizeService:
                 "score_before": 70.0,
                 "score_after": 50.0,
                 "improvement": 20.0,
-                "success": True
+                "success": True,
+                "improvements": ["解析失败，使用默认值"],
+                "remaining_issues": []
             }
 
             result_data = parse_ai_json(
@@ -226,7 +269,9 @@ class HumanizeService:
                 score_before=70.0,
                 score_after=50.0,
                 improvement=20.0,
-                success=True
+                success=True,
+                improvements=["验证失败，使用默认值"],
+                remaining_issues=[]
             ), {}
 
     async def full_humanize_process(
@@ -234,7 +279,8 @@ class HumanizeService:
         text: str,
         intensity: Literal["light", "medium", "strong"] = "medium",
         skip_detection: bool = False,
-        skip_verification: bool = None  # None表示使用配置默认值
+        skip_verification: bool = None,  # None表示使用配置默认值
+        use_nlp_preprocessing: bool = None  # None表示使用配置默认值
     ) -> Dict[str, Any]:
         """
         完整的三阶段去痕迹流程 (非流式版本,用于测试)
@@ -244,6 +290,7 @@ class HumanizeService:
             intensity: 改写强度
             skip_detection: 是否跳过检测阶段 (直接改写)
             skip_verification: 是否跳过验证阶段 (None=使用配置,True=跳过,False=启用)
+            use_nlp_preprocessing: 是否启用NLP预处理 (None=使用配置,True=启用,False=禁用)
 
         Returns:
             完整的处理结果字典
@@ -256,7 +303,8 @@ class HumanizeService:
             "total_tokens": 0,  # 新增: 总token消耗
             "detection_tokens": 0,  # 新增: 检测阶段token
             "rewrite_tokens": 0,  # 新增: 改写阶段token
-            "verification_tokens": 0  # 新增: 验证阶段token
+            "verification_tokens": 0,  # 新增: 验证阶段token
+            "nlp_changes": []  # 新增: NLP预处理修改记录
         }
 
         start_time = time.time()
@@ -286,7 +334,7 @@ class HumanizeService:
         # 阶段2: 改写
         humanized_chunks = []
         rewrite_usage = None
-        async for chunk, usage in self.humanize_stream(text, intensity):
+        async for chunk, usage in self.humanize_stream(text, intensity, use_nlp_preprocessing):
             humanized_chunks.append(chunk)
             if usage:  # 最后一个块会带usage
                 rewrite_usage = usage

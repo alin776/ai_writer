@@ -16,6 +16,7 @@ class HumanizeConfig:
     enable_detection: bool = True  # 是否启用检测阶段
     enable_verification: bool = False  # 是否启用验证阶段 (默认关闭,节省时间)
     enable_cache: bool = True  # 是否启用缓存
+    enable_nlp_preprocessing: bool = True  # 是否启用NLP预处理 (V2新增)
 
     # ========== 模型配置 ==========
     # 注意: 当前使用HTTPAIService统一管理模型,这里保留配置选项供未来扩展

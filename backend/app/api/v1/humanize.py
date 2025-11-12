@@ -392,7 +392,7 @@ async def humanize_rewrite(
         # 如果没有获取到实际token,使用估算
         if total_tokens == 0:
             text_length = len(request.text)
-            total_tokens = int(text_length * 1.5 * 3)  # 降级估算
+            total_tokens = int(text_length * 1.5 * 2.5)  # 降级估算
             logger.warning(f"未获取到实际token消耗,使用估算值: {total_tokens}")
 
         # 计算成本 (gemini-2.5-flash-lite + gpt-4o-mini混合定价)

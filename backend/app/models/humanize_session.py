@@ -49,7 +49,7 @@ class HumanizeSession(Base):
 
 
 class HumanizeSessionDetail(Base):
-    """去痕迹会话详情 - 详情数据,30天后自动清理"""
+    """去痕迹会话详情 - 详情数据,7天后自动清理"""
 
     __tablename__ = "humanize_session_details"
 
@@ -59,18 +59,18 @@ class HumanizeSessionDetail(Base):
     # 关联会话
     session_id = Column(UUID(as_uuid=True), ForeignKey("humanize_sessions.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
-    # 五维度评分详情 (JSON格式)
+    # 七维度评分详情 (JSON格式) - V2优化版
     dimensions_before = Column(
         JSONB,
         nullable=False,
         server_default=text("'{}'::jsonb"),
-        comment="去痕迹前5维度评分: {pattern_repetition, word_choice, sentence_structure, tone_style, formatting}"
+        comment="去痕迹前7维度评分: pattern_repetition, word_choice, sentence_structure, tone_style, formatting, emotional_expression, coherence_flow"
     )
     dimensions_after = Column(
         JSONB,
         nullable=False,
         server_default=text("'{}'::jsonb"),
-        comment="去痕迹后5维度评分"
+        comment="去痕迹后7维度评分（验证阶段暂不返回详细维度）"
     )
 
     # 检测到的AI痕迹 (JSON数组)

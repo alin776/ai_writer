@@ -17,16 +17,18 @@ class AIDetectionResult(BaseModel):
     """AI特征检测结果"""
     overall_score: float = Field(..., ge=0, le=100, description="总体AI特征分数 (0-100)")
 
-    # 五维度评分
+    # 七维度评分（V2优化版）
     dimensions: Dict[str, DimensionScore] = Field(
         ...,
-        description="五维度评分详情",
+        description="七维度评分详情",
         example={
             "pattern_repetition": {"score": 75, "description": "模式重复", "issues": []},
             "word_choice": {"score": 80, "description": "词汇选择", "issues": []},
-            "sentence_structure": {"score": 70, "description": "句式结构", "issues": []},
-            "tone_style": {"score": 65, "description": "语气风格", "issues": []},
-            "formatting": {"score": 85, "description": "格式规范", "issues": []}
+            "sentence_structure": {"score": 65, "description": "句式结构", "issues": []},
+            "tone_style": {"score": 70, "description": "语气风格", "issues": []},
+            "formatting": {"score": 60, "description": "格式规范", "issues": []},
+            "emotional_expression": {"score": 75, "description": "情感表达", "issues": []},
+            "coherence_flow": {"score": 80, "description": "连贯性", "issues": []}
         }
     )
 
@@ -59,6 +61,8 @@ class HumanizeVerification(BaseModel):
     score_after: float = Field(..., ge=0, le=100, description="去痕迹后AI特征分数")
     improvement: float = Field(..., description="改进幅度 (分数降低值)")
     success: bool = Field(..., description="是否成功降低AI痕迹")
+    improvements: List[str] = Field(default_factory=list, description="改进项列表")
+    remaining_issues: List[str] = Field(default_factory=list, description="遗留问题列表")
 
 
 # ========== 会话记录相关 ==========
