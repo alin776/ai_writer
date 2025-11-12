@@ -44,7 +44,7 @@ class AIDetectionResult(BaseModel):
 
 class HumanizeRequest(BaseModel):
     """去痕迹请求"""
-    text: str = Field(..., min_length=10, max_length=100000, description="待去痕迹的文本")
+    text: str = Field(..., min_length=10, max_length=50000, description="待去痕迹的文本（最大5万字符）")
     intensity: Literal["light", "medium", "strong"] = Field(
         default="medium",
         description="去痕迹强度: light(5%改动), medium(15-20%改动), strong(30-40%改动)"

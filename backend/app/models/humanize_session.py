@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Boolean, Float, Integer, ForeignKey, text
+from sqlalchemy import Column, String, DateTime, Boolean, Float, Integer, ForeignKey, Index, text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -39,6 +39,11 @@ class HumanizeSession(Base):
 
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+    # 复合索引（优化查询性能）
+    __table_args__ = (
+        Index('idx_humanize_user_created', 'user_id', 'created_at'),  # 用户历史查询
+    )
 
     # 关联关系
     user = relationship("User", backref="humanize_sessions")

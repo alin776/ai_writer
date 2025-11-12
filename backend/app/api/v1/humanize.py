@@ -3,7 +3,10 @@ Humanize API - AI去痕迹功能管理接口
 """
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+import json
+import time
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from typing import List
@@ -27,6 +30,8 @@ from app.schemas.humanize import (
 from app.services.user_profile_service import UserProfileService
 from app.services.ai.humanize_service import HumanizeService
 from app.core.humanize_config import HumanizeConfig
+from app.services.agent.utils.monitoring import increment_counter, record_timer
+from app.api.middleware.rate_limiter import rate_limit, get_user_identifier
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -335,8 +340,10 @@ async def submit_feedback(
 
 
 @router.post("/rewrite", response_model=HumanizeSessionResponse)
+@rate_limit(max_requests=20, window_seconds=60, identifier_func=get_user_identifier)  # 每分钟最多20次
 async def humanize_rewrite(
-    request: HumanizeRequest,
+    request_data: HumanizeRequest,
+    request: Request,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -356,6 +363,14 @@ async def humanize_rewrite(
     Returns:
         HumanizeSessionResponse: 包含改写结果和会话ID的响应
     """
+    # 0. 安全验证：检查文本字节数（防止超大文本攻击）
+    text_bytes = len(request_data.text.encode('utf-8'))
+    if text_bytes > HumanizeConfig().max_text_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"文本字节数超过限制 (当前: {text_bytes} bytes, 最大: {HumanizeConfig().max_text_bytes} bytes)"
+        )
+
     # 1. 获取用户画像，根据用户配置决定是否启用验证
     profile_service = UserProfileService(db)
     profile = await profile_service.get_or_create_profile(current_user.id)
@@ -369,11 +384,15 @@ async def humanize_rewrite(
     # 3. 初始化HumanizeService
     humanize_service = HumanizeService(config=config)
 
+    # 记录请求开始
+    request_start = time.time()
+    increment_counter("humanize_requests_total", labels={"intensity": request_data.intensity, "function": request_data.ai_function or "rewrite"})
+
     try:
         # 4. 执行完整的去痕迹流程
         result = await humanize_service.full_humanize_process(
-            text=request.text,
-            intensity=request.intensity,
+            text=request_data.text,
+            intensity=request_data.intensity,
             skip_detection=False,
             skip_verification=None,  # 使用config配置
             use_nlp_preprocessing=None  # 使用config配置
@@ -385,6 +404,7 @@ async def humanize_rewrite(
         processing_time = result.get("processing_time", 0)
 
         # 5. 计算token和成本 (使用实际值)
+        text_length = len(request_data.text)  # 提前定义
         total_tokens = result.get("total_tokens", 0)
         detection_tokens = result.get("detection_tokens", 0)
         rewrite_tokens = result.get("rewrite_tokens", 0)
@@ -392,7 +412,6 @@ async def humanize_rewrite(
 
         # 如果没有获取到实际token,使用估算
         if total_tokens == 0:
-            text_length = len(request.text)
             total_tokens = int(text_length * 1.5 * 2.5)  # 降级估算
             logger.warning(f"未获取到实际token消耗,使用估算值: {total_tokens}")
 
@@ -417,11 +436,11 @@ async def humanize_rewrite(
         # 创建会话记录
         session = HumanizeSession(
             user_id=current_user.id,
-            ai_function=request.ai_function or "rewrite",
+            ai_function=request_data.ai_function or "rewrite",
             score_before=score_before,
             score_after=score_after,
             improvement=improvement,
-            intensity=request.intensity,
+            intensity=request_data.intensity,
             processing_time=processing_time,
             tokens_used=total_tokens,  # 使用实际token
             cost=estimated_cost,  # 使用实际成本
@@ -442,7 +461,7 @@ async def humanize_rewrite(
         # 创建会话详情 (包含完整数据,7天后过期)
         detail = HumanizeSessionDetail(
             session_id=session.id,
-            original_preview=request.text[:200],  # 仅保存前200字符
+            original_preview=request_data.text[:200],  # 仅保存前200字符
             humanized_preview=humanized_text[:200],
             dimensions_before=dimensions_before_dict,  # ← 使用转换后的字典
             dimensions_after={},  # 验证阶段不返回详细维度
@@ -456,8 +475,8 @@ async def humanize_rewrite(
         await profile_service.record_humanize_use(
             user_id=current_user.id,
             text_length=text_length,
-            ai_function=request.ai_function or "rewrite",
-            intensity=request.intensity,
+            ai_function=request_data.ai_function or "rewrite",
+            intensity=request_data.intensity,
             improvement=improvement
         )
 
@@ -470,6 +489,13 @@ async def humanize_rewrite(
             f"去痕迹会话已保存: session_id={session.id}, "
             f"improvement={improvement:.1f}, tokens={total_tokens}"
         )
+
+        # 记录监控指标
+        request_duration = time.time() - request_start
+        record_timer("humanize_request_duration_seconds", request_duration, labels={"intensity": request_data.intensity})
+        increment_counter("humanize_requests_success", labels={"intensity": request_data.intensity})
+        record_timer("humanize_tokens_used", total_tokens, labels={"intensity": request_data.intensity})
+        record_timer("humanize_improvement", improvement, labels={"intensity": request_data.intensity})
 
         # 9. 返回响应
         return HumanizeSessionResponse(
@@ -491,6 +517,10 @@ async def humanize_rewrite(
     except Exception as e:
         logger.error(f"去痕迹改写失败: {type(e).__name__}: {e}")
         await db.rollback()
+
+        # 记录失败指标
+        increment_counter("humanize_requests_failed", labels={"intensity": request_data.intensity, "error": type(e).__name__})
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"AI去痕迹处理失败: {str(e)}"
@@ -498,3 +528,260 @@ async def humanize_rewrite(
     finally:
         # 确保关闭Service
         await humanize_service.close()
+
+
+@router.post("/rewrite/stream")
+@rate_limit(max_requests=15, window_seconds=60, identifier_func=get_user_identifier)  # 流式API限制更严格
+async def humanize_rewrite_stream(
+    request_data: HumanizeRequest,
+    request: Request,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    流式去痕迹改写API
+
+    提供实时反馈，大幅提升用户体验。
+
+    流程：
+    1. 验证输入
+    2. 流式输出改写内容（SSE格式）
+    3. 自动保存会话到数据库
+    4. 发送完成事件（包含session_id）
+
+    响应格式（Server-Sent Events）：
+    - data: {"type": "chunk", "content": "改写的文本片段"}
+    - data: {"type": "progress", "stage": "detecting", "message": "正在检测AI痕迹..."}
+    - data: {"type": "done", "session_id": "xxx", "improvement": 25.5}
+    - data: {"type": "error", "message": "错误信息"}
+    """
+    # 安全验证
+    text_bytes = len(request_data.text.encode('utf-8'))
+    if text_bytes > HumanizeConfig().max_text_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"文本字节数超过限制"
+        )
+
+    async def generate():
+        """流式生成器"""
+        humanize_service = None
+        humanized_chunks = []
+        final_usage = None
+        detection_result = None
+        verification_result = None
+        start_time = time.time()
+
+        # 记录流式请求开始
+        increment_counter("humanize_stream_requests_total", labels={"intensity": request_data.intensity, "function": request_data.ai_function or "rewrite"})
+
+        try:
+            # 1. 获取用户画像
+            profile_service = UserProfileService(db)
+            profile = await profile_service.get_or_create_profile(current_user.id)
+
+            # 2. 创建配置
+            config = HumanizeConfig(
+                enable_detection=True,
+                enable_verification=profile.humanize_enabled_by_function.get("rewrite", False),
+            )
+
+            # 3. 初始化Service
+            humanize_service = HumanizeService(config=config)
+
+            # 4. 检测阶段（可选）
+            if config.enable_detection:
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'detecting', 'message': '正在检测AI痕迹...'}, ensure_ascii=False)}\n\n"
+
+                detection_result, _ = await humanize_service.detect_ai_traces(request_data.text)
+
+                # 检查是否需要去痕迹
+                if detection_result.overall_score < config.detection_threshold:
+                    yield f"data: {json.dumps({'type': 'info', 'message': f'AI特征分数较低({detection_result.overall_score:.1f})，无需去痕迹'}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'type': 'done', 'skipped': True}, ensure_ascii=False)}\n\n"
+                    return
+
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'detected', 'score': detection_result.overall_score}, ensure_ascii=False)}\n\n"
+
+            # 5. 改写阶段（流式）
+            yield f"data: {json.dumps({'type': 'progress', 'stage': 'rewriting', 'message': '正在人性化改写...'}, ensure_ascii=False)}\n\n"
+
+            async for chunk, usage in humanize_service.humanize_stream(
+                text=request_data.text,
+                intensity=request_data.intensity,
+                use_nlp_preprocessing=None
+            ):
+                humanized_chunks.append(chunk)
+                if usage:  # 最后一个chunk包含usage
+                    final_usage = usage
+
+                # 发送文本片段
+                yield f"data: {json.dumps({'type': 'chunk', 'content': chunk}, ensure_ascii=False)}\n\n"
+
+            humanized_text = "".join(humanized_chunks)
+
+            # 6. 验证阶段（可选）
+            if config.enable_verification:
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'verifying', 'message': '正在验证效果...'}, ensure_ascii=False)}\n\n"
+
+                verification_result, _ = await humanize_service.verify_humanization(
+                    request_data.text,
+                    humanized_text
+                )
+
+            # 7. 保存会话
+            processing_time = time.time() - start_time
+
+            # 计算指标
+            score_before = detection_result.overall_score if detection_result else 70.0
+            score_after = verification_result.score_after if verification_result else 50.0
+            improvement = score_before - score_after
+
+            # Token和成本计算
+            total_tokens = final_usage.get("total_tokens", 0) if final_usage else 0
+            if total_tokens == 0:
+                total_tokens = int(len(request_data.text) * 1.5 * 2.5)
+
+            detection_cost = total_tokens * 0.3 * 0.0000002  # 30%用于检测
+            rewrite_cost = total_tokens * 0.6 * 0.000002     # 60%用于改写
+            verification_cost = total_tokens * 0.1 * 0.0000002  # 10%用于验证
+            estimated_cost = detection_cost + rewrite_cost + verification_cost
+
+            # 创建会话
+            session = HumanizeSession(
+                user_id=current_user.id,
+                ai_function=request_data.ai_function or "rewrite",
+                score_before=score_before,
+                score_after=score_after,
+                improvement=improvement,
+                intensity=request_data.intensity,
+                processing_time=processing_time,
+                tokens_used=total_tokens,
+                cost=estimated_cost,
+                user_accepted=None
+            )
+
+            db.add(session)
+            await db.flush()
+
+            # 转换维度数据
+            dimensions_before_dict = {}
+            if detection_result and detection_result.dimensions:
+                dimensions_before_dict = {
+                    key: dim.model_dump()
+                    for key, dim in detection_result.dimensions.items()
+                }
+
+            # 创建详情
+            detail = HumanizeSessionDetail(
+                session_id=session.id,
+                original_preview=request_data.text[:200],
+                humanized_preview=humanized_text[:200],
+                dimensions_before=dimensions_before_dict,
+                dimensions_after={},
+                detected_patterns=detection_result.detected_patterns if detection_result else [],
+                expires_at=datetime.utcnow() + timedelta(days=7)
+            )
+
+            db.add(detail)
+
+            # 更新用户画像
+            await profile_service.record_humanize_use(
+                user_id=current_user.id,
+                text_length=len(request_data.text),
+                ai_function=request_data.ai_function or "rewrite",
+                intensity=request_data.intensity,
+                improvement=improvement
+            )
+
+            await db.commit()
+
+            # 记录监控指标
+            request_duration = time.time() - start_time
+            record_timer("humanize_stream_duration_seconds", request_duration, labels={"intensity": request_data.intensity})
+            increment_counter("humanize_stream_requests_success", labels={"intensity": request_data.intensity})
+            record_timer("humanize_stream_tokens_used", total_tokens, labels={"intensity": request_data.intensity})
+            record_timer("humanize_stream_improvement", improvement, labels={"intensity": request_data.intensity})
+
+            # 8. 发送完成事件
+            yield f"data: {json.dumps({'type': 'done', 'session_id': str(session.id), 'improvement': improvement, 'processing_time': processing_time, 'tokens_used': total_tokens}, ensure_ascii=False)}\n\n"
+
+            logger.info(f"流式去痕迹完成: session_id={session.id}, improvement={improvement:.1f}, duration={request_duration:.2f}s")
+
+        except GeneratorExit:
+            # 用户中断连接
+            interrupted_time = time.time() - start_time
+            logger.warning(f"用户中断流式响应: 已处理{interrupted_time:.2f}秒, chunks={len(humanized_chunks)}")
+            increment_counter("humanize_stream_requests_interrupted", labels={"intensity": request_data.intensity})
+
+            # 保存中断会话记录（用于分析用户行为）
+            try:
+                # 计算已收集的数据
+                partial_text = "".join(humanized_chunks) if humanized_chunks else ""
+                estimated_tokens = final_usage.get("total_tokens", 0) if final_usage else int(len(request_data.text) * 1.5)
+
+                # 创建中断会话记录
+                session = HumanizeSession(
+                    user_id=current_user.id,
+                    ai_function=request_data.ai_function or "rewrite",
+                    score_before=detection_result.overall_score if detection_result else 70.0,
+                    score_after=70.0,  # 未完成，使用默认值
+                    improvement=0.0,  # 未完成
+                    intensity=request_data.intensity,
+                    processing_time=interrupted_time,
+                    tokens_used=estimated_tokens,
+                    cost=estimated_tokens * 0.000001,  # 估算成本
+                    user_accepted=False  # 中断视为拒绝
+                )
+                db.add(session)
+                await db.flush()
+
+                # 创建详情（标记为中断）
+                detail = HumanizeSessionDetail(
+                    session_id=session.id,
+                    original_preview=request_data.text[:200],
+                    humanized_preview=partial_text[:200] if partial_text else "(用户中断，无输出)",
+                    dimensions_before={},
+                    dimensions_after={},
+                    detected_patterns=["USER_INTERRUPTED"],
+                    expires_at=datetime.utcnow() + timedelta(days=7)
+                )
+                db.add(detail)
+                await db.commit()
+
+                logger.info(f"已保存中断会话: session_id={session.id}, chunks={len(humanized_chunks)}")
+
+            except Exception as save_err:
+                logger.error(f"保存中断会话失败: {save_err}")
+                # 中断处理失败不影响主流程
+
+            # 注意：这里无法继续yield，连接已断开
+
+        except Exception as e:
+            logger.error(f"流式去痕迹失败: {type(e).__name__}: {e}", exc_info=True)
+
+            # 记录失败指标
+            increment_counter("humanize_stream_requests_failed", labels={"intensity": request_data.intensity, "error": type(e).__name__})
+
+            try:
+                await db.rollback()
+                yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+            except:
+                pass  # 如果连接已断开，忽略错误
+
+        finally:
+            # 确保关闭Service
+            if humanize_service:
+                try:
+                    await humanize_service.close()
+                except Exception as e:
+                    logger.error(f"关闭Service失败: {e}")
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # 禁用nginx缓冲
+        }
+    )

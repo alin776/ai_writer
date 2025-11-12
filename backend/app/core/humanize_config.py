@@ -18,6 +18,10 @@ class HumanizeConfig:
     enable_cache: bool = True  # 是否启用缓存
     enable_nlp_preprocessing: bool = True  # 是否启用NLP预处理 (V2新增)
 
+    # ========== 输入限制（安全） ==========
+    max_text_chars: int = 50000  # 最大字符数（5万字符）
+    max_text_bytes: int = 200 * 1024  # 最大字节数（200KB），防止超大UTF-8字符攻击
+
     # ========== 模型配置 ==========
     # 注意: 当前使用HTTPAIService统一管理模型,这里保留配置选项供未来扩展
     detection_model: str = "default"  # 检测模型 (可以用小模型)
