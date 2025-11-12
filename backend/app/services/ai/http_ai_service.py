@@ -443,29 +443,16 @@ class HTTPAIService:
             input_tokens = usage_info.get('prompt_tokens', 0)
             output_tokens = usage_info.get('completion_tokens', 0)
 
-            # 使用模型选择器估算成本 (基于当前使用的模型)
-            # 注意: 这里使用简化的成本估算,实际成本取决于具体的API定价
-            if self.model_selector:
-                from app.services.agent.model_selector import MODEL_TIERS, TaskComplexity
-                # 根据模型名称确定复杂度 (简化处理)
-                complexity = TaskComplexity.MEDIUM  # 默认
-                if 'flash-lite' in self.model.lower() or 'mini' in self.model.lower():
-                    complexity = TaskComplexity.SIMPLE
-                elif 'pro' in self.model.lower() or 'gpt-4' in self.model.lower():
-                    complexity = TaskComplexity.COMPLEX
+            # 使用CostCalculator计算成本（统一的定价源）
+            from app.utils.cost_calculator import CostCalculator
 
-                model_config = MODEL_TIERS.get(complexity)
-                if model_config:
-                    input_cost = (input_tokens / 1_000_000) * model_config.cost_per_1m_input
-                    output_cost = (output_tokens / 1_000_000) * model_config.cost_per_1m_output
-                else:
-                    # 默认成本 (如果找不到配置)
-                    input_cost = (input_tokens / 1_000_000) * 0.50
-                    output_cost = (output_tokens / 1_000_000) * 1.50
-            else:
-                # 没有模型选择器,使用默认成本
-                input_cost = (input_tokens / 1_000_000) * 0.50
-                output_cost = (output_tokens / 1_000_000) * 1.50
+            cost_data = CostCalculator.calculate_cost(
+                model_name=self.model,
+                prompt_tokens=input_tokens,
+                completion_tokens=output_tokens
+            )
+            input_cost = cost_data["prompt_cost"]
+            output_cost = cost_data["completion_cost"]
 
             # 计算响应时间
             response_time = (datetime.now() - start_time).total_seconds()

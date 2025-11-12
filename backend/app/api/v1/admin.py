@@ -16,6 +16,7 @@ from app.models.user import User
 from app.models.work import Work
 from app.models.chapter import Chapter
 from app.models.ai_call_log import AICallLog
+from app.schemas.admin import UsersGrowthParams, RecentActivitiesParams, UserActionResponse, UserBasicInfo
 
 router = APIRouter()
 
@@ -161,7 +162,7 @@ async def get_statistics(
 
 @router.get("/users-growth")
 async def get_users_growth(
-    days: int = 7,
+    params: UsersGrowthParams = Depends(),
     current_user: User = Depends(check_admin_permission),
     db: AsyncSession = Depends(get_db)
 ):
@@ -169,8 +170,9 @@ async def get_users_growth(
     获取用户增长趋势数据
 
     Args:
-        days: 统计天数（默认7天）
+        params: 查询参数，包含days（统计天数，范围1-90天）
     """
+    days = params.days
     # 获取最近 N 天的用户和作品增长数据
     growth_data = []
 
@@ -243,19 +245,20 @@ async def get_ai_usage(
 
 @router.get("/recent-activities")
 async def get_recent_activities(
-    limit: int = 10,
+    params: RecentActivitiesParams = Depends(),
     current_user: User = Depends(check_admin_permission),
     db: AsyncSession = Depends(get_db)
 ):
     """
     获取最近活动记录
-    
+
     Args:
-        limit: 返回记录数量（默认10条）
+        params: 查询参数，包含limit（返回记录数量，范围1-100条）
     """
+    limit = params.limit
     # TODO: 实现真实的活动记录
     # 需要从活动日志表查询
-    
+
     # 暂时返回空数组
     return {
         "data": []
@@ -264,20 +267,20 @@ async def get_recent_activities(
 
 # ==================== 用户管理功能 ====================
 
-@router.patch("/users/{user_id}/ban")
+@router.patch("/users/{user_id}/ban", response_model=UserActionResponse)
 async def ban_user(
     user_id: UUID,
     current_user: User = Depends(check_admin_permission),
     db: AsyncSession = Depends(get_db)
-):
+) -> UserActionResponse:
     """
     封禁用户
-    
+
     Args:
         user_id: 用户ID
-    
+
     Returns:
-        封禁成功的消息
+        封禁成功的消息和用户信息
     """
     # 查询用户
     user = await db.get(User, user_id)
@@ -286,45 +289,39 @@ async def ban_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-    
+
     # 不能封禁自己
     if user.id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot ban yourself"
         )
-    
+
     # 设置为非激活状态
     user.is_active = False
     await db.commit()
     await db.refresh(user)
-    
-    return {
-        "message": "User banned successfully",
-        "user": {
-            "id": str(user.id),
-            "username": user.username,
-            "email": user.email,
-            "is_active": user.is_active,
-            "is_admin": user.is_admin
-        }
-    }
+
+    return UserActionResponse(
+        message="User banned successfully",
+        user=UserBasicInfo.model_validate(user)
+    )
 
 
-@router.patch("/users/{user_id}/unban")
+@router.patch("/users/{user_id}/unban", response_model=UserActionResponse)
 async def unban_user(
     user_id: UUID,
     current_user: User = Depends(check_admin_permission),
     db: AsyncSession = Depends(get_db)
-):
+) -> UserActionResponse:
     """
     解封用户
-    
+
     Args:
         user_id: 用户ID
-    
+
     Returns:
-        解封成功的消息
+        解封成功的消息和用户信息
     """
     # 查询用户
     user = await db.get(User, user_id)
@@ -333,38 +330,32 @@ async def unban_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-    
+
     # 设置为激活状态
     user.is_active = True
     await db.commit()
     await db.refresh(user)
-    
-    return {
-        "message": "User unbanned successfully",
-        "user": {
-            "id": str(user.id),
-            "username": user.username,
-            "email": user.email,
-            "is_active": user.is_active,
-            "is_admin": user.is_admin
-        }
-    }
+
+    return UserActionResponse(
+        message="User unbanned successfully",
+        user=UserBasicInfo.model_validate(user)
+    )
 
 
-@router.patch("/users/{user_id}/toggle-admin")
+@router.patch("/users/{user_id}/toggle-admin", response_model=UserActionResponse)
 async def toggle_admin_role(
     user_id: UUID,
     current_user: User = Depends(check_admin_permission),
     db: AsyncSession = Depends(get_db)
-):
+) -> UserActionResponse:
     """
     切换用户管理员角色
-    
+
     Args:
         user_id: 用户ID
-    
+
     Returns:
-        操作成功的消息
+        操作成功的消息和用户信息
     """
     # 查询用户
     user = await db.get(User, user_id)
@@ -373,26 +364,20 @@ async def toggle_admin_role(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-    
+
     # 不能修改自己的角色
     if user.id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot modify your own admin role"
         )
-    
+
     # 切换管理员状态
     user.is_admin = not user.is_admin
     await db.commit()
     await db.refresh(user)
-    
-    return {
-        "message": f"User {'promoted to' if user.is_admin else 'demoted from'} admin successfully",
-        "user": {
-            "id": str(user.id),
-            "username": user.username,
-            "email": user.email,
-            "is_active": user.is_active,
-            "is_admin": user.is_admin
-        }
-    }
+
+    return UserActionResponse(
+        message=f"User {'promoted to' if user.is_admin else 'demoted from'} admin successfully",
+        user=UserBasicInfo.model_validate(user)
+    )

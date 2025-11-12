@@ -32,6 +32,7 @@ from app.services.ai.humanize_service import HumanizeService
 from app.core.humanize_config import HumanizeConfig
 from app.services.agent.utils.monitoring import increment_counter, record_timer
 from app.api.middleware.rate_limiter import rate_limit, get_user_identifier
+from app.utils.cost_calculator import CostCalculator
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -410,21 +411,47 @@ async def humanize_rewrite(
         rewrite_tokens = result.get("rewrite_tokens", 0)
         verification_tokens = result.get("verification_tokens", 0)
 
+        # 提取详细的prompt/completion token信息
+        detection_prompt = result.get("detection_prompt_tokens", 0)
+        detection_completion = result.get("detection_completion_tokens", 0)
+        rewrite_prompt = result.get("rewrite_prompt_tokens", 0)
+        rewrite_completion = result.get("rewrite_completion_tokens", 0)
+        verification_prompt = result.get("verification_prompt_tokens", 0)
+        verification_completion = result.get("verification_completion_tokens", 0)
+
         # 如果没有获取到实际token,使用估算
         if total_tokens == 0:
             total_tokens = int(text_length * 1.5 * 2.5)  # 降级估算
             logger.warning(f"未获取到实际token消耗,使用估算值: {total_tokens}")
 
-        # 计算成本 (gemini-2.5-flash-lite + gpt-4o-mini混合定价)
-        # 检测+验证使用快速模型,改写使用标准模型
-        detection_cost = detection_tokens * 0.0000002  # flash-lite更便宜
-        rewrite_cost = rewrite_tokens * 0.000002  # 标准模型
-        verification_cost = verification_tokens * 0.0000002
+        # 计算成本 (使用CostCalculator和实际的prompt/completion token)
+        # 检测+验证使用gemini-2.5-flash-lite，改写使用gemini-2.5-pro
+        detection_cost_result = CostCalculator.calculate_cost(
+            "gemini-2.5-flash-lite",
+            detection_prompt,
+            detection_completion
+        )
+        rewrite_cost_result = CostCalculator.calculate_cost(
+            "gemini-2.5-pro",
+            rewrite_prompt,
+            rewrite_completion
+        )
+        verification_cost_result = CostCalculator.calculate_cost(
+            "gemini-2.5-flash-lite",
+            verification_prompt,
+            verification_completion
+        )
+
+        detection_cost = detection_cost_result["total_cost"]
+        rewrite_cost = rewrite_cost_result["total_cost"]
+        verification_cost = verification_cost_result["total_cost"]
         estimated_cost = detection_cost + rewrite_cost + verification_cost
 
         logger.info(
             f"Token统计 - 总计: {total_tokens} "
-            f"(检测:{detection_tokens}, 改写:{rewrite_tokens}, 验证:{verification_tokens}), "
+            f"(检测:{detection_tokens}[P:{detection_prompt},C:{detection_completion}], "
+            f"改写:{rewrite_tokens}[P:{rewrite_prompt},C:{rewrite_completion}], "
+            f"验证:{verification_tokens}[P:{verification_prompt},C:{verification_completion}]), "
             f"成本: ${estimated_cost:.6f}"
         )
 
@@ -590,10 +617,12 @@ async def humanize_rewrite_stream(
             humanize_service = HumanizeService(config=config)
 
             # 4. 检测阶段（可选）
+            detection_result = None
+            detection_usage = None
             if config.enable_detection:
                 yield f"data: {json.dumps({'type': 'progress', 'stage': 'detecting', 'message': '正在检测AI痕迹...'}, ensure_ascii=False)}\n\n"
 
-                detection_result, _ = await humanize_service.detect_ai_traces(request_data.text)
+                detection_result, detection_usage = await humanize_service.detect_ai_traces(request_data.text)
 
                 # 检查是否需要去痕迹
                 if detection_result.overall_score < config.detection_threshold:
@@ -621,10 +650,12 @@ async def humanize_rewrite_stream(
             humanized_text = "".join(humanized_chunks)
 
             # 6. 验证阶段（可选）
+            verification_result = None
+            verification_usage = None
             if config.enable_verification:
                 yield f"data: {json.dumps({'type': 'progress', 'stage': 'verifying', 'message': '正在验证效果...'}, ensure_ascii=False)}\n\n"
 
-                verification_result, _ = await humanize_service.verify_humanization(
+                verification_result, verification_usage = await humanize_service.verify_humanization(
                     request_data.text,
                     humanized_text
                 )
@@ -637,15 +668,53 @@ async def humanize_rewrite_stream(
             score_after = verification_result.score_after if verification_result else 50.0
             improvement = score_before - score_after
 
-            # Token和成本计算
-            total_tokens = final_usage.get("total_tokens", 0) if final_usage else 0
+            # Token和成本计算（使用CostCalculator和实际token）
+            # 提取各阶段的token信息
+            detection_prompt = detection_usage.get("prompt_tokens", 0) if detection_usage else 0
+            detection_completion = detection_usage.get("completion_tokens", 0) if detection_usage else 0
+            detection_tokens = detection_usage.get("total_tokens", 0) if detection_usage else 0
+
+            rewrite_prompt = final_usage.get("prompt_tokens", 0) if final_usage else 0
+            rewrite_completion = final_usage.get("completion_tokens", 0) if final_usage else 0
+            rewrite_tokens = final_usage.get("total_tokens", 0) if final_usage else 0
+
+            verification_prompt = verification_usage.get("prompt_tokens", 0) if verification_usage else 0
+            verification_completion = verification_usage.get("completion_tokens", 0) if verification_usage else 0
+            verification_tokens = verification_usage.get("total_tokens", 0) if verification_usage else 0
+
+            total_tokens = detection_tokens + rewrite_tokens + verification_tokens
+
+            # 如果没有获取到任何实际token，使用降级估算
             if total_tokens == 0:
                 total_tokens = int(len(request_data.text) * 1.5 * 2.5)
+                # 按比例分配token
+                detection_prompt = int(total_tokens * 0.15)
+                detection_completion = int(total_tokens * 0.15)
+                rewrite_prompt = int(total_tokens * 0.3)
+                rewrite_completion = int(total_tokens * 0.3)
+                verification_prompt = int(total_tokens * 0.05)
+                verification_completion = int(total_tokens * 0.05)
 
-            detection_cost = total_tokens * 0.3 * 0.0000002  # 30%用于检测
-            rewrite_cost = total_tokens * 0.6 * 0.000002     # 60%用于改写
-            verification_cost = total_tokens * 0.1 * 0.0000002  # 10%用于验证
-            estimated_cost = detection_cost + rewrite_cost + verification_cost
+            # 使用CostCalculator计算实际成本
+            detection_cost_result = CostCalculator.calculate_cost(
+                "gemini-2.5-flash-lite",
+                detection_prompt,
+                detection_completion
+            )
+            rewrite_cost_result = CostCalculator.calculate_cost(
+                "gemini-2.5-pro",
+                rewrite_prompt,
+                rewrite_completion
+            )
+            verification_cost_result = CostCalculator.calculate_cost(
+                "gemini-2.5-flash-lite",
+                verification_prompt,
+                verification_completion
+            )
+
+            estimated_cost = (detection_cost_result["total_cost"] +
+                            rewrite_cost_result["total_cost"] +
+                            verification_cost_result["total_cost"])
 
             # 创建会话
             session = HumanizeSession(
@@ -720,6 +789,17 @@ async def humanize_rewrite_stream(
                 partial_text = "".join(humanized_chunks) if humanized_chunks else ""
                 estimated_tokens = final_usage.get("total_tokens", 0) if final_usage else int(len(request_data.text) * 1.5)
 
+                # 使用CostCalculator估算中断时的成本
+                # 假设只完成了rewrite阶段（因为中断了）
+                estimated_prompt = estimated_tokens // 2
+                estimated_completion = estimated_tokens // 2
+                cost_result = CostCalculator.calculate_cost(
+                    "gemini-2.5-pro",  # 假设使用pro模型进行改写
+                    estimated_prompt,
+                    estimated_completion
+                )
+                estimated_cost = cost_result["total_cost"]
+
                 # 创建中断会话记录
                 session = HumanizeSession(
                     user_id=current_user.id,
@@ -730,7 +810,7 @@ async def humanize_rewrite_stream(
                     intensity=request_data.intensity,
                     processing_time=interrupted_time,
                     tokens_used=estimated_tokens,
-                    cost=estimated_tokens * 0.000001,  # 估算成本
+                    cost=estimated_cost,  # 使用CostCalculator计算的成本
                     user_accepted=False  # 中断视为拒绝
                 )
                 db.add(session)

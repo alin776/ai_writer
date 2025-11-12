@@ -304,6 +304,13 @@ class HumanizeService:
             "detection_tokens": 0,  # 新增: 检测阶段token
             "rewrite_tokens": 0,  # 新增: 改写阶段token
             "verification_tokens": 0,  # 新增: 验证阶段token
+            # 详细token信息（用于精确成本计算）
+            "detection_prompt_tokens": 0,
+            "detection_completion_tokens": 0,
+            "rewrite_prompt_tokens": 0,
+            "rewrite_completion_tokens": 0,
+            "verification_prompt_tokens": 0,
+            "verification_completion_tokens": 0,
             "nlp_changes": []  # 新增: NLP预处理修改记录
         }
 
@@ -320,6 +327,8 @@ class HumanizeService:
         if not skip_detection and self.config.enable_detection:
             result["detection"], detection_usage = await self.detect_ai_traces(text)
             result["detection_tokens"] = detection_usage.get("total_tokens", 0)
+            result["detection_prompt_tokens"] = detection_usage.get("prompt_tokens", 0)
+            result["detection_completion_tokens"] = detection_usage.get("completion_tokens", 0)
             result["total_tokens"] += result["detection_tokens"]
 
             # 如果分数低于阈值,不需要去痕迹
@@ -350,6 +359,8 @@ class HumanizeService:
         # 统计改写阶段token
         if rewrite_usage:
             result["rewrite_tokens"] = rewrite_usage.get("total_tokens", 0)
+            result["rewrite_prompt_tokens"] = rewrite_usage.get("prompt_tokens", 0)
+            result["rewrite_completion_tokens"] = rewrite_usage.get("completion_tokens", 0)
             result["total_tokens"] += result["rewrite_tokens"]
 
         # 阶段3: 验证 (可选)
@@ -358,6 +369,8 @@ class HumanizeService:
                 text, result["humanized_text"]
             )
             result["verification_tokens"] = verification_usage.get("total_tokens", 0)
+            result["verification_prompt_tokens"] = verification_usage.get("prompt_tokens", 0)
+            result["verification_completion_tokens"] = verification_usage.get("completion_tokens", 0)
             result["total_tokens"] += result["verification_tokens"]
             logger.info("✅ 已启用验证阶段")
         else:
