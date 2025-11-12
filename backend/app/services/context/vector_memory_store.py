@@ -78,6 +78,7 @@ class VectorMemoryStore:
         self,
         content: str,
         user_id: str,
+        work_id: Optional[str] = None,  # ✅ 新增：作品ID
         session_id: Optional[str] = None,
         memory_type: str = "general",
         importance: float = 0.5,
@@ -89,6 +90,7 @@ class VectorMemoryStore:
         Args:
             content: 记忆内容（文本）
             user_id: 用户ID
+            work_id: 作品ID（可选，用于隔离不同作品的记忆）
             session_id: 会话ID（可选）
             memory_type: 记忆类型（如：character, plot, setting等）
             importance: 重要度（0.0-1.0）
@@ -104,6 +106,7 @@ class VectorMemoryStore:
             # 构建元数据
             mem_metadata = {
                 "user_id": user_id,
+                "work_id": work_id or "",  # ✅ 新增：记录work_id
                 "session_id": session_id or "",
                 "memory_type": memory_type,
                 "importance": importance,
@@ -138,6 +141,7 @@ class VectorMemoryStore:
         self,
         query: str,
         user_id: str,
+        work_id: Optional[str] = None,  # ✅ 新增：作品ID过滤
         top_k: int = 5,
         min_similarity: float = 0.6,
         memory_type: Optional[str] = None,
@@ -149,6 +153,7 @@ class VectorMemoryStore:
         Args:
             query: 查询文本
             user_id: 用户ID（必须）
+            work_id: 作品ID（可选，用于只检索特定作品的记忆）
             top_k: 返回Top K结果
             min_similarity: 最低相似度阈值（0.0-1.0）
             memory_type: 记忆类型过滤（可选）
@@ -164,6 +169,11 @@ class VectorMemoryStore:
         try:
             # 构建过滤条件（支持多条件）
             conditions = [{"user_id": user_id}]
+
+            # ✅ 新增：work_id过滤
+            if work_id:
+                conditions.append({"work_id": work_id})
+                logger.debug(f"[VectorMemory] 添加work_id过滤: {work_id}")
 
             if memory_type:
                 conditions.append({"memory_type": memory_type})
@@ -204,8 +214,8 @@ class VectorMemoryStore:
 
             logger.info(
                 f"🔍 检索记忆 | 查询='{query[:30]}...' | "
-                f"用户={user_id} | 找到={len(memories)}条 | "
-                f"阈值={min_similarity}"
+                f"用户={user_id} | work_id={work_id or 'ALL'} | "  # ✅ 新增：显示work_id
+                f"找到={len(memories)}条 | 阈值={min_similarity}"
             )
 
             return memories

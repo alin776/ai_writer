@@ -97,8 +97,16 @@ async def agent_react_stream(
             }, ensure_ascii=False)}\n\n"
 
             # 获取记忆上下文
-            user_context = await memory.get_complete_context(user_id)
-            memory_context = memory.format_context_for_agent(user_id, mode="chat")
+            # ✅ P0修复：传递work_id以隔离不同作品的记忆
+            user_context = await memory.get_complete_context(
+                user_id,
+                work_id=request.work_id  # ✅ 传递work_id进行记忆隔离
+            )
+            memory_context = memory.format_context_for_agent(
+                user_id,
+                mode="chat",
+                work_id=request.work_id  # ✅ 修复：传递work_id避免记忆污染
+            )
 
             # 获取全局共享的 LangGraph Agent
             agent_graph = get_agent_graph()

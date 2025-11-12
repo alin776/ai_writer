@@ -727,14 +727,26 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
     Returns:
         上下文信息（JSON格式字符串）
     """
-    # ✅ 优化：提前验证参数
+    # ✅ P1修复：改为降级模式而非直接拒绝
     if not work_id:
+        logger.info("[get_context_tool] work_id未提供，使用降级模式")
+        # ✅ P1遗漏修复：补全JSON结构，保持与正常模式一致
         return json.dumps({
-            "status": "missing_prerequisite",
-            "missing": "work_id",
-            "message": "需要指定作品ID才能获取上下文",
-            "user_action_required": True,
-            "suggested_response": "请问您想查看哪个作品的信息？您可以在作品详情页使用此功能，或者告诉我作品ID。"
+            "status": "limited_mode",
+            "error": "missing_work_id",  # ✅ 新增：错误代码
+            "work_id": None,  # ✅ 新增：保持结构一致
+            "work_info": {},  # ✅ 新增：保持结构一致
+            "current_chapter": {},  # ✅ 新增：保持结构一致
+            "related_analysis": [],  # ✅ 新增：保持结构一致
+            "message": "未指定作品，无法获取详细上下文。请提供work_id。",
+            "available_features": [
+                "通用写作建议",
+                "风格分析",
+                "语法检查",
+                "创意启发"
+            ],
+            "suggestion": "提供作品ID可获得更详细的上下文信息（角色、设定、大纲等）",
+            "tip": "您可以在作品详情页使用完整功能，或告诉我作品ID"
         }, ensure_ascii=False, indent=2)
 
     # UUID格式验证（提前返回）
@@ -2284,8 +2296,33 @@ class WritingAgentGraph:
             "final_response": None
         }
 
+        # ✅ P0遗漏修复：构建隔离的thread_id（包含work_id）
+        # 与chat_stream()和chat_with_planning()保持一致
+        if work_id and conversation_id:
+            thread_id = f"{work_id}:{conversation_id}"
+        elif work_id:
+            thread_id = f"{work_id}:default"
+        elif conversation_id:
+            thread_id = conversation_id
+        else:
+            thread_id = "default"
+
+        # ✅ P2防护：thread_id长度验证
+        max_thread_id_length = 256
+        if len(thread_id) > max_thread_id_length:
+            logger.warning(
+                f"[LangGraph] thread_id过长({len(thread_id)}字符), "
+                f"截断到{max_thread_id_length}字符"
+            )
+            thread_id = thread_id[:max_thread_id_length]
+
+        logger.info(
+            f"[LangGraph] chat() 使用隔离的thread_id: {thread_id} "
+            f"(work_id={work_id}, conversation_id={conversation_id})"
+        )
+
         # 运行图
-        config = {"configurable": {"thread_id": conversation_id or "default"}}
+        config = {"configurable": {"thread_id": thread_id}}
 
         try:
             result = await self.graph.ainvoke(initial_state, config)
@@ -2393,7 +2430,8 @@ class WritingAgentGraph:
         context_bundle = await self.context_manager.build_context(
             session_id=session_id,
             system_prompt=system_prompt,
-            query=message  # 新增：触发长期记忆检索
+            query=message,  # 新增：触发长期记忆检索
+            work_id=work_id  # ✅ P0-2修复：传递work_id隔离向量记忆
         )
 
         # 🔧 监控：记录上下文构建耗时
@@ -2423,10 +2461,32 @@ class WritingAgentGraph:
             "final_response": None
         }
 
+        # ✅ P0-3修复：构建隔离的thread_id（包含work_id）
+        # 不同work_id的对话使用不同的thread_id，避免跨作品上下文污染
+        if work_id and conversation_id:
+            thread_id = f"{work_id}:{conversation_id}"
+        elif work_id:
+            thread_id = f"{work_id}:default"
+        elif conversation_id:
+            thread_id = conversation_id
+        else:
+            thread_id = "default"
+
+        # ✅ P2防护：thread_id长度验证
+        max_thread_id_length = 256
+        if len(thread_id) > max_thread_id_length:
+            logger.warning(
+                f"[LangGraph] thread_id过长({len(thread_id)}字符), "
+                f"截断到{max_thread_id_length}字符"
+            )
+            thread_id = thread_id[:max_thread_id_length]
+
+        logger.info(f"[LangGraph] 使用隔离的thread_id: {thread_id} (work_id={work_id}, conversation_id={conversation_id})")
+
         # 配置
         config = {
             "configurable": {
-                "thread_id": conversation_id or "default"
+                "thread_id": thread_id  # ✅ 使用work_id隔离的thread_id
             }
         }
 
@@ -2502,15 +2562,17 @@ class WritingAgentGraph:
                 final_response = result.get("final_response")
 
                 # 🔧 新增：更新上下文（保存本轮对话）
+                # ✅ P0-2补充修复：传递work_id以正确保存向量记忆
                 await self.context_manager.update_context(
                     session_id=session_id,
                     new_messages=[
                         {"role": "user", "content": message},
                         {"role": "assistant", "content": final_response or ""}
                     ],
-                    context=context_bundle.get("context")
+                    context=context_bundle.get("context"),
+                    work_id=work_id  # ✅ 新增：传递work_id
                 )
-                logger.info(f"[Context] 上下文已更新: {session_id}")
+                logger.info(f"[Context] 上下文已更新: {session_id} (work_id={work_id})")
 
                 # 🔧 监控：记录成功
                 increment_counter("chat_stream_success")
@@ -3060,6 +3122,31 @@ class WritingAgentGraph:
             from app.services.agent.utils.monitoring import increment_counter, record_timer
             start_time = time.time()
 
+            # ✅ P0修复：构建隔离的thread_id（包含work_id）
+            # 确保不同work_id的对话使用不同的checkpoint，避免跨作品污染
+            if work_id and conversation_id:
+                isolated_thread_id = f"{work_id}:{conversation_id}"
+            elif work_id:
+                isolated_thread_id = f"{work_id}:default"
+            elif conversation_id:
+                isolated_thread_id = conversation_id
+            else:
+                isolated_thread_id = "default"
+
+            # ✅ P2防护：thread_id长度验证
+            max_thread_id_length = 256
+            if len(isolated_thread_id) > max_thread_id_length:
+                logger.warning(
+                    f"[Planning] thread_id过长({len(isolated_thread_id)}字符), "
+                    f"截断到{max_thread_id_length}字符"
+                )
+                isolated_thread_id = isolated_thread_id[:max_thread_id_length]
+
+            logger.info(
+                f"[Planning] 使用隔离的thread_id: {isolated_thread_id} "
+                f"(work_id={work_id}, conversation_id={conversation_id})"
+            )
+
             # 设置总体超时
             async with asyncio.timeout(360):
                 # ========== 加载对话历史 ==========
@@ -3069,7 +3156,8 @@ class WritingAgentGraph:
                     try:
                         # 从checkpointer加载历史状态
                         from langgraph.checkpoint.base import CheckpointTuple
-                        config = {"configurable": {"thread_id": conversation_id, "checkpoint_ns": ""}}
+                        # ✅ P0修复：使用隔离的thread_id，避免跨作品数据泄露
+                        config = {"configurable": {"thread_id": isolated_thread_id, "checkpoint_ns": ""}}
 
                         checkpoint_tuple = await self.checkpointer.aget_tuple(config)
 
@@ -3269,7 +3357,8 @@ chapter_id: {chapter_id}
                         ]
 
                         # 从checkpointer加载现有消息
-                        config = {"configurable": {"thread_id": conversation_id, "checkpoint_ns": ""}}
+                        # ✅ P0修复：使用隔离的thread_id保存对话
+                        config = {"configurable": {"thread_id": isolated_thread_id, "checkpoint_ns": ""}}
                         checkpoint_tuple = await self.checkpointer.aget_tuple(config)
 
                         existing_messages = []

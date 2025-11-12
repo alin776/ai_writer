@@ -1,0 +1,38 @@
+work_id传递链路分析 - 关键发现
+
+【第1层】API入口 - agent.py
+✅ agent_chat: 第286行 work_id=request.work_id
+✅ agent_chat_stream: 第1052/1064行 work_id=request.work_id
+✅ agent_react_stream: 第147行 work_id=request.work_id
+
+【第2层】Agent - langgraph_agent.py
+✅ chat: 第2278行 state["work_id"] = work_id
+✅ chat_stream: 第2397行 build_context(work_id)
+✅ chat_stream: 第2430行 创建隔离thread_id = f"{work_id}:{conversation_id}"
+❌ chat_with_planning: 第3129行 仅在prompt中，缺少隔离thread_id
+
+【第3层】ContextManager - manager.py
+✅ build_context: 第137-140行 _retrieve_long_term_memories(work_id)
+✅ update_context: 第252行 _save_to_long_term_memory(work_id)
+✅ _retrieve_long_term_memories: 第577-580行 search_memories(work_id)
+✅ _save_to_long_term_memory: 第538行 add_memory(work_id)
+
+【第4层】VectorStore - vector_memory_store.py
+✅ add_memory: 第109行 记录work_id在元数据
+✅ search_memories: 第174-187行 添加work_id过滤条件
+
+【第5层】LongTermMemory - long_term_memory.py
+✅ save_conversation_summary: 第405/420行 记录/分组work_id
+✅ get_recent_conversations: 第450-471行 优先work-specific列表
+
+【第6层】MemoryManager - memory_manager.py
+✅ get_complete_context: 第65/88行 记录并传递work_id
+
+【第7层】存储
+✅ Redis: user:{user_id}:work:{work_id}:conversations
+✅ ChromaDB: where_filter = {"$and": [{"user_id": user_id}, {"work_id": work_id}]}
+
+关键问题:
+1. HIGH: chat_with_planning缺少隔离thread_id
+2. MEDIUM: 工具函数的强制性work_id检查
+3. LOW: 参数传递易出现位置错误

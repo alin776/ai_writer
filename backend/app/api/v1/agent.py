@@ -8,7 +8,7 @@ Agent 智能助手 API 路由
 - 记忆管理
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
@@ -264,8 +264,16 @@ async def agent_chat(
 
         # 获取用户记忆上下文
         # 🔧 修复：使用await调用async方法
-        user_context = await memory.get_complete_context(user_id)
-        memory_context = memory.format_context_for_agent(user_id, mode="chat")
+        # ✅ P0修复：传递work_id以隔离不同作品的记忆
+        user_context = await memory.get_complete_context(
+            user_id,
+            work_id=request.work_id  # ✅ 传递work_id进行记忆隔离
+        )
+        memory_context = memory.format_context_for_agent(
+            user_id,
+            mode="chat",
+            work_id=request.work_id  # ✅ 修复：传递work_id避免记忆污染
+        )
 
         # 获取全局共享的 LangGraph Agent（修复记忆功能）
         # 使用全局单例模式，确保MemorySaver在请求间共享
@@ -961,8 +969,16 @@ async def agent_chat_stream(
             yield f"data: {json.dumps(start_event, ensure_ascii=False)}\n\n"
 
             # 获取记忆上下文
-            user_context = await memory.get_complete_context(user_id)
-            memory_context = memory.format_context_for_agent(user_id, mode="chat")
+            # ✅ P0修复：传递work_id以隔离不同作品的记忆
+            user_context = await memory.get_complete_context(
+                user_id,
+                work_id=request.work_id  # ✅ 传递work_id进行记忆隔离
+            )
+            memory_context = memory.format_context_for_agent(
+                user_id,
+                mode="chat",
+                work_id=request.work_id  # ✅ 修复：传递work_id避免记忆污染
+            )
 
             # 获取全局共享的 LangGraph Agent
             agent_graph = get_agent_graph()
@@ -1383,6 +1399,7 @@ async def handle_approval(
 
 @router.get("/memory/context")
 async def get_memory_context(
+    work_id: Optional[str] = Query(None, description="作品ID，用于获取特定作品的记忆"),
     current_user: User = Depends(get_current_active_user),
     memory: MemoryManager = Depends(get_memory_manager)
 ):
@@ -1394,7 +1411,11 @@ async def get_memory_context(
     - 写作风格
     - 用户画像
 
+    可选参数：
+    - work_id: 作品ID，如果提供则只返回该作品的对话记忆
+
     Args:
+        work_id: 作品ID（可选，用于隔离不同作品的记忆）
         current_user: 当前用户
         memory: 记忆管理器
 
@@ -1403,7 +1424,8 @@ async def get_memory_context(
     """
     try:
         user_id = str(current_user.id)
-        context = memory.get_complete_context(user_id)
+        # ✅ 修复：添加work_id参数支持
+        context = await memory.get_complete_context(user_id, work_id=work_id)
 
         return {
             "success": True,

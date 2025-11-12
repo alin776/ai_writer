@@ -468,7 +468,7 @@ async def humanize_rewrite(
 
         logger.info(
             f"去痕迹会话已保存: session_id={session.id}, "
-            f"improvement={improvement:.1f}, tokens={estimated_tokens}"
+            f"improvement={improvement:.1f}, tokens={total_tokens}"
         )
 
         # 9. 返回响应

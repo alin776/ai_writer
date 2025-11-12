@@ -32,7 +32,7 @@ from app.schemas.book_analysis import (
 from app.services.book_analysis_service import BookAnalysisService
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.knowledge_service import KnowledgeService
-from app.core.database import AsyncSessionLocal
+from app.core.database import create_db_session
 
 
 router = APIRouter()
@@ -52,7 +52,7 @@ async def run_analysis_task(job_id: UUID, user_id: UUID):
     logger = logging.getLogger(__name__)
     logger.info(f"🚀 开始执行后台分析任务: job_id={job_id}, user_id={user_id}")
 
-    async with AsyncSessionLocal() as db:
+    async with create_db_session() as db:
         try:
             logger.info(f"✅ 数据库会话创建成功")
             # 使用图书分析专用模型和超时配置

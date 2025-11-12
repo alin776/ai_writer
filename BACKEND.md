@@ -1,283 +1,589 @@
-第一章：浊地
-雨，又开始下了。
-
-永无止境的雨。
-
-它不是从真正的天空落下，而是从头顶那片遮蔽了一切的钢铁“天穹”渗漏下来的冷凝水。水滴混杂着上层世界的工业废液和尘埃，带着一股酸涩的铁锈味，浇灌着这片名为“浊地”的垂直贫民窟。
-
-林默蜷缩在一个巨大的排风管道出口下，贪婪地吸取着管道内壁最后一丝干燥的暖意。寒冷像无数根冰冷的针，刺透他单薄的防雨布，扎进骨髓。饥饿则如一头盘踞在胃里的野兽，正疯狂地啃噬着他的内脏。
-
-他抬起头，目光穿过迷蒙的雨幕。这里没有日月星辰，只有永恒的湿漉漉的黑夜。唯一的照明，来自那些层层叠叠、如同发霉竹笋般疯长的建筑上闪烁的霓虹招牌。“义体维修”、“灵丹”、“周易算命”……破碎的汉字光影投射在积水的地面，随着雨滴的涟漪漾开，光怪陆离。空气中弥漫着臭氧、金属锈蚀和下水道的腥气，偶尔，一阵辛辣的合成食物香气飘过，更衬得腹中空空。
-
-“宵禁警告，三区清道夫无人机即将在十五分钟后启动。” AI冰冷的机械广播声在巷道间回荡，伴随着电流的“滋滋”声。
-
-该动身了。
-
-林默不是“兼容者”。在这个人人争相用植入物强化肉体的时代，他是个异类。任何高级义体植入他的身体，都会引发剧烈的排异反应——剧烈的头痛，不受控制的流鼻血，仿佛他的血肉天生就憎恨那些冰冷的机械。因此，他无法像那些“半机械人”一样去上层世界谋一份体面的工作，只能在这片“浊地”的底层，靠着一具脆弱的原始肉体，做一个拾荒者。
-
-他的目标是“垃圾雨”——每天定时从“天穹区”倾倒下来的废料。那是上层人的淘汰品，却是下层人的宝山。
-
-林默拉紧防雨布，像一只灵活的猿猴，悄无声息地在缠绕着电线和管道的狭窄街道上穿行。他绕开闪烁着火花的裸露电线，避开墙角疯长的湿滑青苔，最终抵达了三区的垃圾场。伴随着刺耳的警报声，头顶巨大的金属闸门打开，无数泛着金属光泽的垃圾裹挟着污浊的液体，如瀑布般倾泻而下。
-
-他必须在“清道夫”无人机出动前，找到有价值的东西。
-
-林默冲进垃圾山，双手熟练地在冰冷的金属零件和湿滑的生物废料中翻找。他的目标是那些没有被完全损坏的能量核心、数据芯片，或是高强度的合金碎片。这些东西可以拿到黑市，从那个绰号“庸医”的义体医生手里换来几支营养膏，或者一片能让他睡个好觉的镇痛剂。
-
-时间一分一秒过去，雨水和汗水混在一起，流进他的眼睛。就在他快要绝望时，指尖触碰到了一件异物。
-
-它不是金属的冰冷，也不是塑料的僵硬。那是一种温润、平滑的触感，带着一丝奇异的、仿佛不属于这个世界的暖意。林默愣了一下，小心翼翼地拨开周围的垃圾。
-
-那是一把断剑。
-
-剑身约两指宽，不知由何种材料制成，非金非石，呈现出一种深沉的墨色，即使在污泥中也未染半点尘埃。它断得极为齐整，只剩下半截剑身和剑柄。最诡异的是，这把剑没有任何能量反应，就像一块顽石，否则早就被分类系统筛选走了。
-
-林默握住剑柄，一种难以言喻的感觉瞬间流遍全身。周围电流的滋滋声、雨点的滴答声、远处的电子叫卖声……所有噪音仿佛在这一刻被隔绝了。他的世界里只剩下自己剧烈的心跳，以及从断剑上传来的、若有若无的脉动。
-
-“那边！有个‘故障’的！”
-
-一声暴喝将林默从奇异的状态中惊醒。不远处，几个身穿印有“青龙堂”图样发光外套的男人，正围着一个在地上抽搐的壮汉。那壮汉的义体手臂火花四溅，显然是“义体故障”——一种被“数据幽灵”入侵后，导致精神错乱、行为失控的症状，俗称“走火入魔”。
-
-林默的心脏瞬间提到了嗓子眼。他看到了不该看的东西。
-
-为首的青龙堂成员，一只电子眼闪着红光，瞬间锁定了垃圾堆里的林默。
-
-“还有一个！别让他跑了！”
-
-林默脑中一片空白，求生的本能压倒了一切。他甚至来不及思考，转身就朝迷宫般的巷道深处狂奔而去。他没有忘记死死攥住那把断剑。
-
-“追！他跑不掉的！”身后传来机械义肢踩踏积水的沉重脚步声。
-
-一场猎杀开始了。
-
-追兵的腿部义体爆发力极强，一步就能跨越数米。但林默没有回头，他甚至没有去听。在这个他生活了十几年的迷宫里，他的身体仿佛比大脑更快。
-
-一个急转，他闪身躲进两条建筑的夹缝。身后一人直接撞在墙上，发出金属碰撞的闷响。
-
-他攀上生锈的梯子，在狭窄的铁皮屋顶上飞奔。雨水让屋顶变得异常湿滑，但他的每一步都精准地落在支撑梁上。一个追兵试图跳上屋顶，却因计算失误而滑倒，摔进了下面的小巷。
-
-这不是思考，而是一种直觉。一种超越常人的、对环境的感知。他能“感觉”到哪条路是死胡同，能“预判”下一个转角是否安全。这股源于血肉之躯的原始直觉，正是他对抗这个机械世界的唯一武器。
-
-他像一条游鱼，在错综复杂的管道和缆线之间穿梭。身后青龙堂成员的怒吼和能量武器的闷响渐渐被甩远。
-
-最终，林默一头扎进一个废弃的通风管道，蜷缩在黑暗的深处，大口大口地喘着粗气。雨水顺着他的头发滴落，胸口因剧烈运动而火辣辣地疼。
-
-他成功逃脱了。
-
-过了许久，确认外面再无动静，林默才缓缓松开紧握的拳头。那把断剑静静地躺在他的掌心，之前的温热感已经消失，又恢复了古朴无华的样子。
-
-他看着这把险些让他丧命的“古物”，心中一阵后怕。但当他的指尖再次抚过那墨色的剑身时，一丝微弱的暖流再次从剑身传来，顺着他的手臂，悄然汇入他的四肢百骸。
-
-在这片由科技废料和污染组成的“浊地”里，这股暖流仿佛一道清泉。它所过之处，饥饿的灼烧感和彻骨的寒意，竟被奇迹般地抚平了些许。林默惊愕地发现，自己一直以来对抗“浊气”侵蚀所产生的头痛，也减轻了。
-
-他低头看着手中的断剑，又看了看管道外那片永恒的雨夜。他第一次感觉到，这个充满“浊气”、让他痛苦不堪的世界，似乎与他、与这把剑之间，产生了一种前所未有的、危险而又致命的联系。
-
-“剑心”的种子，已在浊秽的土壤中，悄然萌发。
-
-
-
-
-
-第二章：庸医
-
-通风管道的黑暗中，林默的喘息声逐渐平复。断剑带来的那股暖流如退潮般缓缓消散，饥饿与寒冷再次如跗骨之蛆般缠了上来。他必须立刻用捡来的零件换取补给，否则就算躲过了青龙堂，也熬不过这个漫长的雨夜。
-
-他小心翼翼地探出头，确认巷道里空无一人。青龙堂的追捕不会轻易结束，他必须比以往更谨慎。
-
-浊地的街道是猎场，而他就是那只最脆弱的猎物。
-
-林默将那把断剑用布条紧紧缠在小臂上，藏在袖中，然后把捡来的几个芯片和能量碎片揣进怀里。他压低身形，如一道融于阴影的幽魂，向着黑市的方向潜行。
-
-一路之上，肃杀的气氛愈发浓重。他看到几队青龙堂的成员手持能量武器，粗暴地盘查着路人。一面墙壁上，故障的全息广告被一则临时的通缉令所取代——上面没有照片，只有一行冰冷的文字：“悬赏：一名‘纯肉体’目击者，男性，身形瘦削。提供线索者，奖赏信用点五千。”
-
-林默的心沉了下去。五千信用点，足够让浊地里一半的人为之疯狂。他不再是无名之辈，他成了一个移动的赏金。
-
-穿过一条挂满滴水油布的狭窄通道，他终于看到了那个熟悉的招牌——“庸医义体”。招牌下的门面肮脏不堪，空气中飘散着消毒水、机油和一丝淡淡血腥味混合的怪异气息。
-
-林默推门而入。
-
-诊所内，一个半人半机械的男人正躺在手术台上，裸露的金属脊椎闪烁着电火花。“庸医”正背对着他，用一根机械臂熟练地焊接电路。庸医没有回头，他那颗经过改造、能360度旋转的电子眼却“咔”地一声转了过来，冰冷的红光锁定在林默身上。
-
-“哦，瞧瞧谁来了，”庸医的声音像是生锈的齿轮在摩擦，“我们最‘纯粹’的拾荒者。怎么，今天又捡了什么能让你多活一天的垃圾？”
-
-庸医转过身。他本人就是一件恐怖的艺术品，半边脸是苍白的人皮，另外半边则是裸露的金属骨骼和线路。他对纯粹的肉体充满了病态的鄙夷，认为那是造物主失败的设计。
-
-“换点吃的。”林默言简意赅，将怀里的零件放在油腻的柜台上。
-
-庸医用镊子夹起一枚芯片，不屑地撇了撇嘴：“过时的存储器，还有一块濒临报废的能量碎片……林默，你的运气和你的身体一样不中用。这些，只够换三支标准营养膏。”
-
-“至少五支，”林默的嘴唇有些干裂，“这块碎片的核心损耗不到百分之六十，你转手就能卖出十倍的价钱。”
-
-“那是我的本事，不是你的价值。”庸医冷笑着，正准备将那三支营养膏扔给他，他的电子眼却突然定格了。
-
-他看到了林默袖口下，那截不经意露出的、古朴的剑柄。
-
-“等等……你胳膊上绑的是什么？”
-
-林默下意识地后退一步，将手臂藏到身后。这个动作瞬间激起了庸医的好奇心。
-
-“别紧张，肉体小子。”庸医的语气第一次带上了某种炽热的情绪，“只是个小玩意儿？让我瞧瞧。你知道，我喜欢收藏一些……特别的东西。”
-
-他的扫描义眼射出一道红光，扫过林默的手臂。下一秒，庸医脸上的金属部分发出了“滋滋”的电流声，镜片上闪过一连串乱码。
-
-【错误：无法识别材质。】 【错误：未侦测到能量反应。】 【警告：数据模型不匹配。】
-
-庸医脸上的嘲弄消失了，取而代之的是一种近乎癫狂的贪婪。“把它拿出来。”他命令道。
-
-林默沉默着，与那只冰冷的电子眼对峙。
-
-“把它给我，”庸医加重了语气，他从柜台下拿出一个金属箱，打开，里面整整齐齐码放着上百支高浓缩营养膏和各类治疗药剂，“这些，全是你的。足够你舒舒服服地活上一年，再也不用像条狗一样去垃圾堆里刨食。”
-
-一年的食物。
-
-这个念头如同一道惊雷，在林默饥肠辘辘的身体里炸响。他动摇了。他只是个拾荒者，活着就是他全部的奢求。而这把剑……它只是一个带来杀身之祸的不祥之物。
-
-他缓缓地、艰难地抬起手，准备解开臂上的布条。
-
-就在他的指尖触碰到剑柄的瞬间，那股熟悉的暖流再次涌入体内。但这一次，它不再是涓涓细流，而像是一股奔腾的江河！
-
-林默的脑中嗡的一声，整个世界都变了。
-
-庸医脸上的笑容依然挂着，但在林默的“感知”中，那笑容背后翻涌着的是毫不掩饰的贪婪与杀意；诊所里各种仪器的电流声，此刻在他耳中分解成了无数条清晰的音轨，他甚至能“听”出哪一台即将过载；空气中弥漫的“浊气”，不再只是让他头痛的毒物，而是可以被感知的、狂暴的能量粒子。
-
-他“看”到了，庸医放在柜台下的那只手，已经悄悄握住了一把高压电击枪。只要他交出断剑，下一秒，那电击枪就会毫不犹豫地轰在他的胸口。
-
-这是一种前所未有的、剥离了所有伪装的、直达本质的洞察力。
-
-是“剑心”。
-
-林默猛地收回手，眼神中的犹豫一扫而空，只剩下冰冷的清明。“我拒绝。”他说道。
-
-庸医脸上的笑容僵住了。他没想到，面对如此巨大的诱惑，这个在他眼中脆弱不堪的“纯肉体”，居然能说出“不”。
-
-“你……说什么？”
-
-“我说，我拒绝。”林默拿起柜台上那三支营养膏，“这是我应得的。交易结束。”
-
-说完，他转身就走，没有一丝留恋。
-
-“站住！”庸医的声音充满了恼怒与不解，“你根本不知道你拿着的是什么，蠢货！你会后悔的！青龙堂不会放过你，你迟早会死在臭水沟里！”
-
-林默没有回头。他知道庸医说的是事实，但他也知道，这把剑，是他活下去的唯一变数。
-
-走出诊所，冰冷的雨水让他瞬间清醒。他撕开一支营养膏，将那糊状的、带着铁锈味的食物挤进嘴里。能量补充着身体，但心中的危机感却愈发沉重。
-
-庸医的话没错，躲得了一时，躲不了一世。青龙堂的势力遍布浊地，光靠逃是没用的。
-
-他需要信息，需要一个真正的藏身之处，甚至……需要一个反击的方法。
-
-他抬起头，望向浊地最混乱、信息也最灵通的九龙寨区。据说，那里有一个瞎眼的老人，开着一家“周易算命”的小店。人们都说，只要你付得起价钱，他能接入“神识网络”，抹除你的过去，甚至……预见你的未来。
-
-或许，是时候去算一算了。
-
-
-
-
-第三章：算命
-
-庸医诊所的门在身后关上，隔绝了那道贪婪而愤怒的目光。林默没有片刻停留，一头扎进浊地永恒的雨夜。
-
-节奏必须快！
-
-他像一头被惊动的野兽，在钢铁丛林中疯狂穿行。刚刚吞下的营养膏在胃里化作一股粗暴的能量，支撑着他几乎透支的身体。但比这股能量更清晰的，是断剑与他共鸣后留下的后遗症——一种极度敏锐、却也极度混乱的感知。
-
-他的视野边缘，无数细微的光线在跳动，那是裸露电缆中奔涌的电流；他的耳中，AI的宵禁警告、远处帮派驳火的闷响、小贩的电子叫卖声，不再是混杂的噪音，而是被分解成上百个独立的音轨，疯狂地灌入他的大脑。
-
-他能“看”到空气中漂浮的数据微粒，能“闻”到每个人身上因植入体不同而散发的、独一无二的臭氧气味。整个世界变成了一个庞大、过载的信息集合，几乎要将他的神智撕裂。
-
-“在那边！抓住他！”
-
-前方巷口，一队青龙堂的巡逻队发现了他。他们的机械眼在雨中闪烁着致命的红光。
-
-逃！
-
-林默的大脑甚至来不及思考，身体已经做出了反应。他没有选择更宽阔的道路，反而一头冲进旁边一条仅容一人通过的、缠满了粗大管道的夹缝。
-
-这是死路！——过去的经验告诉他。 但此刻，在他的感知中，这条死路的尽头，一根高压蒸汽管道的阀门正发出不堪重负的“嘶嘶”声，管壁上，一个红色的压力警示灯正在疯狂闪烁。
-
-他冲到管道前，在追兵的怒吼声中，用尽全身力气，一脚踹在锈蚀的阀门上。
-
-“砰——！”
-
-灼热的白色蒸汽如狂龙般喷涌而出，瞬间吞没了整个巷口。惨叫声和金属熔化的滋滋声混成一片。林默借着蒸汽的掩护，攀上管道，几个起落便消失在迷宫般的上层。
-
-他不敢停下。他知道，刚刚的动静会引来更多的敌人。他的目标是九龙寨区——浊地里最混乱、最自由，也是唯一不受青龙堂完全控制的地方。
-
-为了抵达那里，他必须穿过四区和五区的交界处，一座横跨深渊的、由废弃集装箱和钢缆构成的“悬索桥”。
-
-桥上人流混杂，拾荒者、小贩、帮派分子……每个人都行色匆匆。这里是天然的藏身之所，却也步步杀机。林默混入人流，用防雨布的兜帽遮住大半张脸，压抑着因感知过载而剧痛的神经，艰难前行。
-
-突然，他全身的汗毛猛地竖起。
-
-一股强烈的、带着血腥味的杀意从斜后方传来。他不用回头，就能“看”到一个人正从人群中挤出，腰间一把外置的脉冲手枪已经充能完毕。那人不是青龙堂的成员，是个拿钱办事的赏金猎人！
-
-不能硬拼！
-
-林默的目光飞速扫过四周。桥下是万丈深渊，深渊对面就是九龙寨区。他看到一架运送货物的廉价无人机正发出嗡嗡声，慢悠悠地从桥下飞过。
-
-就是现在！
-
-在赏金猎人抬起手臂的瞬间，林默猛地向前冲刺，在人群的惊呼声中，他一跃而起，翻出悬索桥的护栏，整个人向着深渊坠去！
-
-风声在耳边呼啸，失重感让他的心脏几乎停跳。他的目光死死锁定着下方那架无人机。
-
-近了，更近了！
-
-“砰”的一声闷响，他精准地落在无人机顶部的货物上。无人机一阵剧烈摇晃，发出了超载的警报声。桥上的赏金猎人目瞪口呆，只能徒劳地开了几枪，却全被无人机不稳定的飞行轨迹躲过。
-
-无人机载着他，晃晃悠悠地飞向对面。当它掠过九龙寨区的边缘时，林默纵身一跳，稳稳落在一个堆满垃圾的平台上。
-
-他成功了。
-
-九龙寨区的空气更加污浊，建筑也更加密集，仿佛一个巨大的、扭曲的蜂巢。无数的霓虹招牌在这里挤作一团，光线将天空映成一片诡异的紫色。这里没有AI广播，只有人声的鼎沸。
-
-林默按照记忆，在蛛网般的巷道里穿行，最终找到了那个传说中的小店。
-
-没有招牌，只有一个巴掌大的、接触不良的低功耗屏幕挂在门口，上面闪烁着一个古朴的汉字——“卜”。
-
-他深吸一口气，走了进去。
-
-店内极其狭小，只摆着一张桌子。一个瞎眼的老人枯坐在桌后，面前是一台被拆得七零八落、无数线路像内脏一样暴露在外的老旧数据终端。他的手指干瘦如柴，却异常灵活地在一块虚拟光键上跳动着。
-
-“想算什么？”老人没有抬头，声音沙哑干涩。
-
-“躲开追杀。”林默沉声道。
-
-“青龙堂的悬赏，五千信用点，不低了。”老人依旧没有抬头，仿佛早已知晓一切。
-
-林默心中一凛。
-
-“规矩懂吗？”老人问，“算命，需要‘引子’。把你的数据轨迹给我一条。”
-
-林默掏出一枚刚才换来的、空空如也的信用点芯片。
-
-老人摇了摇头：“这种‘死’数据没用。我要‘活’的，沾染了你因果的东西。”
-
-林默犹豫了一下，从怀里拿出那支刚刚被他捏扁的营养膏空管。
-
-老人终于停下了手中的动作。他伸出手，接过空管，放在数据终端的读取器上。他的十指如幻影般在光键上飞舞，面前的终端屏幕上，无数破碎的数据流如瀑布般刷过。
-
-几秒后，老人停了下来，那双没有焦点的眼睛“望”向林默，第一次露出了惊疑的神色。
-
-“奇怪……你的数据轨迹，在不久前出现了一个‘黑洞’。一个无法被读取、无法被理解的‘无’。”
-
-林默立刻明白，他说的是自己找到断剑的那一刻。
-
-“老先生，你能帮我抹掉痕迹吗？”
-
-“抹掉？孩子，你根本不知道自己沾染了什么。”老人的声音带上了一丝凝重，“你不是被数据追踪，而是被‘因果’锁定了。你的‘黑洞’太显眼了，在神识网络里，就像黑夜中的灯塔。青龙堂的‘玄武门’里，有真正懂行的黑客，他们追的不是你，是那个‘黑洞’。”
-
-老人的话让林默如坠冰窟。
-
-“那我该怎么办？”
-
-老人沉默了许久，似乎在进行庞大的运算。最终，他从桌下摸出了一块巴掌大的、刻满了电路纹路的黑色玉石，递给林默。
-
-“这是‘归墟符’。它不能抹掉你，但能模拟出一个相似的‘黑洞’力场，让你的存在变得‘合理’。但它的能量太弱，在浊地大部分区域，只能撑几分钟。”
-
-“那我去哪？”林默抓住了这唯一的救命稻草。
-
-“去浊地的最底层，”老人一字一句地说道，“去‘归墟’。那里是天穹区最初的建筑地基，一个巨大的、废弃的能量井。那里的科技浊气和灵能废料浓郁到可以扭曲时空，是所有数据网络的坟墓。你的‘黑洞’，只有在那片真正的黑暗里，才能藏起来。”
-
-老人抬起头，那双瞎眼仿佛穿透了时空，看到了林默的未来。
-
-“这卦不算你钱。我只有一个要求，”他沙哑地说道，“如果你能从‘归墟’里活着回来，告诉我，你那个‘黑洞’里，到底藏着什么。”
+15:20:33 app.api.v1.auth INFO   [LOGIN] 尝试登录: 2072855200@qq.com
+15:20:33 app.api.v1.auth INFO   [LOGIN] 会话创建成功: 602f5147-846a-4cde-95d3-405fa75f133f (127.0.0.1)
+15:20:33 app.api.v1.auth INFO   [LOGIN] 登录成功: testuser_new-1 (602f5147-846a-4cde-95d3-405fa75f133f) from 127.0.0.1
+15:20:33 app.api.middleware.monitoring_middleware INFO   API请求完成: POST /api/v1/auth/login
+INFO:     127.0.0.1:57059 - "POST /api/v1/auth/login HTTP/1.1" 200 OK
+15:20:33 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/users/me
+INFO:     127.0.0.1:57059 - "OPTIONS /api/v1/users/me HTTP/1.1" 200 OK
+15:20:34 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/users/me
+INFO:     127.0.0.1:57059 - "GET /api/v1/users/me HTTP/1.1" 200 OK
+15:20:34 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/works
+15:20:34 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/works
+INFO:     127.0.0.1:57059 - "OPTIONS /api/v1/works HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60607 - "OPTIONS /api/v1/works HTTP/1.1" 200 OK
+15:20:34 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/works
+INFO:     127.0.0.1:57059 - "GET /api/v1/works HTTP/1.1" 200 OK
+15:20:34 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/works
+INFO:     127.0.0.1:57059 - "GET /api/v1/works HTTP/1.1" 200 OK
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/works/ad948837-e94e-4d0f-92a4-a75cf1301b07
+INFO:     127.0.0.1:57059 - "GET /api/v1/works/ad948837-e94e-4d0f-92a4-a75cf1301b07 HTTP/1.1" 200 OK
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/characters
+INFO:     127.0.0.1:57059 - "GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/characters HTTP/1.1" 200 OK
+15:20:38 app.api.v1.chapters INFO   [GET chapters] work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07, user_id=602f5147-846a-4cde-95d3-405fa75f133f
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/locations
+INFO:     127.0.0.1:57059 - "GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/locations HTTP/1.1" 200 OK
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/settings
+INFO:     127.0.0.1:57059 - "GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/settings HTTP/1.1" 200 OK
+15:20:38 app.services.chapter_service INFO   [ChapterService] Querying chapters for work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07, type=<class 'uuid.UUID'>
+15:20:38 app.services.chapter_service INFO   [ChapterService] Found 3 chapters
+15:20:38 app.services.chapter_service INFO     - Chapter: 钢铁坟场, order=1
+15:20:38 app.services.chapter_service INFO     - Chapter: 归巢与低语, order=2
+15:20:38 app.services.chapter_service INFO     - Chapter: 遗落的星图, order=3
+15:20:38 app.api.v1.chapters INFO   [GET chapters] Returning 3 chapters
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/guidelines
+INFO:     127.0.0.1:57059 - "GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/guidelines HTTP/1.1" 200 OK
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/chapters/work/ad948837-e94e-4d0f-92a4-a75cf1301b07
+INFO:     127.0.0.1:60607 - "GET /api/v1/chapters/work/ad948837-e94e-4d0f-92a4-a75cf1301b07 HTTP/1.1" 200 OK
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/works/ad948837-e94e-4d0f-92a4-a75cf1301b07
+INFO:     127.0.0.1:60607 - "GET /api/v1/works/ad948837-e94e-4d0f-92a4-a75cf1301b07 HTTP/1.1" 200 OK
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/ai-guidelines
+INFO:     127.0.0.1:57059 - "GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/ai-guidelines HTTP/1.1" 200 OK
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/characters
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/locations
+INFO:     127.0.0.1:60607 - "GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/characters HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57059 - "GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/locations HTTP/1.1" 200 OK
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/guidelines
+INFO:     127.0.0.1:57059 - "GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/guidelines HTTP/1.1" 200 OK
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/settings
+INFO:     127.0.0.1:60607 - "GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/settings HTTP/1.1" 200 OK
+15:20:38 app.api.v1.chapters INFO   [GET chapters] work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07, user_id=602f5147-846a-4cde-95d3-405fa75f133f
+15:20:38 app.services.chapter_service INFO   [ChapterService] Querying chapters for work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07, type=<class 'uuid.UUID'>
+15:20:38 app.services.chapter_service INFO   [ChapterService] Found 3 chapters
+15:20:38 app.services.chapter_service INFO     - Chapter: 钢铁坟场, order=1
+15:20:38 app.services.chapter_service INFO     - Chapter: 归巢与低语, order=2
+15:20:38 app.services.chapter_service INFO     - Chapter: 遗落的星图, order=3
+15:20:38 app.api.v1.chapters INFO   [GET chapters] Returning 3 chapters
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/chapters/work/ad948837-e94e-4d0f-92a4-a75cf1301b07
+INFO:     127.0.0.1:57059 - "GET /api/v1/chapters/work/ad948837-e94e-4d0f-92a4-a75cf1301b07 HTTP/1.1" 200 OK
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/analysis/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/status
+INFO:     127.0.0.1:57059 - "OPTIONS /api/v1/analysis/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/status HTTP/1.1" 200 OK
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/ai-guidelines
+INFO:     127.0.0.1:60607 - "GET /api/v1/worldview/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/ai-guidelines HTTP/1.1" 200 OK
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/analysis/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/status
+INFO:     127.0.0.1:57059 - "GET /api/v1/analysis/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/status HTTP/1.1" 200 OK
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: GET /api/v1/analysis/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/status
+INFO:     127.0.0.1:57059 - "GET /api/v1/analysis/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/status HTTP/1.1" 200 OK
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9
+INFO:     127.0.0.1:57059 - "OPTIONS /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60607 - "OPTIONS /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9 HTTP/1.1" 200 OK
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9
+15:20:38 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9
+INFO:     127.0.0.1:57059 - "PUT /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62893 - "PUT /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9 HTTP/1.1" 200 OK
+15:21:11 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/agent/chat/stream
+INFO:     127.0.0.1:49286 - "OPTIONS /api/v1/agent/chat/stream HTTP/1.1" 200 OK
+15:21:11 app.services.ai.prompts INFO   Prompts loaded successfully from D:\Java\ai_writer\backend\app\services\ai\prompts\default.json
+15:21:11 app.services.agent.model_selector INFO   ModelSelector 初始化完成, 成本优化: True, 模型层级: 3
+15:21:11 app.services.ai.http_ai_service INFO   ModelSelector 已启用
+15:21:11 app.services.agent.cost_tracker INFO   CostTracker 初始化完成, 持久化: False
+15:21:11 app.services.ai.http_ai_service INFO   CostTracker 已启用
+15:21:12 app.services.ai.http_ai_service INFO   HTTP AI Service 初始化成功，Base URL: https://204992.xyz/v1, Model: gemini-2.5-pro, Timeout: 120s, HTTP/2: Enabled (多路复用), ModelSelector: True, CostTracking: True
+15:21:12 app.api.v1.agent INFO   [Chat Stream] Mode: react
+15:21:12 app.api.middleware.monitoring_middleware INFO   API请求完成: POST /api/v1/agent/chat/stream
+INFO:     127.0.0.1:61132 - "POST /api/v1/agent/chat/stream HTTP/1.1" 200 OK
+15:21:33 app.core.redis INFO   ✅ Redis connected: redis://localhost:6379/0
+15:21:33 app.api.v1.agent INFO   [Session] 创建新会话归属: 6515ce20-3116-4f79-bed5-e1804c0365f3 -> 602f5147-846a-4cde-95d3-405fa75f133f
+15:21:33 app.api.v1.agent INFO   [LangGraph Agent Stream] ⏱️ 请求开始 - User: 602f5147-846a-4cde-95d3-405fa75f133f, Mode: react, Message: 前面三章核心讲了什么内容...
+15:21:33 app.services.agent.memory.long_term_memory INFO   [LTM] 从作品 ad948837-e94e-4d0f-92a4-a75cf1301b07 检索到 0 条对话ID
+15:21:33 app.services.agent.memory.long_term_memory INFO   [LTM] 最终返回 0 条对话摘要 (work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07)
+15:21:33 app.services.agent.memory.long_term_memory INFO   [LTM] 从作品 ad948837-e94e-4d0f-92a4-a75cf1301b07 检索到 0 条对话ID
+15:21:33 app.services.agent.memory.long_term_memory INFO   [LTM] 最终返回 0 条对话摘要 (work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07)
+15:21:33 app.services.agent.memory.long_term_memory INFO   [LTM] 从作品 ad948837-e94e-4d0f-92a4-a75cf1301b07 检索到 0 条对话ID
+15:21:33 app.services.agent.memory.long_term_memory INFO   [LTM] 最终返回 0 条对话摘要 (work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07)
+15:21:33 app.services.agent.model_selector INFO   ModelSelector 初始化完成, 成本优化: True, 模型层级: 3
+15:21:33 app.services.ai.http_ai_service INFO   ModelSelector 已启用
+15:21:33 app.services.ai.http_ai_service INFO   CostTracker 已启用
+15:21:35 app.services.ai.http_ai_service INFO   HTTP AI Service 初始化成功，Base URL: https://204992.xyz/v1, Model: gemini-2.5-pro, Timeout: 120s, HTTP/2: Enabled (多路复用), ModelSelector: True, CostTracking: True
+15:21:35 chromadb.telemetry.product.posthog INFO   Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+15:21:35 sentence_transformers.SentenceTransformer INFO   Load pretrained SentenceTransformer: paraphrase-multilingual-MiniLM-L12-v2
+15:21:42 app.services.context.vector_memory_store INFO   ✅ VectorMemoryStore初始化成功 | 目录=./data/chroma_db | 模型=paraphrase-multilingual-MiniLM-L12-v2 | 集合=user_memories
+15:21:42 app.services.context.manager INFO   ✅ VectorMemoryStore 已初始化
+15:21:42 app.services.context.manager INFO   ✅ ContextManager: 长期记忆已启用 (user_id=None)
+15:21:42 app.services.agent.langgraph_agent INFO   [LangGraph] ✅ ContextManager已初始化（长期记忆已启用）
+成功加载模板: intent_classifier (版本 2.0.0)
+成功加载模板: writing_agent (版本 2.0.0)
+成功加载模板: planning_agent (版本 2.0.0)
+成功加载模板: tool_agent (版本 2.0.0)
+成功加载模板: query_agent (版本 2.0.0)
+15:21:43 app.services.agent.langgraph_agent INFO   [LangGraph] ✅ PromptManager已初始化
+15:21:43 app.services.agent.langgraph_agent INFO   [LangGraph] 使用 ChatOpenAI 模式（原生工具调用）
+15:21:46 app.api.callbacks.monitoring_callback INFO   [MonitoringCallback] 已初始化
+15:21:46 app.services.agent.langgraph_agent INFO   [LangGraph] 已创建MonitoringCallbackHandler
+15:22:08 app.services.agent.langgraph_agent INFO   [LangGraph] ✅ Redis连接验证成功
+15:22:08 app.services.agent.langgraph_agent INFO   [LangGraph] OK 使用 AsyncRedisSaver（redis://localhost:6379/0，TTL=7天）
+15:22:08 app.services.agent.parallel_tool_node INFO   [ParallelToolNode] 初始化完成，最大并发数=5，并行安全工具=4个
+15:22:08 app.api.v1.agent INFO   [Global Agent] 创建全局Agent实例，MemorySaver将在请求间共享
+15:22:08 app.services.agent.langgraph_agent INFO   [LangGraph Stream] 开始流式执行: 前面三章核心讲了什么内容...
+15:22:29 redisvl.index.index INFO   Index already exists, not overwriting.
+15:22:29 redisvl.index.index INFO   Index already exists, not overwriting.
+15:22:29 redisvl.index.index INFO   Index already exists, not overwriting.
+15:22:29 langgraph.checkpoint.redis.aio INFO   Redis client is a standalone client
+15:22:29 app.services.agent.langgraph_agent INFO   [LangGraph] AsyncRedisSaver索引创建成功
+15:22:29 app.services.agent.langgraph_agent INFO   [Context] 设置用户ID: 602f5147-846a-4cde-95d3-405fa75f133f
+15:22:29 app.services.context.monitoring_integration INFO   ✅ ContextManager监控收集器已初始化
+15:22:29 app.services.context.store INFO   [ContextStore] Redis连接成功
+15:22:50 app.services.context.manager INFO   [ContextManager] 创建新上下文: 6515ce20-3116-4f79-bed5-e1804c0365f3
+15:22:50 app.services.context.token_counter INFO   ✅ tiktoken初始化成功，模型: gpt-4
+15:22:50 app.services.context.manager INFO   [ContextManager] Session 6515ce20-3116-4f79-bed5-e1804c0365f3: 599/8000 tokens
+Batches: 100%|█████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00,  3.75it/s]
+15:22:51 app.services.context.vector_memory_store INFO   🔍 检索记忆 | 查询='前面三章核心讲了什么内容...' | 用户=602f5147-846a-4cde-95d3-405fa75f133f | work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07 | 找到=3条 | 阈值=0.3
+15:22:51 app.services.context.manager INFO   🔍 检索长期记忆 | work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07 | 查询='前面三章核心讲了什么内容...' | 找到=3条 | 阈值=0.3
+15:22:51 app.services.context.monitoring_integration INFO   [Monitor] 上下文构建: 2条消息, 599 tokens, 耗时 22069.58ms
+15:22:51 app.services.agent.langgraph_agent INFO   [Context] 加载上下文: {'session_id': '6515ce20-3116-4f79-bed5-e1804c0365f3', 'token_count': 599, 'short_memory_size': 0, 'has_summary': False, 'compression_triggered': False, 'long_term_memories': 3, 'adaptive_budget_enabled': False, 'task_type': None}
+15:22:51 app.services.agent.langgraph_agent INFO   [LangGraph] 使用隔离的thread_id: ad948837-e94e-4d0f-92a4-a75cf1301b07:6515ce20-3116-4f79-bed5-e1804c0365f3 (work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07, conversation_id=6515ce20-3116-4f79-bed5-e1804c0365f3)
+15:22:51 app.services.agent.progress_tracker INFO   [ProgressTracker] 初始化完成，使用动态节点追踪模式（根据实际执行的节点自动计算进度）
+15:22:51 app.services.agent.langgraph_agent INFO   [ProgressTracker] 初始化完成，使用动态节点追踪模式
+15:22:51 app.services.agent.langgraph_agent INFO   [LangGraph] 意图分类（规则识别）
+15:22:51 app.services.agent.langgraph_agent INFO   [Intent] 规则识别结果: writing, 置信度: 0.90
+15:22:51 app.services.agent.langgraph_agent INFO   [LangGraph] 路由到: writing
+15:22:51 app.services.agent.langgraph_agent INFO   [Stream Event] 节点: _route_intent
+15:22:51 app.services.agent.langgraph_agent INFO   [Stream Event] 节点: intent_classifier
+15:22:51 app.services.agent.langgraph_agent INFO   [Stream Event] progress_event = {'type': 'progress', 'step': 'intent_analysis', 'description': '识别为：写作任务', 'node': 'intent_classifier', 'details': {'intent': 'writing'}, 'timestamp': '2025-11-12T15:22:51.368273', 'progress': 100.0, 'eta': 0, 'eta_display': '即将完成', 'eta_confidence': 'high', 'current_step': 3, 'total_steps': 3, 'step_description': '第 3/3 步', 'elapsed': 0.0}
+15:22:51 app.services.agent.langgraph_agent INFO   [Stream Event] on_progress 回调已调用
+15:22:51 app.api.v1.agent INFO   [SSE] 发送 progress 事件: step=intent_analysis, desc=识别为：写作任务
+15:22:51 app.services.agent.actions.action_registry INFO   [ActionRegistry] 注册Action: echo (class=EchoAction, category=example)
+15:22:51 app.services.agent.actions.action_registry INFO   [ActionRegistry] 注册Action: writing (class=WritingAction, category=content_creation)
+15:22:51 app.services.agent.actions.action_registry INFO   [ActionRegistry] 注册Action: planning (class=PlanningAction, category=planning)
+15:22:51 app.services.agent.actions.action_registry INFO   [ActionRegistry] 注册Action: analysis (class=AnalysisAction, category=analysis)
+15:22:51 app.services.agent.actions.action_registry INFO   [ActionRegistry] 注册Action: stuck (class=StuckAction, category=writing_assistance)
+15:22:51 app.services.agent.actions.action_registry INFO   [ActionRegistry] 注册Action: general_chat (class=GeneralChatAction, category=conversation)
+15:22:51 app.services.agent.langgraph_agent INFO   [LangGraph] 处理写作请求（新架构）
+15:22:51 Action.writing INFO   [writing] PromptManager已初始化
+15:22:51 Action.writing INFO   [writing] work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07, chapter_id=ef5eb68c-32b8-4249-83a3-31d57363c0a9, phase=None, chapter_num=None
+15:22:51 app.services.agent.langgraph_agent INFO   [LangGraph] WritingAction准备完成: phase=None, chapter_num=None
+15:22:51 app.services.agent.langgraph_agent INFO   [LangGraph] 处理writing场景 (use_chatgpt=True)
+15:22:55 httpx INFO   HTTP Request: POST https://204992.xyz/v1/chat/completions "HTTP/1.1 200 OK"
+15:22:57 app.api.callbacks.monitoring_callback INFO   [MonitoringCallback] LLM调用成功: run_id=0fde948f-820f-4a30-9e0f-d4a0169db52b, model=unknown, duration=5.62s, tokens=N/A
+15:22:57 app.services.agent.langgraph_agent INFO   [LangGraph] 检测到工具调用: 3 个工具
+15:22:57 app.services.agent.langgraph_agent INFO   [Stream Event] 节点: _should_continue
+15:22:57 app.services.agent.langgraph_agent INFO   [Stream Event] 节点: writing_agent
+15:22:57 app.services.agent.langgraph_agent INFO   [Stream Event] progress_event = {'type': 'progress', 'step': 'thinking', 'description': '正在思考如何帮助您...', 'node': 'writing_agent', 'details': {}, 'timestamp': '2025-11-12T15:22:57.024136', 'progress': 100.0, 'eta': 0, 'eta_display': '即将完成', 'eta_confidence': 'high', 'current_step': 5, 'total_steps': 5, 'step_description': '第 5/5 步', 'elapsed': 5.7}
+15:22:57 app.api.v1.agent INFO   [Stream] Activity完成: intent_analysis (5.7s)
+15:22:57 app.services.agent.langgraph_agent INFO   [Stream Event] on_progress 回调已调用
+15:22:57 app.api.v1.agent INFO   [SSE] 发送 activity_complete 事件: step=intent_analysis, elapsed=5.7s
+15:22:57 app.api.v1.agent INFO   [SSE] 发送 progress 事件: step=thinking, desc=正在思考如何帮助您...
+15:22:57 app.services.agent.parallel_tool_node INFO   [ParallelToolNode] 工具分组: 并行=3, 串行=0
+15:22:57 app.services.agent.parallel_tool_node INFO   [ParallelToolNode] 开始并行执行3个工具
+15:22:57 app.services.agent.parallel_tool_node INFO   [ParallelToolNode] 并行执行完成，成功=3，失败=0
+15:22:57 app.services.agent.langgraph_agent INFO   [LangGraph] 工具执行完毕，路由回: writing_agent
+15:22:57 app.services.agent.langgraph_agent INFO   [Stream Event] 节点: _route_after_tools
+15:22:57 app.services.agent.langgraph_agent INFO   [Stream Event] 节点: tools
+15:22:57 app.services.agent.langgraph_agent WARNING   [Tools Node] 未找到AIMessage的tool_calls，尝试从ToolMessage提取
+15:22:57 app.services.agent.langgraph_agent INFO   [Tools Node] 使用缓存参数: get_chapter_by_order_tool -> {'chapter_order': 3}
+15:22:57 app.services.agent.langgraph_agent INFO   [Tools Node] 最终使用: tool_name=get_chapter_by_order_tool, tool_args={'chapter_order': 3}
+15:22:57 app.services.agent.langgraph_agent INFO   [Stream Event] progress_event = {'type': 'progress', 'step': 'tool_execution', 'description': '📚 正在读取第3章...', 'node': 'tools', 'details': {'tools': ['get_chapter_by_order_tool'], 'tool_args': {'chapter_order': 3}}, 'timestamp': '2025-11-12T15:22:57.046521', 'progress': 100.0, 'eta': 0, 'eta_display': '即将完成', 'eta_confidence': 'high', 'current_step': 7, 'total_steps': 7, 'step_description': '第 7/7 步', 'elapsed': 5.7}
+15:22:57 app.api.v1.agent INFO   [Stream] Activity完成: thinking (0.0s)
+15:22:57 app.services.agent.langgraph_agent INFO   [Stream Event] on_progress 回调已调用
+15:22:57 app.api.v1.agent INFO   [SSE] 发送 activity_complete 事件: step=thinking, elapsed=0.0s
+15:22:57 app.api.v1.agent INFO   [SSE] 发送 progress 事件: step=tool_execution, desc=📚 正在读取第3章...
+15:22:57 app.services.agent.langgraph_agent INFO   [LangGraph] 处理写作请求（新架构）
+15:22:57 Action.writing INFO   [writing] PromptManager已初始化
+15:22:57 Action.writing INFO   [writing] 从消息中识别到章节号: 3
+15:22:57 Action.writing INFO   [writing] 章节 3 属于阶段: opening
+15:22:57 Action.writing INFO   [writing] work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07, chapter_id=ef5eb68c-32b8-4249-83a3-31d57363c0a9, phase=opening, chapter_num=3
+15:22:57 app.services.agent.langgraph_agent INFO   [LangGraph] WritingAction准备完成: phase=opening, chapter_num=3
+15:22:57 app.services.agent.langgraph_agent INFO   [LangGraph] 处理writing场景 (use_chatgpt=True)
+15:22:57 app.services.agent.langgraph_agent INFO   [LangGraph] writing - 处理工具执行结果 (ChatOpenAI)
+15:23:04 httpx INFO   HTTP Request: POST https://204992.xyz/v1/chat/completions "HTTP/1.1 200 OK"
+15:23:23 app.api.callbacks.monitoring_callback INFO   [MonitoringCallback] LLM调用成功: run_id=53c450f9-9f50-48e1-8314-d5c763746b58, model=unknown, duration=26.05s, tokens=N/A
+15:23:23 app.services.agent.langgraph_agent INFO   [LangGraph] 无需工具调用，结束流程
+15:23:23 app.services.agent.langgraph_agent INFO   [Stream Event] 节点: _should_continue
+15:23:23 app.services.agent.langgraph_agent INFO   [Stream Event] 节点: writing_agent
+15:23:23 app.services.agent.langgraph_agent INFO   [Stream Event] progress_event = {'type': 'progress', 'step': 'thinking', 'description': '正在思考如何帮助您...', 'node': 'writing_agent', 'details': {}, 'timestamp': '2025-11-12T15:23:23.108374', 'progress': 100.0, 'eta': 0, 'eta_display': '即将完成', 'eta_confidence': 'high', 'current_step': 7, 'total_steps': 7, 'step_description': '第 7/7 步', 'elapsed': 31.8}
+15:23:23 app.api.v1.agent INFO   [Stream] Activity完成: tool_execution (26.1s)
+15:23:23 app.services.agent.langgraph_agent INFO   [Stream Event] on_progress 回调已调用
+15:23:23 app.api.v1.agent INFO   [SSE] 发送 activity_complete 事件: step=tool_execution, elapsed=26.1s
+15:23:23 app.api.v1.agent INFO   [SSE] 发送 progress 事件: step=thinking, desc=正在思考如何帮助您...
+15:23:23 app.services.agent.langgraph_agent INFO   [Stream Event] 节点: LangGraph
+15:23:23 app.services.agent.langgraph_agent INFO   [LangGraph Stream] 流式执行完成，共134个事件
+Batches: 100%|█████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00,  5.72it/s]
+15:23:23 app.services.context.manager INFO   ✅ 保存长期记忆 | ID=602f5147-846a-4cde-9... | work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07 | 重要度=0.90 | 长度=1440
+15:23:23 app.services.context.store INFO   [ContextStore] 保存上下文: 6515ce20-3116-4f79-bed5-e1804c0365f3, token=2149
+15:23:23 app.services.context.manager INFO   [ContextManager] 更新上下文: 6515ce20-3116-4f79-bed5-e1804c0365f3, 消息数=2, Token=2149
+15:23:23 app.services.agent.langgraph_agent INFO   [Context] 上下文已更新: 6515ce20-3116-4f79-bed5-e1804c0365f3 (work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07)
+15:23:23 app.services.agent.progress_tracker INFO   [ProgressTracker] 状态已重置
+15:23:23 app.api.v1.agent INFO   [Stream] 最后活动完成: thinking (0.5s)
+15:23:23 app.api.v1.agent INFO   [SSE] 发送 activity_complete 事件: step=thinking, elapsed=0.5s
+15:23:23 app.api.v1.agent INFO   [LangGraph Agent Stream] User 602f5147-846a-4cde-95d3-405fa75f133f - Mode: react, Stream completed
+15:27:38 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/ai/complete
+INFO:     127.0.0.1:53906 - "OPTIONS /api/v1/ai/complete HTTP/1.1" 200 OK
+15:27:38 app.api.v1.ai INFO   [AI续写] 用户: testuser_new-1(602f5147-846a-4cde-95d3-405fa75f133f), 上下文长度: 197, 风格: 默认
+15:27:38 app.api.v1.ai INFO   [AI续写] context内容: '器，也是他的工具。 今天的收获……少得可怜。背包里只有几根没用的电缆和一块还算完整的电路板，这些东西带回“聚落”，最多只能换半块干巴巴的能量棒。 空手而归，就意味着更少的配给，更强烈的饥饿。在聚落里，没有价值的人，就会被无情地淘汰。 凌风深吸一口气，压下心中的焦躁，目光如鹰隼般再次扫视着周围。他像一只灵巧的猫，无声无息地从掩体后窜出，踩着一根悬空的钢梁，轻松地跃到对面一处还算完整的楼层平台。'
+15:27:38 app.api.v1.ai INFO   [AI续写] prompt: '续写', max_tokens: 100
+15:27:38 app.services.agent.model_selector INFO   ModelSelector 初始化完成, 成本优化: True, 模型层级: 3
+15:27:38 app.services.ai.http_ai_service INFO   ModelSelector 已启用
+15:27:38 app.services.ai.http_ai_service INFO   CostTracker 已启用
+15:27:39 app.services.ai.http_ai_service INFO   HTTP AI Service 初始化成功，Base URL: https://204992.xyz/v1, Model: gemini-2.5-pro, Timeout: 120s, HTTP/2: Enabled (多路复用), ModelSelector: True, CostTracking: True
+15:27:39 app.services.ai.http_ai_service INFO   AI自动补全请求 - 上下文长度: 197
+15:27:39 app.services.ai.http_ai_service INFO   开始调用 AI API: model=gemini-2.5-pro, max_tokens=100, temp=0.7, task_type=None
+15:27:39 app.api.middleware.monitoring_middleware INFO   API请求完成: POST /api/v1/ai/complete
+INFO:     127.0.0.1:53906 - "POST /api/v1/ai/complete HTTP/1.1" 200 OK
+15:27:43 httpx INFO   HTTP Request: POST https://204992.xyz/v1/chat/completions "HTTP/2 200 OK"
+15:27:43 app.services.ai.http_ai_service INFO   API 流式响应已建立，开始接收数据...
+15:28:00 app.services.ai.http_ai_service INFO   API 响应完成，共接收 1 个数据块，总长度: 36
+15:28:00 app.services.ai.http_ai_service INFO   流式响应Token统计: 1981 (prompt=1957, completion=24)
+15:28:00 app.services.agent.cost_tracker INFO   [CostTracker] 记录API调用: gemini-2.5-pro, tokens: 1957+24=1981, cost: $0.000062
+15:28:00 app.services.ai.http_ai_service INFO   [CostTracker] API调用已记录: tokens=1957+24, cost=$0.000062, time=20.71s
+15:28:00 app.services.ai.ai_log_middleware INFO   AI调用日志已记录: operation=continue, tokens=142, cost=$0.000260, duration=20706ms, success=True
+15:28:00 app.api.v1.ai INFO   [AI续写] 用户 testuser_new-1 请求完成，生成字数: 36
+15:28:10 app.api.v1.ai INFO   [AI续写] 用户: testuser_new-1(602f5147-846a-4cde-95d3-405fa75f133f), 上下文长度: 194, 风格: 默认
+15:28:10 app.api.v1.ai INFO   [AI续写] context内容: '镌刻着一些他从未见过的、仿佛由无数精密几何线条构成的神秘符号。 这是什么？旧世界的某种高级设备？ 凌风的心脏狂跳起来。他小心翼翼地将黑盒捧起，入手分量不轻。他翻来覆去地检查，却找不到任何开关或者接口。 就在他被灰尘染黑的拇指无意间划过其中一个最复杂的符号时—— “嗡……” 一声极度轻微的蜂鸣声响起，黑盒表面那些原本暗淡的符号，竟一个个亮起了柔和的蓝色微光，光芒流转，仿佛活了过来。 凌风'
+15:28:10 app.api.v1.ai INFO   [AI续写] prompt: '续写', max_tokens: 100
+15:28:10 app.services.agent.model_selector INFO   ModelSelector 初始化完成, 成本优化: True, 模型层级: 3
+15:28:10 app.services.ai.http_ai_service INFO   ModelSelector 已启用
+15:28:10 app.services.ai.http_ai_service INFO   CostTracker 已启用
+15:28:11 app.services.ai.http_ai_service INFO   HTTP AI Service 初始化成功，Base URL: https://204992.xyz/v1, Model: gemini-2.5-pro, Timeout: 120s, HTTP/2: Enabled (多路复用), ModelSelector: True, CostTracking: True
+15:28:11 app.services.ai.http_ai_service INFO   AI自动补全请求 - 上下文长度: 194
+15:28:11 app.services.ai.http_ai_service INFO   开始调用 AI API: model=gemini-2.5-pro, max_tokens=100, temp=0.7, task_type=None
+15:28:11 app.api.middleware.monitoring_middleware INFO   API请求完成: POST /api/v1/ai/complete
+INFO:     127.0.0.1:60808 - "POST /api/v1/ai/complete HTTP/1.1" 200 OK
+15:28:12 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9
+INFO:     127.0.0.1:65138 - "PUT /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9 HTTP/1.1" 200 OK
+15:28:12 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9
+INFO:     127.0.0.1:61915 - "PUT /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9 HTTP/1.1" 200 OK
+15:28:14 httpx INFO   HTTP Request: POST https://204992.xyz/v1/chat/completions "HTTP/2 200 OK"
+15:28:14 app.services.ai.http_ai_service INFO   API 流式响应已建立，开始接收数据...
+15:28:14 app.services.ai.http_ai_service INFO   API 响应完成，共接收 3 个数据块，总长度: 25
+15:28:14 app.services.ai.http_ai_service INFO   流式响应Token统计: 266 (prompt=247, completion=19)
+15:28:14 app.services.agent.cost_tracker INFO   [CostTracker] 记录API调用: gemini-2.5-pro, tokens: 247+19=266, cost: $0.000010
+15:28:14 app.services.ai.http_ai_service INFO   [CostTracker] API调用已记录: tokens=247+19, cost=$0.000010, time=2.62s
+15:28:14 app.services.ai.ai_log_middleware INFO   AI调用日志已记录: operation=continue, tokens=133, cost=$0.000223, duration=2625ms, success=True
+15:28:14 app.api.v1.ai INFO   [AI续写] 用户 testuser_new-1 请求完成，生成字数: 25
+15:28:17 app.api.v1.ai INFO   [AI续写] 用户: testuser_new-1(602f5147-846a-4cde-95d3-405fa75f133f), 上下文长度: 194, 风格: 默认
+15:28:17 app.api.v1.ai INFO   [AI续写] context内容: '一个属于那个传说时代的造物，就在他的手中苏醒。 “吼——！！！” 就在他心神激荡之际，一声充满了暴戾与疯狂的非人嘶吼，猛地从钢铁坟场的深处传来！ 那声音穿透了层层钢筋水泥，带着一股令人灵魂战栗的威压，仿佛有一头史前巨兽正在苏醒。 是“掘墓者”！一种常年盘踞在废墟地下的强大变异体！ 凌风的脸色瞬间变得惨白。他很清楚，那声音距离自己并不算远，而且正在快速靠近！ 来不及多想，他一把将仍在发光'
+15:28:17 app.api.v1.ai INFO   [AI续写] prompt: '续写', max_tokens: 100
+15:28:17 app.services.agent.model_selector INFO   ModelSelector 初始化完成, 成本优化: True, 模型层级: 3
+15:28:17 app.services.ai.http_ai_service INFO   ModelSelector 已启用
+15:28:17 app.services.ai.http_ai_service INFO   CostTracker 已启用
+15:28:19 app.services.ai.http_ai_service INFO   HTTP AI Service 初始化成功，Base URL: https://204992.xyz/v1, Model: gemini-2.5-pro, Timeout: 120s, HTTP/2: Enabled (多路复用), ModelSelector: True, CostTracking: True
+15:28:19 app.services.ai.http_ai_service INFO   AI自动补全请求 - 上下文长度: 194
+15:28:19 app.services.ai.http_ai_service INFO   开始调用 AI API: model=gemini-2.5-pro, max_tokens=100, temp=0.7, task_type=None
+15:28:19 app.api.middleware.monitoring_middleware INFO   API请求完成: POST /api/v1/ai/complete
+INFO:     127.0.0.1:60808 - "POST /api/v1/ai/complete HTTP/1.1" 200 OK
+15:28:21 httpx INFO   HTTP Request: POST https://204992.xyz/v1/chat/completions "HTTP/2 200 OK"
+15:28:21 app.services.ai.http_ai_service INFO   API 流式响应已建立，开始接收数据...
+15:28:21 app.services.ai.http_ai_service INFO   API 响应完成，共接收 3 个数据块，总长度: 25
+15:28:21 app.services.ai.http_ai_service INFO   流式响应Token统计: 267 (prompt=250, completion=17)
+15:28:21 app.services.agent.cost_tracker INFO   [CostTracker] 记录API调用: gemini-2.5-pro, tokens: 250+17=267, cost: $0.000010
+15:28:21 app.services.ai.http_ai_service INFO   [CostTracker] API调用已记录: tokens=250+17, cost=$0.000010, time=2.18s
+15:28:21 app.services.ai.ai_log_middleware INFO   AI调用日志已记录: operation=continue, tokens=131, cost=$0.000220, duration=2187ms, success=True
+15:28:21 app.api.v1.ai INFO   [AI续写] 用户 testuser_new-1 请求完成，生成字数: 25
+15:28:43 app.services.agent.model_selector INFO   ModelSelector 初始化完成, 成本优化: True, 模型层级: 3
+15:28:43 app.services.ai.http_ai_service INFO   ModelSelector 已启用
+15:28:43 app.services.ai.http_ai_service INFO   CostTracker 已启用
+15:28:45 app.services.ai.http_ai_service INFO   HTTP AI Service 初始化成功，Base URL: https://204992.xyz/v1, Model: gemini-2.5-pro, Timeout: 120s, HTTP/2: Enabled (多路复用), ModelSelector: True, CostTracking: True
+15:28:45 app.api.v1.agent INFO   [Chat Stream] Mode: react
+15:28:45 app.api.middleware.monitoring_middleware INFO   API请求完成: POST /api/v1/agent/chat/stream
+INFO:     127.0.0.1:51768 - "POST /api/v1/agent/chat/stream HTTP/1.1" 200 OK
+15:28:45 app.api.v1.agent INFO   [LangGraph Agent Stream] ⏱️ 请求开始 - User: 602f5147-846a-4cde-95d3-405fa75f133f, Mode: react, Message: 根据前面三章，来写第四章，逐渐展开剧情...
+15:28:45 app.services.agent.memory.long_term_memory INFO   [LTM] 从作品 ad948837-e94e-4d0f-92a4-a75cf1301b07 检索到 0 条对话ID
+15:28:45 app.services.agent.memory.long_term_memory INFO   [LTM] 最终返回 0 条对话摘要 (work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07)
+15:28:45 app.services.agent.memory.long_term_memory INFO   [LTM] 从作品 ad948837-e94e-4d0f-92a4-a75cf1301b07 检索到 0 条对话ID
+15:28:45 app.services.agent.memory.long_term_memory INFO   [LTM] 最终返回 0 条对话摘要 (work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07)
+15:28:45 app.services.agent.memory.long_term_memory INFO   [LTM] 从作品 ad948837-e94e-4d0f-92a4-a75cf1301b07 检索到 0 条对话ID
+15:28:45 app.services.agent.memory.long_term_memory INFO   [LTM] 最终返回 0 条对话摘要 (work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07)
+15:28:45 app.services.agent.langgraph_agent INFO   [LangGraph Stream] 开始流式执行: 根据前面三章，来写第四章，逐渐展开剧情...
+15:28:45 app.services.agent.langgraph_agent INFO   [Context] 设置用户ID: 602f5147-846a-4cde-95d3-405fa75f133f
+15:28:45 app.services.context.store INFO   [ContextStore] 加载上下文: 6515ce20-3116-4f79-bed5-e1804c0365f3, 2条消息
+15:28:45 app.services.context.manager INFO   [ContextManager] Session 6515ce20-3116-4f79-bed5-e1804c0365f3: 2149/8000 tokens
+Batches: 100%|█████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 15.96it/s]
+15:28:45 app.services.context.vector_memory_store INFO   🔍 检索记忆 | 查询='根据前面三章，来写第四章，逐渐展开剧情...' | 用户=602f5147-846a-4cde-95d3-405fa75f133f | work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07 | 找到=3条 | 阈值=0.3
+15:28:45 app.services.context.manager INFO   🔍 检索长期记忆 | work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07 | 查询='根据前面三章，来写第四章，逐渐展开剧情...' | 找到=3条 | 阈值=0.3
+15:28:45 app.services.context.monitoring_integration INFO   [Monitor] 上下文构建: 4条消息, 2149 tokens, 耗时 78.32ms
+15:28:45 app.services.agent.langgraph_agent INFO   [Context] 加载上下文: {'session_id': '6515ce20-3116-4f79-bed5-e1804c0365f3', 'token_count': 2149, 'short_memory_size': 2, 'has_summary': False, 'compression_triggered': False, 'long_term_memories': 3, 'adaptive_budget_enabled': False, 'task_type': None}
+15:28:45 app.services.agent.langgraph_agent INFO   [LangGraph] 使用隔离的thread_id: ad948837-e94e-4d0f-92a4-a75cf1301b07:6515ce20-3116-4f79-bed5-e1804c0365f3 (work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07, conversation_id=6515ce20-3116-4f79-bed5-e1804c0365f3)
+15:28:45 app.services.agent.progress_tracker INFO   [ProgressTracker] 初始化完成，使用动态节点追踪模式（根据实际执行的节点自动计算进度）
+15:28:45 app.services.agent.langgraph_agent INFO   [ProgressTracker] 初始化完成，使用动态节点追踪模式
+15:28:45 app.services.agent.langgraph_agent INFO   [LangGraph] 意图分类（规则识别）
+15:28:45 app.services.agent.langgraph_agent INFO   [Intent] 规则识别结果: writing, 置信度: 0.90
+15:28:45 app.services.agent.langgraph_agent INFO   [LangGraph] 路由到: writing
+15:28:45 app.services.agent.langgraph_agent INFO   [Stream Event] 节点: _route_intent
+15:28:45 app.services.agent.langgraph_agent INFO   [Stream Event] 节点: intent_classifier
+15:28:45 app.services.agent.langgraph_agent INFO   [Stream Event] progress_event = {'type': 'progress', 'step': 'intent_analysis', 'description': '识别为：写作任务', 'node': 'intent_classifier', 'details': {'intent': 'writing'}, 'timestamp': '2025-11-12T15:28:45.141004', 'progress': 100.0, 'eta': 0, 'eta_display': '即将完成', 'eta_confidence': 'high', 'current_step': 3, 'total_steps': 3, 'step_description': '第 3/3 步', 'elapsed': 0.0}
+15:28:45 app.services.agent.langgraph_agent INFO   [Stream Event] on_progress 回调已调用
+15:28:45 app.api.v1.agent INFO   [SSE] 发送 progress 事件: step=intent_analysis, desc=识别为：写作任务
+15:28:45 app.services.agent.langgraph_agent INFO   [LangGraph] 处理写作请求（新架构）
+15:28:45 Action.writing INFO   [writing] PromptManager已初始化
+15:28:45 Action.writing INFO   [writing] work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07, chapter_id=ef5eb68c-32b8-4249-83a3-31d57363c0a9, phase=None, chapter_num=None
+15:28:45 app.services.agent.langgraph_agent INFO   [LangGraph] WritingAction准备完成: phase=None, chapter_num=None
+15:28:45 app.services.agent.langgraph_agent INFO   [LangGraph] 处理writing场景 (use_chatgpt=True)
+15:28:45 sqlalchemy.pool.impl.AsyncAdaptedQueuePool ERROR   The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019A844B57C0>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+D:\Java\ai_writer\backend\venv\Lib\site-packages\langchain_core\callbacks\manager.py:1904: SAWarning: The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019A844B57C0>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+  non_inline_tasks.append(task)
+15:28:45 sqlalchemy.pool.impl.AsyncAdaptedQueuePool ERROR   The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019B002A0F50>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+D:\Java\ai_writer\backend\venv\Lib\site-packages\langchain_core\callbacks\manager.py:1904: SAWarning: The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019B002A0F50>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+  non_inline_tasks.append(task)
+15:28:45 sqlalchemy.pool.impl.AsyncAdaptedQueuePool ERROR   The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019B03A63A70>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+D:\Java\ai_writer\backend\venv\Lib\site-packages\langchain_core\callbacks\manager.py:1904: SAWarning: The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019B03A63A70>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+  non_inline_tasks.append(task)
+15:28:49 httpx INFO   HTTP Request: POST https://204992.xyz/v1/chat/completions "HTTP/1.1 200 OK"
+15:29:14 app.api.v1.ai INFO   [AI续写] 用户: testuser_new-1(602f5147-846a-4cde-95d3-405fa75f133f), 上下文长度: 195, 风格: 默认
+15:29:14 app.api.v1.ai INFO   [AI续写] context内容: '他一把将仍在发光的黑盒塞进背包，拉上拉链。然后，他像是想起了什么，猛地转身，在那被撬开的储物柜最深处，摸出了一罐被遗忘在角落里的东西。 是一罐没有标签，但保存完好的午餐肉罐头！ 刚才的失望让他忽略了这个真正的“宝藏”。 此刻，这沉甸甸的罐头和那个神秘的黑盒一起躺在他的背包里，一边是生存的保障，另一边是未知的命运。 远处的嘶吼声越来越近，甚至能感觉到脚下的楼板在微微震颤。 没有时间犹豫了！'
+15:29:14 app.api.v1.ai INFO   [AI续写] prompt: '续写', max_tokens: 100
+15:29:14 app.services.agent.model_selector INFO   ModelSelector 初始化完成, 成本优化: True, 模型层级: 3
+15:29:14 app.services.ai.http_ai_service INFO   ModelSelector 已启用
+15:29:14 app.services.ai.http_ai_service INFO   CostTracker 已启用
+15:29:16 app.services.ai.http_ai_service INFO   HTTP AI Service 初始化成功，Base URL: https://204992.xyz/v1, Model: gemini-2.5-pro, Timeout: 120s, HTTP/2: Enabled (多路复用), ModelSelector: True, CostTracking: True
+15:29:16 app.services.ai.http_ai_service INFO   AI自动补全请求 - 上下文长度: 195
+15:29:16 app.services.ai.http_ai_service INFO   开始调用 AI API: model=gemini-2.5-pro, max_tokens=100, temp=0.7, task_type=None
+15:29:16 app.api.middleware.monitoring_middleware INFO   API请求完成: POST /api/v1/ai/complete
+INFO:     127.0.0.1:61104 - "POST /api/v1/ai/complete HTTP/1.1" 200 OK
+15:29:18 httpx INFO   HTTP Request: POST https://204992.xyz/v1/chat/completions "HTTP/2 200 OK"
+15:29:18 app.services.ai.http_ai_service INFO   API 流式响应已建立，开始接收数据...
+15:29:18 app.services.ai.http_ai_service INFO   API 响应完成，共接收 3 个数据块，总长度: 27
+15:29:18 app.services.ai.http_ai_service INFO   流式响应Token统计: 267 (prompt=249, completion=18)
+15:29:18 app.services.agent.cost_tracker INFO   [CostTracker] 记录API调用: gemini-2.5-pro, tokens: 249+18=267, cost: $0.000010
+15:29:18 app.services.ai.http_ai_service INFO   [CostTracker] API调用已记录: tokens=249+18, cost=$0.000010, time=2.37s
+15:29:19 app.services.ai.ai_log_middleware INFO   AI调用日志已记录: operation=continue, tokens=136, cost=$0.000230, duration=2374ms, success=True
+15:29:19 app.api.v1.ai INFO   [AI续写] 用户 testuser_new-1 请求完成，生成字数: 27
+15:29:26 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/chapters/f0908bf1-bbc2-4d8e-9211-d33327dc82e7
+15:29:26 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/chapters/f0908bf1-bbc2-4d8e-9211-d33327dc82e7
+INFO:     127.0.0.1:53380 - "OPTIONS /api/v1/chapters/f0908bf1-bbc2-4d8e-9211-d33327dc82e7 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52311 - "OPTIONS /api/v1/chapters/f0908bf1-bbc2-4d8e-9211-d33327dc82e7 HTTP/1.1" 200 OK
+15:29:27 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/f0908bf1-bbc2-4d8e-9211-d33327dc82e7
+INFO:     127.0.0.1:52311 - "PUT /api/v1/chapters/f0908bf1-bbc2-4d8e-9211-d33327dc82e7 HTTP/1.1" 200 OK
+15:29:27 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/f0908bf1-bbc2-4d8e-9211-d33327dc82e7
+INFO:     127.0.0.1:53380 - "PUT /api/v1/chapters/f0908bf1-bbc2-4d8e-9211-d33327dc82e7 HTTP/1.1" 200 OK
+15:29:32 app.api.callbacks.monitoring_callback INFO   [MonitoringCallback] LLM调用成功: run_id=d491020a-b2a8-4d5a-8205-8fd7ebf031e9, model=unknown, duration=46.97s, tokens=N/A
+15:29:32 app.services.agent.langgraph_agent INFO   [LangGraph] 无需工具调用，结束流程
+15:29:32 app.services.agent.langgraph_agent INFO   [Stream Event] 节点: _should_continue
+15:29:32 app.services.agent.langgraph_agent INFO   [Stream Event] 节点: writing_agent
+15:29:32 app.services.agent.langgraph_agent INFO   [Stream Event] progress_event = {'type': 'progress', 'step': 'thinking', 'description': '正在思考如何帮助您...', 'node': 'writing_agent', 'details': {}, 'timestamp': '2025-11-12T15:29:32.158667', 'progress': 100.0, 'eta': 0, 'eta_display': '即将完成', 'eta_confidence': 'high', 'current_step': 5, 'total_steps': 5, 'step_description': '第 5/5 步', 'elapsed': 47.0}
+15:29:32 app.api.v1.agent INFO   [Stream] Activity完成: intent_analysis (47.0s)
+15:29:32 app.services.agent.langgraph_agent INFO   [Stream Event] on_progress 回调已调用
+15:29:32 app.api.v1.agent INFO   [SSE] 发送 activity_complete 事件: step=intent_analysis, elapsed=47.0s
+15:29:32 app.api.v1.agent INFO   [SSE] 发送 progress 事件: step=thinking, desc=正在思考如何帮助您...
+15:29:32 app.services.agent.langgraph_agent INFO   [Stream Event] 节点: LangGraph
+15:29:32 app.services.agent.langgraph_agent INFO   [LangGraph Stream] 流式执行完成，共48个事件
+Batches: 100%|█████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00,  3.33it/s]
+15:29:32 app.services.context.manager INFO   ✅ 保存长期记忆 | ID=602f5147-846a-4cde-9... | work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07 | 重要度=0.90 | 长度=2299
+15:29:32 app.services.context.store INFO   [ContextStore] 保存上下文: 6515ce20-3116-4f79-bed5-e1804c0365f3, token=4992
+15:29:32 app.services.context.manager INFO   [ContextManager] 更新上下文: 6515ce20-3116-4f79-bed5-e1804c0365f3, 消息数=4, Token=4992
+15:29:32 app.services.agent.langgraph_agent INFO   [Context] 上下文已更新: 6515ce20-3116-4f79-bed5-e1804c0365f3 (work_id=ad948837-e94e-4d0f-92a4-a75cf1301b07)
+15:29:32 app.services.agent.progress_tracker INFO   [ProgressTracker] 状态已重置
+15:29:32 app.api.v1.agent INFO   [Stream] 最后活动完成: thinking (0.7s)
+15:29:32 app.api.v1.agent INFO   [SSE] 发送 activity_complete 事件: step=thinking, elapsed=0.7s
+15:29:32 app.api.v1.agent INFO   [LangGraph Agent Stream] User 602f5147-846a-4cde-95d3-405fa75f133f - Mode: react, Stream completed
+15:29:34 app.api.v1.ai INFO   [AI续写] 用户: testuser_new-1(602f5147-846a-4cde-95d3-405fa75f133f), 上下文长度: 195, 风格: 默认
+15:29:34 app.api.v1.ai INFO   [AI续写] context内容: '石般的外皮和能轻易撕裂钢板的巨爪，它的出现，就意味着死亡。 逃！ 肾上腺素压倒了一切杂念，求生的本能接管了身体。凌风将背包勒紧，身体压得极低，像一头被惊动的猎豹，朝着来时的方向亡命狂奔。 “轰！！” 身后传来震耳欲聋的巨响，一大片天花板连带着钢筋混凝土轰然砸落。气浪夹杂着粉尘扑面而来，呛得他剧烈咳嗽。那怪物正在用最野蛮的方式开路，它巨大的体型让任何精巧的建筑结构都形同虚设。 不能走直线！'
+15:29:34 app.api.v1.ai INFO   [AI续写] prompt: '续写', max_tokens: 100
+15:29:34 app.services.agent.model_selector INFO   ModelSelector 初始化完成, 成本优化: True, 模型层级: 3
+15:29:34 app.services.ai.http_ai_service INFO   ModelSelector 已启用
+15:29:34 app.services.ai.http_ai_service INFO   CostTracker 已启用
+15:29:36 app.services.ai.http_ai_service INFO   HTTP AI Service 初始化成功，Base URL: https://204992.xyz/v1, Model: gemini-2.5-pro, Timeout: 120s, HTTP/2: Enabled (多路复用), ModelSelector: True, CostTracking: True
+15:29:36 app.services.ai.http_ai_service INFO   AI自动补全请求 - 上下文长度: 195
+15:29:36 app.services.ai.http_ai_service INFO   开始调用 AI API: model=gemini-2.5-pro, max_tokens=100, temp=0.7, task_type=None
+15:29:36 app.api.middleware.monitoring_middleware INFO   API请求完成: POST /api/v1/ai/complete
+INFO:     127.0.0.1:51768 - "POST /api/v1/ai/complete HTTP/1.1" 200 OK
+15:29:38 httpx INFO   HTTP Request: POST https://204992.xyz/v1/chat/completions "HTTP/2 200 OK"
+15:29:38 app.services.ai.http_ai_service INFO   API 流式响应已建立，开始接收数据...
+15:29:38 app.services.ai.http_ai_service INFO   API 响应完成，共接收 3 个数据块，总长度: 27
+15:29:38 app.services.ai.http_ai_service INFO   流式响应Token统计: 287 (prompt=266, completion=21)
+15:29:38 app.services.agent.cost_tracker INFO   [CostTracker] 记录API调用: gemini-2.5-pro, tokens: 266+21=287, cost: $0.000010
+15:29:38 app.services.ai.http_ai_service INFO   [CostTracker] API调用已记录: tokens=266+21, cost=$0.000010, time=2.33s
+15:29:38 app.services.ai.ai_log_middleware INFO   AI调用日志已记录: operation=continue, tokens=135, cost=$0.000229, duration=2331ms, success=True
+15:29:38 app.api.v1.ai INFO   [AI续写] 用户 testuser_new-1 请求完成，生成字数: 27
+15:30:31 app.api.v1.ai INFO   [AI续写] 用户: testuser_new-1(602f5147-846a-4cde-95d3-405fa75f133f), 上下文长度: 196, 风格: 默认
+15:30:31 app.api.v1.ai INFO   [AI续写] context内容: '在这里登记，并上交至少一半的收获，才能换取当日的生存配给。 物资处前排着长队，一个身材魁梧、脸上有一道狰狞刀疤的男人正不耐烦地将一个拾荒者推开，他就是物资官“疤脸”。 “就这么点破烂？滚！今天只有半份水！”疤脸吼道。 轮到凌风时，一个如铁塔般的身影挡在了他面前。 “哟，这不是我们最‘能干’的凌风吗？”来人是聚落里有名的恶霸“铁拳”，他总是以欺凌比他弱小的人为乐，“今天又捡了什么垃圾回来？”'
+15:30:31 app.api.v1.ai INFO   [AI续写] prompt: '续写', max_tokens: 100
+15:30:31 app.services.agent.model_selector INFO   ModelSelector 初始化完成, 成本优化: True, 模型层级: 3
+15:30:31 app.services.ai.http_ai_service INFO   ModelSelector 已启用
+15:30:31 app.services.ai.http_ai_service INFO   CostTracker 已启用
+15:30:33 app.services.ai.http_ai_service INFO   HTTP AI Service 初始化成功，Base URL: https://204992.xyz/v1, Model: gemini-2.5-pro, Timeout: 120s, HTTP/2: Enabled (多路复用), ModelSelector: True, CostTracking: True
+15:30:33 app.services.ai.http_ai_service INFO   AI自动补全请求 - 上下文长度: 196
+15:30:33 app.services.ai.http_ai_service INFO   开始调用 AI API: model=gemini-2.5-pro, max_tokens=100, temp=0.7, task_type=None
+15:30:33 app.api.middleware.monitoring_middleware INFO   API请求完成: POST /api/v1/ai/complete
+INFO:     127.0.0.1:54390 - "POST /api/v1/ai/complete HTTP/1.1" 200 OK
+15:30:35 httpx INFO   HTTP Request: POST https://204992.xyz/v1/chat/completions "HTTP/2 200 OK"
+15:30:35 app.services.ai.http_ai_service INFO   API 流式响应已建立，开始接收数据...
+15:30:35 app.services.ai.http_ai_service INFO   API 响应完成，共接收 3 个数据块，总长度: 43
+15:30:35 app.services.ai.http_ai_service INFO   流式响应Token统计: 292 (prompt=259, completion=33)
+15:30:35 app.services.agent.cost_tracker INFO   [CostTracker] 记录API调用: gemini-2.5-pro, tokens: 259+33=292, cost: $0.000012
+15:30:35 app.services.ai.http_ai_service INFO   [CostTracker] API调用已记录: tokens=259+33, cost=$0.000012, time=2.41s
+15:30:35 app.services.ai.ai_log_middleware INFO   AI调用日志已记录: operation=continue, tokens=142, cost=$0.000275, duration=2418ms, success=True
+15:30:35 app.api.v1.ai INFO   [AI续写] 用户 testuser_new-1 请求完成，生成字数: 43
+15:30:51 app.api.v1.ai INFO   [AI续写] 用户: testuser_new-1(602f5147-846a-4cde-95d3-405fa75f133f), 上下文长度: 197, 风格: 默认
+15:30:51 app.api.v1.ai INFO   [AI续写] context内容: '是整个蚁巢最偏僻的角落之一，潮湿、阴冷，却能给他带来一丝宝贵的安宁。 确认四周无人后，他坐上吊床，小心翼翼地从夹层里拿出那罐午餐肉。在昏暗的光线下，金属罐身反射着诱人的光泽。他用多功能钳撬开一个小口，一股早已被遗忘的、浓郁的肉香瞬间钻入鼻孔。 饥饿的胃在疯狂抗议，唾液不受控制地分泌。但他只是深深地吸了一口气，又用极大的毅力，将那个小口重新压平、卷好。 现在还不是时候。这罐头，是他未来的底牌。'
+15:30:51 app.api.v1.ai INFO   [AI续写] prompt: '续写', max_tokens: 100
+15:30:51 app.services.agent.model_selector INFO   ModelSelector 初始化完成, 成本优化: True, 模型层级: 3
+15:30:51 app.services.ai.http_ai_service INFO   ModelSelector 已启用
+15:30:51 app.services.ai.http_ai_service INFO   CostTracker 已启用
+15:30:53 app.services.ai.http_ai_service INFO   HTTP AI Service 初始化成功，Base URL: https://204992.xyz/v1, Model: gemini-2.5-pro, Timeout: 120s, HTTP/2: Enabled (多路复用), ModelSelector: True, CostTracking: True
+15:30:53 app.services.ai.http_ai_service INFO   AI自动补全请求 - 上下文长度: 197
+15:30:53 app.services.ai.http_ai_service INFO   开始调用 AI API: model=gemini-2.5-pro, max_tokens=100, temp=0.7, task_type=None
+15:30:53 app.api.middleware.monitoring_middleware INFO   API请求完成: POST /api/v1/ai/complete
+INFO:     127.0.0.1:49839 - "POST /api/v1/ai/complete HTTP/1.1" 200 OK
+15:31:04 httpx INFO   HTTP Request: POST https://204992.xyz/v1/chat/completions "HTTP/2 200 OK"
+15:31:04 app.services.ai.http_ai_service INFO   API 流式响应已建立，开始接收数据...
+15:31:12 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/chapters/803ee3d1-5cc6-48a7-871d-f4a53511a749
+15:31:12 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/chapters/803ee3d1-5cc6-48a7-871d-f4a53511a749
+INFO:     127.0.0.1:52141 - "OPTIONS /api/v1/chapters/803ee3d1-5cc6-48a7-871d-f4a53511a749 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59530 - "OPTIONS /api/v1/chapters/803ee3d1-5cc6-48a7-871d-f4a53511a749 HTTP/1.1" 200 OK
+15:31:12 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/803ee3d1-5cc6-48a7-871d-f4a53511a749
+INFO:     127.0.0.1:52141 - "PUT /api/v1/chapters/803ee3d1-5cc6-48a7-871d-f4a53511a749 HTTP/1.1" 200 OK
+15:31:13 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/803ee3d1-5cc6-48a7-871d-f4a53511a749
+INFO:     127.0.0.1:59530 - "PUT /api/v1/chapters/803ee3d1-5cc6-48a7-871d-f4a53511a749 HTTP/1.1" 200 OK
+15:31:42 app.api.v1.ai INFO   [AI续写] 用户: testuser_new-1(602f5147-846a-4cde-95d3-405fa75f133f), 上下文长度: 194, 风格: 默认
+15:31:42 app.api.v1.ai INFO   [AI续写] context内容: '一片深邃的黑暗。 不，不是黑暗。 凌风凑近了看，才发现那是一块纯黑色的晶体屏幕。此刻，屏幕上正有点点星光亮起，由少变多，迅速汇聚成一片璀璨的星河。 “这是……”凌风的呼吸停滞了。 他从未见过如此美丽的景象。聚落的夜晚虽然也能看到星星，但远没有眼前这般清晰、浩瀚。星辰在他的眼前缓缓旋转，一条条淡蓝色的光线在星辰之间连接，勾勒出复杂的航线和坐标。 这不是简单的星空图。 这是一幅星际航行图！'
+15:31:42 app.api.v1.ai INFO   [AI续写] prompt: '续写', max_tokens: 100
+15:31:42 app.services.agent.model_selector INFO   ModelSelector 初始化完成, 成本优化: True, 模型层级: 3
+15:31:42 app.services.ai.http_ai_service INFO   ModelSelector 已启用
+15:31:42 app.services.ai.http_ai_service INFO   CostTracker 已启用
+15:31:43 app.services.ai.http_ai_service INFO   HTTP AI Service 初始化成功，Base URL: https://204992.xyz/v1, Model: gemini-2.5-pro, Timeout: 120s, HTTP/2: Enabled (多路复用), ModelSelector: True, CostTracking: True
+15:31:43 app.services.ai.http_ai_service INFO   AI自动补全请求 - 上下文长度: 194
+15:31:43 app.services.ai.http_ai_service INFO   开始调用 AI API: model=gemini-2.5-pro, max_tokens=100, temp=0.7, task_type=None
+15:31:43 app.api.middleware.monitoring_middleware INFO   API请求完成: POST /api/v1/ai/complete
+15:31:43 app.services.ai.http_ai_service INFO   API 响应完成，共接收 1 个数据块，总长度: 33
+15:31:43 app.services.ai.http_ai_service INFO   流式响应Token统计: 4027 (prompt=4000, completion=27)
+15:31:43 app.services.agent.cost_tracker INFO   [CostTracker] 记录API调用: gemini-2.5-pro, tokens: 4000+27=4027, cost: $0.000123
+15:31:43 app.services.ai.http_ai_service INFO   [CostTracker] API调用已记录: tokens=4000+27, cost=$0.000123, time=50.14s
+INFO:     127.0.0.1:53104 - "POST /api/v1/ai/complete HTTP/1.1" 200 OK
+15:31:43 app.services.ai.ai_log_middleware INFO   AI调用日志已记录: operation=continue, tokens=141, cost=$0.000251, duration=50159ms, success=True
+15:31:43 app.api.v1.ai INFO   [AI续写] 用户 testuser_new-1 请求完成，生成字数: 33
+15:31:45 httpx INFO   HTTP Request: POST https://204992.xyz/v1/chat/completions "HTTP/2 200 OK"
+15:31:45 app.services.ai.http_ai_service INFO   API 流式响应已建立，开始接收数据...
+15:31:46 app.services.ai.http_ai_service INFO   API 响应完成，共接收 2 个数据块，总长度: 25
+15:31:46 app.services.ai.http_ai_service INFO   流式响应Token统计: 263 (prompt=247, completion=16)
+15:31:46 app.services.agent.cost_tracker INFO   [CostTracker] 记录API调用: gemini-2.5-pro, tokens: 247+16=263, cost: $0.000009
+15:31:46 app.services.ai.http_ai_service INFO   [CostTracker] API调用已记录: tokens=247+16, cost=$0.000009, time=2.24s
+15:31:46 app.services.ai.ai_log_middleware INFO   AI调用日志已记录: operation=continue, tokens=132, cost=$0.000221, duration=2245ms, success=True
+15:31:46 app.api.v1.ai INFO   [AI续写] 用户 testuser_new-1 请求完成，生成字数: 25
+15:31:54 app.api.v1.ai INFO   [AI续写] 用户: testuser_new-1(602f5147-846a-4cde-95d3-405fa75f133f), 上下文长度: 194, 风格: 默认
+15:31:54 app.api.v1.ai INFO   [AI续写] context内容: '一片深邃的黑暗。 不，不是黑暗。 凌风凑近了看，才发现那是一块纯黑色的晶体屏幕。此刻，屏幕上正有点点星光亮起，由少变多，迅速汇聚成一片璀璨的星河。 “这是……”凌风的呼吸停滞了。 他从未见过如此美丽的景象。聚落的夜晚虽然也能看到星星，但远没有眼前这般清晰、浩瀚。星辰在他的眼前缓缓旋转，一条条淡蓝色的光线在星辰之间连接，勾勒出复杂的航线和坐标。 这不是简单的星空图。 这是一幅星际航行图！'
+15:31:54 app.api.v1.ai INFO   [AI续写] prompt: '续写', max_tokens: 100
+15:31:54 app.services.agent.model_selector INFO   ModelSelector 初始化完成, 成本优化: True, 模型层级: 3
+15:31:54 app.services.ai.http_ai_service INFO   ModelSelector 已启用
+15:31:54 app.services.ai.http_ai_service INFO   CostTracker 已启用
+15:31:56 app.services.ai.http_ai_service INFO   HTTP AI Service 初始化成功，Base URL: https://204992.xyz/v1, Model: gemini-2.5-pro, Timeout: 120s, HTTP/2: Enabled (多路复用), ModelSelector: True, CostTracking: True
+15:31:56 app.services.ai.http_ai_service INFO   AI自动补全请求 - 上下文长度: 194
+15:31:56 app.services.ai.http_ai_service INFO   开始调用 AI API: model=gemini-2.5-pro, max_tokens=100, temp=0.7, task_type=None
+15:31:56 app.api.middleware.monitoring_middleware INFO   API请求完成: POST /api/v1/ai/complete
+15:31:56 sqlalchemy.pool.impl.AsyncAdaptedQueuePool ERROR   The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019ADA84B4D0>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+C:\Program Files\Python312\Lib\contextlib.py:132: SAWarning: The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019ADA84B4D0>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+  def __enter__(self):
+15:31:56 sqlalchemy.pool.impl.AsyncAdaptedQueuePool ERROR   The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019B03A2C6E0>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+C:\Program Files\Python312\Lib\contextlib.py:132: SAWarning: The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019B03A2C6E0>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+  def __enter__(self):
+15:31:56 sqlalchemy.pool.impl.AsyncAdaptedQueuePool ERROR   The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019ADA84A300>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+C:\Program Files\Python312\Lib\contextlib.py:132: SAWarning: The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019ADA84A300>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+  def __enter__(self):
+15:31:56 sqlalchemy.pool.impl.AsyncAdaptedQueuePool ERROR   The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019B03A2FA70>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+C:\Program Files\Python312\Lib\contextlib.py:132: SAWarning: The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019B03A2FA70>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+  def __enter__(self):
+15:31:56 sqlalchemy.pool.impl.AsyncAdaptedQueuePool ERROR   The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019B03A2E5D0>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+C:\Program Files\Python312\Lib\contextlib.py:132: SAWarning: The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019B03A2E5D0>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+  def __enter__(self):
+INFO:     127.0.0.1:61477 - "POST /api/v1/ai/complete HTTP/1.1" 200 OK
+15:31:57 httpx INFO   HTTP Request: POST https://204992.xyz/v1/chat/completions "HTTP/2 200 OK"
+15:31:57 app.services.ai.http_ai_service INFO   API 流式响应已建立，开始接收数据...
+15:31:58 app.services.ai.http_ai_service INFO   API 响应完成，共接收 3 个数据块，总长度: 37
+15:31:58 app.services.ai.http_ai_service INFO   流式响应Token统计: 271 (prompt=247, completion=24)
+15:31:58 app.services.agent.cost_tracker INFO   [CostTracker] 记录API调用: gemini-2.5-pro, tokens: 247+24=271, cost: $0.000010
+15:31:58 app.services.ai.http_ai_service INFO   [CostTracker] API调用已记录: tokens=247+24, cost=$0.000010, time=2.21s
+15:31:58 app.services.ai.ai_log_middleware INFO   AI调用日志已记录: operation=continue, tokens=138, cost=$0.000251, duration=2206ms, success=True
+15:31:58 app.api.v1.ai INFO   [AI续写] 用户 testuser_new-1 请求完成，生成字数: 37
+15:32:06 app.api.v1.ai INFO   [AI续写] 用户: testuser_new-1(602f5147-846a-4cde-95d3-405fa75f133f), 上下文长度: 195, 风格: 默认
+15:32:06 app.api.v1.ai INFO   [AI续写] context内容: '这就是“星辰之钥”？ 紧接着，另一组坐标信息在“星辰之钥”的投影旁浮现： [“星辰之钥”组件#1 位置：坐标（34.0522, -118.2437）] [警告：该区域能量波动异常，已被高阶污染物“利维坦”占据] “利维坦……” 凌风倒吸一口凉气。如果说“掘墓者”是拾荒者的噩梦，那“利维坦”就是所有废土聚落的末日天灾。那是传说中如山峦般巨大的移动堡垒型污染物，所过之处，一切都会被夷为平地。'
+15:32:06 app.api.v1.ai INFO   [AI续写] prompt: '续写', max_tokens: 100
+15:32:06 app.services.agent.model_selector INFO   ModelSelector 初始化完成, 成本优化: True, 模型层级: 3
+15:32:06 app.services.ai.http_ai_service INFO   ModelSelector 已启用
+15:32:06 app.services.ai.http_ai_service INFO   CostTracker 已启用
+15:32:07 app.services.ai.http_ai_service INFO   HTTP AI Service 初始化成功，Base URL: https://204992.xyz/v1, Model: gemini-2.5-pro, Timeout: 120s, HTTP/2: Enabled (多路复用), ModelSelector: True, CostTracking: True
+15:32:07 app.services.ai.http_ai_service INFO   AI自动补全请求 - 上下文长度: 195
+15:32:07 app.services.ai.http_ai_service INFO   开始调用 AI API: model=gemini-2.5-pro, max_tokens=100, temp=0.7, task_type=None
+15:32:07 app.api.middleware.monitoring_middleware INFO   API请求完成: POST /api/v1/ai/complete
+INFO:     127.0.0.1:64565 - "POST /api/v1/ai/complete HTTP/1.1" 200 OK
+15:32:11 httpx INFO   HTTP Request: POST https://204992.xyz/v1/chat/completions "HTTP/2 200 OK"
+15:32:11 app.services.ai.http_ai_service INFO   API 流式响应已建立，开始接收数据...
+15:32:27 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9
+INFO:     127.0.0.1:58284 - "OPTIONS /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9 HTTP/1.1" 200 OK
+15:32:27 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9
+INFO:     127.0.0.1:58284 - "OPTIONS /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9 HTTP/1.1" 200 OK
+15:32:28 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9
+INFO:     127.0.0.1:58284 - "PUT /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9 HTTP/1.1" 200 OK
+15:32:28 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9
+INFO:     127.0.0.1:53688 - "PUT /api/v1/chapters/ef5eb68c-32b8-4249-83a3-31d57363c0a9 HTTP/1.1" 200 OK
+15:32:28 app.services.ai.http_ai_service INFO   API 响应完成，共接收 1 个数据块，总长度: 25
+15:32:28 app.services.ai.http_ai_service INFO   流式响应Token统计: 1854 (prompt=1839, completion=15)
+15:32:28 app.services.agent.cost_tracker INFO   [CostTracker] 记录API调用: gemini-2.5-pro, tokens: 1839+15=1854, cost: $0.000057
+15:32:28 app.services.ai.http_ai_service INFO   [CostTracker] API调用已记录: tokens=1839+15, cost=$0.000057, time=20.62s
+15:32:28 app.services.ai.ai_log_middleware INFO   AI调用日志已记录: operation=continue, tokens=120, cost=$0.000206, duration=20625ms, success=True
+15:32:28 app.api.v1.ai INFO   [AI续写] 用户 testuser_new-1 请求完成，生成字数: 25
+15:32:28 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/f0908bf1-bbc2-4d8e-9211-d33327dc82e7
+INFO:     127.0.0.1:53688 - "PUT /api/v1/chapters/f0908bf1-bbc2-4d8e-9211-d33327dc82e7 HTTP/1.1" 200 OK
+15:32:28 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/f0908bf1-bbc2-4d8e-9211-d33327dc82e7
+INFO:     127.0.0.1:64565 - "PUT /api/v1/chapters/f0908bf1-bbc2-4d8e-9211-d33327dc82e7 HTTP/1.1" 200 OK
+15:32:29 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/803ee3d1-5cc6-48a7-871d-f4a53511a749
+15:32:29 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/803ee3d1-5cc6-48a7-871d-f4a53511a749
+INFO:     127.0.0.1:53688 - "PUT /api/v1/chapters/803ee3d1-5cc6-48a7-871d-f4a53511a749 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64565 - "PUT /api/v1/chapters/803ee3d1-5cc6-48a7-871d-f4a53511a749 HTTP/1.1" 200 OK
+15:32:32 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/chapters
+INFO:     127.0.0.1:64565 - "OPTIONS /api/v1/chapters HTTP/1.1" 200 OK
+15:32:32 app.api.middleware.monitoring_middleware INFO   API请求完成: POST /api/v1/chapters
+INFO:     127.0.0.1:53688 - "POST /api/v1/chapters HTTP/1.1" 201 Created
+15:32:32 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/analysis/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/start
+INFO:     127.0.0.1:53688 - "OPTIONS /api/v1/analysis/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/start HTTP/1.1" 200 OK
+15:32:33 app.services.novel_analysis_service INFO   Deleted old analysis for work ad948837-e94e-4d0f-92a4-a75cf1301b07, creating new one
+15:32:33 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/chapters/298f5ac1-437c-4087-919b-5db66b1b3b14
+15:32:33 app.api.middleware.monitoring_middleware INFO   API请求完成: OPTIONS /api/v1/chapters/298f5ac1-437c-4087-919b-5db66b1b3b14
+INFO:     127.0.0.1:53688 - "OPTIONS /api/v1/chapters/298f5ac1-437c-4087-919b-5db66b1b3b14 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58284 - "OPTIONS /api/v1/chapters/298f5ac1-437c-4087-919b-5db66b1b3b14 HTTP/1.1" 200 OK
+15:32:33 sqlalchemy.pool.impl.AsyncAdaptedQueuePool ERROR   The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019B03A2E300>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py:27: SAWarning: The garbage collector is trying to clean up non-checked-in connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000019B03A2E300>>, which will be terminated.  Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly, either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+  def __init__(self, scope: Scope, receive: Receive):
+15:32:33 app.services.novel_analysis_service INFO   Created analysis task for work ad948837-e94e-4d0f-92a4-a75cf1301b07, total_chapters: 4
+15:32:33 app.api.v1.novel_analysis INFO   User 602f5147-846a-4cde-95d3-405fa75f133f started analysis for work ad948837-e94e-4d0f-92a4-a75cf1301b07, analysis_id: 9e3368de-0b78-4e20-9b70-3443e01c4358
+15:32:33 app.api.middleware.monitoring_middleware INFO   API请求完成: POST /api/v1/analysis/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/start
+INFO:     127.0.0.1:64565 - "POST /api/v1/analysis/works/ad948837-e94e-4d0f-92a4-a75cf1301b07/start HTTP/1.1" 201 Created
+15:32:33 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/298f5ac1-437c-4087-919b-5db66b1b3b14
+INFO:     127.0.0.1:53688 - "PUT /api/v1/chapters/298f5ac1-437c-4087-919b-5db66b1b3b14 HTTP/1.1" 200 OK
+15:32:33 app.api.v1.novel_analysis INFO   后台任务开始：分析作品 ad948837-e94e-4d0f-92a4-a75cf1301b07
+15:32:33 app.api.v1.novel_analysis INFO   后台任务已找到分析记录 analysis_id=9e3368de-0b78-4e20-9b70-3443e01c4358
+15:32:33 app.services.ai.novel_analysis_orchestrator INFO   ============================================================
+15:32:33 app.services.ai.novel_analysis_orchestrator INFO   开始分析作品: ad948837-e94e-4d0f-92a4-a75cf1301b07
+15:32:33 app.services.ai.novel_analysis_orchestrator INFO   ============================================================
+15:32:33 app.services.novel_analysis_service INFO   Updated analysis 9e3368de-0b78-4e20-9b70-3443e01c4358 progress: 0/4, stage: AnalysisStage.MICRO_ANALYSIS, status: AnalysisStatus.ANALYZING
+15:32:33 app.services.ai.novel_analysis_orchestrator INFO   初始化AI分析服务...
+15:32:33 app.services.agent.model_selector INFO   ModelSelector 初始化完成, 成本优化: True, 模型层级: 3
+15:32:33 app.services.ai.http_ai_service INFO   ModelSelector 已启用
+15:32:33 app.services.ai.http_ai_service INFO   CostTracker 已启用
+15:32:34 app.services.ai.http_ai_service INFO   HTTP AI Service 初始化成功，Base URL: https://204992.xyz/v1, Model: gemini-2.5-pro, Timeout: 120s, HTTP/2: Enabled (多路复用), ModelSelector: True, CostTracking: True
+15:32:34 app.services.ai.novel_micro_analysis INFO   微观分析提示词加载成功
+15:32:34 app.services.agent.model_selector INFO   ModelSelector 初始化完成, 成本优化: True, 模型层级: 3
+15:32:34 app.services.ai.http_ai_service INFO   ModelSelector 已启用
+15:32:34 app.services.ai.http_ai_service INFO   CostTracker 已启用
+15:32:36 app.services.ai.http_ai_service INFO   HTTP AI Service 初始化成功，Base URL: https://204992.xyz/v1, Model: gemini-2.5-pro, Timeout: 120s, HTTP/2: Enabled (多路复用), ModelSelector: True, CostTracking: True
+15:32:36 app.services.ai.novel_macro_analysis INFO   宏观分析提示词加载成功
+15:32:36 app.services.ai.novel_analysis_orchestrator INFO   共获取 4 个章节，开始微观分析...
+15:32:36 app.services.ai.novel_analysis_orchestrator INFO   ⚡ 使用并行分析模式 (并发数: 5)
+15:32:36 app.services.ai.novel_analysis_orchestrator INFO   ⚡ 启动 4 个并发分析任务...
+15:32:36 app.services.ai.novel_analysis_orchestrator INFO   [1/4] 🔄 开始分析: 钢铁坟场
+15:32:36 app.services.ai.novel_analysis_orchestrator INFO   [2/4] 🔄 开始分析: 归巢与低语
+15:32:36 app.services.ai.novel_analysis_orchestrator INFO   [3/4] 🔄 开始分析: 遗落的星图
+15:32:36 app.services.ai.novel_analysis_orchestrator INFO   [4/4] 🔄 开始分析: 天眼与土獾
+15:32:36 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/298f5ac1-437c-4087-919b-5db66b1b3b14
+INFO:     127.0.0.1:53788 - "PUT /api/v1/chapters/298f5ac1-437c-4087-919b-5db66b1b3b14 HTTP/1.1" 200 OK
+15:32:46 app.services.redis_cache_service WARNING   ⚠️  Redis连接失败,缓存功能将禁用: Timeout connecting to server
+15:32:46 app.services.ai.novel_micro_analysis INFO   开始AI分析章节: ef5eb68c-32b8-4249-83a3-31d57363c0a9 - 钢铁坟场
+15:32:46 app.services.ai.novel_micro_analysis INFO   第 1/3 次尝试调用AI分析
+15:32:46 app.services.ai.http_ai_service INFO   开始调用 AI API: model=gemini-2.5-pro, max_tokens=4000, temp=0.3, task_type=None
+15:32:46 app.services.redis_cache_service WARNING   查询缓存失败 (重试 1/2): Timeout connecting to server
+15:32:46 app.services.redis_cache_service WARNING   查询缓存最终失败: 'NoneType' object has no attribute 'get'
+15:32:46 app.services.ai.novel_micro_analysis INFO   开始AI分析章节: 803ee3d1-5cc6-48a7-871d-f4a53511a749 - 遗落的星图
+15:32:46 app.services.ai.novel_micro_analysis INFO   第 1/3 次尝试调用AI分析
+15:32:46 app.services.ai.http_ai_service INFO   开始调用 AI API: model=gemini-2.5-pro, max_tokens=4000, temp=0.3, task_type=None
+15:32:46 app.services.redis_cache_service WARNING   查询缓存失败 (重试 1/2): Timeout connecting to server
+15:32:46 app.services.redis_cache_service WARNING   查询缓存最终失败: 'NoneType' object has no attribute 'get'
+15:32:46 app.services.ai.novel_micro_analysis INFO   开始AI分析章节: 298f5ac1-437c-4087-919b-5db66b1b3b14 - 天眼与土獾
+15:32:46 app.services.ai.novel_micro_analysis INFO   第 1/3 次尝试调用AI分析
+15:32:46 app.services.ai.http_ai_service INFO   开始调用 AI API: model=gemini-2.5-pro, max_tokens=4000, temp=0.3, task_type=None
+15:32:46 app.services.redis_cache_service WARNING   查询缓存失败 (重试 1/2): Timeout connecting to server
+15:32:46 app.services.redis_cache_service WARNING   查询缓存最终失败: 'NoneType' object has no attribute 'get'
+15:32:46 app.services.ai.novel_micro_analysis INFO   开始AI分析章节: f0908bf1-bbc2-4d8e-9211-d33327dc82e7 - 归巢与低语
+15:32:46 app.services.ai.novel_micro_analysis INFO   第 1/3 次尝试调用AI分析
+15:32:46 app.services.ai.http_ai_service INFO   开始调用 AI API: model=gemini-2.5-pro, max_tokens=4000, temp=0.3, task_type=None
+15:32:48 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/298f5ac1-437c-4087-919b-5db66b1b3b14
+INFO:     127.0.0.1:53141 - "PUT /api/v1/chapters/298f5ac1-437c-4087-919b-5db66b1b3b14 HTTP/1.1" 200 OK
+15:32:49 app.api.middleware.monitoring_middleware INFO   API请求完成: PUT /api/v1/chapters/298f5ac1-437c-4087-919b-5db66b1b3b14
+INFO:     127.0.0.1:53141 - "PUT /api/v1/chapters/298f5ac1-437c-4087-919b-5db66b1b3b14 HTTP/1.1" 200 OK

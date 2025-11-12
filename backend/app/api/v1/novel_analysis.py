@@ -39,13 +39,13 @@ async def _run_analysis_in_background_async(work_id: str):
     
     注意：必须在主事件循环中调用，因为需要使用主引擎的数据库连接
     """
-    from app.core.database import AsyncSessionLocal
+    from app.core.database import create_db_session
     
     # 短暂延迟，确保主记录的commit完成
     # 避免后台任务在主记录commit前就开始执行
     await asyncio.sleep(0.1)
     
-    async with AsyncSessionLocal() as db:
+    async with create_db_session() as db:
         try:
             logger.info(f"后台任务开始：分析作品 {work_id}")
             
@@ -61,12 +61,12 @@ async def _run_analysis_in_background_async(work_id: str):
             
             orchestrator = NovelAnalysisOrchestrator(db)
             success = await orchestrator.run_full_analysis(work_id)
-            
+
             if success:
                 logger.info(f"后台任务完成：作品 {work_id} 分析成功")
             else:
                 logger.error(f"后台任务失败：作品 {work_id} 分析失败")
-                
+
         except Exception as e:
             logger.error(f"后台任务异常：{e}", exc_info=True)
 

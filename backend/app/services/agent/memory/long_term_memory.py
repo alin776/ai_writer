@@ -387,7 +387,8 @@ class LongTermMemoryService:
         user_id: str,
         conversation_id: str,
         summary: str,
-        key_points: List[str]
+        key_points: List[str],
+        work_id: Optional[str] = None  # ✅ 新增：作品ID（用于隔离不同作品的记忆）
     ):
         """
         保存会话摘要（用于跨会话记忆）
@@ -397,9 +398,11 @@ class LongTermMemoryService:
             conversation_id: 会话ID
             summary: 会话摘要
             key_points: 关键要点
+            work_id: 作品ID（可选，用于隔离不同作品的对话记忆）
         """
         data = {
             "conversation_id": conversation_id,
+            "work_id": work_id,  # ✅ 新增：记录work_id
             "summary": summary,
             "key_points": key_points,
             "timestamp": datetime.now().isoformat()
@@ -412,7 +415,15 @@ class LongTermMemoryService:
             json.dumps(data)
         )
 
-        # 添加到会话列表
+        # ✅ 新增：如果有work_id，按作品分组保存
+        if work_id:
+            work_list_key = f"user:{user_id}:work:{work_id}:conversations"
+            self.redis.lpush(work_list_key, conversation_id)
+            self.redis.ltrim(work_list_key, 0, 49)  # 最多保留50个会话
+            self.redis.expire(work_list_key, self.memory_ttl)
+            logger.info(f"[LTM] 保存对话到作品 {work_id} 的记忆列表")
+
+        # 添加到全局会话列表（保留原有逻辑，作为降级方案）
         list_key = f"user:{user_id}:conversation_list"
         self.redis.lpush(list_key, conversation_id)
         self.redis.ltrim(list_key, 0, 49)  # 最多保留50个会话
@@ -421,7 +432,8 @@ class LongTermMemoryService:
     def get_recent_conversations(
         self,
         user_id: str,
-        limit: int = 10
+        limit: int = 10,
+        work_id: Optional[str] = None  # ✅ 新增：作品ID过滤
     ) -> List[Dict[str, Any]]:
         """
         获取最近的会话摘要
@@ -429,31 +441,64 @@ class LongTermMemoryService:
         Args:
             user_id: 用户ID
             limit: 返回数量
+            work_id: 作品ID（可选，用于只获取特定作品的对话）
 
         Returns:
             List[Dict]: 会话摘要列表
         """
-        list_key = f"user:{user_id}:conversation_list"
-        conv_ids = self.redis.lrange(list_key, 0, limit - 1)
+        # 🔧 P0-3修复：规范化work_id
+        work_id = work_id if work_id and work_id.strip() else None
+
+        # ✅ 优先从work-specific列表检索
+        if work_id:
+            list_key = f"user:{user_id}:work:{work_id}:conversations"
+            conv_ids = self.redis.lrange(list_key, 0, limit - 1)
+            logger.info(f"[LTM] 从作品 {work_id} 检索到 {len(conv_ids)} 条对话ID")
+        else:
+            # 降级：使用全局列表（可能跨作品污染）
+            list_key = f"user:{user_id}:conversation_list"
+            conv_ids = self.redis.lrange(list_key, 0, limit - 1)
+            logger.warning(f"[LTM] work_id未设置，使用全局对话列表（可能跨作品污染）")
 
         summaries = []
         for conv_id in conv_ids:
             key = f"user:{user_id}:conv_summary:{conv_id.decode()}"
             data = self.redis.get(key)
             if data:
-                summaries.append(json.loads(data))
+                conv_data = json.loads(data)
 
+                # ✅ 二次过滤：确保work_id匹配（防止数据不一致）
+                # 🔧 修复：严格work_id隔离 - 指定work_id时只返回匹配的数据
+                stored_work_id = conv_data.get("work_id")
+
+                if work_id:
+                    # 当指定了work_id时，只接受完全匹配的数据
+                    if stored_work_id != work_id:
+                        # 过滤掉：不匹配的数据 或 旧数据（None）
+                        if stored_work_id is None:
+                            logger.info(f"[LTM] 过滤旧数据（无work_id）：conv_id={conv_id.decode()}, "
+                                      f"当前查询work_id={work_id}")
+                        else:
+                            logger.debug(f"[LTM] 过滤不匹配对话：conv_id={conv_id.decode()}, "
+                                       f"expected={work_id}, actual={stored_work_id}")
+                        continue
+
+                # work_id未指定时，接受所有数据（包括旧数据）
+                summaries.append(conv_data)
+
+        logger.info(f"[LTM] 最终返回 {len(summaries)} 条对话摘要 (work_id={work_id})")
         return summaries
 
     # ==================== 综合记忆检索 ====================
 
-    def get_user_context(self, user_id: str) -> Dict[str, Any]:
+    def get_user_context(self, user_id: str, work_id: Optional[str] = None) -> Dict[str, Any]:
         """
         获取用户的完整记忆上下文
         （供Agent使用，包含所有相关记忆）
 
         Args:
             user_id: 用户ID
+            work_id: 作品ID（可选，用于隔离不同作品的对话记忆）
 
         Returns:
             Dict: 完整的用户上下文
@@ -461,7 +506,12 @@ class LongTermMemoryService:
         preferences = self.get_user_preferences(user_id)
         style = self.get_writing_style(user_id)
         feedback_stats = self.get_feedback_stats(user_id)
-        recent_convs = self.get_recent_conversations(user_id, limit=3)
+        # ✅ P0遗漏修复：传递work_id以隔离不同作品的对话
+        recent_convs = self.get_recent_conversations(
+            user_id=user_id,
+            limit=3,
+            work_id=work_id
+        )
 
         return {
             "preferences": preferences.dict(),
@@ -512,18 +562,19 @@ class LongTermMemoryService:
         else:
             return "high"
 
-    def format_memory_for_prompt(self, user_id: str) -> str:
+    def format_memory_for_prompt(self, user_id: str, work_id: Optional[str] = None) -> str:
         """
         将用户记忆格式化为Prompt文本
         （供Agent的system prompt使用）
 
         Args:
             user_id: 用户ID
+            work_id: 作品ID（可选，用于记忆隔离）
 
         Returns:
             str: 格式化的记忆文本
         """
-        context = self.get_user_context(user_id)
+        context = self.get_user_context(user_id, work_id=work_id)
         prefs = context["preferences"]
         style = context["writing_style"]
 

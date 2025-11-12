@@ -69,7 +69,8 @@ class ContextManager:
         session_id: str,
         system_prompt: str = "",
         query: Optional[str] = None,  # ✅ 用于长期记忆检索的查询
-        task_type: Optional[Any] = None  # ✅ 新增：任务类型（用于自适应预算）
+        task_type: Optional[Any] = None,  # ✅ 新增：任务类型（用于自适应预算）
+        work_id: Optional[str] = None  # ✅ 新增：作品ID（用于向量记忆隔离）
     ) -> Dict[str, Any]:
         """
         构建上下文 - 用于chat_stream方法
@@ -80,6 +81,7 @@ class ContextManager:
             query: 查询文本（用于长期记忆检索，可选）
             task_type: 任务类型（用于自适应预算，可选）
                       可选值：TaskType.CREATIVE, TaskType.ANALYTICAL, TaskType.QA, TaskType.CHAT
+            work_id: 作品ID（可选，用于隔离不同作品的向量记忆）
 
         Returns:
             Dict包含:
@@ -131,7 +133,11 @@ class ContextManager:
         # ✅ 检索长期记忆（如果启用）
         long_term_memories = []
         if self.enable_long_term_memory and query and self._vector_store and self.user_id:
-            long_term_memories = await self._retrieve_long_term_memories(query)
+            # ✅ 修改：传递work_id进行记忆隔离
+            long_term_memories = await self._retrieve_long_term_memories(
+                query,
+                work_id=work_id  # ✅ 新增：传递work_id
+            )
 
         # 构建LLM消息列表
         messages = self._build_messages(context, long_term_memories)
@@ -210,7 +216,8 @@ class ContextManager:
         self,
         session_id: str,
         new_messages: List[Dict],
-        context: Optional[Context] = None
+        context: Optional[Context] = None,
+        work_id: Optional[str] = None  # ✅ 新增：作品ID（用于向量记忆隔离）
     ):
         """
         更新上下文 - chat_stream完成后调用
@@ -219,6 +226,7 @@ class ContextManager:
             session_id: 会话ID
             new_messages: 新消息列表 [{"role": "user", "content": "..."}, ...]
             context: 现有上下文（如果有）
+            work_id: 作品ID（可选，用于向量记忆隔离）
         """
         if not context:
             context = await self.store.load(session_id)
@@ -240,7 +248,8 @@ class ContextManager:
                 await self._save_to_long_term_memory(
                     content=message.content,
                     session_id=session_id,
-                    role=message.role
+                    role=message.role,
+                    work_id=work_id  # ✅ 新增：传递work_id
                 )
 
         # 保存更新后的上下文
@@ -496,7 +505,8 @@ class ContextManager:
         content: str,
         session_id: str,
         role: str,
-        importance: Optional[float] = None
+        importance: Optional[float] = None,
+        work_id: Optional[str] = None  # ✅ 新增：作品ID
     ):
         """
         保存到长期记忆
@@ -506,6 +516,7 @@ class ContextManager:
             session_id: 会话ID
             role: 角色（user/assistant）
             importance: 重要度（如未指定则自动评估）
+            work_id: 作品ID（可选，用于隔离不同作品的记忆）
         """
         if not self.enable_long_term_memory or not self._vector_store or not self.user_id:
             return
@@ -524,6 +535,7 @@ class ContextManager:
             memory_id = await self._vector_store.add_memory(
                 content=content,
                 user_id=self.user_id,
+                work_id=work_id,  # ✅ 新增：传递work_id
                 session_id=session_id,
                 memory_type="conversation",
                 importance=importance
@@ -531,6 +543,7 @@ class ContextManager:
 
             logger.info(
                 f"✅ 保存长期记忆 | ID={memory_id[:20]}... | "
+                f"work_id={work_id or 'NONE'} | "  # ✅ 新增：显示work_id
                 f"重要度={importance:.2f} | 长度={len(content)}"
             )
 
@@ -540,6 +553,7 @@ class ContextManager:
     async def _retrieve_long_term_memories(
         self,
         query: str,
+        work_id: Optional[str] = None,  # ✅ 新增：作品ID过滤
         top_k: int = 3,
         min_similarity: float = 0.3
     ) -> List[Dict]:
@@ -548,6 +562,7 @@ class ContextManager:
 
         Args:
             query: 查询文本
+            work_id: 作品ID（可选，用于只检索特定作品的记忆）
             top_k: 返回Top K结果
             min_similarity: 最低相似度
 
@@ -558,16 +573,18 @@ class ContextManager:
             return []
 
         try:
+            # ✅ 修改：传递work_id进行过滤
             memories = await self._vector_store.search_memories(
                 query=query,
                 user_id=self.user_id,
+                work_id=work_id,  # ✅ 新增：传递work_id
                 top_k=top_k,
                 min_similarity=min_similarity
             )
 
             logger.info(
-                f"🔍 检索长期记忆 | 查询='{query[:30]}...' | "
-                f"找到={len(memories)}条 | 阈值={min_similarity}"
+                f"🔍 检索长期记忆 | work_id={work_id or 'ALL'} | "  # ✅ 新增：显示work_id
+                f"查询='{query[:30]}...' | 找到={len(memories)}条 | 阈值={min_similarity}"
             )
 
             return memories

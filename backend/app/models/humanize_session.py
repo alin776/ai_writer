@@ -85,7 +85,7 @@ class HumanizeSessionDetail(Base):
     original_preview = Column(String(200), nullable=True)    # 原文前100字
     humanized_preview = Column(String(200), nullable=True)   # 改写后前100字
 
-    # 过期时间 (30天后自动清理)
+    # 过期时间 (7天后自动清理)
     expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
 
     # 时间戳

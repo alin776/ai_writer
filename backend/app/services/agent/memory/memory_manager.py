@@ -41,6 +41,7 @@ class MemoryManager:
     async def get_complete_context(
         self,
         user_id: str,
+        work_id: Optional[str] = None,  # ✅ 新增：作品ID（用于隔离不同作品的记忆）
         include_profile: bool = True,
         include_preferences: bool = True,
         include_recent_conversations: bool = True
@@ -51,6 +52,7 @@ class MemoryManager:
 
         Args:
             user_id: 用户ID
+            work_id: 作品ID（可选，用于隔离不同作品的对话记忆）
             include_profile: 是否包含用户画像
             include_preferences: 是否包含用户偏好
             include_recent_conversations: 是否包含最近会话
@@ -58,16 +60,22 @@ class MemoryManager:
         Returns:
             Dict: 完整上下文
         """
+        # 🔧 P0-3修复：规范化work_id，空字符串转为None
+        work_id = work_id if work_id and work_id.strip() else None
+
         context = {
             "user_id": user_id,
+            "work_id": work_id,  # ✅ 新增：记录当前作品ID
             "retrieved_at": datetime.now().isoformat()
         }
 
         if include_preferences:
             # 使用 asyncio.to_thread() 包装同步Redis调用，避免阻塞事件循环
+            # ✅ P0遗漏修复：传递work_id以隔离对话记忆
             context["user_context"] = await asyncio.to_thread(
                 self.long_term_memory.get_user_context,
-                user_id
+                user_id,
+                work_id  # ✅ 新增：传递work_id
             )
 
         if include_profile:
@@ -77,10 +85,13 @@ class MemoryManager:
             )
 
         if include_recent_conversations:
+            # ✅ 修改：传递work_id以隔离不同作品的对话
+            # ✅ P2修复：使用关键字参数，避免位置错误
             context["recent_conversations"] = await asyncio.to_thread(
                 self.long_term_memory.get_recent_conversations,
-                user_id,
-                3  # limit参数
+                user_id=user_id,
+                limit=3,
+                work_id=work_id
             )
 
         return context
@@ -88,7 +99,8 @@ class MemoryManager:
     def format_context_for_agent(
         self,
         user_id: str,
-        mode: str = "full"
+        mode: str = "full",
+        work_id: Optional[str] = None
     ) -> str:
         """
         为Agent格式化记忆上下文
@@ -97,12 +109,16 @@ class MemoryManager:
         Args:
             user_id: 用户ID
             mode: full/minimal/preferences_only
+            work_id: 作品ID（可选，用于记忆隔离）
 
         Returns:
             str: 格式化的上下文文本
         """
+        # 🔧 P0-3修复：规范化work_id
+        work_id = work_id if work_id and work_id.strip() else None
+
         if mode == "preferences_only":
-            return self.long_term_memory.format_memory_for_prompt(user_id)
+            return self.long_term_memory.format_memory_for_prompt(user_id, work_id=work_id)
 
         elif mode == "minimal":
             # 只包含最关键的信息
@@ -117,7 +133,7 @@ class MemoryManager:
 
         else:  # full
             # 完整上下文
-            part1 = self.long_term_memory.format_memory_for_prompt(user_id)
+            part1 = self.long_term_memory.format_memory_for_prompt(user_id, work_id=work_id)
             part2 = self.user_profile.format_profile_for_agent(user_id)
 
             parts = [part1, "\n", part2]
@@ -201,7 +217,8 @@ class MemoryManager:
         self,
         user_id: str,
         conversation_id: str,
-        messages: List[Dict[str, Any]]
+        messages: List[Dict[str, Any]],
+        work_id: Optional[str] = None  # ✅ 新增：作品ID
     ):
         """
         保存对话历史（带自动摘要）
@@ -210,6 +227,7 @@ class MemoryManager:
             user_id: 用户ID
             conversation_id: 会话ID
             messages: 对话消息列表
+            work_id: 作品ID（可选，用于隔离不同作品的对话）
         """
         # 简单的摘要生成（实际可以用LLM生成）
         summary = f"共{len(messages)}轮对话"
@@ -222,11 +240,13 @@ class MemoryManager:
                 if len(content) > 10:
                     key_points.append(content[:50])
 
+        # ✅ 修改：传递work_id
         self.long_term_memory.save_conversation_summary(
             user_id,
             conversation_id,
             summary,
-            key_points[:5]
+            key_points[:5],
+            work_id  # ✅ 新增：传递work_id
         )
 
     # ==================== 智能推荐 ====================
@@ -265,17 +285,19 @@ class MemoryManager:
 
     # ==================== 记忆统计 ====================
 
-    def get_memory_stats(self, user_id: str) -> Dict[str, Any]:
+    def get_memory_stats(self, user_id: str, work_id: Optional[str] = None) -> Dict[str, Any]:
         """
         获取记忆统计信息
 
         Args:
             user_id: 用户ID
+            work_id: 作品ID（可选，用于获取特定作品的统计）
 
         Returns:
             Dict: 统计信息
         """
-        user_context = self.long_term_memory.get_user_context(user_id)
+        # ✅ 修复：传递work_id以避免跨作品污染
+        user_context = self.long_term_memory.get_user_context(user_id, work_id=work_id)
         profile = self.user_profile.get_full_profile(user_id)
 
         return {

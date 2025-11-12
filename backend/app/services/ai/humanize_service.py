@@ -323,13 +323,19 @@ class HumanizeService:
             result["total_tokens"] += result["detection_tokens"]
 
             # 如果分数低于阈值,不需要去痕迹
+            # 注意: overall_score越高越像AI (0-100分制,80-100=明显AI,60-80=疑似,40-60=轻微,0-40=人类)
+            # threshold默认60分,低于60分说明AI痕迹较少,无需处理
             if result["detection"].overall_score < self.config.detection_threshold:
                 logger.info(
-                    f"AI特征分数较低 ({result['detection'].overall_score:.1f}),无需去痕迹"
+                    f"AI特征分数较低 ({result['detection'].overall_score:.1f} < {self.config.detection_threshold}),无需去痕迹"
                 )
                 result["humanized_text"] = text
                 result["processing_time"] = time.time() - start_time
                 return result
+
+            logger.info(
+                f"检测到AI特征 (分数={result['detection'].overall_score:.1f} >= {self.config.detection_threshold}),开始去痕迹"
+            )
 
         # 阶段2: 改写
         humanized_chunks = []

@@ -1,60 +1,59 @@
-# AI去痕迹化功能深度探索报告
+# 数据库连接泄漏Bug修复计划
 
-**分析时间**: 2025-11-12
-**分析范围**: 完整的AI去痕迹化功能实现
-**分析深度**: Very Thorough (最详尽级别)
+## 问题概述
+后台日志中发现**严重的数据库连接泄漏**问题，垃圾回收器正在尝试清理未归还连接池的数据库连接。
+
+## 错误信息
+```
+sqlalchemy.pool.impl.AsyncAdaptedQueuePool ERROR
+The garbage collector is trying to clean up non-checked-in connection
+Please ensure that SQLAlchemy pooled connections are returned to the pool explicitly,
+either by calling ``close()`` or by using appropriate context managers to manage their lifecycle.
+```
+
+## 发生位置（日志行号）
+- 第311-319行：LangGraph Agent Stream处理时
+- 第462-476行：AI续写请求时
+- 第532-534行：小说分析服务启动时
+
+## 待修复的任务清单
+
+### Phase 1: 问题调查
+- [ ] 检查 `backend/app/services/agent/langgraph_agent.py` 数据库连接使用
+- [ ] 检查 `backend/app/services/ai/http_ai_service.py` 数据库连接使用
+- [ ] 检查 `backend/app/services/novel_analysis_service.py` 数据库连接使用
+- [ ] 检查数据库会话上下文管理器使用情况
+- [ ] 识别所有未使用 `async with` 的数据库操作
+
+### Phase 2: 代码修复
+- [ ] 修复 LangGraph Agent 中的连接泄漏
+- [ ] 修复 AI 服务中的连接泄漏
+- [ ] 修复小说分析服务中的连接泄漏
+- [ ] 确保所有数据库操作都使用上下文管理器
+- [ ] 添加连接池监控日志
+
+### Phase 3: 验证与测试
+- [ ] 运行后台服务
+- [ ] 测试Agent聊天功能
+- [ ] 测试AI续写功能
+- [ ] 测试小说分析功能
+- [ ] 确认日志中无连接泄漏警告
+
+### Phase 4: 其他问题
+- [ ] 检查Redis连接超时问题（第567行）
+- [ ] 优化Redis连接重试机制
 
 ---
 
-## 🎯 执行概要
+## 次要问题
 
-本次深度探索对AI去痕迹化功能进行了全面审查，涵盖7个核心模块、15个文件、2800+行代码。发现了**17个关键问题**和**8个架构缺陷**。
-
-### 核心发现
-
-**优势**:
-- 三阶段处理流程设计合理（检测→改写→验证）
-- 双AI架构（快速模型+标准模型）实现得当
-- NLP预处理器有效降低成本
-- 完善的数据模型设计（分离核心数据和详情数据）
-- 良好的配置管理和可扩展性
-
-**关键问题**:
-- API层存在4个严重的逻辑错误
-- 缺少流式响应API（用户体验差）
-- Token计算逻辑混乱（3处不一致）
-- 缺少缓存机制（重复请求浪费成本）
-- 测试覆盖率不足（仅1个测试文件）
-- 缺少监控和告警
-- 用户画像服务有并发安全问题
-- 定时清理任务未启动
+### Redis连接超时（非致命）
+- 第567行：`Redis连接失败,缓存功能将禁用: Timeout connecting to server`
+- 系统已做容错处理，降级为不使用缓存
+- 需要检查Redis服务状态
 
 ---
 
-## 📂 一. 架构全景图
+## 下一步
 
-### 1.1 模块依赖关系
-
-
-
-### 1.2 文件清单（15个核心文件）
-
-| 文件 | 行数 | 职责 | 状态 |
-|------|------|------|------|
-| humanize_service.py | 395 | 核心服务，三阶段流程 | ⚠️ 3个问题 |
-| humanize.py (API) | 501 | REST API接口 | 🔴 4个严重问题 |
-| nlp_preprocessor.py | 244 | NLP预处理 | ✅ 良好 |
-| humanize_prompts.py | 317 | Prompt模板库 | ✅ 设计优秀 |
-| fast_ai_service.py | 331 | 快速AI服务 | ✅ 良好 |
-| humanize_config.py | 140 | 配置管理 | ⚠️ 1个问题 |
-| humanize_session.py | 99 | 数据模型 | ✅ 设计合理 |
-| user_profile.py | 84 | 用户画像模型 | ✅ 良好 |
-| humanize.py (Schema) | 194 | 数据验证 | ✅ 完善 |
-| user_profile_service.py | 314 | 用户画像服务 | ⚠️ 2个问题 |
-| humanize_session_service.py | 278 | 会话服务（未使用） | ⚠️ 冗余代码 |
-| cleanup_humanize_details.py | 101 | 定时清理 | 🔴 未启动 |
-| json_parser.py | 279 | JSON解析工具 | ✅ 健壮 |
-| test_nlp_preprocessor.py | 97 | 单元测试 | ⚠️ 覆盖不足 |
-| add_humanize_tables.py | 154 | 数据库迁移 | ✅ 完整 |
-
-**总代码行数**: ~2800行
+等待用户确认此计划，然后开始调查和修复数据库连接泄漏问题。
