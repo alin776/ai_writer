@@ -162,7 +162,7 @@ class Context:
 @dataclass
 class TokenBudget:
     """Token预算配置"""
-    total: int = 8000  # 总预算（适配常见模型）
+    total: int = 16000  # ✅ 总预算提升到16000（适配现代大模型：GPT-4, Claude等）
     system_prompt: float = 0.20  # 20% - 系统提示
     summary: float = 0.25  # 25% - 摘要上下文
     short_memory: float = 0.35  # 35% - 近期对话

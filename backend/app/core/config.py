@@ -145,6 +145,8 @@ class Settings(BaseSettings):
     # 小说分析配置
     ANALYSIS_MAX_RETRIES: int = 3  # 单章分析失败最大重试次数
     ANALYSIS_TIMEOUT: int = 3600  # 整体分析超时时间（秒），默认1小时
+    ANALYSIS_MIN_CONTENT_LENGTH: int = 100  # 章节最小内容长度（字符数），用于验证
+    ANALYSIS_MIN_MICRO_CONTENT_LENGTH: int = 50  # 微观分析最小内容长度（字符数）
 
     # ==================== Agent 增强功能配置 ====================
 

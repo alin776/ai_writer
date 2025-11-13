@@ -87,12 +87,13 @@ class WritingAction(BaseAction):
                 f"phase={phase.value if phase else None}, chapter_num={chapter_num}"
             )
 
-            # 3. 生成系统Prompt
+            # 3. 生成系统Prompt（传递state以提取上下文）
             system_prompt = self._build_system_prompt(
                 phase=phase,
                 chapter_num=chapter_num,
                 work_id=work_id,
-                chapter_id=chapter_id
+                chapter_id=chapter_id,
+                state=state  # ✅ 传递state用于提取场景设定
             )
 
             # 4. 返回准备好的参数
@@ -169,12 +170,57 @@ class WritingAction(BaseAction):
 
         return None, None
 
+    def _extract_context_from_messages(self, messages: list) -> str:
+        """
+        从消息历史中提取场景设定和上下文
+
+        提取包含场景设定的关键消息，确保AI遵循用户的场景要求
+
+        Args:
+            messages: 消息列表
+
+        Returns:
+            str: 提取的上下文摘要
+        """
+        context_parts = []
+
+        # 遍历消息历史（排除最后一条，因为是当前请求）
+        for msg in messages[:-1] if len(messages) > 1 else []:
+            if not hasattr(msg, 'content'):
+                continue
+
+            content = str(msg.content)
+
+            # 检查是否包含场景设定关键词
+            scene_keywords = [
+                "场景", "主角", "氛围", "设定", "背景",
+                "时代", "地点", "角色", "人物", "剧情",
+                "世界观", "风格", "类型", "主题"
+            ]
+
+            # 如果消息包含场景设定关键词，提取该消息
+            if any(keyword in content for keyword in scene_keywords):
+                # 限制长度避免prompt过长
+                if len(content) > 500:
+                    content = content[:500] + "..."
+                context_parts.append(content)
+                self.logger.info(f"[{self.name}] 提取到场景设定消息（长度：{len(content)}）")
+
+        if context_parts:
+            result = "\n\n".join(context_parts)
+            self.logger.info(f"[{self.name}] 共提取 {len(context_parts)} 条上下文消息")
+            return result
+
+        self.logger.warning(f"[{self.name}] 未找到场景设定消息")
+        return ""
+
     def _build_system_prompt(
         self,
         phase: Optional[NovelPhase],
         chapter_num: Optional[int],
         work_id: Optional[str],
-        chapter_id: Optional[str]
+        chapter_id: Optional[str],
+        state: Dict[str, Any]
     ) -> str:
         """
         构建系统Prompt
@@ -186,10 +232,15 @@ class WritingAction(BaseAction):
             chapter_num: 章节号
             work_id: 作品ID
             chapter_id: 章节ID
+            state: AgentState（用于提取消息历史）
 
         Returns:
             str: 系统Prompt
         """
+        # ✅ 从消息历史中提取场景设定上下文
+        messages = state.get("messages", [])
+        context_summary = self._extract_context_from_messages(messages)
+
         # 基础Prompt
         if phase:
             # 使用阶段优化的Prompt（保留原有逻辑）
@@ -204,10 +255,11 @@ class WritingAction(BaseAction):
         else:
             # 🔧 使用 PromptManager 渲染默认 Prompt
             try:
+                # ✅ 修复：传递真实的上下文摘要，而不是空字符串
                 base_prompt = self.prompt_manager.render(
                     "writing_agent",
                     user_message="",  # 此处不需要具体消息
-                    context_summary="",
+                    context_summary=context_summary,  # ✅ 使用提取的场景设定
                     user_preferences={},
                     writing_constraints=[],
                     examples=[]

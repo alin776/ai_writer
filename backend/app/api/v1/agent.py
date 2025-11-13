@@ -968,25 +968,19 @@ async def agent_chat_stream(
             start_event = {'type': 'start', 'conversation_id': conversation_id, 'mode': str(actual_mode)}
             yield f"data: {json.dumps(start_event, ensure_ascii=False)}\n\n"
 
-            # 获取记忆上下文
-            # ✅ P0修复：传递work_id以隔离不同作品的记忆
-            user_context = await memory.get_complete_context(
-                user_id,
-                work_id=request.work_id  # ✅ 传递work_id进行记忆隔离
-            )
-            memory_context = memory.format_context_for_agent(
-                user_id,
-                mode="chat",
-                work_id=request.work_id  # ✅ 修复：传递work_id避免记忆污染
-            )
+            # ✅ 修复：删除多余的 MemoryManager 调用
+            # WritingAgentGraph 内部已有 ContextManager（使用 VectorStore 的语义搜索）
+            # 不再需要从 Redis 获取空的会话列表
+            # 注释原因：
+            # 1. MemoryManager.get_complete_context() 从 Redis 查询会话列表 → 返回0条（Redis里没数据）
+            # 2. WritingAgentGraph 已经有 ContextManager → 从 ChromaDB 检索（有数据）
+            # 3. 导致重复检索且使用了错误的数据源
 
             # 获取全局共享的 LangGraph Agent
             agent_graph = get_agent_graph()
 
             # 准备上下文（创建新dict避免修改原request）
             context = dict(request.context) if request.context else {}
-            context["memory_context"] = memory_context
-            context["user_context"] = user_context
 
             # ✅ 追踪活动状态（用于发送 activity_complete 事件）
             last_activity_step = {'step': None, 'start_time': None}

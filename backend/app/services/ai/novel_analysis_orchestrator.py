@@ -105,7 +105,8 @@ class NovelAnalysisOrchestrator:
             from app.services.work_service import WorkService
             work_service = WorkService(self.db)
             work = await work_service.get_work_by_id(work_id)
-            user_id = str(work.user_id) if work and work.user_id else None
+            # ✅ 修复：Work模型使用的是author_id，不是user_id
+            user_id = str(work.author_id) if work and work.author_id else None
 
             # 2. 更新状态为"分析中"
             await self.analysis_service.update_progress(
@@ -134,7 +135,41 @@ class NovelAnalysisOrchestrator:
             if not chapters:
                 raise Exception(f"作品 {work_id} 没有章节可供分析")
 
-            logger.info(f"共获取 {len(chapters)} 个章节，开始微观分析...")
+            # ✅ 修复：检查章节内容是否为空
+            from app.core.config import settings
+            MIN_CONTENT_LENGTH = settings.ANALYSIS_MIN_CONTENT_LENGTH
+            empty_chapters = []
+            for ch in chapters:
+                if not ch.content or len(ch.content.strip()) < MIN_CONTENT_LENGTH:
+                    chapter_label = ch.title or f"第{ch.order}章"
+                    empty_chapters.append({
+                        "label": chapter_label,
+                        "length": len(ch.content.strip()) if ch.content else 0
+                    })
+
+            if empty_chapters:
+                # 构建详细的错误消息
+                chapter_list = []
+                for ec in empty_chapters[:5]:  # 最多显示5个
+                    chapter_list.append(f"  - {ec['label']} (当前{ec['length']}字符)")
+
+                error_msg = (
+                    f"无法开始分析：以下 {len(empty_chapters)} 个章节内容为空或过短\n\n"
+                    f"{chr(10).join(chapter_list)}"
+                )
+
+                if len(empty_chapters) > 5:
+                    error_msg += f"\n  - ...还有 {len(empty_chapters)-5} 个章节"
+
+                error_msg += (
+                    f"\n\n要求：每个章节至少需要 {MIN_CONTENT_LENGTH} 字符的内容\n"
+                    f"建议：填写章节内容后再触发分析，以获得完整的分析报告"
+                )
+
+                logger.error(f"分析前验证失败: {len(empty_chapters)}/{len(chapters)} 章节内容不足")
+                raise ValueError(error_msg)
+
+            logger.info(f"共获取 {len(chapters)} 个章节，内容验证通过，开始微观分析...")
 
             # 5. 执行微观分析（并行版本）⚡
             logger.info(f"⚡ 使用并行分析模式 (并发数: {settings.NOVEL_ANALYSIS_MAX_CONCURRENT})")

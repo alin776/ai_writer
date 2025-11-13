@@ -61,21 +61,55 @@ class NovelMacroAnalysisService:
     ) -> str:
         """
         执行宏观分析（生成三大报告）
-        
+
         Args:
             micro_results: 所有章节的微观分析结果列表
             max_retries: 最大重试次数
-            
+
         Returns:
             str: 宏观分析报告文本
-            
+
         Raises:
             Exception: 分析失败
         """
         if not micro_results:
             raise ValueError("微观分析结果列表不能为空")
-        
-        logger.info(f"开始宏观分析，共 {len(micro_results)} 个章节的数据")
+
+        # ✅ 修复：检查微观数据质量
+        total_events = sum(len(r.get('detailed_events', [])) for r in micro_results)
+        empty_chapters = [r for r in micro_results if len(r.get('detailed_events', [])) == 0]
+
+        if total_events == 0:
+            logger.warning(f"所有 {len(micro_results)} 个章节的微观分析均未提取到事件数据")
+            return f"""## 分析提示
+
+本次宏观分析无法生成完整报告，原因：
+
+- 共分析 {len(micro_results)} 个章节，但所有章节均未提取到有效事件数据
+- 可能原因：章节内容为空或过短，AI无法提取结构化信息
+
+### 建议操作
+
+1. 填写章节内容：请为每个章节填写至少100字符以上的实际内容
+2. 重新触发分析：内容填写完成后，点击"开始分析"按钮
+3. 查看文档：了解如何撰写适合分析的章节内容
+
+### 数据统计
+
+- 分析章节数：{len(micro_results)}
+- 提取事件数：0
+- 空章节数：{len(empty_chapters)}
+
+如需技术支持，请联系客服。
+"""
+
+        if len(empty_chapters) > 0:
+            logger.warning(
+                f"有 {len(empty_chapters)}/{len(micro_results)} 个章节未提取到事件数据，"
+                f"可能影响分析质量"
+            )
+
+        logger.info(f"开始宏观分析，共 {len(micro_results)} 个章节的数据，{total_events} 个事件")
         
         # 构建用户消息
         user_prompt = self._build_macro_prompt(micro_results)

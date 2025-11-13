@@ -27,8 +27,10 @@ async def get_tool_decision_static_prompt() -> str:
         对所有请求都相同，因此可以安全缓存。
     """
     return """判断是否需要工具。可用工具:
-需work_id: get_chapter_by_order, get_context, read_chapter, search_fragments
-不需work_id: continue_writing, polish_text, analyze_text
+需work_id: get_chapter_by_order_tool, get_context_tool, read_chapter_tool, search_analysis_fragments_tool
+不需work_id: continue_writing_tool, polish_text_tool, analyze_text_tool
+
+⚠️ 重要：必须严格返回JSON格式，不要返回自然语言！
 
 返回JSON:
 - 需要: {{"need_tools": true, "tool_name": "工具名", "tool_args": {{}}}}
@@ -38,8 +40,9 @@ async def get_tool_decision_static_prompt() -> str:
 示例:
 "获取第3章" + work_id已设置 → {{"need_tools": true, "tool_name": "get_chapter_by_order_tool", "tool_args": {{"chapter_order": 3}}}}
 "获取第3章" + work_id未设置 → {{"need_tools": false, "direct_response": "请先告诉我是哪部作品？"}}
+"刚才我问了什么？" → {{"need_tools": false, "direct_response": "您刚才询问了..."}}
 
-请判断并返回JSON:"""
+⚠️ 请严格返回JSON格式，不要直接回答问题:"""
 
 
 @cache_review(expire=3600, key_prefix="prompt")

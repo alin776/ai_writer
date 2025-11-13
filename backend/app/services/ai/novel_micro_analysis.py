@@ -110,6 +110,24 @@ class NovelMicroAnalysisService:
         # 2. 缓存未命中,执行AI分析
         logger.info(f"开始AI分析章节: {chapter_id} - {chapter_title}")
 
+        # ✅ 修复：检查内容是否为空或过短
+        from app.core.config import settings
+        MIN_CONTENT_LENGTH = settings.ANALYSIS_MIN_MICRO_CONTENT_LENGTH
+        if not chapter_text or len(chapter_text.strip()) < MIN_CONTENT_LENGTH:
+            content_length = len(chapter_text.strip()) if chapter_text else 0
+            logger.warning(
+                f"章节 {chapter_id} 内容过短（{content_length}字符 < {MIN_CONTENT_LENGTH}字符），"
+                f"返回空分析结果"
+            )
+            # 返回空结构而不是调用AI
+            return {
+                "chapter_id": chapter_id,
+                "analysis_type": "Micro_Detail_Extraction",
+                "detailed_events": [],
+                "chapter_theme": "内容待填写",
+                "warning": f"章节内容过短（{content_length}字符），建议至少填写{MIN_CONTENT_LENGTH}字符"
+            }
+
         # 使用配置的重试次数，如果未指定则使用配置值
         if max_retries is None:
             max_retries = settings.ANALYSIS_MAX_RETRIES - 1  # 减1因为第一次不算重试

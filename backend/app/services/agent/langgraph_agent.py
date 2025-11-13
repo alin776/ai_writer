@@ -1088,11 +1088,18 @@ class WritingAgentGraph:
 
         # 初始化上下文管理器（用于chat_stream的长对话管理）
         from app.services.context import ContextManager
+        from app.services.context.adaptive_budget import get_adaptive_budget
+
+        # ✅ 启用自适应预算：根据任务类型智能分配Token，总预算提升到16000
+        adaptive_budget = get_adaptive_budget(total=16000)
+
         self.context_manager = ContextManager(
             ai_service=self.ai_service,  # 传入AI服务（用于LLM摘要）
-            enable_long_term_memory=True  # 启用长期记忆
+            enable_long_term_memory=True,  # 启用长期记忆
+            enable_adaptive_budget=True,  # ✅ 启用自适应预算
+            adaptive_budget=adaptive_budget  # ✅ 传入自适应预算实例（16000 tokens）
         )
-        logger.info("[LangGraph] ✅ ContextManager已初始化（长期记忆已启用）")
+        logger.info("[LangGraph] ✅ ContextManager已初始化（长期记忆已启用，自适应预算已启用，总预算=16000 tokens）")
 
         # 初始化Prompt管理器（用于统一管理各类Agent的Prompt模板）
         from app.prompts import get_prompt_manager
@@ -1312,15 +1319,17 @@ class WritingAgentGraph:
 
     async def _generate_text(
         self,
-        prompt: str,
+        prompt: Optional[str] = None,
+        messages: Optional[List] = None,  # ✅ 新增：支持消息列表（修复记忆问题）
         temperature: float = 0.7,
         max_tokens: int = 1000,
-        task_type: Optional[TaskType] = None  # ← 新增参数
+        task_type: Optional[TaskType] = None
     ) -> dict:
         """生成文本的辅助方法（根据use_chatgpt选择使用ChatOpenAI或HTTPAIService）
 
         Args:
-            prompt: 提示词
+            prompt: 提示词（可选，与messages二选一）
+            messages: 消息列表（可选，与prompt二选一，格式：[{"role": "user", "content": "..."}]）
             temperature: 温度参数
             max_tokens: 最大token数
             task_type: 任务类型（用于模型选择）
@@ -1328,6 +1337,11 @@ class WritingAgentGraph:
         Returns:
             dict: {"text": str, "usage": dict}
         """
+        # ✅ 参数验证
+        if prompt is None and messages is None:
+            raise ValueError("prompt 和 messages 必须至少提供一个")
+        if prompt is not None and messages is not None:
+            raise ValueError("prompt 和 messages 不能同时提供")
         from app.services.agent.utils.monitoring import increment_counter
 
         # ✅ P0-1: 添加120秒超时保护（匹配ChatOpenAI的request_timeout）
@@ -1336,8 +1350,22 @@ class WritingAgentGraph:
                 # 🔧 修复：根据use_chatgpt选择使用ChatOpenAI还是HTTPAIService
                 if self.use_chatgpt:
                     # 模式1：使用ChatOpenAI（触发监控）
-                    from langchain_core.messages import HumanMessage
-                    messages = [HumanMessage(content=prompt)]
+                    from langchain_core.messages import HumanMessage, AIMessage as LangChainAIMessage
+
+                    # ✅ 构建消息列表
+                    if messages is not None:
+                        # 使用提供的消息列表
+                        lc_messages = []
+                        for msg in messages:
+                            role = msg.get("role", "user")
+                            content = msg.get("content", "")
+                            if role == "user":
+                                lc_messages.append(HumanMessage(content=content))
+                            elif role == "assistant":
+                                lc_messages.append(LangChainAIMessage(content=content))
+                    else:
+                        # 使用单个prompt（向后兼容）
+                        lc_messages = [HumanMessage(content=prompt)]
 
                     # 调用ChatOpenAI（会触发MonitoringCallbackHandler）
                     # ✅ 使用 bind() 动态绑定参数，确保 temperature 和 max_tokens 生效
@@ -1345,7 +1373,7 @@ class WritingAgentGraph:
                         temperature=temperature,
                         max_tokens=max_tokens
                     )
-                    response = await llm_with_params.ainvoke(messages)
+                    response = await llm_with_params.ainvoke(lc_messages)
 
                     generated_text = response.content
 
@@ -1368,13 +1396,19 @@ class WritingAgentGraph:
                     }
                 else:
                     # 模式2：使用HTTPAIService（兼容模式）
-                    messages = [{"role": "user", "content": prompt}]
+                    # ✅ 构建消息列表
+                    if messages is not None:
+                        # 使用提供的消息列表
+                        http_messages = messages
+                    else:
+                        # 使用单个prompt（向后兼容）
+                        http_messages = [{"role": "user", "content": prompt}]
 
                     generated_text = ""
                     usage = None
 
                     async for chunk, chunk_usage in self.ai_service._stream_chat(
-                        messages=messages,
+                        messages=http_messages,
                         max_tokens=max_tokens,
                         temperature=temperature,
                         task_type=task_type  # ← 传递task_type
@@ -1567,7 +1601,7 @@ class WritingAgentGraph:
         if messages and isinstance(messages[-1], ToolMessage):
             logger.info(f"[LangGraph] {agent_type} - 处理工具执行结果 (HTTPAIService)")
 
-            # 获取用户原始请求
+            # 获取用户原始请求（第一条HumanMessage）
             user_message = ""
             for msg in messages:
                 if isinstance(msg, HumanMessage):
@@ -1587,13 +1621,11 @@ class WritingAgentGraph:
             is_read_request = any(keyword in user_message for keyword in read_keywords)
             is_write_request = any(keyword in user_message for keyword in write_keywords)
 
-            # 根据 agent_type 和用户实际意图定制响应方式
+            # 构建任务指令（不包含 system_prompt，因为会单独添加）
             if agent_type == "writing":
                 # 如果用户明确想「读取/查看」内容
                 if is_read_request and not is_write_request:
-                    final_prompt = f"""{system_prompt}
-
-用户请求：{user_message}
+                    task_instruction = f"""用户请求：{user_message}
 
 工具返回的真实数据（JSON格式）：
 {tool_result}
@@ -1624,9 +1656,7 @@ class WritingAgentGraph:
 
                 # 如果用户明确想「创作/续写」内容
                 else:
-                    final_prompt = f"""{system_prompt}
-
-用户请求：{user_message}
+                    task_instruction = f"""用户请求：{user_message}
 
 工具提供的真实上下文数据（JSON格式）：
 {tool_result}
@@ -1653,9 +1683,7 @@ class WritingAgentGraph:
 请直接开始续写内容（至少500字），不要重复说明你看到了什么数据。"""
 
             elif agent_type == "stuck":
-                final_prompt = f"""{system_prompt}
-
-用户遇到的问题：{user_message}
+                task_instruction = f"""用户遇到的问题：{user_message}
 
 当前创作背景：
 {tool_result}
@@ -1666,9 +1694,7 @@ class WritingAgentGraph:
 3. 示例开头（50字左右）"""
 
             elif agent_type == "planning":
-                final_prompt = f"""{system_prompt}
-
-用户需求：{user_message}
+                task_instruction = f"""用户需求：{user_message}
 
 当前信息：
 {tool_result}
@@ -1678,9 +1704,7 @@ class WritingAgentGraph:
             else:  # analysis 或其他
                 # 如果用户明确想「读取/查看」内容
                 if is_read_request and not is_write_request:
-                    final_prompt = f"""{system_prompt}
-
-用户请求：{user_message}
+                    task_instruction = f"""用户请求：{user_message}
 
 工具返回的数据：
 {tool_result}
@@ -1688,14 +1712,51 @@ class WritingAgentGraph:
 请注意：用户想要「查看/读取」内容！
 请直接整理并呈现工具返回的数据内容，用清晰易读的格式展示给用户。"""
                 else:
-                    final_prompt = f"""{system_prompt}
-
-用户请求：{user_message}
+                    task_instruction = f"""用户请求：{user_message}
 
 分析材料：
 {tool_result}
 
 请基于材料，生成详细的分析报告。"""
+
+            # ✅ 记忆修复：构建包含历史消息的完整对话上下文
+            response_messages = []
+
+            # 1. 添加系统提示
+            response_messages.append({
+                "role": "system",
+                "content": system_prompt
+            })
+
+            # 2. 添加历史对话消息（排除工具调用相关消息）
+            # ✅ 优化：限制历史消息数量，避免 token 无限增长
+            MAX_HISTORY_MESSAGES = 20  # 最多保留最近10轮对话（20条消息）
+
+            history_messages = []
+            for msg in messages[:-1]:  # 排除最后一条 ToolMessage
+                if isinstance(msg, HumanMessage):
+                    history_messages.append({"role": "user", "content": msg.content})
+                elif isinstance(msg, AIMessage):
+                    # 跳过工具调用相关的AI消息
+                    if not msg.content.startswith("我需要使用"):
+                        history_messages.append({"role": "assistant", "content": msg.content})
+                # SystemMessage 和 ToolMessage 不添加到历史
+
+            # ✅ 如果历史消息过多，只保留最近的 N 条
+            if len(history_messages) > MAX_HISTORY_MESSAGES:
+                history_messages = history_messages[-MAX_HISTORY_MESSAGES:]
+                logger.info(f"[LangGraph] ⚠️ 工具响应阶段：历史消息过多，截断为最近 {MAX_HISTORY_MESSAGES} 条")
+
+            # 添加到响应消息列表
+            response_messages.extend(history_messages)
+
+            # 3. 添加当前的任务指令（包含工具结果）
+            response_messages.append({
+                "role": "user",
+                "content": task_instruction
+            })
+
+            logger.info(f"[LangGraph] 🧠 工具响应阶段：传递 {len(response_messages)} 条消息给AI（包含历史对话）")
 
             # 根据 agent_type 和用户意图智能选择 task_type
             if agent_type == "writing":
@@ -1720,9 +1781,9 @@ class WritingAgentGraph:
 
             logger.info(f"[LangGraph] {agent_type} 最终响应使用模型: task_type={selected_task_type.value}")
 
-            # ✅ 使用 _generate_text 以支持 ChatOpenAI/HTTPAIService 双模式
+            # ✅ 使用 _generate_text 传递完整历史
             result = await self._generate_text(
-                prompt=final_prompt,
+                messages=response_messages,  # ✅ 传递包含历史的消息列表
                 max_tokens=1500,
                 temperature=0.7,
                 task_type=selected_task_type  # 智能选择的task_type
@@ -1765,16 +1826,46 @@ class WritingAgentGraph:
         # ✅ Phase 2.6: 使用缓存的静态 Prompt（节省构建时间和 Token）
         static_prompt = await get_tool_decision_static_prompt()
 
-        decision_prompt = f"""{system_prompt}
+        # ✅ 记忆修复：构建包含历史消息的完整对话上下文
+        chat_messages = []
 
-用户: {last_user_message}
+        # 1. 添加系统提示作为第一条消息
+        chat_messages.append({
+            "role": "system",
+            "content": f"""{system_prompt}
+
 {context_info}
 
 {static_prompt}"""
+        })
+
+        # 2. 添加历史对话消息（保留上下文）
+        # ✅ 优化：限制历史消息数量，避免 token 无限增长
+        MAX_HISTORY_MESSAGES = 10  # 最多保留最近5轮对话（10条消息）
+
+        history_messages = []
+        for msg in messages:
+            if isinstance(msg, HumanMessage):
+                history_messages.append({"role": "user", "content": msg.content})
+            elif isinstance(msg, AIMessage):
+                # 跳过工具调用相关的AI消息（避免混淆）
+                if not msg.content.startswith("我需要使用"):
+                    history_messages.append({"role": "assistant", "content": msg.content})
+            # SystemMessage 和 ToolMessage 不添加到历史（已在系统提示中或不需要）
+
+        # ✅ 如果历史消息过多，只保留最近的 N 条
+        if len(history_messages) > MAX_HISTORY_MESSAGES:
+            history_messages = history_messages[-MAX_HISTORY_MESSAGES:]
+            logger.info(f"[LangGraph] ⚠️ 历史消息过多，截断为最近 {MAX_HISTORY_MESSAGES} 条")
+
+        # 添加到聊天消息列表
+        chat_messages.extend(history_messages)
+
+        logger.info(f"[LangGraph] 🧠 记忆修复：传递 {len(chat_messages)} 条消息给AI（包含历史对话）")
 
         # ✅ 使用 _generate_text 以支持 ChatOpenAI/HTTPAIService 双模式
         result = await self._generate_text(
-            prompt=decision_prompt,
+            messages=chat_messages,  # ✅ 传递完整消息历史
             max_tokens=200,  # ✅ Phase 2.5: 优化从500→200 (JSON响应通常<100 tokens)
             temperature=0.3,
             task_type=TaskType.SIMPLE_QA  # 工具决策任务
@@ -1810,12 +1901,12 @@ class WritingAgentGraph:
                 except:
                     continue
 
-        # 方法 3: 如果都失败，返回默认决策
+        # 方法 3: 如果都失败，使用AI的原始回答
         if not decision:
-            logger.error(f"[LangGraph] 无法解析决策，原文: {decision_text[:200]}")
+            logger.warning(f"[LangGraph] 无法解析JSON决策，使用原始回答，原文前200字符: {decision_text[:200]}")
             decision = {
                 "need_tools": False,
-                "direct_response": "抱歉，我在理解您的请求时遇到了问题。能否更详细地描述一下？"
+                "direct_response": decision_text.strip()  # ✅ 使用AI的原始回答，而不是默认错误消息
             }
 
         logger.info(f"[LangGraph] 最终决策: {decision}")
@@ -1965,8 +2056,6 @@ class WritingAgentGraph:
 
             # 智能清理策略：根据消息数量动态调整
             if message_count > 8:  # 降低阈值，更早触发清理
-                logger.info(f"[LangGraph] 🧹 智能清理累积消息：{message_count}条 -> ", end="")
-
                 # 分类消息
                 system_messages = []
                 user_messages = []
@@ -2017,7 +2106,7 @@ class WritingAgentGraph:
                         cleaned_messages.append(msg)
 
                 updated_state["messages"] = cleaned_messages
-                logger.info(f"保留{len(cleaned_messages)}条（压缩率{100 - len(cleaned_messages) * 100 // message_count}%）")
+                logger.info(f"[LangGraph] 🧹 智能清理累积消息：{message_count}条 -> 保留{len(cleaned_messages)}条（压缩率{100 - len(cleaned_messages) * 100 // message_count}%）")
             else:
                 logger.debug(f"[LangGraph] 消息数量{message_count}条，无需清理")
 
@@ -3240,7 +3329,7 @@ chapter_id: {chapter_id}
 
                 try:
                     plan_result = await self._generate_text(
-                        plan_prompt,
+                        prompt=plan_prompt,  # ✅ 修复：使用关键字参数
                         temperature=0.3,
                         max_tokens=600,  # ✅ Phase 2.5: 优化从1000→600 (JSON任务列表)
                         task_type=TaskType.SIMPLE_QA  # ← Planning阶段用轻量模型快速生成任务列表
