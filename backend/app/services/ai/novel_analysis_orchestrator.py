@@ -89,18 +89,24 @@ class NovelAnalysisOrchestrator:
         """
         analysis = None
         start_time = time.time()
-        
+
         try:
             logger.info(f"=" * 60)
             logger.info(f"开始分析作品: {work_id}")
             logger.info(f"=" * 60)
-            
+
             # 1. 获取或创建分析任务
             analysis = await self.analysis_service.get_analysis_by_work(work_id)
             if not analysis:
                 logger.error(f"未找到作品 {work_id} 的分析任务")
                 return False
-            
+
+            # 获取作品的user_id (用于token记录)
+            from app.services.work_service import WorkService
+            work_service = WorkService(self.db)
+            work = await work_service.get_work_by_id(work_id)
+            user_id = str(work.user_id) if work and work.user_id else None
+
             # 2. 更新状态为"分析中"
             await self.analysis_service.update_progress(
                 analysis_id=str(analysis.id),
@@ -108,18 +114,26 @@ class NovelAnalysisOrchestrator:
                 status=AnalysisStatus.ANALYZING,
                 current_stage=AnalysisStage.MICRO_ANALYSIS
             )
-            
-            # 3. 初始化AI服务
+
+            # 3. 初始化AI服务（传入user_id和db用于token记录）
             logger.info("初始化AI分析服务...")
-            self.micro_service = NovelMicroAnalysisService()
-            self.macro_service = NovelMacroAnalysisService()
-            
+            self.micro_service = NovelMicroAnalysisService(
+                user_id=user_id,
+                db=self.db,
+                work_id=work_id
+            )
+            self.macro_service = NovelMacroAnalysisService(
+                user_id=user_id,
+                db=self.db,
+                work_id=work_id
+            )
+
             # 4. 获取所有章节
             chapters = await self.analysis_service.get_chapters_for_analysis(work_id)
-            
+
             if not chapters:
                 raise Exception(f"作品 {work_id} 没有章节可供分析")
-            
+
             logger.info(f"共获取 {len(chapters)} 个章节，开始微观分析...")
 
             # 5. 执行微观分析（并行版本）⚡

@@ -99,9 +99,9 @@ class ModelTier(BaseModel):
 
 # 参考价格 (2025年1月, 单位: USD per 1M tokens)
 # Gemini 2.5 系列 (Google):
-# - gemini-2.5-pro: $1.25 input / $5.00 output (最高质量, 8K上下文)
-# - gemini-2.5-flash: $0.075 input / $0.30 output (平衡, 8K上下文)
-# - gemini-2.5-flash-lite: ~$0.03 input / $0.12 output (最便宜, 4K上下文)
+# - gemini-2.5-pro: $1.25 input / $10.00 output (最高质量, 8K上下文)
+# - gemini-2.5-flash: $0.30 input / $2.50 output (平衡, 8K上下文)
+# - gemini-2.5-flash-lite: $0.10 input / $0.40 output (最便宜, 4K上下文)
 #
 # 其他模型参考:
 # - GPT-3.5 Turbo: $0.50 input / $1.50 output

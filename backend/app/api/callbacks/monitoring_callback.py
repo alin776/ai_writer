@@ -33,14 +33,63 @@ class MonitoringCallbackHandler(AsyncCallbackHandler):
     - llm_token_usage_prompt: Prompt token使用量
     - llm_token_usage_completion: Completion token使用量
     - llm_token_usage_total: 总token使用量
+
+    支持AICallLog数据库记录（通过set_context动态设置）
     """
 
-    def __init__(self):
-        """初始化回调处理器"""
+    def __init__(
+        self,
+        user_id: Optional[str] = None,
+        db: Optional[Any] = None,
+        work_id: Optional[str] = None,
+        chapter_id: Optional[str] = None,
+        operation_type: str = "agent_llm_call"
+    ):
+        """初始化回调处理器
+
+        Args:
+            user_id: 用户ID（用于AICallLog记录）
+            db: 数据库会话（用于AICallLog记录）
+            work_id: 作品ID（用于AICallLog记录）
+            chapter_id: 章节ID（用于AICallLog记录）
+            operation_type: 操作类型（用于AICallLog记录）
+        """
         super().__init__()
         # 使用字典存储每个run_id的开始时间
         self._start_times: Dict[UUID, float] = {}
-        logger.info("[MonitoringCallback] 已初始化")
+        self.user_id = user_id
+        self.db = db
+        self.work_id = work_id
+        self.chapter_id = chapter_id
+        self.operation_type = operation_type
+        logger.info(
+            f"[MonitoringCallback] 已初始化 (user_id={user_id}, "
+            f"db={'enabled' if db else 'disabled'}, operation_type={operation_type})"
+        )
+
+    def set_context(
+        self,
+        user_id: Optional[str] = None,
+        db: Optional[Any] = None,
+        work_id: Optional[str] = None,
+        chapter_id: Optional[str] = None
+    ):
+        """动态设置上下文信息（用于全局callback实例）
+
+        Args:
+            user_id: 用户ID
+            db: 数据库会话
+            work_id: 作品ID
+            chapter_id: 章节ID
+        """
+        self.user_id = user_id
+        self.db = db
+        self.work_id = work_id
+        self.chapter_id = chapter_id
+        logger.debug(
+            f"[MonitoringCallback] 上下文已更新: user_id={user_id}, "
+            f"db={'enabled' if db else 'disabled'}"
+        )
 
     async def on_llm_start(
         self,
@@ -124,6 +173,10 @@ class MonitoringCallbackHandler(AsyncCallbackHandler):
         )
 
         # 提取token使用量
+        prompt_tokens = 0
+        completion_tokens = 0
+        total_tokens = 0
+
         if response.llm_output and "token_usage" in response.llm_output:
             token_usage = response.llm_output["token_usage"]
 
@@ -131,7 +184,7 @@ class MonitoringCallbackHandler(AsyncCallbackHandler):
             completion_tokens = token_usage.get("completion_tokens", 0)
             total_tokens = token_usage.get("total_tokens", 0)
 
-            # 记录token使用量
+            # 记录token使用量（metrics）
             set_gauge(
                 "llm_token_usage_prompt",
                 prompt_tokens,
@@ -153,6 +206,57 @@ class MonitoringCallbackHandler(AsyncCallbackHandler):
                 f"model={model_name}, duration={duration:.2f}s, "
                 f"tokens={total_tokens} (prompt={prompt_tokens}, completion={completion_tokens})"
             )
+
+            # 记录到AICallLog数据库（如果配置了user_id和db）
+            if self.user_id and self.db and total_tokens > 0:
+                try:
+                    from app.models.ai_call_log import AICallLog
+                    from app.utils.cost_calculator import CostCalculator
+
+                    # 计算成本
+                    cost_data = CostCalculator.calculate_cost(
+                        model_name=model_name,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens
+                    )
+
+                    # 创建AICallLog记录
+                    call_log = AICallLog(
+                        user_id=UUID(self.user_id),
+                        model_name=model_name,
+                        operation_type=self.operation_type,
+                        work_id=UUID(self.work_id) if self.work_id else None,
+                        chapter_id=UUID(self.chapter_id) if self.chapter_id else None,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                        total_tokens=total_tokens,
+                        prompt_cost=cost_data["prompt_cost"],
+                        completion_cost=cost_data["completion_cost"],
+                        total_cost=cost_data["total_cost"],
+                        duration_ms=int(duration * 1000),
+                        is_success=True,
+                        extra_data={
+                            "source": "agent_chatgpt",
+                            "run_id": str(run_id),
+                            "parent_run_id": str(parent_run_id) if parent_run_id else None,
+                            "tags": tags if tags else []
+                        }
+                    )
+
+                    self.db.add(call_log)
+                    await self.db.flush()
+
+                    logger.info(
+                        f"[Token记录] Agent LLM调用: {total_tokens} tokens "
+                        f"(prompt={prompt_tokens}, completion={completion_tokens}), "
+                        f"成本=${cost_data['total_cost']:.6f}, "
+                        f"耗时={int(duration * 1000)}ms"
+                    )
+
+                except Exception as e:
+                    logger.error(f"记录token使用到AICallLog失败: {e}")
+                    # 记录失败不影响主流程
+
         else:
             logger.info(
                 f"[MonitoringCallback] LLM调用成功: run_id={run_id}, "

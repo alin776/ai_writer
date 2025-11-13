@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
+from pydantic import Field
 import logging
 
 from app.core.database import get_db
@@ -195,15 +196,15 @@ async def delete_chapter(
 @router.post("/reorder", status_code=status.HTTP_200_OK)
 async def reorder_chapters(
     work_id: str = Body(...),
-    chapter_ids: List[str] = Body(...),
+    chapter_ids: List[str] = Body(..., min_items=1, max_items=1000),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
     重新排序章节
-    
+
     - **work_id**: 作品ID
-    - **chapter_ids**: 章节ID列表（按新顺序）
+    - **chapter_ids**: 章节ID列表（按新顺序），1-1000个章节
     """
     # 验证作品权限
     work_service = WorkService(db)

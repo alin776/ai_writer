@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
@@ -221,8 +221,8 @@ async def get_user(
 
 @router.get("", response_model=List[UserResponse])
 async def get_users(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
     search: str = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -230,8 +230,8 @@ async def get_users(
     """
     获取用户列表
 
-    - **skip**: 跳过的记录数（分页）
-    - **limit**: 返回的最大记录数
+    - **skip**: 跳过的记录数（分页），范围 >= 0
+    - **limit**: 返回的最大记录数，范围 1-100
     - **search**: 搜索关键词（用户名或邮箱）
     """
     user_service = UserService(db)

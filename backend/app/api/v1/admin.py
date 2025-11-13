@@ -171,31 +171,69 @@ async def get_users_growth(
 
     Args:
         params: 查询参数，包含days（统计天数，范围1-90天）
+
+    性能优化：使用GROUP BY一次性查询，从N*2次优化到4次查询
+    返回最近N天的数据，包括今天
     """
     days = params.days
-    # 获取最近 N 天的用户和作品增长数据
+
+    # 计算日期范围：最近days天，包括今天
+    # 例如days=7时，统计从6天前到今天，共7天
+    now = datetime.now()
+    last_day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    first_day_start = last_day_start - timedelta(days=days - 1)
+
+    # 0. 查询first_day_start之前的累计基础值（2次查询）
+    base_users_count = await db.scalar(
+        select(func.count(User.id)).where(User.created_at < first_day_start)
+    ) or 0
+    base_works_count = await db.scalar(
+        select(func.count(Work.id)).where(Work.created_at < first_day_start)
+    ) or 0
+
+    # 1. 一次性查询时间窗口内的用户，按日期分组（1次查询）
+    # 查询范围：[first_day_start, 明天0点) - 包括今天一整天
+    tomorrow_start = last_day_start + timedelta(days=1)
+    users_by_date_result = await db.execute(
+        select(
+            func.date(User.created_at).label('date'),
+            func.count(User.id).label('count')
+        )
+        .where(User.created_at >= first_day_start)
+        .where(User.created_at < tomorrow_start)
+        .group_by(func.date(User.created_at))
+    )
+    users_by_date = {row.date: row.count for row in users_by_date_result}
+
+    # 2. 一次性查询时间窗口内的作品，按日期分组（1次查询）
+    works_by_date_result = await db.execute(
+        select(
+            func.date(Work.created_at).label('date'),
+            func.count(Work.id).label('count')
+        )
+        .where(Work.created_at >= first_day_start)
+        .where(Work.created_at < tomorrow_start)
+        .group_by(func.date(Work.created_at))
+    )
+    works_by_date = {row.date: row.count for row in works_by_date_result}
+
+    # 3. 在Python中计算累计值（总计：从N*2次查询优化为4次查询！）
     growth_data = []
+    cumulative_users = base_users_count  # 从历史基础值开始
+    cumulative_works = base_works_count  # 从历史基础值开始
 
     for i in range(days):
-        # 计算日期范围
-        target_date = datetime.now() - timedelta(days=days - i - 1)
-        day_start = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end = day_start + timedelta(days=1)
+        target_date = first_day_start + timedelta(days=i)
+        target_date_only = target_date.date()
 
-        # 统计截止到该日期的累计用户数
-        users_count = await db.scalar(
-            select(func.count(User.id)).where(User.created_at < day_end)
-        ) or 0
-
-        # 统计截止到该日期的累计作品数
-        works_count = await db.scalar(
-            select(func.count(Work.id)).where(Work.created_at < day_end)
-        ) or 0
+        # 累加该日新增的用户和作品
+        cumulative_users += users_by_date.get(target_date_only, 0)
+        cumulative_works += works_by_date.get(target_date_only, 0)
 
         growth_data.append({
             "date": target_date.strftime("%m-%d"),
-            "users": users_count,
-            "works": works_count
+            "users": cumulative_users,
+            "works": cumulative_works
         })
 
     return {

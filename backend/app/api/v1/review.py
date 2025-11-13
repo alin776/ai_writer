@@ -176,7 +176,7 @@ async def get_chapter_tasks(
     status: Optional[TaskStatusEnum] = Query(None),
     priority: Optional[TaskPriorityEnum] = Query(None),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -185,6 +185,7 @@ async def get_chapter_tasks(
 
     - **status**: 任务状态筛选 (pending/in_progress/completed/skipped)
     - **priority**: 优先级筛选 (P0/P1/P2)
+    - **limit**: 返回记录数，范围 1-100（默认20）
     """
     task_service = TaskGeneratorService(db)
     tasks = await task_service.get_tasks_by_chapter(

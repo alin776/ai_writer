@@ -170,7 +170,8 @@ class CostTracker:
         chapter_id: Optional[str] = None,
         response_time: Optional[float] = None,
         success: bool = True,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
+        db=None  # 新增：可选的AsyncSession用于持久化
     ) -> APICallRecord:
         """追踪单次 API 调用
 
@@ -190,6 +191,7 @@ class CostTracker:
             response_time: 响应时间
             success: 是否成功
             error_message: 错误信息
+            db: 可选的AsyncSession，用于持久化到数据库
 
         Returns:
             APICallRecord: API调用记录
@@ -231,7 +233,7 @@ class CostTracker:
 
         # 持久化 (如果启用)
         if self.enable_persistence:
-            await self._persist_record(record)
+            await self._persist_record(record, db=db)
 
         return record
 
@@ -420,14 +422,56 @@ class CostTracker:
 
         return report
 
-    async def _persist_record(self, record: APICallRecord):
-        """持久化记录到数据库 (TODO: 实现)"""
-        # TODO: 实现数据库存储
-        # 可以存储到:
-        # 1. PostgreSQL (关系型数据库)
-        # 2. MongoDB (文档数据库)
-        # 3. Redis (缓存 + 时序数据)
-        pass
+    async def _persist_record(self, record: APICallRecord, db=None):
+        """持久化记录到数据库
+
+        Args:
+            record: API调用记录
+            db: 可选的AsyncSession，如果提供则保存到数据库
+        """
+        if not self.enable_persistence or db is None:
+            return
+
+        try:
+            from app.models.ai_call_log import AICallLog
+            from uuid import UUID
+
+            # 映射APICallRecord到AICallLog
+            log_entry = AICallLog(
+                user_id=UUID(record.user_id) if record.user_id else None,
+                model_name=record.model_name,
+                operation_type=record.task_type or "unknown",
+                work_id=UUID(record.work_id) if record.work_id else None,
+                chapter_id=UUID(record.chapter_id) if record.chapter_id else None,
+                # Token统计
+                prompt_tokens=record.input_tokens,
+                completion_tokens=record.output_tokens,
+                total_tokens=record.total_tokens,
+                # 成本信息
+                prompt_cost=record.input_cost,
+                completion_cost=record.output_cost,
+                total_cost=record.total_cost,
+                # 性能信息
+                duration_ms=int(record.response_time * 1000) if record.response_time else None,
+                is_success=record.success,
+                error_message=record.error_message,
+                # 额外数据
+                extra_data={
+                    "model_provider": record.model_provider,
+                    "model_id": record.model_id,
+                    "task_complexity": record.task_complexity,
+                    "timestamp": record.timestamp.isoformat()
+                }
+            )
+
+            db.add(log_entry)
+            await db.flush()  # 立即写入，但不提交事务
+
+            logger.debug(f"[CostTracker] 记录已持久化到数据库: {record.id}")
+
+        except Exception as e:
+            logger.error(f"[CostTracker] 持久化记录失败: {type(e).__name__}: {e}")
+            # 持久化失败不应影响主流程
 
     def get_recent_records(self, limit: int = 10) -> List[APICallRecord]:
         """获取最近的记录

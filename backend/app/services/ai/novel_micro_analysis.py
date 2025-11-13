@@ -5,19 +5,38 @@
 import json
 import logging
 import asyncio
+import time
 from typing import Dict, Any, Optional
+from uuid import UUID
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.ai.http_ai_service import HTTPAIService
+from app.models.ai_call_log import AICallLog
+from app.utils.cost_calculator import CostCalculator
 
 logger = logging.getLogger(__name__)
 
 
 class NovelMicroAnalysisService:
     """小说微观分析服务"""
-    
-    def __init__(self):
-        """初始化服务"""
+
+    def __init__(
+        self,
+        user_id: Optional[str] = None,
+        db: Optional[AsyncSession] = None,
+        work_id: Optional[str] = None
+    ):
+        """初始化服务
+
+        Args:
+            user_id: 用户ID（用于token记录）
+            db: 数据库会话（用于token记录）
+            work_id: 作品ID（用于token记录）
+        """
         self.ai_service = HTTPAIService()
         self.cache_service = None  # 延迟初始化
+        self.user_id = user_id
+        self.db = db
+        self.work_id = work_id
         self._load_prompts()
 
     async def _ensure_cache_service(self):
@@ -112,18 +131,18 @@ class NovelMicroAnalysisService:
         for attempt in range(max_retries + 1):
             try:
                 logger.info(f"第 {attempt + 1}/{max_retries + 1} 次尝试调用AI分析")
-                
+
                 # 调用AI（非流式，直接获取完整响应）
-                response_text = await self._call_ai_non_stream(messages)
-                
+                response_text = await self._call_ai_non_stream(messages, chapter_id=chapter_id)
+
                 logger.debug(f"AI返回原始文本: {response_text[:200]}...")
-                
+
                 # 解析JSON
                 result = self._parse_json_response(response_text)
-                
+
                 # 验证JSON格式
                 self._validate_micro_result(result)
-                
+
                 # 确保chapter_id正确
                 result['chapter_id'] = chapter_id
 
@@ -157,12 +176,17 @@ class NovelMicroAnalysisService:
                 from app.core.config import settings
                 await asyncio.sleep(settings.ANALYSIS_RETRY_DELAY)
     
-    async def _call_ai_non_stream(self, messages: list) -> str:
+    async def _call_ai_non_stream(
+        self,
+        messages: list,
+        chapter_id: Optional[str] = None
+    ) -> str:
         """
         调用AI（非流式）
 
         Args:
             messages: 消息列表
+            chapter_id: 章节ID（用于token记录）
 
         Returns:
             str: AI返回的完整文本
@@ -171,6 +195,8 @@ class NovelMicroAnalysisService:
             Exception: 如果AI返回空响应
         """
         full_response = ""
+        final_usage = None
+        start_time = time.time()
 
         async for chunk in self.ai_service._stream_chat(
             messages=messages,
@@ -180,6 +206,8 @@ class NovelMicroAnalysisService:
             # chunk 是 tuple (文本片段, usage统计)
             text_chunk, usage = chunk
             full_response += text_chunk
+            if usage:  # 最后一个chunk包含usage
+                final_usage = usage
 
         full_response = full_response.strip()
 
@@ -187,6 +215,59 @@ class NovelMicroAnalysisService:
         if not full_response:
             logger.error("AI返回空响应")
             raise Exception("AI返回空响应，可能是超时或API限流")
+
+        # 记录token使用到AICallLog（如果有user_id和db）
+        if self.user_id and self.db and final_usage:
+            try:
+                prompt_tokens = final_usage.get("prompt_tokens", 0)
+                completion_tokens = final_usage.get("completion_tokens", 0)
+                total_tokens = final_usage.get("total_tokens", 0)
+
+                # 使用CostCalculator计算成本
+                model_name = self.ai_service.model
+                cost_data = CostCalculator.calculate_cost(
+                    model_name=model_name,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens
+                )
+
+                # 计算处理时间
+                duration_ms = int((time.time() - start_time) * 1000)
+
+                # 创建AICallLog记录
+                call_log = AICallLog(
+                    user_id=UUID(self.user_id),
+                    model_name=model_name,
+                    operation_type="novel_micro_analysis",
+                    work_id=UUID(self.work_id) if self.work_id else None,
+                    chapter_id=UUID(chapter_id) if chapter_id else None,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    total_tokens=total_tokens,
+                    prompt_cost=cost_data["prompt_cost"],
+                    completion_cost=cost_data["completion_cost"],
+                    total_cost=cost_data["total_cost"],
+                    duration_ms=duration_ms,
+                    is_success=True,
+                    extra_data={
+                        "analysis_type": "micro",
+                        "chapter_id": chapter_id
+                    }
+                )
+
+                self.db.add(call_log)
+                await self.db.flush()
+
+                logger.info(
+                    f"[Token记录] 微观分析: {total_tokens} tokens "
+                    f"(prompt={prompt_tokens}, completion={completion_tokens}), "
+                    f"成本=${cost_data['total_cost']:.6f}, "
+                    f"耗时={duration_ms}ms"
+                )
+
+            except Exception as e:
+                logger.error(f"记录token使用失败: {e}")
+                # 记录失败不影响主流程
 
         return full_response
     

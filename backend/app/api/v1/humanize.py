@@ -17,6 +17,7 @@ from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.user import User
 from app.models.humanize_session import HumanizeSession, HumanizeSessionDetail
+from app.models.ai_call_log import AICallLog  # 新增：AI调用日志
 from app.schemas.humanize import (
     UserProfileResponse,
     UserProfileUpdateRequest,
@@ -498,6 +499,79 @@ async def humanize_rewrite(
 
         db.add(detail)
 
+        # 记录AI调用日志（用于统一的成本监控和分析）
+        # ✅ 使用try-except包裹，避免影响主流程
+        try:
+            # 检测阶段
+            if detection_tokens > 0:
+                detection_log = AICallLog(
+                    user_id=current_user.id,
+                    model_name="gemini-2.5-flash-lite",
+                    operation_type="humanize_detect",
+                    prompt_tokens=detection_prompt,
+                    completion_tokens=detection_completion,
+                    total_tokens=detection_tokens,
+                    prompt_cost=detection_cost_result["prompt_cost"],
+                    completion_cost=detection_cost_result["completion_cost"],
+                    total_cost=detection_cost_result["total_cost"],
+                    duration_ms=int(processing_time * 1000 * 0.3),  # 估算检测阶段耗时约30%
+                    is_success=True,
+                    extra_data={
+                        "ai_function": request_data.ai_function or "rewrite",
+                        "intensity": request_data.intensity,
+                        "session_id": str(session.id)
+                    }
+                )
+                db.add(detection_log)
+
+            # 改写阶段
+            if rewrite_tokens > 0:
+                rewrite_log = AICallLog(
+                    user_id=current_user.id,
+                    model_name="gemini-2.5-pro",
+                    operation_type="humanize_rewrite",
+                    prompt_tokens=rewrite_prompt,
+                    completion_tokens=rewrite_completion,
+                    total_tokens=rewrite_tokens,
+                    prompt_cost=rewrite_cost_result["prompt_cost"],
+                    completion_cost=rewrite_cost_result["completion_cost"],
+                    total_cost=rewrite_cost_result["total_cost"],
+                    duration_ms=int(processing_time * 1000 * 0.6),  # 估算改写阶段耗时约60%
+                    is_success=True,
+                    extra_data={
+                        "ai_function": request_data.ai_function or "rewrite",
+                        "intensity": request_data.intensity,
+                        "session_id": str(session.id)
+                    }
+                )
+                db.add(rewrite_log)
+
+            # 验证阶段
+            if verification_tokens > 0:
+                verification_log = AICallLog(
+                    user_id=current_user.id,
+                    model_name="gemini-2.5-flash-lite",
+                    operation_type="humanize_verify",
+                    prompt_tokens=verification_prompt,
+                    completion_tokens=verification_completion,
+                    total_tokens=verification_tokens,
+                    prompt_cost=verification_cost_result["prompt_cost"],
+                    completion_cost=verification_cost_result["completion_cost"],
+                    total_cost=verification_cost_result["total_cost"],
+                    duration_ms=int(processing_time * 1000 * 0.1),  # 估算验证阶段耗时约10%
+                    is_success=True,
+                    extra_data={
+                        "ai_function": request_data.ai_function or "rewrite",
+                        "intensity": request_data.intensity,
+                        "session_id": str(session.id)
+                    }
+                )
+                db.add(verification_log)
+
+        except Exception as e:
+            logger.error(f"记录AICallLog失败（不影响主流程）: {e}")
+            # 记录失败不影响主流程，继续执行
+
         # 7. 更新用户画像统计
         await profile_service.record_humanize_use(
             user_id=current_user.id,
@@ -753,6 +827,82 @@ async def humanize_rewrite_stream(
             )
 
             db.add(detail)
+
+            # 记录AI调用日志（用于统一的成本监控和分析）
+            # ✅ 使用try-except包裹，避免影响主流程
+            try:
+                # 检测阶段
+                if detection_tokens > 0:
+                    detection_log = AICallLog(
+                        user_id=current_user.id,
+                        model_name="gemini-2.5-flash-lite",
+                        operation_type="humanize_detect_stream",
+                        prompt_tokens=detection_prompt,
+                        completion_tokens=detection_completion,
+                        total_tokens=detection_tokens,
+                        prompt_cost=detection_cost_result["prompt_cost"],
+                        completion_cost=detection_cost_result["completion_cost"],
+                        total_cost=detection_cost_result["total_cost"],
+                        duration_ms=int(processing_time * 1000 * 0.3),
+                        is_success=True,
+                        extra_data={
+                            "ai_function": request_data.ai_function or "rewrite",
+                            "intensity": request_data.intensity,
+                            "session_id": str(session.id),
+                            "stream": True
+                        }
+                    )
+                    db.add(detection_log)
+
+                # 改写阶段
+                if rewrite_tokens > 0:
+                    rewrite_log = AICallLog(
+                        user_id=current_user.id,
+                        model_name="gemini-2.5-pro",
+                        operation_type="humanize_rewrite_stream",
+                        prompt_tokens=rewrite_prompt,
+                        completion_tokens=rewrite_completion,
+                        total_tokens=rewrite_tokens,
+                        prompt_cost=rewrite_cost_result["prompt_cost"],
+                        completion_cost=rewrite_cost_result["completion_cost"],
+                        total_cost=rewrite_cost_result["total_cost"],
+                        duration_ms=int(processing_time * 1000 * 0.6),
+                        is_success=True,
+                        extra_data={
+                            "ai_function": request_data.ai_function or "rewrite",
+                            "intensity": request_data.intensity,
+                            "session_id": str(session.id),
+                            "stream": True
+                        }
+                    )
+                    db.add(rewrite_log)
+
+                # 验证阶段
+                if verification_tokens > 0:
+                    verification_log = AICallLog(
+                        user_id=current_user.id,
+                        model_name="gemini-2.5-flash-lite",
+                        operation_type="humanize_verify_stream",
+                        prompt_tokens=verification_prompt,
+                        completion_tokens=verification_completion,
+                        total_tokens=verification_tokens,
+                        prompt_cost=verification_cost_result["prompt_cost"],
+                        completion_cost=verification_cost_result["completion_cost"],
+                        total_cost=verification_cost_result["total_cost"],
+                        duration_ms=int(processing_time * 1000 * 0.1),
+                        is_success=True,
+                        extra_data={
+                            "ai_function": request_data.ai_function or "rewrite",
+                            "intensity": request_data.intensity,
+                            "session_id": str(session.id),
+                            "stream": True
+                        }
+                    )
+                    db.add(verification_log)
+
+            except Exception as e:
+                logger.error(f"记录AICallLog失败（不影响主流程）: {e}")
+                # 记录失败不影响主流程，继续执行
 
             # 更新用户画像
             await profile_service.record_humanize_use(

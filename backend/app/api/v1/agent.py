@@ -1063,12 +1063,14 @@ async def agent_chat_stream(
                             context=context,
                             on_progress=on_progress_react,
                             on_tool_call=on_tool_call_react,
-                            on_content=on_content_react
+                            on_content=on_content_react,
+                            db=db  # 新增：传入数据库会话用于token记录
                         )
                     else:
                         # Planning模式：使用chat_with_planning()
                         result = await agent_graph.chat_with_planning(
                             message=request.message,
+                            user_id=user_id,
                             work_id=request.work_id,
                             chapter_id=request.chapter_id,
                             conversation_id=conversation_id,
@@ -1077,7 +1079,8 @@ async def agent_chat_stream(
                             on_task_start=on_task_start,
                             on_task_progress=on_task_progress,
                             on_task_done=on_task_done,
-                            on_content=on_content
+                            on_content=on_content,
+                            db=db
                         )
                     # ✅ 发送最后一个活动的完成事件
                     if last_activity_step['step'] is not None:

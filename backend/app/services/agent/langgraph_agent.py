@@ -1078,6 +1078,7 @@ class WritingAgentGraph:
         """
         self.ai_service = ai_service
         self.use_chatgpt = use_chatgpt  # 模式开关
+        self.monitoring_callback = None  # 监控回调（仅ChatOpenAI模式使用）
 
         # 🔧 缓存工具调用参数（用于进度显示）
         self._cached_tool_calls = {}
@@ -1180,9 +1181,9 @@ class WritingAgentGraph:
             http2=False,
         )
 
-        # 🔧 监控：创建监控回调
-        monitoring_callback = MonitoringCallbackHandler()
-        logger.info("[LangGraph] 已创建MonitoringCallbackHandler")
+        # 🔧 监控：创建监控回调（全局实例，支持动态设置context）
+        self.monitoring_callback = MonitoringCallbackHandler()
+        logger.info("[LangGraph] 已创建MonitoringCallbackHandler（支持动态context）")
 
         # 创建 LLM（附加监控回调）
         self.llm = ChatOpenAI(
@@ -1193,7 +1194,9 @@ class WritingAgentGraph:
             request_timeout=120,  # ← 明确设置120秒超时，避免双重超时冲突
             http_client=sync_http_client,
             http_async_client=async_http_client,
-            callbacks=[monitoring_callback]  # ← 添加监控回调
+            callbacks=[self.monitoring_callback],  # ← 添加监控回调
+            stream_usage=True,  # ✅ 关键修复：启用流式token统计
+            model_kwargs={"stream_options": {"include_usage": True}}  # ✅ 确保返回usage信息
         )
 
         # 绑定工具（工具调用也会触发回调）
@@ -2363,7 +2366,8 @@ class WritingAgentGraph:
         context: Optional[dict] = None,
         on_progress: Optional[callable] = None,
         on_tool_call: Optional[callable] = None,
-        on_content: Optional[callable] = None
+        on_content: Optional[callable] = None,
+        db: Optional[Any] = None  # 新增：数据库会话（用于token记录）
     ) -> dict:
         """
         流式执行chat()，提供实时进度反馈（已集成上下文管理）
@@ -2378,10 +2382,24 @@ class WritingAgentGraph:
             on_progress: 进度回调 async def on_progress(event: dict)
             on_tool_call: 工具调用回调 async def on_tool_call(tool_name: str, tool_args: dict)
             on_content: 内容生成回调 async def on_content(content: str)
+            db: 数据库会话（用于token记录到AICallLog）
 
         Returns:
             Dict: Agent响应（同chat()方法）
         """
+
+        # 🔧 设置监控回调的context（用于AICallLog记录）
+        if self.use_chatgpt and self.monitoring_callback and user_id and db:
+            self.monitoring_callback.set_context(
+                user_id=user_id,
+                db=db,
+                work_id=work_id,
+                chapter_id=chapter_id
+            )
+            logger.info(
+                f"[LangGraph] 监控callback context已设置 "
+                f"(user_id={user_id[:8]}..., db=enabled)"
+            )
 
         # 🔧 监控：导入监控工具
         import time
@@ -3088,6 +3106,7 @@ class WritingAgentGraph:
     async def chat_with_planning(
         self,
         message: str,
+        user_id: Optional[str] = None,
         work_id: Optional[str] = None,
         chapter_id: Optional[str] = None,
         conversation_id: Optional[str] = None,
@@ -3096,13 +3115,15 @@ class WritingAgentGraph:
         on_task_start: Optional[callable] = None,
         on_task_progress: Optional[callable] = None,
         on_task_done: Optional[callable] = None,
-        on_content: Optional[callable] = None
+        on_content: Optional[callable] = None,
+        db: Optional[Any] = None
     ) -> Dict[str, Any]:
         """
         与 Agent 对话 - Planning + Execution 模式
 
         Args:
             message: 用户消息
+            user_id: 用户ID（用于token记录）
             work_id: 作品ID
             chapter_id: 章节ID
             conversation_id: 会话ID
@@ -3112,6 +3133,7 @@ class WritingAgentGraph:
             on_task_progress: 任务进度回调
             on_task_done: 任务完成回调
             on_content: 内容生成回调
+            db: 数据库会话（用于token记录）
 
         Returns:
             Dict: Agent响应
@@ -3121,6 +3143,19 @@ class WritingAgentGraph:
             import time
             from app.services.agent.utils.monitoring import increment_counter, record_timer
             start_time = time.time()
+
+            # ✅ 设置监控回调的context（用于AICallLog记录）
+            if self.use_chatgpt and self.monitoring_callback and user_id and db:
+                self.monitoring_callback.set_context(
+                    user_id=user_id,
+                    db=db,
+                    work_id=work_id,
+                    chapter_id=chapter_id
+                )
+                logger.info(
+                    f"[Planning] 已设置MonitoringCallback context "
+                    f"(user_id={user_id[:8]}..., db=enabled)"
+                )
 
             # ✅ P0修复：构建隔离的thread_id（包含work_id）
             # 确保不同work_id的对话使用不同的checkpoint，避免跨作品污染

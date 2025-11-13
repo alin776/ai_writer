@@ -4,18 +4,37 @@
 """
 import json
 import logging
-from typing import List, Dict, Any
+import time
+from typing import List, Dict, Any, Optional
+from uuid import UUID
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.ai.http_ai_service import HTTPAIService
+from app.models.ai_call_log import AICallLog
+from app.utils.cost_calculator import CostCalculator
 
 logger = logging.getLogger(__name__)
 
 
 class NovelMacroAnalysisService:
     """小说宏观分析服务"""
-    
-    def __init__(self):
-        """初始化服务"""
+
+    def __init__(
+        self,
+        user_id: Optional[str] = None,
+        db: Optional[AsyncSession] = None,
+        work_id: Optional[str] = None
+    ):
+        """初始化服务
+
+        Args:
+            user_id: 用户ID（用于token记录）
+            db: 数据库会话（用于token记录）
+            work_id: 作品ID（用于token记录）
+        """
         self.ai_service = HTTPAIService()
+        self.user_id = user_id
+        self.db = db
+        self.work_id = work_id
         self._load_prompts()
     
     def _load_prompts(self):
@@ -162,14 +181,16 @@ class NovelMacroAnalysisService:
     async def _call_ai_non_stream(self, messages: list) -> str:
         """
         调用AI（非流式）
-        
+
         Args:
             messages: 消息列表
-            
+
         Returns:
             str: AI返回的完整文本
         """
         full_response = ""
+        final_usage = None
+        start_time = time.time()
 
         async for chunk in self.ai_service._stream_chat(
             messages=messages,
@@ -179,6 +200,61 @@ class NovelMacroAnalysisService:
             # chunk 是 tuple (文本片段, usage统计)
             text_chunk, usage = chunk
             full_response += text_chunk
+            if usage:  # 最后一个chunk包含usage
+                final_usage = usage
+
+        # 记录token使用到AICallLog（如果有user_id和db）
+        if self.user_id and self.db and final_usage:
+            try:
+                prompt_tokens = final_usage.get("prompt_tokens", 0)
+                completion_tokens = final_usage.get("completion_tokens", 0)
+                total_tokens = final_usage.get("total_tokens", 0)
+
+                # 使用CostCalculator计算成本
+                model_name = self.ai_service.model
+                cost_data = CostCalculator.calculate_cost(
+                    model_name=model_name,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens
+                )
+
+                # 计算处理时间
+                duration_ms = int((time.time() - start_time) * 1000)
+
+                # 创建AICallLog记录
+                call_log = AICallLog(
+                    user_id=UUID(self.user_id),
+                    model_name=model_name,
+                    operation_type="novel_macro_analysis",
+                    work_id=UUID(self.work_id) if self.work_id else None,
+                    chapter_id=None,  # 宏观分析不涉及单个章节
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    total_tokens=total_tokens,
+                    prompt_cost=cost_data["prompt_cost"],
+                    completion_cost=cost_data["completion_cost"],
+                    total_cost=cost_data["total_cost"],
+                    duration_ms=duration_ms,
+                    is_success=True,
+                    extra_data={
+                        "analysis_type": "macro",
+                        "report_length": len(full_response)
+                    }
+                )
+
+                self.db.add(call_log)
+                await self.db.flush()
+
+                logger.info(
+                    f"[Token记录] 宏观分析: {total_tokens} tokens "
+                    f"(prompt={prompt_tokens}, completion={completion_tokens}), "
+                    f"成本=${cost_data['total_cost']:.6f}, "
+                    f"耗时={duration_ms}ms"
+                )
+
+            except Exception as e:
+                logger.error(f"记录token使用失败: {e}")
+                # 记录失败不影响主流程
 
         return full_response.strip()
     

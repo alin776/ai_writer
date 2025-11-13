@@ -7,7 +7,7 @@
 - 业务指标查询
 """
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Response, Query
 from typing import Dict, Any
 
 from app.services.agent.utils.monitoring import get_system_monitor
@@ -51,12 +51,14 @@ async def health_check() -> Dict[str, Any]:
 
 
 @router.get("/metrics/business")
-async def get_business_metrics(time_window_hours: int = 24) -> Dict[str, Any]:
+async def get_business_metrics(
+    time_window_hours: int = Query(24, ge=1, le=2160)
+) -> Dict[str, Any]:
     """
     获取业务指标
 
     Args:
-        time_window_hours: 时间窗口（小时），默认24小时
+        time_window_hours: 时间窗口（小时），默认24小时，范围1-2160（最多90天）
 
     Returns:
         业务指标摘要，包括内容生成、LLM调用、用户行为等
