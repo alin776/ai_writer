@@ -112,8 +112,8 @@ async def global_search(
                 title=work.title,
                 description=work.description,
                 genre=work.genre,
-                word_count=work.word_count,
-                chapter_count=work.chapter_count,
+                word_count=work.total_words,
+                chapter_count=work.total_chapters,
                 updated_at=work.updated_at
             )
             for work in works
