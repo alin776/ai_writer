@@ -64,7 +64,8 @@ class AILogService:
         self,
         log_id: UUID,
         response_text: str,
-        tokens_used: int
+        prompt_tokens: int,
+        completion_tokens: int
     ):
         """
         记录 AI 调用成功
@@ -72,7 +73,8 @@ class AILogService:
         Args:
             log_id: 日志ID
             response_text: AI 响应文本
-            tokens_used: 使用的 token 数
+            prompt_tokens: 输入token数
+            completion_tokens: 输出token数
         """
         result = await self.db.execute(
             select(AICallLog).where(AICallLog.id == log_id)
@@ -81,14 +83,22 @@ class AILogService:
 
         if log:
             log.is_success = True
-            log.total_tokens = tokens_used
-            log.prompt_tokens = int(tokens_used * 0.7)  # 估算
-            log.completion_tokens = int(tokens_used * 0.3)  # 估算
+            log.prompt_tokens = prompt_tokens
+            log.completion_tokens = completion_tokens
+            log.total_tokens = prompt_tokens + completion_tokens
 
-            # TODO: 根据模型计算成本
-            log.total_cost = tokens_used * 0.00001  # 临时成本估算
-            log.prompt_cost = log.total_cost * 0.7
-            log.completion_cost = log.total_cost * 0.3
+            # 使用 CostCalculator 计算真实成本
+            from app.utils.cost_calculator import CostCalculator
+
+            cost_data = CostCalculator.calculate_cost(
+                model_name=log.model_name,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens
+            )
+
+            log.prompt_cost = cost_data["prompt_cost"]
+            log.completion_cost = cost_data["completion_cost"]
+            log.total_cost = cost_data["total_cost"]
 
             # 存储响应预览到 extra_data
             if log.extra_data:

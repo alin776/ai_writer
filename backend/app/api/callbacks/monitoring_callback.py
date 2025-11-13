@@ -244,7 +244,8 @@ class MonitoringCallbackHandler(AsyncCallbackHandler):
                     )
 
                     self.db.add(call_log)
-                    await self.db.flush()
+                    # ✅ 修复：改为commit以提交事务并释放连接
+                    await self.db.commit()
 
                     logger.info(
                         f"[Token记录] Agent LLM调用: {total_tokens} tokens "
@@ -254,7 +255,12 @@ class MonitoringCallbackHandler(AsyncCallbackHandler):
                     )
 
                 except Exception as e:
-                    logger.error(f"记录token使用到AICallLog失败: {e}")
+                    logger.error(f"记录token使用到AICallLog失败: {e}", exc_info=True)
+                    # ✅ 添加：异常时回滚事务
+                    try:
+                        await self.db.rollback()
+                    except Exception as rollback_error:
+                        logger.error(f"回滚失败: {rollback_error}")
                     # 记录失败不影响主流程
 
         else:

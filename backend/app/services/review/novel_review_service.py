@@ -22,6 +22,8 @@ from app.schemas.review import (
 from app.prompts.review_prompts import ReviewPromptTemplates
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.ai_log_service import AILogService
+# 导入 TaskType 用于智能模型选择
+from app.services.agent.model_selector import TaskType
 
 logger = logging.getLogger(__name__)
 
@@ -177,14 +179,19 @@ class NovelReviewService:
         try:
             # 调用 AI (非流式)
             full_response = ""
+            last_usage = None  # 保存最后的 usage 数据
             async for chunk in self.ai_service._stream_chat(
                 messages=messages,
                 max_tokens=max_tokens,
-                temperature=temperature
+                temperature=temperature,
+                task_type=TaskType.DEEP_ANALYSIS  # 启用智能模型选择
             ):
                 # chunk 是 tuple (文本片段, usage统计)
                 text_chunk, usage = chunk
                 full_response += text_chunk
+                # 保存 usage（最后一个块包含完整的 usage 数据）
+                if usage is not None:
+                    last_usage = usage
 
             logger.info(f"[NovelReviewService] AI 响应长度: {len(full_response)} 字符")
             logger.debug(f"[NovelReviewService] AI 响应前200字符: {full_response[:200]}")
@@ -194,11 +201,16 @@ class NovelReviewService:
 
             logger.info(f"[NovelReviewService] JSON 解析成功,总分: {review_data.get('overall_score')}")
 
+            # 提取真实的 token 数据
+            prompt_tokens = last_usage.get("prompt_tokens", 0) if last_usage else 0
+            completion_tokens = last_usage.get("completion_tokens", 0) if last_usage else 0
+
             # 记录成功的调用
             await self.ai_log_service.log_ai_call_success(
                 log_id=ai_log_id,
                 response_text=full_response,
-                tokens_used=len(full_response) // 2  # 粗略估算
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens
             )
 
             # 返回结果

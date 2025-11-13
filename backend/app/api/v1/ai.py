@@ -39,6 +39,90 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+# ==================== 后台日志记录函数 ====================
+
+async def _log_ai_call_async(
+    user_id: str,
+    model_name: str,
+    operation_type: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    prompt_text: str = "",
+    completion_text: str = "",
+    extra_data: dict = None
+):
+    """
+    后台异步记录AI调用日志
+
+    Args:
+        user_id: 用户ID
+        model_name: 模型名称
+        operation_type: 操作类型
+        prompt_tokens: 输入token数
+        completion_tokens: 输出token数
+        prompt_text: 输入文本（用于估算）
+        completion_text: 输出文本（用于估算）
+        extra_data: 额外数据
+    """
+    import asyncio
+    from uuid import UUID
+    from app.core.database import create_db_session
+    from app.services.ai_log_service import AILogService
+    from app.schemas.ai_call_log import AICallLogCreate
+    from app.utils.cost_calculator import CostCalculator
+
+    try:
+        async with create_db_session() as db:
+            # 如果没有提供token数，估算
+            if prompt_tokens == 0 and prompt_text:
+                # 简单估算：中文1.5字符=1token，英文4字符=1token
+                chinese_chars = sum(1 for c in prompt_text if '\u4e00' <= c <= '\u9fff')
+                other_chars = len(prompt_text) - chinese_chars
+                prompt_tokens = int(chinese_chars / 1.5 + other_chars / 4)
+
+            if completion_tokens == 0 and completion_text:
+                chinese_chars = sum(1 for c in completion_text if '\u4e00' <= c <= '\u9fff')
+                other_chars = len(completion_text) - chinese_chars
+                completion_tokens = int(chinese_chars / 1.5 + other_chars / 4)
+
+            # 计算成本
+            cost_data = CostCalculator.calculate_cost(
+                model_name=model_name,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens
+            )
+
+            # 创建日志记录
+            log_service = AILogService(db)
+            log_data = AICallLogCreate(
+                user_id=UUID(user_id),
+                model_name=model_name,
+                operation_type=operation_type,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=prompt_tokens + completion_tokens,
+                prompt_cost=cost_data["prompt_cost"],
+                completion_cost=cost_data["completion_cost"],
+                total_cost=cost_data["total_cost"],
+                duration_ms=0,  # 流式响应无法准确计时
+                is_success=True,
+                extra_data=extra_data or {}
+            )
+
+            await log_service.create_log(log_data)
+            await db.commit()
+
+            logger.info(
+                f"[后台日志] AI调用已记录: operation={operation_type}, "
+                f"tokens={prompt_tokens + completion_tokens}, "
+                f"cost=${cost_data['total_cost']:.6f}"
+            )
+
+    except Exception as e:
+        logger.error(f"[后台日志] 记录失败: {e}", exc_info=True)
+        # 日志记录失败不影响主流程
+
+
 # ==================== 请求数据模型 ====================
 
 class AICompleteRequest(BaseModel):
@@ -117,14 +201,16 @@ class AISummarizeResponse(BaseModel):
 )
 async def ai_complete(
     request: AICompleteRequest,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_active_user)
+    # ✅ 修复：移除db依赖，避免生命周期不匹配
 ):
     """
     AI 续写接口（流式响应）
-    
+
     返回 Server-Sent Events (SSE) 流，前端可以实时接收生成的文本
     """
+    import asyncio
+
     logger.info(
         f"[AI续写] 用户: {current_user.username}({current_user.id}), "
         f"上下文长度: {len(request.context)}, "
@@ -135,44 +221,21 @@ async def ai_complete(
 
     ai_service = HTTPAIService()
 
-    # 创建日志中间件
-    log_middleware = AILogMiddleware(
-        db=db,
-        user_id=current_user.id,
-        model_name=settings.OPENAI_MODEL
-    )
-
     async def event_generator():
         """SSE 事件生成器"""
         accumulated_text = ""
         try:
-            # 使用日志中间件记录 AI 调用
-            async with log_middleware.log_call(
-                operation_type="continue",
-                extra_data={
-                    "style": request.style,
-                    "prompt": request.prompt,
-                    "max_tokens": request.max_tokens,
-                    "context_length": len(request.context)
-                }
-            ) as token_counter:
-                async for chunk, usage in ai_service.stream_complete(
-                    context=request.context,
-                    prompt=request.prompt,
-                    style=request.style,
-                    max_tokens=request.max_tokens
-                ):
-                    # 只处理内容块,忽略最后的usage块(chunk为空字符串)
-                    if chunk:
-                        accumulated_text += chunk
-                        # SSE 格式: data: {content}\n\n
-                        yield f"data: {chunk}\n\n"
-
-                # 估算 token 数量
-                token_counter.estimate_tokens(
-                    prompt_text=request.context,
-                    completion_text=accumulated_text
-                )
+            async for chunk, usage in ai_service.stream_complete(
+                context=request.context,
+                prompt=request.prompt,
+                style=request.style,
+                max_tokens=request.max_tokens
+            ):
+                # 只处理内容块,忽略最后的usage块(chunk为空字符串)
+                if chunk:
+                    accumulated_text += chunk
+                    # SSE 格式: data: {content}\n\n
+                    yield f"data: {chunk}\n\n"
 
             # 流结束标记
             yield "data: [DONE]\n\n"
@@ -182,7 +245,25 @@ async def ai_complete(
             error_msg = str(e)
             logger.error(f"[AI续写] 用户 {current_user.username} 请求失败: {error_msg}")
             yield f"data: [ERROR] {error_msg}\n\n"
-    
+
+        finally:
+            # ✅ 修复：使用后台任务记录日志，不阻塞流式响应
+            asyncio.create_task(_log_ai_call_async(
+                user_id=str(current_user.id),
+                model_name=settings.OPENAI_MODEL,
+                operation_type="continue",
+                prompt_tokens=0,
+                completion_tokens=0,
+                prompt_text=request.context,
+                completion_text=accumulated_text,
+                extra_data={
+                    "style": request.style,
+                    "prompt": request.prompt,
+                    "max_tokens": request.max_tokens,
+                    "context_length": len(request.context)
+                }
+            ))
+
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
@@ -221,10 +302,12 @@ async def ai_complete(
 )
 async def ai_polish(
     request: AIPolishRequest,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_active_user)
+    # ✅ 修复：移除db依赖
 ):
     """AI 润色接口（流式响应）"""
+    import asyncio
+
     logger.info(
         f"[AI润色] 用户: {current_user.username}({current_user.id}), "
         f"文本长度: {len(request.text)}"
@@ -232,33 +315,14 @@ async def ai_polish(
 
     ai_service = HTTPAIService()
 
-    # 创建日志中间件
-    log_middleware = AILogMiddleware(
-        db=db,
-        user_id=current_user.id,
-        model_name=settings.OPENAI_MODEL
-    )
-
     async def event_generator():
         accumulated_text = ""
         try:
-            async with log_middleware.log_call(
-                operation_type="polish",
-                extra_data={
-                    "text_length": len(request.text)
-                }
-            ) as token_counter:
-                async for chunk, usage in ai_service.stream_polish(request.text):
-                    # 只处理内容块,忽略最后的usage块(chunk为空字符串)
-                    if chunk:
-                        accumulated_text += chunk
-                        yield f"data: {chunk}\n\n"
-
-                # 估算 token 数量
-                token_counter.estimate_tokens(
-                    prompt_text=request.text,
-                    completion_text=accumulated_text
-                )
+            async for chunk, usage in ai_service.stream_polish(request.text):
+                # 只处理内容块,忽略最后的usage块(chunk为空字符串)
+                if chunk:
+                    accumulated_text += chunk
+                    yield f"data: {chunk}\n\n"
 
             yield "data: [DONE]\n\n"
             logger.info(f"[AI润色] 用户 {current_user.username} 请求完成，生成字数: {len(accumulated_text)}")
@@ -267,7 +331,20 @@ async def ai_polish(
             error_msg = str(e)
             logger.error(f"[AI润色] 用户 {current_user.username} 请求失败: {error_msg}")
             yield f"data: [ERROR] {error_msg}\n\n"
-    
+
+        finally:
+            # ✅ 修复：使用后台任务记录日志
+            asyncio.create_task(_log_ai_call_async(
+                user_id=str(current_user.id),
+                model_name=settings.OPENAI_MODEL,
+                operation_type="polish",
+                prompt_tokens=0,
+                completion_tokens=0,
+                prompt_text=request.text,
+                completion_text=accumulated_text,
+                extra_data={"text_length": len(request.text)}
+            ))
+
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
@@ -301,10 +378,12 @@ async def ai_polish(
 )
 async def ai_translate(
     request: AITranslateRequest,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_active_user)
+    # ✅ 修复：移除db依赖
 ):
     """AI 翻译接口（流式响应）"""
+    import asyncio
+
     logger.info(
         f"[AI翻译] 用户: {current_user.username}({current_user.id}), "
         f"文本长度: {len(request.text)}, "
@@ -313,37 +392,17 @@ async def ai_translate(
 
     ai_service = HTTPAIService()
 
-    # 创建日志中间件
-    log_middleware = AILogMiddleware(
-        db=db,
-        user_id=current_user.id,
-        model_name=settings.OPENAI_MODEL
-    )
-
     async def event_generator():
         accumulated_text = ""
         try:
-            async with log_middleware.log_call(
-                operation_type="translate",
-                extra_data={
-                    "text_length": len(request.text),
-                    "target_lang": request.target_lang
-                }
-            ) as token_counter:
-                async for chunk, usage in ai_service.stream_translate(
-                    request.text,
-                    request.target_lang
-                ):
-                    # 只处理内容块,忽略最后的usage块
-                    if chunk:
-                        accumulated_text += chunk
-                        yield f"data: {chunk}\n\n"
-
-                # 估算 token 数量
-                token_counter.estimate_tokens(
-                    prompt_text=request.text,
-                    completion_text=accumulated_text
-                )
+            async for chunk, usage in ai_service.stream_translate(
+                request.text,
+                request.target_lang
+            ):
+                # 只处理内容块,忽略最后的usage块
+                if chunk:
+                    accumulated_text += chunk
+                    yield f"data: {chunk}\n\n"
 
             yield "data: [DONE]\n\n"
             logger.info(f"[AI翻译] 用户 {current_user.username} 请求完成，生成字数: {len(accumulated_text)}")
@@ -352,7 +411,23 @@ async def ai_translate(
             error_msg = str(e)
             logger.error(f"[AI翻译] 用户 {current_user.username} 请求失败: {error_msg}")
             yield f"data: [ERROR] {error_msg}\n\n"
-    
+
+        finally:
+            # ✅ 修复：使用后台任务记录日志
+            asyncio.create_task(_log_ai_call_async(
+                user_id=str(current_user.id),
+                model_name=settings.OPENAI_MODEL,
+                operation_type="translate",
+                prompt_tokens=0,
+                completion_tokens=0,
+                prompt_text=request.text,
+                completion_text=accumulated_text,
+                extra_data={
+                    "text_length": len(request.text),
+                    "target_lang": request.target_lang
+                }
+            ))
+
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
@@ -380,10 +455,12 @@ async def ai_translate(
 )
 async def ai_expand(
     request: AIExpandRequest,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_active_user)
+    # ✅ 修复：移除db依赖
 ):
     """AI 扩写接口（流式响应）"""
+    import asyncio
+
     logger.info(
         f"[AI扩写] 用户: {current_user.username}({current_user.id}), "
         f"文本长度: {len(request.text)}"
@@ -391,33 +468,14 @@ async def ai_expand(
 
     ai_service = HTTPAIService()
 
-    # 创建日志中间件
-    log_middleware = AILogMiddleware(
-        db=db,
-        user_id=current_user.id,
-        model_name=settings.OPENAI_MODEL
-    )
-
     async def event_generator():
         accumulated_text = ""
         try:
-            async with log_middleware.log_call(
-                operation_type="expand",
-                extra_data={
-                    "text_length": len(request.text)
-                }
-            ) as token_counter:
-                async for chunk, usage in ai_service.stream_expand(request.text):
-                    # 只处理内容块,忽略最后的usage块
-                    if chunk:
-                        accumulated_text += chunk
-                        yield f"data: {chunk}\n\n"
-
-                # 估算 token 数量
-                token_counter.estimate_tokens(
-                    prompt_text=request.text,
-                    completion_text=accumulated_text
-                )
+            async for chunk, usage in ai_service.stream_expand(request.text):
+                # 只处理内容块,忽略最后的usage块
+                if chunk:
+                    accumulated_text += chunk
+                    yield f"data: {chunk}\n\n"
 
             yield "data: [DONE]\n\n"
             logger.info(f"[AI扩写] 用户 {current_user.username} 请求完成，生成字数: {len(accumulated_text)}")
@@ -426,7 +484,20 @@ async def ai_expand(
             error_msg = str(e)
             logger.error(f"[AI扩写] 用户 {current_user.username} 请求失败: {error_msg}")
             yield f"data: [ERROR] {error_msg}\n\n"
-    
+
+        finally:
+            # ✅ 修复：使用后台任务记录日志
+            asyncio.create_task(_log_ai_call_async(
+                user_id=str(current_user.id),
+                model_name=settings.OPENAI_MODEL,
+                operation_type="expand",
+                prompt_tokens=0,
+                completion_tokens=0,
+                prompt_text=request.text,
+                completion_text=accumulated_text,
+                extra_data={"text_length": len(request.text)}
+            ))
+
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",

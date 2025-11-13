@@ -636,8 +636,8 @@ async def humanize_rewrite(
 async def humanize_rewrite_stream(
     request_data: HumanizeRequest,
     request: Request,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_active_user)
+    # ✅ 修复：移除db依赖，避免生命周期不匹配
 ):
     """
     流式去痕迹改写API
@@ -656,6 +656,8 @@ async def humanize_rewrite_stream(
     - data: {"type": "done", "session_id": "xxx", "improvement": 25.5}
     - data: {"type": "error", "message": "错误信息"}
     """
+    from app.core.database import create_db_session
+
     # 安全验证
     text_bytes = len(request_data.text.encode('utf-8'))
     if text_bytes > HumanizeConfig().max_text_bytes:
@@ -664,348 +666,361 @@ async def humanize_rewrite_stream(
             detail=f"文本字节数超过限制"
         )
 
+    # ✅ 预加载：在路由级别加载用户画像（用完即关闭）
+    async with create_db_session() as preload_db:
+        profile_service = UserProfileService(preload_db)
+        profile = await profile_service.get_or_create_profile(current_user.id)
+        enable_verification = profile.humanize_enabled_by_function.get("rewrite", False)
+        # preload_db在此自动关闭
+
     async def generate():
         """流式生成器"""
-        humanize_service = None
-        humanized_chunks = []
-        final_usage = None
-        detection_result = None
-        verification_result = None
-        start_time = time.time()
-
-        # 记录流式请求开始
-        increment_counter("humanize_stream_requests_total", labels={"intensity": request_data.intensity, "function": request_data.ai_function or "rewrite"})
-
-        try:
-            # 1. 获取用户画像
-            profile_service = UserProfileService(db)
-            profile = await profile_service.get_or_create_profile(current_user.id)
-
-            # 2. 创建配置
-            config = HumanizeConfig(
-                enable_detection=True,
-                enable_verification=profile.humanize_enabled_by_function.get("rewrite", False),
-            )
-
-            # 3. 初始化Service
-            humanize_service = HumanizeService(config=config)
-
-            # 4. 检测阶段（可选）
+        # ✅ 修复：生成器内创建独立会话，完全控制生命周期
+        async with create_db_session() as db:
+            humanize_service = None
+            humanized_chunks = []
+            final_usage = None
             detection_result = None
-            detection_usage = None
-            if config.enable_detection:
-                yield f"data: {json.dumps({'type': 'progress', 'stage': 'detecting', 'message': '正在检测AI痕迹...'}, ensure_ascii=False)}\n\n"
-
-                detection_result, detection_usage = await humanize_service.detect_ai_traces(request_data.text)
-
-                # 检查是否需要去痕迹
-                if detection_result.overall_score < config.detection_threshold:
-                    yield f"data: {json.dumps({'type': 'info', 'message': f'AI特征分数较低({detection_result.overall_score:.1f})，无需去痕迹'}, ensure_ascii=False)}\n\n"
-                    yield f"data: {json.dumps({'type': 'done', 'skipped': True}, ensure_ascii=False)}\n\n"
-                    return
-
-                yield f"data: {json.dumps({'type': 'progress', 'stage': 'detected', 'score': detection_result.overall_score}, ensure_ascii=False)}\n\n"
-
-            # 5. 改写阶段（流式）
-            yield f"data: {json.dumps({'type': 'progress', 'stage': 'rewriting', 'message': '正在人性化改写...'}, ensure_ascii=False)}\n\n"
-
-            async for chunk, usage in humanize_service.humanize_stream(
-                text=request_data.text,
-                intensity=request_data.intensity,
-                use_nlp_preprocessing=None
-            ):
-                humanized_chunks.append(chunk)
-                if usage:  # 最后一个chunk包含usage
-                    final_usage = usage
-
-                # 发送文本片段
-                yield f"data: {json.dumps({'type': 'chunk', 'content': chunk}, ensure_ascii=False)}\n\n"
-
-            humanized_text = "".join(humanized_chunks)
-
-            # 6. 验证阶段（可选）
             verification_result = None
-            verification_usage = None
-            if config.enable_verification:
-                yield f"data: {json.dumps({'type': 'progress', 'stage': 'verifying', 'message': '正在验证效果...'}, ensure_ascii=False)}\n\n"
+            start_time = time.time()
 
-                verification_result, verification_usage = await humanize_service.verify_humanization(
-                    request_data.text,
-                    humanized_text
+            # 记录流式请求开始
+            increment_counter("humanize_stream_requests_total", labels={"intensity": request_data.intensity, "function": request_data.ai_function or "rewrite"})
+
+            try:
+                # 1. 使用预加载的画像（不再从db查询）
+                # profile已在路由级别预加载
+
+                # 2. 创建配置（使用预加载的enable_verification）
+                config = HumanizeConfig(
+                    enable_detection=True,
+                    enable_verification=enable_verification,  # ✅ 使用预加载的值
                 )
 
-            # 7. 保存会话
-            processing_time = time.time() - start_time
+                # 3. 初始化Service（不依赖db）
+                humanize_service = HumanizeService(config=config)
 
-            # 计算指标
-            score_before = detection_result.overall_score if detection_result else 70.0
-            score_after = verification_result.score_after if verification_result else 50.0
-            improvement = score_before - score_after
+                # 4. 检测阶段（可选）
+                detection_result = None
+                detection_usage = None
+                if config.enable_detection:
+                    yield f"data: {json.dumps({'type': 'progress', 'stage': 'detecting', 'message': '正在检测AI痕迹...'}, ensure_ascii=False)}\n\n"
 
-            # Token和成本计算（使用CostCalculator和实际token）
-            # 提取各阶段的token信息
-            detection_prompt = detection_usage.get("prompt_tokens", 0) if detection_usage else 0
-            detection_completion = detection_usage.get("completion_tokens", 0) if detection_usage else 0
-            detection_tokens = detection_usage.get("total_tokens", 0) if detection_usage else 0
+                    detection_result, detection_usage = await humanize_service.detect_ai_traces(request_data.text)
 
-            rewrite_prompt = final_usage.get("prompt_tokens", 0) if final_usage else 0
-            rewrite_completion = final_usage.get("completion_tokens", 0) if final_usage else 0
-            rewrite_tokens = final_usage.get("total_tokens", 0) if final_usage else 0
+                    # 检查是否需要去痕迹
+                    if detection_result.overall_score < config.detection_threshold:
+                        yield f"data: {json.dumps({'type': 'info', 'message': f'AI特征分数较低({detection_result.overall_score:.1f})，无需去痕迹'}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'type': 'done', 'skipped': True}, ensure_ascii=False)}\n\n"
+                        return
 
-            verification_prompt = verification_usage.get("prompt_tokens", 0) if verification_usage else 0
-            verification_completion = verification_usage.get("completion_tokens", 0) if verification_usage else 0
-            verification_tokens = verification_usage.get("total_tokens", 0) if verification_usage else 0
+                    yield f"data: {json.dumps({'type': 'progress', 'stage': 'detected', 'score': detection_result.overall_score}, ensure_ascii=False)}\n\n"
 
-            total_tokens = detection_tokens + rewrite_tokens + verification_tokens
+                # 5. 改写阶段（流式）
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'rewriting', 'message': '正在人性化改写...'}, ensure_ascii=False)}\n\n"
 
-            # 如果没有获取到任何实际token，使用降级估算
-            if total_tokens == 0:
-                total_tokens = int(len(request_data.text) * 1.5 * 2.5)
-                # 按比例分配token
-                detection_prompt = int(total_tokens * 0.15)
-                detection_completion = int(total_tokens * 0.15)
-                rewrite_prompt = int(total_tokens * 0.3)
-                rewrite_completion = int(total_tokens * 0.3)
-                verification_prompt = int(total_tokens * 0.05)
-                verification_completion = int(total_tokens * 0.05)
+                async for chunk, usage in humanize_service.humanize_stream(
+                    text=request_data.text,
+                    intensity=request_data.intensity,
+                    use_nlp_preprocessing=None
+                ):
+                    humanized_chunks.append(chunk)
+                    if usage:  # 最后一个chunk包含usage
+                        final_usage = usage
 
-            # 使用CostCalculator计算实际成本
-            detection_cost_result = CostCalculator.calculate_cost(
-                "gemini-2.5-flash-lite",
-                detection_prompt,
-                detection_completion
-            )
-            rewrite_cost_result = CostCalculator.calculate_cost(
-                "gemini-2.5-pro",
-                rewrite_prompt,
-                rewrite_completion
-            )
-            verification_cost_result = CostCalculator.calculate_cost(
-                "gemini-2.5-flash-lite",
-                verification_prompt,
-                verification_completion
-            )
+                    # 发送文本片段
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk}, ensure_ascii=False)}\n\n"
 
-            estimated_cost = (detection_cost_result["total_cost"] +
-                            rewrite_cost_result["total_cost"] +
-                            verification_cost_result["total_cost"])
+                humanized_text = "".join(humanized_chunks)
 
-            # 创建会话
-            session = HumanizeSession(
-                user_id=current_user.id,
-                ai_function=request_data.ai_function or "rewrite",
-                score_before=score_before,
-                score_after=score_after,
-                improvement=improvement,
-                intensity=request_data.intensity,
-                processing_time=processing_time,
-                tokens_used=total_tokens,
-                cost=estimated_cost,
-                user_accepted=None
-            )
+                # 6. 验证阶段（可选）
+                verification_result = None
+                verification_usage = None
+                if config.enable_verification:
+                    yield f"data: {json.dumps({'type': 'progress', 'stage': 'verifying', 'message': '正在验证效果...'}, ensure_ascii=False)}\n\n"
 
-            db.add(session)
-            await db.flush()
-
-            # 转换维度数据
-            dimensions_before_dict = {}
-            if detection_result and detection_result.dimensions:
-                dimensions_before_dict = {
-                    key: dim.model_dump()
-                    for key, dim in detection_result.dimensions.items()
-                }
-
-            # 创建详情
-            detail = HumanizeSessionDetail(
-                session_id=session.id,
-                original_preview=request_data.text[:200],
-                humanized_preview=humanized_text[:200],
-                dimensions_before=dimensions_before_dict,
-                dimensions_after={},
-                detected_patterns=detection_result.detected_patterns if detection_result else [],
-                expires_at=datetime.utcnow() + timedelta(days=7)
-            )
-
-            db.add(detail)
-
-            # 记录AI调用日志（用于统一的成本监控和分析）
-            # ✅ 使用try-except包裹，避免影响主流程
-            try:
-                # 检测阶段
-                if detection_tokens > 0:
-                    detection_log = AICallLog(
-                        user_id=current_user.id,
-                        model_name="gemini-2.5-flash-lite",
-                        operation_type="humanize_detect_stream",
-                        prompt_tokens=detection_prompt,
-                        completion_tokens=detection_completion,
-                        total_tokens=detection_tokens,
-                        prompt_cost=detection_cost_result["prompt_cost"],
-                        completion_cost=detection_cost_result["completion_cost"],
-                        total_cost=detection_cost_result["total_cost"],
-                        duration_ms=int(processing_time * 1000 * 0.3),
-                        is_success=True,
-                        extra_data={
-                            "ai_function": request_data.ai_function or "rewrite",
-                            "intensity": request_data.intensity,
-                            "session_id": str(session.id),
-                            "stream": True
-                        }
+                    verification_result, verification_usage = await humanize_service.verify_humanization(
+                        request_data.text,
+                        humanized_text
                     )
-                    db.add(detection_log)
 
-                # 改写阶段
-                if rewrite_tokens > 0:
-                    rewrite_log = AICallLog(
-                        user_id=current_user.id,
-                        model_name="gemini-2.5-pro",
-                        operation_type="humanize_rewrite_stream",
-                        prompt_tokens=rewrite_prompt,
-                        completion_tokens=rewrite_completion,
-                        total_tokens=rewrite_tokens,
-                        prompt_cost=rewrite_cost_result["prompt_cost"],
-                        completion_cost=rewrite_cost_result["completion_cost"],
-                        total_cost=rewrite_cost_result["total_cost"],
-                        duration_ms=int(processing_time * 1000 * 0.6),
-                        is_success=True,
-                        extra_data={
-                            "ai_function": request_data.ai_function or "rewrite",
-                            "intensity": request_data.intensity,
-                            "session_id": str(session.id),
-                            "stream": True
-                        }
-                    )
-                    db.add(rewrite_log)
+                # 7. 保存会话
+                processing_time = time.time() - start_time
 
-                # 验证阶段
-                if verification_tokens > 0:
-                    verification_log = AICallLog(
-                        user_id=current_user.id,
-                        model_name="gemini-2.5-flash-lite",
-                        operation_type="humanize_verify_stream",
-                        prompt_tokens=verification_prompt,
-                        completion_tokens=verification_completion,
-                        total_tokens=verification_tokens,
-                        prompt_cost=verification_cost_result["prompt_cost"],
-                        completion_cost=verification_cost_result["completion_cost"],
-                        total_cost=verification_cost_result["total_cost"],
-                        duration_ms=int(processing_time * 1000 * 0.1),
-                        is_success=True,
-                        extra_data={
-                            "ai_function": request_data.ai_function or "rewrite",
-                            "intensity": request_data.intensity,
-                            "session_id": str(session.id),
-                            "stream": True
-                        }
-                    )
-                    db.add(verification_log)
+                # 计算指标
+                score_before = detection_result.overall_score if detection_result else 70.0
+                score_after = verification_result.score_after if verification_result else 50.0
+                improvement = score_before - score_after
 
-            except Exception as e:
-                logger.error(f"记录AICallLog失败（不影响主流程）: {e}")
-                # 记录失败不影响主流程，继续执行
+                # Token和成本计算（使用CostCalculator和实际token）
+                # 提取各阶段的token信息
+                detection_prompt = detection_usage.get("prompt_tokens", 0) if detection_usage else 0
+                detection_completion = detection_usage.get("completion_tokens", 0) if detection_usage else 0
+                detection_tokens = detection_usage.get("total_tokens", 0) if detection_usage else 0
 
-            # 更新用户画像
-            await profile_service.record_humanize_use(
-                user_id=current_user.id,
-                text_length=len(request_data.text),
-                ai_function=request_data.ai_function or "rewrite",
-                intensity=request_data.intensity,
-                improvement=improvement
-            )
+                rewrite_prompt = final_usage.get("prompt_tokens", 0) if final_usage else 0
+                rewrite_completion = final_usage.get("completion_tokens", 0) if final_usage else 0
+                rewrite_tokens = final_usage.get("total_tokens", 0) if final_usage else 0
 
-            await db.commit()
+                verification_prompt = verification_usage.get("prompt_tokens", 0) if verification_usage else 0
+                verification_completion = verification_usage.get("completion_tokens", 0) if verification_usage else 0
+                verification_tokens = verification_usage.get("total_tokens", 0) if verification_usage else 0
 
-            # 记录监控指标
-            request_duration = time.time() - start_time
-            record_timer("humanize_stream_duration_seconds", request_duration, labels={"intensity": request_data.intensity})
-            increment_counter("humanize_stream_requests_success", labels={"intensity": request_data.intensity})
-            record_timer("humanize_stream_tokens_used", total_tokens, labels={"intensity": request_data.intensity})
-            record_timer("humanize_stream_improvement", improvement, labels={"intensity": request_data.intensity})
+                total_tokens = detection_tokens + rewrite_tokens + verification_tokens
 
-            # 8. 发送完成事件
-            yield f"data: {json.dumps({'type': 'done', 'session_id': str(session.id), 'improvement': improvement, 'processing_time': processing_time, 'tokens_used': total_tokens}, ensure_ascii=False)}\n\n"
+                # 如果没有获取到任何实际token，使用降级估算
+                if total_tokens == 0:
+                    total_tokens = int(len(request_data.text) * 1.5 * 2.5)
+                    # 按比例分配token
+                    detection_prompt = int(total_tokens * 0.15)
+                    detection_completion = int(total_tokens * 0.15)
+                    rewrite_prompt = int(total_tokens * 0.3)
+                    rewrite_completion = int(total_tokens * 0.3)
+                    verification_prompt = int(total_tokens * 0.05)
+                    verification_completion = int(total_tokens * 0.05)
 
-            logger.info(f"流式去痕迹完成: session_id={session.id}, improvement={improvement:.1f}, duration={request_duration:.2f}s")
-
-        except GeneratorExit:
-            # 用户中断连接
-            interrupted_time = time.time() - start_time
-            logger.warning(f"用户中断流式响应: 已处理{interrupted_time:.2f}秒, chunks={len(humanized_chunks)}")
-            increment_counter("humanize_stream_requests_interrupted", labels={"intensity": request_data.intensity})
-
-            # 保存中断会话记录（用于分析用户行为）
-            try:
-                # 计算已收集的数据
-                partial_text = "".join(humanized_chunks) if humanized_chunks else ""
-                estimated_tokens = final_usage.get("total_tokens", 0) if final_usage else int(len(request_data.text) * 1.5)
-
-                # 使用CostCalculator估算中断时的成本
-                # 假设只完成了rewrite阶段（因为中断了）
-                estimated_prompt = estimated_tokens // 2
-                estimated_completion = estimated_tokens // 2
-                cost_result = CostCalculator.calculate_cost(
-                    "gemini-2.5-pro",  # 假设使用pro模型进行改写
-                    estimated_prompt,
-                    estimated_completion
+                # 使用CostCalculator计算实际成本
+                detection_cost_result = CostCalculator.calculate_cost(
+                    "gemini-2.5-flash-lite",
+                    detection_prompt,
+                    detection_completion
                 )
-                estimated_cost = cost_result["total_cost"]
+                rewrite_cost_result = CostCalculator.calculate_cost(
+                    "gemini-2.5-pro",
+                    rewrite_prompt,
+                    rewrite_completion
+                )
+                verification_cost_result = CostCalculator.calculate_cost(
+                    "gemini-2.5-flash-lite",
+                    verification_prompt,
+                    verification_completion
+                )
 
-                # 创建中断会话记录
+                estimated_cost = (detection_cost_result["total_cost"] +
+                                rewrite_cost_result["total_cost"] +
+                                verification_cost_result["total_cost"])
+
+                # 创建会话
                 session = HumanizeSession(
                     user_id=current_user.id,
                     ai_function=request_data.ai_function or "rewrite",
-                    score_before=detection_result.overall_score if detection_result else 70.0,
-                    score_after=70.0,  # 未完成，使用默认值
-                    improvement=0.0,  # 未完成
+                    score_before=score_before,
+                    score_after=score_after,
+                    improvement=improvement,
                     intensity=request_data.intensity,
-                    processing_time=interrupted_time,
-                    tokens_used=estimated_tokens,
-                    cost=estimated_cost,  # 使用CostCalculator计算的成本
-                    user_accepted=False  # 中断视为拒绝
+                    processing_time=processing_time,
+                    tokens_used=total_tokens,
+                    cost=estimated_cost,
+                    user_accepted=None
                 )
+
                 db.add(session)
                 await db.flush()
 
-                # 创建详情（标记为中断）
+                # 转换维度数据
+                dimensions_before_dict = {}
+                if detection_result and detection_result.dimensions:
+                    dimensions_before_dict = {
+                        key: dim.model_dump()
+                        for key, dim in detection_result.dimensions.items()
+                    }
+
+                # 创建详情
                 detail = HumanizeSessionDetail(
                     session_id=session.id,
                     original_preview=request_data.text[:200],
-                    humanized_preview=partial_text[:200] if partial_text else "(用户中断，无输出)",
-                    dimensions_before={},
+                    humanized_preview=humanized_text[:200],
+                    dimensions_before=dimensions_before_dict,
                     dimensions_after={},
-                    detected_patterns=["USER_INTERRUPTED"],
+                    detected_patterns=detection_result.detected_patterns if detection_result else [],
                     expires_at=datetime.utcnow() + timedelta(days=7)
                 )
+
                 db.add(detail)
+
+                # 记录AI调用日志（用于统一的成本监控和分析）
+                # ✅ 使用try-except包裹，避免影响主流程
+                try:
+                    # 检测阶段
+                    if detection_tokens > 0:
+                        detection_log = AICallLog(
+                            user_id=current_user.id,
+                            model_name="gemini-2.5-flash-lite",
+                            operation_type="humanize_detect_stream",
+                            prompt_tokens=detection_prompt,
+                            completion_tokens=detection_completion,
+                            total_tokens=detection_tokens,
+                            prompt_cost=detection_cost_result["prompt_cost"],
+                            completion_cost=detection_cost_result["completion_cost"],
+                            total_cost=detection_cost_result["total_cost"],
+                            duration_ms=int(processing_time * 1000 * 0.3),
+                            is_success=True,
+                            extra_data={
+                                "ai_function": request_data.ai_function or "rewrite",
+                                "intensity": request_data.intensity,
+                                "session_id": str(session.id),
+                                "stream": True
+                            }
+                        )
+                        db.add(detection_log)
+
+                    # 改写阶段
+                    if rewrite_tokens > 0:
+                        rewrite_log = AICallLog(
+                            user_id=current_user.id,
+                            model_name="gemini-2.5-pro",
+                            operation_type="humanize_rewrite_stream",
+                            prompt_tokens=rewrite_prompt,
+                            completion_tokens=rewrite_completion,
+                            total_tokens=rewrite_tokens,
+                            prompt_cost=rewrite_cost_result["prompt_cost"],
+                            completion_cost=rewrite_cost_result["completion_cost"],
+                            total_cost=rewrite_cost_result["total_cost"],
+                            duration_ms=int(processing_time * 1000 * 0.6),
+                            is_success=True,
+                            extra_data={
+                                "ai_function": request_data.ai_function or "rewrite",
+                                "intensity": request_data.intensity,
+                                "session_id": str(session.id),
+                                "stream": True
+                            }
+                        )
+                        db.add(rewrite_log)
+
+                    # 验证阶段
+                    if verification_tokens > 0:
+                        verification_log = AICallLog(
+                            user_id=current_user.id,
+                            model_name="gemini-2.5-flash-lite",
+                            operation_type="humanize_verify_stream",
+                            prompt_tokens=verification_prompt,
+                            completion_tokens=verification_completion,
+                            total_tokens=verification_tokens,
+                            prompt_cost=verification_cost_result["prompt_cost"],
+                            completion_cost=verification_cost_result["completion_cost"],
+                            total_cost=verification_cost_result["total_cost"],
+                            duration_ms=int(processing_time * 1000 * 0.1),
+                            is_success=True,
+                            extra_data={
+                                "ai_function": request_data.ai_function or "rewrite",
+                                "intensity": request_data.intensity,
+                                "session_id": str(session.id),
+                                "stream": True
+                            }
+                        )
+                        db.add(verification_log)
+
+                except Exception as e:
+                    logger.error(f"记录AICallLog失败（不影响主流程）: {e}")
+                    # 记录失败不影响主流程，继续执行
+
+                # ✅ 修复：在生成器的db会话中更新用户画像
+                try:
+                    profile_service = UserProfileService(db)  # 使用生成器的db
+                    await profile_service.record_humanize_use(
+                        user_id=current_user.id,
+                        text_length=len(request_data.text),
+                        ai_function=request_data.ai_function or "rewrite",
+                        intensity=request_data.intensity,
+                        improvement=improvement
+                    )
+                except Exception as e:
+                    logger.error(f"更新用户画像失败: {e}")
+
+                # ✅ 修复：在生成器的独立会话中commit（安全）
                 await db.commit()
 
-                logger.info(f"已保存中断会话: session_id={session.id}, chunks={len(humanized_chunks)}")
+                # 记录监控指标
+                request_duration = time.time() - start_time
+                record_timer("humanize_stream_duration_seconds", request_duration, labels={"intensity": request_data.intensity})
+                increment_counter("humanize_stream_requests_success", labels={"intensity": request_data.intensity})
+                record_timer("humanize_stream_tokens_used", total_tokens, labels={"intensity": request_data.intensity})
+                record_timer("humanize_stream_improvement", improvement, labels={"intensity": request_data.intensity})
 
-            except Exception as save_err:
-                logger.error(f"保存中断会话失败: {save_err}")
-                # 中断处理失败不影响主流程
+                # 8. 发送完成事件
+                yield f"data: {json.dumps({'type': 'done', 'session_id': str(session.id), 'improvement': improvement, 'processing_time': processing_time, 'tokens_used': total_tokens}, ensure_ascii=False)}\n\n"
 
-            # 注意：这里无法继续yield，连接已断开
+                logger.info(f"流式去痕迹完成: session_id={session.id}, improvement={improvement:.1f}, duration={request_duration:.2f}s")
 
-        except Exception as e:
-            logger.error(f"流式去痕迹失败: {type(e).__name__}: {e}", exc_info=True)
+            except GeneratorExit:
+                # 用户中断连接
+                interrupted_time = time.time() - start_time
+                logger.warning(f"用户中断流式响应: 已处理{interrupted_time:.2f}秒, chunks={len(humanized_chunks)}")
+                increment_counter("humanize_stream_requests_interrupted", labels={"intensity": request_data.intensity})
 
-            # 记录失败指标
-            increment_counter("humanize_stream_requests_failed", labels={"intensity": request_data.intensity, "error": type(e).__name__})
-
-            try:
-                await db.rollback()
-                yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
-            except:
-                pass  # 如果连接已断开，忽略错误
-
-        finally:
-            # 确保关闭Service
-            if humanize_service:
+                # 保存中断会话记录（用于分析用户行为）
                 try:
-                    await humanize_service.close()
-                except Exception as e:
-                    logger.error(f"关闭Service失败: {e}")
+                    # 计算已收集的数据
+                    partial_text = "".join(humanized_chunks) if humanized_chunks else ""
+                    estimated_tokens = final_usage.get("total_tokens", 0) if final_usage else int(len(request_data.text) * 1.5)
+
+                    # 使用CostCalculator估算中断时的成本
+                    # 假设只完成了rewrite阶段（因为中断了）
+                    estimated_prompt = estimated_tokens // 2
+                    estimated_completion = estimated_tokens // 2
+                    cost_result = CostCalculator.calculate_cost(
+                        "gemini-2.5-pro",  # 假设使用pro模型进行改写
+                        estimated_prompt,
+                        estimated_completion
+                    )
+                    estimated_cost = cost_result["total_cost"]
+
+                    # 创建中断会话记录
+                    session = HumanizeSession(
+                        user_id=current_user.id,
+                        ai_function=request_data.ai_function or "rewrite",
+                        score_before=detection_result.overall_score if detection_result else 70.0,
+                        score_after=70.0,  # 未完成，使用默认值
+                        improvement=0.0,  # 未完成
+                        intensity=request_data.intensity,
+                        processing_time=interrupted_time,
+                        tokens_used=estimated_tokens,
+                        cost=estimated_cost,  # 使用CostCalculator计算的成本
+                        user_accepted=False  # 中断视为拒绝
+                    )
+                    db.add(session)
+                    await db.flush()
+
+                    # 创建详情（标记为中断）
+                    detail = HumanizeSessionDetail(
+                        session_id=session.id,
+                        original_preview=request_data.text[:200],
+                        humanized_preview=partial_text[:200] if partial_text else "(用户中断，无输出)",
+                        dimensions_before={},
+                        dimensions_after={},
+                        detected_patterns=["USER_INTERRUPTED"],
+                        expires_at=datetime.utcnow() + timedelta(days=7)
+                    )
+                    db.add(detail)
+                    await db.commit()
+
+                    logger.info(f"已保存中断会话: session_id={session.id}, chunks={len(humanized_chunks)}")
+
+                except Exception as save_err:
+                    logger.error(f"保存中断会话失败: {save_err}")
+                    # 中断处理失败不影响主流程
+
+                # 注意：这里无法继续yield，连接已断开
+
+            except Exception as e:
+                logger.error(f"流式去痕迹失败: {type(e).__name__}: {e}", exc_info=True)
+
+                # 记录失败指标
+                increment_counter("humanize_stream_requests_failed", labels={"intensity": request_data.intensity, "error": type(e).__name__})
+
+                try:
+                    await db.rollback()
+                    yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+                except:
+                    pass  # 如果连接已断开，忽略错误
+
+            finally:
+                # 确保关闭Service
+                if humanize_service:
+                    try:
+                        await humanize_service.close()
+                    except Exception as e:
+                        logger.error(f"关闭Service失败: {e}")
 
     return StreamingResponse(
         generate(),

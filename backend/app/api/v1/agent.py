@@ -876,7 +876,7 @@ async def agent_chat_stream(
     current_user: User = Depends(get_current_active_user),
     memory: MemoryManager = Depends(get_memory_manager),
     ai_service: HTTPAIService = Depends(get_ai_service),
-    db: AsyncSession = Depends(get_db),
+    # ✅ 修复：移除db依赖，避免生命周期不匹配
     mode: Optional[str] = None  # 新增：支持mode参数（通过查询参数或Body）
 ):
     """
@@ -918,268 +918,272 @@ async def agent_chat_stream(
     logger.info(f"[Chat Stream] Mode: {actual_mode}")
 
     async def event_generator():
-        # 使用队列实现实时事件发送
-        import time  # ✅ 在这里导入，整个函数内都可以使用
-        event_queue = asyncio.Queue()
-        agent_task = None
-        result = None
+        # ✅ 修复：生成器内创建独立db会话，完全控制生命周期
+        from app.core.database import create_db_session
 
-        try:
-            user_id = str(current_user.id)
-            conversation_id = request.conversation_id or str(uuid.uuid4())
+        async with create_db_session() as db:
+            # 使用队列实现实时事件发送
+            import time  # ✅ 在这里导入，整个函数内都可以使用
+            event_queue = asyncio.Queue()
+            agent_task = None
+            result = None
 
-            # ✅ 会话归属验证（简化版Redis方案）
-            from app.core.redis import redis_client
+            try:
+                user_id = str(current_user.id)
+                conversation_id = request.conversation_id or str(uuid.uuid4())
 
-            if request.conversation_id:
-                # 验证现有会话的归属
-                stored_user_id = await redis_client.get(
-                    f"conversation:{request.conversation_id}:owner"
-                )
-                if stored_user_id:
-                    # RedisClient 已设置 decode_responses=True，返回字符串
-                    # 但如果返回的是字节，需要解码
-                    if isinstance(stored_user_id, bytes):
-                        stored_user_id = stored_user_id.decode('utf-8')
-                    if stored_user_id != user_id:
-                        # 会话归属验证失败
+                # ✅ 会话归属验证（简化版Redis方案）
+                from app.core.redis import redis_client
+
+                if request.conversation_id:
+                    # 验证现有会话的归属
+                    stored_user_id = await redis_client.get(
+                        f"conversation:{request.conversation_id}:owner"
+                    )
+                    if stored_user_id:
+                        # RedisClient 已设置 decode_responses=True，返回字符串
+                        # 但如果返回的是字节，需要解码
+                        if isinstance(stored_user_id, bytes):
+                            stored_user_id = stored_user_id.decode('utf-8')
+                        if stored_user_id != user_id:
+                            # 会话归属验证失败
+                            error_event = {
+                                'type': 'error',
+                                'message': '无权访问此会话',
+                                'code': 'UNAUTHORIZED_CONVERSATION'
+                            }
+                            yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
+                            logger.warning(
+                                f"[Security] 用户 {user_id} 尝试访问其他用户的会话 {request.conversation_id}"
+                            )
+                            return
+                else:
+                    # 新会话：存储归属关系
+                    await redis_client.set(
+                        f"conversation:{conversation_id}:owner",
+                        user_id,
+                        expire=86400 * 30  # 30天过期（修复：ex -> expire）
+                    )
+                    logger.info(f"[Session] 创建新会话归属: {conversation_id} -> {user_id}")
+
+                logger.info(f"[LangGraph Agent Stream] ⏱️ 请求开始 - User: {user_id}, Mode: {actual_mode}, Message: {request.message[:50]}...")
+
+                # 发送开始事件（包含mode信息）
+                start_event = {'type': 'start', 'conversation_id': conversation_id, 'mode': str(actual_mode)}
+                yield f"data: {json.dumps(start_event, ensure_ascii=False)}\n\n"
+
+                # ✅ 修复：删除多余的 MemoryManager 调用
+                # WritingAgentGraph 内部已有 ContextManager（使用 VectorStore 的语义搜索）
+                # 不再需要从 Redis 获取空的会话列表
+                # 注释原因：
+                # 1. MemoryManager.get_complete_context() 从 Redis 查询会话列表 → 返回0条（Redis里没数据）
+                # 2. WritingAgentGraph 已经有 ContextManager → 从 ChromaDB 检索（有数据）
+                # 3. 导致重复检索且使用了错误的数据源
+
+                # 获取全局共享的 LangGraph Agent
+                agent_graph = get_agent_graph()
+
+                # 准备上下文（创建新dict避免修改原request）
+                context = dict(request.context) if request.context else {}
+
+                # ✅ 追踪活动状态（用于发送 activity_complete 事件）
+                last_activity_step = {'step': None, 'start_time': None}
+
+                # 定义回调函数 - 实时放入队列
+                async def on_plan(plan_data):
+                    """规划生成回调"""
+                    await event_queue.put(('plan', plan_data))
+                    logger.info(f"[Stream] 规划生成: {len(plan_data.get('tasks', []))} 个任务")
+
+                async def on_task_start(task):
+                    """任务开始回调"""
+                    await event_queue.put(('task_start', task))
+                    logger.info(f"[Stream] 任务开始: {task.get('description')}")
+
+                async def on_task_progress(task, status):
+                    """任务进度回调"""
+                    await event_queue.put(('task_progress', {'task_id': task.get('task_id'), 'status': status}))
+
+                async def on_task_done(task, result_data):
+                    """任务完成回调"""
+                    elapsed_time = task.get('elapsed_time', 0)
+                    await event_queue.put(('task_done', {
+                        'task_id': task.get('task_id'),
+                        'description': task.get('description'),
+                        'elapsed_time': elapsed_time
+                    }))
+                    logger.info(f"[Stream] 任务完成: {task.get('description')} ({elapsed_time:.1f}s)")
+
+                async def on_content(chunk):
+                    """内容生成回调"""
+                    await event_queue.put(('content', chunk))
+
+                # 在后台运行 Agent
+                async def run_agent():
+                    nonlocal result
+                    try:
+                        # 根据模式调用不同的方法
+                        if actual_mode == ChatMode.REACT:
+                            # React模式：使用chat_stream()
+                            # 定义React模式的回调
+                            async def on_progress_react(event):
+                                """进度回调 - 添加activity_complete逻辑"""
+                                current_step = event.get('step')
+
+                                # ✅ 如果活动类型改变，发送前一个活动的完成事件
+                                if last_activity_step['step'] is not None and last_activity_step['step'] != current_step:
+                                    elapsed_time = time.time() - last_activity_step['start_time'] if last_activity_step['start_time'] else 0
+                                    await event_queue.put(('activity_complete', {
+                                        'step': last_activity_step['step'],
+                                        'elapsed_time': elapsed_time
+                                    }))
+                                    logger.info(f"[Stream] Activity完成: {last_activity_step['step']} ({elapsed_time:.1f}s)")
+
+                                # 更新当前活动
+                                last_activity_step['step'] = current_step
+                                last_activity_step['start_time'] = time.time()
+
+                                # 发送progress事件
+                                await event_queue.put(('progress', event))
+
+                            async def on_tool_call_react(tool_name: str, tool_args: dict):
+                                await event_queue.put(('tool_call', {'tool': tool_name, 'args': tool_args}))
+
+                            async def on_content_react(content: str):
+                                await event_queue.put(('content', {'content': content}))
+
+                            result = await agent_graph.chat_stream(
+                                message=request.message,
+                                user_id=user_id,  # 新增：传入用户ID
+                                work_id=request.work_id,
+                                chapter_id=request.chapter_id,
+                                conversation_id=conversation_id,
+                                context=context,
+                                on_progress=on_progress_react,
+                                on_tool_call=on_tool_call_react,
+                                on_content=on_content_react,
+                                db=db  # ✅ 修复：传入生成器的独立db会话
+                            )
+                        else:
+                            # Planning模式：使用chat_with_planning()
+                            result = await agent_graph.chat_with_planning(
+                                message=request.message,
+                                user_id=user_id,
+                                work_id=request.work_id,
+                                chapter_id=request.chapter_id,
+                                conversation_id=conversation_id,
+                                context=context,
+                                on_plan=on_plan,
+                                on_task_start=on_task_start,
+                                on_task_progress=on_task_progress,
+                                on_task_done=on_task_done,
+                                on_content=on_content,
+                                db=db
+                            )
+                        # ✅ 发送最后一个活动的完成事件
+                        if last_activity_step['step'] is not None:
+                            elapsed_time = time.time() - last_activity_step['start_time'] if last_activity_step['start_time'] else 0
+                            await event_queue.put(('activity_complete', {
+                                'step': last_activity_step['step'],
+                                'elapsed_time': elapsed_time
+                            }))
+                            logger.info(f"[Stream] 最后活动完成: {last_activity_step['step']} ({elapsed_time:.1f}s)")
+
+                        # Agent 完成后放入结束标记
+                        await event_queue.put(('__done__', None))
+                    except Exception as e:
+                        # Agent执行异常，通过队列发送错误
+                        logger.error(f"[Stream] Agent执行失败: {str(e)}", exc_info=True)
+                        await event_queue.put(('__error__', {
+                            'error': str(e),
+                            'error_type': type(e).__name__
+                        }))
+
+                # 启动 Agent 任务
+                agent_task = asyncio.create_task(run_agent())
+
+                # 实时从队列中取出事件并发送
+                while True:
+                    event_type, event_data = await event_queue.get()
+
+                    if event_type == '__done__':
+                        # Agent 执行完成
+                        break
+
+                    if event_type == '__error__':
+                        # Agent执行失败
                         error_event = {
                             'type': 'error',
-                            'message': '无权访问此会话',
-                            'code': 'UNAUTHORIZED_CONVERSATION'
+                            'data': event_data,
+                            'mode': str(actual_mode)
                         }
                         yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
-                        logger.warning(
-                            f"[Security] 用户 {user_id} 尝试访问其他用户的会话 {request.conversation_id}"
-                        )
+                        # 结束流式响应
                         return
-            else:
-                # 新会话：存储归属关系
-                await redis_client.set(
-                    f"conversation:{conversation_id}:owner",
-                    user_id,
-                    expire=86400 * 30  # 30天过期（修复：ex -> expire）
-                )
-                logger.info(f"[Session] 创建新会话归属: {conversation_id} -> {user_id}")
 
-            logger.info(f"[LangGraph Agent Stream] ⏱️ 请求开始 - User: {user_id}, Mode: {actual_mode}, Message: {request.message[:50]}...")
-
-            # 发送开始事件（包含mode信息）
-            start_event = {'type': 'start', 'conversation_id': conversation_id, 'mode': str(actual_mode)}
-            yield f"data: {json.dumps(start_event, ensure_ascii=False)}\n\n"
-
-            # ✅ 修复：删除多余的 MemoryManager 调用
-            # WritingAgentGraph 内部已有 ContextManager（使用 VectorStore 的语义搜索）
-            # 不再需要从 Redis 获取空的会话列表
-            # 注释原因：
-            # 1. MemoryManager.get_complete_context() 从 Redis 查询会话列表 → 返回0条（Redis里没数据）
-            # 2. WritingAgentGraph 已经有 ContextManager → 从 ChromaDB 检索（有数据）
-            # 3. 导致重复检索且使用了错误的数据源
-
-            # 获取全局共享的 LangGraph Agent
-            agent_graph = get_agent_graph()
-
-            # 准备上下文（创建新dict避免修改原request）
-            context = dict(request.context) if request.context else {}
-
-            # ✅ 追踪活动状态（用于发送 activity_complete 事件）
-            last_activity_step = {'step': None, 'start_time': None}
-
-            # 定义回调函数 - 实时放入队列
-            async def on_plan(plan_data):
-                """规划生成回调"""
-                await event_queue.put(('plan', plan_data))
-                logger.info(f"[Stream] 规划生成: {len(plan_data.get('tasks', []))} 个任务")
-
-            async def on_task_start(task):
-                """任务开始回调"""
-                await event_queue.put(('task_start', task))
-                logger.info(f"[Stream] 任务开始: {task.get('description')}")
-
-            async def on_task_progress(task, status):
-                """任务进度回调"""
-                await event_queue.put(('task_progress', {'task_id': task.get('task_id'), 'status': status}))
-
-            async def on_task_done(task, result_data):
-                """任务完成回调"""
-                elapsed_time = task.get('elapsed_time', 0)
-                await event_queue.put(('task_done', {
-                    'task_id': task.get('task_id'),
-                    'description': task.get('description'),
-                    'elapsed_time': elapsed_time
-                }))
-                logger.info(f"[Stream] 任务完成: {task.get('description')} ({elapsed_time:.1f}s)")
-
-            async def on_content(chunk):
-                """内容生成回调"""
-                await event_queue.put(('content', chunk))
-
-            # 在后台运行 Agent
-            async def run_agent():
-                nonlocal result
-                try:
-                    # 根据模式调用不同的方法
-                    if actual_mode == ChatMode.REACT:
-                        # React模式：使用chat_stream()
-                        # 定义React模式的回调
-                        async def on_progress_react(event):
-                            """进度回调 - 添加activity_complete逻辑"""
-                            current_step = event.get('step')
-
-                            # ✅ 如果活动类型改变，发送前一个活动的完成事件
-                            if last_activity_step['step'] is not None and last_activity_step['step'] != current_step:
-                                elapsed_time = time.time() - last_activity_step['start_time'] if last_activity_step['start_time'] else 0
-                                await event_queue.put(('activity_complete', {
-                                    'step': last_activity_step['step'],
-                                    'elapsed_time': elapsed_time
-                                }))
-                                logger.info(f"[Stream] Activity完成: {last_activity_step['step']} ({elapsed_time:.1f}s)")
-
-                            # 更新当前活动
-                            last_activity_step['step'] = current_step
-                            last_activity_step['start_time'] = time.time()
-
-                            # 发送progress事件
-                            await event_queue.put(('progress', event))
-
-                        async def on_tool_call_react(tool_name: str, tool_args: dict):
-                            await event_queue.put(('tool_call', {'tool': tool_name, 'args': tool_args}))
-
-                        async def on_content_react(content: str):
-                            await event_queue.put(('content', {'content': content}))
-
-                        result = await agent_graph.chat_stream(
-                            message=request.message,
-                            user_id=user_id,  # 新增：传入用户ID
-                            work_id=request.work_id,
-                            chapter_id=request.chapter_id,
-                            conversation_id=conversation_id,
-                            context=context,
-                            on_progress=on_progress_react,
-                            on_tool_call=on_tool_call_react,
-                            on_content=on_content_react,
-                            db=db  # 新增：传入数据库会话用于token记录
-                        )
-                    else:
-                        # Planning模式：使用chat_with_planning()
-                        result = await agent_graph.chat_with_planning(
-                            message=request.message,
-                            user_id=user_id,
-                            work_id=request.work_id,
-                            chapter_id=request.chapter_id,
-                            conversation_id=conversation_id,
-                            context=context,
-                            on_plan=on_plan,
-                            on_task_start=on_task_start,
-                            on_task_progress=on_task_progress,
-                            on_task_done=on_task_done,
-                            on_content=on_content,
-                            db=db
-                        )
-                    # ✅ 发送最后一个活动的完成事件
-                    if last_activity_step['step'] is not None:
-                        elapsed_time = time.time() - last_activity_step['start_time'] if last_activity_step['start_time'] else 0
-                        await event_queue.put(('activity_complete', {
-                            'step': last_activity_step['step'],
-                            'elapsed_time': elapsed_time
-                        }))
-                        logger.info(f"[Stream] 最后活动完成: {last_activity_step['step']} ({elapsed_time:.1f}s)")
-
-                    # Agent 完成后放入结束标记
-                    await event_queue.put(('__done__', None))
-                except Exception as e:
-                    # Agent执行异常，通过队列发送错误
-                    logger.error(f"[Stream] Agent执行失败: {str(e)}", exc_info=True)
-                    await event_queue.put(('__error__', {
-                        'error': str(e),
-                        'error_type': type(e).__name__
-                    }))
-
-            # 启动 Agent 任务
-            agent_task = asyncio.create_task(run_agent())
-
-            # 实时从队列中取出事件并发送
-            while True:
-                event_type, event_data = await event_queue.get()
-
-                if event_type == '__done__':
-                    # Agent 执行完成
-                    break
-
-                if event_type == '__error__':
-                    # Agent执行失败
-                    error_event = {
-                        'type': 'error',
+                    # 实时发送事件（添加mode标识）
+                    event_payload = {
+                        'type': event_type,
                         'data': event_data,
                         'mode': str(actual_mode)
                     }
+                    # 添加调试日志
+                    if event_type == 'progress':
+                        logger.info(f"[SSE] 发送 progress 事件: step={event_data.get('step')}, desc={event_data.get('description')}")
+                    elif event_type == 'activity_complete':
+                        logger.info(f"[SSE] 发送 activity_complete 事件: step={event_data.get('step')}, elapsed={event_data.get('elapsed_time'):.1f}s")
+                    yield f"data: {json.dumps(event_payload, ensure_ascii=False)}\n\n"
+
+                # 等待 Agent 任务完成
+                await agent_task
+
+                # 检查result是否有效
+                if result is None:
+                    logger.error(f"[LangGraph Agent Stream] Result is None, Agent可能执行失败")
+                    error_event = {
+                        'type': 'error',
+                        'error': 'Agent执行失败，未返回结果',
+                        'mode': str(actual_mode)
+                    }
                     yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
-                    # 结束流式响应
                     return
 
-                # 实时发送事件（添加mode标识）
-                event_payload = {
-                    'type': event_type,
-                    'data': event_data,
-                    'mode': str(actual_mode)
+                # 记录交互
+                memory.record_user_interaction(
+                    user_id,
+                    "agent_chat",
+                    {
+                        "message": request.message,
+                        "intent": result.get("metadata", {}).get("intent"),
+                        "conversation_id": conversation_id,
+                        "mode": str(actual_mode)  # 记录使用的模式
+                    }
+                )
+
+                # 发送完成事件
+                done_event = {
+                    'type': 'done',
+                    'mode': str(actual_mode),
+                    'metadata': result.get('metadata', {}),
+                    'suggested_actions': result.get('suggested_actions', [])
                 }
-                # 添加调试日志
-                if event_type == 'progress':
-                    logger.info(f"[SSE] 发送 progress 事件: step={event_data.get('step')}, desc={event_data.get('description')}")
-                elif event_type == 'activity_complete':
-                    logger.info(f"[SSE] 发送 activity_complete 事件: step={event_data.get('step')}, elapsed={event_data.get('elapsed_time'):.1f}s")
-                yield f"data: {json.dumps(event_payload, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps(done_event, ensure_ascii=False)}\n\n"
 
-            # 等待 Agent 任务完成
-            await agent_task
+                logger.info(f"[LangGraph Agent Stream] User {user_id} - Mode: {actual_mode}, Stream completed")
 
-            # 检查result是否有效
-            if result is None:
-                logger.error(f"[LangGraph Agent Stream] Result is None, Agent可能执行失败")
+            except Exception as e:
+                logger.error(f"[LangGraph Agent Stream] Error: {str(e)}", exc_info=True)
+                # 发送错误事件（包含mode标识）
                 error_event = {
                     'type': 'error',
-                    'error': 'Agent执行失败，未返回结果',
+                    'error': str(e),
+                    'error_type': type(e).__name__,
                     'mode': str(actual_mode)
                 }
                 yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
-                return
-
-            # 记录交互
-            memory.record_user_interaction(
-                user_id,
-                "agent_chat",
-                {
-                    "message": request.message,
-                    "intent": result.get("metadata", {}).get("intent"),
-                    "conversation_id": conversation_id,
-                    "mode": str(actual_mode)  # 记录使用的模式
-                }
-            )
-
-            # 发送完成事件
-            done_event = {
-                'type': 'done',
-                'mode': str(actual_mode),
-                'metadata': result.get('metadata', {}),
-                'suggested_actions': result.get('suggested_actions', [])
-            }
-            yield f"data: {json.dumps(done_event, ensure_ascii=False)}\n\n"
-
-            logger.info(f"[LangGraph Agent Stream] User {user_id} - Mode: {actual_mode}, Stream completed")
-
-        except Exception as e:
-            logger.error(f"[LangGraph Agent Stream] Error: {str(e)}", exc_info=True)
-            # 发送错误事件（包含mode标识）
-            error_event = {
-                'type': 'error',
-                'error': str(e),
-                'error_type': type(e).__name__,
-                'mode': str(actual_mode)
-            }
-            yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
-            # 取消 Agent 任务
-            if agent_task and not agent_task.done():
-                agent_task.cancel()
+                # 取消 Agent 任务
+                if agent_task and not agent_task.done():
+                    agent_task.cancel()
 
     return StreamingResponse(
         event_generator(),
