@@ -33,14 +33,14 @@ async def get_tool_decision_static_prompt() -> str:
 ⚠️ 重要：必须严格返回JSON格式，不要返回自然语言！
 
 返回JSON:
-- 需要: {{"need_tools": true, "tool_name": "工具名", "tool_args": {{}}}}
-- 缺参数: {{"need_tools": false, "direct_response": "请提供..."}}
-- 直接答: {{"need_tools": false, "direct_response": "..."}}
+- 需要: {"need_tools": true, "tool_name": "工具名", "tool_args": {}}
+- 缺参数: {"need_tools": false, "direct_response": "请提供..."}
+- 直接答: {"need_tools": false, "direct_response": "..."}
 
 示例:
-"获取第3章" + work_id已设置 → {{"need_tools": true, "tool_name": "get_chapter_by_order_tool", "tool_args": {{"chapter_order": 3}}}}
-"获取第3章" + work_id未设置 → {{"need_tools": false, "direct_response": "请先告诉我是哪部作品？"}}
-"刚才我问了什么？" → {{"need_tools": false, "direct_response": "您刚才询问了..."}}
+"获取第3章" + work_id已设置 → {"need_tools": true, "tool_name": "get_chapter_by_order_tool", "tool_args": {"chapter_order": 3}}
+"获取第3章" + work_id未设置 → {"need_tools": false, "direct_response": "请先告诉我是哪部作品？"}
+"刚才我问了什么？" → {"need_tools": false, "direct_response": "您刚才询问了..."}
 
 ⚠️ 请严格返回JSON格式，不要直接回答问题:"""
 
@@ -74,12 +74,12 @@ async def get_planning_static_prompt() -> str:
 
 示例:
 用户: "分析第二章"
-{{
+{
   "user_intent": "分析第二章内容",
   "tasks": [
-    {{"task_id": 1, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {{"chapter_order": 2}}, "estimated_time": "5秒"}},
-    {{"task_id": 2, "description": "分析章节", "tool": "analyze_text_tool", "params": {{"text": "$TASK_1.content$", "focus": "情节"}}, "estimated_time": "10秒"}}
+    {"task_id": 1, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}, "estimated_time": "5秒"},
+    {"task_id": 2, "description": "分析章节", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$", "focus": "情节"}, "estimated_time": "10秒"}
   ]
-}}
+}
 
 返回纯JSON:"""

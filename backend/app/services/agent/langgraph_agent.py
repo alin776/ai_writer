@@ -1462,30 +1462,47 @@ class WritingAgentGraph:
         """
         msg = message.lower()
 
-        # 1. 写作：续写、扩写、生成内容
-        writing_keywords = ["续写", "扩写", "第", "章", "生成内容", "创作", "写作", "继续写", "完成"]
-        if any(kw in msg for kw in writing_keywords):
-            # 章节特征强相关
-            if re.search(r'第\d+章|chapter\s*\d+', msg, re.IGNORECASE):
-                return "writing", 0.98
-            return "writing", 0.90
+        # 中文数字映射
+        chinese_numbers = {
+            "一": "1", "二": "2", "三": "3", "四": "4", "五": "5",
+            "六": "6", "七": "7", "八": "8", "九": "9", "十": "10"
+        }
 
-        # 2. 规划：大纲、世界观、设定
-        planning_keywords = ["规划", "大纲", "世界观", "设定", "角色", "背景", "剧情", "框架", "结构"]
-        if any(kw in msg for kw in planning_keywords):
-            return "planning", 0.95
-
-        # 3. 分析：评估、诊断、检查
-        analysis_keywords = ["分析", "评估", "诊断", "检查", "质量", "评价", "看看", "怎么样", "如何"]
-        if any(kw in msg for kw in analysis_keywords):
-            return "analysis", 0.93
-
-        # 4. 卡文：灵感、写不下去
-        stuck_keywords = ["卡文", "灵感", "写不下去", "没思路", "瓶颈", "困难", "卡住", "不知道"]
+        # 4. 卡文：灵感、写不下去（优先级提前）
+        stuck_keywords = ["卡文", "灵感", "写不下去", "没思路", "瓶颈", "困难", "卡住", "不知道",
+                         "想不出", "启发", "创意", "帮忙", "给点建议"]
         if any(kw in msg for kw in stuck_keywords):
+            logger.info(f"[Intent] 匹配 stuck 关键词: {[kw for kw in stuck_keywords if kw in msg]}")
             return "stuck", 0.95
 
+        # 3. 分析：评估、诊断、检查（优先级提前）
+        analysis_keywords = ["分析", "评估", "诊断", "检查", "质量", "评价", "看看",
+                           "改进", "优化", "修改", "问题", "错误", "建议", "缺点", "不足"]
+        if any(kw in msg for kw in analysis_keywords):
+            logger.info(f"[Intent] 匹配 analysis 关键词: {[kw for kw in analysis_keywords if kw in msg]}")
+            return "analysis", 0.93
+
+        # 2. 规划：大纲、世界观、设定
+        planning_keywords = ["规划", "大纲", "世界观", "设定", "角色", "背景", "剧情", "框架", "结构",
+                           "设计", "安排", "构思", "计划", "整体", "布局"]
+        if any(kw in msg for kw in planning_keywords):
+            logger.info(f"[Intent] 匹配 planning 关键词: {[kw for kw in planning_keywords if kw in msg]}")
+            return "planning", 0.95
+
+        # 1. 写作：续写、扩写、生成内容（移除通用词"第"和"章"）
+        writing_keywords = ["续写", "扩写", "生成内容", "创作", "写作", "继续写", "完成", "补充内容",
+                          "写一段", "写点", "帮我写"]
+        # 章节特征强相关（支持中文数字）
+        chapter_pattern = r'第[一二三四五六七八九十\d]+章|chapter\s*\d+'
+        if re.search(chapter_pattern, msg, re.IGNORECASE):
+            logger.info(f"[Intent] 匹配章节模式: {re.findall(chapter_pattern, msg, re.IGNORECASE)}")
+            return "writing", 0.98
+        if any(kw in msg for kw in writing_keywords):
+            logger.info(f"[Intent] 匹配 writing 关键词: {[kw for kw in writing_keywords if kw in msg]}")
+            return "writing", 0.90
+
         # 5. 默认：一般对话
+        logger.info("[Intent] 未匹配任何关键词，默认为 general")
         return "general", 0.85
 
     async def _classify_intent(self, state: AgentState) -> AgentState:
