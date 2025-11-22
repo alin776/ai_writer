@@ -114,7 +114,7 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
     currentTaskId,
     activities,  // ✅ 添加activities
     sendMessageStream,
-  } = useAgentChat();
+  } = useAgentChat({ workId, chapterId });  // 🆕 传递workId和chapterId进行会话隔离
 
   const [inputValue, setInputValue] = useState('');
   const [mode, setMode] = useState<AgentMode>('planning'); // ✅ Agent执行模式

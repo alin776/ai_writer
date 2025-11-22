@@ -18,6 +18,7 @@ import ThinkingIndicator from './ThinkingIndicator';
 import TaskListPanel from './TaskListPanel';
 import ActivityStream from './ActivityStream';  // ✅ 导入ActivityStream
 import ModeSelector, { type AgentMode } from './ModeSelector';
+import ConversationHistory from './ConversationHistory';  // 🆕 导入对话历史组件
 
 interface AgentChatPanelProps {
   workId?: string;
@@ -42,10 +43,15 @@ export default function AgentChatPanel({
     currentTaskId,
     activities,  // ✅ 获取活动流
     progressData,  // ✅ 获取进度数据
-    clearMessages
+    clearMessages,
+    // 🆕 对话历史管理
+    sessionId,
+    conversationId: hookConversationId,
+    loadHistorySession,
+    getAllHistorySessions,
+    createNewConversation
   } = useAgentChat();
 
-  const [conversationId, setConversationId] = useState<string | null>(null);
   const [mode, setMode] = useState<AgentMode>('react'); // 🔥 默认react模式用于测试
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -90,7 +96,7 @@ export default function AgentChatPanel({
       mode,  // 传递当前选择的执行模式
       work_id: workId,
       chapter_id: chapterId,
-      conversation_id: conversationId || undefined,  // 将 null 转换为 undefined
+      conversation_id: hookConversationId || undefined,  // 🆕 使用hook的conversationId
       context
     };
 
@@ -99,17 +105,13 @@ export default function AgentChatPanel({
       await sendMessageStream(request);
     } else {
       // 使用普通响应
-      const response = await sendMessage(request);
-      if (response?.conversation_id) {
-        setConversationId(response.conversation_id);
-      }
+      await sendMessage(request);
     }
   };
 
   const handleClearChat = () => {
-    if (confirm('确定要清空对话历史吗？')) {
+    if (confirm('确定要清空对话并开始新对话吗？')) {
       clearMessages();
-      setConversationId(null);
     }
   };
 
@@ -139,14 +141,24 @@ export default function AgentChatPanel({
             </div>
           </div>
 
-          {messages.length > 0 && (
-            <button
-              onClick={handleClearChat}
-              className="px-2 py-1 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors"
-            >
-              清空对话
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {/* 🆕 对话历史按钮 */}
+            <ConversationHistory
+              currentSessionId={sessionId}
+              onLoadSession={loadHistorySession}
+              onCreateNew={createNewConversation}
+              getAllSessions={getAllHistorySessions}
+            />
+
+            {messages.length > 0 && (
+              <button
+                onClick={handleClearChat}
+                className="px-2 py-1 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors"
+              >
+                清空对话
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

@@ -25,9 +25,12 @@ from redis import Redis
 
 from .types import MemoryItem, MemoryLayer, MemorySnapshot, MemoryStats
 from .memory_strategy import SmartForgetStrategy
+from .metrics import get_metrics  # ✅ P1-5修复: 集成监控
+from .long_term_store import get_long_term_store  # ✅ P1-6修复: 长期记忆持久化
 from app.core.config import settings
 from ..utils import robust_retry, safe_execute_async, global_error_handler, ErrorCategory, cache_result, performance_optimizer
 from ..utils.redis_fallback import get_fallback_store, FallbackReason
+import time  # ✅ P1-5修复: 用于性能测量
 
 logger = logging.getLogger(__name__)
 
@@ -64,11 +67,22 @@ class EnhancedMemoryManager:
         self.medium_term_size = settings.MEMORY_MEDIUM_TERM_SIZE
         self.forget_threshold = settings.MEMORY_FORGET_THRESHOLD
 
+        # ✅ P1-5修复: 初始化监控
+        self.metrics = get_metrics()
+
+        # ✅ P1-6修复: 初始化长期记忆持久化存储
+        self.long_term_store = get_long_term_store(
+            base_dir=getattr(settings, 'LONG_TERM_MEMORY_DIR', './data/long_term_memory'),
+            max_size_kb=getattr(settings, 'LONG_TERM_MAX_SIZE_KB', 50),
+            compression_enabled=getattr(settings, 'LONG_TERM_COMPRESSION', True)
+        )
+
         logger.info(
             f"EnhancedMemoryManager initialized: "
             f"short={self.short_term_size}, "
             f"medium={self.medium_term_size}, "
-            f"threshold={self.forget_threshold}"
+            f"threshold={self.forget_threshold}, "
+            f"long_term_backup=enabled"
         )
 
     # ==================== 记忆添加 ====================
@@ -120,6 +134,9 @@ class EnhancedMemoryManager:
 
         logger.debug(f"Adding memory for user={user_id}, conv={conversation_id}")
 
+        # ✅ P1-5修复: 开始性能监控
+        start_time = time.time()
+
         try:
             # 1. 创建记忆条目（使用 aware datetime）
             now = datetime.now(timezone.utc)
@@ -135,9 +152,16 @@ class EnhancedMemoryManager:
                 metadata=metadata or {}
             )
 
+            # ✅ P1-5修复: 记录重要度分布
+            self.metrics.record_importance(importance)
+
             # 2. 添加到短期记忆（使用重试机制）
             await self._safe_add_to_short_term(user_id, memory)
             logger.info(f"Memory {memory.id} added to short-term for user {user_id}")
+
+            # ✅ P1-5修复: 记录写入性能
+            latency_ms = (time.time() - start_time) * 1000
+            self.metrics.record_write(latency_ms)
 
             # 3. 更新缓存索引
             self._update_cache_index(user_id, memory)
@@ -154,6 +178,10 @@ class EnhancedMemoryManager:
             return memory
 
         except redis.RedisError as e:
+            # ✅ P1-5修复: 记录Redis错误和降级事件
+            self.metrics.record_redis_error()
+            self.metrics.record_fallback()
+
             # 使用统一的降级策略（修复P0-8）
             error_info = global_error_handler.classify_error(
                 e,
@@ -293,14 +321,30 @@ class EnhancedMemoryManager:
         Returns:
             List[MemoryItem]: 相关记忆列表
         """
-        # 使用改进的关键词提取
-        keywords = self._extract_keywords(query)
+        # ✅ P1-5修复: 开始检索性能监控
+        start_time = time.time()
 
-        if not keywords:
-            # 如果提取不到关键词，返回最近的记忆
-            return self.get_recent_memories(user_id, limit=top_k)
+        try:
+            # 使用改进的关键词提取
+            keywords = self._extract_keywords(query)
 
-        return self.search_memories(user_id, keywords, limit=top_k)
+            if not keywords:
+                # 如果提取不到关键词，返回最近的记忆
+                results = self.get_recent_memories(user_id, limit=top_k)
+            else:
+                results = self.search_memories(user_id, keywords, limit=top_k)
+
+            # ✅ P1-5修复: 记录检索性能
+            latency_ms = (time.time() - start_time) * 1000
+            self.metrics.record_retrieval(latency_ms, success=True)
+
+            return results
+
+        except Exception as e:
+            # ✅ P1-5修复: 记录失败的检索
+            latency_ms = (time.time() - start_time) * 1000
+            self.metrics.record_retrieval(latency_ms, success=False)
+            raise
 
     def _extract_keywords(self, text: str) -> List[str]:
         """
@@ -415,6 +459,9 @@ class EnhancedMemoryManager:
             user_id: 用户ID
             conversation_id: 会话ID
         """
+        # ✅ P1-5修复: 开始遗忘性能监控
+        start_time = time.time()
+
         # 使用Redis分布式锁确保同一用户只有一个进程执行遗忘（修复P0-6）
         lock_key = f"lock:forget:{user_id}"
         lock = self.redis.lock(lock_key, timeout=30, blocking_timeout=5)
@@ -459,6 +506,11 @@ class EnhancedMemoryManager:
             if to_forget:
                 summary = self.strategy.compress_to_summary(to_forget, mode="simple")
                 self._append_to_long_term(user_id, summary)
+
+            # ✅ P1-5修复: 记录遗忘性能
+            latency_ms = (time.time() - start_time) * 1000
+            self.metrics.record_forget(latency_ms)
+
         finally:
             # 确保释放锁
             try:
@@ -650,25 +702,124 @@ class EnhancedMemoryManager:
         pipe.execute()
 
     def _get_long_term_summary(self, user_id: str) -> str:
-        """获取长期记忆摘要"""
+        """
+        获取长期记忆摘要
+
+        ✅ P1-6修复: 支持从磁盘恢复（Redis故障容错）
+        """
         key = f"memory:{user_id}:long_term"
-        summary = self.redis.get(key)
 
-        if summary is None:
-            return ""
+        try:
+            summary = self.redis.get(key)
 
-        # 兼容 decode_responses=True 和 False 两种情况
-        return summary.decode('utf-8') if isinstance(summary, bytes) else summary
+            if summary is None:
+                # ✅ P1-6修复: Redis无数据时，尝试从磁盘恢复
+                logger.info(f"[P1-6] Long-term memory not in Redis, attempting disk restore for user={user_id}")
+
+                # 异步加载（在同步上下文中使用run_sync）
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+
+                disk_content = loop.run_until_complete(
+                    self.long_term_store.load(user_id, verify_checksum=True)
+                )
+
+                if disk_content:
+                    # 恢复到Redis
+                    self.redis.set(key, disk_content)
+                    logger.info(f"[P1-6] Successfully restored long-term memory from disk for user={user_id}")
+                    return disk_content
+                else:
+                    logger.warning(f"[P1-6] No disk backup found for user={user_id}")
+                    return ""
+
+            # 兼容 decode_responses=True 和 False 两种情况
+            return summary.decode('utf-8') if isinstance(summary, bytes) else summary
+
+        except redis.RedisError as e:
+            # ✅ P1-6修复: Redis故障时从磁盘恢复
+            logger.error(f"[P1-6] Redis error when fetching long-term memory: {e}, attempting disk restore")
+            self.metrics.redis_errors.increment()
+
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            disk_content = loop.run_until_complete(
+                self.long_term_store.load(user_id, verify_checksum=True)
+            )
+
+            return disk_content or ""
 
     def _append_to_long_term(self, user_id: str, summary: str) -> None:
-        """追加到长期记忆"""
+        """
+        追加到长期记忆
+
+        ✅ P1-6修复: 同步保存到磁盘，支持自动压缩和备份
+        """
         key = f"memory:{user_id}:long_term"
         current = self._get_long_term_summary(user_id)
 
         # 追加新摘要
         new_summary = f"{current}\n{summary}" if current else summary
-        self.redis.set(key, new_summary)
-        logger.debug(f"Appended to long-term memory for user {user_id}")
+
+        try:
+            # 保存到Redis
+            self.redis.set(key, new_summary)
+            logger.debug(f"Appended to long-term memory for user {user_id}")
+
+            # ✅ P1-6修复: 同步保存到磁盘（异步执行）
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            # 保存到磁盘（自动压缩、备份）
+            backup_result = loop.run_until_complete(
+                self.long_term_store.save(
+                    user_id=user_id,
+                    content=new_summary,
+                    auto_compress=True,  # 超过50KB自动二次压缩
+                    create_backup=True    # 创建历史备份
+                )
+            )
+
+            if backup_result.get("success"):
+                logger.info(
+                    f"[P1-6] Long-term memory backed up to disk: user={user_id}, "
+                    f"size={backup_result.get('content_size_kb', 0):.2f}KB, "
+                    f"compressed={backup_result.get('compressed', False)}, "
+                    f"secondary_compressed={backup_result.get('secondary_compressed', False)}, "
+                    f"backup_version={backup_result.get('backup_version', 0)}"
+                )
+            else:
+                logger.error(f"[P1-6] Failed to backup long-term memory to disk for user={user_id}")
+
+        except redis.RedisError as e:
+            logger.error(f"[P1-6] Redis error when appending to long-term memory: {e}")
+            self.metrics.redis_errors.increment()
+
+            # 即使Redis失败，也要保存到磁盘
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            loop.run_until_complete(
+                self.long_term_store.save(user_id=user_id, content=new_summary)
+            )
+            logger.warning(f"[P1-6] Saved to disk only (Redis unavailable) for user={user_id}")
 
     def _restore_memories_from_snapshot(self, snapshot: MemorySnapshot):
         """从快照恢复记忆"""

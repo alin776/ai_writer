@@ -6,10 +6,12 @@
  * - API调用封装
  * - 错误处理
  * - 加载状态
+ * - 对话持久化（localStorage）
  */
 
 import { useState, useCallback, useEffect } from 'react';
 import { agentApi } from '@/services/agentApi';
+import { useConversationPersistence } from './useConversationPersistence';
 import type { AgentChatRequest, AgentChatResponse, ActivityItem, ProgressData } from '@/types/agent';
 
 interface Message {
@@ -29,6 +31,11 @@ interface Task {
   elapsed_time?: number;
 }
 
+interface UseAgentChatOptions {
+  workId?: string;  // 🆕 作品ID（用于会话隔离）
+  chapterId?: string;  // 🆕 章节ID（用于会话隔离）
+}
+
 interface UseAgentChatReturn {
   messages: Message[];
   isLoading: boolean;
@@ -36,15 +43,23 @@ interface UseAgentChatReturn {
   suggestedActions: string[];
   tasks: Task[];
   currentTaskId: number | null;
-  activities: ActivityItem[];  // ✅ 新增：活动流
-  progressData: ProgressData | null;  // ✅ 新增：进度数据
+  activities: ActivityItem[];  // ✅ 活动流
+  progressData: ProgressData | null;  // ✅ 进度数据
   sendMessage: (request: AgentChatRequest) => Promise<AgentChatResponse | null>;
   sendMessageStream: (request: AgentChatRequest) => Promise<void>;
   clearMessages: () => void;
   retryLastMessage: () => Promise<void>;
+
+  // 🆕 对话历史管理
+  sessionId: string;
+  conversationId: string | undefined;
+  loadHistorySession: (sessionId: string) => void;
+  getAllHistorySessions: () => any[];
+  createNewConversation: () => void;
 }
 
-export function useAgentChat(): UseAgentChatReturn {
+export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatReturn {
+  const { workId, chapterId } = options;
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,11 +68,34 @@ export function useAgentChat(): UseAgentChatReturn {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentTaskId, setCurrentTaskId] = useState<number | null>(null);
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
-  const [activities, setActivities] = useState<ActivityItem[]>([]);  // ✅ 新增：活动流状态
-  const [progressData, setProgressData] = useState<ProgressData | null>(null);  // ✅ 新增：进度数据状态
+  const [activities, setActivities] = useState<ActivityItem[]>([]);  // ✅ 活动流状态
+  const [progressData, setProgressData] = useState<ProgressData | null>(null);  // ✅ 进度数据状态
 
   // 用于记录活动开始时间（计算耗时）
   const [activityStartTimes] = useState<Map<string, number>>(new Map());
+
+  // 🆕 对话持久化（传递workId和chapterId进行会话隔离）
+  const persistence = useConversationPersistence({
+    autoSave: true,
+    maxSessions: 20,  // 最多保留20个历史会话
+    workId,  // 🆕 传递作品ID
+    chapterId  // 🆕 传递章节ID
+  });
+
+  // 🆕 初始化：从localStorage恢复历史对话
+  useEffect(() => {
+    const session = persistence.currentSession;
+    if (session && session.messages.length > 0) {
+      console.log(`[useAgentChat] 恢复历史会话 ${session.id}:`, session.messages.length, '条消息');
+      setMessages(session.messages);
+      setConversationId(session.conversationId || undefined);
+    } else {
+      // 空会话或null（新章节），清空消息
+      console.log(`[useAgentChat] 新会话，清空消息`);
+      setMessages([]);
+      setConversationId(undefined);
+    }
+  }, [persistence.sessionId, persistence.currentSession]);  // 🔧 同时监听sessionId和currentSession
 
   const sendMessage = useCallback(
     async (request: AgentChatRequest): Promise<AgentChatResponse | null> => {
@@ -89,6 +127,9 @@ export function useAgentChat(): UseAgentChatReturn {
 
         // 更新建议操作
         setSuggestedActions(response.suggested_actions || []);
+
+        // 🆕 自动保存对话
+        persistence.saveSession([...messages, userMessage, agentMessage], response.conversation_id);
 
         return response;
       } catch (err: any) {
@@ -390,6 +431,10 @@ export function useAgentChat(): UseAgentChatReturn {
                 metadata,
                 timestamp: new Date().toISOString()
               };
+
+              // 🆕 自动保存对话（在消息更新后）
+              persistence.saveSession(newMessages, conversationId);
+
               return newMessages;
             });
           },
@@ -431,7 +476,10 @@ export function useAgentChat(): UseAgentChatReturn {
     setActivities([]);  // ✅ 清空活动流
     setProgressData(null);  // ✅ 清空进度数据
     activityStartTimes.clear();
-  }, [activityStartTimes]);
+
+    // 🆕 清空当前会话并创建新会话
+    persistence.clearCurrentSession();
+  }, [activityStartTimes, persistence]);
 
   const retryLastMessage = useCallback(async () => {
     if (!lastRequest) return;
@@ -442,6 +490,52 @@ export function useAgentChat(): UseAgentChatReturn {
     // 重新发送（使用流式）
     await sendMessageStream(lastRequest);
   }, [lastRequest, sendMessageStream]);
+
+  // 🆕 加载历史会话
+  const loadHistorySession = useCallback((sessionId: string) => {
+    const session = persistence.loadSession(sessionId);
+    if (!session) {
+      console.warn(`[useAgentChat] 会话 ${sessionId} 不存在`);
+      return;
+    }
+
+    console.log(`[useAgentChat] 加载历史会话 ${sessionId}:`, session.messages.length, '条消息');
+
+    // 重置所有状态
+    setMessages(session.messages);
+    setConversationId(session.conversationId || undefined);
+    setSuggestedActions([]);
+    setError(null);
+    setTasks([]);
+    setCurrentTaskId(null);
+    setActivities([]);
+    setProgressData(null);
+    activityStartTimes.clear();
+  }, [persistence, activityStartTimes]);
+
+  // 🆕 获取所有历史会话
+  const getAllHistorySessions = useCallback(() => {
+    return persistence.getAllSessions();
+  }, [persistence]);
+
+  // 🆕 创建新对话
+  const createNewConversation = useCallback(() => {
+    console.log('[useAgentChat] 创建新对话');
+
+    // 重置所有状态
+    setMessages([]);
+    setConversationId(undefined);
+    setSuggestedActions([]);
+    setError(null);
+    setTasks([]);
+    setCurrentTaskId(null);
+    setActivities([]);
+    setProgressData(null);
+    activityStartTimes.clear();
+
+    // 创建新会话
+    persistence.createNewSession();
+  }, [persistence, activityStartTimes]);
 
   return {
     messages,
@@ -455,6 +549,13 @@ export function useAgentChat(): UseAgentChatReturn {
     sendMessage,
     sendMessageStream,
     clearMessages,
-    retryLastMessage
+    retryLastMessage,
+
+    // 🆕 对话历史管理
+    sessionId: persistence.sessionId,
+    conversationId,
+    loadHistorySession,
+    getAllHistorySessions,
+    createNewConversation
   };
 }

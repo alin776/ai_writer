@@ -89,6 +89,11 @@ class ContextManager:
             - metadata: Dict - 元数据（token数、消息数等）
             - context: Context - 原始Context对象（供后续更新使用）
         """
+        # ✅ P1-7修复：自动检测任务类型（如果未指定且启用了自适应预算）
+        if self.enable_adaptive_budget and not task_type and query:
+            task_type = self._analyze_task_type(query)
+            logger.debug(f"[ContextManager] 自动检测任务类型: {task_type.value if hasattr(task_type, 'value') else task_type}")
+
         # ✅ 选择预算配置（自适应 vs 固定）
         if self.enable_adaptive_budget and task_type:
             # 使用自适应预算
@@ -138,6 +143,16 @@ class ContextManager:
                 query,
                 work_id=work_id  # ✅ 新增：传递work_id
             )
+
+        # ✅ P1-4修复：去重短期记忆
+        if context.short_memory.messages:
+            original_count = len(context.short_memory.messages)
+            context.short_memory.messages = self._deduplicate_messages(
+                context.short_memory.messages,
+                threshold=0.85  # 85%相似度视为重复
+            )
+            if len(context.short_memory.messages) < original_count:
+                record_memory_size("short_memory_after_dedup", len(context.short_memory.messages))
 
         # 构建LLM消息列表
         messages = self._build_messages(context, long_term_memories)
@@ -349,31 +364,253 @@ class ContextManager:
 
     def _fallback_summary(self, messages: List[Message]) -> str:
         """
-        降级策略：简单提取式摘要（当LLM不可用时）
+        降级策略：智能提取式摘要（✅ P1-3修复：增强AI摘要降级）
 
-        策略与SummaryService._fallback_summary相同
+        改进策略：
+        1. 关键词提取：识别核心概念（人名、地名、关键动作）
+        2. 重要句子选择：基于重要度选择保留的句子
+        3. 信息密度优化：优先保留信息量大的内容
+        4. 结构化输出：按类别组织摘要内容
+
+        当LLM不可用时，提供比简单截断更好的替代方案
         """
         if not messages:
             return ""
 
-        # 简单策略：提取用户请求和助手回复的关键信息
         summary_parts = []
 
         user_messages = [m for m in messages if m.role == "user"]
         assistant_messages = [m for m in messages if m.role == "assistant"]
 
+        # === 1. 提取核心需求（从第一条用户消息）===
         if user_messages:
-            first_user = user_messages[0].content[:100]
-            summary_parts.append(f"用户请求: {first_user}...")
+            core_request = self._extract_core_request(user_messages[0].content)
+            if core_request:
+                summary_parts.append(f"核心需求: {core_request}")
 
-        if assistant_messages:
-            first_assistant = assistant_messages[0].content[:100]
-            summary_parts.append(f"助手回复: {first_assistant}...")
+        # === 2. 提取关键实体（人名、地名、物品等）===
+        all_content = " ".join([m.content for m in messages])
+        entities = self._extract_key_entities(all_content)
+        if entities:
+            # 限制显示前10个实体
+            entity_str = "、".join(entities[:10])
+            if len(entities) > 10:
+                entity_str += f"等{len(entities)}个"
+            summary_parts.append(f"关键要素: {entity_str}")
 
-        # 统计信息
-        summary_parts.append(f"共{len(messages)}条消息")
+        # === 3. 提取重要动作/事件 ===
+        important_actions = self._extract_important_actions(messages)
+        if important_actions:
+            action_str = "；".join(important_actions[:3])
+            summary_parts.append(f"关键操作: {action_str}")
 
-        return " | ".join(summary_parts)
+        # === 4. 提取关键指令或要求 ===
+        key_requirements = self._extract_key_requirements(user_messages)
+        if key_requirements:
+            req_str = "、".join(key_requirements[:5])
+            summary_parts.append(f"用户要求: {req_str}")
+
+        # === 5. 统计信息 ===
+        user_count = len(user_messages)
+        assistant_count = len(assistant_messages)
+        summary_parts.append(
+            f"对话轮次: {user_count}条用户消息, {assistant_count}条助手回复"
+        )
+
+        result = " | ".join(summary_parts)
+
+        # 如果摘要为空或太短，使用基础降级策略
+        if not result or len(result) < 50:
+            if user_messages:
+                first_user = user_messages[0].content[:150]
+                result = f"用户请求: {first_user}..."
+            if assistant_messages and len(result) < 100:
+                first_assistant = assistant_messages[0].content[:150]
+                result += f" | 助手回复: {first_assistant}..."
+
+        logger.info(f"[FallbackSummary] 生成摘要: {len(result)}字符")
+        return result
+
+    def _extract_core_request(self, text: str) -> str:
+        """
+        提取核心需求（✅ P1-3修复：关键句子提取）
+
+        策略：
+        1. 查找包含关键动词的句子（想、要、帮我、创作等）
+        2. 优先选择第一句或包含"想"、"要"的句子
+        3. 限制长度为200字符
+
+        Args:
+            text: 用户输入文本
+
+        Returns:
+            核心需求文本
+        """
+        # 关键动词
+        key_verbs = ["想", "要", "帮我", "帮忙", "创作", "写", "生成", "制作", "需要"]
+
+        # 分句（按句号、问号、感叹号）
+        import re
+        sentences = re.split(r'[。？！?!]', text)
+        sentences = [s.strip() for s in sentences if s.strip()]
+
+        if not sentences:
+            return text[:200]
+
+        # 查找包含关键动词的句子
+        for sent in sentences:
+            if any(verb in sent for verb in key_verbs):
+                return sent[:200]
+
+        # 如果没找到，返回第一句
+        return sentences[0][:200]
+
+    def _extract_key_entities(self, text: str) -> list:
+        """
+        提取关键实体（✅ P1-3修复：实体识别）
+
+        使用规则匹配提取：
+        1. 中文人名（2-4个汉字，常见姓氏开头）
+        2. 地名（带"市"、"省"、"国"等后缀）
+        3. 专有名词（引号内容、书名号内容）
+
+        Args:
+            text: 文本内容
+
+        Returns:
+            实体列表
+        """
+        import re
+        entities = set()
+
+        # 1. 匹配引号内容（专有名词）
+        quoted = re.findall(r'["""](.*?)["""]', text)
+        entities.update(q for q in quoted if 2 <= len(q) <= 20)
+
+        # 2. 匹配书名号内容
+        book_names = re.findall(r'《(.*?)》', text)
+        entities.update(b for b in book_names if len(b) <= 20)
+
+        # 3. 匹配常见姓氏开头的人名（2-4字）
+        common_surnames = [
+            "张", "王", "李", "赵", "刘", "陈", "杨", "黄", "周", "吴",
+            "徐", "孙", "马", "朱", "胡", "郭", "何", "高", "林", "罗"
+        ]
+        for surname in common_surnames:
+            names = re.findall(rf'{surname}[\u4e00-\u9fff]{{1,3}}', text)
+            entities.update(n for n in names if len(n) <= 4)
+
+        # 4. 匹配地名（带特定后缀）
+        place_suffixes = ["市", "省", "国", "洲", "城", "镇", "县", "区", "岛"]
+        for suffix in place_suffixes:
+            places = re.findall(rf'[\u4e00-\u9fff]{{2,6}}{suffix}', text)
+            entities.update(places)
+
+        return list(entities)[:20]  # 限制最多20个
+
+    def _extract_important_actions(self, messages: List[Message]) -> list:
+        """
+        提取重要动作/事件（✅ P1-3修复：事件提取）
+
+        从助手回复中提取关键操作：
+        1. 规划、创作、修改等主要动作
+        2. 优先选择包含这些动词的句子
+
+        Args:
+            messages: 消息列表
+
+        Returns:
+            重要动作列表
+        """
+        import re
+        actions = []
+
+        # 关键动作词
+        action_keywords = [
+            "规划", "创作", "修改", "删除", "添加", "设定", "设计",
+            "编写", "撰写", "生成", "制作", "优化", "调整"
+        ]
+
+        # 从助手消息中提取
+        assistant_messages = [m for m in messages if m.role == "assistant"]
+
+        for msg in assistant_messages[:5]:  # 只看前5条助手消息
+            sentences = re.split(r'[。！？?!]', msg.content)
+            for sent in sentences:
+                sent = sent.strip()
+                if not sent:
+                    continue
+
+                # 如果包含关键动作词
+                for keyword in action_keywords:
+                    if keyword in sent:
+                        # 提取包含该动作的短句（最多50字符）
+                        if len(sent) > 50:
+                            # 尝试提取动作附近的内容
+                            idx = sent.find(keyword)
+                            start = max(0, idx - 10)
+                            end = min(len(sent), idx + 40)
+                            action = sent[start:end]
+                        else:
+                            action = sent
+
+                        actions.append(action)
+                        break  # 每句只提取一个动作
+
+                if len(actions) >= 5:  # 最多提取5个动作
+                    break
+
+        return actions
+
+    def _extract_key_requirements(self, user_messages: List[Message]) -> list:
+        """
+        提取关键指令或要求（✅ P1-3修复：需求提取）
+
+        从用户消息中提取明确的要求：
+        1. "必须"、"不要"、"要求"等强指令
+        2. "注意"、"关键"、"重点"等提示
+
+        Args:
+            user_messages: 用户消息列表
+
+        Returns:
+            关键要求列表
+        """
+        import re
+        requirements = []
+
+        # 强指令关键词
+        strong_keywords = [
+            "必须", "一定要", "务必", "不要", "不能", "禁止",
+            "要求", "需要", "希望", "注意", "关键", "重点"
+        ]
+
+        for msg in user_messages[:5]:  # 只看前5条用户消息
+            sentences = re.split(r'[。！？?!]', msg.content)
+            for sent in sentences:
+                sent = sent.strip()
+                if not sent:
+                    continue
+
+                # 如果包含强指令关键词
+                for keyword in strong_keywords:
+                    if keyword in sent:
+                        # 提取该句（最多30字符）
+                        if len(sent) > 30:
+                            idx = sent.find(keyword)
+                            start = max(0, idx - 5)
+                            end = min(len(sent), idx + 25)
+                            req = sent[start:end]
+                        else:
+                            req = sent
+
+                        requirements.append(req)
+                        break
+
+                if len(requirements) >= 5:
+                    break
+
+        return requirements
 
     def _estimate_tokens(self, text: str) -> int:
         """
@@ -654,7 +891,13 @@ class ContextManager:
 
     def _evaluate_importance(self, content: str, role: str) -> float:
         """
-        评估记忆重要度（0.0-1.0）
+        评估记忆重要度（0.0-1.0）（✅ P1-2修复：增强语义理解和上下文感知）
+
+        改进策略：
+        1. 检测否定词，避免误判（如"不想写设定" → 低重要度）
+        2. 多层次关键词匹配，更精准的语义分类
+        3. 考虑句子结构和信息密度
+        4. 综合评分而非简单最大值
 
         规则：
         - 用户消息优先级高于助手消息
@@ -666,27 +909,119 @@ class ContextManager:
         content_lower = content.lower()
         importance = 0.3  # 基础分数
 
-        # 用户消息权重更高
+        # === 1. 否定词检测（✅ 新增：避免误判）===
+        negative_patterns = [
+            "不想", "不要", "别", "不用", "没有", "不需要", "不写",
+            "取消", "删掉", "忽略", "跳过",
+            "don't", "no need", "skip", "ignore", "cancel"
+        ]
+
+        # 检测是否包含否定词 + 关键词的组合
+        has_negation = any(neg in content_lower for neg in negative_patterns)
+
+        # === 2. 角色权重 ===
         if role == "user":
             importance += 0.1
 
-        # 核心设定关键词
-        high_value_keywords = ["大纲", "设定", "角色", "世界观", "背景", "人物", "plot", "character"]
-        if any(kw in content_lower for kw in high_value_keywords):
-            importance = max(importance, 0.9)
+        # === 3. 核心设定关键词（最高优先级）===
+        high_value_keywords = [
+            "大纲", "设定", "角色", "世界观", "背景", "人物", "主角", "配角",
+            "剧情", "情节", "冲突", "高潮", "结局",
+            "plot", "character", "setting", "worldview", "protagonist", "outline"
+        ]
 
-        # 重要指令关键词
-        medium_value_keywords = ["修改", "要求", "添加", "删除", "更新", "调整"]
-        if any(kw in content_lower for kw in medium_value_keywords):
-            importance = max(importance, 0.7)
+        high_value_score = 0.0
+        matched_high = sum(1 for kw in high_value_keywords if kw in content_lower)
+        if matched_high > 0:
+            # 如果有否定词，降低权重
+            if has_negation:
+                high_value_score = 0.3  # 降低到中等重要度
+                logger.debug(f"[ImportanceEval] 检测到否定词+核心关键词，降低重要度: {content[:50]}...")
+            else:
+                # 多个关键词 → 更高重要度
+                high_value_score = min(0.6 + matched_high * 0.1, 0.7)
 
-        # 长内容
+        # === 4. 重要指令关键词（中高优先级）===
+        medium_value_keywords = [
+            "修改", "要求", "添加", "删除", "更新", "调整", "优化", "改进",
+            "必须", "不要", "注意", "关键", "重点",
+            "modify", "update", "add", "delete", "change", "important", "must"
+        ]
+
+        medium_value_score = 0.0
+        matched_medium = sum(1 for kw in medium_value_keywords if kw in content_lower)
+        if matched_medium > 0:
+            medium_value_score = min(0.4 + matched_medium * 0.05, 0.5)
+
+        # === 5. 创作相关关键词（中等优先级）===
+        creative_keywords = [
+            "续写", "扩写", "润色", "改写", "创作", "编写",
+            "章节", "段落", "对话", "描写", "叙述",
+            "write", "continue", "compose", "rewrite"
+        ]
+
+        creative_score = 0.0
+        matched_creative = sum(1 for kw in creative_keywords if kw in content_lower)
+        if matched_creative > 0:
+            creative_score = min(0.3 + matched_creative * 0.05, 0.4)
+
+        # === 6. 内容长度和信息密度 ===
+        length_score = 0.0
         if len(content) > 500:
-            importance = max(importance, 0.6)
+            length_score = 0.3
         elif len(content) > 200:
-            importance = max(importance, 0.5)
+            length_score = 0.2
+        elif len(content) > 100:
+            length_score = 0.1
 
-        return min(importance, 1.0)  # 确保不超过1.0
+        # === 7. 信息密度评估（句号、逗号数量反映信息量）===
+        sentences = content.count('。') + content.count('.') + content.count('！') + content.count('!')
+        if sentences >= 5:  # 多个句子 → 信息丰富
+            length_score += 0.1
+
+        # === 8. 综合评分（加权平均而非简单最大值）===
+        # 取最高的两个类别分数进行加权
+        category_scores = [
+            high_value_score,
+            medium_value_score,
+            creative_score,
+            length_score
+        ]
+        category_scores.sort(reverse=True)
+
+        # 最高类别占70%，次高类别占30%
+        final_score = importance + category_scores[0] * 0.7
+        if len(category_scores) > 1:
+            final_score += category_scores[1] * 0.3
+
+        # === 9. 特殊模式检测 ===
+        # 9.1 纯数字列表（可能是数据）
+        if content.replace('\n', ' ').replace(',', ' ').replace('，', ' ').replace(' ', '').replace('.', '').isdigit():
+            final_score = max(final_score, 0.4)  # 数据有一定重要度
+
+        # 9.2 代码片段检测
+        code_indicators = ['def ', 'class ', 'import ', 'function ', '```', '{', '}']
+        if any(ind in content_lower for ind in code_indicators):
+            final_score = max(final_score, 0.5)  # 代码片段有一定重要度
+
+        # 9.3 问题式对话（重要度略低）
+        question_marks = content.count('?') + content.count('？')
+        if question_marks >= 2:  # 多个问题
+            final_score = min(final_score, 0.6)  # 问题式对话重要度上限
+
+        result = min(final_score, 1.0)  # 确保不超过1.0
+
+        # 记录调试信息
+        if matched_high > 0 or matched_medium > 0 or matched_creative > 0:
+            logger.debug(
+                f"[ImportanceEval] 分数={result:.2f} | "
+                f"核心={high_value_score:.2f}({matched_high}) | "
+                f"指令={medium_value_score:.2f}({matched_medium}) | "
+                f"创作={creative_score:.2f}({matched_creative}) | "
+                f"长度={length_score:.2f} | 否定={has_negation}"
+            )
+
+        return result
 
     async def _save_to_long_term_memory(
         self,
@@ -810,3 +1145,222 @@ class ContextManager:
             )
 
         return "\n".join(lines)
+
+    def _analyze_task_type(self, query: str):
+        """
+        自动检测任务类型（✅ P1-7修复：启用自适应预算）
+
+        根据查询内容的关键词和模式，自动判断任务类型，以便使用最优的Token预算分配策略。
+
+        分类逻辑：
+        1. CREATIVE（创作类）：续写、创作、改写、扩写等创作任务
+        2. ANALYTICAL（分析类）：分析、评估、总结、诊断等分析任务
+        3. QA（问答类）：问题、查询、解释等知识型对话
+        4. CHAT（闲聊类）：日常对话、情感交流、简短回应
+
+        Args:
+            query: 用户查询文本
+
+        Returns:
+            TaskType枚举值
+        """
+        from app.services.context.adaptive_budget import TaskType
+
+        query_lower = query.lower()
+
+        # === 1. 创作类关键词（优先级最高）===
+        creative_keywords = [
+            "续写", "创作", "改写", "扩写", "润色", "编写", "写作",
+            "章节", "段落", "对话", "描写", "叙述", "情节",
+            "生成", "创建文本", "写一个", "写一段",
+            "continue writing", "write", "compose", "create story"
+        ]
+        if any(kw in query_lower for kw in creative_keywords):
+            logger.debug(f"[TaskType] 检测为 CREATIVE: {query[:50]}...")
+            return TaskType.CREATIVE
+
+        # === 2. 分析类关键词 ===
+        analytical_keywords = [
+            "分析", "评估", "总结", "诊断", "检查", "审查", "报告",
+            "大纲", "结构", "优化", "改进建议", "问题",
+            "质量", "评价", "对比", "比较",
+            "analyze", "evaluate", "assess", "review", "summarize"
+        ]
+        if any(kw in query_lower for kw in analytical_keywords):
+            logger.debug(f"[TaskType] 检测为 ANALYTICAL: {query[:50]}...")
+            return TaskType.ANALYTICAL
+
+        # === 3. 问答类关键词（包含疑问词和查询意图）===
+        # 疑问词检测
+        question_words = [
+            "什么", "为什么", "怎么", "如何", "哪里", "哪个", "谁", "何时",
+            "吗", "呢", "是否", "能否", "可以吗",
+            "what", "why", "how", "where", "which", "who", "when", "is", "can"
+        ]
+
+        # 查询类关键词
+        query_keywords = [
+            "查询", "搜索", "查看", "显示", "找到", "获取", "告诉我",
+            "解释", "说明", "定义", "介绍",
+            "search", "find", "show", "get", "explain", "tell me"
+        ]
+
+        # 疑问句检测（以问号结尾）
+        is_question = query.strip().endswith("?") or query.strip().endswith("？")
+
+        if is_question or \
+           any(qw in query_lower for qw in question_words) or \
+           any(qk in query_lower for qk in query_keywords):
+            logger.debug(f"[TaskType] 检测为 QA: {query[:50]}...")
+            return TaskType.QA
+
+        # === 4. 闲聊类关键词（简短、情感性、日常对话）===
+        chat_keywords = [
+            "你好", "嗨", "hi", "hello", "hey",
+            "谢谢", "感谢", "thank",
+            "再见", "拜拜", "bye",
+            "哈哈", "呵呵", "嘿嘿",
+            "好的", "知道了", "明白", "ok", "got it"
+        ]
+
+        # 简短文本判断（小于20字符且包含闲聊关键词）
+        if len(query) < 20 and any(ck in query_lower for ck in chat_keywords):
+            logger.debug(f"[TaskType] 检测为 CHAT: {query[:50]}...")
+            return TaskType.CHAT
+
+        # === 5. 默认：问答类（最通用的类型）===
+        logger.debug(f"[TaskType] 默认检测为 QA: {query[:50]}...")
+        return TaskType.QA
+
+    def _calculate_text_similarity(self, text1: str, text2: str) -> float:
+        """
+        计算文本相似度（✅ P1-4修复：记忆去重核心）
+
+        使用改进的Jaccard相似度 + 字符级相似度：
+        1. Jaccard: 词级别的交集/并集
+        2. 字符级: 长公共子序列（LCS）比例
+        3. 综合评分: 70% Jaccard + 30% LCS
+
+        Args:
+            text1: 第一个文本
+            text2: 第二个文本
+
+        Returns:
+            相似度 (0.0-1.0)
+        """
+        # 预处理：去除空白字符并转小写
+        t1 = text1.strip().lower()
+        t2 = text2.strip().lower()
+
+        if not t1 or not t2:
+            return 0.0
+
+        # 完全相同
+        if t1 == t2:
+            return 1.0
+
+        # === 1. 词级别 Jaccard 相似度 ===
+        # 中英文混合分词
+        import re
+        # 提取中文字符（每个字作为一个词）
+        cn_words1 = [c for c in t1 if '\u4e00' <= c <= '\u9fff']
+        cn_words2 = [c for c in t2 if '\u4e00' <= c <= '\u9fff']
+
+        # 提取英文单词
+        en_words1 = re.findall(r'[a-z]+', t1)
+        en_words2 = re.findall(r'[a-z]+', t2)
+
+        # 合并中英文词汇
+        words1 = set(cn_words1 + en_words1)
+        words2 = set(cn_words2 + en_words2)
+
+        if not words1 or not words2:
+            return 0.0
+
+        intersection = words1 & words2
+        union = words1 | words2
+
+        jaccard_similarity = len(intersection) / len(union) if union else 0.0
+
+        # === 2. 字符级相似度（简化版LCS）===
+        # 计算公共字符占比
+        common_chars = sum(1 for c in set(t1) if c in set(t2))
+        total_chars = len(set(t1)) + len(set(t2))
+        char_similarity = (2 * common_chars) / total_chars if total_chars > 0 else 0.0
+
+        # === 3. 综合评分 ===
+        similarity = jaccard_similarity * 0.7 + char_similarity * 0.3
+
+        return min(similarity, 1.0)
+
+    def _deduplicate_messages(
+        self,
+        messages: List[Message],
+        threshold: float = 0.85
+    ) -> List[Message]:
+        """
+        去除重复消息（✅ P1-4修复：记忆去重）
+
+        策略：
+        1. 计算相邻消息的相似度
+        2. 如果相似度 >= threshold，保留重要度更高的（或更新的）
+        3. 对于完全相同的消息，只保留第一条
+
+        Args:
+            messages: 消息列表
+            threshold: 相似度阈值（默认0.85，即85%相似视为重复）
+
+        Returns:
+            去重后的消息列表
+        """
+        if not messages or len(messages) <= 1:
+            return messages
+
+        logger.debug(f"[Deduplication] 开始去重: {len(messages)}条消息")
+
+        unique_messages = []
+        duplicate_count = 0
+
+        for i, msg in enumerate(messages):
+            is_duplicate = False
+
+            # 与已保留的消息比较
+            for j, existing in enumerate(unique_messages):
+                # 只比较相同角色的消息
+                if msg.role != existing.role:
+                    continue
+
+                similarity = self._calculate_text_similarity(msg.content, existing.content)
+
+                # 相似度超过阈值，视为重复
+                if similarity >= threshold:
+                    is_duplicate = True
+                    duplicate_count += 1
+
+                    # 如果新消息内容更长或更新，替换旧消息
+                    if len(msg.content) > len(existing.content):
+                        logger.debug(
+                            f"[Deduplication] 替换消息 #{j}: "
+                            f"相似度={similarity:.2f}, "
+                            f"新消息更长({len(msg.content)} > {len(existing.content)})"
+                        )
+                        unique_messages[j] = msg
+                    else:
+                        logger.debug(
+                            f"[Deduplication] 跳过重复消息: "
+                            f"相似度={similarity:.2f}, "
+                            f"内容='{msg.content[:30]}...'"
+                        )
+                    break
+
+            if not is_duplicate:
+                unique_messages.append(msg)
+
+        if duplicate_count > 0:
+            logger.info(
+                f"[Deduplication] ✅ 去重完成: "
+                f"{len(messages)} -> {len(unique_messages)}条消息 "
+                f"(移除{duplicate_count}条重复)"
+            )
+
+        return unique_messages
