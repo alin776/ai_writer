@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Bot, Send, Loader2 } from 'lucide-react';
+import { Bot, Send, Loader2, ChevronUp, ChevronDown } from 'lucide-react';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import type { AgentChatRequest } from '../../types/agent';
-import ModeSelector, { type AgentMode } from '../agent/ModeSelector';
+import type { AgentMode } from '../agent/ModeSelector';
 import ActivityStream from '../agent/ActivityStream';  // ✅ 导入ActivityStream
 import TaskListPanel from '../agent/TaskListPanel';    // ✅ 导入TaskListPanel
 import ReactMarkdown from 'react-markdown';
@@ -118,6 +118,7 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
 
   const [inputValue, setInputValue] = useState('');
   const [mode, setMode] = useState<AgentMode>('planning'); // ✅ Agent执行模式
+  const [isModePickerOpen, setIsModePickerOpen] = useState(false); // 模式选择器展开状态
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true); // 用于追踪是否应该自动滚动
@@ -409,15 +410,76 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
       )}
 
       {/* 模式选择器 */}
-      <div className="mb-2 flex items-center gap-2">
-        <ModeSelector
-          mode={mode}
-          onModeChange={setMode}
-          disabled={isLoading}
-        />
-        <span className="text-[10px] text-zinc-400">
-          {mode === 'planning' ? '规划模式：先规划再执行' : 'ReAct模式：边思考边执行'}
-        </span>
+      <div className="mb-3 space-y-2">
+        {/* 模式选择卡片 - 根据状态显示/隐藏 */}
+        {isModePickerOpen && (
+          <div className="rounded-lg border border-zinc-200 bg-white p-2 shadow-sm max-w-[180px]">
+            <div className="space-y-1">
+              {/* Planning 模式 */}
+              <button
+                onClick={() => setMode('planning')}
+                disabled={isLoading}
+                className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-all duration-200 ${
+                  mode === 'planning'
+                    ? 'bg-zinc-900 text-white'
+                    : 'text-zinc-600 hover:bg-zinc-50'
+                } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <div className="flex items-center gap-2 flex-1">
+                  <div className={`w-1 h-1 rounded-full transition-all ${
+                    mode === 'planning' ? 'bg-white' : 'bg-zinc-400'
+                  }`} />
+                  <span className="text-[11px]">
+                    Planning
+                  </span>
+                </div>
+                {mode === 'planning' && (
+                  <span className="text-[9px] opacity-60">默认</span>
+                )}
+              </button>
+
+              {/* ReAct 模式 */}
+              <button
+                onClick={() => setMode('react')}
+                disabled={isLoading}
+                className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-all duration-200 ${
+                  mode === 'react'
+                    ? 'bg-zinc-900 text-white'
+                    : 'text-zinc-600 hover:bg-zinc-50'
+                } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <div className="flex items-center gap-2 flex-1">
+                  <div className={`w-1 h-1 rounded-full transition-all ${
+                    mode === 'react' ? 'bg-white' : 'bg-zinc-400'
+                  }`} />
+                  <span className="text-[11px]">
+                    ReAct
+                  </span>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 模式描述与切换按钮 */}
+        <div className="flex items-center gap-2 px-1">
+          <button
+            onClick={() => setIsModePickerOpen(!isModePickerOpen)}
+            disabled={isLoading}
+            className={`h-5 w-5 rounded-md bg-zinc-900/5 hover:bg-zinc-900/10 flex items-center justify-center flex-shrink-0 transition-all group ${
+              isLoading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            {isModePickerOpen ? (
+              <ChevronUp className="h-3 w-3 text-zinc-500 group-hover:text-zinc-700 transition-colors" />
+            ) : (
+              <ChevronDown className="h-3 w-3 text-zinc-500 group-hover:text-zinc-700 transition-colors" />
+            )}
+          </button>
+          <p className="text-[11px] text-zinc-500 leading-relaxed">
+            {mode === 'planning' ? '规划模式: 先规划再执行' : 'ReAct: 推理与行动交替进行'}
+          </p>
+        </div>
       </div>
 
       {/* 输入框 */}

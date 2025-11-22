@@ -988,6 +988,8 @@ async def agent_chat_stream(
 
                 # ✅ 追踪活动状态（用于发送 activity_complete 事件）
                 last_activity_step = {'step': None, 'start_time': None}
+                # ✅ 追踪内容是否已通过流式发送（避免重复发送）
+                content_sent = {'value': False}
 
                 # 定义回调函数 - 实时放入队列
                 async def on_plan(plan_data):
@@ -1016,6 +1018,7 @@ async def agent_chat_stream(
 
                 async def on_content(chunk):
                     """内容生成回调"""
+                    content_sent['value'] = True  # ✅ 标记内容已发送
                     await event_queue.put(('content', chunk))
 
                 # 在后台运行 Agent
@@ -1050,6 +1053,7 @@ async def agent_chat_stream(
                                 await event_queue.put(('tool_call', {'tool': tool_name, 'args': tool_args}))
 
                             async def on_content_react(content: str):
+                                content_sent['value'] = True  # ✅ 标记内容已发送
                                 await event_queue.put(('content', {'content': content}))
 
                             result = await agent_graph.chat_stream(
@@ -1147,6 +1151,19 @@ async def agent_chat_stream(
                     }
                     yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
                     return
+
+                # ✅ 修复：只有当内容未通过流式发送时，才在完成前发送final_response
+                final_response = result.get("response")
+                if final_response and not content_sent['value']:
+                    logger.info(f"[Stream] 发送最终响应（内容未流式发送）: {final_response[:100]}...")
+                    content_event = {
+                        'type': 'content',
+                        'data': final_response,
+                        'mode': str(actual_mode)
+                    }
+                    yield f"data: {json.dumps(content_event, ensure_ascii=False)}\n\n"
+                elif final_response:
+                    logger.info(f"[Stream] 跳过最终响应（内容已流式发送）")
 
                 # 记录交互
                 memory.record_user_interaction(

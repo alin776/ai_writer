@@ -10,6 +10,9 @@ Agent增强功能:
 - EnhancedMemoryManager: 增强的记忆管理器（三层记忆+智能遗忘）
 - SmartForgetStrategy: 智能遗忘策略
 - MemoryItem/MemorySnapshot: 数据类型定义
+
+统一记忆协调器（✅ P0-1修复）:
+- UnifiedMemoryCoordinator: 统一入口，协调三个记忆系统
 """
 
 # 旧的记忆系统（保持兼容性）
@@ -28,7 +31,27 @@ from .types import (
 from .memory_strategy import SmartForgetStrategy
 from .enhanced_memory_manager import EnhancedMemoryManager
 
+# ✅ P0-1修复: 统一记忆协调器
+from .unified_coordinator import (
+    UnifiedMemoryCoordinator,
+    UnifiedMemoryConfig,
+    MemorySystemStatus,
+    MemorySystemHealth,
+    get_unified_coordinator,
+    set_unified_coordinator,
+    create_unified_coordinator
+)
+
 __all__ = [
+    # ✅ P0-1修复: 统一记忆协调器（推荐使用）
+    "UnifiedMemoryCoordinator",
+    "UnifiedMemoryConfig",
+    "MemorySystemStatus",
+    "MemorySystemHealth",
+    "get_unified_coordinator",
+    "set_unified_coordinator",
+    "create_unified_coordinator",
+
     # 新的增强功能
     "EnhancedMemoryManager",
     "SmartForgetStrategy",

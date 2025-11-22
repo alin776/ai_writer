@@ -375,11 +375,108 @@ class ContextManager:
 
         return " | ".join(summary_parts)
 
+    def _estimate_tokens(self, text: str) -> int:
+        """
+        更准确的Token估算（考虑中英混合）
+
+        Args:
+            text: 文本内容
+
+        Returns:
+            估算的Token数
+        """
+        # 中文字数（CJK字符：1字≈1.5 tokens）
+        cn_count = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+        # 移除中文后，计算英文单词（1词≈0.3 tokens）
+        text_without_cn = ''.join(c for c in text if not ('\u4e00' <= c <= '\u9fff'))
+        en_count = len(text_without_cn.split())
+        # 其他字符（标点、数字等，1字≈0.2 tokens）
+        other_count = len(text) - cn_count - len(text_without_cn.replace(' ', ''))
+        return int(cn_count * 1.5 + en_count * 0.3 + other_count * 0.2)
+
+    def _calculate_message_importance(self, msg: Message, position: int, total: int) -> float:
+        """
+        计算消息的综合重要度（✅ P0-7：智能截断核心）
+
+        综合考虑:
+        1. 内容重要度（关键词、角色信息、设定等）
+        2. 时间位置（近期消息权重更高）
+        3. 角色权重（用户消息 > 助手消息）
+        4. 消息长度（长消息可能包含更多信息）
+
+        Args:
+            msg: 消息对象
+            position: 消息在列表中的位置（0为最旧）
+            total: 消息总数
+
+        Returns:
+            综合重要度分数 (0.0 - 1.0)
+        """
+        content = msg.content
+        content_lower = content.lower()
+
+        # === 1. 内容重要度 (0.0 - 0.5) ===
+        content_score = 0.0
+
+        # 核心设定关键词（最高权重）
+        critical_keywords = [
+            "大纲", "设定", "角色", "世界观", "背景", "人物", "主角", "配角",
+            "plot", "character", "setting", "worldview", "protagonist"
+        ]
+        if any(kw in content_lower for kw in critical_keywords):
+            content_score = max(content_score, 0.5)
+
+        # 重要指令关键词（中高权重）
+        important_keywords = [
+            "要求", "必须", "不要", "风格", "注意", "关键", "重点",
+            "修改", "添加", "删除", "调整", "remember", "important"
+        ]
+        if any(kw in content_lower for kw in important_keywords):
+            content_score = max(content_score, 0.35)
+
+        # 写作相关关键词（中等权重）
+        writing_keywords = [
+            "续写", "扩写", "润色", "改写", "章节", "段落", "对话",
+            "描写", "叙述", "情节", "冲突", "结局"
+        ]
+        if any(kw in content_lower for kw in writing_keywords):
+            content_score = max(content_score, 0.25)
+
+        # === 2. 时间位置分数 (0.0 - 0.25) ===
+        # 最近的消息权重更高，使用平方根函数使衰减更平缓
+        if total > 1:
+            recency = position / (total - 1)  # 0.0（最旧）到 1.0（最新）
+            position_score = 0.25 * (recency ** 0.5)  # 平方根使衰减更平缓
+        else:
+            position_score = 0.25
+
+        # === 3. 角色权重 (0.0 - 0.15) ===
+        role_score = 0.15 if msg.role == "user" else 0.08
+
+        # === 4. 消息长度分数 (0.0 - 0.10) ===
+        length = len(content)
+        if length > 1000:
+            length_score = 0.10
+        elif length > 500:
+            length_score = 0.07
+        elif length > 200:
+            length_score = 0.04
+        else:
+            length_score = 0.02
+
+        # 综合得分
+        total_score = content_score + position_score + role_score + length_score
+        return min(total_score, 1.0)
+
     async def _force_truncate_context(self, context: Context, target_tokens: int) -> Context:
         """
-        强制截断上下文到目标Token数（✅ P0-4修复）
+        智能截断上下文到目标Token数（✅ P0-7修复：智能截断替代强制截断）
 
-        当压缩失败或Token超过硬限制时调用
+        改进策略：
+        1. 计算每条消息的综合重要度（内容+时间+角色+长度）
+        2. 优先保留重要消息，而非简单的时间顺序
+        3. 为被截断的消息生成简短摘要，保持上下文连贯性
+        4. 确保最近2条消息始终保留（上下文连贯性）
 
         Args:
             context: 当前上下文
@@ -389,52 +486,143 @@ class ContextManager:
             截断后的上下文
         """
         logger.warning(
-            f"[ContextManager] 🔪 强制截断上下文: {context.get_total_tokens()} -> {target_tokens} tokens"
+            f"[ContextManager] 🧠 智能截断上下文: {context.get_total_tokens()} -> {target_tokens} tokens"
         )
 
-        # 策略：从最新消息开始保留，直到Token数不超过目标值
         messages = context.short_memory.messages
         if not messages:
             return context
 
-        # ✅ P0-4优化：更准确的Token估算函数
-        def estimate_tokens(text: str) -> int:
-            """更准确的Token估算（考虑中英混合）"""
-            # 中文字数（CJK字符：1字≈1.5 tokens）
-            cn_count = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
-            # 移除中文后，计算英文单词（1词≈0.3 tokens）
-            text_without_cn = ''.join(c for c in text if not ('\u4e00' <= c <= '\u9fff'))
-            en_count = len(text_without_cn.split())
-            # 其他字符（标点、数字等，1字≈0.2 tokens）
-            other_count = len(text) - cn_count - len(text_without_cn.replace(' ', ''))
-            return int(cn_count * 1.5 + en_count * 0.3 + other_count * 0.2)
+        total_messages = len(messages)
 
-        # 从后往前保留消息
-        kept_messages = []
-        current_tokens = 0
+        # === Step 1: 计算每条消息的重要度和Token数 ===
+        message_scores = []
+        for i, msg in enumerate(messages):
+            importance = self._calculate_message_importance(msg, i, total_messages)
+            tokens = self._estimate_tokens(msg.content)
+            message_scores.append({
+                "index": i,
+                "message": msg,
+                "importance": importance,
+                "tokens": tokens
+            })
 
-        for msg in reversed(messages):
-            # ✅ P0-4优化：使用更准确的估算
-            msg_tokens = estimate_tokens(msg.content)
+        # === Step 2: 确保最近2条消息始终保留（上下文连贯性） ===
+        must_keep_count = min(2, total_messages)
+        must_keep_indices = set(range(total_messages - must_keep_count, total_messages))
 
-            if current_tokens + msg_tokens <= target_tokens:
-                kept_messages.insert(0, msg)
-                current_tokens += msg_tokens
+        # 计算必须保留消息的Token数
+        must_keep_tokens = sum(
+            ms["tokens"] for ms in message_scores
+            if ms["index"] in must_keep_indices
+        )
+
+        # 可用于其他消息的Token预算
+        remaining_budget = target_tokens - must_keep_tokens
+
+        if remaining_budget <= 0:
+            # Token预算极少，只保留最后1-2条消息
+            logger.warning("[ContextManager] Token预算极少，仅保留最近消息")
+            context.short_memory.messages = [ms["message"] for ms in message_scores if ms["index"] in must_keep_indices]
+            return context
+
+        # === Step 3: 按重要度排序非必须保留的消息 ===
+        optional_messages = [
+            ms for ms in message_scores
+            if ms["index"] not in must_keep_indices
+        ]
+        optional_messages.sort(key=lambda x: x["importance"], reverse=True)
+
+        # === Step 4: 贪心选择重要消息直到Token预算用尽 ===
+        selected_indices = set(must_keep_indices)
+        current_tokens = must_keep_tokens
+        truncated_messages = []
+
+        for ms in optional_messages:
+            if current_tokens + ms["tokens"] <= remaining_budget + must_keep_tokens:
+                selected_indices.add(ms["index"])
+                current_tokens += ms["tokens"]
             else:
-                break
+                # 记录被截断的消息（用于生成摘要）
+                truncated_messages.append(ms)
 
-        # 至少保留1条消息
-        if not kept_messages and messages:
-            kept_messages = [messages[-1]]
-            logger.warning("[ContextManager] 目标Token过小，仅保留最后1条消息")
+        # === Step 5: 按原始顺序排列保留的消息 ===
+        kept_messages = [
+            ms["message"] for ms in message_scores
+            if ms["index"] in selected_indices
+        ]
+        # 按原始索引排序
+        kept_indices_sorted = sorted(selected_indices)
+        kept_messages = [message_scores[i]["message"] for i in kept_indices_sorted]
+
+        # === Step 6: 为截断的消息生成简短摘要（保持连贯性）===
+        if truncated_messages:
+            truncated_summary = self._generate_truncation_summary(truncated_messages)
+            if truncated_summary and context.summary_memory:
+                # 追加到现有摘要
+                if context.summary_memory.summary:
+                    context.summary_memory.summary += f"\n\n[智能截断摘要]\n{truncated_summary}"
+                else:
+                    context.summary_memory.summary = f"[智能截断摘要]\n{truncated_summary}"
+                logger.info(f"[ContextManager] 📝 生成截断摘要: {len(truncated_summary)}字符")
 
         logger.warning(
-            f"[ContextManager] 截断结果: 保留{len(kept_messages)}/{len(messages)}条消息, "
-            f"Token: {context.get_total_tokens()} -> ~{current_tokens}"
+            f"[ContextManager] 🧠 智能截断完成: 保留{len(kept_messages)}/{total_messages}条消息, "
+            f"截断{len(truncated_messages)}条, Token: {context.get_total_tokens()} -> ~{current_tokens}"
         )
+
+        # 记录保留消息的重要度分布
+        if kept_messages:
+            kept_scores = [ms["importance"] for ms in message_scores if ms["index"] in selected_indices]
+            avg_importance = sum(kept_scores) / len(kept_scores)
+            logger.info(f"[ContextManager] 📊 保留消息平均重要度: {avg_importance:.3f}")
 
         context.short_memory.messages = kept_messages
         return context
+
+    def _generate_truncation_summary(self, truncated_messages: list) -> str:
+        """
+        为被截断的消息生成简短摘要（✅ P0-7：保持上下文连贯性）
+
+        Args:
+            truncated_messages: 被截断的消息列表 [{"message": Message, "importance": float, ...}]
+
+        Returns:
+            简短摘要文本
+        """
+        if not truncated_messages:
+            return ""
+
+        summary_parts = []
+
+        # 统计被截断消息的信息
+        user_msgs = [m for m in truncated_messages if m["message"].role == "user"]
+        assistant_msgs = [m for m in truncated_messages if m["message"].role == "assistant"]
+
+        # 提取用户请求的关键信息
+        if user_msgs:
+            # 按重要度排序，取最重要的2条
+            user_msgs.sort(key=lambda x: x["importance"], reverse=True)
+            for um in user_msgs[:2]:
+                content = um["message"].content
+                # 提取前80字符作为摘要
+                if len(content) > 80:
+                    content = content[:80] + "..."
+                summary_parts.append(f"用户曾请求: {content}")
+
+        # 提取助手回复的关键信息
+        if assistant_msgs:
+            assistant_msgs.sort(key=lambda x: x["importance"], reverse=True)
+            for am in assistant_msgs[:2]:
+                content = am["message"].content
+                if len(content) > 80:
+                    content = content[:80] + "..."
+                summary_parts.append(f"助手曾回复: {content}")
+
+        # 添加统计信息
+        summary_parts.append(f"(共截断{len(truncated_messages)}条历史消息)")
+
+        return " | ".join(summary_parts)
 
     async def clear_context(self, session_id: str):
         """清除上下文 - 用于重置会话"""

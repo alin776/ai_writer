@@ -27,6 +27,7 @@ from .types import MemoryItem, MemoryLayer, MemorySnapshot, MemoryStats
 from .memory_strategy import SmartForgetStrategy
 from app.core.config import settings
 from ..utils import robust_retry, safe_execute_async, global_error_handler, ErrorCategory, cache_result, performance_optimizer
+from ..utils.redis_fallback import get_fallback_store, FallbackReason
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +43,8 @@ class EnhancedMemoryManager:
     """
 
     # Redis TTL 常量
-    SHORT_TERM_TTL = 3600  # 1小时
-    MEDIUM_TERM_TTL = 86400  # 24小时
+    SHORT_TERM_TTL = 86400  # 24小时（修复P0-2：原1小时太短导致上下文丢失）
+    MEDIUM_TERM_TTL = 86400 * 3  # 3天（修复P1-1：基础TTL，重要记忆会更长）
     SNAPSHOT_TTL = 86400 * 7  # 7天
 
     def __init__(self, redis_client: Redis):
@@ -153,14 +154,23 @@ class EnhancedMemoryManager:
             return memory
 
         except redis.RedisError as e:
-            # 记录Redis错误并尝试降级处理
+            # 使用统一的降级策略（修复P0-8）
             error_info = global_error_handler.classify_error(
                 e,
                 {"user_id": user_id, "conversation_id": conversation_id, "action": "add_memory"}
             )
             global_error_handler.handle_error(error_info)
-            # Redis错误时的降级策略：返回内存中的记忆条目
-            logger.warning(f"Redis error, using in-memory fallback for user {user_id}")
+
+            # 进入降级模式并存储到降级存储
+            fallback_store = get_fallback_store()
+            reason = FallbackReason.CONNECTION_ERROR if "connection" in str(e).lower() else FallbackReason.UNKNOWN
+            fallback_store.enter_fallback_mode(reason)
+
+            # 存储到降级存储
+            key = f"memory:{user_id}:short_term"
+            fallback_store.lpush(key, memory.model_dump_json(), ttl=self.SHORT_TERM_TTL)
+
+            logger.warning(f"[EnhancedMemoryManager] Redis故障，使用降级存储: user={user_id}, reason={reason.value}")
             return memory
 
         except Exception as e:
@@ -270,10 +280,9 @@ class EnhancedMemoryManager:
         layer: MemoryLayer = None
     ) -> List[MemoryItem]:
         """
-        获取相关记忆（语义相似度检索）
+        获取相关记忆（语义相似度检索）- 优化版（修复P0-5）
 
-        注意: Phase 1 暂未实现向量检索，使用关键词搜索替代
-              Phase 2 将集成向量模型实现真正的语义检索
+        使用jieba分词提取关键词，并支持同义词扩展
 
         Args:
             user_id: 用户ID
@@ -283,14 +292,107 @@ class EnhancedMemoryManager:
 
         Returns:
             List[MemoryItem]: 相关记忆列表
-
-        TODO: Phase 2 集成向量模型
         """
-        # Phase 1: 简单的关键词匹配
-        # 提取查询中的关键词（简单分词）
-        keywords = query.split()[:5]  # 取前5个词作为关键词
+        # 使用改进的关键词提取
+        keywords = self._extract_keywords(query)
+
+        if not keywords:
+            # 如果提取不到关键词，返回最近的记忆
+            return self.get_recent_memories(user_id, limit=top_k)
 
         return self.search_memories(user_id, keywords, limit=top_k)
+
+    def _extract_keywords(self, text: str) -> List[str]:
+        """
+        从文本中提取关键词（修复P0-5：改进关键词提取）
+
+        使用jieba分词进行中文分词，过滤停用词
+
+        Args:
+            text: 输入文本
+
+        Returns:
+            关键词列表
+        """
+        try:
+            import jieba
+            import jieba.analyse
+
+            # 使用TF-IDF提取关键词
+            keywords = jieba.analyse.extract_tags(text, topK=10, withWeight=False)
+
+            # 如果TF-IDF没有结果，退回普通分词
+            if not keywords:
+                # 停用词列表
+                stopwords = {
+                    '的', '了', '是', '在', '我', '有', '和', '就', '不', '人', '都', '一',
+                    '一个', '上', '也', '很', '到', '说', '要', '去', '你', '会', '着',
+                    '没有', '看', '好', '自己', '这', '那', '什么', '怎么', '吗', '呢',
+                    '啊', '吧', '把', '被', '给', '让', '从', '向', '对', '与', '能',
+                    '可以', '这个', '那个', '帮我', '请', '想', '能不能', '可不可以'
+                }
+
+                # 分词
+                words = jieba.cut(text)
+                # 过滤停用词和短词
+                keywords = [w for w in words if w not in stopwords and len(w) >= 2][:10]
+
+            # 添加同义词扩展
+            expanded = self._expand_synonyms(keywords)
+
+            return list(set(keywords + expanded))[:15]  # 最多15个关键词
+
+        except ImportError:
+            # jieba未安装，使用简单的正则分词
+            import re
+            # 匹配中文词语和英文单词
+            pattern = r'[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}'
+            words = re.findall(pattern, text)
+            return words[:10]
+        except Exception as e:
+            logger.warning(f"Keyword extraction failed: {e}, falling back to simple split")
+            return text.split()[:5]
+
+    def _expand_synonyms(self, keywords: List[str]) -> List[str]:
+        """
+        同义词扩展（修复P0-5：提高召回率）
+
+        Args:
+            keywords: 原始关键词列表
+
+        Returns:
+            扩展后的同义词列表
+        """
+        # 写作相关的同义词映射
+        synonym_map = {
+            # 角色相关
+            '主角': ['主人公', '男主', '女主', '主人翁'],
+            '主人公': ['主角', '男主', '女主'],
+            '配角': ['次要角色', '配角人物'],
+            '角色': ['人物', '角色设定'],
+            '人物': ['角色', '人物设定'],
+            # 创作相关
+            '续写': ['继续写', '继续创作', '往下写'],
+            '继续写': ['续写', '继续创作'],
+            '改写': ['重写', '修改', '改动'],
+            '大纲': ['提纲', '故事大纲', '情节大纲'],
+            '设定': ['设定集', '背景设定', '世界设定'],
+            # 情节相关
+            '情节': ['剧情', '故事情节'],
+            '剧情': ['情节', '故事'],
+            '背景': ['世界背景', '故事背景'],
+            '世界观': ['世界设定', '背景设定'],
+            # 武器装备
+            '武器': ['装备', '兵器', '武具'],
+            '装备': ['武器', '道具'],
+        }
+
+        expanded = []
+        for kw in keywords:
+            if kw in synonym_map:
+                expanded.extend(synonym_map[kw])
+
+        return expanded
 
     # ==================== 智能遗忘 ====================
 
@@ -300,7 +402,7 @@ class EnhancedMemoryManager:
         conversation_id: str
     ):
         """
-        应用智能遗忘策略
+        应用智能遗忘策略 - 使用分布式锁确保线程安全（修复P0-6）
 
         流程:
             1. 从短期记忆移动旧记忆到中期记忆
@@ -313,40 +415,56 @@ class EnhancedMemoryManager:
             user_id: 用户ID
             conversation_id: 会话ID
         """
-        # 1. 检查短期记忆是否溢出，溢出的移到中期
-        short_memories = self._get_short_term_memories(
-            user_id,
-            self.short_term_size + 10  # 多取10条检查
-        )
+        # 使用Redis分布式锁确保同一用户只有一个进程执行遗忘（修复P0-6）
+        lock_key = f"lock:forget:{user_id}"
+        lock = self.redis.lock(lock_key, timeout=30, blocking_timeout=5)
 
-        if len(short_memories) > self.short_term_size:
-            # 将超出的记忆移到中期
-            overflow = short_memories[self.short_term_size:]
-            for memory in overflow:
-                self._add_to_medium_term(user_id, memory)
-
-        # 2. 获取中期记忆
-        medium_memories = self._get_medium_term_memories(
-            user_id,
-            self.medium_term_size
-        )
-
-        if not medium_memories:
+        if not lock.acquire(blocking=False):
+            # 无法获取锁，说明有其他进程正在执行，跳过本次
+            logger.debug(f"Skipping apply_forgetting for user {user_id}, lock held by another process")
             return
 
-        # 3. 应用遗忘策略
-        to_keep, to_forget = self.strategy.filter_memories(
-            medium_memories,
-            current_time=datetime.now(timezone.utc)
-        )
+        try:
+            # 1. 检查短期记忆是否溢出，溢出的移到中期
+            short_memories = self._get_short_term_memories(
+                user_id,
+                self.short_term_size + 10  # 多取10条检查
+            )
 
-        # 4. 更新中期记忆
-        self._update_medium_term_memories(user_id, to_keep)
+            if len(short_memories) > self.short_term_size:
+                # 将超出的记忆移到中期
+                overflow = short_memories[self.short_term_size:]
+                for memory in overflow:
+                    self._add_to_medium_term(user_id, memory)
 
-        # 5. 压缩遗忘的记忆到长期记忆
-        if to_forget:
-            summary = self.strategy.compress_to_summary(to_forget, mode="simple")
-            self._append_to_long_term(user_id, summary)
+            # 2. 获取中期记忆
+            medium_memories = self._get_medium_term_memories(
+                user_id,
+                self.medium_term_size
+            )
+
+            if not medium_memories:
+                return
+
+            # 3. 应用遗忘策略
+            to_keep, to_forget = self.strategy.filter_memories(
+                medium_memories,
+                current_time=datetime.now(timezone.utc)
+            )
+
+            # 4. 更新中期记忆
+            self._update_medium_term_memories(user_id, to_keep)
+
+            # 5. 压缩遗忘的记忆到长期记忆
+            if to_forget:
+                summary = self.strategy.compress_to_summary(to_forget, mode="simple")
+                self._append_to_long_term(user_id, summary)
+        finally:
+            # 确保释放锁
+            try:
+                lock.release()
+            except redis.exceptions.LockError:
+                pass  # 锁可能已经过期自动释放
 
     # ==================== 状态快照 ====================
 
@@ -434,14 +552,17 @@ class EnhancedMemoryManager:
     # ==================== 私有方法：Redis 操作 ====================
 
     def _add_to_short_term(self, user_id: str, memory: MemoryItem):
-        """添加到短期记忆（Redis List）"""
+        """添加到短期记忆（Redis List）- 使用事务确保原子性"""
         key = f"memory:{user_id}:short_term"
+        # 使用pipeline确保原子性（修复P0-4：竞态条件）
+        pipe = self.redis.pipeline()
         # LPUSH 添加到列表头部（最新的在前）
-        self.redis.lpush(key, memory.model_dump_json())
+        pipe.lpush(key, memory.model_dump_json())
         # LTRIM 保持列表大小
-        self.redis.ltrim(key, 0, self.short_term_size - 1)
-        # 设置过期时间
-        self.redis.expire(key, 3600)  # 1小时
+        pipe.ltrim(key, 0, self.short_term_size - 1)
+        # 设置过期时间（修复P0-2：从1小时改为24小时）
+        pipe.expire(key, self.SHORT_TERM_TTL)
+        pipe.execute()
 
     def _get_short_term_memories(self, user_id: str, limit: int) -> List[MemoryItem]:
         """获取短期记忆"""
@@ -460,13 +581,24 @@ class EnhancedMemoryManager:
         return memories
 
     def _add_to_medium_term(self, user_id: str, memory: MemoryItem):
-        """添加到中期记忆（Redis Sorted Set）"""
+        """添加到中期记忆（Redis Sorted Set）- 使用事务确保原子性"""
         key = f"memory:{user_id}:medium_term"
         # 使用初始重要度作为score
         score = memory.importance
-        self.redis.zadd(key, {memory.model_dump_json(): score})
-        # 设置过期时间
-        self.redis.expire(key, 86400)  # 24小时
+
+        # 根据重要度动态设置TTL（修复P1-1）
+        if memory.importance >= 0.8:
+            ttl = 86400 * 7  # 重要记忆: 7天
+        elif memory.importance >= 0.6:
+            ttl = 86400 * 5  # 较重要记忆: 5天
+        else:
+            ttl = self.MEDIUM_TERM_TTL  # 普通记忆: 3天
+
+        # 使用pipeline确保原子性（修复P0-4：竞态条件）
+        pipe = self.redis.pipeline()
+        pipe.zadd(key, {memory.model_dump_json(): score})
+        pipe.expire(key, ttl)
+        pipe.execute()
 
     def _get_medium_term_memories(self, user_id: str, limit: int) -> List[MemoryItem]:
         """获取中期记忆（按重要度倒序）"""
@@ -485,22 +617,37 @@ class EnhancedMemoryManager:
         return memories
 
     def _update_medium_term_memories(self, user_id: str, memories: List[MemoryItem]):
-        """更新中期记忆"""
+        """更新中期记忆 - 使用事务确保原子性（修复P0-4）"""
         key = f"memory:{user_id}:medium_term"
 
+        # 使用pipeline确保原子性（修复P0-4：竞态条件）
+        pipe = self.redis.pipeline()
+
         # 清空旧数据
-        self.redis.delete(key)
+        pipe.delete(key)
 
         # 重新添加
         if memories:
             mapping = {}
+            max_importance = 0.0
             for memory in memories:
                 # 使用metadata中的current_importance作为score
                 score = memory.metadata.get('current_importance', memory.importance)
                 mapping[memory.model_dump_json()] = score
+                max_importance = max(max_importance, score)
 
-            self.redis.zadd(key, mapping)
-            self.redis.expire(key, 86400)  # 24小时
+            pipe.zadd(key, mapping)
+
+            # 根据最高重要度设置TTL（修复P1-1）
+            if max_importance >= 0.8:
+                ttl = 86400 * 7  # 7天
+            elif max_importance >= 0.6:
+                ttl = 86400 * 5  # 5天
+            else:
+                ttl = self.MEDIUM_TERM_TTL  # 3天
+            pipe.expire(key, ttl)
+
+        pipe.execute()
 
     def _get_long_term_summary(self, user_id: str) -> str:
         """获取长期记忆摘要"""

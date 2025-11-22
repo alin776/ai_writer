@@ -1155,6 +1155,9 @@ class WritingAgentGraph:
             self.checkpointer = MemorySaver()
             self._checkpointer_setup_done = True  # MemorySaver不需要setup
 
+        # ✅ P0-1修复: 初始化统一记忆协调器
+        self._init_unified_memory_coordinator()
+
         # 构建图
         self.graph = self._build_graph()
 
@@ -1208,6 +1211,69 @@ class WritingAgentGraph:
 
         # 绑定工具（工具调用也会触发回调）
         self.llm_with_tools = self.llm.bind_tools(WRITING_TOOLS)
+
+    def _init_unified_memory_coordinator(self):
+        """
+        初始化统一记忆协调器（✅ P0-1修复）
+
+        协调三个记忆系统：
+        1. AsyncRedisSaver (checkpointer) - 对话历史
+        2. EnhancedMemoryManager - 三层记忆
+        3. ContextManager - 上下文管理
+
+        这是一个同步初始化方法，异步setup会在首次使用时完成
+        """
+        try:
+            from app.services.agent.memory import (
+                UnifiedMemoryCoordinator,
+                UnifiedMemoryConfig,
+                set_unified_coordinator
+            )
+            from app.services.agent.memory.enhanced_memory_manager import EnhancedMemoryManager
+
+            # 创建EnhancedMemoryManager实例
+            try:
+                enhanced_memory = EnhancedMemoryManager()
+                logger.info("[LangGraph] ✅ EnhancedMemoryManager已创建")
+            except Exception as e:
+                logger.warning(f"[LangGraph] ⚠️ EnhancedMemoryManager创建失败，将在协调器中降级: {e}")
+                enhanced_memory = None
+
+            # 配置协调器
+            config = UnifiedMemoryConfig(
+                sync_to_enhanced_memory=True,
+                sync_to_context_manager=True,
+                fallback_on_checkpointer_failure=True,
+                fallback_on_enhanced_memory_failure=True,
+                ensure_consistency=True
+            )
+
+            # 创建统一记忆协调器
+            self.memory_coordinator = UnifiedMemoryCoordinator(
+                checkpointer=self.checkpointer,
+                enhanced_memory=enhanced_memory,
+                context_manager=self.context_manager,
+                config=config
+            )
+
+            # 设置为全局实例
+            set_unified_coordinator(self.memory_coordinator)
+
+            logger.info(
+                "[LangGraph] ✅ UnifiedMemoryCoordinator已初始化 | "
+                f"checkpointer={type(self.checkpointer).__name__} | "
+                f"enhanced_memory={'yes' if enhanced_memory else 'no'} | "
+                f"context_manager=yes"
+            )
+
+        except Exception as e:
+            logger.error(f"[LangGraph] ❌ UnifiedMemoryCoordinator初始化失败: {e}")
+            self.memory_coordinator = None
+
+    async def _ensure_memory_coordinator_ready(self):
+        """确保记忆协调器已完成异步初始化"""
+        if self.memory_coordinator and not self.memory_coordinator._initialized:
+            await self.memory_coordinator.initialize()
 
     def _build_graph(self) -> StateGraph:
         """

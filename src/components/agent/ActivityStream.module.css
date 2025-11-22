@@ -1,12 +1,8 @@
-/* ActivityStream 样式 - 简约专业，流畅动画 */
+/* ActivityStream 样式 - 极简风格 */
 
 .activityStream {
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 16px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  padding: 8px 0;
+  margin-bottom: 12px;
 }
 
 /* 头部 */
@@ -14,21 +10,23 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #334155;
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
   margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .stats {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 
@@ -36,97 +34,84 @@
 .statCompleted {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
+  gap: 3px;
+  font-size: 10px;
   font-weight: 500;
-  padding: 4px 8px;
-  border-radius: 12px;
+  color: #9ca3af;
 }
 
 .statActive {
-  color: #3b82f6;
-  background: #eff6ff;
+  color: #2563eb;
 }
 
 .statCompleted {
-  color: #10b981;
-  background: #f0fdf4;
+  color: #059669;
 }
 
 /* 活动列表 */
 .activityList {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 300px;
+  gap: 4px;
+  max-height: 200px;
   overflow-y: auto;
-  padding-right: 4px;
 }
 
-/* 自定义滚动条 */
+/* 简化滚动条 */
 .activityList::-webkit-scrollbar {
-  width: 6px;
+  width: 3px;
 }
 
 .activityList::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 3px;
+  background: transparent;
 }
 
 .activityList::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
+  background: #e5e7eb;
+  border-radius: 2px;
 }
 
 .activityList::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #d1d5db;
 }
 
-/* 活动项 */
+/* 活动项 - 极简设计 */
 .activityItem {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  background: white;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  transition: all 0.2s ease;
+  gap: 8px;
+  padding: 6px 0;
+  transition: opacity 0.2s ease;
 }
 
 .activityItem.active {
-  border-color: #3b82f6;
-  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
-  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.1);
+  /* 活动项不需要特殊样式 */
 }
 
 .activityItem.completed {
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 .activityItem.failed {
-  border-color: #ef4444;
-  background: #fef2f2;
+  opacity: 0.7;
 }
 
-/* 图标 */
+/* 图标 - 更小 */
 .activityIcon {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: #f1f5f9;
+  width: 16px;
+  height: 16px;
 }
 
 .iconActive {
-  color: #3b82f6;
+  color: #2563eb;
 }
 
 .iconCompleted {
-  color: #10b981;
+  color: #059669;
 }
 
 /* 内容区 */
@@ -136,44 +121,38 @@
 }
 
 .activityDescription {
-  font-size: 13px;
-  color: #1e293b;
+  font-size: 11px;
+  color: #1f2937;
   font-weight: 500;
-  margin-bottom: 4px;
-  line-height: 1.4;
+  line-height: 1.3;
+  margin-bottom: 2px;
 }
 
 .activityMeta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .activityType {
-  font-size: 11px;
-  color: #64748b;
-  padding: 2px 6px;
-  background: #f1f5f9;
-  border-radius: 4px;
+  font-size: 9px;
+  color: #6b7280;
   font-weight: 500;
 }
 
 .toolName {
-  font-size: 11px;
+  font-size: 9px;
   color: #7c3aed;
-  padding: 2px 6px;
-  background: #faf5ff;
-  border-radius: 4px;
   font-weight: 500;
 }
 
 .activityTime {
-  font-size: 11px;
-  color: #94a3b8;
+  font-size: 9px;
+  color: #6b7280;
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
 }
 
 /* 状态图标 */
@@ -182,46 +161,44 @@
 }
 
 .checkIcon {
-  color: #10b981;
+  color: #059669;
+  opacity: 0.8;
 }
 
-/* 进度条 */
+/* 进度条 - 更细 */
 .progressBar {
-  margin-top: 12px;
-  height: 3px;
-  background: #e2e8f0;
-  border-radius: 2px;
+  margin-top: 6px;
+  height: 2px;
+  background: #e5e7eb;
+  border-radius: 1px;
   overflow: hidden;
 }
 
 .progressFill {
   height: 100%;
-  background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+  background: #3b82f6;
   transition: width 0.3s ease;
-  border-radius: 2px;
+  border-radius: 1px;
 }
 
-/* ========== 动画 ========== */
+/* ========== 动画 - 简化 ========== */
 
-/* 脉冲动画（用于思考中） */
+/* 脉冲动画 */
 @keyframes pulse {
   0%, 100% {
     opacity: 1;
   }
   50% {
-    opacity: 0.5;
+    opacity: 0.4;
   }
 }
 
 .pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: pulse 2s ease-in-out infinite;
 }
 
-/* 旋转动画（用于工具调用和加载） */
+/* 旋转动画 */
 @keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
   to {
     transform: rotate(360deg);
   }
@@ -231,57 +208,37 @@
   animation: spin 1s linear infinite;
 }
 
-/* 淡入动画（新活动出现） */
+/* 淡入动画 */
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(-10px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
 .activityItem {
-  animation: fadeIn 0.3s ease;
-}
-
-/* 完成时的闪烁效果 */
-@keyframes completionFlash {
-  0%, 100% {
-    background: white;
-  }
-  50% {
-    background: #f0fdf4;
-  }
-}
-
-.activityItem.completed {
-  animation: completionFlash 0.5s ease;
+  animation: fadeIn 0.2s ease;
 }
 
 /* ========== 响应式 ========== */
 
 @media (max-width: 640px) {
   .activityStream {
-    padding: 12px;
+    padding: 6px 0;
   }
 
   .activityItem {
-    padding: 8px 10px;
+    padding: 4px 0;
   }
 
   .activityIcon {
-    width: 28px;
-    height: 28px;
+    width: 14px;
+    height: 14px;
   }
 
   .activityDescription {
-    font-size: 12px;
-  }
-
-  .activityMeta {
-    gap: 6px;
+    font-size: 10px;
   }
 }

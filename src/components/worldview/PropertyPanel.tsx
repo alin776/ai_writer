@@ -3,10 +3,23 @@
  * 显示节点或关系的详细信息
  */
 import React, { useState, useEffect } from 'react';
-import { X, Users, MapPin, BookOpen, Link2, Edit2, Trash2, Star, Save, Clock, Calendar } from 'lucide-react';
+import { X, Users, MapPin, BookOpen, Link2, Edit2, Trash2, Star, Save, Clock, Calendar, Edit, MoreVertical, ArrowRight, ArrowLeftRight, User } from 'lucide-react';
+import { PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { Character, Location, Setting } from '@/types/novel';
 import { Relationship, EntityType } from '@/types/relationship';
 import { TimelineEvent, EventType, EVENT_TYPE_OPTIONS } from '@/types/timeline';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 
 type PanelMode = 'idle' | 'node' | 'relationship' | 'create' | 'timeline' | 'createTimeline';
 
@@ -119,6 +132,14 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
   const [editedEntity, setEditedEntity] = useState<Character | Location | Setting | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // 删除确认对话框状态
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    type: 'node' | 'relationship' | 'timeline' | null;
+    name: string;
+  }>({ open: false, type: null, name: '' });
+  const [dontAskAgain, setDontAskAgain] = useState(false);
+
   // 创建关系表单状态
   const [createForm, setCreateForm] = useState({
     relationshipType: '好友关系',
@@ -147,6 +168,9 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
   const [editedEvent, setEditedEvent] = useState<TimelineEvent | null>(null);
   const [isEditingEvent, setIsEditingEvent] = useState(false);
 
+  // 饼状图激活状态
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+
   // 当nodeData变化时，重置编辑状态
   useEffect(() => {
     if (nodeData?.initialEditMode) {
@@ -172,6 +196,51 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
     setEditedEntity(null);
   };
 
+  // 删除处理函数
+  const handleDeleteClick = (type: 'node' | 'relationship' | 'timeline', name: string) => {
+    // 检查本次会话是否勾选了"不再提醒"
+    const skipConfirm = sessionStorage.getItem('worldview_skip_delete_confirm') === 'true';
+
+    if (skipConfirm) {
+      // 直接删除
+      executeDelete(type);
+    } else {
+      // 显示确认对话框
+      setDeleteDialog({ open: true, type, name });
+      setDontAskAgain(false);
+    }
+  };
+
+  const executeDelete = (type: 'node' | 'relationship' | 'timeline') => {
+    if (type === 'node' && onDeleteNode) {
+      onDeleteNode();
+    } else if (type === 'relationship' && onDeleteRelationship) {
+      onDeleteRelationship();
+    } else if (type === 'timeline' && onDeleteTimelineEvent) {
+      onDeleteTimelineEvent();
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    // 如果勾选了"不再提醒"，保存到 sessionStorage
+    if (dontAskAgain) {
+      sessionStorage.setItem('worldview_skip_delete_confirm', 'true');
+    }
+
+    // 执行删除
+    if (deleteDialog.type) {
+      executeDelete(deleteDialog.type);
+    }
+
+    // 关闭对话框
+    setDeleteDialog({ open: false, type: null, name: '' });
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteDialog({ open: false, type: null, name: '' });
+    setDontAskAgain(false);
+  };
+
   // 保存编辑
   const handleSaveEdit = async () => {
     if (editedEntity && onSaveNode) {
@@ -189,97 +258,170 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
   };
   // 渲染空闲状态
   const renderIdleState = () => {
-    // 关系类型分布（取前5个）
-    const topTypes = Object.entries(stats.relationshipsByType)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
+    // 关系类型分布
+    const relationshipTypeCounts = stats.relationshipsByType;
 
     return (
-      <div className="space-y-6">
-        {/* 统计概览 */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-600 uppercase mb-3">📊 世界观概览</h3>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between p-2 bg-gray-100 rounded">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Users className="w-4 h-4" />
-                <span>角色</span>
+      <div className="flex flex-col h-full bg-card border-l border-border shadow-sm text-sm">
+        <div className="p-3 border-b border-border bg-gradient-to-r from-purple-50/50 via-amber-50/30 to-emerald-50/50">
+          <h3 className="text-foreground font-medium">世界观统计</h3>
+        </div>
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          <div className="p-3 space-y-4">
+            {/* 核心数据卡片 */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-lg p-3 shadow-[0_1px_4px_rgba(139,92,246,0.15)]">
+                <div className="flex items-center gap-2 mb-1">
+                  <Users className="w-3.5 h-3.5 text-purple-600" />
+                  <span className="text-xs text-purple-900/70">角色</span>
+                </div>
+                <div className="text-2xl text-purple-700 tabular-nums">{stats.characters}</div>
               </div>
-              <span className="text-lg font-semibold text-gray-900">{stats.characters}</span>
-            </div>
-            <div className="flex items-center justify-between p-2 bg-gray-100 rounded">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <MapPin className="w-4 h-4" />
-                <span>地点</span>
+
+              <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-lg p-3 shadow-[0_1px_4px_rgba(245,158,11,0.15)]">
+                <div className="flex items-center gap-2 mb-1">
+                  <MapPin className="w-3.5 h-3.5 text-amber-600" />
+                  <span className="text-xs text-amber-900/70">地点</span>
+                </div>
+                <div className="text-2xl text-amber-700 tabular-nums">{stats.locations}</div>
               </div>
-              <span className="text-lg font-semibold text-gray-900">{stats.locations}</span>
-            </div>
-            <div className="flex items-center justify-between p-2 bg-gray-100 rounded">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <BookOpen className="w-4 h-4" />
-                <span>设定</span>
+
+              <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-lg p-3 shadow-[0_1px_4px_rgba(16,185,129,0.15)]">
+                <div className="flex items-center gap-2 mb-1">
+                  <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-xs text-emerald-900/70">设定</span>
+                </div>
+                <div className="text-2xl text-emerald-700 tabular-nums">{stats.settings}</div>
               </div>
-              <span className="text-lg font-semibold text-gray-900">{stats.settings}</span>
-            </div>
-            <div className="flex items-center justify-between p-2 bg-gray-100 rounded">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Link2 className="w-4 h-4" />
-                <span>关系</span>
+
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-lg p-3 shadow-[0_1px_4px_rgba(59,130,246,0.15)]">
+                <div className="flex items-center gap-2 mb-1">
+                  <Link2 className="w-3.5 h-3.5 text-blue-600" />
+                  <span className="text-xs text-blue-900/70">关系</span>
+                </div>
+                <div className="text-2xl text-blue-700 tabular-nums">{stats.relationships}</div>
               </div>
-              <span className="text-lg font-semibold text-gray-900">{stats.relationships}</span>
             </div>
+
+            {/* 饼状图 */}
+            {(stats.characters + stats.locations + stats.settings + stats.relationships > 0) && (
+              <div className="bg-gradient-to-br from-purple-50/30 via-white to-amber-50/30 rounded-xl p-3 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-purple-100/20">
+                <div className="w-full h-[220px]">
+                  <PieChart width={280} height={220}>
+                    <Pie
+                      data={[
+                        { name: '角色', value: stats.characters, color: '#8b5cf6' },
+                        { name: '地点', value: stats.locations, color: '#f59e0b' },
+                        { name: '设定', value: stats.settings, color: '#10b981' },
+                        { name: '关系', value: stats.relationships, color: '#3b82f6' }
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={38}
+                      outerRadius={55}
+                      paddingAngle={2}
+                      dataKey="value"
+                      activeIndex={activeIndex ?? undefined}
+                      activeShape={{
+                        innerRadius: 38,
+                        outerRadius: 58,
+                        stroke: '#ffffff',
+                        strokeWidth: 2.5
+                      }}
+                      onMouseEnter={(_, index) => setActiveIndex(index)}
+                      onMouseLeave={() => setActiveIndex(null)}
+                      label={({ cx, cy, midAngle, outerRadius, payload }) => {
+                        const RADIAN = Math.PI / 180;
+                        const cos = Math.cos(-midAngle * RADIAN);
+                        const sin = Math.sin(-midAngle * RADIAN);
+                        const sx = cx + (outerRadius + 6) * cos;
+                        const sy = cy + (outerRadius + 6) * sin;
+                        const mx = cx + (outerRadius + 14) * cos;
+                        const my = cy + (outerRadius + 14) * sin;
+                        const ex = mx + (cos >= 0 ? 1 : -1) * 12;
+                        const ey = my;
+                        const textAnchor = cos >= 0 ? 'start' : 'end';
+
+                        return (
+                          <g>
+                            <path
+                              d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`}
+                              stroke={payload.color}
+                              fill="none"
+                              strokeWidth={1.2}
+                              opacity={0.4}
+                            />
+                            <text
+                              x={ex + (cos >= 0 ? 4 : -4)}
+                              y={ey + 3}
+                              textAnchor={textAnchor}
+                              fill={payload.color}
+                              fontSize={10}
+                              fontWeight={600}
+                              style={{ pointerEvents: 'none' }}
+                            >
+                              {payload.value}
+                            </text>
+                          </g>
+                        );
+                      }}
+                      labelLine={false}
+                    >
+                      <Cell fill="#8b5cf6" stroke="#ffffff" strokeWidth={2} style={{ cursor: 'pointer', outline: 'none' }} />
+                      <Cell fill="#f59e0b" stroke="#ffffff" strokeWidth={2} style={{ cursor: 'pointer', outline: 'none' }} />
+                      <Cell fill="#10b981" stroke="#ffffff" strokeWidth={2} style={{ cursor: 'pointer', outline: 'none' }} />
+                      <Cell fill="#3b82f6" stroke="#ffffff" strokeWidth={2} style={{ cursor: 'pointer', outline: 'none' }} />
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                        border: '1px solid rgba(0,0,0,0.08)',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        padding: '6px 10px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.12)'
+                      }}
+                      formatter={(value: any, name: string) => [`${value}`, name]}
+                    />
+                  </PieChart>
+                </div>
+              </div>
+            )}
+
+            {/* 关系类型分布 */}
+            {Object.keys(relationshipTypeCounts).length > 0 && (
+              <div className="bg-blue-50/40 rounded-lg p-3 border border-blue-100/30">
+                <h4 className="text-foreground font-medium mb-3 flex items-center gap-2">
+                  <div className="w-1 h-4 bg-blue-500 rounded-full" />
+                  关系类型分布
+                </h4>
+                <div className="space-y-2">
+                  {Object.entries(relationshipTypeCounts).map(([type, count]) => {
+                    const total = Object.values(relationshipTypeCounts).reduce((a: number, b: number) => a + b, 0);
+                    const percentage = total > 0 ? (count / total * 100).toFixed(0) : 0;
+                    return (
+                      <div key={type} className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-foreground/80">{type}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">{percentage}%</span>
+                            <span className="px-2 py-0.5 bg-secondary text-secondary-foreground rounded text-xs font-medium min-w-[28px] text-center">{count}</span>
+                          </div>
+                        </div>
+                        <div className="h-1.5 bg-blue-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full transition-all duration-300"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
-
-        <div className="border-t border-gray-200"></div>
-
-        {/* 快捷操作 */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-600 uppercase mb-3">💡 快捷操作</h3>
-          <div className="space-y-2 text-sm text-gray-500">
-            <div className="flex items-start gap-2">
-              <span className="text-blue-400">•</span>
-              <span>点击节点查看详情</span>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="text-blue-400">•</span>
-              <span>点击关系线编辑关系</span>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="text-blue-400">•</span>
-              <span>使用[创建关系]建立新关系</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 关系类型分布 */}
-        {topTypes.length > 0 && (
-          <>
-            <div className="border-t border-gray-200"></div>
-            <div>
-              <h3 className="text-sm font-semibold text-gray-600 uppercase mb-3">🔥 关系类型分布</h3>
-              <div className="space-y-2">
-                {topTypes.map(([type, count]) => {
-                  const percentage = (count / stats.relationships) * 100;
-                  return (
-                    <div key={type}>
-                      <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                        <span>{type}</span>
-                        <span>{count}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full transition-all"
-                          style={{ width: `${percentage}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </>
-        )}
       </div>
     );
   };
@@ -289,6 +431,8 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
     if (!nodeData) return null;
 
     const { type, entity } = nodeData;
+    const entityIcon = type === 'character' ? User : type === 'location' ? MapPin : BookOpen;
+    const Icon = entityIcon;
 
     // 过滤相关关系（使用蛇形命名）
     const nodeRelations = relatedRelationships.filter(
@@ -297,403 +441,221 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
         (rel.targetId === nodeData.id && rel.targetType === type)
     );
 
-    // 角色详情
-    if (type === 'character') {
-      const character = (isEditing && editedEntity ? editedEntity : entity) as Character;
-      return (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-              <Users className="w-5 h-5 text-blue-400" />
-              角色详情
-            </h3>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-900 transition-colors">
-              <X className="w-5 h-5" />
-            </button>
+    const handleSave = () => {
+      if (editedEntity) {
+        handleSaveEdit();
+      }
+    };
+
+    const currentEntity = isEditing && editedEntity ? editedEntity : entity;
+
+    return (
+      <div className="flex flex-col h-full bg-card border-l border-border-light shadow-sm text-sm">
+        {/* 标题栏 */}
+        <div className="p-6 pb-4 flex items-start justify-between">
+          <div className="flex-1">
+            {!isEditing ? (
+              <h2
+                className="text-3xl text-foreground leading-relaxed m-0"
+                style={{ fontFamily: "'Ma Shan Zheng', cursive" }}
+              >
+                {currentEntity.name || (type === 'setting' ? (currentEntity as Setting).title : '')}
+              </h2>
+            ) : (
+              <Input
+                value={currentEntity.name || (type === 'setting' ? (currentEntity as Setting).title : '')}
+                onChange={(e) => {
+                  if (type === 'setting') {
+                    setEditedEntity({ ...(currentEntity as Setting), title: e.target.value });
+                  } else {
+                    setEditedEntity({ ...currentEntity, name: e.target.value });
+                  }
+                }}
+                className="text-xl border-border"
+                style={{ fontFamily: "'Ma Shan Zheng', cursive" }}
+              />
+            )}
           </div>
+          <div className="flex items-center gap-1">
+            {!isEditing && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem
+                    onClick={handleStartEdit}
+                  >
+                    <Edit className="w-3.5 h-3.5 mr-2" />
+                    编辑
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      const name = 'name' in currentEntity ? currentEntity.name : 'title' in currentEntity ? currentEntity.title : '未知';
+                      handleDeleteClick('node', name);
+                    }}
+                    variant="destructive"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-2" />
+                    删除
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
 
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">📛 姓名</label>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={character.name}
-                  onChange={(e) => setEditedEntity({ ...character, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-blue-500 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              ) : (
-                <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-900">{character.name}</div>
-              )}
-            </div>
+        <ScrollArea className="flex-1 custom-scrollbar">
+          <div className="p-6 space-y-5">
+            {!isEditing ? (
+              <>
+                {/* 角色/分类 */}
+                {((type === 'character' && (currentEntity as Character).role) ||
+                  (type === 'location' && (currentEntity as Location).classification) ||
+                  (type === 'setting' && (currentEntity as Setting).category)) && (
+                  <div className="flex items-center gap-3">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                      {type === 'character' ? '角色定位' : '分类'}
+                    </div>
+                    <div className="text-foreground">
+                      {type === 'character' ? (currentEntity as Character).role :
+                       type === 'location' ? (currentEntity as Location).classification :
+                       (currentEntity as Setting).category}
+                    </div>
+                  </div>
+                )}
 
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">🎭 角色</label>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={character.role || ''}
-                  onChange={(e) => setEditedEntity({ ...character, role: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-blue-500 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="例如：主角、配角"
-                />
-              ) : (
-                <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-900">{character.role || '-'}</div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">📝 描述</label>
-              {isEditing ? (
-                <textarea
-                  value={character.description || ''}
-                  onChange={(e) => setEditedEntity({ ...character, description: e.target.value })}
-                  className="w-full px-3 py-2 bg-gray-750 border border-blue-500 rounded text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  rows={4}
-                  placeholder="输入角色描述..."
-                />
-              ) : (
-                <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-600 max-h-24 overflow-y-auto">
-                  {character.description || '-'}
+                {/* 描述 */}
+                <div className="space-y-2 pt-4 border-t border-border">
+                  <p className="text-foreground/80 leading-relaxed whitespace-pre-wrap">
+                    {(type === 'setting' ? (currentEntity as Setting).content : currentEntity.description) || '暂无描述'}
+                  </p>
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* 相关关系 */}
-          {nodeRelations.length > 0 && (
-            <>
-              <div className="border-t border-gray-200"></div>
-              <div>
-                <h4 className="text-sm font-semibold text-gray-600 mb-2">🔗 相关关系 ({nodeRelations.length})</h4>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {nodeRelations.slice(0, 10).map((rel) => {
-                    const isSource = rel.sourceId === nodeData.id;
-                    return (
-                      <div
-                        key={rel.id}
-                        onClick={() => onRelationshipClick?.(rel.id)}
-                        className="p-2 bg-gray-100 hover:bg-gray-200 rounded cursor-pointer transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-900">{rel.label}</span>
-                          <div className="flex items-center gap-1">
-                            {Array.from({ length: Math.min(rel.strength, 5) }).map((_, i) => (
-                              <Star key={i} className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                            ))}
+                {/* 标签 */}
+                {currentEntity.tags && currentEntity.tags.length > 0 && (
+                  <div className="flex items-start gap-3 pt-4 border-t border-border">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                      标签
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {currentEntity.tags.map((tag: string) => (
+                        <span
+                          key={tag}
+                          className="px-2.5 py-1 text-xs border border-border rounded-full text-muted-foreground hover:border-foreground/20 transition-colors"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 相关关系 */}
+                {nodeRelations.length > 0 && (
+                  <div className="space-y-3 pt-4 border-t border-border">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                      相关关系 · {nodeRelations.length}
+                    </div>
+                    <div className="space-y-1">
+                      {nodeRelations.map(rel => {
+                        const isSource = rel.sourceId === nodeData.id;
+
+                        return (
+                          <div
+                            key={rel.id}
+                            onClick={() => onRelationshipClick?.(rel.id)}
+                            className="group flex items-center justify-between py-3 border-b border-border/50 last:border-0 hover:bg-accent/30 -mx-2 px-2 rounded transition-colors cursor-pointer"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="text-foreground truncate">{rel.label || rel.relationshipType}</div>
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                {rel.relationshipType}
+                              </div>
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all flex-shrink-0 ml-2" />
                           </div>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {isSource ? '→' : '←'} {rel.relationshipType}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* 操作按钮 */}
-          <div className="border-t border-gray-700 pt-4 flex gap-2">
-            {isEditing ? (
-              <>
-                <button
-                  onClick={handleSaveEdit}
-                  disabled={isSaving}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded transition-colors"
-                >
-                  <Save className="w-4 h-4" />
-                  {isSaving ? '保存中...' : '保存'}
-                </button>
-                <button
-                  onClick={handleCancelEdit}
-                  disabled={isSaving}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:cursor-not-allowed rounded transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                  取消
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={handleStartEdit}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
-                >
-                  <Edit2 className="w-4 h-4" />
-                  编辑角色
-                </button>
-                <button
-                  onClick={onDeleteNode}
-                  className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-100 rounded transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    // 地点详情
-    if (type === 'location') {
-      const location = (isEditing && editedEntity ? editedEntity : entity) as Location;
-      return (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-green-400" />
-              地点详情
-            </h3>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-900 transition-colors">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">📛 名称</label>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={location.name}
-                  onChange={(e) => setEditedEntity({ ...location, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-green-500 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              ) : (
-                <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-900">{location.name}</div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">🏷️ 类型</label>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={location.type || ''}
-                  onChange={(e) => setEditedEntity({ ...location, type: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-green-500 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder="例如：城市、建筑"
-                />
-              ) : (
-                <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-900">{location.type || '-'}</div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">📝 描述</label>
-              {isEditing ? (
-                <textarea
-                  value={location.description || ''}
-                  onChange={(e) => setEditedEntity({ ...location, description: e.target.value })}
-                  className="w-full px-3 py-2 bg-gray-750 border border-green-500 rounded text-sm text-white focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
-                  rows={4}
-                  placeholder="输入地点描述..."
-                />
-              ) : (
-                <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-600 max-h-24 overflow-y-auto">
-                  {location.description || '-'}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 相关关系 */}
-          {nodeRelations.length > 0 && (
-            <>
-              <div className="border-t border-gray-200"></div>
-              <div>
-                <h4 className="text-sm font-semibold text-gray-600 mb-2">🔗 相关关系 ({nodeRelations.length})</h4>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {nodeRelations.slice(0, 10).map((rel) => (
-                    <div
-                      key={rel.id}
-                      onClick={() => onRelationshipClick?.(rel.id)}
-                      className="p-2 bg-gray-100 hover:bg-gray-200 rounded cursor-pointer transition-colors"
-                    >
-                      <div className="text-sm text-gray-900">{rel.label}</div>
-                      <div className="text-xs text-gray-500 mt-1">{rel.relationshipType}</div>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* 操作按钮 */}
-          <div className="border-t border-gray-700 pt-4 flex gap-2">
-            {isEditing ? (
-              <>
-                <button
-                  onClick={handleSaveEdit}
-                  disabled={isSaving}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded transition-colors"
-                >
-                  <Save className="w-4 h-4" />
-                  {isSaving ? '保存中...' : '保存'}
-                </button>
-                <button
-                  onClick={handleCancelEdit}
-                  disabled={isSaving}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:cursor-not-allowed rounded transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                  取消
-                </button>
+                  </div>
+                )}
               </>
             ) : (
               <>
-                <button
-                  onClick={handleStartEdit}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors"
-                >
-                  <Edit2 className="w-4 h-4" />
-                  编辑地点
-                </button>
-                <button
-                  onClick={onDeleteNode}
-                  className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-100 rounded transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {/* 编辑模式 */}
+                <div className="flex gap-2">
+                  <Button onClick={handleSave} size="sm" disabled={isSaving}>
+                    {isSaving ? '保存中...' : '保存'}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleCancelEdit}>
+                    取消
+                  </Button>
+                </div>
+
+                {type === 'character' && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground uppercase tracking-wider">角色定位</Label>
+                    <Input
+                      value={(currentEntity as Character).role || ''}
+                      onChange={(e) => setEditedEntity({ ...(currentEntity as Character), role: e.target.value })}
+                      placeholder="例如：主角、反派、配角..."
+                      className="border-border"
+                    />
+                  </div>
+                )}
+
+                {type === 'location' && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground uppercase tracking-wider">分类</Label>
+                    <Input
+                      value={(currentEntity as Location).classification || ''}
+                      onChange={(e) => setEditedEntity({ ...(currentEntity as Location), classification: e.target.value })}
+                      placeholder="请输入分类..."
+                      className="border-border"
+                    />
+                  </div>
+                )}
+
+                {type === 'setting' && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground uppercase tracking-wider">分类</Label>
+                    <Input
+                      value={(currentEntity as Setting).category || ''}
+                      onChange={(e) => setEditedEntity({ ...(currentEntity as Setting), category: e.target.value })}
+                      placeholder="请输入分类..."
+                      className="border-border"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2 pt-3 border-t border-border">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">详细描述</Label>
+                  <Textarea
+                    value={type === 'setting' ? (currentEntity as Setting).content : currentEntity.description || ''}
+                    onChange={(e) => {
+                      if (type === 'setting') {
+                        setEditedEntity({ ...(currentEntity as Setting), content: e.target.value });
+                      } else {
+                        setEditedEntity({ ...currentEntity, description: e.target.value });
+                      }
+                    }}
+                    placeholder="详细描述此节点的相关信息..."
+                    className="border-border min-h-[120px] resize-none"
+                    rows={6}
+                  />
+                </div>
               </>
             )}
           </div>
-        </div>
-      );
-    }
-
-    // 设定详情
-    if (type === 'setting') {
-      const setting = (isEditing && editedEntity ? editedEntity : entity) as Setting;
-      return (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-orange-400" />
-              设定详情
-            </h3>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-900 transition-colors">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">📛 标题</label>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={setting.title}
-                  onChange={(e) => setEditedEntity({ ...setting, title: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-orange-500 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              ) : (
-                <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-900">{setting.title}</div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">🏷️ 分类</label>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={setting.category || ''}
-                  onChange={(e) => setEditedEntity({ ...setting, category: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-orange-500 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  placeholder="例如：武功、法宝"
-                />
-              ) : (
-                <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-900">{setting.category || '-'}</div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">📝 内容</label>
-              {isEditing ? (
-                <textarea
-                  value={setting.content || ''}
-                  onChange={(e) => setEditedEntity({ ...setting, content: e.target.value })}
-                  className="w-full px-3 py-2 bg-gray-750 border border-orange-500 rounded text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
-                  rows={4}
-                  placeholder="输入设定内容..."
-                />
-              ) : (
-                <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-600 max-h-24 overflow-y-auto">
-                  {setting.content || '-'}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 相关关系 */}
-          {nodeRelations.length > 0 && (
-            <>
-              <div className="border-t border-gray-200"></div>
-              <div>
-                <h4 className="text-sm font-semibold text-gray-600 mb-2">🔗 相关关系 ({nodeRelations.length})</h4>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {nodeRelations.slice(0, 10).map((rel) => (
-                    <div
-                      key={rel.id}
-                      onClick={() => onRelationshipClick?.(rel.id)}
-                      className="p-2 bg-gray-100 hover:bg-gray-200 rounded cursor-pointer transition-colors"
-                    >
-                      <div className="text-sm text-gray-900">{rel.label}</div>
-                      <div className="text-xs text-gray-500 mt-1">{rel.relationshipType}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* 操作按钮 */}
-          <div className="border-t border-gray-700 pt-4 flex gap-2">
-            {isEditing ? (
-              <>
-                <button
-                  onClick={handleSaveEdit}
-                  disabled={isSaving}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded transition-colors"
-                >
-                  <Save className="w-4 h-4" />
-                  {isSaving ? '保存中...' : '保存'}
-                </button>
-                <button
-                  onClick={handleCancelEdit}
-                  disabled={isSaving}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:cursor-not-allowed rounded transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                  取消
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={handleStartEdit}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded transition-colors"
-                >
-                  <Edit2 className="w-4 h-4" />
-                  编辑设定
-                </button>
-                <button
-                  onClick={onDeleteNode}
-                  className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-100 rounded transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    return null;
+        </ScrollArea>
+      </div>
+    );
   };
 
   // 渲染关系详情
@@ -703,117 +665,112 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
     const { relationship, sourceLabel, targetLabel } = relationshipData;
 
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-white flex items-center gap-2">
-            <Link2 className="w-5 h-5 text-purple-400" />
-            关系详情
-          </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* 关系连接示意 */}
-        <div className="p-3 bg-gray-100 rounded">
-          <div className="flex items-center justify-between text-sm">
-            <div className="text-gray-900 font-medium">{sourceLabel}</div>
-            <div className="text-gray-500">
-              {relationship.direction === 'two-way' ? '↔' : '→'}
-            </div>
-            <div className="text-gray-900 font-medium">{targetLabel}</div>
+      <div className="flex flex-col h-full bg-card border-l border-border-light shadow-sm text-sm">
+        {/* 标题栏 */}
+        <div className="p-6 pb-4 flex items-start justify-between">
+          <div className="flex items-center gap-3 flex-1">
+            <span className="text-3xl text-foreground leading-relaxed" style={{ fontFamily: "'Ma Shan Zheng', cursive" }}>{sourceLabel}</span>
+            <ArrowRight className="w-5 h-5 text-muted-foreground" />
+            <span className="text-3xl text-foreground leading-relaxed" style={{ fontFamily: "'Ma Shan Zheng', cursive" }}>{targetLabel}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem onClick={onEditRelationship}>
+                  <Edit className="w-3.5 h-3.5 mr-2" />
+                  编辑
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleDeleteClick('relationship', relationship.label || '关系')}
+                  variant="destructive"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-2" />
+                  删除
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+              <X className="w-4 h-4" />
+            </Button>
           </div>
         </div>
 
-        <div className="space-y-3">
-          {/* 关系类型 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">🏷️ 关系类型</label>
-            <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-900">
-              {relationship.relationshipType}
-            </div>
-          </div>
+        <ScrollArea className="flex-1 custom-scrollbar">
+          <div className="p-6 space-y-5">
 
-          {/* 显示标签 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">📛 显示标签</label>
-            <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-900">{relationship.label}</div>
-          </div>
-
-          {/* 关系描述 */}
-          {relationship.description && (
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">📝 关系描述</label>
-              <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-600 max-h-24 overflow-y-auto">
-                {relationship.description}
-              </div>
-            </div>
-          )}
-
-          {/* 关系强度 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">⚡ 关系强度</label>
+            {/* 关系类型 */}
             <div className="flex items-center gap-3">
-              <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all"
-                  style={{ width: `${(relationship.strength / 10) * 100}%` }}
-                ></div>
-              </div>
-              <span className="text-sm text-gray-900 font-medium">{relationship.strength}/10</span>
+              <div className="text-xs text-muted-foreground uppercase tracking-wider">关系类型</div>
+              <div className="text-foreground">{relationship.relationshipType}</div>
             </div>
-          </div>
 
-          {/* 关系方向 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">🔄 关系方向</label>
-            <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-900">
-              {relationship.direction === 'one-way' ? '单向 (A → B)' : '双向 (A ↔ B)'}
-            </div>
-          </div>
-
-          {/* 视觉样式 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">🎨 视觉样式</label>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">线条:</span>
-                <span className="text-sm text-gray-900">
-                  {relationship.lineStyle === 'solid' && '实线 —'}
-                  {relationship.lineStyle === 'dashed' && '虚线 - - -'}
-                  {relationship.lineStyle === 'dotted' && '点线 · · ·'}
-                </span>
+            {/* 标签 */}
+            {relationship.label && (
+              <div className="flex items-center gap-3 pt-4 border-t border-border">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">标签</div>
+                <div className="text-foreground">{relationship.label}</div>
               </div>
-              {relationship.color && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">颜色:</span>
+            )}
+
+            {/* 描述 */}
+            {relationship.description && (
+              <div className="space-y-2 pt-4 border-t border-border">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">描述</div>
+                <p className="text-foreground/80 leading-relaxed">{relationship.description}</p>
+              </div>
+            )}
+
+            {/* 强度 */}
+            <div className="space-y-2 pt-4 border-t border-border">
+              <div className="text-xs text-muted-foreground uppercase tracking-wider">强度</div>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-1.5 bg-accent rounded-full overflow-hidden">
                   <div
-                    className="w-4 h-4 rounded border border-gray-300"
-                    style={{ backgroundColor: relationship.color }}
-                  ></div>
-                  <span className="text-sm text-gray-900">{relationship.color}</span>
+                    className="h-full bg-foreground/60 transition-all"
+                    style={{ width: `${(relationship.strength / 10) * 100}%` }}
+                  />
                 </div>
-              )}
+                <span className="text-foreground text-xs">{relationship.strength}/10</span>
+              </div>
+            </div>
+
+            {/* 方向 */}
+            <div className="flex items-center gap-3 pt-4 border-t border-border">
+              <div className="text-xs text-muted-foreground uppercase tracking-wider">方向</div>
+              <div className="text-foreground">
+                {relationship.direction === 'two-way' ? '双向' : '单向'}
+              </div>
+            </div>
+
+            {/* 颜色 */}
+            {relationship.color && (
+              <div className="flex items-center gap-3 pt-4 border-t border-border">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">颜色</div>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-5 h-5 rounded border border-border"
+                    style={{ backgroundColor: relationship.color }}
+                  />
+                  <span className="text-foreground text-xs">{relationship.color}</span>
+                </div>
+              </div>
+            )}
+
+            {/* 线型 */}
+            <div className="flex items-center gap-3 pt-4 border-t border-border">
+              <div className="text-xs text-muted-foreground uppercase tracking-wider">线型</div>
+              <div className="text-foreground">
+                {relationship.lineStyle === 'solid' ? '实线' :
+                 relationship.lineStyle === 'dashed' ? '虚线' : '点线'}
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* 操作按钮 */}
-        <div className="border-t border-gray-700 pt-4 flex gap-2">
-          <button
-            onClick={onEditRelationship}
-            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded transition-colors"
-          >
-            <Edit2 className="w-4 h-4" />
-            编辑关系
-          </button>
-          <button
-            onClick={onDeleteRelationship}
-            className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-100 rounded transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
+        </ScrollArea>
       </div>
     );
   };
@@ -823,6 +780,17 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
     if (!createRelationshipData) return null;
 
     const { sourceLabel, targetLabel } = createRelationshipData;
+
+    const relationshipTypes = [
+      '亲属关系',
+      '师徒关系',
+      '好友关系',
+      '盟友关系',
+      '敌对关系',
+      '同事关系',
+      '恋人关系',
+      '竞争关系'
+    ];
 
     const handleSubmit = async () => {
       if (!createForm.label.trim()) {
@@ -851,155 +819,140 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
     };
 
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-white flex items-center gap-2">
-            <Link2 className="w-5 h-5 text-blue-400" />
-            创建关系
-          </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* 关系连接示意 */}
-        <div className="p-3 bg-gray-100 rounded">
-          <div className="flex items-center justify-between text-sm">
-            <div className="text-white font-medium">{sourceLabel}</div>
-            <div className="text-blue-400">→</div>
-            <div className="text-gray-900 font-medium">{targetLabel}</div>
+      <div className="flex flex-col h-full bg-card border-l border-border-light shadow-sm text-sm">
+        {/* 标题栏 */}
+        <div className="p-6 pb-4 flex items-start justify-between">
+          <div className="flex items-center gap-3 flex-1">
+            <span className="text-3xl text-foreground leading-relaxed" style={{ fontFamily: "'Ma Shan Zheng', cursive" }}>{sourceLabel}</span>
+            {createForm.direction === 'two-way' ? (
+              <ArrowLeftRight className="w-5 h-5 text-muted-foreground" />
+            ) : (
+              <ArrowRight className="w-5 h-5 text-muted-foreground" />
+            )}
+            <span className="text-3xl text-foreground leading-relaxed" style={{ fontFamily: "'Ma Shan Zheng', cursive" }}>{targetLabel}</span>
           </div>
-        </div>
-
-        <div className="space-y-3">
-          {/* 关系类型 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">🏷️ 关系类型 *</label>
-            <select
-              value={createForm.relationshipType}
-              onChange={(e) => setCreateForm({ ...createForm, relationshipType: e.target.value })}
-              className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="亲属关系">亲属关系</option>
-              <option value="师徒关系">师徒关系</option>
-              <option value="好友关系">好友关系</option>
-              <option value="盟友关系">盟友关系</option>
-              <option value="敌对关系">敌对关系</option>
-              <option value="同事关系">同事关系</option>
-              <option value="恋人关系">恋人关系</option>
-              <option value="竞争关系">竞争关系</option>
-            </select>
-          </div>
-
-          {/* 显示标签 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">📛 显示标签 *</label>
-            <input
-              type="text"
-              value={createForm.label}
-              onChange={(e) => setCreateForm({ ...createForm, label: e.target.value })}
-              placeholder="例如：师徒、好友"
-              className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {/* 关系描述 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">📝 关系描述</label>
-            <textarea
-              value={createForm.description}
-              onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
-              placeholder="描述这段关系..."
-              rows={3}
-              className="w-full px-3 py-2 bg-gray-750 border border-gray-600 rounded text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            />
-          </div>
-
-          {/* 关系强度 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">⚡ 关系强度: {createForm.strength}/10</label>
-            <input
-              type="range"
-              min="1"
-              max="10"
-              value={createForm.strength}
-              onChange={(e) => setCreateForm({ ...createForm, strength: parseInt(e.target.value) })}
-              className="w-full"
-            />
-          </div>
-
-          {/* 关系方向 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">🔄 关系方向</label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  checked={createForm.direction === 'one-way'}
-                  onChange={() => setCreateForm({ ...createForm, direction: 'one-way' })}
-                  className="text-blue-500"
-                />
-                <span className="text-sm text-gray-600">单向 (A → B)</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  checked={createForm.direction === 'two-way'}
-                  onChange={() => setCreateForm({ ...createForm, direction: 'two-way' })}
-                  className="text-blue-500"
-                />
-                <span className="text-sm text-gray-300">双向 (A ↔ B)</span>
-              </label>
-            </div>
-          </div>
-
-          {/* 线条样式 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">🎨 线条样式</label>
-            <select
-              value={createForm.lineStyle}
-              onChange={(e) => setCreateForm({ ...createForm, lineStyle: e.target.value as any })}
-              className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="solid">实线 —</option>
-              <option value="dashed">虚线 - - -</option>
-              <option value="dotted">点线 · · ·</option>
-            </select>
-          </div>
-
-          {/* 线条颜色 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">🎨 线条颜色</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={createForm.color}
-                onChange={(e) => setCreateForm({ ...createForm, color: e.target.value })}
-                className="w-12 h-8 bg-white border border-gray-300 rounded cursor-pointer"
-              />
-              <span className="text-sm text-gray-600">{createForm.color}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 操作按钮 */}
-        <div className="border-t border-gray-700 pt-4 flex gap-2">
-          <button
-            onClick={handleSubmit}
-            disabled={isSaving || !createForm.label.trim()}
-            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded transition-colors"
-          >
-            <Save className="w-4 h-4" />
-            {isSaving ? '创建中...' : '创建关系'}
-          </button>
-          <button
-            onClick={onClose}
-            disabled={isSaving}
-            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:cursor-not-allowed rounded transition-colors"
-          >
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
             <X className="w-4 h-4" />
-            取消
-          </button>
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-hidden">
+          <ScrollArea className="h-full">
+            <div className="p-6 space-y-5">
+              {/* 关系类型 */}
+              <div className="space-y-2">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">关系类型</div>
+                <Select
+                  value={createForm.relationshipType}
+                  onValueChange={(value) => setCreateForm(prev => ({...prev, relationshipType: value}))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {relationshipTypes.map(type => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* 标签 */}
+              <div className="space-y-2 pt-4 border-t border-border">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">标签</div>
+                <Input
+                  value={createForm.label}
+                  onChange={(e) => setCreateForm(prev => ({...prev, label: e.target.value}))}
+                  placeholder="例如：好友、师父、敌人"
+                />
+              </div>
+
+              {/* 描述 */}
+              <div className="space-y-2 pt-4 border-t border-border">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">描述</div>
+                <Textarea
+                  value={createForm.description}
+                  onChange={(e) => setCreateForm(prev => ({...prev, description: e.target.value}))}
+                  placeholder="描述这个关系的详细信息"
+                  rows={3}
+                />
+              </div>
+
+              {/* 强度 */}
+              <div className="space-y-2 pt-4 border-t border-border">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider">强度</div>
+                  <span className="text-foreground text-xs">{createForm.strength}/5</span>
+                </div>
+                <Slider
+                  value={[createForm.strength]}
+                  onValueChange={([value]) => setCreateForm(prev => ({...prev, strength: value}))}
+                  min={1}
+                  max={5}
+                  step={1}
+                />
+              </div>
+
+              {/* 方向 */}
+              <div className="space-y-2 pt-4 border-t border-border">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">方向</div>
+                <RadioGroup
+                  value={createForm.direction}
+                  onValueChange={(value: 'one-way' | 'two-way') => setCreateForm(prev => ({...prev, direction: value}))}
+                  className="space-y-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="one-way" id="create-unidirectional" />
+                    <label htmlFor="create-unidirectional" className="cursor-pointer text-sm">单向</label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="two-way" id="create-bidirectional" />
+                    <label htmlFor="create-bidirectional" className="cursor-pointer text-sm">双向</label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {/* 颜色 */}
+              <div className="space-y-2 pt-4 border-t border-border">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">颜色</div>
+                <Input
+                  type="color"
+                  value={createForm.color}
+                  onChange={(e) => setCreateForm(prev => ({...prev, color: e.target.value}))}
+                  className="h-10 cursor-pointer"
+                />
+              </div>
+
+              {/* 线型 */}
+              <div className="space-y-2 pt-4 border-t border-border">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">线型</div>
+                <Select
+                  value={createForm.lineStyle}
+                  onValueChange={(value: 'solid' | 'dashed' | 'dotted') => setCreateForm(prev => ({...prev, lineStyle: value}))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="solid">实线</SelectItem>
+                    <SelectItem value="dashed">虚线</SelectItem>
+                    <SelectItem value="dotted">点线</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* 创建按钮 */}
+              <div className="pt-4">
+                <Button
+                  className="w-full"
+                  onClick={handleSubmit}
+                  disabled={isSaving || !createForm.label.trim()}
+                >
+                  {isSaving ? '创建中...' : '创建关系'}
+                </Button>
+              </div>
+            </div>
+          </ScrollArea>
         </div>
       </div>
     );
@@ -1015,198 +968,229 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
     // 获取事件类型配置
     const eventTypeConfig = EVENT_TYPE_OPTIONS.find((opt) => opt.value === currentEvent.eventType);
 
+    const handleSaveEvent = async () => {
+      if (editedEvent && onUpdateTimelineEvent) {
+        setIsSaving(true);
+        try {
+          await onUpdateTimelineEvent(editedEvent.id, editedEvent);
+          setIsEditingEvent(false);
+          setEditedEvent(null);
+        } finally {
+          setIsSaving(false);
+        }
+      }
+    };
+
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-white flex items-center gap-2">
-            <Clock className="w-5 h-5 text-yellow-400" />
+      <div className="flex flex-col h-full bg-card border-l border-border-light shadow-sm text-sm">
+        {/* 标题栏 */}
+        <div className="p-6 pb-4 flex items-start justify-between">
+          <h2
+            className="text-3xl text-foreground leading-relaxed m-0"
+            style={{ fontFamily: "'Ma Shan Zheng', cursive" }}
+          >
             时间线事件
-          </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {/* 关联实体 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">🔗 关联实体</label>
-            <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-900">{entityLabel}</div>
-          </div>
-
-          {/* 事件类型 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">🏷️ 事件类型</label>
-            {isEditingEvent ? (
-              <select
-                value={currentEvent.eventType}
-                onChange={(e) => setEditedEvent({ ...currentEvent, eventType: e.target.value as EventType })}
-                className="w-full px-3 py-2 bg-gray-750 border border-yellow-500 rounded text-sm text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
-              >
-                {EVENT_TYPE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.icon} {opt.label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-900">
-                {eventTypeConfig?.icon} {eventTypeConfig?.label}
-              </div>
+          </h2>
+          <div className="flex items-center gap-1">
+            {!isEditingEvent && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setEditedEvent({ ...event });
+                      setIsEditingEvent(true);
+                    }}
+                  >
+                    <Edit className="w-3.5 h-3.5 mr-2" />
+                    编辑
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDeleteClick('timeline', event.title)}
+                    variant="destructive"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-2" />
+                    删除
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
-          </div>
-
-          {/* 事件标题 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">📛 事件标题</label>
-            {isEditingEvent ? (
-              <input
-                type="text"
-                value={currentEvent.title}
-                onChange={(e) => setEditedEvent({ ...currentEvent, title: e.target.value })}
-                className="w-full px-3 py-2 bg-gray-750 border border-yellow-500 rounded text-sm text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                placeholder="例如：获得神器、遇见导师"
-              />
-            ) : (
-              <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-900">{currentEvent.title}</div>
-            )}
-          </div>
-
-          {/* 事件描述 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">📝 事件描述</label>
-            {isEditingEvent ? (
-              <textarea
-                value={currentEvent.description || ''}
-                onChange={(e) => setEditedEvent({ ...currentEvent, description: e.target.value })}
-                className="w-full px-3 py-2 bg-gray-750 border border-yellow-500 rounded text-sm text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-none"
-                rows={4}
-                placeholder="详细描述这个事件..."
-              />
-            ) : (
-              <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-600 max-h-24 overflow-y-auto">
-                {currentEvent.description || '-'}
-              </div>
-            )}
-          </div>
-
-          {/* 事件图标 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">🎨 事件图标</label>
-            {isEditingEvent ? (
-              <input
-                type="text"
-                value={currentEvent.icon || ''}
-                onChange={(e) => setEditedEvent({ ...currentEvent, icon: e.target.value })}
-                className="w-full px-3 py-2 bg-gray-750 border border-yellow-500 rounded text-sm text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                placeholder="输入emoji，例如：🎯"
-              />
-            ) : (
-              <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-900">
-                {currentEvent.icon || '-'}
-              </div>
-            )}
-          </div>
-
-          {/* 所属章节 */}
-          {currentEvent.chapterNumber && (
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">📖 所属章节</label>
-              <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-900">
-                第 {currentEvent.chapterNumber} 章
-              </div>
-            </div>
-          )}
-
-          {/* 颜色标记 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">🎨 颜色标记</label>
-            {isEditingEvent ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={currentEvent.color || '#f59e0b'}
-                  onChange={(e) => setEditedEvent({ ...currentEvent, color: e.target.value })}
-                  className="w-12 h-8 bg-white border border-gray-300 rounded cursor-pointer"
-                />
-                <span className="text-sm text-gray-300">{currentEvent.color || '#f59e0b'}</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <div
-                  className="w-4 h-4 rounded border border-gray-600"
-                  style={{ backgroundColor: currentEvent.color || '#f59e0b' }}
-                ></div>
-                <span className="text-sm text-white">{currentEvent.color || '#f59e0b'}</span>
-              </div>
-            )}
-          </div>
-
-          {/* 创建时间 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">🕐 创建时间</label>
-            <div className="px-3 py-2 bg-gray-750 rounded text-sm text-gray-300">
-              {new Date(currentEvent.createdAt).toLocaleString('zh-CN')}
-            </div>
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+              <X className="w-4 h-4" />
+            </Button>
           </div>
         </div>
 
-        {/* 操作按钮 */}
-        <div className="border-t border-gray-700 pt-4 flex gap-2">
-          {isEditingEvent ? (
-            <>
-              <button
-                onClick={async () => {
-                  if (editedEvent && onUpdateTimelineEvent) {
-                    setIsSaving(true);
-                    try {
-                      await onUpdateTimelineEvent(editedEvent.id, editedEvent);
+        <ScrollArea className="flex-1 custom-scrollbar">
+          <div className="p-6 space-y-5">
+            {isEditingEvent ? (
+              <>
+                {/* 编辑模式 */}
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveEvent} size="sm" disabled={isSaving}>
+                    {isSaving ? '保存中...' : '保存'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
                       setIsEditingEvent(false);
                       setEditedEvent(null);
-                    } finally {
-                      setIsSaving(false);
-                    }
-                  }
-                }}
-                disabled={isSaving}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded transition-colors"
-              >
-                <Save className="w-4 h-4" />
-                {isSaving ? '保存中...' : '保存'}
-              </button>
-              <button
-                onClick={() => {
-                  setIsEditingEvent(false);
-                  setEditedEvent(null);
-                }}
-                disabled={isSaving}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:cursor-not-allowed rounded transition-colors"
-              >
-                <X className="w-4 h-4" />
-                取消
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={() => {
-                  setEditedEvent({ ...event });
-                  setIsEditingEvent(true);
-                }}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 rounded transition-colors"
-              >
-                <Edit2 className="w-4 h-4" />
-                编辑事件
-              </button>
-              <button
-                onClick={onDeleteTimelineEvent}
-                className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-100 rounded transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </>
-          )}
-        </div>
+                    }}
+                  >
+                    取消
+                  </Button>
+                </div>
+
+                {/* 关联实体 */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">关联实体</Label>
+                  <div className="text-foreground">{entityLabel}</div>
+                </div>
+
+                {/* 事件类型 */}
+                <div className="space-y-2 pt-4 border-t border-border">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">事件类型</Label>
+                  <Select
+                    value={currentEvent.eventType}
+                    onValueChange={(value: EventType) => setEditedEvent({ ...currentEvent, eventType: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EVENT_TYPE_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.icon} {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 事件标题 */}
+                <div className="space-y-2 pt-4 border-t border-border">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">事件标题</Label>
+                  <Input
+                    value={currentEvent.title}
+                    onChange={(e) => setEditedEvent({ ...currentEvent, title: e.target.value })}
+                    placeholder="例如：获得神器、遇见导师"
+                    className="border-border"
+                  />
+                </div>
+
+                {/* 事件描述 */}
+                <div className="space-y-2 pt-4 border-t border-border">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">事件描述</Label>
+                  <Textarea
+                    value={currentEvent.description || ''}
+                    onChange={(e) => setEditedEvent({ ...currentEvent, description: e.target.value })}
+                    placeholder="详细描述这个事件..."
+                    className="border-border min-h-[100px] resize-none"
+                    rows={4}
+                  />
+                </div>
+
+                {/* 事件图标 */}
+                <div className="space-y-2 pt-4 border-t border-border">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">事件图标</Label>
+                  <Input
+                    value={currentEvent.icon || ''}
+                    onChange={(e) => setEditedEvent({ ...currentEvent, icon: e.target.value })}
+                    placeholder="输入emoji，例如：🎯"
+                    className="border-border"
+                  />
+                </div>
+
+                {/* 颜色标记 */}
+                <div className="space-y-2 pt-4 border-t border-border">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">颜色标记</Label>
+                  <Input
+                    type="color"
+                    value={currentEvent.color || '#f59e0b'}
+                    onChange={(e) => setEditedEvent({ ...currentEvent, color: e.target.value })}
+                    className="h-10 cursor-pointer border-border"
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                {/* 查看模式 */}
+                {/* 关联实体 */}
+                <div className="flex items-center gap-3">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider">关联实体</div>
+                  <div className="text-foreground">{entityLabel}</div>
+                </div>
+
+                {/* 事件类型 */}
+                <div className="flex items-center gap-3 pt-4 border-t border-border">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider">事件类型</div>
+                  <div className="text-foreground">
+                    {eventTypeConfig?.icon} {eventTypeConfig?.label}
+                  </div>
+                </div>
+
+                {/* 事件标题 */}
+                <div className="flex items-center gap-3 pt-4 border-t border-border">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider">标题</div>
+                  <div className="text-foreground">{currentEvent.title}</div>
+                </div>
+
+                {/* 事件描述 */}
+                {currentEvent.description && (
+                  <div className="space-y-2 pt-4 border-t border-border">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">描述</div>
+                    <p className="text-foreground/80 leading-relaxed">{currentEvent.description}</p>
+                  </div>
+                )}
+
+                {/* 事件图标 */}
+                {currentEvent.icon && (
+                  <div className="flex items-center gap-3 pt-4 border-t border-border">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">图标</div>
+                    <div className="text-foreground text-xl">{currentEvent.icon}</div>
+                  </div>
+                )}
+
+                {/* 所属章节 */}
+                {currentEvent.chapterNumber && (
+                  <div className="flex items-center gap-3 pt-4 border-t border-border">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">所属章节</div>
+                    <div className="text-foreground">第 {currentEvent.chapterNumber} 章</div>
+                  </div>
+                )}
+
+                {/* 颜色标记 */}
+                {currentEvent.color && (
+                  <div className="flex items-center gap-3 pt-4 border-t border-border">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">颜色标记</div>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-5 h-5 rounded border border-border"
+                        style={{ backgroundColor: currentEvent.color }}
+                      />
+                      <span className="text-foreground text-xs">{currentEvent.color}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 创建时间 */}
+                {currentEvent.createdAt && (
+                  <div className="flex items-center gap-3 pt-4 border-t border-border">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">创建时间</div>
+                    <div className="text-foreground text-xs">
+                      {new Date(currentEvent.createdAt).toLocaleString('zh-CN')}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </ScrollArea>
       </div>
     );
   };
@@ -1270,166 +1254,187 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
     };
 
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-white flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-yellow-400" />
+      <div className="flex flex-col h-full bg-card border-l border-border-light shadow-sm text-sm">
+        {/* 标题栏 */}
+        <div className="p-6 pb-4 flex items-start justify-between">
+          <h2
+            className="text-xl text-foreground leading-relaxed m-0"
+            style={{ fontFamily: "'Ma Shan Zheng', cursive" }}
+          >
             创建时间线事件
-          </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {/* 关联实体 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">🔗 关联实体 *</label>
-            {entityLabel ? (
-              <div className="px-3 py-2 bg-gray-100 rounded text-sm text-gray-900">{entityLabel}</div>
-            ) : (
-              <select
-                value={timelineForm.entityId}
-                onChange={(e) => {
-                  const selectedEntity = entities.find((ent) => ent.id === e.target.value);
-                  setTimelineForm({
-                    ...timelineForm,
-                    entityId: e.target.value,
-                    entityType: selectedEntity?.type || 'character',
-                  });
-                }}
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-              >
-                <option value="">请选择实体...</option>
-                {entities.map((ent) => (
-                  <option key={ent.id} value={ent.id}>
-                    {ent.type === 'character' && '👤'}
-                    {ent.type === 'location' && '📍'}
-                    {ent.type === 'setting' && '📖'}
-                    {' '}{ent.label}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          {/* 事件类型 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">🏷️ 事件类型 *</label>
-            <select
-              value={timelineForm.eventType}
-              onChange={(e) => {
-                const selectedType = EVENT_TYPE_OPTIONS.find((opt) => opt.value === e.target.value);
-                setTimelineForm({
-                  ...timelineForm,
-                  eventType: e.target.value as EventType,
-                  icon: selectedType?.icon || '🎯',
-                  color: selectedType?.color || '#f59e0b',
-                });
-              }}
-              className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-            >
-              {EVENT_TYPE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.icon} {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* 事件标题 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">📛 事件标题 *</label>
-            <input
-              type="text"
-              value={timelineForm.title}
-              onChange={(e) => setTimelineForm({ ...timelineForm, title: e.target.value })}
-              placeholder="例如：获得神器、遇见导师"
-              className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-            />
-          </div>
-
-          {/* 事件描述 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">📝 事件描述</label>
-            <textarea
-              value={timelineForm.description}
-              onChange={(e) => setTimelineForm({ ...timelineForm, description: e.target.value })}
-              placeholder="详细描述这个事件..."
-              rows={3}
-              className="w-full px-3 py-2 bg-gray-750 border border-gray-600 rounded text-sm text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-none"
-            />
-          </div>
-
-          {/* 事件图标 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">🎨 事件图标</label>
-            <input
-              type="text"
-              value={timelineForm.icon}
-              onChange={(e) => setTimelineForm({ ...timelineForm, icon: e.target.value })}
-              placeholder="输入emoji，例如：🎯"
-              className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-            />
-          </div>
-
-          {/* 所属章节 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">📖 所属章节（可选）</label>
-            <select
-              value={timelineForm.chapterId}
-              onChange={(e) => {
-                const selectedChapter = chapters.find((ch) => ch.id === e.target.value);
-                setTimelineForm({
-                  ...timelineForm,
-                  chapterId: e.target.value,
-                  chapterNumber: selectedChapter?.order || 1,
-                });
-              }}
-              className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-            >
-              <option value="">不关联章节</option>
-              {chapters.map((ch) => (
-                <option key={ch.id} value={ch.id}>
-                  第 {ch.order} 章 - {ch.title}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* 颜色标记 */}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">🎨 颜色标记</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={timelineForm.color}
-                onChange={(e) => setTimelineForm({ ...timelineForm, color: e.target.value })}
-                className="w-12 h-8 bg-white border border-gray-300 rounded cursor-pointer"
-              />
-              <span className="text-sm text-gray-300">{timelineForm.color}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 操作按钮 */}
-        <div className="border-t border-gray-700 pt-4 flex gap-2">
-          <button
-            onClick={handleSubmit}
-            disabled={isSaving || !timelineForm.title.trim() || !timelineForm.entityId}
-            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded transition-colors"
-          >
-            <Save className="w-4 h-4" />
-            {isSaving ? '创建中...' : '创建事件'}
-          </button>
-          <button
-            onClick={onClose}
-            disabled={isSaving}
-            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:cursor-not-allowed rounded transition-colors"
-          >
+          </h2>
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
             <X className="w-4 h-4" />
-            取消
-          </button>
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-hidden">
+          <ScrollArea className="h-full">
+            <div className="p-6 space-y-5">
+              {/* 关联实体 */}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+                  关联实体 <span className="text-destructive">*</span>
+                </Label>
+                {entityLabel ? (
+                  <div className="text-foreground">{entityLabel}</div>
+                ) : (
+                  <Select
+                    value={timelineForm.entityId}
+                    onValueChange={(value) => {
+                      const selectedEntity = entities.find((ent) => ent.id === value);
+                      setTimelineForm({
+                        ...timelineForm,
+                        entityId: value,
+                        entityType: selectedEntity?.type || 'character',
+                      });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="请选择实体..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {entities.map((ent) => (
+                        <SelectItem key={ent.id} value={ent.id}>
+                          {ent.type === 'character' ? '👤' : ent.type === 'location' ? '📍' : '📖'} {ent.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              {/* 事件类型 */}
+              <div className="space-y-2 pt-4 border-t border-border">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+                  事件类型 <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={timelineForm.eventType}
+                  onValueChange={(value: EventType) => {
+                    const selectedType = EVENT_TYPE_OPTIONS.find((opt) => opt.value === value);
+                    setTimelineForm({
+                      ...timelineForm,
+                      eventType: value,
+                      icon: selectedType?.icon || '🎯',
+                      color: selectedType?.color || '#f59e0b',
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EVENT_TYPE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.icon} {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* 事件标题 */}
+              <div className="space-y-2 pt-4 border-t border-border">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+                  事件标题 <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  value={timelineForm.title}
+                  onChange={(e) => setTimelineForm({ ...timelineForm, title: e.target.value })}
+                  placeholder="例如：获得神器、遇见导师"
+                />
+              </div>
+
+              {/* 事件描述 */}
+              <div className="space-y-2 pt-4 border-t border-border">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">事件描述</Label>
+                <Textarea
+                  value={timelineForm.description}
+                  onChange={(e) => setTimelineForm({ ...timelineForm, description: e.target.value })}
+                  placeholder="详细描述这个事件..."
+                  rows={4}
+                />
+              </div>
+
+              {/* 事件图标 */}
+              <div className="space-y-2 pt-4 border-t border-border">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">事件图标</Label>
+                <Input
+                  value={timelineForm.icon}
+                  onChange={(e) => setTimelineForm({ ...timelineForm, icon: e.target.value })}
+                  placeholder="输入emoji，例如：🎯"
+                />
+              </div>
+
+              {/* 所属章节 */}
+              <div className="space-y-2 pt-4 border-t border-border">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">所属章节（可选）</Label>
+                <Select
+                  value={timelineForm.chapterId || 'none'}
+                  onValueChange={(value) => {
+                    if (value === 'none') {
+                      setTimelineForm({
+                        ...timelineForm,
+                        chapterId: '',
+                        chapterNumber: undefined,
+                      });
+                    } else {
+                      const selectedChapter = chapters.find((ch) => ch.id === value);
+                      setTimelineForm({
+                        ...timelineForm,
+                        chapterId: value,
+                        chapterNumber: selectedChapter?.order || 1,
+                      });
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="不关联章节" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">不关联章节</SelectItem>
+                    {chapters.map((ch) => (
+                      <SelectItem key={ch.id} value={ch.id}>
+                        第 {ch.order} 章 - {ch.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* 颜色标记 */}
+              <div className="space-y-2 pt-4 border-t border-border">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">颜色标记</Label>
+                <div className="flex gap-2">
+                  {['#f59e0b', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'].map(color => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setTimelineForm({ ...timelineForm, color })}
+                      className={`w-7 h-7 rounded-full transition-all ${
+                        timelineForm.color === color
+                          ? 'scale-110 ring-2 ring-offset-2 ring-foreground/20'
+                          : 'hover:scale-105 opacity-60'
+                      }`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* 创建按钮 */}
+              <div className="pt-4">
+                <Button
+                  className="w-full"
+                  onClick={handleSubmit}
+                  disabled={isSaving || !timelineForm.title.trim() || !timelineForm.entityId}
+                >
+                  {isSaving ? '创建中...' : '创建事件'}
+                </Button>
+              </div>
+            </div>
+          </ScrollArea>
         </div>
       </div>
     );
@@ -1445,6 +1450,41 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
         {mode === 'timeline' && renderTimelineEventDetails()}
         {mode === 'createTimeline' && renderCreateTimelineEvent()}
       </div>
+
+      {/* 删除确认对话框 */}
+      <Dialog open={deleteDialog.open} onOpenChange={(open) => !open && handleCancelDelete()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>确认删除</DialogTitle>
+            <DialogDescription>
+              您确定要删除 <span className="font-semibold text-foreground">"{deleteDialog.name}"</span> 吗？此操作无法撤销。
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center space-x-2 py-4">
+            <Checkbox
+              id="dont-ask-again"
+              checked={dontAskAgain}
+              onCheckedChange={(checked) => setDontAskAgain(checked === true)}
+            />
+            <label
+              htmlFor="dont-ask-again"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+            >
+              本次登录不再提醒
+            </label>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={handleCancelDelete}>
+              取消
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>
+              确认删除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

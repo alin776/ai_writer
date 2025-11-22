@@ -29,7 +29,8 @@ class HTTPAIService:
         timeout: int = None,
         enable_model_selector: bool = True,
         enable_cost_tracking: bool = True,
-        user_id: Optional[str] = None
+        user_id: Optional[str] = None,
+        db = None  # 数据库会话（用于加载元数据）
     ):
         """Initialize HTTP client and prompts manager
 
@@ -39,12 +40,14 @@ class HTTPAIService:
             enable_model_selector: 是否启用智能模型选择 (默认True)
             enable_cost_tracking: 是否启用成本追踪 (默认True)
             user_id: 用户ID (用于成本追踪)
+            db: 数据库会话（用于Context-Aware补全加载元数据）
         """
         self.api_key = settings.OPENAI_API_KEY
         self.base_url = settings.OPENAI_BASE_URL
         self.model = model or settings.OPENAI_MODEL  # 支持自定义模型
         timeout_value = timeout or settings.OPENAI_TIMEOUT  # 支持自定义超时
         self.prompts = get_prompts_manager()
+        self.db = db  # 保存数据库会话
 
         # Week 7: 模型选择器和成本追踪
         self.enable_model_selector = enable_model_selector
@@ -283,23 +286,40 @@ class HTTPAIService:
         prompt: str = "续写",
         style: str = "",
         max_tokens: int = 500,
-        temperature: float = 0.7
+        temperature: float = 0.7,
+        # ===== Context-Aware 元数据参数 =====
+        work_id: str = None,
+        chapter_id: str = None,
+        enable_rag: bool = False
     ) -> AsyncGenerator[tuple[str, dict | None], None]:
         """AI 续写（流式响应）
+
+        Args:
+            context: 上下文文本
+            prompt: 续写提示
+            style: 写作风格
+            max_tokens: 最大token数
+            temperature: 温度参数
+            work_id: 作品ID（用于加载元数据）
+            chapter_id: 章节ID（用于加载章节概要）
+            enable_rag: 是否启用RAG检索
 
         Yields:
             tuple: (文本片段, usage统计或None)
         """
         # 区分自动补全和正式续写
         is_autocomplete = max_tokens <= 150
-        
+
         if is_autocomplete:
-            system_prompt = self._build_autocomplete_system_prompt()
-            logger.info(f"AI自动补全请求 - 上下文长度: {len(context)}")
+            # ===== 使用增强的自动补全提示词 =====
+            system_prompt = await self._build_enhanced_autocomplete_prompt(
+                work_id, chapter_id, context, enable_rag
+            )
+            logger.info(f"AI自动补全请求 - 上下文长度: {len(context)}, work_id: {work_id}")
         else:
             system_prompt = self._build_complete_system_prompt(prompt, style)
             logger.info(f"AI续写请求 - 上下文长度: {len(context)}, 风格: {style or '默认'}")
-        
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": context}
@@ -400,10 +420,279 @@ class HTTPAIService:
         async for chunk, usage in self._stream_chat(messages, max_tokens, temperature):
             yield chunk, usage
     
+    def _extract_character_names(self, context: str, guidelines) -> list[str]:
+        """从上下文中智能提取人物名
+
+        Args:
+            context: 用户输入的文本
+            guidelines: AI创作规范（用于获取主角名）
+
+        Returns:
+            提取的人物名列表（最多3个）
+        """
+        import re
+        names = []
+
+        # 1. 优先使用主角名（从 guidelines 获取）
+        if guidelines and guidelines.protagonist_name:
+            # 处理 "张三/小张" 格式，取第一个名字
+            protag_name = guidelines.protagonist_name.split('/')[0].strip()
+            if protag_name in context:
+                names.append(protag_name)
+                logger.info(f"[RAG] 检测到主角: {protag_name}")
+
+        # 2. 正则匹配人名模式（中文人名 + 动作词）
+        pattern = r'([\u4e00-\u9fa5]{2,4})(?:说|道|想|看|听|笑|问|答|走|跑|站|坐|来|去|拿|放)'
+        matches = re.findall(pattern, context)
+
+        for match in matches:
+            if match not in names:
+                names.append(match)
+                if len(names) >= 3:
+                    break
+
+        logger.info(f"[RAG] 提取到人物名: {names}")
+        return names[:3]
+
+    def _should_trigger_rag(self, context: str) -> bool:
+        """判断是否需要触发RAG检索"""
+        # 1. 对话场景
+        if '"' in context or '"' in context or '「' in context:
+            logger.info("[RAG] 检测到对话场景")
+            return True
+
+        # 2. 动作描写
+        action_keywords = ['走进', '来到', '看到', '听到', '发现']
+        if any(keyword in context[-100:] for keyword in action_keywords):
+            logger.info("[RAG] 检测到动作场景")
+            return True
+
+        # 3. 力量体系
+        power_keywords = ['施展', '使用', '释放', '修炼', '境界', '突破', '法术']
+        if any(keyword in context for keyword in power_keywords):
+            logger.info("[RAG] 检测到力量体系场景")
+            return True
+
+        return False
+
     def _build_autocomplete_system_prompt(self) -> str:
         """Build autocomplete system prompt from config"""
         return self.prompts.get_autocomplete_prompt()
-    
+
+    async def _build_enhanced_autocomplete_prompt(
+        self,
+        work_id: str,
+        chapter_id: str,
+        context: str,
+        enable_rag: bool = False
+    ) -> str:
+        """构建增强的自动补全提示词（Context-Aware）
+
+        从数据库加载作品元数据，为AI提供更丰富的上下文
+
+        Args:
+            work_id: 作品ID
+            chapter_id: 章节ID
+            context: 用户输入的文本
+            enable_rag: 是否启用RAG检索
+
+        Returns:
+            增强后的system prompt
+        """
+        # 基础提示词
+        base_prompt = self._build_autocomplete_system_prompt()
+
+        # 如果没有work_id或db，返回基础版本
+        if not work_id or not self.db:
+            return base_prompt
+
+        enhancements = []
+        guidelines = None  # 声明在外部作用域
+
+        try:
+            # ===== 1. 加载 AI Guidelines（最重要的元数据） =====
+            from uuid import UUID
+            from sqlalchemy import select
+            from app.models.ai_guidelines import AIGuidelines
+            import json
+
+            # 尝试从 Redis 缓存获取
+            cache_key = f"guidelines:{work_id}"
+            try:
+                from app.core.redis import get_redis
+                redis = await get_redis()
+                cached = await redis.get(cache_key)
+
+                if cached:
+                    # 从缓存恢复
+                    cached_data = json.loads(cached)
+                    # 创建一个简单对象来存储缓存数据
+                    class CachedGuidelines:
+                        def __init__(self, data):
+                            self.is_active = True
+                            for k, v in data.items():
+                                setattr(self, k, v)
+
+                    guidelines = CachedGuidelines(cached_data)
+                    logger.info(f"[Cache] 从缓存加载 Guidelines")
+            except Exception as cache_error:
+                logger.warning(f"[Cache] Redis 缓存读取失败: {cache_error}")
+
+            # 如果缓存未命中，从数据库查询
+            if not guidelines:
+                stmt = select(AIGuidelines).where(AIGuidelines.work_id == UUID(work_id))
+                result = await self.db.execute(stmt)
+                guidelines = result.scalar_one_or_none()
+
+                # 写入缓存（1小时过期）
+                if guidelines and guidelines.is_active:
+                    try:
+                        from app.core.redis import get_redis
+                        redis = await get_redis()
+
+                        cache_data = {
+                            "writing_style": guidelines.writing_style,
+                            "narrative_rhythm": guidelines.narrative_rhythm,
+                            "protagonist_name": guidelines.protagonist_name,
+                            "protagonist_traits": guidelines.protagonist_traits,
+                            "power_system_name": guidelines.power_system_name,
+                            "power_levels": guidelines.power_levels,
+                            "world_rules": guidelines.world_rules,
+                            "content_taboos": guidelines.content_taboos,
+                        }
+
+                        await redis.setex(cache_key, 3600, json.dumps(cache_data, ensure_ascii=False))
+                        logger.info(f"[Cache] Guidelines 已缓存（1小时）")
+                    except Exception as cache_error:
+                        logger.warning(f"[Cache] Redis 缓存写入失败: {cache_error}")
+
+            if guidelines and (hasattr(guidelines, 'is_active') and guidelines.is_active or isinstance(guidelines, type) and hasattr(guidelines, '__dict__')):
+                metadata_parts = []
+
+                # 文笔风格（最重要）
+                if guidelines.writing_style:
+                    metadata_parts.append(f"文笔风格: {guidelines.writing_style}")
+
+                # 叙事节奏
+                if guidelines.narrative_rhythm:
+                    metadata_parts.append(f"叙事节奏: {guidelines.narrative_rhythm}")
+
+                # 主角基本信息
+                if guidelines.protagonist_name:
+                    protag_info = f"主角: {guidelines.protagonist_name}"
+                    if guidelines.protagonist_traits:
+                        # 限制长度
+                        traits = guidelines.protagonist_traits[:100]
+                        protag_info += f"({traits})"
+                    metadata_parts.append(protag_info)
+
+                # 力量体系（如果有）
+                if guidelines.power_system_name:
+                    power_info = f"力量体系: {guidelines.power_system_name}"
+                    if guidelines.power_levels:
+                        power_info += f" ({guidelines.power_levels[:80]})"
+                    metadata_parts.append(power_info)
+
+                # 世界规则
+                if guidelines.world_rules:
+                    metadata_parts.append(f"世界规则: {guidelines.world_rules[:150]}")
+
+                # 内容禁忌
+                if guidelines.content_taboos:
+                    metadata_parts.append(f"禁忌: {guidelines.content_taboos[:100]}")
+
+                if metadata_parts:
+                    enhancements.append("【作品设定】\n" + "\n".join(metadata_parts))
+                    logger.info(f"[Context-Aware] 已加载 AI Guidelines，{len(metadata_parts)} 项元数据")
+
+        except Exception as e:
+            logger.warning(f"[Context-Aware] 加载 AI Guidelines 失败: {e}")
+
+        # ===== 2. 加载章节概要 =====
+        if chapter_id:
+            try:
+                from app.models.chapter import Chapter
+
+                # 当前章节
+                stmt = select(Chapter).where(Chapter.id == UUID(chapter_id))
+                result = await self.db.execute(stmt)
+                current_chapter = result.scalar_one_or_none()
+
+                if current_chapter and current_chapter.summary:
+                    enhancements.append(f"【本章剧情】\n{current_chapter.summary[:200]}")
+                    logger.info(f"[Context-Aware] 已加载当前章节概要")
+
+                    # 获取前一章概要（可选）
+                    if current_chapter.order > 1:
+                        prev_stmt = select(Chapter).where(
+                            Chapter.work_id == UUID(work_id),
+                            Chapter.order == current_chapter.order - 1
+                        )
+                        prev_result = await self.db.execute(prev_stmt)
+                        previous_chapter = prev_result.scalar_one_or_none()
+
+                        if previous_chapter and previous_chapter.summary:
+                            enhancements.append(f"【上章剧情】\n{previous_chapter.summary[:150]}")
+                            logger.info(f"[Context-Aware] 已加载前一章概要")
+
+            except Exception as e:
+                logger.warning(f"[Context-Aware] 加载章节概要失败: {e}")
+
+        # ===== 3. RAG 智能检索（可选，默认关闭） =====
+        if enable_rag and work_id and self._should_trigger_rag(context):
+            try:
+                # 提取人物名
+                names = self._extract_character_names(context, guidelines)
+
+                if names:
+                    from app.services.vector_store_service import VectorStoreService
+                    vector_service = VectorStoreService(self.db)
+
+                    # 构建检索查询（人物名）
+                    query = f"人物 {' '.join(names)}"
+                    logger.info(f"[RAG] 检索查询: {query}")
+
+                    # 检索相关信息
+                    relevant_info = await vector_service.retrieve_relevant_analysis(
+                        work_id=work_id,
+                        query=query,
+                        top_k=2,
+                        similarity_threshold=0.6
+                    )
+
+                    if relevant_info:
+                        rag_parts = []
+                        for item in relevant_info:
+                            if 'content_text' in item:
+                                # 限制每条RAG结果长度
+                                rag_parts.append(item['content_text'][:150])
+
+                        if rag_parts:
+                            enhancements.append("【相关设定】\n" + "\n".join(rag_parts))
+                            logger.info(f"[RAG] 已检索到 {len(rag_parts)} 条相关信息")
+                    else:
+                        logger.info(f"[RAG] 未检索到相关信息")
+
+            except Exception as e:
+                # RAG 失败不影响主流程
+                logger.warning(f"[RAG] 检索失败: {e}")
+
+        # ===== 组装最终提示词 =====
+        if not enhancements:
+            logger.info(f"[Context-Aware] 未加载到元数据，使用基础提示词")
+            return base_prompt
+
+        # 限制元数据总长度（避免超过token限制）
+        enhanced_context = "\n\n".join(enhancements)
+        if len(enhanced_context) > 800:
+            enhanced_context = enhanced_context[:800] + "..."
+            logger.info(f"[Context-Aware] 元数据被截断到800字符")
+
+        final_prompt = f"{base_prompt}\n\n{enhanced_context}"
+        logger.info(f"[Context-Aware] 增强提示词构建完成，总长度: {len(final_prompt)}")
+
+        return final_prompt
+
     def _build_complete_system_prompt(self, prompt: str, style: str) -> str:
         """Build complete (continuation) system prompt from config"""
         return self.prompts.get_complete_prompt(prompt, style)

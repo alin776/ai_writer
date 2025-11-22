@@ -4,17 +4,21 @@
  */
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, 
-  Network, 
-  Clock, 
-  Download, 
+import {
+  ArrowLeft,
+  Network,
+  Clock,
+  Download,
   LayoutGrid,
   Loader,
   Users,
   MapPin,
   BookOpen,
   Plus,
+  Search,
+  Filter,
+  User,
+  HelpCircle,
 } from 'lucide-react';
 import WorldviewGraph from '@/components/worldview/WorldviewGraph';
 import PropertyPanel from '@/components/worldview/PropertyPanel';
@@ -23,6 +27,15 @@ import { GroupPanel } from '@/components/worldview/GroupPanel';
 import { LayoutSelector } from '@/components/worldview/LayoutSelector';
 import { SearchPanel, SearchFilter } from '@/components/worldview/SearchPanel';
 import { EnhancedNodeList } from '@/components/worldview/EnhancedNodeList';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { 
   LayoutAlgorithm, 
   GlobalLayoutConfig, 
@@ -72,10 +85,8 @@ const WorldviewGraphFullscreen: React.FC = () => {
   // 布局相关状态
   const [currentLayout, setCurrentLayout] = useState<LayoutAlgorithm>('force');
   const [layoutConfig, setLayoutConfig] = useState<GlobalLayoutConfig>(DEFAULT_LAYOUT_CONFIG);
-  const [showLayoutSelector, setShowLayoutSelector] = useState(false);
-  
+
   // 导出相关状态
-  const [showExportMenu, setShowExportMenu] = useState(false);
   const [exporting, setExporting] = useState(false);
   
   // 搜索和焦点模式状态
@@ -84,6 +95,9 @@ const WorldviewGraphFullscreen: React.FC = () => {
     nodeTypes: { character: true, location: true, setting: true },
     tags: [],
   });
+  const [searchText, setSearchText] = useState(''); // 内联搜索文本
+  const [nodeTypeFilter, setNodeTypeFilter] = useState<EntityType | 'all'>('all'); // 节点类型筛选
+  const [focusMode, setFocusMode] = useState(false); // 焦点模式（简化版）
   const [focusModeEnabled, setFocusModeEnabled] = useState(false);
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
   const [focusNodeToView, setFocusNodeToView] = useState<string | undefined>(undefined);
@@ -429,193 +443,207 @@ const WorldviewGraphFullscreen: React.FC = () => {
   }
 
   return (
-    <div className="worldview-graph-fullscreen h-screen flex flex-col bg-gray-50 text-gray-900">
-      {/* Header */}
-      <header className="graph-header bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-        <div className="header-left flex items-center gap-4">
-          <button
-            onClick={handleBack}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
+    <div className="flex flex-col h-[calc(100vh-3.5rem)] bg-background text-sm">
+      {/* 顶部导航栏 */}
+      <header className="h-14 border-b border-border-light bg-card/50 backdrop-blur-md flex items-center justify-between px-5">
+        {/* 左侧区域 */}
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={handleBack} className="hover:bg-accent h-8 text-sm">
+            <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
             返回
-          </button>
-          <div className="h-6 w-px bg-gray-300" />
+          </Button>
+          <div className="h-6 w-px bg-border-light" />
           <div>
-            <h1 style={{ color: '#111827' }} className="text-lg font-bold">{workTitle}</h1>
-            <p className="text-xs text-gray-500">世界观关系图编辑器</p>
+            <div className="text-foreground text-2xl font-semibold tracking-wide" style={{ fontFamily: "'Ma Shan Zheng', cursive" }}>{workTitle}</div>
+
           </div>
         </div>
 
-        <div className="header-center flex items-center gap-2">
-          <button
+        {/* 中央区域 - 视图切换 */}
+        <div className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg">
+          <Button
+            variant={viewMode === 'graph' ? 'default' : 'ghost'}
+            size="sm"
             onClick={() => setViewMode('graph')}
-            className={`flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors ${
-              viewMode === 'graph'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+            className={`h-8 text-sm ${viewMode === 'graph' ? 'shadow-sm' : ''}`}
           >
-            <Network className="w-4 h-4" />
+            <Network className="w-3.5 h-3.5 mr-1.5" />
             关系图
-          </button>
-          <button
+          </Button>
+          <Button
+            variant={viewMode === 'timeline' ? 'default' : 'ghost'}
+            size="sm"
             onClick={() => setViewMode('timeline')}
-            className={`flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors ${
-              viewMode === 'timeline'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+            className={`h-8 text-sm ${viewMode === 'timeline' ? 'shadow-sm' : ''}`}
           >
-            <Clock className="w-4 h-4" />
+            <Clock className="w-3.5 h-3.5 mr-1.5" />
             时间线
-          </button>
+          </Button>
         </div>
 
-        <div className="header-right flex items-center gap-2">
+        {/* 右侧操作区 */}
+        <div className="flex items-center gap-2">
           {viewMode === 'graph' ? (
-            <button
-              onClick={toggleConnectionMode}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                connectionMode
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              <Plus className="w-4 h-4" />
-              {connectionMode ? '连线模式（已开启）' : '创建关系'}
-            </button>
+            <>
+              {/* 创建关系按钮 */}
+              <Button
+                variant={connectionMode ? 'default' : 'outline'}
+                size="sm"
+                onClick={toggleConnectionMode}
+                className={`h-8 text-sm ${connectionMode ? 'shadow-md' : ''}`}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                {connectionMode ? '连线中' : '创建关系'}
+              </Button>
+            </>
           ) : (
-            <button
-              onClick={() => {
-                setPanelCreateTimelineEventData({
-                  workId: workId!,
-                });
-                setPanelMode('createTimeline');
-              }}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              创建时间线事件
-            </button>
+            <Button size="sm" onClick={() => {
+              setPanelCreateTimelineEventData({
+                workId: workId!,
+              });
+              setPanelMode('createTimeline');
+            }} className="h-8 text-sm">
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              创建事件
+            </Button>
           )}
+
           {viewMode === 'graph' && (
             <>
-              {/* 搜索面板 */}
-              <div className="w-80">
-                <SearchPanel
-                  onSearchChange={setSearchFilter}
-                  onFocusModeToggle={(enabled) => {
-                    setFocusModeEnabled(enabled);
-                    if (!enabled) {
-                      setFocusNodeId(undefined);
-                    }
-                    showToast(enabled ? 'success' : 'info', enabled ? '焦点模式已启用，点击节点查看关联' : '焦点模式已关闭');
-                  }}
-                  focusModeEnabled={focusModeEnabled}
+              {/* 搜索面板 - 内联实现 */}
+              <div className="flex items-center gap-2 bg-transparent hover:bg-accent/50 border-0 rounded-[7px] px-3 h-7 transition-colors">
+                <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <Input
+                  placeholder="搜索角色、地点、设定..."
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  className="flex-1 border-0 bg-transparent h-5 text-sm focus-visible:ring-0 focus-visible:ring-offset-0 px-0"
                 />
-              </div>
-              
-              {/* 布局选择器 */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowLayoutSelector(!showLayoutSelector)}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 hover:bg-accent flex-shrink-0"
+                      title="节点类型筛选"
+                    >
+                      <Filter className={`w-4 h-4 ${nodeTypeFilter === 'all' ? 'text-muted-foreground' : 'text-primary'}`} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-36">
+                    <DropdownMenuItem
+                      onClick={() => setNodeTypeFilter('all')}
+                      className={nodeTypeFilter === 'all' ? 'bg-accent' : ''}
+                    >
+                      <span className="w-4 h-4 mr-2 flex items-center justify-center">
+                        {nodeTypeFilter === 'all' && '✓'}
+                      </span>
+                      全部
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setNodeTypeFilter('character')}
+                      className={nodeTypeFilter === 'character' ? 'bg-accent' : ''}
+                    >
+                      <User className="w-4 h-4 mr-2 text-character" />
+                      角色
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setNodeTypeFilter('location')}
+                      className={nodeTypeFilter === 'location' ? 'bg-accent' : ''}
+                    >
+                      <MapPin className="w-4 h-4 mr-2 text-location" />
+                      地点
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setNodeTypeFilter('setting')}
+                      className={nodeTypeFilter === 'setting' ? 'bg-accent' : ''}
+                    >
+                      <BookOpen className="w-4 h-4 mr-2 text-setting" />
+                      设定
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFocusMode(!focusMode)}
+                  className="h-7 w-7 p-0 hover:bg-accent flex-shrink-0"
+                  title={focusMode ? "关闭焦点模式" : "开启焦点模式"}
                 >
-                  <LayoutGrid className="w-4 h-4" />
-                  布局
-                </button>
-                
-                {showLayoutSelector && (
-                  <div className="absolute top-full right-0 mt-2 z-50">
-                    <LayoutSelector
-                      currentLayout={currentLayout}
-                      onLayoutChange={(algorithm) => {
-                        handleLayoutChange(algorithm);
-                        setShowLayoutSelector(false);
-                      }}
-                      config={layoutConfig}
-                      onConfigChange={(config) => {
-                        setLayoutConfig(prev => ({ ...prev, ...config }));
-                      }}
-                    />
+                  <div className={`w-4 h-4 rounded-full border-2 transition-colors ${
+                    focusMode ? 'border-primary bg-primary' : 'border-muted-foreground'
+                  }`}>
+                    {focusMode && (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                      </div>
+                    )}
                   </div>
-                )}
+                </Button>
               </div>
+
+              {/* 布局选择器 */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 text-sm">
+                    <LayoutGrid className="w-3.5 h-3.5 mr-1.5" />
+                    布局
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleLayoutChange('force')}>
+                    力导向布局
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleLayoutChange('hierarchical')}>
+                    层级布局
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleLayoutChange('circular')}>
+                    环形布局
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleLayoutChange('grid')}>
+                    网格布局
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleLayoutChange('timeline')}>
+                    时间线布局
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           )}
+
           {/* 导出按钮 */}
-          <div className="relative">
-            <button
-              onClick={() => setShowExportMenu(!showExportMenu)}
-              disabled={exporting}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-            >
-              <Download className="w-4 h-4" />
-              {exporting ? '导出中...' : '导出'}
-            </button>
-            
-            {showExportMenu && !exporting && (
-              <div className="absolute top-full right-0 mt-2 z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-2 w-40">
-                <button
-                  onClick={() => handleExport('png')}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                >
-                  导出为 PNG
-                </button>
-                <button
-                  onClick={() => handleExport('svg')}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                >
-                  导出为 SVG
-                </button>
-                <button
-                  onClick={() => handleExport('json')}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                >
-                  导出为 JSON
-                </button>
-              </div>
-            )}
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 text-sm" disabled={exporting}>
+                <Download className="w-3.5 h-3.5 mr-1.5" />
+                {exporting ? '导出中...' : '导出'}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleExport('png')}>
+                导出为 PNG
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport('svg')}>
+                导出为 SVG
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport('json')}>
+                导出为 JSON
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
       {/* Main Content - 三栏布局 */}
-      <div className="graph-main flex flex-1 overflow-hidden">
-        {/* Left Sidebar - 左侧边栏 */}
-        <aside className="left-sidebar w-64 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
-          {/* Tab切换 */}
-          <div className="flex border-b border-gray-200">
-            <button
-              onClick={() => setLeftPanelTab('nodes')}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                leftPanelTab === 'nodes'
-                  ? 'text-gray-900 bg-gray-100 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              <Users className="w-4 h-4 inline-block mr-2" />
-              节点列表
-            </button>
-            <button
-              onClick={() => setLeftPanelTab('groups')}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                leftPanelTab === 'groups'
-                  ? 'text-gray-900 bg-gray-100 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              <svg className="w-4 h-4 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-              </svg>
-              分组管理
-            </button>
-          </div>
-
-          {/* Tab内容 */}
-          <div className="flex-1 overflow-hidden flex flex-col">
-            {leftPanelTab === 'nodes' ? (
+      <div className="flex flex-1 overflow-hidden">
+        {/* 左侧边栏 */}
+        <div className="w-48 border-r border-border-light bg-card flex flex-col">
+          <Tabs value={leftPanelTab} onValueChange={(value) => setLeftPanelTab(value as 'nodes' | 'groups')} className="flex-1 flex flex-col">
+            <TabsList className="w-full grid grid-cols-2 mx-1 mt-1 mb-0">
+              <TabsTrigger value="nodes" className="text-xs px-1">节点列表</TabsTrigger>
+              <TabsTrigger value="groups" className="text-xs px-1">分组管理</TabsTrigger>
+            </TabsList>
+            <TabsContent value="nodes" className="flex-1 mt-0 overflow-hidden">
               <EnhancedNodeList
                 characters={worldData.characters}
                 locations={worldData.locations}
@@ -732,7 +760,8 @@ const WorldviewGraphFullscreen: React.FC = () => {
                   }
                 }}
               />
-            ) : (
+            </TabsContent>
+            <TabsContent value="groups" className="flex-1 mt-0 overflow-hidden">
               <GroupPanel
                 workId={workId!}
                 groups={groups}
@@ -794,123 +823,103 @@ const WorldviewGraphFullscreen: React.FC = () => {
                   }
                 }}
               />
-            )}
-          </div>
-        </aside>
+            </TabsContent>
+          </Tabs>
+        </div>
 
         {/* Main Canvas - 主画布 */}
-        <main className="main-canvas flex-1 bg-gray-50 relative">
-          {/* 连线模式提示条 */}
-          {connectionMode && (
-            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                <span className="font-medium">连线模式已开启</span>
-              </div>
-              <span className="text-blue-100 text-sm">
-                {selectedNode ? `已选中：${selectedNode.label}` : '请点击第一个节点'}
-              </span>
-              <button
-                onClick={toggleConnectionMode}
-                className="ml-2 px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm transition-colors"
-              >
-                退出
-              </button>
-            </div>
-          )}
-          
+        <div className="flex-1 overflow-hidden h-full">
           {viewMode === 'graph' ? (
-            <div className="h-full">
-              <WorldviewGraph
-                worldData={worldData}
-                relationships={relationships}
-                editable={true}
-                onConnect={handleConnect}
-                onNodeClick={handleNodeClickForConnection}
-                onEdgeClick={(relationshipId) => {
-                  // 点击关系线，显示在属性面板
-                  const rel = relationships.find(r => r.id === relationshipId);
-                  if (rel) {
-                    const sourceLabel = getNodeLabel(rel.sourceId, rel.sourceType);
-                    const targetLabel = getNodeLabel(rel.targetId, rel.targetType);
-                    setPanelRelationshipData({ relationship: rel, sourceLabel, targetLabel });
-                    setPanelMode('relationship');
-                  }
-                }}
-                selectedNodeId={selectedNode?.id}
-                layoutConfig={layoutConfig}
-                onLayoutApplied={() => {
-                  showToast('success', `${getLayoutName(currentLayout)}已应用`);
-                }}
-                searchText={searchFilter.searchText}
-                filteredNodeTypes={searchFilter.nodeTypes}
-                focusMode={focusModeEnabled}
-                focusNodeId={focusNodeId}
-                focusNodeToView={focusNodeToView}
-              />
-            </div>
+            <WorldviewGraph
+              worldData={worldData}
+              relationships={relationships}
+              editable={true}
+              onConnect={handleConnect}
+              onNodeClick={handleNodeClickForConnection}
+              onEdgeClick={(relationshipId) => {
+                // 点击关系线，显示在属性面板
+                const rel = relationships.find(r => r.id === relationshipId);
+                if (rel) {
+                  const sourceLabel = getNodeLabel(rel.sourceId, rel.sourceType);
+                  const targetLabel = getNodeLabel(rel.targetId, rel.targetType);
+                  setPanelRelationshipData({ relationship: rel, sourceLabel, targetLabel });
+                  setPanelMode('relationship');
+                }
+              }}
+              selectedNodeId={selectedNode?.id}
+              layoutConfig={layoutConfig}
+              onLayoutApplied={() => {
+                showToast('success', `${getLayoutName(currentLayout)}已应用`);
+              }}
+              searchText={searchFilter.searchText}
+              filteredNodeTypes={searchFilter.nodeTypes}
+              focusMode={focusModeEnabled}
+              focusNodeId={focusNodeId}
+              focusNodeToView={focusNodeToView}
+              connectionMode={connectionMode}
+              connectionModeSource={selectedNode ? { id: selectedNode.id, name: selectedNode.label, type: selectedNode.type } : undefined}
+              onExitConnectionMode={toggleConnectionMode}
+            />
           ) : (
-            <div className="h-full">
-              <TimelinePanel
-                workId={workId!}
-                events={timelineEvents}
-                chapters={chapterAnchors}
-                characters={worldData.characters}
-                locations={worldData.locations}
-                settings={worldData.settings}
-                relationships={relationships}
-                onAddEvent={() => {
-                  // 打开创建时间线事件面板
-                  setPanelCreateTimelineEventData({
-                    workId: workId!,
-                  });
-                  setPanelMode('createTimeline');
-                }}
-                onEditEvent={(event) => {
-                  // 在属性面板显示事件详情
-                  const entity = worldData.characters.find(c => c.id === event.entityId) ||
-                                worldData.locations.find(l => l.id === event.entityId) ||
-                                worldData.settings.find(s => s.id === event.entityId);
-                  
-                  const entityLabel = event.entityType === 'character' ? (entity as Character)?.name :
-                                     event.entityType === 'location' ? (entity as Location)?.name :
-                                     (entity as Setting)?.title || '未知实体';
-                  
-                  setPanelTimelineEventData({ event, entityLabel });
-                  setPanelMode('timeline');
-                }}
-                onDeleteEvent={async (eventId) => {
-                  if (confirm('确定要删除这个时间线事件吗？')) {
-                    try {
-                      await DataService.deleteTimelineEvent(eventId);
-                      setTimelineEvents(prev => prev.filter(e => e.id !== eventId));
-                      showToast('success', '时间线事件已删除');
-                    } catch (error) {
-                      console.error('删除时间线事件失败:', error);
-                      showToast('error', '删除失败');
-                    }
+            <TimelinePanel
+              workId={workId!}
+              events={timelineEvents}
+              chapters={chapterAnchors}
+              characters={worldData.characters}
+              locations={worldData.locations}
+              settings={worldData.settings}
+              relationships={relationships}
+              onAddEvent={() => {
+                // 打开创建时间线事件面板
+                setPanelCreateTimelineEventData({
+                  workId: workId!,
+                });
+                setPanelMode('createTimeline');
+              }}
+              onEditEvent={(event) => {
+                // 在属性面板显示事件详情
+                const entity = worldData.characters.find(c => c.id === event.entityId) ||
+                              worldData.locations.find(l => l.id === event.entityId) ||
+                              worldData.settings.find(s => s.id === event.entityId);
+
+                const entityLabel = event.entityType === 'character' ? (entity as Character)?.name :
+                                   event.entityType === 'location' ? (entity as Location)?.name :
+                                   (entity as Setting)?.title || '未知实体';
+
+                setPanelTimelineEventData({ event, entityLabel });
+                setPanelMode('timeline');
+              }}
+              onDeleteEvent={async (eventId) => {
+                if (confirm('确定要删除这个时间线事件吗？')) {
+                  try {
+                    await DataService.deleteTimelineEvent(eventId);
+                    setTimelineEvents(prev => prev.filter(e => e.id !== eventId));
+                    showToast('success', '时间线事件已删除');
+                  } catch (error) {
+                    console.error('删除时间线事件失败:', error);
+                    showToast('error', '删除失败');
                   }
-                }}
-                onEventClick={(event) => {
-                  // 点击时间线事件，在属性面板显示详情
-                  const entity = worldData.characters.find(c => c.id === event.entityId) ||
-                                worldData.locations.find(l => l.id === event.entityId) ||
-                                worldData.settings.find(s => s.id === event.entityId);
-                  
-                  const entityLabel = event.entityType === 'character' ? (entity as Character)?.name :
-                                     event.entityType === 'location' ? (entity as Location)?.name :
-                                     (entity as Setting)?.title || '未知实体';
-                  
-                  setPanelTimelineEventData({ event, entityLabel });
-                  setPanelMode('timeline');
-                }}
-              />
-            </div>
+                }
+              }}
+              onEventClick={(event) => {
+                // 点击时间线事件，在属性面板显示详情
+                const entity = worldData.characters.find(c => c.id === event.entityId) ||
+                              worldData.locations.find(l => l.id === event.entityId) ||
+                              worldData.settings.find(s => s.id === event.entityId);
+
+                const entityLabel = event.entityType === 'character' ? (entity as Character)?.name :
+                                   event.entityType === 'location' ? (entity as Location)?.name :
+                                   (entity as Setting)?.title || '未知实体';
+
+                setPanelTimelineEventData({ event, entityLabel });
+                setPanelMode('timeline');
+              }}
+            />
           )}
-        </main>
+        </div>
 
         {/* Right Panel - 右侧属性面板 */}
-        <aside className="right-panel w-80 bg-white border-l border-gray-200 overflow-y-auto">
+        <div className="w-80">
           <PropertyPanel
             mode={panelMode}
             nodeData={panelNodeData}
@@ -1002,43 +1011,37 @@ const WorldviewGraphFullscreen: React.FC = () => {
             onDeleteNode={async () => {
               if (panelNodeData) {
                 const { type, entity } = panelNodeData;
-                const name = type === 'character' ? (entity as Character).name :
-                           type === 'location' ? (entity as Location).name :
-                           (entity as Setting).title;
-                
                 const typeName = type === 'character' ? '角色' : type === 'location' ? '地点' : '设定';
-                
-                if (confirm(`确定要删除${typeName} "${name}" 吗？\n\n注意：这将同时删除与该${typeName}相关的所有关系。`)) {
-                  try {
-                    // 先删除相关关系
-                    const relatedRels = relationships.filter(
-                      (rel) =>
-                        (rel.sourceId === entity.id && rel.sourceType === type) ||
-                        (rel.targetId === entity.id && rel.targetType === type)
-                    );
-                    
-                    for (const rel of relatedRels) {
-                      await DataService.deleteRelationship(rel.id);
-                    }
-                    
-                    // 再删除实体
-                    if (type === 'character') {
-                      await DataService.deleteCharacter(entity.id);
-                    } else if (type === 'location') {
-                      await DataService.deleteLocation(entity.id);
-                    } else if (type === 'setting') {
-                      await DataService.deleteSetting(entity.id);
-                    }
-                    
-                    showToast('success', `${typeName}已删除`);
-                    // 重新加载数据
-                    await loadData();
-                    setPanelMode('idle');
-                    setPanelNodeData(null);
-                  } catch (error) {
-                    console.error('删除失败:', error);
-                    showToast('error', '删除失败');
+
+                try {
+                  // 先删除相关关系
+                  const relatedRels = relationships.filter(
+                    (rel) =>
+                      (rel.sourceId === entity.id && rel.sourceType === type) ||
+                      (rel.targetId === entity.id && rel.targetType === type)
+                  );
+
+                  for (const rel of relatedRels) {
+                    await DataService.deleteRelationship(rel.id);
                   }
+
+                  // 再删除实体
+                  if (type === 'character') {
+                    await DataService.deleteCharacter(entity.id);
+                  } else if (type === 'location') {
+                    await DataService.deleteLocation(entity.id);
+                  } else if (type === 'setting') {
+                    await DataService.deleteSetting(entity.id);
+                  }
+
+                  showToast('success', `${typeName}已删除`);
+                  // 重新加载数据
+                  await loadData();
+                  setPanelMode('idle');
+                  setPanelNodeData(null);
+                } catch (error) {
+                  console.error('删除失败:', error);
+                  showToast('error', '删除失败');
                 }
               }
             }}
@@ -1047,7 +1050,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
               showToast('info', '编辑关系功能开发中...');
             }}
             onDeleteRelationship={() => {
-              if (panelRelationshipData && confirm('确定要删除这个关系吗？')) {
+              if (panelRelationshipData) {
                 handleDeleteRelationship(panelRelationshipData.relationship.id);
                 setPanelMode('idle');
                 setPanelRelationshipData(null);
@@ -1111,7 +1114,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
               }
             }}
             onDeleteTimelineEvent={async () => {
-              if (panelTimelineEventData && confirm('确定要删除这个时间线事件吗？')) {
+              if (panelTimelineEventData) {
                 try {
                   await DataService.deleteTimelineEvent(panelTimelineEventData.event.id);
                   setTimelineEvents(prev => prev.filter(e => e.id !== panelTimelineEventData.event.id));
@@ -1125,25 +1128,8 @@ const WorldviewGraphFullscreen: React.FC = () => {
               }
             }}
           />
-        </aside>
+        </div>
       </div>
-
-      {/* Footer - 底部状态栏 */}
-      <footer className="graph-footer bg-white border-t border-gray-200 px-6 py-2 flex items-center justify-between text-xs text-gray-500">
-        <div className="footer-left flex items-center gap-4">
-          <span>{stats.characters} 个角色</span>
-          <span>·</span>
-          <span>{stats.locations} 个地点</span>
-          <span>·</span>
-          <span>{stats.settings} 个设定</span>
-          <span>·</span>
-          <span>{stats.relationships} 个关系</span>
-        </div>
-        <div className="footer-right flex items-center gap-4">
-          <span>缩放: 100%</span>
-          <button className="text-blue-600 hover:text-blue-700">帮助</button>
-        </div>
-      </footer>
 
     </div>
   );

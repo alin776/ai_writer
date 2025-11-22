@@ -30,15 +30,15 @@ const getActivityIcon = (type: ActivityType, status: ActivityStatus) => {
 
   switch (type) {
     case 'intent_analysis':
-      return <Brain className={`${iconClass} ${status === 'active' ? styles.pulse : ''}`} size={18} />;
+      return <Brain className={`${iconClass} ${status === 'active' ? styles.pulse : ''}`} size={14} />;
     case 'thinking':
-      return <Sparkles className={`${iconClass} ${status === 'active' ? styles.pulse : ''}`} size={18} />;
+      return <Sparkles className={`${iconClass} ${status === 'active' ? styles.pulse : ''}`} size={14} />;
     case 'tool_execution':
-      return <Wrench className={`${iconClass} ${status === 'active' ? styles.spin : ''}`} size={18} />;
+      return <Wrench className={`${iconClass} ${status === 'active' ? styles.spin : ''}`} size={14} />;
     case 'generating':
-      return <Loader2 className={`${iconClass} ${status === 'active' ? styles.spin : ''}`} size={18} />;
+      return <Loader2 className={`${iconClass} ${status === 'active' ? styles.spin : ''}`} size={14} />;
     default:
-      return <Sparkles className={iconClass} size={18} />;
+      return <Sparkles className={iconClass} size={14} />;
   }
 };
 
@@ -147,13 +147,13 @@ export default function ActivityStream({
         <div className={styles.stats}>
           {activeCount > 0 && (
             <span className={styles.statActive}>
-              <Loader2 size={14} className={styles.spin} />
+              <Loader2 size={10} className={styles.spin} />
               进行中
             </span>
           )}
           {completedCount > 0 && (
             <span className={styles.statCompleted}>
-              <CheckCircle size={14} />
+              <CheckCircle size={10} />
               {completedCount}
             </span>
           )}
@@ -211,7 +211,7 @@ export default function ActivityStream({
 
                 {/* 时间信息 */}
                 <span className={styles.activityTime}>
-                  <Clock size={12} />
+                  <Clock size={9} />
                   {activity.status === 'completed' && activity.elapsedTime !== undefined
                     ? `${activity.elapsedTime.toFixed(1)}s`
                     : formatTimeAgo(activity.timestamp)
@@ -223,10 +223,10 @@ export default function ActivityStream({
             {/* 右侧状态 */}
             <div className={styles.activityStatus}>
               {activity.status === 'active' && (
-                <Loader2 size={16} className={styles.spin} />
+                <Loader2 size={12} className={styles.spin} />
               )}
               {activity.status === 'completed' && (
-                <CheckCircle size={16} className={styles.checkIcon} />
+                <CheckCircle size={12} className={styles.checkIcon} />
               )}
             </div>
           </div>

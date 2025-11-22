@@ -41,6 +41,9 @@ interface NovelEditorProps {
   placeholder?: string;
   autoSave?: boolean;
   autoSaveInterval?: number;
+  // ===== Context-Aware 元数据 =====
+  workId?: string;
+  chapterId?: string;
 }
 
 /**
@@ -52,6 +55,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   placeholder = '开始写作...',
   autoSave = true,
   autoSaveInterval = 3000,
+  workId,      // Context-Aware 参数
+  chapterId,   // Context-Aware 参数
 }) => {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [wordCount, setWordCount] = useState(0);
@@ -122,12 +127,18 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       AIHighlight,
       // AI 自动补全扩展
       AIAutoCompleteExtension.configure({
-        delay: 3000, // 3秒延迟
+        delay: 6000, // 6秒延迟，避免打断用户输入
+        minChars: 50, // 至少50个字符才触发
         enabled: true,
         onTrigger: async (text: string) => {
           try {
-            // 调用快速补全 API
-            const suggestion = await AIService.quickComplete(text);
+            // ===== Context-Aware 自动补全 =====
+            // 传递 workId 和 chapterId 以加载元数据
+            const suggestion = await AIService.quickComplete(
+              text,
+              workId,      // 作品ID
+              chapterId    // 章节ID
+            );
             return suggestion;
           } catch (error) {
             console.error('自动补全失败:', error);
@@ -249,6 +260,14 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       }
     };
   }, [editor, autoSave, onSave]);
+
+  // ===== 预加载元数据（降低首次自动补全延迟） =====
+  useEffect(() => {
+    if (workId && chapterId) {
+      console.log('[NovelEditor] 预加载章节元数据:', { workId, chapterId });
+      AIService.preloadMetadata(workId, chapterId);
+    }
+  }, [workId, chapterId]);
 
   if (!editor) {
     return (

@@ -9,6 +9,10 @@ export interface AICompletionRequest {
   maxTokens?: number;
   temperature?: number;
   model?: string;
+  // ===== Context-Aware 元数据参数 =====
+  workId?: string;
+  chapterId?: string;
+  enableRag?: boolean;
 }
 
 export interface AICompletionResponse {
@@ -198,6 +202,10 @@ class AIService {
         prompt: '续写',
         style: '',
         max_tokens: maxTokens,
+        // ===== Context-Aware 元数据参数 =====
+        work_id: request.workId || null,
+        chapter_id: request.chapterId || null,
+        enable_rag: request.enableRag || false,
       };
 
       console.log('[AIService] 请求体:', JSON.stringify(requestBody, null, 2));
@@ -327,13 +335,23 @@ class AIService {
   /**
    * 快速 AI 补全（用于实时自动补全）
    * @param context - 上下文文本
+   * @param workId - 作品ID（可选，用于Context-Aware补全）
+   * @param chapterId - 章节ID（可选，用于加载章节概要）
    */
-  async quickComplete(context: string): Promise<string> {
+  async quickComplete(
+    context: string,
+    workId?: string,
+    chapterId?: string
+  ): Promise<string> {
     try {
       const result = await this.complete({
         prompt: context,
         context,
         maxTokens: 100,
+        // ===== Context-Aware 元数据 =====
+        workId,
+        chapterId,
+        enableRag: false,  // 自动补全默认关闭RAG（速度优先）
       });
       return result.trim();
     } catch (error) {
@@ -547,6 +565,33 @@ class AIService {
    */
   async polish(text: string): Promise<string> {
     return this.rewrite(text, '请润色以下文本，使其更加流畅和优美：');
+  }
+
+  /**
+   * 预加载元数据到缓存（降低首次自动补全延迟）
+   * @param workId - 作品ID
+   * @param chapterId - 章节ID
+   */
+  async preloadMetadata(workId: string, chapterId: string): Promise<void> {
+    try {
+      console.log('[AIService] 预加载元数据:', { workId, chapterId });
+      const apiUrl = `${this.baseUrl}/ai/preload-metadata`;
+      const token = this.getAuthToken();
+
+      await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ work_id: workId, chapter_id: chapterId }),
+      });
+
+      console.log('[AIService] 元数据预加载完成');
+    } catch (error) {
+      console.error('[AIService] 预加载元数据失败:', error);
+      // 预加载失败不影响正常使用，静默处理
+    }
   }
 
   /**

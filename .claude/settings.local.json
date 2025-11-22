@@ -21,7 +21,12 @@
       "mcp__figma__get_metadata",
       "WebFetch(domain:www.figma.com)",
       "Bash(cat:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(./venv/Scripts/pip.exe:*)",
+      "Bash(nul)",
+      "Bash(npm run dev:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)"
     ],
     "deny": [],
     "ask": []

@@ -25,6 +25,7 @@ import '@xyflow/react/dist/style.css';
 import { WorldData } from '@/types/novel';
 import { Relationship, EntityType, RELATIONSHIP_COLORS } from '@/types/relationship';
 import { Users, MapPin, BookOpen, X, HelpCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import './WorldviewGraph.css';
 import {
   LayoutAlgorithm,
@@ -52,6 +53,9 @@ interface WorldviewGraphProps {
   focusMode?: boolean; // 焦点模式
   focusNodeId?: string; // 焦点节点ID
   focusNodeToView?: string; // 需要定位的节点ID（触发视野移动）
+  connectionMode?: boolean; // 连线模式
+  connectionModeSource?: { id: string; name: string; type: EntityType }; // 连线模式已选中的源节点
+  onExitConnectionMode?: () => void; // 退出连线模式
 }
 
 // 自定义节点组件 - 角色节点
@@ -351,8 +355,8 @@ const ViewportController: React.FC<{ focusNodeToView?: string; nodes: Node[] }> 
   return null;
 };
 
-const WorldviewGraph: React.FC<WorldviewGraphProps> = ({ 
-  worldData, 
+const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
+  worldData,
   relationships,
   editable = false,
   onNodeClick,
@@ -366,6 +370,9 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
   focusMode = false,
   focusNodeId,
   focusNodeToView,
+  connectionMode = false,
+  connectionModeSource,
+  onExitConnectionMode,
 }) => {
   // 转换数据
   const graphData = useMemo(() => convertToGraphData(worldData, relationships), [worldData, relationships]);
@@ -600,6 +607,31 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
 
   return (
     <div className="worldview-graph-container">
+      {/* 连线模式提示条 */}
+      {connectionMode && (
+        <div className="absolute top-16 left-1/2 transform -translate-x-1/2 z-[60] bg-primary text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-3 backdrop-blur-sm animate-in fade-in duration-200 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+            <span className="text-sm font-medium">连线模式</span>
+          </div>
+          {connectionModeSource && (
+            <div className="flex items-center gap-2 px-2.5 py-1 bg-white/20 rounded-md">
+              <span className="text-xs opacity-80">已选中</span>
+              <span className="text-sm font-medium">{connectionModeSource.name}</span>
+            </div>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onExitConnectionMode}
+            className="text-white hover:bg-white/20 ml-2 h-7 text-xs"
+          >
+            <X className="w-3.5 h-3.5 mr-1" />
+            退出
+          </Button>
+        </div>
+      )}
+
       <ReactFlow
         nodes={nodes}
         edges={edges}

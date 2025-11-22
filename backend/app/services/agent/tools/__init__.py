@@ -78,6 +78,16 @@ from .hitl import (
     ApprovalStatus
 )
 
+# ==================== 高级工具 ====================
+from .advanced_tools import (
+    book_analysis,
+    rewrite_arena,
+    novel_review,
+    ai_evaluation,
+    deai_rewrite,
+    search_knowledge_advanced
+)
+
 
 __all__ = [
     # ==================== 工具类型系统 ====================
@@ -135,5 +145,13 @@ __all__ = [
     "HITLManager",
     "ApprovalRequest",
     "ApprovalStatus",
+
+    # ==================== 高级工具 ====================
+    "book_analysis",
+    "rewrite_arena",
+    "novel_review",
+    "ai_evaluation",
+    "deai_rewrite",
+    "search_knowledge_advanced",
 ]
 

@@ -11,6 +11,7 @@ import {
   Cpu,
   DollarSign,
   Sparkles,
+  Library,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import clsx from 'clsx';
@@ -35,6 +36,12 @@ const mainNavItems: NavItem[] = [
     label: '作品管理',
     icon: BookOpen,
     path: '/works',
+  },
+  {
+    id: 'knowledge',
+    label: '知识库',
+    icon: Library,
+    path: '/knowledge',
   },
 ];
 

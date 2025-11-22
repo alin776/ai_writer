@@ -25,6 +25,7 @@ const AdminUsersView = React.lazy(() => import('../views/AdminUsersView'));
 const AdminAIModelsView = React.lazy(() => import('../views/AdminAIModelsView'));
 const AdminCostView = React.lazy(() => import('../views/AdminCostView'));
 const SettingsView = React.lazy(() => import('../views/SettingsView'));
+const KnowledgeView = React.lazy(() => import('../views/KnowledgeView'));
 const NotFoundView = React.lazy(() => import('../views/NotFoundView'));
 
 /**
@@ -162,6 +163,18 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <SettingsView />
+          </SuspenseWrapper>
+        ),
+      },
+
+      /**
+       * 知识库路由
+       */
+      {
+        path: '/knowledge',
+        element: (
+          <SuspenseWrapper>
+            <KnowledgeView />
           </SuspenseWrapper>
         ),
       },

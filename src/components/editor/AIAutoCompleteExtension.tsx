@@ -1,6 +1,11 @@
 /**
  * AI 自动补全扩展
- * 光标停留3秒后自动触发AI补全
+ *
+ * 触发条件（需同时满足）：
+ * 1. 文本长度达到最小字符数（默认50字）
+ * 2. 光标停留足够长时间（默认6秒）
+ * 3. 用户未快速连续输入（1秒内不超过3个按键）
+ * 4. 在句子末尾（。！？或换行）或长时间停顿
  */
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
@@ -8,6 +13,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
 export interface AIAutoCompleteOptions {
   delay: number; // 延迟时间（毫秒）
+  minChars: number; // 最少字符数
   onTrigger: (text: string) => Promise<string>;
   enabled: boolean;
 }
@@ -19,18 +25,21 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions>({
 
   addOptions() {
     return {
-      delay: 3000, // 默认3秒
+      delay: 6000, // 默认6秒，更长的延迟避免打断用户输入
+      minChars: 50, // 至少50个字符才触发
       onTrigger: async () => '',
       enabled: true,
     };
   },
 
   addProseMirrorPlugins() {
-    const { delay, onTrigger, enabled } = this.options;
+    const { delay, onTrigger, enabled, minChars } = this.options;
     let timeout: NodeJS.Timeout | null = null;
     let currentSuggestion = '';
     let suggestionFrom = 0;
     let isGenerating = false;
+    let lastKeystrokeTime = 0;
+    let keystrokeCount = 0;
 
     return [
       new Plugin({
@@ -123,8 +132,29 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions>({
                 ' '
               );
 
-              // 如果文本太短，不触发
-              if (textBefore.trim().length < 10) return;
+              // 如果文本太短，不触发（使用配置的最小字符数）
+              if (textBefore.trim().length < minChars) return;
+
+              // 检测用户是否正在快速输入（键盘速度检测）
+              const now = Date.now();
+              if (now - lastKeystrokeTime < 1000) {
+                // 1秒内有新按键，说明正在快速输入
+                keystrokeCount++;
+              } else {
+                // 超过1秒，重置计数
+                keystrokeCount = 1;
+              }
+              lastKeystrokeTime = now;
+
+              // 如果用户正在快速输入（1秒内超过3个按键），不触发
+              if (keystrokeCount > 3) return;
+
+              // 检查是否在句子末尾（中文句号、问号、感叹号，或换行）
+              const lastChar = textBefore.trim().slice(-1);
+              const isSentenceEnd = ['。', '！', '？', '\n'].includes(lastChar);
+
+              // 只在句子末尾或长时间停顿时触发
+              if (!isSentenceEnd && keystrokeCount > 1) return;
 
               // 设置新的定时器
               timeout = setTimeout(async () => {
