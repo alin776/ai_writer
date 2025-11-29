@@ -36,6 +36,12 @@ from app.services.agent.model_selector import TaskType
 from app.services.agent.prompt_cache import get_tool_decision_static_prompt, get_planning_static_prompt
 from app.services.agent.progress_tracker import ProgressTracker
 from app.services.agent.node_metadata import get_node_info
+from app.services.agent.tools.editor_tools import (
+    smart_continue,
+    smart_rewrite,
+    smart_insert,
+    apply_chapter_edit
+)
 
 logger = logging.getLogger(__name__)
 
@@ -879,7 +885,12 @@ WRITING_TOOLS = [
     get_context_tool,
     read_chapter_tool,
     get_chapter_by_order_tool,  # 新增：通过章节序号获取章节
-    search_analysis_fragments_tool
+    search_analysis_fragments_tool,
+    # 编辑器工具
+    smart_continue,
+    smart_rewrite,
+    smart_insert,
+    apply_chapter_edit
 ]
 
 
@@ -1079,6 +1090,9 @@ class WritingAgentGraph:
         self.ai_service = ai_service
         self.use_chatgpt = use_chatgpt  # 模式开关
         self.monitoring_callback = None  # 监控回调（仅ChatOpenAI模式使用）
+
+        # ✅ P0-6修复：HITL确认请求回调（存储为实例变量，避免序列化到Redis）
+        self._approval_callback: Optional[callable] = None
 
         # 🔧 缓存工具调用参数（用于进度显示）
         self._cached_tool_calls = {}
@@ -1534,30 +1548,11 @@ class WritingAgentGraph:
             "六": "6", "七": "7", "八": "8", "九": "9", "十": "10"
         }
 
-        # 4. 卡文：灵感、写不下去（优先级提前）
-        stuck_keywords = ["卡文", "灵感", "写不下去", "没思路", "瓶颈", "困难", "卡住", "不知道",
-                         "想不出", "启发", "创意", "帮忙", "给点建议"]
-        if any(kw in msg for kw in stuck_keywords):
-            logger.info(f"[Intent] 匹配 stuck 关键词: {[kw for kw in stuck_keywords if kw in msg]}")
-            return "stuck", 0.95
-
-        # 3. 分析：评估、诊断、检查（优先级提前）
-        analysis_keywords = ["分析", "评估", "诊断", "检查", "质量", "评价", "看看",
-                           "改进", "优化", "修改", "问题", "错误", "建议", "缺点", "不足"]
-        if any(kw in msg for kw in analysis_keywords):
-            logger.info(f"[Intent] 匹配 analysis 关键词: {[kw for kw in analysis_keywords if kw in msg]}")
-            return "analysis", 0.93
-
-        # 2. 规划：大纲、世界观、设定
-        planning_keywords = ["规划", "大纲", "世界观", "设定", "角色", "背景", "剧情", "框架", "结构",
-                           "设计", "安排", "构思", "计划", "整体", "布局"]
-        if any(kw in msg for kw in planning_keywords):
-            logger.info(f"[Intent] 匹配 planning 关键词: {[kw for kw in planning_keywords if kw in msg]}")
-            return "planning", 0.95
-
-        # 1. 写作：续写、扩写、生成内容（移除通用词"第"和"章"）
-        writing_keywords = ["续写", "扩写", "生成内容", "创作", "写作", "继续写", "完成", "补充内容",
-                          "写一段", "写点", "帮我写"]
+        # 1. 写作/编辑：修改、续写、扩写、改写（最高优先级）
+        writing_keywords = ["修改", "改写", "续写", "扩写", "改进", "优化", "重写",
+                          "生成内容", "创作", "写作", "继续写", "完成", "补充内容",
+                          "写一段", "写点", "帮我写", "帮我改", "你来改", "来帮我改",
+                          "插入", "改一下", "改改", "帮改", "太平淡"]
         # 章节特征强相关（支持中文数字）
         chapter_pattern = r'第[一二三四五六七八九十\d]+章|chapter\s*\d+'
         if re.search(chapter_pattern, msg, re.IGNORECASE):
@@ -1565,23 +1560,121 @@ class WritingAgentGraph:
             return "writing", 0.98
         if any(kw in msg for kw in writing_keywords):
             logger.info(f"[Intent] 匹配 writing 关键词: {[kw for kw in writing_keywords if kw in msg]}")
-            return "writing", 0.90
+            return "writing", 0.95
 
-        # 5. 默认：一般对话
-        logger.info("[Intent] 未匹配任何关键词，默认为 general")
-        return "general", 0.85
+        # 2. 卡文：灵感、写不下去
+        stuck_keywords = ["卡文", "灵感", "写不下去", "没思路", "瓶颈", "困难", "卡住", "不知道",
+                         "想不出", "启发", "创意", "帮忙", "给点建议"]
+        if any(kw in msg for kw in stuck_keywords):
+            logger.info(f"[Intent] 匹配 stuck 关键词: {[kw for kw in stuck_keywords if kw in msg]}")
+            return "stuck", 0.95
+
+        # 3. 分析：评估、诊断、检查（不含"修改"等编辑类词汇）
+        analysis_keywords = ["分析", "评估", "诊断", "检查", "质量", "评价", "看看",
+                           "问题", "错误", "建议", "缺点", "不足", "怎么样"]
+        if any(kw in msg for kw in analysis_keywords):
+            logger.info(f"[Intent] 匹配 analysis 关键词: {[kw for kw in analysis_keywords if kw in msg]}")
+            return "analysis", 0.93
+
+        # 4. 规划：大纲、世界观、设定
+        planning_keywords = ["规划", "大纲", "世界观", "设定", "角色", "背景", "剧情", "框架", "结构",
+                           "设计", "安排", "构思", "计划", "整体", "布局"]
+        if any(kw in msg for kw in planning_keywords):
+            logger.info(f"[Intent] 匹配 planning 关键词: {[kw for kw in planning_keywords if kw in msg]}")
+            return "planning", 0.95
+
+        # 5. 默认：一般对话（低置信度，触发AI判断）
+        logger.info("[Intent] 未匹配任何关键词，需要AI判断")
+        return "general", 0.5  # 低置信度，会触发AI兜底
+
+    async def _ai_classify_intent(self, message: str) -> tuple[str, float]:
+        """使用AI进行意图分类（兜底方案）
+
+        当规则匹配置信度不足时，调用轻量级LLM判断意图
+
+        Args:
+            message: 用户消息
+
+        Returns:
+            tuple[str, float]: (intent类型, 置信度)
+        """
+        prompt = f"""你是意图分类器。根据用户消息判断其意图类型。
+
+用户消息: "{message}"
+
+可选意图类型:
+- writing: 用户想要修改、改写、续写、创作内容（包括"帮我改"、"太平淡了"、"写得不好"等暗示需要修改的表达）
+- planning: 用户想要规划大纲、设计角色、构建世界观
+- analysis: 用户想要分析、评估、诊断文本质量
+- stuck: 用户写作卡住了、需要灵感或建议
+- general: 普通对话、闲聊、问答
+
+判断规则:
+1. 如果用户表达了对内容的不满（如"太平淡"、"不够好"、"需要改进"），应该识别为 writing
+2. 如果用户明确要求修改、改写、帮忙改，应该识别为 writing
+3. 只有纯粹的闲聊或与写作无关的问题才是 general
+
+只返回一个单词（writing/planning/analysis/stuck/general），不要解释:"""
+
+        try:
+            # 使用快速模型进行意图分类
+            from app.services.agent.model_selector import TaskType
+
+            result = await self.ai_service.call_ai(
+                system_prompt="你是精确的意图分类器，只返回一个意图类型单词。",
+                user_prompt=prompt,
+                max_tokens=20,  # 只需要一个单词
+                temperature=0.1,  # 低温度，确保稳定输出
+                task_type=TaskType.TEXT_CLASSIFICATION
+            )
+
+            # 解析结果
+            intent = result.strip().lower()
+            valid_intents = ["writing", "planning", "analysis", "stuck", "general"]
+
+            if intent in valid_intents:
+                logger.info(f"[Intent] AI识别结果: {intent}")
+                return intent, 0.90
+            else:
+                # 尝试从返回中提取有效意图
+                for valid in valid_intents:
+                    if valid in intent:
+                        logger.info(f"[Intent] AI识别结果（提取）: {valid}")
+                        return valid, 0.85
+
+                logger.warning(f"[Intent] AI返回无效意图: {intent}，降级为general")
+                return "general", 0.70
+
+        except Exception as e:
+            logger.error(f"[Intent] AI意图分类失败: {e}，降级为general")
+            return "general", 0.60
 
     async def _classify_intent(self, state: AgentState) -> AgentState:
-        """意图分类节点 - 使用规则识别"""
-        logger.info("[LangGraph] 意图分类（规则识别）")
+        """意图分类节点 - 规则优先，AI兜底"""
+        logger.info("[LangGraph] 意图分类（规则优先+AI兜底）")
 
         last_message = state["messages"][-1].content
 
-        # 使用规则快速识别
+        # 1. 先用规则快速识别
         intent, confidence = self._classify_intent_by_rules(last_message)
+        classification_method = "规则识别"
+
+        # 2. 如果置信度不够高（<0.9），使用AI兜底
+        if confidence < 0.9:
+            logger.info(f"[Intent] 规则置信度({confidence:.2f})不足，启用AI判断")
+            ai_intent, ai_confidence = await self._ai_classify_intent(last_message)
+
+            # AI结果更可信时使用AI结果
+            if ai_confidence > confidence:
+                intent = ai_intent
+                confidence = ai_confidence
+                classification_method = "AI识别"
+                logger.info(f"[Intent] 采用AI结果: {intent} ({confidence:.2f})")
+            else:
+                logger.info(f"[Intent] 保持规则结果: {intent} ({confidence:.2f})")
 
         logger.info(
-            f"[Intent] 规则识别结果: {intent}, 置信度: {confidence:.2f}"
+            f"[Intent] 最终结果: {intent}, 置信度: {confidence:.2f}, 方法: {classification_method}"
         )
 
         # ✅ 只返回节点新增/修改的字段，避免 operator.add 重复添加
@@ -1589,8 +1682,8 @@ class WritingAgentGraph:
             "intent": intent,
             "agent_steps": [{
                 "step": "intent_classification",
-                "result": f"识别意图: {intent} (规则识别)",
-                "usage": {}  # 无Token消耗
+                "result": f"识别意图: {intent} ({classification_method})",
+                "usage": {}  # Token消耗在AI调用中已记录
             }]
         }
 
@@ -1623,16 +1716,22 @@ class WritingAgentGraph:
         # 检查是否已经有工具结果（第二次进入）
         if messages and isinstance(messages[-1], ToolMessage):
             logger.info(f"[LangGraph] {agent_type} - 处理工具执行结果 (ChatOpenAI)")
-            response = await self.llm.ainvoke(messages)
+            # ✅ P0-4修复：第二次进入也需要system_prompt + 绑定工具，让AI可以继续调用工具
+            messages_with_system = [SystemMessage(content=system_prompt)] + messages
+            response = await self.llm_with_tools.ainvoke(messages_with_system)
             # ✅ 只返回新消息，避免 operator.add 重复添加
-            return {
+            result = {
                 "messages": [response],
-                "final_response": response.content,
                 "agent_steps": [{
-                    "step": f"{agent_type}_final_response",
-                    "result": "基于工具结果生成最终响应 (ChatOpenAI)"
+                    "step": f"{agent_type}_after_tool",
+                    "result": f"处理工具结果 (ChatOpenAI): {'继续调用工具' if response.tool_calls else '生成最终响应'}",
+                    "tool_calls": len(response.tool_calls) if response.tool_calls else 0
                 }]
             }
+            # 如果没有新的工具调用，则设置final_response
+            if not response.tool_calls:
+                result["final_response"] = response.content
+            return result
 
         # 第一次进入：让 LLM 决定是否需要工具
         messages_with_system = [SystemMessage(content=system_prompt)] + messages
@@ -1696,6 +1795,172 @@ class WritingAgentGraph:
 
             logger.info(f"[LangGraph] 🔍 工具返回内容长度: {len(tool_result)} 字符")
             logger.info(f"[LangGraph] 🔍 工具返回内容预览:\n{tool_result[:500]}")
+
+            # ✅ 新增：检查是否需要二次工具调用（特别是编辑器工具）
+            # 场景：用户说"修改第2章"，AI先调get_chapter_by_order_tool获取chapter_id，
+            # 然后应该调用smart_rewrite进行实际修改
+            modify_keywords = ["修改", "改写", "重写", "续写", "插入", "帮我改", "你来改",
+                             "来帮我改", "改一下", "太平淡", "帮改", "改改"]
+            needs_second_tool = any(kw in user_message for kw in modify_keywords)
+
+            # 检查是否已经执行过二次工具调用(避免无限递归)
+            already_did_second_call = state.get("_second_tool_called", False)
+
+            if needs_second_tool and agent_type == "writing" and not already_did_second_call:
+                logger.info(f"[LangGraph] 🔄 检测到编辑意图，尝试二次工具调用")
+
+                # 提取工具返回的chapter_id（如果有）
+                import json
+                import re
+                chapter_id_from_tool = None
+                try:
+                    tool_data = json.loads(tool_result)
+                    # 尝试从多个可能的路径提取chapter_id
+                    chapter_id_from_tool = (
+                        tool_data.get("chapter_id") or
+                        (tool_data.get("current_chapter") or {}).get("id") or
+                        (tool_data.get("chapter") or {}).get("id")
+                    )
+                except:
+                    pass
+
+                if chapter_id_from_tool:
+                    logger.info(f"[LangGraph] ✅ 提取到chapter_id: {chapter_id_from_tool[:20]}...")
+
+                    # 更新state中的chapter_id（供后续使用）
+                    state["chapter_id"] = chapter_id_from_tool
+
+                    # 构建二次工具决策prompt
+                    second_decision_prompt = f"""用户原始请求：{user_message}
+
+第一次工具调用已获取章节信息，chapter_id: {chapter_id_from_tool}
+
+现在判断是否需要第二次工具调用来完成用户的实际编辑需求。
+
+可用的编辑器工具：
+- smart_rewrite: 改写/修改章节内容 (参数: chapter_id, instructions)
+- smart_continue: 续写章节 (参数: chapter_id, context)
+- smart_insert: 插入内容 (参数: chapter_id, position, content)
+
+⚠️ 重要规则：
+1. 用户说"修改"、"改写"、"重写" → 使用 smart_rewrite
+2. 用户说"续写"、"继续写" → 使用 smart_continue
+3. 用户说"插入" → 使用 smart_insert
+4. 必须严格返回JSON格式！
+
+返回JSON:
+{{"need_tools": true, "tool_name": "工具名", "tool_args": {{"chapter_id": "{chapter_id_from_tool}", "instructions": "根据用户要求..."}}}}
+
+或者如果不需要工具：
+{{"need_tools": false, "direct_response": "..."}}
+
+请返回JSON:"""
+
+                    # 调用AI做二次工具决策
+                    second_result = await self._generate_text(
+                        messages=[{
+                            "role": "system",
+                            "content": system_prompt
+                        }, {
+                            "role": "user",
+                            "content": second_decision_prompt
+                        }],
+                        max_tokens=200,
+                        temperature=0.3,
+                        task_type=TaskType.SIMPLE_QA
+                    )
+                    second_decision_text = second_result.get("text", "")
+                    logger.info(f"[LangGraph] 🔄 二次工具决策原文: {second_decision_text}")
+
+                    # 解析二次决策
+                    second_decision = None
+                    try:
+                        second_decision = json.loads(second_decision_text.strip())
+                    except:
+                        # 尝试正则提取
+                        json_matches = re.finditer(r'\{(?:[^{}]|(?:\{[^}]*\}))*\}', second_decision_text)
+                        for match in json_matches:
+                            try:
+                                candidate = json.loads(match.group())
+                                if "need_tools" in candidate:
+                                    second_decision = candidate
+                                    break
+                            except:
+                                continue
+
+                    # 如果需要调用第二个工具
+                    if second_decision and second_decision.get("need_tools", False):
+                        tool_name = second_decision.get("tool_name", "")
+                        tool_args = second_decision.get("tool_args", {})
+
+                        logger.info(f"[LangGraph] 🚀 准备二次工具调用: {tool_name}, args={tool_args}")
+
+                        # 直接调用编辑器工具
+                        second_tool_result = ""
+                        try:
+                            if tool_name == "smart_rewrite":
+                                logger.info(f"[LangGraph] 🚀 二次调用 smart_rewrite, chapter_id={tool_args.get('chapter_id')}")
+                                second_tool_result = await smart_rewrite.ainvoke({
+                                    "chapter_id": tool_args.get("chapter_id", ""),
+                                    "instructions": tool_args.get("instructions", "根据用户要求修改"),
+                                    "content": tool_args.get("content", "")
+                                })
+                            elif tool_name == "smart_continue":
+                                logger.info(f"[LangGraph] 🚀 二次调用 smart_continue, chapter_id={tool_args.get('chapter_id')}")
+                                second_tool_result = await smart_continue.ainvoke({
+                                    "chapter_id": tool_args.get("chapter_id", ""),
+                                    "context": tool_args.get("context", "")
+                                })
+                            elif tool_name == "smart_insert":
+                                logger.info(f"[LangGraph] 🚀 二次调用 smart_insert, chapter_id={tool_args.get('chapter_id')}")
+                                second_tool_result = await smart_insert.ainvoke({
+                                    "chapter_id": tool_args.get("chapter_id", ""),
+                                    "position": tool_args.get("position", "end"),
+                                    "content": tool_args.get("content", "")
+                                })
+                            elif tool_name == "apply_chapter_edit":
+                                logger.info(f"[LangGraph] 🚀 二次调用 apply_chapter_edit, chapter_id={tool_args.get('chapter_id')}")
+                                second_tool_result = await apply_chapter_edit.ainvoke({
+                                    "chapter_id": tool_args.get("chapter_id", ""),
+                                    "operation": tool_args.get("operation", "replace"),
+                                    "content": tool_args.get("content", "")
+                                })
+                            else:
+                                logger.warning(f"[LangGraph] 未知的二次工具调用: {tool_name}")
+
+                            if second_tool_result:
+                                logger.info(f"[LangGraph] ✅ 二次工具调用成功，返回结果长度: {len(second_tool_result)} 字符")
+
+                                # 编辑器工具返回的是 HITL 审批请求
+                                # 创建工具消息并添加到消息历史,让流程继续处理
+                                from langchain_core.messages import AIMessage
+                                ai_msg = AIMessage(content=f"我需要使用 {tool_name} 工具来帮助你。")
+                                tool_msg = ToolMessage(content=second_tool_result, tool_call_id="manual_call_2")
+
+                                # 更新state,添加第二次工具调用的消息
+                                updated_state = state.copy()
+                                updated_state["messages"] = state["messages"] + [ai_msg, tool_msg]
+                                updated_state["agent_steps"] = state.get("agent_steps", []) + [{
+                                    "step": f"{agent_type}_second_tool_call",
+                                    "result": f"二次调用编辑器工具: {tool_name}",
+                                    "tool_result_length": len(second_tool_result)
+                                }]
+                                # 🔒 标记已经执行过二次工具调用
+                                updated_state["_second_tool_called"] = True
+
+                                # 🔄 继续递归处理,让它生成最终响应
+                                # 这次传入的messages最后一条是ToolMessage,会进入"处理工具结果"分支
+                                logger.info(f"[LangGraph] 🔄 继续处理第二次工具结果 (depth={recursion_depth + 1})")
+                                return await self._handle_with_httpai(
+                                    updated_state,
+                                    agent_type,
+                                    system_prompt,
+                                    recursion_depth=recursion_depth + 1
+                                )
+                        except Exception as e:
+                            logger.error(f"[LangGraph] 二次工具调用失败: {e}", exc_info=True)
+                else:
+                    logger.info(f"[LangGraph] ⚠️ 未能从工具结果中提取chapter_id，继续正常流程")
 
             # 判断用户意图：是想「查看/读取」内容，还是想「创作/续写」内容
             read_keywords = ["读", "看", "查看", "显示", "展示", "告诉我", "第几章", "内容是什么"]
@@ -2087,6 +2352,45 @@ class WritingAgentGraph:
                         "query": tool_args.get("query", last_user_message),
                         "top_k": tool_args.get("top_k", 5)
                     })
+            # ✅ 编辑器工具：smart_rewrite（改写章节）
+            elif tool_name == "smart_rewrite":
+                # ✅ P0-6修复：使用正确的参数名
+                # smart_rewrite 需要: chapter_id, text_to_rewrite, chapter_content
+                text_to_rewrite = tool_args.get("text_to_rewrite") or tool_args.get("content", "")
+                chapter_content = tool_args.get("chapter_content", "")
+                logger.info(f"[LangGraph] 🚀 准备调用 smart_rewrite, chapter_id={tool_args.get('chapter_id')}, text_to_rewrite长度={len(text_to_rewrite)}")
+                tool_result = await smart_rewrite.ainvoke({
+                    "chapter_id": tool_args.get("chapter_id", ""),
+                    "text_to_rewrite": text_to_rewrite,
+                    "chapter_content": chapter_content
+                })
+                logger.info(f"[LangGraph] ✅ smart_rewrite 返回结果长度: {len(str(tool_result))} 字符")
+            # ✅ 编辑器工具：smart_continue（续写章节）
+            elif tool_name == "smart_continue":
+                logger.info(f"[LangGraph] 🚀 准备调用 smart_continue, chapter_id={tool_args.get('chapter_id')}")
+                tool_result = await smart_continue.ainvoke({
+                    "chapter_id": tool_args.get("chapter_id", ""),
+                    "context": tool_args.get("context", "")
+                })
+                logger.info(f"[LangGraph] ✅ smart_continue 返回结果长度: {len(tool_result)} 字符")
+            # ✅ 编辑器工具：smart_insert（插入内容）
+            elif tool_name == "smart_insert":
+                logger.info(f"[LangGraph] 🚀 准备调用 smart_insert, chapter_id={tool_args.get('chapter_id')}")
+                tool_result = await smart_insert.ainvoke({
+                    "chapter_id": tool_args.get("chapter_id", ""),
+                    "position": tool_args.get("position", "end"),
+                    "content": tool_args.get("content", "")
+                })
+                logger.info(f"[LangGraph] ✅ smart_insert 返回结果长度: {len(tool_result)} 字符")
+            # ✅ 编辑器工具：apply_chapter_edit（应用章节编辑）
+            elif tool_name == "apply_chapter_edit":
+                logger.info(f"[LangGraph] 🚀 准备调用 apply_chapter_edit, chapter_id={tool_args.get('chapter_id')}")
+                tool_result = await apply_chapter_edit.ainvoke({
+                    "chapter_id": tool_args.get("chapter_id", ""),
+                    "operation": tool_args.get("operation", "replace"),
+                    "content": tool_args.get("content", "")
+                })
+                logger.info(f"[LangGraph] ✅ apply_chapter_edit 返回结果长度: {len(tool_result)} 字符")
             else:
                 # ✅ P1修复：未知工具返回标准JSON错误格式
                 tool_result = json.dumps({
@@ -2717,6 +3021,17 @@ class WritingAgentGraph:
 
                     # ✅ 处理节点结束事件
                     elif event_type == "on_chain_end" and event_name:
+                        # ✅ P0-6调试：打印tools节点的事件数据
+                        if event_name == "tools":
+                            logger.info(f"[HITL Debug] tools节点on_chain_end事件: event_data keys={list(event_data.keys())}")
+                            output_data_preview = event_data.get("output")
+                            if output_data_preview:
+                                logger.info(f"[HITL Debug] output keys={list(output_data_preview.keys()) if isinstance(output_data_preview, dict) else type(output_data_preview)}")
+                                if isinstance(output_data_preview, dict) and "messages" in output_data_preview:
+                                    logger.info(f"[HITL Debug] messages数量={len(output_data_preview['messages'])}")
+                                    for i, msg in enumerate(output_data_preview["messages"]):
+                                        logger.info(f"[HITL Debug] message[{i}]: type={type(msg).__name__}, name={getattr(msg, 'name', 'N/A')}")
+
                         # 构造原格式的event用于现有逻辑，添加降级处理
                         output_data = event_data.get("output")
                         if output_data is None:
@@ -2729,7 +3044,8 @@ class WritingAgentGraph:
                             on_progress=on_progress,
                             on_tool_call=on_tool_call,
                             on_content=on_content,
-                            progress_tracker=progress_tracker  # ✅ 传递ProgressTracker
+                            progress_tracker=progress_tracker,  # ✅ 传递ProgressTracker
+                            context=context  # ✅ P0-6修复：传递context用于HITL回调
                         )
 
                     # ✅ 处理节点错误事件
@@ -2848,7 +3164,8 @@ class WritingAgentGraph:
         on_progress: Optional[callable] = None,
         on_tool_call: Optional[callable] = None,
         on_content: Optional[callable] = None,
-        progress_tracker: Optional[ProgressTracker] = None  # ✅ 新增参数
+        progress_tracker: Optional[ProgressTracker] = None,  # ✅ 新增参数
+        context: Optional[dict] = None  # ✅ P0-5修复：接收context用于HITL回调
     ):
         """处理astream事件，转换为用户友好的进度信息并触发回调"""
 
@@ -2890,14 +3207,65 @@ class WritingAgentGraph:
                 except Exception as e:
                     logger.error(f"[Stream] 进度回调失败: {e}")
 
-        # 2. 检测工具调用并触发on_tool_call
-        if on_tool_call and node_name == "tools":
-            tool_calls = self._extract_tool_calls(node_data)
-            for tool_name, tool_args in tool_calls:
-                try:
-                    await on_tool_call(tool_name, tool_args)
-                except Exception as e:
-                    logger.error(f"[Stream] 工具回调失败: {e}")
+        # 2. 检测工具调用并触发on_tool_call + HITL确认请求
+        if node_name == "tools":
+            # 2a. 触发工具调用回调
+            if on_tool_call:
+                tool_calls = self._extract_tool_calls(node_data)
+                for tool_name, tool_args in tool_calls:
+                    try:
+                        await on_tool_call(tool_name, tool_args)
+                    except Exception as e:
+                        logger.error(f"[Stream] 工具回调失败: {e}")
+
+            # 2b. ✅ P0-6修复：检测HITL确认请求（使用实例变量，避免序列化）
+            if self._approval_callback:
+                messages = node_data.get("messages", [])
+
+                # 遍历ToolMessage，检查是否需要确认
+                for msg in messages:
+                    if isinstance(msg, ToolMessage):
+                        try:
+                            import json
+                            # 尝试解析工具返回结果
+                            content_length = len(msg.content) if msg.content else 0
+                            logger.info(f"[HITL] 检查工具消息: {msg.name}, content长度={content_length}, 前100字符: {msg.content[:100]}")
+                            tool_result = json.loads(msg.content)
+
+                            # ✅ P0-6调试：打印完整解析结果
+                            logger.info(f"[HITL] 解析成功，requires_confirmation={tool_result.get('requires_confirmation')}, keys={list(tool_result.keys())}")
+                            logger.info(f"[HITL] 完整tool_result: {tool_result}")
+
+                            # 检查是否需要用户确认
+                            if tool_result.get("requires_confirmation"):
+                                logger.info(f"[HITL] 检测到确认请求: {tool_result.get('action_type')}")
+
+                                # ✅ P0-6调试：检查回调是否存在
+                                if not self._approval_callback:
+                                    logger.error(f"[HITL] ❌ _approval_callback 未设置！")
+                                    continue
+
+                                # ✅ P0-6修复：使用实例变量而非context中的回调
+                                # ✅ 更新：versions现在包含实际改写内容
+                                versions = tool_result.get("versions") or tool_result.get("recommendations")
+                                approval_data = {
+                                    "request_id": f"{msg.name}_{msg.tool_call_id}",  # 生成唯一ID
+                                    "action_type": tool_result.get("action_type", "edit"),
+                                    "operation": tool_result.get("operation"),
+                                    "original_content": tool_result.get("original_text"),
+                                    "new_content": tool_result.get("content"),
+                                    "description": tool_result.get("description"),
+                                    "versions": versions,  # smart_rewrite的改写版本（包含content）
+                                    "chapter_id": tool_result.get("chapter_id")
+                                }
+                                logger.info(f"[HITL] 准备调用回调: request_id={approval_data['request_id']}, versions数量={len(versions) if versions else 0}")
+                                await self._approval_callback(approval_data)
+                                logger.info(f"[HITL] ✅ 回调执行成功")
+
+                        except json.JSONDecodeError as e:
+                            logger.warning(f"[HITL] JSON解析失败: {msg.name}, error={e}, content前200字符={msg.content[:200]}")
+                        except Exception as e:
+                            logger.error(f"[HITL] 处理确认请求失败: {msg.name}, error={e}", exc_info=True)
 
         # 3. 检测内容生成并触发on_content
         if on_content:

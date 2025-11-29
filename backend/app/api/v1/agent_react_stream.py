@@ -10,7 +10,8 @@ Agent React Stream 端点
 - 完全不影响现有端点
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
+from starlette import status as http_status
 from fastapi.responses import StreamingResponse
 from typing import Optional
 import logging
@@ -22,14 +23,82 @@ from app.core.security import get_current_active_user
 from app.core.features import is_react_stream_enabled
 from app.models.user import User
 from app.services.agent.memory import MemoryManager
+from app.services.agent.tools.hitl import HITLManager, ApprovalStatus
 from app.api.v1.agent import (
     AgentChatRequest,
     get_memory_manager,
-    get_agent_graph
+    get_agent_graph,
+    get_redis_client
 )
+from pydantic import BaseModel
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# 全局HITL管理器
+hitl_manager = HITLManager(get_redis_client())
+
+
+class ApprovalResponseRequest(BaseModel):
+    """用户确认响应请求"""
+    request_id: str  # 确认请求ID
+    approved: bool  # 是否批准
+    selected_version: Optional[int] = None  # 改写时选择的版本（0, 1, 2）
+    reason: Optional[str] = None  # 拒绝原因（可选）
+
+
+@router.post("/chat/approval-response")
+async def submit_approval_response(
+    response: ApprovalResponseRequest,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    用户确认响应接口
+
+    当Agent请求用户确认编辑操作时（SSE事件 type="approval_request"），
+    前端通过此接口提交用户的确认结果。
+
+    Args:
+        response: 确认响应
+        current_user: 当前用户
+
+    Returns:
+        {"success": True} 或错误信息
+    """
+    try:
+        status = ApprovalStatus.APPROVED if response.approved else ApprovalStatus.REJECTED
+
+        # 提交确认结果到HITL管理器
+        success = await hitl_manager.submit_approval(
+            request_id=response.request_id,
+            status=status,
+            data={
+                "selected_version": response.selected_version,
+                "reason": response.reason
+            }
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"确认请求不存在或已过期: {response.request_id}"
+            )
+
+        logger.info(
+            f"[Approval] User {current_user.id} responded to {response.request_id}: "
+            f"{'approved' if response.approved else 'rejected'}"
+        )
+
+        return {"success": True, "request_id": response.request_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[Approval] Error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"处理确认响应失败: {str(e)}"
+        )
 
 
 @router.post("/chat/react-stream")
@@ -66,6 +135,7 @@ async def agent_react_stream(
     - type: "progress" - 进度更新
     - type: "tool_call" - 工具调用
     - type: "content" - 内容生成
+    - type: "approval_request" - 需要用户确认（编辑器工具）
     - type: "done" - 执行完成
     - type: "error" - 执行错误
     """
@@ -141,10 +211,19 @@ async def agent_react_stream(
                     logger.debug(f"[React Stream] Content: {content[:50]}...")
                     await event_queue.put(('content', {'content': content}))
 
+                async def on_approval_request(request_data: dict):
+                    """确认请求回调 - 编辑器工具需要用户确认"""
+                    logger.info(f"[React Stream] Approval request: {request_data.get('request_id')}")
+                    await event_queue.put(('approval_request', request_data))
+
                 # 在后台运行 chat_stream
                 async def run_agent():
                     nonlocal result
                     try:
+                        # 将HITL管理器添加到上下文，供编辑器工具使用
+                        context["hitl_manager"] = hitl_manager
+                        context["on_approval_request"] = on_approval_request
+
                         result = await agent_graph.chat_stream(
                             message=request.message,
                             user_id=user_id,  # 新增：传入用户ID

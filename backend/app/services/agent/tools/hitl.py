@@ -204,6 +204,41 @@ class HITLManager:
 
     # ==================== 用户响应处理 ====================
 
+    async def submit_approval(
+        self,
+        request_id: str,
+        status: ApprovalStatus,
+        data: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """
+        提交批准响应（简化版本，用于SSE流式场景）
+
+        Args:
+            request_id: 请求ID
+            status: 批准状态
+            data: 额外数据（如selected_version, reason等）
+
+        Returns:
+            bool: 是否成功
+        """
+        # 保存到Redis，让等待的Agent可以读取
+        key = f"hitl:response:{request_id}"
+        response_data = {
+            "request_id": request_id,
+            "status": status.value,
+            "data": data or {},
+            "timestamp": datetime.now().isoformat()
+        }
+
+        # 保存响应，30分钟过期
+        self.redis.setex(
+            key,
+            1800,
+            json.dumps(response_data)
+        )
+
+        return True
+
     def approve_request(
         self,
         request_id: str,

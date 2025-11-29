@@ -238,9 +238,16 @@ class ParallelToolNode(ToolNode):
             logger.error(f"[ParallelToolNode] 工具{tool_name}执行失败: {e}")
             raise
 
+        # ✅ P0-6修复：使用json.dumps()而非str()，确保返回有效JSON
+        import json
+        if isinstance(result, dict):
+            content = json.dumps(result, ensure_ascii=False)
+        else:
+            content = str(result)
+
         # 返回ToolMessage
         return ToolMessage(
-            content=str(result),
+            content=content,
             tool_call_id=tool_id,
             name=tool_name
         )

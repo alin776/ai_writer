@@ -41,6 +41,10 @@ class Chapter(Base):
     # 统计信息
     word_count = Column(Integer, default=0, nullable=False)
     view_count = Column(Integer, default=0, nullable=False)
+
+    # 版本控制（乐观锁）
+    version = Column(Integer, default=1, nullable=False)
+    last_modified_by = Column(String(50), nullable=True)  # "user" | "agent"
     
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -52,6 +56,7 @@ class Chapter(Base):
     analysis_vectors = relationship("NovelAnalysisVector", back_populates="chapter", cascade="all, delete-orphan")
     knowledge_items = relationship("KnowledgeItem", back_populates="chapter", cascade="all, delete-orphan")
     versions = relationship("ChapterVersion", back_populates="chapter", cascade="all, delete-orphan")
+    histories = relationship("ChapterHistory", back_populates="chapter", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Chapter {self.title} status={self.status}>"

@@ -36,6 +36,22 @@ interface UseAgentChatOptions {
   chapterId?: string;  // 🆕 章节ID（用于会话隔离）
 }
 
+export interface ApprovalRequest {
+  request_id: string;
+  action_type: 'edit' | 'rewrite' | 'insert';
+  operation?: string;
+  original_content?: string;
+  new_content?: string;  // 可选，改写操作可能没有这个字段
+  description?: string;
+  versions?: Array<{
+    style?: string;
+    style_name: string;
+    reason?: string;  // 版本说明
+    content?: string;  // 实际改写内容
+  }>;
+  chapter_id?: string;
+}
+
 interface UseAgentChatReturn {
   messages: Message[];
   isLoading: boolean;
@@ -56,6 +72,10 @@ interface UseAgentChatReturn {
   loadHistorySession: (sessionId: string) => void;
   getAllHistorySessions: () => any[];
   createNewConversation: () => void;
+
+  // 🆕 编辑器确认请求
+  pendingApproval: ApprovalRequest | null;
+  submitApproval: (approved: boolean, selectedVersion?: number) => Promise<void>;
 }
 
 export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatReturn {
@@ -70,6 +90,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
   const [activities, setActivities] = useState<ActivityItem[]>([]);  // ✅ 活动流状态
   const [progressData, setProgressData] = useState<ProgressData | null>(null);  // ✅ 进度数据状态
+  const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);  // 🆕 待确认的编辑请求
 
   // 用于记录活动开始时间（计算耗时）
   const [activityStartTimes] = useState<Map<string, number>>(new Map());
@@ -376,6 +397,20 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   return a;
                 })
               );
+            },
+            onApprovalRequest: (approvalReq) => {
+              console.log('[Stream] 确认请求:', approvalReq);
+
+              // 保存待确认的请求到状态
+              setPendingApproval({
+                request_id: approvalReq.request_id,
+                action_type: approvalReq.action_type,
+                operation: approvalReq.operation,
+                original_content: approvalReq.original_content,
+                new_content: approvalReq.new_content,
+                description: approvalReq.description,
+                versions: approvalReq.versions
+              });
             }
           } : {}),
 
@@ -537,6 +572,63 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     persistence.createNewSession();
   }, [persistence, activityStartTimes]);
 
+  // 🆕 提交编辑器确认响应
+  const submitApproval = useCallback(
+    async (approved: boolean, selectedVersion?: number) => {
+      if (!pendingApproval) {
+        console.warn('[useAgentChat] 无待确认的请求');
+        return;
+      }
+
+      try {
+        console.log('[useAgentChat] 提交确认响应:', {
+          request_id: pendingApproval.request_id,
+          approved,
+          selectedVersion,
+          action_type: pendingApproval.action_type
+        });
+
+        // 如果用户批准了rewrite操作，需要应用修改
+        if (approved && pendingApproval.action_type === 'rewrite' && selectedVersion !== undefined) {
+          const versions = pendingApproval.versions;
+          if (versions && versions[selectedVersion]) {
+            const selectedContent = versions[selectedVersion].content;
+            const originalContent = pendingApproval.original_content;
+
+            console.log('[useAgentChat] 应用改写:', {
+              original: originalContent,
+              new: selectedContent
+            });
+
+            // 触发自定义事件，通知编辑器替换内容
+            window.dispatchEvent(new CustomEvent('agent-replace-text', {
+              detail: {
+                original: originalContent,
+                replacement: selectedContent
+              }
+            }));
+          }
+        }
+
+        // 调用API提交确认响应（记录到Redis）
+        await agentApi.submitApprovalResponse({
+          request_id: pendingApproval.request_id,
+          approved,
+          selected_version: selectedVersion
+        });
+
+        // 清除待确认状态
+        setPendingApproval(null);
+
+        console.log('[useAgentChat] 确认响应已提交并应用');
+      } catch (err: any) {
+        console.error('[useAgentChat] 提交确认响应失败:', err);
+        setError(err.response?.data?.detail || err.message || '提交确认失败');
+      }
+    },
+    [pendingApproval]
+  );
+
   return {
     messages,
     isLoading,
@@ -556,6 +648,10 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     conversationId,
     loadHistorySession,
     getAllHistorySessions,
-    createNewConversation
+    createNewConversation,
+
+    // 🆕 编辑器确认
+    pendingApproval,
+    submitApproval
   };
 }

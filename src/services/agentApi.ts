@@ -110,6 +110,7 @@ class AgentApiService {
       onProgress?: (progress: any) => void;
       onToolCall?: (toolCall: any) => void;
       onActivityComplete?: (activity: any) => void;  // ✅ 新增：活动完成回调
+      onApprovalRequest?: (approvalReq: any) => void;  // 🆕 编辑器确认请求回调
     }
   ): Promise<void> {
     const token = this.getToken();
@@ -207,6 +208,10 @@ class AgentApiService {
                   console.log('[API] Activity完成:', data.data.step, `(${data.data.elapsed_time?.toFixed(1)}s)`);
                   callbacks.onActivityComplete?.(data.data);
                   break;
+                case 'approval_request':  // 🆕 编辑器确认请求
+                  console.log('[API] 确认请求:', data.data.request_id, data.data.action_type);
+                  callbacks.onApprovalRequest?.(data.data);
+                  break;
               }
             } catch (error) {
               console.error('[AgentApi] Failed to parse SSE data:', error);
@@ -287,6 +292,21 @@ class AgentApiService {
    */
   async updatePreferences(preferences: any): Promise<any> {
     const response = await this.client.put('/memory/context', preferences);
+    return response.data;
+  }
+
+  /**
+   * 提交编辑器确认响应
+   *
+   * @param request 确认响应请求
+   */
+  async submitApprovalResponse(request: {
+    request_id: string;
+    approved: boolean;
+    selected_version?: number;
+    reason?: string;
+  }): Promise<{ success: boolean; request_id: string }> {
+    const response = await this.client.post('/chat/approval-response', request);
     return response.data;
   }
 }

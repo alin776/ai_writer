@@ -88,6 +88,14 @@ from .advanced_tools import (
     search_knowledge_advanced
 )
 
+# ==================== 编辑器工具 ====================
+from .editor_tools import (
+    apply_chapter_edit,
+    smart_continue,
+    smart_rewrite,
+    smart_insert
+)
+
 
 __all__ = [
     # ==================== 工具类型系统 ====================
@@ -153,5 +161,11 @@ __all__ = [
     "ai_evaluation",
     "deai_rewrite",
     "search_knowledge_advanced",
+
+    # ==================== 编辑器工具 ====================
+    "apply_chapter_edit",
+    "smart_continue",
+    "smart_rewrite",
+    "smart_insert",
 ]
 

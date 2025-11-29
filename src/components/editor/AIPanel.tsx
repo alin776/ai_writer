@@ -7,6 +7,7 @@ import type { AgentChatRequest } from '../../types/agent';
 import type { AgentMode } from '../agent/ModeSelector';
 import ActivityStream from '../agent/ActivityStream';  // ✅ 导入ActivityStream
 import TaskListPanel from '../agent/TaskListPanel';    // ✅ 导入TaskListPanel
+import AgentEditConfirmDialog from '../agent/AgentEditConfirmDialog';  // ✅ 导入确认对话框
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -114,6 +115,8 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
     currentTaskId,
     activities,  // ✅ 添加activities
     sendMessageStream,
+    pendingApproval,  // ✅ 添加确认请求
+    submitApproval,   // ✅ 添加确认提交函数
   } = useAgentChat({ workId, chapterId });  // 🆕 传递workId和chapterId进行会话隔离
 
   const [inputValue, setInputValue] = useState('');
@@ -198,7 +201,7 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
 
   return (
     <div className="p-3 h-full flex flex-col">
-      <div ref={messagesContainerRef} className="flex-1 mb-3 space-y-2.5 overflow-y-auto custom-scrollbar">
+      <div ref={messagesContainerRef} className="flex-1 mb-3 space-y-2.5 overflow-y-auto overflow-x-hidden custom-scrollbar">
         {/* 欢迎消息 */}
         {messages.length === 0 && (
           <div className="flex items-start gap-2">
@@ -215,6 +218,11 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
 
         {/* 消息列表 */}
         {messages.map((message, index) => {
+          // 过滤掉null或undefined的消息
+          if (!message) {
+            return null;
+          }
+
           // 判断是否是最后一条消息
           const isLastMessage = index === messages.length - 1;
           // 判断这条消息是否是正在streaming的agent消息
@@ -277,7 +285,7 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
             <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <ActivityStream
                 key={`activities-${activities.length}`}
                 activities={activities}
@@ -292,7 +300,7 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
             <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
-            <div className="flex-1 space-y-3">
+            <div className="flex-1 space-y-3 will-change-contents">
               {/* 标题与进度 */}
               <div className="flex items-center gap-2">
                 <span className="text-[11px] text-zinc-400">执行中</span>
@@ -305,27 +313,30 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
               {/* 步骤列表 */}
               <div className="space-y-2">
                 {tasks.map((task) => (
-                  <div key={task.task_id} className="flex items-start gap-2.5">
+                  <div
+                    key={task.task_id}
+                    className="flex items-start gap-2.5 transition-opacity duration-200 ease-in-out"
+                    style={{ opacity: 1 }}
+                  >
                     {/* 状态指示器 */}
                     {task.status === 'completed' ? (
-                      <div className="h-1 w-1 rounded-full bg-zinc-300 flex-shrink-0 mt-1.5"></div>
+                      <div className="h-1 w-1 rounded-full bg-zinc-300 flex-shrink-0 mt-1.5 transition-all duration-300"></div>
                     ) : task.status === 'running' ? (
                       <div className="relative flex-shrink-0 mt-1.5 w-3 h-3 flex items-center justify-center">
-                        <div className="absolute inset-0 rounded-full border border-zinc-900 animate-[ripple_2s_ease-out_infinite]"></div>
-                        <div className="h-1 w-1 rounded-full bg-zinc-900 relative z-10"></div>
+                        <div className="h-1 w-1 rounded-full bg-zinc-900 relative z-10 animate-pulse"></div>
                       </div>
                     ) : (
-                      <div className="h-1 w-1 rounded-full bg-zinc-200 flex-shrink-0 mt-1.5"></div>
+                      <div className="h-1 w-1 rounded-full bg-zinc-200 flex-shrink-0 mt-1.5 transition-all duration-300"></div>
                     )}
 
                     <div className="flex-1 min-w-0 flex items-baseline justify-between gap-2">
-                      <p className={`text-[11px] leading-relaxed ${
+                      <p className={`text-[11px] leading-relaxed transition-colors duration-200 ${
                         task.status === 'running' ? 'text-zinc-700' : 'text-zinc-400'
                       }`}>
                         {task.description}
                       </p>
                       {task.status === 'completed' && task.elapsed_time !== undefined && (
-                        <span className="text-[10px] text-zinc-300 font-mono flex-shrink-0">
+                        <span className="text-[10px] text-zinc-300 font-mono flex-shrink-0 animate-[fadeIn_0.3s_ease-in]">
                           {task.elapsed_time.toFixed(1)}s
                         </span>
                       )}
@@ -337,7 +348,7 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
               {/* 进度条 */}
               <div className="relative h-px bg-zinc-100 overflow-hidden">
                 <div
-                  className="absolute left-0 top-0 h-full bg-zinc-400 transition-all duration-500"
+                  className="absolute left-0 top-0 h-full bg-zinc-400 transition-all duration-500 ease-out"
                   style={{ width: `${(tasks.filter(t => t.status === 'completed').length / tasks.length) * 100}%` }}
                 ></div>
               </div>
@@ -500,6 +511,17 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
           {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
         </Button>
       </div>
+
+      {/* ✅ 编辑器确认对话框 */}
+      {pendingApproval && (
+        <AgentEditConfirmDialog
+          isOpen={true}
+          approvalRequest={pendingApproval}
+          onApprove={(selectedVersion) => submitApproval(true, selectedVersion)}
+          onReject={() => submitApproval(false)}
+          onClose={() => submitApproval(false)}
+        />
+      )}
     </div>
   );
 }

@@ -1056,6 +1056,15 @@ async def agent_chat_stream(
                                 content_sent['value'] = True  # ✅ 标记内容已发送
                                 await event_queue.put(('content', {'content': content}))
 
+                            # ✅ P0-6修复：定义HITL确认请求回调（存储为实例变量，避免序列化）
+                            async def on_approval_request(request_data: dict):
+                                """确认请求回调 - 编辑器工具需要用户确认"""
+                                logger.info(f"[Stream] Approval request: {request_data.get('request_id')}")
+                                await event_queue.put(('approval_request', request_data))
+
+                            # ✅ P0-6修复：将回调设置为实例变量，而非添加到context（避免Redis序列化错误）
+                            agent_graph._approval_callback = on_approval_request
+
                             result = await agent_graph.chat_stream(
                                 message=request.message,
                                 user_id=user_id,  # 新增：传入用户ID

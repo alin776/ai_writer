@@ -57,13 +57,18 @@ class WritingAction(BaseAction):
         self.prompt_manager = get_prompt_manager()
         self.logger.info(f"[{self.name}] PromptManager已初始化")
 
+        # 🆕 双Prompt架构：从配置中读取
+        from app.core.config import settings
+        self.use_dual_prompt = settings.AGENT_USE_DUAL_PROMPT
+        self.logger.info(f"[{self.name}] 双Prompt架构: {'启用' if self.use_dual_prompt else '禁用'}")
+
     async def prepare(self, state: Dict[str, Any]) -> ActionResult:
         """
         准备写作场景的参数和Prompt（新架构方法）
 
         职责：
         1. 识别章节号和创作阶段（业务逻辑）
-        2. 构建系统Prompt
+        2. 构建系统Prompt（单Prompt或双Prompt架构）
         3. 返回准备好的参数，不调用LLM
 
         Args:
@@ -87,26 +92,34 @@ class WritingAction(BaseAction):
                 f"phase={phase.value if phase else None}, chapter_num={chapter_num}"
             )
 
-            # 3. 生成系统Prompt（传递state以提取上下文）
-            system_prompt = self._build_system_prompt(
-                phase=phase,
-                chapter_num=chapter_num,
-                work_id=work_id,
-                chapter_id=chapter_id,
-                state=state  # ✅ 传递state用于提取场景设定
-            )
+            # 3. 生成系统Prompt
+            if self.use_dual_prompt:
+                # 🆕 双Prompt架构：阶段1使用系统层Prompt（轻量级）
+                system_prompt = self._build_system_layer_prompt(state)
+                self.logger.info("[双Prompt] 使用系统层Prompt（专注决策逻辑）")
+            else:
+                # 原有单Prompt架构
+                system_prompt = self._build_system_prompt(
+                    phase=phase,
+                    chapter_num=chapter_num,
+                    work_id=work_id,
+                    chapter_id=chapter_id,
+                    state=state
+                )
+                self.logger.info("[单Prompt] 使用传统系统Prompt")
 
             # 4. 返回准备好的参数
             return ActionResult(
                 status=ActionStatus.COMPLETED,
-                system_prompt=system_prompt,  # 新架构：使用system_prompt参数
+                system_prompt=system_prompt,
                 metadata={
                     "agent_type": "writing",
                     "action": "writing",
                     "phase": phase.value if phase else None,
                     "chapter_num": chapter_num,
                     "work_id": work_id,
-                    "chapter_id": chapter_id
+                    "chapter_id": chapter_id,
+                    "use_dual_prompt": self.use_dual_prompt  # 🆕 标记是否使用双Prompt
                 }
             )
 
@@ -214,6 +227,133 @@ class WritingAction(BaseAction):
         self.logger.warning(f"[{self.name}] 未找到场景设定消息")
         return ""
 
+    def _build_system_layer_prompt(self, state: Dict[str, Any]) -> str:
+        """
+        构建系统层Prompt（双Prompt架构 - 阶段1）
+
+        系统层专注于：
+        - 意图识别
+        - 工具调用决策
+        - 轻量级（~500 tokens）
+
+        Args:
+            state: AgentState
+
+        Returns:
+            str: 系统层Prompt
+        """
+        try:
+            messages = state.get("messages", [])
+            user_message = messages[-1].content if messages else ""
+
+            # 使用 system_agent_prompt.yaml 模板
+            system_prompt = self.prompt_manager.render(
+                "system_agent_prompt",
+                user_message=user_message
+            )
+
+            self.logger.info(f"[{self.name}] 系统层Prompt生成成功 (长度: {len(system_prompt)})")
+            return system_prompt
+
+        except Exception as e:
+            self.logger.error(f"[{self.name}] 系统层Prompt生成失败: {e}", exc_info=True)
+            # 备用方案：返回基础系统层Prompt
+            return """你是Agent的决策系统，负责理解用户意图并调用相应工具。
+
+可用工具：
+- read_chapter_tool: 读取章节内容
+- smart_rewrite: 生成改写版本（3个版本供用户选择）
+- apply_chapter_edit: 直接应用修改到章节
+- smart_continue: 续写章节
+
+请分析用户意图，决定调用哪些工具。"""
+
+    def _build_creative_layer_prompt(
+        self,
+        state: Dict[str, Any],
+        task_type: str = "rewrite",
+        **kwargs
+    ) -> str:
+        """
+        构建创作层Prompt（双Prompt架构 - 阶段2）
+
+        创作层专注于：
+        - 高质量内容生成
+        - Few-Shot示例
+        - 风格参考和上下文
+        - 重量级（~800 tokens）
+
+        Args:
+            state: AgentState
+            task_type: 任务类型 (rewrite/continue)
+            **kwargs: 动态参数（original_text, user_requirement, base_version等）
+
+        Returns:
+            str: 创作层Prompt
+        """
+        try:
+            # 1. 提取风格参考（从章节中取前500字）
+            style_reference = kwargs.get("style_reference", "")
+            if not style_reference:
+                # 尝试从state中提取
+                chapter_content = kwargs.get("chapter_content", "")
+                if chapter_content:
+                    style_reference = self._extract_style_reference(chapter_content)
+
+            # 2. 提取当前剧情状态
+            current_plot = state.get("context", {}).get("plot_state", "")
+
+            # 3. 提取角色信息
+            character_context = state.get("context", {}).get("characters", "")
+
+            # 4. 渲染创作层Prompt
+            creative_prompt = self.prompt_manager.render(
+                "creative_writing_prompt",
+                task_type=task_type,
+                style_reference=style_reference,
+                current_plot=current_plot,
+                character_context=character_context,
+                **kwargs  # 包含original_text, user_requirement, base_version等
+            )
+
+            self.logger.info(
+                f"[{self.name}] 创作层Prompt生成成功 "
+                f"(长度: {len(creative_prompt)}, 任务类型: {task_type})"
+            )
+            return creative_prompt
+
+        except Exception as e:
+            self.logger.error(f"[{self.name}] 创作层Prompt生成失败: {e}", exc_info=True)
+            # 备用方案：返回基础创作层Prompt
+            return f"""你是资深网文作家，专注于高质量内容创作。
+
+任务类型：{task_type}
+
+请生成高质量的网文内容。"""
+
+    def _extract_style_reference(self, chapter_content: str) -> str:
+        """
+        从章节中提取风格参考（前500字）
+
+        Args:
+            chapter_content: 章节内容
+
+        Returns:
+            str: 风格参考文本
+        """
+        if not chapter_content:
+            return ""
+
+        # 去除HTML标签
+        import re
+        text = re.sub(r'<[^>]+>', '', chapter_content)
+
+        # 取前500字
+        style_ref = text[:500]
+
+        self.logger.info(f"[{self.name}] 提取风格参考 (长度: {len(style_ref)})")
+        return style_ref
+
     def _build_system_prompt(
         self,
         phase: Optional[NovelPhase],
@@ -289,30 +429,56 @@ class WritingAction(BaseAction):
 ---
 
 【工具使用】
-可用工具：
+
+## 📖 读取工具
 - get_context_tool: 获取作品/章节上下文（包含作品信息、章节内容、相关分析）
 - read_chapter_tool: 读取指定章节的完整内容（需要chapter_id）
-- get_chapter_by_order_tool: 通过章节序号获取章节（用户说"第X章"时用这个）
+- get_chapter_by_order_tool: 通过章节序号获取章节（⭐用户说"第X章"时用这个）
 - search_analysis_fragments_tool: 从向量数据库检索相关的小说分析片段（RAG）
-- continue_writing_tool: 续写内容
-- polish_text_tool: 润色文本
+
+## ✍️ 编辑器工具（直接修改编辑器内容 - 优先使用）
+- smart_rewrite: 改写/修改章节内容（会生成3个版本供用户选择）
+  - 参数: chapter_id, instructions (可选), content (可选)
+  - 用于: 用户说"修改"、"改写"、"重写"章节时
+- smart_continue: 续写章节（会生成3个版本供用户选择）
+  - 参数: chapter_id, context (可选)
+  - 用于: 用户说"续写"章节时
+- smart_insert: 插入内容到章节
+  - 参数: chapter_id, position, content
+  - 用于: 用户说"插入"内容时
+- apply_chapter_edit: 应用章节编辑
+  - 参数: chapter_id, operation, content
+  - 用于: 替换/追加/插入操作
+
+## 📝 普通写作工具
+- continue_writing_tool: 续写内容（仅返回文本，不修改编辑器）
+- polish_text_tool: 润色文本（仅返回文本，不修改编辑器）
 
 当前信息：作品ID={work_id}, 当前页面章节ID={chapter_id}
 
-【重要】章节处理流程：
-1. 用户说"续写第X章"或"读第X章"时：
-   - 先调用 get_chapter_by_order_tool 获取第X章的 chapter_id 和内容
-   - 例如：用户说"续写第二章"，你应该调用 get_chapter_by_order_tool(chapter_order=2)
+【⚠️ 重要】修改/续写章节的正确流程：
 
-2. 用户说"续写"但没指定章节时：
-   - 使用当前页面的 chapter_id 调用 read_chapter_tool
+1️⃣ 用户说"修改第X章"/"改写第X章"时：
+   第一步：调用 get_chapter_by_order_tool 获取第X章的 chapter_id
+   第二步：**必须**调用 smart_rewrite(chapter_id=xxx, instructions="根据用户要求修改")
+   ❌ 错误：直接返回修改建议文本
+   ✅ 正确：调用smart_rewrite工具
 
-3. 续写要求：
-   - 必须先读取章节的真实内容
-   - 续写必须紧接章节结尾，不要重新开头
-   - 保持原文的写作风格、人物性格、情节发展
-   - 写网络小说故事，不是技术文档或编程内容
-   - 可调用 search_analysis_fragments_tool 获取世界观、角色设定
+2️⃣ 用户说"续写第X章"时：
+   第一步：调用 get_chapter_by_order_tool 获取第X章的 chapter_id
+   第二步：**必须**调用 smart_continue(chapter_id=xxx)
+   ❌ 错误：使用continue_writing_tool（这个不修改编辑器）
+   ✅ 正确：调用smart_continue工具
+
+3️⃣ 用户说"插入XX到第X章"时：
+   第一步：调用 get_chapter_by_order_tool 获取第X章的 chapter_id
+   第二步：**必须**调用 smart_insert(chapter_id=xxx, position="end", content="...")
+
+📌 关键规则：
+- 当用户要求"修改"、"改写"、"续写"、"插入"章节内容时，**必须调用编辑器工具**
+- 编辑器工具会自动征求用户确认，所以放心使用
+- 不要只是分析或给建议，要实际调用工具去修改
+- 工具会返回HITL确认请求，前端会显示确认对话框
 
 根据用户需求，决定调用合适的工具。"""
 

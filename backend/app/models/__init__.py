@@ -23,6 +23,7 @@ from app.models.knowledge_item import KnowledgeItem, KnowledgeCategory, Knowledg
 from app.models.rewrite_history import RewriteSession, RewriteResult
 from app.models.book_analysis import BookAnalysisJob, JobStatus
 from app.models.worldview_suggestion import WorldviewSuggestion, SuggestionType, SuggestionAction, SuggestionStatus
+from app.models.chapter_history import ChapterHistory
 
 __all__ = [
     "User",
@@ -69,5 +70,6 @@ __all__ = [
     "WorldviewSuggestion",
     "SuggestionType",
     "SuggestionAction",
-    "SuggestionStatus"
+    "SuggestionStatus",
+    "ChapterHistory"
 ]

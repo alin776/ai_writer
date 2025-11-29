@@ -204,6 +204,117 @@ class ChapterService:
             chapter = await self.get_chapter_by_id(chapter_id)
             if chapter and chapter.work_id == work_id:
                 chapter.order = index + 1
-        
+
         await self.db.commit()
         return True
+
+    async def update_chapter_with_lock(
+        self,
+        chapter_id: str,
+        chapter_data: ChapterUpdate,
+        expected_version: int,
+        modifier: str = "user"
+    ) -> tuple[Optional[Chapter], str]:
+        """
+        带乐观锁的章节更新
+
+        Args:
+            chapter_id: 章节ID
+            chapter_data: 更新数据
+            expected_version: 期望的版本号
+            modifier: 修改者 ("user" | "agent")
+
+        Returns:
+            (chapter, error_message)
+            成功时返回 (chapter, "")
+            失败时返回 (None, "conflict" | "not_found")
+        """
+        chapter = await self.get_chapter_by_id(chapter_id)
+        if not chapter:
+            return (None, "not_found")
+
+        # 检查版本号
+        if chapter.version != expected_version:
+            return (None, "conflict")
+
+        work_id = str(chapter.work_id)
+
+        # 更新数据
+        update_data = chapter_data.model_dump(exclude_unset=True)
+
+        # 如果更新了内容，重新计算字数
+        if "content" in update_data:
+            update_data["word_count"] = calculate_word_count(update_data["content"])
+
+        # 协调 status 与 is_published 字段
+        if "status" in update_data:
+            raw_status = update_data["status"].value if hasattr(update_data["status"], "value") else update_data["status"]
+            status_enum = ChapterStatus(raw_status)
+            update_data["status"] = status_enum
+            update_data["is_published"] = status_enum == ChapterStatus.PUBLISHED
+        elif "is_published" in update_data:
+            status_enum = ChapterStatus.PUBLISHED if update_data["is_published"] else ChapterStatus.DRAFT
+            update_data["status"] = status_enum
+
+        # 更新版本号和修改者
+        update_data["version"] = chapter.version + 1
+        update_data["last_modified_by"] = modifier
+
+        for field, value in update_data.items():
+            setattr(chapter, field, value)
+
+        await self.db.commit()
+        await self.db.refresh(chapter)
+
+        # 使缓存失效
+        await CacheInvalidator.invalidate_chapter(chapter_id, work_id)
+
+        return (chapter, "")
+
+    async def apply_agent_edit(
+        self,
+        chapter_id: str,
+        content: str,
+        operation: str,
+        position: int = None
+    ) -> Optional[Chapter]:
+        """
+        应用Agent编辑操作
+
+        Args:
+            chapter_id: 章节ID
+            content: 要添加的内容
+            operation: 操作类型 ("append" | "replace" | "insert")
+            position: 插入位置（仅insert操作需要）
+
+        Returns:
+            更新后的章节
+        """
+        chapter = await self.get_chapter_by_id(chapter_id)
+        if not chapter:
+            return None
+
+        # 根据操作类型构建新内容
+        if operation == "append":
+            new_content = chapter.content + content
+        elif operation == "replace":
+            new_content = content
+        elif operation == "insert":
+            pos = position if position is not None else len(chapter.content)
+            new_content = chapter.content[:pos] + content + chapter.content[pos:]
+        else:
+            return None
+
+        # 更新章节
+        chapter.content = new_content
+        chapter.word_count = calculate_word_count(new_content)
+        chapter.version = chapter.version + 1
+        chapter.last_modified_by = "agent"
+
+        await self.db.commit()
+        await self.db.refresh(chapter)
+
+        # 使缓存失效
+        await CacheInvalidator.invalidate_chapter(chapter_id, str(chapter.work_id))
+
+        return chapter

@@ -31,6 +31,8 @@ import { ToastContainer } from '@/components/ui/Toast';
 import { useToast } from '@/hooks/useToast';
 import AIService from '@/services/AIService';
 import { getEditorWordCount, countCharactersInHtml } from '@/utils/wordCount';
+import editorSyncService, { EditorUpdateEvent } from '@/services/EditorSyncService';
+import { AgentEditConfirmDialog } from '@/components/agent';
 import './editor-styles.css';
 import './interactive-styles.css';
 import './sidebar-styles.css';
@@ -61,6 +63,30 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [wordCount, setWordCount] = useState(0);
   const toast = useToast();
+
+  // 🆕 Agent 编辑确认对话框状态
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    actionType: 'edit' | 'rewrite' | 'insert';
+    operation?: string;
+    originalContent?: string;
+    newContent: string;
+    description?: string;
+    versions?: Array<{
+      version_id: string;
+      style: string;
+      style_name: string;
+      content: string;
+    }>;
+    onConfirm: (selectedVersion?: number) => void;
+    onCancel: () => void;
+  }>({
+    isOpen: false,
+    actionType: 'edit',
+    newContent: '',
+    onConfirm: () => {},
+    onCancel: () => {}
+  });
 
   // 初始化编辑器
   const editor = useEditor({
@@ -269,6 +295,165 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     }
   }, [workId, chapterId]);
 
+  // 🆕 订阅 EditorSyncService 的章节更新事件
+  useEffect(() => {
+    if (!editor || !chapterId) return;
+
+    console.log('[NovelEditor] 订阅 EditorSyncService 事件:', chapterId);
+
+    // 订阅章节更新事件
+    const unsubscribe = editorSyncService.onUpdate((event: EditorUpdateEvent) => {
+      // 只处理当前章节的更新
+      if (event.chapterId !== chapterId) return;
+
+      // 忽略来自用户的更新（避免循环）
+      if (event.source === 'user') return;
+
+      console.log('[NovelEditor] 收到 Agent 更新事件:', event);
+
+      // 如果需要用户确认，显示确认对话框
+      if (event.source === 'agent') {
+        const currentContent = editor.getHTML();
+
+        setConfirmDialog({
+          isOpen: true,
+          actionType: event.operation === 'append' ? 'edit' :
+                      event.operation === 'replace' ? 'rewrite' : 'insert',
+          operation: event.operation,
+          originalContent: currentContent,
+          newContent: event.content,
+          description: `Agent 建议${
+            event.operation === 'append' ? '续写' :
+            event.operation === 'replace' ? '改写' : '插入'
+          }内容`,
+          onConfirm: (selectedVersion?: number) => {
+            // 用户确认，应用更新
+            console.log('[NovelEditor] 用户确认 Agent 编辑');
+
+            // 应用内容更新
+            if (event.operation === 'append') {
+              // 续写：追加到末尾
+              const currentHtml = editor.getHTML();
+              editor.commands.setContent(currentHtml + event.content);
+            } else if (event.operation === 'replace') {
+              // 改写：替换全部内容
+              editor.commands.setContent(event.content);
+            } else if (event.operation === 'insert' && event.position) {
+              // 插入：在指定位置插入
+              editor.commands.insertContentAt(event.position.start, event.content);
+            }
+
+            // 触发保存
+            setSaveStatus('unsaved');
+            if (autoSave) {
+              debouncedSave(editor);
+            }
+
+            // 关闭对话框
+            setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+
+            // 显示成功提示
+            toast.success('已应用 AI 编辑');
+          },
+          onCancel: () => {
+            // 用户取消，不做任何操作
+            console.log('[NovelEditor] 用户取消 Agent 编辑');
+            setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+            toast.info('已取消 AI 编辑');
+          }
+        });
+      }
+    });
+
+    // 订阅同步错误事件
+    const unsubscribeError = editorSyncService.onSyncError((data) => {
+      if (data.chapterId === chapterId) {
+        console.error('[NovelEditor] 同步失败:', data.error);
+        toast.error('内容同步失败，请稍后重试');
+      }
+    });
+
+    // 订阅同步成功事件
+    const unsubscribeSuccess = editorSyncService.onSyncSuccess((data) => {
+      if (data.chapterId === chapterId) {
+        console.log('[NovelEditor] 同步成功');
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeError();
+      unsubscribeSuccess();
+    };
+  }, [editor, chapterId, autoSave, toast, debouncedSave]);
+
+  // 🆕 监听 Agent 改写确认事件（从 useAgentChat 触发）
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleAgentReplace = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        original: string;
+        replacement: string;
+      }>;
+
+      const { original, replacement } = customEvent.detail;
+
+      console.log('[NovelEditor] 收到 Agent 改写确认事件:', {
+        original: original?.substring(0, 50) + '...',
+        replacement: replacement?.substring(0, 50) + '...'
+      });
+
+      if (!original || !replacement) {
+        console.error('[NovelEditor] 改写事件缺少必要参数');
+        return;
+      }
+
+      try {
+        // 获取编辑器当前内容
+        const currentHtml = editor.getHTML();
+
+        // 在HTML中查找原文本（需要处理HTML标签）
+        // 提取纯文本内容用于查找
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = currentHtml;
+        const currentText = tempDiv.innerText || tempDiv.textContent || '';
+
+        // 检查原文本是否存在
+        if (currentText.includes(original)) {
+          console.log('[NovelEditor] 找到原文本，执行替换');
+
+          // 简单替换：直接在HTML中查找并替换文本
+          // 注意：这种方法适用于简单的文本替换，如果原文本包含HTML标签需要更复杂的处理
+          const newHtml = currentHtml.replace(original, replacement);
+
+          // 更新编辑器内容
+          editor.commands.setContent(newHtml);
+
+          // 触发保存
+          setSaveStatus('unsaved');
+          if (autoSave) {
+            debouncedSave(editor);
+          }
+
+          toast.success('已应用 AI 改写');
+        } else {
+          console.warn('[NovelEditor] 未找到原文本，可能已被修改');
+          toast.warning('原文本已变更，无法自动替换');
+        }
+      } catch (error) {
+        console.error('[NovelEditor] 应用改写失败:', error);
+        toast.error('应用改写失败');
+      }
+    };
+
+    window.addEventListener('agent-replace-text', handleAgentReplace as EventListener);
+
+    return () => {
+      window.removeEventListener('agent-replace-text', handleAgentReplace as EventListener);
+    };
+  }, [editor, autoSave, toast, debouncedSave]);
+
   if (!editor) {
     return (
       <div className="flex items-center justify-center min-h-[500px]">
@@ -281,6 +466,19 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     <>
       {/* Toast 通知容器 */}
       <ToastContainer messages={toast.messages} onClose={toast.close} />
+
+      {/* 🆕 Agent 编辑确认对话框 */}
+      <AgentEditConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        actionType={confirmDialog.actionType}
+        operation={confirmDialog.operation}
+        originalContent={confirmDialog.originalContent}
+        newContent={confirmDialog.newContent}
+        description={confirmDialog.description}
+        versions={confirmDialog.versions}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={confirmDialog.onCancel}
+      />
 
       <div className="novel-editor w-full h-full flex flex-col bg-white">
         {/* 顶部工具栏 */}

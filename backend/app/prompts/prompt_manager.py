@@ -46,6 +46,8 @@ class PromptManager:
             "planning_agent.yaml",
             "tool_agent.yaml",
             "query_agent.yaml",  # 新增：问答Agent模板
+            "system_agent_prompt.yaml",  # 🆕 双Prompt架构：系统层Prompt
+            "creative_writing_prompt.yaml",  # 🆕 双Prompt架构：创作层Prompt
         ]
 
         for filename in template_files:

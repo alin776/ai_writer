@@ -26,7 +26,10 @@
       "Bash(nul)",
       "Bash(npm run dev:*)",
       "Bash(npx tsc:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(./venv/Scripts/alembic.exe:*)",
+      "Bash(..venvScriptspython.exe -c \"import os; os.system(''taskkill /F /PID 7120'')\")",
+      "Bash(../venv/Scripts/python.exe -c \"import os; os.system(''taskkill /F /PID 7120'')\")"
     ],
     "deny": [],
     "ask": []
