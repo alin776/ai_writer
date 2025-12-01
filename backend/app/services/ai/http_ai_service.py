@@ -14,14 +14,35 @@ from datetime import datetime
 from app.core.config import settings
 from app.services.ai.prompts import get_prompts_manager
 from app.services.agent.model_selector import ModelSelector, TaskType
-from app.services.agent.cost_tracker import get_cost_tracker
+# ❌ DEPRECATED - 2025-12-01: 注释掉CostTracker，改用AILogService
+# from app.services.agent.cost_tracker import get_cost_tracker
 from ..agent.utils.llm_optimizer import get_llm_optimizer, optimized_llm_call
 
 logger = logging.getLogger(__name__)
 
 
 class HTTPAIService:
-    """基于 HTTP 的 AI 服务 - 直接调用 API 绕过 Cloudflare"""
+    """基于 HTTP 的 AI 服务 - 直接调用 API 绕过 Cloudflare
+
+    成本追踪（2025-12-01更新）：
+    - 使用AILogService持久化成本数据到数据库（ai_call_logs表）
+    - 需要传递db和user_id参数才能启用成本追踪
+    - 成本会在AI调用完成时自动记录（通过_track_api_cost方法）
+
+    使用示例：
+    ```python
+    from app.core.database import create_db_session
+
+    async with create_db_session() as db:
+        ai_service = HTTPAIService(
+            db=db,
+            user_id=str(current_user.id)
+        )
+        # AI调用会自动记录成本到数据库
+        async for chunk, usage in ai_service.stream_complete(...):
+            yield chunk
+    ```
+    """
 
     def __init__(
         self,
@@ -30,7 +51,7 @@ class HTTPAIService:
         enable_model_selector: bool = True,
         enable_cost_tracking: bool = True,
         user_id: Optional[str] = None,
-        db = None  # 数据库会话（用于加载元数据）
+        db = None
     ):
         """Initialize HTTP client and prompts manager
 
@@ -39,8 +60,8 @@ class HTTPAIService:
             timeout: 超时时间(秒),如果不提供则使用默认配置
             enable_model_selector: 是否启用智能模型选择 (默认True)
             enable_cost_tracking: 是否启用成本追踪 (默认True)
-            user_id: 用户ID (用于成本追踪)
-            db: 数据库会话（用于Context-Aware补全加载元数据）
+            user_id: 用户ID（⚠️ 成本追踪必需）
+            db: 数据库会话（⚠️ 成本追踪必需，同时用于Context-Aware补全）
         """
         self.api_key = settings.OPENAI_API_KEY
         self.base_url = settings.OPENAI_BASE_URL
@@ -60,11 +81,25 @@ class HTTPAIService:
         else:
             self.model_selector = None
 
-        if enable_cost_tracking:
-            self.cost_tracker = get_cost_tracker()
-            logger.info("CostTracker 已启用")
+        # ❌ DEPRECATED - 2025-12-01: 注释掉CostTracker
+        # if enable_cost_tracking:
+        #     self.cost_tracker = get_cost_tracker()
+        #     logger.info("CostTracker 已启用")
+        # else:
+        #     self.cost_tracker = None
+
+        # ✅ 新增：使用AILogService替代CostTracker
+        if enable_cost_tracking and db and user_id:
+            from app.services.ai_log_service import AILogService
+            self.ai_log_service = AILogService(db)
+            logger.info("AILogService 已启用 (用于成本追踪)")
         else:
-            self.cost_tracker = None
+            self.ai_log_service = None
+            if enable_cost_tracking:
+                logger.warning(
+                    "成本追踪已启用，但未提供db或user_id，"
+                    "成本数据将不会被记录！请检查HTTPAIService初始化参数。"
+                )
 
         # 创建持久化客户端，模拟普通浏览器/应用
         self.client = httpx.AsyncClient(
@@ -237,7 +272,7 @@ class HTTPAIService:
                         continue
 
                 # Week 7: 追踪成本
-                if self.enable_cost_tracking and usage_info and self.cost_tracker:
+                if self.enable_cost_tracking and usage_info and self.ai_log_service:
                     await self._track_api_cost(
                         usage_info=usage_info,
                         task_type=task_type,
@@ -340,15 +375,21 @@ class HTTPAIService:
             tuple: (文本片段, usage统计或None)
         """
         system_prompt, user_prefix = self.prompts.get_polish_prompt()
-        
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"{user_prefix}{text}"}
         ]
-        
+
         logger.info(f"AI Polish request - text length: {len(text)}")
 
-        async for chunk, usage in self._stream_chat(messages, max_tokens, temperature):
+        # 传递task_type以正确记录operation_type
+        async for chunk, usage in self._stream_chat(
+            messages,
+            max_tokens,
+            temperature,
+            task_type=TaskType.TEXT_POLISH
+        ):
             yield chunk, usage
     
     async def stream_translate(
@@ -363,15 +404,21 @@ class HTTPAIService:
             tuple: (文本片段, usage统计或None)
         """
         system_prompt = self.prompts.get_translate_prompt(target_lang)
-        
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": text}
         ]
-        
+
         logger.info(f"AI Translate request - text length: {len(text)}, target: {target_lang}")
 
-        async for chunk, usage in self._stream_chat(messages, max_tokens, temperature=0.3):
+        # 传递task_type以正确记录operation_type
+        async for chunk, usage in self._stream_chat(
+            messages,
+            max_tokens,
+            temperature=0.3,
+            task_type=TaskType.TRANSLATION
+        ):
             yield chunk, usage
     
     async def stream_expand(
@@ -386,7 +433,7 @@ class HTTPAIService:
             tuple: (文本片段, usage统计或None)
         """
         system_prompt, user_prefix = self.prompts.get_expand_prompt()
-        
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"{user_prefix}{text}"}
@@ -394,7 +441,13 @@ class HTTPAIService:
 
         logger.info(f"AI Expand request - text length: {len(text)}")
 
-        async for chunk, usage in self._stream_chat(messages, max_tokens, temperature):
+        # 传递task_type以正确记录operation_type
+        async for chunk, usage in self._stream_chat(
+            messages,
+            max_tokens,
+            temperature,
+            task_type=TaskType.TEXT_EXPANSION
+        ):
             yield chunk, usage
 
     async def stream_summarize(
@@ -409,15 +462,21 @@ class HTTPAIService:
             tuple: (文本片段, usage统计或None)
         """
         system_prompt, user_prefix = self.prompts.get_summarize_prompt()
-        
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"{user_prefix}{text}"}
         ]
-        
+
         logger.info(f"AI Summarize request - text length: {len(text)}")
 
-        async for chunk, usage in self._stream_chat(messages, max_tokens, temperature):
+        # 传递task_type以正确记录operation_type
+        async for chunk, usage in self._stream_chat(
+            messages,
+            max_tokens,
+            temperature,
+            task_type=TaskType.SUMMARIZATION
+        ):
             yield chunk, usage
     
     def _extract_character_names(self, context: str, guidelines) -> list[str]:
@@ -717,55 +776,64 @@ class HTTPAIService:
         task_type: Optional[TaskType],
         start_time: datetime
     ):
-        """追踪API调用成本
+        """追踪API调用成本（使用AILogService）
 
         Args:
             usage_info: usage统计信息
             task_type: 任务类型
             start_time: 调用开始时间
         """
-        if not self.cost_tracker:
+        # ✅ 检查是否启用成本追踪和user_id
+        if not self.user_id:
             return
 
         try:
+            from app.utils.cost_calculator import CostCalculator
+            from app.schemas.ai_call_log import AICallLogCreate
+            from app.core.database import create_db_session
+            from app.services.ai_log_service import AILogService
+            from uuid import UUID
+
             # 提取token使用情况
-            input_tokens = usage_info.get('prompt_tokens', 0)
-            output_tokens = usage_info.get('completion_tokens', 0)
+            prompt_tokens = usage_info.get('prompt_tokens', 0)
+            completion_tokens = usage_info.get('completion_tokens', 0)
 
             # 使用CostCalculator计算成本（统一的定价源）
-            from app.utils.cost_calculator import CostCalculator
-
             cost_data = CostCalculator.calculate_cost(
                 model_name=self.model,
-                prompt_tokens=input_tokens,
-                completion_tokens=output_tokens
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens
             )
-            input_cost = cost_data["prompt_cost"]
-            output_cost = cost_data["completion_cost"]
 
             # 计算响应时间
-            response_time = (datetime.now() - start_time).total_seconds()
+            duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 
-            # 记录到成本追踪器
-            await self.cost_tracker.track_api_call(
-                user_id=self.user_id,
-                model_provider="openai",  # 根据实际情况调整
-                model_id=self.model,
+            # 创建日志记录
+            log_data = AICallLogCreate(
+                user_id=UUID(self.user_id),
                 model_name=self.model,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                input_cost=input_cost,
-                output_cost=output_cost,
-                task_type=task_type.value if task_type else None,
-                response_time=response_time,
-                success=True
+                operation_type=task_type.value if task_type else "unknown",
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=prompt_tokens + completion_tokens,
+                prompt_cost=cost_data["prompt_cost"],
+                completion_cost=cost_data["completion_cost"],
+                total_cost=cost_data["total_cost"],
+                duration_ms=duration_ms,
+                is_success=True,
+                extra_data={}
             )
 
+            # ✅ 使用独立db会话持久化（解决StreamingResponse会话生命周期问题）
+            async with create_db_session() as db:
+                temp_log_service = AILogService(db)
+                await temp_log_service.create_log(log_data)
+
             logger.info(
-                f"[CostTracker] API调用已记录: "
-                f"tokens={input_tokens}+{output_tokens}, "
-                f"cost=${input_cost + output_cost:.6f}, "
-                f"time={response_time:.2f}s"
+                f"[AILogService] API调用已记录到数据库: "
+                f"tokens={prompt_tokens + completion_tokens}, "
+                f"cost=${cost_data['total_cost']:.6f}, "
+                f"time={duration_ms}ms"
             )
 
         except Exception as e:

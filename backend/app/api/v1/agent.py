@@ -64,10 +64,25 @@ def get_agent_graph() -> WritingAgentGraph:
 
     使用全局单例模式，确保MemorySaver在请求间共享，
     从而实现对话历史的持久化
+
+    TODO (2025-12-01): 成本追踪限制
+    ----------------------------------------
+    当前全局单例的HTTPAIService不包含db和user_id，导致Agent内部的AI调用无法追踪成本。
+    这是一个架构限制，需要深度重构才能解决：
+
+    解决方案选项：
+    1. 移除全局单例，使用外部存储（Redis）保持MemorySaver的持久化
+    2. 修改WritingAgentGraph支持运行时动态设置ai_service
+    3. 在Agent内部使用事件系统，将AI调用委托给请求级别的ai_service
+
+    优先级：P2（中期优化）
+    预计工作量：6-8小时
+    ----------------------------------------
     """
     global _global_agent_graph
     if _global_agent_graph is None:
         # 创建AI服务（使用配置中的MODEL_SELECTION_ENABLED）
+        # 注意：此ai_service不包含db/user_id，Agent的AI调用成本暂时无法追踪
         ai_service = HTTPAIService(
             enable_model_selector=settings.MODEL_SELECTION_ENABLED
         )
@@ -222,9 +237,13 @@ async def get_hitl_manager() -> HITLManager:
     return HITLManager(redis_client)
 
 
-async def get_ai_service() -> HTTPAIService:
+async def get_ai_service(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+) -> HTTPAIService:
     """获取AI服务实例"""
-    return HTTPAIService()
+    # 2025-12-01: 传递db和user_id以启用成本追踪
+    return HTTPAIService(db=db, user_id=str(current_user.id))
 
 
 # ==================== Agent 对话接口 ====================

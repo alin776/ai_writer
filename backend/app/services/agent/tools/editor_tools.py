@@ -35,7 +35,8 @@ async def _generate_rewrite_versions(
     chapter_content: str,
     user_requirement: str = None,
     base_version: str = None,
-    num_versions: int = 3
+    num_versions: int = 3,
+    user_id: str = None  # 2025-12-01: 添加user_id以支持成本追踪
 ) -> List[Dict[str, Any]]:
     """
     使用AI生成多个改写版本
@@ -50,7 +51,12 @@ async def _generate_rewrite_versions(
     Returns:
         改写版本列表，每个包含 style_name, reason, content
     """
+    # 2025-12-01: 根据是否有user_id选择不同的ai_service
+    # 注意：由于需要在整个函数中使用ai_service，暂时使用全局单例
+    # TODO: 需要重构为支持传递db会话的架构
     ai_service = _get_ai_service()
+
+    # 如果有user_id，可以考虑后续重构为独立db会话
 
     # 🆕 双Prompt架构：从配置中读取
     from app.core.config import settings
@@ -430,12 +436,14 @@ async def smart_rewrite(
 
         # ✅ 使用AI生成3个实际的改写版本
         logger.info(f"[smart_rewrite] 开始生成改写版本，原文长度: {len(text_to_rewrite)}, 用户要求: {user_requirement}, 基准版本: {'有' if base_version else '无'}")
+        # 2025-12-01: 传递user_id以支持成本追踪
         versions = await _generate_rewrite_versions(
             original_text=text_to_rewrite,
             chapter_content=chapter_content or text_to_rewrite,
             user_requirement=user_requirement,
             base_version=base_version,
-            num_versions=3
+            num_versions=3,
+            user_id=user_id
         )
 
         return {

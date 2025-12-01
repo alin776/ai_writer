@@ -278,9 +278,10 @@ async def generate_chapter_summary(
     
     try:
         logger.info(f"[章节概括] 开始生成: chapter_id={chapter_id}, content_length={len(chapter.content)}")
-        
+
         # 调用 AI 生成概括
-        ai_service = HTTPAIService()
+        # 2025-12-01: 传递db和user_id以启用成本追踪
+        ai_service = HTTPAIService(db=db, user_id=str(current_user.id))
         summary_text = ""
         async for chunk, usage in ai_service.stream_summarize(chapter.content):
             # 只处理内容块,忽略最后的usage块

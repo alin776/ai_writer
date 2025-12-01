@@ -56,7 +56,10 @@ async def run_analysis_task(job_id: UUID, user_id: UUID):
         try:
             logger.info(f"✅ 数据库会话创建成功")
             # 使用图书分析专用模型和超时配置
+            # 2025-12-01: 传递db和user_id以启用成本追踪
             ai_service = HTTPAIService(
+                db=db,
+                user_id=user_id,
                 model=settings.BOOK_ANALYSIS_MODEL,
                 timeout=settings.BOOK_ANALYSIS_TIMEOUT
             )
@@ -111,7 +114,10 @@ async def upload_book(
 
     # 创建分析任务
     # 使用图书分析专用模型
+    # 2025-12-01: 传递db和user_id以启用成本追踪
     ai_service = HTTPAIService(
+        db=db,
+        user_id=str(current_user.id),
         model=settings.BOOK_ANALYSIS_MODEL,
         timeout=settings.BOOK_ANALYSIS_TIMEOUT
     )

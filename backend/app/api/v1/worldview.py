@@ -35,7 +35,9 @@ logger = logging.getLogger(__name__)
 async def _auto_populate_worldview_from_guidelines(
     work_id: str,
     guidelines_data: AIGuidelinesUpdate,
-    worldview_service: WorldviewService
+    worldview_service: WorldviewService,
+    db: AsyncSession,  # 2025-12-01: 添加db参数以支持成本追踪
+    user_id: str  # 2025-12-01: 添加user_id参数以支持成本追踪
 ):
     """从AI规范自动提取并创建人物、地点、设定"""
     
@@ -637,7 +639,8 @@ async def create_or_update_ai_guidelines(
         result = await ai_service.create(create_data)
         
         # 首次创建时，自动提取数据并创建人物/地点/设定
-        await _auto_populate_worldview_from_guidelines(work_id, guidelines_data, worldview_service)
+        # 2025-12-01: 传递db和user_id以支持成本追踪
+        await _auto_populate_worldview_from_guidelines(work_id, guidelines_data, worldview_service, db, str(current_user.id))
     
     return result
 
@@ -733,7 +736,8 @@ async def generate_phase2_content(
     # 调用AI服务生成内容
     full_response = ""
     try:
-        ai_service = HTTPAIService()
+        # 2025-12-01: 传递db和user_id以启用成本追踪
+        ai_service = HTTPAIService(db=db, user_id=user_id)
         
         # 收集AI流式响应
         async for chunk in ai_service._stream_chat(

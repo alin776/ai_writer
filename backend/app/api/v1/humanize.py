@@ -384,7 +384,9 @@ async def humanize_rewrite(
     )
 
     # 3. 初始化HumanizeService
-    humanize_service = HumanizeService(config=config)
+    # 2025-12-01: 传递db和user_id以启用成本追踪
+    ai_service = HTTPAIService(db=db, user_id=str(current_user.id))
+    humanize_service = HumanizeService(ai_service=ai_service, config=config)
 
     # 记录请求开始
     request_start = time.time()
@@ -697,8 +699,11 @@ async def humanize_rewrite_stream(
                     enable_verification=enable_verification,  # ✅ 使用预加载的值
                 )
 
-                # 3. 初始化Service（不依赖db）
-                humanize_service = HumanizeService(config=config)
+                # 3. 初始化Service
+                # 2025-12-01: 传递user_id以启用成本追踪
+                # 注意：流式API故意不传递db（避免生命周期问题），_track_api_cost会在内部创建独立db会话
+                ai_service = HTTPAIService(user_id=str(current_user.id))
+                humanize_service = HumanizeService(ai_service=ai_service, config=config)
 
                 # 4. 检测阶段（可选）
                 detection_result = None
