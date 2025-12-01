@@ -22,7 +22,10 @@ class ParagraphReviewService:
     """段落评审服务"""
 
     def __init__(self):
-        self.ai_service = HTTPAIService()
+        # ❌ DEPRECATED - 2025-12-01
+        # self.ai_service = HTTPAIService()
+        # ✅ 新增：暂时保留不传db（此服务无db会话）
+        self.ai_service = HTTPAIService(db=None, user_id=None)
 
     @cache_review(expire=3600, key_prefix="paragraph_review")  # 缓存1小时
     async def review_paragraph(

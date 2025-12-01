@@ -63,7 +63,14 @@ class NovelReviewService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.ai_service = HTTPAIService()
+        # ❌ DEPRECATED - 2025-12-01: 注释掉旧的HTTPAIService初始化
+        # self.ai_service = HTTPAIService()
+
+        # ✅ 新增：传递db给HTTPAIService，但user_id需要在调用时传入
+        self.ai_service = HTTPAIService(
+            db=db,
+            user_id=None  # ⚠️ TODO: 需要在review_chapter调用时传入实际user_id
+        )
         self.ai_log_service = AILogService(db)
         self.prompts = ReviewPromptTemplates()
 

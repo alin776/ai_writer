@@ -151,55 +151,8 @@ MODEL_TIERS: Dict[TaskComplexity, ModelTier] = {
     )
 }
 
-# 备选模型配置 (可选, 用于降级或特殊场景)
-ALTERNATIVE_MODELS: Dict[str, ModelTier] = {
-    # OpenAI 系列 (可能需要时使用)
-    "gpt-3.5-turbo": ModelTier(
-        name="GPT-3.5 Turbo",
-        provider="openai",
-        model_id="gpt-3.5-turbo",
-        cost_per_1m_input=0.50,
-        cost_per_1m_output=1.50,
-        max_tokens=4096,
-        speed="fast",
-        quality_score=8.0,
-        recommended_for=[TaskComplexity.SIMPLE, TaskComplexity.MEDIUM]
-    ),
-    "gpt-4-turbo": ModelTier(
-        name="GPT-4 Turbo",
-        provider="openai",
-        model_id="gpt-4-turbo-preview",
-        cost_per_1m_input=10.00,
-        cost_per_1m_output=30.00,
-        max_tokens=4096,
-        speed="medium",
-        quality_score=9.5,
-        recommended_for=[TaskComplexity.COMPLEX]
-    ),
-    "gpt-4o": ModelTier(
-        name="GPT-4o",
-        provider="openai",
-        model_id="gpt-4o",
-        cost_per_1m_input=2.50,
-        cost_per_1m_output=10.00,
-        max_tokens=4096,
-        speed="fast",
-        quality_score=9.0,
-        recommended_for=[TaskComplexity.COMPLEX]
-    ),
-    # 其他备选
-    "deepseek-chat": ModelTier(
-        name="DeepSeek Chat",
-        provider="deepseek",
-        model_id="deepseek-chat",
-        cost_per_1m_input=0.14,
-        cost_per_1m_output=0.28,
-        max_tokens=4096,
-        speed="fast",
-        quality_score=7.5,
-        recommended_for=[TaskComplexity.SIMPLE, TaskComplexity.MEDIUM]
-    )
-}
+# 备选模型配置 (统一使用 Gemini 系列，无需备选)
+ALTERNATIVE_MODELS: Dict[str, ModelTier] = {}
 
 
 # ==================== 任务类型到复杂度的映射 ====================

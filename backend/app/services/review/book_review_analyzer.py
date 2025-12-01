@@ -27,9 +27,17 @@ class BookReviewAnalyzer:
 
     def __init__(self):
         # 使用评审专用模型
+        # ❌ DEPRECATED - 2025-12-01
+        # self.ai_service = HTTPAIService(
+        #     model=settings.REVIEW_MODEL,
+        #     timeout=settings.REVIEW_TIMEOUT
+        # )
+        # ✅ 新增：暂时保留不传db（此服务无db会话）
         self.ai_service = HTTPAIService(
             model=settings.REVIEW_MODEL,
-            timeout=settings.REVIEW_TIMEOUT
+            timeout=settings.REVIEW_TIMEOUT,
+            db=None,
+            user_id=None
         )
         logger.info(
             f"[BookReviewAnalyzer] 初始化完成, "

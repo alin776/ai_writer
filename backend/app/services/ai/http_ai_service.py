@@ -17,6 +17,8 @@ from app.services.agent.model_selector import ModelSelector, TaskType
 # ❌ DEPRECATED - 2025-12-01: 注释掉CostTracker，改用AILogService
 # from app.services.agent.cost_tracker import get_cost_tracker
 from ..agent.utils.llm_optimizer import get_llm_optimizer, optimized_llm_call
+# ✅ 2025-12-01: 支持从请求上下文获取user_id（用于全局Agent成本追踪）
+from app.core.request_context import get_request_user_id, get_request_db
 
 logger = logging.getLogger(__name__)
 
@@ -272,7 +274,8 @@ class HTTPAIService:
                         continue
 
                 # Week 7: 追踪成本
-                if self.enable_cost_tracking and usage_info and self.ai_log_service:
+                # ✅ 2025-12-01: 移除ai_log_service检查（现在使用独立db session）
+                if self.enable_cost_tracking and usage_info:
                     await self._track_api_cost(
                         usage_info=usage_info,
                         task_type=task_type,
@@ -778,13 +781,21 @@ class HTTPAIService:
     ):
         """追踪API调用成本（使用AILogService）
 
+        支持两种模式：
+        1. 实例模式：HTTPAIService初始化时传递了user_id（优先）
+        2. 上下文模式：从请求上下文获取user_id（用于全局Agent）
+
         Args:
             usage_info: usage统计信息
             task_type: 任务类型
             start_time: 调用开始时间
         """
-        # ✅ 检查是否启用成本追踪和user_id
-        if not self.user_id:
+        # ✅ 2025-12-01: 优先使用实例的user_id，如果没有则从请求上下文获取
+        user_id = self.user_id or get_request_user_id()
+
+        # 检查是否有user_id（任一来源）
+        if not user_id:
+            logger.debug("[成本追踪] 跳过：缺少user_id（实例和上下文均未设置）")
             return
 
         try:
@@ -793,6 +804,10 @@ class HTTPAIService:
             from app.core.database import create_db_session
             from app.services.ai_log_service import AILogService
             from uuid import UUID
+
+            # 记录user_id来源（用于调试）
+            source = "实例" if self.user_id else "上下文"
+            logger.debug(f"[成本追踪] user_id来源: {source}, user_id={user_id}")
 
             # 提取token使用情况
             prompt_tokens = usage_info.get('prompt_tokens', 0)
@@ -810,7 +825,7 @@ class HTTPAIService:
 
             # 创建日志记录
             log_data = AICallLogCreate(
-                user_id=UUID(self.user_id),
+                user_id=UUID(user_id),
                 model_name=self.model,
                 operation_type=task_type.value if task_type else "unknown",
                 prompt_tokens=prompt_tokens,
@@ -830,7 +845,7 @@ class HTTPAIService:
                 await temp_log_service.create_log(log_data)
 
             logger.info(
-                f"[AILogService] API调用已记录到数据库: "
+                f"[AILogService] API调用已记录到数据库 (来源:{source}): "
                 f"tokens={prompt_tokens + completion_tokens}, "
                 f"cost=${cost_data['total_cost']:.6f}, "
                 f"time={duration_ms}ms"

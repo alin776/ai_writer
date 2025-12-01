@@ -12,30 +12,12 @@ class CostCalculator:
 
     # 模型定价 (单位: 美元/百万token)
     # 格式: {model_name: (input_price, output_price)}
+    # 项目统一使用 Google Gemini 2.5 系列模型
     PRICING: Dict[str, Tuple[float, float]] = {
-        # OpenAI GPT-4
-        "gpt-4": (30.0, 60.0),
-        "gpt-4-32k": (60.0, 120.0),
-        "gpt-4-turbo": (10.0, 30.0),
-        "gpt-4-turbo-preview": (10.0, 30.0),
-
-        # OpenAI GPT-3.5
-        "gpt-3.5-turbo": (0.5, 1.5),
-        "gpt-3.5-turbo-16k": (3.0, 4.0),
-
-        # Google Gemini (2025年官方定价)
-        "gemini-pro": (0.5, 1.5),
-        "gemini-1.5-pro": (3.5, 10.5),
-        "gemini-2.0-flash": (0.1, 0.3),
-        # Gemini 2.5系列（基础价格，≤20万token）
-        "gemini-2.5-pro": (1.25, 10.0),          # 输入$1.25, 输出$10.00/M
-        "gemini-2.5-flash": (0.30, 2.50),        # 输入$0.30, 输出$2.50/M
-        "gemini-2.5-flash-lite": (0.10, 0.40),   # 输入$0.10, 输出$0.40/M
-
-        # Claude
-        "claude-3-opus": (15.0, 75.0),
-        "claude-3-sonnet": (3.0, 15.0),
-        "claude-3-haiku": (0.25, 1.25),
+        # Google Gemini 2.5 系列（2025年官方定价）
+        "gemini-2.5-pro": (1.25, 10.0),          # 复杂任务 - 输入$1.25, 输出$10.00/M
+        "gemini-2.5-flash": (0.30, 2.50),        # 中等任务 - 输入$0.30, 输出$2.50/M
+        "gemini-2.5-flash-lite": (0.10, 0.40),   # 简单任务 - 输入$0.10, 输出$0.40/M
 
         # 默认定价（未知模型）
         "default": (1.0, 2.0),

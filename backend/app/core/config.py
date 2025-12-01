@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     # OpenAI 配置
     OPENAI_API_KEY: str
     OPENAI_BASE_URL: str = "https://204992.xyz/v1"
-    OPENAI_MODEL: str = "gpt-5"  # 默认模型，可通过环境变量修改
+    OPENAI_MODEL: str = "gemini-2.5-pro"  # 默认模型，可通过环境变量修改
 
     @validator("OPENAI_TIMEOUT", pre=True)
     @classmethod
@@ -107,36 +107,21 @@ class Settings(BaseSettings):
     REVIEW_TIMEOUT: int = 60  # 评审超时时间(秒),gemini速度快
 
     # 图书分析专用模型配置
-    BOOK_ANALYSIS_MODEL: str = "deepseek-r1-free"  # 图书分析专用模型,默认使用免费的推理模型
-    BOOK_ANALYSIS_TIMEOUT: int = 60  # 图书分析超时时间(秒),推理模型速度更快
+    BOOK_ANALYSIS_MODEL: str = "gemini-2.5-flash-lite"  # 图书分析专用模型,快速分析
+    BOOK_ANALYSIS_TIMEOUT: int = 60  # 图书分析超时时间(秒)
 
     # AI 改写助手配置
     # 可用模型列表（可通过修改 enabled 字段启用/禁用模型）
     REWRITE_MODELS: dict = {
         "gemini-2.5-pro": {
             "name": "Gemini 2.5 Pro",
-            "description": "擅长创意和细节描写",
+            "description": "复杂任务专用模型，擅长创意和细节描写",
             "enabled": True
-        },
-        "gpt-5": {
-            "name": "GPT-5",
-            "description": "平衡全能，表现稳定",
-            "enabled": True
-        },
-        "claude-3-opus": {
-            "name": "Claude 3 Opus",
-            "description": "擅长深度思考和逻辑",
-            "enabled": False
-        },
-        "gpt-4-turbo": {
-            "name": "GPT-4 Turbo",
-            "description": "快速高效",
-            "enabled": False
         }
     }
 
     # 默认使用的模型列表
-    REWRITE_DEFAULT_MODELS: List[str] = ["gemini-2.5-pro", "gpt-5"]
+    REWRITE_DEFAULT_MODELS: List[str] = ["gemini-2.5-pro"]
 
     # 最多可同时使用的模型数量
     REWRITE_MAX_MODELS: int = 4
@@ -170,9 +155,9 @@ class Settings(BaseSettings):
     QUALITY_LOOP_PASS_THRESHOLD: float = 8.0  # 质量通过阈值（0-10分）
 
     # 模型选择配置
-    MODEL_SIMPLE_TASK: str = "deepseek-chat"  # 简单任务使用的模型
-    MODEL_MEDIUM_TASK: str = "gpt-3.5-turbo"  # 中等任务使用的模型
-    MODEL_COMPLEX_TASK: str = "gpt-4-turbo"  # 复杂任务使用的模型
+    MODEL_SIMPLE_TASK: str = "gemini-2.5-flash-lite"  # 简单任务使用的模型
+    MODEL_MEDIUM_TASK: str = "gemini-2.5-flash"  # 中等任务使用的模型
+    MODEL_COMPLEX_TASK: str = "gemini-2.5-pro"  # 复杂任务使用的模型
 
     # 成本控制配置
     ENABLE_COST_TRACKING: bool = True  # 启用成本追踪

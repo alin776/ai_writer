@@ -35,11 +35,12 @@ async def _generate_rewrite_versions(
     chapter_content: str,
     user_requirement: str = None,
     base_version: str = None,
-    num_versions: int = 3,
-    user_id: str = None  # 2025-12-01: 添加user_id以支持成本追踪
+    num_versions: int = 3
 ) -> List[Dict[str, Any]]:
     """
     使用AI生成多个改写版本
+
+    成本追踪：通过请求上下文自动获取user_id（无需显式传递参数）
 
     Args:
         original_text: 要改写的原文
@@ -51,12 +52,8 @@ async def _generate_rewrite_versions(
     Returns:
         改写版本列表，每个包含 style_name, reason, content
     """
-    # 2025-12-01: 根据是否有user_id选择不同的ai_service
-    # 注意：由于需要在整个函数中使用ai_service，暂时使用全局单例
-    # TODO: 需要重构为支持传递db会话的架构
+    # ✅ 2025-12-01: 全局ai_service会自动从请求上下文获取user_id
     ai_service = _get_ai_service()
-
-    # 如果有user_id，可以考虑后续重构为独立db会话
 
     # 🆕 双Prompt架构：从配置中读取
     from app.core.config import settings
@@ -376,21 +373,27 @@ async def smart_rewrite(
     """
     智能改写 - 改写用户指定范围的文本
 
+    成本追踪：优先使用请求上下文中的user_id，如果显式传递则使用传递的值
+
     Args:
         chapter_id: 章节ID
         text_to_rewrite: 要改写的文本。应该是从章节中提取的句子/段落，不要传入整章内容
         chapter_content: 章节完整内容（用于风格分析）
         user_requirement: 用户的具体要求（如"加强情感描写"、"更简洁"、"更有画面感"）
         base_version: 基准版本内容（用户要在此基础上改进）
-        user_id: 用户ID
+        user_id: 用户ID（可选，优先从请求上下文获取）
 
     Returns:
         包含3个改写版本和确认请求的结果
     """
     try:
+        # ✅ 2025-12-01: 优先从请求上下文获取user_id
+        from app.core.request_context import get_request_user_id
+        actual_user_id = user_id or get_request_user_id()
+
         # 检查速率限制
-        if user_id:
-            is_allowed, remaining = await agent_edit_limiter.check(user_id)
+        if actual_user_id:
+            is_allowed, remaining = await agent_edit_limiter.check(actual_user_id)
             if not is_allowed:
                 return {
                     "success": False,
@@ -436,14 +439,13 @@ async def smart_rewrite(
 
         # ✅ 使用AI生成3个实际的改写版本
         logger.info(f"[smart_rewrite] 开始生成改写版本，原文长度: {len(text_to_rewrite)}, 用户要求: {user_requirement}, 基准版本: {'有' if base_version else '无'}")
-        # 2025-12-01: 传递user_id以支持成本追踪
+        # ✅ 2025-12-01: 成本追踪通过请求上下文自动完成，无需传递user_id
         versions = await _generate_rewrite_versions(
             original_text=text_to_rewrite,
             chapter_content=chapter_content or text_to_rewrite,
             user_requirement=user_requirement,
             base_version=base_version,
-            num_versions=3,
-            user_id=user_id
+            num_versions=3
         )
 
         return {

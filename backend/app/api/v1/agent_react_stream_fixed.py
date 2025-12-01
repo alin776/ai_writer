@@ -27,6 +27,8 @@ from app.api.v1.agent import (
     get_memory_manager,
     get_agent_graph
 )
+# ✅ 2025-12-01: 支持Agent成本追踪（通过请求上下文传递user_id）
+from app.core.request_context import set_request_context
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -87,6 +89,9 @@ async def agent_react_stream(
             try:
                 user_id = str(current_user.id)
                 conversation_id = request.conversation_id or str(uuid.uuid4())
+
+                # ✅ 2025-12-01: 设置请求上下文，让全局Agent的HTTPAIService能追踪成本
+                set_request_context(db, user_id)
 
                 logger.info(
                     f"[React Stream] 开始 - User: {user_id}, "

@@ -111,7 +111,7 @@ class RewriteRequest(BaseModel):
                 "mode": "expand",
                 "context_before": "经过三天的跋涉...",
                 "context_after": "他拿起剑...",
-                "model_names": ["gemini-2.5-pro", "gpt-4"]
+                "model_names": ["gemini-2.5-pro"]
             }
         }
 

@@ -32,11 +32,14 @@ class NovelMicroAnalysisService:
             db: 数据库会话（用于token记录）
             work_id: 作品ID（用于token记录）
         """
-        self.ai_service = HTTPAIService()
-        self.cache_service = None  # 延迟初始化
+        # ❌ DEPRECATED - 2025-12-01
+        # self.ai_service = HTTPAIService()
+        # ✅ 新增：传递db和user_id给HTTPAIService
         self.user_id = user_id
         self.db = db
         self.work_id = work_id
+        self.ai_service = HTTPAIService(db=db, user_id=str(user_id) if user_id else None)
+        self.cache_service = None  # 延迟初始化
         self._load_prompts()
 
     async def _ensure_cache_service(self):

@@ -1,5 +1,36 @@
+# ================================
+# ⚠️ DEPRECATED - 2025-12-01
+# ================================
+# 本文件已弃用，请使用 AILogService 替代
+# 保留此文件仅用于紧急回滚
+# 计划删除日期：验证AILogService稳定运行1个月后（2026-01-01）
+#
+# 新的成本追踪方案：
+# - 数据模型：backend/app/models/ai_call_log.py
+# - 服务层：backend/app/services/ai_log_service.py
+# - API接口：backend/app/api/ai_logs.py
+# ================================
+
 """
-成本追踪系统 - Week 7
+⚠️ DEPRECATED - 成本追踪系统 - Week 7
+
+警告：此模块已被弃用，请使用 AILogService 替代
+
+原因：
+1. CostTracker使用内存存储，应用重启后数据丢失
+2. 存在内存泄漏问题（_records无限增长）
+3. AICallLog提供数据库持久化，支持复杂查询和积分系统对接
+
+迁移指南：
+- 旧代码：tracker = get_cost_tracker()
+- 新代码：log_service = AILogService(db)
+
+相关文档：
+- 迁移执行计划：AI成本追踪系统-迁移执行计划.md
+- 审计报告：AI成本追踪系统审计报告.md
+
+---
+原功能说明（已弃用）：
 
 追踪和分析 AI API 调用成本
 参考: novel-ai-agent-Chinese 的成本优化策略
@@ -60,9 +91,9 @@ class APICallRecord(BaseModel):
             "example": {
                 "id": "call_123",
                 "user_id": "user_001",
-                "model_provider": "openai",
-                "model_id": "gpt-3.5-turbo",
-                "model_name": "GPT-3.5 Turbo",
+                "model_provider": "google",
+                "model_id": "gemini-2.5-flash",
+                "model_name": "Gemini 2.5 Flash",
                 "input_tokens": 1000,
                 "output_tokens": 500,
                 "total_tokens": 1500,
@@ -124,12 +155,12 @@ class CostTracker:
     # 记录API调用
     await tracker.track_api_call(
         user_id="user_001",
-        model_provider="openai",
-        model_id="gpt-3.5-turbo",
+        model_provider="google",
+        model_id="gemini-2.5-flash",
         input_tokens=1000,
         output_tokens=500,
-        input_cost=0.0005,
-        output_cost=0.00075
+        input_cost=0.0003,
+        output_cost=0.00125
     )
 
     # 获取统计

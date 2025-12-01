@@ -28,6 +28,8 @@ from app.services.agent.tools import HITLManager
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.agent.langgraph_agent import WritingAgentGraph
 from app.core.config import settings
+# ✅ 2025-12-01: 支持Agent成本追踪（通过请求上下文传递user_id）
+from app.core.request_context import set_request_context
 import redis
 
 router = APIRouter()
@@ -278,6 +280,9 @@ async def agent_chat(
     try:
         user_id = str(current_user.id)
         conversation_id = request.conversation_id or str(uuid.uuid4())
+
+        # ✅ 2025-12-01: 设置请求上下文，让全局Agent的HTTPAIService能追踪成本
+        set_request_context(db, user_id)
 
         logger.info(f"[LangGraph Agent] User: {user_id}, Message: {request.message[:50]}...")
 
@@ -950,6 +955,9 @@ async def agent_chat_stream(
             try:
                 user_id = str(current_user.id)
                 conversation_id = request.conversation_id or str(uuid.uuid4())
+
+                # ✅ 2025-12-01: 设置请求上下文，让全局Agent的HTTPAIService能追踪成本
+                set_request_context(db, user_id)
 
                 # ✅ 会话归属验证（简化版Redis方案）
                 from app.core.redis import redis_client

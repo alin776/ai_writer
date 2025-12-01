@@ -67,7 +67,10 @@ class EvaluationService:
         )
 
         # 1. 创建指定模型的 AI 服务
-        http_ai = HTTPAIService(model=model_name)
+        # ❌ DEPRECATED - 2025-12-01
+        # http_ai = HTTPAIService(model=model_name)
+        # ✅ 新增：暂时保留不传db（此方法内部创建，无db会话）
+        http_ai = HTTPAIService(model=model_name, db=None, user_id=None)
 
         try:
             # 2. 获取上下文信息

@@ -38,7 +38,10 @@ class TaskGeneratorService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.ai_service = HTTPAIService()
+        # ❌ DEPRECATED - 2025-12-01
+        # self.ai_service = HTTPAIService()
+        # ✅ 新增：传递db给HTTPAIService
+        self.ai_service = HTTPAIService(db=db, user_id=None)
         self.ai_log_service = AILogService(db)
         self.prompts = ReviewPromptTemplates()
 

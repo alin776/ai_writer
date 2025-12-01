@@ -25,7 +25,7 @@ class SummaryService:
             ai_service: HTTPAIService实例（懒加载）
         """
         self.ai_service = ai_service
-        self.default_model = "gpt-4o-mini"  # 成本优化：使用mini模型
+        self.default_model = "gemini-2.5-flash"  # 成本优化：使用Gemini Flash模型
 
     async def summarize_conversation(
         self,

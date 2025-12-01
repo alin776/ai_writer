@@ -294,7 +294,7 @@ class LLMOptimizer:
         # return chinese_chars // 2 + english_chars // 4
 
         # ✅ 新代码：使用统一的Token计数器
-        model = model or "gpt-4"
+        model = model or "gemini-2.5-pro"
         return count_tokens(text, model=model)
 
     def get_optimal_model(self, complexity: str, max_cost: Optional[float] = None) -> str:
