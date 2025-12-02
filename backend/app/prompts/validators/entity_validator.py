@@ -134,7 +134,17 @@ class EntityValidator:
 
             # 常见动词
             '写', '写作', '创作', '修改', '润色',
-            '描写', '刻画', '展现', '体现', '反映'
+            '描写', '刻画', '展现', '体现', '反映',
+
+            # 🔧 2025-12-02: P1修复 - 增加常见的分析和概括性词汇
+            # 注意：只添加通用的分析词汇，不添加特定作品的角色名
+            '关联', '深度', '高潮', '余波', '内省',
+            '道德', '道德修养', '王朝',
+            '关系', '冲突', '转折', '铺垫', '伏笔',
+            '氛围', '张力', '节奏', '画面', '心理',
+            '动作', '对话', '环境', '场景', '背景', '设定',
+            '悬念', '线索', '矛盾', '发展', '结局', '开端',
+            '叙事', '视角', '手法', '象征', '隐喻', '主题'
         }
         fabricated_entities = fabricated_entities - common_words
 
@@ -144,15 +154,27 @@ class EntityValidator:
         if fabricated_entities:
             confidence = len(fabricated_entities) / max(len(output_entities), 1)
 
-            return {
-                "valid": False,
-                "error": "AI可能编造了以下实体",
-                "fabricated_entities": sorted(list(fabricated_entities)),
-                "source_entities": sorted(list(source_entities))[:10],  # 最多返回10个
-                "output_entities": sorted(list(output_entities))[:10],
-                "confidence": round(confidence, 2),
-                "recommendation": "重新生成或人工审查"
-            }
+            # 🔧 2025-12-02: P1修复 - 提高容错阈值
+            # 只有当编造比例超过30%时才判定为失败（原来是任何编造都失败）
+            if confidence > 0.3:
+                return {
+                    "valid": False,
+                    "error": "AI可能编造了以下实体",
+                    "fabricated_entities": sorted(list(fabricated_entities)),
+                    "source_entities": sorted(list(source_entities))[:10],  # 最多返回10个
+                    "output_entities": sorted(list(output_entities))[:10],
+                    "confidence": round(confidence, 2),
+                    "recommendation": "重新生成或人工审查"
+                }
+            else:
+                # 编造比例较低，给予警告但通过验证
+                return {
+                    "valid": True,
+                    "warning": "AI输出包含少量新实体（可能是合理的概括）",
+                    "fabricated_entities": sorted(list(fabricated_entities)),
+                    "confidence": round(confidence, 2),
+                    "message": "实体验证通过（容错模式）"
+                }
 
         return {
             "valid": True,

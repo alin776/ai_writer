@@ -41,18 +41,8 @@ async def get_chapters(
     """获取作品的章节列表 (带Redis缓存，TTL=60秒)"""
     logger.info(f"[GET chapters] work_id={work_id}, user_id={current_user.id}")
 
-    # 🔧 2025-12-02: Phase 2 优化 - 添加Redis缓存
-    cache_key = f"chapters:work:{work_id}"
-
-    # 1. 尝试从缓存获取
-    if redis_client.is_available():
-        cached_data = redis_client.get_json(cache_key)
-        if cached_data:
-            logger.info(f"✅ [GET chapters] 缓存命中: {cache_key}")
-            return ChapterListResponse(**cached_data)
-        logger.info(f"⚠️ [GET chapters] 缓存未命中: {cache_key}")
-
-    # 2. 验证作品权限
+    # 🔧 2025-12-02: P0修复 - 先验证权限，再检查缓存（防止权限绕过漏洞）
+    # 1. 先验证作品权限（安全第一）
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(work_id)
 
@@ -70,7 +60,16 @@ async def get_chapters(
             detail="Not authorized to access this work"
         )
 
-    # 3. 查询数据库
+    # 2. 权限验证通过后，检查缓存
+    cache_key = f"chapters:work:{work_id}"
+    if redis_client.is_available():
+        cached_data = redis_client.get_json(cache_key)
+        if cached_data:
+            logger.info(f"✅ [GET chapters] 缓存命中: {cache_key}")
+            return ChapterListResponse(**cached_data)
+        logger.info(f"⚠️ [GET chapters] 缓存未命中: {cache_key}")
+
+    # 3. 缓存未命中，查询数据库
     chapter_service = ChapterService(db)
     chapters = await chapter_service.get_chapters_by_work(work_id)
 
@@ -84,7 +83,9 @@ async def get_chapters(
 
     # 5. 缓存结果 (TTL=60秒)
     if redis_client.is_available():
-        cache_success = redis_client.set_json(cache_key, response.dict(), expire=60)
+        # 兼容 Pydantic v1 和 v2
+        response_data = response.model_dump() if hasattr(response, 'model_dump') else response.dict()
+        cache_success = redis_client.set_json(cache_key, response_data, expire=60)
         if cache_success:
             logger.info(f"💾 [GET chapters] 缓存已保存: {cache_key} (expire=60s)")
         else:

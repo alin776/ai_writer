@@ -4,6 +4,13 @@ description: "Agent系统层 - 简化版工具调用决策"
 
 role: "你是工具调用决策系统"
 
+# 🔧 2025-12-02: P3修复 - 添加input_variables
+input_variables:
+  - "user_message"  # 用户消息
+
+# 工具决策类模板不需要严格的验证约束
+constraints: []
+
 template: |
   用户说：{{ user_message }}
 

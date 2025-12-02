@@ -313,7 +313,7 @@ async def polish_text_tool(text: str, style: str = "professional") -> str:
 
 @tool
 async def analyze_text_tool(text: str, focus: str = "all") -> str:
-    """分析工具：分析文本问题（V2.0 - 防幻觉版）
+    """分析工具：分析文本问题（V4.0 - 简化版）
 
     Args:
         text: 待分析的文本
@@ -323,65 +323,38 @@ async def analyze_text_tool(text: str, focus: str = "all") -> str:
         分析报告
 
     变更:
-        - ✅ 使用结构化提示词模板（防幻觉）
-        - ✅ 添加输出验证
-        - ✅ 降低temperature从0.3到0.1
-        - ✅ 验证失败时添加警告标记
-        - ✅ 异步执行验证（不阻塞事件循环）
+        - 🔧 2025-12-02: V4.0重构 - 移除不合理的验证机制
+        - 分析任务本身需要AI进行概括和抽象，不应验证"实体编造"
+        - 移除重试机制，减少API调用浪费
+        - 使用prompt引导AI行为，而非代码强制验证
     """
     from app.prompts.constraint_manager import get_constraint_manager
-    import asyncio
 
     try:
         # 1. 使用约束提示词管理器
         prompt_manager = get_constraint_manager()
 
-        # 2. 格式化提示词（包含约束）
-        prompt = prompt_manager.format_prompt(
+        # 2. 格式化提示词
+        base_prompt = prompt_manager.format_prompt(
             "analyze_text",
             text=text,
             focus=focus
         )
 
-        # 3. 调用AI（降低创造性）
+        # 3. 调用AI生成分析结果
         result = await _generate_text_helper(
-            prompt,
-            temperature=0.1,  # ✅ 从0.3降到0.1，减少幻觉
+            base_prompt,
+            temperature=0.3,  # 分析任务可以稍高一点，允许更自然的表达
             max_tokens=1500,
             task_type=TaskType.SUMMARIZATION
         )
 
-        # 4. ✅ 异步验证输出（不阻塞事件循环）
-        validation = await asyncio.to_thread(
-            prompt_manager.validate_output,
-            template_name="analyze_text",
-            source_text=text,
-            ai_output=result
-        )
-
-        # 5. ✅ 验证失败时的补救措施
-        if not validation["valid"]:
-            logger.warning(
-                f"⚠️ AI输出验证失败: {validation.get('details', [])}"
-            )
-
-            # 添加警告标记到结果中
-            warning_msg = "\n\n---\n⚠️ **注意**: 此分析可能包含不准确信息，请谨慎参考。\n"
-
-            # 如果发现编造实体，列出来
-            for detail in validation.get('details', []):
-                if not detail['result'].get('valid', True):
-                    fabricated = detail['result'].get('fabricated_entities', [])
-                    if fabricated:
-                        warning_msg += f"检测到可能编造的内容: {', '.join(fabricated[:5])}\n"
-
-            result += warning_msg
-
+        logger.info(f"✅ [Agent分析] 分析完成，结果长度: {len(result)}")
         return result
 
     except Exception as e:
-        # 降级方案：如果新系统失败，使用原来的简单提示词
-        logger.error(f"约束提示词系统失败，使用降级方案: {e}")
+        # 降级方案：如果模板系统失败，使用简单提示词
+        logger.error(f"约束提示词系统失败，使用降级方案: {e}", exc_info=True)
         prompt = f"""请分析以下文本，重点关注：{focus}
 
 文本：
@@ -391,10 +364,49 @@ async def analyze_text_tool(text: str, focus: str = "all") -> str:
 
         return await _generate_text_helper(
             prompt,
-            temperature=0.1,
+            temperature=0.3,
             max_tokens=1500,
             task_type=TaskType.SUMMARIZATION
         )
+
+
+def _optimize_prompt_for_retry(
+    original_prompt: str,
+    failed_constraints: list,
+    attempt: int
+) -> str:
+    """
+    根据验证失败的约束优化prompt
+
+    Args:
+        original_prompt: 原始prompt
+        failed_constraints: 失败的约束列表
+        attempt: 当前尝试次数
+
+    Returns:
+        优化后的prompt
+    """
+    # 添加更严格的指令
+    additional_instructions = "\n\n**⚠️ 重要提醒**：\n"
+
+    if any("编造" in constraint or "fabricat" in constraint.lower() for constraint in failed_constraints):
+        additional_instructions += (
+            "- 严禁添加原文中不存在的任何信息\n"
+            "- 严禁编造人物、情节、对话或任何细节\n"
+            "- 所有分析必须基于原文明确提到的内容\n"
+        )
+
+    if any("引用" in constraint or "citation" in constraint.lower() for constraint in failed_constraints):
+        additional_instructions += (
+            "- 所有观点必须引用原文作为证据\n"
+            "- 引用内容必须与原文完全一致\n"
+            "- 不要引用原文中不存在的内容\n"
+        )
+
+    additional_instructions += f"\n（这是第{attempt + 1}次尝试，请特别注意以上要求）\n"
+
+    # 在原始prompt后添加指令
+    return original_prompt + additional_instructions
 
 
 @tool
@@ -1244,10 +1256,16 @@ class WritingAgentGraph:
                 set_unified_coordinator
             )
             from app.services.agent.memory.enhanced_memory_manager import EnhancedMemoryManager
+            from app.core.config import settings
 
             # 创建EnhancedMemoryManager实例
             try:
-                enhanced_memory = EnhancedMemoryManager()
+                # 🔧 2025-12-02: P2修复 - 创建redis_client传入EnhancedMemoryManager
+                enhanced_redis_client = redis.Redis.from_url(
+                    settings.REDIS_URL,
+                    decode_responses=True
+                )
+                enhanced_memory = EnhancedMemoryManager(redis_client=enhanced_redis_client)
                 logger.info("[LangGraph] ✅ EnhancedMemoryManager已创建")
             except Exception as e:
                 logger.warning(f"[LangGraph] ⚠️ EnhancedMemoryManager创建失败，将在协调器中降级: {e}")

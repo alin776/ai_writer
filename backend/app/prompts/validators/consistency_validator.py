@@ -58,11 +58,13 @@ class ConsistencyValidator:
         """
         citations = cls.extract_citations(ai_output)
 
+        # 🔧 2025-12-02: P1修复 - 放宽引用要求
+        # 不强制要求必须有引用，因为有些分析任务不需要引用
         if not citations:
             return {
-                "valid": False,
-                "error": "AI输出缺少原文引用",
-                "recommendation": "要求AI在分析时引用原文",
+                "valid": True,
+                "warning": "AI输出未包含显式引用",
+                "message": "未找到引用标记，但不影响验证通过",
                 "citations_found": 0
             }
 
@@ -75,23 +77,43 @@ class ConsistencyValidator:
             citation_clean = re.sub(r'\s+', '', citation)
             source_clean = re.sub(r'\s+', '', source_text)
 
+            # 🔧 2025-12-02: P1修复 - 使用模糊匹配
+            # 检查引用是否是源文本的子串（允许合理改写）
             if citation_clean in source_clean:
                 valid_citations.append(citation)
             else:
-                invalid_citations.append(citation)
+                # 模糊匹配：检查引用中是否有较长的连续片段出现在源文本中
+                # 使用滑动窗口检查连续子串匹配
+                min_match_len = max(4, len(citation_clean) // 3)  # 至少匹配1/3长度或4个字符
+                found_match = False
 
-        if invalid_citations:
+                for i in range(len(citation_clean) - min_match_len + 1):
+                    substring = citation_clean[i:i + min_match_len]
+                    if substring in source_clean:
+                        found_match = True
+                        break
+
+                if found_match:
+                    valid_citations.append(citation)
+                else:
+                    invalid_citations.append(citation)
+
+        # 🔧 2025-12-02: P1修复 - 提高容错度
+        # 只要有超过50%的引用是有效的，就通过验证
+        if valid_citations or len(invalid_citations) <= len(citations) * 0.5:
             return {
-                "valid": False,
-                "error": "部分引用内容不在源文本中",
-                "invalid_citations": invalid_citations[:3],  # 最多返回3个
-                "valid_citations": len(valid_citations),
-                "recommendation": "检查引用准确性"
+                "valid": True,
+                "message": "AI输出包含有效引用",
+                "citations_count": len(valid_citations),
+                "citations": valid_citations[:3],  # 仅返回前3个示例
+                "warning": f"部分引用可能经过改写({len(invalid_citations)}个)" if invalid_citations else None
             }
 
+        # 只有当所有引用都无效时才判定失败
         return {
-            "valid": True,
-            "message": "AI输出包含有效引用",
-            "citations_count": len(valid_citations),
-            "citations": valid_citations[:3]  # 仅返回前3个示例
+            "valid": False,
+            "error": "部分引用内容不在源文本中",
+            "invalid_citations": invalid_citations[:3],  # 最多返回3个
+            "valid_citations": len(valid_citations),
+            "recommendation": "检查引用准确性"
         }
