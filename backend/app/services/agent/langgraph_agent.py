@@ -4084,12 +4084,14 @@ chapter_id: {chapter_id}
                 return False  # 序列化失败，保守处理：假设无依赖
 
         # 定义可以并行执行的独立数据获取工具
+        # ✅ P1-2修复: 添加 analyze_text_tool，当分析不同章节时可以并行
+        # 注意: 参数依赖检测(_has_placeholder_dependency)会确保有依赖的任务仍然串行
         PARALLEL_SAFE_TOOLS = {
             "get_context_tool",
             "read_chapter_tool",
             "get_chapter_by_order_tool",
-            "search_analysis_fragments_tool"
-            # analyze_text_tool 移除：它依赖其他任务的结果，应该串行执行
+            "search_analysis_fragments_tool",
+            "analyze_text_tool"  # ✅ 允许并行（无参数依赖时）
         }
 
         # 分组任务：独立任务 vs 依赖任务
@@ -4131,6 +4133,9 @@ chapter_id: {chapter_id}
 
             async def execute_with_semaphore(task):
                 async with semaphore:
+                    import time
+                    start_time = time.time()  # ✅ P1-1修复: 记录开始时间
+
                     task_id = task["task_id"]
                     description = task["description"]
                     tool_name = task.get("tool", "unknown")  # 获取工具名称
@@ -4172,15 +4177,20 @@ chapter_id: {chapter_id}
                             await resolver.register_result(task_id, result)
                             logger.debug(f"[ParameterResolver] 任务{task_id}结果已注册")
 
+                            # ✅ P1-1修复: 计算耗时
+                            elapsed_time = time.time() - start_time
+                            task_with_time = {**task, "elapsed_time": elapsed_time}
+
                             if on_task_done:
-                                await on_task_done(task, result)
+                                await on_task_done(task_with_time, result)
 
                             return {
                                 "task_id": task_id,
                                 "description": description,
                                 "tool": tool_name,
                                 "result": result,
-                                "status": "completed"
+                                "status": "completed",
+                                "elapsed_time": elapsed_time  # ✅ P1-1修复: 添加耗时字段
                             }
 
                         except Exception as e:
@@ -4257,6 +4267,9 @@ chapter_id: {chapter_id}
             logger.info(f"[ParallelExecution] 开始串行执行{len(sequential_tasks)}个任务")
 
             for task in sequential_tasks:
+                import time
+                start_time = time.time()  # ✅ P1-1修复: 记录开始时间
+
                 task_id = task["task_id"]
                 description = task["description"]
                 tool_name = task.get("tool", "unknown")  # 获取工具名称
@@ -4297,20 +4310,26 @@ chapter_id: {chapter_id}
                         await resolver.register_result(task_id, result)
                         logger.debug(f"[ParameterResolver] 任务{task_id}结果已注册")
 
+                        # ✅ P1-1修复: 计算耗时
+                        elapsed_time = time.time() - start_time
+
                         task_results.append({
                             "task_id": task_id,
                             "description": description,
                             "tool": tool_name,
                             "result": result,
-                            "status": "completed"
+                            "status": "completed",
+                            "elapsed_time": elapsed_time  # ✅ P1-1修复: 添加耗时字段
                         })
 
                         all_context += f"\n任务{task_id}结果：\n{result}\n"
 
                         logger.info(f"[ParallelExecution] 串行任务{task_id}完成" + (f"（重试{retry_count}次后成功）" if retry_count > 0 else ""))
 
+                        # ✅ P1-1修复: 传递带耗时的task
+                        task_with_time = {**task, "elapsed_time": elapsed_time}
                         if on_task_done:
-                            await on_task_done(task, result)
+                            await on_task_done(task_with_time, result)
 
                         task_succeeded = True
                         break  # 成功，退出重试循环
@@ -4354,20 +4373,24 @@ chapter_id: {chapter_id}
         return task_results
 
     def _classify_tasks(self, task_results: List[Dict]) -> Dict[str, List]:
-        """分类任务：输入型 vs 输出型
+        """分类任务：输入型 vs 输出型 vs 展示型
 
         Args:
             task_results: 任务结果列表
 
         Returns:
-            分类后的任务字典，包含 input_tasks 和 output_tasks
+            分类后的任务字典，包含 input_tasks, output_tasks, display_tasks
         """
         # 定义输入型工具（只是获取数据，不产生最终输出）
         INPUT_TOOLS = {
             "get_context_tool",
-            "read_chapter_tool",
-            "get_chapter_by_order_tool",
             "search_analysis_fragments_tool"
+        }
+
+        # ✅ P2-1修复: 定义展示型工具（用户只想查看数据，可直接格式化返回）
+        DISPLAY_TOOLS = {
+            "get_chapter_by_order_tool",  # 获取章节内容
+            "read_chapter_tool"            # 读取章节
         }
 
         # 定义输出型工具（产生用户需要的最终内容）
@@ -4379,10 +4402,13 @@ chapter_id: {chapter_id}
 
         input_tasks = []
         output_tasks = []
+        display_tasks = []  # ✅ P2-1修复: 新增展示型任务
 
         for task in task_results:
             tool = task.get("tool", "")
-            if tool in INPUT_TOOLS:
+            if tool in DISPLAY_TOOLS:
+                display_tasks.append(task)
+            elif tool in INPUT_TOOLS:
                 input_tasks.append(task)
             elif tool in OUTPUT_TOOLS:
                 output_tasks.append(task)
@@ -4391,12 +4417,14 @@ chapter_id: {chapter_id}
                 output_tasks.append(task)
 
         logger.info(
-            f"[TaskClassify] 任务分类: 输入型={len(input_tasks)}, 输出型={len(output_tasks)}"
+            f"[TaskClassify] 任务分类: 输入型={len(input_tasks)}, "
+            f"输出型={len(output_tasks)}, 展示型={len(display_tasks)}"
         )
 
         return {
             "input_tasks": input_tasks,
-            "output_tasks": output_tasks
+            "output_tasks": output_tasks,
+            "display_tasks": display_tasks  # ✅ P2-1修复: 返回展示型任务
         }
 
     async def _build_final_response(
@@ -4458,6 +4486,16 @@ chapter_id: {chapter_id}
         # 分类任务
         classified = self._classify_tasks(task_results)
         output_tasks = classified["output_tasks"]
+        display_tasks = classified["display_tasks"]  # ✅ P2-1修复
+
+        # ✅ P2-1修复: 情况0 - 纯展示型任务（用户只是查看数据）
+        # 当所有任务都是展示型任务时，直接格式化返回，不需要AI整合
+        if len(output_tasks) == 0 and len(display_tasks) > 0:
+            logger.info(
+                f"[Response] 纯展示型任务({len(display_tasks)}个)，"
+                f"直接格式化返回（跳过AI整合，节省成本）"
+            )
+            return await self._format_display_response(display_tasks, on_content)
 
         # 情况1：没有输出任务（极少见）
         if len(output_tasks) == 0:
@@ -4522,6 +4560,68 @@ chapter_id: {chapter_id}
                     await on_content(chunk)
 
             return final_content
+
+    async def _format_display_response(
+        self,
+        display_tasks: List[Dict],
+        on_content: Optional[callable] = None
+    ) -> str:
+        """
+        ✅ P2-1修复: 格式化展示型任务的响应
+
+        当用户只是查看数据（如查看章节内容）时，直接格式化返回，
+        不需要调用AI进行整合，节省成本。
+
+        Args:
+            display_tasks: 展示型任务列表
+            on_content: 内容回调函数
+
+        Returns:
+            格式化后的响应内容
+        """
+        response_parts = []
+
+        for task in display_tasks:
+            description = task.get("description", "")
+            result = task.get("result", "")
+
+            # 尝试解析JSON格式的结果
+            try:
+                result_json = json.loads(result)
+
+                # 提取章节信息
+                if isinstance(result_json, dict):
+                    title = result_json.get("title", "")
+                    content = result_json.get("content", "")
+                    # ✅ 修复: 工具返回的是 "order" 字段，不是 "chapter_order"
+                    chapter_order = result_json.get("order") or result_json.get("chapter_order", "")
+
+                    if title and content:
+                        # 格式化章节内容
+                        chapter_header = f"**第{chapter_order}章: {title}**" if chapter_order else f"**{title}**"
+                        # 截取内容摘要（避免响应过长）
+                        content_preview = content[:1500] + "..." if len(content) > 1500 else content
+                        response_parts.append(f"{chapter_header}\n\n{content_preview}")
+                    else:
+                        response_parts.append(result)
+                else:
+                    response_parts.append(result)
+
+            except (json.JSONDecodeError, TypeError):
+                # 非JSON格式，直接使用
+                response_parts.append(result)
+
+        # 组合响应
+        final_response = "\n\n---\n\n".join(response_parts)
+
+        # 模拟流式输出
+        if on_content and final_response:
+            chunk_size = 50
+            for i in range(0, len(final_response), chunk_size):
+                chunk = final_response[i:i + chunk_size]
+                await on_content(chunk)
+
+        return final_response
 
     async def _ai_summarization(
         self,

@@ -47,18 +47,16 @@ class ConstraintPromptManager:
         )
 
     def _register_validators(self):
-        """注册验证器（延迟导入避免循环依赖）"""
-        try:
-            from .validators.entity_validator import EntityValidator
-            from .validators.consistency_validator import ConsistencyValidator
+        """
+        注册验证器
 
-            self.validators = {
-                "validate_entities": EntityValidator.validate,
-                "validate_fabrication": EntityValidator.validate,
-                "validate_citations": ConsistencyValidator.validate_citations,
-            }
-        except ImportError as e:
-            logger.warning(f"部分验证器未加载: {e}")
+        🔧 2025-12-02: 重构 - 移除不合理的验证器
+        - 移除 entity_validator（分析任务需要概括，不应检查实体差异）
+        - 移除 consistency_validator（引用验证过于严格）
+        - 现在使用 prompt 引导代替代码验证
+        """
+        # 验证器列表为空 - 使用 prompt 引导代替代码验证
+        self.validators = {}
 
     def _load_all_templates(self):
         """加载所有YAML模板"""

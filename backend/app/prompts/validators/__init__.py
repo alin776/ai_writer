@@ -1,5 +1,12 @@
-"""验证器模块"""
-from .entity_validator import EntityValidator
-from .consistency_validator import ConsistencyValidator
+"""
+验证器模块
 
-__all__ = ['EntityValidator', 'ConsistencyValidator']
+🔧 2025-12-02: 重构 - 验证器已移除
+- 移除 EntityValidator（分析任务需要概括，不应检查实体差异）
+- 移除 ConsistencyValidator（引用验证过于严格）
+- 现在使用 prompt 引导代替代码验证
+
+如需添加新的验证器，可在此目录下创建新文件
+"""
+
+__all__ = []
