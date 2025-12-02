@@ -310,8 +310,9 @@ class ParameterResolver:
                 if isinstance(value, dict) and field in value:
                     value = value[field]
                 else:
-                    # 字段不存在
-                    logger.warning(
+                    # 🔧 P3修复: 字段不存在是正常降级行为，改为 debug 级别
+                    # 因为很多工具（如 analyze_text_tool）返回纯文本，不是 JSON
+                    logger.debug(
                         f"[ParameterResolver] 任务{task_id}的结果中"
                         f"不存在字段 '{field_path}', 使用完整输出"
                     )
@@ -331,10 +332,11 @@ class ParameterResolver:
             return result
 
         except json.JSONDecodeError as e:
-            # JSON解析失败，返回完整结果
-            logger.warning(
+            # 🔧 P3修复: JSON解析失败是正常降级行为，改为 debug 级别
+            # 因为很多工具（如 analyze_text_tool）返回纯文本，不是 JSON
+            logger.debug(
                 f"[ParameterResolver] 任务{task_id}结果不是有效JSON, "
-                f"无法提取字段 '{field_path}': {e}, 使用完整输出"
+                f"无法提取字段 '{field_path}', 使用完整输出"
             )
             return json_string
 

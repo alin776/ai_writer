@@ -45,11 +45,33 @@ def _get_cached_worldview_data(cache_key: str):
     return None
 
 
+def _orm_to_dict(obj) -> dict:
+    """
+    将 SQLAlchemy ORM 对象转换为字典
+
+    🔧 2025-12-02: P0修复 - 支持 Setting/AIGuidelines 等 ORM 对象的序列化
+    """
+    from datetime import datetime, date
+    from uuid import UUID as PyUUID
+
+    result = {}
+    for column in obj.__table__.columns:
+        value = getattr(obj, column.name)
+        # 处理特殊类型
+        if isinstance(value, (datetime, date)):
+            value = value.isoformat()
+        elif isinstance(value, PyUUID):
+            value = str(value)
+        result[column.name] = value
+    return result
+
+
 def _cache_worldview_data(cache_key: str, data, ttl: int = 300):
     """
     缓存世界观数据 (默认TTL=300秒，即5分钟)
 
-    🔧 2025-12-02: P1修复 - 改进序列化处理
+    🔧 2025-12-02: P0修复 - 改进序列化处理
+    - 添加 SQLAlchemy ORM 对象处理（Setting/AIGuidelines）
     - 添加空列表处理
     - 添加Pydantic v1/v2兼容性
     - 添加异常处理
@@ -58,18 +80,23 @@ def _cache_worldview_data(cache_key: str, data, ttl: int = 300):
         return
 
     try:
+        # 🔧 P0修复: 处理 SQLAlchemy ORM 对象（检查 __table__ 属性）
+        if hasattr(data, '__table__'):
+            data = _orm_to_dict(data)
         # 处理Pydantic对象序列化
-        if hasattr(data, 'model_dump'):
+        elif hasattr(data, 'model_dump'):
             # Pydantic v2
             data = data.model_dump()
         elif hasattr(data, 'dict'):
             # Pydantic v1
             data = data.dict()
         elif isinstance(data, list):
-            # 🔧 P1修复: 处理空列表
             if not data:
                 # 空列表直接缓存
                 pass
+            elif hasattr(data[0], '__table__'):
+                # 🔧 P0修复: SQLAlchemy ORM 对象列表
+                data = [_orm_to_dict(item) for item in data]
             elif hasattr(data[0], 'model_dump'):
                 # Pydantic v2 列表
                 data = [item.model_dump() for item in data]
