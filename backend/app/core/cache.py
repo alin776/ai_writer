@@ -17,17 +17,17 @@ from typing import Callable, Any
 logger = logging.getLogger(__name__)
 
 
-def cache_review(expire: int = 3600, key_prefix: str = "review"):
+def cached(expire: int = 3600, key_prefix: str = "cache"):
     """
-    缓存评审结果装饰器
+    通用缓存装饰器 (支持任意异步函数)
 
     Args:
         expire: 过期时间(秒) - 默认1小时
         key_prefix: 缓存key前缀
 
     使用示例:
-        @cache_review(expire=86400)  # 缓存24小时
-        async def review_chapter(chapter_id):
+        @cached(expire=60, key_prefix="chapters")  # 缓存1分钟
+        async def get_chapters(work_id):
             pass
 
     注意:
@@ -39,7 +39,7 @@ def cache_review(expire: int = 3600, key_prefix: str = "review"):
         async def wrapper(*args, **kwargs) -> Any:
             # 检查Redis是否可用
             if not redis_client.is_available():
-                logger.warning(f"[缓存装饰器] Redis不可用,直接执行函数: {func.__name__}")
+                logger.debug(f"[缓存装饰器] Redis不可用,直接执行函数: {func.__name__}")
                 return await func(*args, **kwargs)
 
             # 生成缓存key (基于函数名和参数)
@@ -48,10 +48,10 @@ def cache_review(expire: int = 3600, key_prefix: str = "review"):
             )
 
             # 查询缓存
-            cached = redis_client.get_json(cache_key)
-            if cached:
+            cached_value = redis_client.get_json(cache_key)
+            if cached_value:
                 logger.info(f"✅ 缓存命中: {cache_key}")
-                return cached
+                return cached_value
 
             logger.info(f"⚠️ 缓存未命中: {cache_key}")
 
@@ -69,6 +69,27 @@ def cache_review(expire: int = 3600, key_prefix: str = "review"):
 
         return wrapper
     return decorator
+
+
+def cache_review(expire: int = 3600, key_prefix: str = "review"):
+    """
+    缓存评审结果装饰器 (兼容旧代码，内部调用cached装饰器)
+
+    Args:
+        expire: 过期时间(秒) - 默认1小时
+        key_prefix: 缓存key前缀
+
+    使用示例:
+        @cache_review(expire=86400)  # 缓存24小时
+        async def review_chapter(chapter_id):
+            pass
+
+    注意:
+        - 如果Redis不可用,装饰器会自动降级,直接执行函数
+        - 缓存键基于函数名和参数生成
+    """
+    # 🔧 2025-12-02: 复用通用cached装饰器
+    return cached(expire=expire, key_prefix=key_prefix)
 
 
 def _generate_cache_key(prefix: str, func_name: str, args: tuple, kwargs: dict) -> str:

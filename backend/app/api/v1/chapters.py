@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 from pydantic import Field
 import logging
+import json
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
+from app.core.redis_client import redis_client
 from app.models.user import User
 from app.schemas.chapter import ChapterCreate, ChapterUpdate, ChapterResponse, ChapterListResponse, ChapterSummaryResponse
 from app.services.chapter_service import ChapterService
@@ -17,43 +19,78 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _invalidate_chapter_cache(work_id: str):
+    """失效指定作品的章节列表缓存"""
+    if not redis_client.is_available():
+        return
+
+    cache_key = f"chapters:work:{work_id}"
+    try:
+        redis_client.client.delete(cache_key)
+        logger.info(f"🗑️ [Chapters] 缓存已失效: {cache_key}")
+    except Exception as e:
+        logger.error(f"⚠️ [Chapters] 缓存失效失败: {cache_key}, error={e}")
+
+
 @router.get("/work/{work_id}", response_model=ChapterListResponse)
 async def get_chapters(
     work_id: str,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """获取作品的章节列表"""
+    """获取作品的章节列表 (带Redis缓存，TTL=60秒)"""
     logger.info(f"[GET chapters] work_id={work_id}, user_id={current_user.id}")
-    
-    # 验证作品权限
+
+    # 🔧 2025-12-02: Phase 2 优化 - 添加Redis缓存
+    cache_key = f"chapters:work:{work_id}"
+
+    # 1. 尝试从缓存获取
+    if redis_client.is_available():
+        cached_data = redis_client.get_json(cache_key)
+        if cached_data:
+            logger.info(f"✅ [GET chapters] 缓存命中: {cache_key}")
+            return ChapterListResponse(**cached_data)
+        logger.info(f"⚠️ [GET chapters] 缓存未命中: {cache_key}")
+
+    # 2. 验证作品权限
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(work_id)
-    
+
     if not work:
         logger.error(f"[GET chapters] Work not found: {work_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Work not found"
         )
-    
+
     if str(work.author_id) != str(current_user.id):
         logger.error(f"[GET chapters] Permission denied: work.author_id={work.author_id}, user_id={current_user.id}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to access this work"
         )
-    
-    # 获取章节列表
+
+    # 3. 查询数据库
     chapter_service = ChapterService(db)
     chapters = await chapter_service.get_chapters_by_work(work_id)
-    
+
     logger.info(f"[GET chapters] Returning {len(chapters)} chapters")
-    
-    return ChapterListResponse(
+
+    # 4. 构造响应
+    response = ChapterListResponse(
         total=len(chapters),
         items=chapters
     )
+
+    # 5. 缓存结果 (TTL=60秒)
+    if redis_client.is_available():
+        cache_success = redis_client.set_json(cache_key, response.dict(), expire=60)
+        if cache_success:
+            logger.info(f"💾 [GET chapters] 缓存已保存: {cache_key} (expire=60s)")
+        else:
+            logger.warning(f"⚠️ [GET chapters] 缓存保存失败: {cache_key}")
+
+    return response
 
 
 @router.get("/{chapter_id}", response_model=ChapterResponse)
@@ -118,10 +155,13 @@ async def create_chapter(
     # 创建章节
     chapter_service = ChapterService(db)
     chapter = await chapter_service.create_chapter(chapter_data)
-    
+
     # 更新作品统计
     await work_service.update_work_stats(chapter_data.work_id)
-    
+
+    # 🔧 2025-12-02: P0修复 - 失效缓存
+    _invalidate_chapter_cache(chapter_data.work_id)
+
     return chapter
 
 
@@ -153,10 +193,14 @@ async def update_chapter(
         )
     
     updated_chapter = await chapter_service.update_chapter(chapter_id, chapter_data)
-    
+
     # 更新作品统计
-    await work_service.update_work_stats(str(chapter.work_id))
-    
+    work_id = str(chapter.work_id)
+    await work_service.update_work_stats(work_id)
+
+    # 🔧 2025-12-02: P0修复 - 失效缓存
+    _invalidate_chapter_cache(work_id)
+
     return updated_chapter
 
 
@@ -188,9 +232,12 @@ async def delete_chapter(
     
     work_id = str(chapter.work_id)
     await chapter_service.delete_chapter(chapter_id)
-    
+
     # 更新作品统计
     await work_service.update_work_stats(work_id)
+
+    # 🔧 2025-12-02: P0修复 - 失效缓存
+    _invalidate_chapter_cache(work_id)
 
 
 @router.post("/reorder", status_code=status.HTTP_200_OK)
@@ -225,7 +272,10 @@ async def reorder_chapters(
     # 重新排序
     chapter_service = ChapterService(db)
     await chapter_service.reorder_chapters(work_id, chapter_ids)
-    
+
+    # 🔧 2025-12-02: Review修复 - 章节顺序改变后失效缓存
+    _invalidate_chapter_cache(work_id)
+
     return {"message": "Chapters reordered successfully"}
 
 
@@ -294,9 +344,12 @@ async def generate_chapter_summary(
         from app.schemas.chapter import ChapterUpdate
         update_data = ChapterUpdate(summary=summary_text)
         await chapter_service.update_chapter(chapter_id, update_data)
-        
+
         logger.info(f"[章节概括] 已保存到数据库: chapter_id={chapter_id}")
-        
+
+        # 🔧 2025-12-02: Review修复 - 章节summary更新后失效缓存
+        _invalidate_chapter_cache(str(chapter.work_id))
+
         return ChapterSummaryResponse(summary=summary_text)
         
     except Exception as e:
