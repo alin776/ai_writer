@@ -437,7 +437,8 @@ async def compare_versions(
 )
 async def review_paragraph(
     request: ParagraphReviewRequest,
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     段落级评审
@@ -479,7 +480,8 @@ async def review_paragraph(
 
     try:
         # 调用服务
-        service = ParagraphReviewService()
+        # ✅ 2025-12-02: 传递db和user_id以启用成本追踪
+        service = ParagraphReviewService(db=db, user_id=str(current_user.id))
         result = await service.review_paragraph(
             text=request.text,
             context=request.context
@@ -516,7 +518,8 @@ async def review_paragraph(
 )
 async def review_book(
     request: BookReviewRequest,
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     作品级评审
@@ -581,7 +584,8 @@ async def review_book(
         ]
 
         # 调用服务
-        service = BookReviewService()
+        # ✅ 2025-12-02: 传递db和user_id以启用成本追踪
+        service = BookReviewService(db=db, user_id=str(current_user.id))
 
         if request.quick_mode:
             result = await service.quick_review_book(

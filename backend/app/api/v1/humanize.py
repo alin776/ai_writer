@@ -34,6 +34,7 @@ from app.core.humanize_config import HumanizeConfig
 from app.services.agent.utils.monitoring import increment_counter, record_timer
 from app.api.middleware.rate_limiter import rate_limit, get_user_identifier
 from app.utils.cost_calculator import CostCalculator
+from app.core.request_context import set_request_context  # ✅ 新增：用于FastAI成本追踪
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -383,7 +384,11 @@ async def humanize_rewrite(
         enable_verification=profile.humanize_enabled_by_function.get("rewrite", False),  # 根据用户配置
     )
 
-    # 3. 初始化HumanizeService
+    # 3. 设置请求上下文（用于FastAI成本追踪）
+    # ✅ 2025-12-02: FastAIService使用get_request_user_id()获取user_id
+    set_request_context(db, str(current_user.id))
+
+    # 4. 初始化HumanizeService
     # 2025-12-01: 传递db和user_id以启用成本追踪
     ai_service = HTTPAIService(db=db, user_id=str(current_user.id))
     humanize_service = HumanizeService(ai_service=ai_service, config=config)
@@ -501,78 +506,11 @@ async def humanize_rewrite(
 
         db.add(detail)
 
-        # 记录AI调用日志（用于统一的成本监控和分析）
-        # ✅ 使用try-except包裹，避免影响主流程
-        try:
-            # 检测阶段
-            if detection_tokens > 0:
-                detection_log = AICallLog(
-                    user_id=current_user.id,
-                    model_name="gemini-2.5-flash-lite",
-                    operation_type="humanize_detect",
-                    prompt_tokens=detection_prompt,
-                    completion_tokens=detection_completion,
-                    total_tokens=detection_tokens,
-                    prompt_cost=detection_cost_result["prompt_cost"],
-                    completion_cost=detection_cost_result["completion_cost"],
-                    total_cost=detection_cost_result["total_cost"],
-                    duration_ms=int(processing_time * 1000 * 0.3),  # 估算检测阶段耗时约30%
-                    is_success=True,
-                    extra_data={
-                        "ai_function": request_data.ai_function or "rewrite",
-                        "intensity": request_data.intensity,
-                        "session_id": str(session.id)
-                    }
-                )
-                db.add(detection_log)
-
-            # 改写阶段
-            if rewrite_tokens > 0:
-                rewrite_log = AICallLog(
-                    user_id=current_user.id,
-                    model_name="gemini-2.5-pro",
-                    operation_type="humanize_rewrite",
-                    prompt_tokens=rewrite_prompt,
-                    completion_tokens=rewrite_completion,
-                    total_tokens=rewrite_tokens,
-                    prompt_cost=rewrite_cost_result["prompt_cost"],
-                    completion_cost=rewrite_cost_result["completion_cost"],
-                    total_cost=rewrite_cost_result["total_cost"],
-                    duration_ms=int(processing_time * 1000 * 0.6),  # 估算改写阶段耗时约60%
-                    is_success=True,
-                    extra_data={
-                        "ai_function": request_data.ai_function or "rewrite",
-                        "intensity": request_data.intensity,
-                        "session_id": str(session.id)
-                    }
-                )
-                db.add(rewrite_log)
-
-            # 验证阶段
-            if verification_tokens > 0:
-                verification_log = AICallLog(
-                    user_id=current_user.id,
-                    model_name="gemini-2.5-flash-lite",
-                    operation_type="humanize_verify",
-                    prompt_tokens=verification_prompt,
-                    completion_tokens=verification_completion,
-                    total_tokens=verification_tokens,
-                    prompt_cost=verification_cost_result["prompt_cost"],
-                    completion_cost=verification_cost_result["completion_cost"],
-                    total_cost=verification_cost_result["total_cost"],
-                    duration_ms=int(processing_time * 1000 * 0.1),  # 估算验证阶段耗时约10%
-                    is_success=True,
-                    extra_data={
-                        "ai_function": request_data.ai_function or "rewrite",
-                        "intensity": request_data.intensity,
-                        "session_id": str(session.id)
-                    }
-                )
-                db.add(verification_log)
-
-        except Exception as e:
-            logger.error(f"记录AICallLog失败（不影响主流程）: {e}")
-            # 记录失败不影响主流程，继续执行
+        # ✅ 2025-12-02: 移除手动AICallLog记录（会导致重复记录）
+        # HTTPAIService和FastAIService已启用自动成本追踪：
+        # - 检测阶段: FastAIService._track_cost() → operation_type="humanize_detect"
+        # - 改写阶段: HTTPAIService._track_api_cost() → operation_type="content_creation"
+        # - 验证阶段: FastAIService._track_cost() → operation_type="humanize_verify"
 
         # 7. 更新用户画像统计
         await profile_service.record_humanize_use(
@@ -699,7 +637,11 @@ async def humanize_rewrite_stream(
                     enable_verification=enable_verification,  # ✅ 使用预加载的值
                 )
 
-                # 3. 初始化Service
+                # 3. 设置请求上下文（用于FastAI成本追踪）
+                # ✅ 2025-12-02: FastAIService使用get_request_user_id()获取user_id
+                set_request_context(db, str(current_user.id))
+
+                # 4. 初始化Service
                 # 2025-12-01: 传递user_id以启用成本追踪
                 # 注意：流式API故意不传递db（避免生命周期问题），_track_api_cost会在内部创建独立db会话
                 ai_service = HTTPAIService(user_id=str(current_user.id))

@@ -22,8 +22,16 @@ logger = logging.getLogger(__name__)
 class BookReviewService:
     """作品级评审服务"""
 
-    def __init__(self):
-        self.analyzer = BookReviewAnalyzer()
+    def __init__(self, db: Optional[Any] = None, user_id: Optional[str] = None):
+        """
+        初始化评审服务
+
+        Args:
+            db: 数据库会话（用于成本追踪）
+            user_id: 用户ID（用于成本追踪）
+        """
+        # ✅ 2025-12-02: 传递db和user_id给analyzer以启用成本追踪
+        self.analyzer = BookReviewAnalyzer(db=db, user_id=user_id)
 
     async def review_book(
         self,

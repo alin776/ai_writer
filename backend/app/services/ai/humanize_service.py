@@ -22,6 +22,7 @@ from app.services.ai.humanize_prompts import (
 from app.schemas.humanize import AIDetectionResult, HumanizeVerification, DimensionScore
 from app.utils.json_parser import parse_ai_json
 from app.core.humanize_config import HumanizeConfig, get_config
+from app.services.agent.model_selector import TaskType  # ✅ 新增：用于成本追踪
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +196,8 @@ class HumanizeService:
         async for chunk, usage in self.ai_service._stream_chat(
             messages=messages,
             max_tokens=max_tokens,
-            temperature=temperature
+            temperature=temperature,
+            task_type=TaskType.HUMANIZE_REWRITE  # ✅ 2025-12-02: 去痕迹改写使用专用类型
         ):
             chunk_count += 1
             yield chunk, usage

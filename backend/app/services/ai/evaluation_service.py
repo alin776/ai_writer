@@ -27,6 +27,7 @@ from app.services.ai.evaluation_prompts import (
     EVALUATION_SYSTEM_PROMPT
 )
 from app.services.ai.ai_log_middleware import AILogMiddleware
+from app.services.agent.model_selector import TaskType  # ✅ 新增：用于成本追踪
 
 logger = logging.getLogger(__name__)
 
@@ -67,9 +68,8 @@ class EvaluationService:
         )
 
         # 1. 创建指定模型的 AI 服务
-        # ❌ DEPRECATED - 2025-12-01
-        # http_ai = HTTPAIService(model=model_name)
-        # ✅ 新增：暂时保留不传db（此方法内部创建，无db会话）
+        # ✅ 2025-12-02: 不传db和user_id，因为本服务使用AILogMiddleware手动追踪
+        # 如果传递db和user_id会导致重复记录（HTTPAIService自动追踪 + AILogMiddleware手动追踪）
         http_ai = HTTPAIService(model=model_name, db=None, user_id=None)
 
         try:
@@ -214,7 +214,8 @@ class EvaluationService:
         async for chunk in http_ai._stream_chat(
             messages=messages,
             max_tokens=3500,  # 增加到3500,确保JSON完整
-            temperature=0.3  # 评价任务用较低温度,保证一致性
+            temperature=0.3,  # 评价任务用较低温度,保证一致性
+            task_type=TaskType.TEXT_CLASSIFICATION  # ✅ 新增：评价是分类任务
         ):
             chunk_count += 1
             # chunk 是 tuple (文本片段, usage统计)
