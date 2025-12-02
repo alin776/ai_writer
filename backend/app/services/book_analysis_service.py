@@ -18,6 +18,7 @@ from app.models.book_analysis import BookAnalysisJob, JobStatus
 from app.models.worldview_suggestion import WorldviewSuggestion
 from app.models.knowledge_item import KnowledgeItem, KnowledgeCategory
 from app.services.ai.http_ai_service import HTTPAIService
+from app.services.agent.model_selector import TaskType  # ✅ 新增：用于成本追踪
 from app.services.book_analysis.strategy import strategy_registry
 from app.services.book_analysis.smart_sampling import SmartSamplingAnalyzer, ChapterData
 from app.services.book_analysis.suggestion_generator import SuggestionGenerator
@@ -338,7 +339,8 @@ class BookAnalysisService:
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 max_tokens=3000,
-                temperature=0.3
+                temperature=0.3,
+                task_type=TaskType.SUMMARIZATION  # ✅ 新增：图书分析是总结类任务
             )
 
             # 保存AI响应到临时文件(调试用)

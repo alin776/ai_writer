@@ -21,10 +21,11 @@ from app.schemas.worldview import (
 from app.services.worldview_service import WorldviewService
 from app.services.ai_guidelines_service import AIGuidelinesService
 from app.schemas.ai_guidelines import (
-    AIGuidelinesCreate, AIGuidelinesUpdate, AIGuidelinesResponse, 
+    AIGuidelinesCreate, AIGuidelinesUpdate, AIGuidelinesResponse,
     AIGuidelinesGenerateRequest, AIGuidelinesGenerateResponse
 )
 from app.services.work_service import WorkService
+from app.services.agent.model_selector import TaskType  # ✅ 新增：用于成本追踪
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -746,7 +747,8 @@ async def generate_phase2_content(
                 {"role": "user", "content": prompt}
             ],
             max_tokens=2000,
-            temperature=0.7
+            temperature=0.7,
+            task_type=TaskType.CONTENT_CREATION  # ✅ 新增：AI设定生成属于内容创作
         ):
             full_response += chunk
         
