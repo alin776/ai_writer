@@ -23,6 +23,8 @@ import NovelEditor from '../../components/editor/NovelEditor';
 import { WorldviewPanel } from '../../components/editor/WorldviewPanel';
 import { SummaryPanel } from '../../components/editor/SummaryPanel';
 import { AIPanel } from '../../components/editor/AIPanel';
+import SessionTabBar from '../../components/editor/SessionTabBar';
+import { useEditorStore } from '../../store/editorStore';
 import { useConfirm } from '../../hooks/useConfirm';
 import styles from './WorkDetailView.module.css';
 
@@ -40,6 +42,7 @@ const WorkDetailView: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useGlobalStore();
   const { confirmState, confirm, closeConfirm } = useConfirm();
+  const { rightSidebarType, setRightSidebarType } = useEditorStore();
 
   const [work, setWork] = useState<Work | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -61,8 +64,12 @@ const WorkDetailView: React.FC = () => {
     aiGuidelines: undefined,
   });
 
-  // 右侧面板状态：'world' | 'analysis' | 'agent'
-  const [rightPanel, setRightPanel] = useState<'world' | 'analysis' | 'agent'>('world');
+  // 默认打开 agent 面板
+  React.useEffect(() => {
+    if (workId) {
+      setRightSidebarType('agent');
+    }
+  }, [workId, setRightSidebarType]);
 
   // 导出对话框状态
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -1149,63 +1156,22 @@ const WorkDetailView: React.FC = () => {
                 <ChevronLeft className="h-6 w-6" />
               </Button>
               <div className="writing-mode-vertical text-[11px] text-zinc-400 tracking-widest" style={{ writingMode: 'vertical-rl' }}>
-                {rightPanel === 'world' ? '世界观' : rightPanel === 'analysis' ? '概括' : 'AI'}
+                {rightSidebarType === 'worldview' ? '世界观' : rightSidebarType === 'summary' ? '概括' : 'AI'}
               </div>
             </div>
           ) : (
             <>
-              {/* 标签栏 */}
-              <div className="border-b border-zinc-100 px-2 py-2">
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setRightPanel('world')}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-[12px] text-center transition-all duration-200 ${
-                      rightPanel === 'world'
-                        ? 'bg-zinc-900 text-white shadow-sm'
-                        : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
-                    }`}
-                  >
-                    世界观
-                  </button>
-                  <button
-                    onClick={() => setRightPanel('analysis')}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-[12px] text-center transition-all duration-200 ${
-                      rightPanel === 'analysis'
-                        ? 'bg-zinc-900 text-white shadow-sm'
-                        : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
-                    }`}
-                  >
-                    概括
-                  </button>
-                  <button
-                    onClick={() => setRightPanel('agent')}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-[12px] text-center transition-all duration-200 ${
-                      rightPanel === 'agent'
-                        ? 'bg-zinc-900 text-white shadow-sm'
-                        : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
-                    }`}
-                  >
-                    AI
-                  </button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsRightCollapsed(true)}
-                    className="h-9 w-9 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-50 rounded-lg transition-all flex-shrink-0"
-                  >
-                    <ChevronRight className="h-6 w-6" />
-                  </Button>
-                </div>
-              </div>
+              {/* SessionTabBar */}
+              <SessionTabBar />
 
               {/* 内容区 */}
               <div className="flex-1 overflow-hidden">
-                {rightPanel === 'world' ? (
+                {rightSidebarType === 'worldview' ? (
                   <WorldviewPanel
                     workId={workId!}
                     worldData={worldData}
                   />
-                ) : rightPanel === 'analysis' ? (
+                ) : rightSidebarType === 'summary' ? (
                   <SummaryPanel
                     workId={workId!}
                     currentChapterId={currentChapterId}

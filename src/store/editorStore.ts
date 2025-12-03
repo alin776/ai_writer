@@ -2,13 +2,19 @@ import { create } from 'zustand';
 import type { Chapter } from '@/types';
 
 /**
+ * 右侧面板类型
+ */
+export type RightSidebarType = 'worldview' | 'summary' | 'agent' | null;
+
+/**
  * 编辑器状态接口
  */
 interface EditorState {
   // 状态
   currentChapter: Chapter | null;
   isSaving: boolean;
-  isAiSidebarOpen: boolean;
+  isAiSidebarOpen: boolean; // 已废弃，保留以兼容旧代码
+  rightSidebarType: RightSidebarType; // 右侧面板类型
   lastSavedAt: Date | null;
   isDirty: boolean; // 是否有未保存的更改
 
@@ -35,6 +41,24 @@ interface EditorState {
    * @param isOpen 是否打开
    */
   setAiSidebarOpen: (isOpen: boolean) => void;
+
+  /**
+   * 设置右侧面板类型
+   * @param type 面板类型
+   */
+  setRightSidebarType: (type: RightSidebarType) => void;
+
+  /**
+   * 切换右侧面板
+   * @param type 面板类型
+   * 如果未打开则打开，如果已打开相同面板则保持，如果打开其他面板则切换
+   */
+  toggleRightSidebar: (type: RightSidebarType) => void;
+
+  /**
+   * 关闭右侧面板
+   */
+  closeRightSidebar: () => void;
 
   /**
    * 更新最后保存时间
@@ -67,7 +91,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   // 初始状态
   currentChapter: null,
   isSaving: false,
-  isAiSidebarOpen: false,
+  isAiSidebarOpen: false, // 已废弃
+  rightSidebarType: null, // 右侧面板默认关闭
   lastSavedAt: null,
   isDirty: false,
 
@@ -95,6 +120,28 @@ export const useEditorStore = create<EditorState>((set) => ({
   // 设置 AI 侧边栏状态
   setAiSidebarOpen: (isOpen: boolean) => {
     set({ isAiSidebarOpen: isOpen });
+  },
+
+  // 设置右侧面板类型
+  setRightSidebarType: (type: RightSidebarType) => {
+    set({ rightSidebarType: type });
+  },
+
+  // 切换右侧面板
+  toggleRightSidebar: (type: RightSidebarType) => {
+    set((state) => {
+      // 如果点击的是当前已打开的面板，保持打开（不改变状态）
+      if (state.rightSidebarType === type) {
+        return state;
+      }
+      // 否则切换到新面板（或打开面板）
+      return { rightSidebarType: type };
+    });
+  },
+
+  // 关闭右侧面板
+  closeRightSidebar: () => {
+    set({ rightSidebarType: null });
   },
 
   // 更新最后保存时间
@@ -136,6 +183,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       currentChapter: null,
       isSaving: false,
       isAiSidebarOpen: false,
+      rightSidebarType: null, // 重置右侧面板
       lastSavedAt: null,
       isDirty: false,
     });

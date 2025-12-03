@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, FileText, Check, AlertCircle, BookOpen, MessageSquare, X } from 'lucide-react';
+import { ArrowLeft, Save, FileText, Check, AlertCircle } from 'lucide-react';
 import { Loading } from '../../components/common';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
 import { useEditorStore } from '../../store/editorStore';
 import NovelEditor from '../../components/editor/NovelEditor';
 import AgentChatPanel from '../../components/agent/AgentChatPanel';
+import { WorldviewPanel } from '../../components/editor/WorldviewPanel';
+import NovelAnalysisPanel from '../../components/editor/NovelAnalysisPanel';
+import SessionTabBar from '../../components/editor/SessionTabBar';
 import type { Chapter } from '../../types';
+import type { WorldData } from '../../types/novel';
 import styles from './EditorView.module.css';
-
-/**
- * 侧边栏类型
- */
-type SidebarType = 'worldview' | 'agent' | null;
 
 /**
  * EditorView 组件 - 编辑器页面
@@ -25,14 +24,14 @@ type SidebarType = 'worldview' | 'agent' | null;
  * - 扁平化工具栏：图标为主
  *
  * 新增功能：
- * - 右侧浮动切换按钮（世界观/概括 vs Agent对话）
+ * - 左侧导航栏控制右侧面板（世界观/概括/AI）
  * - AI智能助手完整集成
  */
 const EditorView: React.FC = () => {
   const { chapterId } = useParams<{ chapterId?: string }>();
   const navigate = useNavigate();
   const { showToast } = useGlobalStore();
-  const { setCurrentChapter } = useEditorStore();
+  const { setCurrentChapter, rightSidebarType, setRightSidebarType, closeRightSidebar } = useEditorStore();
 
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [title, setTitle] = useState('');
@@ -41,13 +40,26 @@ const EditorView: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [sidebarType, setSidebarType] = useState<SidebarType>(null);
+  const [worldData, setWorldData] = useState<WorldData>({
+    characters: [],
+    locations: [],
+    settings: [],
+  });
 
   /**
-   * 加载章节数据
+   * 默认打开 agent 面板
    */
   useEffect(() => {
-    const loadChapter = async () => {
+    if (chapterId) {
+      setRightSidebarType('agent');
+    }
+  }, [chapterId, setRightSidebarType]);
+
+  /**
+   * 加载章节数据和世界观数据
+   */
+  useEffect(() => {
+    const loadData = async () => {
       if (!chapterId) {
         // 没有章节ID，清空编辑器
         setChapter(null);
@@ -66,6 +78,15 @@ const EditorView: React.FC = () => {
         setTitle(data.title);
         setContent(data.content);
         setCurrentChapter(data);
+
+        // 加载世界观数据
+        try {
+          const worldDataFromServer = await DataService.getWorldData(data.workId);
+          setWorldData(worldDataFromServer);
+        } catch (worldErr) {
+          console.error('加载世界观数据失败:', worldErr);
+          // 世界观数据加载失败不影响编辑器使用
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : '加载章节失败';
         setError(message);
@@ -75,7 +96,7 @@ const EditorView: React.FC = () => {
       }
     };
 
-    loadChapter();
+    loadData();
   }, [chapterId, setCurrentChapter, showToast]);
 
   /**
@@ -111,17 +132,6 @@ const EditorView: React.FC = () => {
       showToast('error', message);
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  /**
-   * 切换侧边栏
-   */
-  const toggleSidebar = (type: SidebarType) => {
-    if (sidebarType === type) {
-      setSidebarType(null);
-    } else {
-      setSidebarType(type);
     }
   };
 
@@ -165,33 +175,6 @@ const EditorView: React.FC = () => {
 
   return (
     <div className={styles.page}>
-      {/* 右侧浮动切换按钮 - 移到最外层确保可见 */}
-      <div className={styles.sidebarToggle} style={{
-        position: 'fixed' as const,
-        right: '24px',
-        top: '50%',
-        transform: 'translateY(-50%)',
-        zIndex: 9999,
-        pointerEvents: 'auto'
-      }}>
-        <button
-          className={`${styles.toggleButton} ${sidebarType === 'worldview' ? styles.active : ''}`}
-          onClick={() => toggleSidebar('worldview')}
-          title="世界观/概括"
-          style={{ display: 'flex', marginBottom: '12px' }}
-        >
-          <BookOpen className="w-5 h-5" />
-        </button>
-        <button
-          className={`${styles.toggleButton} ${sidebarType === 'agent' ? styles.active : ''}`}
-          onClick={() => toggleSidebar('agent')}
-          title="AI智能助手"
-          style={{ display: 'flex' }}
-        >
-          <MessageSquare className="w-5 h-5" />
-        </button>
-      </div>
-
       <div className={styles.container}>
         {/* 工具栏 - 极简扁平化 */}
         <div className={styles.toolbar}>
@@ -247,56 +230,36 @@ const EditorView: React.FC = () => {
             </div>
           </div>
 
-          {/* 世界观/概括侧边栏 */}
-          {sidebarType === 'worldview' && (
+          {/* 右侧面板 - 方案B：替换整个面板内容 */}
+          {rightSidebarType && chapter && (
             <div className={styles.sidebar}>
-              <div className={styles.sidebarHeader}>
-                <h3 className={styles.sidebarTitle}>
-                  <BookOpen className="w-4 h-4" />
-                  <span>世界观 & 概括</span>
-                </h3>
-                <button
-                  className={styles.closeButton}
-                  onClick={() => setSidebarType(null)}
-                  title="关闭"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className={styles.sidebarContent}>
-                <div className={styles.sidebarPlaceholder}>
-                  世界观和概括功能
-                  <br />
-                  <small style={{ color: '#9ca3af', marginTop: '8px', display: 'block' }}>
-                    （可在此集成 WorldviewSidebar 和 NovelAnalysisPanel）
-                  </small>
-                </div>
-              </div>
-            </div>
-          )}
+              {/* 会话标签栏 */}
+              <SessionTabBar />
 
-          {/* Agent对话侧边栏 */}
-          {sidebarType === 'agent' && chapter && (
-            <div className={styles.sidebar}>
-              <div className={styles.sidebarHeader}>
-                <h3 className={styles.sidebarTitle}>
-                  <MessageSquare className="w-4 h-4" />
-                  <span>AI智能助手</span>
-                </h3>
-                <button
-                  className={styles.closeButton}
-                  onClick={() => setSidebarType(null)}
-                  title="关闭"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className={styles.sidebarContent} style={{ padding: 0, height: '100%' }}>
-                <AgentChatPanel
-                  workId={chapter.workId}
-                  chapterId={chapter.id}
-                  className="h-full"
-                />
+              {/* 面板内容区域 */}
+              <div className={styles.sidebarContent} style={{ padding: 0, height: 'calc(100% - 40px)' }}>
+                {rightSidebarType === 'worldview' && (
+                  <WorldviewPanel
+                    workId={chapter.workId}
+                    worldData={worldData}
+                  />
+                )}
+
+                {rightSidebarType === 'summary' && (
+                  <NovelAnalysisPanel
+                    workId={chapter.workId}
+                    currentChapterId={chapter.id}
+                    onToast={showToast}
+                  />
+                )}
+
+                {rightSidebarType === 'agent' && (
+                  <AgentChatPanel
+                    workId={chapter.workId}
+                    chapterId={chapter.id}
+                    className="h-full"
+                  />
+                )}
               </div>
             </div>
           )}
