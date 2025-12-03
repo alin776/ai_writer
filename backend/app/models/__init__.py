@@ -25,6 +25,11 @@ from app.models.rewrite_history import RewriteSession, RewriteResult
 from app.models.book_analysis import BookAnalysisJob, JobStatus
 from app.models.worldview_suggestion import WorldviewSuggestion, SuggestionType, SuggestionAction, SuggestionStatus
 from app.models.chapter_history import ChapterHistory
+from app.models.user_credits import UserCredits
+from app.models.credit_transaction import CreditTransaction
+from app.models.redeem_code import RedeemCode
+from app.models.user_invitation import UserInvitation
+from app.models.invitation_usage import InvitationUsage
 
 __all__ = [
     "User",
@@ -73,5 +78,10 @@ __all__ = [
     "SuggestionType",
     "SuggestionAction",
     "SuggestionStatus",
-    "ChapterHistory"
+    "ChapterHistory",
+    "UserCredits",
+    "CreditTransaction",
+    "RedeemCode",
+    "UserInvitation",
+    "InvitationUsage"
 ]

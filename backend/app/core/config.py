@@ -261,6 +261,48 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = "admin@example.com"
     ADMIN_PASSWORD: str
 
+    # ==================== 积分系统核心配置 ====================
+
+    # 积分系统开关
+    CREDITS_ENABLED: bool = True  # 是否启用积分系统
+
+    # 管理员积分豁免
+    ADMIN_CREDITS_EXEMPT: bool = True  # 管理员使用AI功能是否豁免积分检查
+
+    # 美元兑积分比例（基于混合使用模型：1 USD = 12,400 积分）
+    CREDITS_PER_DOLLAR: int = 12400
+
+    # 新用户赠送积分（混合写50,000字）
+    NEW_USER_GIFT_CREDITS: float = 5000.00
+
+    # 积分有效期（天），0 表示永久
+    CREDITS_EXPIRE_DAYS: int = 0
+
+    # 兑换码默认有效期（天）
+    REDEEM_CODE_EXPIRE_DAYS: int = 90
+
+    # ==================== 邀请系统配置 ====================
+
+    # 邀请奖励积分（混合写10,000字）
+    INVITATION_REWARD_CREDITS: float = 1000.00
+
+    # 邀请码限制
+    INVITATION_MAX_USES_PER_CODE: int = 10  # 每个邀请码最多使用次数
+    USER_MAX_INVITATION_CODES: int = 3  # 每个用户最多持有邀请码数
+    INVITATION_CODE_EXPIRE_DAYS: int = 365  # 邀请码有效期（天）
+    NEW_USER_INVITE_COOLDOWN_HOURS: int = 72  # 新用户邀请冷却时间（小时）
+
+    # 邀请激活条件
+    INVITATION_ACTIVATION_MIN_CONSUME: float = 200.00  # 激活所需最小消费积分
+    INVITATION_ACTIVATION_MIN_RECHARGE: float = 1.00  # 激活所需最小充值积分
+    INVITATION_ACTIVATION_DEADLINE_DAYS: int = 7  # 激活期限（天）
+
+    # ==================== 防刷机制配置 ====================
+
+    # IP和设备限制
+    SAME_IP_REGISTER_LIMIT_24H: int = 3  # 同IP 24小时内最多注册次数
+    SAME_DEVICE_REGISTER_LIMIT_7D: int = 5  # 同设备7天内最多注册次数
+
     # ==================== 模型智能选择配置（P0优化）====================
     MODEL_SELECTION_ENABLED: bool = True  # 启用ModelSelector智能选择
 

@@ -286,15 +286,18 @@
 | [04-config.md](./04-config.md) | 配置项说明 |
 | [05-frontend.md](./05-frontend.md) | 前端页面设计 |
 | [06-integration.md](./06-integration.md) | 系统集成方案 |
+| [09-ui-design-reference.md](./09-ui-design-reference.md) | UI设计参考文档（new-api项目分析） ⭐ |
+| [10-ui-design-summary.md](./10-ui-design-summary.md) | UI设计工作总结 |
+| [11-design-decisions.md](./11-design-decisions.md) | 设计决策记录（快速参考） 📌 |
 
 ---
 
-**文档版本**: v2.0
+**文档版本**: v2.1
 **创建时间**: 2025-12-02
 **最后更新**: 2025-12-03
 **更新内容**:
-- 添加邀请系统说明
-- 添加管理员豁免机制
+- v2.1 (2025-12-03): 添加UI设计参考文档和工作总结
+- v2.0 (2025-12-03): 添加邀请系统说明、管理员豁免机制
 - 调整积分换算率为 1USD=12400（基于混合模型）
 - 更新新用户赠送为 5000 积分
 - 添加邀请奖励 1000 积分

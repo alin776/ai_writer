@@ -155,6 +155,66 @@ class HTTPAIService:
                 - 文本片段: str
                 - usage: 仅在最后一个块返回完整usage,其他为None
         """
+        # ==================== 积分预检查 ====================
+        # 在AI调用前检查用户积分余额（管理员豁免）
+        user_id = self.user_id or get_request_user_id()
+        if user_id and self.enable_cost_tracking:
+            try:
+                from app.core.database import create_db_session
+                from app.services.credits.credit_service import CreditService
+                from app.models.user import User
+                from sqlalchemy import select
+                from uuid import UUID
+
+                async with create_db_session() as db:
+                    # 查询用户信息
+                    user_stmt = select(User).where(User.id == UUID(user_id))
+                    user_result = await db.execute(user_stmt)
+                    user = user_result.scalar_one_or_none()
+
+                    if user and not user.is_admin:
+                        # 非管理员需要检查余额
+                        credit_service = CreditService(db)
+
+                        # 粗略估算需要的积分（基于max_tokens）
+                        from app.utils.cost_calculator import CostCalculator
+                        # 使用当前模型的定价估算最大成本
+                        estimated_cost_data = CostCalculator.calculate_cost(
+                            model_name=self.model,
+                            prompt_tokens=len(str(messages)) // 4,  # 粗略估算
+                            completion_tokens=max_tokens  # 使用最大值
+                        )
+                        estimated_credits = estimated_cost_data["total_cost"] * settings.CREDITS_PER_DOLLAR  # 转换为积分
+
+                        # 检查余额是否充足
+                        is_sufficient, current_balance = await credit_service.check_sufficient(
+                            user_id=UUID(user_id),
+                            required_credits=estimated_credits
+                        )
+
+                        if not is_sufficient:
+                            logger.warning(
+                                f"[积分检查] 用户 {user_id} 余额不足: "
+                                f"需要约 {float(estimated_credits):.2f} 积分，当前 {float(current_balance):.2f} 积分"
+                            )
+                            raise Exception(
+                                f"积分余额不足：当前余额 {float(current_balance):.2f}，"
+                                f"预计需要 {float(estimated_credits):.2f} 积分。请先充值。"
+                            )
+
+                        logger.debug(
+                            f"[积分检查] 用户 {user_id} 余额充足: "
+                            f"当前 {float(current_balance):.2f} 积分，预计消耗 {float(estimated_credits):.2f} 积分"
+                        )
+
+            except Exception as e:
+                # 如果是我们抛出的余额不足异常，直接传递
+                if "积分余额不足" in str(e):
+                    raise
+                # 其他检查失败不影响调用（降级处理）
+                logger.error(f"[积分检查] 检查失败，继续执行: {type(e).__name__}: {str(e)}")
+        # ================================================
+
         # 🔧 监控：导入监控工具
         import time
         from app.services.agent.utils.monitoring import increment_counter, record_timer, set_gauge
@@ -859,7 +919,113 @@ class HTTPAIService:
             # ✅ 使用独立db会话持久化（解决StreamingResponse会话生命周期问题）
             async with create_db_session() as db:
                 temp_log_service = AILogService(db)
-                await temp_log_service.create_log(log_data)
+                ai_call_log = await temp_log_service.create_log(log_data)
+
+                # ==================== 积分扣费 ====================
+                # ✅ Critical修复3: 在事务中扣除用户积分（管理员自动豁免）
+                # 关键改进：
+                # 1. 使用事务确保原子性
+                # 2. 扣费失败时抛出异常而不是仅记录日志
+                # 3. consume方法内部会再次检查余额并加锁，避免竞态条件
+                try:
+                    from app.services.credits.credit_service import CreditService
+                    from app.services.credits.credit_utils import calculate_credits_from_cost
+                    from app.services.credits.credit_exceptions import (
+                        InsufficientCreditsError,
+                        CreditsExpiredError
+                    )
+                    from app.models.user import User
+                    from sqlalchemy import select
+
+                    # 查询用户信息（检查是否为管理员）
+                    user_stmt = select(User).where(User.id == UUID(user_id))
+                    user_result = await db.execute(user_stmt)
+                    user = user_result.scalar_one_or_none()
+
+                    if user:
+                        credit_service = CreditService(db)
+
+                        # 计算需要扣除的积分
+                        credits_to_deduct = calculate_credits_from_cost(cost_data["total_cost"])
+
+                        # 扣除积分（管理员自动豁免）
+                        # consume方法内部会检查余额并加锁，确保线程安全
+                        transaction = await credit_service.consume(
+                            user_id=UUID(user_id),
+                            amount=credits_to_deduct,
+                            description=f"AI调用: {task_type.value if task_type else 'unknown'}",
+                            related_id=ai_call_log.id,
+                            skip_check=user.is_admin  # 管理员豁免
+                        )
+
+                        if transaction:  # 非管理员才有交易记录
+                            logger.info(
+                                f"[积分扣费] 用户 {user_id}: 扣除 {float(credits_to_deduct)} 积分, "
+                                f"余额: {float(transaction.balance_before)} → {float(transaction.balance_after)}"
+                            )
+                        else:
+                            logger.info(f"[积分扣费] 管理员 {user_id} 豁免积分扣费")
+
+                        # 检查邀请激活条件（非管理员）
+                        if not user.is_admin:
+                            try:
+                                from app.services.invitations.invitation_service import InvitationService
+                                invitation_service = InvitationService(db)
+
+                                # 检查是否满足激活条件
+                                is_activated, consumed, recharged = await invitation_service.check_activation(UUID(user_id))
+
+                                if is_activated:
+                                    # 尝试激活
+                                    reward_info = await invitation_service.activate_invitation(UUID(user_id))
+                                    if reward_info:
+                                        logger.info(
+                                            f"[邀请激活] 用户 {user_id} 已激活邀请! "
+                                            f"邀请人 {reward_info['inviter_id']} 获得 {reward_info['reward_credits']} 积分奖励"
+                                        )
+                            except Exception as e:
+                                logger.error(f"邀请激活检查失败: {type(e).__name__}: {str(e)}")
+                                # 激活检查失败不影响主流程
+
+                    else:
+                        logger.warning(f"[积分扣费] 用户 {user_id} 不存在，跳过扣费")
+
+                except InsufficientCreditsError as e:
+                    # ✅ Critical修复3: 余额不足时抛出HTTPException
+                    logger.error(
+                        f"[积分扣费] 用户 {user_id} 余额不足: "
+                        f"需要 {float(e.required)} 积分，当前 {float(e.available)} 积分"
+                    )
+                    # 回滚DB事务
+                    await db.rollback()
+                    # 抛出HTTP异常，中断流式响应
+                    from fastapi import HTTPException
+                    raise HTTPException(
+                        status_code=402,  # Payment Required
+                        detail=f"积分余额不足：需要 {float(e.required):.2f} 积分，当前余额 {float(e.available):.2f} 积分。请先充值。"
+                    )
+                except CreditsExpiredError as e:
+                    logger.error(f"[积分扣费] 用户 {user_id} 积分已过期: {e.expired_at}")
+                    await db.rollback()
+                    from fastapi import HTTPException
+                    raise HTTPException(
+                        status_code=402,
+                        detail=f"积分已于 {e.expired_at} 过期，请联系管理员。"
+                    )
+                except ValueError as e:
+                    # 积分记录不存在
+                    logger.error(f"[积分扣费] {str(e)}")
+                    await db.rollback()
+                    from fastapi import HTTPException
+                    raise HTTPException(
+                        status_code=500,
+                        detail="积分系统错误：用户积分记录不存在。"
+                    )
+                except Exception as e:
+                    logger.error(f"[积分扣费] 扣费失败: {type(e).__name__}: {str(e)}")
+                    # 其他异常不影响日志记录，但记录警告
+                    logger.warning("[积分扣费] 扣费失败，但AI调用日志已记录")
+                # ================================================
 
             logger.info(
                 f"[AILogService] API调用已记录到数据库 (来源:{source}): "
