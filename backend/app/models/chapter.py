@@ -54,6 +54,7 @@ class Chapter(Base):
     # 关联关系
     work = relationship("Work", back_populates="chapters")
     analysis_vectors = relationship("NovelAnalysisVector", back_populates="chapter", cascade="all, delete-orphan")
+    chapter_vectors = relationship("NovelChapterVector", back_populates="chapter", cascade="all, delete-orphan")
     knowledge_items = relationship("KnowledgeItem", back_populates="chapter", cascade="all, delete-orphan")
     versions = relationship("ChapterVersion", back_populates="chapter", cascade="all, delete-orphan")
     histories = relationship("ChapterHistory", back_populates="chapter", cascade="all, delete-orphan")

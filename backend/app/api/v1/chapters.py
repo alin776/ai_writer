@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Body, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from pydantic import Field
@@ -126,12 +126,13 @@ async def get_chapter(
 @router.post("", response_model=ChapterResponse, status_code=status.HTTP_201_CREATED)
 async def create_chapter(
     chapter_data: ChapterCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
     创建章节
-    
+
     - **work_id**: 作品ID
     - **title**: 章节标题
     - **content**: 章节内容
@@ -140,19 +141,19 @@ async def create_chapter(
     # 验证作品权限
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(chapter_data.work_id)
-    
+
     if not work:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Work not found"
         )
-    
+
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to create chapter for this work"
         )
-    
+
     # 创建章节
     chapter_service = ChapterService(db)
     chapter = await chapter_service.create_chapter(chapter_data)
@@ -163,6 +164,17 @@ async def create_chapter(
     # 🔧 2025-12-02: P0修复 - 失效缓存
     _invalidate_chapter_cache(chapter_data.work_id)
 
+    # 🆕 2025-12-03: 后台向量化章节内容
+    if chapter.content and len(chapter.content.strip()) > 100:
+        background_tasks.add_task(
+            _vectorize_chapter_content,
+            work_id=str(chapter.work_id),
+            chapter_id=str(chapter.id),
+            chapter_order=chapter.order,
+            chapter_title=chapter.title,
+            content=chapter.content
+        )
+
     return chapter
 
 
@@ -170,29 +182,30 @@ async def create_chapter(
 async def update_chapter(
     chapter_id: str,
     chapter_data: ChapterUpdate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
     """更新章节"""
     chapter_service = ChapterService(db)
     chapter = await chapter_service.get_chapter_by_id(chapter_id)
-    
+
     if not chapter:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Chapter not found"
         )
-    
+
     # 验证权限
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(str(chapter.work_id))
-    
+
     if not work or str(work.author_id) != str(current_user.id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to update this chapter"
         )
-    
+
     updated_chapter = await chapter_service.update_chapter(chapter_id, chapter_data)
 
     # 更新作品统计
@@ -201,6 +214,17 @@ async def update_chapter(
 
     # 🔧 2025-12-02: P0修复 - 失效缓存
     _invalidate_chapter_cache(work_id)
+
+    # 🆕 2025-12-03: 后台向量化章节内容
+    if updated_chapter.content and len(updated_chapter.content.strip()) > 100:
+        background_tasks.add_task(
+            _vectorize_chapter_content,
+            work_id=str(updated_chapter.work_id),
+            chapter_id=str(updated_chapter.id),
+            chapter_order=updated_chapter.order,
+            chapter_title=updated_chapter.title,
+            content=updated_chapter.content
+        )
 
     return updated_chapter
 
@@ -359,3 +383,40 @@ async def generate_chapter_summary(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate chapter summary: {str(e)}"
         )
+
+
+async def _vectorize_chapter_content(
+    work_id: str,
+    chapter_id: str,
+    chapter_order: int,
+    chapter_title: str,
+    content: str
+):
+    """
+    后台任务：章节内容向量化
+
+    Args:
+        work_id: 作品ID
+        chapter_id: 章节ID
+        chapter_order: 章节顺序
+        chapter_title: 章节标题
+        content: 章节内容
+    """
+    try:
+        from app.services.chapter_vector_service import ChapterVectorService
+
+        # 创建新的数据库会话（后台任务需要独立会话）
+        from app.core.database import async_session_maker
+        async with async_session_maker() as db:
+            service = ChapterVectorService(db)
+            await service.store_chapter_vector(
+                work_id=work_id,
+                chapter_id=chapter_id,
+                chapter_order=chapter_order,
+                chapter_title=chapter_title,
+                content=content
+            )
+
+    except Exception as e:
+        logger.error(f"章节向量化后台任务失败: {e}", exc_info=True)
+        # 不影响用户的保存操作，只记录日志

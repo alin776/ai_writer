@@ -782,13 +782,13 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
         try:
             from app.services.work_service import WorkService
             from app.services.chapter_service import ChapterService
-            from app.services.vector_store_service import VectorStoreService
+            from app.services.chapter_vector_service import ChapterVectorService
 
             logger.info(f"[get_context_tool] 🔥 新版本工具被调用！work_id={work_id}, chapter_id={chapter_id}")
 
             work_service = WorkService(db)
             chapter_service = ChapterService(db)
-            vector_service = VectorStoreService(db)
+            chapter_vector_service = ChapterVectorService(db)
 
             context_info = {
                 "work_id": work_id,
@@ -834,30 +834,66 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
                 else:
                     context_info["current_chapter"] = {"error": "章节未找到"}
 
-            # 3. RAG检索相关分析（如果有）
+            # 3. 🆕 RAG检索章节上下文（带时序过滤）
             try:
-                query = f"作品背景和设定"
-                analysis_results = await _retry_on_failure(
-                    vector_service.retrieve_relevant_analysis,
+                # 获取当前章节的order（用于时序过滤）
+                current_order = 999  # 默认值：检索所有章节（用于全局分析场景）
+                if chapter_id:
+                    chapter = await _retry_on_failure(
+                        chapter_service.get_chapter_by_id,
+                        chapter_id,
+                        max_retries=2
+                    )
+                    if chapter:
+                        current_order = chapter.order
+                        logger.info(f"[get_context_tool] 当前章节order={current_order}，将检索前{current_order-1}章")
+                    else:
+                        logger.warning(f"[get_context_tool] ⚠️ chapter_id={chapter_id} 未找到，降级为全局检索（order=999）")
+
+                # 使用新的ChapterVectorService检索（自动过滤时序）
+                query = "作品背景、人物关系、情节发展、伏笔线索"
+                chapter_rag_results = await _retry_on_failure(
+                    chapter_vector_service.retrieve_for_writing,
                     work_id=work_id,
+                    current_chapter_order=current_order,
                     query=query,
-                    top_k=3,
-                    similarity_threshold=0.3,  # P2修复: 统一阈值为0.3（原为0.4）
+                    top_k=5,
+                    similarity_threshold=0.3,
                     max_retries=2
                 )
 
-                if analysis_results:
-                    context_info["related_analysis"] = [
+                if chapter_rag_results:
+                    context_info["related_context"] = [
                         {
-                            "chapter_id": r['chapter_id'],
+                            "chapter_title": r['chapter_title'],
+                            "chapter_order": r['chapter_order'],
                             "similarity": r['similarity'],
-                            "summary": r['content_text'][:500]
+                            "content": r['chunk_text'][:500]
                         }
-                        for r in analysis_results
+                        for r in chapter_rag_results
                     ]
+                    logger.info(f"[get_context_tool] ✅ RAG检索成功: {len(chapter_rag_results)}个相关段落")
+                else:
+                    # 🆕 降级策略：使用Worldview数据
+                    logger.warning(f"[get_context_tool] RAG检索为空，使用Worldview降级")
+                    from app.services.worldview_service import WorldviewService
+                    worldview_service = WorldviewService(db)
+
+                    characters = await worldview_service.get_characters_by_work(work_id)
+                    locations = await worldview_service.get_locations_by_work(work_id)
+                    settings = await worldview_service.get_settings_by_work(work_id)
+
+                    context_info["worldview_fallback"] = {
+                        "characters": [{"name": c.name, "description": c.description[:200]} for c in (characters[:5] if characters else [])],
+                        "locations": [{"name": l.name, "description": l.description[:200]} for l in (locations[:5] if locations else [])],
+                        "settings": [{"name": s.name, "description": s.description[:200]} for s in (settings[:5] if settings else [])]
+                    }
+                    context_info["related_context"] = []
+
             except Exception as rag_error:
-                logger.warning(f"RAG检索失败（非致命）: {rag_error}")
-                context_info["related_analysis"] = []
+                logger.error(f"[get_context_tool] RAG检索失败: {rag_error}", exc_info=True)
+                context_info["related_context"] = []
+                context_info["rag_error"] = str(rag_error)
 
             logger.info(f"[get_context_tool] ✅ 获取上下文成功: work={work.title if work else 'N/A'}")
             return json.dumps(context_info, ensure_ascii=False, indent=2)
