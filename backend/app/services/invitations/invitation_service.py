@@ -49,16 +49,16 @@ class InvitationService:
     async def generate_invitation_code(
         self,
         user_id: UUID,
-        max_uses: int = 10,
-        expires_days: Optional[int] = None
+        max_uses: int = 1,
+        expires_days: int = 60
     ) -> UserInvitation:
         """
         生成邀请码
 
         Args:
             user_id: 用户ID
-            max_uses: 最大使用次数
-            expires_days: 有效期天数
+            max_uses: 最大使用次数（固定1次）
+            expires_days: 有效期天数（固定60天）
 
         Returns:
             UserInvitation: 邀请码记录
@@ -98,11 +98,8 @@ class InvitationService:
         # 生成唯一邀请码
         code_str = self._generate_unique_code(existing_codes)
 
-        # 计算过期时间
-        expires_at = None
-        days = expires_days if expires_days is not None else settings.INVITATION_CODE_EXPIRE_DAYS
-        if days > 0:
-            expires_at = get_utc_now() + timedelta(days=days)
+        # 计算过期时间（固定60天）
+        expires_at = get_utc_now() + timedelta(days=expires_days)
 
         # 创建邀请码
         invitation = UserInvitation(

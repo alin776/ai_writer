@@ -34,12 +34,14 @@ async def generate_invitation(
     """
     生成邀请码
 
-    - **max_uses**: 最大使用次数（1-100，默认10）
-    - **expires_days**: 有效期天数（可选，不填则使用系统默认）
+    - **max_uses**: 最大使用次数（固定1次）
+    - **expires_days**: 有效期天数（固定60天）
 
     **限制**:
     - 每位用户最多生成3个邀请码
     - 新用户需等待72小时后才能生成
+    - 每个邀请码只能使用1次
+    - 有效期固定为60天（2个月）
     """
     invitation_service = InvitationService(db)
 

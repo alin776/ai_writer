@@ -287,9 +287,9 @@ class Settings(BaseSettings):
     INVITATION_REWARD_CREDITS: float = 1000.00
 
     # 邀请码限制
-    INVITATION_MAX_USES_PER_CODE: int = 10  # 每个邀请码最多使用次数
+    INVITATION_MAX_USES_PER_CODE: int = 1  # 每个邀请码最多使用次数（固定1次）
     USER_MAX_INVITATION_CODES: int = 3  # 每个用户最多持有邀请码数
-    INVITATION_CODE_EXPIRE_DAYS: int = 365  # 邀请码有效期（天）
+    INVITATION_CODE_EXPIRE_DAYS: int = 60  # 邀请码有效期（天，固定60天）
     NEW_USER_INVITE_COOLDOWN_HOURS: int = 72  # 新用户邀请冷却时间（小时）
 
     # 邀请激活条件

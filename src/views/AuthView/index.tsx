@@ -33,7 +33,8 @@ const AuthView: React.FC = () => {
     username: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    invitationCode: ''
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -57,6 +58,16 @@ const AuthView: React.FC = () => {
 
     return () => clearInterval(timer);
   }, []);
+
+  // 从URL参数读取邀请码
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const code = params.get('invitation_code') || params.get('code');
+    if (code) {
+      setRegisterForm(prev => ({ ...prev, invitationCode: code.toUpperCase() }));
+      setActiveTab('register');
+    }
+  }, [location.search]);
 
   // 清除成功消息（5秒后）
   useEffect(() => {
@@ -104,6 +115,12 @@ const AuthView: React.FC = () => {
       newErrors.email = '请输入邮箱地址';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerForm.email)) {
       newErrors.email = '请输入有效的邮箱地址';
+    }
+
+    if (!registerForm.invitationCode) {
+      newErrors.invitationCode = '请输入邀请码';
+    } else if (registerForm.invitationCode.length !== 8) {
+      newErrors.invitationCode = '邀请码必须是 8 位字符';
     }
 
     if (!registerForm.password) {
@@ -174,6 +191,7 @@ const AuthView: React.FC = () => {
         username: registerForm.username,
         email: registerForm.email,
         password: registerForm.password,
+        invitation_code: registerForm.invitationCode
       });
 
       // 注册成功，切换到登录 Tab 并显示成功消息
@@ -186,7 +204,8 @@ const AuthView: React.FC = () => {
         username: '',
         email: '',
         password: '',
-        confirmPassword: ''
+        confirmPassword: '',
+        invitationCode: ''
       });
     } catch (error) {
       setErrors({ submit: '注册失败，请稍后重试' });
@@ -416,6 +435,23 @@ const AuthView: React.FC = () => {
                     }}
                   />
                   {errors.email && <span className="text-sm text-red-500">{errors.email}</span>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="register-invitation-code" className="text-gray-700">邀请码</Label>
+                  <Input
+                    id="register-invitation-code"
+                    type="text"
+                    placeholder="请输入8位邀请码"
+                    maxLength={8}
+                    className="h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono uppercase"
+                    value={registerForm.invitationCode}
+                    onChange={(e) => {
+                      setRegisterForm({ ...registerForm, invitationCode: e.target.value.toUpperCase() });
+                      if (errors.invitationCode) setErrors({ ...errors, invitationCode: '' });
+                    }}
+                  />
+                  {errors.invitationCode && <span className="text-sm text-red-500">{errors.invitationCode}</span>}
                 </div>
 
                 <div className="space-y-1.5">

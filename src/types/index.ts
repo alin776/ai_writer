@@ -89,6 +89,8 @@ export interface RegisterData {
   username: string;
   email: string;
   password: string;
+  invitation_code: string;
+  device_fingerprint?: string;
 }
 
 /**

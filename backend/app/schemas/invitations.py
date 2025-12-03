@@ -10,8 +10,8 @@ from pydantic import BaseModel, Field, field_validator
 
 class InvitationGenerateRequest(BaseModel):
     """邀请码生成请求"""
-    max_uses: int = Field(10, ge=1, le=100, description="最大使用次数")
-    expires_days: Optional[int] = Field(None, ge=1, le=365, description="有效期天数")
+    max_uses: int = Field(1, ge=1, le=1, description="最大使用次数（固定1次）")
+    expires_days: int = Field(60, ge=60, le=60, description="有效期天数（固定60天）")
 
 
 class InvitationResponse(BaseModel):

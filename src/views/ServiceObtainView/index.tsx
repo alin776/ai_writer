@@ -13,7 +13,7 @@ const ServiceObtainView: React.FC = () => {
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [expandedCodes, setExpandedCodes] = useState<Set<string>>(new Set());
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
-  const [generateParams, setGenerateParams] = useState({ maxUses: 10, expiresDays: 30 });
+  const [generateParams] = useState({ maxUses: 1, expiresDays: 60 });
   const [isGenerating, setIsGenerating] = useState(false);
 
   const { redeem } = useCreditsStore();
@@ -43,10 +43,11 @@ const ServiceObtainView: React.FC = () => {
     }
   };
 
-  const handleCopyCode = async (code: string) => {
+  const handleCopyInviteLink = async (code: string) => {
     try {
-      await navigator.clipboard.writeText(code);
-      toast.success('邀请码已复制到剪贴板');
+      const inviteLink = `${window.location.origin}/auth?invitation_code=${code}`;
+      await navigator.clipboard.writeText(inviteLink);
+      toast.success('邀请链接已复制到剪贴板');
     } catch (error) {
       toast.error('复制失败，请手动复制');
     }
@@ -250,7 +251,8 @@ const ServiceObtainView: React.FC = () => {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => handleCopyCode(codeDetail.code)}
+                                  onClick={() => handleCopyInviteLink(codeDetail.code)}
+                                  title="复制邀请链接"
                                 >
                                   <Copy className="w-4 h-4" />
                                 </Button>
@@ -342,43 +344,13 @@ const ServiceObtainView: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">生成邀请码</h3>
 
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    最大使用次数
-                  </label>
-                  <Input
-                    type="number"
-                    value={generateParams.maxUses}
-                    onChange={(e) =>
-                      setGenerateParams({ ...generateParams, maxUses: parseInt(e.target.value) })
-                    }
-                    min={1}
-                    max={100}
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    设置此邀请码最多可以被多少人使用（1-100）
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    有效期（天）
-                  </label>
-                  <Input
-                    type="number"
-                    value={generateParams.expiresDays}
-                    onChange={(e) =>
-                      setGenerateParams({
-                        ...generateParams,
-                        expiresDays: parseInt(e.target.value),
-                      })
-                    }
-                    min={1}
-                    max={365}
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    设置邀请码的有效天数（1-365）
-                  </p>
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="text-sm font-medium text-blue-900 mb-2">邀请码规则</h4>
+                  <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+                    <li>每个邀请码只能使用 1 次</li>
+                    <li>有效期固定为 60 天（2个月）</li>
+                    <li>邀请好友注册后，满足激活条件即可获得奖励</li>
+                  </ul>
                 </div>
 
                 <div className="flex space-x-3 pt-4">
@@ -391,7 +363,7 @@ const ServiceObtainView: React.FC = () => {
                     取消
                   </Button>
                   <Button onClick={handleGenerateCode} className="flex-1" disabled={isGenerating}>
-                    {isGenerating ? '生成中...' : '生成'}
+                    {isGenerating ? '生成中...' : '生成邀请码'}
                   </Button>
                 </div>
               </div>

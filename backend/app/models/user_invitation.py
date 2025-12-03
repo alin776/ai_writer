@@ -23,7 +23,7 @@ class UserInvitation(Base):
 
     # 邀请码信息
     code = Column(String(8), nullable=False, unique=True, index=True)
-    max_uses = Column(Integer, nullable=False, default=10)
+    max_uses = Column(Integer, nullable=False, default=1)
     used_count = Column(Integer, nullable=False, default=0)
 
     # 激活统计
