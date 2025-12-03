@@ -23,6 +23,7 @@ from app.services.credits.credit_exceptions import (
     InvitationCodeFullError,
     AntiAbuseLimitError
 )
+from app.utils.datetime_utils import get_utc_now
 
 
 # 有效字符集：排除易混淆字符
@@ -74,8 +75,9 @@ class InvitationService:
         # 检查新用户冷却期
         cooldown_hours = settings.NEW_USER_INVITE_COOLDOWN_HOURS
         cooldown_deadline = user.created_at + timedelta(hours=cooldown_hours)
-        if datetime.now() < cooldown_deadline:
-            remaining = (cooldown_deadline - datetime.now()).total_seconds() / 3600
+        now = get_utc_now()
+        if now < cooldown_deadline:
+            remaining = (cooldown_deadline - now).total_seconds() / 3600
             raise NewUserCooldownError(int(remaining) + 1)
 
         # 查询已有邀请码数量
@@ -100,7 +102,7 @@ class InvitationService:
         expires_at = None
         days = expires_days if expires_days is not None else settings.INVITATION_CODE_EXPIRE_DAYS
         if days > 0:
-            expires_at = datetime.now() + timedelta(days=days)
+            expires_at = get_utc_now() + timedelta(days=days)
 
         # 创建邀请码
         invitation = UserInvitation(
@@ -142,7 +144,7 @@ class InvitationService:
             return False, "邀请码不存在", None
 
         # 检查过期
-        if invitation.expires_at and invitation.expires_at < datetime.now():
+        if invitation.expires_at and invitation.expires_at < get_utc_now():
             return False, "邀请码已过期", invitation
 
         # 检查使用次数
@@ -152,7 +154,7 @@ class InvitationService:
         # 防刷检查
         if ip_address:
             # IP限制：同一IP 24小时内最多注册N次
-            time_24h_ago = datetime.now() - timedelta(hours=24)
+            time_24h_ago = get_utc_now() - timedelta(hours=24)
             ip_stmt = select(func.count()).select_from(InvitationUsage).where(
                 and_(
                     InvitationUsage.ip_address == ip_address,
@@ -167,7 +169,7 @@ class InvitationService:
 
         if device_fingerprint:
             # 设备限制：同一设备7天内最多注册N次
-            time_7d_ago = datetime.now() - timedelta(days=7)
+            time_7d_ago = get_utc_now() - timedelta(days=7)
             device_stmt = select(func.count()).select_from(InvitationUsage).where(
                 and_(
                     InvitationUsage.device_fingerprint == device_fingerprint,
@@ -221,7 +223,7 @@ class InvitationService:
         invitation = result.scalar_one()
 
         # ✅ 锁内二次验证：检查过期时间
-        if invitation.expires_at and invitation.expires_at < datetime.now():
+        if invitation.expires_at and invitation.expires_at < get_utc_now():
             raise InvitationCodeExpiredError(invitation.expires_at)
 
         # ✅ 锁内二次验证：检查使用次数
@@ -271,7 +273,7 @@ class InvitationService:
 
         # 检查是否超过7天
         deadline = usage.created_at + timedelta(days=settings.INVITATION_ACTIVATION_DEADLINE_DAYS)
-        if datetime.now() > deadline:
+        if get_utc_now() > deadline:
             # 标记为过期
             usage.status = "expired"
             await self.db.commit()
@@ -333,7 +335,7 @@ class InvitationService:
         # ✅ 在锁内检查激活条件（避免外部check_activation和加锁之间的时间窗口）
         # 检查是否超过7天
         deadline = usage.created_at + timedelta(days=settings.INVITATION_ACTIVATION_DEADLINE_DAYS)
-        if datetime.now() > deadline:
+        if get_utc_now() > deadline:
             # 标记为过期
             usage.status = "expired"
             await self.db.commit()
@@ -377,7 +379,7 @@ class InvitationService:
 
         # 更新邀请使用记录
         usage.status = "active"
-        usage.activated_at = datetime.now()
+        usage.activated_at = get_utc_now()
 
         # 更新邀请码统计
         invitation.activated_count += 1

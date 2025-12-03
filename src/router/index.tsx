@@ -26,6 +26,9 @@ const AdminAIModelsView = React.lazy(() => import('../views/AdminAIModelsView'))
 const AdminCostView = React.lazy(() => import('../views/AdminCostView'));
 const SettingsView = React.lazy(() => import('../views/SettingsView'));
 const KnowledgeView = React.lazy(() => import('../views/KnowledgeView'));
+const ServiceCreditsView = React.lazy(() => import('../views/ServiceCreditsView'));
+const ServiceUsageView = React.lazy(() => import('../views/ServiceUsageView'));
+const ServiceObtainView = React.lazy(() => import('../views/ServiceObtainView'));
 const NotFoundView = React.lazy(() => import('../views/NotFoundView'));
 
 /**
@@ -175,6 +178,34 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <KnowledgeView />
+          </SuspenseWrapper>
+        ),
+      },
+
+      /**
+       * 我的服务路由
+       */
+      {
+        path: '/service/credits',
+        element: (
+          <SuspenseWrapper>
+            <ServiceCreditsView />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/service/usage',
+        element: (
+          <SuspenseWrapper>
+            <ServiceUsageView />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/service/obtain',
+        element: (
+          <SuspenseWrapper>
+            <ServiceObtainView />
           </SuspenseWrapper>
         ),
       },

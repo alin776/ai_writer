@@ -27,6 +27,7 @@ from app.schemas.ai_guidelines import (
 )
 from app.services.work_service import WorkService
 from app.services.agent.model_selector import TaskType  # ✅ 新增：用于成本追踪
+from app.utils.datetime_utils import get_utc_now
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -731,7 +732,7 @@ async def get_guidelines(
         # 返回默认的空guidelines而不是404
         from datetime import datetime
         from uuid import uuid4
-        now = datetime.now()
+        now = get_utc_now()
         result = WorkGuidelinesResponse(
             id=uuid4(),  # 生成新的UUID作为临时ID
             work_id=UUID(work_id),
@@ -844,7 +845,7 @@ async def get_ai_guidelines(
         # 返回默认的空ai-guidelines而不是404
         from datetime import datetime
         from uuid import uuid4
-        now = datetime.now()
+        now = get_utc_now()
         result = AIGuidelinesResponse(
             id=uuid4(),  # 生成新的UUID作为临时ID
             work_id=work_uuid,

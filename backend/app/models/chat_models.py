@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Dict, Any, List
 import json
 from datetime import datetime
+from app.utils.datetime_utils import get_utc_now
 
 
 class ChatMode(str, Enum):
@@ -121,7 +122,7 @@ def format_react_event_to_sse(event_type: str, event_data: Dict[str, Any], sessi
     sse_data = {
         "type": event_type,
         "data": event_data,
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": get_utc_now().isoformat(),
         "mode": "react"
     }
 
@@ -170,7 +171,7 @@ def format_error_event(error: Exception, mode: str = "react", session_id: Option
             "error_type": type(error).__name__
         },
         "mode": mode,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": get_utc_now().isoformat()
     }
 
     if session_id:

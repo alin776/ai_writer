@@ -17,6 +17,7 @@ from app.models.work import Work
 from app.models.chapter import Chapter
 from app.models.ai_call_log import AICallLog
 from app.schemas.admin import UsersGrowthParams, RecentActivitiesParams, UserActionResponse, UserBasicInfo
+from app.utils.datetime_utils import get_utc_now
 
 router = APIRouter()
 
@@ -67,7 +68,7 @@ async def get_statistics(
     total_cost = await db.scalar(select(func.sum(AICallLog.total_cost))) or 0.0
 
     # 计算本月的 AI 调用次数和成本
-    current_month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    current_month_start = get_utc_now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     this_month_ai_calls = await db.scalar(
         select(func.count(AICallLog.id)).where(AICallLog.created_at >= current_month_start)
     ) or 0
@@ -179,7 +180,7 @@ async def get_users_growth(
 
     # 计算日期范围：最近days天，包括今天
     # 例如days=7时，统计从6天前到今天，共7天
-    now = datetime.now()
+    now = get_utc_now()
     last_day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     first_day_start = last_day_start - timedelta(days=days - 1)
 

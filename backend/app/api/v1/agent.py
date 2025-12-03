@@ -17,6 +17,7 @@ import logging
 import json
 import uuid
 from datetime import datetime
+from app.utils.datetime_utils import get_utc_now
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
@@ -536,7 +537,7 @@ async def create_branch(
 
         # 5. 创建新的branch_id
         branch_id = str(uuid.uuid4())
-        branch_name = request.branch_name or f"分支-{datetime.now().strftime('%m%d-%H%M')}"
+        branch_name = request.branch_name or f"分支-{get_utc_now().strftime('%m%d-%H%M')}"
 
         # 6. 先保存分支元数据到Redis（优先保存元数据，便于失败回滚）
         branch_metadata = {
@@ -545,7 +546,7 @@ async def create_branch(
             "branch_name": branch_name,
             "fork_point_index": fork_point_index,
             "message_count": fork_point_index + 1,  # 暂时估算
-            "created_at": datetime.now().isoformat(),
+            "created_at": get_utc_now().isoformat(),
             "is_active": False,
             "user_id": user_id
         }
@@ -756,7 +757,7 @@ async def switch_branch(
 
         # 4. 更新分支的isActive标记（可选，用于UI显示）
         branch_metadata["is_active"] = True
-        branch_metadata["last_accessed"] = datetime.now().isoformat()
+        branch_metadata["last_accessed"] = get_utc_now().isoformat()
         redis_client.set(
             branch_key,
             json.dumps(branch_metadata, ensure_ascii=False),
@@ -870,7 +871,7 @@ async def get_conversation_branches(
                 branch_name="主线",
                 message_count=0,  # 可以通过checkpoint计算，这里简化
                 is_active=True,
-                created_at=datetime.now().isoformat(),
+                created_at=get_utc_now().isoformat(),
                 children=[]
             )
             branch_nodes.insert(0, root_node)

@@ -18,6 +18,7 @@ import logging
 import json
 import uuid
 from datetime import datetime
+from app.utils.datetime_utils import get_utc_now
 
 from app.core.security import get_current_active_user
 from app.core.features import is_react_stream_enabled
@@ -169,7 +170,7 @@ async def agent_react_stream(
                 )
 
                 # 发送开始事件
-                yield f'data: {json.dumps({"type": "start", "conversation_id": conversation_id, "timestamp": datetime.now().isoformat()}, ensure_ascii=False)}\n\n'
+                yield f'data: {json.dumps({"type": "start", "conversation_id": conversation_id, "timestamp": get_utc_now().isoformat()}, ensure_ascii=False)}\n\n'
 
                 # 获取记忆上下文
                 # ✅ P0修复：传递work_id以隔离不同作品的记忆
@@ -208,7 +209,7 @@ async def agent_react_stream(
                     await event_queue.put(('tool_call', {
                         'tool': tool_name,
                         'args': tool_args,
-                        'timestamp': datetime.now().isoformat()
+                        'timestamp': get_utc_now().isoformat()
                     }))
 
                 async def on_content(content: str):
@@ -260,7 +261,7 @@ async def agent_react_stream(
 
                     if event_type == '__error__':
                         # 处理后台任务的错误
-                        yield f'data: {json.dumps({"type": "error", "error": str(event_data), "timestamp": datetime.now().isoformat()}, ensure_ascii=False)}\n\n'
+                        yield f'data: {json.dumps({"type": "error", "error": str(event_data), "timestamp": get_utc_now().isoformat()}, ensure_ascii=False)}\n\n'
                         return  # 提前结束
 
                     # 发送SSE事件
@@ -277,7 +278,7 @@ async def agent_react_stream(
                 # 检查result是否有效
                 if result is None:
                     logger.error("[React Stream] Result is None after agent task completed")
-                    yield f'data: {json.dumps({"type": "error", "error": "Agent执行失败，未返回结果", "timestamp": datetime.now().isoformat()}, ensure_ascii=False)}\n\n'
+                    yield f'data: {json.dumps({"type": "error", "error": "Agent执行失败，未返回结果", "timestamp": get_utc_now().isoformat()}, ensure_ascii=False)}\n\n'
                     return
 
                 # 记录交互到用户记忆
@@ -303,7 +304,7 @@ async def agent_react_stream(
 
             except Exception as e:
                 logger.error(f"[React Stream] Error: {str(e)}", exc_info=True)
-                yield f'data: {json.dumps({"type": "error", "error": str(e), "timestamp": datetime.now().isoformat()}, ensure_ascii=False)}\n\n'
+                yield f'data: {json.dumps({"type": "error", "error": str(e), "timestamp": get_utc_now().isoformat()}, ensure_ascii=False)}\n\n'
 
     return StreamingResponse(
         event_generator(),
