@@ -261,36 +261,35 @@ Authorization: Bearer <access_token>
 
 #### 响应
 
+> 注意: 直接返回数组，不是 `{ items: [], total: x }` 格式
+
 ```json
-{
-    "items": [
-        {
-            "id": "550e8400-e29b-41d4-a716-446655440001",
-            "code": "AB3CDE5F",
-            "max_uses": 10,
-            "used_count": 3,
-            "activated_count": 2,
-            "total_rewards": 2000.00,
-            "expires_at": "2026-12-03T23:59:59Z",
-            "created_at": "2025-12-03T10:00:00Z",
-            "invitees": [
-                {
-                    "username": "user123",
-                    "status": "active",
-                    "registered_at": "2025-12-01T10:00:00Z",
-                    "activated_at": "2025-12-02T15:30:00Z"
-                },
-                {
-                    "username": "user456",
-                    "status": "pending",
-                    "registered_at": "2025-12-03T08:00:00Z",
-                    "activated_at": null
-                }
-            ]
-        }
-    ],
-    "total": 2
-}
+[
+    {
+        "id": "550e8400-e29b-41d4-a716-446655440001",
+        "code": "AB3CDE5F",
+        "max_uses": 10,
+        "used_count": 3,
+        "activated_count": 2,
+        "total_rewards": 2000.00,
+        "expires_at": "2026-12-03T23:59:59Z",
+        "created_at": "2025-12-03T10:00:00Z",
+        "invitees": [
+            {
+                "username": "user123",
+                "status": "active",
+                "registered_at": "2025-12-01T10:00:00Z",
+                "activated_at": "2025-12-02T15:30:00Z"
+            },
+            {
+                "username": "user456",
+                "status": "pending",
+                "registered_at": "2025-12-03T08:00:00Z",
+                "activated_at": null
+            }
+        ]
+    }
+]
 ```
 
 ---

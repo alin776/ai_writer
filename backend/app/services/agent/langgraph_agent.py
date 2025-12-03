@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 LangGraph Agent 工作流实现
 
@@ -1594,52 +1595,31 @@ class WritingAgentGraph:
         Returns:
             tuple[str, float]: (intent类型, 置信度)
         """
-        msg = message.lower()
+        msg = message.lower().strip()
 
-        # 中文数字映射
-        chinese_numbers = {
-            "一": "1", "二": "2", "三": "3", "四": "4", "五": "5",
-            "六": "6", "七": "7", "八": "8", "九": "9", "十": "10"
-        }
+        # ========== 极简快速通道（只处理极端情况）==========
+        # 这里只处理明显不需要AI判断的情况，其他全部交给AI
 
-        # 1. 写作/编辑：修改、续写、扩写、改写（最高优先级）
-        writing_keywords = ["修改", "改写", "续写", "扩写", "改进", "优化", "重写",
-                          "生成内容", "创作", "写作", "继续写", "完成", "补充内容",
-                          "写一段", "写点", "帮我写", "帮我改", "你来改", "来帮我改",
-                          "插入", "改一下", "改改", "帮改", "太平淡"]
-        # 章节特征强相关（支持中文数字）
+        # 1. 空消息或纯空白
+        if not msg or len(msg.strip()) == 0:
+            logger.info("[Intent] 空消息，判定为 general")
+            return "general", 0.99
+
+        # 2. 纯标点/表情（长度<=3且无中文字母数字）
+        if len(msg) <= 3 and not re.search(r'[\u4e00-\u9fa5a-zA-Z0-9]', msg):
+            logger.info(f"[Intent] 纯标点/表情: {msg}，判定为 general")
+            return "general", 0.99
+
+        # 3. 章节模式强匹配（这是明确的写作意图，可以快速判断）
         chapter_pattern = r'第[一二三四五六七八九十\d]+章|chapter\s*\d+'
         if re.search(chapter_pattern, msg, re.IGNORECASE):
             logger.info(f"[Intent] 匹配章节模式: {re.findall(chapter_pattern, msg, re.IGNORECASE)}")
             return "writing", 0.98
-        if any(kw in msg for kw in writing_keywords):
-            logger.info(f"[Intent] 匹配 writing 关键词: {[kw for kw in writing_keywords if kw in msg]}")
-            return "writing", 0.95
 
-        # 2. 卡文：灵感、写不下去
-        stuck_keywords = ["卡文", "灵感", "写不下去", "没思路", "瓶颈", "困难", "卡住", "不知道",
-                         "想不出", "启发", "创意", "帮忙", "给点建议"]
-        if any(kw in msg for kw in stuck_keywords):
-            logger.info(f"[Intent] 匹配 stuck 关键词: {[kw for kw in stuck_keywords if kw in msg]}")
-            return "stuck", 0.95
-
-        # 3. 分析：评估、诊断、检查（不含"修改"等编辑类词汇）
-        analysis_keywords = ["分析", "评估", "诊断", "检查", "质量", "评价", "看看",
-                           "问题", "错误", "建议", "缺点", "不足", "怎么样"]
-        if any(kw in msg for kw in analysis_keywords):
-            logger.info(f"[Intent] 匹配 analysis 关键词: {[kw for kw in analysis_keywords if kw in msg]}")
-            return "analysis", 0.93
-
-        # 4. 规划：大纲、世界观、设定
-        planning_keywords = ["规划", "大纲", "世界观", "设定", "角色", "背景", "剧情", "框架", "结构",
-                           "设计", "安排", "构思", "计划", "整体", "布局"]
-        if any(kw in msg for kw in planning_keywords):
-            logger.info(f"[Intent] 匹配 planning 关键词: {[kw for kw in planning_keywords if kw in msg]}")
-            return "planning", 0.95
-
-        # 5. 默认：一般对话（低置信度，触发AI判断）
-        logger.info("[Intent] 未匹配任何关键词，需要AI判断")
-        return "general", 0.5  # 低置信度，会触发AI兜底
+        # ========== 其他情况交给AI判断 ==========
+        # 不再使用硬编码关键词列表，让AI做语义理解
+        logger.info("[Intent] 交给AI进行语义分类")
+        return "unknown", 0.3  # 低置信度，强制触发AI判断
 
     async def _ai_classify_intent(self, message: str) -> tuple[str, float]:
         """使用AI进行意图分类（兜底方案）
@@ -1657,16 +1637,17 @@ class WritingAgentGraph:
 用户消息: "{message}"
 
 可选意图类型:
-- writing: 用户想要修改、改写、续写、创作内容（包括"帮我改"、"太平淡了"、"写得不好"等暗示需要修改的表达）
+- writing: 用户明确要求修改、改写、续写、创作内容（必须有明确的写作指令词）
 - planning: 用户想要规划大纲、设计角色、构建世界观
 - analysis: 用户想要分析、评估、诊断文本质量
 - stuck: 用户写作卡住了、需要灵感或建议
-- general: 普通对话、闲聊、问答
+- general: 普通对话、闲聊、问答、不确定的情况
 
 判断规则:
-1. 如果用户表达了对内容的不满（如"太平淡"、"不够好"、"需要改进"），应该识别为 writing
-2. 如果用户明确要求修改、改写、帮忙改，应该识别为 writing
-3. 只有纯粹的闲聊或与写作无关的问题才是 general
+1. 只有明确包含写作指令（如"帮我改"、"续写"、"修改第X章"）才判定为 writing
+2. 简短的问候、寒暄、疑问句应判定为 general
+3. 如果消息含义模糊或不确定，优先判定为 general
+4. 不要过度解读用户意图，除非用户明确表达了写作需求
 
 只返回一个单词（writing/planning/analysis/stuck/general），不要解释:"""
 
@@ -1704,28 +1685,23 @@ class WritingAgentGraph:
             return "general", 0.60
 
     async def _classify_intent(self, state: AgentState) -> AgentState:
-        """意图分类节点 - 规则优先，AI兜底"""
-        logger.info("[LangGraph] 意图分类（规则优先+AI兜底）")
+        """意图分类节点 - AI优先，极简规则快速通道"""
+        logger.info("[LangGraph] 意图分类（AI优先架构）")
 
         last_message = state["messages"][-1].content
 
-        # 1. 先用规则快速识别
+        # 1. 极简规则快速通道（只处理极端情况）
         intent, confidence = self._classify_intent_by_rules(last_message)
-        classification_method = "规则识别"
+        classification_method = "快速通道"
 
-        # 2. 如果置信度不够高（<0.9），使用AI兜底
+        # 2. 非极端情况（confidence < 0.9）全部使用AI判断
         if confidence < 0.9:
-            logger.info(f"[Intent] 规则置信度({confidence:.2f})不足，启用AI判断")
+            logger.info(f"[Intent] 触发AI语义分类（规则置信度={confidence:.2f}）")
             ai_intent, ai_confidence = await self._ai_classify_intent(last_message)
-
-            # AI结果更可信时使用AI结果
-            if ai_confidence > confidence:
-                intent = ai_intent
-                confidence = ai_confidence
-                classification_method = "AI识别"
-                logger.info(f"[Intent] 采用AI结果: {intent} ({confidence:.2f})")
-            else:
-                logger.info(f"[Intent] 保持规则结果: {intent} ({confidence:.2f})")
+            intent = ai_intent
+            confidence = ai_confidence
+            classification_method = "AI语义分类"
+            logger.info(f"[Intent] AI分类结果: {intent} ({confidence:.2f})")
 
         logger.info(
             f"[Intent] 最终结果: {intent}, 置信度: {confidence:.2f}, 方法: {classification_method}"
@@ -1953,11 +1929,21 @@ class WritingAgentGraph:
                         second_tool_result = ""
                         try:
                             if tool_name == "smart_rewrite":
-                                logger.info(f"[LangGraph] 🚀 二次调用 smart_rewrite, chapter_id={tool_args.get('chapter_id')}")
+                                # ✅ 智能版本引用
+                                base_version = tool_args.get("base_version", "")
+                                last_versions = state.get("context", {}).get("last_rewrite_versions", {})
+                                if base_version and last_versions:
+                                    resolved = self._resolve_version_reference(base_version, last_versions)
+                                    if resolved:
+                                        logger.info(f"[LangGraph] 🔄 二次调用智能版本解析: '{base_version}' → 完整内容({len(resolved)}字)")
+                                        base_version = resolved
+
+                                logger.info(f"[LangGraph] 🚀 二次调用 smart_rewrite, chapter_id={tool_args.get('chapter_id')}, user_requirement={tool_args.get('user_requirement', '')[:30]}")
                                 second_tool_result = await smart_rewrite.ainvoke({
                                     "chapter_id": tool_args.get("chapter_id", ""),
-                                    "instructions": tool_args.get("instructions", "根据用户要求修改"),
-                                    "content": tool_args.get("content", "")
+                                    "text_to_rewrite": tool_args.get("text_to_rewrite", ""),
+                                    "user_requirement": tool_args.get("user_requirement", ""),
+                                    "base_version": base_version
                                 })
                             elif tool_name == "smart_continue":
                                 logger.info(f"[LangGraph] 🚀 二次调用 smart_continue, chapter_id={tool_args.get('chapter_id')}")
@@ -2225,6 +2211,19 @@ class WritingAgentGraph:
 - 章节ID (chapter_id): {_format_id(current_chapter_id)}
 """
 
+        # Version memory: add previous versions to context if available
+        last_versions = state.get("context", {}).get("last_rewrite_versions", {})
+        if last_versions:
+            version_info = "\n[Previous rewrite versions (use when user says 'based on version X')]"
+            if last_versions.get("version_a"):
+                version_info += f"\n- Version A: {last_versions['version_a'][:100]}..."
+            if last_versions.get("version_b"):
+                version_info += f"\n- Version B: {last_versions['version_b'][:100]}..."
+            if last_versions.get("version_c"):
+                version_info += f"\n- Version C: {last_versions['version_c'][:100]}..."
+            context_info += version_info
+            logger.info(f"[LangGraph] Added version memory to context")
+
         # ✅ Phase 2.6: 使用缓存的静态 Prompt（节省构建时间和 Token）
         static_prompt = await get_tool_decision_static_prompt()
 
@@ -2408,17 +2407,48 @@ class WritingAgentGraph:
                     })
             # ✅ 编辑器工具：smart_rewrite（改写章节）
             elif tool_name == "smart_rewrite":
-                # ✅ P0-6修复：使用正确的参数名
-                # smart_rewrite 需要: chapter_id, text_to_rewrite, chapter_content
+                # ✅ P0-6修复：使用正确的参数名，包含 user_requirement 和 base_version
                 text_to_rewrite = tool_args.get("text_to_rewrite") or tool_args.get("content", "")
                 chapter_content = tool_args.get("chapter_content", "")
-                logger.info(f"[LangGraph] 🚀 准备调用 smart_rewrite, chapter_id={tool_args.get('chapter_id')}, text_to_rewrite长度={len(text_to_rewrite)}")
+                user_requirement = tool_args.get("user_requirement", "")
+                base_version = tool_args.get("base_version", "")
+
+                # ✅ 智能版本引用：语义匹配用户的版本表达
+                last_versions = state.get("context", {}).get("last_rewrite_versions", {})
+                if base_version and last_versions:
+                    resolved_version = self._resolve_version_reference(base_version, last_versions)
+                    if resolved_version:
+                        logger.info(f"[LangGraph] 🔄 智能版本解析: '{base_version}' → 完整内容({len(resolved_version)}字)")
+                        base_version = resolved_version
+
+                logger.info(f"[LangGraph] 🚀 准备调用 smart_rewrite, chapter_id={tool_args.get('chapter_id')}, text_to_rewrite长度={len(text_to_rewrite)}, user_requirement={user_requirement[:50] if user_requirement else 'None'}")
                 tool_result = await smart_rewrite.ainvoke({
                     "chapter_id": tool_args.get("chapter_id", ""),
                     "text_to_rewrite": text_to_rewrite,
-                    "chapter_content": chapter_content
+                    "chapter_content": chapter_content,
+                    "user_requirement": user_requirement,
+                    "base_version": base_version
                 })
                 logger.info(f"[LangGraph] ✅ smart_rewrite 返回结果长度: {len(str(tool_result))} 字符")
+
+                # ✅ 版本记忆：保存生成的版本到 context，供后续"在第X版基础上改"使用
+                try:
+                    if isinstance(tool_result, str):
+                        result_obj = json.loads(tool_result)
+                    else:
+                        result_obj = tool_result
+
+                    if result_obj.get("success") and result_obj.get("versions"):
+                        versions = result_obj["versions"]
+                        state["context"] = state.get("context", {})
+                        state["context"]["last_rewrite_versions"] = {
+                            "version_a": versions[0].get("content", "") if len(versions) > 0 else "",
+                            "version_b": versions[1].get("content", "") if len(versions) > 1 else "",
+                            "version_c": versions[2].get("content", "") if len(versions) > 2 else ""
+                        }
+                        logger.info(f"[LangGraph] 💾 已保存 {len(versions)} 个改写版本到 context")
+                except Exception as e:
+                    logger.warning(f"[LangGraph] 保存版本记忆失败: {e}")
             # ✅ 编辑器工具：smart_continue（续写章节）
             elif tool_name == "smart_continue":
                 logger.info(f"[LangGraph] 🚀 准备调用 smart_continue, chapter_id={tool_args.get('chapter_id')}")
@@ -2749,24 +2779,27 @@ class WritingAgentGraph:
 
     async def _handle_general(self, state: AgentState) -> AgentState:
         """
-        处理一般对话 - 使用新架构
+        处理一般对话 - 直接对话模式（不走工具决策）
 
-        新架构流程：
+        ✅ 修复：general意图直接生成响应，跳过工具决策流程
+        这样"你好"等简单问候就不会被误判为需要续写工具
+
+        流程：
         1. 使用GeneralChatAction.prepare()准备参数
-        2. 调用_handle_agent_with_tools统一处理（触发监控）
+        2. 直接调用_generate_text生成响应（不经过工具决策）
         """
         from app.services.agent.actions import GeneralChatAction
+        from app.services.agent.model_selector import TaskType
 
-        logger.info("[LangGraph] 处理一般对话（新架构）")
+        logger.info("[LangGraph] 处理一般对话（直接对话模式，跳过工具决策）")
 
         # 1. 使用Action准备参数（业务逻辑）
-        general_action = GeneralChatAction()  # 新架构不需要ai_service
+        general_action = GeneralChatAction()
         prep_result = await general_action.prepare(state)
 
         # 2. 检查准备结果
         if not prep_result.success:
             logger.error(f"[LangGraph] GeneralChatAction.prepare()失败: {prep_result.error}")
-            from langchain_core.messages import AIMessage
             error_msg = AIMessage(content=f"抱歉，无法处理您的请求: {prep_result.error}")
             return {
                 "messages": [error_msg],
@@ -2777,13 +2810,52 @@ class WritingAgentGraph:
                 }]
             }
 
-        # 3. 统一使用框架调用LLM（触发监控）
-        logger.info(f"[LangGraph] 使用system_prompt调用LLM: {prep_result.system_prompt[:100]}...")
-        return await self._handle_agent_with_tools(
-            state,
-            agent_type=prep_result.metadata.get("agent_type", "general"),
-            system_prompt=prep_result.system_prompt
+        # 3. ✅ 直接生成响应，不走工具决策流程
+        messages = state["messages"]
+        user_message = messages[-1].content if messages else ""
+
+        # 构建对话消息（包含历史）
+        chat_messages = [{
+            "role": "system",
+            "content": prep_result.system_prompt
+        }]
+
+        # 添加历史消息（最多保留10条）
+        history_count = 0
+        for msg in messages[:-1]:  # 排除当前消息
+            if isinstance(msg, HumanMessage):
+                chat_messages.append({"role": "user", "content": msg.content})
+                history_count += 1
+            elif isinstance(msg, AIMessage) and msg.content:
+                chat_messages.append({"role": "assistant", "content": msg.content})
+                history_count += 1
+            if history_count >= 10:
+                break
+
+        # 添加当前用户消息
+        chat_messages.append({"role": "user", "content": user_message})
+
+        logger.info(f"[LangGraph] General直接对话: {len(chat_messages)}条消息")
+
+        # 直接调用LLM生成响应
+        result = await self._generate_text(
+            messages=chat_messages,
+            max_tokens=500,  # 闲聊不需要太长
+            temperature=0.7,
+            task_type=TaskType.SIMPLE_QA  # 使用轻量模型
         )
+
+        response_text = result.get("text", "您好！有什么可以帮您的？")
+
+        response = AIMessage(content=response_text)
+        return {
+            "messages": [response],
+            "final_response": response_text,
+            "agent_steps": [{
+                "step": "general_direct_response",
+                "result": "直接对话响应（跳过工具决策）"
+            }]
+        }
 
     async def chat(
         self,
@@ -4738,6 +4810,67 @@ chapter_id: {chapter_id}
             await on_content(final_content)
 
         return final_content
+
+    def _resolve_version_reference(self, reference: str, versions: Dict[str, str]) -> Optional[str]:
+        """智能解析版本引用，支持多种表达方式
+
+        Args:
+            reference: 用户的版本引用表达（如"第二版"、"版本B"、"$VERSION_B$"、"2"等）
+            versions: 版本内容字典 {"version_a": "...", "version_b": "...", "version_c": "..."}
+
+        Returns:
+            匹配到的版本内容，如果没有匹配返回None
+        """
+        if not reference or not versions:
+            return None
+
+        ref = reference.lower().strip()
+
+        # 版本A的各种表达方式
+        version_a_patterns = [
+            "版本a", "version_a", "version a", "$version_a$",
+            "第一版", "第1版", "一版", "1版", "a版", "a",
+            "第一个", "第1个", "1", "一"
+        ]
+
+        # 版本B的各种表达方式
+        version_b_patterns = [
+            "版本b", "version_b", "version b", "$version_b$",
+            "第二版", "第2版", "二版", "2版", "b版", "b",
+            "第二个", "第2个", "2", "二"
+        ]
+
+        # 版本C的各种表达方式
+        version_c_patterns = [
+            "版本c", "version_c", "version c", "$version_c$",
+            "第三版", "第3版", "三版", "3版", "c版", "c",
+            "第三个", "第3个", "3", "三"
+        ]
+
+        # 检查是否匹配版本A
+        if any(p in ref or ref == p for p in version_a_patterns):
+            content = versions.get("version_a", "")
+            if content:
+                return content
+
+        # 检查是否匹配版本B
+        if any(p in ref or ref == p for p in version_b_patterns):
+            content = versions.get("version_b", "")
+            if content:
+                return content
+
+        # 检查是否匹配版本C
+        if any(p in ref or ref == p for p in version_c_patterns):
+            content = versions.get("version_c", "")
+            if content:
+                return content
+
+        # 如果reference本身就是版本内容（长度>50），直接返回
+        if len(reference) > 50:
+            return reference
+
+        logger.warning(f"[LangGraph] 无法解析版本引用: '{reference}'")
+        return None
 
     def _normalize_tool_params(self, tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """标准化工具参数，将不符合格式的参数转换为正确格式

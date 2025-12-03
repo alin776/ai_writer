@@ -69,10 +69,6 @@ export interface InvitationStats {
   canGenerateMore: boolean;
   /** 剩余生成配额 */
   remainingQuota: number;
-  /** 是否在新用户冷却期内 */
-  inCooldown?: boolean;
-  /** 冷却期结束时间 */
-  cooldownEndsAt?: string | null;
 }
 
 // ============================================
@@ -85,10 +81,7 @@ export interface GenerateInvitationRequest {
   expiresDays?: number;
 }
 
-export interface GenerateInvitationResponse {
-  /** 生成的邀请码 */
-  code: InvitationCode;
-}
+// 注意: generate 接口直接返回 InvitationCodeDetail，不再包装
 
 // ============================================
 // 验证邀请码请求和响应
