@@ -8,49 +8,88 @@
 
 | 模块 | 集成点 | 说明 |
 |------|--------|------|
-| 用户服务 | 新用户注册 | 赠送初始积分 |
-| AI 服务 | AI 调用 | 检查余额、扣减积分 |
+| 用户服务 | 新用户注册 | 验证邀请码、赠送初始积分 |
+| AI 服务 | AI 调用 | 管理员豁免、检查余额、扣减积分 |
 | 认证系统 | API 路由 | 权限验证 |
+| 邀请系统 | 激活检测 | 消费/充值后检查激活条件 |
 
 ---
 
-## 2. 用户注册集成
+## 2. 用户注册集成（含邀请码）
 
 ### 2.1 修改位置
 
-**文件**: `backend/app/services/user_service.py`
+**文件**: `backend/app/api/v1/auth.py`
 
-**方法**: `create_user()` 或 `register()`
+**路由**: `POST /api/v1/auth/register`
 
 ### 2.2 集成代码
 
 ```python
-# backend/app/services/user_service.py
+# backend/app/api/v1/auth.py
 
 from app.services.credit_service import CreditService
+from app.services.invitation_service import InvitationService
 from app.core.config import settings
 
-class UserService:
+@router.post("/register")
+async def register(
+    request: RegisterRequest,
+    request_info: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """注册（需邀请码）"""
+    invitation_service = InvitationService(db)
+    credit_service = CreditService(db)
 
-    async def create_user(self, user_data: UserCreate) -> User:
-        """创建新用户"""
-        # 1. 原有逻辑：创建用户
-        user = User(**user_data.dict())
-        self.db.add(user)
-        await self.db.commit()
-        await self.db.refresh(user)
+    # 1. 验证邀请码
+    ip_address = request_info.client.host
+    device_fingerprint = request_info.headers.get("X-Device-Fingerprint")
 
-        # 2. 新增：赠送初始积分
-        if settings.CREDITS_ENABLED and settings.NEW_USER_GIFT_CREDITS > 0:
-            credit_service = CreditService(self.db)
-            await credit_service.gift(
-                user_id=user.id,
-                amount=settings.NEW_USER_GIFT_CREDITS,
-                description="新用户注册赠送",
-                related_type="new_user"
-            )
+    is_valid, error_msg, invitation = await invitation_service.validate_invitation_code(
+        code=request.invitation_code,
+        ip_address=ip_address,
+        device_fingerprint=device_fingerprint
+    )
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
 
-        return user
+    # 2. 创建用户
+    user = User(
+        username=request.username,
+        email=request.email,
+        hashed_password=hash_password(request.password)
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+
+    # 3. 赠送新用户积分
+    if settings.NEW_USER_GIFT_CREDITS > 0:
+        await credit_service.gift(
+            user_id=user.id,
+            amount=settings.NEW_USER_GIFT_CREDITS,
+            description="新用户注册赠送",
+            related_type="new_user"
+        )
+
+    # 4. 记录邀请使用
+    await invitation_service.use_invitation_code(
+        code=request.invitation_code,
+        invitee_id=user.id,
+        ip_address=ip_address,
+        device_fingerprint=device_fingerprint
+    )
+
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "credits": {
+            "balance": settings.NEW_USER_GIFT_CREDITS,
+            "gift_from_registration": settings.NEW_USER_GIFT_CREDITS
+        }
+    }
 ```
 
 ---
@@ -112,13 +151,14 @@ class UserService:
 
 **文件**: `backend/app/services/ai/http_ai_service.py`
 
-### 3.3 Agent 层集成代码
+### 3.3 Agent 层集成代码（含管理员豁免）
 
 ```python
 # backend/app/services/agent/langgraph_agent.py
 
 from app.services.credit_service import CreditService
-from app.services.credit_exceptions import InsufficientCreditsError, CreditsExpiredError
+from app.services.invitation_service import InvitationService
+from app.services.credit_exceptions import InsufficientCreditsError
 from app.utils.credit_utils import calculate_credits_for_ai_call
 from app.core.config import settings
 
@@ -126,17 +166,20 @@ class WritingAgentGraph:
 
     async def chat_stream(
         self,
-        user_id: UUID,
+        user: User,  # 传入完整 User 对象
         message: str,
         ...
     ):
         """流式对话"""
 
-        # 1. 检查积分（如果启用）
-        if settings.CREDITS_ENABLED:
+        # 1. 检查管理员豁免
+        is_admin_exempt = user.is_admin and settings.ADMIN_CREDITS_EXEMPT
+
+        # 2. 检查积分（非管理员）
+        if settings.CREDITS_ENABLED and not is_admin_exempt:
             credit_service = CreditService(self.db)
             is_sufficient, balance = await credit_service.check_sufficient(
-                user_id=user_id,
+                user_id=user.id,
                 required_credits=Decimal("0.01")  # 最小检查值
             )
             if not is_sufficient:
@@ -145,23 +188,35 @@ class WritingAgentGraph:
                     available=balance
                 )
 
-        # 2. 执行 AI 调用
+        # 3. 执行 AI 调用
         try:
             result = await self._execute_ai_call(...)
 
-            # 3. 计算并扣减积分
+            # 4. 计算并扣减积分
             if settings.CREDITS_ENABLED:
                 credits_consumed = calculate_credits_for_ai_call(
                     model_name=result.model_name,
                     prompt_tokens=result.prompt_tokens,
                     completion_tokens=result.completion_tokens
                 )
-                await credit_service.consume(
-                    user_id=user_id,
-                    amount=credits_consumed,
-                    description=f"AI 调用: {result.model_name}",
-                    related_id=result.log_id
-                )
+
+                if is_admin_exempt:
+                    # 管理员豁免：仅记录日志，不扣积分
+                    logger.info(
+                        f"Admin {user.username} used {credits_consumed} credits (exempt)"
+                    )
+                else:
+                    # 普通用户：扣减积分
+                    await credit_service.consume(
+                        user_id=user.id,
+                        amount=credits_consumed,
+                        description=f"AI 调用: {result.model_name}",
+                        related_id=result.log_id
+                    )
+
+                    # 5. 检查邀请激活（如果是被邀请人）
+                    invitation_service = InvitationService(self.db)
+                    await invitation_service.activate_invitation(user.id)
 
             return result
 
@@ -215,14 +270,88 @@ async def chat(
 
 ---
 
-## 4. API 路由注册
+## 4. 邀请激活集成
 
-### 4.1 注册积分路由
+### 4.1 消费后激活检测
+
+在 AI 调用扣费后自动检查激活（如上 3.3 所示）。
+
+### 4.2 充值后激活检测
+
+在兑换码兑换后检查激活：
+
+```python
+# backend/app/api/v1/credits.py
+
+from app.services.invitation_service import InvitationService
+
+@router.post("/redeem")
+async def redeem_code(
+    request: RedeemRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """兑换码兑换"""
+    redeem_service = RedeemCodeService(db)
+    invitation_service = InvitationService(db)
+
+    # 1. 兑换
+    result = await redeem_service.redeem(
+        code=request.code,
+        user_id=current_user.id
+    )
+
+    # 2. 检查邀请激活
+    await invitation_service.activate_invitation(current_user.id)
+
+    return {
+        "credits": result.credits,
+        "balance_before": result.balance_before,
+        "balance_after": result.balance_after
+    }
+```
+
+### 4.3 定时任务：过期邀请清理
+
+```python
+# backend/app/tasks/invitation_cleanup.py
+
+from datetime import datetime, timedelta
+from app.services.invitation_service import InvitationService
+
+async def cleanup_expired_invitations(db: AsyncSession):
+    """清理过期未激活的邀请"""
+    invitation_service = InvitationService(db)
+
+    # 查询 7 天前注册但未激活的邀请
+    seven_days_ago = datetime.now() - timedelta(days=7)
+
+    stmt = select(InvitationUsage).where(
+        InvitationUsage.status == "pending",
+        InvitationUsage.created_at < seven_days_ago
+    )
+    result = await db.execute(stmt)
+    expired_usages = result.scalars().all()
+
+    # 标记为已过期
+    for usage in expired_usages:
+        usage.status = "expired"
+
+    await db.commit()
+
+    logger.info(f"Marked {len(expired_usages)} invitations as expired")
+```
+
+---
+
+## 5. API 路由注册
+
+### 5.1 注册积分路由
 
 **文件**: `backend/app/api/__init__.py`
 
 ```python
-from app.api.v1 import credits
+from app.api.v1 import credits, invitations
 
 api_router = APIRouter()
 
@@ -234,12 +363,19 @@ api_router.include_router(
     prefix="/credits",
     tags=["credits"]
 )
+
+# 邀请系统路由
+api_router.include_router(
+    invitations.router,
+    prefix="/invitations",
+    tags=["invitations"]
+)
 ```
 
-### 4.2 注册管理端路由
+### 5.2 注册管理端路由
 
 ```python
-from app.api.v1 import admin_credits
+from app.api.v1 import admin_credits, admin_invitations
 
 # 管理端积分路由
 api_router.include_router(
@@ -247,13 +383,20 @@ api_router.include_router(
     prefix="/admin/credits",
     tags=["admin-credits"]
 )
+
+# 管理端邀请路由
+api_router.include_router(
+    admin_invitations.router,
+    prefix="/admin/invitations",
+    tags=["admin-invitations"]
+)
 ```
 
 ---
 
-## 5. 模型注册
+## 6. 模型注册
 
-### 5.1 注册新模型
+### 6.1 注册新模型
 
 **文件**: `backend/app/models/__init__.py`
 
@@ -261,33 +404,42 @@ api_router.include_router(
 from app.models.user_credits import UserCredits
 from app.models.credit_transaction import CreditTransaction
 from app.models.redeem_code import RedeemCode
+from app.models.user_invitation import UserInvitation
+from app.models.invitation_usage import InvitationUsage
 
 __all__ = [
     # ... 其他模型 ...
     "UserCredits",
     "CreditTransaction",
     "RedeemCode",
+    "UserInvitation",
+    "InvitationUsage",
 ]
 ```
 
 ---
 
-## 6. 数据库迁移
+## 7. 数据库迁移
 
-### 6.1 生成迁移
+### 7.1 生成迁移
 
 ```bash
 cd backend
+
+# 积分系统迁移
 ./venv/Scripts/alembic.exe revision --autogenerate -m "add_credits_tables"
+
+# 邀请系统迁移
+./venv/Scripts/alembic.exe revision --autogenerate -m "add_invitation_tables"
 ```
 
-### 6.2 执行迁移
+### 7.2 执行迁移
 
 ```bash
 ./venv/Scripts/alembic.exe upgrade head
 ```
 
-### 6.3 迁移文件示例
+### 7.3 迁移文件示例
 
 ```python
 # backend/alembic/versions/20251202_xxxx_add_credits_tables.py
@@ -373,7 +525,7 @@ def downgrade() -> None:
 
 ---
 
-## 7. 前端集成
+## 8. 前端集成
 
 ### 7.1 余额不足处理
 
@@ -436,43 +588,99 @@ function Header() {
 
 ---
 
-## 8. 测试要点
+## 9. 测试要点
 
-### 8.1 单元测试
+### 9.1 单元测试
 
+**积分系统**:
 - [ ] CreditService.consume() 正确扣减
 - [ ] CreditService.check_sufficient() 正确检查
 - [ ] RedeemCodeService.redeem() 正确兑换
 - [ ] 并发扣减不会超扣
+- [ ] 管理员豁免正确跳过扣费
 
-### 8.2 集成测试
+**邀请系统**:
+- [ ] InvitationService.generate_code() 生成唯一码
+- [ ] InvitationService.validate_code() 正确验证
+- [ ] InvitationService.activate_invitation() 正确激活
+- [ ] 防刷机制正确限制
 
+### 9.2 集成测试
+
+**积分系统**:
 - [ ] 新用户注册获得初始积分
 - [ ] AI 调用正确扣减积分
+- [ ] 管理员 AI 调用不扣积分
 - [ ] 余额不足时拒绝 AI 调用
 - [ ] 兑换码正确充值
 
-### 8.3 边界测试
+**邀请系统**:
+- [ ] 注册需要有效邀请码
+- [ ] 被邀请人消费 200 积分后邀请人获得 1000 积分
+- [ ] 被邀请人充值 1 积分后邀请人获得 1000 积分
+- [ ] IP/设备限制正确阻止刷邀请
+- [ ] 新用户冷却期正确限制生成
 
+### 9.3 边界测试
+
+**积分系统**:
 - [ ] 余额刚好够用
 - [ ] 余额恰好为 0
-- [ ] 积分过期处理
-- [ ] 兑换码过期处理
+- [ ] 积分过期处理（配置为永不过期）
+- [ ] 兑换码过期处理（90 天）
 - [ ] 重复兑换同一码
 
+**邀请系统**:
+- [ ] 邀请码使用次数已满
+- [ ] 邀请码已过期
+- [ ] 7 天内未激活的邀请
+- [ ] 同一 IP 24 小时内注册多次
+- [ ] 同一设备 7 天内注册多次
+
 ---
 
-## 9. 上线检查清单
+## 10. 上线检查清单
 
-- [ ] 数据库迁移执行成功
-- [ ] 配置项已添加到 .env
-- [ ] API 路由已注册
-- [ ] 前端页面已部署
+### 10.1 后端检查
+
+- [ ] 数据库迁移执行成功（积分表 + 邀请表）
+- [ ] 配置项已添加到 .env（28 个配置项）
+- [ ] API 路由已注册（积分 + 邀请）
+- [ ] 模型已注册到 models/__init__.py
 - [ ] 为现有用户初始化积分记录
-- [ ] 监控告警配置
+- [ ] 管理员用户已标记 is_admin=True
+
+### 10.2 前端检查
+
+- [ ] 前端页面已部署（积分中心 + 邀请中心）
+- [ ] 注册页面要求邀请码
+- [ ] Header 显示积分余额
+- [ ] 余额不足提示正常
+- [ ] 路由配置正确
+
+### 10.3 数据检查
+
+- [ ] 为现有用户初始化积分（可选）
+- [ ] 管理员批量生成邀请码用于推广
+- [ ] 定时任务配置（过期邀请清理）
+
+### 10.4 监控告警
+
+- [ ] 积分消耗异常告警
+- [ ] 邀请激活率监控
+- [ ] IP/设备刷邀请检测告警
+- [ ] 兑换码使用率监控
 
 ---
 
-**文档版本**: v1.0
+**文档版本**: v2.0
 **创建时间**: 2025-12-02
+**最后更新**: 2025-12-03
+**更新内容**:
+- 添加邀请系统集成方案
+- 添加管理员豁免检查逻辑
+- 添加邀请激活检测流程
+- 更新注册流程（需邀请码）
+- 添加邀请系统测试要点
+- 更新上线检查清单
 **作者**: Claude Code

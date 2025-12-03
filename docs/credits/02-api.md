@@ -11,6 +11,9 @@
 | GET | /api/v1/credits/balance | 查询积分余额 |
 | GET | /api/v1/credits/transactions | 查询交易记录 |
 | POST | /api/v1/credits/redeem | 兑换码兑换 |
+| POST | /api/v1/invitations/generate | 生成邀请码 |
+| GET | /api/v1/invitations/my-codes | 查询我的邀请码 |
+| GET | /api/v1/invitations/stats | 查询邀请统计 |
 
 ### 1.2 管理端接口
 
@@ -20,6 +23,15 @@
 | GET | /api/v1/admin/credits/codes | 查询兑换码列表 |
 | POST | /api/v1/admin/credits/gift | 手动赠送积分 |
 | GET | /api/v1/admin/credits/stats | 积分统计 |
+| POST | /api/v1/admin/invitations/batch-generate | 批量生成邀请码 |
+| GET | /api/v1/admin/invitations/list | 查询所有邀请码 |
+
+### 1.3 公开接口（无需认证）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | /api/v1/auth/register | 注册（需邀请码） |
+| POST | /api/v1/invitations/validate | 验证邀请码 |
 
 ---
 
@@ -181,7 +193,251 @@ Content-Type: application/json
 
 ---
 
-## 3. 管理端接口详情
+### 2.4 生成邀请码
+
+**POST** `/api/v1/invitations/generate`
+
+#### 请求头
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+#### 请求体
+
+```json
+{
+    "max_uses": 10,
+    "expires_days": 365
+}
+```
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| max_uses | int | 否 | 10 | 最大使用次数 |
+| expires_days | int | 否 | NULL | 有效期天数 |
+
+#### 响应 - 成功
+
+```json
+{
+    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "code": "AB3CDE5F",
+    "max_uses": 10,
+    "used_count": 0,
+    "activated_count": 0,
+    "total_rewards": 0.00,
+    "expires_at": "2026-12-03T23:59:59Z",
+    "created_at": "2025-12-03T10:00:00Z"
+}
+```
+
+#### 响应 - 失败
+
+```json
+{
+    "detail": "每位用户最多生成 3 个邀请码"
+}
+```
+
+或
+
+```json
+{
+    "detail": "新用户需等待 48 小时后才能生成邀请码"
+}
+```
+
+---
+
+### 2.5 查询我的邀请码
+
+**GET** `/api/v1/invitations/my-codes`
+
+#### 请求头
+```
+Authorization: Bearer <access_token>
+```
+
+#### 响应
+
+```json
+{
+    "items": [
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440001",
+            "code": "AB3CDE5F",
+            "max_uses": 10,
+            "used_count": 3,
+            "activated_count": 2,
+            "total_rewards": 2000.00,
+            "expires_at": "2026-12-03T23:59:59Z",
+            "created_at": "2025-12-03T10:00:00Z",
+            "invitees": [
+                {
+                    "username": "user123",
+                    "status": "active",
+                    "registered_at": "2025-12-01T10:00:00Z",
+                    "activated_at": "2025-12-02T15:30:00Z"
+                },
+                {
+                    "username": "user456",
+                    "status": "pending",
+                    "registered_at": "2025-12-03T08:00:00Z",
+                    "activated_at": null
+                }
+            ]
+        }
+    ],
+    "total": 2
+}
+```
+
+---
+
+### 2.6 查询邀请统计
+
+**GET** `/api/v1/invitations/stats`
+
+#### 请求头
+```
+Authorization: Bearer <access_token>
+```
+
+#### 响应
+
+```json
+{
+    "total_invitations": 2,
+    "total_used": 5,
+    "total_activated": 3,
+    "total_rewards": 3000.00,
+    "can_generate_more": true,
+    "remaining_quota": 1
+}
+```
+
+---
+
+## 3. 公开接口详情
+
+### 3.1 验证邀请码
+
+**POST** `/api/v1/invitations/validate`
+
+#### 请求头
+```
+Content-Type: application/json
+```
+
+#### 请求体
+
+```json
+{
+    "code": "AB3CDE5F"
+}
+```
+
+#### 响应 - 有效
+
+```json
+{
+    "valid": true,
+    "message": "邀请码有效"
+}
+```
+
+#### 响应 - 无效
+
+```json
+{
+    "valid": false,
+    "message": "邀请码不存在"
+}
+```
+
+或
+
+```json
+{
+    "valid": false,
+    "message": "邀请码已过期"
+}
+```
+
+或
+
+```json
+{
+    "valid": false,
+    "message": "邀请码使用次数已满"
+}
+```
+
+---
+
+### 3.2 注册（需邀请码）
+
+**POST** `/api/v1/auth/register`
+
+#### 请求头
+```
+Content-Type: application/json
+```
+
+#### 请求体
+
+```json
+{
+    "username": "newuser",
+    "email": "newuser@example.com",
+    "password": "securepassword",
+    "invitation_code": "AB3CDE5F"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| username | string | 是 | 用户名 |
+| email | string | 是 | 邮箱 |
+| password | string | 是 | 密码 |
+| invitation_code | string | 是 | 邀请码（8位） |
+
+#### 响应 - 成功
+
+```json
+{
+    "id": "550e8400-e29b-41d4-a716-446655440099",
+    "username": "newuser",
+    "email": "newuser@example.com",
+    "credits": {
+        "balance": 5000.00,
+        "gift_from_registration": 5000.00
+    },
+    "access_token": "eyJhbGci...",
+    "token_type": "bearer"
+}
+```
+
+#### 响应 - 失败
+
+```json
+{
+    "detail": "邀请码无效或已过期"
+}
+```
+
+或
+
+```json
+{
+    "detail": "该IP地址24小时内注册次数过多，请稍后再试"
+}
+```
+
+---
+
+## 4. 管理端接口详情
 
 ### 3.1 生成兑换码
 
@@ -405,11 +661,117 @@ Authorization: Bearer <admin_access_token>
 
 ---
 
-## 4. 通用响应格式
+### 4.5 批量生成邀请码（管理员）
+
+**POST** `/api/v1/admin/invitations/batch-generate`
+
+#### 请求头
+```
+Authorization: Bearer <admin_access_token>
+Content-Type: application/json
+```
+
+#### 请求体
+
+```json
+{
+    "count": 10,
+    "max_uses": 10,
+    "expires_days": 365,
+    "remark": "市场推广活动"
+}
+```
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| count | int | 是 | - | 生成数量（1-100） |
+| max_uses | int | 否 | 10 | 每个码最大使用次数 |
+| expires_days | int | 否 | NULL | 有效期天数 |
+| remark | string | 否 | - | 备注 |
+
+#### 响应
+
+```json
+{
+    "codes": [
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440001",
+            "code": "AB3CDE5F",
+            "max_uses": 10,
+            "expires_at": "2026-12-03T23:59:59Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440002",
+            "code": "MN9PQR2S",
+            "max_uses": 10,
+            "expires_at": "2026-12-03T23:59:59Z"
+        }
+    ],
+    "total_generated": 10,
+    "remark": "市场推广活动"
+}
+```
+
+---
+
+### 4.6 查询所有邀请码（管理员）
+
+**GET** `/api/v1/admin/invitations/list`
+
+#### 请求头
+```
+Authorization: Bearer <admin_access_token>
+```
+
+#### 请求参数（Query）
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| page | int | 否 | 1 | 页码 |
+| page_size | int | 否 | 20 | 每页数量 |
+| status | string | 否 | - | 筛选：active/expired/full |
+| user_id | uuid | 否 | - | 筛选：创建者 |
+
+#### 响应
+
+```json
+{
+    "items": [
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440001",
+            "code": "AB3CDE5F",
+            "user": {
+                "id": "user-uuid",
+                "username": "testuser"
+            },
+            "max_uses": 10,
+            "used_count": 5,
+            "activated_count": 3,
+            "total_rewards": 3000.00,
+            "expires_at": "2026-12-03T23:59:59Z",
+            "created_at": "2025-12-03T10:00:00Z"
+        }
+    ],
+    "total": 50,
+    "page": 1,
+    "page_size": 20,
+    "total_pages": 3,
+    "stats": {
+        "total_codes": 50,
+        "active_codes": 35,
+        "expired_codes": 10,
+        "full_codes": 5
+    }
+}
+```
+
+---
+
+## 5. 通用响应格式
 
 > ⚠️ **注意**: 本项目 API **直接返回数据**，不使用 `code/message/data` 包装。
 
-### 4.1 成功响应
+### 5.1 成功响应
 
 直接返回数据对象或列表：
 
@@ -428,7 +790,7 @@ Authorization: Bearer <admin_access_token>
 }
 ```
 
-### 4.2 错误响应
+### 5.2 错误响应
 
 使用 FastAPI 的 HTTPException：
 
@@ -448,7 +810,7 @@ Authorization: Bearer <admin_access_token>
 }
 ```
 
-### 4.3 HTTP 状态码
+### 5.3 HTTP 状态码
 
 | 状态码 | 说明 |
 |--------|------|
@@ -463,9 +825,9 @@ Authorization: Bearer <admin_access_token>
 
 ---
 
-## 5. Pydantic Schemas
+## 6. Pydantic Schemas
 
-### 5.1 请求 Schemas
+### 6.1 请求 Schemas
 
 ```python
 # 兑换请求
@@ -486,7 +848,7 @@ class GiftCreditsRequest(BaseModel):
     reason: Optional[str] = Field(None, max_length=255)
 ```
 
-### 5.2 响应 Schemas
+### 6.2 响应 Schemas
 
 ```python
 # 余额响应
@@ -523,10 +885,43 @@ class RedeemCodeResponse(BaseModel):
     created_by: Optional[UserBrief]
     remark: Optional[str]
     created_at: datetime
+
+# 邀请码响应
+class InvitationCodeResponse(BaseModel):
+    id: UUID
+    code: str
+    max_uses: int
+    used_count: int
+    activated_count: int
+    total_rewards: Decimal
+    expires_at: Optional[datetime]
+    created_at: datetime
+
+# 邀请统计响应
+class InvitationStatsResponse(BaseModel):
+    total_invitations: int
+    total_used: int
+    total_activated: int
+    total_rewards: Decimal
+    can_generate_more: bool
+    remaining_quota: int
+
+# 注册请求（含邀请码）
+class RegisterRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+    invitation_code: str = Field(..., min_length=8, max_length=8, pattern="^[A-Z0-9]+$")
 ```
 
 ---
 
-**文档版本**: v1.0
+**文档版本**: v2.0
 **创建时间**: 2025-12-02
+**最后更新**: 2025-12-03
+**更新内容**:
+- 添加邀请系统接口（生成、查询、验证）
+- 添加管理员批量生成邀请码接口
+- 更新注册接口要求邀请码
+- 添加邀请相关 Schemas
 **作者**: Claude Code

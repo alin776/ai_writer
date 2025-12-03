@@ -4,12 +4,13 @@
 
 ## 1. 服务概览
 
-积分系统包含 2 个核心服务：
+积分系统包含 3 个核心服务：
 
 | 服务 | 文件 | 说明 |
 |------|------|------|
 | CreditService | credit_service.py | 积分管理核心服务 |
 | RedeemCodeService | redeem_code_service.py | 兑换码服务 |
+| InvitationService | invitation_service.py | 邀请系统服务 |
 
 ---
 
@@ -147,8 +148,9 @@ async def consume(
     user_id: UUID,
     amount: Decimal,
     description: str,
-    related_id: Optional[UUID] = None
-) -> CreditTransaction:
+    related_id: Optional[UUID] = None,
+    skip_check: bool = False
+) -> Optional[CreditTransaction]:
     """
     消费积分
 
@@ -157,9 +159,10 @@ async def consume(
         amount: 消费数量（正数）
         description: 描述（如 "AI 写作助手调用"）
         related_id: 关联的 ai_call_log ID
+        skip_check: 跳过检查（管理员豁免）
 
     Returns:
-        CreditTransaction: 交易记录
+        CreditTransaction: 交易记录（管理员豁免时返回 None）
 
     Raises:
         InsufficientCreditsError: 余额不足
@@ -168,13 +171,29 @@ async def consume(
 ```
 
 **逻辑**:
-1. 获取用户积分记录（加锁）
-2. 检查是否过期
-3. 检查余额是否充足
-4. 扣减余额
-5. 更新 total_consumed
-6. 创建 CONSUME 类型交易记录
-7. 提交事务
+1. **检查管理员豁免** - 如果 `skip_check=True`，直接返回 None
+2. 获取用户积分记录（加锁）
+3. 检查是否过期
+4. 检查余额是否充足
+5. 扣减余额
+6. 更新 total_consumed
+7. 创建 CONSUME 类型交易记录
+8. 提交事务
+
+**管理员豁免**:
+```python
+# 调用层判断
+from app.core.config import settings
+
+if user.is_admin and settings.ADMIN_CREDITS_EXEMPT:
+    # 跳过积分扣减，仅记录日志
+    return await credit_service.consume(
+        user_id=user.id,
+        amount=credits,
+        description=description,
+        skip_check=True  # 管理员豁免
+    )
+```
 
 **并发安全**:
 ```python
@@ -476,7 +495,267 @@ async def list_codes(
 
 ---
 
-## 4. 异常类
+## 4. InvitationService - 邀请服务
+
+### 4.1 类定义
+
+```python
+class InvitationService:
+    """邀请服务"""
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+        self.credit_service = CreditService(db)
+```
+
+### 4.2 方法列表
+
+| 方法 | 说明 |
+|------|------|
+| `generate_invitation_code()` | 生成邀请码 |
+| `validate_invitation_code()` | 验证邀请码 |
+| `use_invitation_code()` | 使用邀请码（注册时） |
+| `check_activation()` | 检查激活条件 |
+| `activate_invitation()` | 激活邀请（奖励邀请人） |
+| `get_my_invitations()` | 查询我的邀请码 |
+| `get_invitation_stats()` | 查询邀请统计 |
+
+---
+
+### 4.3 方法详情
+
+#### 4.3.1 generate_invitation_code
+
+生成邀请码。
+
+```python
+async def generate_invitation_code(
+    self,
+    user_id: UUID,
+    max_uses: int = 10,
+    expires_days: Optional[int] = None
+) -> UserInvitation:
+    """
+    生成邀请码
+
+    Args:
+        user_id: 用户ID
+        max_uses: 最大使用次数（默认 10）
+        expires_days: 有效期天数（可选）
+
+    Returns:
+        UserInvitation: 邀请码记录
+
+    Raises:
+        InvitationQuotaExceededError: 超过生成数量限制
+        NewUserCooldownError: 新用户冷却期未过
+    """
+```
+
+**逻辑**:
+1. 查询用户已有邀请码数量
+2. 验证：
+   - 是否超过 3 个码限制
+   - 是否在新用户冷却期（72 小时）
+3. 生成唯一邀请码（8 位）
+4. 计算过期时间
+5. 创建 UserInvitation 记录
+6. 返回邀请码
+
+**示例**:
+```python
+invitation = await invitation_service.generate_invitation_code(
+    user_id=user.id,
+    max_uses=10,
+    expires_days=365
+)
+# invitation.code = "AB3CDE5F"
+```
+
+---
+
+#### 4.3.2 validate_invitation_code
+
+验证邀请码是否有效。
+
+```python
+async def validate_invitation_code(
+    self,
+    code: str,
+    ip_address: Optional[str] = None,
+    device_fingerprint: Optional[str] = None
+) -> Tuple[bool, str, Optional[UserInvitation]]:
+    """
+    验证邀请码
+
+    Args:
+        code: 邀请码
+        ip_address: IP 地址
+        device_fingerprint: 设备指纹
+
+    Returns:
+        Tuple[bool, str, Optional[UserInvitation]]:
+            (是否有效, 错误信息, 邀请码记录)
+    """
+```
+
+**验证逻辑**:
+1. 查询邀请码是否存在
+2. 检查是否过期
+3. 检查使用次数是否已满
+4. **防刷检查**：
+   - IP 限制：同一 IP 24 小时内最多注册 3 次
+   - 设备指纹限制：同一设备 7 天内最多注册 5 次
+5. 返回验证结果
+
+---
+
+#### 4.3.3 use_invitation_code
+
+使用邀请码（注册时调用）。
+
+```python
+async def use_invitation_code(
+    self,
+    code: str,
+    invitee_id: UUID,
+    ip_address: Optional[str] = None,
+    device_fingerprint: Optional[str] = None
+) -> InvitationUsage:
+    """
+    使用邀请码
+
+    Args:
+        code: 邀请码
+        invitee_id: 被邀请人 ID
+        ip_address: IP 地址
+        device_fingerprint: 设备指纹
+
+    Returns:
+        InvitationUsage: 使用记录
+
+    Raises:
+        InvitationCodeInvalidError: 邀请码无效
+        InvitationCodeExpiredError: 邀请码过期
+        InvitationCodeFullError: 邀请码已满
+        AntiAbuseLimitError: 触发防刷限制
+    """
+```
+
+**逻辑**:
+1. 验证邀请码（调用 validate_invitation_code）
+2. 使用事务：
+   - 增加 used_count
+   - 创建 InvitationUsage 记录（status=pending）
+3. 提交事务
+4. 返回使用记录
+
+---
+
+#### 4.3.4 check_activation
+
+检查激活条件是否满足。
+
+```python
+async def check_activation(
+    self,
+    invitee_id: UUID
+) -> Tuple[bool, Decimal, Decimal]:
+    """
+    检查激活条件
+
+    Args:
+        invitee_id: 被邀请人 ID
+
+    Returns:
+        Tuple[bool, Decimal, Decimal]:
+            (是否满足, 已消费积分, 已充值积分)
+    """
+```
+
+**激活条件**:
+- 消费 ≥ 200 积分 **或**
+- 充值 ≥ 1 积分
+- 必须在注册后 7 天内完成
+
+**逻辑**:
+1. 查询被邀请人的 InvitationUsage 记录
+2. 检查是否超过 7 天
+3. 查询累计消费积分（从 credit_transactions）
+4. 查询累计充值积分（从 credit_transactions）
+5. 判断是否满足激活条件
+6. 返回结果
+
+---
+
+#### 4.3.5 activate_invitation
+
+激活邀请（奖励邀请人）。
+
+```python
+async def activate_invitation(
+    self,
+    invitee_id: UUID
+) -> Optional[CreditTransaction]:
+    """
+    激活邀请
+
+    Args:
+        invitee_id: 被邀请人 ID
+
+    Returns:
+        Optional[CreditTransaction]: 奖励交易记录（如果激活成功）
+    """
+```
+
+**逻辑**:
+1. 检查激活条件（调用 check_activation）
+2. 如果不满足，返回 None
+3. 查询 InvitationUsage 记录
+4. 检查是否已激活（status=active）
+5. 使用事务：
+   - 更新 InvitationUsage.status = "active"
+   - 更新 InvitationUsage.activated_at = now()
+   - 增加 UserInvitation.activated_count
+   - 增加 UserInvitation.total_rewards
+   - 调用 CreditService.gift() 给邀请人 1000 积分
+6. 提交事务
+7. 返回奖励交易记录
+
+**自动激活**:
+```python
+# 在 AI 调用扣费后自动检查
+await invitation_service.activate_invitation(user.id)
+
+# 在兑换充值后自动检查
+await invitation_service.activate_invitation(user.id)
+```
+
+---
+
+#### 4.3.6 get_my_invitations
+
+查询我的邀请码列表。
+
+```python
+async def get_my_invitations(
+    self,
+    user_id: UUID
+) -> List[UserInvitation]:
+    """
+    查询我的邀请码
+
+    Args:
+        user_id: 用户ID
+
+    Returns:
+        List[UserInvitation]: 邀请码列表（包含使用统计）
+    """
+```
+
+---
+
+## 5. 异常类
 
 ```python
 # credit_exceptions.py
@@ -514,6 +793,46 @@ class RedeemCodeExpiredError(CreditError):
     def __init__(self, expired_at: datetime):
         self.expired_at = expired_at
         super().__init__(f"兑换码已于 {expired_at} 过期")
+
+# ============ 邀请系统异常 ============
+
+class InvitationError(Exception):
+    """邀请系统异常基类"""
+    pass
+
+class InvitationQuotaExceededError(InvitationError):
+    """超过邀请码生成数量限制"""
+    def __init__(self, max_count: int = 3):
+        self.max_count = max_count
+        super().__init__(f"每位用户最多生成 {max_count} 个邀请码")
+
+class NewUserCooldownError(InvitationError):
+    """新用户冷却期未过"""
+    def __init__(self, remaining_hours: int):
+        self.remaining_hours = remaining_hours
+        super().__init__(f"新用户需等待 {remaining_hours} 小时后才能生成邀请码")
+
+class InvitationCodeInvalidError(InvitationError):
+    """邀请码无效"""
+    pass
+
+class InvitationCodeExpiredError(InvitationError):
+    """邀请码已过期"""
+    def __init__(self, expired_at: datetime):
+        self.expired_at = expired_at
+        super().__init__(f"邀请码已于 {expired_at} 过期")
+
+class InvitationCodeFullError(InvitationError):
+    """邀请码使用次数已满"""
+    def __init__(self, max_uses: int):
+        self.max_uses = max_uses
+        super().__init__(f"邀请码已达到最大使用次数 {max_uses}")
+
+class AntiAbuseLimitError(InvitationError):
+    """触发防刷限制"""
+    def __init__(self, limit_type: str, message: str):
+        self.limit_type = limit_type  # "ip" or "device"
+        super().__init__(message)
 ```
 
 ---
@@ -628,8 +947,64 @@ async def redeem_code(
     }
 ```
 
+### 6.3 邀请激活流程
+
+```python
+async def register_with_invitation(
+    invitation_code: str,
+    user_data: dict,
+    ip_address: str,
+    device_fingerprint: str,
+    db: AsyncSession
+):
+    """注册并使用邀请码"""
+    invitation_service = InvitationService(db)
+    credit_service = CreditService(db)
+
+    # 1. 验证邀请码
+    is_valid, error_msg, invitation = await invitation_service.validate_invitation_code(
+        code=invitation_code,
+        ip_address=ip_address,
+        device_fingerprint=device_fingerprint
+    )
+    if not is_valid:
+        raise InvitationCodeInvalidError(error_msg)
+
+    # 2. 创建用户
+    user = await user_service.create_user(**user_data)
+
+    # 3. 赠送新用户积分
+    await credit_service.get_or_create_credits(
+        user_id=user.id,
+        gift_credits=Decimal("5000.00")
+    )
+
+    # 4. 记录邀请使用
+    await invitation_service.use_invitation_code(
+        code=invitation_code,
+        invitee_id=user.id,
+        ip_address=ip_address,
+        device_fingerprint=device_fingerprint
+    )
+
+    return user
+
+async def on_ai_call_complete(user_id: UUID, db: AsyncSession):
+    """AI 调用完成后检查激活"""
+    invitation_service = InvitationService(db)
+
+    # 自动检查并激活邀请
+    await invitation_service.activate_invitation(user_id)
+```
+
 ---
 
-**文档版本**: v1.0
+**文档版本**: v2.0
 **创建时间**: 2025-12-02
+**最后更新**: 2025-12-03
+**更新内容**:
+- 添加 InvitationService 设计
+- 添加管理员豁免逻辑（skip_check 参数）
+- 添加邀请系统异常类
+- 添加邀请激活流程示例
 **作者**: Claude Code

@@ -4,13 +4,15 @@
 
 ## 1. 模型概览
 
-积分系统包含 3 个核心数据模型：
+积分系统包含 5 个核心数据模型：
 
 | 模型 | 表名 | 说明 |
 |------|------|------|
 | UserCredits | user_credits | 用户积分主表 |
 | CreditTransaction | credit_transactions | 积分变动记录 |
 | RedeemCode | redeem_codes | 兑换码 |
+| UserInvitation | user_invitations | 用户邀请码 |
+| InvitationUsage | invitation_usages | 邀请使用记录（防刷） |
 
 ## 2. UserCredits - 用户积分表
 
@@ -299,18 +301,199 @@ class RedeemCode(Base):
 
 ---
 
-## 5. 兑换码生成规则
+## 5. UserInvitation - 用户邀请码
 
-### 5.1 格式规范
+### 5.1 表结构
+
+```sql
+CREATE TABLE user_invitations (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+    -- 邀请码信息
+    code            VARCHAR(8) NOT NULL UNIQUE,                -- 邀请码（8位）
+    max_uses        INT NOT NULL DEFAULT 10,                   -- 最大使用次数
+    used_count      INT NOT NULL DEFAULT 0,                    -- 已使用次数
+
+    -- 激活统计
+    activated_count INT NOT NULL DEFAULT 0,                    -- 激活成功次数
+    total_rewards   DECIMAL(10,2) NOT NULL DEFAULT 0.00,       -- 累计获得奖励
+
+    -- 有效期
+    expires_at      TIMESTAMP WITH TIME ZONE,                  -- 过期时间
+
+    -- 时间戳
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 索引
+CREATE UNIQUE INDEX ix_user_invitations_code ON user_invitations(code);
+CREATE INDEX ix_user_invitations_user_id ON user_invitations(user_id);
+CREATE INDEX ix_user_invitations_expires_at ON user_invitations(expires_at);
+```
+
+### 5.2 字段说明
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| id | UUID | 是 | 自动生成 | 主键 |
+| user_id | UUID | 是 | - | 邀请人ID |
+| code | VARCHAR(8) | 是 | - | 邀请码，唯一 |
+| max_uses | INT | 是 | 10 | 最大使用次数 |
+| used_count | INT | 是 | 0 | 已使用次数 |
+| activated_count | INT | 是 | 0 | 激活成功次数 |
+| total_rewards | DECIMAL(10,2) | 是 | 0.00 | 累计获得奖励积分 |
+| expires_at | TIMESTAMP | 否 | NULL | 过期时间 |
+| created_at | TIMESTAMP | 是 | NOW() | 创建时间 |
+
+### 5.3 SQLAlchemy 模型
+
+```python
+class UserInvitation(Base):
+    """用户邀请码"""
+
+    __tablename__ = "user_invitations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    # 邀请码信息
+    code = Column(String(8), nullable=False, unique=True, index=True)
+    max_uses = Column(Integer, nullable=False, default=10)
+    used_count = Column(Integer, nullable=False, default=0)
+
+    # 激活统计
+    activated_count = Column(Integer, nullable=False, default=0)
+    total_rewards = Column(DECIMAL(10, 2), nullable=False, default=Decimal("0.00"))
+
+    # 有效期
+    expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
+    # 时间戳
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # 关联关系
+    inviter = relationship("User", backref="invitations")
+    usages = relationship("InvitationUsage", back_populates="invitation")
+```
+
+---
+
+## 6. InvitationUsage - 邀请使用记录
+
+### 6.1 表结构
+
+```sql
+CREATE TABLE invitation_usages (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    invitation_id   UUID NOT NULL REFERENCES user_invitations(id) ON DELETE CASCADE,
+    invitee_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+    -- 防刷信息
+    ip_address      VARCHAR(45),                               -- IP地址（支持IPv6）
+    device_fingerprint VARCHAR(255),                           -- 设备指纹
+
+    -- 激活状态
+    status          VARCHAR(20) NOT NULL DEFAULT 'pending',    -- pending/active/expired
+    activated_at    TIMESTAMP WITH TIME ZONE,                  -- 激活时间
+
+    -- 时间戳
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 索引
+CREATE INDEX ix_invitation_usages_invitation_id ON invitation_usages(invitation_id);
+CREATE INDEX ix_invitation_usages_invitee_id ON invitation_usages(invitee_id);
+CREATE INDEX ix_invitation_usages_ip ON invitation_usages(ip_address, created_at);
+CREATE INDEX ix_invitation_usages_device ON invitation_usages(device_fingerprint, created_at);
+CREATE INDEX ix_invitation_usages_status ON invitation_usages(status);
+```
+
+### 6.2 字段说明
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| id | UUID | 是 | 自动生成 | 主键 |
+| invitation_id | UUID | 是 | - | 邀请码ID |
+| invitee_id | UUID | 是 | - | 被邀请人ID |
+| ip_address | VARCHAR(45) | 否 | NULL | IP地址 |
+| device_fingerprint | VARCHAR(255) | 否 | NULL | 设备指纹 |
+| status | VARCHAR(20) | 是 | pending | 激活状态 |
+| activated_at | TIMESTAMP | 否 | NULL | 激活时间 |
+| created_at | TIMESTAMP | 是 | NOW() | 创建时间 |
+
+### 6.3 状态枚举
+
+```python
+class InvitationStatus(str, Enum):
+    """邀请激活状态"""
+    PENDING = "pending"     # 待激活
+    ACTIVE = "active"       # 已激活
+    EXPIRED = "expired"     # 已过期（7天内未激活）
+```
+
+### 6.4 SQLAlchemy 模型
+
+```python
+class InvitationUsage(Base):
+    """邀请使用记录"""
+
+    __tablename__ = "invitation_usages"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    invitation_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("user_invitations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    invitee_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    # 防刷信息
+    ip_address = Column(String(45), nullable=True)
+    device_fingerprint = Column(String(255), nullable=True)
+
+    # 激活状态
+    status = Column(String(20), nullable=False, default="pending", index=True)
+    activated_at = Column(DateTime(timezone=True), nullable=True)
+
+    # 时间戳
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # 关联关系
+    invitation = relationship("UserInvitation", back_populates="usages")
+    invitee = relationship("User", backref="invitation_record")
+
+    __table_args__ = (
+        Index('ix_invitation_usages_ip_time', 'ip_address', 'created_at'),
+        Index('ix_invitation_usages_device_time', 'device_fingerprint', 'created_at'),
+    )
+```
+
+---
+
+## 7. 邀请码生成规则
+
+### 7.1 兑换码生成
+
+**格式规范**:
 - 长度：12 位
 - 字符集：大写字母 A-Z + 数字 0-9（排除易混淆字符 O, 0, I, 1, L）
 - 有效字符：`ABCDEFGHJKMNPQRSTUVWXYZ23456789`（共 32 个字符）
 
-### 5.2 生成算法
-
+**生成算法**:
 ```python
 import secrets
-import string
 
 VALID_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # 排除 O,0,I,1,L
 
@@ -319,16 +502,41 @@ def generate_redeem_code(length: int = 12) -> str:
     return ''.join(secrets.choice(VALID_CHARS) for _ in range(length))
 ```
 
-### 5.3 示例兑换码
+**示例兑换码**:
 ```
 AB3CDE5FGH7K
 MN9PQR2STUV
 WX4YZ6ABCD8E
 ```
 
+### 7.2 邀请码生成
+
+**格式规范**:
+- 长度：8 位
+- 字符集：大写字母 A-Z + 数字 0-9（排除易混淆字符）
+- 有效字符：`ABCDEFGHJKMNPQRSTUVWXYZ23456789`（共 32 个字符）
+
+**生成算法**:
+```python
+import secrets
+
+VALID_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+
+def generate_invitation_code(length: int = 8) -> str:
+    """生成邀请码"""
+    return ''.join(secrets.choice(VALID_CHARS) for _ in range(length))
+```
+
+**示例邀请码**:
+```
+AB3CDE5F
+MN9PQR2S
+WX4YZ6AB
+```
+
 ---
 
-## 6. ER 图
+## 8. ER 图
 
 ```
 ┌─────────────────┐       ┌──────────────────────┐
@@ -336,9 +544,9 @@ WX4YZ6ABCD8E
 ├─────────────────┤       ├──────────────────────┤
 │ id (PK)         │──1:1──│ user_id (FK, UNIQUE) │
 │ username        │       │ balance              │
-│ ...             │       │ total_recharged      │
-└─────────────────┘       │ total_consumed       │
-        │                 │ expires_at           │
+│ is_admin        │       │ total_recharged      │
+│ ...             │       │ total_consumed       │
+└─────────────────┘       │ expires_at           │
         │                 └──────────────────────┘
         │
         │ 1:N
@@ -366,18 +574,62 @@ WX4YZ6ABCD8E
         │ 1:N             │ used_by (FK)         │
         └─────────────────│ expires_at           │
                           └──────────────────────┘
+
+┌─────────────────┐       ┌──────────────────────┐
+│      users      │       │  user_invitations    │
+├─────────────────┤       ├──────────────────────┤
+│ id (PK)         │──1:N──│ user_id (FK)         │
+│ (inviter)       │       │ code (UNIQUE)        │
+└─────────────────┘       │ max_uses             │
+        │                 │ used_count           │
+        │                 │ activated_count      │
+        │                 │ total_rewards        │
+        │                 └──────────────────────┘
+        │                         │
+        │                         │ 1:N
+        │                         ▼
+        │                 ┌──────────────────────┐
+        │                 │  invitation_usages   │
+        │                 ├──────────────────────┤
+        └─────────────────│ invitee_id (FK)      │
+                          │ invitation_id (FK)   │
+                          │ ip_address           │
+                          │ device_fingerprint   │
+                          │ status               │
+                          │ activated_at         │
+                          └──────────────────────┘
 ```
 
 ---
 
-## 7. 迁移文件
+## 9. 迁移文件
+
+### 9.1 积分系统迁移
 
 文件名：`backend/alembic/versions/20251202_xxxx_add_credits_tables.py`
+
+创建表：
+- user_credits
+- credit_transactions
+- redeem_codes
+
+### 9.2 邀请系统迁移
+
+文件名：`backend/alembic/versions/20251203_xxxx_add_invitation_tables.py`
+
+创建表：
+- user_invitations
+- invitation_usages
 
 详见开发实现阶段。
 
 ---
 
-**文档版本**: v1.0
+**文档版本**: v2.0
 **创建时间**: 2025-12-02
+**最后更新**: 2025-12-03
+**更新内容**:
+- 添加邀请系统表（user_invitations, invitation_usages）
+- 添加邀请码生成规则
+- 更新 ER 图包含邀请关系
 **作者**: Claude Code

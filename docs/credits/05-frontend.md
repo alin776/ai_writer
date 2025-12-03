@@ -21,6 +21,7 @@
 | 页面 | 路由 | 说明 |
 |------|------|------|
 | 积分中心 | /credits | 余额、交易记录、兑换 |
+| 邀请中心 | /invitations | 邀请码管理、邀请统计 |
 
 ### 2.2 管理端页面
 
@@ -28,6 +29,13 @@
 |------|------|------|
 | 兑换码管理 | /admin/credits/codes | 生成、查看兑换码 |
 | 积分统计 | /admin/credits/stats | 统计数据 |
+| 邀请码管理 | /admin/invitations | 查看所有邀请码、批量生成 |
+
+### 2.3 公开页面
+
+| 页面 | 路由 | 说明 |
+|------|------|------|
+| 注册页面 | /register | 需要邀请码才能注册 |
 
 ---
 
@@ -115,7 +123,111 @@
 
 ---
 
-## 4. 管理端 - 兑换码管理页面
+## 4. 用户端 - 邀请中心页面
+
+### 4.1 页面结构
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  邀请中心                                                 │
+├──────────────────────────────────────────────────────────┤
+│  ┌────────────────────────────────────────────────────┐  │
+│  │  🎁 邀请统计                                        │  │
+│  │  ┌─────────┐  ┌──────────┐  ┌──────────┐          │  │
+│  │  │总邀请数  │  │激活人数   │  │获得奖励   │          │  │
+│  │  │   3     │  │    2     │  │ 2000积分  │          │  │
+│  │  └─────────┘  └──────────┘  └──────────┘          │  │
+│  │                                                    │  │
+│  │  剩余生成次数：0 / 3     [+ 生成新邀请码]           │  │
+│  └────────────────────────────────────────────────────┘  │
+│                                                          │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │  📋 我的邀请码                                      │  │
+│  │  ┌──────────────────────────────────────────────┐  │  │
+│  │  │ 邀请码: AB3CDE5F    [复制]                    │  │  │
+│  │  │ 使用次数: 3/10                                │  │  │
+│  │  │ 激活人数: 2                                   │  │  │
+│  │  │ 获得奖励: 2000积分                            │  │  │
+│  │  │ 有效期至: 2026-12-03                          │  │  │
+│  │  │                                              │  │  │
+│  │  │ 已邀请用户：                                  │  │  │
+│  │  │ ✅ user123 (已激活) - 2025-12-01            │  │  │
+│  │  │ ⏳ user456 (待激活) - 2025-12-03            │  │  │
+│  │  │ ✅ user789 (已激活) - 2025-11-30            │  │  │
+│  │  └──────────────────────────────────────────────┘  │  │
+│  └────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────┘
+```
+
+### 4.2 生成邀请码弹窗
+
+```
+┌──────────────────────────────────────┐
+│  🎫 生成邀请码                  [×]  │
+├──────────────────────────────────────┤
+│                                      │
+│  最大使用次数：                       │
+│  ┌──────────────────────┐           │
+│  │  10                  │           │
+│  └──────────────────────┘           │
+│                                      │
+│  有效期（天）：                       │
+│  ┌──────────────────────┐           │
+│  │  365  (留空永不过期)  │           │
+│  └──────────────────────┘           │
+│                                      │
+│  说明：                              │
+│  • 每位用户最多生成 3 个邀请码         │
+│  • 被邀请人消费 200 积分或充值 1 积分  │
+│    后激活，你将获得 1000 积分奖励      │
+│                                      │
+│  ┌────────────┐  ┌────────────┐     │
+│  │   取消     │  │   生成     │     │
+│  └────────────┘  └────────────┘     │
+│                                      │
+└──────────────────────────────────────┘
+```
+
+### 4.3 注册页面（含邀请码验证）
+
+```
+┌──────────────────────────────────────┐
+│  注册账号                            │
+├──────────────────────────────────────┤
+│                                      │
+│  邀请码：                            │
+│  ┌──────────────────────┐           │
+│  │  AB3CDE5F            │  [验证]   │
+│  └──────────────────────┘           │
+│  ✅ 邀请码有效                        │
+│                                      │
+│  用户名：                            │
+│  ┌──────────────────────┐           │
+│  │  newuser             │           │
+│  └──────────────────────┘           │
+│                                      │
+│  邮箱：                              │
+│  ┌──────────────────────┐           │
+│  │  user@example.com    │           │
+│  └──────────────────────┘           │
+│                                      │
+│  密码：                              │
+│  ┌──────────────────────┐           │
+│  │  ••••••••            │           │
+│  └──────────────────────┘           │
+│                                      │
+│  ┌────────────────────┐             │
+│  │      注册          │             │
+│  └────────────────────┘             │
+│                                      │
+│  注册成功即可获得 5000 积分！         │
+│                                      │
+└──────────────────────────────────────┘
+```
+
+---
+
+## 5. 管理端 - 兑换码管理页面
 
 ### 4.1 页面结构
 
@@ -202,7 +314,7 @@
 
 ---
 
-## 5. 文件结构
+## 6. 文件结构
 
 > 📁 项目前端代码在根目录 `src/` 下，不是 `frontend/src/`
 
@@ -210,7 +322,10 @@
 src/
 ├── views/                          # 页面视图（扁平结构）
 │   ├── CreditsView.tsx             # 用户积分中心页面
-│   └── AdminCreditsView.tsx        # 管理端兑换码管理页面
+│   ├── InvitationsView.tsx         # 用户邀请中心页面
+│   ├── RegisterView.tsx            # 注册页面（含邀请码验证）
+│   ├── AdminCreditsView.tsx        # 管理端兑换码管理页面
+│   └── AdminInvitationsView.tsx    # 管理端邀请码管理页面
 │
 ├── components/
 │   ├── credits/                    # 积分相关组件
@@ -221,27 +336,37 @@ src/
 │   │   ├── CodeList.tsx            # 兑换码列表（管理端）
 │   │   └── GenerateDialog.tsx      # 生成兑换码弹窗
 │   │
+│   ├── invitations/                # 邀请相关组件
+│   │   ├── InvitationStatsCard.tsx # 邀请统计卡片
+│   │   ├── InvitationCodeCard.tsx  # 邀请码卡片
+│   │   ├── GenerateInvitationDialog.tsx  # 生成邀请码弹窗
+│   │   └── InviteeList.tsx         # 被邀请人列表
+│   │
 │   └── common/                     # 通用组件（已有）
 │       ├── Button.tsx
 │       ├── Modal.tsx
 │       └── ...
 │
 ├── services/
-│   ├── ApiAdapter.ts               # API 适配器（已有，新增积分方法）
-│   └── DataService.ts              # 数据服务（已有，新增积分方法）
+│   ├── ApiAdapter.ts               # API 适配器（已有，新增方法）
+│   └── DataService.ts              # 数据服务（已有，新增方法）
 │
 ├── store/
-│   └── creditsStore.ts             # 积分状态管理（Zustand）
+│   ├── creditsStore.ts             # 积分状态管理（Zustand）
+│   └── invitationsStore.ts         # 邀请状态管理（Zustand）
 │
 └── types/
-    └── credits.ts                  # 积分相关类型定义
+    ├── credits.ts                  # 积分相关类型定义
+    └── invitations.ts              # 邀请相关类型定义
 ```
 
 > ⚠️ **注意**: 本项目**不使用 React Query**，使用 Zustand + Axios 直接管理状态和请求。
 
 ---
 
-## 6. 类型定义
+## 7. 类型定义
+
+### 7.1 积分类型（credits.ts）
 
 ```typescript
 // src/types/credits.ts
@@ -320,9 +445,70 @@ export interface PaginatedResponse<T> {
 }
 ```
 
+### 7.2 邀请类型（invitations.ts）
+
+```typescript
+// src/types/invitations.ts
+
+// 邀请码
+export interface InvitationCode {
+  id: string;
+  code: string;
+  max_uses: number;
+  used_count: number;
+  activated_count: number;
+  total_rewards: number;
+  expires_at: string | null;
+  created_at: string;
+}
+
+// 邀请统计
+export interface InvitationStats {
+  total_invitations: number;
+  total_used: number;
+  total_activated: number;
+  total_rewards: number;
+  can_generate_more: boolean;
+  remaining_quota: number;
+}
+
+// 被邀请人
+export interface Invitee {
+  username: string;
+  status: 'pending' | 'active' | 'expired';
+  registered_at: string;
+  activated_at: string | null;
+}
+
+// 邀请码详情（含被邀请人列表）
+export interface InvitationCodeDetail extends InvitationCode {
+  invitees: Invitee[];
+}
+
+// 生成邀请码请求
+export interface GenerateInvitationRequest {
+  max_uses?: number;
+  expires_days?: number;
+}
+
+// 验证邀请码响应
+export interface ValidateInvitationResponse {
+  valid: boolean;
+  message: string;
+}
+
+// 注册请求
+export interface RegisterRequest {
+  username: string;
+  email: string;
+  password: string;
+  invitation_code: string;
+}
+```
+
 ---
 
-## 7. Zustand Store
+## 8. Zustand Store
 
 > ⚠️ 本项目使用 Zustand 管理状态，不使用 React Query
 
@@ -401,10 +587,95 @@ export const useCreditsStore = create<CreditsState>((set, get) => ({
 }));
 ```
 
-### 7.2 使用示例
+### 8.2 invitationsStore.ts
 
 ```typescript
-// 在组件中使用
+// src/store/invitationsStore.ts
+
+import { create } from 'zustand';
+import { ApiAdapter } from '../services/ApiAdapter';
+import type {
+  InvitationCode,
+  InvitationCodeDetail,
+  InvitationStats,
+  GenerateInvitationRequest,
+  ValidateInvitationResponse
+} from '../types/invitations';
+
+interface InvitationsState {
+  // 状态
+  stats: InvitationStats | null;
+  myCodes: InvitationCodeDetail[];
+  isLoading: boolean;
+  error: string | null;
+
+  // Actions
+  fetchStats: () => Promise<void>;
+  fetchMyCodes: () => Promise<void>;
+  generateCode: (params: GenerateInvitationRequest) => Promise<InvitationCode>;
+  validateCode: (code: string) => Promise<ValidateInvitationResponse>;
+  clearError: () => void;
+}
+
+const api = new ApiAdapter();
+
+export const useInvitationsStore = create<InvitationsState>((set) => ({
+  stats: null,
+  myCodes: [],
+  isLoading: false,
+  error: null,
+
+  fetchStats: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await api.get('/invitations/stats');
+      set({ stats: data, isLoading: false });
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+    }
+  },
+
+  fetchMyCodes: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await api.get('/invitations/my-codes');
+      set({ myCodes: data.items, isLoading: false });
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+    }
+  },
+
+  generateCode: async (params: GenerateInvitationRequest) => {
+    set({ isLoading: true, error: null });
+    try {
+      const result = await api.post('/invitations/generate', params);
+      // 刷新列表和统计
+      await get().fetchMyCodes();
+      await get().fetchStats();
+      set({ isLoading: false });
+      return result;
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+      throw error;
+    }
+  },
+
+  validateCode: async (code: string) => {
+    try {
+      return await api.post('/invitations/validate', { code });
+    } catch (error: any) {
+      throw error;
+    }
+  },
+
+  clearError: () => set({ error: null }),
+}));
+```
+
+### 8.3 使用示例
+
+```typescript
+// 在积分组件中使用
 import { useCreditsStore } from '../store/creditsStore';
 
 function CreditsView() {
@@ -424,11 +695,34 @@ function CreditsView() {
     </div>
   );
 }
+
+// 在邀请组件中使用
+import { useInvitationsStore } from '../store/invitationsStore';
+
+function InvitationsView() {
+  const { stats, myCodes, isLoading, fetchStats, fetchMyCodes } = useInvitationsStore();
+
+  useEffect(() => {
+    fetchStats();
+    fetchMyCodes();
+  }, []);
+
+  if (isLoading) return <Loading />;
+
+  return (
+    <div>
+      <InvitationStatsCard stats={stats} />
+      {myCodes.map(code => (
+        <InvitationCodeCard key={code.id} code={code} />
+      ))}
+    </div>
+  );
+}
 ```
 
 ---
 
-## 8. API 服务封装
+## 9. API 服务封装
 
 在现有 `ApiAdapter.ts` 中扩展积分相关方法：
 
@@ -477,6 +771,55 @@ export class ApiAdapter implements IDataAdapter {
   }): Promise<PaginatedResponse<RedeemCode>> {
     return this.axiosInstance.get('/admin/credits/codes', { params });
   }
+
+  // === 邀请相关 API ===
+
+  // 查询邀请统计
+  async getInvitationStats(): Promise<InvitationStats> {
+    return this.axiosInstance.get('/invitations/stats');
+  }
+
+  // 查询我的邀请码
+  async getMyInvitations(): Promise<{ items: InvitationCodeDetail[] }> {
+    return this.axiosInstance.get('/invitations/my-codes');
+  }
+
+  // 生成邀请码
+  async generateInvitation(params: GenerateInvitationRequest): Promise<InvitationCode> {
+    return this.axiosInstance.post('/invitations/generate', params);
+  }
+
+  // 验证邀请码
+  async validateInvitation(code: string): Promise<ValidateInvitationResponse> {
+    return this.axiosInstance.post('/invitations/validate', { code });
+  }
+
+  // 注册（含邀请码）
+  async registerWithInvitation(data: RegisterRequest): Promise<any> {
+    return this.axiosInstance.post('/auth/register', data);
+  }
+
+  // === 管理端邀请 API ===
+
+  // 批量生成邀请码
+  async batchGenerateInvitations(data: {
+    count: number;
+    max_uses?: number;
+    expires_days?: number;
+    remark?: string;
+  }): Promise<{ codes: InvitationCode[] }> {
+    return this.axiosInstance.post('/admin/invitations/batch-generate', data);
+  }
+
+  // 查询所有邀请码
+  async getAllInvitations(params: {
+    page?: number;
+    pageSize?: number;
+    status?: string;
+    userId?: string;
+  }): Promise<PaginatedResponse<InvitationCode>> {
+    return this.axiosInstance.get('/admin/invitations/list', { params });
+  }
 }
 ```
 
@@ -484,7 +827,7 @@ export class ApiAdapter implements IDataAdapter {
 
 ---
 
-## 9. 路由配置
+## 10. 路由配置
 
 在 `src/router/index.ts` 中添加路由：
 
@@ -493,7 +836,10 @@ export class ApiAdapter implements IDataAdapter {
 
 import { createBrowserRouter } from 'react-router-dom';
 import CreditsView from '../views/CreditsView';
+import InvitationsView from '../views/InvitationsView';
+import RegisterView from '../views/RegisterView';
 import AdminCreditsView from '../views/AdminCreditsView';
+import AdminInvitationsView from '../views/AdminInvitationsView';
 
 const router = createBrowserRouter([
   {
@@ -502,10 +848,20 @@ const router = createBrowserRouter([
     children: [
       // ... 现有路由 ...
 
-      // 用户积分中心
+      // 公开路由
+      {
+        path: 'register',
+        element: <RegisterView />,  // 需要邀请码才能注册
+      },
+
+      // 用户端路由
       {
         path: 'credits',
         element: <CreditsView />,
+      },
+      {
+        path: 'invitations',
+        element: <InvitationsView />,
       },
 
       // 管理端路由
@@ -518,6 +874,10 @@ const router = createBrowserRouter([
             path: 'credits/codes',
             element: <AdminCreditsView />,
           },
+          {
+            path: 'invitations',
+            element: <AdminInvitationsView />,
+          },
         ],
       },
     ],
@@ -527,7 +887,7 @@ const router = createBrowserRouter([
 
 ---
 
-## 10. 余额不足提示
+## 11. 余额不足提示
 
 当 AI 调用因余额不足被拒绝时，显示提示：
 
@@ -549,6 +909,38 @@ const router = createBrowserRouter([
 
 ---
 
-**文档版本**: v1.0
+## 12. 新用户冷却期提示
+
+当新用户尝试生成邀请码但在冷却期内时，显示提示：
+
+```
+┌──────────────────────────────────────┐
+│  ⚠️ 暂时无法生成                [×]  │
+├──────────────────────────────────────┤
+│                                      │
+│  新用户需等待 48 小时后才能生成邀请码 │
+│                                      │
+│  您的账号创建于：2025-12-03 10:00    │
+│  可生成时间：2025-12-05 10:00        │
+│                                      │
+│  ┌────────────────────┐             │
+│  │      知道了         │             │
+│  └────────────────────┘             │
+│                                      │
+└──────────────────────────────────────┘
+```
+
+---
+
+**文档版本**: v2.0
 **创建时间**: 2025-12-02
+**最后更新**: 2025-12-03
+**更新内容**:
+- 添加邀请中心页面设计
+- 添加注册页面（需邀请码）
+- 添加管理员邀请码管理页面
+- 添加邀请相关类型定义
+- 添加 invitationsStore
+- 添加邀请相关 API 封装
+- 更新路由配置
 **作者**: Claude Code
