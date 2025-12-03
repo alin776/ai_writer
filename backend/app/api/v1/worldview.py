@@ -148,6 +148,46 @@ def _invalidate_worldview_cache(work_id: str, cache_types: list):
             logger.error(f"⚠️ [Worldview] 聚合缓存失效失败: {worlddata_key}, error={e}")
 
 
+async def _preheat_worldview_cache(work_id: str, cache_type: str, worldview_service: WorldviewService):
+    """
+    P1修复: 缓存预热 - 失效后立即重新加载并缓存最新数据
+
+    解决并发请求导致的缓存未命中问题：
+    - 请求A创建数据 → 失效缓存 → 预热缓存（最新数据）
+    - 请求B读取 → 命中预热后的缓存
+
+    Args:
+        work_id: 作品ID
+        cache_type: 缓存类型 (characters, locations, settings, guidelines)
+        worldview_service: WorldviewService实例
+    """
+    if not redis_client.is_available():
+        return
+
+    try:
+        cache_key = f"worldview:{cache_type}:{work_id}"
+
+        # 根据类型加载最新数据
+        if cache_type == 'characters':
+            data = await worldview_service.get_characters_by_work(work_id)
+        elif cache_type == 'locations':
+            data = await worldview_service.get_locations_by_work(work_id)
+        elif cache_type == 'settings':
+            data = await worldview_service.get_settings_by_work(work_id)
+        elif cache_type == 'guidelines':
+            data = await worldview_service.get_guidelines_by_work(work_id)
+        else:
+            logger.warning(f"⚠️ [Worldview] 未知的缓存类型: {cache_type}")
+            return
+
+        # 缓存最新数据
+        _cache_worldview_data(cache_key, data)
+        logger.info(f"🔥 [Worldview] 缓存预热完成: {cache_key}")
+
+    except Exception as e:
+        logger.error(f"⚠️ [Worldview] 缓存预热失败: {cache_type}, error={e}")
+
+
 # ==================== 辅助函数：自动从AI规范提取数据到世界观各标签 ====================
 
 async def _auto_populate_worldview_from_guidelines(
@@ -378,8 +418,9 @@ async def create_character(
     worldview_service = WorldviewService(db)
     result = await worldview_service.create_character(character_data)
 
-    # 🔧 2025-12-02: P0修复 - 失效缓存
+    # 🔧 2025-12-02: P1修复 - 失效缓存 + 预热
     _invalidate_worldview_cache(character_data.work_id, ['characters'])
+    await _preheat_worldview_cache(str(character_data.work_id), 'characters', worldview_service)
 
     return result
 
@@ -405,8 +446,9 @@ async def update_character(
 
     updated = await worldview_service.update_character(character_id, character_data)
 
-    # 🔧 2025-12-02: P0修复 - 失效缓存
+    # 🔧 2025-12-02: P1修复 - 失效缓存 + 预热
     _invalidate_worldview_cache(str(character.work_id), ['characters'])
+    await _preheat_worldview_cache(str(character.work_id), 'characters', worldview_service)
 
     return updated
 
@@ -487,8 +529,9 @@ async def create_location(
     worldview_service = WorldviewService(db)
     result = await worldview_service.create_location(location_data)
 
-    # 🔧 2025-12-02: P0修复 - 失效缓存
+    # 🔧 2025-12-02: P1修复 - 失效缓存 + 预热
     _invalidate_worldview_cache(location_data.work_id, ['locations'])
+    await _preheat_worldview_cache(str(location_data.work_id), 'locations', worldview_service)
 
     return result
 
@@ -514,8 +557,9 @@ async def update_location(
 
     updated = await worldview_service.update_location(location_id, location_data)
 
-    # 🔧 2025-12-02: P0修复 - 失效缓存
+    # 🔧 2025-12-02: P1修复 - 失效缓存 + 预热
     _invalidate_worldview_cache(str(location.work_id), ['locations'])
+    await _preheat_worldview_cache(str(location.work_id), 'locations', worldview_service)
 
     return updated
 
@@ -596,8 +640,9 @@ async def create_setting(
     worldview_service = WorldviewService(db)
     result = await worldview_service.create_setting(setting_data)
 
-    # 🔧 2025-12-02: P0修复 - 失效缓存
+    # 🔧 2025-12-02: P1修复 - 失效缓存 + 预热
     _invalidate_worldview_cache(setting_data.work_id, ['settings'])
+    await _preheat_worldview_cache(str(setting_data.work_id), 'settings', worldview_service)
 
     return result
 
@@ -623,8 +668,9 @@ async def update_setting(
 
     updated = await worldview_service.update_setting(setting_id, setting_data)
 
-    # 🔧 2025-12-02: P0修复 - 失效缓存
+    # 🔧 2025-12-02: P1修复 - 失效缓存 + 预热
     _invalidate_worldview_cache(str(setting.work_id), ['settings'])
+    await _preheat_worldview_cache(str(setting.work_id), 'settings', worldview_service)
 
     return updated
 
@@ -735,8 +781,9 @@ async def create_or_update_guidelines(
     worldview_service = WorldviewService(db)
     result = await worldview_service.create_or_update_guidelines(work_id, guidelines_data)
 
-    # 🔧 2025-12-02: P0修复 - 失效缓存
+    # 🔧 2025-12-02: P1修复 - 失效缓存 + 预热
     _invalidate_worldview_cache(work_id, ['guidelines'])
+    await _preheat_worldview_cache(str(work_id), 'guidelines', worldview_service)
 
     return result
 

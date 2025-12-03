@@ -842,7 +842,7 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
                     work_id=work_id,
                     query=query,
                     top_k=3,
-                    similarity_threshold=0.4,
+                    similarity_threshold=0.3,  # P2修复: 统一阈值为0.3（原为0.4）
                     max_retries=2
                 )
 

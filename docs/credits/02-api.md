@@ -1,5 +1,7 @@
 # API 接口文档
 
+> ⚠️ **文档状态**: 设计文档，功能尚未实现
+
 ## 1. 接口概览
 
 ### 1.1 用户端接口
@@ -405,23 +407,44 @@ Authorization: Bearer <admin_access_token>
 
 ## 4. 通用响应格式
 
+> ⚠️ **注意**: 本项目 API **直接返回数据**，不使用 `code/message/data` 包装。
+
 ### 4.1 成功响应
 
+直接返回数据对象或列表：
+
 ```json
+// 单个对象
 {
-    "code": 200,
-    "message": "success",
-    "data": { ... }
+    "balance": 99.50,
+    "total_recharged": 200.00,
+    ...
+}
+
+// 分页列表
+{
+    "total": 25,
+    "items": [...]
 }
 ```
 
 ### 4.2 错误响应
 
+使用 FastAPI 的 HTTPException：
+
 ```json
 {
-    "code": 400,
-    "message": "错误描述",
-    "data": null
+    "detail": "错误描述"
+}
+
+// 或结构化错误
+{
+    "detail": {
+        "code": "INSUFFICIENT_CREDITS",
+        "message": "积分余额不足",
+        "required": 10.0,
+        "available": 5.0
+    }
 }
 ```
 

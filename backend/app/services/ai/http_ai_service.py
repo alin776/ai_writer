@@ -240,6 +240,18 @@ class HTTPAIService:
                         logger.info(
                             f"API 响应完成，共接收 {chunk_count} 个数据块，总长度: {len(total_content)}"
                         )
+
+                        # P1修复: 如果 completion_tokens=0 但有内容，使用 TokenCounter 估算
+                        if usage_info and usage_info.get('completion_tokens', 0) == 0 and len(total_content) > 0:
+                            from app.services.context.token_counter import count_tokens
+                            # TokenCounter 策略: tiktoken精确(100%) > 中文优化(95%) > 简单估算(75%)
+                            estimated_completion = count_tokens(total_content, model=model)
+                            usage_info['completion_tokens'] = estimated_completion
+                            usage_info['total_tokens'] = usage_info.get('prompt_tokens', 0) + estimated_completion
+                            logger.warning(
+                                f"[Token估算] API返回completion_tokens=0，使用TokenCounter估算: {estimated_completion} tokens (内容{len(total_content)}字符)"
+                            )
+
                         # 记录usage统计
                         if usage_info:
                             logger.info(
@@ -363,7 +375,11 @@ class HTTPAIService:
             {"role": "user", "content": context}
         ]
 
-        async for chunk, usage in self._stream_chat(messages, max_tokens, temperature):
+        # P0修复: 根据任务类型选择合适的模型
+        # 自动补全(短文本)用简单模型，正式续写用内容创作模型
+        task_type = TaskType.SIMPLE_QA if is_autocomplete else TaskType.CONTENT_CREATION
+
+        async for chunk, usage in self._stream_chat(messages, max_tokens, temperature, task_type=task_type):
             yield chunk, usage
     
     async def stream_polish(
@@ -715,11 +731,12 @@ class HTTPAIService:
                     logger.info(f"[RAG] 检索查询: {query}")
 
                     # 检索相关信息
+                    # P2修复: 统一阈值为0.3（原为0.6）
                     relevant_info = await vector_service.retrieve_relevant_analysis(
                         work_id=work_id,
                         query=query,
                         top_k=2,
-                        similarity_threshold=0.6
+                        similarity_threshold=0.3
                     )
 
                     if relevant_info:

@@ -208,17 +208,17 @@ class VectorStoreService:
         work_id: str,
         query: str,
         top_k: int = 5,
-        similarity_threshold: float = 0.5
+        similarity_threshold: float = 0.3  # P2修复: 统一阈值为0.3（原为0.5）
     ) -> List[Dict[str, Any]]:
         """
         检索与查询相关的微观分析（RAG）
-        
+
         Args:
             work_id: 作品ID
             query: 查询文本
             top_k: 返回前K个最相关的结果
-            similarity_threshold: 相似度阈值（0-1）
-            
+            similarity_threshold: 相似度阈值（0-1），默认0.3
+
         Returns:
             List[Dict]: 相关的分析结果列表，每项包含：
                 - chapter_id: 章节ID
@@ -228,12 +228,12 @@ class VectorStoreService:
         """
         try:
             logger.info(f"RAG检索: work_id={work_id}, query={query[:50]}...")
-            
+
             # 1. 向量化查询
             model = self._get_model()
             query_embedding = model.encode(query, normalize_embeddings=True)
             query_embedding_list = query_embedding.tolist()
-            
+
             # 2. 执行相似度搜索（使用余弦距离）
             # pgvector的<=>操作符计算余弦距离（值越小越相似）
             # 余弦相似度 = 1 - 余弦距离
@@ -247,12 +247,17 @@ class VectorStoreService:
                 .order_by(NovelAnalysisVector.embedding.cosine_distance(query_embedding_list))
                 .limit(top_k)
             )
-            
+
             result = await self.db.execute(stmt)
             rows = result.all()
-            
+
+            # P2修复: 添加调试日志
+            if not rows:
+                logger.warning(f"RAG检索: 向量表为空或无匹配数据 (work_id={work_id})")
+
             # 3. 过滤和格式化结果
             relevant_results = []
+            filtered_count = 0
             for vector_record, similarity in rows:
                 # 只返回超过阈值的结果
                 if similarity >= similarity_threshold:
@@ -263,15 +268,26 @@ class VectorStoreService:
                         'similarity': float(similarity),
                         'chunk_index': vector_record.chunk_index
                     })
-            
+                else:
+                    filtered_count += 1
+                    # P2修复: 记录被过滤的低相似度结果
+                    logger.debug(f"RAG过滤: similarity={similarity:.3f} < threshold={similarity_threshold}")
+
+            # P2修复: 增强日志
+            if filtered_count > 0 and len(relevant_results) == 0:
+                logger.warning(
+                    f"RAG检索: 所有 {filtered_count} 个结果都被阈值({similarity_threshold})过滤，"
+                    f"考虑降低阈值"
+                )
+
             logger.info(f"检索到 {len(relevant_results)} 个相关结果（阈值={similarity_threshold}）")
-            
+
             # 打印前3个结果的相似度
             for i, result in enumerate(relevant_results[:3]):
                 logger.debug(f"结果 {i+1}: 相似度={result['similarity']:.3f}, 章节={result['chapter_id']}")
-            
+
             return relevant_results
-            
+
         except Exception as e:
             logger.error(f"RAG检索失败: {e}", exc_info=True)
             return []
