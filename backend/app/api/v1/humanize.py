@@ -35,6 +35,7 @@ from app.services.agent.utils.monitoring import increment_counter, record_timer
 from app.api.middleware.rate_limiter import rate_limit, get_user_identifier
 from app.utils.cost_calculator import CostCalculator
 from app.core.request_context import set_request_context  # ✅ 新增：用于FastAI成本追踪
+from app.utils.datetime_utils import get_utc_now
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -155,7 +156,7 @@ async def get_humanize_history(
             .where(
                 and_(
                     HumanizeSessionDetail.session_id == session.id,
-                    HumanizeSessionDetail.expires_at > datetime.utcnow()
+                    HumanizeSessionDetail.expires_at > get_utc_now()
                 )
             )
         )
@@ -220,7 +221,7 @@ async def get_humanize_session(
         .where(
             and_(
                 HumanizeSessionDetail.session_id == session.id,
-                HumanizeSessionDetail.expires_at > datetime.utcnow()
+                HumanizeSessionDetail.expires_at > get_utc_now()
             )
         )
     )
@@ -501,7 +502,7 @@ async def humanize_rewrite(
             dimensions_before=dimensions_before_dict,  # ← 使用转换后的字典
             dimensions_after={},  # 验证阶段不返回详细维度
             detected_patterns=detection.detected_patterns if detection else [],
-            expires_at=datetime.utcnow() + timedelta(days=7)
+            expires_at=get_utc_now() + timedelta(days=7)
         )
 
         db.add(detail)
@@ -780,7 +781,7 @@ async def humanize_rewrite_stream(
                     dimensions_before=dimensions_before_dict,
                     dimensions_after={},
                     detected_patterns=detection_result.detected_patterns if detection_result else [],
-                    expires_at=datetime.utcnow() + timedelta(days=7)
+                    expires_at=get_utc_now() + timedelta(days=7)
                 )
 
                 db.add(detail)
@@ -936,7 +937,7 @@ async def humanize_rewrite_stream(
                         dimensions_before={},
                         dimensions_after={},
                         detected_patterns=["USER_INTERRUPTED"],
-                        expires_at=datetime.utcnow() + timedelta(days=7)
+                        expires_at=get_utc_now() + timedelta(days=7)
                     )
                     db.add(detail)
                     await db.commit()

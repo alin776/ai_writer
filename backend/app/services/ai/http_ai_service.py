@@ -19,6 +19,7 @@ from app.services.agent.model_selector import ModelSelector, TaskType
 from ..agent.utils.llm_optimizer import get_llm_optimizer, optimized_llm_call
 # ✅ 2025-12-01: 支持从请求上下文获取user_id（用于全局Agent成本追踪）
 from app.core.request_context import get_request_user_id, get_request_db
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -267,7 +268,7 @@ class HTTPAIService:
         )
 
         # 记录开始时间 (用于成本追踪)
-        start_time = datetime.now()
+        start_time = get_utc_now()
 
         # Week 10: 添加缓存索引键生成
         cache_key = self._generate_cache_key(messages, model, temperature, max_tokens)  # ← 使用model而不是self.model
@@ -898,7 +899,7 @@ class HTTPAIService:
             )
 
             # 计算响应时间
-            duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            duration_ms = int((get_utc_now() - start_time).total_seconds() * 1000)
 
             # 创建日志记录
             log_data = AICallLogCreate(
@@ -1079,7 +1080,7 @@ class HTTPAIService:
         }
 
         # 记录开始时间 (用于成本追踪)
-        start_time = datetime.now()
+        start_time = get_utc_now()
 
         # 重试机制
         for attempt in range(max_retries):

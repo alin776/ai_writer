@@ -20,6 +20,7 @@ from collections import Counter
 import json
 import redis
 from pydantic import BaseModel
+from app.utils.datetime_utils import get_utc_now
 
 
 class UserBehaviorPattern(BaseModel):
@@ -99,7 +100,7 @@ class UserProfileMemory:
         """
         key = f"user:{user_id}:current_session"
         data = {
-            "start_time": datetime.now().isoformat(),
+            "start_time": get_utc_now().isoformat(),
             "actions": []
         }
         self.redis.setex(key, 3600 * 4, json.dumps(data))  # 4小时过期
@@ -126,7 +127,7 @@ class UserProfileMemory:
             session = json.loads(session_data)
             session["actions"].append({
                 "type": action_type,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": get_utc_now().isoformat(),
                 "details": details or {}
             })
             self.redis.setex(session_key, 3600 * 4, json.dumps(session))
@@ -152,12 +153,12 @@ class UserProfileMemory:
 
         session = json.loads(session_data)
         start_time = datetime.fromisoformat(session["start_time"])
-        duration = (datetime.now() - start_time).total_seconds() / 60  # 分钟
+        duration = (get_utc_now() - start_time).total_seconds() / 60  # 分钟
 
         # 保存会话摘要
         summary = {
             "start_time": session["start_time"],
-            "end_time": datetime.now().isoformat(),
+            "end_time": get_utc_now().isoformat(),
             "duration_minutes": duration,
             "actions_count": len(session["actions"]),
             "words_created": words_created,
@@ -204,7 +205,7 @@ class UserProfileMemory:
         # 计算每周会话次数（基于最近30天的数据）
         recent_30d = [
             s for s in session_data
-            if (datetime.now() - datetime.fromisoformat(s["end_time"])).days <= 30
+            if (get_utc_now() - datetime.fromisoformat(s["end_time"])).days <= 30
         ]
         sessions_per_week = len(recent_30d) / 4.3 if recent_30d else 0
 
@@ -228,7 +229,7 @@ class UserProfileMemory:
             sessions_per_week=round(sessions_per_week, 2),
             most_used_features=most_used,
             avg_words_per_session=round(avg_words, 2),
-            last_updated=datetime.now().isoformat()
+            last_updated=get_utc_now().isoformat()
         )
 
         pattern_key = f"user:{user_id}:behavior_pattern"
@@ -255,7 +256,7 @@ class UserProfileMemory:
             return UserBehaviorPattern(**json.loads(data))
         else:
             return UserBehaviorPattern(
-                last_updated=datetime.now().isoformat()
+                last_updated=get_utc_now().isoformat()
             )
 
     # ==================== 技能等级评估 ====================
@@ -307,7 +308,7 @@ class UserProfileMemory:
             total_works=total_works,
             total_words=total_words,
             total_sessions=total_sessions,
-            last_updated=datetime.now().isoformat()
+            last_updated=get_utc_now().isoformat()
         )
 
         key = f"user:{user_id}:skill_level"
@@ -336,7 +337,7 @@ class UserProfileMemory:
             return UserSkillLevel(**json.loads(data))
         else:
             return UserSkillLevel(
-                last_updated=datetime.now().isoformat()
+                last_updated=get_utc_now().isoformat()
             )
 
     # ==================== 互动模式分析 ====================
@@ -374,7 +375,7 @@ class UserProfileMemory:
             agent_dependency=round(agent_dependency, 2),
             autonomy_level=round(autonomy, 2),
             avg_questions_per_session=round(questions_asked / sessions, 2),
-            last_updated=datetime.now().isoformat()
+            last_updated=get_utc_now().isoformat()
         )
 
         key = f"user:{user_id}:interaction_mode"
@@ -403,7 +404,7 @@ class UserProfileMemory:
             return InteractionMode(**json.loads(data))
         else:
             return InteractionMode(
-                last_updated=datetime.now().isoformat()
+                last_updated=get_utc_now().isoformat()
             )
 
     # ==================== 综合画像 ====================

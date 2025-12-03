@@ -48,6 +48,7 @@ from pydantic import BaseModel, Field
 from collections import defaultdict
 import logging
 import json
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -228,12 +229,12 @@ class CostTracker:
             APICallRecord: API调用记录
         """
         # 生成记录ID
-        record_id = f"call_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+        record_id = f"call_{get_utc_now().strftime('%Y%m%d_%H%M%S_%f')}"
 
         # 创建记录
         record = APICallRecord(
             id=record_id,
-            timestamp=datetime.now(),
+            timestamp=get_utc_now(),
             user_id=user_id,
             work_id=work_id,
             chapter_id=chapter_id,
@@ -288,19 +289,19 @@ class CostTracker:
         """
         # 确定日期范围
         if period == "daily":
-            start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            end_date = datetime.now()
+            start_date = get_utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
+            end_date = get_utc_now()
         elif period == "weekly":
-            start_date = datetime.now() - timedelta(days=7)
-            end_date = datetime.now()
+            start_date = get_utc_now() - timedelta(days=7)
+            end_date = get_utc_now()
         elif period == "monthly":
-            start_date = datetime.now() - timedelta(days=30)
-            end_date = datetime.now()
+            start_date = get_utc_now() - timedelta(days=30)
+            end_date = get_utc_now()
         elif period == "all":
             if not start_date:
                 start_date = datetime.min
             if not end_date:
-                end_date = datetime.now()
+                end_date = get_utc_now()
 
         # 过滤记录
         filtered_records = [

@@ -17,6 +17,7 @@ import math
 from datetime import datetime
 from typing import List, Dict, Any, Tuple
 from .types import MemoryItem, ForgetDecision
+from app.utils.datetime_utils import get_utc_now
 
 
 class SmartForgetStrategy:
@@ -102,7 +103,7 @@ class SmartForgetStrategy:
             ForgetDecision: 遗忘决策结果
         """
         if current_time is None:
-            current_time = datetime.now()
+            current_time = get_utc_now()
 
         # 计算当前重要度
         current_importance = self.calculate_importance(memory, current_time)
@@ -177,7 +178,7 @@ class SmartForgetStrategy:
             tuple: (应该保留的记忆列表, 应该遗忘的记忆列表)
         """
         if current_time is None:
-            current_time = datetime.now()
+            current_time = get_utc_now()
 
         to_keep = []
         to_forget = []
@@ -281,7 +282,7 @@ class SmartForgetStrategy:
             Dict: 统计信息
         """
         if current_time is None:
-            current_time = datetime.now()
+            current_time = get_utc_now()
 
         if not memories:
             return {

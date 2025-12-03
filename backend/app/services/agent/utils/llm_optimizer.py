@@ -17,6 +17,7 @@ from .performance import cache_result, performance_optimizer
 from .error_handler import robust_retry
 from .logger import get_logger
 from app.services.context.token_counter import count_tokens
+from app.utils.datetime_utils import get_utc_now
 
 logger = get_logger("llm_optimizer")
 
@@ -197,7 +198,7 @@ class LLMCache:
             "model": response.model,
             "tokens_used": response.tokens_used,
             "cost": response.cost,
-            "timestamp": datetime.now(),
+            "timestamp": get_utc_now(),
             "ttl": ttl,
             "metadata": response.metadata or {}
         }
@@ -207,7 +208,7 @@ class LLMCache:
         if "ttl" not in cache_entry:
             return False
 
-        elapsed = (datetime.now() - cache_entry["timestamp"]).total_seconds()
+        elapsed = (get_utc_now() - cache_entry["timestamp"]).total_seconds()
         return elapsed > cache_entry["ttl"]
 
     def _evict_oldest(self) -> None:
@@ -417,7 +418,7 @@ class LLMOptimizer:
         """记录请求统计"""
         model = request.model
         self._request_stats[model].append({
-            "timestamp": datetime.now(),
+            "timestamp": get_utc_now(),
             "duration": response.duration,
             "tokens_used": response.tokens_used,
             "cost": response.cost,
@@ -452,7 +453,7 @@ class LLMOptimizer:
         return {
             "cache": cache_stats,
             "models": model_stats,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": get_utc_now().isoformat()
         }
 
     def clear_cache(self) -> None:

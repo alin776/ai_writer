@@ -21,6 +21,7 @@ from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel
 import json
+from app.utils.datetime_utils import get_utc_now
 
 
 class TaskStatus(str, Enum):
@@ -149,7 +150,7 @@ class PlanningAgent:
             task_type=TaskType.ANALYZE_REQUIREMENT,
             description="分析用户需求，明确小说类型、风格、主题等",
             parameters={"user_goal": user_goal, "genre": genre},
-            created_at=datetime.now().isoformat(),
+            created_at=get_utc_now().isoformat(),
             priority=10
         ))
 
@@ -160,7 +161,7 @@ class PlanningAgent:
             description="创建小说世界观设定",
             parameters={"genre": genre},
             dependencies=[f"{plan_id}_task_1"],
-            created_at=datetime.now().isoformat(),
+            created_at=get_utc_now().isoformat(),
             priority=9
         ))
 
@@ -171,7 +172,7 @@ class PlanningAgent:
             description="创建主角角色卡片",
             parameters={"role": "protagonist"},
             dependencies=[f"{plan_id}_task_2"],
-            created_at=datetime.now().isoformat(),
+            created_at=get_utc_now().isoformat(),
             priority=8
         ))
 
@@ -182,7 +183,7 @@ class PlanningAgent:
             description="创建重要配角",
             parameters={"role": "supporting", "count": 2},
             dependencies=[f"{plan_id}_task_3"],
-            created_at=datetime.now().isoformat(),
+            created_at=get_utc_now().isoformat(),
             priority=7
         ))
 
@@ -193,7 +194,7 @@ class PlanningAgent:
             description="生成小说大纲（20-30章）",
             parameters={"chapter_count": 25},
             dependencies=[f"{plan_id}_task_4"],
-            created_at=datetime.now().isoformat(),
+            created_at=get_utc_now().isoformat(),
             priority=6
         ))
 
@@ -204,7 +205,7 @@ class PlanningAgent:
             description="撰写第一章",
             parameters={"chapter_number": 1},
             dependencies=[f"{plan_id}_task_5"],
-            created_at=datetime.now().isoformat(),
+            created_at=get_utc_now().isoformat(),
             priority=5
         ))
 
@@ -212,7 +213,7 @@ class PlanningAgent:
             plan_id=plan_id,
             goal=user_goal,
             tasks=tasks,
-            created_at=datetime.now().isoformat(),
+            created_at=get_utc_now().isoformat(),
             context=context or {}
         )
 
@@ -246,7 +247,7 @@ class PlanningAgent:
             task_type=TaskType.ANALYZE_WORK,
             description="全面分析作品现状",
             parameters={"work_id": work_id},
-            created_at=datetime.now().isoformat(),
+            created_at=get_utc_now().isoformat(),
             priority=10
         ))
 
@@ -257,7 +258,7 @@ class PlanningAgent:
             description="诊断作品存在的问题",
             parameters={"work_id": work_id, "focus_areas": improvement_goals},
             dependencies=[f"{plan_id}_task_1"],
-            created_at=datetime.now().isoformat(),
+            created_at=get_utc_now().isoformat(),
             priority=9
         ))
 
@@ -268,7 +269,7 @@ class PlanningAgent:
             description="生成针对性的修复建议",
             parameters={"work_id": work_id},
             dependencies=[f"{plan_id}_task_2"],
-            created_at=datetime.now().isoformat(),
+            created_at=get_utc_now().isoformat(),
             priority=8
         ))
 
@@ -276,7 +277,7 @@ class PlanningAgent:
             plan_id=plan_id,
             goal=f"改进作品: {', '.join(improvement_goals)}",
             tasks=tasks,
-            created_at=datetime.now().isoformat(),
+            created_at=get_utc_now().isoformat(),
             context=context or {"work_id": work_id}
         )
 
@@ -307,7 +308,7 @@ class PlanningAgent:
                 description=task_cfg["description"],
                 parameters=task_cfg.get("parameters", {}),
                 dependencies=task_cfg.get("dependencies", []),
-                created_at=datetime.now().isoformat(),
+                created_at=get_utc_now().isoformat(),
                 priority=task_cfg.get("priority", 5),
                 max_retries=task_cfg.get("max_retries", 3)
             ))
@@ -316,7 +317,7 @@ class PlanningAgent:
             plan_id=plan_id,
             goal=goal,
             tasks=tasks,
-            created_at=datetime.now().isoformat()
+            created_at=get_utc_now().isoformat()
         )
 
     # ==================== 计划执行 ====================
@@ -341,7 +342,7 @@ class PlanningAgent:
             ExecutionPlan: 更新后的计划
         """
         plan.status = "running"
-        plan.started_at = datetime.now().isoformat()
+        plan.started_at = get_utc_now().isoformat()
 
         try:
             for i, task in enumerate(plan.tasks):
@@ -352,7 +353,7 @@ class PlanningAgent:
 
                 # 执行任务
                 task.status = TaskStatus.RUNNING
-                task.started_at = datetime.now().isoformat()
+                task.started_at = get_utc_now().isoformat()
 
                 if on_task_start:
                     await on_task_start(task, plan)
@@ -361,7 +362,7 @@ class PlanningAgent:
                     result = await self._execute_task(task, plan)
                     task.result = result
                     task.status = TaskStatus.COMPLETED
-                    task.completed_at = datetime.now().isoformat()
+                    task.completed_at = get_utc_now().isoformat()
 
                     # 更新计划上下文
                     plan.context[f"task_{task.task_id}_result"] = result
@@ -400,7 +401,7 @@ class PlanningAgent:
 
             # 所有任务完成
             plan.status = "completed"
-            plan.completed_at = datetime.now().isoformat()
+            plan.completed_at = get_utc_now().isoformat()
             plan.progress = 1.0
 
         except Exception as e:
@@ -494,7 +495,7 @@ class PlanningAgent:
                     task_type=TaskType.CREATE_WORLDVIEW,
                     description="创建简化的世界观设定",
                     parameters={"simplified": True, **failed_task.parameters},
-                    created_at=datetime.now().isoformat(),
+                    created_at=get_utc_now().isoformat(),
                     max_retries=1
                 )
             ]

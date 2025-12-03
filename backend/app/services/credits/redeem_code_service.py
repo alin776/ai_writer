@@ -17,6 +17,7 @@ from app.services.credits.credit_exceptions import (
     RedeemCodeUsedError,
     RedeemCodeExpiredError
 )
+from app.utils.datetime_utils import get_utc_now
 
 
 # 有效字符集：排除易混淆字符 O, 0, I, 1, L
@@ -76,7 +77,7 @@ class RedeemCodeService:
         expires_at = None
         days = expires_days if expires_days is not None else settings.REDEEM_CODE_EXPIRE_DAYS
         if days > 0:
-            expires_at = datetime.now() + timedelta(days=days)
+            expires_at = get_utc_now() + timedelta(days=days)
 
         # 查询现有兑换码（避免重复）
         stmt = select(RedeemCode.code)
@@ -144,7 +145,7 @@ class RedeemCodeService:
                 redeem_code.used_by
             )
 
-        if redeem_code.expires_at and redeem_code.expires_at < datetime.now():
+        if redeem_code.expires_at and redeem_code.expires_at < get_utc_now():
             raise RedeemCodeExpiredError(redeem_code.expires_at)
 
         # 充值积分
@@ -163,7 +164,7 @@ class RedeemCodeService:
         # 更新兑换码状态
         redeem_code.is_used = True
         redeem_code.used_by = user_id
-        redeem_code.used_at = datetime.now()
+        redeem_code.used_at = get_utc_now()
 
         await self.db.commit()
 
@@ -192,7 +193,7 @@ class RedeemCodeService:
 
         # 检查是否过期
         is_expired = False
-        if code.expires_at and code.expires_at < datetime.now():
+        if code.expires_at and code.expires_at < get_utc_now():
             is_expired = True
 
         return {
@@ -241,12 +242,12 @@ class RedeemCodeService:
 
         if is_expired is not None:
             if is_expired:
-                conditions.append(RedeemCode.expires_at < datetime.now())
+                conditions.append(RedeemCode.expires_at < get_utc_now())
             else:
                 conditions.append(
                     or_(
                         RedeemCode.expires_at.is_(None),
-                        RedeemCode.expires_at >= datetime.now()
+                        RedeemCode.expires_at >= get_utc_now()
                     )
                 )
 
@@ -284,7 +285,7 @@ class RedeemCodeService:
                     "is_used": c.is_used,
                     "used_at": c.used_at.isoformat() if c.used_at else None,
                     "expires_at": c.expires_at.isoformat() if c.expires_at else None,
-                    "is_expired": c.expires_at < datetime.now() if c.expires_at else False,
+                    "is_expired": c.expires_at < get_utc_now() if c.expires_at else False,
                     "remark": c.remark,
                     "created_at": c.created_at.isoformat()
                 }

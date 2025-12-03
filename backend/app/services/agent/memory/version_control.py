@@ -43,6 +43,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field, asdict
 from redis import Redis
 from enum import Enum
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -231,7 +232,7 @@ class MemoryVersionControl:
                 user_id=user_id,
                 created_at=datetime.now(timezone.utc),
                 version_type=version_type,
-                description=description or f"Version created at {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                description=description or f"Version created at {get_utc_now().strftime('%Y-%m-%d %H:%M')}",
                 short_term_memories=short_term,
                 medium_term_memories=medium_term,
                 long_term_summary=long_term,

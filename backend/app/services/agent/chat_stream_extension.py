@@ -9,6 +9,7 @@ from typing import Optional, Callable, Dict, Any
 from datetime import datetime
 from langchain_core.messages import AIMessage, ToolMessage
 import logging
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +108,7 @@ async def chat_stream(
                 "suggested_actions": result.get("suggested_actions", []),
                 "metadata": {
                     "intent": result.get("intent"),
-                    "timestamp": str(datetime.now()),
+                    "timestamp": str(get_utc_now()),
                     "stream_events": event_count
                 }
             }
@@ -293,7 +294,7 @@ def _parse_node_event(self, node_name: str, node_data: dict) -> Optional[dict]:
         "description": mapping["description"],
         "node": node_name,
         "details": details,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": get_utc_now().isoformat()
     }
 
 

@@ -6,7 +6,7 @@
 
 import enum
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, Enum as SQLEnum, Float, ForeignKey
+from sqlalchemy import Column, String, Text, DateTime, Enum as SQLEnum, Float, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 import uuid
 
@@ -57,13 +57,13 @@ class WorldviewSuggestion(Base):
 
     # 用户操作
     status = Column(SQLEnum(SuggestionStatus), default=SuggestionStatus.PENDING, nullable=False, index=True)
-    adopted_at = Column(DateTime)
+    adopted_at = Column(DateTime(timezone=True))
     adopted_as_id = Column(UUID(as_uuid=True))  # 采纳后创建的元素ID
     user_notes = Column(Text)  # 用户备注
 
     # 时间戳
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     def __repr__(self):
         return f"<WorldviewSuggestion(id={self.id}, type={self.suggestion_type}, status={self.status})>"

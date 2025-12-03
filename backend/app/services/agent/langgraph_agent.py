@@ -43,6 +43,7 @@ from app.services.agent.tools.editor_tools import (
     smart_insert,
     apply_chapter_edit
 )
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -2940,7 +2941,7 @@ class WritingAgentGraph:
                 "suggested_actions": result["suggested_actions"],
                 "metadata": {
                     "intent": result.get("intent"),
-                    "timestamp": str(datetime.now())
+                    "timestamp": str(get_utc_now())
                 }
             }
 
@@ -3218,7 +3219,7 @@ class WritingAgentGraph:
                     "suggested_actions": result.get("suggested_actions", []),
                     "metadata": {
                         "intent": result.get("intent"),
-                        "timestamp": str(datetime.now()),
+                        "timestamp": str(get_utc_now()),
                         "stream_events": event_count,
                         "context_token_count": context_bundle["metadata"]["token_count"]
                     }
@@ -3560,7 +3561,7 @@ class WritingAgentGraph:
             "description": mapping["description"],
             "node": node_name,
             "details": details,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": get_utc_now().isoformat(),
             **progress_data  # ✅ 包含进度信息
         }
 
@@ -4074,7 +4075,7 @@ chapter_id: {chapter_id}
                             new_checkpoint = {
                             "v": 1,
                             "id": checkpoint_id,
-                            "ts": datetime.now().isoformat(),
+                            "ts": get_utc_now().isoformat(),
                             "channel_values": {
                             "messages": all_messages,
                             "work_id": work_id,
@@ -4118,7 +4119,7 @@ chapter_id: {chapter_id}
                         "intent": plan_data.get("user_intent"),
                         "total_tasks": len(plan_data["tasks"]),
                         "completed_tasks": len([t for t in task_results if t["status"] == "completed"]),
-                        "timestamp": str(datetime.now())
+                        "timestamp": str(get_utc_now())
                     }
                 }
 

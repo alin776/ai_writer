@@ -89,7 +89,7 @@ class DynamicToolRegistry:
         if tool_id not in self.metadata:
             self.metadata[tool_id] = ToolMetadata(
                 tool_id=tool_id,
-                registered_at=datetime.now().isoformat()
+                registered_at=get_utc_now().isoformat()
             )
 
     def register_from_function(
@@ -233,7 +233,7 @@ class DynamicToolRegistry:
         self._validate_parameters(tool_def, parameters)
 
         # 记录开始时间
-        start = datetime.now()
+        start = get_utc_now()
 
         try:
             # 执行
@@ -274,7 +274,7 @@ class DynamicToolRegistry:
         metadata = self.metadata[tool_id]
 
         metadata.usage_count += 1
-        metadata.last_used = datetime.now().isoformat()
+        metadata.last_used = get_utc_now().isoformat()
 
         if success:
             metadata.success_count += 1
@@ -282,7 +282,7 @@ class DynamicToolRegistry:
             metadata.failure_count += 1
 
         # 更新平均耗时
-        duration_ms = (datetime.now() - start).total_seconds() * 1000
+        duration_ms = (get_utc_now() - start).total_seconds() * 1000
         metadata.avg_duration_ms = (
             (metadata.avg_duration_ms * (metadata.usage_count - 1) + duration_ms)
             / metadata.usage_count
@@ -485,6 +485,7 @@ def register_all_tools_from_api_definitions(api_definitions_path: str):
 # ==================== StandardToolRegistry 标准化工具注册表 ====================
 
 from .tool_types import StandardTool, ToolInput, ToolOutput
+from app.utils.datetime_utils import get_utc_now
 
 
 class StandardToolRegistry:

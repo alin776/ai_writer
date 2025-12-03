@@ -12,6 +12,7 @@ from functools import wraps
 from enum import Enum
 from dataclasses import dataclass
 from datetime import datetime
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +136,7 @@ class ErrorHandler:
             message=str(error),
             original_error=error,
             context=context,
-            timestamp=datetime.now(),
+            timestamp=get_utc_now(),
             user_id=context.get("user_id"),
             conversation_id=context.get("conversation_id"),
             action_name=context.get("action_name")
@@ -189,7 +190,7 @@ class ErrorHandler:
         """获取错误统计摘要"""
         recent_errors = [
             e for e in self.error_history
-            if (datetime.now() - e.timestamp).total_seconds() < 3600
+            if (get_utc_now() - e.timestamp).total_seconds() < 3600
         ]
 
         return {
@@ -421,7 +422,7 @@ def timeout_handler(timeout_seconds: float):
                     message=f"Function {func.__name__} timed out after {timeout_seconds} seconds",
                     original_error=asyncio.TimeoutError(),
                     context={"timeout_seconds": timeout_seconds},
-                    timestamp=datetime.now()
+                    timestamp=get_utc_now()
                 )
                 global_error_handler.handle_error(error_info)
                 raise TimeoutError(f"Function {func.__name__} timed out after {timeout_seconds} seconds")
@@ -448,7 +449,7 @@ def timeout_handler(timeout_seconds: float):
                     message=str(e),
                     original_error=e,
                     context={"timeout_seconds": timeout_seconds},
-                    timestamp=datetime.now()
+                    timestamp=get_utc_now()
                 )
                 global_error_handler.handle_error(error_info)
                 raise

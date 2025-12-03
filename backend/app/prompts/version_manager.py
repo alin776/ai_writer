@@ -8,6 +8,7 @@ import json
 import time
 from typing import Dict, Any, Optional
 from datetime import datetime
+from app.utils.datetime_utils import get_utc_now
 
 
 class PromptVersionManager:
@@ -120,7 +121,7 @@ class PromptVersionManager:
             self.version_usage[key] = []
 
         self.version_usage[key].append({
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": get_utc_now().isoformat(),
             "session_id": session_id
         })
 
@@ -160,7 +161,7 @@ class PromptVersionManager:
                 control_version: 1.0 - traffic_split,
                 test_version: traffic_split
             },
-            "created_at": datetime.now().isoformat()
+            "created_at": get_utc_now().isoformat()
         }
 
         print(

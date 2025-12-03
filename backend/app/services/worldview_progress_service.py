@@ -11,6 +11,7 @@ from sqlalchemy import select, update, delete
 
 from app.models.worldview_progress import WorldviewExtractionProgress
 from app.core.config import settings
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +94,7 @@ class WorldviewProgressService:
                     progress.settings_updated += results.get("updated", 0)
 
             progress.current_phase = phase
-            progress.updated_at = datetime.utcnow()
+            progress.updated_at = get_utc_now()
 
             await self.db.commit()
             return True
@@ -139,8 +140,8 @@ class WorldviewProgressService:
                 return False
 
             progress.status = "completed"
-            progress.completed_at = datetime.utcnow()
-            progress.updated_at = datetime.utcnow()
+            progress.completed_at = get_utc_now()
+            progress.updated_at = get_utc_now()
 
             await self.db.commit()
             logger.info(f"世界观提取完成: work_id={work_id}")
@@ -160,7 +161,7 @@ class WorldviewProgressService:
 
             progress.status = "failed"
             progress.last_error = error_message
-            progress.updated_at = datetime.utcnow()
+            progress.updated_at = get_utc_now()
 
             await self.db.commit()
             logger.error(f"世界观提取失败: work_id={work_id}, error={error_message}")
@@ -198,7 +199,7 @@ class WorldviewProgressService:
                 "phase": phase,
                 "batch_index": batch_index,
                 "error_message": error_message,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": get_utc_now().isoformat(),
                 "batch_size": len(batch_data) if batch_data else 0
             }
             failed_batches.append(failed_batch)
@@ -208,7 +209,7 @@ class WorldviewProgressService:
                 failed_batches = failed_batches[-50:]
 
             progress.failed_batches = json.dumps(failed_batches)
-            progress.updated_at = datetime.utcnow()
+            progress.updated_at = get_utc_now()
 
             await self.db.commit()
             return True

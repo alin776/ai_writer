@@ -33,6 +33,7 @@ from app.services.book_analysis_service import BookAnalysisService
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.knowledge_service import KnowledgeService
 from app.core.database import create_db_session
+from app.utils.datetime_utils import get_utc_now
 
 
 router = APIRouter()
@@ -329,7 +330,7 @@ async def adopt_suggestions(
         # TODO: 实际创建世界观元素的逻辑
         # 目前仅更新状态
         suggestion.status = SuggestionStatus.ADOPTED
-        suggestion.adopted_at = datetime.utcnow()
+        suggestion.adopted_at = get_utc_now()
         # suggestion.adopted_as_id = created_element.id
 
         created_elements.append({

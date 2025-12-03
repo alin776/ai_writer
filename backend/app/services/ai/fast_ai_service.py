@@ -17,6 +17,7 @@ from typing import AsyncGenerator, Optional
 from datetime import datetime
 from app.core.config import settings
 from app.core.request_context import get_request_user_id  # ✅ 新增：用于成本追踪
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +106,7 @@ class FastAIService:
             )
 
             # 计算响应时间
-            duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            duration_ms = int((get_utc_now() - start_time).total_seconds() * 1000)
 
             # 创建日志记录
             log_data = AICallLogCreate(
@@ -180,7 +181,7 @@ class FastAIService:
         )
 
         # ✅ 记录开始时间（用于成本追踪）
-        start_time = datetime.now()
+        start_time = get_utc_now()
 
         try:
             response = await self.client.post(url, json=payload, headers=headers)

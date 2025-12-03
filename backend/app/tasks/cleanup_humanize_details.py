@@ -13,6 +13,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from app.models.humanize_session import HumanizeSessionDetail
 from app.core.database import async_session_maker
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ async def cleanup_expired_humanize_details():
             # 删除过期的详情数据
             result = await db.execute(
                 delete(HumanizeSessionDetail)
-                .where(HumanizeSessionDetail.expires_at < datetime.utcnow())
+                .where(HumanizeSessionDetail.expires_at < get_utc_now())
             )
 
             deleted_count = result.rowcount
@@ -53,7 +54,7 @@ async def cleanup_old_humanize_details(days: int = 30):
 
     try:
         async with async_session_maker() as db:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            cutoff_date = get_utc_now() - timedelta(days=days)
 
             result = await db.execute(
                 delete(HumanizeSessionDetail)

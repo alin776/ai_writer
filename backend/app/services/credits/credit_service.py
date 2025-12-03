@@ -15,6 +15,7 @@ from app.services.credits.credit_exceptions import (
     InsufficientCreditsError,
     CreditsExpiredError
 )
+from app.utils.datetime_utils import get_utc_now
 
 
 class CreditService:
@@ -52,7 +53,7 @@ class CreditService:
         # 计算过期时间
         expires_at = None
         if settings.CREDITS_EXPIRE_DAYS > 0:
-            expires_at = datetime.now() + timedelta(days=settings.CREDITS_EXPIRE_DAYS)
+            expires_at = get_utc_now() + timedelta(days=settings.CREDITS_EXPIRE_DAYS)
 
         credits = UserCredits(
             user_id=user_id,
@@ -93,7 +94,7 @@ class CreditService:
 
         # 检查是否过期
         is_expired = False
-        if credits.expires_at and credits.expires_at < datetime.now():
+        if credits.expires_at and credits.expires_at < get_utc_now():
             is_expired = True
 
         return {
@@ -123,7 +124,7 @@ class CreditService:
         credits = await self.get_or_create_credits(user_id)
 
         # 检查是否过期
-        if credits.expires_at and credits.expires_at < datetime.now():
+        if credits.expires_at and credits.expires_at < get_utc_now():
             return False, credits.balance
 
         # 检查余额
@@ -176,7 +177,7 @@ class CreditService:
             )
 
         # 检查是否过期
-        if credits.expires_at and credits.expires_at < datetime.now():
+        if credits.expires_at and credits.expires_at < get_utc_now():
             raise CreditsExpiredError(credits.expires_at)
 
         # 检查余额是否充足
@@ -236,7 +237,7 @@ class CreditService:
 
         # 延长过期时间（如果配置了有效期）
         if settings.CREDITS_EXPIRE_DAYS > 0:
-            new_expires = datetime.now() + timedelta(days=settings.CREDITS_EXPIRE_DAYS)
+            new_expires = get_utc_now() + timedelta(days=settings.CREDITS_EXPIRE_DAYS)
             if not credits.expires_at or new_expires > credits.expires_at:
                 credits.expires_at = new_expires
 

@@ -8,6 +8,7 @@ ARE架构的核心组件之一
 from typing import Dict, Optional, Type, Any
 from .base_action import BaseAction
 import logging
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,7 @@ class ActionRegistry:
             "class_name": action_class.__name__,
             "category": category,
             "metadata": metadata or {},
-            "registered_at": str(__import__("datetime").datetime.now())
+            "registered_at": str(__import__("datetime").get_utc_now())
         }
 
         logger.info(

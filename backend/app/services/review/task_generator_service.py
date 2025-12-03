@@ -29,6 +29,7 @@ from app.services.ai_log_service import AILogService
 from app.services.agent.model_selector import TaskType
 # 导入 JSON 提取函数
 from app.services.review.novel_review_service import extract_json_from_response
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +156,7 @@ class TaskGeneratorService:
             task.status = request.status
             if request.status == TaskStatus.COMPLETED:
                 from datetime import datetime
-                task.completed_at = datetime.utcnow()
+                task.completed_at = get_utc_now()
         if request.user_notes is not None:
             task.user_notes = request.user_notes
         if request.skipped_reason is not None:
@@ -182,7 +183,7 @@ class TaskGeneratorService:
 
         if request.status == TaskStatus.COMPLETED:
             from datetime import datetime
-            task.completed_at = datetime.utcnow()
+            task.completed_at = get_utc_now()
 
         if request.status == TaskStatus.SKIPPED and request.skipped_reason:
             task.skipped_reason = request.skipped_reason

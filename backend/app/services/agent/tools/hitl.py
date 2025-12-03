@@ -24,6 +24,7 @@ from pydantic import BaseModel
 import json
 import redis
 import uuid
+from app.utils.datetime_utils import get_utc_now
 
 
 class ApprovalStatus(str, Enum):
@@ -118,7 +119,7 @@ class HITLManager:
         timeout = timeout_seconds or self.default_timeout
 
         expires_at = datetime.fromtimestamp(
-            datetime.now().timestamp() + timeout
+            get_utc_now().timestamp() + timeout
         ).isoformat()
 
         request = ApprovalRequest(
@@ -131,7 +132,7 @@ class HITLManager:
             alternatives=alternatives or [],
             context=context or {},
             checkpoint_data=checkpoint_data or {},
-            created_at=datetime.now().isoformat(),
+            created_at=get_utc_now().isoformat(),
             expires_at=expires_at
         )
 
@@ -195,7 +196,7 @@ class HITLManager:
                 # 检查是否超时
                 if request.expires_at:
                     expires = datetime.fromisoformat(request.expires_at)
-                    if datetime.now() > expires:
+                    if get_utc_now() > expires:
                         self._mark_timeout(request.request_id)
                         continue
                 requests.append(request)
@@ -227,7 +228,7 @@ class HITLManager:
             "request_id": request_id,
             "status": status.value,
             "data": data or {},
-            "timestamp": datetime.now().isoformat()
+            "timestamp": get_utc_now().isoformat()
         }
 
         # 保存响应，30分钟过期
@@ -273,7 +274,7 @@ class HITLManager:
             status=status,
             modifications=modifications,
             feedback=feedback,
-            timestamp=datetime.now().isoformat()
+            timestamp=get_utc_now().isoformat()
         )
 
         # 更新请求状态
@@ -314,7 +315,7 @@ class HITLManager:
             request_id=request_id,
             status=ApprovalStatus.REJECTED,
             feedback=reason,
-            timestamp=datetime.now().isoformat()
+            timestamp=get_utc_now().isoformat()
         )
 
         # 更新请求状态
@@ -412,7 +413,7 @@ class HITLManager:
         """
         import asyncio
 
-        start_time = datetime.now().timestamp()
+        start_time = get_utc_now().timestamp()
         max_wait_time = max_wait or self.default_timeout
 
         while True:
@@ -426,7 +427,7 @@ class HITLManager:
                 return ApprovalResponse(**request.user_response)
 
             # 检查是否超时
-            elapsed = datetime.now().timestamp() - start_time
+            elapsed = get_utc_now().timestamp() - start_time
             if elapsed > max_wait_time:
                 self._mark_timeout(request_id)
                 raise TimeoutError(f"Approval request {request_id} timed out")
@@ -466,7 +467,7 @@ class HITLManager:
             "checkpoint_name": checkpoint_name,
             "agent_state": agent_state,
             "metadata": metadata or {},
-            "created_at": datetime.now().isoformat()
+            "created_at": get_utc_now().isoformat()
         }
 
         # 保存检查点

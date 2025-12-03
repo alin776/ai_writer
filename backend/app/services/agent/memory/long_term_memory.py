@@ -20,6 +20,7 @@ import json
 import redis
 import logging
 from pydantic import BaseModel
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +112,7 @@ class LongTermMemoryService:
         else:
             # 返回默认偏好
             return UserPreferences(
-                updated_at=datetime.now().isoformat()
+                updated_at=get_utc_now().isoformat()
             )
 
     def update_user_preferences(
@@ -136,7 +137,7 @@ class LongTermMemoryService:
             if hasattr(current, key):
                 setattr(current, key, value)
 
-        current.updated_at = datetime.now().isoformat()
+        current.updated_at = get_utc_now().isoformat()
 
         # 保存到Redis
         key = f"user:{user_id}:preferences"
@@ -215,7 +216,7 @@ class LongTermMemoryService:
             return WritingStyleProfile(**json.loads(data))
         else:
             return WritingStyleProfile(
-                updated_at=datetime.now().isoformat()
+                updated_at=get_utc_now().isoformat()
             )
 
     def update_writing_style(
@@ -241,7 +242,7 @@ class LongTermMemoryService:
                 setattr(current, key, value)
 
         current.sample_count += 1
-        current.updated_at = datetime.now().isoformat()
+        current.updated_at = get_utc_now().isoformat()
 
         # 保存到Redis
         key = f"user:{user_id}:writing_style"
@@ -297,7 +298,7 @@ class LongTermMemoryService:
             reason: 反馈原因
         """
         feedback = FeedbackEntry(
-            timestamp=datetime.now().isoformat(),
+            timestamp=get_utc_now().isoformat(),
             operation=operation,
             feedback_type=feedback_type,
             context=context,
@@ -405,7 +406,7 @@ class LongTermMemoryService:
             "work_id": work_id,  # ✅ 新增：记录work_id
             "summary": summary,
             "key_points": key_points,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": get_utc_now().isoformat()
         }
 
         key = f"user:{user_id}:conv_summary:{conversation_id}"

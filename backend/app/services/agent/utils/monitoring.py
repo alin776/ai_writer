@@ -18,6 +18,7 @@ import psutil
 import os
 
 from .logger import get_logger
+from app.utils.datetime_utils import get_utc_now
 
 logger = get_logger("monitoring")
 
@@ -466,7 +467,7 @@ class AlertManager:
                 existing_alert.message == alert.message and
                 existing_alert.level == alert.level and
                 not existing_alert.resolved and
-                (datetime.now() - existing_alert.timestamp).total_seconds() < 300):  # 5分钟内
+                (get_utc_now() - existing_alert.timestamp).total_seconds() < 300):  # 5分钟内
                 return True
         return False
 
@@ -504,7 +505,7 @@ class AlertManager:
             for alert in reversed(self._alerts):
                 if alert.id == alert_id and not alert.resolved:
                     alert.resolved = True
-                    alert.resolved_at = datetime.now()
+                    alert.resolved_at = get_utc_now()
                     logger.info(f"Alert resolved: {alert.title}")
                     return True
         return False
@@ -771,14 +772,14 @@ class SystemMonitor:
             "active_alerts_count": len(active_alerts),
             "active_alerts": [alert.to_dict() for alert in active_alerts],
             "monitoring_running": self._running,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": get_utc_now().isoformat()
         }
 
     def get_metrics_summary(self) -> Dict[str, Any]:
         """获取指标摘要"""
         return {
             "metrics": self.metrics_collector.get_all_metrics(),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": get_utc_now().isoformat()
         }
 
 

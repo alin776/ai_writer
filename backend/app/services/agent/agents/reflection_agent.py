@@ -22,6 +22,7 @@ from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime
 from pydantic import BaseModel
 from enum import Enum
+from app.utils.datetime_utils import get_utc_now
 
 
 class ReflectionResult(BaseModel):
@@ -199,7 +200,7 @@ class TextQualityEvaluator:
             is_acceptable=evaluation["score"] >= 80.0,
             issues=evaluation["issues"],
             suggestions=evaluation["suggestions"],
-            timestamp=datetime.now().isoformat()
+            timestamp=get_utc_now().isoformat()
         )
 
     async def evaluate_outline_quality(
@@ -246,7 +247,7 @@ class TextQualityEvaluator:
             is_acceptable=score >= 80.0,
             issues=issues,
             suggestions=suggestions,
-            timestamp=datetime.now().isoformat()
+            timestamp=get_utc_now().isoformat()
         )
 
 

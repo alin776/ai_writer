@@ -24,6 +24,7 @@ from datetime import datetime
 from pydantic import BaseModel
 from enum import Enum
 import asyncio
+from app.utils.datetime_utils import get_utc_now
 
 
 T = TypeVar('T')
@@ -84,7 +85,7 @@ class ParallelExecutor:
         Returns:
             ParallelExecutionResult: 执行结果
         """
-        start_time = datetime.now()
+        start_time = get_utc_now()
 
         # 创建信号量控制并发数
         semaphore = asyncio.Semaphore(self.max_concurrent)
@@ -93,7 +94,7 @@ class ParallelExecutor:
             """执行单个任务"""
             async with semaphore:
                 task.status = "running"
-                task.start_time = datetime.now().isoformat()
+                task.start_time = get_utc_now().isoformat()
 
                 try:
                     # 执行任务
@@ -112,7 +113,7 @@ class ParallelExecutor:
                         await on_task_failed(task, e)
 
                 finally:
-                    task.end_time = datetime.now().isoformat()
+                    task.end_time = get_utc_now().isoformat()
                     if task.start_time:
                         start = datetime.fromisoformat(task.start_time)
                         end = datetime.fromisoformat(task.end_time)
@@ -122,7 +123,7 @@ class ParallelExecutor:
         await asyncio.gather(*[execute_one(task) for task in tasks])
 
         # 统计结果
-        end_time = datetime.now()
+        end_time = get_utc_now()
         total_duration = (end_time - start_time).total_seconds()
 
         completed = [t for t in tasks if t.status == "completed"]

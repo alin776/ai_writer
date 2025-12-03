@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 from collections import defaultdict
 import threading
+from app.utils.datetime_utils import get_utc_now
 
 T = TypeVar('T')
 
@@ -30,12 +31,12 @@ class CacheEntry:
         """检查是否过期"""
         if self.ttl is None:
             return False
-        return (datetime.now() - self.timestamp).total_seconds() > self.ttl
+        return (get_utc_now() - self.timestamp).total_seconds() > self.ttl
 
     def access(self) -> Any:
         """访问缓存条目"""
         self.access_count += 1
-        self.timestamp = datetime.now()
+        self.timestamp = get_utc_now()
         return self.value
 
 
@@ -76,7 +77,7 @@ class MemoryCache:
             ttl = ttl or self.default_ttl
             self._cache[key] = CacheEntry(
                 value=value,
-                timestamp=datetime.now(),
+                timestamp=get_utc_now(),
                 ttl=ttl
             )
 
@@ -416,5 +417,5 @@ def get_performance_summary() -> Dict[str, Any]:
     return {
         "cache": cache_stats,
         "performance": perf_stats,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": get_utc_now().isoformat()
     }

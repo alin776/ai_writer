@@ -19,6 +19,7 @@ from app.services.ai.http_ai_service import HTTPAIService
 from app.services.agent.model_selector import TaskType  # ✅ 新增：用于成本追踪
 from app.core.cache import cache_review
 from app.core.config import settings
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +135,7 @@ class BookReviewAnalyzer:
         result = {
             "book_title": book_title,
             "total_chapters": len(chapters),
-            "analysis_date": datetime.now().isoformat(),
+            "analysis_date": get_utc_now().isoformat(),
             "overall_score": overall_score,
             "plot_analysis": plot_analysis,
             "character_analysis": character_analysis,

@@ -13,6 +13,7 @@ from functools import wraps
 import traceback
 import asyncio
 from contextlib import asynccontextmanager
+from app.utils.datetime_utils import get_utc_now
 
 # 尝试导入 structlog，如果不可用则使用标准 logging
 try:
@@ -62,7 +63,7 @@ class AgentLogger:
     ) -> Dict[str, Any]:
         """格式化结构化日志"""
         log_entry = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": get_utc_now().isoformat() + "Z",
             "level": level,
             "logger": self.name,
             "message": message,
