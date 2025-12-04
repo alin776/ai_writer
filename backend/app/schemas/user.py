@@ -81,8 +81,8 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     """用户响应"""
-    # allow None for soft-deleted/anonymized users to avoid response validation errors
-    email: Optional[EmailStr] = None
+    # 放宽响应校验，兼容占位域名等非标准邮箱
+    email: Optional[str] = None
     id: UUID
     full_name: Optional[str] = None
     avatar: Optional[str] = None
