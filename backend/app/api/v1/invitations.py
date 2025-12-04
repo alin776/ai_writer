@@ -9,7 +9,6 @@ from app.models.user import User
 from app.services.invitations.invitation_service import InvitationService
 from app.services.credits.credit_exceptions import (
     InvitationQuotaExceededError,
-    NewUserCooldownError,
     InvitationCodeInvalidError
 )
 from app.schemas.invitations import (
@@ -39,7 +38,6 @@ async def generate_invitation(
 
     **限制**:
     - 每位用户最多生成3个邀请码
-    - 新用户需等待72小时后才能生成
     - 每个邀请码只能使用1次
     - 有效期固定为60天（2个月）
     """
@@ -68,11 +66,6 @@ async def generate_invitation(
             "invitees": []
         }
     except InvitationQuotaExceededError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except NewUserCooldownError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)

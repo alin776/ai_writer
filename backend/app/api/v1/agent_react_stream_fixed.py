@@ -186,10 +186,7 @@ async def agent_react_stream(
                         return  # 提前结束
 
                     # 发送SSE事件
-                    yield f'data: {json.dumps({
-                        'type': event_type,
-                        'data': event_data
-                    }, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'type': event_type, 'data': event_data}, ensure_ascii=False)}\n\n"
 
                 # 等待agent任务完成（带异常处理）
                 try:
@@ -202,11 +199,7 @@ async def agent_react_stream(
                 # 检查result是否有效
                 if result is None:
                     logger.error("[React Stream] Result is None after agent task completed")
-                    yield f'data: {json.dumps({
-                        'type': 'error',
-                        'error': 'Agent执行失败，未返回结果',
-                        'timestamp': get_utc_now().isoformat()
-                    }, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'type': 'error', 'error': 'Agent执行失败，未返回结果', 'timestamp': get_utc_now().isoformat()}, ensure_ascii=False)}\n\n"
                     return
 
                 # 记录交互到用户记忆
@@ -222,15 +215,7 @@ async def agent_react_stream(
                 )
 
                 # 发送完成事件
-                yield f'data: {json.dumps({
-                    'type': 'done',
-                    'data': {
-                        'response': result.get('response', ''),
-                        'metadata': result.get('metadata', {}),
-                        'suggested_actions': result.get('suggested_actions', []),
-                        'agent_steps': result.get('agent_steps', [])
-                    }
-                }, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'data': {'response': result.get('response', ''), 'metadata': result.get('metadata', {}), 'suggested_actions': result.get('suggested_actions', []), 'agent_steps': result.get('agent_steps', [])}}, ensure_ascii=False)}\n\n"
 
                 logger.info(
                     f"[React Stream] 完成 - User: {user_id}, "
@@ -240,11 +225,7 @@ async def agent_react_stream(
 
             except Exception as e:
                 logger.error(f"[React Stream] Error: {str(e)}", exc_info=True)
-                yield f'data: {json.dumps({
-                'type': 'error',
-                'error': str(e),
-                'timestamp': get_utc_now().isoformat()
-            }, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'error', 'error': str(e), 'timestamp': get_utc_now().isoformat()}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         event_generator(),

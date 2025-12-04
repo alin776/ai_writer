@@ -87,6 +87,14 @@ export const router = createBrowserRouter([
       </SuspenseWrapper>
     ),
   },
+  {
+    path: '/auth',
+    element: (
+      <SuspenseWrapper>
+        <AuthView />
+      </SuspenseWrapper>
+    ),
+  },
 
   /**
    * 创建作品路由（需要认证但无布局）

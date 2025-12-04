@@ -80,7 +80,7 @@ const ServiceUsageView: React.FC = () => {
                           类型
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          金额
+                          积分
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           描述

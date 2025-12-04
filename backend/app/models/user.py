@@ -15,7 +15,7 @@ class User(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)
-    email = Column(String(255), unique=True, nullable=True, index=True)  # 可选字段
+    email = Column(String(255), unique=True, nullable=False, index=True)
     
     # 用户信息
     full_name = Column(String(100), nullable=True)

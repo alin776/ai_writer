@@ -76,7 +76,7 @@ async def register(
 
             # 3. 创建用户积分记录（优先创建，避免后续扣费时竞态）
             logger.info(f"Creating credits for new user: {user.id}")
-            await credit_service.get_or_create_credits(user.id)
+            await credit_service.get_or_create_credits(user.id, commit=False)
 
             # 4. 使用邀请码（最后执行，避免前面步骤失败导致邀请码被消耗）
             logger.info(f"Using invitation code for user: {user.id}")
@@ -86,6 +86,16 @@ async def register(
                 ip_address=ip_address,
                 device_fingerprint=user_data.device_fingerprint
             )
+
+            # 5. 立即激活邀请奖励（注册即奖励模式）
+            logger.info(f"Activating invitation reward for user: {user.id}")
+            reward_info = await invitation_service.activate_invitation(
+                invitee_id=user.id,
+                force=True,
+                commit=False
+            )
+            if reward_info:
+                logger.info(f"Invitation reward activated: {reward_info}")
 
         # 提交外层事务
         await db.commit()
@@ -185,6 +195,8 @@ async def login(
         logger.error(f"[LOGIN] 会话创建失败: {user.id} - {e}")
 
     logger.info(f"[LOGIN] 登录成功: {user.username} ({user.id}) from {ip_address}")
+
+    await db.commit()
 
     return Token(
         access_token=access_token,

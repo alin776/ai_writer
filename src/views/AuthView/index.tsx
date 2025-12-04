@@ -168,8 +168,9 @@ const AuthView: React.FC = () => {
       // 更新用户信息
       login(user, tokenResponse.accessToken);
       navigate('/works');
-    } catch (error) {
-      setErrors({ submit: '登录失败，请检查用户名和密码' });
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.detail || error?.message || '登录失败，请检查用户名和密码';
+      setErrors({ submit: errorMessage });
     } finally {
       setIsLoading(false);
     }
@@ -207,8 +208,9 @@ const AuthView: React.FC = () => {
         confirmPassword: '',
         invitationCode: ''
       });
-    } catch (error) {
-      setErrors({ submit: '注册失败，请稍后重试' });
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.detail || error?.message || '注册失败，请稍后重试';
+      setErrors({ submit: errorMessage });
     } finally {
       setIsLoading(false);
     }

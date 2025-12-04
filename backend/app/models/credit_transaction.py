@@ -38,7 +38,7 @@ class CreditTransaction(Base):
 
     # 关联关系
     # ✅ 修复overlaps警告1: 与user_credits关系重叠（都操作user_id）
-    user = relationship("User", backref="credit_transactions", overlaps="user_credits")
+    user = relationship("User", backref="credit_transactions", overlaps="user_credits,transactions")
     # ✅ 修复overlaps警告2: 与user关系重叠（都操作user_id）
     user_credits = relationship(
         "UserCredits",

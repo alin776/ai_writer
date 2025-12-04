@@ -49,6 +49,7 @@ async def update_current_user(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
+        await db.commit()
         return user
     except ValueError as e:
         raise HTTPException(
@@ -79,7 +80,9 @@ async def update_my_notification_settings(
     """更新当前用户的通知设置"""
     user_service = UserService(db)
     try:
-        return await user_service.update_notification_settings(str(current_user.id), settings)
+        result = await user_service.update_notification_settings(str(current_user.id), settings)
+        await db.commit()
+        return result
     except ValueError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
@@ -106,7 +109,9 @@ async def update_my_preferences(
     """更新当前用户的偏好设置"""
     user_service = UserService(db)
     try:
-        return await user_service.update_preferences(str(current_user.id), preferences)
+        result = await user_service.update_preferences(str(current_user.id), preferences)
+        await db.commit()
+        return result
     except ValueError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
@@ -125,6 +130,7 @@ async def change_my_password(
             payload.current_password,
             payload.new_password
         )
+        await db.commit()
         return ChangePasswordResponse(detail="密码修改成功")
     except ValueError as exc:
         raise HTTPException(
@@ -143,6 +149,7 @@ async def delete_my_account(
     user_service = UserService(db)
     try:
         await user_service.soft_delete_user(str(current_user.id), payload.password)
+        await db.commit()
         return DeleteAccountResponse(detail="账号已删除")
     except ValueError as exc:
         raise HTTPException(
@@ -191,6 +198,7 @@ async def upload_my_avatar(
     user_service = UserService(db)
     try:
         await user_service.update_avatar(str(current_user.id), avatar_url)
+        await db.commit()
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -275,6 +283,7 @@ async def logout_session(
             user_id=str(current_user.id),
             session_id=session_id
         )
+        await db.commit()
         return {"detail": "Session logged out successfully"}
     except ValueError as exc:
         raise HTTPException(
@@ -301,6 +310,7 @@ async def logout_other_sessions(
             user_id=str(current_user.id),
             current_token=token
         )
+        await db.commit()
         return {"detail": f"Logged out {count} sessions successfully", "count": count}
     except Exception as error:
         raise HTTPException(

@@ -52,7 +52,7 @@ class AvatarUploadResponse(BaseModel):
 class UserBase(BaseModel):
     """用户基础模型"""
     username: str = Field(..., min_length=3, max_length=50)
-    email: Optional[EmailStr] = None
+    email: EmailStr
 
 
 class UserCreate(UserBase):
@@ -81,6 +81,8 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     """用户响应"""
+    # allow None for soft-deleted/anonymized users to avoid response validation errors
+    email: Optional[EmailStr] = None
     id: UUID
     full_name: Optional[str] = None
     avatar: Optional[str] = None

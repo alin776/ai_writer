@@ -17,7 +17,6 @@ from app.core.config import settings
 from app.services.credits.credit_service import CreditService
 from app.services.credits.credit_exceptions import (
     InvitationQuotaExceededError,
-    NewUserCooldownError,
     InvitationCodeInvalidError,
     InvitationCodeExpiredError,
     InvitationCodeFullError,
@@ -65,20 +64,11 @@ class InvitationService:
 
         Raises:
             InvitationQuotaExceededError: 超过生成数量限制
-            NewUserCooldownError: 新用户冷却期未过
         """
-        # 查询��户信息
+        # 查询用户信息
         user_stmt = select(User).where(User.id == user_id)
         user_result = await self.db.execute(user_stmt)
         user = user_result.scalar_one()
-
-        # 检查新用户冷却期
-        cooldown_hours = settings.NEW_USER_INVITE_COOLDOWN_HOURS
-        cooldown_deadline = user.created_at + timedelta(hours=cooldown_hours)
-        now = get_utc_now()
-        if now < cooldown_deadline:
-            remaining = (cooldown_deadline - now).total_seconds() / 3600
-            raise NewUserCooldownError(int(remaining) + 1)
 
         # 查询已有邀请码数量
         count_stmt = select(func.count()).select_from(UserInvitation).where(
@@ -240,7 +230,7 @@ class InvitationService:
         )
         self.db.add(usage)
 
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(usage)
         return usage
 
@@ -306,13 +296,17 @@ class InvitationService:
 
     async def activate_invitation(
         self,
-        invitee_id: UUID
+        invitee_id: UUID,
+        force: bool = False,
+        commit: bool = True
     ) -> Optional[dict]:
         """
         激活邀请（奖励邀请人）
 
         Args:
             invitee_id: 被邀请人 ID
+            force: 强制激活（注册即奖励模式，跳过消费/充值检查）
+            commit: 是否在函数内部提交事务（嵌套事务时传 False）
 
         Returns:
             Optional[dict]: 奖励信息（如果激活成功）
@@ -329,43 +323,47 @@ class InvitationService:
         if not usage or usage.status == "active":
             return None
 
-        # ✅ 在锁内检查激活条件（避免外部check_activation和加锁之间的时间窗口）
-        # 检查是否超过7天
-        deadline = usage.created_at + timedelta(days=settings.INVITATION_ACTIVATION_DEADLINE_DAYS)
-        if get_utc_now() > deadline:
-            # 标记为过期
-            usage.status = "expired"
-            await self.db.commit()
-            return None
+        # 如果不是强制激活，检查激活条件
+        if not force:
+            # 检查是否超过7天
+            deadline = usage.created_at + timedelta(days=settings.INVITATION_ACTIVATION_DEADLINE_DAYS)
+            if get_utc_now() > deadline:
+                # 标记为过期
+                usage.status = "expired"
+                if commit:
+                    await self.db.commit()
+                else:
+                    await self.db.flush()
+                return None
 
-        # 查询累计消费积分
-        consume_stmt = select(func.sum(CreditTransaction.amount)).where(
-            and_(
-                CreditTransaction.user_id == invitee_id,
-                CreditTransaction.type == "consume"
+            # 查询累计消费积分
+            consume_stmt = select(func.sum(CreditTransaction.amount)).where(
+                and_(
+                    CreditTransaction.user_id == invitee_id,
+                    CreditTransaction.type == "consume"
+                )
             )
-        )
-        consume_result = await self.db.execute(consume_stmt)
-        total_consumed = abs(consume_result.scalar() or Decimal("0"))
+            consume_result = await self.db.execute(consume_stmt)
+            total_consumed = abs(consume_result.scalar() or Decimal("0"))
 
-        # 查询累计充值积分
-        recharge_stmt = select(func.sum(CreditTransaction.amount)).where(
-            and_(
-                CreditTransaction.user_id == invitee_id,
-                CreditTransaction.type == "recharge"
+            # 查询累计充值积分
+            recharge_stmt = select(func.sum(CreditTransaction.amount)).where(
+                and_(
+                    CreditTransaction.user_id == invitee_id,
+                    CreditTransaction.type == "recharge"
+                )
             )
-        )
-        recharge_result = await self.db.execute(recharge_stmt)
-        total_recharged = recharge_result.scalar() or Decimal("0")
+            recharge_result = await self.db.execute(recharge_stmt)
+            total_recharged = recharge_result.scalar() or Decimal("0")
 
-        # 判断是否满足激活条件
-        min_consume = Decimal(str(settings.INVITATION_ACTIVATION_MIN_CONSUME))
-        min_recharge = Decimal(str(settings.INVITATION_ACTIVATION_MIN_RECHARGE))
+            # 判断是否满足激活条件
+            min_consume = Decimal(str(settings.INVITATION_ACTIVATION_MIN_CONSUME))
+            min_recharge = Decimal(str(settings.INVITATION_ACTIVATION_MIN_RECHARGE))
 
-        is_activated = (total_consumed >= min_consume) or (total_recharged >= min_recharge)
+            is_activated = (total_consumed >= min_consume) or (total_recharged >= min_recharge)
 
-        if not is_activated:
-            return None
+            if not is_activated:
+                return None
 
         # 查询邀请码（加锁）
         invitation_stmt = select(UserInvitation).where(
@@ -388,10 +386,14 @@ class InvitationService:
             user_id=invitation.user_id,
             amount=reward_amount,
             description=f"邀请奖励: 邀请 {invitee_id} 激活成功",
-            related_type="invitation_reward"
+            related_type="invitation_reward",
+            commit=commit
         )
 
-        await self.db.commit()
+        if commit:
+            await self.db.commit()
+        else:
+            await self.db.flush()
 
         return {
             "inviter_id": str(invitation.user_id),

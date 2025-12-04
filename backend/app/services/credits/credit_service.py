@@ -27,7 +27,8 @@ class CreditService:
     async def get_or_create_credits(
         self,
         user_id: UUID,
-        gift_credits: Optional[Decimal] = None
+        gift_credits: Optional[Decimal] = None,
+        commit: bool = True
     ) -> UserCredits:
         """
         获取或创建用户积分记录
@@ -35,6 +36,7 @@ class CreditService:
         Args:
             user_id: 用户ID
             gift_credits: 新用户赠送积分（可选，默认使用配置值）
+            commit: 是否立即提交（默认 True；在外层控制事务时传 False）
 
         Returns:
             UserCredits: 用户积分记录
@@ -76,7 +78,10 @@ class CreditService:
             )
             self.db.add(transaction)
 
-        await self.db.commit()
+        if commit:
+            await self.db.commit()
+        else:
+            await self.db.flush()
         await self.db.refresh(credits)
         return credits
 
@@ -90,7 +95,7 @@ class CreditService:
         Returns:
             dict: 余额信息
         """
-        credits = await self.get_or_create_credits(user_id)
+        credits = await self.get_or_create_credits(user_id, commit=True)
 
         # 检查是否过期
         is_expired = False
@@ -121,7 +126,7 @@ class CreditService:
         Returns:
             Tuple[bool, Decimal]: (是否充足, 当前余额)
         """
-        credits = await self.get_or_create_credits(user_id)
+        credits = await self.get_or_create_credits(user_id, commit=True)
 
         # 检查是否过期
         if credits.expires_at and credits.expires_at < get_utc_now():
@@ -263,7 +268,8 @@ class CreditService:
         user_id: UUID,
         amount: Decimal,
         description: str,
-        related_type: str = "admin_gift"
+        related_type: str = "admin_gift",
+        commit: bool = True
     ) -> CreditTransaction:
         """
         赠送积分（管理员/邀请奖励）
@@ -298,7 +304,11 @@ class CreditService:
         )
         self.db.add(transaction)
 
-        await self.db.commit()
+        if commit:
+            await self.db.commit()
+        else:
+            await self.db.flush()
+
         await self.db.refresh(transaction)
         return transaction
 
