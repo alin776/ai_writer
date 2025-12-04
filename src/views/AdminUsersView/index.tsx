@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Shield, ShieldOff, Ban, CheckCircle } from 'lucide-react';
 import { Button, Card, Input, Loading } from '../../components/common';
 import { DataService } from '../../services/DataService';
@@ -27,23 +27,23 @@ const AdminUsersView: React.FC = () => {
   /**
    * 加载用户列表
    */
-  useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        setIsLoading(true);
-        const data = await DataService.getUsers();
-        setUsers(data);
-        setFilteredUsers(data);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : '加载用户失败';
-        showToast('error', message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadUsers();
+  const loadUsers = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const data = await DataService.getUsers();
+      setUsers(data);
+      setFilteredUsers(data);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '加载用户失败';
+      showToast('error', message);
+    } finally {
+      setIsLoading(false);
+    }
   }, [showToast]);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   /**
    * 处理搜索

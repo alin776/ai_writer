@@ -18,21 +18,21 @@ interface RedemptionCode {
 }
 
 interface CreditStats {
-  totalCodes: number;
-  usedCodes: number;
-  unusedCodes: number;
-  expiredCodes: number;
-  totalCreditsIssued: number;
-  totalCreditsUsed: number;
+  totalUsers: number;
+  totalBalance: number;
+  totalRecharged: number;
+  totalConsumed: number;
+  totalGifted: number;
+  totalTransactions: number;
 }
 
 const defaultStats: CreditStats = {
-  totalCodes: 0,
-  usedCodes: 0,
-  unusedCodes: 0,
-  expiredCodes: 0,
-  totalCreditsIssued: 0,
-  totalCreditsUsed: 0,
+  totalUsers: 0,
+  totalBalance: 0,
+  totalRecharged: 0,
+  totalConsumed: 0,
+  totalGifted: 0,
+  totalTransactions: 0,
 };
 
 /**
@@ -310,8 +310,8 @@ const AdminCreditsView: React.FC = () => {
             <div className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">兑换码总数</p>
-                  <p className="mt-2 text-3xl font-bold text-gray-900">{stats.totalCodes.toLocaleString()}</p>
+                  <p className="text-sm font-medium text-gray-600">积分用户数</p>
+                  <p className="mt-2 text-3xl font-bold text-gray-900">{stats.totalUsers.toLocaleString()}</p>
                 </div>
                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                   <Coins className="w-6 h-6 text-blue-600" />
@@ -324,8 +324,8 @@ const AdminCreditsView: React.FC = () => {
             <div className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">未使用</p>
-                  <p className="mt-2 text-3xl font-bold text-green-600">{stats.unusedCodes.toLocaleString()}</p>
+                  <p className="text-sm font-medium text-gray-600">总余额</p>
+                  <p className="mt-2 text-3xl font-bold text-green-600">{stats.totalBalance.toLocaleString()}</p>
                 </div>
                 <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                   <TrendingUp className="w-6 h-6 text-green-600" />
@@ -338,8 +338,8 @@ const AdminCreditsView: React.FC = () => {
             <div className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">已使用</p>
-                  <p className="mt-2 text-3xl font-bold text-purple-600">{stats.usedCodes.toLocaleString()}</p>
+                  <p className="text-sm font-medium text-gray-600">累计充值</p>
+                  <p className="mt-2 text-3xl font-bold text-purple-600">{stats.totalRecharged.toLocaleString()}</p>
                 </div>
                 <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                   <DollarSign className="w-6 h-6 text-purple-600" />
@@ -350,22 +350,22 @@ const AdminCreditsView: React.FC = () => {
 
           <Card background="blue">
             <div className="p-6">
-              <p className="text-sm font-medium text-gray-600">已过期</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">{stats.expiredCodes.toLocaleString()}</p>
+              <p className="text-sm font-medium text-gray-600">累计消费</p>
+              <p className="mt-2 text-2xl font-bold text-gray-900">{stats.totalConsumed.toLocaleString()}</p>
             </div>
           </Card>
 
           <Card background="blue">
             <div className="p-6">
-              <p className="text-sm font-medium text-gray-600">累计发放积分</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">{stats.totalCreditsIssued.toLocaleString()}</p>
+              <p className="text-sm font-medium text-gray-600">累计赠送</p>
+              <p className="mt-2 text-2xl font-bold text-gray-900">{stats.totalGifted.toLocaleString()}</p>
             </div>
           </Card>
 
           <Card background="blue">
             <div className="p-6">
-              <p className="text-sm font-medium text-gray-600">累计使用积分</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">{stats.totalCreditsUsed.toLocaleString()}</p>
+              <p className="text-sm font-medium text-gray-600">交易总数</p>
+              <p className="mt-2 text-2xl font-bold text-gray-900">{stats.totalTransactions.toLocaleString()}</p>
             </div>
           </Card>
         </div>
