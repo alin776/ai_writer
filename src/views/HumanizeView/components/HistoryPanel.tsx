@@ -9,9 +9,14 @@ import { formatDate } from '@/utils/formatDate';
 interface HistoryPanelProps {
   refreshKey: number;
   onOpenFullHistory: () => void;
+  onSelectSession: (sessionId: string) => void;
 }
 
-export const HistoryPanel: React.FC<HistoryPanelProps> = ({ refreshKey, onOpenFullHistory }) => {
+export const HistoryPanel: React.FC<HistoryPanelProps> = ({
+  refreshKey,
+  onOpenFullHistory,
+  onSelectSession,
+}) => {
   const [sessions, setSessions] = useState<HumanizeSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
@@ -91,6 +96,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ refreshKey, onOpenFu
               <div
                 key={session.id}
                 className="p-3 hover:bg-gray-50 transition-colors cursor-pointer"
+                onClick={() => onSelectSession(session.id)}
               >
                 <div className="flex items-start justify-between mb-1.5">
                   <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${

@@ -12,7 +12,7 @@ import type {
 } from '@/types/humanize';
 
 /**
- * HumanizeService - AI指纹消融API服务
+ * HumanizeService - AI去痕迹API服务
  *
  * 功能:
  * - 用户画像管理

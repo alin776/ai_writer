@@ -16,7 +16,7 @@ import { useGlobalStore } from '@/store/globalStore';
 import { useNavigate } from 'react-router-dom';
 
 /**
- * HumanizeView - AI指纹消融主页面
+ * HumanizeView - AI去痕迹主页面
  *
  * 布局结构:
  * ┌────────────────────────────────────┐
@@ -232,7 +232,7 @@ export const HumanizeView: React.FC = () => {
                 <Wand2 className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-semibold text-gray-900">AI指纹消融</h1>
+                <h1 className="text-lg font-semibold text-gray-900">AI去痕迹</h1>
                 <p className="text-sm text-gray-500">将AI生成内容转化为自然表达</p>
               </div>
             </div>
@@ -322,6 +322,7 @@ export const HumanizeView: React.FC = () => {
                 <HistoryPanel
                   refreshKey={historyRefreshKey}
                   onOpenFullHistory={() => navigate('/humanize/history')}
+                  onSelectSession={(id) => navigate(`/humanize/history/${id}`)}
                 />
               </div>
             )}

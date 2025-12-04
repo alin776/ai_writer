@@ -500,6 +500,8 @@ async def humanize_rewrite(
             session_id=session.id,
             original_preview=request_data.text[:200],  # 仅保存前200字符
             humanized_preview=humanized_text[:200],
+            original_full=request_data.text,
+            humanized_full=humanized_text,
             dimensions_before=dimensions_before_dict,  # ← 使用转换后的字典
             dimensions_after={},  # 验证阶段不返回详细维度
             detected_patterns=(
@@ -713,6 +715,8 @@ async def humanize_rewrite_stream(
                             session_id=session.id,
                             original_preview=request_data.text[:200],
                             humanized_preview=request_data.text[:200],
+                            original_full=request_data.text,
+                            humanized_full=request_data.text,
                             dimensions_before=dimensions_before_dict,
                             dimensions_after={},
                             detected_patterns=detection_result.detected_patterns if detection_result else [],
@@ -886,6 +890,8 @@ async def humanize_rewrite_stream(
                     session_id=session.id,
                     original_preview=request_data.text[:200],
                     humanized_preview=humanized_text[:200],
+                    original_full=request_data.text,
+                    humanized_full=humanized_text,
                     dimensions_before=dimensions_before_dict,
                     dimensions_after={},
                     detected_patterns=(
@@ -1045,6 +1051,8 @@ async def humanize_rewrite_stream(
                         session_id=session.id,
                         original_preview=request_data.text[:200],
                         humanized_preview=partial_text[:200] if partial_text else "(用户中断，无输出)",
+                        original_full=request_data.text,
+                        humanized_full=partial_text,
                         dimensions_before={},
                         dimensions_after={},
                         detected_patterns=["USER_INTERRUPTED"],

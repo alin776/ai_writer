@@ -1,7 +1,7 @@
 // src/types/humanize.ts
 
 /**
- * AI指纹消融类型定义
+ * AI去痕迹类型定义
  *
  * 包含:
  * - 改写强度类型
@@ -98,6 +98,8 @@ export interface HumanizeSessionDetail {
 
   /** 改写后预览 (前200字) */
   humanized_preview?: string;
+  original_full?: string;
+  humanized_full?: string;
 
   /** 过期时间 */
   expires_at: string;

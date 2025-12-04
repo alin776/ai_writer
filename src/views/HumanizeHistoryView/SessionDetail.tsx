@@ -79,7 +79,7 @@ export const HumanizeSessionDetail: React.FC = () => {
             </div>
           </div>
 
-          {session.detail?.original_preview && (
+          {(session.detail?.original_preview || session.detail?.original_full) && (
             <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm space-y-2">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-gray-800">原文片段</h2>
@@ -91,7 +91,7 @@ export const HumanizeSessionDetail: React.FC = () => {
                     {isOriginalExpanded ? '收起' : '展开'}
                   </button>
                   <button
-                    onClick={() => handleCopy(session.detail.original_preview || '')}
+                    onClick={() => handleCopy(session.detail?.original_full || session.detail?.original_preview || '')}
                     className="flex items-center gap-1 text-gray-600 hover:text-gray-900"
                   >
                     <Copy className="w-4 h-4" />
@@ -104,12 +104,12 @@ export const HumanizeSessionDetail: React.FC = () => {
                   isOriginalExpanded ? '' : 'line-clamp-5'
                 }`}
               >
-                {session.detail.original_preview}
+                {session.detail.original_full || session.detail.original_preview}
               </p>
             </div>
           )}
 
-          {session.detail?.humanized_preview && (
+          {(session.detail?.humanized_preview || session.detail?.humanized_full) && (
             <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm space-y-2">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-gray-800">改写后片段</h2>
@@ -121,7 +121,7 @@ export const HumanizeSessionDetail: React.FC = () => {
                     {isHumanizedExpanded ? '收起' : '展开'}
                   </button>
                   <button
-                    onClick={() => handleCopy(session.detail.humanized_preview || '')}
+                    onClick={() => handleCopy(session.detail?.humanized_full || session.detail?.humanized_preview || '')}
                     className="flex items-center gap-1 text-gray-600 hover:text-gray-900"
                   >
                     <Copy className="w-4 h-4" />
@@ -134,7 +134,7 @@ export const HumanizeSessionDetail: React.FC = () => {
                   isHumanizedExpanded ? '' : 'line-clamp-5'
                 }`}
               >
-                {session.detail.humanized_preview}
+                {session.detail.humanized_full || session.detail.humanized_preview}
               </p>
             </div>
           )}

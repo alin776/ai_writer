@@ -105,6 +105,8 @@ class HumanizeSessionDetailResponse(BaseModel):
     detected_patterns: List[str] = Field(default_factory=list)
     original_preview: Optional[str] = None
     humanized_preview: Optional[str] = None
+    original_full: Optional[str] = None
+    humanized_full: Optional[str] = None
     expires_at: datetime
 
     class Config:

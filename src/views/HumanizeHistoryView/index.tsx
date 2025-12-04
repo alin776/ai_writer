@@ -50,7 +50,8 @@ export const HumanizeHistoryView: React.FC = () => {
           {history.items.map((session: HumanizeSession) => (
             <div
               key={session.id}
-              className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm flex justify-between items-center"
+              className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm flex justify-between items-center cursor-pointer hover:border-blue-200"
+              onClick={() => navigate(`/humanize/history/${session.id}`)}
             >
               <div>
                 <div className="flex items-center gap-2 text-sm text-gray-700">
@@ -69,12 +70,7 @@ export const HumanizeHistoryView: React.FC = () => {
                   </p>
                 )}
               </div>
-              <button
-                onClick={() => navigate(`/humanize/history/${session.id}`)}
-                className="text-sm text-blue-600 hover:text-blue-700"
-              >
-                查看详情
-              </button>
+              <span className="text-sm text-blue-600">查看详情</span>
             </div>
           ))}
         </div>
