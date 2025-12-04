@@ -49,7 +49,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
   const hasResult = outputText && currentStage === 'done';
 
   return (
-    <div className="h-full flex flex-col bg-white rounded-lg border border-gray-200 shadow-sm">
+    <div className="h-full flex flex-col bg-white rounded-lg border border-gray-200 shadow-sm min-h-[520px]">
       {/* 标题栏 */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
         <h3 className="text-sm font-semibold text-gray-900">改写结果</h3>

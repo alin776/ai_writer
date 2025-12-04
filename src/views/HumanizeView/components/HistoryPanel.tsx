@@ -8,9 +8,10 @@ import { formatDate } from '@/utils/formatDate';
 
 interface HistoryPanelProps {
   refreshKey: number;
+  onOpenFullHistory: () => void;
 }
 
-export const HistoryPanel: React.FC<HistoryPanelProps> = ({ refreshKey }) => {
+export const HistoryPanel: React.FC<HistoryPanelProps> = ({ refreshKey, onOpenFullHistory }) => {
   const [sessions, setSessions] = useState<HumanizeSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
@@ -36,7 +37,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ refreshKey }) => {
   }, [refreshKey]);
 
   return (
-    <div className="h-full flex flex-col bg-white rounded-lg border border-gray-200 shadow-sm">
+    <div className="h-full flex flex-col bg-white rounded-lg border border-gray-200 shadow-sm min-h-[520px]">
       {/* 标题栏 */}
       <div className="px-4 py-3 border-b border-gray-200">
         <h3 className="text-sm font-semibold text-gray-900">历史记录</h3>
@@ -128,13 +129,14 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ refreshKey }) => {
       </div>
 
       {/* 查看更多 */}
-      {sessions.length > 0 && (
-        <div className="px-4 py-3 border-t border-gray-200">
-          <button className="w-full text-sm text-blue-600 hover:text-blue-700 font-medium">
-            查看全部历史
-          </button>
-        </div>
-      )}
+      <div className="px-4 py-3 border-t border-gray-200">
+        <button
+          onClick={onOpenFullHistory}
+          className="w-full text-sm text-blue-600 hover:text-blue-700 font-medium"
+        >
+          查看全部历史
+        </button>
+      </div>
     </div>
   );
 };

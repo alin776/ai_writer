@@ -33,6 +33,8 @@ const KnowledgeView = React.lazy(() => import('../views/KnowledgeView'));
 const ServiceCreditsView = React.lazy(() => import('../views/ServiceCreditsView'));
 const ServiceUsageView = React.lazy(() => import('../views/ServiceUsageView'));
 const ServiceObtainView = React.lazy(() => import('../views/ServiceObtainView'));
+const HumanizeHistoryView = React.lazy(() => import('../views/HumanizeHistoryView'));
+const HumanizeSessionDetail = React.lazy(() => import('../views/HumanizeHistoryView/SessionDetail'));
 const NotFoundView = React.lazy(() => import('../views/NotFoundView'));
 
 /**
@@ -202,6 +204,22 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <HumanizeView />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/humanize/history',
+        element: (
+          <SuspenseWrapper>
+            <HumanizeHistoryView />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/humanize/history/:sessionId',
+        element: (
+          <SuspenseWrapper>
+            <HumanizeSessionDetail />
           </SuspenseWrapper>
         ),
       },

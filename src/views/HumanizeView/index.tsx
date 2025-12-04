@@ -1,7 +1,7 @@
 // src/views/HumanizeView/index.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Wand2, Info, TrendingDown, Clock } from 'lucide-react';
+import { Wand2, Info, TrendingDown, Clock, History } from 'lucide-react';
 import { InputPanel } from './components/InputPanel';
 import { OutputPanel } from './components/OutputPanel';
 import { HistoryPanel } from './components/HistoryPanel';
@@ -13,6 +13,7 @@ import type {
   UserProfile
 } from '@/types/humanize';
 import { useGlobalStore } from '@/store/globalStore';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * HumanizeView - AI指纹消融主页面
@@ -29,6 +30,7 @@ import { useGlobalStore } from '@/store/globalStore';
  */
 export const HumanizeView: React.FC = () => {
   const { showToast } = useGlobalStore();
+  const navigate = useNavigate();
 
   // ==================== 用户画像 ====================
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -58,6 +60,7 @@ export const HumanizeView: React.FC = () => {
 
   // ==================== 历史刷新 ====================
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [isHistoryCollapsed, setIsHistoryCollapsed] = useState(false);
 
   // ==================== 生命周期 ====================
 
@@ -270,11 +273,21 @@ export const HumanizeView: React.FC = () => {
       </div>
 
       {/* 主工作区 - 三列布局 */}
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full p-6">
-          <div className="grid grid-cols-12 gap-6 h-full">
+      <div className="flex-1 overflow-auto">
+        <div className="min-h-full p-6 space-y-3">
+          <div className="flex justify-end">
+            <button
+              onClick={() => setIsHistoryCollapsed((v) => !v)}
+              className="inline-flex items-center gap-2 text-xs text-gray-600 hover:text-gray-900 border border-gray-200 px-3 py-1.5 rounded-md bg-white shadow-sm"
+            >
+              <History className="w-4 h-4" />
+              {isHistoryCollapsed ? '展开历史记录' : '收起历史记录'}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-12 gap-6 auto-rows-min">
             {/* 左列：输入面板 (40%) */}
-            <div className="col-span-5 h-full">
+            <div className={isHistoryCollapsed ? 'col-span-6 h-full' : 'col-span-5 h-full'}>
               <InputPanel
                 inputText={inputText}
                 intensity={intensity}
@@ -289,7 +302,7 @@ export const HumanizeView: React.FC = () => {
             </div>
 
             {/* 中列：输出面板 (40%) */}
-            <div className="col-span-5 h-full">
+            <div className={isHistoryCollapsed ? 'col-span-6 h-full' : 'col-span-5 h-full'}>
               <OutputPanel
                 outputText={outputText}
                 isProcessing={isProcessing}
@@ -304,9 +317,14 @@ export const HumanizeView: React.FC = () => {
             </div>
 
             {/* 右列：历史面板 (20%) */}
-            <div className="col-span-2 h-full">
-              <HistoryPanel refreshKey={historyRefreshKey} />
-            </div>
+            {!isHistoryCollapsed && (
+              <div className="col-span-2 h-full">
+                <HistoryPanel
+                  refreshKey={historyRefreshKey}
+                  onOpenFullHistory={() => navigate('/humanize/history')}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>
