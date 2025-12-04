@@ -88,13 +88,23 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
       description: formData.description.trim(),
     };
 
+    // 将手动输入的世界观信息对齐为 AI Guidelines 字段，便于后端自动分发到人物/地点/设定
     const worldViewData: WorldViewData = {
-      genre: formData.genre,
-      setting: formData.setting,
-      powerSystem: formData.powerSystem,
-      mainCharacter: formData.mainCharacter,
-      plotIdea: formData.plotIdea,
+      // 小说类型
+      primaryGenre: formData.genre,
+      // 世界观/背景描述
+      worldIntro: formData.setting,
       worldRules: formData.worldRules,
+      // 场景/地点：复用背景输入按分隔符拆解
+      mainLocations: formData.setting,
+      // 力量体系
+      powerSystemName: formData.powerSystem,
+      // 主角信息（简单复用为姓名/身份/性格）
+      protagonistName: formData.mainCharacter,
+      protagonistIdentity: formData.mainCharacter,
+      protagonistTraits: formData.mainCharacter,
+      // 剧情构思
+      conflictDesign: formData.plotIdea,
     };
 
     onSubmit(workData, worldViewData);
