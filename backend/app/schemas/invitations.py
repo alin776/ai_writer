@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class InvitationGenerateRequest(BaseModel):
     """邀请码生成请求"""
-    max_uses: int = Field(1, ge=1, le=1, description="最大使用次数（固定1次）")
+    max_uses: int = Field(3, ge=3, le=3, description="最大使用次数（固定3次）")
     expires_days: int = Field(60, ge=60, le=60, description="有效期天数（固定60天）")
 
 
@@ -45,7 +45,7 @@ class InviteeInfo(BaseModel):
 
 class InvitationValidateRequest(BaseModel):
     """邀请码验证请求"""
-    code: str = Field(..., min_length=8, max_length=8, description="邀请码")
+    code: str = Field(..., min_length=8, max_length=8, description="邀请码（8位）")
     ip_address: Optional[str] = Field(None, max_length=45, description="IP地址")
     device_fingerprint: Optional[str] = Field(None, max_length=255, description="设备指纹")
 

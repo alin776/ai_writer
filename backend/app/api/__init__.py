@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, users, works, chapters, ai, worldview, novel_analysis, admin, search, relationships, timeline, groups, rewrite_history, humanize, review, ws, knowledge, agent, agent_react_stream, monitoring, credits, invitations, admin_credits
+from app.api.v1 import auth, users, works, chapters, ai, worldview, novel_analysis, admin, search, relationships, timeline, groups, rewrite_history, humanize, review, ws, knowledge, agent, agent_react_stream, monitoring, credits, invitations, admin_credits, admin_invitations
 from app.api.v1.endpoints import books
 from app.api.v1 import export as export_routes
 from app.api.v1 import import_routes
@@ -40,3 +40,4 @@ api_router.include_router(ai_logs.router)  # AI日志和成本统计
 api_router.include_router(credits.router, prefix="/credits", tags=["credits"])  # 积分管理
 api_router.include_router(invitations.router, prefix="/invitations", tags=["invitations"])  # 邀请系统
 api_router.include_router(admin_credits.router, prefix="/admin/credits", tags=["admin-credits"])  # 管理端积分
+api_router.include_router(admin_invitations.router, prefix="/admin/invitations", tags=["admin-invitations"])  # 管理端邀请码

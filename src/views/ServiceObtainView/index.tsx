@@ -13,7 +13,8 @@ const ServiceObtainView: React.FC = () => {
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [expandedCodes, setExpandedCodes] = useState<Set<string>>(new Set());
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
-  const [generateParams] = useState({ maxUses: 1, expiresDays: 60 });
+  // 前端固定为 3 次，与后端校验保持一致
+  const [generateParams] = useState({ maxUses: 3, expiresDays: 60 });
   const [isGenerating, setIsGenerating] = useState(false);
 
   const { redeem } = useCreditsStore();
@@ -347,7 +348,7 @@ const ServiceObtainView: React.FC = () => {
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <h4 className="text-sm font-medium text-blue-900 mb-2">邀请码规则</h4>
                   <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-                    <li>每个邀请码只能使用 1 次</li>
+                    <li>每个邀请码最多使用 3 次</li>
                     <li>有效期固定为 60 天（2个月）</li>
                     <li>邀请好友注册后，满足激活条件即可获得奖励</li>
                   </ul>

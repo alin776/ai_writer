@@ -967,26 +967,9 @@ class HTTPAIService:
                         else:
                             logger.info(f"[积分扣费] 管理员 {user_id} 豁免积分扣费")
 
-                        # 检查邀请激活条件（非管理员）
-                        if not user.is_admin:
-                            try:
-                                from app.services.invitations.invitation_service import InvitationService
-                                invitation_service = InvitationService(db)
-
-                                # 检查是否满足激活条件
-                                is_activated, consumed, recharged = await invitation_service.check_activation(UUID(user_id))
-
-                                if is_activated:
-                                    # 尝试激活
-                                    reward_info = await invitation_service.activate_invitation(UUID(user_id))
-                                    if reward_info:
-                                        logger.info(
-                                            f"[邀请激活] 用户 {user_id} 已激活邀请! "
-                                            f"邀请人 {reward_info['inviter_id']} 获得 {reward_info['reward_credits']} 积分奖励"
-                                        )
-                            except Exception as e:
-                                logger.error(f"邀请激活检查失败: {type(e).__name__}: {str(e)}")
-                                # 激活检查失败不影响主流程
+                        # 注意：邀请激活逻辑已移至注册阶段（注册即激活模式）
+                        # 此处不再需要检查消费激活条件
+                        # 参见: auth.py register() 函数中的 force=True 激活逻辑
 
                     else:
                         logger.warning(f"[积分扣费] 用户 {user_id} 不存在，跳过扣费")

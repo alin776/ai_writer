@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import List, Optional, Set, Tuple
 from uuid import UUID
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
@@ -48,7 +48,7 @@ class InvitationService:
     async def generate_invitation_code(
         self,
         user_id: UUID,
-        max_uses: int = 1,
+        max_uses: int = 3,
         expires_days: int = 60
     ) -> UserInvitation:
         """
@@ -56,7 +56,7 @@ class InvitationService:
 
         Args:
             user_id: 用户ID
-            max_uses: 最大使用次数（固定1次）
+            max_uses: 最大使用次数（默认3次）
             expires_days: 有效期天数（固定60天）
 
         Returns:
@@ -378,17 +378,20 @@ class InvitationService:
 
         # 更新邀请码统计
         invitation.activated_count += 1
-        reward_amount = Decimal(str(settings.INVITATION_REWARD_CREDITS))
-        invitation.total_rewards += reward_amount
 
-        # 给邀请人赠送积分
-        await self.credit_service.gift(
-            user_id=invitation.user_id,
-            amount=reward_amount,
-            description=f"邀请奖励: 邀请 {invitee_id} 激活成功",
-            related_type="invitation_reward",
-            commit=commit
-        )
+        # 只有单次使用的邀请码才发放奖励（防止批量码刷奖励）
+        if invitation.max_uses == 1:
+            reward_amount = Decimal(str(settings.INVITATION_REWARD_CREDITS))
+            invitation.total_rewards += reward_amount
+
+            # 给邀请人赠送积分
+            await self.credit_service.gift(
+                user_id=invitation.user_id,
+                amount=reward_amount,
+                description=f"邀请奖励: 邀请 {invitee_id} 激活成功",
+                related_type="invitation_reward",
+                commit=commit
+            )
 
         if commit:
             await self.db.commit()
@@ -489,3 +492,244 @@ class InvitationService:
             "can_generate_more": can_generate_more,
             "remaining_quota": remaining_quota
         }
+
+    # ==================== 管理员方法 ====================
+
+    async def generate_admin_invitation(
+        self,
+        admin_id: UUID,
+        custom_code: Optional[str] = None,
+        max_uses: int = 1,
+        expires_days: int = 90,
+        remark: Optional[str] = None
+    ) -> UserInvitation:
+        """
+        管理员生成邀请码
+
+        Args:
+            admin_id: 管理员用户ID
+            custom_code: 自定义邀请码（可选）
+            max_uses: 最大使用次数（1-100）
+            expires_days: 有效期天数（1-365）
+            remark: 备注信息
+
+        Returns:
+            UserInvitation: 邀请码记录
+
+        Raises:
+            ValueError: 自定义邀请码已存在
+        """
+        # 处理邀请码
+        if custom_code:
+            # 验证自定义邀请码是否已存在
+            code_str = custom_code.upper().strip()
+            check_stmt = select(UserInvitation).where(UserInvitation.code == code_str)
+            check_result = await self.db.execute(check_stmt)
+            if check_result.scalar_one_or_none():
+                raise ValueError(f"邀请码 {code_str} 已存在")
+        else:
+            # 自动生成8位邀请码
+            code_stmt = select(UserInvitation.code)
+            code_result = await self.db.execute(code_stmt)
+            existing_codes = set(code_result.scalars().all())
+            code_str = self._generate_unique_code(existing_codes, length=8)
+
+        # 计算过期时间
+        expires_at = get_utc_now() + timedelta(days=expires_days)
+
+        # 创建邀请码
+        invitation = UserInvitation(
+            user_id=admin_id,
+            code=code_str,
+            max_uses=max_uses,
+            expires_at=expires_at,
+            remark=remark
+        )
+        self.db.add(invitation)
+        await self.db.commit()
+        await self.db.refresh(invitation)
+
+        return invitation
+
+    async def list_all_invitations(
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        status: Optional[str] = None,
+        creator_id: Optional[UUID] = None,
+        search: Optional[str] = None
+    ) -> Tuple[List[dict], int, dict]:
+        """
+        管理员查询所有邀请码
+
+        Args:
+            page: 页码
+            page_size: 每页数量
+            status: 状态筛选 (active/expired/exhausted/all)
+            creator_id: 创建者ID筛选
+            search: 搜索关键词
+
+        Returns:
+            Tuple[List[dict], int, dict]: (邀请码列表, 总数, 统计信息)
+        """
+        # 构建查询条件
+        conditions = []
+
+        # 状态筛选
+        now = get_utc_now()
+        if status == "active":
+            conditions.append(UserInvitation.used_count < UserInvitation.max_uses)
+            conditions.append(
+                or_(
+                    UserInvitation.expires_at.is_(None),
+                    UserInvitation.expires_at > now
+                )
+            )
+        elif status == "expired":
+            conditions.append(UserInvitation.expires_at <= now)
+        elif status == "exhausted":
+            conditions.append(UserInvitation.used_count >= UserInvitation.max_uses)
+
+        # 创建者筛选
+        if creator_id:
+            conditions.append(UserInvitation.user_id == creator_id)
+
+        # 搜索
+        if search:
+            search_pattern = f"%{search}%"
+            conditions.append(
+                or_(
+                    UserInvitation.code.like(search_pattern),
+                    UserInvitation.remark.like(search_pattern)
+                )
+            )
+
+        # 查询总数
+        count_stmt = select(func.count()).select_from(UserInvitation)
+        if conditions:
+            count_stmt = count_stmt.where(and_(*conditions))
+        count_result = await self.db.execute(count_stmt)
+        total = count_result.scalar()
+
+        # 查询列表
+        offset = (page - 1) * page_size
+        stmt = (
+            select(UserInvitation, User.username)
+            .outerjoin(User, UserInvitation.user_id == User.id)
+            .order_by(UserInvitation.created_at.desc())
+            .offset(offset)
+            .limit(page_size)
+        )
+        if conditions:
+            stmt = stmt.where(and_(*conditions))
+
+        result = await self.db.execute(stmt)
+        rows = result.all()
+
+        # 构建响应数据
+        items = []
+        for invitation, username in rows:
+            # 判断状态
+            if invitation.used_count >= invitation.max_uses:
+                inv_status = "exhausted"
+            elif invitation.expires_at and invitation.expires_at <= now:
+                inv_status = "expired"
+            else:
+                inv_status = "active"
+
+            # 计算使用率
+            usage_rate = (invitation.used_count / invitation.max_uses * 100) if invitation.max_uses > 0 else 0
+
+            items.append({
+                "id": str(invitation.id),
+                "code": invitation.code,
+                "max_uses": invitation.max_uses,
+                "used_count": invitation.used_count,
+                "activated_count": invitation.activated_count,
+                "total_rewards": float(invitation.total_rewards),
+                "usage_rate": round(usage_rate, 2),
+                "expires_at": invitation.expires_at.isoformat() if invitation.expires_at else None,
+                "remark": invitation.remark,
+                "creator_username": username,
+                "created_at": invitation.created_at.isoformat(),
+                "status": inv_status
+            })
+
+        # 查询统计信息
+        stats_stmt = select(
+            func.count(UserInvitation.id).label('total_codes'),
+            func.sum(UserInvitation.used_count).label('total_usages'),
+            func.sum(UserInvitation.activated_count).label('total_activated'),
+            func.sum(UserInvitation.total_rewards).label('total_rewards')
+        ).select_from(UserInvitation)
+
+        stats_result = await self.db.execute(stats_stmt)
+        stats_row = stats_result.one()
+
+        # 统计各状态数量
+        active_stmt = select(func.count()).select_from(UserInvitation).where(
+            and_(
+                UserInvitation.used_count < UserInvitation.max_uses,
+                or_(
+                    UserInvitation.expires_at.is_(None),
+                    UserInvitation.expires_at > now
+                )
+            )
+        )
+        active_result = await self.db.execute(active_stmt)
+        active_count = active_result.scalar()
+
+        expired_stmt = select(func.count()).select_from(UserInvitation).where(
+            UserInvitation.expires_at <= now
+        )
+        expired_result = await self.db.execute(expired_stmt)
+        expired_count = expired_result.scalar()
+
+        exhausted_stmt = select(func.count()).select_from(UserInvitation).where(
+            UserInvitation.used_count >= UserInvitation.max_uses
+        )
+        exhausted_result = await self.db.execute(exhausted_stmt)
+        exhausted_count = exhausted_result.scalar()
+
+        stats = {
+            "total_codes": stats_row.total_codes or 0,
+            "active_codes": active_count,
+            "expired_codes": expired_count,
+            "exhausted_codes": exhausted_count,
+            "total_usages": stats_row.total_usages or 0,
+            "total_activated": stats_row.total_activated or 0,
+            "total_rewards": float(stats_row.total_rewards or Decimal("0"))
+        }
+
+        return items, total, stats
+
+    async def delete_invitation(self, invitation_id: UUID) -> bool:
+        """
+        删除邀请码
+
+        Args:
+            invitation_id: 邀请码ID
+
+        Returns:
+            bool: 是否成功
+
+        Raises:
+            ValueError: 邀请码不存在或已被使用
+        """
+        # 查询邀请码
+        stmt = select(UserInvitation).where(UserInvitation.id == invitation_id)
+        result = await self.db.execute(stmt)
+        invitation = result.scalar_one_or_none()
+
+        if not invitation:
+            raise ValueError("邀请码不存在")
+
+        # 检查是否已被使用
+        if invitation.used_count > 0:
+            raise ValueError("邀请码已被使用，无法删除")
+
+        # 删除邀请码
+        await self.db.delete(invitation)
+        await self.db.commit()
+
+        return True

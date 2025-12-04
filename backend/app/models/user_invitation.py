@@ -33,6 +33,9 @@ class UserInvitation(Base):
     # 有效期
     expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
+    # 备注信息
+    remark = Column(String(255), nullable=True)
+
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
