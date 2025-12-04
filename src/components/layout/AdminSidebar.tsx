@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Cpu, DollarSign, ArrowLeft } from 'lucide-react';
+import { LayoutDashboard, Users, Cpu, DollarSign, ArrowLeft, Gift, Coins } from 'lucide-react';
 
 /**
  * AdminSidebar 组件 - 管理后台侧边栏
@@ -35,6 +35,18 @@ const AdminSidebar: React.FC = () => {
       icon: Users,
       label: '用户管理',
       description: '管理系统用户',
+    },
+    {
+      path: '/admin/invitations',
+      icon: Gift,
+      label: '邀请码管理',
+      description: '生成和管理邀请码',
+    },
+    {
+      path: '/admin/credits',
+      icon: Coins,
+      label: '积分管理',
+      description: '管理兑换码和积分',
     },
     {
       path: '/admin/ai-models',

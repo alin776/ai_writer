@@ -466,7 +466,7 @@ async def humanize_rewrite(
 
         # 6. 构建会话数据
         score_before = detection.overall_score if detection else 70.0
-        score_after = verification.score_after if verification else 50.0
+        score_after = verification.score_after if verification else score_before
         improvement = score_before - score_after
 
         # 创建会话记录
@@ -501,7 +501,10 @@ async def humanize_rewrite(
             humanized_preview=humanized_text[:200],
             dimensions_before=dimensions_before_dict,  # ← 使用转换后的字典
             dimensions_after={},  # 验证阶段不返回详细维度
-            detected_patterns=detection.detected_patterns if detection else [],
+            detected_patterns=(
+                (detection.detected_patterns if detection else [])
+                + ([f"NLP:{c}" for c in result.get("nlp_changes", [])] if result.get("nlp_changes") else [])
+            ),
             expires_at=get_utc_now() + timedelta(days=7)
         )
 
@@ -659,7 +662,110 @@ async def humanize_rewrite_stream(
                     # 检查是否需要去痕迹
                     if detection_result.overall_score < config.detection_threshold:
                         yield f"data: {json.dumps({'type': 'info', 'message': f'AI特征分数较低({detection_result.overall_score:.1f})，无需去痕迹'}, ensure_ascii=False)}\n\n"
-                        yield f"data: {json.dumps({'type': 'done', 'skipped': True}, ensure_ascii=False)}\n\n"
+
+                        detection_prompt = detection_usage.get("prompt_tokens", 0) if detection_usage else 0
+                        detection_completion = detection_usage.get("completion_tokens", 0) if detection_usage else 0
+                        detection_tokens = detection_usage.get("total_tokens", 0) if detection_usage else 0
+
+                        if detection_tokens == 0:
+                            detection_tokens = int(len(request_data.text) * 1.5)
+                        if detection_prompt == 0 and detection_completion == 0:
+                            detection_prompt = detection_tokens // 2
+                            detection_completion = detection_tokens - detection_prompt
+
+                        total_tokens = detection_tokens
+                        detection_cost_result = CostCalculator.calculate_cost(
+                            "gemini-2.5-flash-lite",
+                            detection_prompt,
+                            detection_completion
+                        )
+                        estimated_cost = detection_cost_result["total_cost"]
+
+                        score_before = detection_result.overall_score
+                        score_after = score_before
+                        improvement = 0.0
+
+                        dimensions_before_dict = {}
+                        if detection_result and detection_result.dimensions:
+                            dimensions_before_dict = {
+                                key: dim.model_dump()
+                                for key, dim in detection_result.dimensions.items()
+                            }
+
+                        session = HumanizeSession(
+                            user_id=current_user.id,
+                            ai_function=request_data.ai_function or "rewrite",
+                            score_before=score_before,
+                            score_after=score_after,
+                            improvement=improvement,
+                            intensity=request_data.intensity,
+                            processing_time=time.time() - start_time,
+                            tokens_used=total_tokens,
+                            cost=estimated_cost,
+                            user_accepted=None
+                        )
+                        db.add(session)
+                        await db.flush()
+
+                        detail = HumanizeSessionDetail(
+                            session_id=session.id,
+                            original_preview=request_data.text[:200],
+                            humanized_preview=request_data.text[:200],
+                            dimensions_before=dimensions_before_dict,
+                            dimensions_after={},
+                            detected_patterns=detection_result.detected_patterns if detection_result else [],
+                            expires_at=get_utc_now() + timedelta(days=7)
+                        )
+                        db.add(detail)
+
+                        try:
+                            if detection_tokens > 0:
+                                detection_log = AICallLog(
+                                    user_id=current_user.id,
+                                    model_name="gemini-2.5-flash-lite",
+                                    operation_type="humanize_detect_stream",
+                                    prompt_tokens=detection_prompt,
+                                    completion_tokens=detection_completion,
+                                    total_tokens=detection_tokens,
+                                    prompt_cost=detection_cost_result["prompt_cost"],
+                                    completion_cost=detection_cost_result["completion_cost"],
+                                    total_cost=detection_cost_result["total_cost"],
+                                    duration_ms=int((time.time() - start_time) * 1000),
+                                    is_success=True,
+                                    extra_data={
+                                        "ai_function": request_data.ai_function or "rewrite",
+                                        "intensity": request_data.intensity,
+                                        "session_id": str(session.id),
+                                        "stream": True,
+                                        "skipped": True
+                                    }
+                                )
+                                db.add(detection_log)
+                        except Exception as log_err:
+                            logger.error(f"记录检测阶段AI日志失败(跳过去痕迹): {log_err}")
+
+                        try:
+                            profile_service = UserProfileService(db)
+                            await profile_service.record_humanize_use(
+                                user_id=current_user.id,
+                                text_length=len(request_data.text),
+                                ai_function=request_data.ai_function or "rewrite",
+                                intensity=request_data.intensity,
+                                improvement=improvement
+                            )
+                        except Exception as profile_err:
+                            logger.error(f"更新用户画像失败(跳过去痕迹): {profile_err}")
+
+                        await db.commit()
+
+                        request_duration = time.time() - start_time
+                        record_timer("humanize_stream_duration_seconds", request_duration, labels={"intensity": request_data.intensity})
+                        increment_counter("humanize_stream_requests_success", labels={"intensity": request_data.intensity})
+                        record_timer("humanize_stream_tokens_used", total_tokens, labels={"intensity": request_data.intensity})
+                        record_timer("humanize_stream_improvement", improvement, labels={"intensity": request_data.intensity})
+
+                        yield f"data: {json.dumps({'type': 'done', 'session_id': str(session.id), 'improvement': improvement, 'processing_time': request_duration, 'tokens_used': total_tokens, 'skipped': True}, ensure_ascii=False)}\n\n"
+
                         return
 
                     yield f"data: {json.dumps({'type': 'progress', 'stage': 'detected', 'score': detection_result.overall_score}, ensure_ascii=False)}\n\n"
@@ -697,7 +803,7 @@ async def humanize_rewrite_stream(
 
                 # 计算指标
                 score_before = detection_result.overall_score if detection_result else 70.0
-                score_after = verification_result.score_after if verification_result else 50.0
+                score_after = verification_result.score_after if verification_result else score_before
                 improvement = score_before - score_after
 
                 # Token和成本计算（使用CostCalculator和实际token）
@@ -780,7 +886,10 @@ async def humanize_rewrite_stream(
                     humanized_preview=humanized_text[:200],
                     dimensions_before=dimensions_before_dict,
                     dimensions_after={},
-                    detected_patterns=detection_result.detected_patterns if detection_result else [],
+                    detected_patterns=(
+                        (detection_result.detected_patterns if detection_result else [])
+                        + ([f"NLP:{c}" for c in (humanize_service.last_nlp_changes or [])] if humanize_service.last_nlp_changes else [])
+                    ),
                     expires_at=get_utc_now() + timedelta(days=7)
                 )
 

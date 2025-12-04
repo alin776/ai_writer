@@ -628,7 +628,8 @@ class DataServiceClass {
    * @returns Promise<User[]>
    */
   async getUsers(): Promise<User[]> {
-    return this.adapter.get('/users');
+    const response = await this.adapter.get<User[] | { items: User[]; total?: number }>('/users');
+    return Array.isArray(response) ? response : (response.items || []);
   }
 
   /**

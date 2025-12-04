@@ -30,19 +30,19 @@ export interface RedeemCodeInfo {
   /** 积分数 */
   credits: number;
   /** 是否已使用 */
-  is_used: boolean;
+  isUsed: boolean;
   /** 使用者ID (可选) */
-  used_by?: string;
+  usedBy?: string;
   /** 使用时间 (可选) */
-  used_at?: string;
+  usedAt?: string;
   /** 过期时间 (可选) */
-  expires_at?: string;
+  expiresAt?: string;
   /** 创建者 */
-  creator_username?: string;
+  creatorUsername?: string;
   /** 备注 */
   remark?: string;
   /** 创建时间 */
-  created_at: string;
+  createdAt: string;
 }
 
 /**
@@ -56,9 +56,9 @@ export interface RedeemCodesListResponse {
   /** 当前页码 */
   page: number;
   /** 每页数量 */
-  page_size: number;
+  pageSize: number;
   /** 总页数 */
-  total_pages: number;
+  totalPages: number;
 }
 
 /**
@@ -100,17 +100,17 @@ export interface GiftCreditsResponse {
  */
 export interface AdminCreditsStats {
   /** 兑换码总数 */
-  total_codes: number;
+  totalCodes: number;
   /** 已使用兑换码数 */
-  used_codes: number;
+  usedCodes: number;
   /** 未使用兑换码数 */
-  unused_codes: number;
+  unusedCodes: number;
   /** 已过期兑换码数 */
-  expired_codes: number;
+  expiredCodes: number;
   /** 总积分发放量 */
-  total_credits_issued: number;
+  totalCreditsIssued: number;
   /** 总积分使用量 */
-  total_credits_used: number;
+  totalCreditsUsed: number;
 }
 
 /**

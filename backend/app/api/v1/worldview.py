@@ -12,6 +12,9 @@ from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.core.redis_client import redis_client
 from app.models.user import User
+from app.models.character import Character
+from app.models.location import Location
+from app.models.setting import Setting
 from app.schemas.worldview import (
     CharacterCreate, CharacterUpdate, CharacterResponse,
     LocationCreate, LocationUpdate, LocationResponse,
@@ -198,21 +201,31 @@ async def _auto_populate_worldview_from_guidelines(
     db: AsyncSession,  # 2025-12-01: 添加db参数以支持成本追踪
     user_id: str  # 2025-12-01: 添加user_id参数以支持成本追踪
 ):
-    """从AI规范自动提取并创建人物、地点、设定"""
+    """从AI规范自动提取并创建人物、地点、设定（按名称去重，支持重复触发）"""
+    from sqlalchemy import select
+    from uuid import UUID
+
+    work_uuid = UUID(work_id)
     
     # 1. 创建主角人物
     if guidelines_data.protagonist_name:
-        character_data = CharacterCreate(
-            work_id=work_id,
-            name=guidelines_data.protagonist_name or "主角",
-            description=f"{guidelines_data.protagonist_identity or ''}\n\n性格：{guidelines_data.protagonist_traits or ''}\n\n目标：{guidelines_data.protagonist_goal or ''}".strip(),
-            role="主角"
+        exists_stmt = select(Character.id).where(
+            Character.work_id == work_uuid,
+            Character.name == guidelines_data.protagonist_name
         )
-        try:
-            await worldview_service.create_character(character_data)
-            logger.info(f"[自动创建] 主角人物: {guidelines_data.protagonist_name}")
-        except Exception as e:
-            logger.error(f"创建主角人物失败: {e}", exc_info=True)
+        exists_result = await db.execute(exists_stmt)
+        if not exists_result.scalar_one_or_none():
+            character_data = CharacterCreate(
+                work_id=work_id,
+                name=guidelines_data.protagonist_name or "主角",
+                description=f"{guidelines_data.protagonist_identity or ''}\n\n性格：{guidelines_data.protagonist_traits or ''}\n\n目标：{guidelines_data.protagonist_goal or ''}".strip(),
+                role="主角"
+            )
+            try:
+                await worldview_service.create_character(character_data)
+                logger.info(f"[自动创建] 主角人物: {guidelines_data.protagonist_name}")
+            except Exception as e:
+                logger.error(f"创建主角人物失败: {e}", exc_info=True)
     
     # 2. 解析并创建地点
     if guidelines_data.main_locations:
@@ -221,6 +234,14 @@ async def _auto_populate_worldview_from_guidelines(
         location_names = [loc.strip() for loc in locations_text.replace('、', ',').replace('；', ',').replace(';', ',').split(',') if loc.strip()]
         
         for loc_name in location_names[:10]:  # 最多创建10个地点
+            exists_stmt = select(Location.id).where(
+                Location.work_id == work_uuid,
+                Location.name == loc_name
+            )
+            exists_result = await db.execute(exists_stmt)
+            if exists_result.scalar_one_or_none():
+                continue
+
             location_data = LocationCreate(
                 work_id=work_id,
                 name=loc_name,
@@ -269,6 +290,14 @@ async def _auto_populate_worldview_from_guidelines(
         })
     
     for setting_info in settings_to_create:
+        exists_stmt = select(Setting.id).where(
+            Setting.work_id == work_uuid,
+            Setting.title == setting_info["name"]
+        )
+        exists_result = await db.execute(exists_stmt)
+        if exists_result.scalar_one_or_none():
+            continue
+
         setting_data = SettingCreate(
             work_id=work_id,
             title=setting_info["name"],  # 注意：Schema字段是title不是name
@@ -926,9 +955,11 @@ async def create_or_update_ai_guidelines(
         create_data = AIGuidelinesCreate(work_id=work_uuid, **guidelines_data.model_dump(exclude_unset=True))
         result = await ai_service.create(create_data)
 
-        # 首次创建时，自动提取数据并创建人物/地点/设定
-        # 2025-12-01: 传递db和user_id以支持成本追踪
+    # 自动提取数据并创建人物/地点/设定（幂等去重，更新场景下也执行以补足首次缺失的数据）
+    try:
         await _auto_populate_worldview_from_guidelines(work_id, guidelines_data, worldview_service, db, str(current_user.id))
+    except Exception as e:
+        logger.error(f"[AI Guidelines] 自动分发世界观数据失败: {e}", exc_info=True)
 
     # 🔧 2025-12-02: P0修复 - 失效缓存（失效ai-guidelines以及可能被自动填充的相关缓存）
     _invalidate_worldview_cache(work_id, ['ai-guidelines', 'characters', 'locations', 'settings', 'guidelines'])

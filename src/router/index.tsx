@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AuthLayout, AdminLayout, ProtectedRoute } from '../components/layout';
+import { ErrorBoundary } from '../components/common';
 
 /**
  * 路由配置文件
@@ -24,6 +25,8 @@ const AdminDashboardView = React.lazy(() => import('../views/AdminDashboardView'
 const AdminUsersView = React.lazy(() => import('../views/AdminUsersView'));
 const AdminAIModelsView = React.lazy(() => import('../views/AdminAIModelsView'));
 const AdminCostView = React.lazy(() => import('../views/AdminCostView'));
+const AdminInvitationsView = React.lazy(() => import('../views/AdminInvitationsView'));
+const AdminCreditsView = React.lazy(() => import('../views/AdminCreditsView'));
 const SettingsView = React.lazy(() => import('../views/SettingsView'));
 const KnowledgeView = React.lazy(() => import('../views/KnowledgeView'));
 const ServiceCreditsView = React.lazy(() => import('../views/ServiceCreditsView'));
@@ -264,6 +267,26 @@ export const router = createBrowserRouter([
               <SuspenseWrapper>
                 <AdminCostView />
               </SuspenseWrapper>
+            ),
+          },
+          {
+            path: 'invitations',
+            element: (
+              <ErrorBoundary>
+                <SuspenseWrapper>
+                  <AdminInvitationsView />
+                </SuspenseWrapper>
+              </ErrorBoundary>
+            ),
+          },
+          {
+            path: 'credits',
+            element: (
+              <ErrorBoundary>
+                <SuspenseWrapper>
+                  <AdminCreditsView />
+                </SuspenseWrapper>
+              </ErrorBoundary>
             ),
           },
         ],

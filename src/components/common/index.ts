@@ -27,3 +27,4 @@ export { default as Card, CardHeader, CardContent, CardFooter } from './Card';
 export type { CardProps, CardHeaderProps, CardContentProps, CardFooterProps } from './Card';
 
 export { default as ConfirmDialog } from './ConfirmDialog';
+export { default as ErrorBoundary } from './ErrorBoundary';
