@@ -27,6 +27,18 @@ import type {
   CreateChapterData,
   UserSession,
 } from '@/types';
+import type { WorkStatus } from '@/types';
+
+type WorkGuidelines = Record<string, any>;
+type AdminStatistics = {
+  users?: { total?: number; change?: string };
+  works?: { total?: number; change?: string };
+  aiCalls?: { total?: number; change?: string };
+  cost?: { total?: number; change?: string };
+};
+type UsersGrowthPoint = { date: string; count?: number; total?: number };
+type AIUsagePoint = { date: string; calls: number; cost: number };
+type RecentActivity = { id: string; type: string; message: string; createdAt: string };
 
 const defaultNotificationSettings = {
   emailNotifications: true,
@@ -48,6 +60,8 @@ const defaultPreferences = {
 let cachedNotificationSettings = { ...defaultNotificationSettings };
 let cachedPreferences = { ...defaultPreferences };
 let cachedAvatarUrl = 'https://api.dicebear.com/7.x/avataaars/svg?seed=mock';
+let cachedGuidelines: Record<string, any> = {};
+let cachedAIGuidelines: Record<string, any> = {};
 let cachedSessions: UserSession[] = [
   {
     id: 'session-current',
@@ -111,12 +125,90 @@ export class MockAdapter implements IDataAdapter {
   async get<T>(url: string): Promise<T> {
     await this.delay();
 
+    // 管理后台统计
+    if (url === '/admin/statistics') {
+      const statistics: AdminStatistics = {
+        users: { total: mockUsers.length, change: '+0%' },
+        works: { total: mockWorks.length, change: '+0%' },
+        aiCalls: { total: 1024, change: '+8%' },
+        cost: { total: 123.45, change: '+5%' },
+      };
+      return statistics as T;
+    }
+
+    // 用户增长趋势
+    if (url.startsWith('/admin/users-growth')) {
+      const data: UsersGrowthPoint[] = Array.from({ length: 7 }).map((_, idx) => ({
+        date: new Date(Date.now() - (6 - idx) * 86400000).toISOString().slice(0, 10),
+        count: Math.max(1, mockUsers.length - (6 - idx)),
+      }));
+      return { data } as T;
+    }
+
+    // AI 使用统计
+    if (url === '/admin/ai-usage') {
+      const data: AIUsagePoint[] = Array.from({ length: 7 }).map((_, idx) => ({
+        date: new Date(Date.now() - (6 - idx) * 86400000).toISOString().slice(0, 10),
+        calls: 200 + idx * 10,
+        cost: 5 + idx * 0.5,
+      }));
+      return { data } as T;
+    }
+
+    // 最近活动
+    if (url.startsWith('/admin/recent-activities')) {
+      const data: RecentActivity[] = [
+        { id: 'act-1', type: 'work', message: '新建作品《梦境之海》', createdAt: new Date().toISOString() },
+        { id: 'act-2', type: 'user', message: '用户 alice 完成注册', createdAt: new Date(Date.now() - 3600000).toISOString() },
+      ];
+      return data as T;
+    }
+
+    // 世界观规范
+    if (url.match(/\/worldview\/works\/.+\/guidelines$/)) {
+      const workId = url.split('/')[3];
+      return (cachedGuidelines[workId] ?? null) as T;
+    }
+    if (url.match(/\/worldview\/works\/.+\/ai-guidelines$/)) {
+      const workId = url.split('/')[3];
+      return (cachedAIGuidelines[workId] ?? null) as T;
+    }
+
     if (url === '/users/me/notification-settings') {
       return { ...cachedNotificationSettings } as T;
     }
 
     if (url === '/users/me/preferences') {
       return { ...cachedPreferences } as T;
+    }
+
+    if (url === '/users/me') {
+      const base = mockUsers[0] || {
+        id: 'user-1',
+        username: 'mockuser',
+        email: 'mock@example.com',
+        role: 'admin',
+        isActive: true,
+        isAdmin: true,
+        isVerified: true,
+      };
+      const now = new Date().toISOString();
+      return {
+        id: base.id,
+        username: base.username,
+        name: base.name || 'Mock User',
+        email: base.email,
+        fullName: base.fullName || base.name || 'Mock User',
+        avatar: base.avatar,
+        bio: base.bio,
+        notificationSettings: { ...cachedNotificationSettings },
+        preferences: { ...cachedPreferences },
+        isActive: true,
+        isAdmin: base.role === 'admin',
+        isVerified: true,
+        createdAt: base.createdAt || now,
+        updatedAt: base.updatedAt || now,
+      } as T;
     }
 
     if (url === '/users/me/sessions') {
@@ -129,7 +221,20 @@ export class MockAdapter implements IDataAdapter {
       if (!token) {
         throw new Error('未登录');
       }
-      return mockUsers[0] as T;
+      const base = mockUsers[0] || {};
+      return {
+        id: base.id || 'user-1',
+        username: base.username || 'mockuser',
+        name: base.name || '张三',
+        email: base.email || 'mock@example.com',
+        role: base.role || 'user',
+        avatar: base.avatar,
+        isActive: true,
+        isAdmin: base.role === 'admin',
+        isVerified: true,
+        createdAt: base.createdAt || new Date().toISOString(),
+        updatedAt: base.updatedAt || new Date().toISOString(),
+      } as T;
     }
 
     // 作品列表
@@ -203,6 +308,26 @@ export class MockAdapter implements IDataAdapter {
       return mockCostMetrics as T;
     }
 
+    // 关系、时间线、分组等返回空集合以兼容 UI
+    if (url.match(/\/relationships\/work\/.+/)) {
+      return { items: [] } as T;
+    }
+    if (url.match(/\/timeline\/work\/.+\/chapter-anchors/)) {
+      return [] as T;
+    }
+    if (url.match(/\/timeline\/work\/.+/)) {
+      return { items: [] } as T;
+    }
+    if (url.match(/\/timeline\/.+/)) {
+      return {} as T;
+    }
+    if (url.match(/\/groups\/work\/.+/)) {
+      return [] as T;
+    }
+    if (url.match(/\/groups\/.+/)) {
+      return {} as T;
+    }
+
     throw new Error(`Mock route not implemented: ${url}`);
   }
 
@@ -214,69 +339,96 @@ export class MockAdapter implements IDataAdapter {
 
     // 登录
     if (url === '/auth/login') {
-      const { email, password } = data as LoginCredentials;
-      const user = mockUsers.find((u) => u.email === email);
+      const { email, password, username } = data as LoginCredentials & { email?: string };
+      const user =
+        mockUsers.find((u) => u.email === email || u.username === username) ||
+        (username === 'mockuser' || email === 'mock@example.com'
+          ? {
+              id: 'user-mock',
+              name: 'Mock User',
+              username: 'mockuser',
+              email: 'mock@example.com',
+              role: 'admin',
+              avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=mockuser',
+              registrationDate: new Date().toISOString(),
+              status: 'active',
+            }
+          : null);
       if (!user || password !== '123456') {
         throw new Error('邮箱或密码错误');
       }
       const response: AuthResponse = {
         user,
-        token: 'mock-jwt-token-' + Date.now(),
+        accessToken: 'mock-jwt-token-' + Date.now(),
+        tokenType: 'bearer',
       };
       return response as T;
     }
 
     // 注册
     if (url === '/auth/register') {
-      const registerData = data as RegisterData;
-      const newUser: User = {
+      const registerData = data as RegisterData & { name?: string };
+      const newUser: any = {
         id: 'user-' + Date.now(),
         name: registerData.name,
+        username: registerData.username,
         email: registerData.email,
         role: 'user',
-        registrationDate: new Date().toISOString(),
-        status: 'active',
-        dailyAiQuota: 100,
-        usedAiQuota: 0,
+        isActive: true,
+        isAdmin: false,
+        isVerified: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
-      const response: AuthResponse = {
-        user: newUser,
-        token: 'mock-jwt-token-' + Date.now(),
+      const response: any = {
+        user: newUser as User,
+        accessToken: 'mock-jwt-token-' + Date.now(),
+        tokenType: 'bearer',
       };
       return response as T;
     }
 
     // 创建作品
     if (url === '/works') {
-      const workData = data as CreateWorkData;
+      const workData = data as Partial<CreateWorkData>;
       const newWork: Work = {
         id: 'work-' + Date.now(),
-        ...workData,
-        authorId: mockUsers[0].id,
+        title: workData.title || '新作品',
+        description: workData.description || '',
+        authorId: mockUsers[0]?.id || 'user-1',
         totalWords: 0,
-        chapterCount: 0,
-        status: 'draft',
-        createTime: new Date().toISOString(),
-        updateTime: new Date().toISOString(),
+        totalChapters: 0,
+        viewCount: 0,
+        status: (workData.status as WorkStatus) || 'draft',
+        genre: workData.genre || 'other',
+        coverImage: workData.cover_image,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
-      mockWorks.push(newWork);
+      mockWorks.push(newWork as Work);
       return newWork as T;
     }
 
     // 创建章节
     if (url === '/chapters') {
-      const chapterData = data as CreateChapterData;
+      const chapterData = data as Partial<CreateChapterData> & { workId?: string; summary?: string };
+      const workId = chapterData.workId || chapterData.work_id || 'work-unknown';
       const newChapter: Chapter = {
         id: 'chapter-' + Date.now(),
-        ...chapterData,
+        workId,
+        title: chapterData.title || '新章节',
         content: chapterData.content || '',
+        summary: chapterData.summary || '',
         wordCount: 0,
+        viewCount: 0,
+        isPublished: false,
         status: 'draft',
-        order: mockChapters.filter((c) => c.workId === chapterData.workId).length + 1,
-        createTime: new Date().toISOString(),
-        updateTime: new Date().toISOString(),
+        order: mockChapters.filter((c) => c.workId === workId).length + 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        publishedAt: null,
       };
-      mockChapters.push(newChapter);
+      mockChapters.push(newChapter as Chapter);
       return newChapter as T;
     }
 
@@ -305,6 +457,18 @@ export class MockAdapter implements IDataAdapter {
         ? `${cachedAvatarUrl}?t=${Date.now()}`
         : cachedAvatarUrl;
       return { avatarUrl: cachedAvatarUrl } as T;
+    }
+
+    // 保存世界观规范
+    if (url.match(/\/worldview\/works\/.+\/guidelines$/)) {
+      const workId = url.split('/')[3];
+      cachedGuidelines[workId] = data as WorkGuidelines;
+      return cachedGuidelines[workId] as T;
+    }
+    if (url.match(/\/worldview\/works\/.+\/ai-guidelines$/)) {
+      const workId = url.split('/')[3];
+      cachedAIGuidelines[workId] = data as WorkGuidelines;
+      return cachedAIGuidelines[workId] as T;
     }
 
     if (url === '/users/me/sessions/logout-others') {
@@ -406,7 +570,7 @@ export class MockAdapter implements IDataAdapter {
       const id = url.split('/')[2];
       const index = mockWorks.findIndex((w) => w.id === id);
       if (index === -1) throw new Error('作品不存在');
-      mockWorks[index] = { ...mockWorks[index], ...data, updateTime: new Date().toISOString() };
+      mockWorks[index] = { ...mockWorks[index], ...(data as Partial<Work>), updateTime: new Date().toISOString() } as any;
       return mockWorks[index] as T;
     }
 
@@ -415,9 +579,9 @@ export class MockAdapter implements IDataAdapter {
       const id = url.split('/')[2];
       const index = mockChapters.findIndex((c) => c.id === id);
       if (index === -1) throw new Error('章节不存在');
-      const updatedChapter = {
+      const updatedChapter: Chapter = {
         ...mockChapters[index],
-        ...data,
+        ...(data as Partial<Chapter>),
         updateTime: new Date().toISOString(),
         lastSaveTime: new Date().toISOString(),
       };
@@ -430,7 +594,7 @@ export class MockAdapter implements IDataAdapter {
       const id = url.split('/')[2];
       const index = mockUsers.findIndex((u) => u.id === id);
       if (index === -1) throw new Error('用户不存在');
-      mockUsers[index] = { ...mockUsers[index], ...data };
+      mockUsers[index] = { ...mockUsers[index], ...(data as Partial<User>) };
       return mockUsers[index] as T;
     }
 
@@ -475,7 +639,7 @@ export class MockAdapter implements IDataAdapter {
     if (url === '/users/me') {
       cachedNotificationSettings = { ...defaultNotificationSettings };
       cachedPreferences = { ...defaultPreferences };
-      return { detail: '账号已删除' } as T;
+      return { detail: '账号已删除' } as unknown as T;
     }
 
     // 删除作品
@@ -503,6 +667,18 @@ export class MockAdapter implements IDataAdapter {
       if (index === -1) throw new Error('设定不存在');
       mockSettings.splice(index, 1);
       return { success: true } as T;
+    }
+
+    // 删除世界观规范
+    if (url.match(/\/worldview\/works\/.+\/guidelines$/)) {
+      const workId = url.split('/')[3];
+      delete cachedGuidelines[workId];
+      return { success: true } as unknown as T;
+    }
+    if (url.match(/\/worldview\/works\/.+\/ai-guidelines$/)) {
+      const workId = url.split('/')[3];
+      delete cachedAIGuidelines[workId];
+      return { success: true } as unknown as T;
     }
 
     throw new Error(`Mock DELETE route not implemented: ${url}`);

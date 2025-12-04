@@ -24,6 +24,7 @@ from app.models.rewrite_history import RewriteSession, RewriteResult
 from app.models.book_analysis import BookAnalysisJob, JobStatus
 from app.models.worldview_suggestion import WorldviewSuggestion, SuggestionType, SuggestionAction, SuggestionStatus
 from app.models.chapter_history import ChapterHistory
+from app.models.agent_session import AgentSession
 
 __all__ = [
     "User",
@@ -72,4 +73,5 @@ __all__ = [
     "SuggestionAction",
     "SuggestionStatus",
     "ChapterHistory"
+    ,"AgentSession"
 ]

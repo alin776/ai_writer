@@ -1,53 +1,36 @@
-/* ProgressBar CSS Module */
-
-/* 容器样式 */
-.progressBarContainer {
-  /* 由组件props控制 */
-}
-
-/* 动画定义 - 只会加载一次 */
-@keyframes shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-/* shimmer动画类 */
-.shimmer {
-  animation: shimmer 1.5s infinite;
-}
-
-/* 进度条填充样式 */
 .progressFill {
-  transition: width 500ms ease-out;
-}
-
-.progressFillComplete {
-  background: #10b981; /* green-500 */
+  transition: width 0.3s ease;
 }
 
 .progressFillActive {
-  background: #3b82f6; /* blue-500 */
+  background: linear-gradient(90deg, #3b82f6, #6366f1);
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.35);
 }
 
-/* 脉冲动画（已完成时） */
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
+.progressFillComplete {
+  background: #10b981;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.35);
+}
+
+.shimmer {
+  animation: shimmer 1.2s linear infinite;
 }
 
 .pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: pulse 1.2s ease-in-out infinite;
 }
 
-/* 紧凑版进度条样式 */
 .compactFill {
-  transition: width 500ms ease-out;
+  transition: width 0.25s ease;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
 }

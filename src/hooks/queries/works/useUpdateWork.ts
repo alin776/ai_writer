@@ -70,15 +70,17 @@ export const useUpdateWork = (
       showToast('success', '作品更新成功');
 
       // 4. 调用用户自定义的 onSuccess
-      options?.onSuccess?.(updatedWork, variables, context);
+      if (options?.onSuccess) {
+        options.onSuccess(updatedWork, variables, context, undefined as any);
+      }
     },
 
     onError: (error, variables, context) => {
       // 回滚乐观更新
-      if (context?.previousWork) {
+      if (context && (context as any).previousWork) {
         queryClient.setQueryData(
           queryKeys.works.detail(variables.id),
-          context.previousWork
+          (context as any).previousWork
         );
       }
 
@@ -87,7 +89,9 @@ export const useUpdateWork = (
       showToast('error', message);
 
       // 调用用户自定义的 onError
-      options?.onError?.(error, variables, context);
+      if (options?.onError) {
+        options.onError(error, variables, context, undefined as any);
+      }
     },
 
     ...options,

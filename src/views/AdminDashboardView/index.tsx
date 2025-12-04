@@ -37,10 +37,12 @@ const AdminDashboardView: React.FC = () => {
       ]);
 
       setStatistics(stats);
-      setGrowthData(growth.data || []);
+      const growthItems = Array.isArray(growth) ? growth : growth.data || [];
+      setGrowthData(growthItems);
 
       // 转换 AI 使用数据的成本为人民币
-      const convertedAiUsage = (aiUsage.data || []).map(item => ({
+      const aiUsageItems = Array.isArray(aiUsage) ? aiUsage : aiUsage.data || [];
+      const convertedAiUsage = aiUsageItems.map((item: { date: string; calls: number; cost: number }) => ({
         ...item,
         cost: parseFloat((item.cost * 7.19).toFixed(4))
       }));

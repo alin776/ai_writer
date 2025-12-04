@@ -29,7 +29,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { knowledgeApi } from '@/services/knowledgeApi';
+import { knowledgeApi, type KnowledgeItem as ApiKnowledgeItem } from '@/services/knowledgeApi';
 
 /**
  * 知识条目类型
@@ -48,18 +48,7 @@ const CATEGORY_OPTIONS: { value: KnowledgeCategory; label: string }[] = [
   { value: 'other', label: '其他' },
 ];
 
-interface KnowledgeItem {
-  id: string;
-  title: string;
-  content?: string;
-  category: KnowledgeCategory;
-  source_type: 'text' | 'file' | 'url';
-  file_type?: string;
-  tags: string[];
-  created_at: string;
-  updated_at: string;
-  chunk_count?: number;
-}
+type KnowledgeItem = ApiKnowledgeItem & { category?: KnowledgeCategory | string };
 
 /**
  * 个人知识库视图
@@ -210,7 +199,10 @@ const KnowledgeView: React.FC = () => {
     setFormTitle(item.title);
     setFormContent(item.content || '');
     setFormTags(item.tags.join(', '));
-    setFormCategory(item.category || 'other');
+    const nextCategory = CATEGORY_OPTIONS.some(opt => opt.value === item.category)
+      ? (item.category as KnowledgeCategory)
+      : 'other';
+    setFormCategory(nextCategory);
     setShowEditDialog(true);
   };
 

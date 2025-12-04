@@ -40,6 +40,7 @@ import type {
   AICallLogStats,
   CostMetrics,
 } from '@/types';
+import type { SearchResponse } from '@/types/search';
 import type { WorldData, Setting, Character, Location } from '@/types/novel';
 import type {
   ExportOptions,
@@ -48,6 +49,39 @@ import type {
   ImportPreviewResponse,
   ImportResponse
 } from '@/types/export';
+import type {
+  TimelineEvent,
+  CreateTimelineEventData,
+  UpdateTimelineEventData,
+  ChapterAnchor
+} from '@/types/timeline';
+import type {
+  Relationship,
+  CreateRelationshipData,
+  UpdateRelationshipData
+} from '@/types/relationship';
+import type {
+  EntityGroup,
+  CreateEntityGroupData,
+  UpdateEntityGroupData,
+  GroupMember,
+  CreateGroupMemberData
+} from '@/types/group';
+
+type WorkGuidelines = Record<string, unknown>;
+type AdminStatistics = {
+  users?: { total?: number; change?: string };
+  works?: { total?: number; change?: string };
+  aiCalls?: { total?: number; change?: string };
+  ai_calls?: { total?: number; change?: string };
+  cost?: { total?: number; change?: string };
+  [key: string]: any;
+};
+type UsersGrowthPoint = { date: string; count?: number; total?: number };
+type UsersGrowthResponse = { data?: UsersGrowthPoint[] } | UsersGrowthPoint[];
+type AIUsagePoint = { date: string; calls: number; cost: number };
+type AIUsageResponse = { data?: AIUsagePoint[] } | AIUsagePoint[];
+type RecentActivity = { id?: string; type?: string; message?: string; createdAt?: string; [key: string]: any };
 
 class DataServiceClass {
   private adapter: IDataAdapter;
@@ -494,10 +528,10 @@ class DataServiceClass {
    * @param workId 作品ID
    * @returns Promise<WorkGuidelines | null>
    */
-  async getGuidelines(workId: string): Promise<any | null> {
+  async getGuidelines(workId: string): Promise<WorkGuidelines | null> {
     try {
-      const result = await this.adapter.get(`/worldview/works/${workId}/guidelines`);
-      return result;
+      const result = await this.adapter.get<WorkGuidelines | null>(`/worldview/works/${workId}/guidelines`);
+      return result ?? null;
     } catch (error: any) {
       // 404说明还没创建规范，返回null（不要抛出异常影响其他数据）
       // error 可能是 {detail: 'Guidelines not found'} 或标准 axios 错误
@@ -511,8 +545,8 @@ class DataServiceClass {
    * @param guidelines 规范数据
    * @returns Promise<any>
    */
-  async saveGuidelines(workId: string, guidelines: any): Promise<any> {
-    return this.adapter.post(`/worldview/works/${workId}/guidelines`, guidelines);
+  async saveGuidelines(workId: string, guidelines: WorkGuidelines): Promise<WorkGuidelines> {
+    return this.adapter.post<WorkGuidelines>(`/worldview/works/${workId}/guidelines`, guidelines);
   }
 
   /**
@@ -529,11 +563,11 @@ class DataServiceClass {
    * @param workId 作品ID
    * @returns Promise<any | null>
    */
-  async getAIGuidelines(workId: string): Promise<any | null> {
+  async getAIGuidelines(workId: string): Promise<WorkGuidelines | null> {
     try {
       // ApiAdapter 已经自动将 snake_case 转换为 camelCase，直接返回
-      const data = await this.adapter.get(`/worldview/works/${workId}/ai-guidelines`);
-      return data || null;
+      const data = await this.adapter.get<WorkGuidelines | null>(`/worldview/works/${workId}/ai-guidelines`);
+      return data ?? null;
     } catch (error: any) {
       if (error?.response?.status === 404 || error?.status === 404) {
         return null;
@@ -548,10 +582,10 @@ class DataServiceClass {
    * @param guidelines AI规范数据（camelCase）
    * @returns Promise<any>
    */
-  async saveAIGuidelines(workId: string, guidelines: any): Promise<any> {
+  async saveAIGuidelines(workId: string, guidelines: WorkGuidelines): Promise<WorkGuidelines> {
     // ApiAdapter 会自动处理字段名转换，直接发送 camelCase 数据
     // 后端会接收到 snake_case（由 Pydantic 自动处理）
-    return this.adapter.post(`/worldview/works/${workId}/ai-guidelines`, guidelines);
+    return this.adapter.post<WorkGuidelines>(`/worldview/works/${workId}/ai-guidelines`, guidelines);
   }
 
   /**
@@ -559,7 +593,7 @@ class DataServiceClass {
    * @param workId 作品ID
    * @param guidelines AI规范数据（31个字段）
    */
-  async createOrUpdateAIGuidelines(workId: string, guidelines: any): Promise<any> {
+  async createOrUpdateAIGuidelines(workId: string, guidelines: WorkGuidelines): Promise<WorkGuidelines> {
     return this.saveAIGuidelines(workId, guidelines);
   }
 
@@ -585,13 +619,13 @@ class DataServiceClass {
       this.getGuidelines(workId),
       this.getAIGuidelines(workId),
     ]);
-    
-    return { 
-      characters, 
-      locations, 
+
+    return {
+      characters,
+      locations,
       settings, 
-      guidelines: guidelines || undefined,
-      aiGuidelines: aiGuidelines || undefined
+      guidelines: guidelines ?? undefined,
+      aiGuidelines: aiGuidelines ?? undefined
     };
   }
 
@@ -697,7 +731,7 @@ class DataServiceClass {
    * 获取系统统计数据
    * @returns Promise<AdminStatistics>
    */
-  async getAdminStatistics(): Promise<any> {
+  async getAdminStatistics(): Promise<AdminStatistics> {
     return this.adapter.get('/admin/statistics');
   }
 
@@ -706,7 +740,7 @@ class DataServiceClass {
    * @param days 统计天数（默认7天）
    * @returns Promise<any>
    */
-  async getUsersGrowth(days: number = 7): Promise<any> {
+  async getUsersGrowth(days: number = 7): Promise<UsersGrowthResponse> {
     return this.adapter.get(`/admin/users-growth?days=${days}`);
   }
 
@@ -714,7 +748,7 @@ class DataServiceClass {
    * 获取 AI 使用统计
    * @returns Promise<any>
    */
-  async getAIUsage(): Promise<any> {
+  async getAIUsage(): Promise<AIUsageResponse> {
     return this.adapter.get('/admin/ai-usage');
   }
 
@@ -723,7 +757,7 @@ class DataServiceClass {
    * @param limit 返回记录数量（默认10条）
    * @returns Promise<any>
    */
-  async getRecentActivities(limit: number = 10): Promise<any> {
+  async getRecentActivities(limit: number = 10): Promise<RecentActivity[]> {
     return this.adapter.get(`/admin/recent-activities?limit=${limit}`);
   }
 
@@ -813,11 +847,11 @@ class DataServiceClass {
     type?: string,
     workId?: string,
     limit: number = 10
-  ): Promise<any> {
+  ): Promise<SearchResponse> {
     const params = new URLSearchParams({ q: query, limit: limit.toString() });
     if (type) params.append('type', type);
     if (workId) params.append('work_id', workId);
-    
+
     return this.adapter.get(`/search?${params.toString()}`);
   }
 
@@ -859,8 +893,8 @@ class DataServiceClass {
    * @param workId 作品ID
    * @returns Promise<Relationship[]>
    */
-  async getRelationships(workId: string): Promise<any[]> {
-    const response = await this.adapter.get<{ items: any[]; total: number }>(`/relationships/work/${workId}`);
+  async getRelationships(workId: string): Promise<Relationship[]> {
+    const response = await this.adapter.get<{ items: Relationship[]; total: number }>(`/relationships/work/${workId}`);
     return response.items || [];
   }
 
@@ -869,7 +903,7 @@ class DataServiceClass {
    * @param relationship 关系数据
    * @returns Promise<any>
    */
-  async createRelationship(relationship: any): Promise<any> {
+  async createRelationship(relationship: CreateRelationshipData): Promise<Relationship> {
     return this.adapter.post('/relationships', relationship);
   }
 
@@ -879,7 +913,7 @@ class DataServiceClass {
    * @param relationship 更新的数据
    * @returns Promise<any>
    */
-  async updateRelationship(id: string, relationship: any): Promise<any> {
+  async updateRelationship(id: string, relationship: UpdateRelationshipData): Promise<Relationship> {
     return this.adapter.put(`/relationships/${id}`, relationship);
   }
 
@@ -936,7 +970,7 @@ class DataServiceClass {
    * @param eventData 事件数据
    * @returns Promise<TimelineEvent>
    */
-  async createTimelineEvent(eventData: any): Promise<any> {
+  async createTimelineEvent(eventData: CreateTimelineEventData): Promise<TimelineEvent> {
     return this.adapter.post('/timeline/', eventData);
   }
 
@@ -945,7 +979,7 @@ class DataServiceClass {
    * @param eventId 事件ID
    * @returns Promise<TimelineEvent>
    */
-  async getTimelineEvent(eventId: string): Promise<any> {
+  async getTimelineEvent(eventId: string): Promise<TimelineEvent> {
     return this.adapter.get(`/timeline/${eventId}`);
   }
 
@@ -954,9 +988,9 @@ class DataServiceClass {
    * @param workId 作品ID
    * @returns Promise<TimelineEvent[]>
    */
-  async getTimelineEvents(workId: string): Promise<any[]> {
-    const response = await this.adapter.get(`/timeline/work/${workId}`);
-    return response.items || [];
+  async getTimelineEvents(workId: string): Promise<TimelineEvent[]> {
+    const response = await this.adapter.get<{ items?: TimelineEvent[] }>(`/timeline/work/${workId}`);
+    return response?.items || [];
   }
 
   /**
@@ -965,7 +999,7 @@ class DataServiceClass {
    * @param eventData 更新数据
    * @returns Promise<TimelineEvent>
    */
-  async updateTimelineEvent(eventId: string, eventData: any): Promise<any> {
+  async updateTimelineEvent(eventId: string, eventData: UpdateTimelineEventData): Promise<TimelineEvent> {
     return this.adapter.put(`/timeline/${eventId}`, eventData);
   }
 
@@ -983,7 +1017,7 @@ class DataServiceClass {
    * @param workId 作品ID
    * @returns Promise<ChapterAnchor[]>
    */
-  async getChapterAnchors(workId: string): Promise<any[]> {
+  async getChapterAnchors(workId: string): Promise<ChapterAnchor[]> {
     return this.adapter.get(`/timeline/work/${workId}/chapter-anchors`);
   }
 
@@ -994,7 +1028,7 @@ class DataServiceClass {
    * @param groupData 分组数据
    * @returns Promise<EntityGroup>
    */
-  async createGroup(groupData: any): Promise<any> {
+  async createGroup(groupData: CreateEntityGroupData): Promise<EntityGroup> {
     return this.adapter.post('/groups/', groupData);
   }
 
@@ -1003,7 +1037,7 @@ class DataServiceClass {
    * @param groupId 分组ID
    * @returns Promise<EntityGroup>
    */
-  async getGroup(groupId: string): Promise<any> {
+  async getGroup(groupId: string): Promise<EntityGroup> {
     return this.adapter.get(`/groups/${groupId}`);
   }
 
@@ -1012,7 +1046,7 @@ class DataServiceClass {
    * @param workId 作品ID
    * @returns Promise<EntityGroup[]>
    */
-  async getWorkGroups(workId: string): Promise<any[]> {
+  async getWorkGroups(workId: string): Promise<EntityGroup[]> {
     return this.adapter.get(`/groups/work/${workId}`);
   }
 
@@ -1022,7 +1056,7 @@ class DataServiceClass {
    * @param groupData 更新数据
    * @returns Promise<EntityGroup>
    */
-  async updateGroup(groupId: string, groupData: any): Promise<any> {
+  async updateGroup(groupId: string, groupData: UpdateEntityGroupData): Promise<EntityGroup> {
     return this.adapter.put(`/groups/${groupId}`, groupData);
   }
 
@@ -1041,7 +1075,7 @@ class DataServiceClass {
    * @param members 成员列表
    * @returns Promise<GroupMember[]>
    */
-  async addGroupMembers(groupId: string, members: any[]): Promise<any[]> {
+  async addGroupMembers(groupId: string, members: CreateGroupMemberData[]): Promise<GroupMember[]> {
     return this.adapter.post(`/groups/${groupId}/members`, { members });
   }
 

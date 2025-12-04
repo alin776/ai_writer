@@ -16,6 +16,8 @@ import rehypeRaw from 'rehype-raw';
 interface AIPanelProps {
   workId: string;
   chapterId?: string;
+  sessionId?: string;
+  onTitleChange?: (title: string) => void;
 }
 
 // Markdown渲染组件
@@ -105,7 +107,7 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
   );
 };
 
-export function AIPanel({ workId, chapterId }: AIPanelProps) {
+export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanelProps) {
   const {
     messages,
     isLoading,
@@ -117,7 +119,7 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
     sendMessageStream,
     pendingApproval,  // ✅ 添加确认请求
     submitApproval,   // ✅ 添加确认提交函数
-  } = useAgentChat({ workId, chapterId });  // 🆕 传递workId和chapterId进行会话隔离
+  } = useAgentChat({ workId, chapterId, sessionId });  // 🆕 传递workId和chapterId进行会话隔离
 
   const [inputValue, setInputValue] = useState('');
   const [mode, setMode] = useState<AgentMode>('planning'); // ✅ Agent执行模式
@@ -132,6 +134,18 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
       console.log('[AIPanel] 活动流更新:', activities.length, '个活动');
     }
   }, [activities]);
+
+  // ??????????????
+  useEffect(() => {
+    if (!onTitleChange || messages.length === 0) return;
+
+    const firstUserMessage = messages.find((m) => m.role === 'user');
+    if (!firstUserMessage) return;
+
+    const content = firstUserMessage.content.trim();
+    const title = content.length <= 30 ? content : `${content.substring(0, 30)}...`;
+    onTitleChange(title);
+  }, [messages, onTitleChange, sessionId]);
 
   // 监控：mode切换
   useEffect(() => {

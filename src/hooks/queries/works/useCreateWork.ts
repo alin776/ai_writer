@@ -54,7 +54,9 @@ export const useCreateWork = (
       showToast('success', '作品创建成功');
 
       // 4. 调用用户自定义的 onSuccess
-      options?.onSuccess?.(newWork, variables, context);
+      if (options?.onSuccess) {
+        options.onSuccess(newWork, variables, context, undefined as any);
+      }
     },
 
     onError: (error, variables, context) => {
@@ -63,7 +65,9 @@ export const useCreateWork = (
       showToast('error', message);
 
       // 调用用户自定义的 onError
-      options?.onError?.(error, variables, context);
+      if (options?.onError) {
+        options.onError(error, variables, context, undefined as any);
+      }
     },
 
     ...options,

@@ -23,7 +23,7 @@ interface ProgressBarProps {
   currentStep?: number;
   totalSteps?: number;
   stepDescription?: string;
-  currentNodeDescription?: string;
+  currentNodeDescription?: string | null;
   className?: string;
 }
 

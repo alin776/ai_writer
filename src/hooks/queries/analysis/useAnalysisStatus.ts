@@ -29,7 +29,7 @@ export const useAnalysisStatus = (
   options?: Omit<UseQueryOptions<AnalysisStatusResponse, Error>, 'queryKey' | 'queryFn'>
 ) => {
   return useQuery<AnalysisStatusResponse, Error>({
-    queryKey: queryKeys.analysis.status(workId!),
+    queryKey: queryKeys.analysis.status(workId || ''),
     queryFn: async () => {
       if (!workId) throw new Error('Work ID is required');
       return await DataService.getAnalysisStatus(workId);
@@ -37,18 +37,17 @@ export const useAnalysisStatus = (
     enabled: !!workId,
     
     // 智能轮询：仅在处理中时轮询
-    refetchInterval: (data) => {
-      // 如果状态是 'processing'，每2秒轮询一次
-      if (data?.status === 'processing') {
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (status === 'processing') {
         return 2000;
       }
-      // 否则停止轮询
       return false;
     },
 
     // 确保数据总是最新的
     staleTime: 0,
-    cacheTime: 1 * 60 * 1000, // 1分钟
+    gcTime: 1 * 60 * 1000, // 1分钟
 
     // 窗口聚焦时不刷新（避免打断用户）
     refetchOnWindowFocus: false,

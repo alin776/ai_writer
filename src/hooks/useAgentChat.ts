@@ -1,17 +1,9 @@
-/**
- * useAgentChat - Agent对话数据管理Hook
- *
- * 功能:
- * - 消息状态管理
- * - API调用封装
- * - 错误处理
- * - 加载状态
- * - 对话持久化（localStorage）
- */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { agentApi } from '@/services/agentApi';
 import { useConversationPersistence } from './useConversationPersistence';
+import { getGlobalSessionManager } from '@/contexts/SessionContext';
+import type { SessionState } from './SessionStateManager';
 import type { AgentChatRequest, AgentChatResponse, ActivityItem, ProgressData } from '@/types/agent';
 
 interface Message {
@@ -32,8 +24,9 @@ interface Task {
 }
 
 interface UseAgentChatOptions {
-  workId?: string;  // 🆕 作品ID（用于会话隔离）
-  chapterId?: string;  // 🆕 章节ID（用于会话隔离）
+  workId?: string;
+  chapterId?: string;
+  sessionId?: string;
 }
 
 export interface ApprovalRequest {
@@ -41,13 +34,13 @@ export interface ApprovalRequest {
   action_type: 'edit' | 'rewrite' | 'insert';
   operation?: string;
   original_content?: string;
-  new_content?: string;  // 可选，改写操作可能没有这个字段
+  new_content?: string;
   description?: string;
   versions?: Array<{
     style?: string;
     style_name: string;
-    reason?: string;  // 版本说明
-    content?: string;  // 实际改写内容
+    reason?: string;
+    content?: string;
   }>;
   chapter_id?: string;
 }
@@ -59,84 +52,122 @@ interface UseAgentChatReturn {
   suggestedActions: string[];
   tasks: Task[];
   currentTaskId: number | null;
-  activities: ActivityItem[];  // ✅ 活动流
-  progressData: ProgressData | null;  // ✅ 进度数据
+  activities: ActivityItem[];
+  progressData: ProgressData | null;
   sendMessage: (request: AgentChatRequest) => Promise<AgentChatResponse | null>;
   sendMessageStream: (request: AgentChatRequest) => Promise<void>;
   clearMessages: () => void;
   retryLastMessage: () => Promise<void>;
-
-  // 🆕 对话历史管理
   sessionId: string;
   conversationId: string | undefined;
   loadHistorySession: (sessionId: string) => void;
   getAllHistorySessions: () => any[];
-  createNewConversation: () => void;
-
-  // 🆕 编辑器确认请求
+  createNewConversation: () => Promise<void>;
   pendingApproval: ApprovalRequest | null;
   submitApproval: (approved: boolean, selectedVersion?: number) => Promise<void>;
+  stopStreaming: () => void;
 }
 
 export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatReturn {
-  const { workId, chapterId } = options;
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [suggestedActions, setSuggestedActions] = useState<string[]>([]);
-  const [lastRequest, setLastRequest] = useState<AgentChatRequest | null>(null);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [currentTaskId, setCurrentTaskId] = useState<number | null>(null);
-  const [conversationId, setConversationId] = useState<string | undefined>(undefined);
-  const [activities, setActivities] = useState<ActivityItem[]>([]);  // ✅ 活动流状态
-  const [progressData, setProgressData] = useState<ProgressData | null>(null);  // ✅ 进度数据状态
-  const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);  // 🆕 待确认的编辑请求
+  const { workId, chapterId, sessionId: externalSessionId } = options;
+  const useBackendSessions = import.meta.env.VITE_USE_MOCK !== 'true';
 
-  // 用于记录活动开始时间（计算耗时）
-  const [activityStartTimes] = useState<Map<string, number>>(new Map());
+  const activityStartTimes = useRef<Map<string, number>>(new Map());
+  const lastRequestRef = useRef<AgentChatRequest | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const lastPersistRef = useRef<number>(0);
 
-  // 🆕 对话持久化（传递workId和chapterId进行会话隔离）
   const persistence = useConversationPersistence({
+    sessionId: externalSessionId,
     autoSave: true,
-    maxSessions: 20,  // 最多保留20个历史会话
-    workId,  // 🆕 传递作品ID
-    chapterId  // 🆕 传递章节ID
+    maxSessions: 20,
+    workId,
+    chapterId,
+    useBackend: useBackendSessions
   });
+  const sessionId = persistence.sessionId;
 
-  // 🆕 初始化：从localStorage恢复历史对话
+  const sessionManager = useMemo(() => getGlobalSessionManager(), []);
+  const [sessionState, setSessionState] = useState<SessionState>(() =>
+    sessionManager.getOrCreateSession(sessionId, { mode: 'planning' })
+  );
+
+  const persistMessages = useCallback(
+    (messagesToSave: Message[], conversation?: string, mode?: 'planning' | 'react') => {
+      persistence.saveSession(messagesToSave, conversation, {
+        mode,
+        workId,
+        chapterId
+      });
+    },
+    [chapterId, persistence, workId]
+  );
+
+  const persistMessagesThrottled = useCallback(
+    (messagesToSave: Message[], conversation?: string, mode?: 'planning' | 'react', force: boolean = false) => {
+      const now = Date.now();
+      if (!force && now - lastPersistRef.current < 500) {
+        return;
+      }
+      lastPersistRef.current = now;
+      persistMessages(messagesToSave, conversation, mode);
+    },
+    [persistMessages]
+  );
+
+  const refreshSessionSnapshot = useCallback(() => {
+    const snapshot = sessionManager.getOrCreateSession(sessionId, { mode: 'planning' });
+    setSessionState({ ...snapshot });
+  }, [sessionId, sessionManager]);
+
   useEffect(() => {
-    const session = persistence.currentSession;
-    if (session && session.messages.length > 0) {
-      console.log(`[useAgentChat] 恢复历史会话 ${session.id}:`, session.messages.length, '条消息');
-      setMessages(session.messages);
-      setConversationId(session.conversationId || undefined);
-    } else {
-      // 空会话或null（新章节），清空消息
-      console.log(`[useAgentChat] 新会话，清空消息`);
-      setMessages([]);
-      setConversationId(undefined);
+    const persisted = persistence.loadSession(sessionId);
+    if (persisted) {
+      sessionManager.updateSession(sessionId, {
+        messages: persisted.messages as Message[],
+        conversationId: persisted.conversationId || undefined,
+        mode: persisted.mode || 'planning'
+      });
     }
-  }, [persistence.sessionId, persistence.currentSession]);  // 🔧 同时监听sessionId和currentSession
+    refreshSessionSnapshot();
+
+    sessionManager.setActiveSession(sessionId);
+    const unsubscribe = sessionManager.addListener((id, state) => {
+      if (id === sessionId) {
+        setSessionState({ ...state });
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [persistence.loadSession, refreshSessionSnapshot, sessionId, sessionManager]);
 
   const sendMessage = useCallback(
     async (request: AgentChatRequest): Promise<AgentChatResponse | null> => {
+      const now = new Date().toISOString();
+      const userMessage: Message = {
+        role: 'user',
+        content: request.message,
+        timestamp: now
+      };
+
+      const current = sessionManager.getOrCreateSession(sessionId);
+      const withUser = [...current.messages, userMessage];
+      lastRequestRef.current = request;
+
+      sessionManager.updateSession(sessionId, {
+        messages: withUser,
+        isLoading: true,
+        error: null,
+        suggestedActions: [],
+        pendingApproval: null
+      });
+      persistMessages(withUser, current.conversationId, current.mode);
+
       try {
-        setIsLoading(true);
-        setError(null);
-        setLastRequest(request);
-
-        // 添加用户消息
-        const userMessage: Message = {
-          role: 'user',
-          content: request.message,
-          timestamp: new Date().toISOString()
-        };
-        setMessages((prev) => [...prev, userMessage]);
-
-        // 调用API
         const response = await agentApi.chat(request);
 
-        // 添加Agent回复
         const agentMessage: Message = {
           role: 'agent',
           content: response.response,
@@ -144,514 +175,462 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           metadata: response.metadata,
           timestamp: new Date().toISOString()
         };
-        setMessages((prev) => [...prev, agentMessage]);
+        const updated = [...withUser, agentMessage];
 
-        // 更新建议操作
-        setSuggestedActions(response.suggested_actions || []);
-
-        // 🆕 自动保存对话
-        persistence.saveSession([...messages, userMessage, agentMessage], response.conversation_id);
+        sessionManager.updateSession(sessionId, {
+          messages: updated,
+          conversationId: response.conversation_id,
+          suggestedActions: response.suggested_actions || [],
+          isLoading: false
+        });
+        persistMessages(updated, response.conversation_id, current.mode);
 
         return response;
       } catch (err: any) {
-        const errorMessage = err.response?.data?.detail || err.message || '未知错误';
-        setError(errorMessage);
-
-        // 添加错误消息
+        const errorMessage = err.response?.data?.detail || err.message || '????';
         const errorAgentMessage: Message = {
           role: 'agent',
-          content: `❌ 抱歉，遇到了问题：${errorMessage}\n\n请稍后重试，或联系管理员。`,
+          content:
+            'Sorry, something went wrong: ' +
+            errorMessage +
+            '\\n\\nPlease try again later or contact support.',
           timestamp: new Date().toISOString()
         };
-        setMessages((prev) => [...prev, errorAgentMessage]);
-
-        console.error('Agent chat error:', err);
+        const updated = [...withUser, errorAgentMessage];
+        sessionManager.updateSession(sessionId, {
+          messages: updated,
+          error: errorMessage,
+          isLoading: false
+        });
+        persistMessages(updated, current.conversationId, current.mode);
         return null;
-      } finally {
-        setIsLoading(false);
       }
     },
-    []
+    [persistMessages, sessionId, sessionManager]
   );
 
   const sendMessageStream = useCallback(
     async (request: AgentChatRequest): Promise<void> => {
+      const mode = request.mode || 'planning';
+      const now = new Date().toISOString();
+      const userMessage: Message = {
+        role: 'user',
+        content: request.message,
+        timestamp: now
+      };
+
+      const current = sessionManager.getOrCreateSession(sessionId);
+      const baseMessages: Message[] = [
+        ...current.messages,
+        userMessage,
+        {
+          role: 'agent',
+          content: '',
+          agentSteps: [],
+          timestamp: now
+        }
+      ];
+      const agentMessageIndex = baseMessages.length - 1;
+      let streamingContent = '';
+      let agentSteps: any[] = [];
+      let streamConversationId: string | undefined = current.conversationId;
+      const abortController = new AbortController();
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = abortController;
+      lastPersistRef.current = 0;
+
+      const taskStartTimes = new Map<number, number>();
+      activityStartTimes.current.clear();
+      lastRequestRef.current = request;
+
+      sessionManager.updateSession(sessionId, {
+        messages: baseMessages,
+        isLoading: true,
+        error: null,
+        suggestedActions: [],
+        tasks: [],
+        currentTaskId: null,
+        activities: [],
+        progressData: null,
+        pendingApproval: null,
+        mode
+      });
+      persistMessages(baseMessages, current.conversationId, mode);
+
       try {
-        setIsLoading(true);
-        setError(null);
-        setLastRequest(request);
-
-        // 重置任务状态
-        setTasks([]);
-        setCurrentTaskId(null);
-
-        // ✅ 重置活动流状态和进度数据
-        setActivities([]);
-        setProgressData(null);
-        activityStartTimes.clear();
-
-        // 添加用户消息
-        const userMessage: Message = {
-          role: 'user',
-          content: request.message,
-          timestamp: new Date().toISOString()
-        };
-        setMessages((prev) => [...prev, userMessage]);
-
-        // 创建一个空的Agent消息，用于实时更新
-        let streamingContent = '';
-        let agentSteps: any[] = [];
-
-        const agentMessageIndex = messages.length + 1;
-
-        // 添加空的Agent消息占位
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: 'agent',
-            content: '',
-            agentSteps: [],
-            timestamp: new Date().toISOString()
-          }
-        ]);
-
-        // 用于记录每个任务的开始时间
-        const taskStartTimes = new Map<number, number>();
-
-        // ✅ 调用流式API（传递保存的conversation_id）
-        const mode = request.mode || 'planning'; // 默认 planning 模式
-
         await agentApi.chatStream(
+          { ...request, conversation_id: current.conversationId },
           {
-            ...request,
-            conversation_id: conversationId // 传递保存的conversation_id
-          },
-          {
-            // 共同回调
+            onReader: (reader) => {
+              sessionManager.startStreaming(sessionId, reader, abortController);
+            },
             onStart: (convId) => {
-              setConversationId(convId); // ✅ 保存conversation_id到状态
-              console.log('[Stream] Started, conversation_id:', convId, 'mode:', mode);
+              streamConversationId = convId;
+              sessionManager.updateSession(sessionId, { conversationId: convId });
             },
-
-          // Planning 模式回调
-          ...(mode === 'planning' ? {
-            onPlan: (plan) => {
-            // 初始化任务列表
-            const initialTasks: Task[] = plan.tasks.map((t: any) => ({
-              task_id: t.task_id,
-              description: t.description,
-              tool: t.tool,
-              estimated_time: t.estimated_time,
-              status: 'pending' as const,
-              elapsed_time: undefined
-            }));
-            setTasks(initialTasks);
-            console.log('[Stream] 规划生成:', initialTasks.length, '个任务');
-          },
-          onTaskStart: (task) => {
-            // 记录任务开始时间
-            taskStartTimes.set(task.task_id, Date.now());
-
-            // 标记任务为运行中
-            setCurrentTaskId(task.task_id);
-            setTasks((prev) =>
-              prev.map((t) =>
-                t.task_id === task.task_id
-                  ? { ...t, status: 'running' as const }
-                  : t
-              )
-            );
-            console.log('[Stream] 任务开始:', task.description);
-          },
-          onTaskProgress: (progress) => {
-            console.log('[Stream] 任务进度:', progress);
-          },
-          onTaskDone: (taskDone) => {
-            // 计算实际执行时间（前端计算）
-            const startTime = taskStartTimes.get(taskDone.task_id);
-            let elapsedTime = taskDone.elapsed_time || 0;
-
-            if (startTime && elapsedTime === 0) {
-              // 如果后端没有提供时间（为0），则使用前端计算的时间
-              elapsedTime = (Date.now() - startTime) / 1000; // 转换为秒
-            }
-
-            // 标记任务完成
-            setTasks((prev) =>
-              prev.map((t) =>
-                t.task_id === taskDone.task_id
-                  ? {
-                      ...t,
-                      status: 'completed' as const,
-                      elapsed_time: elapsedTime
+            ...(mode === 'planning'
+              ? {
+                  onPlan: (plan: any) => {
+                    const initialTasks: Task[] = plan.tasks.map((t: any) => ({
+                      task_id: t.task_id,
+                      description: t.description,
+                      tool: t.tool,
+                      estimated_time: t.estimated_time,
+                      status: 'pending'
+                    }));
+                    sessionManager.updateSession(sessionId, { tasks: initialTasks });
+                  },
+                  onTaskStart: (task: any) => {
+                    taskStartTimes.set(task.task_id, Date.now());
+                    sessionManager.updateSession(sessionId, {
+                      currentTaskId: task.task_id,
+                      tasks: (sessionManager.getSession(sessionId)?.tasks || []).map((t) =>
+                        t.task_id === task.task_id ? { ...t, status: 'running' } : t
+                      )
+                    });
+                  },
+                  onTaskDone: (taskDone: any) => {
+                    const startTime = taskStartTimes.get(taskDone.task_id);
+                    let elapsedTime = taskDone.elapsed_time || 0;
+                    if (startTime && elapsedTime === 0) {
+                      elapsedTime = (Date.now() - startTime) / 1000;
                     }
-                  : t
-              )
-            );
-            setCurrentTaskId(null);
-
-            // 清理已完成任务的开始时间记录
-            taskStartTimes.delete(taskDone.task_id);
-
-            console.log('[Stream] 任务完成:', taskDone.description, `(${elapsedTime.toFixed(1)}s)`);
-          }
-          } : {}),
-
-          // React 模式回调（新增）
-          ...(mode === 'react' ? {
-            onProgress: (progress) => {
-              // ✅ 保存完整的进度数据（用于ProgressBar显示）
-              setProgressData({
-                progress: progress.progress || 0,
-                eta: progress.eta ?? null,
-                eta_display: progress.eta_display || '计算中...',
-                eta_confidence: progress.eta_confidence || 'low',
-                current_step: progress.current_step || 1,
-                total_steps: progress.total_steps || 1,
-                step_description: progress.step_description || '',
-                elapsed: progress.elapsed || 0,
-                current_node: progress.node,
-                current_node_display: progress.current_node_display,
-                current_node_description: progress.description
-              });
-
-              // 转换为 ActivityItem 并添加到活动流
-              const activityId = `${progress.node || progress.step}_${Date.now()}`;
-              const activity: ActivityItem = {
-                id: activityId,
-                type: progress.step as any,  // 'intent_analysis' | 'thinking' | 'tool_execution' | 'generating'
-                description: progress.description,
-                timestamp: progress.timestamp,
-                status: 'active',
-                node: progress.node,
-                details: progress.details
-              };
-
-              // 记录活动开始时间
-              activityStartTimes.set(activityId, Date.now());
-
-              // 添加到活动流
-              setActivities(prev => [...prev, activity]);
-            },
-            onActivityComplete: (activity) => {
-              // ✅ 新增：处理活动完成事件
-              console.log('[React] Activity完成:', activity.step, `(${activity.elapsed_time}s)`);
-
-              setActivities(prev => {
-                // ✅ 修复：查找最后一个同类型的active活动（更准确）
-                let updated = false;
-                const newActivities = prev.map((a, index) => {
-                  // 只更新最后一个同类型的active活动
-                  if (!updated && a.type === activity.step && a.status === 'active') {
-                    // 检查是否是最后一个
-                    const isLast = !prev.slice(index + 1).some(
-                      x => x.type === activity.step && x.status === 'active'
-                    );
-
-                    if (isLast) {
-                      updated = true;
-                      const startTime = activityStartTimes.get(a.id);
-                      const elapsedTime = activity.elapsed_time ||
-                        (startTime ? (Date.now() - startTime) / 1000 : 0);
-
-                      // 清理时间记录
-                      activityStartTimes.delete(a.id);
-
-                      return {
-                        ...a,
-                        status: 'completed' as const,
-                        elapsedTime
-                      };
-                    }
+                    sessionManager.updateSession(sessionId, {
+                      tasks: (sessionManager.getSession(sessionId)?.tasks || []).map((t) =>
+                        t.task_id === taskDone.task_id
+                          ? { ...t, status: 'completed', elapsed_time: elapsedTime }
+                          : t
+                      ),
+                      currentTaskId: null
+                    });
+                    taskStartTimes.delete(taskDone.task_id);
                   }
-                  return a;
-                });
-
-                return newActivities;
-              });
-            },
-            onToolCall: (toolCall) => {
-              console.log('[Stream] 工具调用:', toolCall);
-
-              // 将工具调用记录到 agentSteps 中
-              agentSteps.push({
-                step: `调用工具: ${toolCall.tool || '未知'}`,
-                result: JSON.stringify(toolCall.args || {})
-              });
-
-              // ✅ 标记对应的活动为完成（如果有 tool_execution 活动）
-              setActivities(prev =>
-                prev.map(a => {
-                  // 查找最近的tool_execution活动
-                  if (a.type === 'tool_execution' && a.status === 'active') {
-                    const startTime = activityStartTimes.get(a.id);
-                    const elapsedTime = startTime ? (Date.now() - startTime) / 1000 : 0;
-
-                    return {
-                      ...a,
-                      status: 'completed' as const,
-                      tool: toolCall.tool,
-                      elapsedTime
-                    };
-                  }
-                  return a;
-                })
-              );
-            },
-            onApprovalRequest: (approvalReq) => {
-              console.log('[Stream] 确认请求:', approvalReq);
-
-              // 保存待确认的请求到状态
-              setPendingApproval({
-                request_id: approvalReq.request_id,
-                action_type: approvalReq.action_type,
-                operation: approvalReq.operation,
-                original_content: approvalReq.original_content,
-                new_content: approvalReq.new_content,
-                description: approvalReq.description,
-                versions: approvalReq.versions
-              });
-            }
-          } : {}),
-
-          // 共同回调
-          onContent: (chunk) => {
-            // 累积内容
-            streamingContent += chunk;
-
-            // 更新Agent消息
-            setMessages((prev) => {
-              const newMessages = [...prev];
-              newMessages[agentMessageIndex] = {
-                role: 'agent',
-                content: streamingContent,
-                agentSteps,
-                timestamp: new Date().toISOString()
-              };
-              return newMessages;
-            });
-          },
-          onStep: (step) => {
-            agentSteps.push(step);
-            console.log('[Stream] Agent step:', step);
-          },
-          onDone: (metadata, actions) => {
-            console.log('[Stream] Done');
-            setSuggestedActions(actions || []);
-
-            // ✅ 标记所有活动为完成
-            setActivities(prev =>
-              prev.map(a => {
-                if (a.status === 'active') {
-                  const startTime = activityStartTimes.get(a.id);
-                  const elapsedTime = startTime ? (Date.now() - startTime) / 1000 : 0;
-
-                  return {
-                    ...a,
-                    status: 'completed' as const,
-                    elapsedTime
-                  };
                 }
-                return a;
-              })
-            );
+              : {}),
+            ...(mode === 'react'
+              ? {
+                  onProgress: (progress: any) => {
+                    const progressState: ProgressData = {
+                      progress: progress.progress || 0,
+                      eta: progress.eta ?? null,
+                      eta_display: progress.eta_display || '',
+                      eta_confidence: progress.eta_confidence || 'low',
+                      current_step: progress.current_step || 1,
+                      total_steps: progress.total_steps || 1,
+                      step_description: progress.step_description || '',
+                      elapsed: progress.elapsed || 0,
+                      current_node: progress.node,
+                      current_node_display: progress.current_node_display,
+                      current_node_description: progress.description
+                    };
 
-            // 最终更新消息，添加metadata
-            setMessages((prev) => {
-              const newMessages = [...prev];
-              newMessages[agentMessageIndex] = {
-                role: 'agent',
-                content: streamingContent,
-                agentSteps,
-                metadata,
-                timestamp: new Date().toISOString()
-              };
+                    const activityId =
+                      String(progress.node || progress.step) + '_' + Date.now();
+                    const activity: ActivityItem = {
+                      id: activityId,
+                      type: progress.step,
+                      description: progress.description,
+                      timestamp: progress.timestamp,
+                      status: 'active',
+                      node: progress.node,
+                      details: progress.details
+                    };
 
-              // 🆕 自动保存对话（在消息更新后）
-              persistence.saveSession(newMessages, conversationId);
+                    activityStartTimes.current.set(activityId, Date.now());
+                    sessionManager.updateSession(sessionId, {
+                      progressData: progressState,
+                      activities: [
+                        ...(sessionManager.getSession(sessionId)?.activities || []),
+                        activity
+                      ]
+                    });
+                  },
+                  onActivityComplete: (activity: any) => {
+                    sessionManager.updateSession(sessionId, {
+                      activities: (sessionManager.getSession(sessionId)?.activities || []).map(
+                        (a) => {
+                          if (a.type === activity.step && a.status === 'active') {
+                            const startTime = activityStartTimes.current.get(a.id);
+                            const elapsedTime =
+                              activity.elapsed_time ||
+                              (startTime ? (Date.now() - startTime) / 1000 : 0);
+                            activityStartTimes.current.delete(a.id);
+                            return { ...a, status: 'completed', elapsedTime };
+                          }
+                          return a;
+                        }
+                      )
+                    });
+                  },
+                  onToolCall: (toolCall: any) => {
+                    agentSteps.push({
+                      step: 'Call tool: ' + (toolCall.tool || 'unknown'),
+                      result: JSON.stringify(toolCall.args || {})
+                    });
 
-              return newMessages;
-            });
+                    sessionManager.updateSession(sessionId, {
+                      activities: (sessionManager.getSession(sessionId)?.activities || []).map(
+                        (a) => {
+                          if (a.type === 'tool_execution' && a.status === 'active') {
+                            const startTime = activityStartTimes.current.get(a.id);
+                            const elapsedTime = startTime ? (Date.now() - startTime) / 1000 : 0;
+                            return { ...a, status: 'completed', tool: toolCall.tool, elapsedTime };
+                          }
+                          return a;
+                        }
+                      )
+                    });
+                  },
+                  onApprovalRequest: (approvalReq: any) => {
+                    sessionManager.updateSession(sessionId, {
+                      pendingApproval: {
+                        request_id: approvalReq.request_id,
+                        action_type: approvalReq.action_type,
+                        operation: approvalReq.operation,
+                        original_content: approvalReq.original_content,
+                        new_content: approvalReq.new_content,
+                        description: approvalReq.description,
+                        versions: approvalReq.versions
+                      }
+                    });
+                  }
+                }
+              : {}),
+          onContent: (chunk) => {
+            streamingContent += chunk;
+            const currentSession = sessionManager.getSession(sessionId);
+            const currentMessages = currentSession?.messages || baseMessages;
+            const updated = [...currentMessages];
+              const target = updated[agentMessageIndex];
+              if (target) {
+                updated[agentMessageIndex] = {
+                  ...target,
+                  content: streamingContent,
+                  agentSteps
+                };
+                sessionManager.updateSession(sessionId, { messages: updated });
+                persistMessagesThrottled(updated, streamConversationId, mode);
+              }
+            },
+            onStep: (step) => {
+              agentSteps.push(step);
+            },
+            onDone: (metadata, actions) => {
+              const currentSession = sessionManager.getSession(sessionId);
+              const currentMessages = currentSession?.messages || baseMessages;
+              const updated = [...currentMessages];
+              const target = updated[agentMessageIndex];
+              if (target) {
+                updated[agentMessageIndex] = {
+                  ...target,
+                  content: streamingContent,
+                  agentSteps,
+                  metadata
+                };
+              }
+
+              sessionManager.updateSession(sessionId, {
+                messages: updated,
+                suggestedActions: actions || [],
+                isLoading: false,
+                progressData: null,
+                activities: (currentSession?.activities || []).map((a) =>
+                  a.status === 'active' ? { ...a, status: 'completed' } : a
+                )
+              });
+              persistMessagesThrottled(updated, streamConversationId, mode, true);
+              sessionManager.disconnectSession(sessionId);
+              abortControllerRef.current = null;
+            },
+            onError: (errorMsg) => {
+              const errorMessage = errorMsg || '未知错误';
+              const currentSession = sessionManager.getSession(sessionId);
+              const currentMessages = currentSession?.messages || baseMessages;
+              const updated = [...currentMessages];
+              if (updated[agentMessageIndex]) {
+                updated[agentMessageIndex] = {
+                  role: 'agent',
+                  content:
+                    '抱歉，遇到了问题：' +
+                    errorMessage +
+                    '\\n\\n请稍后重试，或联系管理员。',
+                  timestamp: new Date().toISOString()
+                };
+              }
+              sessionManager.updateSession(sessionId, {
+                messages: updated,
+                error: errorMessage,
+                isLoading: false
+              });
+              persistMessagesThrottled(updated, streamConversationId, mode, true);
+              sessionManager.disconnectSession(sessionId);
+              abortControllerRef.current = null;
+            }
           },
-          onError: (errorMsg) => {
-            console.error('[Stream] Error:', errorMsg);
-            setError(errorMsg);
-
-            // 更新为错误消息
-            setMessages((prev) => {
-              const newMessages = [...prev];
-              newMessages[agentMessageIndex] = {
-                role: 'agent',
-                content: `❌ 抱歉，遇到了问题：${errorMsg}\n\n请稍后重试，或联系管理员。`,
-                timestamp: new Date().toISOString()
-              };
-              return newMessages;
-            });
+          {
+            signal: abortController.signal,
+            controller: abortController
           }
-        });
+        );
       } catch (err: any) {
         const errorMessage = err.message || '未知错误';
-        setError(errorMessage);
-        console.error('Agent chat stream error:', err);
-      } finally {
-        setIsLoading(false);
+        sessionManager.updateSession(sessionId, {
+          error: errorMessage,
+          isLoading: false
+        });
+        sessionManager.disconnectSession(sessionId);
+        abortControllerRef.current = null;
       }
     },
-    [messages.length, conversationId] // ✅ 添加conversationId依赖
+    [persistMessages, persistMessagesThrottled, sessionId, sessionManager]
   );
 
   const clearMessages = useCallback(() => {
-    setMessages([]);
-    setSuggestedActions([]);
-    setError(null);
-    setLastRequest(null);
-    setTasks([]);
-    setCurrentTaskId(null);
-    setConversationId(undefined);
-    setActivities([]);  // ✅ 清空活动流
-    setProgressData(null);  // ✅ 清空进度数据
-    activityStartTimes.clear();
-
-    // 🆕 清空当前会话并创建新会话
+    sessionManager.updateSession(sessionId, {
+      messages: [],
+      suggestedActions: [],
+      error: null,
+      isLoading: false,
+      tasks: [],
+      currentTaskId: null,
+      conversationId: undefined,
+      activities: [],
+      progressData: null,
+      pendingApproval: null
+    });
+    activityStartTimes.current.clear();
+    abortControllerRef.current = null;
+    lastPersistRef.current = 0;
     persistence.clearCurrentSession();
-  }, [activityStartTimes, persistence]);
+    refreshSessionSnapshot();
+  }, [persistence, refreshSessionSnapshot, sessionId, sessionManager]);
 
   const retryLastMessage = useCallback(async () => {
-    if (!lastRequest) return;
+    if (!lastRequestRef.current) return;
+    await sendMessageStream(lastRequestRef.current);
+  }, [sendMessageStream]);
 
-    // 移除最后两条消息（用户消息 + Agent错误消息）
-    setMessages((prev) => prev.slice(0, -2));
-
-    // 重新发送（使用流式）
-    await sendMessageStream(lastRequest);
-  }, [lastRequest, sendMessageStream]);
-
-  // 🆕 加载历史会话
-  const loadHistorySession = useCallback((sessionId: string) => {
-    const session = persistence.loadSession(sessionId);
-    if (!session) {
-      console.warn(`[useAgentChat] 会话 ${sessionId} 不存在`);
-      return;
+  const stopStreaming = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
+    sessionManager.disconnectSession(sessionId);
+    sessionManager.updateSession(sessionId, { isLoading: false });
+  }, [sessionId, sessionManager]);
 
-    console.log(`[useAgentChat] 加载历史会话 ${sessionId}:`, session.messages.length, '条消息');
+  const loadHistorySession = useCallback(
+    (targetSessionId: string) => {
+      const session = persistence.loadSession(targetSessionId);
+      if (!session || session.id !== targetSessionId) {
+        console.warn(
+          `[useAgentChat] session ${targetSessionId} does not exist or ID mismatch`
+        );
+        sessionManager.updateSession(sessionId, {
+          messages: [],
+          conversationId: undefined,
+          suggestedActions: [],
+          error: null,
+          tasks: [],
+          currentTaskId: null,
+          activities: [],
+          progressData: null,
+          pendingApproval: null
+        });
+        activityStartTimes.current.clear();
+        return;
+      }
 
-    // 重置所有状态
-    setMessages(session.messages);
-    setConversationId(session.conversationId || undefined);
-    setSuggestedActions([]);
-    setError(null);
-    setTasks([]);
-    setCurrentTaskId(null);
-    setActivities([]);
-    setProgressData(null);
-    activityStartTimes.clear();
-  }, [persistence, activityStartTimes]);
+      sessionManager.updateSession(sessionId, {
+        messages: session.messages as Message[],
+        conversationId: session.conversationId || undefined,
+        suggestedActions: [],
+        error: null,
+        tasks: [],
+        currentTaskId: null,
+        activities: [],
+        progressData: null,
+        pendingApproval: null,
+        mode: session.mode || 'planning'
+      });
+      activityStartTimes.current.clear();
+      refreshSessionSnapshot();
+    },
+    [persistence, refreshSessionSnapshot, sessionId, sessionManager]
+  );
 
-  // 🆕 获取所有历史会话
   const getAllHistorySessions = useCallback(() => {
     return persistence.getAllSessions();
   }, [persistence]);
 
-  // 🆕 创建新对话
-  const createNewConversation = useCallback(() => {
-    console.log('[useAgentChat] 创建新对话');
+  const createNewConversation = useCallback(async () => {
+    activityStartTimes.current.clear();
+    await persistence.createNewSession();
+  }, [persistence]);
 
-    // 重置所有状态
-    setMessages([]);
-    setConversationId(undefined);
-    setSuggestedActions([]);
-    setError(null);
-    setTasks([]);
-    setCurrentTaskId(null);
-    setActivities([]);
-    setProgressData(null);
-    activityStartTimes.clear();
-
-    // 创建新会话
-    persistence.createNewSession();
-  }, [persistence, activityStartTimes]);
-
-  // 🆕 提交编辑器确认响应
   const submitApproval = useCallback(
     async (approved: boolean, selectedVersion?: number) => {
-      if (!pendingApproval) {
-        console.warn('[useAgentChat] 无待确认的请求');
+      const pending = sessionManager.getSession(sessionId)?.pendingApproval as ApprovalRequest | null;
+      if (!pending) {
+        console.warn('[useAgentChat] no pending approval request');
         return;
       }
 
       try {
-        console.log('[useAgentChat] 提交确认响应:', {
-          request_id: pendingApproval.request_id,
-          approved,
-          selectedVersion,
-          action_type: pendingApproval.action_type
-        });
-
-        // 如果用户批准了rewrite操作，需要应用修改
-        if (approved && pendingApproval.action_type === 'rewrite' && selectedVersion !== undefined) {
-          const versions = pendingApproval.versions;
+        if (approved && pending.action_type === 'rewrite' && selectedVersion !== undefined) {
+          const versions = pending.versions;
           if (versions && versions[selectedVersion]) {
             const selectedContent = versions[selectedVersion].content;
-            const originalContent = pendingApproval.original_content;
+            const originalContent = pending.original_content;
 
-            console.log('[useAgentChat] 应用改写:', {
-              original: originalContent,
-              new: selectedContent
-            });
-
-            // 触发自定义事件，通知编辑器替换内容
-            window.dispatchEvent(new CustomEvent('agent-replace-text', {
-              detail: {
-                original: originalContent,
-                replacement: selectedContent
-              }
-            }));
+            window.dispatchEvent(
+              new CustomEvent('agent-replace-text', {
+                detail: {
+                  original: originalContent,
+                  replacement: selectedContent
+                }
+              })
+            );
           }
         }
 
-        // 调用API提交确认响应（记录到Redis）
         await agentApi.submitApprovalResponse({
-          request_id: pendingApproval.request_id,
+          request_id: pending.request_id,
           approved,
           selected_version: selectedVersion
         });
 
-        // 清除待确认状态
-        setPendingApproval(null);
-
-        console.log('[useAgentChat] 确认响应已提交并应用');
+        sessionManager.updateSession(sessionId, { pendingApproval: null });
       } catch (err: any) {
-        console.error('[useAgentChat] 提交确认响应失败:', err);
-        setError(err.response?.data?.detail || err.message || '提交确认失败');
+        console.error('[useAgentChat] submit approval failed:', err);
+        sessionManager.updateSession(sessionId, {
+          error: err.response?.data?.detail || err.message || 'Approval failed'
+        });
       }
     },
-    [pendingApproval]
+    [sessionId, sessionManager]
   );
 
   return {
-    messages,
-    isLoading,
-    error,
-    suggestedActions,
-    tasks,
-    currentTaskId,
-    activities,  // ✅ 返回活动流
-    progressData,  // ✅ 返回进度数据
+    messages: sessionState.messages as Message[],
+    isLoading: sessionState.isLoading,
+    error: sessionState.error,
+    suggestedActions: sessionState.suggestedActions,
+    tasks: (sessionState.tasks || []) as Task[],
+    currentTaskId: sessionState.currentTaskId,
+    activities: (sessionState.activities || []) as ActivityItem[],
+    progressData: sessionState.progressData,
     sendMessage,
     sendMessageStream,
     clearMessages,
     retryLastMessage,
-
-    // 🆕 对话历史管理
     sessionId: persistence.sessionId,
-    conversationId,
+    conversationId: sessionState.conversationId,
     loadHistorySession,
     getAllHistorySessions,
     createNewConversation,
-
-    // 🆕 编辑器确认
-    pendingApproval,
-    submitApproval
+    pendingApproval: sessionState.pendingApproval as ApprovalRequest | null,
+    submitApproval,
+    stopStreaming
   };
 }

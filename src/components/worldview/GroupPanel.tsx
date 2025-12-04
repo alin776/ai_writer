@@ -18,9 +18,9 @@ interface GroupPanelProps {
   locations: Location[];
   settings: Setting[];
   onCreateGroup: (data: CreateEntityGroupData) => Promise<void>;
-  onUpdateGroup: (groupId: string, data: any) => Promise<void>;
+  onUpdateGroup: (groupId: string, data: Partial<CreateEntityGroupData>) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
-  onAddMembers: (groupId: string, members: any[]) => Promise<void>;
+  onAddMembers: (groupId: string, members: { entityId: string; entityType: 'character' | 'location' | 'setting' }[]) => Promise<void>;
   onRemoveMember: (groupId: string, memberId: string) => Promise<void>;
 }
 
@@ -286,7 +286,10 @@ export function GroupPanel({
                         {group.color && (
                           <div
                             className="w-3 h-3 rounded-full flex-shrink-0 ring-2 ring-offset-1 ring-offset-white"
-                            style={{ backgroundColor: group.color, ringColor: group.color + '30' }}
+                            style={{
+                              backgroundColor: group.color,
+                              boxShadow: `0 0 0 2px ${group.color}33`,
+                            }}
                           />
                         )}
                         <span className="truncate text-foreground text-sm">{group.name}</span>

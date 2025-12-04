@@ -47,6 +47,36 @@ export interface AgentMetadata {
 }
 
 export type AgentIntent = 'writing' | 'planning' | 'analysis' | 'stuck' | 'general';
+export interface HistorySessionItem {
+  sessionId: string;
+  title: string;
+  messageCount: number;
+  updatedAt: string;
+  archivedAt?: string | null;
+  lastMessagePreview?: string;
+  conversationId?: string;
+}
+
+// ==================== 会话管理 ====================
+
+export interface AgentSession {
+  session_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  archived_at?: string | null;
+  message_count?: number;
+  conversation_id?: string;
+  work_id?: string;
+  chapter_id?: string;
+}
+
+export interface CreateAgentSessionResponse {
+  session_id: string;
+  title?: string;
+  conversation_id?: string;
+  created_at?: string;
+}
 
 // ==================== 计划管理 ====================
 
@@ -246,8 +276,8 @@ export interface ProgressData {
   step_description: string;      // 步骤描述（如"第2/5步"）
   elapsed: number;               // 已用时间（秒）
   current_node?: string;         // 当前节点名（LangGraph内部名称）
-  current_node_display?: string; // 当前节点友好名称（如"🧠 意图分析"）
-  current_node_description?: string; // 当前节点描述（如"正在分析您的需求..."）
+  current_node_display?: string | null; // 当前节点友好名称（如"🧠 意图分析"）
+  current_node_description?: string | null; // 当前节点描述（如"正在分析您的需求..."）
 }
 
 /**
@@ -297,7 +327,7 @@ export const ActivityItemSchema = z.object({
   status: z.enum(['active', 'completed', 'failed']),
   node: z.string().optional(),
   tool: z.string().optional(),
-  details: z.record(z.any()).optional(),
+  details: z.record(z.string(), z.any()).optional(),
   elapsedTime: z.number().optional()
 });
 
@@ -309,7 +339,7 @@ export const EnhancedProgressEventSchema = z.object({
   step: z.enum(['intent_analysis', 'thinking', 'tool_execution', 'generating']),
   description: z.string(),
   node: z.string().optional(),
-  details: z.record(z.any()).optional(),
+  details: z.record(z.string(), z.any()).optional(),
   timestamp: z.string(),
   // ProgressTracker字段
   progress: z.number().min(0).max(100).optional(),

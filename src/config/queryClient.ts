@@ -5,7 +5,7 @@ import { QueryClient } from '@tanstack/react-query';
  * 
  * 配置说明：
  * - staleTime: 数据被认为"新鲜"的时间，在此期间不会重新请求
- * - cacheTime: 数据在缓存中保留的时间，超时后会被垃圾回收
+ * - gcTime: 数据在缓存中保留的时间，超时后会被垃圾回收
  * - retry: 请求失败后的重试次数
  * - refetchOnWindowFocus: 窗口聚焦时是否自动刷新
  * - refetchOnReconnect: 网络重连时是否自动刷新
@@ -19,7 +19,7 @@ export const queryClient = new QueryClient({
 
       // 缓存时间：30分钟
       // 超过30分钟未使用的数据会被清理
-      cacheTime: 30 * 60 * 1000,
+      gcTime: 30 * 60 * 1000,
 
       // 失败重试1次
       retry: 1,
@@ -30,19 +30,10 @@ export const queryClient = new QueryClient({
       // 网络重连时自动刷新
       refetchOnReconnect: true,
 
-      // 错误处理
-      onError: (error) => {
-        console.error('[React Query Error]', error);
-      },
     },
     mutations: {
       // Mutation 失败不重试（由用户手动重试）
       retry: false,
-
-      // 错误处理
-      onError: (error) => {
-        console.error('[React Query Mutation Error]', error);
-      },
     },
   },
 });
@@ -57,7 +48,7 @@ export const queryOptions = {
    */
   static: {
     staleTime: 10 * 60 * 1000,  // 10分钟
-    cacheTime: 60 * 60 * 1000,  // 1小时
+    gcTime: 60 * 60 * 1000,  // 1小时
   },
 
   /**
@@ -66,7 +57,7 @@ export const queryOptions = {
    */
   dynamic: {
     staleTime: 2 * 60 * 1000,   // 2分钟
-    cacheTime: 10 * 60 * 1000,  // 10分钟
+    gcTime: 10 * 60 * 1000,  // 10分钟
   },
 
   /**
@@ -75,7 +66,7 @@ export const queryOptions = {
    */
   realtime: {
     staleTime: 0,               // 立即过期
-    cacheTime: 1 * 60 * 1000,   // 1分钟
+    gcTime: 1 * 60 * 1000,   // 1分钟
     refetchInterval: 3000,      // 每3秒自动刷新
   },
 

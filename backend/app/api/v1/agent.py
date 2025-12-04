@@ -11,6 +11,7 @@ Agent 智能助手 API 路由
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import logging
@@ -21,6 +22,7 @@ from datetime import datetime
 from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.user import User
+from app.models.agent_session import AgentSession
 from app.models.chat_models import ChatMode, ChatRequest as UnifiedChatRequest, format_react_event_to_sse, format_planning_event_to_sse, format_error_event
 from app.services.agent.memory import MemoryManager
 from app.services.agent.agents import PlanningAgent, ReflectionAgent
@@ -198,6 +200,31 @@ class GetBranchesResponse(BaseModel):
     conversation_id: str = Field(..., description="会话ID")
     total_branches: int = Field(..., description="总分支数")
     branches: List[BranchTreeNode] = Field(default_factory=list, description="分支树（扁平列表）")
+
+
+# ==================== 会话管理（新增） ====================
+
+class AgentSessionCreateRequest(BaseModel):
+    title: Optional[str] = Field(None, description="会话标题")
+    work_id: Optional[str] = Field(None, description="作品ID")
+    chapter_id: Optional[str] = Field(None, description="章节ID")
+    conversation_id: Optional[str] = Field(None, description="关联的对话ID（可选）")
+
+
+class AgentSessionResponse(BaseModel):
+    session_id: str
+    title: Optional[str] = None
+    conversation_id: Optional[str] = None
+    work_id: Optional[str] = None
+    chapter_id: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class AgentSessionListResponse(BaseModel):
+    sessions: List[AgentSessionResponse]
 
 
 # ==================== 依赖注入 ====================
@@ -1503,6 +1530,83 @@ async def update_preferences(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"更新偏好失败: {str(e)}"
         )
+
+
+# ==================== 会话管理 ====================
+
+def _session_to_response(session: AgentSession) -> Dict[str, Any]:
+    return {
+        "session_id": str(session.id),
+        "title": session.title,
+        "conversation_id": session.conversation_id,
+        "work_id": str(session.work_id) if session.work_id else None,
+        "chapter_id": str(session.chapter_id) if session.chapter_id else None,
+        "created_at": session.created_at.isoformat() if session.created_at else None,
+        "updated_at": session.updated_at.isoformat() if session.updated_at else None,
+    }
+
+
+@router.post("/sessions", response_model=AgentSessionResponse, summary="创建 Agent 会话")
+async def create_agent_session(
+    payload: AgentSessionCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    title = payload.title or "新会话"
+
+    new_session = AgentSession(
+        user_id=current_user.id,
+        title=title,
+        conversation_id=payload.conversation_id,
+        work_id=payload.work_id,
+        chapter_id=payload.chapter_id,
+    )
+
+    db.add(new_session)
+    await db.commit()
+    await db.refresh(new_session)
+
+    return _session_to_response(new_session)
+
+
+@router.get("/sessions", response_model=AgentSessionListResponse, summary="获取 Agent 会话列表")
+async def list_agent_sessions(
+    work_id: Optional[str] = Query(None, description="按作品过滤"),
+    chapter_id: Optional[str] = Query(None, description="按章节过滤"),
+    limit: int = Query(50, ge=1, le=200, description="返回数量上限"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    stmt = select(AgentSession).where(AgentSession.user_id == current_user.id)
+    if work_id:
+        stmt = stmt.where(AgentSession.work_id == work_id)
+    if chapter_id:
+        stmt = stmt.where(AgentSession.chapter_id == chapter_id)
+
+    stmt = stmt.order_by(AgentSession.updated_at.desc()).limit(limit)
+    result = await db.execute(stmt)
+    sessions = result.scalars().all()
+
+    return {"sessions": [_session_to_response(s) for s in sessions]}
+
+
+@router.get("/sessions/{session_id}", response_model=AgentSessionResponse, summary="获取单个 Agent 会话详情")
+async def get_agent_session_detail(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    stmt = select(AgentSession).where(
+        AgentSession.id == session_id,
+        AgentSession.user_id == current_user.id,
+    )
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
+
+    return _session_to_response(session)
 
 
 # ==================== 辅助函数 ====================

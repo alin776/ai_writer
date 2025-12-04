@@ -119,6 +119,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
     id: string;
     type: EntityType;
     entity: Character | Location | Setting;
+    initialEditMode?: boolean;
   } | null>(null);
   const [panelRelationshipData, setPanelRelationshipData] = useState<{
     relationship: Relationship;
@@ -163,8 +164,8 @@ const WorldviewGraphFullscreen: React.FC = () => {
         DataService.getCharacters(workId),
         DataService.getLocations(workId),
         DataService.getSettings(workId),
-        DataService.getGuidelines(workId).catch(() => ({})),
-        DataService.getAIGuidelines(workId).catch(() => ({})),
+        DataService.getGuidelines(workId).catch(() => undefined),
+        DataService.getAIGuidelines(workId).catch(() => undefined),
         DataService.getRelationships(workId).catch(() => []),
         DataService.getTimelineEvents(workId).catch(() => []),
         DataService.getChapterAnchors(workId).catch(() => []),
@@ -176,8 +177,8 @@ const WorldviewGraphFullscreen: React.FC = () => {
         characters,
         locations,
         settings,
-        guidelines,
-        aiGuidelines,
+        guidelines: guidelines ?? undefined,
+        aiGuidelines: aiGuidelines ?? undefined,
       });
       
       // 调试：打印后端返回的关系数据
@@ -328,7 +329,6 @@ const WorldviewGraphFullscreen: React.FC = () => {
   // 导出功能
   const handleExport = async (format: 'png' | 'svg' | 'json') => {
     setExporting(true);
-    setShowExportMenu(false);
     
     try {
       if (format === 'json') {
@@ -876,7 +876,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
                 });
                 setPanelMode('createTimeline');
               }}
-              onEditEvent={(event) => {
+              onEditEvent={(event: TimelineEvent) => {
                 // 在属性面板显示事件详情
                 const entity = worldData.characters.find(c => c.id === event.entityId) ||
                               worldData.locations.find(l => l.id === event.entityId) ||
@@ -889,7 +889,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
                 setPanelTimelineEventData({ event, entityLabel });
                 setPanelMode('timeline');
               }}
-              onDeleteEvent={async (eventId) => {
+              onDeleteEvent={async (eventId: string) => {
                 if (confirm('确定要删除这个时间线事件吗？')) {
                   try {
                     await DataService.deleteTimelineEvent(eventId);
@@ -901,7 +901,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
                   }
                 }
               }}
-              onEventClick={(event) => {
+              onEventClick={(event: TimelineEvent) => {
                 // 点击时间线事件，在属性面板显示详情
                 const entity = worldData.characters.find(c => c.id === event.entityId) ||
                               worldData.locations.find(l => l.id === event.entityId) ||
@@ -971,7 +971,10 @@ const WorldviewGraphFullscreen: React.FC = () => {
               }
             }}
             onCreateRelationship={async (formData) => {
-              if (!panelCreateRelationshipData) return;
+              if (!panelCreateRelationshipData || !workId) {
+                showToast('error', '缺少作品ID或来源信息');
+                return;
+              }
 
               try {
                 const createData: CreateRelationshipData = {

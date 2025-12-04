@@ -32,6 +32,7 @@ interface AIContinueDrawerProps {
 }
 
 type Mode = 'quick' | 'professional';
+type PanelKey = 'character' | 'style' | 'output' | 'context';
 
 // 默认配置（更严谨的初始化）
 const DEFAULT_CONFIG: AIContinueConfig = {
@@ -63,7 +64,7 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
     const [config, setConfig] = useState<AIContinueConfig>(DEFAULT_CONFIG);
 
     // 折叠面板状态 - 初始保持收起
-    const [expandedPanels, setExpandedPanels] = useState({
+    const [expandedPanels, setExpandedPanels] = useState<Record<PanelKey, boolean>>({
         character: false,
         style: false,
         output: false,
@@ -120,7 +121,7 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
     }, [config.plotPoints.length]);
 
     // 4. 折叠面板切换
-    const togglePanel = useCallback((panel: keyof typeof expandedPanels) => {
+    const togglePanel = useCallback((panel: PanelKey) => {
         setExpandedPanels((prev) => ({ ...prev, [panel]: !prev[panel] }));
     }, []);
 
@@ -622,10 +623,10 @@ const InputGroup: React.FC<InputGroupProps> = ({ label, placeholder, value, onCh
 
 // 辅助组件：用于渲染折叠面板 - 增强视觉效果
 const renderAccordionPanel = (
-    panelKey: keyof typeof DEFAULT_CONFIG,
+    panelKey: PanelKey,
     title: string,
     isExpanded: boolean,
-    toggleFn: (key: keyof typeof DEFAULT_CONFIG) => void,
+    toggleFn: (key: PanelKey) => void,
     children: React.ReactNode
 ) => (
     <div className="border-2 border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">

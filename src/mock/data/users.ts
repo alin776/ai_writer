@@ -1,9 +1,7 @@
 /**
  * Mock 用户数据
  */
-import type { User } from '@/types';
-
-export const mockUsers: User[] = [
+export const mockUsers: any[] = [
   {
     id: 'user-1',
     name: '张三',

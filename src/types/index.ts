@@ -18,6 +18,7 @@ export type UserRole = 'admin' | 'user';
 export interface User {
   id: string;
   username: string;
+  name?: string;             // 兼容部分数据源
   email: string;
   fullName?: string;      // 后端: full_name
   avatar?: string;
@@ -30,6 +31,7 @@ export interface User {
   createdAt: string;      // 后端: created_at
   updatedAt: string;      // 后端: updated_at
   lastLoginAt?: string;   // 后端: last_login_at
+  role?: string;          // 管理端角色
 }
 
 /**
@@ -120,7 +122,19 @@ export type WorkStatus = 'draft' | 'writing' | 'completed' | 'abandoned';
 /**
  * 作品类型
  */
-export type WorkGenre = 'fantasy' | 'urban' | 'romance' | 'scifi' | 'wuxia' | 'game' | 'history' | 'military' | 'other';
+export type WorkGenre =
+  | 'fantasy'
+  | 'urban'
+  | 'romance'
+  | 'scifi'
+  | 'wuxia'
+  | 'game'
+  | 'history'
+  | 'military'
+  | 'other'
+  | '仙侠'
+  | '科幻'
+  | '都市';
 
 /**
  * 作品接口
@@ -177,6 +191,7 @@ export interface Chapter {
   publishedAt: string | null; // 后端: published_at
   createdAt: string;         // 后端: created_at
   updatedAt: string;         // 后端: updated_at
+  status?: string;           // 兼容 mock/前端状态
 }
 
 /**

@@ -26,6 +26,7 @@ import { AIPanel } from '../../components/editor/AIPanel';
 import SessionTabBar from '../../components/editor/SessionTabBar';
 import { useEditorStore } from '../../store/editorStore';
 import { useConfirm } from '../../hooks/useConfirm';
+import { useTabManager } from '../../hooks/useTabManager';
 import styles from './WorkDetailView.module.css';
 
 /**
@@ -63,6 +64,9 @@ const WorkDetailView: React.FC = () => {
     guidelines: undefined,
     aiGuidelines: undefined,
   });
+  const { tabs, activeTabId, createTab, closeTab, switchTab, updateTabTitle } = useTabManager(
+    currentChapterId || workId || 'work'
+  );
 
   // 默认打开 agent 面板
   React.useEffect(() => {
@@ -319,12 +323,18 @@ const WorkDetailView: React.FC = () => {
         );
 
         // 保存到后端
-        await DataService.updateChapter(chapterData.id, updatedChapter);
+        if (chapterData.id) {
+          await DataService.updateChapter(chapterData.id, updatedChapter);
+        }
 
         showToast('success', '章节更新成功');
       }
     } catch (error) {
-      showToast('error', isNew ? '章节添加失败' : '章节更新失败');
+      const message =
+        !chapterData.id || chapterData.id.startsWith('temp-')
+          ? '章节添加失败'
+          : '章节更新失败';
+      showToast('error', message);
       console.error('Failed to save chapter:', error);
     }
   }, [workId, chapters, showToast]);
@@ -1162,7 +1172,13 @@ const WorkDetailView: React.FC = () => {
           ) : (
             <>
               {/* SessionTabBar */}
-              <SessionTabBar />
+              <SessionTabBar
+                tabs={tabs}
+                activeTabId={activeTabId}
+                onSwitchTab={switchTab}
+                onCreateTab={createTab}
+                onCloseTab={closeTab}
+              />
 
               {/* 内容区 */}
               <div className="flex-1 overflow-hidden">
@@ -1178,10 +1194,22 @@ const WorkDetailView: React.FC = () => {
                     onToast={showToast}
                   />
                 ) : (
-                  <AIPanel
-                    workId={workId!}
-                    chapterId={currentChapterId}
-                  />
+                  tabs.map((tab) => (
+                    <div
+                      key={tab.id}
+                      style={{
+                        display: tab.id === activeTabId ? 'block' : 'none',
+                        height: '100%'
+                      }}
+                    >
+                      <AIPanel
+                        workId={workId!}
+                        chapterId={currentChapterId}
+                        sessionId={tab.sessionId}
+                        onTitleChange={(title) => updateTabTitle(tab.id, title)}
+                      />
+                    </div>
+                  ))
                 )}
               </div>
             </>

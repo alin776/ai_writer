@@ -7,6 +7,7 @@ import {
   ReactFlow,
   Node,
   Edge,
+  EdgeTypes,
   Controls,
   Background,
   BackgroundVariant,
@@ -20,6 +21,8 @@ import {
   Panel,
   Handle,
   Position,
+  NodeProps,
+  NodeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { WorldData } from '@/types/novel';
@@ -37,6 +40,30 @@ import {
   applyTimelineLayout,
 } from './layouts';
 import CustomBezierEdge from './CustomBezierEdge';
+
+type WorldNodeData = {
+  label: string;
+  role?: string;
+  type?: string;
+  category?: string;
+  entityId: string;
+  entityType: EntityType;
+};
+
+type WorldEdgeData = {
+  relationshipId?: string;
+  relationshipType?: string;
+  description?: string;
+  strength?: number;
+  color?: string;
+  lineStyle?: 'solid' | 'dashed' | 'dotted';
+  edgeCount?: number;
+  edgeIndex?: number;
+  relationship?: Relationship;
+};
+
+type WorldNode = Node<WorldNodeData>;
+type WorldEdge = Edge<WorldEdgeData>;
 
 interface WorldviewGraphProps {
   worldData: WorldData;
@@ -59,7 +86,7 @@ interface WorldviewGraphProps {
 }
 
 // 自定义节点组件 - 角色节点
-const CharacterNode = ({ data }: any) => {
+const CharacterNode: React.FC<NodeProps<WorldNode>> = ({ data }) => {
   return (
     <div className="worldview-node character-node">
       {/* 4个方向的连接点 - 每个方向同时有source和target */}
@@ -83,7 +110,7 @@ const CharacterNode = ({ data }: any) => {
 };
 
 // 自定义节点组件 - 地点节点
-const LocationNode = ({ data }: any) => {
+const LocationNode: React.FC<NodeProps<WorldNode>> = ({ data }) => {
   return (
     <div className="worldview-node location-node">
       {/* 4个方向的连接点 - 每个方向同时有source和target */}
@@ -107,7 +134,7 @@ const LocationNode = ({ data }: any) => {
 };
 
 // 自定义节点组件 - 设定节点
-const SettingNode = ({ data }: any) => {
+const SettingNode: React.FC<NodeProps<WorldNode>> = ({ data }) => {
   return (
     <div className="worldview-node setting-node">
       {/* 4个方向的连接点 - 每个方向同时有source和target */}
@@ -131,14 +158,14 @@ const SettingNode = ({ data }: any) => {
 };
 
 // 节点类型映射
-const nodeTypes = {
+const nodeTypes: NodeTypes = {
   character: CharacterNode,
   location: LocationNode,
   setting: SettingNode,
 };
 
 // 边类型映射（自定义贝塞尔曲线边）
-const edgeTypes = {
+const edgeTypes: EdgeTypes = {
   customBezier: CustomBezierEdge,
 };
 
@@ -148,9 +175,9 @@ const edgeTypes = {
 const convertToGraphData = (
   worldData: WorldData, 
   relationships?: Relationship[]
-): { nodes: Node[]; edges: Edge[] } => {
-  const nodes: Node[] = [];
-  const edges: Edge[] = [];
+): { nodes: WorldNode[]; edges: WorldEdge[] } => {
+  const nodes: WorldNode[] = [];
+  const edges: WorldEdge[] = [];
 
   // 布局配置
   const SPACING_X = 300;
@@ -259,8 +286,11 @@ const convertToGraphData = (
         // 计算线条粗细（根据强度1-10映射到1-5px）
         const strokeWidth = 1 + (rel.strength / 10) * 4;
       
-      // 获取颜色
-      const color = rel.color || RELATIONSHIP_COLORS[rel.relationshipType] || RELATIONSHIP_COLORS.DEFAULT;
+        // 获取颜色
+        const color =
+          rel.color ||
+          RELATIONSHIP_COLORS[rel.relationshipType as keyof typeof RELATIONSHIP_COLORS] ||
+          RELATIONSHIP_COLORS.DEFAULT;
       
         // 线条样式
         let strokeDasharray = undefined;
@@ -307,6 +337,11 @@ const convertToGraphData = (
           } : undefined,
           data: {
             relationshipId: rel.id,
+            relationshipType: rel.relationshipType,
+            description: rel.description,
+            strength: rel.strength,
+            color,
+            lineStyle: rel.lineStyle,
             relationship: rel,
             edgeIndex: index + 1, // 边的索引（从1开始）
             edgeCount: edgeCount, // 总边数
@@ -321,8 +356,8 @@ const convertToGraphData = (
 };
 
 // 视野控制组件（必须在ReactFlow内部使用）
-const ViewportController: React.FC<{ focusNodeToView?: string; nodes: Node[] }> = ({ focusNodeToView, nodes }) => {
-  const { fitView } = useReactFlow();
+const ViewportController: React.FC<{ focusNodeToView?: string; nodes: WorldNode[] }> = ({ focusNodeToView, nodes }) => {
+  const { fitView } = useReactFlow<WorldNode, WorldEdge>();
   
   useEffect(() => {
     if (focusNodeToView) {
@@ -377,12 +412,12 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
   // 转换数据
   const graphData = useMemo(() => convertToGraphData(worldData, relationships), [worldData, relationships]);
   
-  const [nodes, setNodes, onNodesChange] = useNodesState(graphData.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(graphData.edges);
+  const [nodes, setNodes, onNodesChange] = useNodesState<WorldNode>(graphData.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<WorldEdge>(graphData.edges);
   
   // 使用ref保存最新的nodes和edges
-  const nodesRef = useRef(nodes);
-  const edgesRef = useRef(edges);
+  const nodesRef = useRef<WorldNode[]>(nodes);
+  const edgesRef = useRef<WorldEdge[]>(edges);
   
   useEffect(() => {
     nodesRef.current = nodes;
@@ -400,7 +435,7 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
     if (!layoutConfig || layoutConfig.algorithm === 'custom') return;
     
     const applyLayout = () => {
-      let newNodes: Node[] = [];
+      let newNodes: WorldNode[] = [];
       
       // 获取当前nodes和edges的快照
       const currentNodes = nodesRef.current;
@@ -408,19 +443,19 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
       
       switch (layoutConfig.algorithm) {
         case 'force':
-          newNodes = applyForceLayout(currentNodes, currentEdges, layoutConfig);
+          newNodes = applyForceLayout(currentNodes, currentEdges, layoutConfig) as WorldNode[];
           break;
         case 'hierarchical':
-          newNodes = applyHierarchicalLayout(currentNodes, currentEdges, layoutConfig);
+          newNodes = applyHierarchicalLayout(currentNodes, currentEdges, layoutConfig) as WorldNode[];
           break;
         case 'circular':
-          newNodes = applyCircularLayout(currentNodes, currentEdges, layoutConfig);
+          newNodes = applyCircularLayout(currentNodes, currentEdges, layoutConfig) as WorldNode[];
           break;
         case 'grid':
-          newNodes = applyGridLayout(currentNodes, currentEdges, layoutConfig);
+          newNodes = applyGridLayout(currentNodes, currentEdges, layoutConfig) as WorldNode[];
           break;
         case 'timeline':
-          newNodes = applyTimelineLayout(currentNodes, currentEdges, layoutConfig);
+          newNodes = applyTimelineLayout(currentNodes, currentEdges, layoutConfig) as WorldNode[];
           break;
         default:
           return;
@@ -579,7 +614,7 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
   
   // Edge点击事件
   const onEdgeClickHandler = useCallback(
-    (_: React.MouseEvent, edge: Edge) => {
+    (_: React.MouseEvent, edge: Edge<WorldEdgeData>) => {
       if (onEdgeClick && edge.data?.relationshipId) {
         onEdgeClick(edge.data.relationshipId);
       }
@@ -589,9 +624,9 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
 
   // 节点点击事件
   const onNodeClickHandler = useCallback(
-    (_: React.MouseEvent, node: Node) => {
+    (_: React.MouseEvent, node: WorldNode) => {
       if (onNodeClick && node.data.entityId && node.data.entityType) {
-        onNodeClick(node.data.entityId as string, node.data.entityType);
+        onNodeClick(node.data.entityId, node.data.entityType);
       }
     },
     [onNodeClick]
@@ -632,7 +667,7 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
         </div>
       )}
 
-      <ReactFlow
+      <ReactFlow<WorldNode, WorldEdge>
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}

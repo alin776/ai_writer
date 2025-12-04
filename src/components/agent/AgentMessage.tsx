@@ -8,7 +8,7 @@
  * - 复制消息
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -111,11 +111,11 @@ export default function AgentMessage({ message, isLatest = false }: AgentMessage
             <ReactMarkdown
               rehypePlugins={[rehypeRaw]}
               components={{
-                code({ node, inline, className, children, ...props }) {
+                code({ inline, className, children, ...props }: any) {
                   const match = /language-(\w+)/.exec(className || '');
                   return !inline && match ? (
                     <SyntaxHighlighter
-                      style={vscDarkPlus}
+                      style={vscDarkPlus as any}
                       language={match[1]}
                       PreTag="div"
                       customStyle={{ fontSize: '11px' }}

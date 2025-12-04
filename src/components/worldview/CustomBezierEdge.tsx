@@ -85,6 +85,11 @@ function getQuadraticBezierPath(
  * 使用二次贝塞尔曲线替代smoothstep，提供更平滑的视觉效果
  * 支持多关系自动偏移，形成优雅的曲线束
  */
+type CustomEdgeData = {
+  edgeCount?: number;
+  edgeIndex?: number;
+};
+
 export default function CustomBezierEdge({
   id,
   sourceX,
@@ -97,9 +102,10 @@ export default function CustomBezierEdge({
   style,
   label,
 }: EdgeProps) {
-  
-  const edgeCount = data?.edgeCount || 1;
-  const edgeIndex = data?.edgeIndex || 1;
+
+  const edgeData = (data ?? {}) as CustomEdgeData;
+  const edgeCount = edgeData.edgeCount ?? 1;
+  const edgeIndex = edgeData.edgeIndex ?? 1;
 
   // 使用useMemo缓存路径计算（性能优化）
   const { path, labelX, labelY, angle } = useMemo(

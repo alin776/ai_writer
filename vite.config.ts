@@ -14,4 +14,18 @@ export default defineConfig({
     port: 5173,
     open: true,
   },
+  build: {
+    // 提高块体积警告阈值，避免开发阶段误报
+    chunkSizeWarningLimit: 2000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('/components/agent/')) return 'agent';
+          if (id.includes('/components/worldview/')) return 'worldview';
+          if (id.includes('/components/editor/NovelEditor')) return 'editor';
+          return undefined;
+        },
+      },
+    },
+  },
 })

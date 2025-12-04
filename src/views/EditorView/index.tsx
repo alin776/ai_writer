@@ -10,6 +10,7 @@ import AgentChatPanel from '../../components/agent/AgentChatPanel';
 import { WorldviewPanel } from '../../components/editor/WorldviewPanel';
 import NovelAnalysisPanel from '../../components/editor/NovelAnalysisPanel';
 import SessionTabBar from '../../components/editor/SessionTabBar';
+import { useTabManager } from '../../hooks/useTabManager';
 import type { Chapter } from '../../types';
 import type { WorldData } from '../../types/novel';
 import styles from './EditorView.module.css';
@@ -32,6 +33,9 @@ const EditorView: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useGlobalStore();
   const { setCurrentChapter, rightSidebarType, setRightSidebarType, closeRightSidebar } = useEditorStore();
+  const { tabs, activeTabId, createTab, closeTab, switchTab, updateTabTitle } = useTabManager(
+    chapterId || 'default'
+  );
 
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [title, setTitle] = useState('');
@@ -234,7 +238,13 @@ const EditorView: React.FC = () => {
           {rightSidebarType && chapter && (
             <div className={styles.sidebar}>
               {/* 会话标签栏 */}
-              <SessionTabBar />
+              <SessionTabBar
+                tabs={tabs}
+                activeTabId={activeTabId}
+                onSwitchTab={switchTab}
+                onCreateTab={createTab}
+                onCloseTab={closeTab}
+              />
 
               {/* 面板内容区域 */}
               <div className={styles.sidebarContent} style={{ padding: 0, height: 'calc(100% - 40px)' }}>
@@ -257,6 +267,12 @@ const EditorView: React.FC = () => {
                   <AgentChatPanel
                     workId={chapter.workId}
                     chapterId={chapter.id}
+                    tabs={tabs}
+                    activeTabId={activeTabId}
+                    onCreateTab={createTab}
+                    onCloseTab={closeTab}
+                    onSwitchTab={switchTab}
+                    onUpdateTabTitle={updateTabTitle}
                     className="h-full"
                   />
                 )}

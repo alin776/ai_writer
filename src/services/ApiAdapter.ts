@@ -1,6 +1,5 @@
 /**
- * 真实 API 适配器（预留）
- *
+ * 真实 API 适配器（预留�? *
  * 用于生产环境，调用真实的后端 API
  * 使用 Axios 进行 HTTP 请求
  */
@@ -13,7 +12,7 @@ export class ApiAdapter implements IDataAdapter {
   constructor() {
     this.axiosInstance = axios.create({
       baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api',
-      timeout: 180000, // 180秒超时（3分钟），适配AI长文本生成
+      timeout: 180000, // 180秒超时（3分钟），适配AI长文本生�?
       headers: {
         'Content-Type': 'application/json',
       },
@@ -22,7 +21,14 @@ export class ApiAdapter implements IDataAdapter {
     // 请求拦截器：添加 Token
     this.axiosInstance.interceptors.request.use(
       (config) => {
-        // 从 Zustand persist 存储中读取 token
+        // 登录/注册无需附带 Authorization，避免预检导致�?CORS 异常
+        const url = config.url || '';
+        const skipAuthHeader = url.includes('/auth/login') || url.includes('/auth/register');
+        if (skipAuthHeader) {
+          return config;
+        }
+
+        // �?Zustand persist 存储中读�?token
         const authStorage = localStorage.getItem('auth-storage');
         if (authStorage) {
           try {
@@ -51,7 +57,7 @@ export class ApiAdapter implements IDataAdapter {
       }
     );
 
-    // 响应拦截器：处理错误和数据转换
+    // 响应拦截器：处理错误和数据转�?
     this.axiosInstance.interceptors.response.use(
       (response) => {
         const url = response.config.url || '';
@@ -60,11 +66,11 @@ export class ApiAdapter implements IDataAdapter {
         console.log('[ApiAdapter] Response data (raw):', response.data);
         console.log('[ApiAdapter] Response status:', response.status);
         
-        // 在这里统一进行 snake_case 到 camelCase 的转换
+        // 在这里统一进行 snake_case �?camelCase 的转�?
         const camelCaseData = this.convertKeysToCamelCase(response.data);
         console.log('[ApiAdapter] Response data (camelCase):', camelCaseData);
         
-        return camelCaseData;
+        return { ...response, data: camelCaseData };
       },
       (error) => {
         console.error('[ApiAdapter] Error:', error);
@@ -91,19 +97,19 @@ export class ApiAdapter implements IDataAdapter {
           if (isWorldviewNotFound) {
             // 只在开发模式下显示警告
             if (import.meta.env.DEV) {
-              console.warn(`[API] 世界观API未实现: ${url}`);
+              console.warn(`[API] 世界观API未实�? ${url}`);
             }
-            // 返回空数组，不中断应用
+            // 返回空数组，不中断应�?
             return Promise.resolve([]);
           }
 
-          // 特殊处理：guidelines相关的404是正常情况（可能还未创建）
+          // 特殊处理：guidelines相关�?04是正常情况（可能还未创建�?
           const isGuidelinesNotFound = status === 404 && 
             (url.includes('/guidelines') || url.includes('/ai-guidelines'));
           
           if (isGuidelinesNotFound) {
-            // 静默处理 guidelines 的404，这是正常情况
-            console.debug('Guidelines不存在（尚未创建）:', url);
+            // 静默处理 guidelines �?04，这是正常情�?
+            console.debug('Guidelines不存在（尚未创建�?', url);
           } else {
             // 其他错误正常打印
             console.error('API Error:', error);
@@ -111,7 +117,7 @@ export class ApiAdapter implements IDataAdapter {
 
           switch (status) {
             case 401:
-              // 未授权，清除 token 并跳转登录
+              // 未授权，清除 token 并跳转登�?
               localStorage.removeItem('auth-storage');
               window.location.href = '/login';
               break;
@@ -120,9 +126,9 @@ export class ApiAdapter implements IDataAdapter {
               console.error('无权限访问');
               break;
             case 404:
-              // 资源不存在 - 静默处理，由调用方决定如何处理
+              // 资源不存在- 静默处理，由调用方决定如何处理
               if (!isGuidelinesNotFound) {
-                console.debug('资源不存在:', url);
+                console.debug('资源不存在', url);
               }
               break;
             case 500:
@@ -203,9 +209,8 @@ export class ApiAdapter implements IDataAdapter {
    * GET 请求
    */
   async get<T>(url: string, params?: any): Promise<T> {
-    // 响应拦截器已经处理了 camelCase 转换，直接返回
     const response = await this.axiosInstance.get(url, { params });
-    return response;
+    return (response as any)?.data ?? (response as any as T);
   }
 
   /**
@@ -215,7 +220,7 @@ export class ApiAdapter implements IDataAdapter {
     console.log('[ApiAdapter.post] URL:', url);
     console.log('[ApiAdapter.post] 请求数据:', data);
     
-    // 特殊处理登录接口，使用 FormData
+    // 特殊处理登录接口，使�?FormData
     if (url === '/auth/login') {
       const formData = new URLSearchParams();
       formData.append('username', data.username);
@@ -227,39 +232,39 @@ export class ApiAdapter implements IDataAdapter {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
       });
-      return response;
+      return (response as any)?.data ?? (response as any as T);
     }
 
-    // FormData 直接透传，避免键名转换破坏 multipart 结构
+    // FormData 直接透传，避免键名转换破�?multipart 结构
     if (data instanceof FormData) {
       const response = await this.axiosInstance.post(url, data, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
-      return response;
+      return (response as any)?.data ?? (response as any as T);
     }
     
-    // 将请求体从 camelCase 转换为 snake_case
+    // 将请求体�?camelCase 转换�?snake_case
     const snakeCaseData = this.convertKeysToSnakeCase(data);
     console.log('[ApiAdapter.post] 转换后的数据 (snake_case):', snakeCaseData);
     
-    // 响应拦截器已经处理了 camelCase 转换，直接返回
+    // 响应拦截器已经处理了 camelCase 转换，直接返�?
     const response = await this.axiosInstance.post(url, snakeCaseData);
     console.log('[ApiAdapter.post] 收到响应 (已转camelCase):', response);
     
-    return response;
+    return (response as any)?.data ?? (response as any as T);
   }
 
   /**
    * PUT 请求
    */
   async put<T>(url: string, data?: any): Promise<T> {
-    // 将请求体从 camelCase 转换为 snake_case
+    // 将请求体�?camelCase 转换�?snake_case
     const snakeCaseData = this.convertKeysToSnakeCase(data);
     // 响应拦截器已经处理了 camelCase 转换
     const response = await this.axiosInstance.put(url, snakeCaseData);
-    return response;
+    return (response as any)?.data ?? (response as any as T);
   }
 
   /**
@@ -271,7 +276,7 @@ export class ApiAdapter implements IDataAdapter {
       payload = this.convertKeysToSnakeCase(payload);
     }
     const response = await this.axiosInstance.delete(url, payload ? { data: payload } : undefined);
-    return response;
+    return (response as any)?.data ?? (response as any as T);
   }
 
   /**
@@ -281,14 +286,15 @@ export class ApiAdapter implements IDataAdapter {
     console.log('[ApiAdapter.patch] URL:', url);
     console.log('[ApiAdapter.patch] 请求数据:', data);
     
-    // 将请求体从 camelCase 转换为 snake_case
+    // 将请求体�?camelCase 转换�?snake_case
     const snakeCaseData = this.convertKeysToSnakeCase(data);
     console.log('[ApiAdapter.patch] 转换后的数据 (snake_case):', snakeCaseData);
     
-    // 响应拦截器已经处理了 camelCase 转换，直接返回
+    // 响应拦截器已经处理了 camelCase 转换，直接返�?
     const response = await this.axiosInstance.patch(url, snakeCaseData);
     console.log('[ApiAdapter.patch] 收到响应 (已转camelCase):', response);
     
-    return response;
+    return (response as any)?.data ?? (response as any as T);
   }
 }
+

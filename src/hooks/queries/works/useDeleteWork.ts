@@ -70,13 +70,15 @@ export const useDeleteWork = (
       showToast('success', '作品已删除');
 
       // 5. 调用用户自定义的 onSuccess
-      options?.onSuccess?.(undefined, deletedId, context);
+      if (options?.onSuccess) {
+        options.onSuccess(undefined, deletedId, context, undefined as any);
+      }
     },
 
     onError: (error, deletedId, context) => {
       // 回滚乐观更新
-      if (context?.previousWorks) {
-        queryClient.setQueryData(queryKeys.works.lists(), context.previousWorks);
+      if (context && (context as any).previousWorks) {
+        queryClient.setQueryData(queryKeys.works.lists(), (context as any).previousWorks);
       }
 
       // 显示错误提示
@@ -84,7 +86,9 @@ export const useDeleteWork = (
       showToast('error', message);
 
       // 调用用户自定义的 onError
-      options?.onError?.(error, deletedId, context);
+      if (options?.onError) {
+        options.onError(error, deletedId, context, undefined as any);
+      }
     },
 
     ...options,

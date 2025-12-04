@@ -71,6 +71,19 @@ export interface AnalysisStatusResponse {
   createdAt: string;
   updatedAt: string;
   errorMessage?: string;
+  /**
+   * 可选的进度字段，用于兼容部分接口返回的嵌套进度信息
+   */
+  progress?: {
+    analyzedChapters: number;
+    totalChapters: number;
+    progressPercentage?: number;
+    [key: string]: any;
+  };
+  /**
+   * 可选的当前阶段字段，用于兼容旧接口字段命名
+   */
+  currentStage?: string;
 }
 
 /**
