@@ -16,6 +16,7 @@ import {
   BarChart3,
   Gift,
   ChevronDown,
+  Wand2,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import clsx from 'clsx';
@@ -46,6 +47,12 @@ const mainNavItems: NavItem[] = [
     label: '知识库',
     icon: Library,
     path: '/knowledge',
+  },
+  {
+    id: 'humanize',
+    label: 'AI 指纹消融',
+    icon: Wand2,
+    path: '/humanize',
   },
 ];
 

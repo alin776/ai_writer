@@ -886,9 +886,16 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
                     settings = await worldview_service.get_settings_by_work(work_id)
 
                     context_info["worldview_fallback"] = {
-                        "characters": [{"name": c.name, "description": c.description[:200]} for c in (characters[:5] if characters else [])],
-                        "locations": [{"name": l.name, "description": l.description[:200]} for l in (locations[:5] if locations else [])],
-                        "settings": [{"name": s.name, "description": s.description[:200]} for s in (settings[:5] if settings else [])]
+                        "characters": [{"name": c.name, "description": (c.description or "")[:200]} for c in (characters[:5] if characters else [])],
+                        "locations": [{"name": l.name, "description": (l.description or "")[:200]} for l in (locations[:5] if locations else [])],
+                        # Setting 模型没有 name/description 字段，使用 title + content 兜底
+                        "settings": [
+                            {
+                                "name": getattr(s, "title", getattr(s, "name", "")),
+                                "description": (getattr(s, "content", getattr(s, "description", "")) or "")[:200],
+                            }
+                            for s in (settings[:5] if settings else [])
+                        ],
                     }
                     context_info["related_context"] = []
 

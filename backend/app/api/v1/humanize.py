@@ -30,6 +30,7 @@ from app.schemas.humanize import (
 )
 from app.services.user_profile_service import UserProfileService
 from app.services.ai.humanize_service import HumanizeService
+from app.services.ai.http_ai_service import HTTPAIService
 from app.core.humanize_config import HumanizeConfig
 from app.services.agent.utils.monitoring import increment_counter, record_timer
 from app.api.middleware.rate_limiter import rate_limit, get_user_identifier
@@ -614,7 +615,8 @@ async def humanize_rewrite_stream(
     async with create_db_session() as preload_db:
         profile_service = UserProfileService(preload_db)
         profile = await profile_service.get_or_create_profile(current_user.id)
-        enable_verification = profile.humanize_enabled_by_function.get("rewrite", False)
+        # 默认开启验证阶段；用户画像显式关闭时才跳过
+        enable_verification = profile.humanize_enabled_by_function.get("rewrite", True)
         # preload_db在此自动关闭
 
     async def generate():

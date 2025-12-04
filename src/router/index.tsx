@@ -21,6 +21,7 @@ const CreateWorkView = React.lazy(() => import('../views/CreateWorkView'));
 const WorkDetailView = React.lazy(() => import('../views/WorkDetailView'));
 const WorldviewGraphFullscreen = React.lazy(() => import('../views/WorldviewGraphFullscreen'));
 const EditorView = React.lazy(() => import('../views/EditorView'));
+const HumanizeView = React.lazy(() => import('../views/HumanizeView'));
 const AdminDashboardView = React.lazy(() => import('../views/AdminDashboardView'));
 const AdminUsersView = React.lazy(() => import('../views/AdminUsersView'));
 const AdminAIModelsView = React.lazy(() => import('../views/AdminAIModelsView'));
@@ -189,6 +190,18 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <KnowledgeView />
+          </SuspenseWrapper>
+        ),
+      },
+
+      /**
+       * AI 指纹消融路由
+       */
+      {
+        path: '/humanize',
+        element: (
+          <SuspenseWrapper>
+            <HumanizeView />
           </SuspenseWrapper>
         ),
       },
