@@ -101,6 +101,7 @@ export interface RegisterData {
  */
 export interface TokenResponse {
   accessToken: string;  // 后端: access_token
+  refreshToken?: string; // 后端: refresh_token
   tokenType: string;     // 后端: token_type
 }
 

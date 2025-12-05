@@ -18,7 +18,7 @@ import Loading from '../common/Loading';
 export const AuthLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, hasHydrated } = useAuthStore();
   const [isChecking, setIsChecking] = React.useState(true);
 
   // 检查是否是需要全屏显示的页面（不需要 padding）
@@ -32,6 +32,8 @@ export const AuthLayout: React.FC = () => {
    * 检查认证状态
    */
   useEffect(() => {
+    if (!hasHydrated) return;
+
     // 模拟认证检查过程
     const checkAuth = async () => {
       // 给一个短暂的延迟，避免闪烁
@@ -47,12 +49,12 @@ export const AuthLayout: React.FC = () => {
     };
 
     checkAuth();
-  }, [isAuthenticated, user, navigate]);
+  }, [hasHydrated, isAuthenticated, user, navigate]);
 
   /**
    * 正在检查认证状态时显示加载中
    */
-  if (isChecking) {
+  if (!hasHydrated || isChecking) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
         <Loading size="lg" text="加载中..." />
