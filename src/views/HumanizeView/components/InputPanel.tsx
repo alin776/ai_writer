@@ -29,7 +29,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
   onRewrite,
 }) => {
   const inputLength = inputText.length;
-  const maxLength = 50000;
+  const maxLength = 5000;
   const isOverLimit = inputLength > maxLength;
 
   return (
@@ -47,7 +47,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
         <textarea
           value={inputText}
           onChange={(e) => onInputChange(e.target.value)}
-          placeholder="粘贴或输入需要去除AI痕迹的文本...&#10;&#10;支持最多50,000字符"
+          placeholder="粘贴或输入需要去除AI痕迹的文本...&#10;&#10;支持最多5,000字符"
           className="flex-1 resize-none text-sm border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           disabled={isProcessing}
         />

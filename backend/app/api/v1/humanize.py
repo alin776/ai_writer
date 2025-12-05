@@ -369,11 +369,18 @@ async def humanize_rewrite(
         HumanizeSessionResponse: 包含改写结果和会话ID的响应
     """
     # 0. 安全验证：检查文本字节数（防止超大文本攻击）
+    text_length = len(request_data.text)
     text_bytes = len(request_data.text.encode('utf-8'))
-    if text_bytes > HumanizeConfig().max_text_bytes:
+    limit_config = HumanizeConfig()
+    if text_length > limit_config.max_text_chars:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"文本字节数超过限制 (当前: {text_bytes} bytes, 最大: {HumanizeConfig().max_text_bytes} bytes)"
+            detail=f"文本长度超过限制 (当前: {text_length} 字符, 最大: {limit_config.max_text_chars} 字符)"
+        )
+    if text_bytes > limit_config.max_text_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"文本字节数超过限制 (当前: {text_bytes} bytes, 最大: {limit_config.max_text_bytes} bytes)"
         )
 
     # 1. 获取用户画像，根据用户配置决定是否启用验证
@@ -606,11 +613,18 @@ async def humanize_rewrite_stream(
     from app.core.database import create_db_session
 
     # 安全验证
+    text_length = len(request_data.text)
     text_bytes = len(request_data.text.encode('utf-8'))
-    if text_bytes > HumanizeConfig().max_text_bytes:
+    limit_config = HumanizeConfig()
+    if text_length > limit_config.max_text_chars:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"文本字节数超过限制"
+            detail=f"文本长度超过限制 (当前: {text_length} 字符, 最大: {limit_config.max_text_chars} 字符)"
+        )
+    if text_bytes > limit_config.max_text_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"文本字节数超过限制 (当前: {text_bytes} bytes, 最大: {limit_config.max_text_bytes} bytes)"
         )
 
     # ✅ 预加载：在路由级别加载用户画像（用完即关闭）

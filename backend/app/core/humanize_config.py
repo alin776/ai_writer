@@ -19,7 +19,7 @@ class HumanizeConfig:
     enable_nlp_preprocessing: bool = True  # 是否启用NLP预处理 (V2新增)
 
     # ========== 输入限制（安全） ==========
-    max_text_chars: int = 50000  # 最大字符数（5万字符）
+    max_text_chars: int = 5000  # 最大字符数（5000字符）
     max_text_bytes: int = 200 * 1024  # 最大字节数（200KB），防止超大UTF-8字符攻击
 
     # ========== 模型配置 ==========

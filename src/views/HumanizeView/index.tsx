@@ -90,8 +90,8 @@ export const HumanizeView: React.FC = () => {
       return;
     }
 
-    if (inputText.length > 50000) {
-      showToast('error', '文本长度超过限制（最多50000字符）');
+    if (inputText.length > 5000) {
+      showToast('error', '文本长度超过限制（最多5000字符）');
       return;
     }
 
