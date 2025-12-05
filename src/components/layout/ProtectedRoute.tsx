@@ -17,8 +17,9 @@ interface ProtectedRouteProps {
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const navigate = useNavigate();
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, login } = useAuthStore();
   const [isChecking, setIsChecking] = React.useState(true);
+  const useMock = import.meta.env.VITE_USE_MOCK === 'true';
 
   /**
    * 检查认证状态
@@ -29,6 +30,26 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       if (!isAuthenticated || !user) {
+        if (useMock) {
+          // Mock 模式下自动登录一个本地用户，避免卡在登录页
+          const now = new Date().toISOString();
+          login(
+            {
+              id: 'mock-user',
+              username: 'mockuser',
+              name: 'Mock User',
+              email: 'mock@example.com',
+              isActive: true,
+              isAdmin: true,
+              isVerified: true,
+              createdAt: now,
+              updatedAt: now,
+            },
+            'mock-token'
+          );
+          setIsChecking(false);
+          return;
+        }
         // 未登录，重定向到登录页
         navigate('/login', { replace: true });
       } else {
@@ -38,7 +59,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     };
 
     checkAuth();
-  }, [isAuthenticated, user, navigate]);
+  }, [isAuthenticated, user, navigate, useMock, login]);
 
   /**
    * 正在检查认证状态时显示加载中

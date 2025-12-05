@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+﻿import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Bot, Send, Loader2, ChevronUp, ChevronDown } from 'lucide-react';
@@ -16,6 +16,8 @@ import rehypeRaw from 'rehype-raw';
 interface AIPanelProps {
   workId: string;
   chapterId?: string;
+  sessionId?: string;
+  onTitleChange?: (title: string) => void;
 }
 
 // Markdown渲染组件
@@ -105,7 +107,7 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
   );
 };
 
-export function AIPanel({ workId, chapterId }: AIPanelProps) {
+export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanelProps) {
   const {
     messages,
     isLoading,
@@ -113,11 +115,12 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
     suggestedActions,
     tasks,
     currentTaskId,
-    activities,  // ✅ 添加activities
+    activities,
     sendMessageStream,
-    pendingApproval,  // ✅ 添加确认请求
-    submitApproval,   // ✅ 添加确认提交函数
-  } = useAgentChat({ workId, chapterId });  // 🆕 传递workId和chapterId进行会话隔离
+    stopStreaming,
+    pendingApproval,
+    submitApproval,
+  } = useAgentChat({ workId, chapterId, sessionId });  // 🆕 传递workId和chapterId进行会话隔离
 
   const [inputValue, setInputValue] = useState('');
   const [mode, setMode] = useState<AgentMode>('planning'); // ✅ Agent执行模式
@@ -132,6 +135,31 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
       console.log('[AIPanel] 活动流更新:', activities.length, '个活动');
     }
   }, [activities]);
+
+  // ??????????????
+  const lastSentTitleRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!onTitleChange || messages.length === 0) return;
+    if (typeof window !== 'undefined') {
+      try {
+        if (localStorage.getItem(`agent_session_title_locked_${sessionId}`) === '1') {
+          return;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const firstUserMessage = messages.find((m) => m.role === 'user');
+    if (!firstUserMessage) return;
+
+    const content = firstUserMessage.content.trim();
+    const title = content.length <= 30 ? content : `${content.substring(0, 30)}...`;
+
+    if (lastSentTitleRef.current === title) return;
+    lastSentTitleRef.current = title;
+    onTitleChange(title);
+  }, [messages, onTitleChange, sessionId]);
 
   // 监控：mode切换
   useEffect(() => {
@@ -198,6 +226,9 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
       console.error('Failed to send message:', err);
     }
   };
+  const handleStop = useCallback(() => {
+    stopStreaming();
+  }, [stopStreaming]);
 
   return (
     <div className="p-3 h-full flex flex-col">
@@ -494,7 +525,7 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
       </div>
 
       {/* 输入框 */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-center">
         <Input
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
@@ -504,9 +535,10 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
           disabled={isLoading}
         />
         <Button
-          onClick={handleSend}
-          disabled={isLoading || !inputValue.trim()}
+          onClick={isLoading ? handleStop : handleSend}
+          disabled={!isLoading && !inputValue.trim()}
           className="h-8 w-8 p-0 bg-zinc-900 hover:bg-zinc-800 transition-all disabled:opacity-50"
+          aria-label={isLoading ? '停止生成' : '发送'}
         >
           {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
         </Button>
@@ -525,3 +557,7 @@ export function AIPanel({ workId, chapterId }: AIPanelProps) {
     </div>
   );
 }
+
+
+
+

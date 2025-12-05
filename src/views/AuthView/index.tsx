@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { DataService } from '../../services/DataService';
@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { ImageWithFallback } from '../../components/common/ImageWithFallback';
 import { BookOpen, Feather, Sparkles, ChevronRight, CheckCircle } from 'lucide-react';
+import { ApiAdapter } from '@/services/ApiAdapter';
 
 /**
  * AuthView 组件 - 统一的登录/注册页面
@@ -16,7 +17,8 @@ import { BookOpen, Feather, Sparkles, ChevronRight, CheckCircle } from 'lucide-r
 const AuthView: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuthStore();
+  const { login, isAuthenticated } = useAuthStore();
+  const useMock = import.meta.env.VITE_USE_MOCK === 'true';
 
   // 获取注册页面传递的状态
   const registerSuccess = location.state as { message?: string; username?: string } | null;
@@ -40,6 +42,7 @@ const AuthView: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState(registerSuccess?.message || '');
+  const loginInFlight = useRef(false);
 
   // 打字机效果
   const [typewriterText, setTypewriterText] = useState('');
@@ -78,6 +81,35 @@ const AuthView: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [successMessage]);
+
+  // Mock 模式下自动登录，避免阻塞在登录页
+  useEffect(() => {
+    if (!useMock || isAuthenticated) return;
+
+    const run = async () => {
+      setIsLoading(true);
+      try {
+        const tokenResponse = await DataService.login({
+          username: 'mock@example.com',
+          password: '123456',
+        });
+        const user = await DataService.getCurrentUser();
+        const token =
+          (tokenResponse as any)?.accessToken ||
+          (tokenResponse as any)?.access_token ||
+          'mock-token';
+        login(user, token);
+        navigate('/works', { replace: true });
+      } catch (error) {
+        console.error('[AuthView] Mock 自动登录失败', error);
+        setErrors({ submit: 'Mock 自动登录失败，请手动输入 mock@example.com / 123456 重试' });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    run();
+  }, [useMock, isAuthenticated, login, navigate]);
 
   /**
    * 登录表单验证
@@ -145,6 +177,10 @@ const AuthView: React.FC = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // 避免重复提交导致二次请求
+    if (isLoading || loginInFlight.current) return;
+    loginInFlight.current = true;
+
     if (!validateLogin()) return;
 
     setIsLoading(true);
@@ -157,21 +193,30 @@ const AuthView: React.FC = () => {
       });
 
       console.log('[AuthView] Token response:', tokenResponse);
+      const accessToken =
+        (tokenResponse as any)?.accessToken ||
+        (tokenResponse as any)?.access_token ||
+        (tokenResponse as any)?.token ||
+        '';
+      if (!accessToken) {
+        throw new Error('Missing access token');
+      }
 
       // 登录成功 - authStore 会自动持久化 token
-      login(null as any, tokenResponse.accessToken);  // 先存token，再获取用户信息
+      login(null as any, accessToken);  // 先存token，再获取用户信息
 
       // 第二步：获取用户信息
       const user = await DataService.getCurrentUser();
       console.log('[AuthView] User info:', user);
 
       // 更新用户信息
-      login(user, tokenResponse.accessToken);
+      login(user, accessToken);
       navigate('/works');
     } catch (error: any) {
       const errorMessage = error?.response?.data?.detail || error?.message || '登录失败，请检查用户名和密码';
       setErrors({ submit: errorMessage });
     } finally {
+      loginInFlight.current = false;
       setIsLoading(false);
     }
   };

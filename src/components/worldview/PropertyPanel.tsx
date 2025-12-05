@@ -152,7 +152,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
   });
 
   // 时间线事件表单状态
-  const [timelineForm, setTimelineForm] = useState({
+  const [timelineForm, setTimelineForm] = useState<Record<string, any>>({
     entityId: '',
     entityType: 'character' as EntityType,
     eventType: 'milestone' as EventType,
@@ -327,7 +327,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
                         outerRadius: 58,
                         stroke: '#ffffff',
                         strokeWidth: 2.5
-                      }}
+                      } as any}
                       onMouseEnter={(_, index) => setActiveIndex(index)}
                       onMouseLeave={() => setActiveIndex(null)}
                       label={({ cx, cy, midAngle, outerRadius, payload }) => {
@@ -459,16 +459,22 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
                 className="text-3xl text-foreground leading-relaxed m-0"
                 style={{ fontFamily: "'Ma Shan Zheng', cursive" }}
               >
-                {currentEntity.name || (type === 'setting' ? (currentEntity as Setting).title : '')}
+                {type === 'setting'
+                  ? (currentEntity as Setting).title
+                  : (currentEntity as Character | Location).name}
               </h2>
             ) : (
               <Input
-                value={currentEntity.name || (type === 'setting' ? (currentEntity as Setting).title : '')}
+                value={
+                  type === 'setting'
+                    ? (currentEntity as Setting).title
+                    : (currentEntity as Character | Location).name
+                }
                 onChange={(e) => {
                   if (type === 'setting') {
                     setEditedEntity({ ...(currentEntity as Setting), title: e.target.value });
                   } else {
-                    setEditedEntity({ ...currentEntity, name: e.target.value });
+                    setEditedEntity({ ...(currentEntity as Character | Location), name: e.target.value });
                   }
                 }}
                 className="text-xl border-border"
@@ -516,15 +522,15 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
               <>
                 {/* 角色/分类 */}
                 {((type === 'character' && (currentEntity as Character).role) ||
-                  (type === 'location' && (currentEntity as Location).classification) ||
+                  (type === 'location' && (currentEntity as Location).type) ||
                   (type === 'setting' && (currentEntity as Setting).category)) && (
                   <div className="flex items-center gap-3">
                     <div className="text-xs text-muted-foreground uppercase tracking-wider">
                       {type === 'character' ? '角色定位' : '分类'}
                     </div>
                     <div className="text-foreground">
-                      {type === 'character' ? (currentEntity as Character).role :
-                       type === 'location' ? (currentEntity as Location).classification :
+                       {type === 'character' ? (currentEntity as Character).role :
+                       type === 'location' ? (currentEntity as Location).type :
                        (currentEntity as Setting).category}
                     </div>
                   </div>
@@ -533,7 +539,9 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
                 {/* 描述 */}
                 <div className="space-y-2 pt-4 border-t border-border">
                   <p className="text-foreground/80 leading-relaxed whitespace-pre-wrap">
-                    {(type === 'setting' ? (currentEntity as Setting).content : currentEntity.description) || '暂无描述'}
+                    {(type === 'setting'
+                      ? (currentEntity as Setting).content
+                      : (currentEntity as Character | Location).description) || '暂无描述'}
                   </p>
                 </div>
 
@@ -614,8 +622,8 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground uppercase tracking-wider">分类</Label>
                     <Input
-                      value={(currentEntity as Location).classification || ''}
-                      onChange={(e) => setEditedEntity({ ...(currentEntity as Location), classification: e.target.value })}
+                      value={(currentEntity as Location).type || ''}
+                      onChange={(e) => setEditedEntity({ ...(currentEntity as Location), type: e.target.value })}
                       placeholder="请输入分类..."
                       className="border-border"
                     />
@@ -637,12 +645,12 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
                 <div className="space-y-2 pt-3 border-t border-border">
                   <Label className="text-xs text-muted-foreground uppercase tracking-wider">详细描述</Label>
                   <Textarea
-                    value={type === 'setting' ? (currentEntity as Setting).content : currentEntity.description || ''}
+                    value={type === 'setting' ? (currentEntity as Setting).content : (currentEntity as Character | Location).description || ''}
                     onChange={(e) => {
                       if (type === 'setting') {
                         setEditedEntity({ ...(currentEntity as Setting), content: e.target.value });
                       } else {
-                        setEditedEntity({ ...currentEntity, description: e.target.value });
+                        setEditedEntity({ ...(currentEntity as Character | Location), description: e.target.value });
                       }
                     }}
                     placeholder="详细描述此节点的相关信息..."

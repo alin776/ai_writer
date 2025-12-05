@@ -8,8 +8,9 @@ interface KnowledgeItem {
   id: string;
   title: string;
   content?: string;
-  category: string;
-  source_type: 'manual' | 'book_analysis' | 'ai_generated' | 'imported';
+  category?: string;
+  source_type: 'manual' | 'book_analysis' | 'ai_generated' | 'imported' | 'text' | 'file' | 'url';
+  file_type?: string;
   tags: string[];
   created_at: string;
   updated_at: string;

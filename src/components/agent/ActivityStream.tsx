@@ -10,7 +10,6 @@
  * 设计：简约专业，动画流畅，状态清晰
  */
 
-import React from 'react';
 import { Brain, Wrench, Sparkles, CheckCircle, Loader2, Clock } from 'lucide-react';
 import type { ActivityItem, ActivityType, ActivityStatus, ProgressData } from '@/types/agent';  // ✅ 从类型文件导入
 import ProgressBar from './ProgressBar';  // ✅ 导入ProgressBar

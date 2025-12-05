@@ -49,6 +49,30 @@ services:
       - SECRET_KEY=your-secret-key-change-this-in-production
       - DEBUG=True
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ENABLE_SCHEDULER=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - novelaide_network
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+
+  # Scheduler 独立进程，避免多实例重复跑定时任务
+  scheduler:
+    build: .
+    container_name: novelaide_scheduler
+    command: ["python", "-m", "app.tasks.scheduler_runner"]
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://novelaide:novelaide_password@postgres:5432/novelaide
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=your-secret-key-change-this-in-production
+      - DEBUG=True
+      - ENABLE_SCHEDULER=true
     depends_on:
       postgres:
         condition: service_healthy

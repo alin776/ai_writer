@@ -48,6 +48,23 @@ interface NovelEditorProps {
   chapterId?: string;
 }
 
+type AgentActionType = 'edit' | 'rewrite' | 'insert';
+
+type AgentApprovalRequest = {
+  request_id: string;
+  action_type: AgentActionType;
+  operation?: string;
+  original_content?: string;
+  new_content?: string;
+  description?: string;
+  versions?: Array<{
+    version_id: string;
+    style?: string;
+    style_name: string;
+    content?: string;
+  }>;
+};
+
 /**
  * Novel 编辑器组件
  */
@@ -67,25 +84,18 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   // 🆕 Agent 编辑确认对话框状态
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
-    actionType: 'edit' | 'rewrite' | 'insert';
-    operation?: string;
-    originalContent?: string;
-    newContent: string;
-    description?: string;
-    versions?: Array<{
-      version_id: string;
-      style: string;
-      style_name: string;
-      content: string;
-    }>;
-    onConfirm: (selectedVersion?: number) => void;
-    onCancel: () => void;
+    approvalRequest: AgentApprovalRequest;
+    onApprove: (selectedVersion?: number) => void;
+    onReject: () => void;
   }>({
     isOpen: false,
-    actionType: 'edit',
-    newContent: '',
-    onConfirm: () => {},
-    onCancel: () => {}
+    approvalRequest: {
+      request_id: 'agent-edit-request',
+      action_type: 'edit',
+      new_content: '',
+    },
+    onApprove: () => {},
+    onReject: () => {}
   });
 
   // 初始化编辑器
@@ -314,19 +324,23 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       // 如果需要用户确认，显示确认对话框
       if (event.source === 'agent') {
         const currentContent = editor.getHTML();
+        const actionType: AgentActionType = event.operation === 'append' ? 'edit' :
+          event.operation === 'replace' ? 'rewrite' : 'insert';
 
         setConfirmDialog({
           isOpen: true,
-          actionType: event.operation === 'append' ? 'edit' :
-                      event.operation === 'replace' ? 'rewrite' : 'insert',
-          operation: event.operation,
-          originalContent: currentContent,
-          newContent: event.content,
-          description: `Agent 建议${
-            event.operation === 'append' ? '续写' :
-            event.operation === 'replace' ? '改写' : '插入'
-          }内容`,
-          onConfirm: (selectedVersion?: number) => {
+          approvalRequest: {
+            request_id: `agent-${chapterId || 'chapter'}-${Date.now()}`,
+            action_type: actionType,
+            operation: event.operation,
+            original_content: currentContent,
+            new_content: event.content,
+            description: `Agent 建议${
+              event.operation === 'append' ? '续写' :
+              event.operation === 'replace' ? '改写' : '插入'
+            }内容`,
+          },
+          onApprove: (selectedVersion?: number) => {
             // 用户确认，应用更新
             console.log('[NovelEditor] 用户确认 Agent 编辑');
 
@@ -355,7 +369,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             // 显示成功提示
             toast.success('已应用 AI 编辑');
           },
-          onCancel: () => {
+          onReject: () => {
             // 用户取消，不做任何操作
             console.log('[NovelEditor] 用户取消 Agent 编辑');
             setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -470,14 +484,10 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       {/* 🆕 Agent 编辑确认对话框 */}
       <AgentEditConfirmDialog
         isOpen={confirmDialog.isOpen}
-        actionType={confirmDialog.actionType}
-        operation={confirmDialog.operation}
-        originalContent={confirmDialog.originalContent}
-        newContent={confirmDialog.newContent}
-        description={confirmDialog.description}
-        versions={confirmDialog.versions}
-        onConfirm={confirmDialog.onConfirm}
-        onCancel={confirmDialog.onCancel}
+        approvalRequest={confirmDialog.approvalRequest}
+        onApprove={confirmDialog.onApprove}
+        onReject={confirmDialog.onReject}
+        onClose={confirmDialog.onReject}
       />
 
       <div className="novel-editor w-full h-full flex flex-col bg-white">

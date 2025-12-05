@@ -5,12 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Loading } from '../common';
 import { DataService } from '@/services/DataService';
-import {
-  NovelAnalysisStatus,
-  AnalysisStage,
-  AnalysisStatusResponse,
-  AnalysisResultResponse,
-} from '@/types';
+import { NovelAnalysisStatus } from '@/types';
 import { BookOpen, FileText, RefreshCw, PlayCircle, Download } from 'lucide-react';
 import styles from './NovelAnalysisPanel.module.css';
 
@@ -174,18 +169,18 @@ const NovelAnalysisPanel: React.FC<NovelAnalysisPanelProps> = ({
         try {
           const status = await DataService.getAnalysisStatus(workId);
           
-          if (status.status === 'completed') {
+          if (status.status === NovelAnalysisStatus.COMPLETED) {
             // 分析完成，加载结果
             await loadNovelSummary();
             onToast('success', '小说概括生成完成！');
             return true;
-          } else if (status.status === 'failed') {
+          } else if (status.status === NovelAnalysisStatus.FAILED) {
             onToast('error', status.errorMessage || '分析失败');
             return true;
           }
           
           // 检测进度停滞（可能后端卡住了）
-          const currentProgress = status.progress?.analyzedChapters || 0;
+          const currentProgress = status.analyzedChapters || 0;
           if (currentProgress === lastProgress) {
             noProgressCount++;
             if (noProgressCount >= 30) {  // 30次无进度 = 2.5分钟停滞
@@ -198,11 +193,12 @@ const NovelAnalysisPanel: React.FC<NovelAnalysisPanelProps> = ({
           }
           
           // 显示进度信息（开发模式）
-          if (status.progress) {
-            const progressPercent = (status.progress.analyzedChapters / status.progress.totalChapters * 100).toFixed(1);
+          if (status.totalChapters) {
+            const analyzed = status.analyzedChapters || 0;
+            const progressPercent = ((analyzed / status.totalChapters) * 100).toFixed(1);
             console.log(
-              `[分析进度] ${status.progress.analyzedChapters}/${status.progress.totalChapters} 章 ` +
-              `(${progressPercent}%) - ${status.currentStage}`
+              `[分析进度] ${analyzed}/${status.totalChapters} 章 ` +
+              `(${progressPercent}%) - ${status.stage || 'unknown'}`
             );
           }
           

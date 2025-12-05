@@ -23,7 +23,13 @@ import NovelEditor from '../../components/editor/NovelEditor';
 import { WorldviewPanel } from '../../components/editor/WorldviewPanel';
 import { SummaryPanel } from '../../components/editor/SummaryPanel';
 import { AIPanel } from '../../components/editor/AIPanel';
+import SessionTabBar from '../../components/editor/SessionTabBar';
+import { useEditorStore } from '../../store/editorStore';
 import { useConfirm } from '../../hooks/useConfirm';
+import { useTabManager } from '../../hooks/useTabManager';
+import HistoryPanel from '../../components/agent/HistoryPanel';
+import type { HistorySessionItem } from '@/types/agent';
+import { agentApi } from '@/services/agentApi';
 import styles from './WorkDetailView.module.css';
 
 /**
@@ -40,6 +46,7 @@ const WorkDetailView: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useGlobalStore();
   const { confirmState, confirm, closeConfirm } = useConfirm();
+  const { rightSidebarType, setRightSidebarType } = useEditorStore();
 
   const [work, setWork] = useState<Work | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -60,9 +67,118 @@ const WorkDetailView: React.FC = () => {
     guidelines: undefined,
     aiGuidelines: undefined,
   });
+  const {
+    tabs,
+    activeTabId,
+    createTab,
+    closeTab,
+    switchTab,
+    updateTabTitle,
+    replaceTabSession,
+    attachSessionTab
+  } = useTabManager(currentChapterId || workId || 'work', workId);
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
+  const handleOpenHistory = useCallback(() => setShowHistoryPanel(true), []);
+  const handleCloseHistory = useCallback(() => setShowHistoryPanel(false), []);
 
-  // 右侧面板状态：'world' | 'analysis' | 'agent'
-  const [rightPanel, setRightPanel] = useState<'world' | 'analysis' | 'agent'>('world');
+  const handleRestoreHistorySession = useCallback(
+    async (session: HistorySessionItem) => {
+      if (!activeTabId) return;
+
+      // 尝试从后端拉取历史消息（优先 sessionId，其次 conversationId）
+      const idsToTry = Array.from(
+        new Set([session.sessionId, session.conversationId].filter(Boolean) as string[])
+      );
+
+      let messages: any[] = [];
+      let resolvedConversationId = session.conversationId || session.sessionId || '';
+
+      const loadLocalMessages = (id: string) => {
+        if (typeof window === 'undefined') return { messages: [], conversationId: resolvedConversationId };
+        try {
+          const stored = localStorage.getItem(`agent_conversation_${id}`);
+          if (!stored) return { messages: [], conversationId: resolvedConversationId };
+          const parsed = JSON.parse(stored);
+          return {
+            messages: Array.isArray(parsed.messages) ? parsed.messages : [],
+            conversationId: parsed.conversationId || resolvedConversationId
+          };
+        } catch (error) {
+          console.warn('[WorkDetailView] 读取本地会话失败:', error);
+          return { messages: [], conversationId: resolvedConversationId };
+        }
+      };
+      for (const id of idsToTry) {
+        try {
+          const resp = await agentApi.getSessionMessages(id, { order: 'asc', limit: 200 });
+          const rawMessages = Array.isArray(resp) ? resp : Array.isArray((resp as any)?.messages) ? (resp as any).messages : [];
+
+          messages = rawMessages.map((m: any) => ({
+            role: m.role === 'assistant' ? 'agent' : m.role,
+            content: m.content,
+            metadata: m.metadata,
+            timestamp: m.created_at || m.createdAt || new Date().toISOString()
+          }));
+
+          if (messages.length > 0 || idsToTry.length === 1) {
+            break;
+          }
+        } catch (error) {
+          console.warn('[WorkDetailView] 加载历史消息失败，尝试下一个 ID:', id, error);
+        }
+      }
+
+      // 后端为空时再尝试本地缓存
+      if (messages.length === 0) {
+        for (const id of idsToTry) {
+          const local = loadLocalMessages(id);
+          if (local.messages.length > 0) {
+            messages = local.messages;
+            resolvedConversationId = local.conversationId;
+            break;
+          }
+        }
+      }
+
+      const sessionId = session.sessionId;
+      const conversationId = resolvedConversationId;
+      const nowIso = new Date().toISOString();
+      const payload = {
+        id: sessionId,
+        conversationId,
+        messages,
+        createdAt: session.updatedAt || nowIso,
+        updatedAt: session.updatedAt || nowIso,
+        title: session.title || '历史会话',
+        workId,
+        chapterId: currentChapterId
+      };
+
+      try {
+        localStorage.setItem(`agent_conversation_${sessionId}`, JSON.stringify(payload));
+        const listKey = 'agent_conversation_sessions';
+        const storedList = localStorage.getItem(listKey);
+        const ids: string[] = storedList ? JSON.parse(storedList) : [];
+        const updatedIds = [sessionId, ...ids.filter((id) => id !== sessionId)];
+        localStorage.setItem(listKey, JSON.stringify(updatedIds));
+      } catch (error) {
+        console.warn('[WorkDetailView] 缓存历史会话失败:', error);
+      }
+
+      // 不覆盖当前标签，打开/切换到一个带历史会话的标签
+      attachSessionTab(sessionId, session.title || '历史会话', conversationId);
+      setShowHistoryPanel(false);
+      showToast('info', '已切换到历史会话，可继续对话');
+    },
+    [activeTabId, attachSessionTab, currentChapterId, showToast, workId]
+  );
+
+  // 默认打开 agent 面板
+  React.useEffect(() => {
+    if (workId) {
+      setRightSidebarType('agent');
+    }
+  }, [workId, setRightSidebarType]);
 
   // 导出对话框状态
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -312,12 +428,18 @@ const WorkDetailView: React.FC = () => {
         );
 
         // 保存到后端
-        await DataService.updateChapter(chapterData.id, updatedChapter);
+        if (chapterData.id) {
+          await DataService.updateChapter(chapterData.id, updatedChapter);
+        }
 
         showToast('success', '章节更新成功');
       }
     } catch (error) {
-      showToast('error', isNew ? '章节添加失败' : '章节更新失败');
+      const message =
+        !chapterData.id || chapterData.id.startsWith('temp-')
+          ? '章节添加失败'
+          : '章节更新失败';
+      showToast('error', message);
       console.error('Failed to save chapter:', error);
     }
   }, [workId, chapters, showToast]);
@@ -1149,73 +1271,51 @@ const WorkDetailView: React.FC = () => {
                 <ChevronLeft className="h-6 w-6" />
               </Button>
               <div className="writing-mode-vertical text-[11px] text-zinc-400 tracking-widest" style={{ writingMode: 'vertical-rl' }}>
-                {rightPanel === 'world' ? '世界观' : rightPanel === 'analysis' ? '概括' : 'AI'}
+                {rightSidebarType === 'worldview' ? '世界观' : rightSidebarType === 'summary' ? '概括' : 'AI'}
               </div>
             </div>
           ) : (
             <>
-              {/* 标签栏 */}
-              <div className="border-b border-zinc-100 px-2 py-2">
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setRightPanel('world')}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-[12px] text-center transition-all duration-200 ${
-                      rightPanel === 'world'
-                        ? 'bg-zinc-900 text-white shadow-sm'
-                        : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
-                    }`}
-                  >
-                    世界观
-                  </button>
-                  <button
-                    onClick={() => setRightPanel('analysis')}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-[12px] text-center transition-all duration-200 ${
-                      rightPanel === 'analysis'
-                        ? 'bg-zinc-900 text-white shadow-sm'
-                        : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
-                    }`}
-                  >
-                    概括
-                  </button>
-                  <button
-                    onClick={() => setRightPanel('agent')}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-[12px] text-center transition-all duration-200 ${
-                      rightPanel === 'agent'
-                        ? 'bg-zinc-900 text-white shadow-sm'
-                        : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
-                    }`}
-                  >
-                    AI
-                  </button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsRightCollapsed(true)}
-                    className="h-9 w-9 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-50 rounded-lg transition-all flex-shrink-0"
-                  >
-                    <ChevronRight className="h-6 w-6" />
-                  </Button>
-                </div>
-              </div>
+              {/* SessionTabBar */}
+              <SessionTabBar
+                tabs={tabs}
+                activeTabId={activeTabId}
+                onSwitchTab={switchTab}
+                onCreateTab={createTab}
+                onCloseTab={closeTab}
+                onOpenHistory={handleOpenHistory}
+              />
 
               {/* 内容区 */}
               <div className="flex-1 overflow-hidden">
-                {rightPanel === 'world' ? (
+                {rightSidebarType === 'worldview' ? (
                   <WorldviewPanel
                     workId={workId!}
                     worldData={worldData}
                   />
-                ) : rightPanel === 'analysis' ? (
+                ) : rightSidebarType === 'summary' ? (
                   <SummaryPanel
                     workId={workId!}
                     currentChapterId={currentChapterId}
                     onToast={showToast}
                   />
                 ) : (
-                  <AIPanel
-                    workId={workId!}
-                    chapterId={currentChapterId}
-                  />
+                  tabs.map((tab) => (
+                    <div
+                      key={tab.id}
+                      style={{
+                        display: tab.id === activeTabId ? 'block' : 'none',
+                        height: '100%'
+                      }}
+                    >
+                      <AIPanel
+                        workId={workId!}
+                        chapterId={currentChapterId}
+                        sessionId={tab.sessionId}
+                        onTitleChange={(title) => updateTabTitle(tab.id, title)}
+                      />
+                    </div>
+                  ))
                 )}
               </div>
             </>
@@ -1241,6 +1341,15 @@ const WorkDetailView: React.FC = () => {
           workId={workId!}
           workTitle={work.title}
           onClose={() => setShowExportDialog(false)}
+        />
+      )}
+
+      {showHistoryPanel && (
+        <HistoryPanel
+          workId={workId}
+          chapterId={currentChapterId}
+          onClose={handleCloseHistory}
+          onRestore={handleRestoreHistorySession}
         />
       )}
 

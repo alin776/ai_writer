@@ -17,6 +17,7 @@ type Entity =
   | (Relationship & { type: 'relationship' });
 
 interface TimelinePanelProps {
+  workId?: string;
   events: TimelineEvent[];
   chapters: ChapterAnchor[];
   characters: Character[];
@@ -24,16 +25,23 @@ interface TimelinePanelProps {
   settings: Setting[];
   relationships: Relationship[];
   onEventClick: (event: TimelineEvent) => void;
+  onAddEvent?: () => void;
+  onEditEvent?: (event: TimelineEvent) => void;
+  onDeleteEvent?: (eventId: string) => void;
 }
 
 export function TimelinePanel({
+  workId,
   events,
   chapters,
   characters,
   locations,
   settings,
   relationships,
-  onEventClick
+  onEventClick,
+  onAddEvent,
+  onEditEvent,
+  onDeleteEvent
 }: TimelinePanelProps) {
   // 状态管理
   const [searchQuery, setSearchQuery] = useState('');

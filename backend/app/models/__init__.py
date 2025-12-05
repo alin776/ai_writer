@@ -30,6 +30,8 @@ from app.models.credit_transaction import CreditTransaction
 from app.models.redeem_code import RedeemCode
 from app.models.user_invitation import UserInvitation
 from app.models.invitation_usage import InvitationUsage
+from app.models.agent_session import AgentSession
+from app.models.agent_session_message import AgentSessionMessage
 
 __all__ = [
     "User",
@@ -83,5 +85,7 @@ __all__ = [
     "CreditTransaction",
     "RedeemCode",
     "UserInvitation",
-    "InvitationUsage"
+    "InvitationUsage",
+    "AgentSession",
+    "AgentSessionMessage"
 ]

@@ -32,12 +32,12 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import FilePicker from '@/components/common/FilePicker';
-import { knowledgeApi } from '@/services/knowledgeApi';
+import { knowledgeApi, type KnowledgeItem as ApiKnowledgeItem } from '@/services/knowledgeApi';
 import { ToastContainer } from '@/components/ui/Toast';
 import { useToast } from '@/hooks/useToast';
 
 
-type SourceType = 'manual' | 'book_analysis' | 'ai_generated' | 'imported';
+type SourceType = 'manual' | 'book_analysis' | 'ai_generated' | 'imported' | 'text' | 'file' | 'url';
 type KnowledgeCategory = 'character' | 'worldview' | 'plot' | 'dialogue' | 'description' | 'technique' | 'reference' | 'other';
 
 const CATEGORY_OPTIONS: { value: KnowledgeCategory; label: string }[] = [
@@ -51,21 +51,10 @@ const CATEGORY_OPTIONS: { value: KnowledgeCategory; label: string }[] = [
   { value: 'other', label: '其他' },
 ];
 
-interface KnowledgeItem {
-  id: string;
-  title: string;
-  content?: string;
-  category: KnowledgeCategory;
-  source_type: SourceType;
-  tags: string[];
-  created_at: string;
-  updated_at: string;
-  chunk_count?: number;
-  summary?: string;
-  view_count?: number;
-  reference_count?: number;
-  extra_data?: Record<string, any>;
-}
+type KnowledgeItem = ApiKnowledgeItem & {
+  category?: KnowledgeCategory | string;
+  source_type?: SourceType;
+};
 
 const KnowledgeView: React.FC = () => {
   const [items, setItems] = useState<KnowledgeItem[]>([]);
@@ -205,7 +194,10 @@ const KnowledgeView: React.FC = () => {
     setFormTitle(item.title);
     setFormContent(item.content || '');
     setFormTags(item.tags.join(', '));
-    setFormCategory(item.category || 'other');
+    const nextCategory = CATEGORY_OPTIONS.some(opt => opt.value === item.category)
+      ? (item.category as KnowledgeCategory)
+      : 'other';
+    setFormCategory(nextCategory);
     setShowEditDialog(true);
   };
 

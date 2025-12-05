@@ -11,7 +11,8 @@ import type {
   PlanCreationRequest,
   PlanResponse,
   ApprovalResponse,
-  ApprovalActionRequest
+  ApprovalActionRequest,
+  HistorySessionItem
 } from '../types/agent';
 
 class AgentApiService {
@@ -78,6 +79,61 @@ class AgentApiService {
     }
   }
 
+  private normalizeHistorySession(session: any): HistorySessionItem | null {
+    if (!session) return null;
+
+    const conversationId =
+      session.conversation_id ??
+      session.conversationId ??
+      session.conversationid ??
+      session.conversationID;
+
+    const sessionId =
+      session.session_id ??
+      session.sessionId ??
+      session.id ??
+      conversationId ??
+      '';
+
+    const messageCount =
+      typeof session.message_count === 'number'
+        ? session.message_count
+        : typeof session.messageCount === 'number'
+          ? session.messageCount
+          : Array.isArray(session.messages)
+            ? session.messages.length
+            : 0;
+
+    const updatedAt =
+      session.updated_at ||
+      session.updatedAt ||
+      session.last_message_at ||
+      session.lastMessageAt ||
+      session.created_at ||
+      session.createdAt ||
+      new Date().toISOString();
+
+    const lastMessagePreview =
+      session.last_message_preview ??
+      session.lastMessagePreview ??
+      (Array.isArray(session.messages) && session.messages.length > 0
+        ? session.messages[session.messages.length - 1]?.content?.slice(0, 80)
+        : '');
+
+    return {
+      sessionId: sessionId || 'unknown-session',
+      title: session.title || '历史会话',
+      messageCount,
+      updatedAt,
+      archivedAt: session.archived_at ?? session.archivedAt ?? null,
+      lastMessagePreview,
+      conversationId: conversationId || undefined,
+      workId: session.work_id ?? session.workId,
+      chapterId: session.chapter_id ?? session.chapterId,
+      titleLocked: session.title_locked ?? session.titleLocked ?? false,
+    };
+  }
+
   /**
    * Agent对话
    */
@@ -92,25 +148,31 @@ class AgentApiService {
    * @param request 对话请求
    * @param callbacks 回调函数集合
    */
+
   async chatStream(
     request: AgentChatRequest,
     callbacks: {
-      // 共同回调
+      // ????
       onStart?: (conversationId: string) => void;
       onContent?: (chunk: string) => void;
       onStep?: (step: any) => void;
       onDone?: (metadata: any, suggestedActions: string[]) => void;
       onError?: (error: string) => void;
-      // Planning 模式回调
+      // Planning ????
       onPlan?: (plan: any) => void;
       onTaskStart?: (task: any) => void;
       onTaskProgress?: (progress: any) => void;
       onTaskDone?: (taskDone: any) => void;
-      // React 模式回调（新增）
+      // React ????
       onProgress?: (progress: any) => void;
       onToolCall?: (toolCall: any) => void;
-      onActivityComplete?: (activity: any) => void;  // ✅ 新增：活动完成回调
-      onApprovalRequest?: (approvalReq: any) => void;  // 🆕 编辑器确认请求回调
+      onActivityComplete?: (activity: any) => void;
+      onApprovalRequest?: (approvalReq: any) => void;
+      onReader?: (reader: ReadableStreamDefaultReader<Uint8Array>, controller?: AbortController) => void;
+    },
+    options?: {
+      signal?: AbortSignal;
+      controller?: AbortController;
     }
   ): Promise<void> {
     const token = this.getToken();
@@ -125,6 +187,7 @@ class AgentApiService {
           'Authorization': token ? `Bearer ${token}` : '',
         },
         body: JSON.stringify(request),
+        signal: options?.signal,
       });
 
       if (!response.ok) {
@@ -138,6 +201,8 @@ class AgentApiService {
         throw new Error('Response body is not readable');
       }
 
+      callbacks.onReader?.(reader, options?.controller);
+
       let buffer = '';
 
       while (true) {
@@ -147,12 +212,10 @@ class AgentApiService {
           break;
         }
 
-        // 解码数据块
         buffer += decoder.decode(value, { stream: true });
 
-        // 处理缓冲区中的所有完整事件
         const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // 保留不完整的行
+        buffer = lines.pop() || '';
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
@@ -160,12 +223,11 @@ class AgentApiService {
               const data = JSON.parse(line.substring(6));
 
               switch (data.type) {
-                // 共同事件
+                // ????
                 case 'start':
                   callbacks.onStart?.(data.conversation_id);
                   break;
                 case 'content':
-                  // 处理两种格式的 content
                   const content = typeof data.data === 'string'
                     ? data.data
                     : data.data?.content || data.data;
@@ -181,7 +243,7 @@ class AgentApiService {
                   callbacks.onError?.(data.error);
                   break;
 
-                // Planning 模式事件
+                // Planning ????
                 case 'plan':
                   callbacks.onPlan?.(data.data);
                   break;
@@ -195,21 +257,17 @@ class AgentApiService {
                   callbacks.onTaskDone?.(data.data);
                   break;
 
-                // React 模式事件（新增）
+                // React ????
                 case 'progress':
-                  console.log('[API] Progress:', data.data.step, '-', data.data.description);
                   callbacks.onProgress?.(data.data);
                   break;
                 case 'tool_call':
-                  console.log('[API] 工具调用:', data.data.tool);
                   callbacks.onToolCall?.(data.data);
                   break;
-                case 'activity_complete':  // ✅ 新增：处理活动完成事件
-                  console.log('[API] Activity完成:', data.data.step, `(${data.data.elapsed_time?.toFixed(1)}s)`);
+                case 'activity_complete':
                   callbacks.onActivityComplete?.(data.data);
                   break;
-                case 'approval_request':  // 🆕 编辑器确认请求
-                  console.log('[API] 确认请求:', data.data.request_id, data.data.action_type);
+                case 'approval_request':
                   callbacks.onApprovalRequest?.(data.data);
                   break;
               }
@@ -224,6 +282,122 @@ class AgentApiService {
       callbacks.onError?.(error.message || 'Stream connection failed');
       throw error;
     }
+  }
+  async createSession(payload: { title?: string; work_id?: string; chapter_id?: string }): Promise<{ session_id: string; title?: string; conversation_id?: string; created_at?: string }> {
+    const response = await this.client.post('/sessions', payload);
+    return response.data;
+  }
+
+  /**
+   * 获取会话列表（真实后端）
+   */
+  async getSessions(params: { work_id?: string; chapter_id?: string; limit?: number } = {}): Promise<{ sessions: any[] }> {
+    const response = await this.client.get('/sessions', { params });
+    return response.data;
+  }
+
+  /**
+   * 更新会话标题
+   */
+  async updateSessionTitle(sessionId: string, title: string, titleLocked: boolean = true): Promise<any> {
+    const response = await this.client.patch(`/sessions/${sessionId}`, { title, title_locked: titleLocked });
+    return response.data;
+  }
+
+  /**
+   * 删除会话
+   */
+  async deleteSession(sessionId: string): Promise<void> {
+    await this.client.delete(`/sessions/${sessionId}`);
+  }
+
+  /**
+   * 获取会话消息列表
+   */
+  async getSessionMessages(
+    sessionId: string,
+    params: { limit?: number; offset?: number; order?: 'asc' | 'desc' } = {}
+  ): Promise<any[]> {
+    const response = await this.client.get(`/sessions/${sessionId}/messages`, { params });
+    return response.data;
+  }
+
+  /**
+   * 获取单个会话详情（含消息，如果后端支持）
+   */
+  async getSessionDetail(sessionId: string): Promise<any> {
+    const response = await this.client.get(`/sessions/${sessionId}`);
+    return response.data;
+  }
+
+  /**
+   * 获取历史会话列表（先调后端，失败再本地兜底）
+   */
+  async getHistorySessions(params: { workId?: string; chapterId?: string; limit?: number } = {}) {
+    // 优先尝试真实后端
+    try {
+      const resp = await this.getSessions({
+        work_id: params.workId,
+        chapter_id: params.chapterId,
+        limit: params.limit,
+      });
+      const sessions = Array.isArray(resp?.sessions)
+        ? resp.sessions
+          .map((s) => this.normalizeHistorySession(s))
+          .filter((s): s is HistorySessionItem => Boolean(s))
+        : [];
+      return { sessions };
+    } catch (err) {
+      console.warn('[AgentApi] getSessions failed, fallback to local cache:', err);
+    }
+
+    // 本地兜底：读取 useConversationPersistence 写入的 localStorage
+    if (typeof window === 'undefined') {
+      return { sessions: [] };
+    }
+
+    const {
+      workId,
+      chapterId,
+      limit = 50,
+    } = params;
+
+    const STORAGE_KEY_PREFIX = 'agent_conversation_';
+    const SESSIONS_LIST_KEY = 'agent_conversation_sessions';
+
+    const loadSessionIds = (): string[] => {
+      try {
+        const stored = localStorage.getItem(SESSIONS_LIST_KEY);
+        return stored ? JSON.parse(stored) : [];
+      } catch {
+        return [];
+      }
+    };
+
+    const loadSession = (sessionId: string) => {
+      try {
+        const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}${sessionId}`);
+        return stored ? JSON.parse(stored) : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const sessionIds = loadSessionIds();
+    const sessions = sessionIds
+      .map((id) => loadSession(id))
+      .filter(Boolean)
+      .map((s) => this.normalizeHistorySession(s))
+      .filter((s): s is HistorySessionItem => Boolean(s))
+      .filter((s) => {
+        if (workId && s.workId && s.workId !== workId) return false;
+        if (chapterId && s.chapterId && s.chapterId !== chapterId) return false;
+        return true;
+      })
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, limit);
+
+    return { sessions };
   }
 
 

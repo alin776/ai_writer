@@ -1,155 +1,104 @@
-/**
- * useConversationPersistence - 对话持久化管理Hook
- *
- * 功能:
- * - 保存对话到localStorage
- * - 恢复历史对话
- * - 管理多个对话会话
- * - 自动保存/加载
- */
-
-import { useEffect, useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Message } from '@/types/agent';
 
-interface ConversationSession {
+export interface ConversationSession {
   id: string;
-  conversationId: string;  // 后端的conversation_id
+  conversationId: string;
   messages: Message[];
   createdAt: string;
   updatedAt: string;
-  title: string;  // 对话标题（从第一条用户消息生成）
+  title: string;
   mode?: 'planning' | 'react';
   workId?: string;
   chapterId?: string;
 }
 
 interface UseConversationPersistenceOptions {
-  sessionId?: string;  // 当前会话ID，如果为空则创建新会话
-  autoSave?: boolean;  // 是否自动保存（默认true）
-  maxSessions?: number;  // 最多保留多少个会话（默认10）
-  workId?: string;  // 🆕 作品ID（用于会话隔离）
-  chapterId?: string;  // 🆕 章节ID（用于会话隔离）
-  contextKey?: string;  // 🆕 自定义上下文键（优先级高于workId+chapterId）
+  sessionId?: string;
+  autoSave?: boolean;
+  maxSessions?: number;
+  workId?: string;
+  chapterId?: string;
+  contextKey?: string;
+  useBackend?: boolean; // true 时优先使用后端会话创建/列表
 }
 
 interface UseConversationPersistenceReturn {
-  // 当前会话
   currentSession: ConversationSession | null;
   sessionId: string;
-
-  // 会话管理
   saveSession: (messages: Message[], conversationId?: string, metadata?: Partial<ConversationSession>) => void;
   loadSession: (sessionId: string) => ConversationSession | null;
   deleteSession: (sessionId: string) => void;
   clearCurrentSession: () => void;
-
-  // 会话列表
   getAllSessions: () => ConversationSession[];
-  createNewSession: (metadata?: Partial<ConversationSession>) => string;
-
-  // 标题管理
+  createNewSession: (metadata?: Partial<ConversationSession>) => Promise<string>;
+  getSessionsOrder: () => string[];
+  updateSessionsOrder: (order: string[]) => void;
+  insertSessionAfter: (newSessionId: string, afterSessionId: string) => void;
   updateSessionTitle: (sessionId: string, title: string) => void;
 }
 
 const STORAGE_KEY_PREFIX = 'agent_conversation_';
 const SESSIONS_LIST_KEY = 'agent_conversation_sessions';
-const CONTEXT_SESSION_MAP_KEY = 'agent_context_session_map';  // 🆕 上下文到会话ID的映射
+const SESSIONS_ORDER_KEY = 'agent_sessions_order';
+const CONTEXT_SESSION_MAP_KEY = 'agent_context_session_map';
 const DEFAULT_MAX_SESSIONS = 10;
+const DEFAULT_TITLE = '新会话';
 
-/**
- * 生成会话ID
- */
 function generateSessionId(): string {
-  return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  return `session_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
-/**
- * 🆕 生成上下文键
- */
 function generateContextKey(workId?: string, chapterId?: string): string | null {
   if (chapterId) return `chapter_${chapterId}`;
   if (workId) return `work_${workId}`;
   return null;
 }
 
-/**
- * 从消息生成标题（取第一条用户消息的前30个字符）
- */
 function generateTitleFromMessages(messages: Message[]): string {
-  const firstUserMessage = messages.find(m => m.role === 'user');
-  if (!firstUserMessage) return '新对话';
+  const firstUserMessage = messages.find((m) => m.role === 'user');
+  if (!firstUserMessage) return DEFAULT_TITLE;
 
   const content = firstUserMessage.content.trim();
-  if (content.length <= 30) return content;
-  return content.substring(0, 30) + '...';
+  return content.length <= 30 ? content : `${content.substring(0, 30)}...`;
 }
 
-/**
- * 对话持久化Hook
- */
 export function useConversationPersistence(
   options: UseConversationPersistenceOptions = {}
 ): UseConversationPersistenceReturn {
   const {
     sessionId: initialSessionId,
-    autoSave = true,
     maxSessions = DEFAULT_MAX_SESSIONS,
     workId,
     chapterId,
-    contextKey: customContextKey
+    contextKey: customContextKey,
+    useBackend = false
   } = options;
 
-  // 🆕 计算上下文键
   const contextKey = customContextKey || generateContextKey(workId, chapterId);
 
-  // 🆕 根据上下文键查找或创建会话ID
   const getOrCreateSessionId = useCallback((): string => {
     if (initialSessionId) return initialSessionId;
 
     if (contextKey) {
-      // 从映射表中查找已有的会话ID
       try {
         const mapStr = localStorage.getItem(CONTEXT_SESSION_MAP_KEY);
         const map: Record<string, string> = mapStr ? JSON.parse(mapStr) : {};
-
-        if (map[contextKey]) {
-          // 验证会话是否存在
-          const session = localStorage.getItem(`${STORAGE_KEY_PREFIX}${map[contextKey]}`);
-          if (session) {
-            console.log(`[Persistence] 找到${contextKey}的会话:`, map[contextKey]);
-            return map[contextKey];
-          }
+        const mappedId = map[contextKey];
+        if (mappedId && localStorage.getItem(`${STORAGE_KEY_PREFIX}${mappedId}`)) {
+          return mappedId;
         }
       } catch (error) {
-        console.error('[Persistence] Failed to load context map:', error);
+        console.error('[Persistence] Failed to read context map:', error);
       }
     }
 
-    // 创建新会话ID
     return generateSessionId();
-  }, [initialSessionId, contextKey]);
+  }, [contextKey, initialSessionId]);
 
-  // 当前会话ID（使用useState以便能触发更新）
   const [sessionId, setSessionId] = useState<string>(getOrCreateSessionId());
   const [currentSession, setCurrentSession] = useState<ConversationSession | null>(null);
 
-  /**
-   * 🆕 监听contextKey变化，切换会话
-   */
-  useEffect(() => {
-    const newSessionId = getOrCreateSessionId();
-    setSessionId(prev => {
-      if (prev !== newSessionId) {
-        console.log(`[Persistence] 上下文变化，切换会话: ${prev} -> ${newSessionId}`);
-        return newSessionId;
-      }
-      return prev;
-    });
-  }, [contextKey, getOrCreateSessionId]); // 只监听contextKey和函数变化
-
-  /**
-   * 获取所有会话ID列表
-   */
   const getSessionsList = useCallback((): string[] => {
     try {
       const stored = localStorage.getItem(SESSIONS_LIST_KEY);
@@ -160,215 +109,257 @@ export function useConversationPersistence(
     }
   }, []);
 
-  /**
-   * 更新会话列表
-   */
-  const updateSessionsList = useCallback((sessionIds: string[]) => {
-    try {
-      // 限制会话数量
-      const limited = sessionIds.slice(0, maxSessions);
-      localStorage.setItem(SESSIONS_LIST_KEY, JSON.stringify(limited));
-    } catch (error) {
-      console.error('[Persistence] Failed to update sessions list:', error);
-    }
-  }, [maxSessions]);
+  const updateSessionsList = useCallback(
+    (sessionIds: string[]) => {
+      try {
+        const limited = sessionIds.slice(0, maxSessions);
+        localStorage.setItem(SESSIONS_LIST_KEY, JSON.stringify(limited));
+      } catch (error) {
+        console.error('[Persistence] Failed to update sessions list:', error);
+      }
+    },
+    [maxSessions]
+  );
 
-  /**
-   * 从localStorage加载会话
-   */
-  const loadSession = useCallback((sessionId: string): ConversationSession | null => {
+  const loadSession = useCallback((targetSessionId: string): ConversationSession | null => {
     try {
-      const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}${sessionId}`);
+      const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}${targetSessionId}`);
       if (!stored) return null;
 
       const session = JSON.parse(stored) as ConversationSession;
-      console.log(`[Persistence] Loaded session ${sessionId}:`, session.messages.length, 'messages');
       return session;
     } catch (error) {
-      console.error(`[Persistence] Failed to load session ${sessionId}:`, error);
+      console.error(`[Persistence] Failed to load session ${targetSessionId}:`, error);
       return null;
     }
   }, []);
 
-  /**
-   * 保存会话到localStorage
-   */
-  const saveSession = useCallback((
-    messages: Message[],
-    conversationId?: string,
-    metadata?: Partial<ConversationSession>
-  ) => {
-    try {
-      const now = new Date().toISOString();
+  const saveSession = useCallback(
+    (messages: Message[], conversationId?: string, metadata?: Partial<ConversationSession>) => {
+      try {
+        const now = new Date().toISOString();
+        const existing = currentSession;
 
-      // 创建或更新会话
-      const session: ConversationSession = {
-        id: sessionId,
-        conversationId: conversationId || currentSession?.conversationId || '',
-        messages,
-        createdAt: currentSession?.createdAt || now,
-        updatedAt: now,
-        title: metadata?.title || currentSession?.title || generateTitleFromMessages(messages),
-        mode: metadata?.mode || currentSession?.mode,
-        workId: metadata?.workId || currentSession?.workId,
-        chapterId: metadata?.chapterId || currentSession?.chapterId,
-      };
+        const session: ConversationSession = {
+          id: sessionId,
+          conversationId: conversationId || existing?.conversationId || '',
+          messages,
+          createdAt: existing?.createdAt || now,
+          updatedAt: now,
+          title: metadata?.title || existing?.title || generateTitleFromMessages(messages),
+          mode: metadata?.mode ?? existing?.mode,
+          workId: metadata?.workId ?? existing?.workId,
+          chapterId: metadata?.chapterId ?? existing?.chapterId
+        };
 
-      // 保存会话数据
-      localStorage.setItem(`${STORAGE_KEY_PREFIX}${sessionId}`, JSON.stringify(session));
-      setCurrentSession(session);  // 🔧 使用setState
+        localStorage.setItem(`${STORAGE_KEY_PREFIX}${sessionId}`, JSON.stringify(session));
+        setCurrentSession(session);
 
-      // 🆕 保存上下文到会话ID的映射
-      if (contextKey) {
-        try {
-          const mapStr = localStorage.getItem(CONTEXT_SESSION_MAP_KEY);
-          const map: Record<string, string> = mapStr ? JSON.parse(mapStr) : {};
-          map[contextKey] = sessionId;
-          localStorage.setItem(CONTEXT_SESSION_MAP_KEY, JSON.stringify(map));
-        } catch (error) {
-          console.error('[Persistence] Failed to save context map:', error);
+        if (contextKey) {
+          try {
+            const mapStr = localStorage.getItem(CONTEXT_SESSION_MAP_KEY);
+            const map: Record<string, string> = mapStr ? JSON.parse(mapStr) : {};
+            map[contextKey] = sessionId;
+            localStorage.setItem(CONTEXT_SESSION_MAP_KEY, JSON.stringify(map));
+          } catch (error) {
+            console.error('[Persistence] Failed to save context map:', error);
+          }
         }
-      }
 
-      // 更新会话列表（将当前会话移到最前面）
-      const sessions = getSessionsList();
-      const updatedSessions = [
-        sessionId,
-        ...sessions.filter(id => id !== sessionId)
-      ];
-      updateSessionsList(updatedSessions);
-
-      console.log(`[Persistence] Saved session ${sessionId}${contextKey ? ` [${contextKey}]` : ''}:`, messages.length, 'messages');
-    } catch (error) {
-      console.error('[Persistence] Failed to save session:', error);
-
-      // 如果是存储空间不足错误，尝试清理旧会话
-      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-        console.warn('[Persistence] Storage quota exceeded, cleaning old sessions...');
         const sessions = getSessionsList();
-        if (sessions.length > 0) {
-          // 删除最旧的会话
-          const oldestSession = sessions[sessions.length - 1];
-          deleteSession(oldestSession);
-          // 重试保存
-          saveSession(messages, conversationId, metadata);
-        }
+        const updatedSessions = [sessionId, ...sessions.filter((id) => id !== sessionId)];
+        updateSessionsList(updatedSessions);
+      } catch (error) {
+        console.error('[Persistence] Failed to save session:', error);
       }
-    }
-  }, [getSessionsList, updateSessionsList]);
+    },
+    [contextKey, currentSession, getSessionsList, sessionId, updateSessionsList]
+  );
 
-  /**
-   * 删除会话
-   */
-  const deleteSession = useCallback((sessionId: string) => {
-    try {
-      localStorage.removeItem(`${STORAGE_KEY_PREFIX}${sessionId}`);
+  const deleteSession = useCallback(
+    (targetSessionId: string) => {
+      try {
+        localStorage.removeItem(`${STORAGE_KEY_PREFIX}${targetSessionId}`);
+        const sessions = getSessionsList();
+        const updatedSessions = sessions.filter((id) => id !== targetSessionId);
+        updateSessionsList(updatedSessions);
+      } catch (error) {
+        console.error(`[Persistence] Failed to delete session ${targetSessionId}:`, error);
+      }
+    },
+    [getSessionsList, updateSessionsList]
+  );
 
-      // 从会话列表中移除
-      const sessions = getSessionsList();
-      const updatedSessions = sessions.filter(id => id !== sessionId);
-      updateSessionsList(updatedSessions);
-
-      console.log(`[Persistence] Deleted session ${sessionId}`);
-    } catch (error) {
-      console.error(`[Persistence] Failed to delete session ${sessionId}:`, error);
-    }
-  }, [getSessionsList, updateSessionsList]);
-
-  /**
-   * 清空当前会话（但不删除）
-   */
   const clearCurrentSession = useCallback(() => {
     deleteSession(sessionId);
-
-    // 创建新会话
     const newSessionId = generateSessionId();
-    setSessionId(newSessionId);  // 🔧 使用setState
-    setCurrentSession(null);  // 🔧 使用setState
-
-    console.log(`[Persistence] Cleared session ${sessionId}, new session: ${newSessionId}`);
+    setSessionId(newSessionId);
+    setCurrentSession(null);
   }, [deleteSession, sessionId]);
 
-  /**
-   * 获取所有会话（按时间倒序）
-   */
   const getAllSessions = useCallback((): ConversationSession[] => {
     const sessionIds = getSessionsList();
     const sessions: ConversationSession[] = [];
 
-    for (const sessionId of sessionIds) {
-      const session = loadSession(sessionId);
-      if (session) {
-        sessions.push(session);
-      }
+    for (const id of sessionIds) {
+      const session = loadSession(id);
+      if (session) sessions.push(session);
     }
 
-    // 按更新时间倒序排序
-    return sessions.sort((a, b) =>
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    return sessions.sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
   }, [getSessionsList, loadSession]);
 
-  /**
-   * 创建新会话
-   */
-  const createNewSession = useCallback((metadata?: Partial<ConversationSession>): string => {
-    const newSessionId = generateSessionId();
-    setSessionId(newSessionId);  // 🔧 使用setState
-    setCurrentSession(null);  // 🔧 使用setState
+  const createNewSession = useCallback(
+    async (metadata?: Partial<ConversationSession>): Promise<string> => {
+      // 后端模式：创建真实会话并用返回的 session_id
+      if (useBackend) {
+        try {
+          const resp = await import('@/services/agentApi').then(m => m.agentApi.createSession({
+            title: metadata?.title,
+            work_id: metadata?.workId || workId,
+            chapter_id: metadata?.chapterId || chapterId
+          }));
+          const newId = resp.session_id;
+          setSessionId(newId);
+          setCurrentSession(null);
+          const now = new Date().toISOString();
+          localStorage.setItem(
+            `${STORAGE_KEY_PREFIX}${newId}`,
+            JSON.stringify({
+              id: newId,
+              conversationId: resp.conversation_id || '',
+              messages: [],
+              createdAt: resp.created_at || now,
+              updatedAt: resp.created_at || now,
+              title: resp.title || metadata?.title || DEFAULT_TITLE,
+              workId: metadata?.workId || workId,
+              chapterId: metadata?.chapterId || chapterId
+            } as ConversationSession)
+          );
+          const sessions = getSessionsList();
+          updateSessionsList([newId, ...sessions]);
+          return newId;
+        } catch (error) {
+          console.warn('[Persistence] createSession failed, fallback to local mode:', error);
+        }
+      }
 
-    // 如果提供了元数据，保存空会话
-    if (metadata) {
-      saveSession([], undefined, metadata);
+      // 本地模式
+      const newSessionId = generateSessionId();
+      setSessionId(newSessionId);
+      setCurrentSession(null);
+
+      if (metadata || useBackend) {
+        localStorage.setItem(
+          `${STORAGE_KEY_PREFIX}${newSessionId}`,
+          JSON.stringify({
+            id: newSessionId,
+            conversationId: '',
+            messages: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            title: metadata?.title || DEFAULT_TITLE,
+            mode: metadata?.mode,
+            workId: metadata?.workId || workId,
+            chapterId: metadata?.chapterId || chapterId
+          } as ConversationSession)
+        );
+      }
+
+      const sessions = getSessionsList();
+      updateSessionsList([newSessionId, ...sessions]);
+      return newSessionId;
+    },
+    [chapterId, getSessionsList, updateSessionsList, useBackend, workId]
+  );
+
+  const updateSessionTitle = useCallback(
+    (targetSessionId: string, title: string) => {
+      const session = loadSession(targetSessionId);
+      if (!session) return;
+
+      const updated: ConversationSession = { ...session, title, updatedAt: new Date().toISOString() };
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}${targetSessionId}`, JSON.stringify(updated));
+
+      if (targetSessionId === sessionId) {
+        setCurrentSession(updated);
+      }
+    },
+    [loadSession, sessionId]
+  );
+
+  const getSessionsOrder = useCallback((): string[] => {
+    try {
+      const stored = localStorage.getItem(SESSIONS_ORDER_KEY);
+      if (!stored) return [];
+
+      const order: string[] = JSON.parse(stored);
+      const validSessions = new Set(getAllSessions().map((s) => s.id));
+      const validOrder = order.filter((id) => validSessions.has(id));
+      const missing = Array.from(validSessions).filter((id) => !validOrder.includes(id));
+      const finalOrder = [...validOrder, ...missing];
+
+      if (JSON.stringify(order) !== JSON.stringify(finalOrder)) {
+        localStorage.setItem(SESSIONS_ORDER_KEY, JSON.stringify(finalOrder));
+      }
+
+      return finalOrder;
+    } catch (error) {
+      console.error('[Persistence] Failed to load sessions order:', error);
+      return [];
     }
+  }, [getAllSessions]);
 
-    console.log(`[Persistence] Created new session: ${newSessionId}`);
-    return newSessionId;
-  }, [saveSession]);
-
-  /**
-   * 更新会话标题
-   */
-  const updateSessionTitle = useCallback((targetSessionId: string, title: string) => {
-    const session = loadSession(targetSessionId);
-    if (!session) return;
-
-    session.title = title;
-    session.updatedAt = new Date().toISOString();
-
-    localStorage.setItem(`${STORAGE_KEY_PREFIX}${targetSessionId}`, JSON.stringify(session));
-
-    if (targetSessionId === sessionId) {
-      setCurrentSession(session);  // 🔧 使用setState
+  const updateSessionsOrder = useCallback((order: string[]) => {
+    try {
+      localStorage.setItem(SESSIONS_ORDER_KEY, JSON.stringify(order));
+    } catch (error) {
+      console.error('[Persistence] Failed to update sessions order:', error);
     }
+  }, []);
 
-    console.log(`[Persistence] Updated session title: ${targetSessionId} -> ${title}`);
-  }, [loadSession, sessionId]);
+  const insertSessionAfter = useCallback(
+    (newSessionId: string, afterSessionId: string) => {
+      const order = getSessionsOrder();
+      const index = order.indexOf(afterSessionId);
+      if (index === -1) {
+        order.push(newSessionId);
+      } else {
+        order.splice(index + 1, 0, newSessionId);
+      }
+      updateSessionsOrder(order);
+    },
+    [getSessionsOrder, updateSessionsOrder]
+  );
 
-  /**
-   * 初始化：加载当前会话
-   */
+  useEffect(() => {
+    const newSessionId = getOrCreateSessionId();
+    setSessionId((prev) => (prev !== newSessionId ? newSessionId : prev));
+  }, [getOrCreateSessionId]);
+
   useEffect(() => {
     const session = loadSession(sessionId);
-
     if (session) {
-      setCurrentSession(session);  // 🔧 使用setState
-      console.log(`[Persistence] Restored session ${sessionId}:`, session.messages.length, 'messages');
+      setCurrentSession(session);
     } else {
-      setCurrentSession(null);  // 🔧 使用setState
-      console.log(`[Persistence] Starting new session: ${sessionId}`);
+      setCurrentSession(null);
     }
-  }, [sessionId, loadSession]);  // 🔧 添加sessionId依赖，以便切换章节时重新加载
+  }, [sessionId, loadSession]);
 
   return {
-    currentSession,  // 🔧 直接返回state
-    sessionId,  // 🔧 直接返回state
+    currentSession,
+    sessionId,
     saveSession,
     loadSession,
     deleteSession,
     clearCurrentSession,
     getAllSessions,
     createNewSession,
-    updateSessionTitle,
+    getSessionsOrder,
+    updateSessionsOrder,
+    insertSessionAfter,
+    updateSessionTitle
   };
 }

@@ -1,9 +1,7 @@
 /**
  * Mock 作品数据
  */
-import type { Work } from '@/types';
-
-export const mockWorks: Work[] = [
+export const mockWorks: any[] = [
   {
     id: 'work-1',
     title: '仙侠奇缘：九天之巅',

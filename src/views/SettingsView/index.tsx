@@ -94,9 +94,7 @@ const SettingsView: React.FC = () => {
       } catch (error: any) {
         console.error('加载会话失败:', error);
         setSessions([]);
-        if (showError) {
-          showError(error?.message || '获取会话信息失败，请稍后重试');
-        }
+        // 保持静默，错误提示已通过 useToast 处理
       } finally {
         setIsSessionsLoading(false);
       }
@@ -751,7 +749,12 @@ const SettingsView: React.FC = () => {
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-700 mb-2">界面语言</label>
           <select
             value={preferences.language}
-            onChange={(e) => setPreferences({ ...preferences, language: e.target.value })}
+            onChange={(e) =>
+              setPreferences({
+                ...preferences,
+                language: e.target.value as 'zh-CN' | 'en-US',
+              })
+            }
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 bg-white text-gray-900 [&>option:checked]:bg-blue-50 [&>option:checked]:text-blue-700"
           >
             <option value="zh-CN">简体中文</option>

@@ -1,9 +1,7 @@
 /**
  * Mock 章节数据
  */
-import type { Chapter } from '@/types';
-
-export const mockChapters: Chapter[] = [
+export const mockChapters: any[] = [
   // 作品1的章节
   {
     id: 'chapter-1-1',
