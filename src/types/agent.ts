@@ -190,6 +190,8 @@ export interface ChatInputProps {
   maxLength?: number;
   mode: 'planning' | 'react';
   onModeChange: (mode: 'planning' | 'react') => void;
+  isLoading?: boolean;
+  onStop?: () => void;
 }
 
 export interface AgentMessageProps {

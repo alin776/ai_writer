@@ -68,7 +68,7 @@ export default function ModeSelector({
         className={`
           inline-flex items-center gap-2 rounded-full
           border text-sm font-medium transition-all shadow-sm
-          ${compact ? 'px-3 py-2 h-10' : 'px-3.5 py-2.5 h-11'}
+          ${compact ? 'px-2.5 py-1.5 h-9' : 'px-3.5 py-2.5 h-11'}
           ${isOpen ? 'border-primary-200 bg-primary-50/80' : 'border-gray-200 bg-white/90 hover:border-primary-200 hover:bg-primary-50/70'}
           ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
         `}
@@ -77,9 +77,9 @@ export default function ModeSelector({
         aria-expanded={isOpen}
       >
         <span
-          className={`flex items-center justify-center ${compact ? 'w-7 h-7' : 'w-8 h-8'} rounded-full ${MODE_CONFIG[mode].badgeClass}`}
+          className={`flex items-center justify-center ${compact ? 'w-6.5 h-6.5' : 'w-8 h-8'} rounded-full ${MODE_CONFIG[mode].badgeClass}`}
         >
-          <CurrentIcon className="w-4 h-4 text-current" />
+          <CurrentIcon className={`${compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-current`} />
         </span>
         <span className="text-gray-900">{MODE_CONFIG[mode].label}</span>
         <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />

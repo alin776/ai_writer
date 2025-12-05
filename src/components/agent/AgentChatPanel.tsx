@@ -118,7 +118,8 @@ function TabContent({ workId, chapterId, sessionId, initialMessage, onTitleChang
     currentTaskId,
     activities,
     progressData,
-    clearMessages
+    clearMessages,
+    stopStreaming
   } = useAgentChat({ workId, chapterId, sessionId });
 
   const [mode, setMode] = useState<AgentMode>('planning');
@@ -253,6 +254,8 @@ function TabContent({ workId, chapterId, sessionId, initialMessage, onTitleChang
           placeholder="试试：帮我写第三章..."
           mode={mode}
           onModeChange={setMode}
+          isLoading={isLoading}
+          onStop={stopStreaming}
         />
       </div>
 

@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useRef, KeyboardEvent } from 'react';
+import { Square, Send } from 'lucide-react';
 import ModeSelector, { type AgentMode } from './ModeSelector';
 
 interface ChatInputProps {
@@ -19,6 +20,8 @@ interface ChatInputProps {
   maxLength?: number;
   mode: AgentMode;
   onModeChange: (mode: AgentMode) => void;
+  isLoading?: boolean;
+  onStop?: () => void;
 }
 
 export default function ChatInput({
@@ -28,6 +31,8 @@ export default function ChatInput({
   maxLength = 2000,
   mode,
   onModeChange,
+  isLoading = false,
+  onStop,
 }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [showContext, setShowContext] = useState(false);
@@ -85,6 +90,10 @@ export default function ChatInput({
   const charCount = message.length;
   const isNearLimit = charCount > maxLength * 0.8;
   const isOverLimit = charCount > maxLength;
+  const hasMessage = !!message.trim();
+  const isSendDisabled = disabled || !hasMessage || isOverLimit;
+  const showStop = isLoading && !!onStop;
+  const showSend = hasMessage && !showStop;
 
   return (
     <div className="chat-input-wrapper space-y-2">
@@ -121,7 +130,7 @@ export default function ChatInput({
             onKeyDown={handleKeyDown}
             disabled={disabled}
             placeholder={placeholder}
-            className={`w-full px-1 py-1 pr-16 text-sm min-h-[72px] resize-none bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-primary-200 ${
+            className={`w-full px-1 py-1 pr-16 text-sm min-h-[72px] resize-none bg-transparent border-none focus:outline-none focus-visible:outline-none focus:ring-0 ${
               disabled ? 'text-gray-400 cursor-not-allowed' : 'text-gray-800'
             } ${isOverLimit ? 'focus:ring-red-400' : ''}`}
             rows={3}
@@ -167,18 +176,25 @@ export default function ChatInput({
               上下文
             </button>
 
-            {/* 发送按钮 */}
-            <button
-              onClick={handleSend}
-              disabled={disabled || !message.trim() || isOverLimit}
-              className={`px-4 py-2 rounded-full font-medium transition-all text-sm ${
-                disabled || !message.trim() || isOverLimit
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-primary-600 text-white hover:bg-primary-700 active:scale-95 shadow-sm'
-              }`}
-            >
-              {disabled ? '...等待' : '发送'}
-            </button>
+            {/* 发送 / 停止按钮（有文字或正在生成才显示） */}
+            {showStop ? (
+              <button
+                onClick={onStop}
+                className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-800 flex items-center justify-center shadow-sm border border-gray-200 transition-colors"
+                aria-label="停止对话"
+              >
+                <Square className="w-4 h-4" strokeWidth={2.5} />
+              </button>
+            ) : showSend ? (
+              <button
+                onClick={handleSend}
+                disabled={isSendDisabled}
+                className="w-10 h-10 rounded-full transition-all flex items-center justify-center bg-gray-900 text-white hover:bg-gray-800 active:scale-95 shadow-sm"
+                aria-label="发送"
+              >
+                <Send className="w-4 h-4" strokeWidth={2.4} />
+              </button>
+            ) : null}
           </div>
         </div>
 

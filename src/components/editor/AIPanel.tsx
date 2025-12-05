@@ -1,7 +1,7 @@
 ﻿import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Bot, Send, Loader2 } from 'lucide-react';
+import { Bot, Send, Loader2, Square } from 'lucide-react';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import type { AgentChatRequest } from '../../types/agent';
 import type { AgentMode } from '../agent/ModeSelector';
@@ -459,7 +459,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSend()}
             placeholder="输入问题或指令..."
-            className="w-full h-12 text-[12px] border-none focus-visible:ring-1 focus-visible:ring-primary-200 bg-transparent rounded-xl text-gray-800"
+            className="w-full h-12 text-[12px] border-none focus-visible:ring-0 focus:outline-none bg-transparent rounded-xl text-gray-800"
             disabled={isLoading}
           />
         </div>
@@ -474,14 +474,24 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
           />
 
           <div className="flex items-center gap-1.5">
-            <Button
-              onClick={isLoading ? handleStop : handleSend}
-              disabled={!isLoading && !inputValue.trim()}
-              className="h-10 px-3 bg-primary-600 hover:bg-primary-700 transition-all disabled:opacity-50"
-              aria-label={isLoading ? '停止生成' : '发送'}
-            >
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            </Button>
+            {isLoading ? (
+              <button
+                onClick={handleStop}
+                className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-800 flex items-center justify-center shadow-sm border border-gray-200 transition-colors"
+                aria-label="停止生成"
+              >
+                <Square className="w-4 h-4" strokeWidth={2.5} />
+              </button>
+            ) : inputValue.trim() ? (
+              <button
+                onClick={handleSend}
+                disabled={!inputValue.trim()}
+                className="w-10 h-10 rounded-full transition-all flex items-center justify-center bg-gray-900 text-white hover:bg-gray-800 active:scale-95 shadow-sm"
+                aria-label="发送"
+              >
+                <Send className="h-4 w-4" strokeWidth={2.4} />
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
