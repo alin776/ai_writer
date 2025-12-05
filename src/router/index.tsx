@@ -197,7 +197,7 @@ export const router = createBrowserRouter([
       },
 
       /**
-       * AI 指纹消融路由
+       * AI去痕路由
        */
       {
         path: '/humanize',

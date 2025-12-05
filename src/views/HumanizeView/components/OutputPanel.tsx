@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import Button from '@/components/common/Button';
-import { Check, X, Copy, RotateCcw, Sparkles } from 'lucide-react';
+import { Check, X, Copy, RotateCcw, Sparkles, History } from 'lucide-react';
 
 interface OutputPanelProps {
   outputText: string;
@@ -14,6 +14,8 @@ interface OutputPanelProps {
   sessionId: string | null;
   onFeedback: (accepted: boolean) => void;
   onApplyToInput: () => void;
+  isHistoryCollapsed?: boolean; // 新增
+  onExpandHistory?: () => void; // 新增
 }
 
 export const OutputPanel: React.FC<OutputPanelProps> = ({
@@ -26,6 +28,8 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
   sessionId,
   onFeedback,
   onApplyToInput,
+  isHistoryCollapsed,
+  onExpandHistory,
 }) => {
   const outputRef = useRef<HTMLDivElement>(null);
 
@@ -49,28 +53,40 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
   const hasResult = outputText && currentStage === 'done';
 
   return (
-    <div className="h-full flex flex-col bg-white rounded-lg border border-gray-200 shadow-sm min-h-[520px]">
+    <div className="h-full flex flex-col bg-white rounded-lg border border-gray-200 shadow-sm min-h-[520px] max-h-[520px]">
       {/* 标题栏 */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
         <h3 className="text-sm font-semibold text-gray-900">改写结果</h3>
-        {outputText && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          {outputText && (
+            <>
+              <button
+                onClick={handleCopy}
+                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                title="复制"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+              <button
+                onClick={onApplyToInput}
+                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                title="应用到输入区"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            </>
+          )}
+          {isHistoryCollapsed && onExpandHistory && (
             <button
-              onClick={handleCopy}
-              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-              title="复制"
+              onClick={onExpandHistory}
+              className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-gray-900 border border-gray-200 hover:border-gray-300 rounded transition-colors"
+              title="展开历史记录"
             >
-              <Copy className="w-4 h-4" />
+              <History className="w-3.5 h-3.5" />
+              <span>历史</span>
             </button>
-            <button
-              onClick={onApplyToInput}
-              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-              title="应用到输入区"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* 输出区域 */}

@@ -1,7 +1,7 @@
 // src/views/HumanizeView/components/HistoryPanel.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Clock, TrendingDown } from 'lucide-react';
+import { Clock, TrendingDown, ChevronRight } from 'lucide-react';
 import HumanizeService from '@/services/HumanizeService';
 import type { HumanizeSession } from '@/types/humanize';
 import { formatDate } from '@/utils/formatDate';
@@ -10,28 +10,25 @@ interface HistoryPanelProps {
   refreshKey: number;
   onOpenFullHistory: () => void;
   onSelectSession: (sessionId: string) => void;
+  onCollapse?: () => void; // 新增：收起回调
 }
 
 export const HistoryPanel: React.FC<HistoryPanelProps> = ({
   refreshKey,
   onOpenFullHistory,
   onSelectSession,
+  onCollapse,
 }) => {
   const [sessions, setSessions] = useState<HumanizeSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState<any>(null);
 
   // 加载历史记录
   useEffect(() => {
     const loadHistory = async () => {
       try {
         setIsLoading(true);
-        const [historyData, statsData] = await Promise.all([
-          HumanizeService.getHistory(1, 10),
-          HumanizeService.getStats(),
-        ]);
+        const historyData = await HumanizeService.getHistory(1, 10);
         setSessions(historyData.items || []);
-        setStats(statsData);
       } catch (err) {
         console.error('Failed to load history:', err);
       } finally {
@@ -42,40 +39,20 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
   }, [refreshKey]);
 
   return (
-    <div className="h-full flex flex-col bg-white rounded-lg border border-gray-200 shadow-sm min-h-[520px]">
+    <div className="h-full flex flex-col bg-white rounded-lg border border-gray-200 shadow-sm min-h-[520px] max-h-[520px]">
       {/* 标题栏 */}
-      <div className="px-4 py-3 border-b border-gray-200">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
         <h3 className="text-sm font-semibold text-gray-900">历史记录</h3>
+        {onCollapse && (
+          <button
+            onClick={onCollapse}
+            className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+            title="收起历史记录"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        )}
       </div>
-
-      {/* 统计卡片 */}
-      {stats && (
-        <div className="p-3 border-b border-gray-200 bg-gradient-to-br from-blue-50 to-purple-50">
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="bg-white rounded-md p-2 shadow-sm">
-              <div className="text-gray-500 mb-0.5">总使用</div>
-              <div className="text-lg font-semibold text-gray-900">
-                {stats.total_uses}
-              </div>
-            </div>
-            <div className="bg-white rounded-md p-2 shadow-sm">
-              <div className="text-gray-500 mb-0.5">接受率</div>
-              <div className="text-lg font-semibold text-green-600">
-                {(stats.accept_rate * 100).toFixed(0)}%
-              </div>
-            </div>
-          </div>
-          <div className="mt-2 bg-white rounded-md p-2 shadow-sm">
-            <div className="text-gray-500 text-xs mb-0.5">平均改进</div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-lg font-semibold text-blue-600">
-                {stats.avg_improvement.toFixed(1)}
-              </span>
-              <span className="text-xs text-gray-500">分</span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 历史列表 */}
       <div className="flex-1 overflow-y-auto">

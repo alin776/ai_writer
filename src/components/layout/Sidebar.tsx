@@ -50,7 +50,7 @@ const mainNavItems: NavItem[] = [
   },
   {
     id: 'humanize',
-    label: 'AI 指纹消融',
+    label: 'AI去痕',
     icon: Wand2,
     path: '/humanize',
   },

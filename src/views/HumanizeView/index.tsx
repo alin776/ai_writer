@@ -1,11 +1,9 @@
 // src/views/HumanizeView/index.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Wand2, Info, TrendingDown, Clock, History } from 'lucide-react';
 import { InputPanel } from './components/InputPanel';
 import { OutputPanel } from './components/OutputPanel';
 import { HistoryPanel } from './components/HistoryPanel';
-import { StatsBar } from './components/StatsBar';
 import HumanizeService from '@/services/HumanizeService';
 import type {
   HumanizeIntensity,
@@ -16,17 +14,13 @@ import { useGlobalStore } from '@/store/globalStore';
 import { useNavigate } from 'react-router-dom';
 
 /**
- * HumanizeView - AI去痕迹主页面
+ * HumanizeView - AI去痕主页面
  *
  * 布局结构:
- * ┌────────────────────────────────────┐
- * │  顶部标题栏 + 快速统计              │
- * ├──────────┬──────────┬──────────────┤
+ * ┌──────────┬──────────┬──────────────┐
  * │ 输入面板  │ 输出面板  │ 历史面板      │
  * │   40%    │   40%    │   20%        │
  * └──────────┴──────────┴──────────────┘
- * │  底部统计栏                         │
- * └────────────────────────────────────┘
  */
 export const HumanizeView: React.FC = () => {
   const { showToast } = useGlobalStore();
@@ -222,69 +216,9 @@ export const HumanizeView: React.FC = () => {
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
-      {/* 顶部标题区 */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          {/* 左侧：标题 */}
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex items-center justify-center">
-                <Wand2 className="w-4 h-4 text-white" />
-              </div>
-              <div>
-                <h1 className="text-lg font-semibold text-gray-900">AI去痕迹</h1>
-                <p className="text-sm text-gray-500">将AI生成内容转化为自然表达</p>
-              </div>
-            </div>
-          </div>
-
-          {/* 右侧：快速统计 */}
-          {userProfile && (
-            <div className="flex items-center gap-6 text-sm">
-              <div className="flex items-center gap-1.5">
-                <TrendingDown className="w-4 h-4 text-green-600" />
-                <span className="text-gray-600">接受率</span>
-                <span className="font-semibold text-gray-900">
-                  {(userProfile.accept_rate * 100).toFixed(0)}%
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-blue-600" />
-                <span className="text-gray-600">总使用</span>
-                <span className="font-semibold text-gray-900">
-                  {userProfile.total_uses}次
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* 功能说明 */}
-        <div className="mt-3 flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3">
-          <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-blue-700">
-            本工具采用<span className="font-semibold">三阶段处理</span>：
-            <span className="text-blue-600">检测AI痕迹</span> →
-            <span className="text-blue-600">智能改写</span> →
-            <span className="text-blue-600">效果验证</span>，
-            支持轻度(5%)、中度(20%)、强度(40%)三种改写强度。
-          </p>
-        </div>
-      </div>
-
       {/* 主工作区 - 三列布局 */}
       <div className="flex-1 overflow-auto">
-        <div className="min-h-full p-6 space-y-3">
-          <div className="flex justify-end">
-            <button
-              onClick={() => setIsHistoryCollapsed((v) => !v)}
-              className="inline-flex items-center gap-2 text-xs text-gray-600 hover:text-gray-900 border border-gray-200 px-3 py-1.5 rounded-md bg-white shadow-sm"
-            >
-              <History className="w-4 h-4" />
-              {isHistoryCollapsed ? '展开历史记录' : '收起历史记录'}
-            </button>
-          </div>
-
+        <div className="min-h-full pt-4 px-6 pb-6">
           <div className="grid grid-cols-12 gap-6 auto-rows-min">
             {/* 左列：输入面板 (40%) */}
             <div className={isHistoryCollapsed ? 'col-span-6 h-full' : 'col-span-5 h-full'}>
@@ -313,6 +247,8 @@ export const HumanizeView: React.FC = () => {
                 sessionId={sessionId}
                 onFeedback={handleFeedback}
                 onApplyToInput={handleApplyToInput}
+                isHistoryCollapsed={isHistoryCollapsed}
+                onExpandHistory={() => setIsHistoryCollapsed(false)}
               />
             </div>
 
@@ -323,15 +259,13 @@ export const HumanizeView: React.FC = () => {
                   refreshKey={historyRefreshKey}
                   onOpenFullHistory={() => navigate('/humanize/history')}
                   onSelectSession={(id) => navigate(`/humanize/history/${id}`)}
+                  onCollapse={() => setIsHistoryCollapsed(true)}
                 />
               </div>
             )}
           </div>
         </div>
       </div>
-
-      {/* 底部统计栏 */}
-      {userProfile && <StatsBar userProfile={userProfile} />}
     </div>
   );
 };

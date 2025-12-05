@@ -35,7 +35,7 @@ export const HumanizeHistoryView: React.FC = () => {
           className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
         >
           <ArrowLeft className="w-4 h-4" />
-          返回 AI 指纹消融
+          返回 AI去痕
         </button>
         <h1 className="text-xl font-semibold text-gray-900">历史记录</h1>
       </div>
