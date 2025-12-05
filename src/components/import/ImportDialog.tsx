@@ -1,8 +1,6 @@
-/**
- * 导入对话框组件
- */
-import React, { useState, useRef } from 'react';
+﻿import React, { useState, useRef } from 'react';
 import { ImportOptions, ImportPreviewResponse } from '@/types/export';
+import type { Work } from '@/types';
 import { DataService } from '@/services/DataService';
 import { Upload, X, FileJson, FileText, File, Loader2, AlertCircle } from 'lucide-react';
 import './ImportDialog.css';
@@ -12,6 +10,13 @@ interface ImportDialogProps {
   onSuccess?: (workId: string) => void;
 }
 
+const detectFormat = (filename: string): 'json' | 'markdown' | 'txt' => {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  if (ext === 'json') return 'json';
+  if (ext === 'md' || ext === 'markdown') return 'markdown';
+  return 'txt';
+};
+
 const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
   const [file, setFile] = useState<File | null>(null);
   const [format, setFormat] = useState<'json' | 'markdown' | 'txt'>('json');
@@ -20,58 +25,92 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
     includeWorldview: true,
     includeGuidelines: true,
   });
+  const [importMode, setImportMode] = useState<'new' | 'existing'>('new');
+  const [targetWorkId, setTargetWorkId] = useState<string>('');
+  const [works, setWorks] = useState<Work[]>([]);
+  const [worksLoading, setWorksLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 自动检测文件格式
-  const detectFormat = (filename: string): 'json' | 'markdown' | 'txt' => {
-    const ext = filename.split('.').pop()?.toLowerCase();
-    if (ext === 'json') return 'json';
-    if (ext === 'md' || ext === 'markdown') return 'markdown';
-    return 'txt';
+  const loadWorks = async () => {
+    try {
+      setWorksLoading(true);
+      const list = await DataService.getWorks();
+      setWorks(list);
+    } catch (err) {
+      console.error('加载作品列表失败:', err);
+      setError('加载作品列表失败，请稍后重试');
+    } finally {
+      setWorksLoading(false);
+    }
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
+  React.useEffect(() => {
+    if (importMode === 'existing' && works.length === 0 && !worksLoading) {
+      loadWorks();
+    }
+  }, [importMode, works.length, worksLoading]);
 
-    setFile(selectedFile);
-    setError(null);
-    setPreview(null);
-
-    // 自动检测格式
-    const detectedFormat = detectFormat(selectedFile.name);
-    setFormat(detectedFormat);
-
-    // 自动预览
-    await handlePreview(selectedFile, detectedFormat);
-  };
-
-  const handlePreview = async (fileToPreview?: File, formatToUse?: string) => {
+  const handlePreview = async (fileToPreview?: File, formatToUse?: 'json' | 'markdown' | 'txt') => {
     const targetFile = fileToPreview || file;
     const targetFormat = formatToUse || format;
-
     if (!targetFile) return;
 
     try {
       setPreviewing(true);
       setError(null);
-
       const previewData = await DataService.previewImport(targetFile, targetFormat);
       setPreview(previewData);
     } catch (err: any) {
       console.error('预览失败:', err);
-      setError(err.message || '预览失败，请检查文件格式');
+      setError(err.message || '预览失败，请检查文件格式或编码（推荐 UTF-8）');
       setPreview(null);
     } finally {
       setPreviewing(false);
     }
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+
+    const detectedFormat = detectFormat(selectedFile.name);
+    if (importMode === 'existing' && detectedFormat === 'json') {
+      setError('追加到已有作品暂不支持 JSON 文件，请选择 Markdown 或 TXT');
+      setFile(null);
+      setPreview(null);
+      setFormat('markdown');
+      return;
+    }
+
+    setFile(selectedFile);
+    setError(null);
+    setPreview(null);
+
+    const nextFormat = detectedFormat;
+    setFormat(nextFormat);
+    await handlePreview(selectedFile, nextFormat);
+  };
+
+  const handleFormatChange = async (next: 'json' | 'markdown' | 'txt') => {
+    setFormat(next);
+    if (file) {
+      await handlePreview(file, next);
+    }
+  };
+
   const handleImport = async () => {
     if (!file || !preview) return;
+    if (importMode === 'existing' && !targetWorkId) {
+      setError('请选择要追加的作品');
+      return;
+    }
+    if (importMode === 'existing' && format === 'json') {
+      setError('追加到已有作品暂不支持 JSON 文件，请改用 Markdown 或 TXT');
+      return;
+    }
 
     try {
       setLoading(true);
@@ -79,23 +118,14 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
 
       const importOptions: ImportOptions = {
         format,
-        createNew: true,
+        createNew: importMode === 'new',
         includeWorldview: options.includeWorldview,
         includeGuidelines: options.includeGuidelines,
+        workId: importMode === 'existing' ? targetWorkId : undefined,
       };
 
       const result = await DataService.importWork(file, importOptions);
 
-      // 显示成功消息
-      alert(
-        `导入成功！\n` +
-        `作品ID: ${result.workId}\n` +
-        `章节: ${result.chaptersCreated}个\n` +
-        `人物: ${result.charactersCreated}个\n` +
-        `地点: ${result.locationsCreated}个`
-      );
-
-      // 关闭对话框并回调
       onSuccess?.(result.workId);
       onClose();
     } catch (err: any) {
@@ -130,6 +160,67 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
         <div className="form-section">
           <h3>选择文件</h3>
           
+          <div className="import-mode">
+            <label>
+              <input
+                type="radio"
+                name="importMode"
+                value="new"
+                checked={importMode === 'new'}
+                onChange={() => {
+                  setImportMode('new');
+                  setTargetWorkId('');
+                }}
+              />
+              创建新作品
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="importMode"
+                value="existing"
+                checked={importMode === 'existing'}
+                onChange={() => {
+                  setImportMode('existing');
+                  if (format === 'json') {
+                    setFormat('markdown');
+                  }
+                  if (file && detectFormat(file.name) === 'json') {
+                    setFile(null);
+                    setPreview(null);
+                    setError('追加到已有作品暂不支持 JSON 文件，请重新选择 Markdown 或 TXT');
+                  }
+                }}
+              />
+              追加到已有作品
+            </label>
+          </div>
+
+          {importMode === 'existing' && (
+            <div className="form-section" style={{ paddingTop: '8px' }}>
+              {worksLoading ? (
+                <p style={{ color: '#6b7280' }}>正在加载作品列表...</p>
+              ) : works.length === 0 ? (
+                <p style={{ color: '#6b7280' }}>暂无可用作品，先创建一个吧</p>
+              ) : (
+                <label className="select-work">
+                  选择作品：
+                  <select
+                    value={targetWorkId}
+                    onChange={(e) => setTargetWorkId(e.target.value)}
+                  >
+                    <option value="">请选择</option>
+                    {works.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
+          )}
+
           <div
             className="file-upload-area"
             onClick={() => fileInputRef.current?.click()}
@@ -154,7 +245,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
               <div className="file-placeholder">
                 <File size={48} />
                 <p>点击选择文件或拖拽到此处</p>
-                <span>支持格式：JSON、Markdown、TXT</span>
+                <span>支持格式：JSON、Markdown、TXT（推荐 UTF-8 编码）</span>
               </div>
             )}
           </div>
@@ -167,9 +258,10 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
                   name="format"
                   value="json"
                   checked={format === 'json'}
-                  onChange={e => setFormat('json')}
+                  onChange={() => handleFormatChange('json')}
+                  disabled={importMode === 'existing'}
                 />
-                JSON（完整导入）
+                JSON（完整导入）{importMode === 'existing' ? '（仅限新建）' : ''}
               </label>
               <label>
                 <input
@@ -177,9 +269,9 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
                   name="format"
                   value="markdown"
                   checked={format === 'markdown'}
-                  onChange={e => setFormat('markdown')}
+                  onChange={() => handleFormatChange('markdown')}
                 />
-                Markdown（智能分割）
+                Markdown（智能分段）
               </label>
               <label>
                 <input
@@ -187,15 +279,15 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
                   name="format"
                   value="txt"
                   checked={format === 'txt'}
-                  onChange={e => setFormat('txt')}
+                  onChange={() => handleFormatChange('txt')}
                 />
-                TXT（智能分割）
+                TXT（智能分段）
               </label>
             </div>
           )}
         </div>
 
-        {/* 导入选项（仅JSON格式） */}
+        {/* 导入选项（仅 JSON 格式） */}
         {format === 'json' && file && (
           <div className="form-section">
             <h3>导入选项</h3>

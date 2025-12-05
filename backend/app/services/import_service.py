@@ -61,21 +61,16 @@ class ImportService:
         user_id: UUID,
         options: ImportOptions
     ) -> ImportResponse:
-        """导入作品
-
-        Args:
-            content: 文件内容
-            user_id: 用户ID
-            options: 导入选项
-
-        Returns:
-            导入结果
-        """
+        """导入作品"""
         try:
             if options.format == "json":
+                if options.work_id:
+                    raise ValueError("JSON 导入暂不支持追加到已有作品")
                 return await self._import_json(content, user_id, options)
             elif options.format in ["markdown", "txt"]:
-                return await self._import_text(content, user_id, options)
+                if not options.create_new and not options.work_id:
+                    raise ValueError("缺少目标作品，无法追加导入")
+                return await self._import_text(content, user_id, options, append_to=options.work_id)
             else:
                 raise ValueError(f"不支持的导入格式: {options.format}")
         except Exception as e:
@@ -98,23 +93,31 @@ class ImportService:
         chapters_data = data.get('chapters', [])
         worldview_data = data.get('worldview', {})
         
+        # 构建章节预览并补全缺失的字数
+        preview_chapters = []
+        computed_total_words = 0
+        for idx, c in enumerate(chapters_data):
+            content_text = c.get('content', '')
+            word_count = c.get('word_count') or self._calculate_word_count(content_text)
+            computed_total_words += word_count
+            preview_chapters.append(
+                ImportPreviewChapter(
+                    title=c['title'],
+                    word_count=word_count,
+                    order=c.get('order', idx + 1)
+                )
+            )
+        
+        total_words = work_data.get('total_words', 0) or computed_total_words
+        
         # 构建预览信息
         preview_work = ImportPreviewWork(
             title=work_data['title'],
             description=work_data.get('description'),
             genre=work_data.get('genre'),
-            total_words=work_data.get('total_words', 0),
+            total_words=total_words,
             total_chapters=len(chapters_data)
         )
-        
-        preview_chapters = [
-            ImportPreviewChapter(
-                title=c['title'],
-                word_count=c.get('word_count', 0),
-                order=c.get('order', idx + 1)
-            )
-            for idx, c in enumerate(chapters_data)
-        ]
         
         # 统计世界观数据
         characters_count = len(worldview_data.get('characters', []))
@@ -152,7 +155,7 @@ class ImportService:
         chapters = self._split_chapters(text)
         
         # 计算总字数
-        total_words = len(text.replace('\n', '').replace(' ', ''))
+        total_words = self._calculate_word_count(text)
         
         preview_work = ImportPreviewWork(
             title=title,
@@ -165,7 +168,7 @@ class ImportService:
         preview_chapters = [
             ImportPreviewChapter(
                 title=c['title'],
-                word_count=len(c['content'].replace('\n', '').replace(' ', '')),
+                word_count=self._calculate_word_count(c['content']),
                 order=idx + 1
             )
             for idx, c in enumerate(chapters)
@@ -220,13 +223,14 @@ class ImportService:
             raw_status = chapter_data.get('status')
             status = ChapterStatus(raw_status) if raw_status else (ChapterStatus.PUBLISHED if is_published else ChapterStatus.DRAFT)
 
-            word_count = chapter_data.get('word_count', 0)
+            content_text = chapter_data.get('content', '')
+            word_count = chapter_data.get('word_count') or self._calculate_word_count(content_text)
             total_words += word_count  # 累计字数
 
             chapter = Chapter(
                 work_id=work.id,
                 title=chapter_data['title'],
-                content=chapter_data.get('content', ''),
+                content=content_text,
                 summary=chapter_data.get('summary'),
                 order=chapter_data.get('order', idx + 1),
                 word_count=word_count,
@@ -342,7 +346,8 @@ class ImportService:
         self,
         content: bytes,
         user_id: UUID,
-        options: ImportOptions
+        options: ImportOptions,
+        append_to: Optional[str] = None
     ) -> ImportResponse:
         """导入文本/Markdown格式"""
         logger.info(f"用户 {user_id} 开始导入文本数据")
@@ -354,37 +359,47 @@ class ImportService:
         
         # 分割章节
         chapters = self._split_chapters(text)
-        
-        # 如果没有检测到章节，整个文本作为单章
         if not chapters:
-            chapters = [{'title': '第一章', 'content': text}]
+            chapters = [{'title': title, 'content': text.strip()}]
         
-        # 创建作品
-        work = Work(
-            author_id=user_id,
-            title=title,
-            description=None,
-            genre=WorkGenre.OTHER,
-            status=WorkStatus.DRAFT,
-            total_words=0,
-            total_chapters=0
-        )
-        self.db.add(work)
-        await self.db.flush()
+        work: Work
+        starting_order = 0
+        total_words = 0
+
+        if append_to:
+            work_id = UUID(str(append_to)) if not isinstance(append_to, UUID) else append_to
+            work = await self.db.get(Work, work_id)
+            if not work:
+                raise ValueError("目标作品不存在，无法导入")
+            if str(work.author_id) != str(user_id):
+                raise ValueError("无权导入到该作品")
+            starting_order = work.total_chapters or 0
+            total_words = work.total_words or 0
+        else:
+            work = Work(
+                author_id=user_id,
+                title=title,
+                description=None,
+                genre=WorkGenre.OTHER,
+                status=WorkStatus.DRAFT,
+                total_words=0,
+                total_chapters=0
+            )
+            self.db.add(work)
+            await self.db.flush()
         
         # 导入章节
         chapters_created = 0
-        total_words = 0  # 累计总字数
         for idx, chapter_data in enumerate(chapters):
-            content = chapter_data['content']
-            word_count = len(content.replace('\n', '').replace(' ', ''))
-            total_words += word_count  # 累计字数
+            content_text = chapter_data['content']
+            word_count = self._calculate_word_count(content_text)
+            total_words += word_count
 
             chapter = Chapter(
                 work_id=work.id,
                 title=chapter_data['title'],
-                content=f"<p>{content.replace(chr(10), '</p><p>')}</p>",  # 简单HTML转换
-                order=idx + 1,
+                content=f"<p>{content_text.replace(chr(10), '</p><p>')}</p>",  # 简单HTML转换
+                order=starting_order + idx + 1,
                 word_count=word_count,
                 status=ChapterStatus.DRAFT,
                 is_published=False
@@ -393,8 +408,8 @@ class ImportService:
             chapters_created += 1
 
         # 更新作品统计
-        work.total_chapters = chapters_created
-        work.total_words = total_words  # 使用累计的字数，避免查询数据库
+        work.total_chapters = (work.total_chapters or 0) + chapters_created
+        work.total_words = total_words
         
         await self.db.commit()
         
@@ -405,7 +420,11 @@ class ImportService:
             chapters_created=chapters_created,
             message="导入成功"
         )
-    
+
+    def _calculate_word_count(self, content: str) -> int:
+        """统一的字数计算逻辑"""
+        return len(content.replace('\n', '').replace(' ', ''))
+
     def _extract_title(self, text: str) -> str:
         """从文本中提取标题"""
         lines = text.strip().split('\n')
