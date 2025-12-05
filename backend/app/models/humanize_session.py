@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Boolean, Float, Integer, ForeignKey, Index, text
+from sqlalchemy import Column, String, DateTime, Boolean, Float, Integer, ForeignKey, Index, text, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -89,6 +89,10 @@ class HumanizeSessionDetail(Base):
     # 文本预览 (仅保存前100字)
     original_preview = Column(String(200), nullable=True)    # 原文前100字
     humanized_preview = Column(String(200), nullable=True)   # 改写后前100字
+
+    # 全量文本（可选，受存储策略控制）
+    original_full = Column(Text, nullable=True)
+    humanized_full = Column(Text, nullable=True)
 
     # 过期时间 (7天后自动清理)
     expires_at = Column(DateTime(timezone=True), nullable=False, index=True)

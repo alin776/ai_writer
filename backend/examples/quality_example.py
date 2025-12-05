@@ -120,8 +120,8 @@ async def example_different_models():
     print("示例3: 使用快速模型进行评估")
     print("="*60 + "\n")
 
-    # 使用qwen3-32b快速模型
-    ai_service = HTTPAIService(model="qwen3-32b")
+    # 使用gemini-2.5-flash-lite快速模型
+    ai_service = HTTPAIService(model="gemini-2.5-flash-lite")
     evaluator = QualityEvaluatorService(ai_service)
 
     content = "这是一段测试内容..."
@@ -135,7 +135,7 @@ async def example_different_models():
 
     evaluation = await evaluator.evaluate(content, context)
 
-    print(f"使用模型: qwen3-32b")
+    print(f"使用模型: gemini-2.5-flash-lite")
     print(f"总体评分: {evaluation.overall_score:.1f}/10")
 
     await ai_service.close()

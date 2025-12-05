@@ -1,28 +1,26 @@
-/* 导入对话框样式 */
+﻿/* 导入对话框样式 - 轻量、干净，与现有前端风格保持一致 */
 
 .import-dialog-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  inset: 0;
+  background: rgba(17, 24, 39, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn 0.18s ease-out;
 }
 
 .import-dialog {
-  background: #1e1e1e;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
   border-radius: 12px;
-  width: 90%;
-  max-width: 700px;
-  max-height: 85vh;
+  width: 92%;
+  max-width: 780px;
+  max-height: 86vh;
   overflow-y: auto;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-  animation: slideUp 0.3s ease-out;
+  box-shadow: 0 15px 45px rgba(15, 23, 42, 0.18);
+  animation: slideUp 0.22s ease-out;
 }
 
 .import-dialog-header {
@@ -30,7 +28,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid #f3f4f6;
 }
 
 .import-dialog-header h2 {
@@ -40,56 +38,134 @@
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #fff;
+  color: #111827;
+}
+
+.close-button {
+  background: none;
+  border: 1px solid transparent;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.18s ease;
+}
+
+.close-button:hover {
+  color: #111827;
+  border-color: #e5e7eb;
+  background: #f9fafb;
+}
+
+.form-section {
+  padding: 20px 24px;
+  border-bottom: 1px solid #f3f4f6;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.form-section h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.import-mode {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 8px 0 4px;
+}
+
+.import-mode label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #111827;
+  background: #f9fafb;
+  transition: all 0.16s ease;
+}
+
+.import-mode input[type="radio"] {
+  width: 16px;
+  height: 16px;
+}
+
+.import-mode label:hover {
+  border-color: #d1d5db;
+  background: #f3f4f6;
+}
+
+.select-work {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  color: #111827;
+}
+
+.select-work select {
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111827;
+  outline: none;
 }
 
 .file-upload-area {
-  border: 2px dashed #444;
-  border-radius: 8px;
-  padding: 32px;
+  border: 2px dashed #e5e7eb;
+  border-radius: 10px;
+  padding: 28px;
   text-align: center;
   cursor: pointer;
-  transition: all 0.2s;
-  background: #252525;
+  transition: all 0.2s ease;
+  background: #f9fafb;
 }
 
 .file-upload-area:hover {
-  border-color: #666;
-  background: #2a2a2a;
+  border-color: #d1d5db;
+  background: #f3f4f6;
 }
 
 .file-placeholder {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  color: #999;
+  gap: 10px;
+  color: #6b7280;
 }
 
 .file-placeholder svg {
-  color: #666;
+  color: #9ca3af;
 }
 
 .file-placeholder p {
   margin: 0;
   font-size: 15px;
-  color: #ccc;
+  color: #111827;
 }
 
 .file-placeholder span {
   font-size: 13px;
-  color: #999;
+  color: #6b7280;
 }
 
 .file-selected {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 8px;
+  gap: 14px;
+  padding: 6px;
 }
 
 .file-selected svg {
-  color: #3b82f6;
+  color: #2563eb;
   flex-shrink: 0;
 }
 
@@ -101,30 +177,39 @@
 }
 
 .file-info strong {
-  color: #fff;
+  color: #111827;
   font-size: 15px;
 }
 
 .file-info span {
-  color: #999;
+  color: #6b7280;
   font-size: 13px;
 }
 
 .format-selector {
   display: flex;
   gap: 16px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #333;
+  flex-wrap: wrap;
+  margin-top: 4px;
 }
 
 .format-selector label {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #ccc;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111827;
   cursor: pointer;
   font-size: 14px;
+  transition: all 0.16s ease;
+}
+
+.format-selector label:hover {
+  border-color: #d1d5db;
+  background: #f9fafb;
 }
 
 .format-selector input[type="radio"] {
@@ -136,16 +221,16 @@
 .import-options {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .import-options label {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #ccc;
+  color: #111827;
   cursor: pointer;
-  padding: 8px 0;
+  padding: 6px 0;
   font-size: 14px;
 }
 
@@ -159,13 +244,13 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 40px 24px;
-  color: #999;
+  gap: 10px;
+  padding: 36px 24px;
+  color: #6b7280;
 }
 
 .preview-section {
-  background: #252525;
+  background: #f9fafb;
 }
 
 .preview-info {
@@ -181,24 +266,25 @@
 }
 
 .preview-item .label {
-  color: #999;
+  color: #6b7280;
   font-size: 14px;
   flex-shrink: 0;
 }
 
 .preview-item strong,
 .preview-item span {
-  color: #ccc;
+  color: #111827;
   font-size: 14px;
 }
 
 .preview-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-  gap: 16px;
-  padding: 16px;
-  background: #1e1e1e;
-  border-radius: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
 }
 
 .stat {
@@ -209,24 +295,24 @@
 }
 
 .stat strong {
-  font-size: 24px;
-  color: #3b82f6;
+  font-size: 22px;
+  color: #2563eb;
 }
 
 .stat span {
-  font-size: 13px;
-  color: #999;
+  font-size: 12px;
+  color: #6b7280;
 }
 
 .chapters-preview {
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .chapters-preview h4 {
-  margin: 0 0 12px 0;
+  margin: 0 0 10px 0;
   font-size: 14px;
-  font-weight: 500;
-  color: #999;
+  font-weight: 600;
+  color: #111827;
 }
 
 .chapter-list {
@@ -240,23 +326,24 @@
   justify-content: space-between;
   align-items: center;
   padding: 10px 12px;
-  background: #1e1e1e;
-  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
 }
 
 .chapter-item.more {
   justify-content: center;
-  color: #999;
+  color: #6b7280;
   font-style: italic;
 }
 
 .chapter-title {
-  color: #ccc;
+  color: #111827;
   font-size: 14px;
 }
 
 .chapter-words {
-  color: #999;
+  color: #6b7280;
   font-size: 13px;
 }
 
@@ -264,10 +351,10 @@
   display: flex;
   gap: 10px;
   padding: 12px;
-  background: #3f2f1f;
-  border: 1px solid #f59e0b;
-  border-radius: 6px;
-  color: #fbbf24;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  color: #92400e;
   font-size: 13px;
 }
 
@@ -285,12 +372,12 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 16px 24px;
+  margin: 0 24px 16px;
   padding: 12px;
-  background: #3f1f1f;
-  border: 1px solid #ff4444;
-  border-radius: 6px;
-  color: #ff6b6b;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #b91c1c;
   font-size: 14px;
 }
 
@@ -299,7 +386,51 @@
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  padding: 20px 24px;
+  padding: 16px 24px 20px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.16s ease;
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.button-secondary {
+  background: #ffffff;
+  border-color: #e5e7eb;
+  color: #111827;
+}
+
+.button-secondary:hover:not(:disabled) {
+  border-color: #d1d5db;
+  background: #f9fafb;
+}
+
+.button-primary {
+  background: #111827;
+  border-color: #111827;
+  color: #ffffff;
+}
+
+.button-primary:hover:not(:disabled) {
+  background: #1f2937;
+  border-color: #1f2937;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
 }
 
 @keyframes fadeIn {
@@ -310,10 +441,15 @@
 @keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(18px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }

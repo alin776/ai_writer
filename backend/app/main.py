@@ -41,6 +41,23 @@ logger = logging.getLogger(__name__)
 # 调度开关（用于避免多实例重复跑任务）
 ENABLE_SCHEDULER = os.getenv("ENABLE_SCHEDULER", "true").lower() == "true"
 
+# 🔧 2025-12-02: Phase 1 日志优化 - 配置第三方库日志级别
+# 防止第三方库的DEBUG日志污染系统日志
+logging.getLogger('jieba').setLevel(logging.WARNING)
+logging.getLogger('chromadb').setLevel(logging.WARNING)
+logging.getLogger('chromadb.telemetry').setLevel(logging.ERROR)  # 关闭telemetry提示
+logging.getLogger('sentence_transformers').setLevel(logging.WARNING)
+logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('httpcore').setLevel(logging.WARNING)
+
+# 降低monitoring_middleware的日志级别，减少日志冗余
+logging.getLogger('app.api.middleware.monitoring_middleware').setLevel(logging.DEBUG)
+
+# 抑制jieba的pkg_resources警告
+import warnings
+warnings.filterwarnings('ignore', module='jieba._compat')
+warnings.filterwarnings('ignore', message='pkg_resources is deprecated')
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

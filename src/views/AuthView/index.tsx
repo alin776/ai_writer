@@ -35,7 +35,8 @@ const AuthView: React.FC = () => {
     username: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    invitationCode: ''
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -60,6 +61,16 @@ const AuthView: React.FC = () => {
 
     return () => clearInterval(timer);
   }, []);
+
+  // 从URL参数读取邀请码
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const code = params.get('invitation_code') || params.get('code');
+    if (code) {
+      setRegisterForm(prev => ({ ...prev, invitationCode: code.toUpperCase() }));
+      setActiveTab('register');
+    }
+  }, [location.search]);
 
   // 清除成功消息（5秒后）
   useEffect(() => {
@@ -138,6 +149,12 @@ const AuthView: React.FC = () => {
       newErrors.email = '请输入有效的邮箱地址';
     }
 
+    if (!registerForm.invitationCode) {
+      newErrors.invitationCode = '请输入邀请码';
+    } else if (registerForm.invitationCode.length !== 8) {
+      newErrors.invitationCode = '邀请码必须是 8 位字符';
+    }
+
     if (!registerForm.password) {
       newErrors.password = '请输入密码';
     } else if (registerForm.password.length < 6) {
@@ -195,8 +212,9 @@ const AuthView: React.FC = () => {
       // 更新用户信息
       login(user, accessToken);
       navigate('/works');
-    } catch (error) {
-      setErrors({ submit: '登录失败，请检查用户名和密码' });
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.detail || error?.message || '登录失败，请检查用户名和密码';
+      setErrors({ submit: errorMessage });
     } finally {
       loginInFlight.current = false;
       setIsLoading(false);
@@ -219,6 +237,7 @@ const AuthView: React.FC = () => {
         username: registerForm.username,
         email: registerForm.email,
         password: registerForm.password,
+        invitation_code: registerForm.invitationCode
       });
 
       // 注册成功，切换到登录 Tab 并显示成功消息
@@ -231,10 +250,12 @@ const AuthView: React.FC = () => {
         username: '',
         email: '',
         password: '',
-        confirmPassword: ''
+        confirmPassword: '',
+        invitationCode: ''
       });
-    } catch (error) {
-      setErrors({ submit: '注册失败，请稍后重试' });
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.detail || error?.message || '注册失败，请稍后重试';
+      setErrors({ submit: errorMessage });
     } finally {
       setIsLoading(false);
     }
@@ -461,6 +482,23 @@ const AuthView: React.FC = () => {
                     }}
                   />
                   {errors.email && <span className="text-sm text-red-500">{errors.email}</span>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="register-invitation-code" className="text-gray-700">邀请码</Label>
+                  <Input
+                    id="register-invitation-code"
+                    type="text"
+                    placeholder="请输入8位邀请码"
+                    maxLength={8}
+                    className="h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono uppercase"
+                    value={registerForm.invitationCode}
+                    onChange={(e) => {
+                      setRegisterForm({ ...registerForm, invitationCode: e.target.value.toUpperCase() });
+                      if (errors.invitationCode) setErrors({ ...errors, invitationCode: '' });
+                    }}
+                  />
+                  {errors.invitationCode && <span className="text-sm text-red-500">{errors.invitationCode}</span>}
                 </div>
 
                 <div className="space-y-1.5">

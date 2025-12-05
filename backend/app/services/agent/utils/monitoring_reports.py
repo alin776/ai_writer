@@ -15,6 +15,7 @@ from pathlib import Path
 from .monitoring import get_system_monitor, HealthStatus, AlertLevel
 from .business_metrics import get_business_metrics_collector, ContentType
 from .logger import get_logger
+from app.utils.datetime_utils import get_utc_now
 
 logger = get_logger("monitoring_reports")
 
@@ -174,7 +175,7 @@ class ReportGenerator:
     async def generate_daily_summary(self, date: Optional[datetime] = None) -> MonitoringReport:
         """生成日报"""
         if date is None:
-            date = datetime.now().date()
+            date = get_utc_now().date()
         else:
             date = date.date()
 
@@ -215,7 +216,7 @@ class ReportGenerator:
         """生成周报"""
         if start_date is None:
             # 默认为本周开始
-            today = datetime.now().date()
+            today = get_utc_now().date()
             start_date = datetime.combine(today - timedelta(days=today.weekday()), datetime.min.time())
 
         end_date = start_date + timedelta(days=6, hours=23, minutes=59, seconds=59)
@@ -251,7 +252,7 @@ class ReportGenerator:
     async def generate_health_report(self) -> MonitoringReport:
         """生成健康检查报告"""
         report = MonitoringReport(
-            report_id=f"health_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            report_id=f"health_report_{get_utc_now().strftime('%Y%m%d_%H%M%S')}",
             report_type=ReportType.HEALTH_CHECK,
             title="AI Writer 系统健康检查报告"
         )
@@ -590,7 +591,7 @@ class ReportGenerator:
             formats = ['json', 'markdown']
 
         saved_files = {}
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        timestamp = get_utc_now().strftime('%Y%m%d_%H%M%S')
 
         # 保存JSON格式
         if 'json' in formats:

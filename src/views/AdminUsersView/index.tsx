@@ -24,6 +24,9 @@ const AdminUsersView: React.FC = () => {
   const { showToast } = useGlobalStore();
   const { user: currentUser } = useAuthStore();
 
+  /**
+   * 加载用户列表
+   */
   const loadUsers = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -38,9 +41,6 @@ const AdminUsersView: React.FC = () => {
     }
   }, [showToast]);
 
-  /**
-   * 加载用户列表
-   */
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);

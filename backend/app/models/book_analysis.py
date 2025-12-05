@@ -6,7 +6,7 @@
 
 import enum
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, Text, DateTime, Enum as SQLEnum, Float
+from sqlalchemy import Column, String, Integer, Text, DateTime, Enum as SQLEnum, Float, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 import uuid
 
@@ -60,10 +60,10 @@ class BookAnalysisJob(Base):
     extra_data = Column(JSONB, default={})  # 灵活扩展
 
     # 时间戳
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    started_at = Column(DateTime)
-    completed_at = Column(DateTime)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    started_at = Column(DateTime(timezone=True))
+    completed_at = Column(DateTime(timezone=True))
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     def __repr__(self):
         return f"<BookAnalysisJob(id={self.id}, title='{self.book_title}', status={self.status})>"

@@ -111,7 +111,18 @@ class RedisClient:
     def set_json(self, key: str, value: dict, expire: int = 3600) -> bool:
         """设置JSON格式缓存"""
         try:
-            json_str = json.dumps(value, ensure_ascii=False)
+            # 自定义JSON encoder处理datetime等特殊类型
+            from datetime import datetime, date
+            from uuid import UUID
+
+            def json_encoder(obj):
+                if isinstance(obj, (datetime, date)):
+                    return obj.isoformat()
+                elif isinstance(obj, UUID):
+                    return str(obj)
+                raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+            json_str = json.dumps(value, ensure_ascii=False, default=json_encoder)
             return self.set(key, json_str, expire)
         except Exception as e:
             logger.error(f"JSON序列化错误: {e}")

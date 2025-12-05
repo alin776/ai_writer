@@ -25,7 +25,7 @@ except ImportError:
 class TokenCounter:
     """Token计数器 - 支持多种策略"""
 
-    def __init__(self, model: str = "gpt-4", fallback_enabled: bool = True):
+    def __init__(self, model: str = "gemini-2.5-pro", fallback_enabled: bool = True):
         """
         初始化Token计数器
 
@@ -156,7 +156,7 @@ class TokenCounter:
 _global_counter: Optional[TokenCounter] = None
 
 
-def get_token_counter(model: str = "gpt-4") -> TokenCounter:
+def get_token_counter(model: str = "gemini-2.5-pro") -> TokenCounter:
     """获取全局Token计数器实例"""
     global _global_counter
     if _global_counter is None:
@@ -164,7 +164,7 @@ def get_token_counter(model: str = "gpt-4") -> TokenCounter:
     return _global_counter
 
 
-def count_tokens(text: str, model: str = "gpt-4") -> int:
+def count_tokens(text: str, model: str = "gemini-2.5-pro") -> int:
     """便捷函数：计数Token"""
     counter = get_token_counter(model)
     return counter.count_tokens(text)

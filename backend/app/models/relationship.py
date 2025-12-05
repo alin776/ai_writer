@@ -2,7 +2,7 @@
 实体关系模型
 用于管理角色、地点、设定之间的关系
 """
-from sqlalchemy import Column, String, Integer, Text, TIMESTAMP, ARRAY, ForeignKey, CheckConstraint
+from sqlalchemy import Column, String, Integer, Text, TIMESTAMP, ARRAY, ForeignKey, CheckConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -49,8 +49,8 @@ class EntityRelationship(Base):
     category = Column(String(100), nullable=True)
     
     # 时间戳
-    created_at = Column(TIMESTAMP, default=datetime.utcnow, nullable=False)
-    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
     # 约束
     __table_args__ = (

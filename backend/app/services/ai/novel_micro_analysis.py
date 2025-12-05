@@ -10,8 +10,7 @@ from typing import Dict, Any, Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.ai.http_ai_service import HTTPAIService
-from app.models.ai_call_log import AICallLog
-from app.utils.cost_calculator import CostCalculator
+from app.services.agent.model_selector import TaskType  # ✅ 新增：用于成本追踪
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +31,14 @@ class NovelMicroAnalysisService:
             db: 数据库会话（用于token记录）
             work_id: 作品ID（用于token记录）
         """
-        self.ai_service = HTTPAIService()
-        self.cache_service = None  # 延迟初始化
+        # ❌ DEPRECATED - 2025-12-01
+        # self.ai_service = HTTPAIService()
+        # ✅ 新增：传递db和user_id给HTTPAIService
         self.user_id = user_id
         self.db = db
         self.work_id = work_id
+        self.ai_service = HTTPAIService(db=db, user_id=str(user_id) if user_id else None)
+        self.cache_service = None  # 延迟初始化
         self._load_prompts()
 
     async def _ensure_cache_service(self):
@@ -216,10 +218,12 @@ class NovelMicroAnalysisService:
         final_usage = None
         start_time = time.time()
 
+        # ✅ HTTPAIService会自动追踪成本，传递task_type即可
         async for chunk in self.ai_service._stream_chat(
             messages=messages,
             max_tokens=4000,  # 微观分析可能需要较多token
-            temperature=0.3   # 降低温度以获得更稳定的JSON输出
+            temperature=0.3,  # 降低温度以获得更稳定的JSON输出
+            task_type=TaskType.SUMMARIZATION  # ✅ 新增：微观分析是总结类任务
         ):
             # chunk 是 tuple (文本片段, usage统计)
             text_chunk, usage = chunk
@@ -234,58 +238,8 @@ class NovelMicroAnalysisService:
             logger.error("AI返回空响应")
             raise Exception("AI返回空响应，可能是超时或API限流")
 
-        # 记录token使用到AICallLog（如果有user_id和db）
-        if self.user_id and self.db and final_usage:
-            try:
-                prompt_tokens = final_usage.get("prompt_tokens", 0)
-                completion_tokens = final_usage.get("completion_tokens", 0)
-                total_tokens = final_usage.get("total_tokens", 0)
-
-                # 使用CostCalculator计算成本
-                model_name = self.ai_service.model
-                cost_data = CostCalculator.calculate_cost(
-                    model_name=model_name,
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens
-                )
-
-                # 计算处理时间
-                duration_ms = int((time.time() - start_time) * 1000)
-
-                # 创建AICallLog记录
-                call_log = AICallLog(
-                    user_id=UUID(self.user_id),
-                    model_name=model_name,
-                    operation_type="novel_micro_analysis",
-                    work_id=UUID(self.work_id) if self.work_id else None,
-                    chapter_id=UUID(chapter_id) if chapter_id else None,
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
-                    total_tokens=total_tokens,
-                    prompt_cost=cost_data["prompt_cost"],
-                    completion_cost=cost_data["completion_cost"],
-                    total_cost=cost_data["total_cost"],
-                    duration_ms=duration_ms,
-                    is_success=True,
-                    extra_data={
-                        "analysis_type": "micro",
-                        "chapter_id": chapter_id
-                    }
-                )
-
-                self.db.add(call_log)
-                await self.db.flush()
-
-                logger.info(
-                    f"[Token记录] 微观分析: {total_tokens} tokens "
-                    f"(prompt={prompt_tokens}, completion={completion_tokens}), "
-                    f"成本=${cost_data['total_cost']:.6f}, "
-                    f"耗时={duration_ms}ms"
-                )
-
-            except Exception as e:
-                logger.error(f"记录token使用失败: {e}")
-                # 记录失败不影响主流程
+        # ❌ DEPRECATED - 2025-12-02: 删除重复的成本追踪逻辑
+        # HTTPAIService._track_api_cost()已经自动记录成本到数据库
 
         return full_response
     

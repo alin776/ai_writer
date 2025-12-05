@@ -12,6 +12,7 @@ import json
 import logging
 
 from app.services.ai.http_ai_service import HTTPAIService
+from app.services.agent.model_selector import TaskType  # ✅ 新增：用于成本追踪
 from app.prompts.review_prompts import ReviewPromptTemplates
 from app.core.cache import cache_review
 
@@ -21,8 +22,16 @@ logger = logging.getLogger(__name__)
 class ParagraphReviewService:
     """段落评审服务"""
 
-    def __init__(self):
-        self.ai_service = HTTPAIService()
+    def __init__(self, db: Optional[Any] = None, user_id: Optional[str] = None):
+        """
+        初始化段落评审服务
+
+        Args:
+            db: 数据库会话（用于成本追踪）
+            user_id: 用户ID（用于成本追踪）
+        """
+        # ✅ 2025-12-02: 传递db和user_id以启用成本追踪
+        self.ai_service = HTTPAIService(db=db, user_id=user_id)
 
     @cache_review(expire=3600, key_prefix="paragraph_review")  # 缓存1小时
     async def review_paragraph(
@@ -65,7 +74,8 @@ class ParagraphReviewService:
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             max_tokens=800,  # 段落级评审输出较少
-            temperature=0.7
+            temperature=0.7,
+            task_type=TaskType.TEXT_CLASSIFICATION  # ✅ 新增：段落评审是分类任务
         )
 
         logger.info(f"[ParagraphReviewService] AI响应长度: {len(ai_response)}")

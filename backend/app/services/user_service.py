@@ -67,13 +67,13 @@ class UserService:
         # 检查用户名是否已存在
         existing = await self.get_user_by_username(user_data.username)
         if existing:
-            raise ValueError("Username already taken")
-        
+            raise ValueError("用户名已被使用，请更换其他用户名")
+
         # 如果提供了邮箱，检查是否已存在
         if user_data.email:
             existing = await self.get_user_by_email(user_data.email)
             if existing:
-                raise ValueError("Email already registered")
+                raise ValueError("该邮箱已被注册，请使用其他邮箱或直接登录")
         
         # 创建用户
         user = User(
@@ -81,11 +81,11 @@ class UserService:
             hashed_password=get_password_hash(user_data.password),
             email=user_data.email,  # 可选
         )
-        
+
         self.db.add(user)
-        await self.db.commit()
+        await self.db.flush()  # 只 flush，不 commit，让调用方控制事务
         await self.db.refresh(user)
-        
+
         return user
     
     async def update_user(self, user_id: str, user_data: UserUpdate) -> Optional[User]:
@@ -110,10 +110,10 @@ class UserService:
         update_data = user_data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(user, field, value)
-        
-        await self.db.commit()
+
+        await self.db.flush()
         await self.db.refresh(user)
-        
+
         return user
     
     async def delete_user(self, user_id: str) -> bool:
@@ -121,10 +121,10 @@ class UserService:
         user = await self.get_user_by_id(user_id)
         if not user:
             return False
-        
+
         await self.db.delete(user)
-        await self.db.commit()
-        
+        await self.db.flush()
+
         return True
     
     async def authenticate_user(self, username: str, password: str) -> Optional[User]:
@@ -141,8 +141,8 @@ class UserService:
         
         # 更新最后登录时间
         user.last_login_at = datetime.now(timezone.utc)
-        await self.db.commit()
-        
+        await self.db.flush()
+
         return user
 
     async def get_notification_settings(self, user_id: str) -> NotificationSettings:
@@ -165,7 +165,7 @@ class UserService:
             raise ValueError("User not found")
 
         user.notification_settings = settings.model_dump()
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(user)
         return NotificationSettings.model_validate(user.notification_settings or {})
 
@@ -189,7 +189,7 @@ class UserService:
             raise ValueError("User not found")
 
         user.preferences = preferences.model_dump()
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(user)
         return Preferences.model_validate(user.preferences or {})
 
@@ -209,7 +209,7 @@ class UserService:
             raise ValueError("Password must be at least 6 characters long")
 
         user.hashed_password = get_password_hash(new_password)
-        await self.db.commit()
+        await self.db.flush()
 
     async def soft_delete_user(self, user_id: str, password: str) -> None:
         """软删除用户账号"""
@@ -223,14 +223,15 @@ class UserService:
         user.is_active = False
         user.is_verified = False
         user.username = f"deleted_{user.id}"
-        user.email = None
+        # keep a valid placeholder email to satisfy response schema and uniqueness
+        user.email = f"deleted+{user.id}@example.invalid"
         user.full_name = None
         user.bio = None
         user.avatar = None
         user.notification_settings = {}
         user.preferences = {}
 
-        await self.db.commit()
+        await self.db.flush()
 
     async def update_avatar(self, user_id: str, avatar_url: str) -> User:
         """更新用户头像"""
@@ -239,7 +240,7 @@ class UserService:
             raise ValueError("User not found")
 
         user.avatar = avatar_url
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(user)
         return user
 
@@ -284,7 +285,7 @@ class UserService:
         )
 
         self.db.add(session)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(session)
 
         return session
@@ -356,7 +357,7 @@ class UserService:
         session.is_active = False
         session.logged_out_at = datetime.now(timezone.utc)
 
-        await self.db.commit()
+        await self.db.flush()
         return True
 
     async def logout_other_sessions(self, user_id: str, current_token: str) -> int:
@@ -388,7 +389,7 @@ class UserService:
             session.logged_out_at = datetime.now(timezone.utc)
             count += 1
 
-        await self.db.commit()
+        await self.db.flush()
         return count
 
     async def update_session_activity(self, session_token: str) -> None:
@@ -406,5 +407,5 @@ class UserService:
 
         if session:
             session.last_active_at = datetime.now(timezone.utc)
-            await self.db.commit()
+            await self.db.flush()
 

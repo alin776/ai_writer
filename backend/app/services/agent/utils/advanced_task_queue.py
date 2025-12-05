@@ -18,6 +18,7 @@ import heapq
 
 from ..utils.logger import get_logger
 from ..utils.error_handler import robust_retry
+from app.utils.datetime_utils import get_utc_now
 
 logger = get_logger("advanced_task_queue")
 
@@ -154,7 +155,7 @@ class TaskQueue:
                 return False
 
             task.status = TaskStatus.QUEUED
-            task.queued_at = datetime.now()
+            task.queued_at = get_utc_now()
 
             # 使用堆实现优先级队列
             priority_value = -task.priority.value  # 负值实现最大堆
@@ -186,7 +187,7 @@ class TaskQueue:
             del self._task_index[task_id]
 
             # 检查是否到了执行时间
-            if scheduled_at > datetime.now():
+            if scheduled_at > get_utc_now():
                 # 还没到时间，重新入队
                 heapq.heappush(self._queue, (priority, scheduled_at, task_id, task))
                 self._task_index[task_id] = len(self._queue) - 1
@@ -212,7 +213,7 @@ class TaskQueue:
             priority, scheduled_at, task_id, task = self._queue[0]
 
             # 检查是否到了执行时间
-            if scheduled_at > datetime.now():
+            if scheduled_at > get_utc_now():
                 return None
 
             return task
@@ -372,7 +373,7 @@ class TaskScheduler:
             max_retries=max_retries,
             timeout=timeout,
             task_type=task_type,
-            scheduled_at=datetime.now() + timedelta(seconds=delay_seconds),
+            scheduled_at=get_utc_now() + timedelta(seconds=delay_seconds),
             **task_kwargs
         )
 
@@ -517,7 +518,7 @@ class TaskScheduler:
             task: 任务对象
         """
         task.status = TaskStatus.RUNNING
-        task.started_at = datetime.now()
+        task.started_at = get_utc_now()
 
         with self._lock:
             self.running_tasks[task.task_id] = task
@@ -534,7 +535,7 @@ class TaskScheduler:
 
             task.result = result
             task.status = TaskStatus.COMPLETED
-            task.completed_at = datetime.now()
+            task.completed_at = get_utc_now()
 
             # 记录成功结果
             self.completed_tasks[task.task_id] = result
@@ -556,7 +557,7 @@ class TaskScheduler:
 
                 # 延迟重试
                 retry_delay = task.retry_delay * (2 ** task.current_retry)  # 指数退避
-                task.scheduled_at = datetime.now() + timedelta(seconds=retry_delay)
+                task.scheduled_at = get_utc_now() + timedelta(seconds=retry_delay)
 
                 # 重新入队
                 queue = self.get_queue("default") or self.create_queue("retry")
@@ -566,7 +567,7 @@ class TaskScheduler:
 
             else:
                 task.status = TaskStatus.FAILED
-                task.completed_at = datetime.now()
+                task.completed_at = get_utc_now()
 
                 # 记录失败结果
                 self.failed_tasks[task.task_id] = task
@@ -616,7 +617,7 @@ class TaskScheduler:
                 result=result,
                 execution_time=execution_time,
                 retry_count=task.current_retry,
-                completed_at=datetime.now()
+                completed_at=get_utc_now()
             )
 
         except Exception as e:
@@ -628,7 +629,7 @@ class TaskScheduler:
                 error=str(e),
                 execution_time=execution_time,
                 retry_count=task.current_retry,
-                completed_at=datetime.now()
+                completed_at=get_utc_now()
             )
 
     async def _execute_batch_task(self, task: Task) -> TaskResult:
@@ -684,7 +685,7 @@ class TaskScheduler:
                 },
                 execution_time=execution_time,
                 retry_count=task.current_retry,
-                completed_at=datetime.now()
+                completed_at=get_utc_now()
             )
 
         except Exception as e:
@@ -696,7 +697,7 @@ class TaskScheduler:
                 error=str(e),
                 execution_time=execution_time,
                 retry_count=task.current_retry,
-                completed_at=datetime.now()
+                completed_at=get_utc_now()
             )
 
     async def _handle_recurring_tasks(self) -> None:

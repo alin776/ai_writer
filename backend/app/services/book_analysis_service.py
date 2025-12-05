@@ -18,11 +18,13 @@ from app.models.book_analysis import BookAnalysisJob, JobStatus
 from app.models.worldview_suggestion import WorldviewSuggestion
 from app.models.knowledge_item import KnowledgeItem, KnowledgeCategory
 from app.services.ai.http_ai_service import HTTPAIService
+from app.services.agent.model_selector import TaskType  # ✅ 新增：用于成本追踪
 from app.services.book_analysis.strategy import strategy_registry
 from app.services.book_analysis.smart_sampling import SmartSamplingAnalyzer, ChapterData
 from app.services.book_analysis.suggestion_generator import SuggestionGenerator
 from app.services.knowledge_service import KnowledgeService
 from app.services.redis_cache_service import RedisCacheService
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +154,7 @@ class BookAnalysisService:
         try:
             # 1. 更新状态为解析中
             job.status = JobStatus.PARSING
-            job.started_at = datetime.utcnow()
+            job.started_at = get_utc_now()
             job.current_step = "正在解析图书结构..."
             await self.db.commit()
             logger.info(f"📄 开始解析文件: {job.file_path}")
@@ -262,7 +264,7 @@ class BookAnalysisService:
             job.status = JobStatus.COMPLETED
             job.current_step = f"分析完成! 提取了 {len(knowledge_items)} 个知识点, 生成了 {len(suggestions)} 个智能建议"
             job.progress = 100
-            job.completed_at = datetime.utcnow()
+            job.completed_at = get_utc_now()
             await self.db.commit()
 
             # 8. 输出缓存统计
@@ -338,7 +340,8 @@ class BookAnalysisService:
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 max_tokens=3000,
-                temperature=0.3
+                temperature=0.3,
+                task_type=TaskType.SUMMARIZATION  # ✅ 新增：图书分析是总结类任务
             )
 
             # 保存AI响应到临时文件(调试用)

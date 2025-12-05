@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     # OpenAI 配置
     OPENAI_API_KEY: str
     OPENAI_BASE_URL: str = "https://204992.xyz/v1"
-    OPENAI_MODEL: str = "gpt-5"  # 默认模型，可通过环境变量修改
+    OPENAI_MODEL: str = "gemini-2.5-pro"  # 默认模型，可通过环境变量修改
 
     @validator("OPENAI_TIMEOUT", pre=True)
     @classmethod
@@ -107,36 +107,21 @@ class Settings(BaseSettings):
     REVIEW_TIMEOUT: int = 60  # 评审超时时间(秒),gemini速度快
 
     # 图书分析专用模型配置
-    BOOK_ANALYSIS_MODEL: str = "deepseek-r1-free"  # 图书分析专用模型,默认使用免费的推理模型
-    BOOK_ANALYSIS_TIMEOUT: int = 60  # 图书分析超时时间(秒),推理模型速度更快
+    BOOK_ANALYSIS_MODEL: str = "gemini-2.5-flash-lite"  # 图书分析专用模型,快速分析
+    BOOK_ANALYSIS_TIMEOUT: int = 60  # 图书分析超时时间(秒)
 
     # AI 改写助手配置
     # 可用模型列表（可通过修改 enabled 字段启用/禁用模型）
     REWRITE_MODELS: dict = {
         "gemini-2.5-pro": {
             "name": "Gemini 2.5 Pro",
-            "description": "擅长创意和细节描写",
+            "description": "复杂任务专用模型，擅长创意和细节描写",
             "enabled": True
-        },
-        "gpt-5": {
-            "name": "GPT-5",
-            "description": "平衡全能，表现稳定",
-            "enabled": True
-        },
-        "claude-3-opus": {
-            "name": "Claude 3 Opus",
-            "description": "擅长深度思考和逻辑",
-            "enabled": False
-        },
-        "gpt-4-turbo": {
-            "name": "GPT-4 Turbo",
-            "description": "快速高效",
-            "enabled": False
         }
     }
 
     # 默认使用的模型列表
-    REWRITE_DEFAULT_MODELS: List[str] = ["gemini-2.5-pro", "gpt-5"]
+    REWRITE_DEFAULT_MODELS: List[str] = ["gemini-2.5-pro"]
 
     # 最多可同时使用的模型数量
     REWRITE_MAX_MODELS: int = 4
@@ -170,9 +155,9 @@ class Settings(BaseSettings):
     QUALITY_LOOP_PASS_THRESHOLD: float = 8.0  # 质量通过阈值（0-10分）
 
     # 模型选择配置
-    MODEL_SIMPLE_TASK: str = "deepseek-chat"  # 简单任务使用的模型
-    MODEL_MEDIUM_TASK: str = "gpt-3.5-turbo"  # 中等任务使用的模型
-    MODEL_COMPLEX_TASK: str = "gpt-4-turbo"  # 复杂任务使用的模型
+    MODEL_SIMPLE_TASK: str = "gemini-2.5-flash-lite"  # 简单任务使用的模型
+    MODEL_MEDIUM_TASK: str = "gemini-2.5-flash"  # 中等任务使用的模型
+    MODEL_COMPLEX_TASK: str = "gemini-2.5-pro"  # 复杂任务使用的模型
 
     # 成本控制配置
     ENABLE_COST_TRACKING: bool = True  # 启用成本追踪
@@ -275,6 +260,47 @@ class Settings(BaseSettings):
     # 管理员配置
     ADMIN_EMAIL: str = "admin@example.com"
     ADMIN_PASSWORD: str
+
+    # ==================== 积分系统核心配置 ====================
+
+    # 积分系统开关
+    CREDITS_ENABLED: bool = True  # 是否启用积分系统
+
+    # 管理员积分豁免
+    ADMIN_CREDITS_EXEMPT: bool = True  # 管理员使用AI功能是否豁免积分检查
+
+    # 美元兑积分比例（基于混合使用模型：1 USD = 12,400 积分）
+    CREDITS_PER_DOLLAR: int = 12400
+
+    # 新用户赠送积分（混合写50,000字）
+    NEW_USER_GIFT_CREDITS: float = 5000.00
+
+    # 积分有效期（天），0 表示永久
+    CREDITS_EXPIRE_DAYS: int = 0
+
+    # 兑换码默认有效期（天）
+    REDEEM_CODE_EXPIRE_DAYS: int = 90
+
+    # ==================== 邀请系统配置 ====================
+
+    # 邀请奖励积分（混合写10,000字）
+    INVITATION_REWARD_CREDITS: float = 1000.00
+
+    # 邀请码限制
+    INVITATION_MAX_USES_PER_CODE: int = 3  # 每个邀请码最多使用次数（默认3次）
+    USER_MAX_INVITATION_CODES: int = 3  # 每个用户最多持有邀请码数
+    INVITATION_CODE_EXPIRE_DAYS: int = 60  # 邀请码有效期（天，固定60天）
+
+    # 邀请激活条件
+    INVITATION_ACTIVATION_MIN_CONSUME: float = 200.00  # 激活所需最小消费积分
+    INVITATION_ACTIVATION_MIN_RECHARGE: float = 1.00  # 激活所需最小充值积分
+    INVITATION_ACTIVATION_DEADLINE_DAYS: int = 7  # 激活期限（天）
+
+    # ==================== 防刷机制配置 ====================
+
+    # IP和设备限制
+    SAME_IP_REGISTER_LIMIT_24H: int = 3  # 同IP 24小时内最多注册次数
+    SAME_DEVICE_REGISTER_LIMIT_7D: int = 5  # 同设备7天内最多注册次数
 
     # ==================== 模型智能选择配置（P0优化）====================
     MODEL_SELECTION_ENABLED: bool = True  # 启用ModelSelector智能选择

@@ -46,7 +46,7 @@ const defaultConfig: AIConfig = {
   apiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
 
   openai: {
-    model: import.meta.env.VITE_OPENAI_MODEL || 'gpt-4-turbo-preview',
+    model: import.meta.env.VITE_OPENAI_MODEL || 'gemini-2.5-pro',
     maxTokens: 2000,
     temperature: 0.7,
     streamEnabled: true,

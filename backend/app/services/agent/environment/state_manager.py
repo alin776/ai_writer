@@ -10,6 +10,7 @@ from datetime import datetime
 from copy import deepcopy
 
 from ..utils import robust_retry, safe_execute_async, global_error_handler, ErrorCategory
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +132,7 @@ class StateManager:
 
         # 2. 合并更新
         state.update(updates)
-        state["updated_at"] = datetime.now().isoformat()
+        state["updated_at"] = get_utc_now().isoformat()
 
         # 3. 更新内存缓存
         self._memory_cache[conversation_id] = state
@@ -160,7 +161,7 @@ class StateManager:
             persist_to_redis: 是否立即持久化到Redis
         """
         # 更新时间戳
-        state["updated_at"] = datetime.now().isoformat()
+        state["updated_at"] = get_utc_now().isoformat()
         if "created_at" not in state:
             state["created_at"] = state["updated_at"]
 
@@ -327,7 +328,7 @@ class StateManager:
         Returns:
             默认状态字典
         """
-        now = datetime.now().isoformat()
+        now = get_utc_now().isoformat()
         return {
             "messages": [],
             "work_id": None,

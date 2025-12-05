@@ -38,6 +38,8 @@ class TaskType(str, Enum):
     TEXT_CLASSIFICATION = "text_classification"  # 文本分类
     SIMPLE_QA = "simple_qa"                     # 简单问答
     KEYWORD_EXTRACTION = "keyword_extraction"    # 关键词提取
+    HUMANIZE_DETECT = "humanize_detect"         # AI痕迹检测
+    HUMANIZE_VERIFY = "humanize_verify"         # 去痕迹验证
 
     # 中等任务
     TEXT_POLISH = "text_polish"                 # 文本润色
@@ -47,6 +49,7 @@ class TaskType(str, Enum):
 
     # 复杂任务
     CONTENT_CREATION = "content_creation"       # 内容创作
+    HUMANIZE_REWRITE = "humanize_rewrite"       # ✅ 去痕迹改写 (人性化改写)
     STORY_PLANNING = "story_planning"           # 故事规划
     CHARACTER_DESIGN = "character_design"       # 角色设计
     WORLD_BUILDING = "world_building"           # 世界观构建
@@ -151,55 +154,8 @@ MODEL_TIERS: Dict[TaskComplexity, ModelTier] = {
     )
 }
 
-# 备选模型配置 (可选, 用于降级或特殊场景)
-ALTERNATIVE_MODELS: Dict[str, ModelTier] = {
-    # OpenAI 系列 (可能需要时使用)
-    "gpt-3.5-turbo": ModelTier(
-        name="GPT-3.5 Turbo",
-        provider="openai",
-        model_id="gpt-3.5-turbo",
-        cost_per_1m_input=0.50,
-        cost_per_1m_output=1.50,
-        max_tokens=4096,
-        speed="fast",
-        quality_score=8.0,
-        recommended_for=[TaskComplexity.SIMPLE, TaskComplexity.MEDIUM]
-    ),
-    "gpt-4-turbo": ModelTier(
-        name="GPT-4 Turbo",
-        provider="openai",
-        model_id="gpt-4-turbo-preview",
-        cost_per_1m_input=10.00,
-        cost_per_1m_output=30.00,
-        max_tokens=4096,
-        speed="medium",
-        quality_score=9.5,
-        recommended_for=[TaskComplexity.COMPLEX]
-    ),
-    "gpt-4o": ModelTier(
-        name="GPT-4o",
-        provider="openai",
-        model_id="gpt-4o",
-        cost_per_1m_input=2.50,
-        cost_per_1m_output=10.00,
-        max_tokens=4096,
-        speed="fast",
-        quality_score=9.0,
-        recommended_for=[TaskComplexity.COMPLEX]
-    ),
-    # 其他备选
-    "deepseek-chat": ModelTier(
-        name="DeepSeek Chat",
-        provider="deepseek",
-        model_id="deepseek-chat",
-        cost_per_1m_input=0.14,
-        cost_per_1m_output=0.28,
-        max_tokens=4096,
-        speed="fast",
-        quality_score=7.5,
-        recommended_for=[TaskComplexity.SIMPLE, TaskComplexity.MEDIUM]
-    )
-}
+# 备选模型配置 (统一使用 Gemini 系列，无需备选)
+ALTERNATIVE_MODELS: Dict[str, ModelTier] = {}
 
 
 # ==================== 任务类型到复杂度的映射 ====================
@@ -210,6 +166,8 @@ TASK_TYPE_TO_COMPLEXITY: Dict[TaskType, TaskComplexity] = {
     TaskType.TEXT_CLASSIFICATION: TaskComplexity.SIMPLE,
     TaskType.SIMPLE_QA: TaskComplexity.SIMPLE,
     TaskType.KEYWORD_EXTRACTION: TaskComplexity.SIMPLE,
+    TaskType.HUMANIZE_DETECT: TaskComplexity.SIMPLE,      # ✅ AI痕迹检测
+    TaskType.HUMANIZE_VERIFY: TaskComplexity.SIMPLE,      # ✅ 去痕迹验证
 
     # 中等任务
     TaskType.TEXT_POLISH: TaskComplexity.MEDIUM,
@@ -219,6 +177,7 @@ TASK_TYPE_TO_COMPLEXITY: Dict[TaskType, TaskComplexity] = {
 
     # 复杂任务
     TaskType.CONTENT_CREATION: TaskComplexity.COMPLEX,
+    TaskType.HUMANIZE_REWRITE: TaskComplexity.COMPLEX,    # ✅ 去痕迹改写
     TaskType.STORY_PLANNING: TaskComplexity.COMPLEX,
     TaskType.CHARACTER_DESIGN: TaskComplexity.COMPLEX,
     TaskType.WORLD_BUILDING: TaskComplexity.COMPLEX,

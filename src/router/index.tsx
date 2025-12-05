@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AuthLayout, AdminLayout, ProtectedRoute } from '../components/layout';
+import { ErrorBoundary } from '../components/common';
 
 /**
  * 路由配置文件
@@ -20,12 +21,20 @@ const CreateWorkView = React.lazy(() => import('../views/CreateWorkView'));
 const WorkDetailView = React.lazy(() => import('../views/WorkDetailView'));
 const WorldviewGraphFullscreen = React.lazy(() => import('../views/WorldviewGraphFullscreen'));
 const EditorView = React.lazy(() => import('../views/EditorView'));
+const HumanizeView = React.lazy(() => import('../views/HumanizeView'));
 const AdminDashboardView = React.lazy(() => import('../views/AdminDashboardView'));
 const AdminUsersView = React.lazy(() => import('../views/AdminUsersView'));
 const AdminAIModelsView = React.lazy(() => import('../views/AdminAIModelsView'));
 const AdminCostView = React.lazy(() => import('../views/AdminCostView'));
+const AdminInvitationsView = React.lazy(() => import('../views/AdminInvitationsView'));
+const AdminCreditsView = React.lazy(() => import('../views/AdminCreditsView'));
 const SettingsView = React.lazy(() => import('../views/SettingsView'));
 const KnowledgeView = React.lazy(() => import('../views/KnowledgeView'));
+const ServiceCreditsView = React.lazy(() => import('../views/ServiceCreditsView'));
+const ServiceUsageView = React.lazy(() => import('../views/ServiceUsageView'));
+const ServiceObtainView = React.lazy(() => import('../views/ServiceObtainView'));
+const HumanizeHistoryView = React.lazy(() => import('../views/HumanizeHistoryView'));
+const HumanizeSessionDetail = React.lazy(() => import('../views/HumanizeHistoryView/SessionDetail'));
 const NotFoundView = React.lazy(() => import('../views/NotFoundView'));
 
 /**
@@ -78,6 +87,14 @@ export const router = createBrowserRouter([
   },
   {
     path: '/register',
+    element: (
+      <SuspenseWrapper>
+        <AuthView />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: '/auth',
     element: (
       <SuspenseWrapper>
         <AuthView />
@@ -178,6 +195,62 @@ export const router = createBrowserRouter([
           </SuspenseWrapper>
         ),
       },
+
+      /**
+       * AI去痕路由
+       */
+      {
+        path: '/humanize',
+        element: (
+          <SuspenseWrapper>
+            <HumanizeView />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/humanize/history',
+        element: (
+          <SuspenseWrapper>
+            <HumanizeHistoryView />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/humanize/history/:sessionId',
+        element: (
+          <SuspenseWrapper>
+            <HumanizeSessionDetail />
+          </SuspenseWrapper>
+        ),
+      },
+
+      /**
+       * 我的服务路由
+       */
+      {
+        path: '/service/credits',
+        element: (
+          <SuspenseWrapper>
+            <ServiceCreditsView />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/service/usage',
+        element: (
+          <SuspenseWrapper>
+            <ServiceUsageView />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/service/obtain',
+        element: (
+          <SuspenseWrapper>
+            <ServiceObtainView />
+          </SuspenseWrapper>
+        ),
+      },
     ],
   },
 
@@ -225,6 +298,26 @@ export const router = createBrowserRouter([
               <SuspenseWrapper>
                 <AdminCostView />
               </SuspenseWrapper>
+            ),
+          },
+          {
+            path: 'invitations',
+            element: (
+              <ErrorBoundary>
+                <SuspenseWrapper>
+                  <AdminInvitationsView />
+                </SuspenseWrapper>
+              </ErrorBoundary>
+            ),
+          },
+          {
+            path: 'credits',
+            element: (
+              <ErrorBoundary>
+                <SuspenseWrapper>
+                  <AdminCreditsView />
+                </SuspenseWrapper>
+              </ErrorBoundary>
             ),
           },
         ],

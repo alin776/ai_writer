@@ -10,6 +10,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from app.services.context.models import Message
+from app.services.agent.model_selector import TaskType  # ✅ 新增：用于成本追踪
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class SummaryService:
             ai_service: HTTPAIService实例（懒加载）
         """
         self.ai_service = ai_service
-        self.default_model = "gpt-4o-mini"  # 成本优化：使用mini模型
+        self.default_model = "gemini-2.5-flash"  # 成本优化：使用Gemini Flash模型
 
     async def summarize_conversation(
         self,
@@ -64,7 +65,8 @@ class SummaryService:
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 max_tokens=300,  # 控制输出长度
-                temperature=0.3  # 低温度保证稳定性
+                temperature=0.3,  # 低温度保证稳定性
+                task_type=TaskType.SUMMARIZATION  # ✅ 新增：摘要任务
             )
 
             # 验证摘要质量

@@ -14,6 +14,7 @@ import threading
 
 from .monitoring import get_system_monitor, MetricType, HealthStatus, HealthCheck
 from .logger import get_logger
+from app.utils.datetime_utils import get_utc_now
 
 logger = get_logger("business_metrics")
 
@@ -230,7 +231,7 @@ class BusinessMetricsCollector:
 
             if existing_metric:
                 existing_metric.edit_count += 1
-                existing_metric.last_edited = datetime.now()
+                existing_metric.last_edited = get_utc_now()
                 existing_metric.metadata.update(metadata or {})
 
             # 更新系统监控指标
@@ -258,7 +259,7 @@ class BusinessMetricsCollector:
                 user_id=user_id,
                 session_id=session_id,
                 actions_count=1,
-                last_activity=datetime.now(),
+                last_activity=get_utc_now(),
                 metadata=metadata or {}
             )
 
@@ -377,7 +378,7 @@ class BusinessMetricsCollector:
 
     def _get_active_users(self, time_window_minutes: int = 60) -> List[str]:
         """获取活跃用户列表"""
-        cutoff_time = datetime.now() - timedelta(minutes=time_window_minutes)
+        cutoff_time = get_utc_now() - timedelta(minutes=time_window_minutes)
         active_users = set()
 
         for user_id, user_queue in self._user_metrics.items():
@@ -414,7 +415,7 @@ class BusinessMetricsCollector:
                 )
 
             # 计算最近1小时的质量分数
-            cutoff_time = datetime.now() - timedelta(hours=1)
+            cutoff_time = get_utc_now() - timedelta(hours=1)
             recent_metrics = [
                 m for m in self._content_metrics
                 if m.timestamp >= cutoff_time and m.quality_score > 0
@@ -458,7 +459,7 @@ class BusinessMetricsCollector:
                 )
 
             # 计算最近1小时的LLM调用
-            cutoff_time = datetime.now() - timedelta(hours=1)
+            cutoff_time = get_utc_now() - timedelta(hours=1)
             recent_metrics = [
                 m for m in self._performance_metrics
                 if m.timestamp >= cutoff_time and m.llm_calls_total > 0
@@ -523,7 +524,7 @@ class BusinessMetricsCollector:
 
     def get_business_summary(self, time_window_hours: int = 24) -> Dict[str, Any]:
         """获取业务摘要"""
-        cutoff_time = datetime.now() - timedelta(hours=time_window_hours)
+        cutoff_time = get_utc_now() - timedelta(hours=time_window_hours)
 
         with self._lock:
             # 内容统计
@@ -580,7 +581,7 @@ class BusinessMetricsCollector:
                     "active_users": active_users
                 },
                 "performance_metrics": performance_stats,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": get_utc_now().isoformat()
             }
 
     def get_detailed_metrics(self, limit: int = 1000) -> Dict[str, Any]:

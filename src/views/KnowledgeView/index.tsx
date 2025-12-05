@@ -13,6 +13,8 @@ import {
   Tag,
   Calendar,
   RefreshCw,
+  Sparkles,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,65 +31,59 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import FilePicker from '@/components/common/FilePicker';
 import { knowledgeApi, type KnowledgeItem as ApiKnowledgeItem } from '@/services/knowledgeApi';
+import { ToastContainer } from '@/components/ui/Toast';
+import { useToast } from '@/hooks/useToast';
 
-/**
- * 知识条目类型
- */
-// 知识分类
+
+type SourceType = 'manual' | 'book_analysis' | 'ai_generated' | 'imported' | 'text' | 'file' | 'url';
 type KnowledgeCategory = 'character' | 'worldview' | 'plot' | 'dialogue' | 'description' | 'technique' | 'reference' | 'other';
 
 const CATEGORY_OPTIONS: { value: KnowledgeCategory; label: string }[] = [
   { value: 'technique', label: '写作技巧' },
-  { value: 'character', label: '人物设定' },
+  { value: 'character', label: '特色设定' },
   { value: 'worldview', label: '世界观' },
-  { value: 'plot', label: '情节灵感' },
-  { value: 'dialogue', label: '对话金句' },
+  { value: 'plot', label: '支线剧情' },
+  { value: 'dialogue', label: '对话台词' },
   { value: 'description', label: '场景描写' },
   { value: 'reference', label: '参考资料' },
   { value: 'other', label: '其他' },
 ];
 
-type KnowledgeItem = ApiKnowledgeItem & { category?: KnowledgeCategory | string };
+type KnowledgeItem = ApiKnowledgeItem & {
+  category?: KnowledgeCategory | string;
+  source_type?: SourceType;
+};
 
-/**
- * 个人知识库视图
- *
- * 功能：
- * - 知识条目列表展示
- * - 添加文本/上传文件
- * - 搜索/过滤
- * - 编辑/删除
- * - 标签管理
- */
 const KnowledgeView: React.FC = () => {
   const [items, setItems] = useState<KnowledgeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTags] = useState<string[]>([]);
+  const [tagFilter, setTagFilter] = useState('');
 
-  // 对话框状态
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [currentItem, setCurrentItem] = useState<KnowledgeItem | null>(null);
 
-  // 表单状态
   const [formTitle, setFormTitle] = useState('');
   const [formContent, setFormContent] = useState('');
   const [formTags, setFormTags] = useState('');
   const [formCategory, setFormCategory] = useState<KnowledgeCategory>('technique');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const { warning: showWarning, success: showSuccess, messages, close } = useToast();
 
-  // 加载知识列表
   const loadItems = useCallback(async () => {
     try {
       setLoading(true);
+      const tagList = tagFilter.split(',').map((t) => t.trim()).filter(Boolean);
       const data = await knowledgeApi.getList({
         search: searchQuery || undefined,
-        tags: selectedTags.length > 0 ? selectedTags : undefined,
+        tags: tagList.length > 0 ? tagList : undefined,
+        limit: 50,
       });
       setItems(data.items || []);
     } catch (error) {
@@ -95,13 +91,21 @@ const KnowledgeView: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, selectedTags]);
+  }, [searchQuery, tagFilter]);
 
   useEffect(() => {
     loadItems();
   }, [loadItems]);
 
-  // 添加文本知识
+  const resetForm = () => {
+    setFormTitle('');
+    setFormContent('');
+    setFormTags('');
+    setFormCategory('technique');
+    setUploadFile(null);
+    setCurrentItem(null);
+  };
+
   const handleAddText = async () => {
     if (!formTitle.trim() || !formContent.trim()) return;
 
@@ -111,7 +115,7 @@ const KnowledgeView: React.FC = () => {
         title: formTitle.trim(),
         content: formContent.trim(),
         category: formCategory,
-        tags: formTags.split(',').map(t => t.trim()).filter(Boolean),
+        tags: formTags.split(',').map((t) => t.trim()).filter(Boolean),
       });
       setShowAddDialog(false);
       resetForm();
@@ -123,20 +127,24 @@ const KnowledgeView: React.FC = () => {
     }
   };
 
-  // 上传文件
   const handleUpload = async () => {
     if (!uploadFile || !formTitle.trim()) return;
 
     try {
       setSubmitting(true);
-      await knowledgeApi.upload(uploadFile, {
+      const created = await knowledgeApi.upload(uploadFile, {
         title: formTitle.trim(),
         category: formCategory,
-        tags: formTags.split(',').map(t => t.trim()).filter(Boolean),
+        tags: formTags.split(',').map((t) => t.trim()).filter(Boolean),
       });
       setShowUploadDialog(false);
       resetForm();
       loadItems();
+      if (created?.extra_data?.vectorization_warning) {
+        showWarning('向量化提示', created.extra_data.vectorization_warning);
+      } else {
+        showSuccess('上传成功', '知识条目已创建并向量化');
+      }
     } catch (error) {
       console.error('Failed to upload file:', error);
     } finally {
@@ -144,7 +152,6 @@ const KnowledgeView: React.FC = () => {
     }
   };
 
-  // 编辑知识
   const handleEdit = async () => {
     if (!currentItem || !formTitle.trim()) return;
 
@@ -154,7 +161,7 @@ const KnowledgeView: React.FC = () => {
         title: formTitle.trim(),
         content: formContent.trim() || undefined,
         category: formCategory,
-        tags: formTags.split(',').map(t => t.trim()).filter(Boolean),
+        tags: formTags.split(',').map((t) => t.trim()).filter(Boolean),
       });
       setShowEditDialog(false);
       resetForm();
@@ -166,7 +173,6 @@ const KnowledgeView: React.FC = () => {
     }
   };
 
-  // 删除知识
   const handleDelete = async () => {
     if (!currentItem) return;
 
@@ -183,17 +189,6 @@ const KnowledgeView: React.FC = () => {
     }
   };
 
-  // 重置表单
-  const resetForm = () => {
-    setFormTitle('');
-    setFormContent('');
-    setFormTags('');
-    setFormCategory('technique');
-    setUploadFile(null);
-    setCurrentItem(null);
-  };
-
-  // 打开编辑对话框
   const openEditDialog = (item: KnowledgeItem) => {
     setCurrentItem(item);
     setFormTitle(item.title);
@@ -206,21 +201,24 @@ const KnowledgeView: React.FC = () => {
     setShowEditDialog(true);
   };
 
-  // 打开删除确认
   const openDeleteDialog = (item: KnowledgeItem) => {
     setCurrentItem(item);
     setShowDeleteDialog(true);
   };
 
-  // 获取文件图标
-  const getFileIcon = (item: KnowledgeItem) => {
-    if (item.source_type === 'text') return <FileText className="w-4 h-4" />;
-    if (item.file_type?.includes('pdf')) return <File className="w-4 h-4 text-red-500" />;
-    if (item.file_type?.includes('epub')) return <Book className="w-4 h-4 text-purple-500" />;
-    return <File className="w-4 h-4" />;
+  const getSourceIcon = (item: KnowledgeItem) => {
+    switch (item.source_type) {
+      case 'book_analysis':
+        return <Book className="w-4 h-4 text-purple-600" />;
+      case 'ai_generated':
+        return <Sparkles className="w-4 h-4 text-amber-500" />;
+      case 'imported':
+        return <File className="w-4 h-4 text-blue-500" />;
+      default:
+        return <FileText className="w-4 h-4 text-gray-600" />;
+    }
   };
 
-  // 格式化日期
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('zh-CN', {
       year: 'numeric',
@@ -231,13 +229,13 @@ const KnowledgeView: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
-      {/* 头部 */}
+      <ToastContainer messages={messages} onClose={close} />
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">个人知识库</h1>
+            <h1 className="text-xl font-semibold text-gray-900">我的知识库</h1>
             <p className="text-sm text-gray-500 mt-1">
-              管理您的参考资料、写作素材和灵感来源
+              存储参考资料、写作素材和创作灵感，创作时随时调用
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -259,7 +257,6 @@ const KnowledgeView: React.FC = () => {
           </div>
         </div>
 
-        {/* 搜索和过滤 */}
         <div className="flex items-center gap-3">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -270,6 +267,12 @@ const KnowledgeView: React.FC = () => {
               className="pl-9"
             />
           </div>
+          <Input
+            placeholder="标签筛选（逗号分隔）"
+            value={tagFilter}
+            onChange={(e) => setTagFilter(e.target.value)}
+            className="max-w-xs"
+          />
           <Button
             variant="ghost"
             size="sm"
@@ -280,7 +283,6 @@ const KnowledgeView: React.FC = () => {
         </div>
       </div>
 
-      {/* 内容区 */}
       <div className="flex-1 overflow-auto p-6">
         {loading ? (
           <div className="flex items-center justify-center h-64">
@@ -290,7 +292,7 @@ const KnowledgeView: React.FC = () => {
           <div className="flex flex-col items-center justify-center h-64 text-gray-500">
             <FolderOpen className="w-12 h-12 mb-3 text-gray-300" />
             <p className="text-sm">暂无知识条目</p>
-            <p className="text-xs mt-1">点击上方按钮添加您的第一条知识</p>
+            <p className="text-xs mt-1">点击上方按钮创建你的第一个知识</p>
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -301,7 +303,7 @@ const KnowledgeView: React.FC = () => {
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    {getFileIcon(item)}
+                    {getSourceIcon(item)}
                     <h3 className="font-medium text-gray-900 text-sm truncate">
                       {item.title}
                     </h3>
@@ -325,14 +327,12 @@ const KnowledgeView: React.FC = () => {
                   </DropdownMenu>
                 </div>
 
-                {/* 内容预览 */}
                 {item.content && (
                   <p className="text-xs text-gray-500 line-clamp-2 mb-3">
                     {item.content}
                   </p>
                 )}
 
-                {/* 标签 */}
                 {item.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mb-3">
                     {item.tags.slice(0, 3).map((tag) => (
@@ -352,7 +352,13 @@ const KnowledgeView: React.FC = () => {
                   </div>
                 )}
 
-                {/* 元信息 */}
+                {item.extra_data?.vectorization_warning && (
+                  <div className="flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1 text-[11px] mb-3">
+                    <AlertTriangle className="w-3 h-3" />
+                    <span className="truncate">{item.extra_data.vectorization_warning}</span>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between text-xs text-gray-400">
                   <div className="flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
@@ -368,7 +374,6 @@ const KnowledgeView: React.FC = () => {
         )}
       </div>
 
-      {/* 添加文本对话框 */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent>
           <DialogHeader>
@@ -412,7 +417,7 @@ const KnowledgeView: React.FC = () => {
               <Input
                 value={formTags}
                 onChange={(e) => setFormTags(e.target.value)}
-                placeholder="用逗号分隔，如：写作技巧, 人物塑造"
+                placeholder="用逗号分隔，例如：写作技巧, 特色设定"
                 className="mt-1"
               />
             </div>
@@ -428,7 +433,6 @@ const KnowledgeView: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* 上传文件对话框 */}
       <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
         <DialogContent>
           <DialogHeader>
@@ -460,32 +464,14 @@ const KnowledgeView: React.FC = () => {
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700">文件</label>
-              <div className="mt-1 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                {uploadFile ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <File className="w-5 h-5 text-gray-500" />
-                    <span className="text-sm text-gray-700">{uploadFile.name}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setUploadFile(null)}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                ) : (
-                  <label className="cursor-pointer">
-                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500">点击选择文件</p>
-                    <p className="text-xs text-gray-400 mt-1">支持 TXT, PDF, EPUB</p>
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept=".txt,.pdf,.epub"
-                      onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                    />
-                  </label>
-                )}
+              <div className="mt-1">
+                <FilePicker
+                  file={uploadFile}
+                  onChange={(file) => setUploadFile(file)}
+                  accept=".txt,.md,.markdown,.pdf,.docx"
+                  placeholder="点击选择文件"
+                  description="支持 TXT / Markdown / PDF / DOCX（自动提取文本）"
+                />
               </div>
             </div>
             <div>
@@ -493,7 +479,7 @@ const KnowledgeView: React.FC = () => {
               <Input
                 value={formTags}
                 onChange={(e) => setFormTags(e.target.value)}
-                placeholder="用逗号分隔，如：参考书籍, 武侠"
+                placeholder="用逗号分隔，例如：参考书, 小说"
                 className="mt-1"
               />
             </div>
@@ -509,7 +495,6 @@ const KnowledgeView: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* 编辑对话框 */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent>
           <DialogHeader>
@@ -538,7 +523,7 @@ const KnowledgeView: React.FC = () => {
                 ))}
               </select>
             </div>
-            {currentItem?.source_type === 'text' && (
+            {(currentItem?.source_type === 'manual' || currentItem?.source_type === 'imported') && (
               <div>
                 <label className="text-sm font-medium text-gray-700">内容</label>
                 <textarea
@@ -568,7 +553,6 @@ const KnowledgeView: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* 删除确认对话框 */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>

@@ -20,6 +20,7 @@ from enum import Enum
 from datetime import datetime
 import logging
 import json
+from app.utils.datetime_utils import get_utc_now
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -314,7 +315,7 @@ class StandardTool(Generic[InputT, OutputT]):
             "category": self.category.value,
             "success": success,
             "execution_time": execution_time,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": get_utc_now().isoformat(),
             "error": error_message
         }
 

@@ -40,6 +40,9 @@ logger = logging.getLogger(__name__)
 
 
 # ==================== 后台日志记录函数 ====================
+# ❌ DEPRECATED - 2025-12-01
+# 此函数已被弃用，现在使用HTTPAIService._track_api_cost替代
+# 保留代码仅用于紧急回滚
 
 async def _log_ai_call_async(
     user_id: str,
@@ -233,7 +236,8 @@ async def ai_complete(
     # ✅ 创建独立的数据库会话用于加载元数据
     from app.core.database import create_db_session
     async with create_db_session() as db:
-        ai_service = HTTPAIService(db=db)
+        # ✅ 2025-12-01: 传递user_id以启用成本追踪
+        ai_service = HTTPAIService(db=db, user_id=str(current_user.id))
 
         async def event_generator():
             """SSE 事件生成器"""
@@ -265,22 +269,24 @@ async def ai_complete(
                 yield f"data: [ERROR] {error_msg}\n\n"
 
             finally:
-                # ✅ 修复：使用后台任务记录日志，不阻塞流式响应
-                asyncio.create_task(_log_ai_call_async(
-                    user_id=str(current_user.id),
-                    model_name=settings.OPENAI_MODEL,
-                    operation_type="continue",
-                    prompt_tokens=0,
-                    completion_tokens=0,
-                    prompt_text=request.context,
-                    completion_text=accumulated_text,
-                    extra_data={
-                        "style": request.style,
-                        "prompt": request.prompt,
-                        "max_tokens": request.max_tokens,
-                        "context_length": len(request.context)
-                    }
-                ))
+                # ❌ DEPRECATED - 2025-12-01: 注释掉后台任务，改用HTTPAIService内部的_track_api_cost
+                # HTTPAIService现在会在AI调用完成时自动记录成本到数据库
+                # asyncio.create_task(_log_ai_call_async(
+                #     user_id=str(current_user.id),
+                #     model_name=settings.OPENAI_MODEL,
+                #     operation_type="continue",
+                #     prompt_tokens=0,
+                #     completion_tokens=0,
+                #     prompt_text=request.context,
+                #     completion_text=accumulated_text,
+                #     extra_data={
+                #         "style": request.style,
+                #         "prompt": request.prompt,
+                #         "max_tokens": request.max_tokens,
+                #         "context_length": len(request.context)
+                #     }
+                # ))
+                pass
 
         return StreamingResponse(
             event_generator(),
@@ -320,8 +326,8 @@ async def ai_complete(
 )
 async def ai_polish(
     request: AIPolishRequest,
-    current_user: User = Depends(get_current_active_user)
-    # ✅ 修复：移除db依赖
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """AI 润色接口（流式响应）"""
     import asyncio
@@ -331,7 +337,8 @@ async def ai_polish(
         f"文本长度: {len(request.text)}"
     )
 
-    ai_service = HTTPAIService()
+    # ✅ 2025-12-01: 传递db和user_id以启用成本追踪
+    ai_service = HTTPAIService(db=db, user_id=str(current_user.id))
 
     async def event_generator():
         accumulated_text = ""
@@ -351,17 +358,18 @@ async def ai_polish(
             yield f"data: [ERROR] {error_msg}\n\n"
 
         finally:
-            # ✅ 修复：使用后台任务记录日志
-            asyncio.create_task(_log_ai_call_async(
-                user_id=str(current_user.id),
-                model_name=settings.OPENAI_MODEL,
-                operation_type="polish",
-                prompt_tokens=0,
-                completion_tokens=0,
-                prompt_text=request.text,
-                completion_text=accumulated_text,
-                extra_data={"text_length": len(request.text)}
-            ))
+            # ❌ DEPRECATED - 2025-12-01: 注释掉后台任务
+            # asyncio.create_task(_log_ai_call_async(
+            #     user_id=str(current_user.id),
+            #     model_name=settings.OPENAI_MODEL,
+            #     operation_type="polish",
+            #     prompt_tokens=0,
+            #     completion_tokens=0,
+            #     prompt_text=request.text,
+            #     completion_text=accumulated_text,
+            #     extra_data={"text_length": len(request.text)}
+            # ))
+            pass
 
     return StreamingResponse(
         event_generator(),
@@ -396,8 +404,8 @@ async def ai_polish(
 )
 async def ai_translate(
     request: AITranslateRequest,
-    current_user: User = Depends(get_current_active_user)
-    # ✅ 修复：移除db依赖
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """AI 翻译接口（流式响应）"""
     import asyncio
@@ -408,7 +416,8 @@ async def ai_translate(
         f"目标语言: {request.target_lang}"
     )
 
-    ai_service = HTTPAIService()
+    # ✅ 2025-12-01: 传递db和user_id以启用成本追踪
+    ai_service = HTTPAIService(db=db, user_id=str(current_user.id))
 
     async def event_generator():
         accumulated_text = ""
@@ -431,20 +440,21 @@ async def ai_translate(
             yield f"data: [ERROR] {error_msg}\n\n"
 
         finally:
-            # ✅ 修复：使用后台任务记录日志
-            asyncio.create_task(_log_ai_call_async(
-                user_id=str(current_user.id),
-                model_name=settings.OPENAI_MODEL,
-                operation_type="translate",
-                prompt_tokens=0,
-                completion_tokens=0,
-                prompt_text=request.text,
-                completion_text=accumulated_text,
-                extra_data={
-                    "text_length": len(request.text),
-                    "target_lang": request.target_lang
-                }
-            ))
+            # ❌ DEPRECATED - 2025-12-01: 注释掉后台任务
+            # asyncio.create_task(_log_ai_call_async(
+            #     user_id=str(current_user.id),
+            #     model_name=settings.OPENAI_MODEL,
+            #     operation_type="translate",
+            #     prompt_tokens=0,
+            #     completion_tokens=0,
+            #     prompt_text=request.text,
+            #     completion_text=accumulated_text,
+            #     extra_data={
+            #         "text_length": len(request.text),
+            #         "target_lang": request.target_lang
+            #     }
+            # ))
+            pass
 
     return StreamingResponse(
         event_generator(),
@@ -473,8 +483,8 @@ async def ai_translate(
 )
 async def ai_expand(
     request: AIExpandRequest,
-    current_user: User = Depends(get_current_active_user)
-    # ✅ 修复：移除db依赖
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """AI 扩写接口（流式响应）"""
     import asyncio
@@ -484,7 +494,8 @@ async def ai_expand(
         f"文本长度: {len(request.text)}"
     )
 
-    ai_service = HTTPAIService()
+    # ✅ 2025-12-01: 传递db和user_id以启用成本追踪
+    ai_service = HTTPAIService(db=db, user_id=str(current_user.id))
 
     async def event_generator():
         accumulated_text = ""
@@ -504,17 +515,18 @@ async def ai_expand(
             yield f"data: [ERROR] {error_msg}\n\n"
 
         finally:
-            # ✅ 修复：使用后台任务记录日志
-            asyncio.create_task(_log_ai_call_async(
-                user_id=str(current_user.id),
-                model_name=settings.OPENAI_MODEL,
-                operation_type="expand",
-                prompt_tokens=0,
-                completion_tokens=0,
-                prompt_text=request.text,
-                completion_text=accumulated_text,
-                extra_data={"text_length": len(request.text)}
-            ))
+            # ❌ DEPRECATED - 2025-12-01: 注释掉后台任务
+            # asyncio.create_task(_log_ai_call_async(
+            #     user_id=str(current_user.id),
+            #     model_name=settings.OPENAI_MODEL,
+            #     operation_type="expand",
+            #     prompt_tokens=0,
+            #     completion_tokens=0,
+            #     prompt_text=request.text,
+            #     completion_text=accumulated_text,
+            #     extra_data={"text_length": len(request.text)}
+            # ))
+            pass
 
     return StreamingResponse(
         event_generator(),
@@ -560,7 +572,8 @@ async def ai_summarize(
     )
 
     try:
-        ai_service = HTTPAIService()
+        # ✅ 2025-12-01: 传递db和user_id以启用成本追踪
+        ai_service = HTTPAIService(db=db, user_id=str(current_user.id))
 
         # 创建日志中间件
         log_middleware = AILogMiddleware(

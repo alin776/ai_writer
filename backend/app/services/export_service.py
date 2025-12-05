@@ -29,6 +29,7 @@ from app.schemas.export import (
 )
 from app.utils.markdown_generator import MarkdownGenerator
 from app.utils.file_storage import temp_storage
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +102,7 @@ class ExportService:
         # 构建导出数据
         export_data = ExportData(
             version="1.0",
-            exported_at=datetime.now(),
+            exported_at=get_utc_now(),
             work=self._serialize_work(work),
             chapters=self._serialize_chapters(work, options) if options.include_chapters else [],
             worldview=self._serialize_worldview(work) if options.include_worldview else None,
@@ -114,7 +115,7 @@ class ExportService:
         content = json_str.encode('utf-8')
         
         # 生成文件名
-        filename = f"{work.title}_{datetime.now().strftime('%Y%m%d')}.json"
+        filename = f"{work.title}_{get_utc_now().strftime('%Y%m%d')}.json"
         
         return content, filename
     
@@ -168,7 +169,7 @@ class ExportService:
         content = markdown_text.encode('utf-8')
         
         # 生成文件名
-        filename = f"{work.title}_{datetime.now().strftime('%Y%m%d')}.md"
+        filename = f"{work.title}_{get_utc_now().strftime('%Y%m%d')}.md"
         
         return content, filename
     

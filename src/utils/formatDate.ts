@@ -5,8 +5,20 @@ import {
   isYesterday,
   isThisYear,
   parseISO,
+  isValid,
 } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+
+/**
+ * 将输入安全地转换为 Date，无法解析时返回 null。
+ */
+const toDate = (date?: string | Date | null): Date | null => {
+  if (!date) return null;
+  const parsed = typeof date === 'string' ? parseISO(date) : date;
+  return isValid(parsed) ? parsed : null;
+};
+
+const fallbackText = '未知时间';
 
 /**
  * 格式化日期为相对时间
@@ -15,8 +27,9 @@ import { zhCN } from 'date-fns/locale';
  * @param date 日期字符串或 Date 对象
  * @returns 格式化后的相对时间字符串
  */
-export const formatRelativeTime = (date: string | Date): string => {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+export const formatRelativeTime = (date?: string | Date | null): string => {
+  const dateObj = toDate(date);
+  if (!dateObj) return fallbackText;
   const now = new Date();
   const diffInSeconds = Math.floor((now.getTime() - dateObj.getTime()) / 1000);
 
@@ -64,8 +77,9 @@ export const formatRelativeTime = (date: string | Date): string => {
  * @param date 日期字符串或 Date 对象
  * @returns 格式化后的完整时间字符串
  */
-export const formatFullDate = (date: string | Date): string => {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+export const formatFullDate = (date?: string | Date | null): string => {
+  const dateObj = toDate(date);
+  if (!dateObj) return fallbackText;
   return format(dateObj, 'yyyy年MM月dd日 HH:mm:ss', { locale: zhCN });
 };
 
@@ -76,8 +90,9 @@ export const formatFullDate = (date: string | Date): string => {
  * @param date 日期字符串或 Date 对象
  * @returns 格式化后的短日期字符串
  */
-export const formatShortDate = (date: string | Date): string => {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+export const formatShortDate = (date?: string | Date | null): string => {
+  const dateObj = toDate(date);
+  if (!dateObj) return fallbackText;
   return format(dateObj, 'yyyy-MM-dd');
 };
 
@@ -88,8 +103,9 @@ export const formatShortDate = (date: string | Date): string => {
  * @param date 日期字符串或 Date 对象
  * @returns 格式化后的时间字符串
  */
-export const formatTime = (date: string | Date): string => {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+export const formatTime = (date?: string | Date | null): string => {
+  const dateObj = toDate(date);
+  if (!dateObj) return fallbackText;
   return format(dateObj, 'HH:mm');
 };
 
@@ -100,8 +116,9 @@ export const formatTime = (date: string | Date): string => {
  * @param date 日期字符串或 Date 对象
  * @returns 格式化后的距离时间字符串
  */
-export const formatDistanceToNowCN = (date: string | Date): string => {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+export const formatDistanceToNowCN = (date?: string | Date | null): string => {
+  const dateObj = toDate(date);
+  if (!dateObj) return fallbackText;
   return formatDistanceToNow(dateObj, {
     addSuffix: true,
     locale: zhCN,
@@ -116,10 +133,11 @@ export const formatDistanceToNowCN = (date: string | Date): string => {
  * @returns 格式化后的日期字符串
  */
 export const formatCustomDate = (
-  date: string | Date,
+  date: string | Date | null | undefined,
   formatStr: string
 ): string => {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+  const dateObj = toDate(date);
+  if (!dateObj) return fallbackText;
   return format(dateObj, formatStr, { locale: zhCN });
 };
 
@@ -130,8 +148,8 @@ export const formatCustomDate = (
  * @param date 日期字符串或 Date 对象
  * @returns 格式化后的文件名安全字符串
  */
-export const formatDateForFilename = (date: string | Date = new Date()): string => {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+export const formatDateForFilename = (date: string | Date | null | undefined = new Date()): string => {
+  const dateObj = toDate(date) || new Date();
   return format(dateObj, 'yyyyMMdd_HHmmss');
 };
 

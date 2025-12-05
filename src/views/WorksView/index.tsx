@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BookOpen, Plus, Trash2, Upload } from 'lucide-react';
 import { DataService } from '../../services/DataService';
@@ -11,13 +11,7 @@ import { formatDate } from '../../utils/formatDate';
 import styles from './WorksView.module.css';
 
 /**
- * WorksView 组件 - 作品列表页面
- *
- * 功能：
- * - 显示用户的所有作品
- * - 创建新作品
- * - 使用 DataService.getWorks 获取数据
- * - Loading 状态
+ * WorksView 组件 - 作品管理列表页
  */
 const WorksView: React.FC = () => {
   const navigate = useNavigate();
@@ -28,9 +22,6 @@ const WorksView: React.FC = () => {
   const { confirmState, confirm, closeConfirm } = useConfirm();
   const [showImportDialog, setShowImportDialog] = useState(false);
 
-  /**
-   * 加载作品列表
-   */
   useEffect(() => {
     const loadWorks = async () => {
       try {
@@ -50,23 +41,17 @@ const WorksView: React.FC = () => {
     loadWorks();
   }, [showToast]);
 
-  /**
-   * 处理创建新作品 - 跳转到创建页面
-   */
   const handleCreateWork = () => {
     navigate('/works/create');
   };
 
-  /**
-   * 处理删除作品
-   */
   const handleDeleteWork = async (work: Work, event: React.MouseEvent) => {
-    event.preventDefault(); // 防止触发Link跳转
+    event.preventDefault();
     event.stopPropagation();
 
     const confirmed = await confirm({
       title: '删除作品',
-      message: `确定要删除《${work.title}》吗？此操作不可撤销，将同时删除所有章节和设定。`,
+      message: `确定删除「${work.title}」吗？此操作不可撤销，将同时删除所有章节和设定。`,
       variant: 'danger',
     });
 
@@ -115,29 +100,29 @@ const WorksView: React.FC = () => {
         onCancel={closeConfirm}
       />
       
-      {/* 导入对话框 */}
       {showImportDialog && (
         <ImportDialog
           onClose={() => setShowImportDialog(false)}
           onSuccess={(workId) => {
             setShowImportDialog(false);
-            // 重新加载作品列表
             DataService.getWorks().then(setWorks);
-            // 跳转到新导入的作品
-            navigate(`/works/${workId}`);
+            if (workId) {
+              navigate(`/works/${workId}`);
+            } else {
+              navigate('/works');
+            }
           }}
         />
       )}
-      {/* 页面标题 */}
+
       <div className={styles.header}>
         <h1 className={styles.title}>我的作品</h1>
-        <p className={styles.subtitle}>管理和查看您的所有创作</p>
+        <p className={styles.subtitle}>管理并浏览你的所有创作</p>
       </div>
 
-      {/* 操作栏 */}
       <div className={styles.actionBar}>
         <div className={styles.filterGroup}>
-          {/* 可以在这里添加筛选按钮 */}
+          {/* 可在此添加筛选控件 */}
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
           <button 
@@ -155,14 +140,13 @@ const WorksView: React.FC = () => {
         </div>
       </div>
 
-      {/* 作品列表 */}
       {works.length === 0 ? (
         <div className={styles.empty}>
           <div className={styles.emptyIcon}>
             <BookOpen size={48} />
           </div>
           <p className={styles.emptyTitle}>还没有作品</p>
-          <p className={styles.emptyDescription}>点击上方按钮创建您的第一个作品</p>
+          <p className={styles.emptyDescription}>点击上方按钮创建你的第一部作品</p>
         </div>
       ) : (
         <div className={styles.grid}>
@@ -180,7 +164,7 @@ const WorksView: React.FC = () => {
                   {work.totalChapters || 0} 章节
                 </span>
                 <span className={styles.cardMetaItem}>
-                  {work.totalWords?.toLocaleString() || 0} 字
+                  {(work.totalWords ?? 0).toLocaleString()} 字
                 </span>
               </div>
               <div className={styles.cardActions}>

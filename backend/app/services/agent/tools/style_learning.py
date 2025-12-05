@@ -25,6 +25,7 @@ from datetime import datetime
 from pydantic import BaseModel
 from collections import Counter
 import re
+from app.utils.datetime_utils import get_utc_now
 
 
 class StyleFeatures(BaseModel):
@@ -238,7 +239,7 @@ class StyleLearningSystem:
             )
             profile.sample_count += 1
             profile.total_words += len(text)
-            profile.updated_at = datetime.now().isoformat()
+            profile.updated_at = get_utc_now().isoformat()
 
         else:
             # 创建新档案
@@ -248,8 +249,8 @@ class StyleLearningSystem:
                 features=new_features,
                 sample_count=1,
                 total_words=len(text),
-                created_at=datetime.now().isoformat(),
-                updated_at=datetime.now().isoformat()
+                created_at=get_utc_now().isoformat(),
+                updated_at=get_utc_now().isoformat()
             )
             self.profiles[profile_key] = profile
 

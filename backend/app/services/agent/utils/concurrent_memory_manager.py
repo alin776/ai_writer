@@ -24,6 +24,7 @@ import redis.asyncio as aioredis
 from ..utils.logger import get_logger
 from ..utils.error_handler import robust_retry
 from ..utils.performance import cache_result
+from app.utils.datetime_utils import get_utc_now
 
 logger = get_logger("concurrent_memory_manager")
 
@@ -62,12 +63,12 @@ class CacheEntry:
 
     def is_expired(self) -> bool:
         """检查是否过期"""
-        return (datetime.now() - self.created_at).total_seconds() > self.ttl
+        return (get_utc_now() - self.created_at).total_seconds() > self.ttl
 
     def update_access(self) -> None:
         """更新访问信息"""
         self.access_count += 1
-        self.last_accessed = datetime.now()
+        self.last_accessed = get_utc_now()
 
 
 class AsyncRedisPool:
@@ -299,7 +300,7 @@ class ConcurrentCacheManager:
                 key=key,
                 value=value,
                 ttl=ttl,
-                created_at=datetime.now()
+                created_at=get_utc_now()
             )
 
             self._cache[key] = entry
@@ -687,7 +688,7 @@ class ConcurrentMemoryManager:
         return {
             "cache": cache_stats,
             "operations": dict(self._operation_stats),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": get_utc_now().isoformat()
         }
 
     async def close(self) -> None:

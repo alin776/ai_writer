@@ -86,6 +86,9 @@ type RecentActivity = { id?: string; type?: string; message?: string; createdAt?
 class DataServiceClass {
   private adapter: IDataAdapter;
 
+  // P2修复: 请求去重 - 防止同一章节短时间内多次更新
+  private pendingChapterUpdates: Map<string, Promise<Chapter>> = new Map();
+
   constructor() {
     // 根据环境变量决定使用 Mock 还是真实 API
     // VITE_USE_MOCK=false 时使用真实 API
@@ -324,9 +327,32 @@ class DataServiceClass {
    * @param id 章节ID
    * @param chapter 更新的数据
    * @returns Promise<Chapter>
+   *
+   * P2修复: 添加请求去重，防止同一章节短时间内多次更新
    */
   async updateChapter(id: string, chapter: Partial<Chapter>): Promise<Chapter> {
-    return this.adapter.put(`/chapters/${id}`, chapter);
+    // 如果同一章节已有pending请求，等待它完成后再发送新请求
+    const pendingRequest = this.pendingChapterUpdates.get(id);
+    if (pendingRequest) {
+      console.log(`[DataService] 章节 ${id} 已有pending请求，等待完成...`);
+      try {
+        await pendingRequest;
+      } catch {
+        // 忽略之前请求的错误
+      }
+    }
+
+    // 创建新请求
+    const request = this.adapter.put(`/chapters/${id}`, chapter);
+    this.pendingChapterUpdates.set(id, request);
+
+    try {
+      const result = await request;
+      return result;
+    } finally {
+      // 请求完成后清除
+      this.pendingChapterUpdates.delete(id);
+    }
   }
 
   /**
@@ -636,7 +662,8 @@ class DataServiceClass {
    * @returns Promise<User[]>
    */
   async getUsers(): Promise<User[]> {
-    return this.adapter.get('/users');
+    const response = await this.adapter.get<User[] | { items: User[]; total?: number }>('/users');
+    return Array.isArray(response) ? response : (response.items || []);
   }
 
   /**

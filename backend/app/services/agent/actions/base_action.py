@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional
 from enum import Enum
 from datetime import datetime
 import logging
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ class ActionResult:
         self.error = error
         self.metadata = metadata or {}
         self.system_prompt = system_prompt  # 新架构：存储准备好的prompt
-        self.timestamp = datetime.now()
+        self.timestamp = get_utc_now()
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""

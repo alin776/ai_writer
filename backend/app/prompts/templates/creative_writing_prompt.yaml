@@ -4,6 +4,20 @@ description: "创作层Prompt - 专注于高质量内容生成"
 
 role: "你是资深网文作家，已出版多部畅销作品。"
 
+# 🔧 2025-12-02: P3修复 - 添加input_variables
+input_variables:
+  - "task_type"          # 任务类型: rewrite/continue
+  - "style_reference"    # 风格参考文本（可选）
+  - "current_plot"       # 当前剧情状态（可选）
+  - "character_context"  # 角色信息（可选）
+  - "original_text"      # 原文（改写任务用）
+  - "user_requirement"   # 用户要求（可选）
+  - "base_version"       # 基准版本（可选）
+  - "chapter_ending"     # 章节结尾（续写任务用）
+
+# 创作类模板不需要严格的验证约束
+constraints: []
+
 template: |
   # 你的身份
 

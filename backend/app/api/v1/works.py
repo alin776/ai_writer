@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
+import logging
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
@@ -9,6 +10,7 @@ from app.schemas.work import WorkCreate, WorkUpdate, WorkResponse, WorkListRespo
 from app.services.work_service import WorkService
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("", response_model=WorkListResponse)
@@ -133,7 +135,7 @@ async def delete_work(
 ):
     """删除作品"""
     work_service = WorkService(db)
-    
+
     # 检查作品是否存在
     work = await work_service.get_work_by_id(work_id)
     if not work:
@@ -141,12 +143,33 @@ async def delete_work(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Work not found"
         )
-    
+
     # 检查权限
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to delete this work"
         )
-    
+
+    # 删除作品
     await work_service.delete_work(work_id)
+
+    # 🔧 2025-12-02: P2修复 - 失效所有相关缓存
+    try:
+        # 导入缓存失效函数
+        from app.api.v1.chapters import _invalidate_chapter_cache
+        from app.api.v1.worldview import _invalidate_worldview_cache
+
+        # 失效章节缓存
+        _invalidate_chapter_cache(work_id)
+
+        # 失效世界观缓存（所有类型）
+        _invalidate_worldview_cache(work_id, [
+            'characters', 'locations', 'settings', 'guidelines',
+            'worlddata', 'ai-guidelines'
+        ])
+
+        logger.info(f"🗑️ [Works] 作品及相关缓存已删除: work_id={work_id}")
+    except Exception as e:
+        # 缓存失效失败不应影响删除操作
+        logger.warning(f"⚠️ [Works] 缓存失效失败（不影响删除操作）: work_id={work_id}, error={e}")

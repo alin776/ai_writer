@@ -91,6 +91,8 @@ export interface RegisterData {
   username: string;
   email: string;
   password: string;
+  invitation_code: string;
+  device_fingerprint?: string;
 }
 
 /**
@@ -228,7 +230,8 @@ export interface AIModel {
   apiEndpoint?: string;
   usageLimit: number;
   usedCount: number;
-  costPerRequest: number;
+  inputPricePerMillion: number;  // 输入价格（美元/百万tokens）
+  outputPricePerMillion: number; // 输出价格（美元/百万tokens）
   status: AIModelStatus;
   description?: string;
   createTime: string;

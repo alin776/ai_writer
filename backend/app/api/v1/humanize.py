@@ -30,10 +30,13 @@ from app.schemas.humanize import (
 )
 from app.services.user_profile_service import UserProfileService
 from app.services.ai.humanize_service import HumanizeService
+from app.services.ai.http_ai_service import HTTPAIService
 from app.core.humanize_config import HumanizeConfig
 from app.services.agent.utils.monitoring import increment_counter, record_timer
 from app.api.middleware.rate_limiter import rate_limit, get_user_identifier
 from app.utils.cost_calculator import CostCalculator
+from app.core.request_context import set_request_context  # ✅ 新增：用于FastAI成本追踪
+from app.utils.datetime_utils import get_utc_now
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -154,7 +157,7 @@ async def get_humanize_history(
             .where(
                 and_(
                     HumanizeSessionDetail.session_id == session.id,
-                    HumanizeSessionDetail.expires_at > datetime.utcnow()
+                    HumanizeSessionDetail.expires_at > get_utc_now()
                 )
             )
         )
@@ -219,7 +222,7 @@ async def get_humanize_session(
         .where(
             and_(
                 HumanizeSessionDetail.session_id == session.id,
-                HumanizeSessionDetail.expires_at > datetime.utcnow()
+                HumanizeSessionDetail.expires_at > get_utc_now()
             )
         )
     )
@@ -366,11 +369,18 @@ async def humanize_rewrite(
         HumanizeSessionResponse: 包含改写结果和会话ID的响应
     """
     # 0. 安全验证：检查文本字节数（防止超大文本攻击）
+    text_length = len(request_data.text)
     text_bytes = len(request_data.text.encode('utf-8'))
-    if text_bytes > HumanizeConfig().max_text_bytes:
+    limit_config = HumanizeConfig()
+    if text_length > limit_config.max_text_chars:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"文本字节数超过限制 (当前: {text_bytes} bytes, 最大: {HumanizeConfig().max_text_bytes} bytes)"
+            detail=f"文本长度超过限制 (当前: {text_length} 字符, 最大: {limit_config.max_text_chars} 字符)"
+        )
+    if text_bytes > limit_config.max_text_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"文本字节数超过限制 (当前: {text_bytes} bytes, 最大: {limit_config.max_text_bytes} bytes)"
         )
 
     # 1. 获取用户画像，根据用户配置决定是否启用验证
@@ -383,8 +393,14 @@ async def humanize_rewrite(
         enable_verification=profile.humanize_enabled_by_function.get("rewrite", False),  # 根据用户配置
     )
 
-    # 3. 初始化HumanizeService
-    humanize_service = HumanizeService(config=config)
+    # 3. 设置请求上下文（用于FastAI成本追踪）
+    # ✅ 2025-12-02: FastAIService使用get_request_user_id()获取user_id
+    set_request_context(db, str(current_user.id))
+
+    # 4. 初始化HumanizeService
+    # 2025-12-01: 传递db和user_id以启用成本追踪
+    ai_service = HTTPAIService(db=db, user_id=str(current_user.id))
+    humanize_service = HumanizeService(ai_service=ai_service, config=config)
 
     # 记录请求开始
     request_start = time.time()
@@ -458,7 +474,7 @@ async def humanize_rewrite(
 
         # 6. 构建会话数据
         score_before = detection.overall_score if detection else 70.0
-        score_after = verification.score_after if verification else 50.0
+        score_after = verification.score_after if verification else score_before
         improvement = score_before - score_after
 
         # 创建会话记录
@@ -491,86 +507,24 @@ async def humanize_rewrite(
             session_id=session.id,
             original_preview=request_data.text[:200],  # 仅保存前200字符
             humanized_preview=humanized_text[:200],
+            original_full=request_data.text,
+            humanized_full=humanized_text,
             dimensions_before=dimensions_before_dict,  # ← 使用转换后的字典
             dimensions_after={},  # 验证阶段不返回详细维度
-            detected_patterns=detection.detected_patterns if detection else [],
-            expires_at=datetime.utcnow() + timedelta(days=7)
+            detected_patterns=(
+                (detection.detected_patterns if detection else [])
+                + ([f"NLP:{c}" for c in result.get("nlp_changes", [])] if result.get("nlp_changes") else [])
+            ),
+            expires_at=get_utc_now() + timedelta(days=7)
         )
 
         db.add(detail)
 
-        # 记录AI调用日志（用于统一的成本监控和分析）
-        # ✅ 使用try-except包裹，避免影响主流程
-        try:
-            # 检测阶段
-            if detection_tokens > 0:
-                detection_log = AICallLog(
-                    user_id=current_user.id,
-                    model_name="gemini-2.5-flash-lite",
-                    operation_type="humanize_detect",
-                    prompt_tokens=detection_prompt,
-                    completion_tokens=detection_completion,
-                    total_tokens=detection_tokens,
-                    prompt_cost=detection_cost_result["prompt_cost"],
-                    completion_cost=detection_cost_result["completion_cost"],
-                    total_cost=detection_cost_result["total_cost"],
-                    duration_ms=int(processing_time * 1000 * 0.3),  # 估算检测阶段耗时约30%
-                    is_success=True,
-                    extra_data={
-                        "ai_function": request_data.ai_function or "rewrite",
-                        "intensity": request_data.intensity,
-                        "session_id": str(session.id)
-                    }
-                )
-                db.add(detection_log)
-
-            # 改写阶段
-            if rewrite_tokens > 0:
-                rewrite_log = AICallLog(
-                    user_id=current_user.id,
-                    model_name="gemini-2.5-pro",
-                    operation_type="humanize_rewrite",
-                    prompt_tokens=rewrite_prompt,
-                    completion_tokens=rewrite_completion,
-                    total_tokens=rewrite_tokens,
-                    prompt_cost=rewrite_cost_result["prompt_cost"],
-                    completion_cost=rewrite_cost_result["completion_cost"],
-                    total_cost=rewrite_cost_result["total_cost"],
-                    duration_ms=int(processing_time * 1000 * 0.6),  # 估算改写阶段耗时约60%
-                    is_success=True,
-                    extra_data={
-                        "ai_function": request_data.ai_function or "rewrite",
-                        "intensity": request_data.intensity,
-                        "session_id": str(session.id)
-                    }
-                )
-                db.add(rewrite_log)
-
-            # 验证阶段
-            if verification_tokens > 0:
-                verification_log = AICallLog(
-                    user_id=current_user.id,
-                    model_name="gemini-2.5-flash-lite",
-                    operation_type="humanize_verify",
-                    prompt_tokens=verification_prompt,
-                    completion_tokens=verification_completion,
-                    total_tokens=verification_tokens,
-                    prompt_cost=verification_cost_result["prompt_cost"],
-                    completion_cost=verification_cost_result["completion_cost"],
-                    total_cost=verification_cost_result["total_cost"],
-                    duration_ms=int(processing_time * 1000 * 0.1),  # 估算验证阶段耗时约10%
-                    is_success=True,
-                    extra_data={
-                        "ai_function": request_data.ai_function or "rewrite",
-                        "intensity": request_data.intensity,
-                        "session_id": str(session.id)
-                    }
-                )
-                db.add(verification_log)
-
-        except Exception as e:
-            logger.error(f"记录AICallLog失败（不影响主流程）: {e}")
-            # 记录失败不影响主流程，继续执行
+        # ✅ 2025-12-02: 移除手动AICallLog记录（会导致重复记录）
+        # HTTPAIService和FastAIService已启用自动成本追踪：
+        # - 检测阶段: FastAIService._track_cost() → operation_type="humanize_detect"
+        # - 改写阶段: HTTPAIService._track_api_cost() → operation_type="content_creation"
+        # - 验证阶段: FastAIService._track_cost() → operation_type="humanize_verify"
 
         # 7. 更新用户画像统计
         await profile_service.record_humanize_use(
@@ -659,18 +613,26 @@ async def humanize_rewrite_stream(
     from app.core.database import create_db_session
 
     # 安全验证
+    text_length = len(request_data.text)
     text_bytes = len(request_data.text.encode('utf-8'))
-    if text_bytes > HumanizeConfig().max_text_bytes:
+    limit_config = HumanizeConfig()
+    if text_length > limit_config.max_text_chars:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"文本字节数超过限制"
+            detail=f"文本长度超过限制 (当前: {text_length} 字符, 最大: {limit_config.max_text_chars} 字符)"
+        )
+    if text_bytes > limit_config.max_text_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"文本字节数超过限制 (当前: {text_bytes} bytes, 最大: {limit_config.max_text_bytes} bytes)"
         )
 
     # ✅ 预加载：在路由级别加载用户画像（用完即关闭）
     async with create_db_session() as preload_db:
         profile_service = UserProfileService(preload_db)
         profile = await profile_service.get_or_create_profile(current_user.id)
-        enable_verification = profile.humanize_enabled_by_function.get("rewrite", False)
+        # 默认开启验证阶段；用户画像显式关闭时才跳过
+        enable_verification = profile.humanize_enabled_by_function.get("rewrite", True)
         # preload_db在此自动关闭
 
     async def generate():
@@ -697,8 +659,15 @@ async def humanize_rewrite_stream(
                     enable_verification=enable_verification,  # ✅ 使用预加载的值
                 )
 
-                # 3. 初始化Service（不依赖db）
-                humanize_service = HumanizeService(config=config)
+                # 3. 设置请求上下文（用于FastAI成本追踪）
+                # ✅ 2025-12-02: FastAIService使用get_request_user_id()获取user_id
+                set_request_context(db, str(current_user.id))
+
+                # 4. 初始化Service
+                # 2025-12-01: 传递user_id以启用成本追踪
+                # 注意：流式API故意不传递db（避免生命周期问题），_track_api_cost会在内部创建独立db会话
+                ai_service = HTTPAIService(user_id=str(current_user.id))
+                humanize_service = HumanizeService(ai_service=ai_service, config=config)
 
                 # 4. 检测阶段（可选）
                 detection_result = None
@@ -711,7 +680,112 @@ async def humanize_rewrite_stream(
                     # 检查是否需要去痕迹
                     if detection_result.overall_score < config.detection_threshold:
                         yield f"data: {json.dumps({'type': 'info', 'message': f'AI特征分数较低({detection_result.overall_score:.1f})，无需去痕迹'}, ensure_ascii=False)}\n\n"
-                        yield f"data: {json.dumps({'type': 'done', 'skipped': True}, ensure_ascii=False)}\n\n"
+
+                        detection_prompt = detection_usage.get("prompt_tokens", 0) if detection_usage else 0
+                        detection_completion = detection_usage.get("completion_tokens", 0) if detection_usage else 0
+                        detection_tokens = detection_usage.get("total_tokens", 0) if detection_usage else 0
+
+                        if detection_tokens == 0:
+                            detection_tokens = int(len(request_data.text) * 1.5)
+                        if detection_prompt == 0 and detection_completion == 0:
+                            detection_prompt = detection_tokens // 2
+                            detection_completion = detection_tokens - detection_prompt
+
+                        total_tokens = detection_tokens
+                        detection_cost_result = CostCalculator.calculate_cost(
+                            "gemini-2.5-flash-lite",
+                            detection_prompt,
+                            detection_completion
+                        )
+                        estimated_cost = detection_cost_result["total_cost"]
+
+                        score_before = detection_result.overall_score
+                        score_after = score_before
+                        improvement = 0.0
+
+                        dimensions_before_dict = {}
+                        if detection_result and detection_result.dimensions:
+                            dimensions_before_dict = {
+                                key: dim.model_dump()
+                                for key, dim in detection_result.dimensions.items()
+                            }
+
+                        session = HumanizeSession(
+                            user_id=current_user.id,
+                            ai_function=request_data.ai_function or "rewrite",
+                            score_before=score_before,
+                            score_after=score_after,
+                            improvement=improvement,
+                            intensity=request_data.intensity,
+                            processing_time=time.time() - start_time,
+                            tokens_used=total_tokens,
+                            cost=estimated_cost,
+                            user_accepted=None
+                        )
+                        db.add(session)
+                        await db.flush()
+
+                        detail = HumanizeSessionDetail(
+                            session_id=session.id,
+                            original_preview=request_data.text[:200],
+                            humanized_preview=request_data.text[:200],
+                            original_full=request_data.text,
+                            humanized_full=request_data.text,
+                            dimensions_before=dimensions_before_dict,
+                            dimensions_after={},
+                            detected_patterns=detection_result.detected_patterns if detection_result else [],
+                            expires_at=get_utc_now() + timedelta(days=7)
+                        )
+                        db.add(detail)
+
+                        try:
+                            if detection_tokens > 0:
+                                detection_log = AICallLog(
+                                    user_id=current_user.id,
+                                    model_name="gemini-2.5-flash-lite",
+                                    operation_type="humanize_detect_stream",
+                                    prompt_tokens=detection_prompt,
+                                    completion_tokens=detection_completion,
+                                    total_tokens=detection_tokens,
+                                    prompt_cost=detection_cost_result["prompt_cost"],
+                                    completion_cost=detection_cost_result["completion_cost"],
+                                    total_cost=detection_cost_result["total_cost"],
+                                    duration_ms=int((time.time() - start_time) * 1000),
+                                    is_success=True,
+                                    extra_data={
+                                        "ai_function": request_data.ai_function or "rewrite",
+                                        "intensity": request_data.intensity,
+                                        "session_id": str(session.id),
+                                        "stream": True,
+                                        "skipped": True
+                                    }
+                                )
+                                db.add(detection_log)
+                        except Exception as log_err:
+                            logger.error(f"记录检测阶段AI日志失败(跳过去痕迹): {log_err}")
+
+                        try:
+                            profile_service = UserProfileService(db)
+                            await profile_service.record_humanize_use(
+                                user_id=current_user.id,
+                                text_length=len(request_data.text),
+                                ai_function=request_data.ai_function or "rewrite",
+                                intensity=request_data.intensity,
+                                improvement=improvement
+                            )
+                        except Exception as profile_err:
+                            logger.error(f"更新用户画像失败(跳过去痕迹): {profile_err}")
+
+                        await db.commit()
+
+                        request_duration = time.time() - start_time
+                        record_timer("humanize_stream_duration_seconds", request_duration, labels={"intensity": request_data.intensity})
+                        increment_counter("humanize_stream_requests_success", labels={"intensity": request_data.intensity})
+                        record_timer("humanize_stream_tokens_used", total_tokens, labels={"intensity": request_data.intensity})
+                        record_timer("humanize_stream_improvement", improvement, labels={"intensity": request_data.intensity})
+
+                        yield f"data: {json.dumps({'type': 'done', 'session_id': str(session.id), 'improvement': improvement, 'processing_time': request_duration, 'tokens_used': total_tokens, 'skipped': True}, ensure_ascii=False)}\n\n"
+
                         return
 
                     yield f"data: {json.dumps({'type': 'progress', 'stage': 'detected', 'score': detection_result.overall_score}, ensure_ascii=False)}\n\n"
@@ -749,7 +823,7 @@ async def humanize_rewrite_stream(
 
                 # 计算指标
                 score_before = detection_result.overall_score if detection_result else 70.0
-                score_after = verification_result.score_after if verification_result else 50.0
+                score_after = verification_result.score_after if verification_result else score_before
                 improvement = score_before - score_after
 
                 # Token和成本计算（使用CostCalculator和实际token）
@@ -830,10 +904,15 @@ async def humanize_rewrite_stream(
                     session_id=session.id,
                     original_preview=request_data.text[:200],
                     humanized_preview=humanized_text[:200],
+                    original_full=request_data.text,
+                    humanized_full=humanized_text,
                     dimensions_before=dimensions_before_dict,
                     dimensions_after={},
-                    detected_patterns=detection_result.detected_patterns if detection_result else [],
-                    expires_at=datetime.utcnow() + timedelta(days=7)
+                    detected_patterns=(
+                        (detection_result.detected_patterns if detection_result else [])
+                        + ([f"NLP:{c}" for c in (humanize_service.last_nlp_changes or [])] if humanize_service.last_nlp_changes else [])
+                    ),
+                    expires_at=get_utc_now() + timedelta(days=7)
                 )
 
                 db.add(detail)
@@ -986,10 +1065,12 @@ async def humanize_rewrite_stream(
                         session_id=session.id,
                         original_preview=request_data.text[:200],
                         humanized_preview=partial_text[:200] if partial_text else "(用户中断，无输出)",
+                        original_full=request_data.text,
+                        humanized_full=partial_text,
                         dimensions_before={},
                         dimensions_after={},
                         detected_patterns=["USER_INTERRUPTED"],
-                        expires_at=datetime.utcnow() + timedelta(days=7)
+                        expires_at=get_utc_now() + timedelta(days=7)
                     )
                     db.add(detail)
                     await db.commit()

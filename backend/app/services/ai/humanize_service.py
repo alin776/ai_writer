@@ -22,6 +22,7 @@ from app.services.ai.humanize_prompts import (
 from app.schemas.humanize import AIDetectionResult, HumanizeVerification, DimensionScore
 from app.utils.json_parser import parse_ai_json
 from app.core.humanize_config import HumanizeConfig, get_config
+from app.services.agent.model_selector import TaskType  # ✅ 新增：用于成本追踪
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,7 @@ class HumanizeService:
         self.fast_ai_service = fast_ai_service or FastAIService()
         self.config = config or get_config()
         self.nlp_preprocessor = NLPPreprocessor()  # 新增: NLP预处理器
+        self.last_nlp_changes: list[str] = []  # 记录最近一次预处理的修改项
         logger.info(
             f"HumanizeService 初始化成功 - 双AI架构 + NLP预处理 "
             f"(标准模型: {self.ai_service.model}, 快速模型: {self.fast_ai_service.model}) "
@@ -162,6 +164,7 @@ class HumanizeService:
 
         if should_preprocess:
             text, changes = self.nlp_preprocessor.preprocess(text)
+            self.last_nlp_changes = changes
             if changes:
                 logger.info(
                     f"✅ NLP预处理完成: {len(changes)}处修改, "
@@ -169,6 +172,8 @@ class HumanizeService:
                 )
             else:
                 logger.info("✅ NLP预处理完成: 未发现AI痕迹")
+        else:
+            self.last_nlp_changes = []
         # ===========================
 
         logger.info(f"开始人性化改写: intensity={intensity}, 文本长度={len(text)}")
@@ -195,7 +200,8 @@ class HumanizeService:
         async for chunk, usage in self.ai_service._stream_chat(
             messages=messages,
             max_tokens=max_tokens,
-            temperature=temperature
+            temperature=temperature,
+            task_type=TaskType.HUMANIZE_REWRITE  # ✅ 2025-12-02: 去痕迹改写使用专用类型
         ):
             chunk_count += 1
             yield chunk, usage
@@ -339,6 +345,7 @@ class HumanizeService:
                     f"AI特征分数较低 ({result['detection'].overall_score:.1f} < {self.config.detection_threshold}),无需去痕迹"
                 )
                 result["humanized_text"] = text
+                result["nlp_changes"] = self.last_nlp_changes
                 result["processing_time"] = time.time() - start_time
                 return result
 
@@ -355,6 +362,7 @@ class HumanizeService:
                 rewrite_usage = usage
 
         result["humanized_text"] = "".join(humanized_chunks)
+        result["nlp_changes"] = self.last_nlp_changes
 
         # 统计改写阶段token
         if rewrite_usage:

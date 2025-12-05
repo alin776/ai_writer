@@ -12,6 +12,7 @@ from .prompts.novel_phases import NovelPhase, SceneType
 from .prompts.content_creation_prompts import ContentCreationPrompts
 from .prompts.novel_planning_prompts import NovelPlanningPrompts
 from .prompts.prompt_optimizer import PromptOptimizer
+from app.utils.datetime_utils import get_utc_now
 
 
 class PromptLibrary:
@@ -130,7 +131,7 @@ class PromptLibrary:
         # 记录使用
         prompt_id = f"{category}.{subcategory}"
         self._usage_stats[prompt_id]['usage_count'] += 1
-        self._usage_stats[prompt_id]['last_used'] = datetime.now()
+        self._usage_stats[prompt_id]['last_used'] = get_utc_now()
 
         return prompt
 

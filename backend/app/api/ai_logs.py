@@ -20,6 +20,7 @@ from app.schemas.ai_call_log import (
     AICallLogStats,
     CostMetrics
 )
+from app.utils.datetime_utils import get_utc_now
 
 router = APIRouter(prefix="/ai-logs", tags=["AI Logs"])
 
@@ -193,7 +194,7 @@ async def get_user_stats(
         days: 统计天数（默认30天）
     """
     log_service = AILogService(db)
-    end_date = datetime.utcnow()
+    end_date = get_utc_now()
     start_date = end_date - timedelta(days=days)
 
     stats = await log_service.get_stats(

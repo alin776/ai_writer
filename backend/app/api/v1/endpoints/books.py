@@ -33,6 +33,7 @@ from app.services.book_analysis_service import BookAnalysisService
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.knowledge_service import KnowledgeService
 from app.core.database import create_db_session
+from app.utils.datetime_utils import get_utc_now
 
 
 router = APIRouter()
@@ -56,7 +57,10 @@ async def run_analysis_task(job_id: UUID, user_id: UUID):
         try:
             logger.info(f"✅ 数据库会话创建成功")
             # 使用图书分析专用模型和超时配置
+            # 2025-12-01: 传递db和user_id以启用成本追踪
             ai_service = HTTPAIService(
+                db=db,
+                user_id=user_id,
                 model=settings.BOOK_ANALYSIS_MODEL,
                 timeout=settings.BOOK_ANALYSIS_TIMEOUT
             )
@@ -111,7 +115,10 @@ async def upload_book(
 
     # 创建分析任务
     # 使用图书分析专用模型
+    # 2025-12-01: 传递db和user_id以启用成本追踪
     ai_service = HTTPAIService(
+        db=db,
+        user_id=str(current_user.id),
         model=settings.BOOK_ANALYSIS_MODEL,
         timeout=settings.BOOK_ANALYSIS_TIMEOUT
     )
@@ -323,7 +330,7 @@ async def adopt_suggestions(
         # TODO: 实际创建世界观元素的逻辑
         # 目前仅更新状态
         suggestion.status = SuggestionStatus.ADOPTED
-        suggestion.adopted_at = datetime.utcnow()
+        suggestion.adopted_at = get_utc_now()
         # suggestion.adopted_as_id = created_element.id
 
         created_elements.append({

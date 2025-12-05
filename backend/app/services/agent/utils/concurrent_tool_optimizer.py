@@ -17,6 +17,7 @@ from ..tools.tool_registry import DynamicToolRegistry
 from ..utils.logger import get_logger
 from ..utils.error_handler import robust_retry
 from ..utils.performance import performance_optimizer
+from app.utils.datetime_utils import get_utc_now
 
 logger = get_logger("concurrent_tool_optimizer")
 
@@ -295,7 +296,7 @@ class ConcurrentToolExecutor:
             ToolCall: 执行后的调用对象
         """
         call.status = "running"
-        call.start_time = datetime.now()
+        call.start_time = get_utc_now()
         call.attempts += 1
 
         async with self._semaphore:
@@ -339,7 +340,7 @@ class ConcurrentToolExecutor:
                 logger.error(f"Tool {call.tool_id} failed: {e}")
 
             finally:
-                call.end_time = datetime.now()
+                call.end_time = get_utc_now()
                 if call.start_time:
                     call.duration = (call.end_time - call.start_time).total_seconds()
 

@@ -5,6 +5,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional
 import logging
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ class TempFileStorage:
         Returns:
             删除的文件数量
         """
-        cutoff_time = datetime.now().timestamp() - (hours * 3600)
+        cutoff_time = get_utc_now().timestamp() - (hours * 3600)
         deleted_count = 0
         
         for file_path in self.temp_dir.glob("*"):
@@ -108,7 +109,7 @@ class TempFileStorage:
     
     def get_expiry_time(self, hours: int = 24) -> datetime:
         """获取过期时间"""
-        return datetime.now() + timedelta(hours=hours)
+        return get_utc_now() + timedelta(hours=hours)
     
     @staticmethod
     def _sanitize_filename(filename: str) -> str:

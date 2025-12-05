@@ -22,30 +22,94 @@ class RefreshTokenRequest(BaseModel):
 @router.post("/register", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
 async def register(
     user_data: UserCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """
-    用户注册
-    
+    用户注册（需要邀请码）
+
     - **email**: 邮箱地址
     - **username**: 用户名（3-50字符）
     - **password**: 密码（至少6字符）
-    
+    - **invitation_code**: 8位邀请码（必填）
+    - **device_fingerprint**: 设备指纹（可选，用于防刷）
+
     注册成功后请前往登录页面登录
     """
     import logging
     logger = logging.getLogger(__name__)
-    
+
+    from app.services.invitations.invitation_service import InvitationService
+    from app.services.credits.credit_service import CreditService
+    from app.services.credits.credit_exceptions import InvitationCodeInvalidError
+
     user_service = UserService(db)
-    
+    invitation_service = InvitationService(db)
+    credit_service = CreditService(db)
+
     try:
-        logger.info(f"Creating user: {user_data.username}")
-        user = await user_service.create_user(user_data)
-        logger.info(f"User created successfully: {user.id}")
-        
+        # 获取IP地址
+        ip_address = get_client_ip(request)
+
+        # ✅ Critical修复1: 使用数据库事务确保原子性
+        # 开始嵌套事务，确保所有操作要么全部成功，要么全部回滚
+        async with db.begin_nested():
+            # 1. 验证邀请码（只读操作，不修改数据）
+            logger.info(f"Validating invitation code: {user_data.invitation_code}")
+            is_valid, error_msg, invitation = await invitation_service.validate_invitation_code(
+                code=user_data.invitation_code,
+                ip_address=ip_address,
+                device_fingerprint=user_data.device_fingerprint
+            )
+
+            if not is_valid:
+                logger.warning(f"Invalid invitation code: {user_data.invitation_code} - {error_msg}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=error_msg
+                )
+
+            # 2. 创建用户
+            logger.info(f"Creating user: {user_data.username}")
+            user = await user_service.create_user(user_data)
+            logger.info(f"User created successfully: {user.id}")
+
+            # 3. 创建用户积分记录（优先创建，避免后续扣费时竞态）
+            logger.info(f"Creating credits for new user: {user.id}")
+            await credit_service.get_or_create_credits(user.id, commit=False)
+
+            # 4. 使用邀请码（最后执行，避免前面步骤失败导致邀请码被消耗）
+            logger.info(f"Using invitation code for user: {user.id}")
+            await invitation_service.use_invitation_code(
+                code=user_data.invitation_code,
+                invitee_id=user.id,
+                ip_address=ip_address,
+                device_fingerprint=user_data.device_fingerprint
+            )
+
+            # 5. 立即激活邀请奖励（注册即奖励模式）
+            logger.info(f"Activating invitation reward for user: {user.id}")
+            reward_info = await invitation_service.activate_invitation(
+                invitee_id=user.id,
+                force=True,
+                commit=False
+            )
+            if reward_info:
+                logger.info(f"Invitation reward activated: {reward_info}")
+
+        # 提交外层事务
+        await db.commit()
+        logger.info(f"Registration completed successfully for user: {user.id}")
+
         # 只返回用户信息，不返回 token
         # 用户需要手动登录
         return user
+    except InvitationCodeInvalidError as e:
+        logger.error(f"InvitationCodeInvalidError: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     except ValueError as e:
         logger.error(f"ValueError: {e}")
         raise HTTPException(
@@ -131,6 +195,8 @@ async def login(
         logger.error(f"[LOGIN] 会话创建失败: {user.id} - {e}")
 
     logger.info(f"[LOGIN] 登录成功: {user.username} ({user.id}) from {ip_address}")
+
+    await db.commit()
 
     return Token(
         access_token=access_token,

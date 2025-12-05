@@ -10,7 +10,11 @@ import logging
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
+from app.core.redis_client import redis_client
 from app.models.user import User
+from app.models.character import Character
+from app.models.location import Location
+from app.models.setting import Setting
 from app.schemas.worldview import (
     CharacterCreate, CharacterUpdate, CharacterResponse,
     LocationCreate, LocationUpdate, LocationResponse,
@@ -21,13 +25,171 @@ from app.schemas.worldview import (
 from app.services.worldview_service import WorldviewService
 from app.services.ai_guidelines_service import AIGuidelinesService
 from app.schemas.ai_guidelines import (
-    AIGuidelinesCreate, AIGuidelinesUpdate, AIGuidelinesResponse, 
+    AIGuidelinesCreate, AIGuidelinesUpdate, AIGuidelinesResponse,
     AIGuidelinesGenerateRequest, AIGuidelinesGenerateResponse
 )
 from app.services.work_service import WorkService
+from app.services.agent.model_selector import TaskType  # ✅ 新增：用于成本追踪
+from app.utils.datetime_utils import get_utc_now
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+# ==================== 辅助函数：缓存处理 ====================
+
+def _get_cached_worldview_data(cache_key: str):
+    """尝试从缓存获取世界观数据"""
+    if redis_client.is_available():
+        cached = redis_client.get_json(cache_key)
+        if cached:
+            logger.info(f"✅ [Worldview] 缓存命中: {cache_key}")
+            return cached
+        logger.info(f"⚠️ [Worldview] 缓存未命中: {cache_key}")
+    return None
+
+
+def _orm_to_dict(obj) -> dict:
+    """
+    将 SQLAlchemy ORM 对象转换为字典
+
+    🔧 2025-12-02: P0修复 - 支持 Setting/AIGuidelines 等 ORM 对象的序列化
+    """
+    from datetime import datetime, date
+    from uuid import UUID as PyUUID
+
+    result = {}
+    for column in obj.__table__.columns:
+        value = getattr(obj, column.name)
+        # 处理特殊类型
+        if isinstance(value, (datetime, date)):
+            value = value.isoformat()
+        elif isinstance(value, PyUUID):
+            value = str(value)
+        result[column.name] = value
+    return result
+
+
+def _cache_worldview_data(cache_key: str, data, ttl: int = 300):
+    """
+    缓存世界观数据 (默认TTL=300秒，即5分钟)
+
+    🔧 2025-12-02: P0修复 - 改进序列化处理
+    - 添加 SQLAlchemy ORM 对象处理（Setting/AIGuidelines）
+    - 添加空列表处理
+    - 添加Pydantic v1/v2兼容性
+    - 添加异常处理
+    """
+    if not redis_client.is_available():
+        return
+
+    try:
+        # 🔧 P0修复: 处理 SQLAlchemy ORM 对象（检查 __table__ 属性）
+        if hasattr(data, '__table__'):
+            data = _orm_to_dict(data)
+        # 处理Pydantic对象序列化
+        elif hasattr(data, 'model_dump'):
+            # Pydantic v2
+            data = data.model_dump()
+        elif hasattr(data, 'dict'):
+            # Pydantic v1
+            data = data.dict()
+        elif isinstance(data, list):
+            if not data:
+                # 空列表直接缓存
+                pass
+            elif hasattr(data[0], '__table__'):
+                # 🔧 P0修复: SQLAlchemy ORM 对象列表
+                data = [_orm_to_dict(item) for item in data]
+            elif hasattr(data[0], 'model_dump'):
+                # Pydantic v2 列表
+                data = [item.model_dump() for item in data]
+            elif hasattr(data[0], 'dict'):
+                # Pydantic v1 列表
+                data = [item.dict() for item in data]
+
+        success = redis_client.set_json(cache_key, data, expire=ttl)
+        if success:
+            logger.info(f"💾 [Worldview] 缓存已保存: {cache_key} (expire={ttl}s)")
+        else:
+            logger.warning(f"⚠️ [Worldview] 缓存保存失败: {cache_key}")
+
+    except Exception as e:
+        logger.error(f"⚠️ [Worldview] 缓存序列化失败: {cache_key}, error={e}", exc_info=True)
+
+
+def _invalidate_worldview_cache(work_id: str, cache_types: list):
+    """
+    失效指定作品的世界观缓存
+
+    Args:
+        work_id: 作品ID
+        cache_types: 需要失效的缓存类型列表，如 ['characters', 'locations']
+
+    🔧 2025-12-02: Review修复 - 自动失效worlddata聚合缓存
+    当失效characters/locations/settings/guidelines时，自动失效worlddata缓存
+    """
+    if not redis_client.is_available():
+        return
+
+    # 失效指定的缓存类型
+    for cache_type in cache_types:
+        cache_key = f"worldview:{cache_type}:{work_id}"
+        try:
+            redis_client.client.delete(cache_key)
+            logger.info(f"🗑️ [Worldview] 缓存已失效: {cache_key}")
+        except Exception as e:
+            logger.error(f"⚠️ [Worldview] 缓存失效失败: {cache_key}, error={e}")
+
+    # 🔧 Review修复: 如果失效的是worlddata的组成部分，自动失效worlddata聚合缓存
+    worlddata_components = {'characters', 'locations', 'settings', 'guidelines'}
+    if any(cache_type in worlddata_components for cache_type in cache_types):
+        worlddata_key = f"worldview:worlddata:{work_id}"
+        try:
+            redis_client.client.delete(worlddata_key)
+            logger.info(f"🗑️ [Worldview] 聚合缓存已失效: {worlddata_key}")
+        except Exception as e:
+            logger.error(f"⚠️ [Worldview] 聚合缓存失效失败: {worlddata_key}, error={e}")
+
+
+async def _preheat_worldview_cache(work_id: str, cache_type: str, worldview_service: WorldviewService):
+    """
+    P1修复: 缓存预热 - 失效后立即重新加载并缓存最新数据
+
+    解决并发请求导致的缓存未命中问题：
+    - 请求A创建数据 → 失效缓存 → 预热缓存（最新数据）
+    - 请求B读取 → 命中预热后的缓存
+
+    Args:
+        work_id: 作品ID
+        cache_type: 缓存类型 (characters, locations, settings, guidelines)
+        worldview_service: WorldviewService实例
+    """
+    if not redis_client.is_available():
+        return
+
+    try:
+        cache_key = f"worldview:{cache_type}:{work_id}"
+
+        # 根据类型加载最新数据
+        if cache_type == 'characters':
+            data = await worldview_service.get_characters_by_work(work_id)
+        elif cache_type == 'locations':
+            data = await worldview_service.get_locations_by_work(work_id)
+        elif cache_type == 'settings':
+            data = await worldview_service.get_settings_by_work(work_id)
+        elif cache_type == 'guidelines':
+            data = await worldview_service.get_guidelines_by_work(work_id)
+        else:
+            logger.warning(f"⚠️ [Worldview] 未知的缓存类型: {cache_type}")
+            return
+
+        # 缓存最新数据
+        _cache_worldview_data(cache_key, data)
+        logger.info(f"🔥 [Worldview] 缓存预热完成: {cache_key}")
+
+    except Exception as e:
+        logger.error(f"⚠️ [Worldview] 缓存预热失败: {cache_type}, error={e}")
 
 
 # ==================== 辅助函数：自动从AI规范提取数据到世界观各标签 ====================
@@ -35,23 +197,35 @@ logger = logging.getLogger(__name__)
 async def _auto_populate_worldview_from_guidelines(
     work_id: str,
     guidelines_data: AIGuidelinesUpdate,
-    worldview_service: WorldviewService
+    worldview_service: WorldviewService,
+    db: AsyncSession,  # 2025-12-01: 添加db参数以支持成本追踪
+    user_id: str  # 2025-12-01: 添加user_id参数以支持成本追踪
 ):
-    """从AI规范自动提取并创建人物、地点、设定"""
+    """从AI规范自动提取并创建人物、地点、设定（按名称去重，支持重复触发）"""
+    from sqlalchemy import select
+    from uuid import UUID
+
+    work_uuid = UUID(work_id)
     
     # 1. 创建主角人物
     if guidelines_data.protagonist_name:
-        character_data = CharacterCreate(
-            work_id=work_id,
-            name=guidelines_data.protagonist_name or "主角",
-            description=f"{guidelines_data.protagonist_identity or ''}\n\n性格：{guidelines_data.protagonist_traits or ''}\n\n目标：{guidelines_data.protagonist_goal or ''}".strip(),
-            role="主角"
+        exists_stmt = select(Character.id).where(
+            Character.work_id == work_uuid,
+            Character.name == guidelines_data.protagonist_name
         )
-        try:
-            await worldview_service.create_character(character_data)
-            logger.info(f"[自动创建] 主角人物: {guidelines_data.protagonist_name}")
-        except Exception as e:
-            logger.error(f"创建主角人物失败: {e}", exc_info=True)
+        exists_result = await db.execute(exists_stmt)
+        if not exists_result.scalar_one_or_none():
+            character_data = CharacterCreate(
+                work_id=work_id,
+                name=guidelines_data.protagonist_name or "主角",
+                description=f"{guidelines_data.protagonist_identity or ''}\n\n性格：{guidelines_data.protagonist_traits or ''}\n\n目标：{guidelines_data.protagonist_goal or ''}".strip(),
+                role="主角"
+            )
+            try:
+                await worldview_service.create_character(character_data)
+                logger.info(f"[自动创建] 主角人物: {guidelines_data.protagonist_name}")
+            except Exception as e:
+                logger.error(f"创建主角人物失败: {e}", exc_info=True)
     
     # 2. 解析并创建地点
     if guidelines_data.main_locations:
@@ -60,6 +234,14 @@ async def _auto_populate_worldview_from_guidelines(
         location_names = [loc.strip() for loc in locations_text.replace('、', ',').replace('；', ',').replace(';', ',').split(',') if loc.strip()]
         
         for loc_name in location_names[:10]:  # 最多创建10个地点
+            exists_stmt = select(Location.id).where(
+                Location.work_id == work_uuid,
+                Location.name == loc_name
+            )
+            exists_result = await db.execute(exists_stmt)
+            if exists_result.scalar_one_or_none():
+                continue
+
             location_data = LocationCreate(
                 work_id=work_id,
                 name=loc_name,
@@ -108,6 +290,14 @@ async def _auto_populate_worldview_from_guidelines(
         })
     
     for setting_info in settings_to_create:
+        exists_stmt = select(Setting.id).where(
+            Setting.work_id == work_uuid,
+            Setting.title == setting_info["name"]
+        )
+        exists_result = await db.execute(exists_stmt)
+        if exists_result.scalar_one_or_none():
+            continue
+
         setting_data = SettingCreate(
             work_id=work_id,
             title=setting_info["name"],  # 注意：Schema字段是title不是name
@@ -168,31 +358,43 @@ async def get_world_data(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    获取作品的完整世界观数据
-    
+    获取作品的完整世界观数据（聚合端点）
+
     包含：角色、地点、设定、作品规范
+    带Redis缓存，TTL=300秒
     """
-    # 验证作品权限
+    # 🔧 2025-12-02: Review修复 - 先验证权限（安全第一）
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(work_id)
     if not work:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
-    # 获取世界观数据
+
+    # 🔧 2025-12-02: Review修复 - 添加缓存（性能优化）
+    cache_key = f"worldview:worlddata:{work_id}"
+    cached = _get_cached_worldview_data(cache_key)
+    if cached:
+        return WorldDataResponse(**cached)
+
+    # 获取世界观数据（4次数据库查询）
     worldview_service = WorldviewService(db)
     characters = await worldview_service.get_characters_by_work(work_id)
     locations = await worldview_service.get_locations_by_work(work_id)
     settings = await worldview_service.get_settings_by_work(work_id)
     guidelines = await worldview_service.get_guidelines_by_work(work_id)
-    
-    return WorldDataResponse(
+
+    response = WorldDataResponse(
         characters=characters,
         locations=locations,
         settings=settings,
         guidelines=guidelines
     )
+
+    # 缓存聚合结果
+    _cache_worldview_data(cache_key, response)
+
+    return response
 
 
 # ==================== Character（人物） 接口 ====================
@@ -203,17 +405,29 @@ async def get_characters(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """获取作品的所有人物"""
-    # 验证作品权限
+    """获取作品的所有人物 (带Redis缓存，TTL=300秒)"""
+    # 🔧 2025-12-02: P0修复 - 先验证权限，再检查缓存
+    # 1. 先验证作品权限（防止权限绕过漏洞）
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(work_id)
     if not work:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
+    # 2. 权限验证通过后，检查缓存
+    cache_key = f"worldview:characters:{work_id}"
+    cached = _get_cached_worldview_data(cache_key)
+    if cached:
+        return [CharacterResponse(**item) for item in cached]
+
+    # 3. 缓存未命中，查询数据库
     worldview_service = WorldviewService(db)
-    return await worldview_service.get_characters_by_work(work_id)
+    characters = await worldview_service.get_characters_by_work(work_id)
+
+    # 4. 缓存结果
+    _cache_worldview_data(cache_key, characters)
+    return characters
 
 
 @router.post("/characters", response_model=CharacterResponse, status_code=status.HTTP_201_CREATED)
@@ -230,9 +444,15 @@ async def create_character(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
     worldview_service = WorldviewService(db)
-    return await worldview_service.create_character(character_data)
+    result = await worldview_service.create_character(character_data)
+
+    # 🔧 2025-12-02: P1修复 - 失效缓存 + 预热
+    _invalidate_worldview_cache(character_data.work_id, ['characters'])
+    await _preheat_worldview_cache(str(character_data.work_id), 'characters', worldview_service)
+
+    return result
 
 
 @router.put("/characters/{character_id}", response_model=CharacterResponse)
@@ -247,14 +467,19 @@ async def update_character(
     character = await worldview_service.get_character_by_id(character_id)
     if not character:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Character not found")
-    
+
     # 验证作品权限
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(str(character.work_id))
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
     updated = await worldview_service.update_character(character_id, character_data)
+
+    # 🔧 2025-12-02: P1修复 - 失效缓存 + 预热
+    _invalidate_worldview_cache(str(character.work_id), ['characters'])
+    await _preheat_worldview_cache(str(character.work_id), 'characters', worldview_service)
+
     return updated
 
 
@@ -269,14 +494,18 @@ async def delete_character(
     character = await worldview_service.get_character_by_id(character_id)
     if not character:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Character not found")
-    
+
     # 验证作品权限
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(str(character.work_id))
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
+    work_id = str(character.work_id)
     await worldview_service.delete_character(character_id)
+
+    # 🔧 2025-12-02: P0修复 - 失效缓存
+    _invalidate_worldview_cache(work_id, ['characters'])
 
 
 # ==================== Location（地点） 接口 ====================
@@ -287,17 +516,29 @@ async def get_locations(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """获取作品的所有地点"""
-    # 验证作品权限
+    """获取作品的所有地点 (带Redis缓存，TTL=300秒)"""
+    # 🔧 2025-12-02: P0修复 - 先验证权限，再检查缓存
+    # 1. 先验证作品权限（防止权限绕过漏洞）
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(work_id)
     if not work:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
+    # 2. 权限验证通过后，检查缓存
+    cache_key = f"worldview:locations:{work_id}"
+    cached = _get_cached_worldview_data(cache_key)
+    if cached:
+        return [LocationResponse(**item) for item in cached]
+
+    # 3. 缓存未命中，查询数据库
     worldview_service = WorldviewService(db)
-    return await worldview_service.get_locations_by_work(work_id)
+    locations = await worldview_service.get_locations_by_work(work_id)
+
+    # 4. 缓存结果
+    _cache_worldview_data(cache_key, locations)
+    return locations
 
 
 @router.post("/locations", response_model=LocationResponse, status_code=status.HTTP_201_CREATED)
@@ -314,9 +555,15 @@ async def create_location(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
     worldview_service = WorldviewService(db)
-    return await worldview_service.create_location(location_data)
+    result = await worldview_service.create_location(location_data)
+
+    # 🔧 2025-12-02: P1修复 - 失效缓存 + 预热
+    _invalidate_worldview_cache(location_data.work_id, ['locations'])
+    await _preheat_worldview_cache(str(location_data.work_id), 'locations', worldview_service)
+
+    return result
 
 
 @router.put("/locations/{location_id}", response_model=LocationResponse)
@@ -331,14 +578,19 @@ async def update_location(
     location = await worldview_service.get_location_by_id(location_id)
     if not location:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
-    
+
     # 验证作品权限
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(str(location.work_id))
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
     updated = await worldview_service.update_location(location_id, location_data)
+
+    # 🔧 2025-12-02: P1修复 - 失效缓存 + 预热
+    _invalidate_worldview_cache(str(location.work_id), ['locations'])
+    await _preheat_worldview_cache(str(location.work_id), 'locations', worldview_service)
+
     return updated
 
 
@@ -353,14 +605,18 @@ async def delete_location(
     location = await worldview_service.get_location_by_id(location_id)
     if not location:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
-    
+
     # 验证作品权限
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(str(location.work_id))
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
+    work_id = str(location.work_id)
     await worldview_service.delete_location(location_id)
+
+    # 🔧 2025-12-02: P0修复 - 失效缓存
+    _invalidate_worldview_cache(work_id, ['locations'])
 
 
 # ==================== Setting（设定） 接口 ====================
@@ -371,17 +627,29 @@ async def get_settings(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """获取作品的所有设定"""
-    # 验证作品权限
+    """获取作品的所有设定 (带Redis缓存，TTL=300秒)"""
+    # 🔧 2025-12-02: P0修复 - 先验证权限，再检查缓存
+    # 1. 先验证作品权限（防止权限绕过漏洞）
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(work_id)
     if not work:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
+    # 2. 权限验证通过后，检查缓存
+    cache_key = f"worldview:settings:{work_id}"
+    cached = _get_cached_worldview_data(cache_key)
+    if cached:
+        return [SettingResponse(**item) for item in cached]
+
+    # 3. 缓存未命中，查询数据库
     worldview_service = WorldviewService(db)
-    return await worldview_service.get_settings_by_work(work_id)
+    settings = await worldview_service.get_settings_by_work(work_id)
+
+    # 4. 缓存结果
+    _cache_worldview_data(cache_key, settings)
+    return settings
 
 
 @router.post("/settings", response_model=SettingResponse, status_code=status.HTTP_201_CREATED)
@@ -398,9 +666,15 @@ async def create_setting(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
     worldview_service = WorldviewService(db)
-    return await worldview_service.create_setting(setting_data)
+    result = await worldview_service.create_setting(setting_data)
+
+    # 🔧 2025-12-02: P1修复 - 失效缓存 + 预热
+    _invalidate_worldview_cache(setting_data.work_id, ['settings'])
+    await _preheat_worldview_cache(str(setting_data.work_id), 'settings', worldview_service)
+
+    return result
 
 
 @router.put("/settings/{setting_id}", response_model=SettingResponse)
@@ -415,14 +689,19 @@ async def update_setting(
     setting = await worldview_service.get_setting_by_id(setting_id)
     if not setting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setting not found")
-    
+
     # 验证作品权限
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(str(setting.work_id))
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
     updated = await worldview_service.update_setting(setting_id, setting_data)
+
+    # 🔧 2025-12-02: P1修复 - 失效缓存 + 预热
+    _invalidate_worldview_cache(str(setting.work_id), ['settings'])
+    await _preheat_worldview_cache(str(setting.work_id), 'settings', worldview_service)
+
     return updated
 
 
@@ -437,14 +716,18 @@ async def delete_setting(
     setting = await worldview_service.get_setting_by_id(setting_id)
     if not setting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setting not found")
-    
+
     # 验证作品权限
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(str(setting.work_id))
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
+    work_id = str(setting.work_id)
     await worldview_service.delete_setting(setting_id)
+
+    # 🔧 2025-12-02: P0修复 - 失效缓存
+    _invalidate_worldview_cache(work_id, ['settings'])
 
 
 # ==================== WorkGuidelines（作品规范） 接口 ====================
@@ -455,8 +738,9 @@ async def get_guidelines(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """获取作品规范"""
-    # 验证作品权限
+    """获取作品规范 (带Redis缓存，TTL=300秒)"""
+    # 🔧 2025-12-02: P0修复 - 先验证权限，再检查缓存
+    # 1. 先验证作品权限（防止权限绕过漏洞）
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(work_id)
     if not work:
@@ -464,14 +748,21 @@ async def get_guidelines(
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
+    # 2. 权限验证通过后，检查缓存
+    cache_key = f"worldview:guidelines:{work_id}"
+    cached = _get_cached_worldview_data(cache_key)
+    if cached:
+        return WorkGuidelinesResponse(**cached)
+
+    # 3. 缓存未命中，查询数据库
     worldview_service = WorldviewService(db)
     guidelines = await worldview_service.get_guidelines_by_work(work_id)
     if not guidelines:
         # 返回默认的空guidelines而不是404
         from datetime import datetime
         from uuid import uuid4
-        now = datetime.now()
-        return WorkGuidelinesResponse(
+        now = get_utc_now()
+        result = WorkGuidelinesResponse(
             id=uuid4(),  # 生成新的UUID作为临时ID
             work_id=UUID(work_id),
             genre="",
@@ -492,7 +783,12 @@ async def get_guidelines(
             created_at=now,
             updated_at=now
         )
+        # 缓存默认响应
+        _cache_worldview_data(cache_key, result)
+        return result
 
+    # 4. 缓存结果
+    _cache_worldview_data(cache_key, guidelines)
     return guidelines
 
 
@@ -511,9 +807,15 @@ async def create_or_update_guidelines(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
     worldview_service = WorldviewService(db)
-    return await worldview_service.create_or_update_guidelines(work_id, guidelines_data)
+    result = await worldview_service.create_or_update_guidelines(work_id, guidelines_data)
+
+    # 🔧 2025-12-02: P1修复 - 失效缓存 + 预热
+    _invalidate_worldview_cache(work_id, ['guidelines'])
+    await _preheat_worldview_cache(str(work_id), 'guidelines', worldview_service)
+
+    return result
 
 
 @router.delete("/works/{work_id}/guidelines", status_code=status.HTTP_204_NO_CONTENT)
@@ -530,9 +832,12 @@ async def delete_guidelines(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
     worldview_service = WorldviewService(db)
     await worldview_service.delete_guidelines(work_id)
+
+    # 🔧 2025-12-02: P0修复 - 失效缓存
+    _invalidate_worldview_cache(work_id, ['guidelines'])
 
 
 # ==================== AI创作规范 ====================
@@ -543,7 +848,9 @@ async def get_ai_guidelines(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """获取AI创作规范"""
+    """获取AI创作规范 (带Redis缓存，TTL=300秒)"""
+    # 🔧 2025-12-02: P0修复 - 先验证权限，再检查缓存
+    # 1. 先验证作品权限（防止权限绕过漏洞）
     work_service = WorkService(db)
     work = await work_service.get_work_by_id(work_id)
     if not work:
@@ -551,6 +858,13 @@ async def get_ai_guidelines(
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
+    # 2. 权限验证通过后，检查缓存
+    cache_key = f"worldview:ai-guidelines:{work_id}"
+    cached = _get_cached_worldview_data(cache_key)
+    if cached:
+        return AIGuidelinesResponse(**cached)
+
+    # 3. 缓存未命中，查询数据库
     ai_service = AIGuidelinesService(db)
     # 将 str 转换为 UUID
     work_uuid = UUID(work_id)
@@ -560,8 +874,8 @@ async def get_ai_guidelines(
         # 返回默认的空ai-guidelines而不是404
         from datetime import datetime
         from uuid import uuid4
-        now = datetime.now()
-        return AIGuidelinesResponse(
+        now = get_utc_now()
+        result = AIGuidelinesResponse(
             id=uuid4(),  # 生成新的UUID作为临时ID
             work_id=work_uuid,
             business_goal="",
@@ -599,7 +913,12 @@ async def get_ai_guidelines(
             created_at=now,
             updated_at=now
         )
+        # 缓存默认响应
+        _cache_worldview_data(cache_key, result)
+        return result
 
+    # 4. 缓存结果
+    _cache_worldview_data(cache_key, guidelines)
     return guidelines
 
 
@@ -617,13 +936,13 @@ async def create_or_update_ai_guidelines(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
     ai_service = AIGuidelinesService(db)
     worldview_service = WorldviewService(db)
-    
+
     # 将 str 转换为 UUID
     work_uuid = UUID(work_id)
-    
+
     # 检查是否已存在
     existing = await ai_service.get_by_work_id(work_uuid)
     if existing:
@@ -635,10 +954,16 @@ async def create_or_update_ai_guidelines(
         logger.info(f"[AI Guidelines] 创建 work_id={work_id} 的AI规范")
         create_data = AIGuidelinesCreate(work_id=work_uuid, **guidelines_data.model_dump(exclude_unset=True))
         result = await ai_service.create(create_data)
-        
-        # 首次创建时，自动提取数据并创建人物/地点/设定
-        await _auto_populate_worldview_from_guidelines(work_id, guidelines_data, worldview_service)
-    
+
+    # 自动提取数据并创建人物/地点/设定（幂等去重，更新场景下也执行以补足首次缺失的数据）
+    try:
+        await _auto_populate_worldview_from_guidelines(work_id, guidelines_data, worldview_service, db, str(current_user.id))
+    except Exception as e:
+        logger.error(f"[AI Guidelines] 自动分发世界观数据失败: {e}", exc_info=True)
+
+    # 🔧 2025-12-02: P0修复 - 失效缓存（失效ai-guidelines以及可能被自动填充的相关缓存）
+    _invalidate_worldview_cache(work_id, ['ai-guidelines', 'characters', 'locations', 'settings', 'guidelines'])
+
     return result
 
 
@@ -655,11 +980,14 @@ async def delete_ai_guidelines(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
     if str(work.author_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    
+
     ai_service = AIGuidelinesService(db)
     # 将 str 转换为 UUID
     work_uuid = UUID(work_id)
     await ai_service.delete(work_uuid)
+
+    # 🔧 2025-12-02: P0修复 - 失效缓存
+    _invalidate_worldview_cache(work_id, ['ai-guidelines'])
 
 
 @router.post("/ai-guidelines/generate", response_model=AIGuidelinesGenerateResponse)
@@ -733,7 +1061,8 @@ async def generate_phase2_content(
     # 调用AI服务生成内容
     full_response = ""
     try:
-        ai_service = HTTPAIService()
+        # 2025-12-01: 传递db和user_id以启用成本追踪
+        ai_service = HTTPAIService(db=db, user_id=user_id)
         
         # 收集AI流式响应
         async for chunk in ai_service._stream_chat(
@@ -742,7 +1071,8 @@ async def generate_phase2_content(
                 {"role": "user", "content": prompt}
             ],
             max_tokens=2000,
-            temperature=0.7
+            temperature=0.7,
+            task_type=TaskType.CONTENT_CREATION  # ✅ 新增：AI设定生成属于内容创作
         ):
             full_response += chunk
         

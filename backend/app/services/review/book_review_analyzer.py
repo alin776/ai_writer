@@ -16,8 +16,10 @@ import asyncio
 from datetime import datetime
 
 from app.services.ai.http_ai_service import HTTPAIService
+from app.services.agent.model_selector import TaskType  # ✅ 新增：用于成本追踪
 from app.core.cache import cache_review
 from app.core.config import settings
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +27,26 @@ logger = logging.getLogger(__name__)
 class BookReviewAnalyzer:
     """作品级评审分析器"""
 
-    def __init__(self):
-        # 使用评审专用模型
+    def __init__(self, db: Optional[Any] = None, user_id: Optional[str] = None):
+        """
+        初始化评审分析器
+
+        Args:
+            db: 数据库会话（用于成本追踪）
+            user_id: 用户ID（用于成本追踪）
+        """
+        # ✅ 2025-12-02: 传递db和user_id以启用成本追踪
         self.ai_service = HTTPAIService(
             model=settings.REVIEW_MODEL,
-            timeout=settings.REVIEW_TIMEOUT
+            timeout=settings.REVIEW_TIMEOUT,
+            db=db,
+            user_id=user_id
         )
         logger.info(
             f"[BookReviewAnalyzer] 初始化完成, "
             f"使用模型: {settings.REVIEW_MODEL}, "
-            f"超时: {settings.REVIEW_TIMEOUT}秒"
+            f"超时: {settings.REVIEW_TIMEOUT}秒, "
+            f"成本追踪: {'启用' if db and user_id else '禁用'}"
         )
 
     async def analyze_full_book(
@@ -123,7 +135,7 @@ class BookReviewAnalyzer:
         result = {
             "book_title": book_title,
             "total_chapters": len(chapters),
-            "analysis_date": datetime.now().isoformat(),
+            "analysis_date": get_utc_now().isoformat(),
             "overall_score": overall_score,
             "plot_analysis": plot_analysis,
             "character_analysis": character_analysis,
@@ -191,7 +203,8 @@ class BookReviewAnalyzer:
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             max_tokens=2000,
-            temperature=0.7
+            temperature=0.7,
+            task_type=TaskType.DEEP_ANALYSIS  # ✅ 新增：作品分析任务
         )
 
         return self._parse_json_response(response)
@@ -252,7 +265,8 @@ class BookReviewAnalyzer:
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             max_tokens=2000,
-            temperature=0.7
+            temperature=0.7,
+            task_type=TaskType.DEEP_ANALYSIS  # ✅ 新增：作品分析任务
         )
 
         return self._parse_json_response(response)
@@ -306,7 +320,8 @@ class BookReviewAnalyzer:
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             max_tokens=1500,
-            temperature=0.7
+            temperature=0.7,
+            task_type=TaskType.DEEP_ANALYSIS  # ✅ 新增：作品分析任务
         )
 
         return self._parse_json_response(response)
@@ -360,7 +375,8 @@ class BookReviewAnalyzer:
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             max_tokens=1500,
-            temperature=0.7
+            temperature=0.7,
+            task_type=TaskType.DEEP_ANALYSIS  # ✅ 新增：作品分析任务
         )
 
         return self._parse_json_response(response)
@@ -461,7 +477,8 @@ class BookReviewAnalyzer:
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             max_tokens=1500,
-            temperature=0.8
+            temperature=0.8,
+            task_type=TaskType.DEEP_ANALYSIS  # ✅ 新增：综合建议是深度分析任务
         )
 
         return self._parse_json_response(response)

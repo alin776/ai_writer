@@ -29,30 +29,49 @@ async def get_tool_decision_static_prompt() -> str:
     return """判断是否需要工具。可用工具:
 
 【编辑器工具 - 修改内容时优先使用】
-- smart_rewrite: 改写/修改章节内容 (参数: chapter_id, content, instructions)
+- smart_rewrite: 改写/修改章节内容
+  参数: chapter_id, text_to_rewrite, user_requirement, base_version
 - smart_continue: 续写章节 (参数: chapter_id, context)
 - smart_insert: 插入内容 (参数: chapter_id, position, content)
-- apply_chapter_edit: 应用编辑 (参数: chapter_id, operation, content)
+- apply_chapter_edit: 直接应用编辑 (参数: chapter_id, operation, content)
 
 【读取工具】
 需work_id: get_chapter_by_order_tool, get_context_tool, read_chapter_tool, search_analysis_fragments_tool
 不需work_id: continue_writing_tool, polish_text_tool, analyze_text_tool
 
+⚠️ smart_rewrite 参数提取规则：
+1. user_requirement（用户要求）：
+   - "加强情感描写" → user_requirement="加强情感描写"
+   - "更简洁一些" → user_requirement="更简洁"
+   - "太平淡了" → user_requirement="更有画面感"
+   - "更有张力" → user_requirement="更有张力"
+
+2. base_version（基准版本）- 用户要在某版本基础上改时：
+   - "在第一版基础上改" → base_version="第一版" 或 "版本A" 或 "1"
+   - "在第二版基础上改" → base_version="第二版" 或 "版本B" 或 "2"
+   - "在第三版基础上改" → base_version="第三版" 或 "版本C" 或 "3"
+   注意：系统会智能识别各种版本表达方式，无需使用特定格式
+
+3. 用户直接给出最终版本时（不要再生成）：
+   - 用户说"就按这个改"/"直接用这个"并给出内容 → 用apply_chapter_edit直接应用
+
 ⚠️ 重要规则：
 1. 用户说"修改"、"改写"、"重写" → 使用 smart_rewrite
 2. 用户说"续写"、"继续写" → 使用 smart_continue
 3. 用户说"插入" → 使用 smart_insert
-4. 必须严格返回JSON格式，不要返回自然语言！
+4. 简单问候/寒暄（如"你好"、"在吗"、"谢谢"）→ 不需要工具，直接回复
+5. 必须严格返回JSON格式！
 
 返回JSON:
 - 需要: {"need_tools": true, "tool_name": "工具名", "tool_args": {}}
 - 缺参数: {"need_tools": false, "direct_response": "请提供..."}
 - 直接答: {"need_tools": false, "direct_response": "..."}
+- 问候: {"need_tools": false, "direct_response": "您好！我是AI写作助手，可以帮您修改、续写章节内容。请问有什么可以帮您的？"}
 
 示例:
-"修改第2章内容" + chapter_id已知 → {"need_tools": true, "tool_name": "smart_rewrite", "tool_args": {"chapter_id": "xxx", "instructions": "根据用户要求修改"}}
-"获取第3章" + work_id已设置 → {"need_tools": true, "tool_name": "get_chapter_by_order_tool", "tool_args": {"chapter_order": 3}}
-"刚才我问了什么？" → {"need_tools": false, "direct_response": "您刚才询问了..."}
+"你好" → {"need_tools": false, "direct_response": "您好！我是AI写作助手，可以帮您修改、续写章节内容。请问有什么可以帮您的？"}
+"白光退去太平淡" → {"need_tools": true, "tool_name": "smart_rewrite", "tool_args": {"chapter_id": "xxx", "text_to_rewrite": "白光退去...", "user_requirement": "更有画面感"}}
+"在第二版基础上更简洁" → {"need_tools": true, "tool_name": "smart_rewrite", "tool_args": {"chapter_id": "xxx", "user_requirement": "更简洁", "base_version": "第二版"}}
 
 ⚠️ 请严格返回JSON格式，不要直接回答问题:"""
 
@@ -67,30 +86,37 @@ async def get_planning_static_prompt() -> str:
     说明：
         这部分 Prompt 包含工具列表、规则说明和示例，
         对所有请求都相同，因此可以安全缓存。
+
+    🔧 2025-12-02: P3根源修复 - 区分JSON工具和纯文本工具的占位符用法
     """
     return """生成任务清单JSON。
 
 可用工具:
-1. get_chapter_by_order_tool: 按序号获取章节 (参数: chapter_order)
-2. read_chapter_tool: 按ID读取章节 (参数: chapter_id, UUID格式)
-3. get_context_tool: 获取作品上下文 (无参数)
-4. search_analysis_fragments_tool: 搜索设定 (参数: query)
-5. continue_writing_tool: 续写 (参数: context, requirements)
-6. polish_text_tool: 润色 (参数: text, style)
-7. analyze_text_tool: 分析 (参数: text, focus)
+【返回JSON的工具 - 支持字段引用 $TASK_N.field$】
+1. get_chapter_by_order_tool: 按序号获取章节 (参数: chapter_order) → 返回 {content, title, order}
+2. read_chapter_tool: 按ID读取章节 (参数: chapter_id) → 返回 {content, title}
+3. get_context_tool: 获取作品上下文 (无参数) → 返回 {work_info, current_chapter}
+4. search_analysis_fragments_tool: 搜索设定 (参数: query) → 返回 {fragments}
+
+【返回纯文本的工具 - 只能用完整输出 $TASK_N$】
+5. continue_writing_tool: 续写 (参数: context, requirements) → 返回纯文本
+6. polish_text_tool: 润色 (参数: text, style) → 返回纯文本
+7. analyze_text_tool: 分析 (参数: text, focus) → 返回纯文本
 
 规则:
 - "第X章" → 用 get_chapter_by_order_tool
-- UUID格式: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (标准36字符)
-- 任务依赖用占位符: $TASK_N.field$ (如 $TASK_1.content$)
+- UUID格式: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+- JSON工具可用字段引用: $TASK_N.content$, $TASK_N.title$ 等
+- 纯文本工具只能用完整输出: $TASK_N$ (不要加.field)
 
 示例:
-用户: "分析第二章"
+用户: "分析第二章并润色"
 {
-  "user_intent": "分析第二章内容",
+  "user_intent": "分析第二章并润色",
   "tasks": [
-    {"task_id": 1, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}, "estimated_time": "5秒"},
-    {"task_id": 2, "description": "分析章节", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$", "focus": "情节"}, "estimated_time": "10秒"}
+    {"task_id": 1, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}},
+    {"task_id": 2, "description": "分析章节", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$", "focus": "all"}},
+    {"task_id": 3, "description": "润色内容", "tool": "polish_text_tool", "params": {"text": "$TASK_2$", "style": "文学"}}
   ]
 }
 

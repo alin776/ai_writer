@@ -1,14 +1,18 @@
 """
 知识库API路由
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+import json
+import io
 from typing import Optional, List
+
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.user import User
-from app.models.knowledge_item import KnowledgeCategory
+from app.models.knowledge_item import KnowledgeCategory, KnowledgeItem, KnowledgeSource
 from app.schemas.knowledge import (
     KnowledgeItemCreate,
     KnowledgeItemUpdate,
@@ -21,6 +25,7 @@ from app.schemas.knowledge import (
 from app.services.knowledge_service import KnowledgeService
 
 router = APIRouter()
+MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5MB
 
 
 @router.post("", response_model=KnowledgeItemResponse, status_code=status.HTTP_201_CREATED)
@@ -102,7 +107,8 @@ async def get_knowledge_item(
     service = KnowledgeService(db)
     item = await service.get_item(
         item_id=item_id,
-        user_id=str(current_user.id)
+        user_id=str(current_user.id),
+        increment_view=True
     )
 
     if not item:
@@ -195,6 +201,121 @@ async def search_knowledge(
         total=len(search_results),
         results=search_results
     )
+
+
+@router.get("/tags", response_model=List[str])
+async def get_knowledge_tags(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取当前用户的标签列表（去重）"""
+    stmt = (
+        select(func.distinct(func.unnest(KnowledgeItem.tags)))
+        .where(KnowledgeItem.user_id == current_user.id)
+    )
+    result = await db.execute(stmt)
+    tags = [row[0] for row in result.fetchall() if row[0]]
+    return tags
+
+
+@router.post("/upload", response_model=KnowledgeItemResponse, status_code=status.HTTP_201_CREATED)
+async def upload_knowledge_item(
+    file: UploadFile = File(..., description="知识库文件，支持 txt/markdown/pdf/docx（自动提取文本）"),
+    title: str = Form(...),
+    category: KnowledgeCategory = Form(...),
+    tags: Optional[str] = Form(None, description="标签，逗号分隔或 JSON 数组"),
+    source_reference: Optional[str] = Form(None, description="来源说明"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    上传文件并创建知识条目（读取文本内容存储）
+    """
+    try:
+        content_bytes = await file.read()
+
+        if len(content_bytes) == 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="文件为空")
+        if len(content_bytes) > MAX_UPLOAD_SIZE:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="文件过大，限制 5MB")
+
+        content_text = _extract_text_from_upload(file, content_bytes)
+        if not content_text.strip():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="未提取到有效文本内容")
+
+        # 解析标签
+        tag_list: List[str] = []
+        if tags:
+            try:
+                parsed = json.loads(tags)
+                if isinstance(parsed, list):
+                    tag_list = [str(t).strip() for t in parsed if str(t).strip()]
+                else:
+                    tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+            except json.JSONDecodeError:
+                tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+
+        service = KnowledgeService(db)
+        item = await service.create_item(
+            user_id=str(current_user.id),
+            data=KnowledgeItemCreate(
+                title=title,
+                content=content_text,
+                category=category,
+                tags=tag_list,
+                source_type=KnowledgeSource.IMPORTED,
+                source_reference=source_reference or file.filename,
+                extra_data={
+                    "filename": file.filename,
+                    "content_type": file.content_type,
+                    "size": len(content_bytes)
+                }
+            )
+        )
+        return item
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+def _extract_text_from_upload(file: UploadFile, content_bytes: bytes) -> str:
+    """
+    根据文件类型提取文本内容
+    支持 txt/markdown/pdf/docx，默认尝试 UTF-8 解码
+    """
+    filename = file.filename or ""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    if ext in ["txt", "md", "markdown", ""]:
+        try:
+            return content_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="仅支持 UTF-8 文本文件")
+
+    if ext == "pdf":
+        try:
+            import pdfplumber
+        except ImportError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="服务器未安装 pdfplumber，暂不支持 PDF 上传")
+        with pdfplumber.open(io.BytesIO(content_bytes)) as pdf:
+            texts = [page.extract_text() or "" for page in pdf.pages]
+        return "\n".join(t for t in texts if t)
+
+    if ext == "docx":
+        try:
+            from docx import Document
+        except ImportError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="服务器未安装 python-docx，暂不支持 DOCX 上传")
+        doc = Document(io.BytesIO(content_bytes))
+        paragraphs = [p.text for p in doc.paragraphs if p.text]
+        return "\n".join(paragraphs)
+
+    # 默认尝试 UTF-8 解码
+    try:
+        return content_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不支持的文件类型或编码")
 
 
 @router.post("/{item_id}/reference", status_code=status.HTTP_200_OK)

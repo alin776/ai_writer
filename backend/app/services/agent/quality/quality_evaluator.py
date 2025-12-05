@@ -16,6 +16,7 @@ from app.services.agent.quality.quality_types import (
     DIMENSION_WEIGHTS
 )
 from app.services.agent.prompts.quality_prompts import QualityPrompts
+from app.services.agent.model_selector import TaskType  # ← 新增：用于成本追踪
 
 logger = logging.getLogger(__name__)
 
@@ -273,7 +274,8 @@ class QualityEvaluatorService:
             async for chunk, usage in self.ai_service._stream_chat(
                 messages=messages,
                 max_tokens=300,  # 从350减少到300,优化性能
-                temperature=0.1  # 低温度保证稳定性和一致性
+                temperature=0.1,  # 低温度保证稳定性和一致性
+                task_type=TaskType.TEXT_CLASSIFICATION  # ← 新增：质量评估属于分类任务
             ):
                 full_response += chunk
 

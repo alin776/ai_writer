@@ -9,12 +9,16 @@ interface KnowledgeItem {
   title: string;
   content?: string;
   category?: string;
-  source_type: 'text' | 'file' | 'url';
+  source_type: 'manual' | 'book_analysis' | 'ai_generated' | 'imported' | 'text' | 'file' | 'url';
   file_type?: string;
   tags: string[];
   created_at: string;
   updated_at: string;
   chunk_count?: number;
+  summary?: string;
+  view_count?: number;
+  reference_count?: number;
+  extra_data?: Record<string, any>;
 }
 
 interface KnowledgeListResponse {
@@ -40,16 +44,16 @@ interface UpdateKnowledgeRequest {
 
 interface SearchRequest {
   query: string;
-  limit?: number;
+  top_k?: number;
   tags?: string[];
+  category?: string;
+  work_id?: string;
 }
 
 interface SearchResult {
-  id: string;
-  title: string;
-  content: string;
-  score: number;
-  tags: string[];
+  item: KnowledgeItem;
+  relevance_score: number;
+  highlight: string;
 }
 
 class KnowledgeApiService {
@@ -119,9 +123,24 @@ class KnowledgeApiService {
     search?: string;
     tags?: string[];
     page?: number;
-    page_size?: number;
+    pageSize?: number;
+    limit?: number;
+    skip?: number;
+    category?: string;
   }): Promise<KnowledgeListResponse> {
-    const response = await this.client.get<KnowledgeListResponse>('/', { params });
+    const page = params?.page ?? 1;
+    const pageSize = params?.pageSize ?? params?.limit ?? 20;
+    const skip = params?.skip ?? (page - 1) * pageSize;
+    const limit = params?.limit ?? pageSize;
+    const response = await this.client.get<KnowledgeListResponse>('/', {
+      params: {
+        search: params?.search,
+        category: params?.category,
+        tags: params?.tags?.length ? params.tags.join(',') : undefined,
+        skip,
+        limit,
+      }
+    });
     return response.data;
   }
 
@@ -144,11 +163,14 @@ class KnowledgeApiService {
   /**
    * 上传文件
    */
-  async upload(file: File, metadata: { title: string; category: string; tags?: string[] }): Promise<KnowledgeItem> {
+  async upload(file: File, metadata: { title: string; category: string; tags?: string[]; source_reference?: string }): Promise<KnowledgeItem> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('title', metadata.title);
     formData.append('category', metadata.category);
+    if (metadata.source_reference) {
+      formData.append('source_reference', metadata.source_reference);
+    }
     if (metadata.tags) {
       formData.append('tags', JSON.stringify(metadata.tags));
     }
@@ -180,8 +202,8 @@ class KnowledgeApiService {
    * 语义搜索
    */
   async search(request: SearchRequest): Promise<SearchResult[]> {
-    const response = await this.client.post<SearchResult[]>('/search', request);
-    return response.data;
+    const response = await this.client.post<{ results: SearchResult[] }>('/search', request);
+    return response.data.results || [];
   }
 
   /**

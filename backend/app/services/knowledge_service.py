@@ -76,7 +76,7 @@ class KnowledgeService:
             await self.db.rollback()
             raise
 
-    async def get_item(self, item_id: str, user_id: str) -> Optional[KnowledgeItem]:
+    async def get_item(self, item_id: str, user_id: str, *, increment_view: bool = False) -> Optional[KnowledgeItem]:
         """
         获取单个知识条目
 
@@ -101,8 +101,8 @@ class KnowledgeService:
             result = await self.db.execute(stmt)
             item = result.scalar_one_or_none()
 
-            if item:
-                # 增加查看次数
+            if item and increment_view:
+                # 仅在明确需要统计时才增加查看次数，避免后台内部调用产生噪声
                 item.view_count += 1
                 from datetime import datetime, timezone
                 item.last_accessed_at = datetime.now(timezone.utc)
@@ -312,7 +312,7 @@ class KnowledgeService:
             vector_results = await self.vector_service.search_knowledge(
                 query=query,
                 user_id=user_id,
-                top_k=top_k * 2,  # 多取一些，过滤后再截断
+                top_k=top_k * 4,  # 多取一些，过滤后再截断，防止重复块占满
                 similarity_threshold=0.3
             )
 
@@ -320,12 +320,30 @@ class KnowledgeService:
                 logger.info("向量检索未找到结果")
                 return []
 
-            # 2. 加载完整条目 + 过滤
-            results = []
+            # 2. 以条目去重保留最优块，避免同一条目多块占满结果
+            best_hits: Dict[str, Dict[str, Any]] = {}
             for vector_result in vector_results:
-                item_id = vector_result['source_id']
-                item = await self.get_item(item_id, user_id)
+                source_id = vector_result['source_id']
+                hit = best_hits.get(source_id)
+                if not hit or vector_result['similarity'] > hit['similarity']:
+                    best_hits[source_id] = {
+                        'similarity': vector_result['similarity'],
+                        'text': vector_result.get('text', '')
+                    }
 
+            # 按相似度排序，逐个加载条目并应用过滤
+            sorted_hits = sorted(
+                best_hits.items(),
+                key=lambda item: item[1]['similarity'],
+                reverse=True
+            )
+
+            results = []
+            for source_id, hit in sorted_hits:
+                if len(results) >= top_k:
+                    break
+
+                item = await self.get_item(source_id, user_id)
                 if not item:
                     continue
 
@@ -343,17 +361,14 @@ class KnowledgeService:
                     if item.work_id != work_uuid:
                         continue
 
-                # 提取高亮片段
-                highlight = self._extract_highlight(item.content, query)
+                highlight_source = hit['text'] or item.content
+                highlight = self._extract_highlight(highlight_source, query)
 
                 results.append({
                     'item': item,
-                    'relevance_score': vector_result['similarity'],
+                    'relevance_score': hit['similarity'],
                     'highlight': highlight
                 })
-
-                if len(results) >= top_k:
-                    break
 
             logger.info(f"语义搜索完成: 返回{len(results)}个结果")
             return results

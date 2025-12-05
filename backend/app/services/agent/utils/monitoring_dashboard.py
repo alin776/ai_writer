@@ -17,6 +17,7 @@ from .monitoring import get_system_monitor, AlertLevel, HealthStatus
 from .business_metrics import get_business_metrics_collector
 from .monitoring_reports import get_report_generator, ReportType
 from .logger import get_logger
+from app.utils.datetime_utils import get_utc_now
 
 logger = get_logger("monitoring_dashboard")
 
@@ -60,7 +61,7 @@ class MonitoringDashboard:
                 return {
                     "status": overall_status.value,
                     "checks": {name: check.to_dict() for name, check in health_results.items()},
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": get_utc_now().isoformat()
                 }
             except Exception as e:
                 logger.error(f"Health check API error: {e}")
@@ -82,7 +83,7 @@ class MonitoringDashboard:
                     "system": monitoring_summary,
                     "business": business_summary,
                     "time_window_hours": time_window_hours,
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": get_utc_now().isoformat()
                 }
             except Exception as e:
                 logger.error(f"Metrics summary API error: {e}")
@@ -95,7 +96,7 @@ class MonitoringDashboard:
         ):
             """系统指标API"""
             try:
-                since_time = datetime.now() - timedelta(hours=since_hours)
+                since_time = get_utc_now() - timedelta(hours=since_hours)
 
                 if metric_name:
                     # 获取特定指标的历史数据
@@ -113,7 +114,7 @@ class MonitoringDashboard:
                     all_metrics = self.system_monitor.get_metrics_summary()
                     return {
                         "metrics": all_metrics,
-                        "timestamp": datetime.now().isoformat()
+                        "timestamp": get_utc_now().isoformat()
                     }
             except Exception as e:
                 logger.error(f"System metrics API error: {e}")
@@ -132,7 +133,7 @@ class MonitoringDashboard:
                     "summary": business_summary,
                     "detailed": detailed_metrics,
                     "time_window_hours": time_window_hours,
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": get_utc_now().isoformat()
                 }
             except Exception as e:
                 logger.error(f"Business metrics API error: {e}")
@@ -167,7 +168,7 @@ class MonitoringDashboard:
                         "active_only": active_only,
                         "limit": limit
                     },
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": get_utc_now().isoformat()
                 }
             except Exception as e:
                 logger.error(f"Alerts API error: {e}")
@@ -242,7 +243,7 @@ class MonitoringDashboard:
                     ],
                     "total_count": 1,
                     "limit": limit,
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": get_utc_now().isoformat()
                 }
             except Exception as e:
                 logger.error(f"List reports API error: {e}")
@@ -278,7 +279,7 @@ class MonitoringDashboard:
                         "status": health_status.value,
                         "checks_count": len(self.system_monitor.health_checker.get_last_results())
                     },
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": get_utc_now().isoformat()
                 }
             except Exception as e:
                 logger.error(f"Realtime stats API error: {e}")

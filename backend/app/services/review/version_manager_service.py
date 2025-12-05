@@ -20,6 +20,7 @@ from app.schemas.review import (
     ChapterVersionDetailResponse,
     VersionMilestoneUpdate
 )
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +259,7 @@ class VersionManagerService:
         """
         from datetime import datetime, timedelta
 
-        cutoff_date = datetime.utcnow() - timedelta(days=days_threshold)
+        cutoff_date = get_utc_now() - timedelta(days=days_threshold)
 
         # 查找待归档的版本
         result = await self.db.execute(

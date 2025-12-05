@@ -12,6 +12,11 @@ import {
   DollarSign,
   Sparkles,
   Library,
+  Wallet,
+  BarChart3,
+  Gift,
+  ChevronDown,
+  Wand2,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import clsx from 'clsx';
@@ -42,6 +47,36 @@ const mainNavItems: NavItem[] = [
     label: '知识库',
     icon: Library,
     path: '/knowledge',
+  },
+  {
+    id: 'humanize',
+    label: 'AI去痕',
+    icon: Wand2,
+    path: '/humanize',
+  },
+];
+
+/**
+ * 我的服务导航菜单配置
+ */
+const serviceNavItems: NavItem[] = [
+  {
+    id: 'credits',
+    label: '我的积分',
+    icon: Wallet,
+    path: '/service/credits',
+  },
+  {
+    id: 'usage',
+    label: '使用记录',
+    icon: BarChart3,
+    path: '/service/usage',
+  },
+  {
+    id: 'obtain',
+    label: '获取积分',
+    icon: Gift,
+    path: '/service/obtain',
   },
 ];
 
@@ -93,6 +128,7 @@ export const Sidebar: React.FC = () => {
   const location = useLocation();
   const { user } = useAuthStore();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isServiceExpanded, setIsServiceExpanded] = useState(true);
 
   /**
    * 检查菜单项是否激活
@@ -200,6 +236,28 @@ export const Sidebar: React.FC = () => {
             </div>
           )}
           {mainNavItems.map(renderNavItem)}
+        </div>
+
+        {/* 我的服务导航 - 可折叠 */}
+        <div className="mt-6 space-y-0.5">
+          {/* 菜单组标题 - 可点击折叠 */}
+          <button
+            onClick={() => setIsServiceExpanded(!isServiceExpanded)}
+            className={clsx(
+              'w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-gray-400 uppercase tracking-wider hover:text-gray-600 transition-colors',
+              isCollapsed && 'justify-center'
+            )}
+          >
+            {!isCollapsed && <span>我的服务</span>}
+            <ChevronDown
+              className={clsx(
+                'w-4 h-4 transition-transform',
+                !isServiceExpanded && '-rotate-90'
+              )}
+            />
+          </button>
+          {/* 子菜单项 */}
+          {isServiceExpanded && serviceNavItems.map(renderNavItem)}
         </div>
 
         {/* 管理员导航 - 仅管理员可见 */}

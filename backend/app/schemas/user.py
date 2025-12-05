@@ -52,12 +52,14 @@ class AvatarUploadResponse(BaseModel):
 class UserBase(BaseModel):
     """用户基础模型"""
     username: str = Field(..., min_length=3, max_length=50)
-    email: Optional[EmailStr] = None
+    email: EmailStr
 
 
 class UserCreate(UserBase):
     """创建用户"""
     password: str = Field(..., min_length=6, max_length=50)
+    invitation_code: str = Field(..., min_length=8, max_length=8, description="邀请码")
+    device_fingerprint: Optional[str] = Field(None, max_length=255, description="设备指纹（用于防刷）")
 
 
 class UserLogin(BaseModel):
@@ -79,6 +81,8 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     """用户响应"""
+    # 放宽响应校验，兼容占位域名等非标准邮箱
+    email: Optional[str] = None
     id: UUID
     full_name: Optional[str] = None
     avatar: Optional[str] = None

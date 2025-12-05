@@ -38,6 +38,7 @@ from typing import List, Dict, Any, Optional, Union
 from dataclasses import dataclass, asdict
 from enum import Enum
 from redis import Redis
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -222,7 +223,7 @@ class MemoryExporter:
 
         # 标题
         lines.append(f"# 记忆导出 - {user_id}")
-        lines.append(f"\n导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        lines.append(f"\n导出时间: {get_utc_now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
         # 统计
         if include_stats:

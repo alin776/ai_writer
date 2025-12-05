@@ -14,7 +14,10 @@ import httpx
 import json
 import logging
 from typing import AsyncGenerator, Optional
+from datetime import datetime
 from app.core.config import settings
+from app.core.request_context import get_request_user_id  # ✅ 新增：用于成本追踪
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -65,11 +68,83 @@ class FastAIService:
         await self.client.aclose()
         logger.debug("Fast AI Service 已关闭")
 
+    async def _track_cost(
+        self,
+        usage: dict,
+        operation_type: str,
+        start_time: datetime
+    ):
+        """
+        追踪API调用成本（使用request context）
+
+        Args:
+            usage: usage统计信息（包含prompt_tokens, completion_tokens）
+            operation_type: 操作类型
+            start_time: 调用开始时间
+        """
+        user_id = get_request_user_id()
+
+        if not user_id:
+            logger.debug("[FastAI成本追踪] 跳过：缺少user_id")
+            return
+
+        try:
+            from app.utils.cost_calculator import CostCalculator
+            from app.schemas.ai_call_log import AICallLogCreate
+            from app.core.database import create_db_session
+            from app.services.ai_log_service import AILogService
+            from uuid import UUID
+
+            prompt_tokens = usage.get('prompt_tokens', 0)
+            completion_tokens = usage.get('completion_tokens', 0)
+
+            # 计算成本
+            cost_data = CostCalculator.calculate_cost(
+                model_name=self.model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens
+            )
+
+            # 计算响应时间
+            duration_ms = int((get_utc_now() - start_time).total_seconds() * 1000)
+
+            # 创建日志记录
+            log_data = AICallLogCreate(
+                user_id=UUID(user_id),
+                model_name=self.model,
+                operation_type=operation_type,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=prompt_tokens + completion_tokens,
+                prompt_cost=cost_data["prompt_cost"],
+                completion_cost=cost_data["completion_cost"],
+                total_cost=cost_data["total_cost"],
+                duration_ms=duration_ms,
+                is_success=True,
+                extra_data={}
+            )
+
+            # 使用独立db会话持久化
+            async with create_db_session() as db:
+                temp_log_service = AILogService(db)
+                await temp_log_service.create_log(log_data)
+
+            logger.info(
+                f"[FastAI成本追踪] 已记录: operation={operation_type}, "
+                f"tokens={prompt_tokens + completion_tokens}, "
+                f"cost=${cost_data['total_cost']:.6f}"
+            )
+
+        except Exception as e:
+            logger.error(f"[FastAI成本追踪] 失败: {e}")
+            # 成本追踪失败不应影响主流程
+
     async def chat_completion(
         self,
         messages: list,
         max_tokens: int = 1500,
-        temperature: float = 0.3
+        temperature: float = 0.3,
+        operation_type: str = "fast_ai_call"  # ✅ 新增：用于成本追踪
     ) -> tuple[str, dict]:
         """
         非流式聊天完成（用于检测和验证）
@@ -105,6 +180,9 @@ class FastAIService:
             f"max_tokens={max_tokens}, temp={temperature}"
         )
 
+        # ✅ 记录开始时间（用于成本追踪）
+        start_time = get_utc_now()
+
         try:
             response = await self.client.post(url, json=payload, headers=headers)
 
@@ -133,6 +211,13 @@ class FastAIService:
                 "completion_tokens": completion_tokens,
                 "total_tokens": total_tokens
             }
+
+            # ✅ 追踪成本
+            await self._track_cost(
+                usage=usage_stats,
+                operation_type=operation_type,
+                start_time=start_time
+            )
 
             return content, usage_stats
 
@@ -251,7 +336,8 @@ class FastAIService:
         result, usage = await self.chat_completion(
             messages=messages,
             max_tokens=1500,
-            temperature=0.3  # 低温度保证稳定
+            temperature=0.3,  # 低温度保证稳定
+            operation_type="humanize_detect"  # ✅ 对应TaskType.HUMANIZE_DETECT
         )
 
         return result, usage
@@ -292,7 +378,8 @@ class FastAIService:
         result, usage = await self.chat_completion(
             messages=messages,
             max_tokens=500,  # 验证结果通常较短
-            temperature=0.3
+            temperature=0.3,
+            operation_type="humanize_verify"  # ✅ 对应TaskType.HUMANIZE_VERIFY
         )
 
         return result, usage

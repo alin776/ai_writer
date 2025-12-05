@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import logging
 import json
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ class ToolMonitor:
             error: 错误消息(如果失败)
             metadata: 额外的元数据
         """
-        timestamp = datetime.now()
+        timestamp = get_utc_now()
 
         log_entry = {
             "tool_name": tool_name,
@@ -177,7 +178,7 @@ class ToolMonitor:
             if error:
                 error_key = f"tool_monitor:errors:{tool_name}"
                 self.redis.lpush(error_key, json.dumps({
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": get_utc_now().isoformat(),
                     "error": error
                 }, ensure_ascii=False))
                 self.redis.ltrim(error_key, 0, 99)  # 最多保留100个错误
@@ -209,7 +210,7 @@ class ToolMonitor:
 
         if error:
             stats["errors"].append({
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": get_utc_now().isoformat(),
                 "error": error
             })
             # 限制错误记录数量
@@ -387,7 +388,7 @@ class ToolMonitor:
             logger.info(f"Redis will auto-expire data after {days} days")
         else:
             # 清理内存中的旧日志
-            cutoff_time = datetime.now() - timedelta(days=days)
+            cutoff_time = get_utc_now() - timedelta(days=days)
             self._memory_logs = [
                 log for log in self._memory_logs
                 if datetime.fromisoformat(log["timestamp"]) > cutoff_time

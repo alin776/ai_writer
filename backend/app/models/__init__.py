@@ -9,6 +9,7 @@ from app.models.work_guidelines import WorkGuidelines
 from app.models.ai_guidelines import AIGuidelines
 from app.models.novel_analysis import NovelAnalysis, AnalysisStatus, AnalysisStage
 from app.models.novel_analysis_vector import NovelAnalysisVector
+from app.models.novel_chapter_vector import NovelChapterVector
 from app.models.relationship import EntityRelationship
 from app.models.timeline_event import TimelineEvent
 from app.models.entity_group import EntityGroup, GroupMember
@@ -24,6 +25,11 @@ from app.models.rewrite_history import RewriteSession, RewriteResult
 from app.models.book_analysis import BookAnalysisJob, JobStatus
 from app.models.worldview_suggestion import WorldviewSuggestion, SuggestionType, SuggestionAction, SuggestionStatus
 from app.models.chapter_history import ChapterHistory
+from app.models.user_credits import UserCredits
+from app.models.credit_transaction import CreditTransaction
+from app.models.redeem_code import RedeemCode
+from app.models.user_invitation import UserInvitation
+from app.models.invitation_usage import InvitationUsage
 from app.models.agent_session import AgentSession
 from app.models.agent_session_message import AgentSessionMessage
 
@@ -44,6 +50,7 @@ __all__ = [
     "AnalysisStatus",
     "AnalysisStage",
     "NovelAnalysisVector",
+    "NovelChapterVector",
     "EntityRelationship",
     "TimelineEvent",
     "EntityGroup",
@@ -73,7 +80,12 @@ __all__ = [
     "SuggestionType",
     "SuggestionAction",
     "SuggestionStatus",
-    "ChapterHistory"
-    ,"AgentSession"
-    ,"AgentSessionMessage"
+    "ChapterHistory",
+    "UserCredits",
+    "CreditTransaction",
+    "RedeemCode",
+    "UserInvitation",
+    "InvitationUsage",
+    "AgentSession",
+    "AgentSessionMessage"
 ]

@@ -119,11 +119,14 @@ const AdminCostView: React.FC = () => {
     },
   ];
 
-  // 成本趋势数据（最近7天）
-  const costTrendData = metrics.dailyCosts.map(item => ({
-    date: item.date.slice(5), // 只显示 MM-DD
-    cost: parseFloat((item.cost * 7.19).toFixed(4)), // 转换为人民币，保留4位小数
-  }));
+  // 成本趋势数据（根据选择的时间范围截取）
+  const rangeDays = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
+  const costTrendData = metrics.dailyCosts
+    .slice(-rangeDays)
+    .map(item => ({
+      date: item.date.slice(5), // 只显示 MM-DD
+      cost: parseFloat((item.cost * 7.19).toFixed(4)), // 转换为人民币，保留4位小数
+    }));
 
   // 模型成本分布
   const modelCostData = metrics.topModels.map((model, index) => {
@@ -166,33 +169,33 @@ const AdminCostView: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">成本监控</h1>
           <p className="mt-2 text-gray-600">实时监控 AI 调用成本和使用情况</p>
         </div>
-        <div className="flex items-center space-x-3">
-          {/* 时间范围选择 */}
-          <div className="flex items-center bg-white border border-gray-300 rounded-lg overflow-hidden">
-            {(['7d', '30d', '90d'] as const).map((range) => (
-              <button
-                key={range}
+          <div className="flex items-center space-x-3">
+            {/* 时间范围选择 */}
+            <div className="flex items-center bg-white border border-gray-300 rounded-lg overflow-hidden">
+              {(['7d', '30d', '90d'] as const).map((range) => (
+                <button
+                  key={range}
                 onClick={() => setTimeRange(range)}
                 className={`px-4 py-2 text-sm font-medium transition-colors ${
                   timeRange === range
                     ? 'bg-blue-600 text-white'
                     : 'bg-white text-gray-700 hover:bg-gray-50'
                 }`}
-              >
-                {range === '7d' ? '最近7天' : range === '30d' ? '最近30天' : '最近90天'}
-              </button>
-            ))}
+                >
+                  {range === '7d' ? '最近7天' : range === '30d' ? '最近30天' : '最近90天'}
+                </button>
+              ))}
+            </div>
+            <Button variant="outline" size="sm" disabled title="后端暂未开放自定义日期">
+              <Calendar className="w-4 h-4 mr-2" />
+              自定义日期
+            </Button>
+            <Button variant="outline" size="sm" disabled title="导出报告功能待实现">
+              <Download className="w-4 h-4 mr-2" />
+              导出报告
+            </Button>
           </div>
-          <Button variant="outline" size="sm">
-            <Calendar className="w-4 h-4 mr-2" />
-            自定义日期
-          </Button>
-          <Button variant="outline" size="sm">
-            <Download className="w-4 h-4 mr-2" />
-            导出报告
-          </Button>
         </div>
-      </div>
 
       {/* 成本统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

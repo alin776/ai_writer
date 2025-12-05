@@ -4,6 +4,7 @@ import { Button, Card, Loading } from '../../components/common';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
 import type { AIModel } from '../../types';
+import { getTypicalCostRange } from '../../utils/costCalculator';
 
 /**
  * AdminAIModelsView 组件 - AI 模型管理页面
@@ -109,7 +110,7 @@ OPENAI_MODEL=gemini-2.5-pro
                         {model.type}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">
-                        ¥{model.costPerRequest.toFixed(4)}/次
+                        {getTypicalCostRange(model)}
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <span

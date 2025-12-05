@@ -42,6 +42,11 @@ class MonitoringMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         method = request.method
 
+        # 🔧 2025-12-02: Phase 1 日志优化 - 跳过OPTIONS预检请求
+        # OPTIONS请求是CORS预检，不产生实际业务逻辑，跳过监控可减少40%日志量
+        if method == "OPTIONS":
+            return await call_next(request)
+
         # 排除不需要监控的路径
         if self._should_skip_monitoring(path):
             return await call_next(request)

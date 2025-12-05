@@ -35,6 +35,31 @@ from app.schemas.knowledge import (
     KnowledgeSearchResult,
     KnowledgeSearchResponse,
 )
+from app.schemas.credits import (
+    BalanceResponse,
+    TransactionResponse,
+    TransactionListRequest,
+    TransactionListResponse,
+    RedeemRequest,
+    RedeemResponse,
+)
+from app.schemas.invitations import (
+    InvitationGenerateRequest,
+    InvitationResponse,
+    InviteeInfo,
+    InvitationValidateRequest,
+    InvitationValidateResponse,
+    InvitationStatsResponse,
+)
+from app.schemas.admin_credits import (
+    AdminRedeemCodeGenerateRequest,
+    AdminRedeemCodeResponse,
+    AdminRedeemCodeListRequest,
+    AdminRedeemCodeListResponse,
+    AdminGiftCreditsRequest,
+    AdminGiftCreditsResponse,
+    AdminCreditsStatsResponse,
+)
 
 __all__ = [
     # User
@@ -69,4 +94,26 @@ __all__ = [
     "KnowledgeSearchRequest",
     "KnowledgeSearchResult",
     "KnowledgeSearchResponse",
+    # Credits
+    "BalanceResponse",
+    "TransactionResponse",
+    "TransactionListRequest",
+    "TransactionListResponse",
+    "RedeemRequest",
+    "RedeemResponse",
+    # Invitations
+    "InvitationGenerateRequest",
+    "InvitationResponse",
+    "InviteeInfo",
+    "InvitationValidateRequest",
+    "InvitationValidateResponse",
+    "InvitationStatsResponse",
+    # Admin Credits
+    "AdminRedeemCodeGenerateRequest",
+    "AdminRedeemCodeResponse",
+    "AdminRedeemCodeListRequest",
+    "AdminRedeemCodeListResponse",
+    "AdminGiftCreditsRequest",
+    "AdminGiftCreditsResponse",
+    "AdminCreditsStatsResponse",
 ]

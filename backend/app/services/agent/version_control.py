@@ -18,6 +18,7 @@ from datetime import datetime
 import redis
 import json
 import uuid
+from app.utils.datetime_utils import get_utc_now
 
 
 # ==================== 数据模型 ====================
@@ -132,7 +133,7 @@ class VersionControlService:
             version_id=self._generate_version_id(),
             parent_version_id=None,
             patches=[],
-            created_at=datetime.now(),
+            created_at=get_utc_now(),
             created_by=created_by,
             tag="base",
             description="初始版本"
@@ -174,7 +175,7 @@ class VersionControlService:
             version_id=self._generate_version_id(),
             parent_version_id=versioned.current_version_id,
             patches=[patch],
-            created_at=datetime.now(),
+            created_at=get_utc_now(),
             created_by=patch.created_by,
             description=patch.description or "应用补丁"
         )

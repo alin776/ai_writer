@@ -4,7 +4,8 @@
 """
 import json
 import logging
-from typing import List, Dict, Any, Optional
+import math
+from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sentence_transformers import SentenceTransformer
@@ -208,17 +209,17 @@ class VectorStoreService:
         work_id: str,
         query: str,
         top_k: int = 5,
-        similarity_threshold: float = 0.5
+        similarity_threshold: float = 0.3  # P2修复: 统一阈值为0.3（原为0.5）
     ) -> List[Dict[str, Any]]:
         """
         检索与查询相关的微观分析（RAG）
-        
+
         Args:
             work_id: 作品ID
             query: 查询文本
             top_k: 返回前K个最相关的结果
-            similarity_threshold: 相似度阈值（0-1）
-            
+            similarity_threshold: 相似度阈值（0-1），默认0.3
+
         Returns:
             List[Dict]: 相关的分析结果列表，每项包含：
                 - chapter_id: 章节ID
@@ -228,12 +229,12 @@ class VectorStoreService:
         """
         try:
             logger.info(f"RAG检索: work_id={work_id}, query={query[:50]}...")
-            
+
             # 1. 向量化查询
             model = self._get_model()
             query_embedding = model.encode(query, normalize_embeddings=True)
             query_embedding_list = query_embedding.tolist()
-            
+
             # 2. 执行相似度搜索（使用余弦距离）
             # pgvector的<=>操作符计算余弦距离（值越小越相似）
             # 余弦相似度 = 1 - 余弦距离
@@ -247,12 +248,17 @@ class VectorStoreService:
                 .order_by(NovelAnalysisVector.embedding.cosine_distance(query_embedding_list))
                 .limit(top_k)
             )
-            
+
             result = await self.db.execute(stmt)
             rows = result.all()
-            
+
+            # P2修复: 添加调试日志
+            if not rows:
+                logger.warning(f"RAG检索: 向量表为空或无匹配数据 (work_id={work_id})")
+
             # 3. 过滤和格式化结果
             relevant_results = []
+            filtered_count = 0
             for vector_record, similarity in rows:
                 # 只返回超过阈值的结果
                 if similarity >= similarity_threshold:
@@ -263,15 +269,26 @@ class VectorStoreService:
                         'similarity': float(similarity),
                         'chunk_index': vector_record.chunk_index
                     })
-            
+                else:
+                    filtered_count += 1
+                    # P2修复: 记录被过滤的低相似度结果
+                    logger.debug(f"RAG过滤: similarity={similarity:.3f} < threshold={similarity_threshold}")
+
+            # P2修复: 增强日志
+            if filtered_count > 0 and len(relevant_results) == 0:
+                logger.warning(
+                    f"RAG检索: 所有 {filtered_count} 个结果都被阈值({similarity_threshold})过滤，"
+                    f"考虑降低阈值"
+                )
+
             logger.info(f"检索到 {len(relevant_results)} 个相关结果（阈值={similarity_threshold}）")
-            
+
             # 打印前3个结果的相似度
             for i, result in enumerate(relevant_results[:3]):
                 logger.debug(f"结果 {i+1}: 相似度={result['similarity']:.3f}, 章节={result['chapter_id']}")
-            
+
             return relevant_results
-            
+
         except Exception as e:
             logger.error(f"RAG检索失败: {e}", exc_info=True)
             return []
@@ -470,48 +487,160 @@ class VectorStoreService:
         try:
             logger.info(f"开始向量化知识条目: {knowledge_item.id}")
 
-            # 1. 生成文本表示 (标题 + 内容 + 标签)
-            text_parts = [knowledge_item.title, knowledge_item.content]
-            if knowledge_item.tags:
-                text_parts.append(f"标签: {', '.join(knowledge_item.tags)}")
-
-            content_text = " | ".join(text_parts)
-
-            # 2. 生成embedding
-            model = self._get_model()
-            embedding = model.encode(content_text, normalize_embeddings=True)
-            embedding_list = embedding.tolist()
-
-            logger.info(f"生成向量维度: {len(embedding_list)}")
-
-            # 3. 存储向量
             from uuid import UUID
 
-            # 确保ID是UUID类型
+            # 生成基础文本片段 (标题 + 内容 + 标签)
+            tag_text = f"标签: {', '.join(knowledge_item.tags)}" if knowledge_item.tags else ""
+            base_content = knowledge_item.content or ""
+
+            # 简单分块，避免超长文本只生成一个向量
+            chunks, chunk_meta = self._chunk_text(base_content)
+            if not chunks:
+                chunks = [""]
+
+            model = self._get_model()
+
             user_id = knowledge_item.user_id if isinstance(knowledge_item.user_id, UUID) else UUID(str(knowledge_item.user_id))
             item_id = knowledge_item.id if isinstance(knowledge_item.id, UUID) else UUID(str(knowledge_item.id))
 
-            vector_record = NovelAnalysisVector(
-                user_id=user_id,
-                source_type="knowledge",
-                source_id=item_id,
-                embedding=embedding_list,
-                content_text=content_text,
-                micro_data=None,  # 知识库不需要micro_data
-                chunk_index=0
+            # 批量编码，降低单次上传的时延
+            chunk_texts: List[str] = []
+            for chunk in chunks:
+                chunk_text_parts = [knowledge_item.title, chunk]
+                if tag_text:
+                    chunk_text_parts.append(tag_text)
+                chunk_texts.append(" | ".join([part for part in chunk_text_parts if part]))
+
+            embeddings = model.encode(
+                chunk_texts,
+                normalize_embeddings=True,
+                batch_size=self._get_encode_batch_size(len(chunk_texts)),
+                show_progress_bar=False
             )
 
-            self.db.add(vector_record)
-            await self.db.commit()
-            await self.db.refresh(vector_record)
+            vector_records = []
+            for idx, (chunk_text, embedding) in enumerate(zip(chunk_texts, embeddings)):
+                vector_record = NovelAnalysisVector(
+                    user_id=user_id,
+                    source_type="knowledge",
+                    source_id=item_id,
+                    embedding=embedding.tolist(),
+                    content_text=chunk_text,
+                    micro_data=None,
+                    chunk_index=idx
+                )
+                self.db.add(vector_record)
+                vector_records.append(vector_record)
 
-            logger.info(f"知识库向量存储成功: vector_id={vector_record.id}")
-            return vector_record
+            await self.db.commit()
+            # 返回首个记录以保持向后兼容
+            first_record = vector_records[0]
+            await self.db.refresh(first_record)
+
+            # 将分块信息写入元数据，避免静默截断
+            try:
+                meta = knowledge_item.extra_data or {}
+                meta.update({
+                    "vector_chunk_count": len(chunk_texts),
+                    "vector_chunk_size": chunk_meta["chunk_size"],
+                    "vector_chunk_overlap": chunk_meta["overlap"]
+                })
+                if chunk_meta.get("truncated"):
+                    meta["vectorization_warning"] = "文本过长，已按上限截断部分内容，请拆分或减少文件大小"
+                elif chunk_meta.get("scaled"):
+                    meta["vectorization_warning"] = "文本较长，已动态增大分块以控制向量数量，可能影响检索精度"
+                knowledge_item.extra_data = meta
+                await self.db.commit()
+            except Exception as meta_err:
+                logger.warning(f"写入分块元数据失败: {meta_err}")
+
+            logger.info(f"知识库向量存储成功: item_id={item_id}, chunks={len(vector_records)}")
+            return first_record
 
         except Exception as e:
             logger.error(f"知识库向量化失败: {e}", exc_info=True)
             await self.db.rollback()
             raise
+
+    def _get_encode_batch_size(self, total_chunks: int) -> int:
+        """
+        根据分块数量选择合适的批大小，避免一次性占用过多显存/CPU
+        """
+        if total_chunks >= 128:
+            return 8
+        if total_chunks >= 64:
+            return 12
+        return 16
+
+    def _chunk_text(
+        self,
+        text: str,
+        chunk_size: int = 800,
+        overlap: int = 200,
+        max_chunks: int = 200
+    ) -> Tuple[List[str], Dict[str, Any]]:
+        """
+        按字符长度切分长文本，带简单重叠，并对块数量做上限防护，
+        同时在超过上限时动态放宽块大小，避免无声截断。
+        """
+        if not text:
+            return [], {"chunk_size": chunk_size, "overlap": overlap, "truncated": False, "scaled": False}
+
+        cleaned = text.replace("\r", "")
+        if len(cleaned) <= chunk_size:
+            return [cleaned], {"chunk_size": chunk_size, "overlap": overlap, "truncated": False, "scaled": False}
+
+        # 预估当前分块数量
+        def estimate_chunks(size: int, ov: int) -> int:
+            step = max(1, size - ov)
+            return math.ceil(max(len(cleaned) - size, 0) / step) + 1
+
+        used_chunk_size = chunk_size
+        used_overlap = overlap
+        scaled = False
+
+        approx = estimate_chunks(used_chunk_size, used_overlap)
+        if approx > max_chunks:
+            # 动态放大分块尺寸，目标控制在上限附近，避免截断
+            used_chunk_size = max(chunk_size, math.ceil(len(cleaned) / max_chunks))
+            used_overlap = min(overlap, used_chunk_size // 4)
+            scaled = True
+
+        chunks: List[str] = []
+        start = 0
+        length = len(cleaned)
+
+        while start < length and len(chunks) < max_chunks:
+            end = min(length, start + used_chunk_size)
+            chunk = cleaned[start:end].strip()
+            if chunk:
+                chunks.append(chunk)
+
+            if end == length:
+                break
+
+            start = max(0, end - used_overlap)
+
+        truncated = start < length and len(chunks) >= max_chunks
+        if truncated:
+            logger.warning(
+                "知识向量分块达到上限，后续内容未向量化",
+                extra={
+                    "text_length": length,
+                    "max_chunks": max_chunks,
+                    "chunk_size": used_chunk_size,
+                    "overlap": used_overlap
+                }
+            )
+
+        meta = {
+            "chunk_size": used_chunk_size,
+            "overlap": used_overlap,
+            "truncated": truncated,
+            "scaled": scaled
+        }
+
+        return chunks, meta
 
     async def search_knowledge(
         self,

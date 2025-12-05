@@ -22,6 +22,7 @@ from typing import Dict, List, Optional, Any, Set
 from datetime import datetime
 from pydantic import BaseModel
 from enum import Enum
+from app.utils.datetime_utils import get_utc_now
 
 
 class InconsistencyType(str, Enum):
@@ -164,7 +165,7 @@ class StoryBibleConsistencyChecker:
                             }
                         ],
                         suggestion=f"保持{attr}一致，建议使用：{original_props[attr]}",
-                        detected_at=datetime.now().isoformat()
+                        detected_at=get_utc_now().isoformat()
                     ))
 
         # 检查性格特征
@@ -187,7 +188,7 @@ class StoryBibleConsistencyChecker:
                         {"chapter": chapter_id}
                     ],
                     suggestion="检查角色性格发展是否合理",
-                    detected_at=datetime.now().isoformat()
+                    detected_at=get_utc_now().isoformat()
                 ))
 
         return inconsistencies
@@ -264,7 +265,7 @@ class StoryBibleConsistencyChecker:
                         }
                     ],
                     suggestion="统一世界观规则设定",
-                    detected_at=datetime.now().isoformat()
+                    detected_at=get_utc_now().isoformat()
                 ))
 
         return inconsistencies
@@ -326,7 +327,7 @@ class StoryBibleConsistencyChecker:
                     description="时间线出现倒流",
                     evidence=[current, next_event],
                     suggestion="调整事件发生的时间顺序",
-                    detected_at=datetime.now().isoformat()
+                    detected_at=get_utc_now().isoformat()
                 ))
 
         return inconsistencies
@@ -381,7 +382,7 @@ class StoryBibleConsistencyChecker:
 
         return ConsistencyReport(
             work_id=work_id,
-            checked_at=datetime.now().isoformat(),
+            checked_at=get_utc_now().isoformat(),
             total_elements=len(self.elements),
             total_inconsistencies=len(all_inconsistencies),
             inconsistencies=all_inconsistencies,

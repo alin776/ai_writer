@@ -18,6 +18,7 @@ import asyncio
 
 from .long_term_memory import LongTermMemoryService
 from .user_profile import UserProfileMemory
+from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ class MemoryManager:
         context = {
             "user_id": user_id,
             "work_id": work_id,  # ✅ 新增：记录当前作品ID
-            "retrieved_at": datetime.now().isoformat()
+            "retrieved_at": get_utc_now().isoformat()
         }
 
         if include_preferences:

@@ -18,6 +18,7 @@ import logging
 import json
 import uuid
 from datetime import datetime, timedelta
+from app.utils.datetime_utils import get_utc_now
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
@@ -32,6 +33,8 @@ from app.services.agent.tools import HITLManager
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.agent.langgraph_agent import WritingAgentGraph
 from app.core.config import settings
+# ✅ 2025-12-01: 支持Agent成本追踪（通过请求上下文传递user_id）
+from app.core.request_context import set_request_context
 import redis
 
 router = APIRouter()
@@ -67,12 +70,27 @@ def get_agent_graph() -> WritingAgentGraph:
     """
     鑾峰彇鍏ㄥ眬鍏变韩鐨凙gent瀹炰緥
 
-    浣跨敤鍏ㄥ眬鍗曚緥妯″紡锛岀‘淇滿emorySaver鍦ㄨ姹傞棿鍏变韩锛?
-    浠庤€屽疄鐜板璇濆巻鍙茬殑鎸佷箙鍖?
+    使用全局单例模式，确保MemorySaver在请求间共享，
+    从而实现对话历史的持久化
+
+    TODO (2025-12-01): 成本追踪限制
+    ----------------------------------------
+    当前全局单例的HTTPAIService不包含db和user_id，导致Agent内部的AI调用无法追踪成本。
+    这是一个架构限制，需要深度重构才能解决：
+
+    解决方案选项：
+    1. 移除全局单例，使用外部存储（Redis）保持MemorySaver的持久化
+    2. 修改WritingAgentGraph支持运行时动态设置ai_service
+    3. 在Agent内部使用事件系统，将AI调用委托给请求级别的ai_service
+
+    优先级：P2（中期优化）
+    预计工作量：6-8小时
+    ----------------------------------------
     """
     global _global_agent_graph
     if _global_agent_graph is None:
-        # 鍒涘缓AI鏈嶅姟锛堜娇鐢ㄩ厤缃腑鐨凪ODEL_SELECTION_ENABLED锛?
+        # 创建AI服务（使用配置中的MODEL_SELECTION_ENABLED）
+        # 注意：此ai_service不包含db/user_id，Agent的AI调用成本暂时无法追踪
         ai_service = HTTPAIService(
             enable_model_selector=settings.MODEL_SELECTION_ENABLED
         )
@@ -322,10 +340,13 @@ async def get_hitl_manager() -> HITLManager:
     redis_client = get_redis_client()
     return HITLManager(redis_client)
 
-
-async def get_ai_service() -> HTTPAIService:
-    """鑾峰彇AI鏈嶅姟瀹炰緥"""
-    return HTTPAIService()
+async def get_ai_service(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+) -> HTTPAIService:
+    """获取AI服务实例"""
+    # 2025-12-01: 传递db和user_id以启用成本追踪
+    return HTTPAIService(db=db, user_id=str(current_user.id))
 
 
 # ==================== Agent 瀵硅瘽鎺ュ彛 ====================
@@ -353,6 +374,9 @@ async def agent_chat(
     try:
         user_id = str(current_user.id)
         conversation_id = request.conversation_id or str(uuid.uuid4())
+
+        # ✅ 2025-12-01: 设置请求上下文，让全局Agent的HTTPAIService能追踪成本
+        set_request_context(db, user_id)
 
         logger.info(f"[LangGraph Agent] User: {user_id}, Message: {request.message[:50]}...")
 
@@ -636,7 +660,7 @@ async def create_branch(
 
         # 5. 鍒涘缓鏂扮殑branch_id
         branch_id = str(uuid.uuid4())
-        branch_name = request.branch_name or f"鍒嗘敮-{datetime.now().strftime('%m%d-%H%M')}"
+        branch_name = request.branch_name or f"分支-{get_utc_now().strftime('%m%d-%H%M')}"
 
         # 6. 鍏堜繚瀛樺垎鏀厓鏁版嵁鍒癛edis锛堜紭鍏堜繚瀛樺厓鏁版嵁锛屼究浜庡け璐ュ洖婊氾級
         branch_metadata = {
@@ -644,8 +668,8 @@ async def create_branch(
             "parent_branch_id": parent_branch_id,
             "branch_name": branch_name,
             "fork_point_index": fork_point_index,
-            "message_count": fork_point_index + 1,  # 鏆傛椂浼扮畻
-            "created_at": datetime.now().isoformat(),
+            "message_count": fork_point_index + 1,  # 暂时估算
+            "created_at": get_utc_now().isoformat(),
             "is_active": False,
             "user_id": user_id
         }
@@ -856,7 +880,7 @@ async def switch_branch(
 
         # 4. 鏇存柊鍒嗘敮鐨刬sActive鏍囪锛堝彲閫夛紝鐢ㄤ簬UI鏄剧ず锛?
         branch_metadata["is_active"] = True
-        branch_metadata["last_accessed"] = datetime.now().isoformat()
+        branch_metadata["last_accessed"] = get_utc_now().isoformat()
         redis_client.set(
             branch_key,
             json.dumps(branch_metadata, ensure_ascii=False),
@@ -970,7 +994,7 @@ async def get_conversation_branches(
                 branch_name="涓荤嚎",
                 message_count=0,  # 鍙互閫氳繃checkpoint璁＄畻锛岃繖閲岀畝鍖?
                 is_active=True,
-                created_at=datetime.now().isoformat(),
+                created_at=get_utc_now().isoformat(),
                 children=[]
             )
             branch_nodes.insert(0, root_node)
@@ -1059,7 +1083,10 @@ async def agent_chat_stream(
                 conversation_id = request.conversation_id or str(uuid.uuid4())
                 session = await _find_session_by_conversation(db, user_id, conversation_id)
 
-                # 鉁?浼氳瘽褰掑睘楠岃瘉锛堢畝鍖栫増Redis鏂规锛?
+                # ✅ 2025-12-01: 设置请求上下文，让全局Agent的HTTPAIService能追踪成本
+                set_request_context(db, user_id)
+
+                # ✅ 会话归属验证（简化版Redis方案）
                 from app.core.redis import redis_client
 
                 if request.conversation_id:
