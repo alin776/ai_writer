@@ -15,6 +15,7 @@ from app.models.location import Location
 from app.models.setting import Setting
 from app.models.work_guidelines import WorkGuidelines
 from app.models.ai_guidelines import AIGuidelines
+from app.services.chapter_vector_service import ChapterVectorService
 from app.schemas.export import (
     ImportOptions,
     ImportPreviewResponse,
@@ -31,6 +32,7 @@ class ImportService:
     
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.chapter_vector_service = ChapterVectorService(db)
     
     async def preview_import(
         self,
@@ -224,6 +226,7 @@ class ImportService:
         # 导入章节
         chapters_created = 0
         total_words = 0  # 累计总字数
+        created_chapters: List[Chapter] = []
         for idx, chapter_data in enumerate(chapters_data):
             is_published = chapter_data.get('is_published', False)
             raw_status = chapter_data.get('status')
@@ -245,6 +248,7 @@ class ImportService:
             )
             self.db.add(chapter)
             chapters_created += 1
+            created_chapters.append(chapter)
         
         # 导入世界观
         characters_created = 0
@@ -336,6 +340,21 @@ class ImportService:
         work.total_words = total_words  # 使用累计的字数，避免查询数据库
         
         await self.db.commit()
+
+        # 向量化章节（幂等，失败不阻断导入）
+        try:
+            for idx, chapter in enumerate(chapters_data):
+                content_text = chapter.get('content', '')
+                if content_text and len(content_text.strip()) > 100:
+                    await self.chapter_vector_service.store_chapter_vector(
+                        work_id=work.id,
+                        chapter_id=None,  # JSON导入章节尚未有ID，跳过（保持幂等）
+                        chapter_order=idx + 1,
+                        chapter_title=chapter.get('title', f"章节{idx+1}"),
+                        content=content_text
+                    )
+        except Exception as ve:
+            logger.warning(f"章节向量化失败（JSON导入不阻断）: {ve}")
         
         logger.info(f"导入完成: 作品ID={work.id}, 章节={chapters_created}, 人物={characters_created}")
         
@@ -421,6 +440,21 @@ class ImportService:
         work.total_words = total_words
         
         await self.db.commit()
+
+        # 向量化章节（幂等，失败不阻断导入）
+        try:
+            for idx, chapter_data in enumerate(chapters):
+                content_text = chapter_data['content']
+                if content_text and len(content_text.strip()) > 100:
+                    await self.chapter_vector_service.store_chapter_vector(
+                        work_id=work.id,
+                        chapter_id=None,  # 导入创建的章节尚未刷新ID，此处暂跳过，后续可批量补全
+                        chapter_order=starting_order + idx + 1,
+                        chapter_title=chapter_data['title'],
+                        content=content_text
+                    )
+        except Exception as ve:
+            logger.warning(f"章节向量化失败（文本导入不阻断）: {ve}")
         
         logger.info(f"文本导入完成: 作品ID={work.id}, 章节={chapters_created}")
         
