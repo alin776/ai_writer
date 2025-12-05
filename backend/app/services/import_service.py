@@ -68,9 +68,12 @@ class ImportService:
                     raise ValueError("JSON 导入暂不支持追加到已有作品")
                 return await self._import_json(content, user_id, options)
             elif options.format in ["markdown", "txt"]:
+                # 安全校验：创建新作品时不允许传 work_id，避免误追加
+                if options.create_new and options.work_id:
+                    raise ValueError("create_new=true 时不能传 work_id，如需追加导入请设置 create_new=false")
                 if not options.create_new and not options.work_id:
                     raise ValueError("缺少目标作品，无法追加导入")
-                return await self._import_text(content, user_id, options, append_to=options.work_id)
+                return await self._import_text(content, user_id, options, append_to=options.work_id if not options.create_new else None)
             else:
                 raise ValueError(f"不支持的导入格式: {options.format}")
         except Exception as e:
@@ -146,7 +149,10 @@ class ImportService:
         format: str
     ) -> ImportPreviewResponse:
         """预览文本/Markdown格式"""
-        text = content.decode('utf-8')
+        try:
+            text = content.decode('utf-8')
+        except UnicodeDecodeError:
+            raise ValueError("仅支持 UTF-8 编码，请转换后重试")
         
         # 提取标题（第一行或第一个#标题）
         title = self._extract_title(text)
@@ -351,8 +357,11 @@ class ImportService:
     ) -> ImportResponse:
         """导入文本/Markdown格式"""
         logger.info(f"用户 {user_id} 开始导入文本数据")
-        
-        text = content.decode('utf-8')
+
+        try:
+            text = content.decode('utf-8')
+        except UnicodeDecodeError:
+            raise ValueError("仅支持 UTF-8 编码，请转换后重试")
         
         # 提取标题
         title = self._extract_title(text)
@@ -398,7 +407,7 @@ class ImportService:
             chapter = Chapter(
                 work_id=work.id,
                 title=chapter_data['title'],
-                content=f"<p>{content_text.replace(chr(10), '</p><p>')}</p>",  # 简单HTML转换
+                content=content_text,  # 保留纯文本，避免未清洗的 HTML 直存
                 order=starting_order + idx + 1,
                 word_count=word_count,
                 status=ChapterStatus.DRAFT,

@@ -44,10 +44,14 @@ async def preview_import(
                 detail="文件为空"
             )
         
-        if len(content) > 50 * 1024 * 1024:  # 50MB限制
+        max_size = 50 * 1024 * 1024
+        if format in ["markdown", "txt"]:
+            max_size = 10 * 1024 * 1024  # 降低文本导入上限，避免超大文本占用
+
+        if len(content) > max_size:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="文件过大（最大50MB）"
+                detail=f"文件过大（{format} 最大 {max_size // (1024 * 1024)}MB）"
             )
         
         logger.info(f"用户 {current_user.id} 预览导入文件: {file.filename}, 格式: {format}")
