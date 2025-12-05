@@ -5,24 +5,29 @@
  * - 多行输入
  * - Enter发送, Shift+Enter换行
  * - 字符计数
- * - 禁用状态
  * - 附加上下文
+ * - 内嵌模式切换
  */
 
 import React, { useState, useRef, KeyboardEvent } from 'react';
+import ModeSelector, { type AgentMode } from './ModeSelector';
 
 interface ChatInputProps {
   onSend: (message: string, context?: any) => void;
   disabled?: boolean;
   placeholder?: string;
   maxLength?: number;
+  mode: AgentMode;
+  onModeChange: (mode: AgentMode) => void;
 }
 
 export default function ChatInput({
   onSend,
   disabled = false,
   placeholder = '输入消息...',
-  maxLength = 2000
+  maxLength = 2000,
+  mode,
+  onModeChange,
 }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [showContext, setShowContext] = useState(false);
@@ -52,7 +57,7 @@ export default function ChatInput({
       ? {
           text: contextText.trim(),
           chapter_context: contextText.trim(),
-          current_content: contextText.trim()
+          current_content: contextText.trim(),
         }
       : undefined;
 
@@ -82,37 +87,33 @@ export default function ChatInput({
   const isOverLimit = charCount > maxLength;
 
   return (
-    <div className="chat-input-wrapper">
+    <div className="chat-input-wrapper space-y-2">
       {/* 上下文输入区 */}
       {showContext && (
-        <div className="context-input mb-2 p-2 bg-gray-50 rounded-lg">
+        <div className="context-input p-3 bg-gray-50 border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-1.5">
-            <label className="text-xs font-medium text-gray-700">
-              附加上下文（可选）
-            </label>
+            <label className="text-xs font-medium text-gray-700">附加上下文（可选）</label>
             <button
               onClick={() => setShowContext(false)}
               className="text-gray-400 hover:text-gray-600 text-xs"
             >
-              ✕
+              关闭
             </button>
           </div>
           <textarea
             value={contextText}
             onChange={(e) => setContextText(e.target.value)}
             placeholder="输入章节内容、待分析文本等..."
-            className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-xs"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none text-xs bg-white"
             rows={3}
           />
-          <div className="text-[10px] text-gray-500 mt-1">
-            提示: 这些内容会作为额外上下文发送给AI
-          </div>
+          <div className="text-[10px] text-gray-500 mt-1">提示: 这些内容会作为额外上下文发送给AI</div>
         </div>
       )}
 
-      {/* 主输入框 */}
-      <div className="flex items-end gap-2">
-        <div className="flex-1 relative">
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-4 py-3 space-y-3">
+        {/* 输入区 */}
+        <div className="relative">
           <textarea
             ref={textareaRef}
             value={message}
@@ -120,22 +121,16 @@ export default function ChatInput({
             onKeyDown={handleKeyDown}
             disabled={disabled}
             placeholder={placeholder}
-            className={`w-full px-3 py-2 pr-16 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors text-xs ${
-              disabled
-                ? 'bg-gray-100 cursor-not-allowed'
-                : 'bg-white'
-            } ${
-              isOverLimit
-                ? 'border-red-500 focus:ring-red-500'
-                : 'border-gray-300'
-            }`}
-            rows={1}
+            className={`w-full px-1 py-1 pr-16 text-sm min-h-[72px] resize-none bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-primary-200 ${
+              disabled ? 'text-gray-400 cursor-not-allowed' : 'text-gray-800'
+            } ${isOverLimit ? 'focus:ring-red-400' : ''}`}
+            rows={3}
             maxLength={maxLength}
           />
 
           {/* 字符计数 */}
           <div
-            className={`absolute right-2 bottom-2 text-[10px] ${
+            className={`absolute right-1 bottom-1 text-[11px] ${
               isOverLimit
                 ? 'text-red-500 font-semibold'
                 : isNearLimit
@@ -147,42 +142,52 @@ export default function ChatInput({
           </div>
         </div>
 
-        {/* 工具按钮 */}
-        <div className="flex gap-1.5">
-          {/* 上下文按钮 */}
-          <button
-            onClick={() => setShowContext(!showContext)}
+        {/* 工具区 */}
+        <div className="flex items-center justify-between gap-3">
+          <ModeSelector
+            mode={mode}
+            onModeChange={onModeChange}
             disabled={disabled}
-            className={`p-2 rounded-lg transition-colors text-sm ${
-              showContext
-                ? 'bg-blue-100 text-blue-600'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-            title="添加上下文"
-          >
-            📎
-          </button>
+            compact
+            className="shrink-0"
+          />
 
-          {/* 发送按钮 */}
-          <button
-            onClick={handleSend}
-            disabled={disabled || !message.trim() || isOverLimit}
-            className={`px-4 py-2 rounded-lg font-medium transition-all text-xs ${
-              disabled || !message.trim() || isOverLimit
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-blue-500 text-white hover:bg-blue-600 active:scale-95'
-            }`}
-          >
-            {disabled ? '⏳' : '发送'}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* 上下文按钮 */}
+            <button
+              onClick={() => setShowContext(!showContext)}
+              disabled={disabled}
+              className={`px-3 py-2 rounded-full border border-transparent text-sm transition-colors ${
+                showContext
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+              } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              title="添加上下文"
+            >
+              上下文
+            </button>
+
+            {/* 发送按钮 */}
+            <button
+              onClick={handleSend}
+              disabled={disabled || !message.trim() || isOverLimit}
+              className={`px-4 py-2 rounded-full font-medium transition-all text-sm ${
+                disabled || !message.trim() || isOverLimit
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-primary-600 text-white hover:bg-primary-700 active:scale-95 shadow-sm'
+              }`}
+            >
+              {disabled ? '...等待' : '发送'}
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* 提示文本 */}
-      <div className="mt-1.5 text-[10px] text-gray-500">
-        <span>按 Enter 发送</span>
-        <span className="mx-1.5">·</span>
-        <span>Shift + Enter 换行</span>
+        {/* 提示文本 */}
+        <div className="text-[11px] text-gray-500 flex items-center gap-2 pt-1">
+          <span>按 Enter 发送</span>
+          <span className="text-gray-300">•</span>
+          <span>Shift + Enter 换行</span>
+        </div>
       </div>
     </div>
   );
