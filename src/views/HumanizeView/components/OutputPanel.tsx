@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import Button from '@/components/common/Button';
-import { Check, X, Copy, RotateCcw, Sparkles, History } from 'lucide-react';
+import { Check, X, Copy, Sparkles, History } from 'lucide-react';
 
 interface OutputPanelProps {
   outputText: string;
@@ -13,7 +13,6 @@ interface OutputPanelProps {
   tokensUsed: number | null;
   sessionId: string | null;
   onFeedback: (accepted: boolean) => void;
-  onApplyToInput: () => void;
   isHistoryCollapsed?: boolean; // 新增
   onExpandHistory?: () => void; // 新增
 }
@@ -27,7 +26,6 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
   tokensUsed,
   sessionId,
   onFeedback,
-  onApplyToInput,
   isHistoryCollapsed,
   onExpandHistory,
 }) => {
@@ -59,22 +57,13 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
         <h3 className="text-sm font-semibold text-gray-900">改写结果</h3>
         <div className="flex items-center gap-2">
           {outputText && (
-            <>
-              <button
-                onClick={handleCopy}
-                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-                title="复制"
-              >
-                <Copy className="w-4 h-4" />
-              </button>
-              <button
-                onClick={onApplyToInput}
-                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-                title="应用到输入区"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-            </>
+            <button
+              onClick={handleCopy}
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+              title="复制"
+            >
+              <Copy className="w-4 h-4" />
+            </button>
           )}
           {isHistoryCollapsed && onExpandHistory && (
             <button

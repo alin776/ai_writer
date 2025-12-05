@@ -201,17 +201,6 @@ export const HumanizeView: React.FC = () => {
     }
   };
 
-  /**
-   * 应用结果到输入区（重新改写）
-   */
-  const handleApplyToInput = () => {
-    setInputText(outputText);
-    setOutputText('');
-    setCurrentStage('idle');
-    setSessionId(null);
-    showToast('info', '已将结果应用到输入区');
-  };
-
   // ==================== 渲染 ====================
 
   return (
@@ -246,7 +235,6 @@ export const HumanizeView: React.FC = () => {
                 tokensUsed={tokensUsed}
                 sessionId={sessionId}
                 onFeedback={handleFeedback}
-                onApplyToInput={handleApplyToInput}
                 isHistoryCollapsed={isHistoryCollapsed}
                 onExpandHistory={() => setIsHistoryCollapsed(false)}
               />
