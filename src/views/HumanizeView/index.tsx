@@ -188,11 +188,8 @@ export const HumanizeView: React.FC = () => {
       await HumanizeService.submitFeedback(sessionId, accepted);
       showToast('success', accepted ? '已接受改写结果' : '已拒绝改写结果');
 
-      // 如果接受，清空输入区
+      // 反馈成功后隐藏按钮以避免重复提交，但保留当前结果供用户查看/复制
       if (accepted) {
-        setInputText('');
-        setOutputText('');
-        setCurrentStage('idle');
         setSessionId(null);
       }
     } catch (err) {
