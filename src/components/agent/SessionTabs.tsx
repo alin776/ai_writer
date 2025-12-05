@@ -188,11 +188,14 @@ export default function SessionTabs({
               )}
 
               <button
-                onClick={(e) => handleCloseSession(e, session.id)}
-                className="flex items-center justify-center w-5 h-5 rounded transition-all hover:bg-gray-700 text-gray-400 hover:text-red-400"
-                title="关闭会话"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenHistory();
+                }}
+                className="flex items-center justify-center w-5 h-5 rounded transition-all hover:bg-gray-700 text-gray-300 hover:text-white"
+                title="历史会话"
               >
-                <span className="text-xs">×</span>
+                <span className="text-sm">…</span>
               </button>
             </div>
           );

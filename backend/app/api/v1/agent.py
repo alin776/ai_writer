@@ -1,11 +1,11 @@
-"""
-Agent 智能助手 API 路由
+﻿"""
+Agent 鏅鸿兘鍔╂墜 API 璺敱
 
-提供 Agent 相关的 RESTful API 接口，包括：
-- Agent 对话（支持流式响应）
-- 人机协同（HITL）批准管理
-- 执行计划管理
-- 记忆管理
+鎻愪緵 Agent 鐩稿叧鐨?RESTful API 鎺ュ彛锛屽寘鎷細
+- Agent 瀵硅瘽锛堟敮鎸佹祦寮忓搷搴旓級
+- 浜烘満鍗忓悓锛圚ITL锛夋壒鍑嗙鐞?
+- 鎵ц璁″垝绠＄悊
+- 璁板繂绠＄悊
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -17,12 +17,14 @@ from typing import Optional, List, Dict, Any
 import logging
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.user import User
 from app.models.agent_session import AgentSession
+from app.models.agent_session_message import AgentSessionMessage
+from app.models.agent_session_message import AgentSessionMessage
 from app.models.chat_models import ChatMode, ChatRequest as UnifiedChatRequest, format_react_event_to_sse, format_planning_event_to_sse, format_error_event
 from app.services.agent.memory import MemoryManager
 from app.services.agent.agents import PlanningAgent, ReflectionAgent
@@ -35,97 +37,97 @@ import redis
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# 创建同步Redis连接池（全局复用，避免每次请求都建立新连接）
+# 鍒涘缓鍚屾Redis杩炴帴姹狅紙鍏ㄥ眬澶嶇敤锛岄伩鍏嶆瘡娆¤姹傞兘寤虹珛鏂拌繛鎺ワ級
 _redis_pool = None
+SESSION_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60  # 30 澶╃紦瀛?TTL锛岀敤浜庣儹鏁版嵁
 
 def get_redis_client():
-    """获取同步Redis客户端（使用连接池）"""
+    """鑾峰彇鍚屾Redis瀹㈡埛绔紙浣跨敤杩炴帴姹狅級"""
     global _redis_pool
 
-    # 🔧 修复：使用全局连接池，避免每次都创建新连接
+    # 馃敡 淇锛氫娇鐢ㄥ叏灞€杩炴帴姹狅紝閬垮厤姣忔閮藉垱寤烘柊杩炴帴
     if _redis_pool is None:
         _redis_pool = redis.ConnectionPool(
             host='localhost',
             port=6379,
-            db=1,  # 使用db1，避免与缓存服务冲突
+            db=1,  # 浣跨敤db1锛岄伩鍏嶄笌缂撳瓨鏈嶅姟鍐茬獊
             decode_responses=False,
-            max_connections=10,  # 最大连接数
-            socket_connect_timeout=5,  # 连接超时5秒
-            socket_timeout=5,  # 操作超时5秒
+            max_connections=10,  # 鏈€澶ц繛鎺ユ暟
+            socket_connect_timeout=5,  # 杩炴帴瓒呮椂5绉?
+            socket_timeout=5,  # 鎿嶄綔瓒呮椂5绉?
         )
-        logger.info("[Redis] 全局连接池已创建")
+        logger.info("[Redis] 鍏ㄥ眬杩炴帴姹犲凡鍒涘缓")
 
     return redis.Redis(connection_pool=_redis_pool)
 
-# 全局Agent实例（跨请求共享，保持MemorySaver持久化）
+# 鍏ㄥ眬Agent瀹炰緥锛堣法璇锋眰鍏变韩锛屼繚鎸丮emorySaver鎸佷箙鍖栵級
 _global_agent_graph = None
 
 def get_agent_graph() -> WritingAgentGraph:
     """
-    获取全局共享的Agent实例
+    鑾峰彇鍏ㄥ眬鍏变韩鐨凙gent瀹炰緥
 
-    使用全局单例模式，确保MemorySaver在请求间共享，
-    从而实现对话历史的持久化
+    浣跨敤鍏ㄥ眬鍗曚緥妯″紡锛岀‘淇滿emorySaver鍦ㄨ姹傞棿鍏变韩锛?
+    浠庤€屽疄鐜板璇濆巻鍙茬殑鎸佷箙鍖?
     """
     global _global_agent_graph
     if _global_agent_graph is None:
-        # 创建AI服务（使用配置中的MODEL_SELECTION_ENABLED）
+        # 鍒涘缓AI鏈嶅姟锛堜娇鐢ㄩ厤缃腑鐨凪ODEL_SELECTION_ENABLED锛?
         ai_service = HTTPAIService(
             enable_model_selector=settings.MODEL_SELECTION_ENABLED
         )
-        # 创建Agent实例（只创建一次）
+        # 鍒涘缓Agent瀹炰緥锛堝彧鍒涘缓涓€娆★級
         _global_agent_graph = WritingAgentGraph(ai_service, use_chatgpt=settings.AGENT_USE_CHATGPT)
-        logger.info("[Global Agent] 创建全局Agent实例，MemorySaver将在请求间共享")
+        logger.info("[Global Agent] created global agent instance; MemorySaver shared across requests")
     return _global_agent_graph
 
 
-# ==================== 请求/响应数据模型 ====================
+# ==================== Request/response models ====================
 
 class AgentChatRequest(BaseModel):
-    """Agent 对话请求"""
-    message: str = Field(..., description="用户消息", min_length=1)
-    mode: Optional[str] = Field(None, description="聊天模式：planning/react（默认planning）")
-    work_id: Optional[str] = Field(None, description="作品ID")
-    chapter_id: Optional[str] = Field(None, description="章节ID")
-    conversation_id: Optional[str] = Field(None, description="会话ID（用于继续对话）")
-    context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="额外上下文")
+    """Agent chat request"""
+    message: str = Field(..., description="User message", min_length=1)
+    mode: Optional[str] = Field(None, description="Chat mode: planning/react (default planning)")
+    work_id: Optional[str] = Field(None, description="Work ID")
+    chapter_id: Optional[str] = Field(None, description="Chapter ID")
+    conversation_id: Optional[str] = Field(None, description="Conversation ID for continuing session")
+    context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Extra context")
 
 
 class AgentChatResponse(BaseModel):
-    """Agent 对话响应"""
-    response: str = Field(..., description="Agent回复")
-    conversation_id: str = Field(..., description="会话ID")
-    agent_steps: List[Dict[str, Any]] = Field(default_factory=list, description="Agent执行步骤")
-    suggested_actions: List[str] = Field(default_factory=list, description="建议的后续操作")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="元数据")
+    """Agent chat response"""
+    response: str = Field(..., description="Agent reply")
+    conversation_id: str = Field(..., description="Conversation ID")
+    agent_steps: List[Dict[str, Any]] = Field(default_factory=list, description="Agent execution steps")
+    suggested_actions: List[str] = Field(default_factory=list, description="Suggested follow-up actions")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Metadata")
 
 
 class PlanCreationRequest(BaseModel):
-    """创建执行计划请求"""
-    goal: str = Field(..., description="目标描述", min_length=1)
-    genre: Optional[str] = Field(None, description="小说类型")
-    work_id: Optional[str] = Field(None, description="作品ID")
-    context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="上下文")
+    """Create execution plan request"""
+    goal: str = Field(..., description="Goal description", min_length=1)
+    genre: Optional[str] = Field(None, description="Novel genre")
+    work_id: Optional[str] = Field(None, description="Work ID")
+    context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Context info")
 
 
 class PlanResponse(BaseModel):
-    """执行计划响应"""
-    plan_id: str = Field(..., description="计划ID")
-    goal: str = Field(..., description="目标")
-    tasks: List[Dict[str, Any]] = Field(..., description="任务列表")
-    status: str = Field(..., description="计划状态")
-    progress: float = Field(..., description="进度 0-1")
-
+    """Execution plan response"""
+    plan_id: str = Field(..., description="Plan ID")
+    goal: str = Field(..., description="Goal")
+    tasks: List[Dict[str, Any]] = Field(..., description="Task list")
+    status: str = Field(..., description="Plan status")
+    progress: float = Field(..., description="Progress 0-1")
 
 class ApprovalActionRequest(BaseModel):
-    """批准操作请求"""
-    action: str = Field(..., description="操作类型: approve/reject/modify")
-    modifications: Optional[Dict[str, Any]] = Field(None, description="修改内容（action=modify时）")
-    feedback: Optional[str] = Field(None, description="反馈说明")
+    """鎵瑰噯鎿嶄綔璇锋眰"""
+    action: str = Field(..., description="鎿嶄綔绫诲瀷: approve/reject/modify")
+    modifications: Optional[Dict[str, Any]] = Field(None, description="淇敼鍐呭锛坅ction=modify鏃讹級")
+    feedback: Optional[str] = Field(None, description="鍙嶉璇存槑")
 
 
 class ApprovalResponse(BaseModel):
-    """批准响应"""
+    """鎵瑰噯鍝嶅簲"""
     request_id: str
     title: str
     description: str
@@ -136,79 +138,138 @@ class ApprovalResponse(BaseModel):
 
 
 class ResetConversationRequest(BaseModel):
-    """重置会话请求"""
-    conversation_id: str = Field(..., description="要重置的会话ID")
+    """Reset conversation request"""
+    conversation_id: str = Field(..., description="Conversation ID to reset")
 
 
 class ResetConversationResponse(BaseModel):
-    """重置会话响应"""
-    new_conversation_id: str = Field(..., description="新的会话ID")
-    message: str = Field(default="会话已重置", description="提示消息")
+    """Reset conversation response"""
+    new_conversation_id: str = Field(..., description="New conversation ID")
+    message: str = Field(default="Conversation has been reset", description="Info message")
 
 
 class CreateBranchRequest(BaseModel):
-    """创建分支请求"""
-    conversation_id: str = Field(..., description="当前会话ID（父分支）")
+    """Create branch request"""
+    conversation_id: str = Field(..., description="Conversation ID (parent branch)")
     fork_point_message_index: int = Field(
         ...,
         ge=0,
         description=(
-            "分叉点消息索引（从0开始）\n"
-            "注意：这是用户看到的消息索引，不是内部checkpoint索引\n"
-            "例如：index=0表示在第1条消息后分叉，index=2表示在第3条消息后分叉"
-        )
+            "Message index (starting from 0) where the branch should fork.\n"
+            "This is the user-visible index, not the internal checkpoint index."
+        ),
     )
-    branch_name: Optional[str] = Field(None, description="分支名称（可选，自动生成格式: 分支-MMDD-HHMM）")
+    branch_name: Optional[str] = Field(None, description="Branch name (default: Branch-MMDD-HHMM)")
 
 
 class BranchResponse(BaseModel):
-    """分支响应"""
-    branch_id: str = Field(..., description="分支ID（新的thread_id）")
-    parent_branch_id: str = Field(..., description="父分支ID")
-    branch_name: str = Field(..., description="分支名称")
-    fork_point_index: int = Field(..., description="分叉点索引")
-    message_count: int = Field(0, description="分支中的消息数")
-    created_at: str = Field(..., description="创建时间（ISO格式）")
+    """Branch response"""
+    branch_id: str = Field(..., description="Branch ID")
+    parent_branch_id: Optional[str] = Field(None, description="Parent branch ID")
+    branch_name: str = Field(..., description="Branch name")
+    fork_point_index: int = Field(..., description="Fork point message index")
+    message_count: int = Field(0, description="Number of messages")
+    created_at: str = Field(..., description="Created at (ISO)")
 
 
 class SwitchBranchRequest(BaseModel):
-    """切换分支请求"""
-    branch_id: str = Field(..., description="要切换到的分支ID")
+    """Switch branch request"""
+    branch_id: str = Field(..., description="Branch ID to switch to")
 
 
 class SwitchBranchResponse(BaseModel):
-    """切换分支响应"""
-    branch_id: str = Field(..., description="分支ID")
-    branch_name: str = Field(..., description="分支名称")
-    message_count: int = Field(..., description="分支中的消息数")
-    messages: List[Dict[str, Any]] = Field(default_factory=list, description="分支的消息历史")
+    """Switch branch response"""
+    branch_id: str = Field(..., description="Branch ID")
+    branch_name: str = Field(..., description="Branch name")
+    message_count: int = Field(..., description="Number of messages")
+    messages: List[Dict[str, Any]] = Field(default_factory=list, description="Branch messages")
 
 
 class BranchTreeNode(BaseModel):
-    """分支树节点"""
-    branch_id: str = Field(..., description="分支ID")
-    parent_branch_id: Optional[str] = Field(None, description="父分支ID")
-    branch_name: str = Field(..., description="分支名称")
-    message_count: int = Field(0, description="消息数")
-    is_active: bool = Field(False, description="是否活跃")
-    created_at: str = Field(..., description="创建时间")
-    children: List["BranchTreeNode"] = Field(default_factory=list, description="子分支")
+    """Branch tree node"""
+    branch_id: str = Field(..., description="Branch ID")
+    parent_branch_id: Optional[str] = Field(None, description="Parent branch ID")
+    branch_name: str = Field(..., description="Branch name")
+    message_count: int = Field(0, description="Number of messages")
+    is_active: bool = Field(False, description="Whether this node is active")
+    created_at: str = Field(..., description="Created at")
+    children: List["BranchTreeNode"] = Field(default_factory=list, description="Child branches")
 
 
 class GetBranchesResponse(BaseModel):
-    """获取分支列表响应"""
-    conversation_id: str = Field(..., description="会话ID")
-    total_branches: int = Field(..., description="总分支数")
-    branches: List[BranchTreeNode] = Field(default_factory=list, description="分支树（扁平列表）")
+    """Branch list response"""
+    conversation_id: str = Field(..., description="Conversation ID")
+    total_branches: int = Field(..., description="Total branch count")
+    branches: List[BranchTreeNode] = Field(default_factory=list, description="Branches")
+
+# ==================== Request/response models ====================
+
+class AgentChatRequest(BaseModel):
+    """Agent chat request"""
+    message: str = Field(..., description="User message", min_length=1)
+    mode: Optional[str] = Field(None, description="Chat mode: planning/react (default planning)")
+    work_id: Optional[str] = Field(None, description="Work ID")
+    chapter_id: Optional[str] = Field(None, description="Chapter ID")
+    conversation_id: Optional[str] = Field(None, description="Conversation ID for continuing session")
+    context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Extra context")
 
 
-# ==================== 会话管理（新增） ====================
+class AgentChatResponse(BaseModel):
+    """Agent chat response"""
+    response: str = Field(..., description="Agent reply")
+    conversation_id: str = Field(..., description="Conversation ID")
+    agent_steps: List[Dict[str, Any]] = Field(default_factory=list, description="Agent execution steps")
+    suggested_actions: List[str] = Field(default_factory=list, description="Suggested follow-up actions")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Metadata")
+
+
+class PlanCreationRequest(BaseModel):
+    """Create execution plan request"""
+    goal: str = Field(..., description="Goal description", min_length=1)
+    genre: Optional[str] = Field(None, description="Novel genre")
+    work_id: Optional[str] = Field(None, description="Work ID")
+    context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Context info")
+
+
+class PlanResponse(BaseModel):
+    """Execution plan response"""
+    plan_id: str = Field(..., description="Plan ID")
+    goal: str = Field(..., description="Goal")
+    tasks: List[Dict[str, Any]] = Field(..., description="Task list")
+    status: str = Field(..., description="Plan status")
+    progress: float = Field(..., description="Progress 0-1")
+
+class ApprovalActionRequest(BaseModel):
+    """鎵瑰噯鎿嶄綔璇锋眰"""
+    action: str = Field(..., description="鎿嶄綔绫诲瀷: approve/reject/modify")
+    modifications: Optional[Dict[str, Any]] = Field(None, description="淇敼鍐呭锛坅ction=modify鏃讹級")
+    feedback: Optional[str] = Field(None, description="鍙嶉璇存槑")
+
+
+class ApprovalResponse(BaseModel):
+    """鎵瑰噯鍝嶅簲"""
+    request_id: str
+    title: str
+    description: str
+    proposed_action: Dict[str, Any]
+    alternatives: List[Dict[str, Any]]
+    status: str
+    created_at: str
+
+
+# ==================== 浼氳瘽绠＄悊锛堟柊澧烇級 ====================
 
 class AgentSessionCreateRequest(BaseModel):
-    title: Optional[str] = Field(None, description="会话标题")
-    work_id: Optional[str] = Field(None, description="作品ID")
-    chapter_id: Optional[str] = Field(None, description="章节ID")
-    conversation_id: Optional[str] = Field(None, description="关联的对话ID（可选）")
+    title: Optional[str] = Field(None, description="浼氳瘽鏍囬")
+    work_id: Optional[str] = Field(None, description="浣滃搧ID")
+    chapter_id: Optional[str] = Field(None, description="绔犺妭ID")
+    conversation_id: Optional[str] = Field(None, description="鍏宠仈鐨勫璇滻D锛堝彲閫夛級")
+    title_locked: Optional[bool] = Field(None, description="鏄惁閿佸畾鏍囬")
+
+
+class AgentSessionUpdateRequest(BaseModel):
+    title: Optional[str] = Field(None, description="浼氳瘽鏍囬")
+    title_locked: Optional[bool] = Field(None, description="鏄惁閿佸畾鏍囬")
 
 
 class AgentSessionResponse(BaseModel):
@@ -219,6 +280,9 @@ class AgentSessionResponse(BaseModel):
     chapter_id: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    archived_at: Optional[str] = None
+    expires_at: Optional[str] = None
+    title_locked: Optional[bool] = None
 
     model_config = {"from_attributes": True}
 
@@ -227,34 +291,44 @@ class AgentSessionListResponse(BaseModel):
     sessions: List[AgentSessionResponse]
 
 
-# ==================== 依赖注入 ====================
+class AgentSessionMessageResponse(BaseModel):
+    id: str
+    session_id: str
+    role: str
+    content: str
+    metadata: Optional[Dict[str, Any]] = None
+    token_usage: Optional[Dict[str, Any]] = None
+    created_at: Optional[str] = None
+
+
+# ==================== 渚濊禆娉ㄥ叆 ====================
 
 async def get_memory_manager(
     db: AsyncSession = Depends(get_db)
 ) -> MemoryManager:
-    """获取记忆管理器"""
+    """Dependency provider for MemoryManager."""
     redis_client = get_redis_client()
     manager = MemoryManager(redis_client)
     return manager
 
 
 async def get_planning_agent() -> PlanningAgent:
-    """获取规划Agent"""
+    """Dependency provider for PlanningAgent."""
     return PlanningAgent()
 
 
 async def get_hitl_manager() -> HITLManager:
-    """获取HITL管理器"""
+    """Dependency provider for HITL manager."""
     redis_client = get_redis_client()
     return HITLManager(redis_client)
 
 
 async def get_ai_service() -> HTTPAIService:
-    """获取AI服务实例"""
+    """鑾峰彇AI鏈嶅姟瀹炰緥"""
     return HTTPAIService()
 
 
-# ==================== Agent 对话接口 ====================
+# ==================== Agent 瀵硅瘽鎺ュ彛 ====================
 
 @router.post("/chat", response_model=AgentChatResponse)
 async def agent_chat(
@@ -265,23 +339,16 @@ async def agent_chat(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Agent 智能对话（基于 LangGraph 框架）- 非流式响应
+    Agent chat endpoint powered by LangGraph.
 
-    支持的场景：
-    - "帮我写第三章" (writing)
-    - "我想写玄幻小说" (planning)
-    - "分析这段文字哪里不好" (analysis)
-    - "我卡文了" (stuck)
-
-    Args:
-        request: 对话请求
-        current_user: 当前用户
-        memory: 记忆管理器
-        ai_service: AI服务
-        db: 数据库会话
+    Modes:
+    - "writing"
+    - "planning"
+    - "analysis"
+    - "stuck"
 
     Returns:
-        AgentChatResponse: Agent响应
+        AgentChatResponse
     """
     try:
         user_id = str(current_user.id)
@@ -289,29 +356,29 @@ async def agent_chat(
 
         logger.info(f"[LangGraph Agent] User: {user_id}, Message: {request.message[:50]}...")
 
-        # 获取用户记忆上下文
-        # 🔧 修复：使用await调用async方法
-        # ✅ P0修复：传递work_id以隔离不同作品的记忆
+        # 鑾峰彇鐢ㄦ埛璁板繂涓婁笅鏂?
+        # 馃敡 淇锛氫娇鐢╝wait璋冪敤async鏂规硶
+        # 鉁?P0淇锛氫紶閫抴ork_id浠ラ殧绂讳笉鍚屼綔鍝佺殑璁板繂
         user_context = await memory.get_complete_context(
             user_id,
-            work_id=request.work_id  # ✅ 传递work_id进行记忆隔离
+            work_id=request.work_id  # 鉁?浼犻€抴ork_id杩涜璁板繂闅旂
         )
         memory_context = memory.format_context_for_agent(
             user_id,
             mode="chat",
-            work_id=request.work_id  # ✅ 修复：传递work_id避免记忆污染
+            work_id=request.work_id  # 鉁?淇锛氫紶閫抴ork_id閬垮厤璁板繂姹℃煋
         )
 
-        # 获取全局共享的 LangGraph Agent（修复记忆功能）
-        # 使用全局单例模式，确保MemorySaver在请求间共享
+        # 鑾峰彇鍏ㄥ眬鍏变韩鐨?LangGraph Agent锛堜慨澶嶈蹇嗗姛鑳斤級
+        # 浣跨敤鍏ㄥ眬鍗曚緥妯″紡锛岀‘淇滿emorySaver鍦ㄨ姹傞棿鍏变韩
         agent_graph = get_agent_graph()
 
-        # 准备上下文（将记忆上下文加入到请求上下文中）
+        # 鍑嗗涓婁笅鏂囷紙灏嗚蹇嗕笂涓嬫枃鍔犲叆鍒拌姹備笂涓嬫枃涓級
         context = request.context or {}
         context["memory_context"] = memory_context
         context["user_context"] = user_context
 
-        # 调用 LangGraph Agent 进行对话
+        # 璋冪敤 LangGraph Agent 杩涜瀵硅瘽
         result = await agent_graph.chat(
             message=request.message,
             work_id=request.work_id,
@@ -320,7 +387,7 @@ async def agent_chat(
             context=context
         )
 
-        # 记录交互到用户记忆
+        # 璁板綍浜や簰鍒扮敤鎴疯蹇?
         memory.record_user_interaction(
             user_id,
             "agent_chat",
@@ -335,6 +402,36 @@ async def agent_chat(
             f"[LangGraph Agent] User {user_id} - Intent: {result['metadata'].get('intent')}, "
             f"Steps: {len(result['agent_steps'])}"
         )
+
+        # æç¤ºï¼šå°†ç”¨æˆ·/Agentæ¶ˆæ¯æŒä¹…åŒ–åˆ°ä¼šè¯ä¿å­˜ï¼ˆç¬¦åˆæ­£åœ¨ä½¿ç”¨çš„ä¼šè¯ï¼‰
+        try:
+            session = await _find_session_by_conversation(db, user_id, conversation_id)
+            if session:
+                await _persist_message(
+                    db,
+                    session,
+                    role="user",
+                    content=request.message,
+                    metadata={"mode": request.mode},
+                )
+                await _persist_message(
+                    db,
+                    session,
+                    role="agent",
+                    content=result.get("response", ""),
+                    metadata=result.get("metadata"),
+                    token_usage=(result.get("metadata") or {}).get("token_usage"),
+                )
+                await db.commit()
+                try:
+                    redis_client = get_redis_client()
+                    redis_client.delete(_session_detail_cache_key(str(session.id)))
+                    _invalidate_session_caches(redis_client, user_id)
+                except Exception as cache_err:
+                    logger.warning(f"[LangGraph Agent] Clear session cache failed: {cache_err}")
+        except Exception as persist_err:
+            await db.rollback()
+            logger.warning(f"[LangGraph Agent] Persist message failed: {persist_err}")
 
         return AgentChatResponse(
             response=result["response"],
@@ -352,7 +449,7 @@ async def agent_chat(
         logger.error(f"[LangGraph Agent] Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Agent对话失败: {str(e)}"
+            detail=f"Agent瀵硅瘽澶辫触: {str(e)}"
         )
 
 
@@ -362,19 +459,19 @@ async def reset_conversation(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    重开Session - 清空对话历史，开始全新对话
+    閲嶅紑Session - 娓呯┖瀵硅瘽鍘嗗彶锛屽紑濮嬪叏鏂板璇?
 
-    功能:
-    - 清空当前会话的所有消息历史
-    - 删除LangGraph checkpoint数据
-    - 生成新的conversation_id
+    鍔熻兘:
+    - 娓呯┖褰撳墠浼氳瘽鐨勬墍鏈夋秷鎭巻鍙?
+    - 鍒犻櫎LangGraph checkpoint鏁版嵁
+    - 鐢熸垚鏂扮殑conversation_id
 
     Args:
-        request: 重置请求（包含要重置的conversation_id）
-        current_user: 当前用户
+        request: 閲嶇疆璇锋眰锛堝寘鍚閲嶇疆鐨刢onversation_id锛?
+        current_user: 褰撳墠鐢ㄦ埛
 
     Returns:
-        ResetConversationResponse: 包含新的conversation_id
+        ResetConversationResponse: 鍖呭惈鏂扮殑conversation_id
     """
     try:
         user_id = str(current_user.id)
@@ -382,50 +479,50 @@ async def reset_conversation(
 
         logger.info(f"[Reset Conversation] User: {user_id}, Old Conv ID: {old_conversation_id}")
 
-        # ✅ 验证会话归属
+        # 鉁?楠岃瘉浼氳瘽褰掑睘
         from app.core.redis import redis_client
 
         stored_user_id = await redis_client.get(
             f"conversation:{old_conversation_id}:owner"
         )
         if stored_user_id:
-            # RedisClient 已自动解码，无需 decode()
+            # RedisClient 宸茶嚜鍔ㄨВ鐮侊紝鏃犻渶 decode()
             if isinstance(stored_user_id, bytes):
                 stored_user_id = stored_user_id.decode('utf-8')
             if stored_user_id != user_id:
-                # 会话归属验证失败
+                # 浼氳瘽褰掑睘楠岃瘉澶辫触
                 logger.warning(
-                    f"[Security] 用户 {user_id} 尝试重置其他用户的会话 {old_conversation_id}"
+                    f"[Security] 鐢ㄦ埛 {user_id} 灏濊瘯閲嶇疆鍏朵粬鐢ㄦ埛鐨勪細璇?{old_conversation_id}"
                 )
                 raise HTTPException(
                     status_code=403,
-                    detail="无权访问此会话"
+                    detail="Unauthorized to access this conversation"
                 )
 
-        # 获取全局Agent实例
+        # 鑾峰彇鍏ㄥ眬Agent瀹炰緥
         agent_graph = get_agent_graph()
 
-        # 删除LangGraph checkpoint数据
-        # AsyncRedisSaver会自动清理对应thread_id的所有checkpoint
+        # 鍒犻櫎LangGraph checkpoint鏁版嵁
+        # AsyncRedisSaver浼氳嚜鍔ㄦ竻鐞嗗搴攖hread_id鐨勬墍鏈塩heckpoint
         try:
-            # 构建config
+            # 鏋勫缓config
             config = {
                 "configurable": {
                     "thread_id": old_conversation_id
                 }
             }
 
-            # 使用AsyncRedisSaver的API删除checkpoint
-            # 注意：AsyncRedisSaver可能没有直接的delete方法，
-            # 但我们可以通过让checkpoint过期来实现
-            # 这里我们只需要生成新的conversation_id，旧的会话会因TTL自动过期
+            # 浣跨敤AsyncRedisSaver鐨凙PI鍒犻櫎checkpoint
+            # 娉ㄦ剰锛欰syncRedisSaver鍙兘娌℃湁鐩存帴鐨刣elete鏂规硶锛?
+            # 浣嗘垜浠彲浠ラ€氳繃璁ヽheckpoint杩囨湡鏉ュ疄鐜?
+            # 杩欓噷鎴戜滑鍙渶瑕佺敓鎴愭柊鐨刢onversation_id锛屾棫鐨勪細璇濅細鍥燭TL鑷姩杩囨湡
 
-            logger.info(f"[Reset Conversation] Checkpoint将自动过期: {old_conversation_id}")
+            logger.info(f"[Reset Conversation] Checkpoint灏嗚嚜鍔ㄨ繃鏈? {old_conversation_id}")
 
         except Exception as e:
-            logger.warning(f"[Reset Conversation] 删除checkpoint失败（可忽略）: {e}")
+            logger.warning(f"[Reset Conversation] 鍒犻櫎checkpoint澶辫触锛堝彲蹇界暐锛? {e}")
 
-        # 生成新的conversation_id
+        # 鐢熸垚鏂扮殑conversation_id
         new_conversation_id = str(uuid.uuid4())
 
         logger.info(
@@ -435,14 +532,14 @@ async def reset_conversation(
 
         return ResetConversationResponse(
             new_conversation_id=new_conversation_id,
-            message="会话已重置"
+            message="Conversation has been reset"
         )
 
     except Exception as e:
         logger.error(f"[Reset Conversation] Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"重置会话失败: {str(e)}"
+            detail=f"閲嶇疆浼氳瘽澶辫触: {str(e)}"
         )
 
 
@@ -452,29 +549,29 @@ async def create_branch(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    创建对话分支 - 在任意消息点分叉，保留所有历史
+    鍒涘缓瀵硅瘽鍒嗘敮 - 鍦ㄤ换鎰忔秷鎭偣鍒嗗弶锛屼繚鐣欐墍鏈夊巻鍙?
 
-    功能:
-    - 在指定消息点创建新分支
-    - 复制分叉点之前的所有消息到新分支
-    - 保留原分支数据（数据不丢失）
-    - 支持多条对话路径并存
+    鍔熻兘:
+    - 鍦ㄦ寚瀹氭秷鎭偣鍒涘缓鏂板垎鏀?
+    - 澶嶅埗鍒嗗弶鐐逛箣鍓嶇殑鎵€鏈夋秷鎭埌鏂板垎鏀?
+    - 淇濈暀鍘熷垎鏀暟鎹紙鏁版嵁涓嶄涪澶憋級
+    - 鏀寔澶氭潯瀵硅瘽璺緞骞跺瓨
 
-    分叉点说明:
-    - fork_point_message_index 是用户看到的消息索引（从0开始）
-    - 当前实现：按checkpoint数量映射（简化实现）
-    - 未来优化：解析checkpoint中的实际消息数量
+    鍒嗗弶鐐硅鏄?
+    - fork_point_message_index 鏄敤鎴风湅鍒扮殑娑堟伅绱㈠紩锛堜粠0寮€濮嬶級
+    - 褰撳墠瀹炵幇锛氭寜checkpoint鏁伴噺鏄犲皠锛堢畝鍖栧疄鐜帮級
+    - 鏈潵浼樺寲锛氳В鏋恈heckpoint涓殑瀹為檯娑堟伅鏁伴噺
 
-    示例:
-    - index=0: 在第1条消息后分叉
-    - index=2: 在第3条消息后分叉
+    绀轰緥:
+    - index=0: 鍦ㄧ1鏉℃秷鎭悗鍒嗗弶
+    - index=2: 鍦ㄧ3鏉℃秷鎭悗鍒嗗弶
 
     Args:
-        request: 创建分支请求
-        current_user: 当前用户
+        request: 鍒涘缓鍒嗘敮璇锋眰
+        current_user: 褰撳墠鐢ㄦ埛
 
     Returns:
-        BranchResponse: 新分支信息
+        BranchResponse: 鏂板垎鏀俊鎭?
     """
     try:
         user_id = str(current_user.id)
@@ -488,28 +585,28 @@ async def create_branch(
 
         redis_client = get_redis_client()
 
-        # 1. 验证父分支权限（如果父分支有元数据）
+        # 1. 楠岃瘉鐖跺垎鏀潈闄愶紙濡傛灉鐖跺垎鏀湁鍏冩暟鎹級
         parent_branch_key = f"branch:{parent_branch_id}"
         parent_data_str = redis_client.get(parent_branch_key)
 
         if parent_data_str:
-            # 父分支存在元数据，验证权限
+            # 鐖跺垎鏀瓨鍦ㄥ厓鏁版嵁锛岄獙璇佹潈闄?
             parent_metadata = json.loads(parent_data_str)
             if parent_metadata.get("user_id") != user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="无权访问父分支"
+                    detail="Forbidden to access parent branch data"
                 )
-            logger.info(f"[Create Branch] 父分支权限验证通过")
+            logger.info(f"[Create Branch] 鐖跺垎鏀潈闄愰獙璇侀€氳繃")
         else:
-            # 父分支是原始会话（没有元数据），允许继续
-            logger.info(f"[Create Branch] 父分支是原始会话（无元数据）")
+            # 鐖跺垎鏀槸鍘熷浼氳瘽锛堟病鏈夊厓鏁版嵁锛夛紝鍏佽缁х画
+            logger.info(f"[Create Branch] 鐖跺垎鏀槸鍘熷浼氳瘽锛堟棤鍏冩暟鎹級")
 
-        # 2. 获取全局Agent实例
+        # 2. 鑾峰彇鍏ㄥ眬Agent瀹炰緥
         agent_graph = get_agent_graph()
         checkpointer = agent_graph.checkpointer
 
-        # 3. 获取父分支的所有checkpoint
+        # 3. 鑾峰彇鐖跺垎鏀殑鎵€鏈塩heckpoint
         parent_config = {
             "configurable": {
                 "thread_id": parent_branch_id
@@ -520,96 +617,96 @@ async def create_branch(
         async for checkpoint_tuple in checkpointer.alist(parent_config):
             checkpoints_list.append(checkpoint_tuple)
 
-        logger.info(f"[Create Branch] 父分支共有 {len(checkpoints_list)} 个checkpoint")
+        logger.info(f"[Create Branch] 鐖跺垎鏀叡鏈?{len(checkpoints_list)} 涓猚heckpoint")
 
         if len(checkpoints_list) == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"父分支不存在或无消息历史: {parent_branch_id}"
+                detail=f"鐖跺垎鏀笉瀛樺湪鎴栨棤娑堟伅鍘嗗彶: {parent_branch_id}"
             )
 
-        # 4. 验证分叉点索引
-        # checkpoint是倒序的（最新的在前），我们需要找到对应的checkpoint
-        # fork_point_index=0表示第一条消息，对应最后一个checkpoint
+        # 4. 楠岃瘉鍒嗗弶鐐圭储寮?
+        # checkpoint鏄€掑簭鐨勶紙鏈€鏂扮殑鍦ㄥ墠锛夛紝鎴戜滑闇€瑕佹壘鍒板搴旂殑checkpoint
+        # fork_point_index=0琛ㄧず绗竴鏉℃秷鎭紝瀵瑰簲鏈€鍚庝竴涓猚heckpoint
         if fork_point_index >= len(checkpoints_list):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"分叉点索引 {fork_point_index} 超出范围（最大: {len(checkpoints_list) - 1}）"
+                detail=f"Fork index {fork_point_index} out of range. Max allowed {len(checkpoints_list) - 1}"
             )
 
-        # 5. 创建新的branch_id
+        # 5. 鍒涘缓鏂扮殑branch_id
         branch_id = str(uuid.uuid4())
-        branch_name = request.branch_name or f"分支-{datetime.now().strftime('%m%d-%H%M')}"
+        branch_name = request.branch_name or f"鍒嗘敮-{datetime.now().strftime('%m%d-%H%M')}"
 
-        # 6. 先保存分支元数据到Redis（优先保存元数据，便于失败回滚）
+        # 6. 鍏堜繚瀛樺垎鏀厓鏁版嵁鍒癛edis锛堜紭鍏堜繚瀛樺厓鏁版嵁锛屼究浜庡け璐ュ洖婊氾級
         branch_metadata = {
             "branch_id": branch_id,
             "parent_branch_id": parent_branch_id,
             "branch_name": branch_name,
             "fork_point_index": fork_point_index,
-            "message_count": fork_point_index + 1,  # 暂时估算
+            "message_count": fork_point_index + 1,  # 鏆傛椂浼扮畻
             "created_at": datetime.now().isoformat(),
             "is_active": False,
             "user_id": user_id
         }
 
-        # 保存分支元数据
+        # 淇濆瓨鍒嗘敮鍏冩暟鎹?
         branch_key = f"branch:{branch_id}"
         redis_client.set(
             branch_key,
             json.dumps(branch_metadata, ensure_ascii=False),
-            ex=7 * 24 * 60 * 60  # 7天过期
+            ex=7 * 24 * 60 * 60  # 7澶╄繃鏈?
         )
 
-        # 更新会话的branches列表
+        # 鏇存柊浼氳瘽鐨刡ranches鍒楄〃
         conversation_branches_key = f"conversation:{parent_branch_id}:branches"
         redis_client.sadd(conversation_branches_key, branch_id)
         redis_client.expire(conversation_branches_key, 7 * 24 * 60 * 60)
 
-        logger.info(f"[Create Branch] 元数据已保存: {branch_id}")
+        logger.info(f"[Create Branch] 鍏冩暟鎹凡淇濆瓨: {branch_id}")
 
-        # 7. 复制分叉点之前的checkpoint到新分支
-        # checkpoints_list是倒序的，我们需要复制从最老到分叉点的所有checkpoint
-        # fork_point_index=0 -> 复制最后1个checkpoint（最早的消息）
-        # fork_point_index=1 -> 复制最后2个checkpoint
+        # 7. 澶嶅埗鍒嗗弶鐐逛箣鍓嶇殑checkpoint鍒版柊鍒嗘敮
+        # checkpoints_list鏄€掑簭鐨勶紝鎴戜滑闇€瑕佸鍒朵粠鏈€鑰佸埌鍒嗗弶鐐圭殑鎵€鏈塩heckpoint
+        # fork_point_index=0 -> 澶嶅埗鏈€鍚?涓猚heckpoint锛堟渶鏃╃殑娑堟伅锛?
+        # fork_point_index=1 -> 澶嶅埗鏈€鍚?涓猚heckpoint
         # ...
         checkpoints_to_copy = list(reversed(checkpoints_list))[: fork_point_index + 1]
 
-        logger.info(f"[Create Branch] 复制 {len(checkpoints_to_copy)} 个checkpoint到新分支")
+        logger.info(f"[Create Branch] 澶嶅埗 {len(checkpoints_to_copy)} 涓猚heckpoint鍒版柊鍒嗘敮")
 
-        # 复制checkpoint到新分支
+        # 澶嶅埗checkpoint鍒版柊鍒嗘敮
         for idx, checkpoint_tuple in enumerate(checkpoints_to_copy):
             checkpoint_data = checkpoint_tuple.checkpoint
             metadata = checkpoint_tuple.metadata
 
-            # 从checkpoint_tuple中获取原始config（包含checkpoint_ns等）
+            # 浠巆heckpoint_tuple涓幏鍙栧師濮媍onfig锛堝寘鍚玞heckpoint_ns绛夛級
             original_config = checkpoint_tuple.config if hasattr(checkpoint_tuple, 'config') else {}
 
-            # 创建新的config，保留checkpoint_ns但更新thread_id
+            # 鍒涘缓鏂扮殑config锛屼繚鐣檆heckpoint_ns浣嗘洿鏂皌hread_id
             new_branch_config = {
                 "configurable": {
                     "thread_id": branch_id
                 }
             }
 
-            # 如果原config有checkpoint_ns，添加到新config
+            # 濡傛灉鍘焎onfig鏈塩heckpoint_ns锛屾坊鍔犲埌鏂癱onfig
             if "configurable" in original_config and "checkpoint_ns" in original_config["configurable"]:
                 new_branch_config["configurable"]["checkpoint_ns"] = original_config["configurable"]["checkpoint_ns"]
 
-            # 获取checkpoint的channel_versions以保持版本一致性
+            # 鑾峰彇checkpoint鐨刢hannel_versions浠ヤ繚鎸佺増鏈竴鑷存€?
             channel_versions = checkpoint_data.get("channel_versions", {})
 
-            # 保存到新分支（使用位置参数，与langgraph_agent.py保持一致）
+            # 淇濆瓨鍒版柊鍒嗘敮锛堜娇鐢ㄤ綅缃弬鏁帮紝涓巐anggraph_agent.py淇濇寔涓€鑷达級
             await checkpointer.aput(
                 new_branch_config,
                 checkpoint_data,
                 metadata,
-                channel_versions  # 使用正确的版本信息
+                channel_versions  # 浣跨敤姝ｇ‘鐨勭増鏈俊鎭?
             )
 
-            logger.debug(f"[Create Branch] 复制checkpoint {idx + 1}/{len(checkpoints_to_copy)}")
+            logger.debug(f"[Create Branch] 澶嶅埗checkpoint {idx + 1}/{len(checkpoints_to_copy)}")
 
-        # 8. 更新分支元数据中的实际消息数
+        # 8. 鏇存柊鍒嗘敮鍏冩暟鎹腑鐨勫疄闄呮秷鎭暟
         branch_metadata["message_count"] = len(checkpoints_to_copy)
         redis_client.set(
             branch_key,
@@ -618,7 +715,7 @@ async def create_branch(
         )
 
         logger.info(
-            f"[Create Branch] 创建成功 - Branch ID: {branch_id}, "
+            f"[Create Branch] 鍒涘缓鎴愬姛 - Branch ID: {branch_id}, "
             f"Name: {branch_name}, Messages: {len(checkpoints_to_copy)}"
         )
 
@@ -637,7 +734,7 @@ async def create_branch(
         logger.error(f"[Create Branch] Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"创建分支失败: {str(e)}"
+            detail=f"鍒涘缓鍒嗘敮澶辫触: {str(e)}"
         )
 
 
@@ -647,27 +744,27 @@ async def switch_branch(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    切换到指定分支 - 加载分支的消息历史
+    鍒囨崲鍒版寚瀹氬垎鏀?- 鍔犺浇鍒嗘敮鐨勬秷鎭巻鍙?
 
-    功能:
-    - 验证分支存在性
-    - 加载分支的所有消息历史
-    - 更新活跃分支标记
-    - 返回分支消息列表
+    鍔熻兘:
+    - 楠岃瘉鍒嗘敮瀛樺湪鎬?
+    - 鍔犺浇鍒嗘敮鐨勬墍鏈夋秷鎭巻鍙?
+    - 鏇存柊娲昏穬鍒嗘敮鏍囪
+    - 杩斿洖鍒嗘敮娑堟伅鍒楄〃
 
     Args:
-        branch_id: 要切换到的分支ID
-        current_user: 当前用户
+        branch_id: 瑕佸垏鎹㈠埌鐨勫垎鏀疘D
+        current_user: 褰撳墠鐢ㄦ埛
 
     Returns:
-        SwitchBranchResponse: 分支信息和消息历史
+        SwitchBranchResponse: 鍒嗘敮淇℃伅鍜屾秷鎭巻鍙?
     """
     try:
         user_id = str(current_user.id)
 
         logger.info(f"[Switch Branch] User: {user_id}, Branch: {branch_id}")
 
-        # 1. 从Redis获取分支元数据
+        # 1. 浠嶳edis鑾峰彇鍒嗘敮鍏冩暟鎹?
         redis_client = get_redis_client()
         branch_key = f"branch:{branch_id}"
         branch_data_str = redis_client.get(branch_key)
@@ -675,19 +772,19 @@ async def switch_branch(
         if not branch_data_str:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"分支不存在: {branch_id}"
+                detail=f"鍒嗘敮涓嶅瓨鍦? {branch_id}"
             )
 
         branch_metadata = json.loads(branch_data_str)
 
-        # 验证用户权限
+        # 楠岃瘉鐢ㄦ埛鏉冮檺
         if branch_metadata.get("user_id") != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="无权访问此分支"
+                detail="Forbidden to access this branch"
             )
 
-        # 2. 获取分支的所有checkpoint
+        # 2. 鑾峰彇鍒嗘敮鐨勬墍鏈塩heckpoint
         agent_graph = get_agent_graph()
         checkpointer = agent_graph.checkpointer
 
@@ -701,21 +798,21 @@ async def switch_branch(
         async for checkpoint_tuple in checkpointer.alist(branch_config):
             checkpoints_list.append(checkpoint_tuple)
 
-        logger.info(f"[Switch Branch] 分支共有 {len(checkpoints_list)} 个checkpoint")
+        logger.info(f"[Switch Branch] 鍒嗘敮鍏辨湁 {len(checkpoints_list)} 涓猚heckpoint")
 
-        # 3. 解析checkpoint获取消息历史
-        # checkpoint是倒序的（最新的在前），需要反转
+        # 3. 瑙ｆ瀽checkpoint鑾峰彇娑堟伅鍘嗗彶
+        # checkpoint鏄€掑簭鐨勶紙鏈€鏂扮殑鍦ㄥ墠锛夛紝闇€瑕佸弽杞?
         messages = []
         for checkpoint_tuple in reversed(checkpoints_list):
             checkpoint_data = checkpoint_tuple.checkpoint
 
-            # 从checkpoint中提取消息
-            # LangGraph的checkpoint包含channel_values，其中有messages
+            # 浠巆heckpoint涓彁鍙栨秷鎭?
+            # LangGraph鐨刢heckpoint鍖呭惈channel_values锛屽叾涓湁messages
             channel_values = checkpoint_data.get("channel_values", {})
             if "messages" in channel_values:
-                # messages是一个列表，每个元素是一条消息
+                # messages鏄竴涓垪琛紝姣忎釜鍏冪礌鏄竴鏉℃秷鎭?
                 for msg in channel_values["messages"]:
-                    # 兼容dict和对象两种格式
+                    # 鍏煎dict鍜屽璞′袱绉嶆牸寮?
                     if isinstance(msg, dict):
                         message_dict = {
                             "type": msg.get("type", "unknown"),
@@ -724,7 +821,7 @@ async def switch_branch(
                             "id": msg.get("id")
                         }
                     else:
-                        # 对象格式（使用getattr）
+                        # 瀵硅薄鏍煎紡锛堜娇鐢╣etattr锛?
                         message_dict = {
                             "type": getattr(msg, "type", "unknown"),
                             "content": getattr(msg, "content", ""),
@@ -733,21 +830,21 @@ async def switch_branch(
                         }
                     messages.append(message_dict)
 
-        # 去重（checkpoint可能有重复的消息）
+        # 鍘婚噸锛坈heckpoint鍙兘鏈夐噸澶嶇殑娑堟伅锛?
         seen_ids = set()
-        seen_content_hashes = set()  # 用于没有ID的消息
+        seen_content_hashes = set()  # 鐢ㄤ簬娌℃湁ID鐨勬秷鎭?
         unique_messages = []
 
         for msg in messages:
             msg_id = msg.get("id")
 
             if msg_id:
-                # 有ID的消息：基于ID去重
+                # 鏈塈D鐨勬秷鎭細鍩轰簬ID鍘婚噸
                 if msg_id not in seen_ids:
                     seen_ids.add(msg_id)
                     unique_messages.append(msg)
             else:
-                # 没有ID的消息：基于内容hash去重
+                # 娌℃湁ID鐨勬秷鎭細鍩轰簬鍐呭hash鍘婚噸
                 content_hash = hash((
                     msg.get("type"),
                     msg.get("content"),
@@ -757,7 +854,7 @@ async def switch_branch(
                     seen_content_hashes.add(content_hash)
                     unique_messages.append(msg)
 
-        # 4. 更新分支的isActive标记（可选，用于UI显示）
+        # 4. 鏇存柊鍒嗘敮鐨刬sActive鏍囪锛堝彲閫夛紝鐢ㄤ簬UI鏄剧ず锛?
         branch_metadata["is_active"] = True
         branch_metadata["last_accessed"] = datetime.now().isoformat()
         redis_client.set(
@@ -767,7 +864,7 @@ async def switch_branch(
         )
 
         logger.info(
-            f"[Switch Branch] 切换成功 - Branch: {branch_id}, "
+            f"[Switch Branch] 鍒囨崲鎴愬姛 - Branch: {branch_id}, "
             f"Name: {branch_metadata['branch_name']}, Messages: {len(unique_messages)}"
         )
 
@@ -784,7 +881,7 @@ async def switch_branch(
         logger.error(f"[Switch Branch] Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"切换分支失败: {str(e)}"
+            detail=f"鍒囨崲鍒嗘敮澶辫触: {str(e)}"
         )
 
 
@@ -794,19 +891,19 @@ async def get_conversation_branches(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    获取会话的所有分支列表
+    鑾峰彇浼氳瘽鐨勬墍鏈夊垎鏀垪琛?
 
-    功能:
-    - 获取会话的所有分支
-    - 返回分支元数据（扁平列表）
-    - 前端可以根据parent_branch_id构建树形结构
+    鍔熻兘:
+    - 鑾峰彇浼氳瘽鐨勬墍鏈夊垎鏀?
+    - 杩斿洖鍒嗘敮鍏冩暟鎹紙鎵佸钩鍒楄〃锛?
+    - 鍓嶇鍙互鏍规嵁parent_branch_id鏋勫缓鏍戝舰缁撴瀯
 
     Args:
-        conversation_id: 会话ID（根分支ID）
-        current_user: 当前用户
+        conversation_id: 浼氳瘽ID锛堟牴鍒嗘敮ID锛?
+        current_user: 褰撳墠鐢ㄦ埛
 
     Returns:
-        GetBranchesResponse: 分支列表
+        GetBranchesResponse: 鍒嗘敮鍒楄〃
     """
     try:
         user_id = str(current_user.id)
@@ -815,19 +912,19 @@ async def get_conversation_branches(
 
         redis_client = get_redis_client()
 
-        # 1. 获取会话的所有分支ID
+        # 1. 鑾峰彇浼氳瘽鐨勬墍鏈夊垎鏀疘D
         conversation_branches_key = f"conversation:{conversation_id}:branches"
         branch_ids = redis_client.smembers(conversation_branches_key)
 
-        # 将bytes转为str
+        # 灏哹ytes杞负str
         if branch_ids:
             branch_ids = [bid.decode('utf-8') if isinstance(bid, bytes) else bid for bid in branch_ids]
         else:
             branch_ids = []
 
-        logger.info(f"[Get Branches] 找到 {len(branch_ids)} 个分支")
+        logger.info(f"[Get Branches] found {len(branch_ids)} branches")
 
-        # 2. 批量获取分支元数据（使用Pipeline优化）
+        # 2. 鎵归噺鑾峰彇鍒嗘敮鍏冩暟鎹紙浣跨敤Pipeline浼樺寲锛?
         branches_data = []
 
         if len(branch_ids) > 0:
@@ -842,13 +939,13 @@ async def get_conversation_branches(
                 if branch_data_str:
                     branch_metadata = json.loads(branch_data_str)
 
-                    # 验证用户权限
+                    # 楠岃瘉鐢ㄦ埛鏉冮檺
                     if branch_metadata.get("user_id") == user_id:
                         branches_data.append(branch_metadata)
                 else:
-                    logger.warning(f"[Get Branches] 分支元数据缺失: {branch_id}")
+                    logger.warning(f"[Get Branches] 鍒嗘敮鍏冩暟鎹己澶? {branch_id}")
 
-        # 3. 构建返回数据（扁平列表，前端自己构建树）
+        # 3. 鏋勫缓杩斿洖鏁版嵁锛堟墎骞冲垪琛紝鍓嶇鑷繁鏋勫缓鏍戯級
         branch_nodes = []
         for branch_metadata in branches_data:
             node = BranchTreeNode(
@@ -858,20 +955,20 @@ async def get_conversation_branches(
                 message_count=branch_metadata.get("message_count", 0),
                 is_active=branch_metadata.get("is_active", False),
                 created_at=branch_metadata["created_at"],
-                children=[]  # 扁平列表，前端构建树
+                children=[]  # 鎵佸钩鍒楄〃锛屽墠绔瀯寤烘爲
             )
             branch_nodes.append(node)
 
-        # 4. 添加根分支（主分支）信息（如果还没有）
-        # 主分支就是conversation_id本身
+        # 4. 娣诲姞鏍瑰垎鏀紙涓诲垎鏀級淇℃伅锛堝鏋滆繕娌℃湁锛?
+        # 涓诲垎鏀氨鏄痗onversation_id鏈韩
         root_exists = any(b.branch_id == conversation_id for b in branch_nodes)
         if not root_exists:
-            # 创建虚拟的根分支节点
+            # 鍒涘缓铏氭嫙鐨勬牴鍒嗘敮鑺傜偣
             root_node = BranchTreeNode(
                 branch_id=conversation_id,
                 parent_branch_id=None,
-                branch_name="主线",
-                message_count=0,  # 可以通过checkpoint计算，这里简化
+                branch_name="涓荤嚎",
+                message_count=0,  # 鍙互閫氳繃checkpoint璁＄畻锛岃繖閲岀畝鍖?
                 is_active=True,
                 created_at=datetime.now().isoformat(),
                 children=[]
@@ -879,8 +976,8 @@ async def get_conversation_branches(
             branch_nodes.insert(0, root_node)
 
         logger.info(
-            f"[Get Branches] 返回 {len(branch_nodes)} 个分支 "
-            f"(包括根分支: {conversation_id})"
+            f"[Get Branches] 杩斿洖 {len(branch_nodes)} 涓垎鏀?"
+            f"(鍖呮嫭鏍瑰垎鏀? {conversation_id})"
         )
 
         return GetBranchesResponse(
@@ -893,7 +990,7 @@ async def get_conversation_branches(
         logger.error(f"[Get Branches] Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取分支列表失败: {str(e)}"
+            detail=f"鑾峰彇鍒嗘敮鍒楄〃澶辫触: {str(e)}"
         )
 
 
@@ -903,198 +1000,206 @@ async def agent_chat_stream(
     current_user: User = Depends(get_current_active_user),
     memory: MemoryManager = Depends(get_memory_manager),
     ai_service: HTTPAIService = Depends(get_ai_service),
-    # ✅ 修复：移除db依赖，避免生命周期不匹配
-    mode: Optional[str] = None  # 新增：支持mode参数（通过查询参数或Body）
+    # 鉁?淇锛氱Щ闄b渚濊禆锛岄伩鍏嶇敓鍛藉懆鏈熶笉鍖归厤
+    mode: Optional[str] = None  # 鏂板锛氭敮鎸乵ode鍙傛暟锛堥€氳繃鏌ヨ鍙傛暟鎴朆ody锛?
 ):
     """
-    Agent 智能对话 - 统一流式响应（SSE）
+    Agent 鏅鸿兘瀵硅瘽 - 缁熶竴娴佸紡鍝嶅簲锛圫SE锛?
 
-    支持两种模式：
-    - Planning模式（默认）：先规划再执行
-    - React模式：边思考边执行
+    鏀寔涓ょ妯″紡锛?
+    - Planning妯″紡锛堥粯璁わ級锛氬厛瑙勫垝鍐嶆墽琛?
+    - React妯″紡锛氳竟鎬濊€冭竟鎵ц
 
-    使用方式：
-    1. Planning模式（默认）: 不传mode或mode="planning"
-    2. React模式: mode="react"
+    浣跨敤鏂瑰紡锛?
+    1. Planning妯″紡锛堥粯璁わ級: 涓嶄紶mode鎴杕ode="planning"
+    2. React妯″紡: mode="react"
 
     Args:
-        request: 对话请求
-        current_user: 当前用户
-        memory: 记忆管理器
-        ai_service: AI服务
-        db: 数据库会话
-        mode: 聊天模式（planning/react，默认planning）
+        request: 瀵硅瘽璇锋眰
+        current_user: 褰撳墠鐢ㄦ埛
+        memory: 璁板繂绠＄悊鍣?
+        ai_service: AI鏈嶅姟
+        db: 鏁版嵁搴撲細璇?
+        mode: 鑱婂ぉ妯″紡锛坧lanning/react锛岄粯璁lanning锛?
 
     Returns:
-        StreamingResponse: SSE流式响应
+        StreamingResponse: SSE娴佸紡鍝嶅簲
     """
     import asyncio
 
-    # 确定使用的模式
-    # 优先级：URL查询参数 > Body参数 > 默认planning
+    # 纭畾浣跨敤鐨勬ā寮?
+    # 浼樺厛绾э細URL鏌ヨ鍙傛暟 > Body鍙傛暟 > 榛樿planning
     actual_mode = mode or request.mode or ChatMode.PLANNING
 
-    # 字符串转枚举
+    # 瀛楃涓茶浆鏋氫妇
     if isinstance(actual_mode, str):
         try:
             actual_mode = ChatMode(actual_mode.lower())
         except (ValueError, AttributeError):
-            logger.warning(f"[Chat Stream] 无效的mode值: {actual_mode}, 使用默认planning")
+            logger.warning(f"[Chat Stream] 鏃犳晥鐨刴ode鍊? {actual_mode}, 浣跨敤榛樿planning")
             actual_mode = ChatMode.PLANNING
 
     logger.info(f"[Chat Stream] Mode: {actual_mode}")
 
     async def event_generator():
-        # ✅ 修复：生成器内创建独立db会话，完全控制生命周期
+        # 鉁?淇锛氱敓鎴愬櫒鍐呭垱寤虹嫭绔媎b浼氳瘽锛屽畬鍏ㄦ帶鍒剁敓鍛藉懆鏈?
         from app.core.database import create_db_session
 
         async with create_db_session() as db:
-            # 使用队列实现实时事件发送
-            import time  # ✅ 在这里导入，整个函数内都可以使用
+            # 浣跨敤闃熷垪瀹炵幇瀹炴椂浜嬩欢鍙戦€?
+            import time  # 鉁?鍦ㄨ繖閲屽鍏ワ紝鏁翠釜鍑芥暟鍐呴兘鍙互浣跨敤
             event_queue = asyncio.Queue()
             agent_task = None
             result = None
+            assistant_chunks: List[str] = []
+            session = None
 
             try:
                 user_id = str(current_user.id)
                 conversation_id = request.conversation_id or str(uuid.uuid4())
+                session = await _find_session_by_conversation(db, user_id, conversation_id)
 
-                # ✅ 会话归属验证（简化版Redis方案）
+                # 鉁?浼氳瘽褰掑睘楠岃瘉锛堢畝鍖栫増Redis鏂规锛?
                 from app.core.redis import redis_client
 
                 if request.conversation_id:
-                    # 验证现有会话的归属
+                    # 楠岃瘉鐜版湁浼氳瘽鐨勫綊灞?
                     stored_user_id = await redis_client.get(
                         f"conversation:{request.conversation_id}:owner"
                     )
                     if stored_user_id:
-                        # RedisClient 已设置 decode_responses=True，返回字符串
-                        # 但如果返回的是字节，需要解码
+                        # RedisClient 宸茶缃?decode_responses=True锛岃繑鍥炲瓧绗︿覆
+                        # 浣嗗鏋滆繑鍥炵殑鏄瓧鑺傦紝闇€瑕佽В鐮?
                         if isinstance(stored_user_id, bytes):
                             stored_user_id = stored_user_id.decode('utf-8')
                         if stored_user_id != user_id:
-                            # 会话归属验证失败
+                            # 浼氳瘽褰掑睘楠岃瘉澶辫触
                             error_event = {
                                 'type': 'error',
-                                'message': '无权访问此会话',
+                                'message': 'Unauthorized to access this conversation',
                                 'code': 'UNAUTHORIZED_CONVERSATION'
                             }
                             yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
                             logger.warning(
-                                f"[Security] 用户 {user_id} 尝试访问其他用户的会话 {request.conversation_id}"
+                                f"[Security] 鐢ㄦ埛 {user_id} 灏濊瘯璁块棶鍏朵粬鐢ㄦ埛鐨勪細璇?{request.conversation_id}"
                             )
                             return
                 else:
-                    # 新会话：存储归属关系
+                    # 鏂颁細璇濓細瀛樺偍褰掑睘鍏崇郴
                     await redis_client.set(
                         f"conversation:{conversation_id}:owner",
                         user_id,
-                        expire=86400 * 30  # 30天过期（修复：ex -> expire）
+                        expire=86400 * 30  # 30澶╄繃鏈燂紙淇锛歟x -> expire锛?
                     )
-                    logger.info(f"[Session] 创建新会话归属: {conversation_id} -> {user_id}")
+                    logger.info(f"[Session] 鍒涘缓鏂颁細璇濆綊灞? {conversation_id} -> {user_id}")
 
-                logger.info(f"[LangGraph Agent Stream] ⏱️ 请求开始 - User: {user_id}, Mode: {actual_mode}, Message: {request.message[:50]}...")
+                logger.info(f"[LangGraph Agent Stream] 鈴憋笍 璇锋眰寮€濮?- User: {user_id}, Mode: {actual_mode}, Message: {request.message[:50]}...")
 
-                # 发送开始事件（包含mode信息）
+                # 鍙戦€佸紑濮嬩簨浠讹紙鍖呭惈mode淇℃伅锛?
                 start_event = {'type': 'start', 'conversation_id': conversation_id, 'mode': str(actual_mode)}
                 yield f"data: {json.dumps(start_event, ensure_ascii=False)}\n\n"
 
-                # ✅ 修复：删除多余的 MemoryManager 调用
-                # WritingAgentGraph 内部已有 ContextManager（使用 VectorStore 的语义搜索）
-                # 不再需要从 Redis 获取空的会话列表
-                # 注释原因：
-                # 1. MemoryManager.get_complete_context() 从 Redis 查询会话列表 → 返回0条（Redis里没数据）
-                # 2. WritingAgentGraph 已经有 ContextManager → 从 ChromaDB 检索（有数据）
-                # 3. 导致重复检索且使用了错误的数据源
+                # 鉁?淇锛氬垹闄ゅ浣欑殑 MemoryManager 璋冪敤
+                # WritingAgentGraph 鍐呴儴宸叉湁 ContextManager锛堜娇鐢?VectorStore 鐨勮涔夋悳绱級
+                # 涓嶅啀闇€瑕佷粠 Redis 鑾峰彇绌虹殑浼氳瘽鍒楄〃
+                # 娉ㄩ噴鍘熷洜锛?
+                # 1. MemoryManager.get_complete_context() 浠?Redis 鏌ヨ浼氳瘽鍒楄〃 鈫?杩斿洖0鏉★紙Redis閲屾病鏁版嵁锛?
+                # 2. WritingAgentGraph 宸茬粡鏈?ContextManager 鈫?浠?ChromaDB 妫€绱紙鏈夋暟鎹級
+                # 3. 瀵艰嚧閲嶅妫€绱笖浣跨敤浜嗛敊璇殑鏁版嵁婧?
 
-                # 获取全局共享的 LangGraph Agent
+                # 鑾峰彇鍏ㄥ眬鍏变韩鐨?LangGraph Agent
                 agent_graph = get_agent_graph()
 
-                # 准备上下文（创建新dict避免修改原request）
+                # 鍑嗗涓婁笅鏂囷紙鍒涘缓鏂癲ict閬垮厤淇敼鍘焤equest锛?
                 context = dict(request.context) if request.context else {}
 
-                # ✅ 追踪活动状态（用于发送 activity_complete 事件）
+                # 鉁?杩借釜娲诲姩鐘舵€侊紙鐢ㄤ簬鍙戦€?activity_complete 浜嬩欢锛?
                 last_activity_step = {'step': None, 'start_time': None}
-                # ✅ 追踪内容是否已通过流式发送（避免重复发送）
+                # 鉁?杩借釜鍐呭鏄惁宸查€氳繃娴佸紡鍙戦€侊紙閬垮厤閲嶅鍙戦€侊級
                 content_sent = {'value': False}
 
-                # 定义回调函数 - 实时放入队列
+                # 瀹氫箟鍥炶皟鍑芥暟 - 瀹炴椂鏀惧叆闃熷垪
                 async def on_plan(plan_data):
-                    """规划生成回调"""
+                    """Handle plan event."""
                     await event_queue.put(('plan', plan_data))
-                    logger.info(f"[Stream] 规划生成: {len(plan_data.get('tasks', []))} 个任务")
+                    logger.info(f"[Stream] Plan tasks: {len(plan_data.get('tasks', []))} items")
 
                 async def on_task_start(task):
-                    """任务开始回调"""
+                    """Handle task start event."""
                     await event_queue.put(('task_start', task))
-                    logger.info(f"[Stream] 任务开始: {task.get('description')}")
+                    logger.info(f"[Stream] Task started: {task.get('description')}")
 
                 async def on_task_progress(task, status):
-                    """任务进度回调"""
+                    """浠诲姟杩涘害鍥炶皟"""
                     await event_queue.put(('task_progress', {'task_id': task.get('task_id'), 'status': status}))
 
                 async def on_task_done(task, result_data):
-                    """任务完成回调"""
+                    """浠诲姟瀹屾垚鍥炶皟"""
                     elapsed_time = task.get('elapsed_time', 0)
                     await event_queue.put(('task_done', {
                         'task_id': task.get('task_id'),
                         'description': task.get('description'),
                         'elapsed_time': elapsed_time
                     }))
-                    logger.info(f"[Stream] 任务完成: {task.get('description')} ({elapsed_time:.1f}s)")
+                    logger.info(f"[Stream] 浠诲姟瀹屾垚: {task.get('description')} ({elapsed_time:.1f}s)")
 
                 async def on_content(chunk):
-                    """内容生成回调"""
-                    content_sent['value'] = True  # ✅ 标记内容已发送
+                    """鍐呭鐢熸垚鍥炶皟"""
+                    content_sent['value'] = True  # 鉁?鏍囪鍐呭宸插彂閫?
+                    if isinstance(chunk, dict) and "content" in chunk:
+                        assistant_chunks.append(str(chunk.get("content", "")))
+                    elif chunk is not None:
+                        assistant_chunks.append(str(chunk))
                     await event_queue.put(('content', chunk))
 
-                # 在后台运行 Agent
+                # 鍦ㄥ悗鍙拌繍琛?Agent
                 async def run_agent():
                     nonlocal result
                     try:
-                        # 根据模式调用不同的方法
+                        # 鏍规嵁妯″紡璋冪敤涓嶅悓鐨勬柟娉?
                         if actual_mode == ChatMode.REACT:
-                            # React模式：使用chat_stream()
-                            # 定义React模式的回调
+                            # React妯″紡锛氫娇鐢╟hat_stream()
+                            # 瀹氫箟React妯″紡鐨勫洖璋?
                             async def on_progress_react(event):
-                                """进度回调 - 添加activity_complete逻辑"""
+                                """杩涘害鍥炶皟 - 娣诲姞activity_complete閫昏緫"""
                                 current_step = event.get('step')
 
-                                # ✅ 如果活动类型改变，发送前一个活动的完成事件
+                                # 鉁?濡傛灉娲诲姩绫诲瀷鏀瑰彉锛屽彂閫佸墠涓€涓椿鍔ㄧ殑瀹屾垚浜嬩欢
                                 if last_activity_step['step'] is not None and last_activity_step['step'] != current_step:
                                     elapsed_time = time.time() - last_activity_step['start_time'] if last_activity_step['start_time'] else 0
                                     await event_queue.put(('activity_complete', {
                                         'step': last_activity_step['step'],
                                         'elapsed_time': elapsed_time
                                     }))
-                                    logger.info(f"[Stream] Activity完成: {last_activity_step['step']} ({elapsed_time:.1f}s)")
+                                    logger.info(f"[Stream] Activity瀹屾垚: {last_activity_step['step']} ({elapsed_time:.1f}s)")
 
-                                # 更新当前活动
+                                # 鏇存柊褰撳墠娲诲姩
                                 last_activity_step['step'] = current_step
                                 last_activity_step['start_time'] = time.time()
 
-                                # 发送progress事件
+                                # 鍙戦€乸rogress浜嬩欢
                                 await event_queue.put(('progress', event))
 
                             async def on_tool_call_react(tool_name: str, tool_args: dict):
                                 await event_queue.put(('tool_call', {'tool': tool_name, 'args': tool_args}))
 
                             async def on_content_react(content: str):
-                                content_sent['value'] = True  # ✅ 标记内容已发送
+                                content_sent['value'] = True  # 鉁?鏍囪鍐呭宸插彂閫?
+                                assistant_chunks.append(str(content) if content is not None else "")
                                 await event_queue.put(('content', {'content': content}))
 
-                            # ✅ P0-6修复：定义HITL确认请求回调（存储为实例变量，避免序列化）
+                            # 鉁?P0-6淇锛氬畾涔塇ITL纭璇锋眰鍥炶皟锛堝瓨鍌ㄤ负瀹炰緥鍙橀噺锛岄伩鍏嶅簭鍒楀寲锛?
                             async def on_approval_request(request_data: dict):
-                                """确认请求回调 - 编辑器工具需要用户确认"""
+                                """Handle approval request stream event."""
                                 logger.info(f"[Stream] Approval request: {request_data.get('request_id')}")
                                 await event_queue.put(('approval_request', request_data))
 
-                            # ✅ P0-6修复：将回调设置为实例变量，而非添加到context（避免Redis序列化错误）
+                            # 鉁?P0-6淇锛氬皢鍥炶皟璁剧疆涓哄疄渚嬪彉閲忥紝鑰岄潪娣诲姞鍒癱ontext锛堥伩鍏峈edis搴忓垪鍖栭敊璇級
                             agent_graph._approval_callback = on_approval_request
 
                             result = await agent_graph.chat_stream(
                                 message=request.message,
-                                user_id=user_id,  # 新增：传入用户ID
+                                user_id=user_id,  # 鏂板锛氫紶鍏ョ敤鎴稩D
                                 work_id=request.work_id,
                                 chapter_id=request.chapter_id,
                                 conversation_id=conversation_id,
@@ -1102,10 +1207,10 @@ async def agent_chat_stream(
                                 on_progress=on_progress_react,
                                 on_tool_call=on_tool_call_react,
                                 on_content=on_content_react,
-                                db=db  # ✅ 修复：传入生成器的独立db会话
+                                db=db  # 鉁?淇锛氫紶鍏ョ敓鎴愬櫒鐨勭嫭绔媎b浼氳瘽
                             )
                         else:
-                            # Planning模式：使用chat_with_planning()
+                            # Planning妯″紡锛氫娇鐢╟hat_with_planning()
                             result = await agent_graph.chat_with_planning(
                                 message=request.message,
                                 user_id=user_id,
@@ -1120,78 +1225,78 @@ async def agent_chat_stream(
                                 on_content=on_content,
                                 db=db
                             )
-                        # ✅ 发送最后一个活动的完成事件
+                        # 鉁?鍙戦€佹渶鍚庝竴涓椿鍔ㄧ殑瀹屾垚浜嬩欢
                         if last_activity_step['step'] is not None:
                             elapsed_time = time.time() - last_activity_step['start_time'] if last_activity_step['start_time'] else 0
                             await event_queue.put(('activity_complete', {
                                 'step': last_activity_step['step'],
                                 'elapsed_time': elapsed_time
                             }))
-                            logger.info(f"[Stream] 最后活动完成: {last_activity_step['step']} ({elapsed_time:.1f}s)")
+                            logger.info(f"[Stream] 鏈€鍚庢椿鍔ㄥ畬鎴? {last_activity_step['step']} ({elapsed_time:.1f}s)")
 
-                        # Agent 完成后放入结束标记
+                        # Agent 瀹屾垚鍚庢斁鍏ョ粨鏉熸爣璁?
                         await event_queue.put(('__done__', None))
                     except Exception as e:
-                        # Agent执行异常，通过队列发送错误
-                        logger.error(f"[Stream] Agent执行失败: {str(e)}", exc_info=True)
+                        # Agent鎵ц寮傚父锛岄€氳繃闃熷垪鍙戦€侀敊璇?
+                        logger.error(f"[Stream] Agent鎵ц澶辫触: {str(e)}", exc_info=True)
                         await event_queue.put(('__error__', {
                             'error': str(e),
                             'error_type': type(e).__name__
                         }))
 
-                # 启动 Agent 任务
+                # 鍚姩 Agent 浠诲姟
                 agent_task = asyncio.create_task(run_agent())
 
-                # 实时从队列中取出事件并发送
+                # 瀹炴椂浠庨槦鍒椾腑鍙栧嚭浜嬩欢骞跺彂閫?
                 while True:
                     event_type, event_data = await event_queue.get()
 
                     if event_type == '__done__':
-                        # Agent 执行完成
+                        # Agent 鎵ц瀹屾垚
                         break
 
                     if event_type == '__error__':
-                        # Agent执行失败
+                        # Agent鎵ц澶辫触
                         error_event = {
                             'type': 'error',
                             'data': event_data,
                             'mode': str(actual_mode)
                         }
                         yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
-                        # 结束流式响应
+                        # 缁撴潫娴佸紡鍝嶅簲
                         return
 
-                    # 实时发送事件（添加mode标识）
+                    # 瀹炴椂鍙戦€佷簨浠讹紙娣诲姞mode鏍囪瘑锛?
                     event_payload = {
                         'type': event_type,
                         'data': event_data,
                         'mode': str(actual_mode)
                     }
-                    # 添加调试日志
+                    # 娣诲姞璋冭瘯鏃ュ織
                     if event_type == 'progress':
-                        logger.info(f"[SSE] 发送 progress 事件: step={event_data.get('step')}, desc={event_data.get('description')}")
+                        logger.info(f"[SSE] 鍙戦€?progress 浜嬩欢: step={event_data.get('step')}, desc={event_data.get('description')}")
                     elif event_type == 'activity_complete':
-                        logger.info(f"[SSE] 发送 activity_complete 事件: step={event_data.get('step')}, elapsed={event_data.get('elapsed_time'):.1f}s")
+                        logger.info(f"[SSE] 鍙戦€?activity_complete 浜嬩欢: step={event_data.get('step')}, elapsed={event_data.get('elapsed_time'):.1f}s")
                     yield f"data: {json.dumps(event_payload, ensure_ascii=False)}\n\n"
 
-                # 等待 Agent 任务完成
+                # 绛夊緟 Agent 浠诲姟瀹屾垚
                 await agent_task
 
-                # 检查result是否有效
+                # 妫€鏌esult鏄惁鏈夋晥
                 if result is None:
-                    logger.error(f"[LangGraph Agent Stream] Result is None, Agent可能执行失败")
+                    logger.error(f"[LangGraph Agent Stream] Result is None, Agent鍙兘鎵ц澶辫触")
                     error_event = {
                         'type': 'error',
-                        'error': 'Agent执行失败，未返回结果',
+                        'error': 'Agent鎵ц澶辫触锛屾湭杩斿洖缁撴灉',
                         'mode': str(actual_mode)
                     }
                     yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
                     return
 
-                # ✅ 修复：只有当内容未通过流式发送时，才在完成前发送final_response
+                # 鉁?淇锛氬彧鏈夊綋鍐呭鏈€氳繃娴佸紡鍙戦€佹椂锛屾墠鍦ㄥ畬鎴愬墠鍙戦€乫inal_response
                 final_response = result.get("response")
                 if final_response and not content_sent['value']:
-                    logger.info(f"[Stream] 发送最终响应（内容未流式发送）: {final_response[:100]}...")
+                    logger.info(f"[Stream] 鍙戦€佹渶缁堝搷搴旓紙鍐呭鏈祦寮忓彂閫侊級: {final_response[:100]}...")
                     content_event = {
                         'type': 'content',
                         'data': final_response,
@@ -1199,9 +1304,38 @@ async def agent_chat_stream(
                     }
                     yield f"data: {json.dumps(content_event, ensure_ascii=False)}\n\n"
                 elif final_response:
-                    logger.info(f"[Stream] 跳过最终响应（内容已流式发送）")
+                    logger.info(f"[Stream] 璺宠繃鏈€缁堝搷搴旓紙鍐呭宸叉祦寮忓彂閫侊級")
 
-                # 记录交互
+                assistant_text = final_response or "".join(assistant_chunks)
+                try:
+                    if session:
+                        await _persist_message(
+                            db,
+                            session,
+                            role="user",
+                            content=request.message,
+                            metadata={"mode": str(actual_mode)},
+                        )
+                        await _persist_message(
+                            db,
+                            session,
+                            role="agent",
+                            content=assistant_text,
+                            metadata=result.get("metadata"),
+                            token_usage=(result.get("metadata") or {}).get("token_usage"),
+                        )
+                        await db.commit()
+                        try:
+                            redis_client = get_redis_client()
+                            redis_client.delete(_session_detail_cache_key(str(session.id)))
+                            _invalidate_session_caches(redis_client, user_id)
+                        except Exception as cache_err:
+                            logger.warning(f"[LangGraph Agent Stream] Clear session cache failed: {cache_err}")
+                except Exception as persist_err:
+                    await db.rollback()
+                    logger.warning(f"[LangGraph Agent Stream] Persist message failed: {persist_err}")
+
+                # 璁板綍浜や簰
                 memory.record_user_interaction(
                     user_id,
                     "agent_chat",
@@ -1209,11 +1343,11 @@ async def agent_chat_stream(
                         "message": request.message,
                         "intent": result.get("metadata", {}).get("intent"),
                         "conversation_id": conversation_id,
-                        "mode": str(actual_mode)  # 记录使用的模式
+                        "mode": str(actual_mode)  # 璁板綍浣跨敤鐨勬ā寮?
                     }
                 )
 
-                # 发送完成事件
+                # 鍙戦€佸畬鎴愪簨浠?
                 done_event = {
                     'type': 'done',
                     'mode': str(actual_mode),
@@ -1226,7 +1360,7 @@ async def agent_chat_stream(
 
             except Exception as e:
                 logger.error(f"[LangGraph Agent Stream] Error: {str(e)}", exc_info=True)
-                # 发送错误事件（包含mode标识）
+                # 鍙戦€侀敊璇簨浠讹紙鍖呭惈mode鏍囪瘑锛?
                 error_event = {
                     'type': 'error',
                     'error': str(e),
@@ -1234,7 +1368,7 @@ async def agent_chat_stream(
                     'mode': str(actual_mode)
                 }
                 yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
-                # 取消 Agent 任务
+                # 鍙栨秷 Agent 浠诲姟
                 if agent_task and not agent_task.done():
                     agent_task.cancel()
 
@@ -1244,12 +1378,12 @@ async def agent_chat_stream(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"  # 禁用 nginx 缓冲
+            "X-Accel-Buffering": "no"  # 绂佺敤 nginx 缂撳啿
         }
     )
 
 
-# ==================== 执行计划管理 ====================
+# ==================== 鎵ц璁″垝绠＄悊 ====================
 
 @router.post("/plans", response_model=PlanResponse)
 async def create_plan(
@@ -1258,37 +1392,30 @@ async def create_plan(
     planner: PlanningAgent = Depends(get_planning_agent)
 ):
     """
-    创建执行计划
+    鍒涘缓鎵ц璁″垝
 
-    根据用户目标自动生成执行计划，支持：
-    - 小说创作规划
-    - 作品改进规划
-    - 自定义规划
+    鏍规嵁鐢ㄦ埛鐩爣鑷姩鐢熸垚鎵ц璁″垝锛屾敮鎸侊細
+    - 灏忚鍒涗綔瑙勫垝
+    - 浣滃搧鏀硅繘瑙勫垝
+    - 鑷畾涔夎鍒?
 
     Args:
-        request: 计划创建请求
-        current_user: 当前用户
-        planner: 规划Agent
+        request: 璁″垝鍒涘缓璇锋眰
+        current_user: 褰撳墠鐢ㄦ埛
+        planner: 瑙勫垝Agent
 
     Returns:
-        PlanResponse: 执行计划
+        PlanResponse: 鎵ц璁″垝
     """
     try:
         logger.info(f"Creating plan - User: {current_user.id}, Goal: {request.goal}")
 
-        # 创建计划
-        if "写" in request.goal or "创作" in request.goal:
-            plan = planner.create_plan_for_novel_writing(
-                user_goal=request.goal,
-                genre=request.genre,
-                context=request.context
-            )
-        else:
-            # 其他类型的计划
-            plan = planner.create_plan_for_novel_writing(
-                user_goal=request.goal,
-                context=request.context
-            )
+        plan = planner.create_plan_for_novel_writing(
+            user_goal=request.goal,
+            genre=request.genre,
+            context=request.context
+        )
+
 
         return PlanResponse(
             plan_id=plan.plan_id,
@@ -1312,7 +1439,7 @@ async def create_plan(
         logger.error(f"Create plan error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"创建计划失败: {str(e)}"
+            detail=f"鍒涘缓璁″垝澶辫触: {str(e)}"
         )
 
 
@@ -1321,15 +1448,15 @@ async def get_plan(
     plan_id: str,
     current_user: User = Depends(get_current_active_user)
 ):
-    """获取执行计划详情"""
-    # TODO: 从存储中获取计划
+    """鑾峰彇鎵ц璁″垝璇︽儏"""
+    # TODO: 浠庡瓨鍌ㄤ腑鑾峰彇璁″垝
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="功能开发中"
+        detail="鍔熻兘寮€鍙戜腑"
     )
 
 
-# ==================== HITL 批准管理 ====================
+# ==================== HITL 鎵瑰噯绠＄悊 ====================
 
 @router.get("/approvals/pending", response_model=List[ApprovalResponse])
 async def get_pending_approvals(
@@ -1337,16 +1464,16 @@ async def get_pending_approvals(
     hitl: HITLManager = Depends(get_hitl_manager)
 ):
     """
-    获取待批准列表
+    鑾峰彇寰呮壒鍑嗗垪琛?
 
-    返回当前用户所有待处理的批准请求
+    杩斿洖褰撳墠鐢ㄦ埛鎵€鏈夊緟澶勭悊鐨勬壒鍑嗚姹?
 
     Args:
-        current_user: 当前用户
-        hitl: HITL管理器
+        current_user: 褰撳墠鐢ㄦ埛
+        hitl: HITL绠＄悊鍣?
 
     Returns:
-        List[ApprovalResponse]: 待批准列表
+        List[ApprovalResponse]: 寰呮壒鍑嗗垪琛?
     """
     try:
         user_id = str(current_user.id)
@@ -1369,7 +1496,7 @@ async def get_pending_approvals(
         logger.error(f"Get pending approvals error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取待批准列表失败: {str(e)}"
+            detail=f"鑾峰彇寰呮壒鍑嗗垪琛ㄥけ璐? {str(e)}"
         )
 
 
@@ -1381,21 +1508,21 @@ async def handle_approval(
     hitl: HITLManager = Depends(get_hitl_manager)
 ):
     """
-    处理批准请求
+    澶勭悊鎵瑰噯璇锋眰
 
-    支持的操作：
-    - approve: 批准
-    - reject: 拒绝
-    - modify: 修改后批准
+    鏀寔鐨勬搷浣滐細
+    - approve: 鎵瑰噯
+    - reject: 鎷掔粷
+    - modify: 淇敼鍚庢壒鍑?
 
     Args:
-        request_id: 请求ID
-        action_request: 操作请求
-        current_user: 当前用户
-        hitl: HITL管理器
+        request_id: 璇锋眰ID
+        action_request: 鎿嶄綔璇锋眰
+        current_user: 褰撳墠鐢ㄦ埛
+        hitl: HITL绠＄悊鍣?
 
     Returns:
-        操作结果
+        鎿嶄綔缁撴灉
     """
     try:
         user_id = str(current_user.id)
@@ -1417,7 +1544,7 @@ async def handle_approval(
             if not action_request.modifications:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="修改操作需要提供modifications"
+                    detail="淇敼鎿嶄綔闇€瑕佹彁渚沵odifications"
                 )
             response = hitl.modify_and_approve(
                 request_id,
@@ -1428,7 +1555,7 @@ async def handle_approval(
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"不支持的操作: {action_request.action}"
+                detail=f"涓嶆敮鎸佺殑鎿嶄綔: {action_request.action}"
             )
 
         return {
@@ -1445,40 +1572,40 @@ async def handle_approval(
         logger.error(f"Handle approval error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"处理批准请求失败: {str(e)}"
+            detail=f"澶勭悊鎵瑰噯璇锋眰澶辫触: {str(e)}"
         )
 
 
-# ==================== 记忆管理 ====================
+# ==================== 璁板繂绠＄悊 ====================
 
 @router.get("/memory/context")
 async def get_memory_context(
-    work_id: Optional[str] = Query(None, description="作品ID，用于获取特定作品的记忆"),
+    work_id: Optional[str] = Query(None, description="浣滃搧ID锛岀敤浜庤幏鍙栫壒瀹氫綔鍝佺殑璁板繂"),
     current_user: User = Depends(get_current_active_user),
     memory: MemoryManager = Depends(get_memory_manager)
 ):
     """
-    获取用户记忆上下文
+    鑾峰彇鐢ㄦ埛璁板繂涓婁笅鏂?
 
-    返回用户的完整记忆信息，包括：
-    - 用户偏好
-    - 写作风格
-    - 用户画像
+    杩斿洖鐢ㄦ埛鐨勫畬鏁磋蹇嗕俊鎭紝鍖呮嫭锛?
+    - 鐢ㄦ埛鍋忓ソ
+    - 鍐欎綔椋庢牸
+    - 鐢ㄦ埛鐢诲儚
 
-    可选参数：
-    - work_id: 作品ID，如果提供则只返回该作品的对话记忆
+    鍙€夊弬鏁帮細
+    - work_id: 浣滃搧ID锛屽鏋滄彁渚涘垯鍙繑鍥炶浣滃搧鐨勫璇濊蹇?
 
     Args:
-        work_id: 作品ID（可选，用于隔离不同作品的记忆）
-        current_user: 当前用户
-        memory: 记忆管理器
+        work_id: 浣滃搧ID锛堝彲閫夛紝鐢ㄤ簬闅旂涓嶅悓浣滃搧鐨勮蹇嗭級
+        current_user: 褰撳墠鐢ㄦ埛
+        memory: 璁板繂绠＄悊鍣?
 
     Returns:
-        用户记忆上下文
+        鐢ㄦ埛璁板繂涓婁笅鏂?
     """
     try:
         user_id = str(current_user.id)
-        # ✅ 修复：添加work_id参数支持
+        # 鉁?淇锛氭坊鍔爓ork_id鍙傛暟鏀寔
         context = await memory.get_complete_context(user_id, work_id=work_id)
 
         return {
@@ -1490,7 +1617,7 @@ async def get_memory_context(
         logger.error(f"Get memory context error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取记忆上下文失败: {str(e)}"
+            detail=f"鑾峰彇璁板繂涓婁笅鏂囧け璐? {str(e)}"
         )
 
 
@@ -1501,15 +1628,15 @@ async def update_preferences(
     memory: MemoryManager = Depends(get_memory_manager)
 ):
     """
-    更新用户偏好
+    鏇存柊鐢ㄦ埛鍋忓ソ
 
     Args:
-        preferences: 偏好数据
-        current_user: 当前用户
-        memory: 记忆管理器
+        preferences: 鍋忓ソ鏁版嵁
+        current_user: 褰撳墠鐢ㄦ埛
+        memory: 璁板繂绠＄悊鍣?
 
     Returns:
-        更新结果
+        鏇存柊缁撴灉
     """
     try:
         user_id = str(current_user.id)
@@ -1528,11 +1655,11 @@ async def update_preferences(
         logger.error(f"Update preferences error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"更新偏好失败: {str(e)}"
+            detail=f"鏇存柊鍋忓ソ澶辫触: {str(e)}"
         )
 
 
-# ==================== 会话管理 ====================
+# ==================== 浼氳瘽绠＄悊 ====================
 
 def _session_to_response(session: AgentSession) -> Dict[str, Any]:
     return {
@@ -1543,16 +1670,131 @@ def _session_to_response(session: AgentSession) -> Dict[str, Any]:
         "chapter_id": str(session.chapter_id) if session.chapter_id else None,
         "created_at": session.created_at.isoformat() if session.created_at else None,
         "updated_at": session.updated_at.isoformat() if session.updated_at else None,
+        "archived_at": session.archived_at.isoformat() if getattr(session, "archived_at", None) else None,
+        "expires_at": session.expires_at.isoformat() if getattr(session, "expires_at", None) else None,
+        "title_locked": bool(getattr(session, "title_locked", False)),
     }
 
 
-@router.post("/sessions", response_model=AgentSessionResponse, summary="创建 Agent 会话")
+def _session_cache_key(user_id: str, work_id: Optional[str], chapter_id: Optional[str], limit: int) -> str:
+    return (
+        f"agent:sessions:user:{user_id}:work:{work_id or 'all'}:"
+        f"chapter:{chapter_id or 'all'}:limit:{limit}"
+    )
+
+
+def _session_detail_cache_key(session_id: str) -> str:
+    return f"agent:session:{session_id}"
+
+
+def _session_title_lock_key(session_id: str) -> str:
+    return f"agent:session:title_locked:{session_id}"
+
+
+def _cache_sessions(redis_client, key: str, sessions: List[Dict[str, Any]]) -> None:
+    try:
+        payload = json.dumps({"sessions": sessions}, ensure_ascii=False)
+        redis_client.setex(key, SESSION_CACHE_TTL_SECONDS, payload.encode("utf-8"))
+    except Exception as e:
+        logger.warning(f"[Redis] set sessions cache failed: {e}")
+
+
+def _read_sessions_from_cache(redis_client, key: str) -> Optional[List[Dict[str, Any]]]:
+    try:
+        cached = redis_client.get(key)
+        if not cached:
+            return None
+        data = json.loads(cached)
+        return data.get("sessions")
+    except Exception as e:
+        logger.warning(f"[Redis] read sessions cache failed: {e}")
+        return None
+
+
+def _invalidate_session_caches(redis_client, user_id: str) -> None:
+    try:
+        pattern = f"agent:sessions:user:{user_id}:*"
+        for cache_key in redis_client.scan_iter(match=pattern):
+            redis_client.delete(cache_key)
+    except Exception as e:
+        logger.warning(f"[Redis] invalidate sessions cache failed: {e}")
+
+
+def _get_title_lock(redis_client, session_id: str) -> bool:
+    try:
+        val = redis_client.get(_session_title_lock_key(session_id))
+        return bool(val and val.decode() != "0")
+    except Exception as e:
+        logger.warning(f"[Redis] read title lock failed: {e}")
+        return False
+
+
+def _set_title_lock(redis_client, session_id: str, locked: bool) -> None:
+    try:
+        key = _session_title_lock_key(session_id)
+        if locked:
+            redis_client.setex(key, SESSION_CACHE_TTL_SECONDS, "1")
+        else:
+            redis_client.delete(key)
+    except Exception as e:
+        logger.warning(f"[Redis] set title lock failed: {e}")
+
+
+def _message_to_response(message: AgentSessionMessage) -> Dict[str, Any]:
+    return {
+        "id": str(message.id),
+        "session_id": str(message.session_id),
+        "role": message.role,
+        "content": message.content,
+        "metadata": message.message_metadata,
+        "token_usage": message.token_usage,
+        "created_at": message.created_at.isoformat() if message.created_at else None,
+    }
+
+
+async def _find_session_by_conversation(db: AsyncSession, user_id: str, conversation_id: Optional[str]) -> Optional[AgentSession]:
+    if not conversation_id:
+        return None
+    stmt = select(AgentSession).where(
+        AgentSession.user_id == user_id,
+        AgentSession.conversation_id == conversation_id
+    ).limit(1)
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def _persist_message(
+    db: AsyncSession,
+    session: Optional[AgentSession],
+    role: str,
+    content: str,
+    metadata: Optional[Dict[str, Any]] = None,
+    token_usage: Optional[Dict[str, Any]] = None
+) -> None:
+    if not session:
+        return
+    message = AgentSessionMessage(
+        session_id=session.id,
+        role=role,
+        content=content,
+        message_metadata=metadata,
+        token_usage=token_usage,
+    )
+    db.add(message)
+    # 触发 updated_at/expires_at 更新
+    session.updated_at = datetime.utcnow()
+    session.expires_at = datetime.utcnow() + timedelta(days=30)
+
+
+@router.post("/sessions", response_model=AgentSessionResponse, summary="鍒涘缓 Agent 浼氳瘽")
 async def create_agent_session(
     payload: AgentSessionCreateRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    title = payload.title or "新会话"
+    title = payload.title or "New session"
+    now = datetime.utcnow()
+    expires_at = now + timedelta(days=30)
 
     new_session = AgentSession(
         user_id=current_user.id,
@@ -1560,38 +1802,170 @@ async def create_agent_session(
         conversation_id=payload.conversation_id,
         work_id=payload.work_id,
         chapter_id=payload.chapter_id,
+        expires_at=expires_at,
+        title_locked=payload.title_locked if payload.title_locked is not None else False,
     )
 
     db.add(new_session)
     await db.commit()
     await db.refresh(new_session)
 
-    return _session_to_response(new_session)
+    response = _session_to_response(new_session)
+    if payload.title_locked:
+        try:
+            redis_client = get_redis_client()
+            _set_title_lock(redis_client, str(new_session.id), True)
+        except Exception as e:
+            logger.warning(f"[Redis] set title lock failed: {e}")
+
+    try:
+        redis_client = get_redis_client()
+        redis_client.setex(
+            _session_detail_cache_key(response["session_id"]),
+            SESSION_CACHE_TTL_SECONDS,
+            json.dumps(response, ensure_ascii=False).encode("utf-8")
+        )
+        _invalidate_session_caches(redis_client, str(current_user.id))
+    except Exception as e:
+        logger.warning(f"[Redis] cache new session failed: {e}")
+
+    return response
 
 
-@router.get("/sessions", response_model=AgentSessionListResponse, summary="获取 Agent 会话列表")
+@router.get("/sessions", response_model=AgentSessionListResponse, summary="鑾峰彇 Agent 浼氳瘽鍒楄〃")
 async def list_agent_sessions(
-    work_id: Optional[str] = Query(None, description="按作品过滤"),
-    chapter_id: Optional[str] = Query(None, description="按章节过滤"),
-    limit: int = Query(50, ge=1, le=200, description="返回数量上限"),
+    work_id: Optional[str] = Query(None, description="Filter by work ID"),
+    chapter_id: Optional[str] = Query(None, description="Filter by chapter ID"),
+    limit: int = Query(50, ge=1, le=200, description="杩斿洖鏁伴噺涓婇檺"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
+    redis_client = get_redis_client()
+    cache_key = _session_cache_key(str(current_user.id), work_id, chapter_id, limit)
+    cached_sessions = _read_sessions_from_cache(redis_client, cache_key)
+    if cached_sessions is not None:
+        return {"sessions": cached_sessions}
+
     stmt = select(AgentSession).where(AgentSession.user_id == current_user.id)
     if work_id:
         stmt = stmt.where(AgentSession.work_id == work_id)
     if chapter_id:
         stmt = stmt.where(AgentSession.chapter_id == chapter_id)
+    stmt = stmt.where((AgentSession.expires_at.is_(None)) | (AgentSession.expires_at > datetime.utcnow()))
 
     stmt = stmt.order_by(AgentSession.updated_at.desc()).limit(limit)
     result = await db.execute(stmt)
     sessions = result.scalars().all()
 
-    return {"sessions": [_session_to_response(s) for s in sessions]}
+    redis_client = get_redis_client()
+    response = []
+    for s in sessions:
+        resp = _session_to_response(s)
+        lock_redis = _get_title_lock(redis_client, resp["session_id"])
+        resp["title_locked"] = resp["title_locked"] or lock_redis
+        response.append(resp)
+    _cache_sessions(redis_client, cache_key, response)
+    return {"sessions": response}
 
 
-@router.get("/sessions/{session_id}", response_model=AgentSessionResponse, summary="获取单个 Agent 会话详情")
+@router.get("/sessions/{session_id}", response_model=AgentSessionResponse, summary="鑾峰彇鍗曚釜 Agent 浼氳瘽璇︽儏")
 async def get_agent_session_detail(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    redis_client = get_redis_client()
+    cache_key = _session_detail_cache_key(session_id)
+    try:
+        cached = redis_client.get(cache_key)
+        if cached:
+            return json.loads(cached)
+    except Exception as e:
+        logger.warning(f"[Redis] read session detail cache failed: {e}")
+
+    stmt = select(AgentSession).where(
+        AgentSession.id == session_id,
+        AgentSession.user_id == current_user.id,
+    )
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    redis_client = get_redis_client()
+    response = _session_to_response(session)
+    lock_redis = _get_title_lock(redis_client, response["session_id"])
+    response["title_locked"] = response["title_locked"] or lock_redis
+    try:
+        redis_client.setex(
+            cache_key,
+            SESSION_CACHE_TTL_SECONDS,
+            json.dumps(response, ensure_ascii=False).encode("utf-8")
+        )
+    except Exception as e:
+        logger.warning(f"[Redis] cache session detail failed: {e}")
+
+    return response
+
+
+@router.patch("/sessions/{session_id}", response_model=AgentSessionResponse, summary="鏇存柊 Agent 浼氳瘽")
+async def update_agent_session(
+    session_id: str,
+    payload: AgentSessionUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    stmt = select(AgentSession).where(
+        AgentSession.id == session_id,
+        AgentSession.user_id == current_user.id,
+    )
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+    if not session:
+        session = await _find_session_by_conversation(db, str(current_user.id), session_id)
+
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    updated = False
+    if payload.title is not None:
+        session.title = payload.title
+        updated = True
+        # 设置默认锁定
+        if payload.title_locked is None:
+            payload.title_locked = True
+
+    if payload.title_locked is not None:
+        try:
+            redis_client = get_redis_client()
+            _set_title_lock(redis_client, str(session.id), payload.title_locked)
+        except Exception as e:
+            logger.warning(f"[Redis] set title lock failed: {e}")
+        session.title_locked = payload.title_locked
+
+    if updated:
+        session.updated_at = datetime.utcnow()
+        session.expires_at = datetime.utcnow() + timedelta(days=30)
+        db.add(session)
+        await db.commit()
+        await db.refresh(session)
+
+        try:
+            redis_client = get_redis_client()
+            redis_client.delete(_session_detail_cache_key(session_id))
+            _invalidate_session_caches(redis_client, str(current_user.id))
+        except Exception as e:
+            logger.warning(f"[Redis] invalidate session caches failed: {e}")
+
+    redis_client = get_redis_client()
+    resp = _session_to_response(session)
+    resp["title_locked"] = _get_title_lock(redis_client, resp["session_id"])
+    return resp
+
+
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT, summary="鍒犻櫎 Agent 浼氳瘽")
+async def delete_agent_session(
     session_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -1602,13 +1976,57 @@ async def get_agent_session_detail(
     )
     result = await db.execute(stmt)
     session = result.scalar_one_or_none()
+    if not session:
+        session = await _find_session_by_conversation(db, str(current_user.id), session_id)
 
     if not session:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
-    return _session_to_response(session)
+    await db.delete(session)
+    await db.commit()
+
+    try:
+        redis_client = get_redis_client()
+        redis_client.delete(_session_detail_cache_key(session_id))
+        redis_client.delete(_session_title_lock_key(session_id))
+        _invalidate_session_caches(redis_client, str(current_user.id))
+    except Exception as e:
+        logger.warning(f"[Redis] invalidate session caches failed: {e}")
+
+    return None
 
 
-# ==================== 辅助函数 ====================
-# 注意: 原有的意图检测和处理逻辑已迁移到 LangGraph 框架中
-# 详见: app/services/agent/langgraph_agent.py
+@router.get("/sessions/{session_id}/messages", response_model=List[AgentSessionMessageResponse], summary="获取会话消息列表")
+async def get_agent_session_messages(
+    session_id: str,
+    limit: int = Query(50, ge=1, le=200, description="返回数量上限"),
+    offset: int = Query(0, ge=0, description="偏移量"),
+    order: str = Query("asc", regex="^(asc|desc)$", description="排序 asc/desc"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    stmt_session = select(AgentSession).where(
+        AgentSession.id == session_id,
+        AgentSession.user_id == current_user.id,
+    )
+    result_session = await db.execute(stmt_session)
+    if result_session.scalar_one_or_none() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    order_by = AgentSessionMessage.created_at.asc() if order == "asc" else AgentSessionMessage.created_at.desc()
+    stmt = (
+        select(AgentSessionMessage)
+        .where(AgentSessionMessage.session_id == session_id)
+        .order_by(order_by)
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    messages = result.scalars().all()
+    return [_message_to_response(m) for m in messages]
+
+
+# ==================== 杈呭姪鍑芥暟 ====================
+# 娉ㄦ剰: 鍘熸湁鐨勬剰鍥炬娴嬪拰澶勭悊閫昏緫宸茶縼绉诲埌 LangGraph 妗嗘灦涓?
+# 璇﹁: app/services/agent/langgraph_agent.py
+

@@ -1,8 +1,8 @@
 /**
- * HistoryPanel - 历史会话面板组件
+ * HistoryPanel - 历史会话抽屉
  *
  * 功能:
- * - 显示历史会话列表（包括已归档的）
+ * - 展示历史会话列表
  * - 从后端获取历史会话
  * - 恢复历史会话
  */
@@ -10,12 +10,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { agentApi } from '@/services/agentApi';
 import type { HistorySessionItem } from '@/types/agent';
+import { getChapterTabs, saveTab, deleteTab, removeTabFromChapter } from '@/utils/tabStorage';
+import { Pencil, Trash2 } from 'lucide-react';
 
 interface HistoryPanelProps {
   workId?: string;
   chapterId?: string;
   onClose: () => void;
-  onRestore: (sessionId: string) => Promise<void>;
+  onRestore: (session: HistorySessionItem) => Promise<void>;
   className?: string;
 }
 
@@ -30,22 +32,76 @@ export default function HistoryPanel({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [restoringSessionId, setRestoringSessionId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState<string>('');
 
-  // 加载历史会话列表（使用useCallback避免useEffect依赖警告）
   const loadHistorySessions = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+
+    const resolveLocalSession = (ids: Array<string | undefined>) => {
+      if (typeof window === 'undefined') return null;
+      for (const id of ids.filter((v): v is string => Boolean(v))) {
+        try {
+          const stored = localStorage.getItem(`agent_conversation_${id}`);
+          if (stored) {
+            return JSON.parse(stored);
+          }
+        } catch (error) {
+          console.warn('[HistoryPanel] 读取本地缓存失败:', error);
+        }
+      }
+      return null;
+    };
+
+    const getTabTitle = (sessionId: string) => {
+      try {
+        const chapterKey = chapterId || workId || 'work';
+        const tabs = getChapterTabs(chapterKey);
+        const matched = tabs.find((t) => t.sessionId === sessionId);
+        return matched?.title;
+      } catch (error) {
+        console.warn('[HistoryPanel] 读取标签页标题失败:', error);
+        return undefined;
+      }
+    };
 
     try {
       const response = await agentApi.getHistorySessions({
         workId,
         chapterId,
-        limit: 50,
-        includeArchived: true,  // 包括已归档的会话
+        limit: 100
       });
 
-      setSessions(response.sessions);
-      console.log('[HistoryPanel] 加载历史会话成功:', response.sessions.length, '个会话');
+      const enriched = response.sessions
+        .map((s) => {
+          const local = resolveLocalSession([s.sessionId, s.conversationId]);
+          const tabTitle = getTabTitle(s.sessionId);
+          const localMessages = Array.isArray(local?.messages) ? local.messages : [];
+          const backendCount = typeof s.messageCount === 'number' ? s.messageCount : 0;
+          const messageCount = Math.max(backendCount, localMessages.length);
+          const lastPreview =
+            local?.lastMessagePreview ||
+            (localMessages.length > 0 ? localMessages[localMessages.length - 1]?.content?.slice(0, 80) : s.lastMessagePreview);
+
+          return {
+            ...s,
+            title: tabTitle || local?.title || s.title || '历史会话',
+            messageCount,
+            lastMessagePreview: lastPreview,
+            updatedAt: local?.updatedAt || s.updatedAt,
+            conversationId: local?.conversationId || s.conversationId,
+            titleLocked: s.titleLocked ?? local?.titleLocked ?? false,
+          } as HistorySessionItem;
+        })
+        .filter((s) => {
+          const hasContent = (typeof s.messageCount === 'number' && s.messageCount > 0) || Boolean(s.lastMessagePreview);
+          return hasContent;
+        })
+        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+      setSessions(enriched);
+      console.log('[HistoryPanel] 加载历史会话成功:', enriched.length);
     } catch (err: any) {
       console.error('[HistoryPanel] 加载历史会话失败:', err);
       setError(err.response?.data?.detail || err.message || '加载失败');
@@ -58,7 +114,6 @@ export default function HistoryPanel({
     loadHistorySessions();
   }, [loadHistorySessions]);
 
-  // 格式化时间
   const formatTime = (isoString: string) => {
     const date = new Date(isoString);
     const now = new Date();
@@ -68,22 +123,135 @@ export default function HistoryPanel({
     const diffDays = Math.floor(diffMs / 86400000);
 
     if (diffMins < 1) return '刚刚';
-    if (diffMins < 60) return `${diffMins}分钟前`;
-    if (diffHours < 24) return `${diffHours}小时前`;
-    if (diffDays < 7) return `${diffDays}天前`;
-    if (diffDays < 30) return `${diffDays}天前`;
+    if (diffMins < 60) return `${diffMins} 分钟前`;
+    if (diffHours < 24) return `${diffHours} 小时前`;
+    if (diffDays < 7) return `${diffDays} 天前`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} 周前`;
 
     return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
-  // 恢复会话
-  const handleRestore = async (sessionId: string) => {
-    if (restoringSessionId) return;
+  const applyRename = async (session: HistorySessionItem, newTitle: string) => {
+    const trimmed = newTitle.trim();
+    if (!trimmed) return;
 
-    setRestoringSessionId(sessionId);
+    setSessions((prev) =>
+      prev.map((s) => (s.sessionId === session.sessionId ? { ...s, title: trimmed } : s))
+    );
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`agent_session_title_locked_${session.sessionId}`, '1');
+      } catch {
+        /* ignore */
+      }
+    }
+
     try {
-      await onRestore(sessionId);
-      onClose();  // 恢复成功后关闭面板
+      await agentApi.updateSessionTitle(session.sessionId, trimmed);
+    } catch (error) {
+      // 尝试用 conversationId 兜底
+      if (session.conversationId) {
+        try {
+          await agentApi.updateSessionTitle(session.conversationId, trimmed);
+        } catch (err) {
+          console.warn('[HistoryPanel] 后端重命名失败，已仅本地更新:', err);
+        }
+      } else {
+        console.warn('[HistoryPanel] 后端重命名失败，已仅本地更新:', error);
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(`agent_conversation_${session.sessionId}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          parsed.title = trimmed;
+          localStorage.setItem(`agent_conversation_${session.sessionId}`, JSON.stringify(parsed));
+        }
+      } catch (error) {
+        console.warn('[HistoryPanel] 重命名本地会话失败:', error);
+      }
+
+      if (session.titleLocked) {
+        try {
+          localStorage.setItem(`agent_session_title_locked_${session.sessionId}`, '1');
+        } catch {/* ignore */}
+      }
+
+      // 更新当前章节下的标签标题（如果存在对应 tab）
+      const chapterKey = chapterId || workId || 'work';
+      const tabs = getChapterTabs(chapterKey);
+      tabs
+        .filter((t) => t.sessionId === session.sessionId)
+        .forEach((t) => {
+          const updated = { ...t, title: trimmed, updatedAt: new Date().toISOString() };
+          saveTab(updated);
+        });
+
+      // 通知 Tab 管理器刷新
+      window.dispatchEvent(
+        new CustomEvent('agent-tab-updated', {
+          detail: { sessionId: session.sessionId }
+        })
+      );
+    }
+  };
+  const handleRename = (session: HistorySessionItem) => {
+    setEditingId(session.sessionId);
+    setEditingTitle(session.title || '');
+  };
+
+  const commitEditing = async (session: HistorySessionItem) => {
+    await applyRename(session, editingTitle || session.title || '');
+    setEditingId(null);
+    setEditingTitle('');
+  };
+
+  const handleDelete = async (session: HistorySessionItem) => {
+    setSessions((prev) => prev.filter((s) => s.sessionId !== session.sessionId));
+
+    if (typeof window !== 'undefined') {
+      try {
+        await agentApi.deleteSession(session.sessionId);
+        localStorage.removeItem(`agent_conversation_${session.sessionId}`);
+        const listKey = 'agent_conversation_sessions';
+        const storedList = localStorage.getItem(listKey);
+        const ids: string[] = storedList ? JSON.parse(storedList) : [];
+        const updatedIds = ids.filter((id) => id !== session.sessionId);
+        localStorage.setItem(listKey, JSON.stringify(updatedIds));
+        localStorage.removeItem(`agent_session_title_locked_${session.sessionId}`);
+
+        const chapterKey = chapterId || workId || 'work';
+        const tabs = getChapterTabs(chapterKey).filter((t) => t.sessionId === session.sessionId);
+        tabs.forEach((t) => {
+          deleteTab(t.id);
+          removeTabFromChapter(chapterKey, t.id);
+        });
+      } catch (error) {
+        console.warn('[HistoryPanel] 删除会话失败:', error);
+      }
+
+      window.dispatchEvent(
+        new CustomEvent('agent-tab-deleted', {
+          detail: { sessionId: session.sessionId }
+        })
+      );
+    }
+  };
+
+  const getDisplayId = (session: HistorySessionItem) => {
+    const id = session.conversationId || session.sessionId;
+    return id ? id.slice(0, 8) : 'N/A';
+  };
+
+  const handleRestore = async (session: HistorySessionItem) => {
+    if (restoringSessionId) return;
+    setRestoringSessionId(session.sessionId);
+    try {
+      await onRestore(session);
+      onClose();
     } catch (err: any) {
       console.error('[HistoryPanel] 恢复会话失败:', err);
       alert(`恢复失败: ${err.message}`);
@@ -94,48 +262,41 @@ export default function HistoryPanel({
 
   return (
     <>
-      {/* 遮罩层 */}
-      <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-40"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
 
-      {/* 面板内容 */}
-      <div className={`fixed right-0 top-0 bottom-0 w-full sm:w-96 bg-gray-900 text-white shadow-2xl z-50 flex flex-col ${className}`}>
-        {/* 头部 */}
-        <div className="px-4 py-3 border-b border-gray-700 bg-gray-800">
+      <div
+        className={`fixed top-16 right-6 w-[360px] sm:w-[420px] max-h-[70vh] bg-white border border-gray-200 rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden ${className}`}
+      >
+        <div className="px-4 py-3 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold">历史会话</h3>
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">历史会话</h3>
+              <p className="text-[11px] text-gray-500 mt-1">仅展示有对话内容的会话</p>
+            </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white text-xl transition-colors"
+              className="text-gray-500 hover:text-gray-700 text-xl leading-none"
+              aria-label="关闭历史会话"
             >
-              ✕
+              ×
             </button>
           </div>
-          <p className="text-xs text-gray-400 mt-1">
-            从后端恢复已归档的会话
-          </p>
         </div>
 
-        {/* 内容区域 */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-white">
           {isLoading && (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-gray-400 text-sm">
-                <div className="animate-spin text-2xl mb-2">⭕</div>
-                <p>加载中...</p>
-              </div>
+            <div className="flex flex-col items-center justify-center h-full text-sm text-gray-500">
+              <div className="h-5 w-5 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mb-3" />
+              <p>加载中...</p>
             </div>
           )}
 
           {error && (
             <div className="px-4 py-8 text-center">
-              <div className="text-red-400 text-4xl mb-2">⚠️</div>
-              <p className="text-red-400 text-sm">{error}</p>
+              <p className="text-sm text-red-500 mb-3">{error}</p>
               <button
                 onClick={loadHistorySessions}
-                className="mt-4 px-3 py-1 bg-gray-800 text-white text-sm rounded hover:bg-gray-700 transition-colors"
+                className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
               >
                 重试
               </button>
@@ -143,10 +304,10 @@ export default function HistoryPanel({
           )}
 
           {!isLoading && !error && sessions.length === 0 && (
-            <div className="px-4 py-8 text-center text-gray-500 text-sm">
-              <div className="text-4xl mb-2">📝</div>
-              <p>暂无历史会话</p>
-              <p className="text-xs mt-1">已归档的会话会显示在这里</p>
+            <div className="px-4 py-10 text-center text-gray-500 text-sm">
+              <div className="text-3xl mb-2">🗂️</div>
+              <p className="font-medium text-gray-700">暂无历史会话</p>
+              <p className="text-xs mt-1 text-gray-500">近期会话会出现在这里</p>
             </div>
           )}
 
@@ -154,67 +315,74 @@ export default function HistoryPanel({
             <div className="space-y-1 p-2">
               {sessions.map((session) => (
                 <div
-                  key={session.sessionId}
-                  className="p-3 bg-gray-800 rounded-lg hover:bg-gray-750 transition-all border border-gray-700 hover:border-gray-600"
+                  key={session.sessionId || session.conversationId || session.title}
+                  onClick={() => handleRestore(session)}
+                  className="rounded-lg border border-gray-100 bg-white hover:bg-gray-50 shadow-sm hover:shadow-md transition-all px-3 py-2 cursor-pointer group"
                 >
-                  {/* 标题和时间 */}
-                  <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-medium text-white truncate">
-                        {session.title}
-                      </h4>
-                      <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
-                        <span>{session.messageCount} 条消息</span>
-                        <span>•</span>
-                        <span>{formatTime(session.updatedAt)}</span>
-                      </div>
+                      {editingId === session.sessionId ? (
+                        <input
+                          autoFocus
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              commitEditing(session);
+                            }
+                            if (e.key === 'Escape') {
+                              e.stopPropagation();
+                              setEditingId(null);
+                              setEditingTitle('');
+                            }
+                          }}
+                          onBlur={() => commitEditing(session)}
+                          className="w-full text-sm font-medium text-gray-900 bg-white border border-blue-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      ) : (
+                        <h4 className="text-sm font-medium text-gray-900 truncate">{session.title}</h4>
+                      )}
+                      <p className="text-[11px] text-gray-500 mt-0.5">{formatTime(session.updatedAt)}</p>
                     </div>
-
-                    {session.archivedAt && (
-                      <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded">
-                        已归档
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRename(session);
+                        }}
+                        className="p-1 rounded-md hover:bg-gray-100 text-gray-500"
+                        aria-label="重命名会话"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(session);
+                        }}
+                        className="p-1 rounded-md hover:bg-gray-100 text-gray-500"
+                        aria-label="删除会话"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* 最后消息预览 */}
                   {session.lastMessagePreview && (
-                    <p className="text-xs text-gray-500 line-clamp-2 mb-2">
+                    <p className="text-[12px] text-gray-600 line-clamp-2 mt-1 leading-relaxed">
                       {session.lastMessagePreview}
                     </p>
                   )}
-
-                  {/* 操作按钮 */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleRestore(session.sessionId)}
-                      disabled={restoringSessionId !== null}
-                      className="flex-1 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {restoringSessionId === session.sessionId ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <span className="animate-spin">⭕</span>
-                          恢复中...
-                        </span>
-                      ) : (
-                        '恢复会话'
-                      )}
-                    </button>
-                    <div className="text-xs text-gray-500">
-                      ID: {session.conversationId?.slice(0, 8)}...
-                    </div>
-                  </div>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* 底部提示 */}
-        <div className="px-4 py-2 border-t border-gray-700 bg-gray-800">
-          <p className="text-xs text-gray-400 text-center">
-            历史会话保存在后端 Redis 中（30天）
-          </p>
+        <div className="px-4 py-3 border-t border-gray-200 bg-white">
+          <p className="text-[11px] text-gray-500 text-center">历史会话存储 30 天</p>
         </div>
       </div>
     </>

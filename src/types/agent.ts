@@ -55,6 +55,9 @@ export interface HistorySessionItem {
   archivedAt?: string | null;
   lastMessagePreview?: string;
   conversationId?: string;
+  workId?: string;
+  chapterId?: string;
+  titleLocked?: boolean;
 }
 
 // ==================== 会话管理 ====================

@@ -11,7 +11,8 @@ import type {
   PlanCreationRequest,
   PlanResponse,
   ApprovalResponse,
-  ApprovalActionRequest
+  ApprovalActionRequest,
+  HistorySessionItem
 } from '../types/agent';
 
 class AgentApiService {
@@ -76,6 +77,61 @@ class AgentApiService {
       localStorage.removeItem('auth-storage');
       window.location.href = '/login';
     }
+  }
+
+  private normalizeHistorySession(session: any): HistorySessionItem | null {
+    if (!session) return null;
+
+    const conversationId =
+      session.conversation_id ??
+      session.conversationId ??
+      session.conversationid ??
+      session.conversationID;
+
+    const sessionId =
+      session.session_id ??
+      session.sessionId ??
+      session.id ??
+      conversationId ??
+      '';
+
+    const messageCount =
+      typeof session.message_count === 'number'
+        ? session.message_count
+        : typeof session.messageCount === 'number'
+          ? session.messageCount
+          : Array.isArray(session.messages)
+            ? session.messages.length
+            : 0;
+
+    const updatedAt =
+      session.updated_at ||
+      session.updatedAt ||
+      session.last_message_at ||
+      session.lastMessageAt ||
+      session.created_at ||
+      session.createdAt ||
+      new Date().toISOString();
+
+    const lastMessagePreview =
+      session.last_message_preview ??
+      session.lastMessagePreview ??
+      (Array.isArray(session.messages) && session.messages.length > 0
+        ? session.messages[session.messages.length - 1]?.content?.slice(0, 80)
+        : '');
+
+    return {
+      sessionId: sessionId || 'unknown-session',
+      title: session.title || '历史会话',
+      messageCount,
+      updatedAt,
+      archivedAt: session.archived_at ?? session.archivedAt ?? null,
+      lastMessagePreview,
+      conversationId: conversationId || undefined,
+      workId: session.work_id ?? session.workId,
+      chapterId: session.chapter_id ?? session.chapterId,
+      titleLocked: session.title_locked ?? session.titleLocked ?? false,
+    };
   }
 
   /**
@@ -241,6 +297,32 @@ class AgentApiService {
   }
 
   /**
+   * 更新会话标题
+   */
+  async updateSessionTitle(sessionId: string, title: string, titleLocked: boolean = true): Promise<any> {
+    const response = await this.client.patch(`/sessions/${sessionId}`, { title, title_locked: titleLocked });
+    return response.data;
+  }
+
+  /**
+   * 删除会话
+   */
+  async deleteSession(sessionId: string): Promise<void> {
+    await this.client.delete(`/sessions/${sessionId}`);
+  }
+
+  /**
+   * 获取会话消息列表
+   */
+  async getSessionMessages(
+    sessionId: string,
+    params: { limit?: number; offset?: number; order?: 'asc' | 'desc' } = {}
+  ): Promise<any[]> {
+    const response = await this.client.get(`/sessions/${sessionId}/messages`, { params });
+    return response.data;
+  }
+
+  /**
    * 获取单个会话详情（含消息，如果后端支持）
    */
   async getSessionDetail(sessionId: string): Promise<any> {
@@ -251,7 +333,7 @@ class AgentApiService {
   /**
    * 获取历史会话列表（先调后端，失败再本地兜底）
    */
-  async getHistorySessions(params: { workId?: string; chapterId?: string; limit?: number; includeArchived?: boolean } = {}) {
+  async getHistorySessions(params: { workId?: string; chapterId?: string; limit?: number } = {}) {
     // 优先尝试真实后端
     try {
       const resp = await this.getSessions({
@@ -259,7 +341,12 @@ class AgentApiService {
         chapter_id: params.chapterId,
         limit: params.limit,
       });
-      return resp;
+      const sessions = Array.isArray(resp?.sessions)
+        ? resp.sessions
+          .map((s) => this.normalizeHistorySession(s))
+          .filter((s): s is HistorySessionItem => Boolean(s))
+        : [];
+      return { sessions };
     } catch (err) {
       console.warn('[AgentApi] getSessions failed, fallback to local cache:', err);
     }
@@ -300,19 +387,8 @@ class AgentApiService {
     const sessions = sessionIds
       .map((id) => loadSession(id))
       .filter(Boolean)
-      .map((s: any) => ({
-        sessionId: s.id,
-        title: s.title || '新会话',
-        messageCount: Array.isArray(s.messages) ? s.messages.length : 0,
-        updatedAt: s.updatedAt || s.createdAt || new Date().toISOString(),
-        archivedAt: null,
-        lastMessagePreview: Array.isArray(s.messages) && s.messages.length > 0
-          ? s.messages[s.messages.length - 1]?.content?.slice(0, 80)
-          : '',
-        conversationId: s.conversationId,
-        workId: s.workId,
-        chapterId: s.chapterId,
-      }))
+      .map((s) => this.normalizeHistorySession(s))
+      .filter((s): s is HistorySessionItem => Boolean(s))
       .filter((s) => {
         if (workId && s.workId && s.workId !== workId) return false;
         if (chapterId && s.chapterId && s.chapterId !== chapterId) return false;

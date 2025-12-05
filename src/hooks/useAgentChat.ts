@@ -76,6 +76,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
   const lastRequestRef = useRef<AgentChatRequest | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastPersistRef = useRef<number>(0);
+  const lastUpdateRef = useRef<number>(0);
+  const stopRequestedRef = useRef<boolean>(false);
 
   const persistence = useConversationPersistence({
     sessionId: externalSessionId,
@@ -211,6 +213,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
   const sendMessageStream = useCallback(
     async (request: AgentChatRequest): Promise<void> => {
+      stopRequestedRef.current = false;
       const mode = request.mode || 'planning';
       const now = new Date().toISOString();
       const userMessage: Message = {
@@ -243,6 +246,21 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       activityStartTimes.current.clear();
       lastRequestRef.current = request;
 
+      // Ensure backend session exists when using real API
+      if (!streamConversationId && useBackendSessions) {
+        try {
+          const resp = await agentApi.createSession({
+            title: '新会话',
+            work_id: workId,
+            chapter_id: chapterId
+          });
+          streamConversationId = resp.conversation_id || resp.session_id || streamConversationId;
+          sessionManager.updateSession(sessionId, { conversationId: streamConversationId });
+        } catch (error) {
+          console.warn('[useAgentChat] create backend session failed:', error);
+        }
+      }
+
       sessionManager.updateSession(sessionId, {
         messages: baseMessages,
         isLoading: true,
@@ -255,11 +273,11 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         pendingApproval: null,
         mode
       });
-      persistMessages(baseMessages, current.conversationId, mode);
+      persistMessages(baseMessages, streamConversationId, mode);
 
       try {
         await agentApi.chatStream(
-          { ...request, conversation_id: current.conversationId },
+          { ...request, conversation_id: streamConversationId },
           {
             onReader: (reader) => {
               sessionManager.startStreaming(sessionId, reader, abortController);
@@ -396,20 +414,24 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   }
                 }
               : {}),
-          onContent: (chunk) => {
-            streamingContent += chunk;
-            const currentSession = sessionManager.getSession(sessionId);
-            const currentMessages = currentSession?.messages || baseMessages;
-            const updated = [...currentMessages];
+            onContent: (chunk) => {
+              streamingContent += chunk;
+              const currentSession = sessionManager.getSession(sessionId);
+              const currentMessages = currentSession?.messages || baseMessages;
+              const updated = [...currentMessages];
               const target = updated[agentMessageIndex];
               if (target) {
-                updated[agentMessageIndex] = {
-                  ...target,
-                  content: streamingContent,
-                  agentSteps
-                };
-                sessionManager.updateSession(sessionId, { messages: updated });
-                persistMessagesThrottled(updated, streamConversationId, mode);
+                const now = Date.now();
+                if (now - lastUpdateRef.current >= 50) {
+                  lastUpdateRef.current = now;
+                  updated[agentMessageIndex] = {
+                    ...target,
+                    content: streamingContent,
+                    agentSteps
+                  };
+                  sessionManager.updateSession(sessionId, { messages: updated });
+                  persistMessagesThrottled(updated, streamConversationId, mode);
+                }
               }
             },
             onStep: (step) => {
@@ -447,19 +469,26 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
               const currentSession = sessionManager.getSession(sessionId);
               const currentMessages = currentSession?.messages || baseMessages;
               const updated = [...currentMessages];
+              const isAbort = stopRequestedRef.current || errorMessage.toLowerCase().includes('abort');
               if (updated[agentMessageIndex]) {
                 updated[agentMessageIndex] = {
                   role: 'agent',
-                  content:
-                    '抱歉，遇到了问题：' +
-                    errorMessage +
-                    '\\n\\n请稍后重试，或联系管理员。',
+                  content: isAbort
+                    ? '对话已停止。'
+                    : '抱歉，遇到了问题：' + errorMessage + '\\n\\n请稍后重试，或联系管理员。',
                   timestamp: new Date().toISOString()
                 };
+              } else if (isAbort) {
+                // fallback: push a single stop message if placeholder missing
+                updated.push({
+                  role: 'agent',
+                  content: '对话已停止。',
+                  timestamp: new Date().toISOString()
+                });
               }
               sessionManager.updateSession(sessionId, {
                 messages: updated,
-                error: errorMessage,
+                error: isAbort ? null : errorMessage,
                 isLoading: false
               });
               persistMessagesThrottled(updated, streamConversationId, mode, true);
@@ -474,10 +503,33 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         );
       } catch (err: any) {
         const errorMessage = err.message || '未知错误';
+        const isAbort = stopRequestedRef.current || errorMessage.toLowerCase().includes('abort');
+        const currentSession = sessionManager.getSession(sessionId);
+        const currentMessages = currentSession?.messages || [];
+        const updated = [...currentMessages];
+        if (updated.length > 0 && updated[updated.length - 1].role === 'agent') {
+          updated[updated.length - 1] = {
+            ...updated[updated.length - 1],
+            content: isAbort
+              ? '对话已停止。'
+              : '抱歉，遇到了问题：' + errorMessage + '\\n\\n请稍后重试，或联系管理员。',
+            timestamp: new Date().toISOString()
+          };
+        } else if (isAbort) {
+          updated.push({
+            role: 'agent',
+            content: '对话已停止。',
+            timestamp: new Date().toISOString()
+          });
+        }
         sessionManager.updateSession(sessionId, {
-          error: errorMessage,
+          messages: updated,
+          error: isAbort ? null : errorMessage,
           isLoading: false
         });
+        if (isAbort) {
+          persistMessagesThrottled(updated, currentSession?.conversationId, currentSession?.mode, true);
+        }
         sessionManager.disconnectSession(sessionId);
         abortControllerRef.current = null;
       }
@@ -511,13 +563,18 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
   }, [sendMessageStream]);
 
   const stopStreaming = useCallback(() => {
+    stopRequestedRef.current = true;
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    const snap = sessionManager.getSession(sessionId);
+    if (snap?.messages) {
+      persistMessagesThrottled(snap.messages as Message[], snap.conversationId, snap.mode, true);
+    }
     sessionManager.disconnectSession(sessionId);
     sessionManager.updateSession(sessionId, { isLoading: false });
-  }, [sessionId, sessionManager]);
+  }, [persistMessagesThrottled, sessionId, sessionManager]);
 
   const loadHistorySession = useCallback(
     (targetSessionId: string) => {

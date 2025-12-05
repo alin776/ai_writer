@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, DateTime, ForeignKey
+from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
@@ -22,6 +22,9 @@ class AgentSession(Base):
   conversation_id = Column(String(255), nullable=True, index=True)
   work_id = Column(UUID(as_uuid=True), ForeignKey("works.id", ondelete="SET NULL"), nullable=True, index=True)
   chapter_id = Column(UUID(as_uuid=True), ForeignKey("chapters.id", ondelete="SET NULL"), nullable=True, index=True)
+  title_locked = Column(Boolean, nullable=True, default=False)
 
   created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
   updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+  archived_at = Column(DateTime(timezone=True), nullable=True)
+  expires_at = Column(DateTime(timezone=True), nullable=True)

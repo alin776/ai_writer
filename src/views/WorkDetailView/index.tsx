@@ -27,6 +27,9 @@ import SessionTabBar from '../../components/editor/SessionTabBar';
 import { useEditorStore } from '../../store/editorStore';
 import { useConfirm } from '../../hooks/useConfirm';
 import { useTabManager } from '../../hooks/useTabManager';
+import HistoryPanel from '../../components/agent/HistoryPanel';
+import type { HistorySessionItem } from '@/types/agent';
+import { agentApi } from '@/services/agentApi';
 import styles from './WorkDetailView.module.css';
 
 /**
@@ -64,8 +67,110 @@ const WorkDetailView: React.FC = () => {
     guidelines: undefined,
     aiGuidelines: undefined,
   });
-  const { tabs, activeTabId, createTab, closeTab, switchTab, updateTabTitle } = useTabManager(
-    currentChapterId || workId || 'work'
+  const {
+    tabs,
+    activeTabId,
+    createTab,
+    closeTab,
+    switchTab,
+    updateTabTitle,
+    replaceTabSession,
+    attachSessionTab
+  } = useTabManager(currentChapterId || workId || 'work', workId);
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
+  const handleOpenHistory = useCallback(() => setShowHistoryPanel(true), []);
+  const handleCloseHistory = useCallback(() => setShowHistoryPanel(false), []);
+
+  const handleRestoreHistorySession = useCallback(
+    async (session: HistorySessionItem) => {
+      if (!activeTabId) return;
+
+      // 尝试从后端拉取历史消息（优先 sessionId，其次 conversationId）
+      const idsToTry = Array.from(
+        new Set([session.sessionId, session.conversationId].filter(Boolean) as string[])
+      );
+
+      let messages: any[] = [];
+      let resolvedConversationId = session.conversationId || session.sessionId || '';
+
+      const loadLocalMessages = (id: string) => {
+        if (typeof window === 'undefined') return { messages: [], conversationId: resolvedConversationId };
+        try {
+          const stored = localStorage.getItem(`agent_conversation_${id}`);
+          if (!stored) return { messages: [], conversationId: resolvedConversationId };
+          const parsed = JSON.parse(stored);
+          return {
+            messages: Array.isArray(parsed.messages) ? parsed.messages : [],
+            conversationId: parsed.conversationId || resolvedConversationId
+          };
+        } catch (error) {
+          console.warn('[WorkDetailView] 读取本地会话失败:', error);
+          return { messages: [], conversationId: resolvedConversationId };
+        }
+      };
+      for (const id of idsToTry) {
+        try {
+          const resp = await agentApi.getSessionMessages(id, { order: 'asc', limit: 200 });
+          const rawMessages = Array.isArray(resp) ? resp : Array.isArray((resp as any)?.messages) ? (resp as any).messages : [];
+
+          messages = rawMessages.map((m: any) => ({
+            role: m.role === 'assistant' ? 'agent' : m.role,
+            content: m.content,
+            metadata: m.metadata,
+            timestamp: m.created_at || m.createdAt || new Date().toISOString()
+          }));
+
+          if (messages.length > 0 || idsToTry.length === 1) {
+            break;
+          }
+        } catch (error) {
+          console.warn('[WorkDetailView] 加载历史消息失败，尝试下一个 ID:', id, error);
+        }
+      }
+
+      // 后端为空时再尝试本地缓存
+      if (messages.length === 0) {
+        for (const id of idsToTry) {
+          const local = loadLocalMessages(id);
+          if (local.messages.length > 0) {
+            messages = local.messages;
+            resolvedConversationId = local.conversationId;
+            break;
+          }
+        }
+      }
+
+      const sessionId = session.sessionId;
+      const conversationId = resolvedConversationId;
+      const nowIso = new Date().toISOString();
+      const payload = {
+        id: sessionId,
+        conversationId,
+        messages,
+        createdAt: session.updatedAt || nowIso,
+        updatedAt: session.updatedAt || nowIso,
+        title: session.title || '历史会话',
+        workId,
+        chapterId: currentChapterId
+      };
+
+      try {
+        localStorage.setItem(`agent_conversation_${sessionId}`, JSON.stringify(payload));
+        const listKey = 'agent_conversation_sessions';
+        const storedList = localStorage.getItem(listKey);
+        const ids: string[] = storedList ? JSON.parse(storedList) : [];
+        const updatedIds = [sessionId, ...ids.filter((id) => id !== sessionId)];
+        localStorage.setItem(listKey, JSON.stringify(updatedIds));
+      } catch (error) {
+        console.warn('[WorkDetailView] 缓存历史会话失败:', error);
+      }
+
+      // 不覆盖当前标签，打开/切换到一个带历史会话的标签
+      attachSessionTab(sessionId, session.title || '历史会话', conversationId);
+      setShowHistoryPanel(false);
+      showToast('info', '已切换到历史会话，可继续对话');
+    },
+    [activeTabId, attachSessionTab, currentChapterId, showToast, workId]
   );
 
   // 默认打开 agent 面板
@@ -1178,6 +1283,7 @@ const WorkDetailView: React.FC = () => {
                 onSwitchTab={switchTab}
                 onCreateTab={createTab}
                 onCloseTab={closeTab}
+                onOpenHistory={handleOpenHistory}
               />
 
               {/* 内容区 */}
@@ -1235,6 +1341,15 @@ const WorkDetailView: React.FC = () => {
           workId={workId!}
           workTitle={work.title}
           onClose={() => setShowExportDialog(false)}
+        />
+      )}
+
+      {showHistoryPanel && (
+        <HistoryPanel
+          workId={workId}
+          chapterId={currentChapterId}
+          onClose={handleCloseHistory}
+          onRestore={handleRestoreHistorySession}
         />
       )}
 

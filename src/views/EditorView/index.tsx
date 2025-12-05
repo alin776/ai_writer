@@ -34,7 +34,8 @@ const EditorView: React.FC = () => {
   const { showToast } = useGlobalStore();
   const { setCurrentChapter, rightSidebarType, setRightSidebarType, closeRightSidebar } = useEditorStore();
   const { tabs, activeTabId, createTab, closeTab, switchTab, updateTabTitle } = useTabManager(
-    chapterId || 'default'
+    chapterId || 'default',
+    undefined
   );
 
   const [chapter, setChapter] = useState<Chapter | null>(null);

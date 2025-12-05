@@ -19,7 +19,7 @@ interface AgentChatPanelProps {
   className?: string;
   tabs?: Tab[];
   activeTabId?: string;
-  onCreateTab?: (afterTabId?: string) => Tab;
+  onCreateTab?: (afterTabId?: string) => Promise<Tab>;
   onCloseTab?: (tabId: string) => void;
   onSwitchTab?: (tabId: string) => void;
   onUpdateTabTitle?: (tabId: string, title: string) => void;
@@ -44,7 +44,7 @@ export default function AgentChatPanel({
     closeTab,
     switchTab,
     updateTabTitle
-  } = useTabManager(chapterId || 'default');
+  } = useTabManager(chapterId || 'default', workId);
 
   const tabsToUse = controlledTabs ?? tabs;
   const activeTabIdToUse = controlledActiveTabId ?? activeTabId;
@@ -54,7 +54,7 @@ export default function AgentChatPanel({
   const handleCreateTab = async (): Promise<string> => {
     const create = onCreateTab ?? createTab;
     const baseId = activeTabIdToUse;
-    const newTab = create(baseId);
+    const newTab = await create(baseId);
     return newTab.id;
   };
 
@@ -67,7 +67,7 @@ export default function AgentChatPanel({
             title: tab.title,
             updatedAt: tab.updatedAt,
             messages: [],
-            conversationId: ''
+            conversationId: tab.conversationId || ''
           }))}
           activeSessionId={activeTabIdToUse}
           onSwitchSession={onSwitchTab ?? switchTab}

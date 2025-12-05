@@ -7,6 +7,7 @@ export interface Tab {
   chapterId: string;
   title: string;
   sessionId: string;
+  conversationId?: string;
   createdAt: string;
   updatedAt: string;
 }

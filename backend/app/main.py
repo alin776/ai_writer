@@ -5,6 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 import logging
 import traceback
+import os
 
 from app.core.config import settings
 from app.core.database import init_db, close_db
@@ -37,6 +38,8 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+# 调度开关（用于避免多实例重复跑任务）
+ENABLE_SCHEDULER = os.getenv("ENABLE_SCHEDULER", "true").lower() == "true"
 
 
 @asynccontextmanager
@@ -47,7 +50,12 @@ async def lifespan(app: FastAPI):
 
     await init_db()
     # await redis_client.init()  # TODO: Redis 暂时禁用
-    await start_scheduler()  # 启动定时任务
+    scheduler_started = False
+    if ENABLE_SCHEDULER:
+        await start_scheduler()  # 启动定时任务
+        scheduler_started = True
+    else:
+        logger.info("[STARTUP] 跳过启动定时任务调度器（ENABLE_SCHEDULER=false）")
 
     # 🔧 修复：预初始化同步Redis连接池（避免首次请求慢）
     try:
@@ -86,7 +94,8 @@ async def lifespan(app: FastAPI):
 
     # 关闭时执行
     logger.info("[SHUTDOWN] 应用关闭中...")
-    await stop_scheduler()  # 停止定时任务
+    if scheduler_started:
+        await stop_scheduler()  # 停止定时任务
     await close_db()
     # await redis_client.close()  # TODO: Redis 暂时禁用
     logger.info("[SHUTDOWN] 应用已关闭")

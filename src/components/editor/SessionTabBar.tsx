@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Globe2, FileText, MessageSquare, X } from 'lucide-react';
+import { Plus, Globe2, FileText, MessageSquare, MoreHorizontal } from 'lucide-react';
 import { useEditorStore, type RightSidebarType } from '../../store/editorStore';
 import type { Tab } from '@/utils/tabStorage';
 import clsx from 'clsx';
@@ -8,8 +8,9 @@ interface SessionTabBarProps {
   tabs: Tab[];
   activeTabId: string;
   onSwitchTab: (tabId: string) => void;
-  onCreateTab: (afterTabId?: string) => void;
+  onCreateTab: (afterTabId?: string) => Promise<any>;
   onCloseTab: (tabId: string) => void;
+  onOpenHistory?: () => void;
 }
 
 /**
@@ -23,8 +24,22 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
   onSwitchTab,
   onCreateTab,
   onCloseTab,
+  onOpenHistory,
 }) => {
   const { rightSidebarType, toggleRightSidebar, closeRightSidebar } = useEditorStore();
+  const [creating, setCreating] = React.useState(false);
+
+  const handleCreate = async () => {
+    if (creating) return;
+    setCreating(true);
+    try {
+      await onCreateTab(activeTabId);
+    } catch (err) {
+      console.error('[SessionTabBar] create tab failed:', err);
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const functionButtons = [
     { type: 'agent' as RightSidebarType, icon: MessageSquare, title: 'AI助手' },
@@ -78,7 +93,8 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
         <button
           className="p-1.5 rounded transition-all"
           style={{ color: '#6b7280' }}
-          onClick={() => onCreateTab(activeTabId)}
+          onClick={handleCreate}
+          disabled={creating}
           onMouseEnter={(e) => {
             e.currentTarget.style.color = '#111827';
             e.currentTarget.style.backgroundColor = '#f3f4f6';
@@ -121,9 +137,9 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           </button>
         ))}
 
-        {/* 关闭按钮 */}
+        {/* 更多 / 历史入口 */}
         <button
-          onClick={closeRightSidebar}
+          onClick={() => (onOpenHistory ? onOpenHistory() : closeRightSidebar())}
           className="p-1.5 rounded transition-all"
           style={{ color: '#6b7280' }}
           onMouseEnter={(e) => {
@@ -134,13 +150,13 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
             e.currentTarget.style.color = '#6b7280';
             e.currentTarget.style.backgroundColor = 'transparent';
           }}
-          title="关闭"
+          title="历史会话"
         >
-          <X className="w-4 h-4" />
+          <MoreHorizontal className="w-4 h-4" />
         </button>
-      </div>
-    </div>
-  );
+     </div>
+   </div>
+ );
 };
 
 export default SessionTabBar;
