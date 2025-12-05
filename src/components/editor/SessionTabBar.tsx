@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Globe2, FileText, MessageSquare, MoreHorizontal } from 'lucide-react';
+import { Plus, Globe2, FileText, MessageSquare, MoreHorizontal, Clock3 } from 'lucide-react';
 import { useEditorStore, type RightSidebarType } from '../../store/editorStore';
 import type { Tab } from '@/utils/tabStorage';
 import clsx from 'clsx';
@@ -137,7 +137,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           </button>
         ))}
 
-        {/* 更多 / 历史入口 */}
+        {/* 历史入口：改为时钟图标，保持浅色风格 */}
         <button
           onClick={() => (onOpenHistory ? onOpenHistory() : closeRightSidebar())}
           className="p-1.5 rounded transition-all"
@@ -152,11 +152,11 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           }}
           title="历史会话"
         >
-          <MoreHorizontal className="w-4 h-4" />
+          <Clock3 className="w-4 h-4" />
         </button>
-     </div>
-   </div>
- );
+      </div>
+    </div>
+  );
 };
 
 export default SessionTabBar;
