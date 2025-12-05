@@ -1,8 +1,9 @@
-﻿import React, { useState, useRef } from 'react';
+﻿import React, { useState } from 'react';
 import { ImportOptions, ImportPreviewResponse } from '@/types/export';
 import type { Work } from '@/types';
 import { DataService } from '@/services/DataService';
-import { Upload, X, FileJson, FileText, File, Loader2, AlertCircle } from 'lucide-react';
+import { Upload, X, FileText, Loader2, AlertCircle } from 'lucide-react';
+import FilePicker from '@/components/common/FilePicker';
 import './ImportDialog.css';
 
 interface ImportDialogProps {
@@ -32,7 +33,6 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadWorks = async () => {
     try {
@@ -72,22 +72,22 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
     }
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
+  const handleFileChange = async (selectedFile: File | null) => {
+    setPreview(null);
+    setError(null);
+    setFile(selectedFile);
+
+    if (!selectedFile) {
+      return;
+    }
 
     const detectedFormat = detectFormat(selectedFile.name);
     if (importMode === 'existing' && detectedFormat === 'json') {
       setError('追加到已有作品暂不支持 JSON 文件，请选择 Markdown 或 TXT');
       setFile(null);
-      setPreview(null);
       setFormat('markdown');
       return;
     }
-
-    setFile(selectedFile);
-    setError(null);
-    setPreview(null);
 
     const nextFormat = detectedFormat;
     setFormat(nextFormat);
@@ -134,12 +134,6 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
   return (
@@ -221,34 +215,15 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
             </div>
           )}
 
-          <div
-            className="file-upload-area"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".json,.md,.markdown,.txt"
-              onChange={handleFileChange}
-              style={{ display: 'none' }}
-            />
-            
-            {file ? (
-              <div className="file-selected">
-                {format === 'json' ? <FileJson size={32} /> : <FileText size={32} />}
-                <div className="file-info">
-                  <strong>{file.name}</strong>
-                  <span>{formatFileSize(file.size)}</span>
-                </div>
-              </div>
-            ) : (
-              <div className="file-placeholder">
-                <File size={48} />
-                <p>点击选择文件或拖拽到此处</p>
-                <span>支持格式：JSON、Markdown、TXT（推荐 UTF-8 编码）</span>
-              </div>
-            )}
-          </div>
+          <FilePicker
+            file={file}
+            onChange={handleFileChange}
+            accept=".json,.md,.markdown,.txt"
+            placeholder="点击选择文件或拖拽到此处"
+            description="支持 JSON、Markdown、TXT（推荐 UTF-8 编码）"
+            note={importMode === 'existing' ? '追加模式仅支持 Markdown/TXT' : undefined}
+            disabled={previewing || loading}
+          />
 
           {file && (
             <div className="format-selector">

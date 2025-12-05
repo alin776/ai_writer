@@ -1,0 +1,101 @@
+/* 通用文件选择区域 */
+
+.file-picker {
+  border: 2px dashed #e5e7eb;
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  background: #f9fafb;
+}
+
+.file-picker:hover {
+  border-color: #d1d5db;
+  background: #f3f4f6;
+}
+
+.file-picker.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.file-picker-input {
+  display: none;
+}
+
+.file-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #6b7280;
+}
+
+.file-placeholder svg {
+  color: #9ca3af;
+}
+
+.file-placeholder-title {
+  margin: 0;
+  font-size: 15px;
+  color: #111827;
+}
+
+.file-placeholder-desc {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.file-placeholder-note {
+  margin: 0;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.file-picked {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+}
+
+.file-picked svg {
+  color: #2563eb;
+  flex-shrink: 0;
+}
+
+.file-picked-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.file-picked-name {
+  color: #111827;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.file-picked-size {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.file-remove {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #6b7280;
+  border-radius: 6px;
+  padding: 6px;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.file-remove:hover {
+  border-color: #d1d5db;
+  color: #111827;
+  background: #f9fafb;
+}

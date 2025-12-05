@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
+from typing import Optional
 
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -82,6 +83,7 @@ async def import_work(
     create_new: bool = Form(True),
     include_worldview: bool = Form(True),
     include_guidelines: bool = Form(True),
+    work_id: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -95,6 +97,7 @@ async def import_work(
     - create_new: 是否创建新作品（目前只支持创建新作品）
     - include_worldview: 是否导入世界观数据（仅JSON格式）
     - include_guidelines: 是否导入规范数据（仅JSON格式）
+    - work_id: 追加导入的目标作品ID（仅文本/markdown格式）
     """
     try:
         # 读取文件内容
@@ -118,7 +121,7 @@ async def import_work(
         options = ImportOptions(
             format=format,
             create_new=create_new,
-            work_id=None,
+            work_id=work_id,
             include_worldview=include_worldview,
             include_guidelines=include_guidelines
         )
