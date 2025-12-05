@@ -1,6 +1,6 @@
-/**
- * AI 服务 - 调用后端API版本
- * 所有AI功能通过后端接口实现，支持SSE流式响应
+﻿/**
+ * AI 鏈嶅姟 - 璋冪敤鍚庣API鐗堟湰
+ * 鎵€鏈堿I鍔熻兘閫氳繃鍚庣鎺ュ彛瀹炵幇锛屾敮鎸丼SE娴佸紡鍝嶅簲
  */
 
 export interface AICompletionRequest {
@@ -9,7 +9,7 @@ export interface AICompletionRequest {
   maxTokens?: number;
   temperature?: number;
   model?: string;
-  // ===== Context-Aware 元数据参数 =====
+  // ===== Context-Aware 鍏冩暟鎹弬鏁?=====
   workId?: string;
   chapterId?: string;
   enableRag?: boolean;
@@ -34,54 +34,54 @@ class AIService {
   private baseUrl: string;
 
   constructor() {
-    // 使用后端API地址
+    // 浣跨敤鍚庣API鍦板潃
     this.baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
-    console.log('[AIService] 初始化，后端地址:', this.baseUrl);
+    console.log('[AIService] 鍒濆鍖栵紝鍚庣鍦板潃:', this.baseUrl);
   }
 
   /**
-   * 获取认证 Token
+   * 鑾峰彇璁よ瘉 Token
    */
   private getAuthToken(): string {
-    const authStorage = localStorage.getItem('auth-storage');
+    const authStorage = localStorage.getItem("auth-storage");
     if (!authStorage) {
       console.error('[AIService] No auth-storage in localStorage');
-      throw new Error('未登录，请先登录');
+      throw new Error('Not logged in, please sign in first');
     }
-    
+
     try {
       const authState = JSON.parse(authStorage);
       const token = authState.state?.token;
-      
+
       if (!token) {
         console.error('[AIService] No token in auth-storage');
-        throw new Error('未找到认证令牌');
+        throw new Error('Auth token not found');
       }
-      
+
       console.log('[AIService] Token retrieved successfully');
       return token;
     } catch (error) {
       console.error('[AIService] Failed to parse auth storage:', error);
-      throw new Error('认证信息格式错误');
+      throw new Error('Auth storage parse error');
     }
   }
 
   /**
-   * 取消当前的 AI 请求
+
+  /**
+   * 鍙栨秷褰撳墠鐨?AI 璇锋眰
    */
   cancel() {
     if (this.abortController) {
-      console.log('[AIService] 取消 AI 请求');
+      console.log('[AIService] 鍙栨秷 AI 璇锋眰');
       this.abortController.abort();
       this.abortController = null;
     }
   }
 
   /**
-   * AI生成阶段二内容（创作规范→核心设定）
-   * @param phase1Data - 阶段一用户输入的15个字段
-   * @returns 阶段二AI生成的17个字段
-   */
+   * AI鐢熸垚闃舵浜屽唴瀹癸紙鍒涗綔瑙勮寖鈫掓牳蹇冭瀹氾級
+   * @param phase1Data - 闃舵涓€鐢ㄦ埛杈撳叆鐨?5涓瓧娈?   * @returns 闃舵浜孉I鐢熸垚鐨?7涓瓧娈?   */
   async generatePhase2Content(phase1Data: {
     businessGoal?: string;
     targetAudience?: string;
@@ -117,7 +117,7 @@ class AIService {
     actThree?: string;
   }> {
     try {
-      console.log('[AIService] 开始生成阶段二内容');
+      console.log('[AIService] 寮€濮嬬敓鎴愰樁娈典簩鍐呭');
       
       const apiUrl = `${this.baseUrl}/worldview/ai-guidelines/generate`;
       const token = this.getAuthToken();
@@ -147,12 +147,12 @@ class AIService {
       });
 
       if (!response.ok) {
-        throw new Error(`API请求失败: ${response.status}`);
+        throw new Error(`API璇锋眰澶辫触: ${response.status}`);
       }
 
       const data = await response.json();
       
-      // 转换字段名：snake_case -> camelCase
+      // 杞崲瀛楁鍚嶏細snake_case -> camelCase
       return {
         primaryGenre: data.primary_genre,
         secondaryTags: data.secondary_tags,
@@ -173,44 +173,39 @@ class AIService {
         actThree: data.act_three,
       };
     } catch (error) {
-      console.error('[AIService] 生成阶段二内容失败:', error);
+      console.error('[AIService] 鐢熸垚闃舵浜屽唴瀹瑰け璐?', error);
       throw error;
     }
   }
 
   /**
-   * AI 续写（流式）
-   * @param request - 续写请求参数
-   * @param onChunk - 接收到新文本块时的回调
-   */
+   * AI 缁啓锛堟祦寮忥級
+   * @param request - 缁啓璇锋眰鍙傛暟
+   * @param onChunk - 鎺ユ敹鍒版柊鏂囨湰鍧楁椂鐨勫洖璋?   */
   async complete(
     request: AICompletionRequest,
     onChunk?: (chunk: string) => void
   ): Promise<string> {
     try {
-      console.log('[AIService] 开始 AI 续写请求');
-      console.log('[AIService] 请求参数:', request);
+      console.log('[AIService] Starting AI complete request');
+      console.log('[AIService] Request params:', request);
 
       const apiUrl = `${this.baseUrl}/ai/complete`;
       const token = this.getAuthToken();
 
-      // 构建后端API请求参数
-      // 确保max_tokens不小于100（后端最小值要求）
       const maxTokens = Math.max(request.maxTokens || 500, 100);
       const requestBody = {
         context: request.context || request.prompt,
-        prompt: '续写',
+        prompt: request.prompt || '续写',
         style: '',
         max_tokens: maxTokens,
-        // ===== Context-Aware 元数据参数 =====
         work_id: request.workId || null,
         chapter_id: request.chapterId || null,
         enable_rag: request.enableRag || false,
       };
 
-      console.log('[AIService] 请求体:', JSON.stringify(requestBody, null, 2));
+      console.log('[AIService] Request body:', JSON.stringify(requestBody, null, 2));
 
-      // 创建新的 AbortController
       this.abortController = new AbortController();
 
       const response = await fetch(apiUrl, {
@@ -227,7 +222,7 @@ class AIService {
       console.log('[AIService] Response status:', response.status);
 
       if (!response.ok) {
-        let errorMessage = `API 请求失败 (${response.status})`;
+        let errorMessage = `API请求失败 (${response.status})`;
         try {
           const error = await response.json();
           console.error('[AIService] API 错误详情:', error);
@@ -247,68 +242,52 @@ class AIService {
       let result = '';
       let chunkCount = 0;
 
-      console.log('[AIService] 开始读取SSE流式响应');
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
-          console.log('[AIService] 流式响应结束');
           break;
         }
 
         const chunk = decoder.decode(value);
-        console.log(`[AIService] 收到原始 chunk ${++chunkCount}:`, chunk.substring(0, 100));
+        console.log(`[AIService] Received raw chunk ${++chunkCount}:`, chunk.substring(0, 100));
 
         const lines = chunk.split('\n').filter((line) => line.trim() !== '');
-        console.log(`[AIService] 解析出 ${lines.length} 行数据`);
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6); // 移除 "data: "
+          if (!line.startsWith('data: ')) continue;
 
-            // 跳过 [DONE] 信号
-            if (data === '[DONE]') {
-              console.log('[AIService] 收到 [DONE] 信号');
-              continue;
-            }
+          const data = line.slice(6);
 
-            // 检查错误
-            if (data.startsWith('[ERROR]')) {
-              const errorMsg = data.slice(8);
-              console.error('[AIService] 服务器错误:', errorMsg);
-              throw new Error(errorMsg);
-            }
+          if (data === '[DONE]') {
+            continue;
+          }
 
-            // 直接使用内容（后端已经过滤了think标签）
-            const content = data;
-            console.log('[AIService] 提取的 content:', content);
+          if (data.startsWith('[ERROR]')) {
+            const errorMsg = data.slice(8);
+            console.error('[AIService] Server error:', errorMsg);
+            throw new Error(errorMsg);
+          }
 
-            if (content) {
-              console.log('[AIService] 收到内容片段:', content);
-              result += content;
-              if (onChunk) {
-                console.log('[AIService] 调用 onChunk 回调');
-                onChunk(content);
-              }
+          const content = data;
+          console.log('[AIService] Extracted content:', content);
+
+          if (content) {
+            result += content;
+            if (onChunk) {
+              onChunk(content);
             }
           }
         }
       }
 
-      console.log('[AIService] 总共接收到的内容长度:', result.length);
-      console.log('[AIService] 最终结果:', result);
-
-      // 清除 AbortController
       this.abortController = null;
 
       return result;
     } catch (error) {
-      // 清除 AbortController
       this.abortController = null;
 
-      // 如果是取消请求,抛出特殊错误
       if (error instanceof Error && error.name === 'AbortError') {
-        console.log('[AIService] 请求已被用户取消');
+        console.log('[AIService] Request cancelled by user');
         throw new Error('AI 生成已暂停');
       }
 
@@ -318,14 +297,12 @@ class AIService {
   }
 
   /**
-   * AI 续写（非流式）
-   * @param request - 续写请求参数
+   * AI 缁啓锛堥潪娴佸紡锛?   * @param request - 缁啓璇锋眰鍙傛暟
    */
   async completeSync(
     request: AICompletionRequest
   ): Promise<AICompletionResponse> {
-    // 使用流式API，只是不传递回调
-    const text = await this.complete(request);
+    // 浣跨敤娴佸紡API锛屽彧鏄笉浼犻€掑洖璋?    const text = await this.complete(request);
     return {
       text,
       usage: undefined,
@@ -333,11 +310,8 @@ class AIService {
   }
 
   /**
-   * 快速 AI 补全（用于实时自动补全）
-   * @param context - 上下文文本
-   * @param workId - 作品ID（可选，用于Context-Aware补全）
-   * @param chapterId - 章节ID（可选，用于加载章节概要）
-   */
+   * 蹇€?AI 琛ュ叏锛堢敤浜庡疄鏃惰嚜鍔ㄨˉ鍏級
+   * @param context - 涓婁笅鏂囨枃鏈?   * @param workId - 浣滃搧ID锛堝彲閫夛紝鐢ㄤ簬Context-Aware琛ュ叏锛?   * @param chapterId - 绔犺妭ID锛堝彲閫夛紝鐢ㄤ簬鍔犺浇绔犺妭姒傝锛?   */
   async quickComplete(
     context: string,
     workId?: string,
@@ -348,32 +322,30 @@ class AIService {
         prompt: context,
         context,
         maxTokens: 100,
-        // ===== Context-Aware 元数据 =====
+        // ===== Context-Aware 鍏冩暟鎹?=====
         workId,
         chapterId,
-        enableRag: false,  // 自动补全默认关闭RAG（速度优先）
+        enableRag: false,  // 自动补全默认关闭 RAG（速度优先）
       });
       return result.trim();
     } catch (error) {
-      console.error('快速补全失败:', error);
+      console.error('蹇€熻ˉ鍏ㄥけ璐?', error);
       return '';
     }
   }
 
   /**
-   * 获取 AI 建议（用于自动补全）
-   * @param context - 上下文文本
-   * @param position - 光标位置
+   * 鑾峰彇 AI 寤鸿锛堢敤浜庤嚜鍔ㄨˉ鍏級
+   * @param context - 涓婁笅鏂囨枃鏈?   * @param position - 鍏夋爣浣嶇疆
    */
   async getSuggestions(context: string, position: number): Promise<string[]> {
     try {
       const result = await this.complete({
-        prompt: `${context}\n\n请提供3个续写建议：`,
+        // 避免模板字符串解析问题，直接拼接
+        prompt: context + '\n\n请提供3个续写建议：',
         context,
         maxTokens: 100,
       });
-
-      // 解析返回的建议
       const suggestions = result
         .split('\n')
         .filter((line: string) => line.trim())
@@ -388,12 +360,12 @@ class AIService {
   }
 
   /**
-   * AI 改写/润色
-   * @param text - 要改写的文本
-   * @param instruction - 改写指令
+   * AI 鏀瑰啓/娑﹁壊
+   * @param text - 瑕佹敼鍐欑殑鏂囨湰
+   * @param instruction - 鏀瑰啓鎸囦护
    */
   async rewrite(text: string, instruction: string): Promise<string> {
-    const apiUrl = `${this.baseUrl}/ai/polish`;
+    const apiUrl = this.baseUrl + '/ai/polish';
     const token = this.getAuthToken();
 
     try {
@@ -408,7 +380,7 @@ class AIService {
       });
 
       if (!response.ok) {
-        throw new Error(`API 请求失败 (${response.status})`);
+        throw new Error(`API 璇锋眰澶辫触 (${response.status})`);
       }
 
       const reader = response.body?.getReader();
@@ -440,14 +412,14 @@ class AIService {
 
       return result;
     } catch (error) {
-      console.error('AI 润色失败:', error);
+      console.error('AI 娑﹁壊澶辫触:', error);
       throw error;
     }
   }
 
   /**
-   * AI 扩写
-   * @param text - 要扩写的文本
+   * AI 鎵╁啓
+   * @param text - 瑕佹墿鍐欑殑鏂囨湰
    */
   async expand(text: string): Promise<string> {
     const apiUrl = `${this.baseUrl}/ai/expand`;
@@ -465,7 +437,7 @@ class AIService {
       });
 
       if (!response.ok) {
-        throw new Error(`API 请求失败 (${response.status})`);
+        throw new Error(`API 璇锋眰澶辫触 (${response.status})`);
       }
 
       const reader = response.body?.getReader();
@@ -497,14 +469,14 @@ class AIService {
 
       return result;
     } catch (error) {
-      console.error('AI 扩写失败:', error);
+      console.error('AI 鎵╁啓澶辫触:', error);
       throw error;
     }
   }
 
   /**
-   * AI 缩写/总结
-   * @param text - 要缩写的文本
+   * AI 缂╁啓/鎬荤粨
+   * @param text - 瑕佺缉鍐欑殑鏂囨湰
    */
   async summarize(text: string): Promise<string> {
     const apiUrl = `${this.baseUrl}/ai/summarize`;
@@ -522,7 +494,7 @@ class AIService {
       });
 
       if (!response.ok) {
-        throw new Error(`API 请求失败 (${response.status})`);
+        throw new Error(`API 璇锋眰澶辫触 (${response.status})`);
       }
 
       const reader = response.body?.getReader();
@@ -554,27 +526,26 @@ class AIService {
 
       return result;
     } catch (error) {
-      console.error('AI 总结失败:', error);
+      console.error('AI 鎬荤粨澶辫触:', error);
       throw error;
     }
   }
 
   /**
-   * AI 润色
-   * @param text - 要润色的文本
+   * AI 娑﹁壊
+   * @param text - 瑕佹鼎鑹茬殑鏂囨湰
    */
   async polish(text: string): Promise<string> {
-    return this.rewrite(text, '请润色以下文本，使其更加流畅和优美：');
+    return this.rewrite(text, '璇锋鼎鑹蹭互涓嬫枃鏈紝浣垮叾鏇村姞娴佺晠鍜屼紭缇庯細');
   }
 
   /**
-   * 预加载元数据到缓存（降低首次自动补全延迟）
-   * @param workId - 作品ID
-   * @param chapterId - 章节ID
+   * 棰勫姞杞藉厓鏁版嵁鍒扮紦瀛橈紙闄嶄綆棣栨鑷姩琛ュ叏寤惰繜锛?   * @param workId - 浣滃搧ID
+   * @param chapterId - 绔犺妭ID
    */
   async preloadMetadata(workId: string, chapterId: string): Promise<void> {
     try {
-      console.log('[AIService] 预加载元数据:', { workId, chapterId });
+      console.log('[AIService] preload metadata:', { workId, chapterId });
       const apiUrl = `${this.baseUrl}/ai/preload-metadata`;
       const token = this.getAuthToken();
 
@@ -587,17 +558,17 @@ class AIService {
         body: JSON.stringify({ work_id: workId, chapter_id: chapterId }),
       });
 
-      console.log('[AIService] 元数据预加载完成');
+      console.log('[AIService] metadata preload complete');
     } catch (error) {
-      console.error('[AIService] 预加载元数据失败:', error);
-      // 预加载失败不影响正常使用，静默处理
+      console.error('[AIService] metadata preload failed:', error);
+      // preload failures are non-blocking; ignore errors
     }
   }
 
   /**
-   * AI 翻译
-   * @param text - 要翻译的文本
-   * @param targetLang - 目标语言
+   * AI 缈昏瘧
+   * @param text - 瑕佺炕璇戠殑鏂囨湰
+   * @param targetLang - 鐩爣璇█
    */
   async translate(text: string, targetLang: string = 'auto'): Promise<string> {
     const apiUrl = `${this.baseUrl}/ai/translate`;
@@ -615,7 +586,7 @@ class AIService {
       });
 
       if (!response.ok) {
-        throw new Error(`API 请求失败 (${response.status})`);
+        throw new Error(`API 璇锋眰澶辫触 (${response.status})`);
       }
 
       const reader = response.body?.getReader();
@@ -647,10 +618,12 @@ class AIService {
 
       return result;
     } catch (error) {
-      console.error('AI 翻译失败:', error);
+      console.error('AI 缈昏瘧澶辫触:', error);
       throw error;
     }
   }
 }
 
 export default new AIService();
+
+
