@@ -264,6 +264,14 @@ async def delete_chapter(
     # 🔧 2025-12-02: P0修复 - 失效缓存
     _invalidate_chapter_cache(work_id)
 
+    # 🆕 删除章节向量
+    try:
+        from app.services.chapter_vector_service import ChapterVectorService
+        vector_service = ChapterVectorService(db)
+        await vector_service.delete_chapter_vectors(chapter_id)
+    except Exception as e:
+        logger.warning(f"[Chapters] 删除章节向量失败（不阻断删除）: {e}")
+
 
 @router.post("/reorder", status_code=status.HTTP_200_OK)
 async def reorder_chapters(

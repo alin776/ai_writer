@@ -2,7 +2,7 @@
 import json
 import logging
 import re
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +15,6 @@ from app.models.location import Location
 from app.models.setting import Setting
 from app.models.work_guidelines import WorkGuidelines
 from app.models.ai_guidelines import AIGuidelines
-from app.services.chapter_vector_service import ChapterVectorService
 from app.schemas.export import (
     ImportOptions,
     ImportPreviewResponse,
@@ -32,7 +31,6 @@ class ImportService:
     
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.chapter_vector_service = ChapterVectorService(db)
     
     async def preview_import(
         self,
@@ -62,8 +60,12 @@ class ImportService:
         content: bytes,
         user_id: UUID,
         options: ImportOptions
-    ) -> ImportResponse:
-        """导入作品"""
+    ) -> tuple[ImportResponse, list[Dict[str, Any]]]:
+        """导入作品
+
+        Returns:
+            (ImportResponse, List[Dict]): 导入结果与需异步向量化的章节任务
+        """
         try:
             if options.format == "json":
                 if options.work_id:
@@ -199,7 +201,7 @@ class ImportService:
         content: bytes,
         user_id: UUID,
         options: ImportOptions
-    ) -> ImportResponse:
+    ) -> tuple[ImportResponse, list[Dict[str, Any]]]:
         """导入JSON格式"""
         logger.info(f"用户 {user_id} 开始导入JSON数据")
         
@@ -341,30 +343,32 @@ class ImportService:
         
         await self.db.commit()
 
-        # 向量化章节（幂等，失败不阻断导入）
-        try:
-            for idx, chapter in enumerate(chapters_data):
-                content_text = chapter.get('content', '')
-                if content_text and len(content_text.strip()) > 100:
-                    await self.chapter_vector_service.store_chapter_vector(
-                        work_id=work.id,
-                        chapter_id=None,  # JSON导入章节尚未有ID，跳过（保持幂等）
-                        chapter_order=idx + 1,
-                        chapter_title=chapter.get('title', f"章节{idx+1}"),
-                        content=content_text
-                    )
-        except Exception as ve:
-            logger.warning(f"章节向量化失败（JSON导入不阻断）: {ve}")
+        # 汇总需异步向量化的章节
+        vectorize_jobs: list[Dict[str, Any]] = []
+        for chapter in created_chapters:
+            if chapter.content and len(chapter.content.strip()) > 100:
+                vectorize_jobs.append(
+                    {
+                        "work_id": str(work.id),
+                        "chapter_id": str(chapter.id),
+                        "chapter_order": chapter.order,
+                        "chapter_title": chapter.title,
+                        "content": chapter.content,
+                    }
+                )
         
         logger.info(f"导入完成: 作品ID={work.id}, 章节={chapters_created}, 人物={characters_created}")
         
-        return ImportResponse(
-            work_id=work.id,
-            chapters_created=chapters_created,
-            characters_created=characters_created,
-            locations_created=locations_created,
-            settings_created=settings_created,
-            message="导入成功"
+        return (
+            ImportResponse(
+                work_id=work.id,
+                chapters_created=chapters_created,
+                characters_created=characters_created,
+                locations_created=locations_created,
+                settings_created=settings_created,
+                message="导入成功"
+            ),
+            vectorize_jobs
         )
     
     async def _import_text(
@@ -373,7 +377,7 @@ class ImportService:
         user_id: UUID,
         options: ImportOptions,
         append_to: Optional[str] = None
-    ) -> ImportResponse:
+    ) -> tuple[ImportResponse, list[Dict[str, Any]]]:
         """导入文本/Markdown格式"""
         logger.info(f"用户 {user_id} 开始导入文本数据")
 
@@ -418,6 +422,7 @@ class ImportService:
         
         # 导入章节
         chapters_created = 0
+        created_chapters: List[Chapter] = []
         for idx, chapter_data in enumerate(chapters):
             content_text = chapter_data['content']
             word_count = self._calculate_word_count(content_text)
@@ -434,6 +439,7 @@ class ImportService:
             )
             self.db.add(chapter)
             chapters_created += 1
+            created_chapters.append(chapter)
 
         # 更新作品统计
         work.total_chapters = (work.total_chapters or 0) + chapters_created
@@ -441,27 +447,29 @@ class ImportService:
         
         await self.db.commit()
 
-        # 向量化章节（幂等，失败不阻断导入）
-        try:
-            for idx, chapter_data in enumerate(chapters):
-                content_text = chapter_data['content']
-                if content_text and len(content_text.strip()) > 100:
-                    await self.chapter_vector_service.store_chapter_vector(
-                        work_id=work.id,
-                        chapter_id=None,  # 导入创建的章节尚未刷新ID，此处暂跳过，后续可批量补全
-                        chapter_order=starting_order + idx + 1,
-                        chapter_title=chapter_data['title'],
-                        content=content_text
-                    )
-        except Exception as ve:
-            logger.warning(f"章节向量化失败（文本导入不阻断）: {ve}")
+        # 汇总需异步向量化的章节
+        vectorize_jobs: list[Dict[str, Any]] = []
+        for chapter in created_chapters:
+            if chapter.content and len(chapter.content.strip()) > 100:
+                vectorize_jobs.append(
+                    {
+                        "work_id": str(work.id),
+                        "chapter_id": str(chapter.id),
+                        "chapter_order": chapter.order,
+                        "chapter_title": chapter.title,
+                        "content": chapter.content,
+                    }
+                )
         
         logger.info(f"文本导入完成: 作品ID={work.id}, 章节={chapters_created}")
         
-        return ImportResponse(
-            work_id=work.id,
-            chapters_created=chapters_created,
-            message="导入成功"
+        return (
+            ImportResponse(
+                work_id=work.id,
+                chapters_created=chapters_created,
+                message="导入成功"
+            ),
+            vectorize_jobs
         )
 
     def _calculate_word_count(self, content: str) -> int:

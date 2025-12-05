@@ -1,5 +1,5 @@
 """导入API路由"""
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 from typing import Optional
@@ -88,6 +88,7 @@ async def import_work(
     include_worldview: bool = Form(True),
     include_guidelines: bool = Form(True),
     work_id: Optional[str] = Form(None),
+    background_tasks: BackgroundTasks = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -113,10 +114,13 @@ async def import_work(
                 detail="文件为空"
             )
         
-        if len(content) > 50 * 1024 * 1024:  # 50MB限制
+        max_size = 50 * 1024 * 1024
+        if format in ["markdown", "txt"]:
+            max_size = 10 * 1024 * 1024
+        if len(content) > max_size:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="文件过大（最大50MB）"
+                detail=f"文件过大（{format} 最大 {max_size // (1024 * 1024)}MB）"
             )
         
         logger.info(f"用户 {current_user.id} 导入文件: {file.filename}, 格式: {format}")
@@ -134,11 +138,17 @@ async def import_work(
         import_service = ImportService(db)
         
         # 执行导入
-        result = await import_service.import_work(
+        result, vectorize_jobs = await import_service.import_work(
             content=content,
             user_id=current_user.id,
             options=options
         )
+
+        if vectorize_jobs and background_tasks is not None:
+            for job in vectorize_jobs:
+                background_tasks.add_task(_vectorize_import_chapter_content, **job)
+            # 在响应中提示已排队
+            result.message = "导入成功，向量化已排队"
         
         logger.info(
             f"导入成功: 作品ID={result.work_id}, "
@@ -160,3 +170,28 @@ async def import_work(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="导入失败，请稍后重试"
         )
+
+
+async def _vectorize_import_chapter_content(
+    work_id: str,
+    chapter_id: str,
+    chapter_order: int,
+    chapter_title: str,
+    content: str
+):
+    """后台任务：异步向量化导入章节"""
+    try:
+        from app.services.chapter_vector_service import ChapterVectorService
+        from app.core.database import async_session_maker
+
+        async with async_session_maker() as db_session:
+            service = ChapterVectorService(db_session)
+            await service.store_chapter_vector(
+                work_id=work_id,
+                chapter_id=chapter_id,
+                chapter_order=chapter_order,
+                chapter_title=chapter_title,
+                content=content
+            )
+    except Exception as e:
+        logger.error(f"导入章节向量化失败（后台任务）: work_id={work_id}, chapter_id={chapter_id}, error={e}", exc_info=True)

@@ -21,6 +21,7 @@ class ChapterVectorService:
     # 使用与VectorStoreService相同的模型（保持一致性）
     MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
     VECTOR_DIM = 384
+    MAX_CHUNKS = 2000  # 保护性上限，防止超大文本生成过多向量
 
     def __init__(self, db: AsyncSession):
         """
@@ -48,13 +49,14 @@ class ChapterVectorService:
 
         return VectorStoreService._global_model
 
-    def _split_content(self, content: str, chunk_size: int = 500) -> List[str]:
+    def _split_content(self, content: str, chunk_size: int = 500, max_chunks: Optional[int] = None) -> List[str]:
         """
         内容分段（按句子边界切分）
 
         Args:
             content: 章节内容
             chunk_size: 每段最大字符数
+            max_chunks: 分块数量上限（超过则截断并记录告警）
 
         Returns:
             List[str]: 分段后的文本列表
@@ -81,6 +83,12 @@ class ChapterVectorService:
         # 过滤过短的段落（<50字符）
         chunks = [c for c in chunks if len(c) >= 50]
 
+        if max_chunks is not None and len(chunks) > max_chunks:
+            logger.warning(
+                f"章节分块数量 {len(chunks)} 超过上限 {max_chunks}，将截断多余分块"
+            )
+            chunks = chunks[:max_chunks]
+
         return chunks
 
     def _cosine_similarity(self, a: np.ndarray, b: np.ndarray) -> float:
@@ -102,7 +110,9 @@ class ChapterVectorService:
         chapter_id: str,
         chapter_order: int,
         chapter_title: str,
-        content: str
+        content: str,
+        chunk_size: int = 500,
+        max_chunks: Optional[int] = None
     ) -> int:
         """
         存储章节内容向量（幂等操作）
@@ -113,6 +123,8 @@ class ChapterVectorService:
             chapter_order: 章节顺序
             chapter_title: 章节标题
             content: 章节内容
+            chunk_size: 分块大小（默认500字符）
+            max_chunks: 分块上限，防止超大文本占用过多资源
 
         Returns:
             int: 存储的向量数量
@@ -131,7 +143,11 @@ class ChapterVectorService:
             await self.db.flush()
 
             # 2. 内容分段
-            chunks = self._split_content(content, chunk_size=500)
+            chunks = self._split_content(
+                content,
+                chunk_size=chunk_size,
+                max_chunks=max_chunks or self.MAX_CHUNKS,
+            )
 
             if len(chunks) == 0:
                 logger.warning(f"⚠️ 章节内容过短，跳过向量化: {chapter_title}")

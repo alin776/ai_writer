@@ -220,7 +220,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
             onChange={handleFileChange}
             accept=".json,.md,.markdown,.txt"
             placeholder="点击选择文件或拖拽到此处"
-            description="支持 JSON、Markdown、TXT（推荐 UTF-8 编码）"
+            description="支持 JSON、Markdown、TXT（TXT/MD 最大 10MB，需 UTF-8 编码）"
             note={importMode === 'existing' ? '追加模式仅支持 Markdown/TXT' : undefined}
             disabled={previewing || loading}
           />
