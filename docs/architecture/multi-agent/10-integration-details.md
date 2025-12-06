@@ -155,10 +155,10 @@ async def _execute_tasks_in_parallel(
     tasks: List[Dict[str, Any]],
     work_id: str,
     chapter_id: str,
-    context: str,
+    context: Dict[str, Any],
     on_task_start: Optional[callable] = None,
     on_task_progress: Optional[callable] = None,
-    on_task_done: Optional[callable] = None
+    on_task_done: Optional[callable] = None,
 ) -> List[Dict[str, Any]]:
 
     # 🆕 初始化 Multi-Agent 执行器
@@ -174,16 +174,17 @@ async def _execute_tasks_in_parallel(
 
             # 🆕 判断是否是写作类任务
             if multi_agent.is_writing_task(task):
-                # 使用 Multi-Agent 流程
                 logger.info(f"[MultiAgent] 任务{task_id}使用Multi-Agent流程")
 
                 # 构建上下文
                 ma_context = await self._build_multi_agent_context(work_id, chapter_id)
 
-                # 进度回调适配
-                async def on_ma_progress(event):
+                # 进度回调适配：Multi-Agent 发出的 plan/task_start/task_done/content
+                # 事件需格式化为 Planning SSE，前端才能复用 TaskListPanel
+                async def on_ma_event(event: Dict[str, Any]):
                     if on_task_progress:
-                        await on_task_progress(task, event.get("step"))
+                        from app.models.chat_models import format_planning_event_to_sse
+                        await on_task_progress(task, format_planning_event_to_sse(event))
 
                 # 执行 Multi-Agent 流程
                 result = await multi_agent.execute(
@@ -191,7 +192,7 @@ async def _execute_tasks_in_parallel(
                     work_id=work_id,
                     chapter_id=chapter_id,
                     context=ma_context,
-                    on_progress=on_ma_progress
+                    on_event=on_ma_event,
                 )
 
                 return {
@@ -216,10 +217,10 @@ async def _execute_tasks_in_parallel(
 async def _build_multi_agent_context(
     self,
     work_id: str,
-    chapter_id: str
+    chapter_id: str,
 ) -> Dict[str, Any]:
     """构建 Multi-Agent 所需的上下文"""
-    context = {}
+    context: Dict[str, Any] = {}
 
     # 获取人设文档
     try:
@@ -238,6 +239,9 @@ async def _build_multi_agent_context(
     # 获取总纲（如果有）
     try:
         context["total_outline"] = await self._get_work_outline(work_id)
+    except AttributeError:
+        logger.info("未实现 _get_work_outline，返回空总纲")
+        context["total_outline"] = ""
     except Exception as e:
         logger.warning(f"获取总纲失败: {e}")
         context["total_outline"] = ""
@@ -367,7 +371,7 @@ class MultiAgentExecutor:
 ```python
 class MultiAgentExecutor:
 
-    async def execute(self, task, work_id, chapter_id, context, on_progress=None):
+    async def execute(self, task, work_id, chapter_id, context, on_event=None):
         try:
             # 步骤1: 大纲师
             outline = await self._safe_execute_agent(

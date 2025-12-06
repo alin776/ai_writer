@@ -257,7 +257,7 @@
       "reason": "理由"
     }
   ],
-  "final_content": "最终定稿正文...",
+  "content": "最终定稿正文...",
   "word_count": 1720,
   "quality_score": 0.88
 }

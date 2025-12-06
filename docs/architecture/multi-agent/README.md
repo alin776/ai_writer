@@ -1,7 +1,10 @@
 # Multi-Agent 架构文档索引
 
 > 最后更新: 2025-12-06
-> Review 状态: ✅ 已完成深度 Review + UI 方案确认
+> Review 状态: ✅ 三次深度 Review 已完成
+
+⚠️ **重要说明**：本文档描述的是 **设计方案**，`multi_agent/` 目录 **尚未创建**。
+现有代码结构中已有 `agents/`、`actions/`、`environment/`、`memory/` 等目录，Multi-Agent 是待实现的新功能。
 
 ---
 
@@ -143,7 +146,7 @@ characters = await worldview_service.get_characters_by_work(work_id)
 ### 3. 进度事件格式
 
 Multi-Agent 应使用 **Planning 模式**的事件格式，而非独立格式：
-- `task_start` / `task_progress` / `task_done`
+- `plan` / `task_start` / `task_done` / `content`
 
 ### 4. 需要依赖的现有模块
 
@@ -188,3 +191,60 @@ Multi-Agent 应使用 **Planning 模式**的事件格式，而非独立格式：
 10. `09-review-findings.md` - 日期更新
 11. `10-integration-details.md` - 日期更新 + 超时/回退机制
 12. `11-frontend-ui-design.md` - 日期更新 + 总编跳过说明
+
+---
+
+## 📝 三次深度 Review 总结（2025-12-06）
+
+### 深度探索发现的新问题
+
+通过对整个项目进行深度代码探索，发现以下需要关注的问题：
+
+#### P0 - 高优先级
+
+| 问题 | 说明 | 建议 |
+|------|------|------|
+| **文档与代码状态不清晰** | 文档描述的是"设计方案"，但未明确标注 `multi_agent/` 目录尚未创建 | ✅ 已在 README 添加重要说明 |
+| **现有 Agent 系统未说明** | 现有已有 `PlanningAgent`、`ReflectionAgent` 等，与新 Multi-Agent 的关系未说明 | 需补充说明 |
+
+#### P1 - 中优先级
+
+| 问题 | 说明 | 建议 |
+|------|------|------|
+| **现有可复用组件未引用** | 已有 `MessageBus`、`StateManager`、`ToolRegistry` 等组件 | 实现时应复用 |
+| **代码示例 API 需验证** | `ai_service.generate_text()` 实际 API 需确认 | 实现时验证 |
+
+#### P2 - 低优先级
+
+| 问题 | 说明 | 建议 |
+|------|------|------|
+| **langgraph_agent.py 行数确认** | 文档说 5015 行，实际确实是 5015 行 | ✅ 无误 |
+
+### 现有代码结构（参考）
+
+```
+backend/app/services/agent/
+├── langgraph_agent.py      # 5015行，主工作流
+├── agents/                  # 现有 Agent（非文档设计的 Multi-Agent）
+│   ├── planning_agent.py   # 规划 Agent（用于任务规划）
+│   ├── reflection_agent.py # 反思 Agent（用于自我评估）
+│   └── parallel_executor.py
+├── actions/                 # ARE 架构的 Action 层
+│   ├── base_action.py
+│   ├── writing_action.py
+│   ├── planning_action.py
+│   └── ...
+├── environment/             # 环境管理（可复用！）
+│   ├── message_bus.py      # 消息总线
+│   ├── state_manager.py    # 状态管理
+│   └── ...
+├── memory/                  # 记忆系统
+├── tools/                   # 工具系统
+│   └── tool_registry.py    # 工具注册（可复用！）
+└── ... (其他模块)
+```
+
+**关键发现**：
+- `multi_agent/` 目录 **不存在**，需要新建
+- 现有 `agents/` 中的 Agent 是**不同的职责**，不是文档设计的 5 角色
+- `MessageBus`、`StateManager` 等组件 **可复用** 于新 Multi-Agent

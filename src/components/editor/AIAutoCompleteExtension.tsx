@@ -55,16 +55,45 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions, A
     let muteUntil = 0;
     let generationId = 0; // 用于取消过期的生成
 
-    // 更新装饰器显示建议
-    const updateDecoration = (view: any, from: number, text: string) => {
+    // 创建建议文字 widget（透明文字 + 小图标在左上角）
+    const createSuggestionWidget = (text: string, isGenerating: boolean) => {
+      const container = document.createElement('span');
+      container.className = 'ai-suggestion-container';
+
+      // 小图标（左上角定位）
+      const icon = document.createElement('span');
+      icon.className = `ai-suggestion-icon ${isGenerating ? 'generating' : ''}`;
+      icon.textContent = isGenerating ? '○' : '✦';
+      container.appendChild(icon);
+
+      // 自定义 tooltip（悬停显示）
+      const tooltip = document.createElement('div');
+      tooltip.className = 'ai-suggestion-tooltip';
+      tooltip.innerHTML = `
+        <span class="ai-tip-pair">
+          <span class="ai-tip-key">Tab</span><span class="ai-tip-text">采纳</span>
+        </span>
+        <span class="ai-tip-divider"></span>
+        <span class="ai-tip-pair">
+          <span class="ai-tip-key">Esc</span><span class="ai-tip-text">撤销</span>
+        </span>
+      `;
+      container.appendChild(tooltip);
+
+      // 透明建议文字
+      const suggestion = document.createElement('span');
+      suggestion.className = 'ai-suggestion';
+      suggestion.textContent = text || (isGenerating ? '...' : '');
+      container.appendChild(suggestion);
+
+      return container;
+    };
+
+    // 更新装饰器显示建议文字
+    const updateDecoration = (view: any, from: number, text: string, isGenerating: boolean = false) => {
       const decoration = Decoration.widget(
         from,
-        () => {
-          const span = document.createElement('span');
-          span.className = 'ai-suggestion';
-          span.textContent = text;
-          return span;
-        },
+        () => createSuggestionWidget(text, isGenerating),
         { side: 1 }
       );
 
@@ -205,8 +234,8 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions, A
                   lastTriggerTime = Date.now();
                   currentSuggestion = '';
 
-                  // 显示初始状态
-                  updateDecoration(view, from, '▋');
+                  // 显示生成中状态
+                  updateDecoration(view, from, '', true);
 
                   // 流式生成，边生成边更新显示
                   await onTrigger(textBefore, (chunk: string, fullText: string) => {
@@ -215,7 +244,8 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions, A
 
                     currentSuggestion = fullText.trim();
                     if (currentSuggestion) {
-                      updateDecoration(view, from, currentSuggestion + '▋');
+                      // 生成中，显示当前内容
+                      updateDecoration(view, from, currentSuggestion, true);
                     }
                   });
 
@@ -227,8 +257,8 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions, A
 
                   // 生成完成
                   if (currentSuggestion) {
-                    // 有内容，移除光标显示最终结果
-                    updateDecoration(view, from, currentSuggestion);
+                    // 有内容，显示最终结果
+                    updateDecoration(view, from, currentSuggestion, false);
                     console.log('[AI自动补全] 完成:', currentSuggestion);
                   } else {
                     // 无内容，清除装饰器

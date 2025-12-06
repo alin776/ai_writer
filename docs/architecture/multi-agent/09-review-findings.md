@@ -1,8 +1,9 @@
 # 文档 Review 补充 - 发现的问题与更新
 
-> 文档版本: 1.0
+> 文档版本: 2.0
 > 创建日期: 2025-12-06
-> 状态: Review 结果
+> 最后更新: 2025-12-06
+> 状态: Review 结果（三次深度 Review 已完成）
 
 ---
 
@@ -12,7 +13,90 @@
 
 ---
 
-## 问题1: 集成点描述不准确
+## 三次 Review 总结
+
+### 第一次 Review（基础检查）
+- 基本文档结构审查
+- 日期和格式统一
+
+### 第二次 Review（代码对照）
+- 参数名统一
+- 集成点更正
+- 回调命名统一
+
+### 第三次 Review（深度探索）
+- 对整个项目进行了完整的代码探索
+- 发现了现有代码结构与文档描述的差异
+- 补充了可复用组件的说明
+
+---
+
+## 问题1: 文档与实际代码状态不清晰 (P0)
+
+### 问题描述
+
+文档描述的是"设计方案"，但未明确说明：
+- `multi_agent/` 目录 **尚未创建**
+- 现有 `agents/` 目录中的 Agent **不是**文档设计的 5 角色
+
+### 已修复
+
+✅ 在 README.md 和 05-code-structure.md 添加了重要说明
+
+---
+
+## 问题2: 现有 Agent 系统与新 Multi-Agent 的关系未说明 (P0)
+
+### 现有 Agent
+
+| Agent | 文件 | 职责 |
+|-------|------|------|
+| `PlanningAgent` | `agents/planning_agent.py` | 任务规划和执行 |
+| `ReflectionAgent` | `agents/reflection_agent.py` | 自我评估和迭代 |
+| `ParallelExecutor` | `agents/parallel_executor.py` | 并行任务执行 |
+
+### 与新 Multi-Agent 的关系
+
+| 现有模块 | 与新Multi-Agent的关系 |
+|---------|---------------------|
+| `PlanningAgent` | **不冲突**，用于任务调度层，Multi-Agent 是写作子流程 |
+| `ReflectionAgent` | **可参考**，其自我评估机制类似总编的评估职责 |
+| `WritingAgentGraph` | **集成点**，Multi-Agent 应嵌入 `_execute_tasks_in_parallel` |
+
+### 已修复
+
+✅ 在 05-code-structure.md 添加了详细说明
+
+---
+
+## 问题3: 可复用组件未被引用 (P1)
+
+### 发现的可复用组件
+
+实现 Multi-Agent 时，应复用以下现有组件：
+
+| 组件 | 文件位置 | 用途 |
+|------|---------|------|
+| `MessageBus` | `environment/message_bus.py` | Agent 间通信（发布-订阅模式） |
+| `StateManager` | `environment/state_manager.py` | 状态管理（三级缓存） |
+| `ToolRegistry` | `tools/tool_registry.py` | 工具注册和调用 |
+| `MemoryManager` | `memory/memory_manager.py` | 记忆系统 |
+| `QualityEvaluator` | `quality/quality_evaluator.py` | 质量评估 |
+
+### 建议
+
+实现 Multi-Agent 时应：
+1. 使用 `MessageBus` 进行 Agent 间通信
+2. 使用 `StateManager` 管理执行状态
+3. 参考 `QualityEvaluator` 实现质量评估逻辑
+
+### 状态
+
+⏳ 待实现时应用
+
+---
+
+## 问题4: 集成点描述不准确（已修复）
 
 ### 原文档描述（04/05/07）
 
@@ -49,7 +133,7 @@ Multi-Agent 应该集成到 `execute_with_semaphore` 闭包内部，或者在任
 
 ---
 
-## 问题2: 人设文档获取方式未说明
+## 问题5: 人设文档获取方式未说明
 
 ### 原文档描述
 
@@ -87,9 +171,11 @@ context = {
 - 使用 `get_context_tool` 的逻辑作为参考
 - 使用 `VectorMemoryStore` 检索相关前文
 
+**状态**：已在 05/06/07 中要求集成层用 `_build_multi_agent_context` 从 WorldviewService/VectorMemoryStore 填充 `character_document` / `previous_summary` / `total_outline`。
+
 ---
 
-## 问题3: 进度事件格式与现有系统不兼容
+## 问题6: 进度事件格式与现有系统不兼容
 
 ### 原文档设计
 
@@ -125,9 +211,11 @@ Multi-Agent 的进度应该映射到现有的 Planning 模式事件：
 | editing | task_start (修订任务) |
 | complete | task_done |
 
+**状态**：05/06/07/10 已统一要求发送 `plan/task_start/task_done/content` 并通过 `format_planning_event_to_sse` 输出。
+
 ---
 
-## 问题4: 缺少对现有模块的依赖说明
+## 问题7: 缺少对现有模块的依赖说明
 
 ### 需要依赖的现有模块
 
@@ -150,7 +238,7 @@ Multi-Agent 的进度应该映射到现有的 Planning 模式事件：
 
 ---
 
-## 问题5: 数据库会话管理未说明
+## 问题8: 数据库会话管理未说明
 
 ### 现有代码的数据库会话模式
 
@@ -171,7 +259,7 @@ async with create_db_session() as db:
 
 ---
 
-## 问题6: 并行安全工具列表需要更新
+## 问题9: 并行安全工具列表需要更新
 
 ### 现有并行安全工具 (`langgraph_agent.py:4205-4211`)
 
@@ -191,7 +279,7 @@ PARALLEL_SAFE_TOOLS = {
 
 ---
 
-## 问题7: 缺少错误处理和重试机制设计
+## 问题10: 缺少错误处理和重试机制设计
 
 ### 现有代码的重试机制 (`langgraph_agent.py:4265-4323`)
 
@@ -212,6 +300,8 @@ for retry_count in range(max_retries + 1):
 ### Multi-Agent 需要补充
 
 文档中缺少各 Agent 的错误处理和重试策略设计。
+
+**状态**：05/10 已补充分阶段超时和回退策略；集成示例要求遵循这些保护（整体超时 + 阶段超时 + 回退）。
 
 ---
 

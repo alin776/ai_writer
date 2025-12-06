@@ -314,6 +314,8 @@ class OutlineAgent(BaseAgent):
 
 **文件**: `backend/app/services/agent/multi_agent/executor.py`
 
+> 下方为结构化示例，完整事件/超时/回退细节请遵循 05-code-structure.md 与 10-integration-details.md。
+
 ```python
 """Multi-Agent 执行器"""
 
@@ -506,26 +508,38 @@ async def _execute_tasks_in_parallel(self, tasks, work_id, chapter_id, context, 
     multi_agent = MultiAgentExecutor(self.ai_service)
 
     async def execute_with_semaphore(task):
-        async with semaphore:
-            # 判断是否是写作类任务
-            if multi_agent.is_writing_task(task):
-                # 写作任务走Multi-Agent
-                ma_context = await self._build_multi_agent_context(work_id, chapter_id)
+	        async with semaphore:
+	            # 判断是否是写作类任务
+	            if multi_agent.is_writing_task(task):
+	                # 写作任务走Multi-Agent
+	                ma_context = await self._build_multi_agent_context(work_id, chapter_id)
+
+                async def on_ma_event(event: Dict[str, Any]):
+                    if on_task_progress:
+                        from app.models.chat_models import format_planning_event_to_sse
+                        await on_task_progress(task, format_planning_event_to_sse(event))
+
                 result = await multi_agent.execute(
-                    task, work_id, chapter_id, ma_context
+                    task=task,
+                    work_id=work_id,
+                    chapter_id=chapter_id,
+                    context=ma_context,
+                    on_event=on_ma_event,  # 发送 plan/task_start/task_done/content
                 )
-                return {
-                    "task_id": task.get("task_id"),
-                    "result": result["content"],
-                    "metadata": {
-                        "word_count": result["word_count"],
-                        "quality_score": result["quality_score"]
-                    }
-                }
-            else:
-                # 其他任务简单执行（原有逻辑）
-                return await self._execute_tool_call(task, work_id, chapter_id, context)
+	                return {
+	                    "task_id": task.get("task_id"),
+	                    "result": result["content"],
+	                    "metadata": {
+	                        "word_count": result["word_count"],
+	                        "quality_score": result["quality_score"]
+	                    }
+	                }
+	            else:
+	                # 其他任务简单执行（原有逻辑）
+	                return await self._execute_tool_call(task, work_id, chapter_id, context)
 ```
+
+> 集成要求：MultiAgentExecutor 需按 05/10 文档的流程发送 `plan/task_start/task_done/content`，并带阶段耗时；`_build_multi_agent_context` 必须从 WorldviewService/VectorMemoryStore 拉取人设和前文。
 
 ### 检查清单
 

@@ -1,14 +1,81 @@
 # 代码结构设计
 
-> 文档版本: 1.0
+> 文档版本: 1.1
 > 创建日期: 2025-12-06
+> 最后更新: 2025-12-06
 > 状态: 设计方案
+
+⚠️ **重要说明**：本文档描述的是 **目标结构**，`multi_agent/` 目录 **尚未创建**。
 
 ---
 
 ## 概述
 
 本文档描述 Multi-Agent 实现的代码结构，以及 `langgraph_agent.py` 的拆分方案。
+
+---
+
+## 现有代码结构（实际状态）
+
+> ⚠️ 以下是当前项目中**已存在**的代码结构，**不是**本文档设计的 Multi-Agent。
+
+```
+backend/app/services/agent/         # 现有结构
+├── langgraph_agent.py              # 5015行，主工作流（待拆分）
+│
+├── agents/                          # 现有 Agent（不是5角色Multi-Agent）
+│   ├── planning_agent.py           # 规划Agent - 用于任务规划和执行
+│   ├── reflection_agent.py         # 反思Agent - 用于自我评估
+│   └── parallel_executor.py        # 并行执行器
+│
+├── actions/                         # ARE架构的Action层
+│   ├── base_action.py              # Action基类
+│   ├── writing_action.py           # 写作Action
+│   ├── planning_action.py          # 规划Action
+│   ├── analysis_action.py          # 分析Action
+│   ├── stuck_action.py             # 卡文Action
+│   ├── general_chat_action.py      # 通用聊天Action
+│   ├── action_registry.py          # Action注册表
+│   └── echo_action.py              # 测试Action
+│
+├── environment/                     # 环境管理（可复用于Multi-Agent）
+│   ├── message_bus.py              # 消息总线（发布-订阅）⭐可复用
+│   ├── state_manager.py            # 状态管理（三级缓存）⭐可复用
+│   └── langgraph_helper.py         # LangGraph集成助手
+│
+├── memory/                          # 记忆系统
+│   ├── memory_manager.py           # 记忆管理器
+│   ├── long_term_memory.py         # 长期记忆
+│   ├── user_profile.py             # 用户画像
+│   └── ... (其他模块)
+│
+├── tools/                           # 工具系统
+│   ├── tool_registry.py            # 工具注册表 ⭐可复用
+│   ├── editor_tools.py             # 编辑工具
+│   ├── writing_tools.py            # 写作工具
+│   └── ... (其他工具)
+│
+├── quality/                         # 质量评估
+│   ├── quality_evaluator.py
+│   └── quality_loop.py
+│
+├── prompts/                         # Prompt库
+│   ├── novel_planning_prompts.py
+│   └── content_creation_prompts.py
+│
+└── utils/                           # 工具函数
+    ├── error_handler.py
+    ├── logger.py
+    └── monitoring.py
+```
+
+### 现有 Agent 与新 Multi-Agent 的关系
+
+| 现有模块 | 职责 | 与新Multi-Agent的关系 |
+|---------|------|---------------------|
+| `PlanningAgent` | 任务规划和执行 | **不冲突**，用于任务调度层 |
+| `ReflectionAgent` | 自我评估和迭代 | **可参考**，类似总编的评估职责 |
+| `WritingAgentGraph` | LangGraph主工作流 | **集成点**，Multi-Agent嵌入此处 |
 
 ---
 
@@ -118,7 +185,8 @@ backend/app/services/agent/
 """Multi-Agent 执行器 - 入口类"""
 
 import asyncio
-from typing import Dict, Any, Optional
+import time
+from typing import Dict, Any, Optional, Callable
 from .agents.outline_agent import OutlineAgent
 from .agents.writer_agent import WriterAgent
 from .agents.character_guard import CharacterGuard
@@ -132,6 +200,23 @@ class MultiAgentExecutor:
 
     流程：大纲师 → 主笔 → 角色守护 → 逻辑审计 → 总编
     """
+
+    STAGE_TASKS = [
+        {"task_id": 1, "description": "生成章节大纲", "tool": "outline_agent"},
+        {"task_id": 2, "description": "撰写初稿", "tool": "writer_agent"},
+        {"task_id": 3, "description": "审核人设一致性", "tool": "character_guard"},
+        {"task_id": 4, "description": "检查剧情逻辑", "tool": "logic_auditor"},
+        {"task_id": 5, "description": "裁决修订定稿", "tool": "editor_agent"},
+    ]
+
+    STAGE_TIMEOUTS = {
+        "outline": 30,
+        "writing": 120,
+        "character_guard": 30,
+        "logic_auditor": 30,
+        "editor": 60,
+    }
+    TOTAL_TIMEOUT = 300
 
     def __init__(self, ai_service, memory_manager=None):
         self.ai_service = ai_service
@@ -159,64 +244,79 @@ class MultiAgentExecutor:
             task: 任务信息
             work_id: 作品ID
             chapter_id: 章节ID
-            context: 上下文（包含人设、前文摘要等）
-            on_event: 事件回调（用于发送 plan/task_start/task_done 等事件）
+            context: 上下文（需要包含 character_document / previous_summary / total_outline）
+            on_event: 事件回调（发送 plan/task_start/task_done/content，调用方可用 format_planning_event_to_sse 包装）
 
         Returns:
             最终内容和元数据
         """
-        # 步骤1: 大纲师
-        if on_event:
-            await on_event({"type": "task_start", "data": {"task_id": 1}})
-        outline = await self.outline_agent.generate(task, context)
+        async def _run_with_timeout(stage_name: str, coro):
+            timeout = self.STAGE_TIMEOUTS.get(stage_name, 60)
+            return await asyncio.wait_for(coro, timeout=timeout)
 
-        # 步骤2: 主笔
-        if on_event:
-            await on_event({"type": "task_done", "data": {"task_id": 1}})
-            await on_event({"type": "task_start", "data": {"task_id": 2}})
-        draft = await self.writer_agent.write(outline, context)
-
-        # 步骤3: 角色守护（并行）
-        # 步骤4: 逻辑审计（并行）
-        if on_event:
-            await on_event({"type": "task_done", "data": {"task_id": 2}})
-            await on_event({"type": "task_start", "data": {"task_id": 3}})
-            await on_event({"type": "task_start", "data": {"task_id": 4}})
-
-        character_review, logic_review = await asyncio.gather(
-            self.character_guard.check(draft, work_id, context),
-            self.logic_auditor.check(draft, work_id, context)
-        )
-
-        # 步骤5: 总编裁决（如需要）
-        if self._needs_revision(character_review, logic_review):
+        async def _emit_plan():
             if on_event:
-                await on_event({"type": "task_done", "data": {"task_id": 3}})
-                await on_event({"type": "task_done", "data": {"task_id": 4}})
-                await on_event({"type": "task_start", "data": {"task_id": 5}})
-            final = await self.editor_agent.revise(
-                draft, character_review, logic_review, context
+                await on_event({"type": "plan", "data": {"tasks": self.STAGE_TASKS}})
+
+        async def _execute_pipeline():
+            await _emit_plan()
+
+            # 步骤1: 大纲师
+            await self._report_event(on_event, "task_start", 1)
+            start = time.time()
+            outline = await _run_with_timeout("outline", self.outline_agent.generate(task, context))
+            await self._report_event(on_event, "task_done", 1, time.time() - start)
+
+            # 步骤2: 主笔
+            await self._report_event(on_event, "task_start", 2)
+            start = time.time()
+            draft = await _run_with_timeout("writing", self.writer_agent.write(outline, context))
+            await self._report_event(on_event, "task_done", 2, time.time() - start)
+
+            # 步骤3&4: 校验并行
+            await self._report_event(on_event, "task_start", 3)
+            await self._report_event(on_event, "task_start", 4)
+            start = time.time()
+            character_review, logic_review = await asyncio.gather(
+                _run_with_timeout("character_guard", self.character_guard.check(draft, work_id, context)),
+                _run_with_timeout("logic_auditor", self.logic_auditor.check(draft, work_id, context)),
             )
-        else:
-            # 无需修订：快速完成总编任务
-            if on_event:
-                await on_event({"type": "task_done", "data": {"task_id": 3}})
-                await on_event({"type": "task_done", "data": {"task_id": 4}})
-                await on_event({"type": "task_start", "data": {"task_id": 5}})
-            final = draft
+            elapsed = time.time() - start
+            await self._report_event(on_event, "task_done", 3, elapsed)
+            await self._report_event(on_event, "task_done", 4, elapsed)
 
-        if on_event:
-            await on_event({"type": "task_done", "data": {"task_id": 5}})
+            # 步骤5: 总编
+            await self._report_event(on_event, "task_start", 5)
+            start = time.time()
+            if self._needs_revision(character_review, logic_review):
+                final = await _run_with_timeout(
+                    "editor",
+                    self.editor_agent.revise(draft, character_review, logic_review, context),
+                )
+            else:
+                final = {
+                    "content": draft.get("content", ""),
+                    "word_count": draft.get("word_count", 0),
+                    "quality_score": 0.85,
+                    "revision_summary": "无需修订",
+                    "conflicts_resolved": [],
+                }
+            await self._report_event(on_event, "task_done", 5, time.time() - start)
+            await self._report_event(on_event, "content", data=final.get("content", ""))
 
-        return {
-            "content": final["content"],
-            "word_count": final["word_count"],
-            "quality_score": final.get("quality_score", 0.85),
-            "reviews": {
-                "character": character_review,
-                "logic": logic_review
+            return {
+                "content": final.get("content", ""),
+                "word_count": final.get("word_count", 0),
+                "quality_score": final.get("quality_score", 0.85),
+                "outline": outline,
+                "draft": draft,
+                "character_review": character_review,
+                "logic_review": logic_review,
+                "revision_summary": final.get("revision_summary"),
+                "conflicts_resolved": final.get("conflicts_resolved", []),
             }
-        }
+
+        return await asyncio.wait_for(_execute_pipeline(), timeout=self.TOTAL_TIMEOUT)
 
     def _needs_revision(self, char_review, logic_review) -> bool:
         """判断是否需要修订"""
@@ -224,7 +324,32 @@ class MultiAgentExecutor:
             char_review.get("status") == "NEED_REVISION" or
             logic_review.get("status") == "NEED_REVISION"
         )
+
+    async def _report_event(
+        self,
+        callback: Optional[Callable],
+        event_type: str,
+        task_id: int,
+        elapsed_time: float = 0,
+        data: Any = None,
+    ):
+        """报告事件"""
+        if callback:
+            if event_type == "task_start":
+                await callback({"type": "task_start", "data": {"task_id": task_id}})
+            elif event_type == "task_done":
+                await callback({
+                    "type": "task_done",
+                    "data": {"task_id": task_id, "elapsed_time": elapsed_time}
+                })
+            elif event_type == "content":
+                await callback({"type": "content", "data": data or ""})
 ```
+
+> 约定补充：
+> - `on_event` 回调输出的是 Planning 事件（plan/task_start/task_done/content），由调用方使用 `format_planning_event_to_sse` 包装后写 SSE。
+> - `context` 必须由集成层构建（推荐 `_build_multi_agent_context`，从 `WorldviewService`/`VectorMemoryStore` 获取 `character_document`、`previous_summary`、`total_outline`）。
+> - 回退/重试策略沿用 10-integration-details.md（示例未展开降级逻辑，仅给出超时保护）。
 
 ---
 

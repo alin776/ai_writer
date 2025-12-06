@@ -262,7 +262,7 @@ EDITOR_PROMPT = """你是总编辑。你的任务是综合【角色守护】和�
       "reason": "理由"
     }}
   ],
-  "final_content": "最终定稿正文...",
+  "content": "最终定稿正文...",
   "word_count": 字数,
   "quality_score": 0.88
 }}

@@ -12,23 +12,9 @@
 
 ### 类型定义说明
 
-> **设计决策**：本文档使用 `dataclass` 定义数据结构以提供清晰的类型约束和文档化。
+> **设计决策**：规范用 `dataclass` 说明字段含义，但**运行时推荐统一使用 `Dict[str, Any]`**（便于与现有代码、SSE 事件格式对齐）。
 >
-> **实际实现**：可以根据需要使用 `Dict[str, Any]` 替代，以获得更高的灵活性。两种方式等效：
->
-> ```python
-> # dataclass 方式（类型安全）
-> @dataclass
-> class ReviewResult:
->     status: str
->     issues: List[ReviewIssue]
->
-> # Dict 方式（灵活）
-> result: Dict[str, Any] = {
->     "status": "PASS",
->     "issues": []
-> }
-> ```
+> 如需更强类型，可自行包装 dataclass，但返回值、回调、集成示例均以 `Dict` 为准。
 
 ---
 
@@ -61,7 +47,7 @@ class MultiAgentExecutor:
         chapter_id: str,
         context: Dict[str, Any],
         on_event: Optional[Callable[[Dict], Awaitable[None]]] = None
-    ) -> MultiAgentResult:
+    ) -> Dict[str, Any]:
         """
         执行写作任务
 
@@ -74,16 +60,16 @@ class MultiAgentExecutor:
                 }
             work_id: 作品ID
             chapter_id: 章节ID
-            context: 上下文信息
+            context: 上下文信息（必填字段）
                 {
                     "character_document": "人设文档...",
                     "previous_summary": "前文摘要...",
-                    "outline": "大纲..."
+                    "total_outline": "作品总纲或章节索引"
                 }
-            on_event: 事件回调（发送 plan/task_start/task_done 等事件）
+            on_event: 事件回调（发送 plan/task_start/task_done/content；调用方可用 format_planning_event_to_sse 包装成 SSE）
 
         Returns:
-            MultiAgentResult
+            Dict[str, Any]  # 约定字段见下方 MultiAgentResult 说明
         """
         pass
 
@@ -134,7 +120,7 @@ class ReviewResult:
 
 @dataclass
 class MultiAgentResult:
-    """Multi-Agent 执行结果"""
+    """Multi-Agent 执行结果（示意类型，运行时推荐 Dict[str, Any]）"""
     content: str           # 最终内容
     word_count: int        # 字数
     quality_score: float   # 质量评分 0-1
@@ -406,21 +392,13 @@ class FinalResult:
 ## 进度回调接口
 
 ```python
-# 进度事件类型
+# 进度事件格式（与 Planning 模式一致，便于前端 TaskListPanel 复用；调用方需用 format_planning_event_to_sse 包装后再写 SSE）
+# type: plan | task_start | task_done | content
+# data: 根据类型包含 tasks / task_id / elapsed_time / content 等
 ProgressEvent = Dict[str, Any]
 
-# 事件格式
-{
-    "step": "outline" | "writing" | "review" | "editing" | "complete",
-    "status": "running" | "done" | "error",
-    "agent": "outline_agent" | "writer_agent" | "character_guard" | "logic_auditor" | "editor_agent",
-    "progress": 0.0 - 1.0,  # 可选
-    "message": "正在生成大纲..."  # 可选
-}
-
-# 回调函数签名
 async def on_event(event: ProgressEvent) -> None:
-    pass
+    ...
 ```
 
 ---
@@ -442,7 +420,8 @@ class TaskExecutor:
         task: Dict[str, Any],
         work_id: str,
         chapter_id: str,
-        context: Dict[str, Any]
+        context: Dict[str, Any],
+        on_event: Optional[Callable[[Dict], Awaitable[None]]] = None,
     ) -> Dict[str, Any]:
         """
         执行单个任务
@@ -452,18 +431,30 @@ class TaskExecutor:
         - 其他任务 → 简单执行
         """
         if self.multi_agent.is_writing_task(task):
+            # 构建 Multi-Agent 需要的上下文（WorldviewService + VectorMemoryStore 见 10 文档）
+            ma_context = await self._build_multi_agent_context(work_id, chapter_id)
+
+            async def on_ma_event(event: Dict[str, Any]):
+                if on_event:
+                    from app.models.chat_models import format_planning_event_to_sse
+                    await on_event(format_planning_event_to_sse(event))
+
             result = await self.multi_agent.execute(
-                task, work_id, chapter_id, context
+                task,
+                work_id,
+                chapter_id,
+                ma_context,
+                on_event=on_ma_event,  # 透传事件回调，保持 Planning SSE 格式一致
             )
             return {
                 "task_id": task.get("task_id"),
-                "result": result.content,
+                "result": result["content"],
                 "metadata": {
-                    "word_count": result.word_count,
-                    "quality_score": result.quality_score,
+                    "word_count": result.get("word_count"),
+                    "quality_score": result.get("quality_score"),
                     "reviews": {
-                        "character": result.character_review,
-                        "logic": result.logic_review
+                        "character": result.get("character_review"),
+                        "logic": result.get("logic_review")
                     }
                 }
             }
