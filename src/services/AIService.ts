@@ -338,6 +338,42 @@ class AIService {
   }
 
   /**
+   * 流式快速 AI 补全(用于实时自动补全，边生成边显示)
+   * @param context - 上下文文本
+   * @param onChunk - 接收到新文本块时的回调
+   * @param workId - 作品ID(可选)
+   * @param chapterId - 章节ID(可选)
+   */
+  async quickCompleteStream(
+    context: string,
+    onChunk: (chunk: string, fullText: string) => void,
+    workId?: string,
+    chapterId?: string
+  ): Promise<string> {
+    let fullText = '';
+    try {
+      const result = await this.complete(
+        {
+          prompt: context,
+          context,
+          maxTokens: 100,
+          workId,
+          chapterId,
+          enableRag: false, // 流式补全禁用 RAG 以加快速度
+        },
+        (chunk: string) => {
+          fullText += chunk;
+          onChunk(chunk, fullText);
+        }
+      );
+      return result.trim();
+    } catch (error) {
+      console.error('流式补全失败:', error);
+      return fullText; // 返回已生成的部分
+    }
+  }
+
+  /**
    * 获取 AI 建议(用于自动补全)
    * @param context - 上下文文本
    * @param position - 光标位置

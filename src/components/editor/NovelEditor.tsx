@@ -166,17 +166,17 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       BubbleMenuExtension,
       // AI 高亮扩展
       AIHighlight,
-      // AI 自动补全扩展
+      // AI 自动补全扩展（流式版本）
       AIAutoCompleteExtension.configure({
-        delay: 6000, // 6秒延迟，避免打断用户输入
+        delay: 2000, // 2秒延迟，快速响应
         minChars: 50, // 至少50个字符才触发
         enabled: aiAutoCompleteEnabled, // 由用户偏好控制
-        onTrigger: async (text: string) => {
+        onTrigger: async (text: string, onChunk: (chunk: string, fullText: string) => void) => {
           try {
-            // ===== Context-Aware 自动补全 =====
-            // 传递 workId 和 chapterId 以加载元数据
-            const suggestion = await AIService.quickComplete(
+            // 使用流式补全，边生成边显示
+            const suggestion = await AIService.quickCompleteStream(
               text,
+              onChunk,
               workId,      // 作品ID
               chapterId    // 章节ID
             );

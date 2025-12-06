@@ -1,12 +1,11 @@
 ﻿/**
- * AI 自动补全扩展
+ * AI 自动补全扩展（流式版本）
  *
  * 触发条件（需同时满足）：
- * 1. 文本长度达到最小字符数（默认 120）
- * 2. 光标停留足够长时间（默认 3 秒）
- * 3. 1 秒内按键不超过 2 次（避免快速输入时打扰）
- * 4. 在句末或长停顿；Esc 后静默 30 秒
- * 5. 块级过滤：列表/标题/代码块/引用内不触发
+ * 1. 文本长度达到最小字符数（默认 50）
+ * 2. 光标停留足够长时间（默认 2 秒）
+ * 3. 编辑器获得焦点
+ * 4. 不在列表/标题/代码块/引用内
  */
 
 import { Extension } from '@tiptap/core';
@@ -16,7 +15,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 export interface AIAutoCompleteOptions {
   delay: number; // 延迟时间（毫秒）
   minChars: number; // 最少字符数
-  onTrigger: (text: string) => Promise<string>;
+  onTrigger: (text: string, onChunk: (chunk: string, fullText: string) => void) => Promise<string>;
   enabled: boolean;
 }
 
@@ -31,8 +30,8 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions, A
 
   addOptions() {
     return {
-      delay: 3000, // 默认3秒，降低打扰
-      minChars: 120, // 至少120个字符才触发
+      delay: 2000, // 默认2秒
+      minChars: 50, // 至少50个字符才触发
       onTrigger: async () => '',
       enabled: true,
     };
@@ -51,11 +50,31 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions, A
     let currentSuggestion = '';
     let suggestionFrom = 0;
     let isGenerating = false;
-    let lastKeystrokeTime = 0;
-    let keystrokeCount = 0;
     let lastTriggerPos = 0;
     let lastTriggerTime = 0;
     let muteUntil = 0;
+    let generationId = 0; // 用于取消过期的生成
+
+    // 更新装饰器显示建议
+    const updateDecoration = (view: any, from: number, text: string) => {
+      const decoration = Decoration.widget(
+        from,
+        () => {
+          const span = document.createElement('span');
+          span.className = 'ai-suggestion';
+          span.textContent = text;
+          return span;
+        },
+        { side: 1 }
+      );
+
+      const { state, dispatch } = view;
+      const tr = state.tr;
+      tr.setMeta(AIAutoCompletePluginKey, {
+        decorations: DecorationSet.create(state.doc, [decoration]),
+      });
+      dispatch(tr);
+    };
 
     return [
       new Plugin({
@@ -66,13 +85,12 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions, A
             return DecorationSet.empty;
           },
           apply(tr, set) {
-            // 如果文档有变化，清除建议
             if (tr.docChanged) {
               currentSuggestion = '';
+              generationId++; // 取消正在进行的生成
               return DecorationSet.empty;
             }
 
-            // 读取插件元数据
             const pluginMeta = tr.getMeta(AIAutoCompletePluginKey);
             if (pluginMeta?.decorations) {
               return pluginMeta.decorations;
@@ -96,18 +114,16 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions, A
               const tr = state.tr.insertText(currentSuggestion, suggestionFrom);
               dispatch(tr);
 
-              // 清除建议
               currentSuggestion = '';
               return true;
             }
 
-            // Escape 键取消建议并暂停一段时间
-            if (event.key === 'Escape') {
+            // Escape 键取消建议
+            if (event.key === 'Escape' && currentSuggestion) {
               event.preventDefault();
               currentSuggestion = '';
-              muteUntil = Date.now() + 30000; // 30s 内不再自动弹出
+              muteUntil = Date.now() + 10000; // 10秒内不再触发
 
-              // 清除装饰器
               const { state, dispatch } = view;
               const tr = state.tr;
               tr.setMeta(AIAutoCompletePluginKey, {
@@ -124,124 +140,127 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions, A
         view() {
           return {
             update: async (view) => {
-            // 从 storage 读取 enabled 状态（支持动态更新）
-            if (!storage.enabled) return;
+              // 从 storage 读取 enabled 状态
+              if (!storage.enabled) return;
 
-            // 只有编辑器获得焦点时才触发自动补全
-            if (!view.hasFocus()) return;
+              // 只有编辑器获得焦点时才触发
+              if (!view.hasFocus()) return;
 
-            const { state } = view;
-            const { selection } = state;
+              const { state } = view;
+              const { selection } = state;
 
-            // 清除之前的定时器
-            if (timeout) {
-              clearTimeout(timeout);
-              timeout = null;
-            }
+              // 清除之前的定时器
+              if (timeout) {
+                clearTimeout(timeout);
+                timeout = null;
+              }
 
-            // 如果正在生成，不触发新的请求
-            if (isGenerating) return;
+              // 如果正在生成，不触发新的请求
+              if (isGenerating) return;
 
-            // 如果有选中内容，不触发
-            if (!selection.empty) return;
+              // 如果有选中内容，不触发
+              if (!selection.empty) return;
 
-            // 如果光标处于列表/标题/代码块/引用等块级节点，不触发，避免干扰结构化编辑
-            const $from = selection.$from;
-            const parent = $from.parent;
-            if (
-              parent.type.name === 'bulletList' ||
-              parent.type.name === 'orderedList' ||
-              parent.type.name === 'heading' ||
-              parent.type.name === 'codeBlock' ||
-              parent.type.name === 'blockquote'
-            ) {
-              return;
-            }
+              // 块级过滤
+              const $from = selection.$from;
+              const parent = $from.parent;
+              if (
+                parent.type.name === 'bulletList' ||
+                parent.type.name === 'orderedList' ||
+                parent.type.name === 'heading' ||
+                parent.type.name === 'codeBlock' ||
+                parent.type.name === 'blockquote'
+              ) {
+                return;
+              }
 
-            // 获取光标前的文本（最近200个字符）
-            const { from } = selection;
-            const textBefore = state.doc.textBetween(
-              Math.max(0, from - 200),
-              from,
-              ' '
-            );
-            const trimmed = textBefore.trim();
+              // 获取光标前的文本
+              const { from } = selection;
+              const textBefore = state.doc.textBetween(
+                Math.max(0, from - 200),
+                from,
+                ' '
+              );
+              const trimmed = textBefore.trim();
 
-            // 如果文本太短，不触发（使用配置的最小字符数）
-            if (trimmed.length < minChars) return;
+              // 文本太短不触发
+              if (trimmed.length < minChars) return;
 
-            const now = Date.now();
+              const now = Date.now();
 
-            // 用户主动按下 Esc 后，短时间内不再弹出
-            if (now < muteUntil) return;
+              // 静默期检查
+              if (now < muteUntil) return;
 
-            // 检测用户是否正在快速输入（键盘速度检测）
-            if (now - lastKeystrokeTime < 1000) {
-              // 1秒内有新按键，说明正在快速输入
-              keystrokeCount++;
-            } else {
-              // 超过1秒，重置计数
-              keystrokeCount = 1;
-            }
-            lastKeystrokeTime = now;
+              // 同一位置5秒内只触发一次
+              if (from === lastTriggerPos && now - lastTriggerTime < 5000) return;
 
-            // 如果用户正在快速输入（1秒内超过2个按键），不触发
-            if (keystrokeCount > 2) return;
+              // 设置定时器
+              timeout = setTimeout(async () => {
+                const currentGenId = ++generationId; // 记录当前生成 ID
+                try {
+                  console.log('[AI自动补全] 开始流式生成...');
+                  isGenerating = true;
+                  suggestionFrom = from;
+                  lastTriggerPos = from;
+                  lastTriggerTime = Date.now();
+                  currentSuggestion = '';
 
-            // 检查是否在句子末尾（中英文句号、问号、感叹号），否则仅在停顿时触发
-            const isSentenceEnd = /[.!?。！？]$/.test(trimmed);
+                  // 显示初始状态
+                  updateDecoration(view, from, '▋');
 
-            // 只在句子末尾或长时间停顿时触发
-            if (!isSentenceEnd && keystrokeCount > 1) return;
+                  // 流式生成，边生成边更新显示
+                  await onTrigger(textBefore, (chunk: string, fullText: string) => {
+                    // 检查是否已被取消（用户输入导致 generationId 变化）
+                    if (generationId !== currentGenId) return;
 
-            // 同一位置10秒内只触发一次，降低频率
-            if (from === lastTriggerPos && now - lastTriggerTime < 10000) return;
+                    currentSuggestion = fullText.trim();
+                    if (currentSuggestion) {
+                      updateDecoration(view, from, currentSuggestion + '▋');
+                    }
+                  });
 
-            // 设置新的定时器
-            timeout = setTimeout(async () => {
-              try {
-                console.log('[AI自动补全] 开始生成建议...');
-                isGenerating = true;
-                suggestionFrom = from;
-                lastTriggerPos = from;
-                lastTriggerTime = Date.now();
+                  // 检查是否已被取消
+                  if (generationId !== currentGenId) {
+                    console.log('[AI自动补全] 生成已被取消');
+                    return;
+                  }
 
-                // 调用 AI 生成
-                const suggestion = await onTrigger(textBefore);
+                  // 生成完成
+                  if (currentSuggestion) {
+                    // 有内容，移除光标显示最终结果
+                    updateDecoration(view, from, currentSuggestion);
+                    console.log('[AI自动补全] 完成:', currentSuggestion);
+                  } else {
+                    // 无内容，清除装饰器
+                    const { state: currentState, dispatch } = view;
+                    const tr = currentState.tr;
+                    tr.setMeta(AIAutoCompletePluginKey, {
+                      decorations: DecorationSet.empty,
+                    });
+                    dispatch(tr);
+                  }
+                } catch (error) {
+                  // 检查是否已被取消
+                  if (generationId !== currentGenId) return;
 
-                if (suggestion && suggestion.trim()) {
-                  currentSuggestion = suggestion.trim();
-                  console.log('[AI自动补全] 建议:', currentSuggestion);
-
-                  // 创建装饰器显示建议
-                  const decoration = Decoration.widget(
-                    from,
-                    () => {
-                      const span = document.createElement('span');
-                      span.className = 'ai-suggestion';
-                      span.textContent = currentSuggestion;
-                      return span;
-                    },
-                    { side: 1 }
-                  );
-
-                  // 更新装饰器
+                  console.error('[AI自动补全] 失败:', error);
+                  currentSuggestion = '';
+                  // 清除装饰器
                   const { state: currentState, dispatch } = view;
                   const tr = currentState.tr;
                   tr.setMeta(AIAutoCompletePluginKey, {
-                    decorations: DecorationSet.create(currentState.doc, [decoration]),
+                    decorations: DecorationSet.empty,
                   });
                   dispatch(tr);
+                } finally {
+                  if (generationId === currentGenId) {
+                    isGenerating = false;
+                  }
                 }
-              } catch (error) {
-                console.error('[AI自动补全] 失败:', error);
-              } finally {
-                isGenerating = false;
-              }
-            }, delay);
-          },
+              }, delay);
+            },
 
-          destroy: () => {
+            destroy: () => {
               if (timeout) {
                 clearTimeout(timeout);
               }
