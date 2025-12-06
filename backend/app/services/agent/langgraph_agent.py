@@ -37,6 +37,8 @@ from app.services.agent.model_selector import TaskType
 from app.services.agent.prompt_cache import get_tool_decision_static_prompt, get_planning_static_prompt
 from app.services.agent.progress_tracker import ProgressTracker
 from app.services.agent.node_metadata import get_node_info
+# Multi-Agent 写作系统
+from app.services.agent.multi_agent import MultiAgentExecutor
 from app.services.agent.tools.editor_tools import (
     smart_continue,
     smart_rewrite,
@@ -4942,6 +4944,17 @@ chapter_id: {chapter_id}
             await on_progress(task, "正在执行...")
 
         # 根据工具名称调用对应工具
+        # ✅ Multi-Agent 写作任务检测（支持更多写作型任务，但仅在写作相关工具或 auto 时启用）
+        multi_agent = MultiAgentExecutor(self.ai_service)
+        is_writing_task = multi_agent.is_writing_task({
+            "task_id": task.get("task_id", "1"),
+            "type": task.get("type", tool_name),
+            "tool": tool_name,
+            "description": task.get("description", "")
+        })
+        writing_tools = {"continue_writing_tool"}
+        use_multi_agent = (tool_name in writing_tools) or (tool_name == "auto" and is_writing_task)
+
         if tool_name == "get_chapter_by_order_tool":
             result = await get_chapter_by_order_tool.ainvoke({
                 "work_id": work_id,
@@ -4983,11 +4996,87 @@ chapter_id: {chapter_id}
                     "query": params.get("query", "相关内容"),
                     "top_k": params.get("top_k", 5)
                 })
-        elif tool_name == "continue_writing_tool":
-            result = await continue_writing_tool.ainvoke({
-                "context": params.get("context", context),
-                "requirements": params.get("requirements", "")
-            })
+        elif use_multi_agent:
+            # ✅ Multi-Agent 写作系统集成
+            writing_task = {
+                "task_id": task.get("task_id", "1"),
+                "description": task.get("description", "续写内容"),
+                "type": task.get("type", tool_name) or "continue_writing",
+                "chapter_id": chapter_id,
+            }
+
+            # 构建上下文（简化版，后续可从 WorldviewService 获取）
+            ma_context = {
+                "character_document": params.get("character_document", ""),
+                "previous_summary": params.get("previous_summary", ""),
+                "previous_content": params.get("context", context)[-2000:] if params.get("context", context) else "",
+                "total_outline": params.get("outline", ""),
+                "world_setting": params.get("world_setting", "")
+            }
+
+            # 检查是否有足够的上下文使用 Multi-Agent（覆盖更多信号）
+            has_context = any([
+                ma_context.get("character_document"),
+                ma_context.get("total_outline"),
+                ma_context.get("previous_summary"),
+                ma_context.get("world_setting"),
+                ma_context.get("previous_content"),
+            ])
+
+            if has_context:
+                logger.info(f"[MultiAgent] 使用 Multi-Agent 执行写作任务: {task.get('description', '')[:50]}")
+
+                async def on_multi_agent_event(event: Dict[str, Any]):
+                    """Multi-Agent 事件回调适配器"""
+                    if on_progress:
+                        event_type = event.get("type", "")
+                        data = event.get("data", {})
+
+                        if event_type == "plan":
+                            task_count = len(data.get("tasks", []))
+                            await on_progress(task, f"开始 Multi-Agent 写作流程（{task_count}个阶段）")
+                        elif event_type == "task_start":
+                            task_id = data.get("task_id", 0)
+                            stage_names = {
+                                1: "大纲师生成大纲",
+                                2: "主笔撰写内容",
+                                3: "角色守护检查",
+                                4: "逻辑审计检查",
+                                5: "总编审核修订"
+                            }
+                            stage_name = stage_names.get(task_id, f"阶段{task_id}")
+                            await on_progress(task, f"[{task_id}/5] {stage_name}...")
+                        elif event_type == "task_done":
+                            task_id = data.get("task_id", 0)
+                            elapsed = data.get("elapsed_time", 0)
+                            await on_progress(task, f"[{task_id}/5] 完成 ({elapsed:.1f}s)")
+                        elif event_type == "content":
+                            await on_progress(task, "Multi-Agent 写作完成")
+
+                try:
+                    ma_result = await multi_agent.execute(
+                        task=writing_task,
+                        work_id=work_id,
+                        chapter_id=chapter_id,
+                        context=ma_context,
+                        on_event=on_multi_agent_event
+                    )
+                    result = ma_result.get("content", "")
+                    logger.info(f"[MultiAgent] 写作任务完成: {len(result)} 字")
+                except Exception as e:
+                    logger.error(f"[MultiAgent] 写作失败，回退到单 Agent: {e}", exc_info=True)
+                    if on_progress:
+                        await on_progress(task, "Multi-Agent 失败，回退到单 Agent")
+                    result = await continue_writing_tool.ainvoke({
+                        "context": params.get("context", context),
+                        "requirements": params.get("requirements", "")
+                    })
+            else:
+                logger.info("[MultiAgent] 上下文不足，使用原有写作工具")
+                result = await continue_writing_tool.ainvoke({
+                    "context": params.get("context", context),
+                    "requirements": params.get("requirements", "")
+                })
         elif tool_name == "polish_text_tool":
             result = await polish_text_tool.ainvoke({
                 "text": params.get("text", ""),
