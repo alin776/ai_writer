@@ -1,7 +1,8 @@
-﻿import React, { useState, useRef, useEffect, useCallback } from 'react';
+﻿import React, { useState, useRef, useEffect, useCallback, useMemo, KeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Bot, Send, Loader2, Square } from 'lucide-react';
+import { Bot, Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronLeft, Tag, X } from 'lucide-react';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import type { AgentChatRequest } from '../../types/agent';
 import type { AgentMode } from '../agent/ModeSelector';
@@ -13,6 +14,7 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import rehypeRaw from 'rehype-raw';
+import { knowledgeApi } from '@/services/knowledgeApi';
 
 interface AIPanelProps {
   workId: string;
@@ -108,6 +110,46 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
   );
 };
 
+type AtCommandStage = 'root' | 'knowledge';
+
+type RootCommandOption = {
+  key: 'knowledge' | 'optimization';
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  hasChildren?: boolean;
+};
+
+const ROOT_OPTIONS: RootCommandOption[] = [
+  {
+    key: 'knowledge',
+    label: '@Knowledge',
+    description: '引用知识库里的文档',
+    icon: <BookOpen className="w-4 h-4" />,
+    hasChildren: true,
+  },
+  {
+    key: 'optimization',
+    label: '@optimization',
+    description: '开启 AI 去痕迹优化',
+    icon: <Sparkles className="w-4 h-4" />,
+  },
+];
+
+const AT_CHARS = ['@', '＠'];
+
+const extractKnowledgeTags = (value: string): string[] => {
+  const regex = /@'([^']+)'/g;
+  const tags = new Set<string>();
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(value))) {
+    if (match[1]) tags.add(match[1]);
+  }
+  return Array.from(tags);
+};
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanelProps) {
   const {
     messages,
@@ -128,6 +170,42 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true); // 用于追踪是否应该自动滚动
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const [atMenuOpen, setAtMenuOpen] = useState(false);
+  const [atStage, setAtStage] = useState<AtCommandStage>('root');
+  const [atQuery, setAtQuery] = useState('');
+  const [highlightIndex, setHighlightIndex] = useState(0);
+  const [knowledgeDocs, setKnowledgeDocs] = useState<Array<{ id: string; title: string; tags?: string[] }>>([]);
+  const [knowledgeLoading, setKnowledgeLoading] = useState(false);
+  const [knowledgeError, setKnowledgeError] = useState<string | null>(null);
+  const [knowledgeLoadedOnce, setKnowledgeLoadedOnce] = useState(false);
+  const [knowledgePage, setKnowledgePage] = useState(1);
+  const [knowledgeHasMore, setKnowledgeHasMore] = useState(false);
+  const [atTriggerIndex, setAtTriggerIndex] = useState<number | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ left: number; top: number; width: number } | null>(null);
+  const [menuHeight, setMenuHeight] = useState<number>(220);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const knowledgeListRef = useRef<HTMLDivElement>(null);
+
+  const [selectedDocs, setSelectedDocs] = useState<Array<{ id: string; title: string }>>([]);
+  const [optimizationSelected, setOptimizationSelected] = useState(false);
+
+  const containsAt = useMemo(() => AT_CHARS.some((c) => inputValue.includes(c)), [inputValue]);
+
+  const filteredRootOptions = useMemo(() => {
+    const query = atQuery.trim().toLowerCase();
+    if (!query) return ROOT_OPTIONS;
+    return ROOT_OPTIONS.filter(
+      (opt) => opt.label.toLowerCase().includes(query) || opt.description.toLowerCase().includes(query)
+    );
+  }, [atQuery]);
+
+  const filteredKnowledgeDocs = useMemo(() => {
+    const query = atQuery.trim().toLowerCase();
+    if (!query) return knowledgeDocs;
+    return knowledgeDocs.filter((doc) => doc.title.toLowerCase().includes(query));
+  }, [atQuery, knowledgeDocs]);
 
   // 监控：activities状态变化（仅在有数据时记录）
   useEffect(() => {
@@ -202,20 +280,210 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
     }
   }, [messages, tasks, scrollToBottom]);
 
+  const repositionMenu = useCallback(() => {
+    const inputEl = inputRef.current;
+    if (!inputEl) return;
+    const rect = inputEl.getBoundingClientRect();
+    const estimatedHeight = menuHeight || 220;
+    const margin = 6;
+    const belowSpace = window.innerHeight - rect.bottom;
+    let top: number;
+    if (belowSpace >= estimatedHeight + margin) {
+      top = rect.bottom + margin;
+    } else {
+      top = Math.max(rect.top - estimatedHeight - margin, margin);
+    }
+    setMenuPosition({
+      left: rect.left,
+      top,
+      width: rect.width,
+    });
+  }, [menuHeight]);
+
+  const updateAtState = useCallback(
+    (value: string, caret: number | null) => {
+      if (caret === null) return;
+
+      const lastIndex = Math.max(...AT_CHARS.map((c) => value.lastIndexOf(c, caret - 1)));
+      if (lastIndex === -1) {
+        setAtMenuOpen(false);
+        return;
+      }
+
+      const tokenText = value.slice(lastIndex + 1, caret);
+      if (tokenText.includes(' ') || tokenText.includes('\n')) {
+        setAtMenuOpen(false);
+        return;
+      }
+
+      setAtMenuOpen(true);
+      setAtTriggerIndex(lastIndex);
+      setAtQuery(tokenText);
+      setHighlightIndex(0);
+      repositionMenu();
+    },
+    [repositionMenu]
+  );
+
+  const syncAtStateFromRef = useCallback(() => {
+    const el = inputRef.current;
+    const caret = el?.selectionStart ?? null;
+    const value = el?.value ?? inputValue;
+    updateAtState(value, caret);
+  }, [inputValue, updateAtState]);
+
+  useEffect(() => {
+    if (!containsAt) {
+      setAtMenuOpen(false);
+      setAtStage('root');
+      return;
+    }
+    syncAtStateFromRef();
+  }, [containsAt, inputValue, syncAtStateFromRef]);
+
+  useEffect(() => {
+    if (!atMenuOpen) return;
+    repositionMenu();
+    if (menuRef.current) {
+      const h = menuRef.current.getBoundingClientRect().height;
+      if (h && Math.abs(h - menuHeight) > 2) {
+        setMenuHeight(h);
+      }
+    }
+    const handleWindow = () => repositionMenu();
+    window.addEventListener('resize', handleWindow);
+    window.addEventListener('scroll', handleWindow, true);
+    return () => {
+      window.removeEventListener('resize', handleWindow);
+      window.removeEventListener('scroll', handleWindow, true);
+    };
+  }, [atMenuOpen, repositionMenu]);
+
+  useEffect(() => {
+    const loadDocs = async () => {
+      if (knowledgeLoading) return;
+      try {
+        setKnowledgeLoading(true);
+        setKnowledgeError(null);
+        // 使用新的 getDocTitles API，返回 {id, title}[]
+        const docs = await knowledgeApi.getDocTitles();
+        console.log('[AIPanel] 获取知识库文档列表:', docs);
+        setKnowledgeDocs(docs.map((d) => ({ id: d.id, title: d.title || '未命名文档' })));
+        setKnowledgeHasMore(false);
+      } catch (err: any) {
+        const status = err?.response?.status;
+        if (status === 404) {
+          setKnowledgeDocs([]);
+          setKnowledgeError(null);
+        } else {
+          setKnowledgeError(err?.message || '知识库文档获取失败');
+        }
+        setKnowledgeHasMore(false);
+      } finally {
+        setKnowledgeLoading(false);
+        setKnowledgeLoadedOnce(true);
+      }
+    };
+
+    if (atMenuOpen && atStage === 'knowledge' && !knowledgeLoading && !knowledgeLoadedOnce) {
+      loadDocs();
+    }
+  }, [atMenuOpen, atStage, knowledgeLoading, knowledgeLoadedOnce]);
+
+  const closeAtMenu = useCallback(() => {
+    setAtMenuOpen(false);
+    setAtStage('root');
+    setAtQuery('');
+    setHighlightIndex(0);
+    setAtTriggerIndex(null);
+    setKnowledgeLoadedOnce(false);
+    setKnowledgePage(1);
+    setKnowledgeHasMore(false);
+  }, []);
+
+  const stripCurrentToken = useCallback(() => {
+    const el = inputRef.current;
+    const caret = el?.selectionStart ?? inputValue.length;
+    const trigger = atTriggerIndex ?? Math.max(...AT_CHARS.map((c) => inputValue.lastIndexOf(c, caret - 1)));
+    if (trigger < 0) return inputValue;
+    const rest = inputValue.slice(trigger);
+    const nextSpaceIndex = rest.search(/[\s]/);
+    const end = nextSpaceIndex === -1 ? inputValue.length : trigger + nextSpaceIndex;
+    const before = inputValue.slice(0, trigger).trimEnd();
+    const after = inputValue.slice(end).trimStart();
+    const combined = before && after ? `${before} ${after}` : before || after;
+    return combined;
+  }, [atTriggerIndex, inputValue]);
+
+  const handleRootOption = useCallback(
+    (option: RootCommandOption) => {
+      if (option.key === 'optimization') {
+        setOptimizationSelected(true);
+        setInputValue(stripCurrentToken());
+        closeAtMenu();
+        requestAnimationFrame(() => inputRef.current?.focus());
+        return;
+      }
+      setAtStage('knowledge');
+      setAtQuery('');
+      setHighlightIndex(0);
+      setAtMenuOpen(true);
+      repositionMenu();
+    },
+    [closeAtMenu, repositionMenu, stripCurrentToken]
+  );
+
+  const handleKnowledgeSelect = useCallback(
+    (doc: { id: string; title: string }) => {
+      setSelectedDocs((prev) => (prev.find((d) => d.id === doc.id) ? prev : [...prev, doc]));
+      setInputValue(stripCurrentToken());
+      closeAtMenu();
+      requestAnimationFrame(() => inputRef.current?.focus());
+    },
+    [closeAtMenu, stripCurrentToken]
+  );
+
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      setInputValue(value);
+      updateAtState(value, e.target.selectionStart ?? value.length);
+    },
+    [updateAtState]
+  );
+
+  const removeKnowledgeTag = useCallback((tag: string) => {
+    setSelectedDocs((prev) => prev.filter((t) => t.id !== tag));
+  }, []);
+
+  const removeOptimization = useCallback(() => {
+    setOptimizationSelected(false);
+  }, []);
+
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
 
+    const message = inputValue.trim();
+    const knowledgeDocIds = selectedDocs.map((d) => d.id);
+    const useOptimization = optimizationSelected;
+
+    // 调试日志：查看发送的知识库文档ID
+    console.log('[AIPanel] 发送消息，knowledge_doc_ids:', knowledgeDocIds, 'selectedDocs:', selectedDocs);
+
     const request: AgentChatRequest = {
-      message: inputValue.trim(),
+      message,
       mode,  // ✅ 使用用户选择的模式（动态）
       work_id: workId,
       chapter_id: chapterId,
       context: {
         chapter_context: chapterId ? `当前章节ID: ${chapterId}` : undefined,
+        knowledge_doc_ids: knowledgeDocIds,
+        use_optimization: useOptimization,
       },
     };
 
     setInputValue('');
+    closeAtMenu();
 
     // 用户发送消息时，标记应该自动滚动
     shouldAutoScrollRef.current = true;
@@ -226,6 +494,46 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
       console.error('Failed to send message:', err);
     }
   };
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      const options = atStage === 'root' ? filteredRootOptions : filteredKnowledgeDocs;
+      const hasOptions = options.length > 0;
+
+      if (atMenuOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+        e.preventDefault();
+        if (!hasOptions) return;
+        setHighlightIndex((prev) => {
+          if (e.key === 'ArrowDown') {
+            return (prev + 1) % options.length;
+          }
+          return (prev - 1 + options.length) % options.length;
+        });
+        return;
+      }
+
+      if (e.key === 'Enter' && !e.shiftKey) {
+        if (atMenuOpen && hasOptions) {
+          e.preventDefault();
+          const option = options[Math.min(highlightIndex, options.length - 1)];
+          if (atStage === 'root') {
+            handleRootOption(option as RootCommandOption);
+          } else {
+            handleKnowledgeSelect(option as { id: string; title: string });
+          }
+          return;
+        }
+        e.preventDefault();
+        handleSend();
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        closeAtMenu();
+      }
+    },
+    [atMenuOpen, atStage, closeAtMenu, filteredKnowledgeDocs, filteredRootOptions, handleKnowledgeSelect, handleRootOption, handleSend, highlightIndex]
+  );
   const handleStop = useCallback(() => {
     stopStreaming();
   }, [stopStreaming]);
@@ -454,14 +762,51 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
       {/* 模式选择 + 输入区（上下分区） */}
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-4 py-3 space-y-3">
         <div className="relative">
-          <Input
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="输入问题或指令..."
-            className="w-full h-12 text-[12px] border-none focus-visible:ring-0 focus:outline-none bg-transparent rounded-xl text-gray-800"
-            disabled={isLoading}
-          />
+          <div className="flex flex-wrap items-center gap-2 w-full min-h-12 px-1 py-1 rounded-xl bg-transparent text-gray-800">
+            {optimizationSelected && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm">
+                <Sparkles className="w-3.5 h-3.5 text-zinc-600" />
+                optimization
+                <button
+                  type="button"
+                  onClick={removeOptimization}
+                  className="hover:text-zinc-900 transition-colors"
+                  aria-label="移除 AI 去痕迹"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {selectedDocs.map((doc) => (
+              <span
+                key={doc.id}
+                className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm"
+              >
+                <Tag className="w-3.5 h-3.5 text-zinc-600" />
+                {doc.title}
+                <button
+                  type="button"
+                  onClick={() => removeKnowledgeTag(doc.id)}
+                  className="hover:text-zinc-900 transition-colors"
+                  aria-label={`移除 ${doc.title}`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+
+            <input
+              ref={inputRef}
+              value={inputValue}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              onClick={syncAtStateFromRef}
+              onFocus={syncAtStateFromRef}
+              placeholder="输入问题或指令..."
+              className="flex-1 min-w-[120px] h-9 bg-transparent outline-none border-none text-[12px] placeholder:text-gray-400"
+              disabled={isLoading}
+            />
+          </div>
         </div>
 
         <div className="flex items-center justify-between gap-2">
@@ -495,6 +840,116 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
           </div>
         </div>
       </div>
+
+      {atMenuOpen && menuPosition &&
+        createPortal(
+          <div
+            className="fixed z-[1200]"
+            style={{ left: menuPosition.left, top: menuPosition.top, width: menuPosition.width }}
+          >
+            <div
+              ref={menuRef}
+              className="rounded-2xl border border-slate-800/70 bg-slate-900 text-slate-50 shadow-2xl overflow-hidden max-w-[360px] w-full"
+            >
+              <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800/70 text-[12px]">
+                <div className="flex items-center gap-2">
+                  {atStage === 'knowledge' ? (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setAtStage('root');
+                        setHighlightIndex(0);
+                        setAtQuery('');
+                      }}
+                      className="inline-flex items-center gap-1 text-slate-300 hover:text-white transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      返回
+                    </button>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-slate-300">
+                      <Sparkles className="w-4 h-4" />
+                      @ 指令
+                    </span>
+                  )}
+                  <span className="text-slate-400 text-[11px]">
+                    {atStage === 'knowledge' ? '选择要引用的知识库文档' : '选择指令或继续输入'}
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-500">Enter 选中 · ↑↓ 移动</span>
+              </div>
+
+              <div ref={knowledgeListRef} className="max-h-72 overflow-y-auto custom-scrollbar py-2">
+                {atStage === 'root' ? (
+                  filteredRootOptions.length > 0 ? (
+                    filteredRootOptions.map((option, idx) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleRootOption(option)}
+                        onMouseEnter={() => setHighlightIndex(idx)}
+                        className={`w-full px-3 py-2.5 flex items-center justify-between text-left transition-colors ${
+                          idx === highlightIndex ? 'bg-slate-800/80 border-l-2 border-slate-500' : 'hover:bg-slate-800/60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-200">{option.icon}</span>
+                          <div className="flex flex-col">
+                            <span className="text-[12px] text-white">{option.label}</span>
+                            <span className="text-[11px] text-slate-400">{option.description}</span>
+                          </div>
+                        </div>
+                        {option.hasChildren && <ChevronRight className="w-4 h-4 text-slate-400" />}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-[12px] text-slate-400">没有匹配的指令</div>
+                  )
+                ) : (
+                  <div className="space-y-1">
+                    {knowledgeLoading && (
+                      <div className="px-3 py-2 text-[12px] text-slate-400 flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        正在加载知识库文档...
+                      </div>
+                    )}
+                    {knowledgeError && !knowledgeLoading && (
+                      <div className="px-3 py-2 text-[12px] text-amber-200">
+                        {knowledgeError}
+                      </div>
+                    )}
+                    {!knowledgeLoading && !knowledgeError && filteredKnowledgeDocs.length === 0 && (
+                      <div className="px-3 py-2 text-[12px] text-slate-400">暂无可用文档</div>
+                    )}
+                    {!knowledgeLoading &&
+                      !knowledgeError &&
+                      filteredKnowledgeDocs.map((doc, idx) => (
+                        <button
+                          key={doc.id}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => handleKnowledgeSelect(doc)}
+                          onMouseEnter={() => setHighlightIndex(idx)}
+                          className={`w-full px-3 py-2.5 flex items-center justify-between text-left transition-colors ${
+                            idx === highlightIndex ? 'bg-slate-800/80 border-l-2 border-slate-500' : 'hover:bg-slate-800/60'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Tag className="w-4 h-4 text-slate-200" />
+                            <span className="text-[12px] text-white">{doc.title}</span>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-slate-400 opacity-60" />
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* ✅ 编辑器确认对话框 */}
       {pendingApproval && (

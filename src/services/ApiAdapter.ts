@@ -10,8 +10,10 @@ export class ApiAdapter implements IDataAdapter {
   private axiosInstance: AxiosInstance;
 
   constructor() {
+    let baseURL = import.meta.env.DEV ? '/api/v1' : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api');
+
     this.axiosInstance = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api',
+      baseURL,
       timeout: 180000, // 180秒超时（3分钟），适配AI长文本生�?
       headers: {
         'Content-Type': 'application/json',

@@ -3,10 +3,21 @@
 专门用于RAG续写上下文检索，与分析系统解耦
 """
 import logging
+import os
 import re
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete as sql_delete
+
+# 确保在导入 sentence_transformers 前设置好镜像与缓存目录，避免访问 huggingface.co 超时
+_default_hf_endpoint = os.getenv("HF_ENDPOINT", "https://hf-mirror.com")
+os.environ.setdefault("HF_ENDPOINT", _default_hf_endpoint)
+_hf_cache_dir = Path(__file__).resolve().parents[2] / "data" / "hf_cache"
+_hf_cache_dir.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("HF_HOME", str(_hf_cache_dir))
+os.environ.setdefault("HF_HUB_CACHE", str(_hf_cache_dir))
+
 from sentence_transformers import SentenceTransformer
 import numpy as np
 
@@ -44,7 +55,9 @@ class ChapterVectorService:
         # 复用VectorStoreService的全局模型
         if VectorStoreService._global_model is None:
             logger.info(f"正在加载Embedding模型: {self.MODEL_NAME}")
-            VectorStoreService._global_model = SentenceTransformer(self.MODEL_NAME)
+            VectorStoreService._global_model = SentenceTransformer(
+                self.MODEL_NAME, cache_folder=str(VectorStoreService.CACHE_DIR)
+            )
             logger.info("Embedding模型加载成功")
 
         return VectorStoreService._global_model

@@ -37,6 +37,9 @@ export default function AgentChatPanel({
   onSwitchTab,
   onUpdateTabTitle
 }: AgentChatPanelProps) {
+  useEffect(() => {
+    console.log('[AgentChatPanel] mounted', { workId, chapterId, className });
+  }, [workId, chapterId, className]);
   const {
     tabs,
     activeTabId,

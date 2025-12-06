@@ -5,9 +5,20 @@
 import json
 import logging
 import math
+import os
+from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+
+# 提前配置 HuggingFace 端点与缓存目录，避免导入 sentence_transformers 时锁定为默认的 huggingface.co
+_default_hf_endpoint = os.getenv("HF_ENDPOINT", "https://hf-mirror.com")
+os.environ.setdefault("HF_ENDPOINT", _default_hf_endpoint)
+_hf_cache_dir = Path(__file__).resolve().parents[2] / "data" / "hf_cache"
+_hf_cache_dir.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("HF_HOME", str(_hf_cache_dir))
+os.environ.setdefault("HF_HUB_CACHE", str(_hf_cache_dir))
+
 from sentence_transformers import SentenceTransformer
 import numpy as np
 
@@ -22,6 +33,7 @@ class VectorStoreService:
     # 使用轻量级多语言模型（支持中文）
     MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
     VECTOR_DIM = 384  # 模型输出维度
+    CACHE_DIR = _hf_cache_dir  # 统一缓存目录，避免重复下载
 
     # 类级别的模型缓存（所有实例共享）
     _global_model: Optional[SentenceTransformer] = None
@@ -48,8 +60,11 @@ class VectorStoreService:
             logger.info(f"🔄 预加载Embedding模型: {cls.MODEL_NAME}")
             try:
                 import time
+
                 start_time = time.time()
-                cls._global_model = SentenceTransformer(cls.MODEL_NAME)
+                cls._global_model = SentenceTransformer(
+                    cls.MODEL_NAME, cache_folder=str(cls.CACHE_DIR)
+                )
                 load_time = time.time() - start_time
                 logger.info(f"✅ Embedding模型预加载成功，耗时: {load_time:.2f}秒")
             except Exception as e:
@@ -69,7 +84,9 @@ class VectorStoreService:
         if self._global_model is None:
             logger.info(f"正在加载Embedding模型: {self.MODEL_NAME}")
             try:
-                self._global_model = SentenceTransformer(self.MODEL_NAME)
+                self._global_model = SentenceTransformer(
+                    self.MODEL_NAME, cache_folder=str(self.CACHE_DIR)
+                )
                 logger.info("Embedding模型加载成功")
             except Exception as e:
                 logger.error(f"加载Embedding模型失败: {e}", exc_info=True)

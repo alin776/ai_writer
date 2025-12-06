@@ -60,10 +60,11 @@ class KnowledgeApiService {
   private client: AxiosInstance;
 
   constructor() {
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace('/api/v1', '') || 'http://localhost:8000';
+    const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+    const baseURL = import.meta.env.DEV ? '/api/v1' : rawBase;
 
     this.client = axios.create({
-      baseURL: `${API_BASE_URL}/api/v1/knowledge`,
+      baseURL: `${baseURL}/knowledge`,
       headers: {
         'Content-Type': 'application/json'
       },
@@ -132,7 +133,8 @@ class KnowledgeApiService {
     const pageSize = params?.pageSize ?? params?.limit ?? 20;
     const skip = params?.skip ?? (page - 1) * pageSize;
     const limit = params?.limit ?? pageSize;
-    const response = await this.client.get<KnowledgeListResponse>('/', {
+    // 使用空路径，避免带尾随斜杠触发 307 重定向导致 Authorization 可能丢失
+    const response = await this.client.get<KnowledgeListResponse>('', {
       params: {
         search: params?.search,
         category: params?.category,
@@ -210,8 +212,37 @@ class KnowledgeApiService {
    * 获取所有标签
    */
   async getTags(): Promise<string[]> {
-    const response = await this.client.get<string[]>('/tags');
-    return response.data;
+    try {
+      const response = await this.client.get<string[]>('/tags');
+      return response.data || [];
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        return [];
+      }
+      // 静默处理网络错误，避免 UI 报红
+      if (error?.message?.includes('Network Error')) {
+        return [];
+      }
+      return [];
+    }
+  }
+
+  /**
+   * 获取知识库文档列表（id + title），用于@引用选择
+   */
+  async getDocTitles(): Promise<{ id: string; title: string }[]> {
+    try {
+      const response = await this.client.get<{ id: string; title: string }[]>('/titles');
+      return response.data || [];
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        return [];
+      }
+      if (error?.message?.includes('Network Error')) {
+        return [];
+      }
+      return [];
+    }
   }
 }
 

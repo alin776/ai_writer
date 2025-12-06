@@ -1082,6 +1082,59 @@ def _build_summarization_context(
 
     return ''.join(context_parts)
 
+
+def _build_knowledge_system_messages(
+    context: Optional[Dict[str, Any]],
+    max_docs: int = 3,
+    max_snippet_chars: int = 800,
+    max_total_chars: int = 2400
+) -> List[SystemMessage]:
+    """
+    将 knowledge_docs 构造成系统提示，限制数量和长度，避免超长。
+    """
+    if not context:
+        return []
+    docs = context.get("knowledge_docs")
+    if not isinstance(docs, list) or not docs:
+        return []
+
+    parts: List[str] = []
+    total = 0
+    for doc in docs[:max_docs]:
+        title = doc.get("title") or "未命名文档"
+        tags = doc.get("tags") or []
+        source = doc.get("source_type") or "unknown"
+        highlight = doc.get("highlight")
+        content = highlight or doc.get("content") or ""
+        snippet = content.strip()[:max_snippet_chars]
+        if not snippet:
+            continue
+
+        # ✅ P0修复: 更明确地标注文档元数据，避免AI混淆
+        tags_str = ', '.join(tags) if tags else '无'
+        block = (
+            f"=== 知识库文档 ===\n"
+            f"文档标题: {title}\n"
+            f"文档来源: {source}\n"
+            f"文档标签: {tags_str}\n"
+            f"文档正文内容:\n{snippet}\n"
+            f"=== 文档结束 ==="
+        )
+        if total + len(block) > max_total_chars:
+            break
+        parts.append(block)
+        total += len(block)
+
+    if not parts:
+        return []
+
+    system_text = (
+        "以下是用户指定或检索到的知识库文档，请严格参考其内容回答，避免臆造：\n\n"
+        + "\n\n".join(parts)
+    )
+
+    return [SystemMessage(content=system_text)]
+
 # ==================================================================
 
 
@@ -2898,8 +2951,10 @@ class WritingAgentGraph:
                 raise
 
         # 构建初始状态
+        knowledge_messages = _build_knowledge_system_messages(context)
+
         initial_state = {
-            "messages": [HumanMessage(content=message)],
+            "messages": knowledge_messages + [HumanMessage(content=message)],
             "work_id": work_id,
             "chapter_id": chapter_id,
             "intent": None,
@@ -3078,8 +3133,10 @@ class WritingAgentGraph:
                 history_messages.append(AIMessage(content=msg["content"]))
 
         # 构建初始状态（不预设intent,由LangGraph的intent_classifier节点识别）
+        knowledge_messages = _build_knowledge_system_messages(context)
+
         initial_state = {
-            "messages": history_messages + [HumanMessage(content=message)],  # 历史消息 + 当前消息
+            "messages": knowledge_messages + history_messages + [HumanMessage(content=message)],  # 知识上下文 + 历史消息 + 当前消息
             "work_id": work_id,
             "chapter_id": chapter_id,
             "intent": None,  # ✅ 优化：由LangGraph的intent_classifier节点自动识别
@@ -3905,7 +3962,34 @@ class WritingAgentGraph:
                 # ✅ Phase 2.6: 使用缓存的静态 Prompt（节省构建时间和 Token）
                 static_prompt = await get_planning_static_prompt()
 
-                plan_prompt = f"""AI写作助手。{history_section}
+                # ✅ P0修复: 注入知识库文档到Planning prompt
+                knowledge_section = ""
+                knowledge_docs = context.get("knowledge_docs") if context else []
+                if knowledge_docs:
+                    logger.info(f"[Planning] 注入 {len(knowledge_docs)} 个知识库文档到prompt")
+                    knowledge_parts = []
+                    for doc in knowledge_docs[:3]:  # 最多3个文档
+                        title = doc.get("title") or "未命名文档"
+                        tags = doc.get("tags") or []
+                        source = doc.get("source_type") or "unknown"
+                        content = doc.get("content") or ""
+                        # 截取摘要，避免prompt过长
+                        snippet = content.strip()[:800] if content else ""
+                        if snippet:
+                            # ✅ P0修复: 更明确地标注文档元数据，避免AI混淆
+                            tags_str = ', '.join(tags) if tags else '无'
+                            knowledge_parts.append(
+                                f"=== 知识库文档 ===\n"
+                                f"文档标题: {title}\n"
+                                f"文档来源: {source}\n"
+                                f"文档标签: {tags_str}\n"
+                                f"文档正文内容:\n{snippet}\n"
+                                f"=== 文档结束 ==="
+                            )
+                    if knowledge_parts:
+                        knowledge_section = "\n\n【用户引用的知识库文档】\n请参考以下文档内容回答用户问题：\n\n" + "\n\n".join(knowledge_parts) + "\n\n"
+
+                plan_prompt = f"""AI写作助手。{history_section}{knowledge_section}
 用户: {message}
 work_id: {work_id}
 chapter_id: {chapter_id}
@@ -4049,11 +4133,15 @@ chapter_id: {chapter_id}
                 # ========== 阶段3: 智能返回（Response） ==========
                 logger.info("[Response] 生成最终响应")
 
+                # ✅ P0修复: 从context中获取知识库文档，传递给_build_final_response
+                knowledge_docs_for_response = context.get("knowledge_docs") if context else None
+
                 # 使用新的智能判断方法
                 final_content = await self._build_final_response(
                     task_results=task_results,
                     message=message,
-                    on_content=on_content
+                    on_content=on_content,
+                    knowledge_docs=knowledge_docs_for_response  # ✅ P0修复: 传递知识库文档
                 )
 
                 # ========== 保存对话到checkpointer ==========
@@ -4547,7 +4635,8 @@ chapter_id: {chapter_id}
         self,
         task_results: List[Dict],
         message: str,
-        on_content: Optional[callable] = None
+        on_content: Optional[callable] = None,
+        knowledge_docs: Optional[List[Dict]] = None  # ✅ P0修复: 添加知识库文档参数
     ) -> str:
         """智能构建最终响应
 
@@ -4561,6 +4650,7 @@ chapter_id: {chapter_id}
             task_results: 任务结果列表
             message: 用户原始消息
             on_content: 内容回调函数
+            knowledge_docs: 用户引用的知识库文档列表（可选）
 
         Returns:
             最终响应内容
@@ -4616,7 +4706,7 @@ chapter_id: {chapter_id}
         # 情况1：没有输出任务（极少见）
         if len(output_tasks) == 0:
             logger.warning("[Response] 没有明确输出任务，使用AI整合")
-            return await self._ai_summarization(task_results, message, on_content)
+            return await self._ai_summarization(task_results, message, on_content, knowledge_docs)
 
         # 情况2：单个输出任务（主要场景，约85%）
         elif len(output_tasks) == 1:
@@ -4644,7 +4734,7 @@ chapter_id: {chapter_id}
 
             # 分析类任务，可能需要格式化
             logger.info(f"[Response] 单个分析任务({tool_name})，使用AI格式化")
-            return await self._ai_summarization(task_results, message, on_content)
+            return await self._ai_summarization(task_results, message, on_content, knowledge_docs)
 
         # 情况3：多个输出任务（约15%）
         else:
@@ -4743,7 +4833,8 @@ chapter_id: {chapter_id}
         self,
         task_results: List[Dict],
         message: str,
-        on_content: Optional[callable] = None
+        on_content: Optional[callable] = None,
+        knowledge_docs: Optional[List[Dict]] = None  # ✅ P0修复: 添加知识库文档参数
     ) -> str:
         """AI整合（保留原有的Summarization逻辑）
 
@@ -4751,6 +4842,7 @@ chapter_id: {chapter_id}
             task_results: 任务结果列表
             message: 用户原始消息
             on_content: 内容回调函数
+            knowledge_docs: 用户引用的知识库文档列表（可选）
 
         Returns:
             AI整合后的最终响应
@@ -4758,6 +4850,32 @@ chapter_id: {chapter_id}
         from app.services.agent.utils.monitoring import increment_counter
 
         logger.info("[Summarization] 使用AI整合任务结果")
+
+        # ✅ P0修复: 构建知识库文档上下文
+        knowledge_section = ""
+        if knowledge_docs:
+            logger.info(f"[Summarization] 注入 {len(knowledge_docs)} 个知识库文档到总结prompt")
+            knowledge_parts = []
+            for doc in knowledge_docs[:3]:  # 最多3个文档
+                title = doc.get("title") or "未命名文档"
+                tags = doc.get("tags") or []
+                source = doc.get("source_type") or "unknown"
+                content = doc.get("content") or ""
+                # 截取摘要，避免prompt过长
+                snippet = content.strip()[:1200] if content else ""
+                if snippet:
+                    # ✅ P0修复: 更明确地标注文档元数据，避免AI混淆
+                    tags_str = ', '.join(tags) if tags else '无'
+                    knowledge_parts.append(
+                        f"=== 知识库文档 ===\n"
+                        f"文档标题: {title}\n"
+                        f"文档来源: {source}\n"
+                        f"文档标签: {tags_str}\n"
+                        f"文档正文内容:\n{snippet}\n"
+                        f"=== 文档结束 ==="
+                    )
+            if knowledge_parts:
+                knowledge_section = "\n\n【用户引用的知识库文档】\n请优先参考以下文档内容回答用户问题：\n\n" + "\n\n".join(knowledge_parts) + "\n\n"
 
         # 构建完整上下文
         all_context = f"用户请求：{message}\n\n"
@@ -4778,8 +4896,9 @@ chapter_id: {chapter_id}
             f"压缩率={(100 - len(compressed_context) * 100 // len(all_context)) if len(all_context) > 0 else 0}%"
         )
 
+        # ✅ P0修复: 将知识库文档注入到总结prompt中
         summary_prompt = f"""基于以下任务执行结果，生成最终的响应给用户。
-
+{knowledge_section}
 {compressed_context}
 
 要求：
@@ -4787,6 +4906,7 @@ chapter_id: {chapter_id}
 2. 用清晰、友好的语言呈现
 3. 如果是创作内容，直接输出创作结果
 4. 如果是分析/规划，给出详细说明
+5. 如果用户引用了知识库文档，优先基于文档内容回答
 
 请生成最终响应："""
 

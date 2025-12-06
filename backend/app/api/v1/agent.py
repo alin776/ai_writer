@@ -32,6 +32,7 @@ from app.services.agent.agents import PlanningAgent, ReflectionAgent
 from app.services.agent.tools import HITLManager
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.agent.langgraph_agent import WritingAgentGraph
+from app.services.knowledge_service import KnowledgeService
 from app.core.config import settings
 # ✅ 2025-12-01: 支持Agent成本追踪（通过请求上下文传递user_id）
 from app.core.request_context import set_request_context
@@ -401,6 +402,114 @@ async def agent_chat(
         context = request.context or {}
         context["memory_context"] = memory_context
         context["user_context"] = user_context
+
+        # 瀹屾垚鐭ヨ瘑鏂囨湰涓婁笅鏂囨彃鍏?鍏堝憡璇ュ寘鎷姹備腑鐭ヨ瘑ID锛屽綋鏈夎淇℃伅鏃堕€氳繃API鍙栨湰鏂囩幆澧冿紙闃叉粡AI鍑哄敖锛?
+        knowledge_service = KnowledgeService(db)
+        knowledge_docs: List[Dict[str, Any]] = []
+
+        doc_ids = context.get("knowledge_doc_ids") if isinstance(context.get("knowledge_doc_ids"), list) else []
+        if doc_ids:
+            seen_ids = set()
+            for doc_id in doc_ids:
+                if not doc_id or doc_id in seen_ids:
+                    continue
+                seen_ids.add(doc_id)
+                try:
+                    item = await knowledge_service.get_item(doc_id, user_id, increment_view=False)
+                    if item:
+                        knowledge_docs.append({
+                            "id": str(item.id),
+                            "title": item.title,
+                            "content": item.content,
+                            "tags": item.tags,
+                            "source_type": getattr(item.source_type, "value", str(item.source_type)),
+                        })
+                        try:
+                            await knowledge_service.increment_reference_count(doc_id, user_id)
+                        except Exception as ref_err:
+                            logger.debug(f"[agent_chat] increment_reference_count failed: {ref_err}")
+                    else:
+                        # 文档不存在或无权限访问
+                        logger.warning(f"[agent_chat] Knowledge doc not found or access denied: doc_id={doc_id}, user_id={user_id}")
+                except Exception as load_err:
+                    logger.warning(f"[agent_chat] load knowledge item failed: {load_err}")
+
+        # ===== 向后兼容：tags 搜索（仅在旧前端调用时触发，计划在后续版本移除）=====
+        if not knowledge_docs:
+            tags = context.get("knowledge_tags") if isinstance(context.get("knowledge_tags"), list) else []
+            if tags:
+                logger.info(f"[agent_chat] Using legacy knowledge_tags search (deprecated): tags={tags}")
+                try:
+                    search_results = await knowledge_service.search_by_semantic(
+                        user_id=user_id,
+                        query=request.message,
+                        tags=tags,
+                        top_k=5,
+                        work_id=str(request.work_id) if request.work_id else None
+                    )
+                    for res in search_results:
+                        item = res.get("item")
+                        if not item:
+                            continue
+                        knowledge_docs.append({
+                            "id": str(item.id),
+                            "title": item.title,
+                            "content": item.content,
+                            "tags": item.tags,
+                            "source_type": getattr(item.source_type, "value", str(item.source_type)),
+                            "highlight": res.get("highlight"),
+                            "relevance_score": res.get("relevance_score"),
+                        })
+                except Exception as search_err:
+                    logger.warning(f"[agent_chat] knowledge semantic search failed: {search_err}")
+                # 语义检索为空时，退化为按标签的数据库过滤
+                if not knowledge_docs:
+                    try:
+                        items, _ = await knowledge_service.get_items(
+                            user_id=user_id,
+                            tags=tags,
+                            work_id=request.work_id
+                        )
+                        for item in items[:3]:
+                            knowledge_docs.append({
+                                "id": str(item.id),
+                                "title": item.title,
+                                "content": item.content,
+                                "tags": item.tags,
+                                "source_type": getattr(item.source_type, "value", str(item.source_type)),
+                            })
+                    except Exception as list_err:
+                        logger.warning(f"[agent_chat] fallback tag filter failed: {list_err}")
+
+        # 标签检索为空时，降级为不带标签的语义检索（避免因无标签/标签不匹配导致0结果）
+        if not knowledge_docs:
+            try:
+                search_results = await knowledge_service.search_by_semantic(
+                    user_id=user_id,
+                    query=request.message,
+                    tags=None,
+                    top_k=3,
+                    work_id=str(request.work_id) if request.work_id else None
+                )
+                for res in search_results:
+                    item = res.get("item")
+                    if not item:
+                        continue
+                    knowledge_docs.append({
+                        "id": str(item.id),
+                        "title": item.title,
+                        "content": item.content,
+                        "tags": item.tags,
+                        "source_type": getattr(item.source_type, "value", str(item.source_type)),
+                        "highlight": res.get("highlight"),
+                        "relevance_score": res.get("relevance_score"),
+                    })
+            except Exception as search_err:
+                logger.warning(f"[agent_chat] fallback knowledge semantic search failed: {search_err}")
+
+        if knowledge_docs:
+            context["knowledge_docs"] = knowledge_docs
+            logger.info(f"[agent_chat] Injected {len(knowledge_docs)} knowledge docs into context")
 
         # 璋冪敤 LangGraph Agent 杩涜瀵硅瘽
         result = await agent_graph.chat(
@@ -1139,6 +1248,112 @@ async def agent_chat_stream(
 
                 # 鍑嗗涓婁笅鏂囷紙鍒涘缓鏂癲ict閬垮厤淇敼鍘焤equest锛?
                 context = dict(request.context) if request.context else {}
+                knowledge_service = KnowledgeService(db)
+                knowledge_docs: List[Dict[str, Any]] = []
+
+                doc_ids = context.get("knowledge_doc_ids") if isinstance(context.get("knowledge_doc_ids"), list) else []
+                if doc_ids:
+                    seen_ids = set()
+                    for doc_id in doc_ids:
+                        if not doc_id or doc_id in seen_ids:
+                            continue
+                        seen_ids.add(doc_id)
+                        try:
+                            item = await knowledge_service.get_item(doc_id, user_id, increment_view=False)
+                            if item:
+                                knowledge_docs.append({
+                                    "id": str(item.id),
+                                    "title": item.title,
+                                    "content": item.content,
+                                    "tags": item.tags,
+                                    "source_type": getattr(item.source_type, "value", str(item.source_type)),
+                                })
+                                try:
+                                    await knowledge_service.increment_reference_count(doc_id, user_id)
+                                except Exception as ref_err:
+                                    logger.debug(f"[agent_chat_stream] increment_reference_count failed: {ref_err}")
+                            else:
+                                # 文档不存在或无权限访问
+                                logger.warning(f"[agent_chat_stream] Knowledge doc not found or access denied: doc_id={doc_id}, user_id={user_id}")
+                        except Exception as load_err:
+                            logger.warning(f"[agent_chat_stream] load knowledge item failed: {load_err}")
+
+                # ===== 向后兼容：tags 搜索（仅在旧前端调用时触发，计划在后续版本移除）=====
+                if not knowledge_docs:
+                    tags = context.get("knowledge_tags") if isinstance(context.get("knowledge_tags"), list) else []
+                    if tags:
+                        logger.info(f"[agent_chat_stream] Using legacy knowledge_tags search (deprecated): tags={tags}")
+                        try:
+                            search_results = await knowledge_service.search_by_semantic(
+                                user_id=user_id,
+                                query=request.message,
+                                tags=tags,
+                                top_k=5,
+                                work_id=str(request.work_id) if request.work_id else None
+                            )
+                            for res in search_results:
+                                item = res.get("item")
+                                if not item:
+                                    continue
+                                knowledge_docs.append({
+                                    "id": str(item.id),
+                                    "title": item.title,
+                                    "content": item.content,
+                                    "tags": item.tags,
+                                    "source_type": getattr(item.source_type, "value", str(item.source_type)),
+                                    "highlight": res.get("highlight"),
+                                    "relevance_score": res.get("relevance_score"),
+                                })
+                        except Exception as search_err:
+                            logger.warning(f"[agent_chat_stream] knowledge semantic search failed: {search_err}")
+                        # 语义检索为空时，退化为按标签的数据库过滤
+                        if not knowledge_docs:
+                            try:
+                                items, _ = await knowledge_service.get_items(
+                                    user_id=user_id,
+                                    tags=tags,
+                                    work_id=request.work_id
+                                )
+                                for item in items[:3]:
+                                    knowledge_docs.append({
+                                        "id": str(item.id),
+                                        "title": item.title,
+                                        "content": item.content,
+                                        "tags": item.tags,
+                                        "source_type": getattr(item.source_type, "value", str(item.source_type)),
+                                    })
+                            except Exception as list_err:
+                                logger.warning(f"[agent_chat_stream] fallback tag filter failed: {list_err}")
+
+                # 标签检索为空时，降级为不带标签的语义检索
+                if not knowledge_docs:
+                    try:
+                        search_results = await knowledge_service.search_by_semantic(
+                            user_id=user_id,
+                            query=request.message,
+                            tags=None,
+                            top_k=3,
+                            work_id=str(request.work_id) if request.work_id else None
+                        )
+                        for res in search_results:
+                            item = res.get("item")
+                            if not item:
+                                continue
+                            knowledge_docs.append({
+                                "id": str(item.id),
+                                "title": item.title,
+                                "content": item.content,
+                                "tags": item.tags,
+                                "source_type": getattr(item.source_type, "value", str(item.source_type)),
+                                "highlight": res.get("highlight"),
+                                "relevance_score": res.get("relevance_score"),
+                            })
+                    except Exception as search_err:
+                        logger.warning(f"[agent_chat_stream] fallback knowledge semantic search failed: {search_err}")
+
+                if knowledge_docs:
+                    context["knowledge_docs"] = knowledge_docs
+                    logger.info(f"[agent_chat_stream] Injected {len(knowledge_docs)} knowledge docs into context")
 
                 # 鉁?杩借釜娲诲姩鐘舵€侊紙鐢ㄤ簬鍙戦€?activity_complete 浜嬩欢锛?
                 last_activity_step = {'step': None, 'start_time': None}

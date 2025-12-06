@@ -34,8 +34,9 @@ class AIService {
   private baseUrl: string;
 
   constructor() {
-    // 使用后端API地址
-    this.baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+    // 使用后端API地址（dev 环境走相对路径以便代理消除 CORS）
+    const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+    this.baseUrl = import.meta.env.DEV ? '/api/v1' : rawBase;
     console.log('[AIService] 初始化，后端地址:', this.baseUrl);
   }
 
