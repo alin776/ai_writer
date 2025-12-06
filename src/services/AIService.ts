@@ -1,6 +1,6 @@
-﻿/**
- * AI 鏈嶅姟 - 璋冪敤鍚庣API鐗堟湰
- * 鎵€鏈堿I鍔熻兘閫氳繃鍚庣鎺ュ彛瀹炵幇锛屾敮鎸丼SE娴佸紡鍝嶅簲
+/**
+ * AI 服务 - 调用后端 API 版本
+ * AI 功能通过后端接口实现，支持 SSE 流式响应
  */
 
 export interface AICompletionRequest {
@@ -9,7 +9,7 @@ export interface AICompletionRequest {
   maxTokens?: number;
   temperature?: number;
   model?: string;
-  // ===== Context-Aware 鍏冩暟鎹弬鏁?=====
+  // ===== Context-Aware 元数据 =====
   workId?: string;
   chapterId?: string;
   enableRag?: boolean;
@@ -34,13 +34,13 @@ class AIService {
   private baseUrl: string;
 
   constructor() {
-    // 浣跨敤鍚庣API鍦板潃
+    // 使用后端 API 地址
     this.baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
-    console.log('[AIService] 鍒濆鍖栵紝鍚庣鍦板潃:', this.baseUrl);
+    console.log('[AIService] 初始化,后端地址:', this.baseUrl);
   }
 
   /**
-   * 鑾峰彇璁よ瘉 Token
+   * 获取认证 Token
    */
   private getAuthToken(): string {
     const authStorage = localStorage.getItem("auth-storage");
@@ -67,21 +67,16 @@ class AIService {
   }
 
   /**
-
-  /**
-   * 鍙栨秷褰撳墠鐨?AI 璇锋眰
+   * 取消当前的 AI 请求
    */
   cancel() {
     if (this.abortController) {
-      console.log('[AIService] 鍙栨秷 AI 璇锋眰');
+      console.log('[AIService] 取消 AI 请求');
       this.abortController.abort();
       this.abortController = null;
     }
   }
 
-  /**
-   * AI鐢熸垚闃舵浜屽唴瀹癸紙鍒涗綔瑙勮寖鈫掓牳蹇冭瀹氾級
-   * @param phase1Data - 闃舵涓€鐢ㄦ埛杈撳叆鐨?5涓瓧娈?   * @returns 闃舵浜孉I鐢熸垚鐨?7涓瓧娈?   */
   async generatePhase2Content(phase1Data: {
     businessGoal?: string;
     targetAudience?: string;
@@ -117,7 +112,7 @@ class AIService {
     actThree?: string;
   }> {
     try {
-      console.log('[AIService] 寮€濮嬬敓鎴愰樁娈典簩鍐呭');
+      console.log('[AIService] 开始生成阶段二内容');
       
       const apiUrl = `${this.baseUrl}/worldview/ai-guidelines/generate`;
       const token = this.getAuthToken();
@@ -147,12 +142,12 @@ class AIService {
       });
 
       if (!response.ok) {
-        throw new Error(`API璇锋眰澶辫触: ${response.status}`);
+        throw new Error(`API请求失败: ${response.status}`);
       }
 
       const data = await response.json();
       
-      // 杞崲瀛楁鍚嶏細snake_case -> camelCase
+      // 字段名: snake_case -> camelCase
       return {
         primaryGenre: data.primary_genre,
         secondaryTags: data.secondary_tags,
@@ -173,15 +168,16 @@ class AIService {
         actThree: data.act_three,
       };
     } catch (error) {
-      console.error('[AIService] 鐢熸垚闃舵浜屽唴瀹瑰け璐?', error);
+      console.error('[AIService] 生成阶段二内容失败', error);
       throw error;
     }
   }
 
   /**
-   * AI 缁啓锛堟祦寮忥級
-   * @param request - 缁啓璇锋眰鍙傛暟
-   * @param onChunk - 鎺ユ敹鍒版柊鏂囨湰鍧楁椂鐨勫洖璋?   */
+   * AI 补全（流式）
+   * @param request - 补全请求参数
+   * @param onChunk - 接收到新文本块时的回调
+   */
   async complete(
     request: AICompletionRequest,
     onChunk?: (chunk: string) => void
@@ -225,7 +221,7 @@ class AIService {
         let errorMessage = `API请求失败 (${response.status})`;
         try {
           const error = await response.json();
-          console.error('[AIService] API 错误详情:', error);
+          console.error('[AIService] API 错误:', error);
           errorMessage = error.detail || error.message || errorMessage;
         } catch (e) {
           errorMessage = `${errorMessage}: ${response.statusText}`;
@@ -235,7 +231,7 @@ class AIService {
 
       const reader = response.body?.getReader();
       if (!reader) {
-        throw new Error('无法读取响应流');
+        throw new Error('无法获取响应流');
       }
 
       const decoder = new TextDecoder();
@@ -288,21 +284,23 @@ class AIService {
 
       if (error instanceof Error && error.name === 'AbortError') {
         console.log('[AIService] Request cancelled by user');
-        throw new Error('AI 生成已暂停');
+        throw new Error('AI 请求已取消');
       }
 
-      console.error('AI API 请求失败:', error);
+      console.error('AI API 调用失败:', error);
       throw error;
     }
   }
 
   /**
-   * AI 缁啓锛堥潪娴佸紡锛?   * @param request - 缁啓璇锋眰鍙傛暟
+   * AI 补全(非流式)
+   * @param request - 补全请求参数
    */
   async completeSync(
     request: AICompletionRequest
   ): Promise<AICompletionResponse> {
-    // 浣跨敤娴佸紡API锛屽彧鏄笉浼犻€掑洖璋?    const text = await this.complete(request);
+    // 使用流式API,只是不传回调
+    const text = await this.complete(request);
     return {
       text,
       usage: undefined,
@@ -310,39 +308,45 @@ class AIService {
   }
 
   /**
-   * 蹇€?AI 琛ュ叏锛堢敤浜庡疄鏃惰嚜鍔ㄨˉ鍏級
-   * @param context - 涓婁笅鏂囨枃鏈?   * @param workId - 浣滃搧ID锛堝彲閫夛紝鐢ㄤ簬Context-Aware琛ュ叏锛?   * @param chapterId - 绔犺妭ID锛堝彲閫夛紝鐢ㄤ簬鍔犺浇绔犺妭姒傝锛?   */
+   * 快速 AI 补全(用于实时自动补全)
+   * @param context - 上下文文本
+   * @param workId - 作品ID(可选,用于Context-Aware补全)
+   * @param chapterId - 章节ID(可选,用于加载章节概要)
+   */
   async quickComplete(
     context: string,
     workId?: string,
-    chapterId?: string
+    chapterId?: string,
+    enableRag: boolean = true
   ): Promise<string> {
     try {
       const result = await this.complete({
         prompt: context,
         context,
         maxTokens: 100,
-        // ===== Context-Aware 鍏冩暟鎹?=====
+        // ===== Context-Aware 元数据 =====
         workId,
         chapterId,
-        enableRag: false,  // 自动补全默认关闭 RAG（速度优先）
+        // 默认开启 RAG 保证一致性,可传 false 关闭
+        enableRag,
       });
       return result.trim();
     } catch (error) {
-      console.error('蹇€熻ˉ鍏ㄥけ璐?', error);
+      console.error('快速补全失败:', error);
       return '';
     }
   }
 
   /**
-   * 鑾峰彇 AI 寤鸿锛堢敤浜庤嚜鍔ㄨˉ鍏級
-   * @param context - 涓婁笅鏂囨枃鏈?   * @param position - 鍏夋爣浣嶇疆
+   * 获取 AI 建议(用于自动补全)
+   * @param context - 上下文文本
+   * @param position - 光标位置
    */
   async getSuggestions(context: string, position: number): Promise<string[]> {
     try {
       const result = await this.complete({
-        // 避免模板字符串解析问题，直接拼接
-        prompt: context + '\n\n请提供3个续写建议：',
+        // 模拟分析请求,直接拼接
+        prompt: context + '\n\n请提供3个续写建议:',
         context,
         maxTokens: 100,
       });
@@ -360,9 +364,9 @@ class AIService {
   }
 
   /**
-   * AI 鏀瑰啓/娑﹁壊
-   * @param text - 瑕佹敼鍐欑殑鏂囨湰
-   * @param instruction - 鏀瑰啓鎸囦护
+   * AI 改写/润色
+   * @param text - 要改写的文本
+   * @param instruction - 改写指令
    */
   async rewrite(text: string, instruction: string): Promise<string> {
     const apiUrl = this.baseUrl + '/ai/polish';
@@ -380,12 +384,12 @@ class AIService {
       });
 
       if (!response.ok) {
-        throw new Error(`API 璇锋眰澶辫触 (${response.status})`);
+        throw new Error(`API 请求失败 (${response.status})`);
       }
 
       const reader = response.body?.getReader();
       if (!reader) {
-        throw new Error('无法读取响应流');
+        throw new Error('无法获取响应流');
       }
 
       const decoder = new TextDecoder();
@@ -412,14 +416,14 @@ class AIService {
 
       return result;
     } catch (error) {
-      console.error('AI 娑﹁壊澶辫触:', error);
+      console.error('AI 润色失败:', error);
       throw error;
     }
   }
 
   /**
-   * AI 鎵╁啓
-   * @param text - 瑕佹墿鍐欑殑鏂囨湰
+   * AI 扩写
+   * @param text - 要扩写的文本
    */
   async expand(text: string): Promise<string> {
     const apiUrl = `${this.baseUrl}/ai/expand`;
@@ -437,12 +441,12 @@ class AIService {
       });
 
       if (!response.ok) {
-        throw new Error(`API 璇锋眰澶辫触 (${response.status})`);
+        throw new Error(`API 请求失败 (${response.status})`);
       }
 
       const reader = response.body?.getReader();
       if (!reader) {
-        throw new Error('无法读取响应流');
+        throw new Error('无法获取响应流');
       }
 
       const decoder = new TextDecoder();
@@ -469,14 +473,14 @@ class AIService {
 
       return result;
     } catch (error) {
-      console.error('AI 鎵╁啓澶辫触:', error);
+      console.error('AI 扩写失败:', error);
       throw error;
     }
   }
 
   /**
-   * AI 缂╁啓/鎬荤粨
-   * @param text - 瑕佺缉鍐欑殑鏂囨湰
+   * AI 缩写/总结
+   * @param text - 要缩写的文本
    */
   async summarize(text: string): Promise<string> {
     const apiUrl = `${this.baseUrl}/ai/summarize`;
@@ -494,12 +498,12 @@ class AIService {
       });
 
       if (!response.ok) {
-        throw new Error(`API 璇锋眰澶辫触 (${response.status})`);
+        throw new Error(`API 请求失败 (${response.status})`);
       }
 
       const reader = response.body?.getReader();
       if (!reader) {
-        throw new Error('无法读取响应流');
+        throw new Error('无法获取响应流');
       }
 
       const decoder = new TextDecoder();
@@ -526,22 +530,23 @@ class AIService {
 
       return result;
     } catch (error) {
-      console.error('AI 鎬荤粨澶辫触:', error);
+      console.error('AI 总结失败:', error);
       throw error;
     }
   }
 
   /**
-   * AI 娑﹁壊
-   * @param text - 瑕佹鼎鑹茬殑鏂囨湰
+   * AI 润色
+   * @param text - 要润色的文本
    */
   async polish(text: string): Promise<string> {
-    return this.rewrite(text, '璇锋鼎鑹蹭互涓嬫枃鏈紝浣垮叾鏇村姞娴佺晠鍜屼紭缇庯細');
+    return this.rewrite(text, '请润色以下文本,使其更加流畅和优美:');
   }
 
   /**
-   * 棰勫姞杞藉厓鏁版嵁鍒扮紦瀛橈紙闄嶄綆棣栨鑷姩琛ュ叏寤惰繜锛?   * @param workId - 浣滃搧ID
-   * @param chapterId - 绔犺妭ID
+   * 预加载元数据到缓存(降低首次补全延迟)
+   * @param workId - 作品ID
+   * @param chapterId - 章节ID
    */
   async preloadMetadata(workId: string, chapterId: string): Promise<void> {
     try {
@@ -566,9 +571,9 @@ class AIService {
   }
 
   /**
-   * AI 缈昏瘧
-   * @param text - 瑕佺炕璇戠殑鏂囨湰
-   * @param targetLang - 鐩爣璇█
+   * AI 翻译
+   * @param text - 要翻译的文本
+   * @param targetLang - 目标语言
    */
   async translate(text: string, targetLang: string = 'auto'): Promise<string> {
     const apiUrl = `${this.baseUrl}/ai/translate`;
@@ -586,12 +591,12 @@ class AIService {
       });
 
       if (!response.ok) {
-        throw new Error(`API 璇锋眰澶辫触 (${response.status})`);
+        throw new Error(`API 请求失败 (${response.status})`);
       }
 
       const reader = response.body?.getReader();
       if (!reader) {
-        throw new Error('无法读取响应流');
+        throw new Error('无法获取响应流');
       }
 
       const decoder = new TextDecoder();
@@ -618,7 +623,7 @@ class AIService {
 
       return result;
     } catch (error) {
-      console.error('AI 缈昏瘧澶辫触:', error);
+      console.error('AI 翻译失败:', error);
       throw error;
     }
   }
