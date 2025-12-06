@@ -25,6 +25,7 @@ const preferenceDefaults: UserPreferences = {
   fontSize: 'medium',
   autoSave: true,
   autoSaveInterval: 30,
+  aiAutoComplete: false, // 默认关闭，避免意外消耗积分
 };
 
 /**
@@ -791,6 +792,19 @@ const SettingsView: React.FC = () => {
               />
             </div>
           )}
+          <label className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer bg-white">
+            <div>
+              <p className="font-medium text-gray-900">AI 自动补全</p>
+              <p className="text-sm text-gray-600">在写作时自动提供 AI 续写建议</p>
+              <p className="text-xs text-orange-500 mt-1">注意：此功能会消耗积分</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={preferences.aiAutoComplete}
+              onChange={(e) => setPreferences({ ...preferences, aiAutoComplete: e.target.checked })}
+              className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+          </label>
         </div>
       </div>
     </div>

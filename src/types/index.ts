@@ -55,6 +55,7 @@ export interface UserPreferences {
   fontSize: 'small' | 'medium' | 'large';
   autoSave: boolean;
   autoSaveInterval: number;
+  aiAutoComplete: boolean; // AI 自动补全开关（消耗积分）
 }
 
 /**

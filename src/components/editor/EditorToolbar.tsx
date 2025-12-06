@@ -28,9 +28,15 @@ import {
 
 interface EditorToolbarProps {
   editor: Editor;
+  aiAutoCompleteEnabled?: boolean;
+  onToggleAIAutoComplete?: () => void;
 }
 
-const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
+const EditorToolbar: React.FC<EditorToolbarProps> = ({
+  editor,
+  aiAutoCompleteEnabled = false,
+  onToggleAIAutoComplete,
+}) => {
   if (!editor) {
     return null;
   }
@@ -278,24 +284,14 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
 
       <div className="flex-1" />
 
-      {/* AI 功能 */}
-      <button
-        type="button"
-        onMouseDown={(e) => {
-          e.preventDefault();
-        }}
-        onClick={() => {
-          const event = new CustomEvent('ai-continue', {
-            detail: { editor },
-          });
-          window.dispatchEvent(event);
-        }}
-        className="h-7 bg-zinc-900 hover:bg-zinc-800 text-white px-3 text-[12px] rounded transition-all flex items-center gap-1.5"
-        title="AI 续写"
+      {/* AI 自动补全开关 */}
+      <ToolbarButton
+        onClick={() => onToggleAIAutoComplete?.()}
+        isActive={aiAutoCompleteEnabled}
+        title={aiAutoCompleteEnabled ? 'AI 自动补全已开启（点击关闭）' : 'AI 自动补全已关闭（点击开启）'}
       >
-        <Wand2 className="h-3 w-3" />
-        <span>AI 续写</span>
-      </button>
+        <Wand2 className="h-3.5 w-3.5" />
+      </ToolbarButton>
     </div>
   );
 };

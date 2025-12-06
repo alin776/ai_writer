@@ -20,9 +20,13 @@ export interface AIAutoCompleteOptions {
   enabled: boolean;
 }
 
+export interface AIAutoCompleteStorage {
+  enabled: boolean;
+}
+
 const AIAutoCompletePluginKey = new PluginKey('aiAutoComplete');
 
-export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions>({
+export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions, AIAutoCompleteStorage>({
   name: 'aiAutoComplete',
 
   addOptions() {
@@ -34,8 +38,15 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions>({
     };
   },
 
+  addStorage() {
+    return {
+      enabled: this.options.enabled,
+    };
+  },
+
   addProseMirrorPlugins() {
-    const { delay, onTrigger, enabled, minChars } = this.options;
+    const { delay, onTrigger, minChars } = this.options;
+    const storage = this.storage;
     let timeout: NodeJS.Timeout | null = null;
     let currentSuggestion = '';
     let suggestionFrom = 0;
@@ -113,7 +124,11 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions>({
         view() {
           return {
             update: async (view) => {
-            if (!enabled) return;
+            // 从 storage 读取 enabled 状态（支持动态更新）
+            if (!storage.enabled) return;
+
+            // 只有编辑器获得焦点时才触发自动补全
+            if (!view.hasFocus()) return;
 
             const { state } = view;
             const { selection } = state;
