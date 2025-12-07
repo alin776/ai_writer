@@ -2034,6 +2034,247 @@ class WritingAgentGraph:
         else:
             return str(result)
 
+    # ==================== Planning 模式快速路径（新增）====================
+
+    async def _try_quick_path_for_planning(
+        self,
+        message: str,
+        work_id: Optional[str],
+        on_plan: Optional[callable] = None,
+        on_task_start: Optional[callable] = None,
+        on_task_done: Optional[callable] = None,
+        on_content: Optional[callable] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Planning 模式的快速路径判断
+
+        在规划生成前判断是否可以走快速路径，适用于简单查询：
+        - 获取章节标题
+        - 获取章节字数
+        - 简单问候
+
+        Args:
+            message: 用户消息
+            work_id: 作品 ID
+            on_plan: 规划回调
+            on_task_start: 任务开始回调
+            on_task_done: 任务完成回调
+            on_content: 内容回调
+
+        Returns:
+            Optional[Dict]: 如果命中快速路径返回结果，否则返回 None
+        """
+        import time
+
+        # 1. 规则快速判断（不调用 AI）
+        quick_action = self._detect_quick_action(message)
+
+        if not quick_action:
+            return None
+
+        action_type = quick_action.get("type")
+        logger.info(f"[QuickPath-Planning] 命中快速路径: {action_type}")
+
+        # 2. 执行快速路径
+        start_time = time.time()
+
+        try:
+            if action_type == "get_chapter_info":
+                # 获取章节信息
+                chapter_order = quick_action.get("chapter_order", 1)
+                field = quick_action.get("field", "title")  # title, word_count, content
+
+                if not work_id:
+                    return {
+                        "response": "需要先选择一部作品才能查看章节信息。",
+                        "agent_steps": [{"step": "quick_path", "result": "缺少 work_id"}]
+                    }
+
+                # 发送简化的计划
+                if on_plan:
+                    await on_plan([{
+                        "task_id": 1,
+                        "description": f"获取第{chapter_order}章信息"
+                    }])
+
+                if on_task_start:
+                    await on_task_start({"task_id": 1, "description": f"获取第{chapter_order}章信息"})
+
+                # 直接调用工具
+                result = await get_chapter_by_order_tool.ainvoke({
+                    "work_id": work_id,
+                    "chapter_order": chapter_order
+                })
+
+                elapsed = time.time() - start_time
+                if on_task_done:
+                    await on_task_done({
+                        "task_id": 1,
+                        "description": f"获取第{chapter_order}章信息",
+                        "elapsed_time": elapsed
+                    })
+
+                # 解析结果
+                try:
+                    if isinstance(result, dict):
+                        data = result  # 已经是 dict
+                    elif isinstance(result, list):
+                        # 如果是 list，取第一个元素或转换
+                        data = result[0] if result and isinstance(result[0], dict) else {"content": str(result)}
+                    else:
+                        data = json.loads(result)
+                except (json.JSONDecodeError, TypeError, IndexError) as e:
+                    logger.warning(f"[QuickPath-Planning] 解析结果失败: {e}, result type: {type(result)}")
+                    data = {"error": str(result)}
+
+                # 格式化响应
+                if data.get("error"):
+                    response = f"获取章节信息失败：{data.get('error')}"
+                elif field == "title":
+                    response = f"第{chapter_order}章的标题是：**{data.get('title', '未知')}**"
+                elif field == "word_count":
+                    response = f"第{chapter_order}章共 **{data.get('word_count', 0)}** 字"
+                else:
+                    title = data.get('title', '未知')
+                    word_count = data.get('word_count', 0)
+                    response = f"第{chapter_order}章「{title}」共 **{word_count}** 字"
+
+                if on_content:
+                    await on_content({"content": response})
+
+                logger.info(f"[QuickPath-Planning] 完成，耗时: {elapsed:.2f}s")
+
+                return {
+                    "response": response,
+                    "agent_steps": [{
+                        "step": "quick_path",
+                        "action": action_type,
+                        "elapsed": elapsed
+                    }]
+                }
+
+            elif action_type == "greeting":
+                # 问候直接回复
+                response = quick_action.get("response", "你好！我是 AI 写作助手，有什么可以帮你的吗？")
+
+                if on_content:
+                    await on_content({"content": response})
+
+                return {
+                    "response": response,
+                    "agent_steps": [{"step": "quick_path", "action": "greeting"}]
+                }
+
+        except Exception as e:
+            logger.warning(f"[QuickPath-Planning] 执行失败: {e}，降级到规划模式")
+            return None
+
+        return None
+
+    def _detect_quick_action(self, message: str) -> Optional[Dict]:
+        """规则检测是否可以走快速路径（不调用 AI）
+
+        Returns:
+            Dict: {"type": "get_chapter_info", "chapter_order": 5, "field": "title"}
+            或 None
+        """
+        import re
+
+        message = message.strip()
+
+        # 1. 问候检测
+        greetings = ["你好", "您好", "在吗", "hello", "hi", "嗨"]
+        if any(message.lower().startswith(g) for g in greetings) and len(message) < 10:
+            return {
+                "type": "greeting",
+                "response": "你好！我是 AI 写作助手，有什么可以帮你的吗？"
+            }
+
+        # 2. 章节标题查询
+        # 匹配："第五章的标题是什么"、"第5章标题"、"第三章叫什么"
+        title_patterns = [
+            r'第([一二三四五六七八九十百千\d]+)章.{0,2}(?:的)?(?:标题|题目|名字|叫什么)',
+            r'(?:标题|题目|名字).{0,2}第([一二三四五六七八九十百千\d]+)章',
+        ]
+        for pattern in title_patterns:
+            match = re.search(pattern, message)
+            if match:
+                chapter_str = match.group(1)
+                chapter_order = self._chinese_to_number(chapter_str)
+                return {
+                    "type": "get_chapter_info",
+                    "chapter_order": chapter_order,
+                    "field": "title"
+                }
+
+        # 3. 章节字数查询
+        # 匹配："第三章有多少字"、"第5章字数"
+        word_count_patterns = [
+            r'第([一二三四五六七八九十百千\d]+)章.{0,3}(?:有)?(?:多少|几)(?:个)?字',
+            r'第([一二三四五六七八九十百千\d]+)章.{0,2}(?:的)?字数',
+        ]
+        for pattern in word_count_patterns:
+            match = re.search(pattern, message)
+            if match:
+                chapter_str = match.group(1)
+                chapter_order = self._chinese_to_number(chapter_str)
+                return {
+                    "type": "get_chapter_info",
+                    "chapter_order": chapter_order,
+                    "field": "word_count"
+                }
+
+        # 4. 不符合快速路径条件
+        return None
+
+    def _chinese_to_number(self, s: str) -> int:
+        """中文数字转阿拉伯数字"""
+        chinese_map = {
+            '零': 0, '一': 1, '二': 2, '三': 3, '四': 4,
+            '五': 5, '六': 6, '七': 7, '八': 8, '九': 9,
+            '十': 10, '百': 100, '千': 1000
+        }
+
+        # 纯数字
+        if s.isdigit():
+            return int(s)
+
+        # 简单中文数字（1-99）
+        if len(s) == 1 and s in chinese_map:
+            return chinese_map[s]
+
+        # "十"、"十一"、"二十"、"二十三" 等
+        result = 0
+        if '十' in s:
+            parts = s.split('十')
+            tens = chinese_map.get(parts[0], 1) if parts[0] else 1
+            ones = chinese_map.get(parts[1], 0) if len(parts) > 1 and parts[1] else 0
+            result = tens * 10 + ones
+        else:
+            # 单个字符
+            result = chinese_map.get(s, 1)
+
+        return result if result > 0 else 1
+
+    def _extract_task_dependencies(self, params: Dict[str, Any]) -> set:
+        """从参数中提取依赖的任务 ID
+
+        查找 $task_X_result 形式的占位符，返回依赖的任务 ID 集合
+        """
+        import re
+        import json
+
+        deps = set()
+        try:
+            params_str = json.dumps(params, ensure_ascii=False)
+            # 匹配 $task_1_result, $task_2_result 等
+            matches = re.findall(r'\$task_(\d+)_result', params_str)
+            for m in matches:
+                deps.add(int(m))
+        except Exception as e:
+            logger.warning(f"[依赖提取] 解析参数失败: {e}")
+
+        return deps
+
     async def _handle_agent_with_tools(self, state: AgentState, agent_type: str, system_prompt: str) -> AgentState:
         """
         通用的Agent处理逻辑 - 支持双模式
@@ -4190,6 +4431,23 @@ class WritingAgentGraph:
                     except Exception as e:
                         logger.warning(f"[Planning] 加载历史失败: {e}", exc_info=True)
 
+                # ========== 快速路径判断（新增）==========
+                # 在规划生成前判断是否可以走快速路径
+                enable_quick_path = os.getenv("ENABLE_QUICK_PATH", "true").lower() == "true"
+
+                if enable_quick_path:
+                    quick_result = await self._try_quick_path_for_planning(
+                        message=message,
+                        work_id=work_id,
+                        on_plan=on_plan,
+                        on_task_start=on_task_start,
+                        on_task_done=on_task_done,
+                        on_content=on_content
+                    )
+                    if quick_result:
+                        logger.info(f"[Planning] 快速路径命中，跳过规划流程")
+                        return quick_result
+
                 # ========== 阶段1: 规划（Planning） ==========
                 # ✅ P1-7: 添加监控记录
                 planning_start = time.time()
@@ -4525,42 +4783,71 @@ chapter_id: {chapter_id}
             "analyze_text_tool"  # ✅ 允许并行（无参数依赖时）
         }
 
-        # 分组任务：独立任务 vs 依赖任务
+        # ✅ 改进：三层分组策略
+        # 第一层：完全独立的任务（可立即并行）
+        # 第二层：只依赖第一层任务的分析任务（第一层完成后可并行）
+        # 第三层：有复杂依赖链的任务（必须串行）
         parallel_tasks = []
+        parallel_dependent_tasks = []  # 新增：第二层并行任务
         sequential_tasks = []
 
-        # ✅ 【修复-问题3】改进分组策略：同时检查工具类型和参数依赖
+        # 收集第一层任务的 ID
+        first_layer_ids = set()
+
+        # 第一遍：识别第一层任务
         for task in tasks:
             tool_name = task.get("tool", "auto")
             has_dependency = _has_placeholder_dependency(task.get("params", {}))
 
-            # 只有工具类型安全且无参数依赖的任务才能并行
             if tool_name in PARALLEL_SAFE_TOOLS and not has_dependency:
                 parallel_tasks.append(task)
-                logger.debug(
-                    f"[任务分组] 任务{task['task_id']}({tool_name}) → 并行组"
+                first_layer_ids.add(task["task_id"])
+                logger.debug(f"[任务分组] 任务{task['task_id']}({tool_name}) → 第一层并行")
+
+        # 第二遍：识别第二层任务（只依赖第一层的分析任务）
+        for task in tasks:
+            if task in parallel_tasks:
+                continue
+
+            tool_name = task.get("tool", "auto")
+            params = task.get("params", {})
+            has_dependency = _has_placeholder_dependency(params)
+
+            if has_dependency:
+                # 检查是否只依赖第一层任务
+                deps = self._extract_task_dependencies(params)
+                only_depends_on_first_layer = all(
+                    dep_id in first_layer_ids for dep_id in deps
                 )
+
+                # 如果是分析工具且只依赖第一层，可以在第一层完成后并行
+                if only_depends_on_first_layer and tool_name in {"analyze_text_tool", "summarization"}:
+                    parallel_dependent_tasks.append(task)
+                    logger.debug(f"[任务分组] 任务{task['task_id']}({tool_name}) → 第二层并行")
+                else:
+                    sequential_tasks.append(task)
+                    logger.debug(f"[任务分组] 任务{task['task_id']}({tool_name}) → 串行（复杂依赖）")
             else:
+                # 无依赖但工具不支持并行
                 sequential_tasks.append(task)
-                reason = "有依赖" if has_dependency else "工具不支持并行"
-                logger.debug(
-                    f"[任务分组] 任务{task['task_id']}({tool_name}) → 串行组 ({reason})"
-                )
+                logger.debug(f"[任务分组] 任务{task['task_id']}({tool_name}) → 串行（工具不支持）")
 
         logger.info(
             f"[ParallelExecution] 任务分组: "
-            f"并行={len(parallel_tasks)}, 串行={len(sequential_tasks)}"
+            f"第一层并行={len(parallel_tasks)}, "
+            f"第二层并行={len(parallel_dependent_tasks)}, "
+            f"串行={len(sequential_tasks)}"
         )
 
         task_results = []
         all_context = context
 
+        # ✅ 在所有批次之前定义 semaphore（避免作用域问题）
+        semaphore = asyncio.Semaphore(5)
+
         # 第1批：并行执行独立的数据获取任务
         if parallel_tasks:
             logger.info(f"[ParallelExecution] 开始并行执行{len(parallel_tasks)}个任务")
-
-            # 使用Semaphore限制并发数为5
-            semaphore = asyncio.Semaphore(5)
 
             async def execute_with_semaphore(task):
                 async with semaphore:
@@ -4693,7 +4980,106 @@ chapter_id: {chapter_id}
                     task_results.append(result)
                     all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
 
-        # 第2批：串行执行依赖任务（它们可能需要前面的结果）
+        # 第2批：并行执行只依赖第一层的分析任务（新增）
+        if parallel_dependent_tasks:
+            logger.info(f"[ParallelExecution] 开始第二层并行执行{len(parallel_dependent_tasks)}个分析任务")
+
+            async def execute_dependent_task(task):
+                async with semaphore:
+                    import time
+                    start_time = time.time()
+
+                    task_id = task["task_id"]
+                    description = task["description"]
+                    tool_name = task.get("tool", "unknown")
+
+                    logger.info(f"[ParallelExecution] 第二层并行任务{task_id}开始: {description}")
+
+                    if on_task_start:
+                        await on_task_start(task)
+
+                    max_retries = 2
+                    last_error = None
+
+                    for retry_count in range(max_retries + 1):
+                        try:
+                            resolved_task = task.copy()
+                            if "params" in resolved_task:
+                                resolved_task["params"] = await resolver.resolve_params(
+                                    resolved_task["params"],
+                                    current_task_id=task_id
+                                )
+
+                            result = await self._execute_task(
+                                task=resolved_task,
+                                work_id=work_id,
+                                chapter_id=chapter_id,
+                                context=all_context,
+                                on_progress=on_task_progress
+                            )
+
+                            elapsed = time.time() - start_time
+                            if on_task_done:
+                                await on_task_done({
+                                    **task,
+                                    "elapsed_time": elapsed
+                                }, result)
+
+                            logger.info(f"[ParallelExecution] 第二层并行任务{task_id}完成")
+
+                            await resolver.register_result(task_id, result)  # ✅ 添加 await
+                            return {
+                                "task_id": task_id,
+                                "tool": tool_name,  # ✅ 添加 tool 字段
+                                "description": description,
+                                "result": result,
+                                "status": "success"
+                            }
+
+                        except Exception as e:
+                            last_error = e
+                            if retry_count < max_retries:
+                                logger.warning(f"[ParallelExecution] 第二层任务{task_id}失败，重试...")
+                                await asyncio.sleep(1)
+                            else:
+                                logger.error(f"[ParallelExecution] 第二层任务{task_id}最终失败: {e}")
+
+                    elapsed = time.time() - start_time
+                    error_result = f"任务失败: {str(last_error)}"
+                    if on_task_done:
+                        await on_task_done({**task, "elapsed_time": elapsed}, error_result)
+
+                    return {
+                        "task_id": task_id,
+                        "tool": tool_name,  # ✅ 添加 tool 字段
+                        "description": description,
+                        "result": error_result,
+                        "status": "failed"
+                    }
+
+            # 并行执行第二层任务
+            dependent_results = await asyncio.gather(
+                *[execute_dependent_task(task) for task in parallel_dependent_tasks],
+                return_exceptions=True
+            )
+
+            for i, result in enumerate(dependent_results):
+                if isinstance(result, Exception):
+                    task = parallel_dependent_tasks[i]
+                    failed_task = {
+                        "task_id": task["task_id"],
+                        "tool": task.get("tool", "unknown"),  # ✅ 添加 tool 字段
+                        "description": task.get("description", ""),
+                        "result": f"任务执行失败: {str(result)}",
+                        "status": "failed"
+                    }
+                    task_results.append(failed_task)
+                    all_context += f"\n任务{failed_task['task_id']}失败：{str(result)}\n"
+                else:
+                    task_results.append(result)
+                    all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
+
+        # 第3批：串行执行有复杂依赖的任务
         if sequential_tasks:
             logger.info(f"[ParallelExecution] 开始串行执行{len(sequential_tasks)}个任务")
 
@@ -4938,7 +5324,7 @@ chapter_id: {chapter_id}
         # 情况2：单个输出任务（主要场景，约85%）
         elif len(output_tasks) == 1:
             task = output_tasks[0]
-            tool_name = task["tool"]
+            tool_name = task.get("tool", "unknown")  # ✅ 安全访问
             result = task.get("result", "") or ""  # 处理None的情况
 
             # 创作类任务，且输出充分 → 直接返回
@@ -4969,7 +5355,7 @@ chapter_id: {chapter_id}
 
             parts = []
             for task in output_tasks:
-                tool_name = task["tool"]
+                tool_name = task.get("tool", "unknown")  # ✅ 安全访问
                 result = task.get("result", "") or ""  # 处理None的情况
 
                 # 添加标题
