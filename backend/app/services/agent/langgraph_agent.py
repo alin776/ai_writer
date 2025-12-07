@@ -4065,10 +4065,12 @@ chapter_id: {chapter_id}
                 logger.info("[Response] 生成最终响应")
 
                 # 使用新的智能判断方法
+                # ✅ 传递 response_hint 用于元数据查询的精准返回
                 final_content = await self._build_final_response(
                     task_results=task_results,
                     message=message,
-                    on_content=on_content
+                    on_content=on_content,
+                    response_hint=plan_data.get("response_hint")
                 )
 
                 # ========== 保存对话到checkpointer ==========
@@ -4562,7 +4564,8 @@ chapter_id: {chapter_id}
         self,
         task_results: List[Dict],
         message: str,
-        on_content: Optional[callable] = None
+        on_content: Optional[callable] = None,
+        response_hint: Optional[str] = None
     ) -> str:
         """智能构建最终响应
 
@@ -4576,6 +4579,7 @@ chapter_id: {chapter_id}
             task_results: 任务结果列表
             message: 用户原始消息
             on_content: 内容回调函数
+            response_hint: 响应提示（如 "title", "word_count"），用于元数据查询
 
         Returns:
             最终响应内容
@@ -4626,7 +4630,7 @@ chapter_id: {chapter_id}
                 f"[Response] 纯展示型任务({len(display_tasks)}个)，"
                 f"直接格式化返回（跳过AI整合，节省成本）"
             )
-            return await self._format_display_response(display_tasks, on_content)
+            return await self._format_display_response(display_tasks, response_hint, on_content)
 
         # 情况1：没有输出任务（极少见）
         if len(output_tasks) == 0:
@@ -4695,6 +4699,7 @@ chapter_id: {chapter_id}
     async def _format_display_response(
         self,
         display_tasks: List[Dict],
+        response_hint: Optional[str] = None,
         on_content: Optional[callable] = None
     ) -> str:
         """
@@ -4705,6 +4710,7 @@ chapter_id: {chapter_id}
 
         Args:
             display_tasks: 展示型任务列表
+            response_hint: Planning 阶段提供的响应提示（如 "title", "word_count", "content"）
             on_content: 内容回调函数
 
         Returns:
@@ -4722,13 +4728,40 @@ chapter_id: {chapter_id}
 
                 # 提取章节信息
                 if isinstance(result_json, dict):
+                    # ✅ 先检查是否是错误响应
+                    if "error" in result_json:
+                        error_msg = result_json.get("error", "未知错误")
+                        total_chapters = result_json.get("total_chapters")
+                        if total_chapters:
+                            response_parts.append(f"❌ {error_msg}（该作品共有 {total_chapters} 章）")
+                        else:
+                            response_parts.append(f"❌ {error_msg}")
+                        continue
+
                     title = result_json.get("title", "")
                     content = result_json.get("content", "")
+                    word_count = result_json.get("word_count", 0)
                     # ✅ 修复: 工具返回的是 "order" 字段，不是 "chapter_order"
                     chapter_order = result_json.get("order") or result_json.get("chapter_order", "")
 
-                    if title and content:
-                        # 格式化章节内容
+                    # ✅ 根据 response_hint 智能返回（由 Planning 阶段提供）
+                    # 如果 Planning 没有返回 hint，尝试从 task description 推断
+                    effective_hint = response_hint
+                    if not effective_hint:
+                        desc_lower = description.lower()
+                        if "标题" in desc_lower or "题目" in desc_lower or "章名" in desc_lower:
+                            effective_hint = "title"
+                        elif "字数" in desc_lower or "多少字" in desc_lower:
+                            effective_hint = "word_count"
+
+                    if effective_hint == "title":
+                        response_parts.append(f"第{chapter_order}章的标题是：**{title}**")
+                    elif effective_hint == "word_count":
+                        response_parts.append(f"第{chapter_order}章《{title}》共 **{word_count}** 字")
+                    elif effective_hint == "title_and_word_count":
+                        response_parts.append(f"第{chapter_order}章《**{title}**》，共 **{word_count}** 字")
+                    elif title and content:
+                        # 默认：返回标题+内容
                         chapter_header = f"**第{chapter_order}章: {title}**" if chapter_order else f"**{title}**"
                         # 截取内容摘要（避免响应过长）
                         content_preview = content[:1500] + "..." if len(content) > 1500 else content
@@ -4797,11 +4830,15 @@ chapter_id: {chapter_id}
 
 {compressed_context}
 
-要求：
-1. 综合所有任务结果
-2. 用清晰、友好的语言呈现
+⚠️ 重要规则（必须遵守）：
+1. 【数据忠实性】必须使用工具返回的真实数据，禁止编造或猜测！
+   - 章节标题 = 工具返回的 title 字段值
+   - 章节内容 = 工具返回的 content 字段值
+   - 章节序号 = 工具返回的 order 字段值
+2. 综合所有任务结果，用清晰、友好的语言呈现
 3. 如果是创作内容，直接输出创作结果
 4. 如果是分析/规划，给出详细说明
+5. 如果用户询问事实性问题（如标题、内容等），直接引用工具返回的数据
 
 请生成最终响应："""
 

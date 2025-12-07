@@ -147,11 +147,13 @@ async def get_planning_static_prompt() -> str:
 
 获取原料：
 - get_chapter_by_order_tool: 按序号获取章节 (参数: chapter_order)
+  ⚠️ 返回数据已包含: {title, order, content, word_count} → 标题/序号等元数据无需再分析！
 - get_context_tool: 获取作品上下文
 
 处理原料：
 - analyze_text_tool: 概括、分析、规划大纲 (参数: text, focus)
   - 适用于：概括内容、分析人物、分析情节、写大纲、规划章节
+  - ⚠️ 不要用于：查询标题/序号等元数据（工具已返回这些字段）
 
 创作内容（重量级，谨慎使用）：
 - multi_agent_writing: 创作完整章节正文
@@ -168,6 +170,7 @@ async def get_planning_static_prompt() -> str:
     "step3_process": "处理方式"
   },
   "user_intent": "一句话描述",
+  "response_hint": "可选，元数据查询时指定返回字段：title/word_count/title_and_word_count/content",
   "tasks": [...]
 }
 
@@ -197,6 +200,34 @@ async def get_planning_static_prompt() -> str:
   "user_intent": "获取第三章原文",
   "tasks": [
     {"task_id": 1, "description": "获取第三章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 3}}
+  ]
+}
+
+用户: "第五章的标题是什么"
+{
+  "thinking": {
+    "step1_output": "用户想知道第五章的标题（元数据查询）",
+    "step2_material": "需要第五章的元数据",
+    "step3_process": "get_chapter_by_order_tool 返回的数据已包含 title 字段，直接返回即可"
+  },
+  "user_intent": "查询第五章标题",
+  "response_hint": "title",
+  "tasks": [
+    {"task_id": 1, "description": "获取第五章信息", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 5}}
+  ]
+}
+
+用户: "第三章有多少字"
+{
+  "thinking": {
+    "step1_output": "用户想知道第三章的字数（元数据查询）",
+    "step2_material": "需要第三章的元数据",
+    "step3_process": "get_chapter_by_order_tool 返回的数据已包含 word_count 字段，直接返回即可"
+  },
+  "user_intent": "查询第三章字数",
+  "response_hint": "word_count",
+  "tasks": [
+    {"task_id": 1, "description": "获取第三章信息", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 3}}
   ]
 }
 
