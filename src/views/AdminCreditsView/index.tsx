@@ -1,21 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Trash2, Copy, CheckCircle2, Gift, Coins, TrendingUp, DollarSign, FileDown } from 'lucide-react';
 import { Button, Card, Input, Loading } from '../../components/common';
-import { AdminCreditsService } from '../../services/AdminCreditsService';
+import { AdminCreditsService, type RedeemCodeInfo } from '../../services/AdminCreditsService';
 import { useGlobalStore } from '../../store/globalStore';
 import { formatDate } from '../../utils/formatDate';
-
-interface RedemptionCode {
-  id: string;
-  code: string;
-  credits: number;
-  isUsed: boolean;
-  usedBy: string | null;
-  usedAt: string | null;
-  expiresAt: string | null;
-  remark: string | null;
-  createdAt: string;
-}
 
 interface CreditStats {
   totalUsers: number;
@@ -46,7 +34,7 @@ const defaultStats: CreditStats = {
  * - 查看积分统计
  */
 const AdminCreditsView: React.FC = () => {
-  const [codes, setCodes] = useState<RedemptionCode[]>([]);
+  const [codes, setCodes] = useState<RedeemCodeInfo[]>([]);
   const [stats, setStats] = useState<CreditStats | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [usedFilter, setUsedFilter] = useState<'all' | 'used' | 'unused'>('all');

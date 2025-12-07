@@ -218,7 +218,15 @@ export type AIModelStatus = 'active' | 'inactive' | 'maintenance';
 /**
  * AI 模型类型
  */
-export type AIModelType = 'gpt-4' | 'gpt-3.5-turbo' | 'claude-3' | 'claude-2' | 'custom';
+export type AIModelType =
+  | 'gpt-4'
+  | 'gpt-3.5-turbo'
+  | 'claude-3'
+  | 'claude-2'
+  | 'gemini-2.5-pro'
+  | 'gemini-2.5-flash'
+  | 'gemini-2.5-flash-lite'
+  | 'custom';
 
 /**
  * AI 模型接口

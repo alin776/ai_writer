@@ -7,6 +7,9 @@ import logging
 import traceback
 import os
 
+# 强制使用 UTF-8 日志编码，避免控制台编码问题
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+
 from app.core.config import settings
 from app.core.database import init_db, close_db
 from app.core.redis import redis_client

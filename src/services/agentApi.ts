@@ -20,10 +20,12 @@ class AgentApiService {
 
   constructor() {
     // 使用本地后端API基础URL，而不是OpenAI代理URL
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace('/api/v1', '') || 'http://localhost:8000';
+    const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+    // 无条件使用相对路径，让 Vite 代理接管，避免跨域/重定向
+    const baseURL = import.meta.env.DEV ? '/api/v1' : rawBase;
 
     this.client = axios.create({
-      baseURL: `${API_BASE_URL}/api/v1/agent`,
+      baseURL: `${baseURL}/agent`,
       headers: {
         'Content-Type': 'application/json'
       },
@@ -176,8 +178,15 @@ class AgentApiService {
     }
   ): Promise<void> {
     const token = this.getToken();
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace('/api/v1', '') || 'http://localhost:8000';
-    const url = `${API_BASE_URL}/api/v1/agent/chat/stream`;
+    const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+    const defaultBase = rawBase.replace(/\/api\/v1\/?$/, '');
+    const streamBaseRaw =
+      import.meta.env.VITE_AGENT_STREAM_BASE_URL ||
+      (import.meta.env.DEV ? '' : defaultBase);
+    const streamBase = streamBaseRaw
+      .replace(/\/api\/v1\/?$/, '')
+      .replace(/\/$/, '');
+    const url = `${streamBase}/api/v1/agent/chat/stream`;
 
     try {
       const response = await fetch(url, {

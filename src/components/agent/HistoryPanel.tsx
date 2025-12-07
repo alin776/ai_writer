@@ -271,7 +271,6 @@ export default function HistoryPanel({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-gray-900">历史会话</h3>
-              <p className="text-[11px] text-gray-500 mt-1">仅展示有对话内容的会话</p>
             </div>
             <button
               onClick={onClose}

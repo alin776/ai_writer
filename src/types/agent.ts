@@ -16,6 +16,11 @@ export interface AgentChatRequest {
     chapter_context?: string;
     text?: string;
     current_content?: string;
+    /** 知识库文档ID列表，用于@引用指定文档 */
+    knowledge_doc_ids?: string[];
+    /** @deprecated 已弃用，请使用 knowledge_doc_ids。此字段将在后续版本移除 */
+    knowledge_tags?: string[];
+    use_optimization?: boolean;
     [key: string]: any;
   };
 }
@@ -188,6 +193,10 @@ export interface ChatInputProps {
   disabled?: boolean;
   placeholder?: string;
   maxLength?: number;
+  mode: 'planning' | 'react';
+  onModeChange: (mode: 'planning' | 'react') => void;
+  isLoading?: boolean;
+  onStop?: () => void;
 }
 
 export interface AgentMessageProps {

@@ -1,27 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Trash2, Copy, CheckCircle2, AlertCircle, Gift } from 'lucide-react';
 import { Button, Card, Input, Loading } from '../../components/common';
-import { AdminInvitationsService } from '../../services/AdminInvitationsService';
+import {
+  AdminInvitationsService,
+  type AdminInvitationInfo,
+  type AdminInvitationStats,
+} from '../../services/AdminInvitationsService';
 import { useGlobalStore } from '../../store/globalStore';
 import { formatDate } from '../../utils/formatDate';
-
-interface InvitationCode {
-  id: string;
-  code: string;
-  maxUses: number;
-  usedCount: number;
-  expiresAt: string | null;
-  remark: string | null;
-  createdAt: string;
-  status: 'active' | 'expired' | 'exhausted';
-}
-
-interface InvitationStats {
-  totalCodes: number;
-  activeCodes: number;
-  expiredCodes: number;
-  exhaustedCodes: number;
-}
 
 /**
  * AdminInvitationsView 组件 - 邀请码管理页面
@@ -33,8 +19,8 @@ interface InvitationStats {
  * - 显示统计信息
  */
 const AdminInvitationsView: React.FC = () => {
-  const [invitations, setInvitations] = useState<InvitationCode[]>([]);
-  const [stats, setStats] = useState<InvitationStats>({ totalCodes: 0, activeCodes: 0, expiredCodes: 0, exhaustedCodes: 0 });
+  const [invitations, setInvitations] = useState<AdminInvitationInfo[]>([]);
+  const [stats, setStats] = useState<AdminInvitationStats>({ totalCodes: 0, activeCodes: 0, expiredCodes: 0, exhaustedCodes: 0, totalUsages: 0, totalActivated: 0, totalRewards: 0 });
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'expired' | 'exhausted'>('all');
   const [isLoading, setIsLoading] = useState(true);

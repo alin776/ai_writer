@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Globe2, FileText, MessageSquare, MoreHorizontal } from 'lucide-react';
+import { Plus, Globe2, FileText, MessageSquare, MoreHorizontal, Clock3, PanelRightClose } from 'lucide-react';
 import { useEditorStore, type RightSidebarType } from '../../store/editorStore';
 import type { Tab } from '@/utils/tabStorage';
 import clsx from 'clsx';
@@ -11,6 +11,7 @@ interface SessionTabBarProps {
   onCreateTab: (afterTabId?: string) => Promise<any>;
   onCloseTab: (tabId: string) => void;
   onOpenHistory?: () => void;
+  onCollapseRightPanel?: () => void;
 }
 
 /**
@@ -25,6 +26,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
   onCreateTab,
   onCloseTab,
   onOpenHistory,
+  onCollapseRightPanel,
 }) => {
   const { rightSidebarType, toggleRightSidebar, closeRightSidebar } = useEditorStore();
   const [creating, setCreating] = React.useState(false);
@@ -108,6 +110,24 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           <Plus className="w-4 h-4" />
         </button>
 
+        {/* 收起右侧面板 */}
+        <button
+          className="p-1.5 rounded transition-all"
+          style={{ color: '#6b7280' }}
+          onClick={() => onCollapseRightPanel?.()}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = '#111827';
+            e.currentTarget.style.backgroundColor = '#f3f4f6';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = '#6b7280';
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+          title="收起侧栏"
+        >
+          <PanelRightClose className="w-4 h-4" />
+        </button>
+
         {/* 功能图标按钮 */}
         {functionButtons.map(({ type, icon: Icon, title }) => (
           <button
@@ -137,7 +157,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           </button>
         ))}
 
-        {/* 更多 / 历史入口 */}
+        {/* 历史入口：改为时钟图标，保持浅色风格 */}
         <button
           onClick={() => (onOpenHistory ? onOpenHistory() : closeRightSidebar())}
           className="p-1.5 rounded transition-all"
@@ -152,11 +172,11 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           }}
           title="历史会话"
         >
-          <MoreHorizontal className="w-4 h-4" />
+          <Clock3 className="w-4 h-4" />
         </button>
-     </div>
-   </div>
- );
+      </div>
+    </div>
+  );
 };
 
 export default SessionTabBar;

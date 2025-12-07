@@ -8,7 +8,7 @@ import SuggestedActions from './SuggestedActions';
 import ThinkingIndicator from './ThinkingIndicator';
 import TaskListPanel from './TaskListPanel';
 import ActivityStream from './ActivityStream';
-import ModeSelector, { type AgentMode } from './ModeSelector';
+import { type AgentMode } from './ModeSelector';
 
 import type { Tab } from '@/utils/tabStorage';
 
@@ -37,6 +37,9 @@ export default function AgentChatPanel({
   onSwitchTab,
   onUpdateTabTitle
 }: AgentChatPanelProps) {
+  useEffect(() => {
+    console.log('[AgentChatPanel] mounted', { workId, chapterId, className });
+  }, [workId, chapterId, className]);
   const {
     tabs,
     activeTabId,
@@ -118,7 +121,8 @@ function TabContent({ workId, chapterId, sessionId, initialMessage, onTitleChang
     currentTaskId,
     activities,
     progressData,
-    clearMessages
+    clearMessages,
+    stopStreaming
   } = useAgentChat({ workId, chapterId, sessionId });
 
   const [mode, setMode] = useState<AgentMode>('planning');
@@ -172,9 +176,6 @@ function TabContent({ workId, chapterId, sessionId, initialMessage, onTitleChang
             <div>
               <h2 className="text-sm font-bold text-gray-800 flex items-center gap-2">AI 写作助手</h2>
               <p className="text-xs text-gray-600 mt-0.5">规划 · 写作辅助 · 文本分析 · 创意激发</p>
-            </div>
-            <div className="ml-2">
-              <ModeSelector mode={mode} onModeChange={setMode} disabled={isLoading} />
             </div>
           </div>
 
@@ -244,7 +245,15 @@ function TabContent({ workId, chapterId, sessionId, initialMessage, onTitleChang
       )}
 
       <div className="px-4 py-3 border-t border-gray-200">
-        <ChatInput onSend={handleSendMessage} disabled={isLoading} placeholder="试试：帮我写第三章..." />
+        <ChatInput
+          onSend={handleSendMessage}
+          disabled={isLoading}
+          placeholder="试试：帮我写第三章..."
+          mode={mode}
+          onModeChange={setMode}
+          isLoading={isLoading}
+          onStop={stopStreaming}
+        />
       </div>
 
       {messages.length === 0 && (

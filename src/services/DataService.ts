@@ -343,7 +343,7 @@ class DataServiceClass {
     }
 
     // 创建新请求
-    const request = this.adapter.put(`/chapters/${id}`, chapter);
+    const request = this.adapter.put<Chapter>(`/chapters/${id}`, chapter);
     this.pendingChapterUpdates.set(id, request);
 
     try {

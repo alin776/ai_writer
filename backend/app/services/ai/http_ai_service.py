@@ -23,6 +23,14 @@ from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
+# HTTP/2 is optional; gracefully disable if the h2 package is missing
+try:
+    import h2  # type: ignore  # noqa: F401
+    _http2_supported = True
+except ImportError:
+    _http2_supported = False
+    logger.warning("HTTP/2 support disabled: install 'h2' via `pip install httpx[http2]` to enable it.")
+
 
 class HTTPAIService:
     """基于 HTTP 的 AI 服务 - 直接调用 API 绕过 Cloudflare
@@ -118,7 +126,7 @@ class HTTPAIService:
                 connect=10.0
             ),
             follow_redirects=True,
-            http2=True,  # 启用 HTTP/2 - 支持多路复用和头部压缩
+            http2=_http2_supported,  # 启用 HTTP/2（若缺少 h2 库则自动降级）
             limits=httpx.Limits(
                 max_connections=20,           # 最大连接数
                 max_keepalive_connections=10  # 保持活动连接数（支持连接复用）

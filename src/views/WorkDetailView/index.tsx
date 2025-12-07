@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit, Trash2, Plus, BookOpen, BarChart3, BookMarked, Download, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button, Card, Loading } from '../../components/common';
@@ -220,11 +220,15 @@ const WorkDetailView: React.FC = () => {
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
 
+  const DEFAULT_RIGHT_PANEL_WIDTH = 288; // 默认 288px (w-72)
+  const COLLAPSED_RIGHT_PANEL_WIDTH = 48; // collapsed width
+
   // 右侧面板宽度
   const [rightPanelWidth, setRightPanelWidth] = useState(() => {
     const saved = localStorage.getItem('rightPanelWidth');
-    return saved ? parseInt(saved, 10) : 288; // 默认 288px (w-72)
+    return saved ? parseInt(saved, 10) : DEFAULT_RIGHT_PANEL_WIDTH;
   });
+  const rightPanelWidthRef = useRef(rightPanelWidth);
   const [isResizing, setIsResizing] = useState(false);
 
   // 添加章节输入框状态
@@ -992,9 +996,9 @@ const WorkDetailView: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
+    if (!isResizing) return;
 
+    const handleMouseMove = (e: MouseEvent) => {
       // 计算新宽度（从右边缘往左计算）
       const newWidth = window.innerWidth - e.clientX;
 
@@ -1003,24 +1007,21 @@ const WorkDetailView: React.FC = () => {
       const maxWidth = 600; // 最大 600px
       const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
 
+      rightPanelWidthRef.current = clampedWidth;
       setRightPanelWidth(clampedWidth);
     };
 
     const handleMouseUp = () => {
-      if (isResizing) {
-        setIsResizing(false);
-        // 保存到 localStorage
-        localStorage.setItem('rightPanelWidth', rightPanelWidth.toString());
-      }
+      setIsResizing(false);
+      // 保存到 localStorage
+      localStorage.setItem('rightPanelWidth', rightPanelWidthRef.current.toString());
     };
 
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      // 防止文本选中
-      document.body.style.userSelect = 'none';
-      document.body.style.cursor = 'col-resize';
-    }
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    // 防止文本选中
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
@@ -1028,7 +1029,11 @@ const WorkDetailView: React.FC = () => {
       document.body.style.userSelect = '';
       document.body.style.cursor = '';
     };
-  }, [isResizing, rightPanelWidth]);
+  }, [isResizing]);
+
+  useEffect(() => {
+    rightPanelWidthRef.current = rightPanelWidth;
+  }, [rightPanelWidth]);
 
   if (isLoading) {
     return <Loading />;
@@ -1281,10 +1286,8 @@ const WorkDetailView: React.FC = () => {
 
         {/* 右侧面板 */}
         <div
-          className={`relative bg-white border-l border-zinc-100 flex flex-col transition-all duration-300 ${
-            isRightCollapsed ? 'w-12' : ''
-          }`}
-          style={!isRightCollapsed ? { width: `${rightPanelWidth}px` } : undefined}
+          className={`relative bg-white border-l border-zinc-100 flex flex-col overflow-hidden ${isResizing ? '' : 'transition-[width] duration-200 ease-out'}`}
+          style={{ width: `${isRightCollapsed ? COLLAPSED_RIGHT_PANEL_WIDTH : rightPanelWidth}px` }}
         >
           {/* 可拖动的分隔条 */}
           {!isRightCollapsed && (
@@ -1296,9 +1299,9 @@ const WorkDetailView: React.FC = () => {
               <div className="absolute inset-y-0 -left-1 -right-1" />
             </div>
           )}
-          {isRightCollapsed ? (
+          {isRightCollapsed && (
             /* 折叠状态 */
-            <div className="flex flex-col items-center py-5 gap-4">
+            <div className="absolute inset-0 z-20 flex flex-col items-center py-5 gap-4 bg-white">
               <Button
                 variant="ghost"
                 size="sm"
@@ -1311,52 +1314,55 @@ const WorkDetailView: React.FC = () => {
                 {rightSidebarType === 'worldview' ? '世界观' : rightSidebarType === 'summary' ? '概括' : 'AI'}
               </div>
             </div>
-          ) : (
-            <>
-              {/* SessionTabBar */}
-              <SessionTabBar
-                tabs={tabs}
-                activeTabId={activeTabId}
-                onSwitchTab={switchTab}
-                onCreateTab={createTab}
-                onCloseTab={closeTab}
-                onOpenHistory={handleOpenHistory}
-              />
-
-              {/* 内容区 */}
-              <div className="flex-1 overflow-hidden">
-                {rightSidebarType === 'worldview' ? (
-                  <WorldviewPanel
-                    workId={workId!}
-                    worldData={worldData}
-                  />
-                ) : rightSidebarType === 'summary' ? (
-                  <SummaryPanel
-                    workId={workId!}
-                    currentChapterId={currentChapterId}
-                    onToast={showToast}
-                  />
-                ) : (
-                  tabs.map((tab) => (
-                    <div
-                      key={tab.id}
-                      style={{
-                        display: tab.id === activeTabId ? 'block' : 'none',
-                        height: '100%'
-                      }}
-                    >
-                      <AIPanel
-                        workId={workId!}
-                        chapterId={currentChapterId}
-                        sessionId={tab.sessionId}
-                        onTitleChange={(title) => updateTabTitle(tab.id, title)}
-                      />
-                    </div>
-                  ))
-                )}
-              </div>
-            </>
           )}
+
+          <div className={`flex-1 flex flex-col h-full ${isRightCollapsed ? 'opacity-0 pointer-events-none select-none' : ''}`}>
+            {/* SessionTabBar */}
+            <SessionTabBar
+              tabs={tabs}
+              activeTabId={activeTabId}
+              onSwitchTab={switchTab}
+              onCreateTab={createTab}
+              onCloseTab={closeTab}
+              onOpenHistory={handleOpenHistory}
+              onCollapseRightPanel={() => {
+                setIsRightCollapsed(true);
+              }}
+            />
+
+            {/* 内容区 */}
+            <div className="flex-1 overflow-hidden">
+              {rightSidebarType === 'worldview' ? (
+                <WorldviewPanel
+                  workId={workId!}
+                  worldData={worldData}
+                />
+              ) : rightSidebarType === 'summary' ? (
+                <SummaryPanel
+                  workId={workId!}
+                  currentChapterId={currentChapterId}
+                  onToast={showToast}
+                />
+              ) : (
+                tabs.map((tab) => (
+                  <div
+                    key={tab.id}
+                    style={{
+                      display: tab.id === activeTabId ? 'block' : 'none',
+                      height: '100%'
+                    }}
+                  >
+                    <AIPanel
+                      workId={workId!}
+                      chapterId={currentChapterId}
+                      sessionId={tab.sessionId}
+                      onTitleChange={(title) => updateTabTitle(tab.id, title)}
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
