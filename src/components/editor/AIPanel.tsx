@@ -460,14 +460,22 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
   const adjustInputHeight = useCallback(() => {
     const el = inputRef.current;
     if (!el) return;
-    el.style.height = 'auto';
-    const nextHeight = Math.min(el.scrollHeight, 240);
-    el.style.height = `${nextHeight}px`;
-    el.style.overflowY = el.scrollHeight > 240 ? 'auto' : 'hidden';
-    el.style.overflowX = 'hidden';
-    el.style.whiteSpace = 'pre-wrap';
-    el.style.wordBreak = 'break-word';
-    el.style.overflowWrap = 'break-word';
+
+    // 如果没有内容，直接设置为最小高度
+    if (!el.value || el.value.trim() === '') {
+      el.style.height = '32px';
+      el.style.overflowY = 'hidden';
+      return;
+    }
+
+    // 先重置高度，让 scrollHeight 能正确计算实际内容高度
+    el.style.height = '32px';
+    const maxH = 200;
+    // 根据实际内容计算高度
+    const contentHeight = el.scrollHeight;
+    const nextHeight = Math.min(contentHeight, maxH);
+    el.style.height = `${Math.max(nextHeight, 32)}px`;
+    el.style.overflowY = contentHeight > maxH ? 'auto' : 'hidden';
   }, []);
 
   const handleInputChange = useCallback(
@@ -615,8 +623,11 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
   }, [inputValue, selectedDocs.length, optimizationSelected, adjustInputHeight]);
 
   return (
-    <div className="p-3 h-full flex flex-col">
-      <div ref={messagesContainerRef} className="flex-1 mb-3 space-y-2.5 overflow-y-auto overflow-x-hidden custom-scrollbar">
+    <div className="p-3 h-full flex flex-col overflow-hidden">
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 min-h-0 mb-3 space-y-2.5 overflow-y-auto overflow-x-hidden custom-scrollbar"
+      >
         {/* 欢迎消息 */}
         {messages.length === 0 && (
           <div className="flex items-start gap-2">
@@ -836,7 +847,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
       )}
 
       {/* 模式选择 + 输入区（上下分区） */}
-      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-4 py-3 space-y-3">
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-4 py-3 space-y-3 flex-shrink-0">
         <div className="relative">
           <div className="flex flex-wrap items-start gap-2 w-full min-h-12 px-1 py-2 rounded-xl bg-transparent text-gray-800">
             {/* 胶囊在前，输入在后，保持同一行逻辑 */}
@@ -896,10 +907,13 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
                 overflowWrap: 'break-word',
-                overflow: 'hidden',
+                overflowY: 'hidden',
+                overflowX: 'hidden',
                 padding: '6px 0',
                 flexBasis: '100%',
                 minWidth: '100%',
+                minHeight: '32px',
+                maxHeight: '200px',
               }}
             />
           </div>

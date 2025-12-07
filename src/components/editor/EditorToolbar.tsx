@@ -53,7 +53,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`h-7 w-7 p-0 flex items-center justify-center rounded transition-all ${
+      className={`h-7 w-7 p-0 flex items-center justify-center rounded transition-all focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 ${
         isActive ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
       } ${disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}`}
     >
@@ -122,7 +122,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
           type="button"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-          className={`h-7 px-2 text-[11px] rounded transition-all ${
+          className={`h-7 px-2 text-[11px] rounded transition-all focus:outline-none focus:ring-0 focus-visible:outline-none ${
             editor.isActive('heading', { level: 1 })
               ? 'bg-zinc-100 text-zinc-900'
               : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
@@ -135,7 +135,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
           type="button"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          className={`h-7 px-2 text-[11px] rounded transition-all ${
+          className={`h-7 px-2 text-[11px] rounded transition-all focus:outline-none focus:ring-0 focus-visible:outline-none ${
             editor.isActive('heading', { level: 2 })
               ? 'bg-zinc-100 text-zinc-900'
               : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
@@ -148,7 +148,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
           type="button"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-          className={`h-7 px-2 text-[11px] rounded transition-all ${
+          className={`h-7 px-2 text-[11px] rounded transition-all focus:outline-none focus:ring-0 focus-visible:outline-none ${
             editor.isActive('heading', { level: 3 })
               ? 'bg-zinc-100 text-zinc-900'
               : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
@@ -276,8 +276,6 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
         </ToolbarButton>
       </div>
 
-      <div className="flex-1" />
-
       {/* AI 功能 */}
       <button
         type="button"
@@ -290,11 +288,11 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
           });
           window.dispatchEvent(event);
         }}
-        className="h-7 bg-zinc-900 hover:bg-zinc-800 text-white px-3 text-[12px] rounded transition-all flex items-center gap-1.5"
+        className="h-7 min-w-[88px] flex-none bg-zinc-900 hover:bg-zinc-800 text-white px-3 text-[12px] rounded transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-0 focus-visible:outline-none"
         title="AI 续写"
       >
-        <Wand2 className="h-3 w-3" />
-        <span>AI 续写</span>
+        <Wand2 className="h-3 w-3 flex-none" />
+        <span className="whitespace-nowrap">AI 续写</span>
       </button>
     </div>
   );

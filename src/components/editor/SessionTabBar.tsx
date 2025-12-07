@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Globe2, FileText, MessageSquare, MoreHorizontal, Clock3 } from 'lucide-react';
+import { Plus, Globe2, FileText, MessageSquare, MoreHorizontal, Clock3, PanelRightClose } from 'lucide-react';
 import { useEditorStore, type RightSidebarType } from '../../store/editorStore';
 import type { Tab } from '@/utils/tabStorage';
 import clsx from 'clsx';
@@ -11,6 +11,7 @@ interface SessionTabBarProps {
   onCreateTab: (afterTabId?: string) => Promise<any>;
   onCloseTab: (tabId: string) => void;
   onOpenHistory?: () => void;
+  onCollapseRightPanel?: () => void;
 }
 
 /**
@@ -25,6 +26,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
   onCreateTab,
   onCloseTab,
   onOpenHistory,
+  onCollapseRightPanel,
 }) => {
   const { rightSidebarType, toggleRightSidebar, closeRightSidebar } = useEditorStore();
   const [creating, setCreating] = React.useState(false);
@@ -106,6 +108,24 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           title="新增会话"
         >
           <Plus className="w-4 h-4" />
+        </button>
+
+        {/* 收起右侧面板 */}
+        <button
+          className="p-1.5 rounded transition-all"
+          style={{ color: '#6b7280' }}
+          onClick={() => onCollapseRightPanel?.()}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = '#111827';
+            e.currentTarget.style.backgroundColor = '#f3f4f6';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = '#6b7280';
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+          title="收起侧栏"
+        >
+          <PanelRightClose className="w-4 h-4" />
         </button>
 
         {/* 功能图标按钮 */}
