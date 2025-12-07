@@ -312,6 +312,12 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
   // ===== 动态更新 AI 自动补全开关状态 =====
   useEffect(() => {
+    console.log('[NovelEditor] 检查 AI 自动补全状态:', {
+      hasEditor: !!editor,
+      storage: editor?.storage,
+      aiAutoComplete: editor?.storage?.aiAutoComplete,
+      enabled: aiAutoCompleteEnabled
+    });
     if (editor && editor.storage.aiAutoComplete) {
       editor.storage.aiAutoComplete.enabled = aiAutoCompleteEnabled;
       console.log('[NovelEditor] AI 自动补全状态更新:', aiAutoCompleteEnabled);

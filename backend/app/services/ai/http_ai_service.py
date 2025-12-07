@@ -114,6 +114,7 @@ class HTTPAIService:
                 logger.info("[成本追踪] 初始化未传db/user_id，暂不创建AILogService；_track_api_cost会按需尝试")
 
         # 创建持久化客户端，模拟普通浏览器/应用
+        # 流式场景容易超过总超时，单独放宽读超时以避免长响应被误判为超时
         self.client = httpx.AsyncClient(
             headers={
                 "User-Agent": "okhttp/4.12.0",
@@ -122,8 +123,10 @@ class HTTPAIService:
                 "Connection": "keep-alive",
             },
             timeout=httpx.Timeout(
-                timeout_value,  # 使用可配置的超时
-                connect=10.0
+                connect=10.0,
+                read=None,             # 流式读取不设超时，避免长生成被截断
+                write=timeout_value,   # 发送请求体受配置超时限制
+                pool=timeout_value     # httpx 要求四项都明确设置
             ),
             follow_redirects=True,
             http2=_http2_supported,  # 启用 HTTP/2（若缺少 h2 库则自动降级）

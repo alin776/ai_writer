@@ -38,7 +38,7 @@ DeepAgent 模式在 Planning 基础上新增一个核心工具：
 ### 2.3 接口定义
 
 ```python
-# backend/app/services/agent/tools/deep_agent_tools.py
+# backend/app/services/agent/deep_agent/reflection.py
 
 from dataclasses import dataclass
 from typing import Dict, Any, List, Optional
@@ -57,7 +57,7 @@ async def think_tool(
     result: Dict[str, Any],
     remaining_tasks: List[Dict[str, Any]],
     context: Dict[str, Any],
-    ai_service,
+    ai_service,  # HTTPAIService 实例，通过 WritingAgentGraph.ai_service 获取
 ) -> ReflectionResult:
     """反思工具
 

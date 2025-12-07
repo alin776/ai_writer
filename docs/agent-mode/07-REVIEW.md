@@ -237,22 +237,22 @@ TOTAL_TIMEOUT = 360       # 总超时保持 6 分钟
 
 ### 后端
 
-| 文件 | 关键内容 | 行号 |
+| 文件 | 关键内容 | 位置 |
 |------|----------|------|
-| `chat_models.py` | ChatMode 枚举 | 15-26 |
-| `agent.py` | 统一流式端点 | 966-1355 |
-| `agent.py` | on_task_progress 回调 | 1104-1106 |
-| `langgraph_agent.py` | chat_with_planning | 3785-4175 |
-| `multi_agent/executor.py` | MultiAgentExecutor | 1-494 |
+| `chat_models.py` | ChatMode 枚举 | `ChatMode` 类 |
+| `agent.py` | 统一流式端点 | `agent_chat_stream()` 函数 |
+| `agent.py` | on_task_progress 回调 | `agent_chat_stream()` 内部 |
+| `langgraph_agent.py` | chat_with_planning | `chat_with_planning()` 方法 |
+| `multi_agent/executor.py` | MultiAgentExecutor | `MultiAgentExecutor` 类 |
 
 ### 前端
 
-| 文件 | 关键内容 | 行号 |
+| 文件 | 关键内容 | 位置 |
 |------|----------|------|
-| `ModeSelector.tsx` | 模式选择器 | - |
-| `TaskListPanel.tsx` | 任务列表、progress_status | 80-85 |
-| `useAgentChat.ts` | onTaskProgress 处理 | 327-338 |
-| `agentApi.ts` | task_progress 事件解析 | 254 |
+| `ModeSelector.tsx` | 模式选择器 | `ModeSelector` 组件 |
+| `TaskListPanel.tsx` | 任务列表、progress_status | `TaskListPanel` 组件 |
+| `useAgentChat.ts` | onTaskProgress 处理 | `onTaskProgress` 回调 |
+| `agentApi.ts` | task_progress 事件解析 | `streamChat()` 函数 |
 
 ---
 

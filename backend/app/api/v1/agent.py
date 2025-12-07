@@ -113,6 +113,7 @@ class AgentChatRequest(BaseModel):
     chapter_id: Optional[str] = Field(None, description="Chapter ID")
     conversation_id: Optional[str] = Field(None, description="Conversation ID for continuing session")
     context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Extra context")
+    enable_reflection: bool = Field(False, description="Enable DeepAgent reflection mode")
 
 
 class AgentChatResponse(BaseModel):
@@ -1509,7 +1510,8 @@ async def agent_chat_stream(
                                 on_task_progress=on_task_progress,
                                 on_task_done=on_task_done,
                                 on_content=on_content,
-                                db=db
+                                db=db,
+                                enable_reflection=request.enable_reflection,  # DeepAgent 反思模式
                             )
                         # ✅ 发送最后一个活动的完成事件
                         if last_activity_step['step'] is not None:

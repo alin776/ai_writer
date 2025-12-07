@@ -69,57 +69,55 @@ async def _log_ai_call_async(
     """
     import asyncio
     from uuid import UUID
-    from app.core.database import create_db_session
     from app.services.ai_log_service import AILogService
     from app.schemas.ai_call_log import AICallLogCreate
     from app.utils.cost_calculator import CostCalculator
 
     try:
-        async with create_db_session() as db:
-            # 如果没有提供token数，估算
-            if prompt_tokens == 0 and prompt_text:
-                # 简单估算：中文1.5字符=1token，英文4字符=1token
-                chinese_chars = sum(1 for c in prompt_text if '\u4e00' <= c <= '\u9fff')
-                other_chars = len(prompt_text) - chinese_chars
-                prompt_tokens = int(chinese_chars / 1.5 + other_chars / 4)
+        # 如果没有提供token数，估算
+        if prompt_tokens == 0 and prompt_text:
+            # 简单估算：中文1.5字符=1token，英文4字符=1token
+            chinese_chars = sum(1 for c in prompt_text if '\u4e00' <= c <= '\u9fff')
+            other_chars = len(prompt_text) - chinese_chars
+            prompt_tokens = int(chinese_chars / 1.5 + other_chars / 4)
 
-            if completion_tokens == 0 and completion_text:
-                chinese_chars = sum(1 for c in completion_text if '\u4e00' <= c <= '\u9fff')
-                other_chars = len(completion_text) - chinese_chars
-                completion_tokens = int(chinese_chars / 1.5 + other_chars / 4)
+        if completion_tokens == 0 and completion_text:
+            chinese_chars = sum(1 for c in completion_text if '\u4e00' <= c <= '\u9fff')
+            other_chars = len(completion_text) - chinese_chars
+            completion_tokens = int(chinese_chars / 1.5 + other_chars / 4)
 
-            # 计算成本
-            cost_data = CostCalculator.calculate_cost(
-                model_name=model_name,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens
-            )
+        # 计算成本
+        cost_data = CostCalculator.calculate_cost(
+            model_name=model_name,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens
+        )
 
-            # 创建日志记录
-            log_service = AILogService(db)
-            log_data = AICallLogCreate(
-                user_id=UUID(user_id),
-                model_name=model_name,
-                operation_type=operation_type,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                total_tokens=prompt_tokens + completion_tokens,
-                prompt_cost=cost_data["prompt_cost"],
-                completion_cost=cost_data["completion_cost"],
-                total_cost=cost_data["total_cost"],
-                duration_ms=0,  # 流式响应无法准确计时
-                is_success=True,
-                extra_data=extra_data or {}
-            )
+        # 创建日志记录
+        log_service = AILogService(db)
+        log_data = AICallLogCreate(
+            user_id=UUID(user_id),
+            model_name=model_name,
+            operation_type=operation_type,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=prompt_tokens + completion_tokens,
+            prompt_cost=cost_data["prompt_cost"],
+            completion_cost=cost_data["completion_cost"],
+            total_cost=cost_data["total_cost"],
+            duration_ms=0,  # 流式响应无法准确计时
+            is_success=True,
+            extra_data=extra_data or {}
+        )
 
-            await log_service.create_log(log_data)
-            await db.commit()
+        await log_service.create_log(log_data)
+        await db.commit()
 
-            logger.info(
-                f"[后台日志] AI调用已记录: operation={operation_type}, "
-                f"tokens={prompt_tokens + completion_tokens}, "
-                f"cost=${cost_data['total_cost']:.6f}"
-            )
+        logger.info(
+            f"[后台日志] AI调用已记录: operation={operation_type}, "
+            f"tokens={prompt_tokens + completion_tokens}, "
+            f"cost=${cost_data['total_cost']:.6f}"
+        )
 
     except Exception as e:
         logger.error(f"[后台日志] 记录失败: {e}", exc_info=True)
@@ -149,8 +147,8 @@ class AITranslateRequest(BaseModel):
     """AI 翻译请求"""
     text: str = Field(..., description="待翻译的文本", min_length=1)
     target_lang: str = Field(
-        default="auto",
-        description="目标语言（auto=自动识别/english=英文/chinese=中文）"
+    default="auto",
+    description="目标语言（auto=自动识别/english=英文/chinese=中文）"
     )
 
 
@@ -214,8 +212,8 @@ class AIPreloadMetadataRequest(BaseModel):
 )
 async def ai_complete(
     request: AICompleteRequest,
-    current_user: User = Depends(get_current_active_user)
-    # ✅ 修复：移除db依赖，避免生命周期不匹配
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     AI 续写接口（流式响应）
@@ -233,70 +231,67 @@ async def ai_complete(
     logger.info(f"[AI续写] context内容: '{request.context[:200]}'")
     logger.info(f"[AI续写] prompt: '{request.prompt}', max_tokens: {request.max_tokens}")
 
-    # ✅ 创建独立的数据库会话用于加载元数据
-    from app.core.database import create_db_session
-    async with create_db_session() as db:
-        # ✅ 2025-12-01: 传递user_id以启用成本追踪
-        ai_service = HTTPAIService(db=db, user_id=str(current_user.id))
+    # ✅ 2025-12-01: 传递user_id以启用成本追踪
+    ai_service = HTTPAIService(db=db, user_id=str(current_user.id))
 
-        async def event_generator():
-            """SSE 事件生成器"""
-            accumulated_text = ""
-            try:
-                async for chunk, usage in ai_service.stream_complete(
-                    context=request.context,
-                    prompt=request.prompt,
-                    style=request.style,
-                    max_tokens=request.max_tokens,
-                    # ===== 传递元数据参数 =====
-                    work_id=request.work_id,
-                    chapter_id=request.chapter_id,
-                    enable_rag=request.enable_rag
-                ):
-                    # 只处理内容块,忽略最后的usage块(chunk为空字符串)
-                    if chunk:
-                        accumulated_text += chunk
-                        # SSE 格式: data: {content}\n\n
-                        yield f"data: {chunk}\n\n"
+    async def event_generator():
+        """SSE 事件生成器"""
+        accumulated_text = ""
+        try:
+            async for chunk, usage in ai_service.stream_complete(
+                context=request.context,
+                prompt=request.prompt,
+                style=request.style,
+                max_tokens=request.max_tokens,
+                # ===== 传递元数据参数 =====
+                work_id=request.work_id,
+                chapter_id=request.chapter_id,
+                enable_rag=request.enable_rag
+            ):
+                # 只处理内容块,忽略最后的usage块(chunk为空字符串)
+                if chunk:
+                    accumulated_text += chunk
+                    # SSE 格式: data: {content}\n\n
+                    yield f"data: {chunk}\n\n"
 
-                # 流结束标记
-                yield "data: [DONE]\n\n"
-                logger.info(f"[AI续写] 用户 {current_user.username} 请求完成，生成字数: {len(accumulated_text)}")
+            # 流结束标记
+            yield "data: [DONE]\n\n"
+            logger.info(f"[AI续写] 用户 {current_user.username} 请求完成，生成字数: {len(accumulated_text)}")
 
-            except Exception as e:
-                error_msg = str(e)
-                logger.error(f"[AI续写] 用户 {current_user.username} 请求失败: {error_msg}")
-                yield f"data: [ERROR] {error_msg}\n\n"
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"[AI续写] 用户 {current_user.username} 请求失败: {error_msg}")
+            yield f"data: [ERROR] {error_msg}\n\n"
 
-            finally:
-                # ❌ DEPRECATED - 2025-12-01: 注释掉后台任务，改用HTTPAIService内部的_track_api_cost
-                # HTTPAIService现在会在AI调用完成时自动记录成本到数据库
-                # asyncio.create_task(_log_ai_call_async(
-                #     user_id=str(current_user.id),
-                #     model_name=settings.OPENAI_MODEL,
-                #     operation_type="continue",
-                #     prompt_tokens=0,
-                #     completion_tokens=0,
-                #     prompt_text=request.context,
-                #     completion_text=accumulated_text,
-                #     extra_data={
-                #         "style": request.style,
-                #         "prompt": request.prompt,
-                #         "max_tokens": request.max_tokens,
-                #         "context_length": len(request.context)
-                #     }
-                # ))
-                pass
+        finally:
+            # ❌ DEPRECATED - 2025-12-01: 注释掉后台任务，改用HTTPAIService内部的_track_api_cost
+            # HTTPAIService现在会在AI调用完成时自动记录成本到数据库
+            # asyncio.create_task(_log_ai_call_async(
+            #     user_id=str(current_user.id),
+            #     model_name=settings.OPENAI_MODEL,
+            #     operation_type="continue",
+            #     prompt_tokens=0,
+            #     completion_tokens=0,
+            #     prompt_text=request.context,
+            #     completion_text=accumulated_text,
+            #     extra_data={
+            #         "style": request.style,
+            #         "prompt": request.prompt,
+            #         "max_tokens": request.max_tokens,
+            #         "context_length": len(request.context)
+            #     }
+            # ))
+            pass
 
-        return StreamingResponse(
-            event_generator(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",  # 禁用 Nginx 缓冲
-            }
-        )
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # 禁用 Nginx 缓冲
+        }
+    )
 
 
 @router.post(
@@ -678,7 +673,6 @@ async def preload_metadata(
     )
 
     try:
-        from app.core.database import create_db_session
         from app.models.ai_guidelines import AIGuidelines
         from app.models.chapter import Chapter
         from sqlalchemy import select
@@ -691,78 +685,77 @@ async def preload_metadata(
             "previous_chapter": False
         }
 
-        async with create_db_session() as db:
-            # 1. 预加载 AI Guidelines
-            try:
-                from app.core.redis import get_redis
-                redis = await get_redis()
+        # 1. 预加载 AI Guidelines
+        try:
+            from app.core.redis import get_redis
+            redis = await get_redis()
 
-                cache_key = f"guidelines:{request.work_id}"
+            cache_key = f"guidelines:{request.work_id}"
 
-                # 检查缓存是否已存在
-                cached_data = await redis.get(cache_key)
+            # 检查缓存是否已存在
+            cached_data = await redis.get(cache_key)
 
-                if not cached_data:
-                    # 从数据库加载
-                    stmt = select(AIGuidelines).where(AIGuidelines.work_id == UUID(request.work_id))
-                    result = await db.execute(stmt)
-                    guidelines = result.scalar_one_or_none()
+            if not cached_data:
+                # 从数据库加载
+                stmt = select(AIGuidelines).where(AIGuidelines.work_id == UUID(request.work_id))
+                result = await db.execute(stmt)
+                guidelines = result.scalar_one_or_none()
 
-                    if guidelines and guidelines.is_active:
-                        # 序列化到缓存
-                        cache_data = {
-                            "writing_style": guidelines.writing_style,
-                            "narrative_rhythm": guidelines.narrative_rhythm,
-                            "style_notes": guidelines.style_notes,
-                            "core_paradox": guidelines.core_paradox,
-                            "protagonist_arc": guidelines.protagonist_arc,
-                            "core_conflict": guidelines.core_conflict,
-                            "protagonist_name": guidelines.protagonist_name,
-                            "world_intro": guidelines.world_intro,
-                        }
+                if guidelines and guidelines.is_active:
+                    # 序列化到缓存
+                    cache_data = {
+                        "writing_style": guidelines.writing_style,
+                        "narrative_rhythm": guidelines.narrative_rhythm,
+                        "style_notes": guidelines.style_notes,
+                        "core_paradox": guidelines.core_paradox,
+                        "protagonist_arc": guidelines.protagonist_arc,
+                        "core_conflict": guidelines.core_conflict,
+                        "protagonist_name": guidelines.protagonist_name,
+                        "world_intro": guidelines.world_intro,
+                    }
 
-                        # 写入缓存（1小时过期）
-                        await redis.setex(
-                            cache_key,
-                            3600,
-                            json.dumps(cache_data, ensure_ascii=False)
-                        )
+                    # 写入缓存（1小时过期）
+                    await redis.setex(
+                        cache_key,
+                        3600,
+                        json.dumps(cache_data, ensure_ascii=False)
+                    )
 
-                        cached["guidelines"] = True
-                        logger.info(f"[预加载] AI Guidelines 已缓存: {request.work_id}")
-                else:
                     cached["guidelines"] = True
-                    logger.info(f"[预加载] AI Guidelines 缓存已存在: {request.work_id}")
+                    logger.info(f"[预加载] AI Guidelines 已缓存: {request.work_id}")
+            else:
+                cached["guidelines"] = True
+                logger.info(f"[预加载] AI Guidelines 缓存已存在: {request.work_id}")
+
+        except Exception as e:
+            logger.warning(f"[预加载] Guidelines 缓存失败: {e}")
+
+        # 2. 预加载当前章节摘要（如果提供了 chapter_id）
+        if request.chapter_id:
+            try:
+                stmt = select(Chapter).where(Chapter.id == UUID(request.chapter_id))
+                result = await db.execute(stmt)
+                current_chapter = result.scalar_one_or_none()
+
+                if current_chapter:
+                    cached["current_chapter"] = True
+                    logger.info(f"[预加载] 当前章节已加载: {request.chapter_id}")
+
+                    # 尝试加载上一章
+                    if current_chapter.order > 1:
+                        stmt = select(Chapter).where(
+                            Chapter.work_id == current_chapter.work_id,
+                            Chapter.order == current_chapter.order - 1
+                        )
+                        result = await db.execute(stmt)
+                        prev_chapter = result.scalar_one_or_none()
+
+                        if prev_chapter:
+                            cached["previous_chapter"] = True
+                            logger.info(f"[预加载] 前一章节已加载: {prev_chapter.id}")
 
             except Exception as e:
-                logger.warning(f"[预加载] Guidelines 缓存失败: {e}")
-
-            # 2. 预加载当前章节摘要（如果提供了 chapter_id）
-            if request.chapter_id:
-                try:
-                    stmt = select(Chapter).where(Chapter.id == UUID(request.chapter_id))
-                    result = await db.execute(stmt)
-                    current_chapter = result.scalar_one_or_none()
-
-                    if current_chapter:
-                        cached["current_chapter"] = True
-                        logger.info(f"[预加载] 当前章节已加载: {request.chapter_id}")
-
-                        # 尝试加载上一章
-                        if current_chapter.order > 1:
-                            stmt = select(Chapter).where(
-                                Chapter.work_id == current_chapter.work_id,
-                                Chapter.order == current_chapter.order - 1
-                            )
-                            result = await db.execute(stmt)
-                            prev_chapter = result.scalar_one_or_none()
-
-                            if prev_chapter:
-                                cached["previous_chapter"] = True
-                                logger.info(f"[预加载] 前一章节已加载: {prev_chapter.id}")
-
-                except Exception as e:
-                    logger.warning(f"[预加载] 章节概要加载失败: {e}")
+                logger.warning(f"[预加载] 章节概要加载失败: {e}")
 
         logger.info(f"[预加载] 完成: {cached}")
 
@@ -792,18 +785,18 @@ async def preload_metadata(
     ```json
     {
       "models": [
-        {
-          "id": "gemini-2.5-pro",
-          "name": "Gemini 2.5 Pro",
-          "description": "擅长创意和细节描写",
-          "enabled": true
-        },
-        {
-          "id": "gpt-5",
-          "name": "GPT-5",
-          "description": "平衡全能，表现稳定",
-          "enabled": true
-        }
+    {
+      "id": "gemini-2.5-pro",
+      "name": "Gemini 2.5 Pro",
+      "description": "擅长创意和细节描写",
+      "enabled": true
+    },
+    {
+      "id": "gpt-5",
+      "name": "GPT-5",
+      "description": "平衡全能，表现稳定",
+      "enabled": true
+    }
       ],
       "default_models": ["gemini-2.5-pro", "gpt-5"],
       "max_models": 4
@@ -819,19 +812,19 @@ async def get_rewrite_models(
 
     # 从配置中获取模型列表
     models = [
-        {
-            "id": model_id,
-            "name": model_info["name"],
-            "description": model_info["description"],
-            "enabled": model_info["enabled"]
-        }
-        for model_id, model_info in settings.REWRITE_MODELS.items()
+    {
+        "id": model_id,
+        "name": model_info["name"],
+        "description": model_info["description"],
+        "enabled": model_info["enabled"]
+    }
+    for model_id, model_info in settings.REWRITE_MODELS.items()
     ]
 
     return {
-        "models": models,
-        "default_models": settings.REWRITE_DEFAULT_MODELS,
-        "max_models": settings.REWRITE_MAX_MODELS
+    "models": models,
+    "default_models": settings.REWRITE_DEFAULT_MODELS,
+    "max_models": settings.REWRITE_MAX_MODELS
     }
 
 

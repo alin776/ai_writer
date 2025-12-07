@@ -40,6 +40,8 @@ from app.services.agent.progress_tracker import ProgressTracker
 from app.services.agent.node_metadata import get_node_info
 # Multi-Agent 写作系统
 from app.services.agent.multi_agent import MultiAgentExecutor, TOTAL_STAGES
+# DeepAgent 反思系统
+from app.services.agent.deep_agent import DeepAgentExecutor
 from app.services.agent.timeout_config import TimeoutConfig
 from app.services.agent.tools.editor_tools import (
     smart_continue,
@@ -4391,7 +4393,8 @@ class WritingAgentGraph:
         on_task_progress: Optional[callable] = None,
         on_task_done: Optional[callable] = None,
         on_content: Optional[callable] = None,
-        db: Optional[Any] = None
+        db: Optional[Any] = None,
+        enable_reflection: bool = False  # DeepAgent 反思模式
     ) -> Dict[str, Any]:
         """
         与 Agent 对话 - Planning + Execution 模式
@@ -4409,6 +4412,7 @@ class WritingAgentGraph:
             on_task_done: 任务完成回调
             on_content: 内容生成回调
             db: 数据库会话（用于token记录）
+            enable_reflection: 是否启用DeepAgent反思模式
 
         Returns:
             Dict: Agent响应
@@ -4669,15 +4673,62 @@ chapter_id: {chapter_id}
                 # ✅ 为任务执行添加超时保护（使用统一配置）
                 try:
                     async with asyncio.timeout(TimeoutConfig.TASK_EXECUTION):
-                        task_results = await self._execute_tasks_in_parallel(
-                            tasks=plan_data["tasks"],
-                            work_id=work_id,
-                            chapter_id=chapter_id,
-                            context=initial_context,
-                            on_task_start=on_task_start,
-                            on_task_progress=on_task_progress,
-                            on_task_done=on_task_done
-                        )
+                        # ════════════════════════════════════════════
+                        # DeepAgent 反思模式分支
+                        # ════════════════════════════════════════════
+                        if enable_reflection:
+                            logger.info("[DeepAgent] 启用反思模式")
+                            deep_executor = DeepAgentExecutor(
+                                agent_graph=self,
+                                on_plan=on_plan,
+                                on_task_start=on_task_start,
+                                on_task_progress=on_task_progress,
+                                on_task_done=on_task_done,
+                                on_content=on_content,
+                            )
+
+                            # 定义任务执行函数（传递给 DeepAgentExecutor）
+                            async def execute_single_task(task, context, on_task_progress):
+                                result_str = await self._execute_task(
+                                    task=task,
+                                    work_id=work_id,
+                                    chapter_id=chapter_id,
+                                    context=context.get("context_str", initial_context),
+                                    on_progress=on_task_progress,
+                                )
+                                return {"status": "completed", "content": result_str}
+
+                            deep_result = await deep_executor.execute_with_reflection(
+                                plan=plan_data,
+                                context={"context_str": initial_context, "work_id": work_id, "chapter_id": chapter_id},
+                                execute_task_func=execute_single_task,
+                            )
+
+                            # 转换结果格式
+                            task_results = []
+                            for task_id, result in deep_result.get("results", {}).items():
+                                task_results.append({
+                                    "task_id": task_id,
+                                    "result": result.get("content", result.get("result", str(result))),
+                                    "status": result.get("status", "completed"),
+                                })
+
+                            logger.info(
+                                f"[DeepAgent] 执行完成: 反思={deep_result.get('reflection_count', 0)}次, "
+                                f"重规划={deep_result.get('replan_count', 0)}次"
+                            )
+                        else:
+                            # 标准模式：使用原有并行执行
+                            task_results = await self._execute_tasks_in_parallel(
+                                tasks=plan_data["tasks"],
+                                work_id=work_id,
+                                chapter_id=chapter_id,
+                                context=initial_context,
+                                on_task_start=on_task_start,
+                                on_task_progress=on_task_progress,
+                                on_task_done=on_task_done
+                            )
+                        # ════════════════════════════════════════════
                 except asyncio.TimeoutError:
                     logger.error(f"[Execution] 任务执行超时（{TimeoutConfig.TASK_EXECUTION}秒）")
                     return {
