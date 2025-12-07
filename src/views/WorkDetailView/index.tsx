@@ -188,6 +188,7 @@ const WorkDetailView: React.FC = () => {
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
 
   const DEFAULT_RIGHT_PANEL_WIDTH = 288; // 默认 288px (w-72)
+  const COLLAPSED_RIGHT_PANEL_WIDTH = 48; // collapsed width
 
   // 右侧面板宽度
   const [rightPanelWidth, setRightPanelWidth] = useState(() => {
@@ -1248,10 +1249,8 @@ const WorkDetailView: React.FC = () => {
 
         {/* 右侧面板 */}
         <div
-          className={`relative bg-white border-l border-zinc-100 flex flex-col ${
-            isRightCollapsed ? 'w-12' : ''
-          } ${isResizing ? '' : 'transition-[width] duration-200 ease-out'}`}
-          style={!isRightCollapsed ? { width: `${rightPanelWidth}px` } : undefined}
+          className={`relative bg-white border-l border-zinc-100 flex flex-col overflow-hidden ${isResizing ? '' : 'transition-[width] duration-200 ease-out'}`}
+          style={{ width: `${isRightCollapsed ? COLLAPSED_RIGHT_PANEL_WIDTH : rightPanelWidth}px` }}
         >
           {/* 可拖动的分隔条 */}
           {!isRightCollapsed && (
@@ -1263,9 +1262,9 @@ const WorkDetailView: React.FC = () => {
               <div className="absolute inset-y-0 -left-1 -right-1" />
             </div>
           )}
-          {isRightCollapsed ? (
+          {isRightCollapsed && (
             /* 折叠状态 */
-            <div className="flex flex-col items-center py-5 gap-4">
+            <div className="absolute inset-0 z-20 flex flex-col items-center py-5 gap-4 bg-white">
               <Button
                 variant="ghost"
                 size="sm"
@@ -1278,55 +1277,55 @@ const WorkDetailView: React.FC = () => {
                 {rightSidebarType === 'worldview' ? '世界观' : rightSidebarType === 'summary' ? '概括' : 'AI'}
               </div>
             </div>
-          ) : (
-            <>
-              {/* SessionTabBar */}
-              <SessionTabBar
-                tabs={tabs}
-                activeTabId={activeTabId}
-                onSwitchTab={switchTab}
-                onCreateTab={createTab}
-                onCloseTab={closeTab}
-                onOpenHistory={handleOpenHistory}
-                onCollapseRightPanel={() => {
-                  setIsRightCollapsed(true);
-                }}
-              />
-
-              {/* 内容区 */}
-              <div className="flex-1 overflow-hidden">
-                {rightSidebarType === 'worldview' ? (
-                  <WorldviewPanel
-                    workId={workId!}
-                    worldData={worldData}
-                  />
-                ) : rightSidebarType === 'summary' ? (
-                  <SummaryPanel
-                    workId={workId!}
-                    currentChapterId={currentChapterId}
-                    onToast={showToast}
-                  />
-                ) : (
-                  tabs.map((tab) => (
-                    <div
-                      key={tab.id}
-                      style={{
-                        display: tab.id === activeTabId ? 'block' : 'none',
-                        height: '100%'
-                      }}
-                    >
-                      <AIPanel
-                        workId={workId!}
-                        chapterId={currentChapterId}
-                        sessionId={tab.sessionId}
-                        onTitleChange={(title) => updateTabTitle(tab.id, title)}
-                      />
-                    </div>
-                  ))
-                )}
-              </div>
-            </>
           )}
+
+          <div className={`flex-1 flex flex-col h-full ${isRightCollapsed ? 'opacity-0 pointer-events-none select-none' : ''}`}>
+            {/* SessionTabBar */}
+            <SessionTabBar
+              tabs={tabs}
+              activeTabId={activeTabId}
+              onSwitchTab={switchTab}
+              onCreateTab={createTab}
+              onCloseTab={closeTab}
+              onOpenHistory={handleOpenHistory}
+              onCollapseRightPanel={() => {
+                setIsRightCollapsed(true);
+              }}
+            />
+
+            {/* 内容区 */}
+            <div className="flex-1 overflow-hidden">
+              {rightSidebarType === 'worldview' ? (
+                <WorldviewPanel
+                  workId={workId!}
+                  worldData={worldData}
+                />
+              ) : rightSidebarType === 'summary' ? (
+                <SummaryPanel
+                  workId={workId!}
+                  currentChapterId={currentChapterId}
+                  onToast={showToast}
+                />
+              ) : (
+                tabs.map((tab) => (
+                  <div
+                    key={tab.id}
+                    style={{
+                      display: tab.id === activeTabId ? 'block' : 'none',
+                      height: '100%'
+                    }}
+                  >
+                    <AIPanel
+                      workId={workId!}
+                      chapterId={currentChapterId}
+                      sessionId={tab.sessionId}
+                      onTitleChange={(title) => updateTabTitle(tab.id, title)}
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
