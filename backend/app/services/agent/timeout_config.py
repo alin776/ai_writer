@@ -21,39 +21,38 @@ class TimeoutConfig:
     """超时配置（单位：秒）
 
     层级结构：
-    ├── 外层任务执行 (TASK_EXECUTION = 360s)
-    │   └── Multi-Agent 总超时 (MULTI_AGENT_TOTAL = 300s)
-    │       ├── 大纲师 (outline = 45s)
+    ├── 外层任务执行 (TASK_EXECUTION = 540s)
+    │   └── Multi-Agent 总超时 (MULTI_AGENT_TOTAL = 480s)
+    │       ├── 大纲师 (outline = 120s)
     │       ├── 主笔 (writing = 120s)
-    │       ├── 角色守护 + 逻辑审计 (check = 45s) [并行]
-    │       └── 总编 (editor = 60s)
+    │       ├── 角色守护 + 逻辑审计 (check = 60s) [并行]
+    │       └── 总编 (editor = 120s)
+    │       └── 串行总计 = 420s (< 480s ✓)
     │
     └── 单次 LLM 调用 (LLM_CALL = 120s)
     """
 
     # ==================== 外层超时 ====================
-    # 任务执行总超时（6分钟）
-    # 包含：规划 + 所有子任务执行 + 汇总
-    TASK_EXECUTION: int = 360
+    # 任务执行总超时（9分钟）
+    TASK_EXECUTION: int = 540
 
-    # 规划流程总超时（6分钟）
-    PLANNING_TOTAL: int = 360
+    # 规划流程总超时（9分钟）
+    PLANNING_TOTAL: int = 540
 
-    # LangGraph 流式响应超时（5分钟）
-    LANGGRAPH_STREAM: int = 300
+    # LangGraph 流式响应超时（8分钟）
+    LANGGRAPH_STREAM: int = 480
 
     # ==================== Multi-Agent 超时 ====================
-    # Multi-Agent 内部总超时（5分钟）
-    # 必须小于 TASK_EXECUTION，留出缓冲时间
-    MULTI_AGENT_TOTAL: int = 300
+    # Multi-Agent 内部总超时（8分钟）
+    MULTI_AGENT_TOTAL: int = 480
 
-    # 各阶段超时配置
+    # 各阶段超时配置（统一设为120s，与单次LLM调用超时一致）
     STAGE_TIMEOUTS: Dict[str, int] = {
-        "outline": 45,        # 大纲师（放宽，避免频繁回退）
-        "writing": 120,       # 主笔（生成长文本，需要较长时间）
-        "character_guard": 45,  # 角色守护
-        "logic_auditor": 45,    # 逻辑审计
-        "editor": 60,         # 总编
+        "outline": 120,       # 大纲师
+        "writing": 120,       # 主笔
+        "character_guard": 60,  # 角色守护
+        "logic_auditor": 60,    # 逻辑审计
+        "editor": 120,        # 总编
     }
 
     # ==================== LLM 调用超时 ====================
@@ -132,8 +131,8 @@ class TimeoutConfig:
         )
 
         return f"""超时配置摘要:
-├── 任务执行总超时: {cls.TASK_EXECUTION}s ({cls.TASK_EXECUTION // 60}分钟)
-│   └── Multi-Agent 总超时: {cls.MULTI_AGENT_TOTAL}s ({cls.MULTI_AGENT_TOTAL // 60}分钟)
+├── 任务执行总超时: {cls.TASK_EXECUTION}s ({cls.TASK_EXECUTION / 60:.1f}分钟)
+│   └── Multi-Agent 总超时: {cls.MULTI_AGENT_TOTAL}s ({cls.MULTI_AGENT_TOTAL / 60:.1f}分钟)
 │       ├── 大纲师: {cls.STAGE_TIMEOUTS['outline']}s
 │       ├── 主笔: {cls.STAGE_TIMEOUTS['writing']}s
 │       ├── 检查(并行): {cls.get_check_timeout()}s

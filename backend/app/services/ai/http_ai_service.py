@@ -92,17 +92,18 @@ class HTTPAIService:
         #     self.cost_tracker = None
 
         # ✅ 新增：使用AILogService替代CostTracker
+        self.ai_log_service = None
         if enable_cost_tracking and db and user_id:
             from app.services.ai_log_service import AILogService
             self.ai_log_service = AILogService(db)
             logger.info("AILogService 已启用 (用于成本追踪)")
-        else:
-            self.ai_log_service = None
-            if enable_cost_tracking:
-                logger.warning(
-                    "成本追踪已启用，但未提供db或user_id，"
-                    "成本数据将不会被记录！请检查HTTPAIService初始化参数。"
-                )
+        elif enable_cost_tracking:
+            # 允许依赖请求上下文 + 临时db会话进行追踪，避免误报“不会记录”
+            ctx_user = get_request_user_id()
+            if ctx_user:
+                logger.info("[成本追踪] 初始化未传db/user_id，将使用请求上下文按需记录成本")
+            else:
+                logger.info("[成本追踪] 初始化未传db/user_id，暂不创建AILogService；_track_api_cost会按需尝试")
 
         # 创建持久化客户端，模拟普通浏览器/应用
         self.client = httpx.AsyncClient(

@@ -3921,13 +3921,23 @@ chapter_id: {chapter_id}
                     plan_result = await self._generate_text(
                         prompt=plan_prompt,  # ✅ 修复：使用关键字参数
                         temperature=0.3,
-                        max_tokens=600,  # ✅ Phase 2.5: 优化从1000→600 (JSON任务列表)
+                        max_tokens=1200,  # ✅ 2025-12-07: Chain-of-Thought 需要更多 token（包含 thinking + 复合任务）
                         task_type=TaskType.SIMPLE_QA  # ← Planning阶段用轻量模型快速生成任务列表
                     )
                     plan_text = plan_result.get("text", "").strip()
 
                     # 解析规划JSON
                     plan_data = self._extract_json_from_text(plan_text)
+
+                    # ✅ 2025-12-07: 记录 thinking 字段用于调试
+                    if plan_data and "thinking" in plan_data:
+                        thinking = plan_data["thinking"]
+                        logger.info(
+                            f"[Planning] 思维链: "
+                            f"输出={thinking.get('step1_output', '?')[:30]}, "
+                            f"原料={thinking.get('step2_material', '?')[:20]}, "
+                            f"处理={thinking.get('step3_process', '?')[:20]}"
+                        )
 
                 except Exception as e:
                     logger.error(f"[Planning Agent] 执行失败: {e}", exc_info=True)
@@ -5218,14 +5228,13 @@ chapter_id: {chapter_id}
                     if len(result) > len(existing_content):
                         existing_content = result
 
-        # ✅ 修复问题2：如果累积上下文中已有章节内容，优先使用（避免重复获取）
+        # ✅ 修复问题2：始终获取 chapters_needed 指定的章节（不能用前一个任务输出替代）
+        # 重要：existing_content 是前一个写作任务的输出（新章节），不是原有章节
+        # 连续写作时：任务1输出第5章 → 任务2需要第1-4章+第5章，不能只用第5章
         previous_contents = []
         chapter_titles = []
 
-        if existing_content and len(existing_content) > 500:
-            logger.info(f"[MultiAgentWriting] 使用累积上下文中的内容（{len(existing_content)}字），跳过章节获取")
-            previous_contents.append(existing_content)
-        elif chapters_needed:
+        if chapters_needed:
             if on_progress:
                 await on_progress(task, "正在获取上下文章节...")
 
@@ -5273,6 +5282,14 @@ chapter_id: {chapter_id}
                                 previous_contents.append(result)
                 except Exception as e:
                     logger.warning(f"[MultiAgentWriting] ⚠️ 获取前一章失败: {e}")
+
+        # ✅ 把前一个任务新写的章节追加到上下文末尾（连续写作场景）
+        if existing_content and len(existing_content) > 500:
+            # 检查是否已经包含在 previous_contents 中（避免重复）
+            is_duplicate = any(existing_content in pc or pc in existing_content for pc in previous_contents if len(pc) > 200)
+            if not is_duplicate:
+                logger.info(f"[MultiAgentWriting] 追加前一个任务的输出（{len(existing_content)}字）到上下文末尾")
+                previous_contents.append(f"【上一章续写内容】\n{existing_content}")
 
         if on_progress:
             await on_progress(task, f"已获取{len(previous_contents)}个章节，开始写作...")

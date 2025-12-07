@@ -179,7 +179,7 @@ class OutlineAgent(BaseAgent):
             "emotion_curve": result.get("emotion_curve", {}),
             "foreshadowing": result.get("foreshadowing", ""),
             "connection_to_previous": result.get("connection_to_previous", ""),
-            "key_characters_from_analysis": key_characters  # ✅ 保存提取的关键角色
+            "key_characters": key_characters  # ✅ 统一字段名：保存从前文提取的关键角色
         }
 
         self._log_execution("章节大纲生成完成", {"title": outline["title"]})

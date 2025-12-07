@@ -62,11 +62,19 @@ class WriterAgent(BaseAgent):
         """
         self._log_execution("开始撰写章节", {"title": outline.get("title", "")})
 
-        # 构建用户提示
-        characters_info = "\n".join([
-            f"- {c.get('name', '未知')}: {c.get('role', '')}，情绪变化：{c.get('emotion_arc', '')}"
-            for c in outline.get("characters", [])
-        ]) or "无特定角色要求"
+        # ✅ 修复：兼容两种 characters 格式（字典列表或字符串列表）
+        characters = outline.get("characters", [])
+        characters_lines = []
+        for c in characters:
+            if isinstance(c, dict):
+                # 字典格式：{"name": "若想", "role": "主角", "emotion_arc": "..."}
+                characters_lines.append(
+                    f"- {c.get('name', '未知')}: {c.get('role', '')}，情绪变化：{c.get('emotion_arc', '')}"
+                )
+            elif isinstance(c, str):
+                # 字符串格式：直接是角色名
+                characters_lines.append(f"- {c}")
+        characters_info = "\n".join(characters_lines) or "无特定角色要求"
 
         emotion_curve = outline.get("emotion_curve", {})
         emotion_info = f"""

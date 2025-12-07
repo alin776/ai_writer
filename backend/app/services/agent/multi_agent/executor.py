@@ -166,13 +166,24 @@ class MultiAgentExecutor:
                     self.outline_agent.generate(task, context),
                     timeout=TimeoutConfig.get_stage_timeout("outline")
                 )
-            except (asyncio.TimeoutError, Exception) as e:
-                logger.warning(f"[MultiAgent] 大纲生成失败，使用默认大纲: {e}")
+            except asyncio.TimeoutError:
+                timeout_val = TimeoutConfig.get_stage_timeout("outline")
+                logger.warning(f"[MultiAgent] 大纲生成超时（>{timeout_val}s），使用默认大纲")
+                outline = self._default_outline(task, context)
+            except Exception as e:
+                logger.warning(f"[MultiAgent] 大纲生成失败（{type(e).__name__}: {e}），使用默认大纲")
                 outline = self._default_outline(task, context)
 
             outline_time = time.time() - start_time
             await self._report_event(on_event, "task_done", 1, elapsed_time=outline_time)
             logger.info(f"[MultiAgent] 大纲生成完成: {outline.get('title', '')} ({outline_time:.1f}s)")
+
+            # ✅ 修复：把大纲中提取的角色加入 context，传递给角色守护
+            key_characters = outline.get("key_characters", [])
+            if key_characters:
+                # 构建分析结果字符串，让角色守护能够从中提取角色
+                context["analysis_result"] = f"主要角色：{'、'.join(key_characters)}"
+                logger.info(f"[MultiAgent] 传递关键角色到角色守护: {key_characters}")
 
             # 阶段2: 主笔（不可回退 - 核心步骤）
             await self._report_event(on_event, "task_start", 2, f"{MULTI_AGENT_STAGES[2]['name']}{MULTI_AGENT_STAGES[2]['action']}")
@@ -246,13 +257,24 @@ class MultiAgentExecutor:
                     )
                     editor_time = time.time() - start_time
                     logger.info(f"[MultiAgent] 总编修订完成 ({editor_time:.1f}s)")
-                except (asyncio.TimeoutError, Exception) as e:
-                    logger.warning(f"[MultiAgent] 总编修订失败，使用初稿: {e}")
+                except asyncio.TimeoutError:
+                    timeout_val = TimeoutConfig.get_stage_timeout("editor")
+                    logger.warning(f"[MultiAgent] 总编修订超时（>{timeout_val}s），使用初稿")
                     final = {
                         "content": draft.get("content", ""),
                         "word_count": draft.get("word_count", 0),
                         "quality_score": 0.75,  # 降低评分表示未经修订
-                        "revision_summary": f"修订失败，使用初稿: {str(e)[:50]}",
+                        "revision_summary": f"修订超时（>{timeout_val}s），使用初稿",
+                        "conflicts_resolved": []
+                    }
+                    editor_time = time.time() - start_time
+                except Exception as e:
+                    logger.warning(f"[MultiAgent] 总编修订失败（{type(e).__name__}: {e}），使用初稿")
+                    final = {
+                        "content": draft.get("content", ""),
+                        "word_count": draft.get("word_count", 0),
+                        "quality_score": 0.75,  # 降低评分表示未经修订
+                        "revision_summary": f"修订失败（{type(e).__name__}），使用初稿",
                         "conflicts_resolved": []
                     }
                     editor_time = time.time() - start_time
@@ -291,14 +313,22 @@ class MultiAgentExecutor:
 
     def _default_outline(self, task: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         """默认大纲模板（回退用，携带可用上下文避免跑题）"""
+        # ✅ 修复：从前文内容中提取角色（而不是期望 character_document 是列表）
+        previous_content = context.get("previous_content", "")
+        extracted_chars = []
+        if previous_content:
+            extracted_chars = extract_characters_from_text(previous_content, max_count=5)
+            logger.info(f"[MultiAgent] 默认大纲从前文提取角色: {extracted_chars}")
+
         return {
             "chapter_id": task.get("chapter_id", "unknown"),
             "title": task.get("description", "未命名章节")[:20],
-            "core_conflict": context.get("previous_summary", "承接前三章剧情"),
-            "characters": context.get("character_document", []) if isinstance(context.get("character_document"), list) else [],
+            "core_conflict": context.get("previous_summary", "承接前文剧情"),
+            "characters": extracted_chars,  # ✅ 使用提取的角色列表
             "emotion_curve": {"start": "平静", "mid": "高潮", "end": "收尾"},
             "foreshadowing": context.get("world_setting", ""),
-            "connection_to_previous": context.get("previous_summary", "")
+            "connection_to_previous": context.get("previous_summary", ""),
+            "key_characters": extracted_chars  # ✅ 新增：显式传递关键角色
         }
 
     def _default_pass_review(self, reason: str = "校验已跳过") -> Dict[str, Any]:

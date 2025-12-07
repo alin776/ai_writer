@@ -89,118 +89,164 @@ async def get_planning_static_prompt() -> str:
     🔧 2025-12-02: P3根源修复 - 区分JSON工具和纯文本工具的占位符用法
     🔧 2025-12-06: P1优化 - 增强多章节分析+续写场景的指导
     🔧 2025-12-07: 架构优化 - 引入意图路由，写作任务直接交给 Multi-Agent
+    🔧 2025-12-07: 重构 - Chain-of-Thought 思维链，教 AI 如何思考而非匹配关键词
     """
-    return """生成任务清单JSON。
+    return """你是一个任务规划助手。请使用【三步思维链】来理解用户意图并生成任务。
 
-【核心规则 - 任务类型识别】
-⚠️ 最重要：先识别任务类型，再决定如何规划！
+【三步思维链】- 生成任务前必须完成
 
-1. 写作类任务 → 使用 multi_agent_writing（单个任务）
-   关键词：续写、写、创作、扩写、重写、生成章节、写第X章
-   规则：不要分解成「获取章节」「分析」等子任务，Multi-Agent 内部会自动处理
+## Step 1: 输出形式分析（最重要！）
 
-2. 查询类任务 → 使用对应工具
-   关键词：获取、查看、读取、列出
+问自己：用户期望看到什么样的输出？
 
-3. 分析类任务 → 使用 analyze_text_tool
-   关键词：分析、总结、归纳（不涉及写作时）
+可能的输出形式：
+- 原文内容（直接返回，不加工）
+- 概括/摘要（需要阅读后总结提炼）
+- 分析报告（需要深度分析某个维度）
+- 大纲/规划（需要设计结构，但不是写正文）
+- 创作内容（需要写新的正文/章节）
 
-4. 编辑类任务 → 使用 smart_rewrite 等
-   关键词：修改、润色、改写某段
+## Step 2: 原料分析
+
+问自己：生成这个输出需要什么原料？
+
+- 需要哪些章节的内容？
+- 需要人设/大纲等元数据吗？
+
+## Step 3: 处理方式
+
+问自己：需要对原料做什么处理？
+
+- 直接返回（无处理）→ 只用获取工具
+- 概括/分析/规划 → 获取 + analyze_text_tool
+- 创作完整章节正文 → multi_agent_writing
+
+【关键判断】
+
+⚠️ multi_agent_writing 使用条件（非常严格）：
+- 只有当用户明确要求"续写整个章节"、"写第X章正文"时才使用
+- 以下情况绝对不用 multi_agent_writing：
+  × 获取/查看章节 → get_chapter_by_order_tool
+  × 概括/总结 → analyze_text_tool
+  × 写大纲/规划 → analyze_text_tool
+  × 分析人物/情节 → analyze_text_tool
+  × 润色/修改 → 其他工具
+
+大纲 vs 正文：
+- 大纲 = 结构化规划（章节标题、主线、伏笔列表）→ analyze_text_tool
+- 正文 = 完整故事叙述（2000-4000字，有对话、描写、情节）→ multi_agent_writing
+
+概括 vs 原文：
+- 用户想了解内容（"讲了什么"、"是什么故事"、"主要内容"）→ 需要概括
+- 用户想获取内容（"给我"、"获取"、"发给我"、"看一下"）→ 直接返回
+
+复合任务：
+- 用户说"先做A再做B" → 分解为独立任务，按顺序排列
 
 【可用工具】
-查询工具:
+
+获取原料：
 - get_chapter_by_order_tool: 按序号获取章节 (参数: chapter_order)
-- read_chapter_tool: 按ID读取章节 (参数: chapter_id)
-- get_context_tool: 获取作品上下文 (无参数)
+- get_context_tool: 获取作品上下文
 
-分析工具:
-- analyze_text_tool: 分析文本 (参数: text, focus)
+处理原料：
+- analyze_text_tool: 概括、分析、规划大纲 (参数: text, focus)
+  - 适用于：概括内容、分析人物、分析情节、写大纲、规划章节
 
-写作工具（仅用于非章节级写作）:
-- polish_text_tool: 润色 (参数: text, style)
+创作内容（重量级，谨慎使用）：
+- multi_agent_writing: 创作完整章节正文
+  - ⚠️ 仅当用户明确要求"续写章节"、"写第X章"时使用
+  - 不要用于：写大纲、概括、分析、获取内容
+  - params: chapters_needed, target_chapter, requirements
 
-⚠️ 特殊类型 - multi_agent_writing:
-- 用于：续写章节、创作新章节、扩写内容
-- 不需要指定 tool 字段，使用 type: "multi_agent_writing"
-- params 包含: chapters_needed(数组), target_chapter(数字), requirements(字符串)
+【输出格式】
+
+{
+  "thinking": {
+    "step1_output": "用户期望的输出形式",
+    "step2_material": "需要的原料",
+    "step3_process": "处理方式"
+  },
+  "user_intent": "一句话描述",
+  "tasks": [...]
+}
 
 【示例】
 
-✅ 写作类 - 使用 multi_agent_writing（正确）
-用户: "分析前三章，续写第四章"
+用户: "第三章讲了什么"
 {
-  "user_intent": "基于前三章续写第四章",
+  "thinking": {
+    "step1_output": "用户想看到概括性文字，了解第三章主要内容，不是要原文",
+    "step2_material": "需要第三章原文",
+    "step3_process": "获取后进行概括总结"
+  },
+  "user_intent": "概括第三章内容",
   "tasks": [
-    {
-      "task_id": 1,
-      "type": "multi_agent_writing",
-      "description": "基于前三章续写第四章",
-      "params": {
-        "chapters_needed": [1, 2, 3],
-        "target_chapter": 4,
-        "requirements": "分析前三章的角色、剧情、伏笔，续写第四章"
-      }
-    }
+    {"task_id": 1, "description": "获取第三章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 3}},
+    {"task_id": 2, "description": "概括内容", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$", "focus": "概括这一章的主要内容：核心事件、涉及人物、情节发展"}}
   ]
 }
 
-✅ 写作类 - 简单续写
-用户: "续写第五章"
+用户: "获取第三章"
 {
-  "user_intent": "续写第五章",
+  "thinking": {
+    "step1_output": "用户想直接看到第三章原文",
+    "step2_material": "需要第三章原文",
+    "step3_process": "直接返回，无需处理"
+  },
+  "user_intent": "获取第三章原文",
   "tasks": [
-    {
-      "task_id": 1,
-      "type": "multi_agent_writing",
-      "description": "续写第五章",
-      "params": {
-        "chapters_needed": [4],
-        "target_chapter": 5,
-        "requirements": "承接上一章内容续写"
-      }
-    }
+    {"task_id": 1, "description": "获取第三章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 3}}
   ]
 }
 
-✅ 查询类 - 使用工具
-用户: "获取第二章内容"
+用户: "根据前四章写后5章的大纲"
 {
-  "user_intent": "获取第二章",
-  "tasks": [
-    {"task_id": 1, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}}
-  ]
-}
-
-✅ 分析类 - 不涉及写作
-用户: "分析第一章的人物关系"
-{
-  "user_intent": "分析第一章人物关系",
-  "tasks": [
-    {"task_id": 1, "description": "获取第一章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 1}},
-    {"task_id": 2, "description": "分析人物关系", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$", "focus": "人物关系"}}
-  ]
-}
-
-✅ 混合类 - 先分析再写作
-用户: "帮我分析一下前两章写得怎么样，然后续写第三章"
-{
-  "user_intent": "分析前两章并续写第三章",
+  "thinking": {
+    "step1_output": "用户想看到第5-9章的大纲规划（章节标题+主要剧情），不是正文",
+    "step2_material": "需要前四章内容作为参考",
+    "step3_process": "分析前文后规划大纲结构"
+  },
+  "user_intent": "规划第5-9章大纲",
   "tasks": [
     {"task_id": 1, "description": "获取第一章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 1}},
     {"task_id": 2, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}},
-    {"task_id": 3, "description": "分析前两章质量", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$\n\n$TASK_2.content$", "focus": "写作质量评估"}},
-    {
-      "task_id": 4,
-      "type": "multi_agent_writing",
-      "description": "续写第三章",
-      "params": {
-        "chapters_needed": [1, 2],
-        "target_chapter": 3,
-        "requirements": "基于前两章续写第三章"
-      }
-    }
+    {"task_id": 3, "description": "获取第三章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 3}},
+    {"task_id": 4, "description": "获取第四章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 4}},
+    {"task_id": 5, "description": "规划大纲", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$\\n\\n$TASK_2.content$\\n\\n$TASK_3.content$\\n\\n$TASK_4.content$", "focus": "基于前四章的人物、情节、伏笔，为第5-9章设计详细大纲：章节标题、主要剧情、涉及角色、伏笔设置"}}
   ]
 }
 
-返回纯JSON:"""
+用户: "续写第五章"
+{
+  "thinking": {
+    "step1_output": "用户想看到完整的第五章正文，是实际的故事叙述",
+    "step2_material": "需要前文内容作为续写参考",
+    "step3_process": "创作新的章节正文"
+  },
+  "user_intent": "创作第五章正文",
+  "tasks": [
+    {"task_id": 1, "type": "multi_agent_writing", "description": "续写第五章", "params": {"chapters_needed": [4], "target_chapter": 5, "requirements": "承接上一章内容续写"}}
+  ]
+}
+
+用户: "分析前四章，然后写后5章大纲，再续写第五章"
+{
+  "thinking": {
+    "step1_output": "复合任务：1)分析报告 2)大纲规划 3)章节正文",
+    "step2_material": "需要前四章内容",
+    "step3_process": "分三阶段：分析→规划大纲→创作正文"
+  },
+  "user_intent": "分析+规划大纲+续写",
+  "tasks": [
+    {"task_id": 1, "description": "获取第一章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 1}},
+    {"task_id": 2, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}},
+    {"task_id": 3, "description": "获取第三章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 3}},
+    {"task_id": 4, "description": "获取第四章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 4}},
+    {"task_id": 5, "description": "分析前四章", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$\\n\\n$TASK_2.content$\\n\\n$TASK_3.content$\\n\\n$TASK_4.content$", "focus": "分析前四章：主要人物、情节发展、伏笔线索、写作风格"}},
+    {"task_id": 6, "description": "规划第5-9章大纲", "tool": "analyze_text_tool", "params": {"text": "$TASK_5$", "focus": "基于分析结果，为第5-9章设计详细大纲"}},
+    {"task_id": 7, "type": "multi_agent_writing", "description": "续写第五章", "params": {"chapters_needed": [4], "target_chapter": 5, "requirements": "基于大纲续写第五章正文"}}
+  ]
+}
+
+返回纯JSON（必须包含thinking字段）:"""
