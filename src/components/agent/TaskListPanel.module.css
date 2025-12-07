@@ -71,6 +71,18 @@
   color: #111827;
 }
 
+.progressStatus {
+  font-size: 12px;
+  color: var(--color-primary-dark);
+  padding: 2px 0;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 .taskMeta {
   display: flex;
   gap: 8px;

@@ -223,6 +223,7 @@ class RedisClient:
 
 # 全局 Redis 实例（便于使用）
 redis_client = RedisClient
+get_redis = RedisClient.get_instance
 
 
 # 缓存键生成器

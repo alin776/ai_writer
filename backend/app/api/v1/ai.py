@@ -749,10 +749,10 @@ async def preload_metadata(
                         logger.info(f"[预加载] 当前章节已加载: {request.chapter_id}")
 
                         # 尝试加载上一章
-                        if current_chapter.order_number > 1:
+                        if current_chapter.order > 1:
                             stmt = select(Chapter).where(
                                 Chapter.work_id == current_chapter.work_id,
-                                Chapter.order_number == current_chapter.order_number - 1
+                                Chapter.order == current_chapter.order - 1
                             )
                             result = await db.execute(stmt)
                             prev_chapter = result.scalar_one_or_none()

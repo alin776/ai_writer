@@ -11,6 +11,7 @@ LangGraph Agent 工作流实现
 
 from typing import TypedDict, Annotated, List, Dict, Any, Optional, Literal
 from datetime import datetime
+import os
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 from app.services.agent.parallel_tool_node import ParallelToolNode
@@ -34,9 +35,12 @@ from app.core.database import AsyncSessionLocal
 from app.services.agent.prompts import NovelPhase, PhaseCharacteristics
 from app.services.agent.prompt_library import get_content_prompt
 from app.services.agent.model_selector import TaskType
-from app.services.agent.prompt_cache import get_tool_decision_static_prompt, get_planning_static_prompt
+from app.services.agent.prompt_cache import get_tool_decision_static_prompt, get_planning_static_prompt, get_complexity_decision_prompt
 from app.services.agent.progress_tracker import ProgressTracker
 from app.services.agent.node_metadata import get_node_info
+# Multi-Agent 写作系统
+from app.services.agent.multi_agent import MultiAgentExecutor, TOTAL_STAGES
+from app.services.agent.timeout_config import TimeoutConfig
 from app.services.agent.tools.editor_tools import (
     smart_continue,
     smart_rewrite,
@@ -56,6 +60,7 @@ class AgentState(TypedDict):
     work_id: Optional[str]  # 作品ID
     chapter_id: Optional[str]  # 章节ID
     intent: Optional[str]  # 用户意图
+    intent_decision: Optional[Dict[str, Any]]  # CoT 复杂度决策 {complexity, action}
     context: Dict[str, Any]  # 上下文信息
     agent_steps: Annotated[List[Dict[str, Any]], operator.add]  # Agent执行步骤
     suggested_actions: Annotated[List[str], operator.add]  # 建议操作
@@ -144,7 +149,7 @@ async def _retry_on_failure(func, *args, max_retries=3, **kwargs):
 
 async def _with_timeout_and_retry(
     coro,
-    timeout_seconds: int = 300,
+    timeout_seconds: int = None,  # 默认使用 TimeoutConfig.LANGGRAPH_STREAM
     max_retries: int = 2,
     operation_name: str = "Operation",
     retry_on_timeout: bool = False
@@ -154,7 +159,7 @@ async def _with_timeout_and_retry(
 
     Args:
         coro: 要执行的协程
-        timeout_seconds: 超时时间（秒）
+        timeout_seconds: 超时时间（秒），默认使用 TimeoutConfig.LANGGRAPH_STREAM
         max_retries: 最大重试次数（不包括首次尝试）
         operation_name: 操作名称（用于日志）
         retry_on_timeout: 是否在超时后重试（默认False，超时直接抛出）
@@ -166,6 +171,8 @@ async def _with_timeout_and_retry(
         asyncio.TimeoutError: 超时
         Exception: 其他异常
     """
+    if timeout_seconds is None:
+        timeout_seconds = TimeoutConfig.LANGGRAPH_STREAM
     retry_count = 0
 
     # ✅ P0-3: 修复循环条件（<= 改为 <，避免多执行一次）
@@ -217,8 +224,8 @@ async def _generate_text_helper(
 
     while retry_count < max_retries:
         try:
-            # ✅ 为单次LLM调用添加超时保护（120秒，匹配_generate_text）
-            async with asyncio.timeout(120):
+            # ✅ 为单次LLM调用添加超时保护（使用统一配置）
+            async with asyncio.timeout(TimeoutConfig.LLM_CALL):
                 async for chunk, _ in ai_service._stream_chat(
                     messages=messages,
                     max_tokens=max_tokens,
@@ -238,7 +245,7 @@ async def _generate_text_helper(
 
         except asyncio.TimeoutError:
             retry_count += 1
-            logger.error(f"[_generate_text_helper] 生成超时（120秒）(尝试 {retry_count}/{max_retries})")
+            logger.error(f"[_generate_text_helper] 生成超时（{TimeoutConfig.LLM_CALL}秒）(尝试 {retry_count}/{max_retries})")
 
             if retry_count >= max_retries:
                 return f"错误：AI服务调用超时，已重试{max_retries}次"
@@ -1298,7 +1305,7 @@ class WritingAgentGraph:
                 "Accept-Encoding": "gzip, deflate",
                 "Connection": "keep-alive",
             },
-            timeout=httpx.Timeout(120.0, connect=10.0),
+            timeout=httpx.Timeout(float(TimeoutConfig.LLM_CALL), connect=10.0),
             follow_redirects=True,
             http2=False,
         )
@@ -1310,7 +1317,7 @@ class WritingAgentGraph:
                 "Accept-Encoding": "gzip, deflate",
                 "Connection": "keep-alive",
             },
-            timeout=httpx.Timeout(120.0, connect=10.0),
+            timeout=httpx.Timeout(float(TimeoutConfig.LLM_CALL), connect=10.0),
             follow_redirects=True,
             http2=False,
         )
@@ -1325,7 +1332,7 @@ class WritingAgentGraph:
             api_key=settings.OPENAI_API_KEY,
             base_url=settings.OPENAI_BASE_URL,
             temperature=0.7,
-            request_timeout=120,  # ← 明确设置120秒超时，避免双重超时冲突
+            request_timeout=TimeoutConfig.LLM_CALL,  # ← 使用统一超时配置
             http_client=sync_http_client,
             http_async_client=async_http_client,
             callbacks=[self.monitoring_callback],  # ← 添加监控回调
@@ -1432,11 +1439,24 @@ class WritingAgentGraph:
         END
         """
 
+        # ✅ 回滚开关：支持快速禁用 CoT 快速路径
+        enable_quick_path = os.getenv("ENABLE_QUICK_PATH", "true").lower() == "true"
+
         # 创建图
         workflow = StateGraph(AgentState)
 
         # 添加节点
-        workflow.add_node("intent_classifier", self._classify_intent)
+        if enable_quick_path:
+            # ✅ CoT 快速路径：使用增强版意图识别
+            workflow.add_node("intent_classifier", self._classify_intent_with_cot)
+            # ✅ 新增快速执行节点
+            workflow.add_node("quick_tool_execute", self._quick_tool_execute)
+            workflow.add_node("direct_response", self._direct_response)
+        else:
+            # 回滚模式：使用原有意图分类
+            logger.warning("[LangGraph] CoT 快速路径已禁用，使用原有流程")
+            workflow.add_node("intent_classifier", self._classify_intent)
+        # 原有 Agent 节点
         workflow.add_node("writing_agent", self._handle_writing)
         workflow.add_node("planning_agent", self._handle_planning)
         workflow.add_node("analysis_agent", self._handle_analysis)
@@ -1451,18 +1471,41 @@ class WritingAgentGraph:
         # 设置入口点
         workflow.set_entry_point("intent_classifier")
 
-        # 添加条件边：根据意图路由到不同Agent
-        workflow.add_conditional_edges(
-            "intent_classifier",
-            self._route_intent,
-            {
-                "writing": "writing_agent",
-                "planning": "planning_agent",
-                "analysis": "analysis_agent",
-                "stuck": "stuck_agent",
-                "general": "general_chat"
-            }
-        )
+        # 添加条件边：根据意图/CoT 结果路由到不同节点
+        if enable_quick_path:
+            # ✅ CoT 模式：支持快速路径
+            workflow.add_conditional_edges(
+                "intent_classifier",
+                self._route_after_intent_cot,
+                {
+                    # 新增快速路径
+                    "quick_tool_execute": "quick_tool_execute",
+                    "direct_response": "direct_response",
+                    # 原有路径
+                    "writing_agent": "writing_agent",
+                    "planning_agent": "planning_agent",
+                    "analysis_agent": "analysis_agent",
+                    "stuck_agent": "stuck_agent",
+                    "general_chat": "general_chat"
+                }
+            )
+
+            # ✅ 快速路径直接结束
+            workflow.add_edge("quick_tool_execute", END)
+            workflow.add_edge("direct_response", END)
+        else:
+            # 回滚模式：使用原有路由
+            workflow.add_conditional_edges(
+                "intent_classifier",
+                self._route_intent,
+                {
+                    "writing": "writing_agent",
+                    "planning": "planning_agent",
+                    "analysis": "analysis_agent",
+                    "stuck": "stuck_agent",
+                    "general": "general_chat"
+                }
+            )
 
         # 各Agent节点添加条件边：判断是否需要调用工具
         for agent_node in ["writing_agent", "planning_agent", "analysis_agent", "stuck_agent"]:
@@ -1540,9 +1583,9 @@ class WritingAgentGraph:
             raise ValueError("prompt 和 messages 不能同时提供")
         from app.services.agent.utils.monitoring import increment_counter
 
-        # ✅ P0-1: 添加120秒超时保护（匹配ChatOpenAI的request_timeout）
+        # ✅ P0-1: 添加超时保护（使用统一配置）
         try:
-            async with asyncio.timeout(120):
+            async with asyncio.timeout(TimeoutConfig.LLM_CALL):
                 # 🔧 修复：根据use_chatgpt选择使用ChatOpenAI还是HTTPAIService
                 if self.use_chatgpt:
                     # 模式1：使用ChatOpenAI（触发监控）
@@ -1624,12 +1667,12 @@ class WritingAgentGraph:
         except asyncio.TimeoutError:
             # 超时处理
             mode = "ChatOpenAI" if self.use_chatgpt else "HTTPAIService"
-            logger.error(f"[_generate_text] {mode} LLM调用超时（120秒）")
+            logger.error(f"[_generate_text] {mode} LLM调用超时（{TimeoutConfig.LLM_CALL}秒）")
             increment_counter("generate_text_error", labels={"error_type": "TimeoutError", "mode": mode})
 
             # 返回错误结果
             return {
-                "text": f"抱歉，AI响应超时（超过120秒）。请稍后重试。",
+                "text": f"抱歉，AI响应超时（超过{TimeoutConfig.LLM_CALL}秒）。请稍后重试。",
                 "usage": {},
                 "error": "timeout"
             }
@@ -1783,6 +1826,507 @@ class WritingAgentGraph:
         intent = state.get("intent", "general")
         logger.info(f"[LangGraph] 路由到: {intent}")
         return intent
+
+    # ==================== CoT 快速路径（新增）====================
+
+    async def _classify_intent_with_cot(self, state: AgentState) -> AgentState:
+        """增强版意图识别 - 在现有分类基础上增加复杂度判断
+
+        流程：
+        1. 调用现有的意图分类逻辑（复用 _classify_intent_by_rules + _ai_classify_intent）
+        2. 新增：判断复杂度（simple/complex）
+        3. 新增：如果 simple，确定执行方案
+
+        Returns:
+            AgentState: 包含 intent, intent_decision, agent_steps
+        """
+        message = state["messages"][-1].content
+        logger.info(f"[Intent-CoT] 开始分析: {message[:50]}...")
+
+        # ========== 步骤1: 复用现有意图分类 ==========
+        intent, confidence = self._classify_intent_by_rules(message)
+        classification_method = "快速通道"
+
+        if confidence < 0.9:
+            intent, confidence = await self._ai_classify_intent(message)
+            classification_method = "AI语义分类"
+
+        logger.info(f"[Intent-CoT] 意图: {intent} ({classification_method})")
+
+        # ========== 步骤2: 复杂度判断 ==========
+        # writing/planning/analysis/stuck 意图默认为 complex
+        if intent in ("writing", "planning", "analysis", "stuck"):
+            logger.info(f"[Intent-CoT] {intent} 意图默认为 complex")
+            return {
+                "intent": intent,
+                "intent_decision": {"complexity": "complex", "action": {}},
+                "agent_steps": [{
+                    "step": "intent_cot",
+                    "result": f"{intent}/complex (默认)",
+                }]
+            }
+
+        # general 意图需要进一步判断复杂度
+        complexity_decision = await self._judge_complexity(message, intent)
+
+        logger.info(
+            f"[Intent-CoT] 决策: intent={intent}, "
+            f"complexity={complexity_decision.get('complexity', 'complex')}"
+        )
+
+        return {
+            "intent": intent,
+            "intent_decision": complexity_decision,
+            "agent_steps": [{
+                "step": "intent_cot",
+                "result": f"{intent}/{complexity_decision.get('complexity', 'complex')}",
+            }]
+        }
+
+    async def _judge_complexity(self, message: str, intent: str) -> Dict:
+        """判断请求复杂度并确定执行方案
+
+        Args:
+            message: 用户消息
+            intent: 已识别的意图类型
+
+        Returns:
+            Dict: {"complexity": "simple|complex", "action": {...}}
+        """
+        prompt_template = await get_complexity_decision_prompt()
+        prompt = prompt_template.format(intent=intent, message=message)
+
+        try:
+            result = await self.ai_service.call_ai(
+                system_prompt="你是执行路径决策器，返回严格的JSON格式。",
+                user_prompt=prompt,
+                max_tokens=300,
+                temperature=0.1,
+                task_type=TaskType.TEXT_CLASSIFICATION
+            )
+
+            decision = self._extract_json_from_text(result)
+            if decision and decision.get("complexity"):
+                return decision
+
+        except Exception as e:
+            logger.warning(f"[Intent-CoT] 复杂度判断失败: {e}，降级为 complex")
+
+        # 降级：默认为 complex
+        return {"complexity": "complex", "action": {}}
+
+    def _route_after_intent_cot(self, state: AgentState) -> str:
+        """根据 CoT 结果路由到对应节点
+
+        路由规则：
+        - simple + direct_answer → direct_response 节点（新增）
+        - simple + tool_name → quick_tool_execute 节点（新增）
+        - complex → 原有 Agent 节点（按意图路由）
+
+        Returns:
+            str: 目标节点名称
+        """
+        decision = state.get("intent_decision", {})
+        complexity = decision.get("complexity", "complex")
+        action = decision.get("action", {})
+        intent = state.get("intent", "general")
+
+        # ========== 快速路径（新增）==========
+        if complexity == "simple":
+            if action.get("direct_answer"):
+                logger.info("[Route-CoT] → direct_response (直接回答)")
+                return "direct_response"
+            elif action.get("tool_name"):
+                logger.info(f"[Route-CoT] → quick_tool_execute ({action['tool_name']})")
+                return "quick_tool_execute"
+
+        # ========== 原有路径（保持不变）==========
+        # 复杂请求走原有的 Agent 节点
+        route_map = {
+            "writing": "writing_agent",
+            "planning": "planning_agent",
+            "analysis": "analysis_agent",
+            "stuck": "stuck_agent",
+            "general": "general_chat",
+        }
+        target = route_map.get(intent, "general_chat")
+        logger.info(f"[Route-CoT] → {target} (complex)")
+        return target
+
+    async def _quick_tool_execute(self, state: AgentState) -> AgentState:
+        """快速执行单工具（新增节点，跳过完整 Agent 流程）
+
+        用于 simple + tool 场景，直接调用工具并格式化返回。
+
+        Returns:
+            AgentState: 包含 final_response, agent_steps
+        """
+        decision = state.get("intent_decision", {})
+        action = decision.get("action", {})
+
+        tool_name = action.get("tool_name")
+        tool_args = action.get("tool_args", {})
+        response_hint = action.get("response_hint")
+
+        logger.info(f"[QuickExecute] 执行工具: {tool_name}, 参数: {tool_args}")
+
+        # 1. 获取工具函数
+        tool_func = self._get_tool_by_name(tool_name)
+        if not tool_func:
+            return {
+                "final_response": f"抱歉，无法执行该操作（未知工具: {tool_name}）",
+                "agent_steps": [{"step": "quick_tool_execute", "result": "工具不存在"}]
+            }
+
+        # 2. 执行工具
+        try:
+            # 添加 work_id 参数（如果工具需要）
+            work_id = state.get("work_id")
+
+            # ✅ 检查 work_id 是否存在（某些工具需要）
+            tools_need_work_id = {"get_chapter_by_order_tool", "get_context_tool", "read_chapter_tool"}
+            if tool_name in tools_need_work_id and not work_id:
+                return {
+                    "final_response": "需要先选择一部作品才能执行此操作。请告诉我您要查看哪部作品？",
+                    "agent_steps": [{"step": "quick_tool_execute", "result": "缺少 work_id"}]
+                }
+
+            if work_id and "work_id" not in tool_args:
+                tool_args["work_id"] = work_id
+
+            result = await tool_func.ainvoke(tool_args)
+        except Exception as e:
+            logger.error(f"[QuickExecute] 工具执行失败: {e}")
+            return {
+                "final_response": f"工具执行失败: {str(e)}",
+                "agent_steps": [{"step": "quick_tool_execute", "result": f"错误: {e}"}]
+            }
+
+        # 3. 根据 hint 格式化响应
+        response = self._format_tool_response(result, tool_args, response_hint)
+
+        return {
+            "final_response": response,
+            "agent_steps": [{
+                "step": "quick_tool_execute",
+                "result": f"执行 {tool_name}",
+            }]
+        }
+
+    async def _direct_response(self, state: AgentState) -> AgentState:
+        """直接返回答案（新增节点，无需工具）
+
+        用于 simple + direct_answer 场景。
+
+        Returns:
+            AgentState: 包含 final_response, agent_steps
+        """
+        decision = state.get("intent_decision", {})
+        action = decision.get("action", {})
+        answer = action.get("direct_answer", "")
+
+        logger.info(f"[DirectResponse] 返回预设答案")
+
+        return {
+            "final_response": answer,
+            "agent_steps": [{
+                "step": "direct_response",
+                "result": "直接回答"
+            }]
+        }
+
+    def _get_tool_by_name(self, tool_name: str):
+        """根据名称获取工具函数
+
+        维护一个工具名到函数的映射表。
+        """
+        # 从全局工具列表中查找
+        for tool in WRITING_TOOLS:
+            if tool.name == tool_name:
+                return tool
+        return None
+
+    def _format_tool_response(
+        self,
+        result: Any,
+        tool_args: Dict,
+        response_hint: Optional[str]
+    ) -> str:
+        """格式化工具响应
+
+        根据 response_hint 提取特定字段并格式化为用户友好的响应。
+        """
+        # 解析 result（可能是 JSON 字符串）
+        if isinstance(result, str):
+            try:
+                result = json.loads(result)
+            except json.JSONDecodeError:
+                return result
+
+        if not response_hint or not isinstance(result, dict):
+            return str(result)
+
+        chapter_order = tool_args.get("chapter_order", "")
+
+        if response_hint == "title":
+            title = result.get("title", "未知")
+            return f"第{chapter_order}章的标题是：**{title}**"
+
+        elif response_hint == "word_count":
+            word_count = result.get("word_count", 0)
+            return f"第{chapter_order}章共 **{word_count}** 字"
+
+        elif response_hint == "content":
+            return result.get("content", "")
+
+        elif response_hint == "title_and_word_count":
+            title = result.get("title", "未知")
+            word_count = result.get("word_count", 0)
+            return f"第{chapter_order}章「{title}」共 **{word_count}** 字"
+
+        else:
+            return str(result)
+
+    # ==================== Planning 模式快速路径（新增）====================
+
+    async def _try_quick_path_for_planning(
+        self,
+        message: str,
+        work_id: Optional[str],
+        on_plan: Optional[callable] = None,
+        on_task_start: Optional[callable] = None,
+        on_task_done: Optional[callable] = None,
+        on_content: Optional[callable] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Planning 模式的快速路径判断
+
+        在规划生成前判断是否可以走快速路径，适用于简单查询：
+        - 获取章节标题
+        - 获取章节字数
+        - 简单问候
+
+        Args:
+            message: 用户消息
+            work_id: 作品 ID
+            on_plan: 规划回调
+            on_task_start: 任务开始回调
+            on_task_done: 任务完成回调
+            on_content: 内容回调
+
+        Returns:
+            Optional[Dict]: 如果命中快速路径返回结果，否则返回 None
+        """
+        import time
+
+        # 1. 规则快速判断（不调用 AI）
+        quick_action = self._detect_quick_action(message)
+
+        if not quick_action:
+            return None
+
+        action_type = quick_action.get("type")
+        logger.info(f"[QuickPath-Planning] 命中快速路径: {action_type}")
+
+        # 2. 执行快速路径
+        start_time = time.time()
+
+        try:
+            if action_type == "get_chapter_info":
+                # 获取章节信息
+                chapter_order = quick_action.get("chapter_order", 1)
+                field = quick_action.get("field", "title")  # title, word_count, content
+
+                if not work_id:
+                    return {
+                        "response": "需要先选择一部作品才能查看章节信息。",
+                        "agent_steps": [{"step": "quick_path", "result": "缺少 work_id"}]
+                    }
+
+                # 发送简化的计划
+                if on_plan:
+                    await on_plan([{
+                        "task_id": 1,
+                        "description": f"获取第{chapter_order}章信息"
+                    }])
+
+                if on_task_start:
+                    await on_task_start({"task_id": 1, "description": f"获取第{chapter_order}章信息"})
+
+                # 直接调用工具
+                result = await get_chapter_by_order_tool.ainvoke({
+                    "work_id": work_id,
+                    "chapter_order": chapter_order
+                })
+
+                elapsed = time.time() - start_time
+                if on_task_done:
+                    await on_task_done({
+                        "task_id": 1,
+                        "description": f"获取第{chapter_order}章信息",
+                        "elapsed_time": elapsed
+                    })
+
+                # 解析结果
+                try:
+                    if isinstance(result, dict):
+                        data = result  # 已经是 dict
+                    elif isinstance(result, list):
+                        # 如果是 list，取第一个元素或转换
+                        data = result[0] if result and isinstance(result[0], dict) else {"content": str(result)}
+                    else:
+                        data = json.loads(result)
+                except (json.JSONDecodeError, TypeError, IndexError) as e:
+                    logger.warning(f"[QuickPath-Planning] 解析结果失败: {e}, result type: {type(result)}")
+                    data = {"error": str(result)}
+
+                # 格式化响应
+                if data.get("error"):
+                    response = f"获取章节信息失败：{data.get('error')}"
+                elif field == "title":
+                    response = f"第{chapter_order}章的标题是：**{data.get('title', '未知')}**"
+                elif field == "word_count":
+                    response = f"第{chapter_order}章共 **{data.get('word_count', 0)}** 字"
+                else:
+                    title = data.get('title', '未知')
+                    word_count = data.get('word_count', 0)
+                    response = f"第{chapter_order}章「{title}」共 **{word_count}** 字"
+
+                if on_content:
+                    await on_content({"content": response})
+
+                logger.info(f"[QuickPath-Planning] 完成，耗时: {elapsed:.2f}s")
+
+                return {
+                    "response": response,
+                    "agent_steps": [{
+                        "step": "quick_path",
+                        "action": action_type,
+                        "elapsed": elapsed
+                    }]
+                }
+
+            elif action_type == "greeting":
+                # 问候直接回复
+                response = quick_action.get("response", "你好！我是 AI 写作助手，有什么可以帮你的吗？")
+
+                if on_content:
+                    await on_content({"content": response})
+
+                return {
+                    "response": response,
+                    "agent_steps": [{"step": "quick_path", "action": "greeting"}]
+                }
+
+        except Exception as e:
+            logger.warning(f"[QuickPath-Planning] 执行失败: {e}，降级到规划模式")
+            return None
+
+        return None
+
+    def _detect_quick_action(self, message: str) -> Optional[Dict]:
+        """规则检测是否可以走快速路径（不调用 AI）
+
+        Returns:
+            Dict: {"type": "get_chapter_info", "chapter_order": 5, "field": "title"}
+            或 None
+        """
+        import re
+
+        message = message.strip()
+
+        # 1. 问候检测
+        greetings = ["你好", "您好", "在吗", "hello", "hi", "嗨"]
+        if any(message.lower().startswith(g) for g in greetings) and len(message) < 10:
+            return {
+                "type": "greeting",
+                "response": "你好！我是 AI 写作助手，有什么可以帮你的吗？"
+            }
+
+        # 2. 章节标题查询
+        # 匹配："第五章的标题是什么"、"第5章标题"、"第三章叫什么"
+        title_patterns = [
+            r'第([一二三四五六七八九十百千\d]+)章.{0,2}(?:的)?(?:标题|题目|名字|叫什么)',
+            r'(?:标题|题目|名字).{0,2}第([一二三四五六七八九十百千\d]+)章',
+        ]
+        for pattern in title_patterns:
+            match = re.search(pattern, message)
+            if match:
+                chapter_str = match.group(1)
+                chapter_order = self._chinese_to_number(chapter_str)
+                return {
+                    "type": "get_chapter_info",
+                    "chapter_order": chapter_order,
+                    "field": "title"
+                }
+
+        # 3. 章节字数查询
+        # 匹配："第三章有多少字"、"第5章字数"
+        word_count_patterns = [
+            r'第([一二三四五六七八九十百千\d]+)章.{0,3}(?:有)?(?:多少|几)(?:个)?字',
+            r'第([一二三四五六七八九十百千\d]+)章.{0,2}(?:的)?字数',
+        ]
+        for pattern in word_count_patterns:
+            match = re.search(pattern, message)
+            if match:
+                chapter_str = match.group(1)
+                chapter_order = self._chinese_to_number(chapter_str)
+                return {
+                    "type": "get_chapter_info",
+                    "chapter_order": chapter_order,
+                    "field": "word_count"
+                }
+
+        # 4. 不符合快速路径条件
+        return None
+
+    def _chinese_to_number(self, s: str) -> int:
+        """中文数字转阿拉伯数字"""
+        chinese_map = {
+            '零': 0, '一': 1, '二': 2, '三': 3, '四': 4,
+            '五': 5, '六': 6, '七': 7, '八': 8, '九': 9,
+            '十': 10, '百': 100, '千': 1000
+        }
+
+        # 纯数字
+        if s.isdigit():
+            return int(s)
+
+        # 简单中文数字（1-99）
+        if len(s) == 1 and s in chinese_map:
+            return chinese_map[s]
+
+        # "十"、"十一"、"二十"、"二十三" 等
+        result = 0
+        if '十' in s:
+            parts = s.split('十')
+            tens = chinese_map.get(parts[0], 1) if parts[0] else 1
+            ones = chinese_map.get(parts[1], 0) if len(parts) > 1 and parts[1] else 0
+            result = tens * 10 + ones
+        else:
+            # 单个字符
+            result = chinese_map.get(s, 1)
+
+        return result if result > 0 else 1
+
+    def _extract_task_dependencies(self, params: Dict[str, Any]) -> set:
+        """从参数中提取依赖的任务 ID
+
+        查找 $task_X_result 形式的占位符，返回依赖的任务 ID 集合
+        """
+        import re
+        import json
+
+        deps = set()
+        try:
+            params_str = json.dumps(params, ensure_ascii=False)
+            # 匹配 $task_1_result, $task_2_result 等
+            matches = re.findall(r'\$task_(\d+)_result', params_str)
+            for m in matches:
+                deps.add(int(m))
+        except Exception as e:
+            logger.warning(f"[依赖提取] 解析参数失败: {e}")
+
+        return deps
 
     async def _handle_agent_with_tools(self, state: AgentState, agent_type: str, system_prompt: str) -> AgentState:
         """
@@ -3194,8 +3738,8 @@ class WritingAgentGraph:
             # 使用astream()流式执行
             event_count = 0
 
-            # ✅ 添加超时保护（5分钟）
-            async with asyncio.timeout(300):
+            # ✅ 添加超时保护（使用统一配置）
+            async with asyncio.timeout(TimeoutConfig.LANGGRAPH_STREAM):
                 async for event in self.graph.astream_events(initial_state, config, version="v2"):
                     event_count += 1
 
@@ -3305,7 +3849,7 @@ class WritingAgentGraph:
 
         except asyncio.TimeoutError:
             # ✅ 超时异常的特殊处理
-            logger.error(f"[LangGraph Stream] 执行超时（300秒）")
+            logger.error(f"[LangGraph Stream] 执行超时（{TimeoutConfig.LANGGRAPH_STREAM}秒）")
 
             # 🔧 监控：记录超时
             increment_counter("chat_stream_error", labels={"error_type": "TimeoutError"})
@@ -3316,7 +3860,7 @@ class WritingAgentGraph:
                 "conversation_id": conversation_id or "default",
                 "agent_steps": [],
                 "suggested_actions": ["简化问题", "稍后重试"],
-                "metadata": {"error": "Request timeout after 300 seconds", "timeout": 300}
+                "metadata": {"error": f"Request timeout after {TimeoutConfig.LANGGRAPH_STREAM} seconds", "timeout": TimeoutConfig.LANGGRAPH_STREAM}
             }
 
         except Exception as e:
@@ -3913,8 +4457,8 @@ class WritingAgentGraph:
                 f"(work_id={work_id}, conversation_id={conversation_id})"
             )
 
-            # 设置总体超时
-            async with asyncio.timeout(360):
+            # 设置总体超时（使用统一配置）
+            async with asyncio.timeout(TimeoutConfig.TASK_EXECUTION):
                 # ========== 加载对话历史 ==========
                 conversation_history = ""
 
@@ -3943,6 +4487,23 @@ class WritingAgentGraph:
                                     conversation_history = "\n".join(history_lines)
                     except Exception as e:
                         logger.warning(f"[Planning] 加载历史失败: {e}", exc_info=True)
+
+                # ========== 快速路径判断（新增）==========
+                # 在规划生成前判断是否可以走快速路径
+                enable_quick_path = os.getenv("ENABLE_QUICK_PATH", "true").lower() == "true"
+
+                if enable_quick_path:
+                    quick_result = await self._try_quick_path_for_planning(
+                        message=message,
+                        work_id=work_id,
+                        on_plan=on_plan,
+                        on_task_start=on_task_start,
+                        on_task_done=on_task_done,
+                        on_content=on_content
+                    )
+                    if quick_result:
+                        logger.info(f"[Planning] 快速路径命中，跳过规划流程")
+                        return quick_result
 
                 # ========== 阶段1: 规划（Planning） ==========
                 # ✅ P1-7: 添加监控记录
@@ -4000,13 +4561,23 @@ chapter_id: {chapter_id}
                     plan_result = await self._generate_text(
                         prompt=plan_prompt,  # ✅ 修复：使用关键字参数
                         temperature=0.3,
-                        max_tokens=600,  # ✅ Phase 2.5: 优化从1000→600 (JSON任务列表)
+                        max_tokens=1200,  # ✅ 2025-12-07: Chain-of-Thought 需要更多 token（包含 thinking + 复合任务）
                         task_type=TaskType.SIMPLE_QA  # ← Planning阶段用轻量模型快速生成任务列表
                     )
                     plan_text = plan_result.get("text", "").strip()
 
                     # 解析规划JSON
                     plan_data = self._extract_json_from_text(plan_text)
+
+                    # ✅ 2025-12-07: 记录 thinking 字段用于调试
+                    if plan_data and "thinking" in plan_data:
+                        thinking = plan_data["thinking"]
+                        logger.info(
+                            f"[Planning] 思维链: "
+                            f"输出={thinking.get('step1_output', '?')[:30]}, "
+                            f"原料={thinking.get('step2_material', '?')[:20]}, "
+                            f"处理={thinking.get('step3_process', '?')[:20]}"
+                        )
 
                 except Exception as e:
                     logger.error(f"[Planning Agent] 执行失败: {e}", exc_info=True)
@@ -4095,9 +4666,9 @@ chapter_id: {chapter_id}
                 initial_context = f"用户请求：{message}\n\n"
 
                 # 使用新的并行执行方法
-                # ✅ 为任务执行添加超时保护（4分钟，留1分钟给规划和总结）
+                # ✅ 为任务执行添加超时保护（使用统一配置）
                 try:
-                    async with asyncio.timeout(240):
+                    async with asyncio.timeout(TimeoutConfig.TASK_EXECUTION):
                         task_results = await self._execute_tasks_in_parallel(
                             tasks=plan_data["tasks"],
                             work_id=work_id,
@@ -4108,7 +4679,7 @@ chapter_id: {chapter_id}
                             on_task_done=on_task_done
                         )
                 except asyncio.TimeoutError:
-                    logger.error(f"[Execution] 任务执行超时（240秒）")
+                    logger.error(f"[Execution] 任务执行超时（{TimeoutConfig.TASK_EXECUTION}秒）")
                     return {
                         "response": "抱歉，任务执行超时。请尝试简化您的请求。",
                         "conversation_id": conversation_id or "default",
@@ -4116,7 +4687,7 @@ chapter_id: {chapter_id}
                         "task_results": [],
                         "agent_steps": [],
                         "suggested_actions": ["简化请求", "稍后重试"],
-                        "metadata": {"error": "Task execution timeout", "timeout": 240}
+                        "metadata": {"error": "Task execution timeout", "timeout": TimeoutConfig.TASK_EXECUTION}
                     }
 
                 # 构建完整上下文用于后续总结
@@ -4137,10 +4708,12 @@ chapter_id: {chapter_id}
                 knowledge_docs_for_response = context.get("knowledge_docs") if context else None
 
                 # 使用新的智能判断方法
+                # ✅ 传递 response_hint 用于元数据查询的精准返回
                 final_content = await self._build_final_response(
                     task_results=task_results,
                     message=message,
                     on_content=on_content,
+                    response_hint=plan_data.get("response_hint"),
                     knowledge_docs=knowledge_docs_for_response  # ✅ P0修复: 传递知识库文档
                 )
 
@@ -4298,42 +4871,71 @@ chapter_id: {chapter_id}
             "analyze_text_tool"  # ✅ 允许并行（无参数依赖时）
         }
 
-        # 分组任务：独立任务 vs 依赖任务
+        # ✅ 改进：三层分组策略
+        # 第一层：完全独立的任务（可立即并行）
+        # 第二层：只依赖第一层任务的分析任务（第一层完成后可并行）
+        # 第三层：有复杂依赖链的任务（必须串行）
         parallel_tasks = []
+        parallel_dependent_tasks = []  # 新增：第二层并行任务
         sequential_tasks = []
 
-        # ✅ 【修复-问题3】改进分组策略：同时检查工具类型和参数依赖
+        # 收集第一层任务的 ID
+        first_layer_ids = set()
+
+        # 第一遍：识别第一层任务
         for task in tasks:
             tool_name = task.get("tool", "auto")
             has_dependency = _has_placeholder_dependency(task.get("params", {}))
 
-            # 只有工具类型安全且无参数依赖的任务才能并行
             if tool_name in PARALLEL_SAFE_TOOLS and not has_dependency:
                 parallel_tasks.append(task)
-                logger.debug(
-                    f"[任务分组] 任务{task['task_id']}({tool_name}) → 并行组"
+                first_layer_ids.add(task["task_id"])
+                logger.debug(f"[任务分组] 任务{task['task_id']}({tool_name}) → 第一层并行")
+
+        # 第二遍：识别第二层任务（只依赖第一层的分析任务）
+        for task in tasks:
+            if task in parallel_tasks:
+                continue
+
+            tool_name = task.get("tool", "auto")
+            params = task.get("params", {})
+            has_dependency = _has_placeholder_dependency(params)
+
+            if has_dependency:
+                # 检查是否只依赖第一层任务
+                deps = self._extract_task_dependencies(params)
+                only_depends_on_first_layer = all(
+                    dep_id in first_layer_ids for dep_id in deps
                 )
+
+                # 如果是分析工具且只依赖第一层，可以在第一层完成后并行
+                if only_depends_on_first_layer and tool_name in {"analyze_text_tool", "summarization"}:
+                    parallel_dependent_tasks.append(task)
+                    logger.debug(f"[任务分组] 任务{task['task_id']}({tool_name}) → 第二层并行")
+                else:
+                    sequential_tasks.append(task)
+                    logger.debug(f"[任务分组] 任务{task['task_id']}({tool_name}) → 串行（复杂依赖）")
             else:
+                # 无依赖但工具不支持并行
                 sequential_tasks.append(task)
-                reason = "有依赖" if has_dependency else "工具不支持并行"
-                logger.debug(
-                    f"[任务分组] 任务{task['task_id']}({tool_name}) → 串行组 ({reason})"
-                )
+                logger.debug(f"[任务分组] 任务{task['task_id']}({tool_name}) → 串行（工具不支持）")
 
         logger.info(
             f"[ParallelExecution] 任务分组: "
-            f"并行={len(parallel_tasks)}, 串行={len(sequential_tasks)}"
+            f"第一层并行={len(parallel_tasks)}, "
+            f"第二层并行={len(parallel_dependent_tasks)}, "
+            f"串行={len(sequential_tasks)}"
         )
 
         task_results = []
         all_context = context
 
+        # ✅ 在所有批次之前定义 semaphore（避免作用域问题）
+        semaphore = asyncio.Semaphore(5)
+
         # 第1批：并行执行独立的数据获取任务
         if parallel_tasks:
             logger.info(f"[ParallelExecution] 开始并行执行{len(parallel_tasks)}个任务")
-
-            # 使用Semaphore限制并发数为5
-            semaphore = asyncio.Semaphore(5)
 
             async def execute_with_semaphore(task):
                 async with semaphore:
@@ -4466,7 +5068,106 @@ chapter_id: {chapter_id}
                     task_results.append(result)
                     all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
 
-        # 第2批：串行执行依赖任务（它们可能需要前面的结果）
+        # 第2批：并行执行只依赖第一层的分析任务（新增）
+        if parallel_dependent_tasks:
+            logger.info(f"[ParallelExecution] 开始第二层并行执行{len(parallel_dependent_tasks)}个分析任务")
+
+            async def execute_dependent_task(task):
+                async with semaphore:
+                    import time
+                    start_time = time.time()
+
+                    task_id = task["task_id"]
+                    description = task["description"]
+                    tool_name = task.get("tool", "unknown")
+
+                    logger.info(f"[ParallelExecution] 第二层并行任务{task_id}开始: {description}")
+
+                    if on_task_start:
+                        await on_task_start(task)
+
+                    max_retries = 2
+                    last_error = None
+
+                    for retry_count in range(max_retries + 1):
+                        try:
+                            resolved_task = task.copy()
+                            if "params" in resolved_task:
+                                resolved_task["params"] = await resolver.resolve_params(
+                                    resolved_task["params"],
+                                    current_task_id=task_id
+                                )
+
+                            result = await self._execute_task(
+                                task=resolved_task,
+                                work_id=work_id,
+                                chapter_id=chapter_id,
+                                context=all_context,
+                                on_progress=on_task_progress
+                            )
+
+                            elapsed = time.time() - start_time
+                            if on_task_done:
+                                await on_task_done({
+                                    **task,
+                                    "elapsed_time": elapsed
+                                }, result)
+
+                            logger.info(f"[ParallelExecution] 第二层并行任务{task_id}完成")
+
+                            await resolver.register_result(task_id, result)  # ✅ 添加 await
+                            return {
+                                "task_id": task_id,
+                                "tool": tool_name,  # ✅ 添加 tool 字段
+                                "description": description,
+                                "result": result,
+                                "status": "success"
+                            }
+
+                        except Exception as e:
+                            last_error = e
+                            if retry_count < max_retries:
+                                logger.warning(f"[ParallelExecution] 第二层任务{task_id}失败，重试...")
+                                await asyncio.sleep(1)
+                            else:
+                                logger.error(f"[ParallelExecution] 第二层任务{task_id}最终失败: {e}")
+
+                    elapsed = time.time() - start_time
+                    error_result = f"任务失败: {str(last_error)}"
+                    if on_task_done:
+                        await on_task_done({**task, "elapsed_time": elapsed}, error_result)
+
+                    return {
+                        "task_id": task_id,
+                        "tool": tool_name,  # ✅ 添加 tool 字段
+                        "description": description,
+                        "result": error_result,
+                        "status": "failed"
+                    }
+
+            # 并行执行第二层任务
+            dependent_results = await asyncio.gather(
+                *[execute_dependent_task(task) for task in parallel_dependent_tasks],
+                return_exceptions=True
+            )
+
+            for i, result in enumerate(dependent_results):
+                if isinstance(result, Exception):
+                    task = parallel_dependent_tasks[i]
+                    failed_task = {
+                        "task_id": task["task_id"],
+                        "tool": task.get("tool", "unknown"),  # ✅ 添加 tool 字段
+                        "description": task.get("description", ""),
+                        "result": f"任务执行失败: {str(result)}",
+                        "status": "failed"
+                    }
+                    task_results.append(failed_task)
+                    all_context += f"\n任务{failed_task['task_id']}失败：{str(result)}\n"
+                else:
+                    task_results.append(result)
+                    all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
+
+        # 第3批：串行执行有复杂依赖的任务
         if sequential_tasks:
             logger.info(f"[ParallelExecution] 开始串行执行{len(sequential_tasks)}个任务")
 
@@ -4636,6 +5337,7 @@ chapter_id: {chapter_id}
         task_results: List[Dict],
         message: str,
         on_content: Optional[callable] = None,
+        response_hint: Optional[str] = None,
         knowledge_docs: Optional[List[Dict]] = None  # ✅ P0修复: 添加知识库文档参数
     ) -> str:
         """智能构建最终响应
@@ -4650,6 +5352,7 @@ chapter_id: {chapter_id}
             task_results: 任务结果列表
             message: 用户原始消息
             on_content: 内容回调函数
+            response_hint: 响应提示（如 "title", "word_count"），用于元数据查询
             knowledge_docs: 用户引用的知识库文档列表（可选）
 
         Returns:
@@ -4701,7 +5404,7 @@ chapter_id: {chapter_id}
                 f"[Response] 纯展示型任务({len(display_tasks)}个)，"
                 f"直接格式化返回（跳过AI整合，节省成本）"
             )
-            return await self._format_display_response(display_tasks, on_content)
+            return await self._format_display_response(display_tasks, response_hint, on_content)
 
         # 情况1：没有输出任务（极少见）
         if len(output_tasks) == 0:
@@ -4711,7 +5414,7 @@ chapter_id: {chapter_id}
         # 情况2：单个输出任务（主要场景，约85%）
         elif len(output_tasks) == 1:
             task = output_tasks[0]
-            tool_name = task["tool"]
+            tool_name = task.get("tool", "unknown")  # ✅ 安全访问
             result = task.get("result", "") or ""  # 处理None的情况
 
             # 创作类任务，且输出充分 → 直接返回
@@ -4742,7 +5445,7 @@ chapter_id: {chapter_id}
 
             parts = []
             for task in output_tasks:
-                tool_name = task["tool"]
+                tool_name = task.get("tool", "unknown")  # ✅ 安全访问
                 result = task.get("result", "") or ""  # 处理None的情况
 
                 # 添加标题
@@ -4770,6 +5473,7 @@ chapter_id: {chapter_id}
     async def _format_display_response(
         self,
         display_tasks: List[Dict],
+        response_hint: Optional[str] = None,
         on_content: Optional[callable] = None
     ) -> str:
         """
@@ -4780,6 +5484,7 @@ chapter_id: {chapter_id}
 
         Args:
             display_tasks: 展示型任务列表
+            response_hint: Planning 阶段提供的响应提示（如 "title", "word_count", "content"）
             on_content: 内容回调函数
 
         Returns:
@@ -4797,13 +5502,40 @@ chapter_id: {chapter_id}
 
                 # 提取章节信息
                 if isinstance(result_json, dict):
+                    # ✅ 先检查是否是错误响应
+                    if "error" in result_json:
+                        error_msg = result_json.get("error", "未知错误")
+                        total_chapters = result_json.get("total_chapters")
+                        if total_chapters:
+                            response_parts.append(f"❌ {error_msg}（该作品共有 {total_chapters} 章）")
+                        else:
+                            response_parts.append(f"❌ {error_msg}")
+                        continue
+
                     title = result_json.get("title", "")
                     content = result_json.get("content", "")
+                    word_count = result_json.get("word_count", 0)
                     # ✅ 修复: 工具返回的是 "order" 字段，不是 "chapter_order"
                     chapter_order = result_json.get("order") or result_json.get("chapter_order", "")
 
-                    if title and content:
-                        # 格式化章节内容
+                    # ✅ 根据 response_hint 智能返回（由 Planning 阶段提供）
+                    # 如果 Planning 没有返回 hint，尝试从 task description 推断
+                    effective_hint = response_hint
+                    if not effective_hint:
+                        desc_lower = description.lower()
+                        if "标题" in desc_lower or "题目" in desc_lower or "章名" in desc_lower:
+                            effective_hint = "title"
+                        elif "字数" in desc_lower or "多少字" in desc_lower:
+                            effective_hint = "word_count"
+
+                    if effective_hint == "title":
+                        response_parts.append(f"第{chapter_order}章的标题是：**{title}**")
+                    elif effective_hint == "word_count":
+                        response_parts.append(f"第{chapter_order}章《{title}》共 **{word_count}** 字")
+                    elif effective_hint == "title_and_word_count":
+                        response_parts.append(f"第{chapter_order}章《**{title}**》，共 **{word_count}** 字")
+                    elif title and content:
+                        # 默认：返回标题+内容
                         chapter_header = f"**第{chapter_order}章: {title}**" if chapter_order else f"**{title}**"
                         # 截取内容摘要（避免响应过长）
                         content_preview = content[:1500] + "..." if len(content) > 1500 else content
@@ -4901,12 +5633,16 @@ chapter_id: {chapter_id}
 {knowledge_section}
 {compressed_context}
 
-要求：
-1. 综合所有任务结果
-2. 用清晰、友好的语言呈现
+⚠️ 重要规则（必须遵守）：
+1. 【数据忠实性】必须使用工具返回的真实数据，禁止编造或猜测！
+   - 章节标题 = 工具返回的 title 字段值
+   - 章节内容 = 工具返回的 content 字段值
+   - 章节序号 = 工具返回的 order 字段值
+2. 综合所有任务结果，用清晰、友好的语言呈现
 3. 如果是创作内容，直接输出创作结果
 4. 如果是分析/规划，给出详细说明
-5. 如果用户引用了知识库文档，优先基于文档内容回答
+5. 如果用户询问事实性问题（如标题、内容等），直接引用工具返回的数据
+6. 如果用户引用了知识库文档，优先基于文档内容回答
 
 请生成最终响应："""
 
@@ -5053,6 +5789,7 @@ chapter_id: {chapter_id}
     ) -> str:
         """执行单个任务"""
         tool_name = task.get("tool", "auto")
+        task_type = task.get("type", "")  # ✅ 新增：检测任务类型
         params = task.get("params", {})
 
         # 标准化参数格式
@@ -5061,7 +5798,28 @@ chapter_id: {chapter_id}
         if on_progress:
             await on_progress(task, "正在执行...")
 
+        # ✅ 优先处理 multi_agent_writing 类型（意图路由优化）
+        if task_type == "multi_agent_writing":
+            return await self._execute_multi_agent_writing(
+                task=task,
+                work_id=work_id,
+                chapter_id=chapter_id,
+                context=context,  # ✅ 修复问题1：传递累积上下文
+                on_progress=on_progress
+            )
+
         # 根据工具名称调用对应工具
+        # ✅ Multi-Agent 写作任务检测（支持更多写作型任务，但仅在写作相关工具或 auto 时启用）
+        multi_agent = MultiAgentExecutor(self.ai_service)
+        is_writing_task = multi_agent.is_writing_task({
+            "task_id": task.get("task_id", "1"),
+            "type": task.get("type", tool_name),
+            "tool": tool_name,
+            "description": task.get("description", "")
+        })
+        writing_tools = {"continue_writing_tool"}
+        use_multi_agent = (tool_name in writing_tools) or (tool_name == "auto" and is_writing_task)
+
         if tool_name == "get_chapter_by_order_tool":
             result = await get_chapter_by_order_tool.ainvoke({
                 "work_id": work_id,
@@ -5103,11 +5861,134 @@ chapter_id: {chapter_id}
                     "query": params.get("query", "相关内容"),
                     "top_k": params.get("top_k", 5)
                 })
-        elif tool_name == "continue_writing_tool":
-            result = await continue_writing_tool.ainvoke({
-                "context": params.get("context", context),
-                "requirements": params.get("requirements", "")
-            })
+        elif use_multi_agent:
+            # ✅ Multi-Agent 写作系统集成
+            writing_task = {
+                "task_id": task.get("task_id", "1"),
+                "description": task.get("description", "续写内容"),
+                "type": task.get("type", tool_name) or "continue_writing",
+                "chapter_id": chapter_id,
+            }
+
+            # ✅ P0修复：从累积的 context 中提取前置任务的分析结果
+            # context 格式: "用户请求：...\n\n任务1结果：\n...\n任务2结果：\n..."
+            def _extract_analysis_from_context(ctx: str) -> str:
+                """从累积上下文中提取分析类任务的结果"""
+                if not ctx:
+                    return ""
+
+                # 查找所有任务结果块
+                import re
+                task_pattern = re.compile(r'任务(\d+)结果[：:]\s*\n([\s\S]*?)(?=\n任务\d+结果|$)')
+                matches = task_pattern.findall(ctx)
+
+                # 找到最长的结果（通常是分析结果，因为分析输出较长）
+                # 或者找到包含"分析"、"摘要"等关键词的结果
+                analysis_keywords = ["主题", "人物", "情节", "角色", "冲突", "发展方向", "章节", "分析"]
+                best_analysis = ""
+
+                for task_id, result in matches:
+                    result = result.strip()
+                    # 检查是否包含分析关键词
+                    keyword_count = sum(1 for kw in analysis_keywords if kw in result)
+                    if keyword_count >= 3 and len(result) > len(best_analysis):
+                        best_analysis = result
+                        logger.debug(f"[MultiAgent] 从任务{task_id}提取分析结果，长度={len(result)}")
+
+                return best_analysis
+
+            # 提取分析结果作为 previous_summary
+            extracted_analysis = _extract_analysis_from_context(context)
+
+            # 构建上下文（优先使用提取的分析结果）
+            ma_context = {
+                "character_document": params.get("character_document", ""),
+                "previous_summary": params.get("previous_summary", "") or extracted_analysis,  # ✅ 优先使用分析结果
+                "previous_content": params.get("context", context)[-2000:] if params.get("context", context) else "",
+                "total_outline": params.get("outline", ""),
+                "world_setting": params.get("world_setting", ""),
+                "analysis_result": extracted_analysis  # ✅ 新增：显式传递分析结果
+            }
+
+            # ✅ 日志记录上下文状态
+            context_status = {k: bool(v) for k, v in ma_context.items()}
+            logger.info(f"[MultiAgent] 上下文状态: {context_status}, 分析结果长度={len(extracted_analysis)}")
+
+            # 检查是否有足够的上下文使用 Multi-Agent（覆盖更多信号）
+            has_context = any([
+                ma_context.get("character_document"),
+                ma_context.get("total_outline"),
+                ma_context.get("previous_summary"),
+                ma_context.get("world_setting"),
+                ma_context.get("previous_content"),
+            ])
+
+            if has_context:
+                logger.info(f"[MultiAgent] 使用 Multi-Agent 执行写作任务: {task.get('description', '')[:50]}")
+
+                async def on_multi_agent_event(event: Dict[str, Any]):
+                    """Multi-Agent 事件回调适配器"""
+                    if on_progress:
+                        event_type = event.get("type", "")
+                        data = event.get("data", {})
+
+                        if event_type == "plan":
+                            task_count = len(data.get("tasks", []))
+                            await on_progress(task, f"开始 Multi-Agent 写作流程（{task_count}个阶段）")
+                        elif event_type == "task_start":
+                            task_id = data.get("task_id", 0)
+                            stage_names = {
+                                1: "大纲师生成大纲",
+                                2: "主笔撰写内容",
+                                3: "角色守护检查",
+                                4: "逻辑审计检查",
+                                5: "总编审核修订"
+                            }
+                            stage_name = stage_names.get(task_id, f"阶段{task_id}")
+                            await on_progress(task, f"[{task_id}/5] {stage_name}...")
+                        elif event_type == "task_done":
+                            task_id = data.get("task_id", 0)
+                            elapsed = data.get("elapsed_time", 0)
+                            await on_progress(task, f"[{task_id}/5] 完成 ({elapsed:.1f}s)")
+                        elif event_type == "content":
+                            await on_progress(task, "Multi-Agent 写作完成")
+
+                try:
+                    ma_result = await multi_agent.execute(
+                        task=writing_task,
+                        work_id=work_id,
+                        chapter_id=chapter_id,
+                        context=ma_context,
+                        on_event=on_multi_agent_event
+                    )
+                    result = ma_result.get("content", "")
+                    logger.info(f"[MultiAgent] 写作任务完成: {len(result)} 字")
+                except Exception as e:
+                    logger.error(f"[MultiAgent] 写作失败，回退到单 Agent: {e}", exc_info=True)
+                    if on_progress:
+                        await on_progress(task, "Multi-Agent 失败，回退到单 Agent")
+                    result = await continue_writing_tool.ainvoke({
+                        "context": params.get("context", context),
+                        "requirements": params.get("requirements", "")
+                    })
+            else:
+                # 上下文不足，拒绝盲写，提示补充资料
+                logger.warning("[MultiAgent] 上下文不足，拒绝执行写作任务。请提供角色设定/前文摘要/世界观。")
+                if on_progress:
+                    await on_progress(task, "缺少上下文（角色/前文/世界观），请补充后再试。")
+                result = json.dumps({
+                    "error": "缺少写作上下文，已拒绝执行",
+                    "missing": [
+                        key for key, val in {
+                            "character_document": ma_context.get("character_document"),
+                            "previous_summary": ma_context.get("previous_summary"),
+                            "previous_content": ma_context.get("previous_content"),
+                            "world_setting": ma_context.get("world_setting"),
+                            "total_outline": ma_context.get("total_outline"),
+                        }.items() if not val
+                    ],
+                    "message": "请提供角色设定、前文摘要/正文、世界观或总纲后再尝试续写。"
+                }, ensure_ascii=False)
         elif tool_name == "polish_text_tool":
             result = await polish_text_tool.ainvoke({
                 "text": params.get("text", ""),
@@ -5127,6 +6008,213 @@ chapter_id: {chapter_id}
             await on_progress(task, "完成")
 
         return result
+
+    async def _execute_multi_agent_writing(
+        self,
+        task: Dict[str, Any],
+        work_id: str,
+        chapter_id: str,
+        context: str = "",  # ✅ 修复问题1：接收累积上下文
+        on_progress: Optional[callable] = None
+    ) -> str:
+        """执行 multi_agent_writing 类型任务（意图路由优化）
+
+        核心改进：
+        1. 自动获取所需章节（无需 Planning 分解）
+        2. 直接调用 Multi-Agent 流程
+        3. 大纲师内部完成分析（避免重复分析）
+        4. ✅ 修复：支持从累积上下文中提取前置任务结果
+
+        Args:
+            task: 任务信息，包含 params.chapters_needed, params.target_chapter, params.requirements
+            work_id: 作品 ID
+            chapter_id: 当前章节 ID
+            context: 累积的上下文（包含前置任务结果）
+            on_progress: 进度回调
+
+        Returns:
+            生成的内容
+        """
+        params = task.get("params", {})
+        chapters_needed = params.get("chapters_needed", [])
+        target_chapter = params.get("target_chapter", 0)
+        requirements = params.get("requirements", "")
+        description = task.get("description", "")
+
+        logger.info(
+            f"[MultiAgentWriting] 开始执行 | "
+            f"需要章节: {chapters_needed}, 目标章节: {target_chapter}, "
+            f"描述: {description[:50]}"
+        )
+
+        # ✅ 修复问题3：从累积上下文中提取分析结果
+        existing_analysis = ""
+        existing_content = ""
+        if context:
+            # 尝试提取前置任务的分析结果
+            import re
+            task_pattern = re.compile(r'任务(\d+)结果[：:]\s*\n([\s\S]*?)(?=\n任务\d+结果|$)')
+            matches = task_pattern.findall(context)
+
+            analysis_keywords = ["主题", "人物", "情节", "角色", "冲突", "发展", "分析", "总结"]
+            for task_id, result in matches:
+                result = result.strip()
+                keyword_count = sum(1 for kw in analysis_keywords if kw in result)
+                if keyword_count >= 3 and len(result) > len(existing_analysis):
+                    existing_analysis = result
+                    logger.info(f"[MultiAgentWriting] 从任务{task_id}提取分析结果，长度={len(result)}")
+
+                # 也检查是否有章节内容
+                if "content" in result.lower() or len(result) > 1000:
+                    if len(result) > len(existing_content):
+                        existing_content = result
+
+        # ✅ 修复问题2：始终获取 chapters_needed 指定的章节（不能用前一个任务输出替代）
+        # 重要：existing_content 是前一个写作任务的输出（新章节），不是原有章节
+        # 连续写作时：任务1输出第5章 → 任务2需要第1-4章+第5章，不能只用第5章
+        previous_contents = []
+        chapter_titles = []
+
+        if chapters_needed:
+            if on_progress:
+                await on_progress(task, "正在获取上下文章节...")
+
+            # 获取章节
+            for chapter_order in chapters_needed:
+                try:
+                    result = await get_chapter_by_order_tool.ainvoke({
+                        "work_id": work_id,
+                        "chapter_order": chapter_order
+                    })
+                    if isinstance(result, str):
+                        try:
+                            result_data = json.loads(result)
+                            content = result_data.get("content", "")
+                            title = result_data.get("title", f"第{chapter_order}章")
+                            if content:
+                                previous_contents.append(f"【{title}】\n{content}")
+                                chapter_titles.append(title)
+                                logger.info(f"[MultiAgentWriting] ✅ 获取第{chapter_order}章: {title}")
+                        except json.JSONDecodeError:
+                            if result and len(result) > 100:
+                                previous_contents.append(result)
+                                logger.info(f"[MultiAgentWriting] ✅ 获取第{chapter_order}章（纯文本）")
+                except Exception as e:
+                    logger.warning(f"[MultiAgentWriting] ⚠️ 获取第{chapter_order}章失败: {e}")
+        else:
+            # ✅ 修复问题4：chapters_needed 为空时，尝试获取前一章
+            if target_chapter and target_chapter > 1:
+                logger.warning(f"[MultiAgentWriting] chapters_needed 为空，尝试获取第{target_chapter - 1}章")
+                try:
+                    result = await get_chapter_by_order_tool.ainvoke({
+                        "work_id": work_id,
+                        "chapter_order": target_chapter - 1
+                    })
+                    if isinstance(result, str):
+                        try:
+                            result_data = json.loads(result)
+                            content = result_data.get("content", "")
+                            title = result_data.get("title", f"第{target_chapter - 1}章")
+                            if content:
+                                previous_contents.append(f"【{title}】\n{content}")
+                                chapter_titles.append(title)
+                        except json.JSONDecodeError:
+                            if result and len(result) > 100:
+                                previous_contents.append(result)
+                except Exception as e:
+                    logger.warning(f"[MultiAgentWriting] ⚠️ 获取前一章失败: {e}")
+
+        # ✅ 把前一个任务新写的章节追加到上下文末尾（连续写作场景）
+        if existing_content and len(existing_content) > 500:
+            # 检查是否已经包含在 previous_contents 中（避免重复）
+            is_duplicate = any(existing_content in pc or pc in existing_content for pc in previous_contents if len(pc) > 200)
+            if not is_duplicate:
+                logger.info(f"[MultiAgentWriting] 追加前一个任务的输出（{len(existing_content)}字）到上下文末尾")
+                previous_contents.append(f"【上一章续写内容】\n{existing_content}")
+
+        if on_progress:
+            await on_progress(task, f"已获取{len(previous_contents)}个章节，开始写作...")
+
+        # 构建 Multi-Agent 上下文
+        previous_content = "\n\n".join(previous_contents)
+
+        ma_context = {
+            "character_document": "",  # TODO: 可以从作品设定获取
+            "previous_summary": "",
+            "previous_content": previous_content,  # ✅ 关键：传递前文内容
+            "total_outline": "",
+            "world_setting": "",
+            "analysis_result": existing_analysis,  # ✅ 修复问题3：使用前置任务的分析结果
+            # ✅ 新增：传递章节信息，帮助大纲师理解上下文
+            "chapters_info": {
+                "chapters_needed": chapters_needed,
+                "chapter_titles": chapter_titles,
+                "target_chapter": target_chapter
+            }
+        }
+
+        # 构建写作任务
+        writing_task = {
+            "task_id": task.get("task_id", "1"),
+            "description": description or f"续写第{target_chapter}章",
+            "type": "multi_agent_writing",
+            "chapter_id": chapter_id,
+            "requirements": requirements
+        }
+
+        logger.info(
+            f"[MultiAgentWriting] 上下文准备完成 | "
+            f"前文长度: {len(previous_content)}, 章节数: {len(previous_contents)}, "
+            f"分析结果: {'有' if existing_analysis else '无'}({len(existing_analysis)}字)"
+        )
+
+        # 创建 Multi-Agent 执行器
+        multi_agent = MultiAgentExecutor(self.ai_service)
+
+        async def on_multi_agent_event(event: Dict[str, Any]):
+            """Multi-Agent 事件回调"""
+            if on_progress:
+                event_type = event.get("type", "")
+                data = event.get("data", {})
+
+                if event_type == "plan":
+                    tasks = data.get("tasks", [])
+                    task_count = len(tasks)
+                    await on_progress(task, f"开始 Multi-Agent 写作流程（{task_count}个阶段）")
+                elif event_type == "task_start":
+                    task_id = data.get("task_id", 0)
+                    # 使用 executor 发送的 description，不再硬编码
+                    description = data.get("description", f"阶段{task_id}")
+                    await on_progress(task, f"[{task_id}/{TOTAL_STAGES}] {description}")
+                elif event_type == "task_done":
+                    task_id = data.get("task_id", 0)
+                    elapsed = data.get("elapsed_time", 0)
+                    await on_progress(task, f"[{task_id}/{TOTAL_STAGES}] 完成 ({elapsed:.1f}s)")
+                elif event_type == "content":
+                    await on_progress(task, "Multi-Agent 写作完成")
+
+        try:
+            ma_result = await multi_agent.execute(
+                task=writing_task,
+                work_id=work_id,
+                chapter_id=chapter_id,
+                context=ma_context,
+                on_event=on_multi_agent_event
+            )
+            result = ma_result.get("content", "")
+            word_count = ma_result.get("word_count", len(result))
+            logger.info(f"[MultiAgentWriting] ✅ 写作完成: {word_count} 字")
+            return result
+
+        except Exception as e:
+            logger.error(f"[MultiAgentWriting] ❌ 写作失败: {e}", exc_info=True)
+            if on_progress:
+                await on_progress(task, f"写作失败: {str(e)[:50]}")
+            return json.dumps({
+                "error": "Multi-Agent 写作失败",
+                "message": str(e),
+                "suggestion": "请稍后重试，或检查网络连接"
+            }, ensure_ascii=False)
 
 
 # ==================== 导出 ====================

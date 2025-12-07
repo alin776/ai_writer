@@ -55,6 +55,7 @@ export interface UserPreferences {
   fontSize: 'small' | 'medium' | 'large';
   autoSave: boolean;
   autoSaveInterval: number;
+  aiAutoComplete: boolean; // AI 自动补全开关（消耗积分）
 }
 
 /**
@@ -101,6 +102,7 @@ export interface RegisterData {
  */
 export interface TokenResponse {
   accessToken: string;  // 后端: access_token
+  refreshToken?: string; // 后端: refresh_token
   tokenType: string;     // 后端: token_type
 }
 

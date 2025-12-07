@@ -1,6 +1,6 @@
-/**
+﻿/**
  * AI 自动补全组件
- * 实时显示 AI 建议和补全内容
+ * 实时显示 AI 建议和补全文本
  */
 import React, { useState, useCallback } from 'react';
 import { Editor } from '@tiptap/core';
@@ -37,27 +37,28 @@ const AIAutoComplete: React.FC<AIAutoCompleteProps> = ({
     try {
       const { from, to } = editor.state.selection;
       const selectedText = editor.state.doc.textBetween(from, to, ' ');
+      const contextText = selectedText || editor.getText().slice(-500);
 
       let prompt = '';
 
       switch (option) {
         case 'continue':
-          prompt = `继续写作以下内容，给出自然流畅的续写：\n\n${selectedText || editor.getText().slice(-500)}`;
+          prompt = `继续写作以下内容，给出自然流畅的续写：\n\n${contextText}`;
           break;
         case 'improve':
-          prompt = `改进以下文本，使其更加优美流畅：\n\n${selectedText}`;
+          prompt = `改进以下文本，使其更加优美流畅：\n\n${contextText}`;
           break;
         case 'shorter':
-          prompt = `缩短以下文本，保留关键信息：\n\n${selectedText}`;
+          prompt = `缩短以下文本，保留关键信息：\n\n${contextText}`;
           break;
         case 'longer':
-          prompt = `扩展以下文本，增加更多细节：\n\n${selectedText}`;
+          prompt = `扩展以下文本，增加更多细节：\n\n${contextText}`;
           break;
         case 'fix':
-          prompt = `修正以下文本的语法和拼写错误：\n\n${selectedText}`;
+          prompt = `修正以下文本的语法和拼写错误：\n\n${contextText}`;
           break;
         case 'custom':
-          prompt = `${customPrompt}\n\n文本内容：${selectedText}`;
+          prompt = `${customPrompt?.trim() || '请基于上下文继续写作：'}\n\n文本内容：${contextText}`;
           break;
       }
 
@@ -70,7 +71,8 @@ const AIAutoComplete: React.FC<AIAutoCompleteProps> = ({
       await aiComplete(
         {
           prompt,
-          maxTokens: 1000,
+          // 自动补全过程限制生成长度，确保走轻量模型路径
+          maxTokens: 120,
           temperature: 0.7,
         },
         (chunk) => {
@@ -113,13 +115,13 @@ const AIAutoComplete: React.FC<AIAutoCompleteProps> = ({
   /**
    * 预设命令选项
    */
-  const quickOptions = [
-    { label: '继续写作', option: 'continue' as AIOption, icon: '✍️' },
-    { label: '改进文本', option: 'improve' as AIOption, icon: '✨' },
-    { label: '缩短内容', option: 'shorter' as AIOption, icon: '📏' },
-    { label: '扩展内容', option: 'longer' as AIOption, icon: '📖' },
-    { label: '修正错误', option: 'fix' as AIOption, icon: '🔧' },
-  ];
+const quickOptions: Array<{ label: string; option: AIOption; icon: string }> = [
+  { label: '继续写作', option: 'continue', icon: '\u270d' },
+  { label: '改进文本', option: 'improve', icon: '\u2728' },
+  { label: '缩短内容', option: 'shorter', icon: '\ud83d\udcc9' },
+  { label: '扩展内容', option: 'longer', icon: '\ud83d\udcd6' },
+  { label: '修正错误', option: 'fix', icon: '\ud83d\udee0' },
+];
 
   const hasCompletion = completion.length > 0;
 
@@ -200,3 +202,5 @@ const AIAutoComplete: React.FC<AIAutoCompleteProps> = ({
 };
 
 export default AIAutoComplete;
+
+

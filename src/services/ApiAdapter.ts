@@ -4,10 +4,12 @@
  * 使用 Axios 进行 HTTP 请求
  */
 import axios, { AxiosInstance } from 'axios';
+import { useAuthStore } from '@/store/authStore';
 import type { IDataAdapter } from './IDataAdapter';
 
 export class ApiAdapter implements IDataAdapter {
   private axiosInstance: AxiosInstance;
+  private refreshPromise: Promise<string | null> | null = null;
 
   constructor() {
     let baseURL = import.meta.env.DEV ? '/api/v1' : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api');
@@ -25,7 +27,7 @@ export class ApiAdapter implements IDataAdapter {
       (config) => {
         // 登录/注册无需附带 Authorization，避免预检导致�?CORS 异常
         const url = config.url || '';
-        const skipAuthHeader = url.includes('/auth/login') || url.includes('/auth/register');
+        const skipAuthHeader = url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/refresh');
         if (skipAuthHeader) {
           return config;
         }
@@ -74,7 +76,7 @@ export class ApiAdapter implements IDataAdapter {
         
         return { ...response, data: camelCaseData };
       },
-      (error) => {
+      async (error) => {
         console.error('[ApiAdapter] Error:', error);
         console.error('[ApiAdapter] Error details:', {
           hasResponse: !!error.response,
@@ -88,6 +90,24 @@ export class ApiAdapter implements IDataAdapter {
           // 服务器返回错误状态码
           const { status, data, config } = error.response;
           const url = config?.url || '';
+
+          // 401 时尝试用 refresh token 续期，再重放原请求
+          if (status === 401 && config && !url.includes('/auth/login') && !url.includes('/auth/register') && !url.includes('/auth/refresh')) {
+            const originalRequest: any = config;
+            if (!originalRequest._retry) {
+              originalRequest._retry = true;
+              try {
+                const newAccessToken = await this.handleRefreshToken();
+                if (newAccessToken) {
+                  originalRequest.headers = originalRequest.headers || {};
+                  originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+                  return this.axiosInstance.request(originalRequest);
+                }
+              } catch (refreshError) {
+                console.error('[ApiAdapter] Refresh token failed:', refreshError);
+              }
+            }
+          }
 
           // 世界观相关的404错误静默处理（功能未实现，暂时忽略）
           const isWorldviewNotFound = status === 404 && (
@@ -153,6 +173,51 @@ export class ApiAdapter implements IDataAdapter {
         }
       }
     );
+  }
+
+  /**
+   * 使用刷新令牌获取新的 access token，并更新全局状态
+   */
+  private async handleRefreshToken(): Promise<string | null> {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.refreshPromise = (async () => {
+      const { refreshToken, setToken, setRefreshToken, logout } = useAuthStore.getState();
+      if (!refreshToken) {
+        return null;
+      }
+
+      try {
+        const response = await this.axiosInstance.post('/auth/refresh', {
+          refresh_token: refreshToken,
+        }, {
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const data: any = (response as any)?.data ?? response;
+        const newAccessToken = data?.accessToken || data?.access_token;
+        const newRefreshToken = data?.refreshToken || data?.refresh_token || refreshToken;
+
+        if (!newAccessToken) {
+          return null;
+        }
+
+        setToken(newAccessToken);
+        setRefreshToken(newRefreshToken);
+        return newAccessToken;
+      } catch (error) {
+        console.error('[ApiAdapter] Failed to refresh token:', error);
+        logout();
+        localStorage.removeItem('auth-storage');
+        return null;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
   }
 
   /**

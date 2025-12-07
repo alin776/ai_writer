@@ -1,7 +1,7 @@
 /**
  * Agent Chat Stream Hook
  *
- * 提供ReAct流式对话功能，支持实时进度显示
+ * 提供Planning流式对话功能，支持实时进度显示
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -84,7 +84,7 @@ export interface UseAgentChatStreamOptions {
 /**
  * useAgentChatStream Hook
  *
- * 使用ReAct模式的流式Agent对话
+ * 使用Planning模式的流式Agent对话
  */
 export function useAgentChatStream(
   options?: UseAgentChatStreamOptions
@@ -195,7 +195,7 @@ export function useAgentChatStream(
         // 准备请求
         const request: AgentChatRequest = {
           message,
-          mode: 'react',  // ✅ 明确指定 React 模式
+          mode: 'planning',  // 使用 Planning 模式
           conversation_id: conversationId || undefined,
           ...requestOptions,
         };

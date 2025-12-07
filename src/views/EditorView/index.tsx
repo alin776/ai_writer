@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, FileText, Check, AlertCircle } from 'lucide-react';
 import { Loading } from '../../components/common';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
 import { useEditorStore } from '../../store/editorStore';
+import { useAuthStore } from '../../store/authStore';
 import NovelEditor from '../../components/editor/NovelEditor';
 import AgentChatPanel from '../../components/agent/AgentChatPanel';
 import { WorldviewPanel } from '../../components/editor/WorldviewPanel';
@@ -33,10 +34,56 @@ const EditorView: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useGlobalStore();
   const { setCurrentChapter, rightSidebarType, setRightSidebarType, closeRightSidebar } = useEditorStore();
+  const { user, setUser } = useAuthStore();
   const { tabs, activeTabId, createTab, closeTab, switchTab, updateTabTitle } = useTabManager(
     chapterId || 'default',
     undefined
   );
+
+  // 从用户偏好读取 AI 自动补全开关
+  const aiAutoCompleteEnabled = user?.preferences?.aiAutoComplete ?? false;
+
+  // 切换 AI 自动补全开关
+  const handleToggleAIAutoComplete = useCallback(async () => {
+    if (!user) return;
+
+    const newValue = !aiAutoCompleteEnabled;
+
+    // 确保 preferences 对象完整
+    const currentPreferences = user.preferences || {
+      theme: 'light' as const,
+      language: 'zh-CN' as const,
+      fontSize: 'medium' as const,
+      autoSave: true,
+      autoSaveInterval: 30,
+      aiAutoComplete: false,
+    };
+
+    const newPreferences = {
+      ...currentPreferences,
+      aiAutoComplete: newValue,
+    };
+
+    try {
+      // 立即更新本地状态（乐观更新）
+      setUser({
+        ...user,
+        preferences: newPreferences,
+      });
+
+      // 同步到后端
+      await DataService.updatePreferences(newPreferences);
+      showToast('success', newValue ? 'AI 自动补全已开启' : 'AI 自动补全已关闭');
+    } catch (error) {
+      // 回滚本地状态
+      setUser({
+        ...user,
+        preferences: currentPreferences,
+      });
+      showToast('error', '更新设置失败');
+      console.error('更新 AI 自动补全设置失败:', error);
+    }
+  }, [user, aiAutoCompleteEnabled, setUser, showToast]);
 
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [title, setTitle] = useState('');
@@ -243,6 +290,10 @@ const EditorView: React.FC = () => {
                 placeholder="开始写作..."
                 autoSave={true}
                 autoSaveInterval={3000}
+                workId={chapter?.workId}
+                chapterId={chapter?.id}
+                aiAutoCompleteEnabled={aiAutoCompleteEnabled}
+                onToggleAIAutoComplete={handleToggleAIAutoComplete}
               />
             </div>
           </div>

@@ -46,6 +46,9 @@ interface NovelEditorProps {
   // ===== Context-Aware 元数据 =====
   workId?: string;
   chapterId?: string;
+  // ===== AI 自动补全开关 =====
+  aiAutoCompleteEnabled?: boolean;
+  onToggleAIAutoComplete?: () => void;
 }
 
 type AgentActionType = 'edit' | 'rewrite' | 'insert';
@@ -76,6 +79,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   autoSaveInterval = 3000,
   workId,      // Context-Aware 参数
   chapterId,   // Context-Aware 参数
+  aiAutoCompleteEnabled = false, // 默认关闭，避免意外消耗积分
+  onToggleAIAutoComplete,
 }) => {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [wordCount, setWordCount] = useState(0);
@@ -161,17 +166,17 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       BubbleMenuExtension,
       // AI 高亮扩展
       AIHighlight,
-      // AI 自动补全扩展
+      // AI 自动补全扩展（流式版本）
       AIAutoCompleteExtension.configure({
-        delay: 6000, // 6秒延迟，避免打断用户输入
+        delay: 2000, // 2秒延迟，快速响应
         minChars: 50, // 至少50个字符才触发
-        enabled: true,
-        onTrigger: async (text: string) => {
+        enabled: aiAutoCompleteEnabled, // 由用户偏好控制
+        onTrigger: async (text: string, onChunk: (chunk: string, fullText: string) => void) => {
           try {
-            // ===== Context-Aware 自动补全 =====
-            // 传递 workId 和 chapterId 以加载元数据
-            const suggestion = await AIService.quickComplete(
+            // 使用流式补全，边生成边显示
+            const suggestion = await AIService.quickCompleteStream(
               text,
+              onChunk,
               workId,      // 作品ID
               chapterId    // 章节ID
             );
@@ -304,6 +309,14 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       AIService.preloadMetadata(workId, chapterId);
     }
   }, [workId, chapterId]);
+
+  // ===== 动态更新 AI 自动补全开关状态 =====
+  useEffect(() => {
+    if (editor && editor.storage.aiAutoComplete) {
+      editor.storage.aiAutoComplete.enabled = aiAutoCompleteEnabled;
+      console.log('[NovelEditor] AI 自动补全状态更新:', aiAutoCompleteEnabled);
+    }
+  }, [editor, aiAutoCompleteEnabled]);
 
   // 🆕 订阅 EditorSyncService 的章节更新事件
   useEffect(() => {
@@ -492,7 +505,11 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
       <div className="novel-editor w-full h-full flex flex-col bg-white">
         {/* 顶部工具栏 */}
-        <EditorToolbar editor={editor} />
+        <EditorToolbar
+          editor={editor}
+          aiAutoCompleteEnabled={aiAutoCompleteEnabled}
+          onToggleAIAutoComplete={onToggleAIAutoComplete}
+        />
 
         {/* 状态栏 - 极简设计 */}
         <div className="flex items-center justify-between px-5 py-1.5 bg-zinc-50/40 border-b border-zinc-100">

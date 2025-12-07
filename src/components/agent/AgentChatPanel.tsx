@@ -192,13 +192,7 @@ function TabContent({ workId, chapterId, sessionId, initialMessage, onTitleChang
         </div>
       </div>
 
-      {mode === 'react' && activities.length > 0 && (
-        <div className="activity-stream-container px-4 py-2 border-b border-gray-200 bg-gray-50 transition-all duration-300">
-          <ActivityStream activities={activities} progressData={progressData} />
-        </div>
-      )}
-
-      {mode === 'planning' && tasks.length > 0 && (
+      {tasks.length > 0 && (
         <div className="px-4 py-2 border-b border-gray-200 bg-gray-50">
           <TaskListPanel tasks={tasks} currentTaskId={currentTaskId} />
         </div>

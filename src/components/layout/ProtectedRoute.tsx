@@ -17,7 +17,7 @@ interface ProtectedRouteProps {
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const navigate = useNavigate();
-  const { isAuthenticated, user, login } = useAuthStore();
+  const { isAuthenticated, user, login, hasHydrated } = useAuthStore();
   const [isChecking, setIsChecking] = React.useState(true);
   const useMock = import.meta.env.VITE_USE_MOCK === 'true';
 
@@ -25,6 +25,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
    * 检查认证状态
    */
   useEffect(() => {
+    if (!hasHydrated) return;
+
     const checkAuth = async () => {
       // 给一个短暂的延迟，避免闪烁
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -59,12 +61,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     };
 
     checkAuth();
-  }, [isAuthenticated, user, navigate, useMock, login]);
+  }, [hasHydrated, isAuthenticated, user, navigate, useMock, login]);
 
   /**
    * 正在检查认证状态时显示加载中
    */
-  if (isChecking) {
+  if (!hasHydrated || isChecking) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
         <Loading size="lg" text="加载中..." />

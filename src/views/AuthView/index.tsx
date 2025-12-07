@@ -98,7 +98,11 @@ const AuthView: React.FC = () => {
           (tokenResponse as any)?.accessToken ||
           (tokenResponse as any)?.access_token ||
           'mock-token';
-        login(user, token);
+        const refreshToken =
+          (tokenResponse as any)?.refreshToken ||
+          (tokenResponse as any)?.refresh_token ||
+          null;
+        login(user, token, refreshToken);
         navigate('/works', { replace: true });
       } catch (error) {
         console.error('[AuthView] Mock 自动登录失败', error);
@@ -198,19 +202,23 @@ const AuthView: React.FC = () => {
         (tokenResponse as any)?.access_token ||
         (tokenResponse as any)?.token ||
         '';
+      const refreshToken =
+        (tokenResponse as any)?.refreshToken ||
+        (tokenResponse as any)?.refresh_token ||
+        null;
       if (!accessToken) {
         throw new Error('Missing access token');
       }
 
       // 登录成功 - authStore 会自动持久化 token
-      login(null as any, accessToken);  // 先存token，再获取用户信息
+      login(null as any, accessToken, refreshToken);  // 先存token，再获取用户信息
 
       // 第二步：获取用户信息
       const user = await DataService.getCurrentUser();
       console.log('[AuthView] User info:', user);
 
       // 更新用户信息
-      login(user, accessToken);
+      login(user, accessToken, refreshToken);
       navigate('/works');
     } catch (error: any) {
       const errorMessage = error?.response?.data?.detail || error?.message || '登录失败，请检查用户名和密码';

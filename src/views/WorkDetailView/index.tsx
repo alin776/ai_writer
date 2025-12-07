@@ -16,6 +16,7 @@ import {
 } from '../../components/ui/alert-dialog';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
+import { useAuthStore } from '../../store/authStore';
 import type { Work, Chapter, CreateChapterData } from '../../types';
 import type { Chapter as NovelChapter, WorldData, Character, Location, Setting, WorkGuidelines } from '../../types/novel';
 import { formatDate } from '../../utils/formatDate';
@@ -46,10 +47,42 @@ const WorkDetailView: React.FC = () => {
   const { workId } = useParams<{ workId: string }>();
   const navigate = useNavigate();
   const { showToast } = useGlobalStore();
+  const { user, setUser } = useAuthStore();
   const { confirmState, confirm, closeConfirm } = useConfirm();
   const { rightSidebarType, setRightSidebarType } = useEditorStore();
   const setLastWork = useWorkNavStore((state) => state.setLastWork);
   const clearLastWork = useWorkNavStore((state) => state.clearLastWork);
+
+  // AI 自动补全开关
+  const aiAutoCompleteEnabled = user?.preferences?.aiAutoComplete ?? false;
+
+  const handleToggleAIAutoComplete = useCallback(async () => {
+    if (!user) return;
+
+    const newValue = !aiAutoCompleteEnabled;
+    const currentPreferences = user.preferences || {
+      theme: 'light' as const,
+      language: 'zh-CN' as const,
+      fontSize: 'medium' as const,
+      autoSave: true,
+      autoSaveInterval: 30,
+      aiAutoComplete: false,
+    };
+
+    const newPreferences = {
+      ...currentPreferences,
+      aiAutoComplete: newValue,
+    };
+
+    try {
+      setUser({ ...user, preferences: newPreferences });
+      await DataService.updatePreferences(newPreferences);
+      showToast('success', newValue ? 'AI 自动补全已开启' : 'AI 自动补全已关闭');
+    } catch (error) {
+      setUser({ ...user, preferences: currentPreferences });
+      showToast('error', '更新设置失败');
+    }
+  }, [user, aiAutoCompleteEnabled, setUser, showToast]);
 
   const [work, setWork] = useState<Work | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -1252,6 +1285,10 @@ const WorkDetailView: React.FC = () => {
             placeholder="开始写作..."
             autoSave={true}
             autoSaveInterval={3000}
+            workId={workId}
+            chapterId={currentChapterId || undefined}
+            aiAutoCompleteEnabled={aiAutoCompleteEnabled}
+            onToggleAIAutoComplete={handleToggleAIAutoComplete}
           />
         </div>
 

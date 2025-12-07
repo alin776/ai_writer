@@ -9,7 +9,9 @@ interface AuthState {
   // 状态
   user: User | null;
   token: string | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
+  hasHydrated: boolean;
 
   // 方法
   /**
@@ -17,7 +19,7 @@ interface AuthState {
    * @param user 用户信息
    * @param token 认证令牌
    */
-  login: (user: User, token: string) => void;
+  login: (user: User | null, token: string, refreshToken?: string | null) => void;
 
   /**
    * 登出
@@ -35,6 +37,17 @@ interface AuthState {
    * @param token 新的认证令牌
    */
   setToken: (token: string) => void;
+
+  /**
+   * 更新 refresh token
+   * @param refreshToken 新的刷新令牌
+   */
+  setRefreshToken: (refreshToken: string | null) => void;
+
+  /**
+   * 标记持久化是否完成
+   */
+  setHasHydrated: (value: boolean) => void;
 }
 
 /**
@@ -47,13 +60,16 @@ export const useAuthStore = create<AuthState>()(
       // 初始状态
       user: null,
       token: null,
+      refreshToken: null,
       isAuthenticated: false,
+      hasHydrated: false,
 
       // 登录方法
-      login: (user: User, token: string) => {
+      login: (user: User | null, token: string, refreshToken: string | null = null) => {
         set({
           user,
           token,
+          refreshToken,
           isAuthenticated: true,
         });
       },
@@ -63,6 +79,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: null,
           token: null,
+          refreshToken: null,
           isAuthenticated: false,
         });
       },
@@ -76,14 +93,31 @@ export const useAuthStore = create<AuthState>()(
       setToken: (token: string) => {
         set({ token });
       },
+
+      // 更新 refresh token
+      setRefreshToken: (refreshToken: string | null) => {
+        set({ refreshToken });
+      },
+
+      // 设置持久化完成标记
+      setHasHydrated: (value: boolean) => {
+        set({ hasHydrated: value });
+      },
     }),
     {
       name: 'auth-storage', // localStorage 中的 key
       partialize: (state) => ({
         user: state.user,
         token: state.token,
+        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }), // 只持久化这些字段
+      onRehydrateStorage: () => {
+        return (state) => {
+          // rehydrate 完成后再进行鉴权判断，避免刷新后立即被重定向
+          state?.setHasHydrated?.(true);
+        };
+      },
     }
   )
 );

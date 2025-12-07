@@ -21,6 +21,7 @@ class Preferences(BaseModel):
     font_size: Literal['small', 'medium', 'large'] = 'medium'
     auto_save: bool = True
     auto_save_interval: int = Field(30, ge=5, le=600)
+    ai_auto_complete: bool = False  # AI 自动补全开关，默认关闭
 
 
 class ChangePasswordRequest(BaseModel):
