@@ -16,6 +16,11 @@ from .agents import (
     LogicAuditor,
     EditorAgent
 )
+from .character_extractor import (
+    extract_characters_from_text,
+    check_character_presence
+)
+from ..timeout_config import TimeoutConfig
 
 logger = logging.getLogger(__name__)
 
@@ -47,16 +52,6 @@ class MultiAgentExecutor:
     WRITING_KEYWORDS: Set[str] = {
         "写", "续写", "扩写", "重写", "创作", "生成内容", "章节"
     }
-
-    # 超时配置（秒）
-    STAGE_TIMEOUTS: Dict[str, int] = {
-        "outline": 30,       # 大纲师
-        "writing": 120,      # 主笔（生成长文本，需要较长时间）
-        "character_guard": 30,  # 角色守护
-        "logic_auditor": 30,    # 逻辑审计
-        "editor": 60,        # 总编
-    }
-    TOTAL_TIMEOUT = 300      # 整体超时 5 分钟
 
     def __init__(self, ai_service, memory_manager=None):
         """初始化执行器
@@ -127,13 +122,13 @@ class MultiAgentExecutor:
         logger.info(f"[MultiAgent] 开始执行写作任务: {task.get('description', '')[:50]}")
 
         try:
-            # 整体超时保护
+            # 整体超时保护（使用统一配置）
             return await asyncio.wait_for(
                 self._execute_internal(task, work_id, chapter_id, context, on_event),
-                timeout=self.TOTAL_TIMEOUT
+                timeout=TimeoutConfig.MULTI_AGENT_TOTAL
             )
         except asyncio.TimeoutError:
-            logger.error(f"[MultiAgent] 整体执行超时（>{self.TOTAL_TIMEOUT}s）")
+            logger.error(f"[MultiAgent] 整体执行超时（>{TimeoutConfig.MULTI_AGENT_TOTAL}s）")
             raise TimeoutError(f"Multi-Agent 写作流程超时，请稍后重试")
 
     async def _execute_internal(
@@ -157,11 +152,11 @@ class MultiAgentExecutor:
             try:
                 outline = await asyncio.wait_for(
                     self.outline_agent.generate(task, context),
-                    timeout=self.STAGE_TIMEOUTS["outline"]
+                    timeout=TimeoutConfig.get_stage_timeout("outline")
                 )
             except (asyncio.TimeoutError, Exception) as e:
                 logger.warning(f"[MultiAgent] 大纲生成失败，使用默认大纲: {e}")
-                outline = self._default_outline(task)
+                outline = self._default_outline(task, context)
 
             outline_time = time.time() - start_time
             await self._report_event(on_event, "task_done", 1, elapsed_time=outline_time)
@@ -173,7 +168,7 @@ class MultiAgentExecutor:
 
             draft = await asyncio.wait_for(
                 self.writer_agent.write(outline, context),
-                timeout=self.STAGE_TIMEOUTS["writing"]
+                timeout=TimeoutConfig.get_stage_timeout("writing")
             )
 
             writer_time = time.time() - start_time
@@ -186,10 +181,7 @@ class MultiAgentExecutor:
             start_time = time.time()
 
             # 使用 return_exceptions=True 允许部分失败
-            check_timeout = max(
-                self.STAGE_TIMEOUTS["character_guard"],
-                self.STAGE_TIMEOUTS["logic_auditor"]
-            )
+            check_timeout = TimeoutConfig.get_check_timeout()
 
             try:
                 results = await asyncio.wait_for(
@@ -215,8 +207,9 @@ class MultiAgentExecutor:
                     logic_review = results[1]
 
             except asyncio.TimeoutError:
-                logger.warning("[MultiAgent] 校验阶段超时，跳过校验")
-                character_review = self._default_pass_review("角色守护超时，已跳过")
+                logger.warning("[MultiAgent] 校验阶段超时，执行快速降级检查")
+                # ✅ P3修复：超时时进行简单的关键词匹配检查，防止完全跑题
+                character_review = await self._fallback_character_check(draft, context)
                 logic_review = self._default_pass_review("逻辑审计超时，已跳过")
 
             check_time = time.time() - start_time
@@ -237,7 +230,7 @@ class MultiAgentExecutor:
                 try:
                     final = await asyncio.wait_for(
                         self.editor_agent.revise(draft, character_review, logic_review, context),
-                        timeout=self.STAGE_TIMEOUTS["editor"]
+                        timeout=TimeoutConfig.get_stage_timeout("editor")
                     )
                     editor_time = time.time() - start_time
                     logger.info(f"[MultiAgent] 总编修订完成 ({editor_time:.1f}s)")
@@ -284,16 +277,16 @@ class MultiAgentExecutor:
             logger.error(f"[MultiAgent] 执行失败: {e}", exc_info=True)
             raise
 
-    def _default_outline(self, task: Dict[str, Any]) -> Dict[str, Any]:
-        """默认大纲模板（回退用）"""
+    def _default_outline(self, task: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+        """默认大纲模板（回退用，携带可用上下文避免跑题）"""
         return {
             "chapter_id": task.get("chapter_id", "unknown"),
             "title": task.get("description", "未命名章节")[:20],
-            "core_conflict": "待定",
-            "characters": [],
+            "core_conflict": context.get("previous_summary", "承接前三章剧情"),
+            "characters": context.get("character_document", []) if isinstance(context.get("character_document"), list) else [],
             "emotion_curve": {"start": "平静", "mid": "高潮", "end": "收尾"},
-            "foreshadowing": "",
-            "connection_to_previous": ""
+            "foreshadowing": context.get("world_setting", ""),
+            "connection_to_previous": context.get("previous_summary", "")
         }
 
     def _default_pass_review(self, reason: str = "校验已跳过") -> Dict[str, Any]:
@@ -303,6 +296,64 @@ class MultiAgentExecutor:
             "issues": [],
             "summary": reason
         }
+
+    async def _fallback_character_check(
+        self,
+        draft: Dict[str, Any],
+        context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """✅ P3修复：快速降级检查（超时时使用）
+
+        不调用 LLM，仅通过特征过滤检查内容是否跑题。
+        ✅ 重构：使用公共模块 character_extractor 进行角色提取
+
+        Args:
+            draft: 初稿内容
+            context: 上下文
+
+        Returns:
+            检查结果
+        """
+        content = draft.get("content", "")
+        analysis = context.get("analysis_result", "") or context.get("previous_summary", "")
+
+        if not analysis:
+            return self._default_pass_review("无分析结果，跳过降级检查")
+
+        # ✅ 重构：使用公共模块提取角色（基于特征过滤）
+        key_characters = extract_characters_from_text(analysis, max_count=8)
+
+        if not key_characters:
+            return self._default_pass_review("无法提取关键角色，跳过降级检查")
+
+        # ✅ 重构：使用公共模块检查角色出现情况
+        presence = check_character_presence(content, key_characters)
+
+        logger.info(
+            f"[MultiAgent] 降级检查: 角色匹配 {presence['match_count']}/{presence['total']} "
+            f"({presence['match_ratio']:.0%}), found={presence['found']}"
+        )
+
+        if presence["is_off_topic"]:
+            # 严重跑题
+            return {
+                "status": "NEED_REVISION",
+                "issues": [
+                    {
+                        "type": "content_drift",
+                        "severity": "high",
+                        "description": f"内容跑题：前文角色 {key_characters[:5]} 在新内容中几乎未出现",
+                        "suggestion": "请重新生成，确保延续前文角色和故事线"
+                    }
+                ],
+                "summary": f"降级检查发现内容跑题（角色匹配率 {presence['match_ratio']:.0%}）"
+            }
+        else:
+            return {
+                "status": "PASS",
+                "issues": [],
+                "summary": f"降级检查通过（角色匹配率 {presence['match_ratio']:.0%}）"
+            }
 
     def _needs_revision(
         self,

@@ -39,6 +39,7 @@ from app.services.agent.progress_tracker import ProgressTracker
 from app.services.agent.node_metadata import get_node_info
 # Multi-Agent 写作系统
 from app.services.agent.multi_agent import MultiAgentExecutor
+from app.services.agent.timeout_config import TimeoutConfig
 from app.services.agent.tools.editor_tools import (
     smart_continue,
     smart_rewrite,
@@ -146,7 +147,7 @@ async def _retry_on_failure(func, *args, max_retries=3, **kwargs):
 
 async def _with_timeout_and_retry(
     coro,
-    timeout_seconds: int = 300,
+    timeout_seconds: int = None,  # 默认使用 TimeoutConfig.LANGGRAPH_STREAM
     max_retries: int = 2,
     operation_name: str = "Operation",
     retry_on_timeout: bool = False
@@ -156,7 +157,7 @@ async def _with_timeout_and_retry(
 
     Args:
         coro: 要执行的协程
-        timeout_seconds: 超时时间（秒）
+        timeout_seconds: 超时时间（秒），默认使用 TimeoutConfig.LANGGRAPH_STREAM
         max_retries: 最大重试次数（不包括首次尝试）
         operation_name: 操作名称（用于日志）
         retry_on_timeout: 是否在超时后重试（默认False，超时直接抛出）
@@ -168,6 +169,8 @@ async def _with_timeout_and_retry(
         asyncio.TimeoutError: 超时
         Exception: 其他异常
     """
+    if timeout_seconds is None:
+        timeout_seconds = TimeoutConfig.LANGGRAPH_STREAM
     retry_count = 0
 
     # ✅ P0-3: 修复循环条件（<= 改为 <，避免多执行一次）
@@ -219,8 +222,8 @@ async def _generate_text_helper(
 
     while retry_count < max_retries:
         try:
-            # ✅ 为单次LLM调用添加超时保护（120秒，匹配_generate_text）
-            async with asyncio.timeout(120):
+            # ✅ 为单次LLM调用添加超时保护（使用统一配置）
+            async with asyncio.timeout(TimeoutConfig.LLM_CALL):
                 async for chunk, _ in ai_service._stream_chat(
                     messages=messages,
                     max_tokens=max_tokens,
@@ -240,7 +243,7 @@ async def _generate_text_helper(
 
         except asyncio.TimeoutError:
             retry_count += 1
-            logger.error(f"[_generate_text_helper] 生成超时（120秒）(尝试 {retry_count}/{max_retries})")
+            logger.error(f"[_generate_text_helper] 生成超时（{TimeoutConfig.LLM_CALL}秒）(尝试 {retry_count}/{max_retries})")
 
             if retry_count >= max_retries:
                 return f"错误：AI服务调用超时，已重试{max_retries}次"
@@ -1247,7 +1250,7 @@ class WritingAgentGraph:
                 "Accept-Encoding": "gzip, deflate",
                 "Connection": "keep-alive",
             },
-            timeout=httpx.Timeout(120.0, connect=10.0),
+            timeout=httpx.Timeout(float(TimeoutConfig.LLM_CALL), connect=10.0),
             follow_redirects=True,
             http2=False,
         )
@@ -1259,7 +1262,7 @@ class WritingAgentGraph:
                 "Accept-Encoding": "gzip, deflate",
                 "Connection": "keep-alive",
             },
-            timeout=httpx.Timeout(120.0, connect=10.0),
+            timeout=httpx.Timeout(float(TimeoutConfig.LLM_CALL), connect=10.0),
             follow_redirects=True,
             http2=False,
         )
@@ -1274,7 +1277,7 @@ class WritingAgentGraph:
             api_key=settings.OPENAI_API_KEY,
             base_url=settings.OPENAI_BASE_URL,
             temperature=0.7,
-            request_timeout=120,  # ← 明确设置120秒超时，避免双重超时冲突
+            request_timeout=TimeoutConfig.LLM_CALL,  # ← 使用统一超时配置
             http_client=sync_http_client,
             http_async_client=async_http_client,
             callbacks=[self.monitoring_callback],  # ← 添加监控回调
@@ -1489,9 +1492,9 @@ class WritingAgentGraph:
             raise ValueError("prompt 和 messages 不能同时提供")
         from app.services.agent.utils.monitoring import increment_counter
 
-        # ✅ P0-1: 添加120秒超时保护（匹配ChatOpenAI的request_timeout）
+        # ✅ P0-1: 添加超时保护（使用统一配置）
         try:
-            async with asyncio.timeout(120):
+            async with asyncio.timeout(TimeoutConfig.LLM_CALL):
                 # 🔧 修复：根据use_chatgpt选择使用ChatOpenAI还是HTTPAIService
                 if self.use_chatgpt:
                     # 模式1：使用ChatOpenAI（触发监控）
@@ -1573,12 +1576,12 @@ class WritingAgentGraph:
         except asyncio.TimeoutError:
             # 超时处理
             mode = "ChatOpenAI" if self.use_chatgpt else "HTTPAIService"
-            logger.error(f"[_generate_text] {mode} LLM调用超时（120秒）")
+            logger.error(f"[_generate_text] {mode} LLM调用超时（{TimeoutConfig.LLM_CALL}秒）")
             increment_counter("generate_text_error", labels={"error_type": "TimeoutError", "mode": mode})
 
             # 返回错误结果
             return {
-                "text": f"抱歉，AI响应超时（超过120秒）。请稍后重试。",
+                "text": f"抱歉，AI响应超时（超过{TimeoutConfig.LLM_CALL}秒）。请稍后重试。",
                 "usage": {},
                 "error": "timeout"
             }
@@ -3139,8 +3142,8 @@ class WritingAgentGraph:
             # 使用astream()流式执行
             event_count = 0
 
-            # ✅ 添加超时保护（5分钟）
-            async with asyncio.timeout(300):
+            # ✅ 添加超时保护（使用统一配置）
+            async with asyncio.timeout(TimeoutConfig.LANGGRAPH_STREAM):
                 async for event in self.graph.astream_events(initial_state, config, version="v2"):
                     event_count += 1
 
@@ -3250,7 +3253,7 @@ class WritingAgentGraph:
 
         except asyncio.TimeoutError:
             # ✅ 超时异常的特殊处理
-            logger.error(f"[LangGraph Stream] 执行超时（300秒）")
+            logger.error(f"[LangGraph Stream] 执行超时（{TimeoutConfig.LANGGRAPH_STREAM}秒）")
 
             # 🔧 监控：记录超时
             increment_counter("chat_stream_error", labels={"error_type": "TimeoutError"})
@@ -3261,7 +3264,7 @@ class WritingAgentGraph:
                 "conversation_id": conversation_id or "default",
                 "agent_steps": [],
                 "suggested_actions": ["简化问题", "稍后重试"],
-                "metadata": {"error": "Request timeout after 300 seconds", "timeout": 300}
+                "metadata": {"error": f"Request timeout after {TimeoutConfig.LANGGRAPH_STREAM} seconds", "timeout": TimeoutConfig.LANGGRAPH_STREAM}
             }
 
         except Exception as e:
@@ -3858,8 +3861,8 @@ class WritingAgentGraph:
                 f"(work_id={work_id}, conversation_id={conversation_id})"
             )
 
-            # 设置总体超时
-            async with asyncio.timeout(360):
+            # 设置总体超时（使用统一配置）
+            async with asyncio.timeout(TimeoutConfig.TASK_EXECUTION):
                 # ========== 加载对话历史 ==========
                 conversation_history = ""
 
@@ -4013,9 +4016,9 @@ chapter_id: {chapter_id}
                 initial_context = f"用户请求：{message}\n\n"
 
                 # 使用新的并行执行方法
-                # ✅ 为任务执行添加超时保护（4分钟，留1分钟给规划和总结）
+                # ✅ 为任务执行添加超时保护（使用统一配置）
                 try:
-                    async with asyncio.timeout(240):
+                    async with asyncio.timeout(TimeoutConfig.TASK_EXECUTION):
                         task_results = await self._execute_tasks_in_parallel(
                             tasks=plan_data["tasks"],
                             work_id=work_id,
@@ -4026,7 +4029,7 @@ chapter_id: {chapter_id}
                             on_task_done=on_task_done
                         )
                 except asyncio.TimeoutError:
-                    logger.error(f"[Execution] 任务执行超时（240秒）")
+                    logger.error(f"[Execution] 任务执行超时（{TimeoutConfig.TASK_EXECUTION}秒）")
                     return {
                         "response": "抱歉，任务执行超时。请尝试简化您的请求。",
                         "conversation_id": conversation_id or "default",
@@ -4034,7 +4037,7 @@ chapter_id: {chapter_id}
                         "task_results": [],
                         "agent_steps": [],
                         "suggested_actions": ["简化请求", "稍后重试"],
-                        "metadata": {"error": "Task execution timeout", "timeout": 240}
+                        "metadata": {"error": "Task execution timeout", "timeout": TimeoutConfig.TASK_EXECUTION}
                     }
 
                 # 构建完整上下文用于后续总结
@@ -5005,14 +5008,49 @@ chapter_id: {chapter_id}
                 "chapter_id": chapter_id,
             }
 
-            # 构建上下文（简化版，后续可从 WorldviewService 获取）
+            # ✅ P0修复：从累积的 context 中提取前置任务的分析结果
+            # context 格式: "用户请求：...\n\n任务1结果：\n...\n任务2结果：\n..."
+            def _extract_analysis_from_context(ctx: str) -> str:
+                """从累积上下文中提取分析类任务的结果"""
+                if not ctx:
+                    return ""
+
+                # 查找所有任务结果块
+                import re
+                task_pattern = re.compile(r'任务(\d+)结果[：:]\s*\n([\s\S]*?)(?=\n任务\d+结果|$)')
+                matches = task_pattern.findall(ctx)
+
+                # 找到最长的结果（通常是分析结果，因为分析输出较长）
+                # 或者找到包含"分析"、"摘要"等关键词的结果
+                analysis_keywords = ["主题", "人物", "情节", "角色", "冲突", "发展方向", "章节", "分析"]
+                best_analysis = ""
+
+                for task_id, result in matches:
+                    result = result.strip()
+                    # 检查是否包含分析关键词
+                    keyword_count = sum(1 for kw in analysis_keywords if kw in result)
+                    if keyword_count >= 3 and len(result) > len(best_analysis):
+                        best_analysis = result
+                        logger.debug(f"[MultiAgent] 从任务{task_id}提取分析结果，长度={len(result)}")
+
+                return best_analysis
+
+            # 提取分析结果作为 previous_summary
+            extracted_analysis = _extract_analysis_from_context(context)
+
+            # 构建上下文（优先使用提取的分析结果）
             ma_context = {
                 "character_document": params.get("character_document", ""),
-                "previous_summary": params.get("previous_summary", ""),
+                "previous_summary": params.get("previous_summary", "") or extracted_analysis,  # ✅ 优先使用分析结果
                 "previous_content": params.get("context", context)[-2000:] if params.get("context", context) else "",
                 "total_outline": params.get("outline", ""),
-                "world_setting": params.get("world_setting", "")
+                "world_setting": params.get("world_setting", ""),
+                "analysis_result": extracted_analysis  # ✅ 新增：显式传递分析结果
             }
+
+            # ✅ 日志记录上下文状态
+            context_status = {k: bool(v) for k, v in ma_context.items()}
+            logger.info(f"[MultiAgent] 上下文状态: {context_status}, 分析结果长度={len(extracted_analysis)}")
 
             # 检查是否有足够的上下文使用 Multi-Agent（覆盖更多信号）
             has_context = any([
@@ -5072,11 +5110,23 @@ chapter_id: {chapter_id}
                         "requirements": params.get("requirements", "")
                     })
             else:
-                logger.info("[MultiAgent] 上下文不足，使用原有写作工具")
-                result = await continue_writing_tool.ainvoke({
-                    "context": params.get("context", context),
-                    "requirements": params.get("requirements", "")
-                })
+                # 上下文不足，拒绝盲写，提示补充资料
+                logger.warning("[MultiAgent] 上下文不足，拒绝执行写作任务。请提供角色设定/前文摘要/世界观。")
+                if on_progress:
+                    await on_progress(task, "缺少上下文（角色/前文/世界观），请补充后再试。")
+                result = json.dumps({
+                    "error": "缺少写作上下文，已拒绝执行",
+                    "missing": [
+                        key for key, val in {
+                            "character_document": ma_context.get("character_document"),
+                            "previous_summary": ma_context.get("previous_summary"),
+                            "previous_content": ma_context.get("previous_content"),
+                            "world_setting": ma_context.get("world_setting"),
+                            "total_outline": ma_context.get("total_outline"),
+                        }.items() if not val
+                    ],
+                    "message": "请提供角色设定、前文摘要/正文、世界观或总纲后再尝试续写。"
+                }, ensure_ascii=False)
         elif tool_name == "polish_text_tool":
             result = await polish_text_tool.ainvoke({
                 "text": params.get("text", ""),

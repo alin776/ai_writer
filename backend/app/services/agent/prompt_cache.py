@@ -88,6 +88,7 @@ async def get_planning_static_prompt() -> str:
         对所有请求都相同，因此可以安全缓存。
 
     🔧 2025-12-02: P3根源修复 - 区分JSON工具和纯文本工具的占位符用法
+    🔧 2025-12-06: P1优化 - 增强多章节分析+续写场景的指导
     """
     return """生成任务清单JSON。
 
@@ -108,6 +109,9 @@ async def get_planning_static_prompt() -> str:
 - UUID格式: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 - JSON工具可用字段引用: $TASK_N.content$, $TASK_N.title$ 等
 - 纯文本工具只能用完整输出: $TASK_N$ (不要加.field)
+- 写作/生成类任务（continue_writing_tool、polish_text_tool 等）必须串联前序任务：用 $TASK_N$ 或 $TASK_N.content$ 作为输入，禁止直接复述用户原话或空上下文。
+- 写作前先获取/分析：先用 read_chapter/get_chapter_by_order/analyze_text 拿到内容，再把 $TASK_N$ 传给写作工具的 params（如 context/text）。
+- ⚠️ 多章节分析后续写时：分析任务的 $TASK_N$ 必须传给续写任务的 context 参数，确保角色和剧情延续！
 
 示例:
 用户: "分析第二章并润色"
@@ -117,6 +121,28 @@ async def get_planning_static_prompt() -> str:
     {"task_id": 1, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}},
     {"task_id": 2, "description": "分析章节", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$", "focus": "all"}},
     {"task_id": 3, "description": "润色内容", "tool": "polish_text_tool", "params": {"text": "$TASK_2$", "style": "文学"}}
+  ]
+}
+
+用户: "基于前两章续写第三章"
+{
+  "user_intent": "基于前两章续写第三章",
+  "tasks": [
+    {"task_id": 1, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}},
+    {"task_id": 2, "description": "分析第二章", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$", "focus": "角色+剧情"}},
+    {"task_id": 3, "description": "续写第三章", "tool": "continue_writing_tool", "params": {"context": "$TASK_2$", "requirements": "承接角色关系与冲突"}}
+  ]
+}
+
+用户: "分析前三章，续写第四章"
+{
+  "user_intent": "分析前三章，续写第四章",
+  "tasks": [
+    {"task_id": 1, "description": "获取第一章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 1}},
+    {"task_id": 2, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}},
+    {"task_id": 3, "description": "获取第三章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 3}},
+    {"task_id": 4, "description": "分析前三章", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$\n\n$TASK_2.content$\n\n$TASK_3.content$", "focus": "角色+剧情+伏笔"}},
+    {"task_id": 5, "description": "续写第四章", "tool": "continue_writing_tool", "params": {"context": "$TASK_4$", "requirements": "基于分析结果续写，延续角色和故事线"}}
   ]
 }
 
