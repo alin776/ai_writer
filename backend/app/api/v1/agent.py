@@ -27,13 +27,16 @@ from app.models.agent_session import AgentSession
 from app.models.agent_session_message import AgentSessionMessage
 from app.models.agent_session_message import AgentSessionMessage
 from app.models.chat_models import ChatMode, ChatRequest as UnifiedChatRequest, format_react_event_to_sse, format_planning_event_to_sse, format_error_event
+from app.models.chapter import Chapter
 from app.services.agent.memory import MemoryManager
 from app.services.agent.agents import PlanningAgent, ReflectionAgent
 from app.services.agent.tools import HITLManager
 from app.services.ai.http_ai_service import HTTPAIService
+from app.services.ai.humanize_service import HumanizeService
 from app.services.agent.langgraph_agent import WritingAgentGraph
 from app.services.knowledge_service import KnowledgeService
 from app.core.config import settings
+from app.core.humanize_config import get_config
 # ✅ 2025-12-01: 支持Agent成本追踪（通过请求上下文传递user_id）
 from app.core.request_context import set_request_context
 import redis
@@ -510,6 +513,135 @@ async def agent_chat(
         if knowledge_docs:
             context["knowledge_docs"] = knowledge_docs
             logger.info(f"[agent_chat] Injected {len(knowledge_docs)} knowledge docs into context")
+
+        # ✨ 优先处理 @optimization: 直接走去痕迹流程，而不是通用 Agent
+        if context.get("use_optimization"):
+            humanize_text = (
+                context.get("current_content")
+                or context.get("text")
+                or ""
+            )
+
+            # 如果前端未传正文，尝试根据 chapter_id 读取章节内容
+            if not humanize_text and request.chapter_id:
+                chapter_stmt = select(Chapter).where(Chapter.id == request.chapter_id)
+                if request.work_id:
+                    chapter_stmt = chapter_stmt.where(Chapter.work_id == request.work_id)
+                chapter_result = await db.execute(chapter_stmt)
+                chapter_obj = chapter_result.scalar_one_or_none()
+                if chapter_obj and chapter_obj.content:
+                    humanize_text = chapter_obj.content
+
+            # 文本长度校验（包含章节回退的场景）
+            humanize_conf = get_config()
+            if len(humanize_text) > humanize_conf.max_text_chars:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"去痕迹文本长度超过限制 ({len(humanize_text)} > {humanize_conf.max_text_chars})"
+                )
+
+            if not humanize_text:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="开启去痕迹优化但未提供可用文本"
+                )
+
+            try:
+                humanize_service = HumanizeService(ai_service=ai_service)
+                humanize_result = await humanize_service.full_humanize_process(
+                    text=humanize_text,
+                    intensity=context.get("intensity") or "medium",
+                    skip_detection=False,
+                    skip_verification=None,
+                    use_nlp_preprocessing=None
+                )
+                humanized_text = humanize_result.get("humanized_text") or humanize_text
+                detection = humanize_result.get("detection")
+                verification = humanize_result.get("verification")
+
+                token_usage_data = {
+                    "prompt_tokens": (
+                        humanize_result.get("detection_prompt_tokens", 0)
+                        + humanize_result.get("rewrite_prompt_tokens", 0)
+                        + humanize_result.get("verification_prompt_tokens", 0)
+                    ),
+                    "completion_tokens": (
+                        humanize_result.get("detection_completion_tokens", 0)
+                        + humanize_result.get("rewrite_completion_tokens", 0)
+                        + humanize_result.get("verification_completion_tokens", 0)
+                    ),
+                    "total_tokens": humanize_result.get("total_tokens", 0),
+                }
+
+                metadata = {
+                    "tool": "humanize_rewrite",
+                    "use_optimization": True,
+                    "detection_score": getattr(detection, "overall_score", None),
+                    "verification_score": getattr(verification, "score_after", None),
+                    "total_tokens": humanize_result.get("total_tokens"),
+                }
+
+                # 直接返回去痕迹结果，避免继续走通用 Agent 流程
+                agent_steps = [
+                    {"step": "humanize_rewrite", "result": "applied @optimization"}
+                ]
+
+                # 持久化会话消息（与普通路径对齐）
+                try:
+                    session = await _find_session_by_conversation(db, user_id, conversation_id)
+                    if session:
+                        await _persist_message(
+                            db,
+                            session,
+                            role="user",
+                            content=request.message,
+                            metadata={"mode": request.mode, "use_optimization": True},
+                        )
+                        await _persist_message(
+                            db,
+                            session,
+                            role="agent",
+                            content=humanized_text,
+                            metadata=metadata,
+                            token_usage=token_usage_data,
+                        )
+                        await db.commit()
+                        try:
+                            redis_client = get_redis_client()
+                            redis_client.delete(_session_detail_cache_key(str(session.id)))
+                            _invalidate_session_caches(redis_client, user_id)
+                        except Exception as cache_err:
+                            logger.warning(f"[LangGraph Agent @optimization] Clear session cache failed: {cache_err}")
+                except Exception as persist_err:
+                    await db.rollback()
+                    logger.warning(f"[LangGraph Agent @optimization] Persist message failed: {persist_err}")
+
+                # 记录交互
+                memory.record_user_interaction(
+                    user_id,
+                    "agent_chat",
+                    {
+                        "message": request.message,
+                        "intent": "humanize_rewrite",
+                        "conversation_id": conversation_id,
+                        "mode": request.mode or ChatMode.PLANNING,
+                        "use_optimization": True,
+                    }
+                )
+
+                return AgentChatResponse(
+                    response=humanized_text,
+                    conversation_id=conversation_id,
+                    agent_steps=agent_steps,
+                    suggested_actions=[],
+                    metadata=metadata
+                )
+            except Exception as humanize_err:
+                logger.error(f"[agent_chat] humanize flow failed: {humanize_err}", exc_info=True)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"AI去痕迹执行失败: {str(humanize_err)}"
+                )
 
         # 璋冪敤 LangGraph Agent 杩涜瀵硅瘽
         result = await agent_graph.chat(
@@ -1354,6 +1486,261 @@ async def agent_chat_stream(
                 if knowledge_docs:
                     context["knowledge_docs"] = knowledge_docs
                     logger.info(f"[agent_chat_stream] Injected {len(knowledge_docs)} knowledge docs into context")
+
+                humanize_text = None
+                # ✨ 优先处理 @optimization: 直接走去痕迹流程，避免通用Agent复述
+                if context.get("use_optimization"):
+                    humanize_text = (
+                        context.get("current_content")
+                        or context.get("text")
+                        or ""
+                    )
+
+                    if not humanize_text and request.chapter_id:
+                        chapter_stmt = select(Chapter).where(Chapter.id == request.chapter_id)
+                        if request.work_id:
+                            chapter_stmt = chapter_stmt.where(Chapter.work_id == request.work_id)
+                        chapter_result = await db.execute(chapter_stmt)
+                        chapter_obj = chapter_result.scalar_one_or_none()
+                        if chapter_obj and chapter_obj.content:
+                            humanize_text = chapter_obj.content
+
+                    humanize_conf = get_config()
+                    if len(humanize_text) > humanize_conf.max_text_chars:
+                        error_event = {
+                            'type': 'error',
+                            'message': f'去痕迹文本长度超过限制 ({len(humanize_text)} > {humanize_conf.max_text_chars})',
+                            'mode': str(actual_mode)
+                        }
+                        yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
+                        return
+
+                    if not humanize_text:
+                        error_event = {
+                            'type': 'error',
+                            'message': '开启去痕迹优化但未找到待处理文本',
+                            'mode': str(actual_mode)
+                        }
+                        yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
+                        return
+
+                    try:
+                        humanize_service = HumanizeService(ai_service=ai_service)
+                        config = humanize_service.config
+
+                        detection = None
+                        detection_usage = {}
+                        rewrite_usage = None
+                        verification = None
+                        verification_usage = {}
+
+                        # 检测阶段
+                        if config.enable_detection:
+                            detection, detection_usage = await humanize_service.detect_ai_traces(humanize_text)
+                            if detection.overall_score < config.detection_threshold:
+                                # 直接返回原文，无需改写
+                                info_event = {
+                                    'type': 'info',
+                                    'data': {'message': f'AI特征分数较低({detection.overall_score:.1f})，无需去痕迹'},
+                                    'mode': str(actual_mode)
+                                }
+                                yield f"data: {json.dumps(info_event, ensure_ascii=False)}\n\n"
+                                # 推送原文作为结果，避免前端无内容显示
+                                content_event = {
+                                    'type': 'content',
+                                    'data': humanize_text,
+                                    'mode': str(actual_mode)
+                                }
+                                yield f"data: {json.dumps(content_event, ensure_ascii=False)}\n\n"
+
+                                token_usage_data = {
+                                    "prompt_tokens": detection_usage.get("prompt_tokens", 0),
+                                    "completion_tokens": detection_usage.get("completion_tokens", 0),
+                                    "total_tokens": detection_usage.get("total_tokens", 0),
+                                }
+
+                                if session:
+                                    await _persist_message(
+                                        db,
+                                        session,
+                                        role="user",
+                                        content=request.message,
+                                        metadata={"mode": str(actual_mode), "use_optimization": True},
+                                    )
+                                    await _persist_message(
+                                        db,
+                                        session,
+                                        role="agent",
+                                        content=humanize_text,
+                                        metadata={
+                                            "mode": str(actual_mode),
+                                            "tool": "humanize_rewrite",
+                                            "detection_score": getattr(detection, "overall_score", None),
+                                            "skipped": True,
+                                        },
+                                        token_usage=token_usage_data,
+                                    )
+                                    await db.commit()
+                                    try:
+                                        redis_client = get_redis_client()
+                                        redis_client.delete(_session_detail_cache_key(str(session.id)))
+                                        _invalidate_session_caches(redis_client, user_id)
+                                    except Exception as cache_err:
+                                        logger.warning(f"[agent_chat_stream] Clear session cache failed (humanize skip): {cache_err}")
+
+                                memory.record_user_interaction(
+                                    user_id,
+                                    "agent_chat",
+                                    {
+                                        "message": request.message,
+                                        "intent": "humanize_rewrite",
+                                        "conversation_id": conversation_id,
+                                        "mode": str(actual_mode),
+                                        "use_optimization": True,
+                                        "skipped": True,
+                                    }
+                                )
+
+                                done_event = {
+                                    'type': 'done',
+                                    'mode': str(actual_mode),
+                                    'metadata': {
+                                        "tool": "humanize_rewrite",
+                                        "use_optimization": True,
+                                        "detection_score": getattr(detection, "overall_score", None),
+                                        "skipped": True,
+                                        "total_tokens": detection_usage.get("total_tokens", 0),
+                                    },
+                                    'suggested_actions': []
+                                }
+                                yield f"data: {json.dumps(done_event, ensure_ascii=False)}\n\n"
+                                return
+
+                        # 改写阶段 - 预先提示
+                        progress_event = {
+                            'type': 'progress',
+                            'data': {'step': 'humanize_rewrite', 'description': '正在执行去痕迹优化'},
+                            'mode': str(actual_mode)
+                        }
+                        yield f"data: {json.dumps(progress_event, ensure_ascii=False)}\n\n"
+
+                        humanized_chunks: List[str] = []
+                        async for chunk, usage in humanize_service.humanize_stream(
+                            text=humanize_text,
+                            intensity=context.get("intensity") or "medium",
+                            use_nlp_preprocessing=None
+                        ):
+                            if chunk:
+                                humanized_chunks.append(chunk)
+                                # 增量输出
+                                content_event = {
+                                    'type': 'content',
+                                    'data': chunk,
+                                    'mode': str(actual_mode)
+                                }
+                                yield f"data: {json.dumps(content_event, ensure_ascii=False)}\n\n"
+                            if usage:
+                                rewrite_usage = usage
+
+                        humanized_text = "".join(humanized_chunks)
+
+                        # 验证阶段
+                        if config.enable_verification:
+                            verification, verification_usage = await humanize_service.verify_humanization(
+                                humanize_text,
+                                humanized_text
+                            )
+
+                        token_usage_data = {
+                            "prompt_tokens": (
+                                detection_usage.get("prompt_tokens", 0)
+                                + (rewrite_usage or {}).get("prompt_tokens", 0)
+                                + (verification_usage or {}).get("prompt_tokens", 0)
+                            ),
+                            "completion_tokens": (
+                                detection_usage.get("completion_tokens", 0)
+                                + (rewrite_usage or {}).get("completion_tokens", 0)
+                                + (verification_usage or {}).get("completion_tokens", 0)
+                            ),
+                            "total_tokens": (
+                                detection_usage.get("total_tokens", 0)
+                                + (rewrite_usage or {}).get("total_tokens", 0)
+                                + (verification_usage or {}).get("total_tokens", 0)
+                            ),
+                        }
+
+                        # 持久化会话消息
+                        try:
+                            if session:
+                                await _persist_message(
+                                    db,
+                                    session,
+                                    role="user",
+                                    content=request.message,
+                                    metadata={"mode": str(actual_mode), "use_optimization": True},
+                                )
+                                await _persist_message(
+                                    db,
+                                    session,
+                                    role="agent",
+                                    content=humanized_text,
+                                    metadata={
+                                        "mode": str(actual_mode),
+                                        "tool": "humanize_rewrite",
+                                        "detection_score": getattr(detection, "overall_score", None) if detection else None,
+                                        "verification_score": getattr(verification, "score_after", None) if verification else None,
+                                        "total_tokens": token_usage_data["total_tokens"],
+                                    },
+                                    token_usage=token_usage_data,
+                                )
+                                await db.commit()
+                                try:
+                                    redis_client = get_redis_client()
+                                    redis_client.delete(_session_detail_cache_key(str(session.id)))
+                                    _invalidate_session_caches(redis_client, user_id)
+                                except Exception as cache_err:
+                                    logger.warning(f"[agent_chat_stream] Clear session cache failed (humanize): {cache_err}")
+                        except Exception as persist_err:
+                            await db.rollback()
+                            logger.warning(f"[agent_chat_stream] Persist humanize messages failed: {persist_err}")
+
+                        # 记录交互
+                        memory.record_user_interaction(
+                            user_id,
+                            "agent_chat",
+                            {
+                                "message": request.message,
+                                "intent": "humanize_rewrite",
+                                "conversation_id": conversation_id,
+                                "mode": str(actual_mode),
+                                "use_optimization": True,
+                            }
+                        )
+
+                        # 结束事件
+                        done_event = {
+                            'type': 'done',
+                            'mode': str(actual_mode),
+                            'metadata': {
+                                "tool": "humanize_rewrite",
+                                "use_optimization": True,
+                                "detection_score": getattr(detection, "overall_score", None) if detection else None,
+                                "verification_score": getattr(verification, "score_after", None) if verification else None,
+                                "total_tokens": token_usage_data["total_tokens"],
+                            },
+                            'suggested_actions': []
+                        }
+                        yield f"data: {json.dumps(done_event, ensure_ascii=False)}\n\n"
+                        return
+                    except Exception as humanize_err:
+                        logger.error(f"[agent_chat_stream] humanize flow failed: {humanize_err}", exc_info=True)
+                        error_event = {
+                            'type': 'error',
+                            'message': f'AI去痕迹执行失败: {str(humanize_err)}',
+                            'mode': str(actual_mode)
+                        }
+                        yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
+                        return
 
                 # 鉁?杩借釜娲诲姩鐘舵€侊紙鐢ㄤ簬鍙戦€?activity_complete 浜嬩欢锛?
                 last_activity_step = {'step': None, 'start_time': None}

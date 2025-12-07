@@ -1,9 +1,9 @@
-﻿import React, { useState, useRef, useEffect, useCallback, useMemo, KeyboardEvent } from 'react';
+﻿import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
 import { Bot, Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronLeft, Tag, X } from 'lucide-react';
 import { useAgentChat } from '../../hooks/useAgentChat';
+import { useEditorStore } from '../../store/editorStore';
 import type { AgentChatRequest } from '../../types/agent';
 import type { AgentMode } from '../agent/ModeSelector';
 import ModeSelector from '../agent/ModeSelector';
@@ -165,12 +165,15 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
     submitApproval,
   } = useAgentChat({ workId, chapterId, sessionId });  // 🆕 传递workId和chapterId进行会话隔离
 
+  // 获取当前章节内容，便于 @optimization 直接调用去痕迹接口
+  const { currentChapter } = useEditorStore();
+
   const [inputValue, setInputValue] = useState('');
   const [mode, setMode] = useState<AgentMode>('planning'); // ✅ Agent执行模式
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true); // 用于追踪是否应该自动滚动
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const [atMenuOpen, setAtMenuOpen] = useState(false);
   const [atStage, setAtStage] = useState<AtCommandStage>('root');
@@ -192,6 +195,17 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
   const [optimizationSelected, setOptimizationSelected] = useState(false);
 
   const containsAt = useMemo(() => AT_CHARS.some((c) => inputValue.includes(c)), [inputValue]);
+  // 去痕长度保护与提示
+  const MAX_HUMANIZE_CHARS = 5000;
+  const rawChapterContent = currentChapter?.content?.trim() || '';
+  const truncatedCount =
+    optimizationSelected && rawChapterContent.length > MAX_HUMANIZE_CHARS
+      ? rawChapterContent.length - MAX_HUMANIZE_CHARS
+      : 0;
+  const safeChapterContent =
+    optimizationSelected && rawChapterContent
+      ? rawChapterContent.slice(0, MAX_HUMANIZE_CHARS)
+      : undefined;
 
   const filteredRootOptions = useMemo(() => {
     const query = atQuery.trim().toLowerCase();
@@ -443,13 +457,27 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
     [closeAtMenu, stripCurrentToken]
   );
 
+  const adjustInputHeight = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const nextHeight = Math.min(el.scrollHeight, 240);
+    el.style.height = `${nextHeight}px`;
+    el.style.overflowY = el.scrollHeight > 240 ? 'auto' : 'hidden';
+    el.style.overflowX = 'hidden';
+    el.style.whiteSpace = 'pre-wrap';
+    el.style.wordBreak = 'break-word';
+    el.style.overflowWrap = 'break-word';
+  }, []);
+
   const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const value = e.target.value;
       setInputValue(value);
       updateAtState(value, e.target.selectionStart ?? value.length);
+      adjustInputHeight();
     },
-    [updateAtState]
+    [adjustInputHeight, updateAtState]
   );
 
   const removeKnowledgeTag = useCallback((tag: string) => {
@@ -466,6 +494,12 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
     const message = inputValue.trim();
     const knowledgeDocIds = selectedDocs.map((d) => d.id);
     const useOptimization = optimizationSelected;
+    const chapterContent = currentChapter?.content?.trim();
+    const MAX_HUMANIZE_CHARS = 5000;
+    const safeChapterContent =
+      chapterContent && chapterContent.length > MAX_HUMANIZE_CHARS
+        ? chapterContent.slice(0, MAX_HUMANIZE_CHARS)
+        : chapterContent;
 
     // 调试日志：查看发送的知识库文档ID
     console.log('[AIPanel] 发送消息，knowledge_doc_ids:', knowledgeDocIds, 'selectedDocs:', selectedDocs);
@@ -479,11 +513,20 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
         chapter_context: chapterId ? `当前章节ID: ${chapterId}` : undefined,
         knowledge_doc_ids: knowledgeDocIds,
         use_optimization: useOptimization,
+        ...(useOptimization && safeChapterContent
+          ? {
+              current_content: safeChapterContent,
+              text: safeChapterContent, // 兼容后端可能读取 text 字段
+            }
+          : {}),
       },
     };
 
     setInputValue('');
     closeAtMenu();
+    adjustInputHeight();
+    setSelectedDocs([]);
+    setOptimizationSelected(false);
 
     // 用户发送消息时，标记应该自动滚动
     shouldAutoScrollRef.current = true;
@@ -496,7 +539,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
   };
 
   const handleKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLInputElement>) => {
+    (e: KeyboardEvent<HTMLTextAreaElement>) => {
       const options = atStage === 'root' ? filteredRootOptions : filteredKnowledgeDocs;
       const hasOptions = options.length > 0;
 
@@ -531,12 +574,45 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
       if (e.key === 'Escape') {
         closeAtMenu();
       }
+
+      // 回退删除：当输入为空时，Backspace 删除最后一个胶囊（优先知识文档，其次 optimization）
+      if (e.key === 'Backspace' && !inputValue.trim()) {
+        if (selectedDocs.length > 0) {
+          e.preventDefault();
+          const last = selectedDocs[selectedDocs.length - 1];
+          removeKnowledgeTag(last.id);
+          return;
+        }
+        if (optimizationSelected) {
+          e.preventDefault();
+          removeOptimization();
+        }
+      }
     },
-    [atMenuOpen, atStage, closeAtMenu, filteredKnowledgeDocs, filteredRootOptions, handleKnowledgeSelect, handleRootOption, handleSend, highlightIndex]
+    [
+      atMenuOpen,
+      atStage,
+      closeAtMenu,
+      filteredKnowledgeDocs,
+      filteredRootOptions,
+      handleKnowledgeSelect,
+      handleRootOption,
+      handleSend,
+      highlightIndex,
+      inputValue,
+      optimizationSelected,
+      removeKnowledgeTag,
+      removeOptimization,
+      selectedDocs,
+    ]
   );
   const handleStop = useCallback(() => {
     stopStreaming();
   }, [stopStreaming]);
+
+  useLayoutEffect(() => {
+    adjustInputHeight();
+  }, [inputValue, selectedDocs.length, optimizationSelected, adjustInputHeight]);
 
   return (
     <div className="p-3 h-full flex flex-col">
@@ -762,15 +838,20 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
       {/* 模式选择 + 输入区（上下分区） */}
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-4 py-3 space-y-3">
         <div className="relative">
-          <div className="flex flex-wrap items-center gap-2 w-full min-h-12 px-1 py-1 rounded-xl bg-transparent text-gray-800">
+          <div className="flex flex-wrap items-start gap-2 w-full min-h-12 px-1 py-2 rounded-xl bg-transparent text-gray-800">
+            {/* 胶囊在前，输入在后，保持同一行逻辑 */}
             {optimizationSelected && (
               <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm">
                 <Sparkles className="w-3.5 h-3.5 text-zinc-600" />
                 optimization
                 <button
                   type="button"
-                  onClick={removeOptimization}
                   className="hover:text-zinc-900 transition-colors"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    removeOptimization();
+                  }}
                   aria-label="移除 AI 去痕迹"
                 >
                   <X className="w-3 h-3" />
@@ -786,8 +867,12 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
                 {doc.title}
                 <button
                   type="button"
-                  onClick={() => removeKnowledgeTag(doc.id)}
                   className="hover:text-zinc-900 transition-colors"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    removeKnowledgeTag(doc.id);
+                  }}
                   aria-label={`移除 ${doc.title}`}
                 >
                   <X className="w-3 h-3" />
@@ -795,7 +880,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
               </span>
             ))}
 
-            <input
+            <textarea
               ref={inputRef}
               value={inputValue}
               onChange={handleInputChange}
@@ -803,11 +888,28 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
               onClick={syncAtStateFromRef}
               onFocus={syncAtStateFromRef}
               placeholder="输入问题或指令..."
-              className="flex-1 min-w-[120px] h-9 bg-transparent outline-none border-none text-[12px] placeholder:text-gray-400"
+              className="flex-1 min-w-[200px] bg-transparent outline-none border-none text-[12px] placeholder:text-gray-400 resize-none leading-relaxed"
               disabled={isLoading}
+              rows={1}
+              wrap="soft"
+              style={{
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                overflowWrap: 'break-word',
+                overflow: 'hidden',
+                padding: '6px 0',
+                flexBasis: '100%',
+                minWidth: '100%',
+              }}
             />
           </div>
         </div>
+
+        {truncatedCount > 0 && (
+          <div className="text-[11px] text-amber-600 px-1">
+            章节内容超过 5000 字，已截断超出的 {truncatedCount} 字发送去痕迹。
+          </div>
+        )}
 
         <div className="flex items-center justify-between gap-2">
           <ModeSelector

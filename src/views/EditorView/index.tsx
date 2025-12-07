@@ -60,6 +60,18 @@ const EditorView: React.FC = () => {
     }
   }, [chapterId, setRightSidebarType]);
 
+  // 锁定 body 滚动，避免出现全局上下滚动条
+  useEffect(() => {
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+    };
+  }, []);
+
   /**
    * 加载章节数据和世界观数据
    */

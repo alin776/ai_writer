@@ -6,7 +6,7 @@
  * - @ menu (root: @Knowledge -> tags, @optimization)
  */
 
-import React, { useEffect, useMemo, useRef, useState, KeyboardEvent } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Square,
@@ -97,6 +97,16 @@ export default function ChatInput({
   const optimizationEnabled = useMemo(() => message.toLowerCase().includes('@optimization'), [message]);
   const containsAt = useMemo(() => message.includes('@') || message.includes('＠'), [message]);
 
+  const MAX_HUMANIZE_CHARS = 5000;
+  const truncatedChapterContent =
+    contextText && optimizationEnabled && contextText.length > MAX_HUMANIZE_CHARS
+      ? contextText.slice(0, MAX_HUMANIZE_CHARS)
+      : contextText;
+  const truncatedCount =
+    contextText && optimizationEnabled && contextText.length > MAX_HUMANIZE_CHARS
+      ? contextText.length - MAX_HUMANIZE_CHARS
+      : 0;
+
   const filteredRootOptions = useMemo(() => {
     const query = atQuery.trim().toLowerCase();
     if (!query) return ROOT_OPTIONS;
@@ -121,7 +131,13 @@ export default function ChatInput({
     const textarea = textareaRef.current;
     if (!textarea) return;
     textarea.style.height = 'auto';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+    const nextHeight = Math.min(textarea.scrollHeight, 240);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > 240 ? 'auto' : 'hidden';
+    textarea.style.overflowX = 'hidden';
+    textarea.style.whiteSpace = 'pre-wrap';
+    textarea.style.wordBreak = 'break-word';
+    textarea.style.overflowWrap = 'break-word';
   };
 
   const repositionMenu = () => {
@@ -171,7 +187,7 @@ export default function ChatInput({
     repositionMenu();
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     adjustHeight();
   }, [message]);
 
@@ -311,9 +327,9 @@ export default function ChatInput({
 
     const contextPayload = contextText.trim()
       ? {
-          text: contextText.trim(),
+          text: optimizationEnabled ? truncatedChapterContent?.trim() || contextText.trim() : contextText.trim(),
           chapter_context: contextText.trim(),
-          current_content: contextText.trim(),
+          current_content: optimizationEnabled ? truncatedChapterContent?.trim() || contextText.trim() : contextText.trim(),
         }
       : {};
 
@@ -321,7 +337,17 @@ export default function ChatInput({
       selectedDocs.length || optimizationEnabled
         ? {
             ...(selectedDocs.length ? { knowledge_doc_ids: selectedDocs.map((d) => d.id) } : {}),
-            ...(optimizationEnabled ? { use_optimization: true } : {}),
+            ...(optimizationEnabled
+              ? {
+                  use_optimization: true,
+                  ...(truncatedChapterContent
+                    ? {
+                        current_content: truncatedChapterContent,
+                        text: truncatedChapterContent,
+                      }
+                    : {}),
+                }
+              : {}),
           }
         : {};
 
@@ -568,11 +594,19 @@ export default function ChatInput({
             onFocus={syncAtStateFromRef}
             disabled={disabled}
             placeholder={placeholder}
-            className={`w-full px-1 py-1 pr-16 text-sm min-h-[72px] resize-none bg-transparent border-none focus:outline-none focus-visible:outline-none focus:ring-0 ${
+            className={`w-full px-1 py-1 pr-16 text-sm min-h-[72px] resize-none bg-transparent border-none focus:outline-none focus-visible:outline-none focus:ring-0 whitespace-pre-wrap break-words leading-relaxed ${
               disabled ? 'text-gray-400 cursor-not-allowed' : 'text-gray-800'
             } ${isOverLimit ? 'focus:ring-red-400' : ''}`}
             rows={3}
             maxLength={maxLength}
+            wrap="soft"
+            style={{
+              wordBreak: 'break-word',
+              overflowWrap: 'break-word',
+              whiteSpace: 'pre-wrap',
+              overflowY: 'hidden',
+              overflowX: 'hidden',
+            }}
           />
 
           {/* Char counter */}
@@ -619,6 +653,11 @@ export default function ChatInput({
               <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-purple-50 text-purple-700 text-xs font-medium border border-purple-100">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>AI去痕迹</span>
+                {truncatedCount > 0 && (
+                  <span className="text-[10px] text-amber-600 ml-1">
+                    已截断 {truncatedCount} 字
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={removeOptimization}

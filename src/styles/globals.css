@@ -640,6 +640,14 @@ textarea:focus-visible {
   border-color: transparent !important;
 }
 
+/* Chat 输入框多行换行与断词，确保长字符不会溢出 */
+.chat-input-wrapper textarea {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.6;
+}
+
 /* 自定义滚动条样式 - 精致简约 */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
