@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   BookOpen,
@@ -19,6 +19,7 @@ import {
   Wand2,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { useWorkNavStore } from '../../store/workNavStore';
 import clsx from 'clsx';
 
 /**
@@ -29,6 +30,7 @@ interface NavItem {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   path: string;
+  tooltip?: string;
   roles?: string[]; // 允许访问的角色，不设置则所有角色都能访问
 }
 
@@ -127,8 +129,25 @@ const adminNavItems: NavItem[] = [
 export const Sidebar: React.FC = () => {
   const location = useLocation();
   const { user } = useAuthStore();
+  const lastWorkPath = useWorkNavStore((state) => state.lastWorkPath);
+  const lastWorkTitle = useWorkNavStore((state) => state.lastWorkTitle);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isServiceExpanded, setIsServiceExpanded] = useState(true);
+
+  const isOnWorksList = location.pathname === '/works';
+  const isOnWorkDetailRoute = /^\/works\/(?!create)([^/]+)/.test(location.pathname);
+  const currentWorkPath = isOnWorksList ? null : (isOnWorkDetailRoute ? location.pathname : lastWorkPath);
+  const worksNavLabel = currentWorkPath ? '作品详情' : '作品管理';
+  const worksNavPath = currentWorkPath || '/works';
+  const worksNavTooltip = worksNavLabel === '作品详情' ? lastWorkTitle || worksNavLabel : worksNavLabel;
+
+  const dynamicMainNavItems: NavItem[] = useMemo(() => {
+    const [worksItem, ...rest] = mainNavItems;
+    return [
+      { ...worksItem, label: worksNavLabel, path: worksNavPath, tooltip: worksNavTooltip },
+      ...rest,
+    ];
+  }, [worksNavLabel, worksNavPath, worksNavTooltip]);
 
   /**
    * 检查菜单项是否激活
@@ -153,6 +172,7 @@ export const Sidebar: React.FC = () => {
 
     const Icon = item.icon;
     const active = isActive(item.path);
+    const tooltip = item.tooltip || item.label;
 
     return (
       <Link
@@ -165,7 +185,7 @@ export const Sidebar: React.FC = () => {
             : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900',
           isCollapsed ? 'justify-center' : 'space-x-3'
         )}
-        title={isCollapsed ? item.label : undefined}
+        title={isCollapsed ? tooltip : undefined}
       >
         {/* 左侧激活状态指示条 - 高亮色强调 */}
         {active && (
@@ -178,7 +198,7 @@ export const Sidebar: React.FC = () => {
         {/* 折叠状态的悬停提示 */}
         {isCollapsed && (
           <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
-            {item.label}
+            {tooltip}
           </div>
         )}
       </Link>
@@ -235,7 +255,7 @@ export const Sidebar: React.FC = () => {
               创作
             </div>
           )}
-          {mainNavItems.map(renderNavItem)}
+          {dynamicMainNavItems.map(renderNavItem)}
         </div>
 
         {/* 我的服务导航 - 可折叠 */}

@@ -25,6 +25,7 @@ import { SummaryPanel } from '../../components/editor/SummaryPanel';
 import { AIPanel } from '../../components/editor/AIPanel';
 import SessionTabBar from '../../components/editor/SessionTabBar';
 import { useEditorStore } from '../../store/editorStore';
+import { useWorkNavStore } from '../../store/workNavStore';
 import { useConfirm } from '../../hooks/useConfirm';
 import { useTabManager } from '../../hooks/useTabManager';
 import HistoryPanel from '../../components/agent/HistoryPanel';
@@ -47,6 +48,8 @@ const WorkDetailView: React.FC = () => {
   const { showToast } = useGlobalStore();
   const { confirmState, confirm, closeConfirm } = useConfirm();
   const { rightSidebarType, setRightSidebarType } = useEditorStore();
+  const setLastWork = useWorkNavStore((state) => state.setLastWork);
+  const clearLastWork = useWorkNavStore((state) => state.clearLastWork);
 
   const [work, setWork] = useState<Work | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -230,6 +233,7 @@ const WorkDetailView: React.FC = () => {
       if (!workId) {
         setError('作品 ID 不存在');
         setIsLoading(false);
+        clearLastWork();
         return;
       }
 
@@ -241,6 +245,7 @@ const WorkDetailView: React.FC = () => {
           DataService.getChapters(workId),
           DataService.getWorldData(workId),
         ]);
+        setLastWork(workId, workData?.title);
         setWork(workData);
         setChapters(chaptersData);
         setWorldData(worldDataFromServer as any);
@@ -282,13 +287,16 @@ const WorkDetailView: React.FC = () => {
         const message = err instanceof Error ? err.message : '加载数据失败';
         setError(message);
         showToast('error', message);
+        clearLastWork();
       } finally {
         setIsLoading(false);
       }
     };
 
     loadData();
-  }, [workId, showToast]);
+    // 说明：setLastWork/clearLastWork 和 showToast 都是稳定的 zustand 函数，此处依赖仅跟 workId 相关，
+    // 避免因函数引用变化导致的重复触发。
+  }, [workId]);
 
   /**
    * 处理章节选择
