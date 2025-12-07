@@ -11,6 +11,7 @@ LangGraph Agent 工作流实现
 
 from typing import TypedDict, Annotated, List, Dict, Any, Optional, Literal
 from datetime import datetime
+import os
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 from app.services.agent.parallel_tool_node import ParallelToolNode
@@ -34,7 +35,7 @@ from app.core.database import AsyncSessionLocal
 from app.services.agent.prompts import NovelPhase, PhaseCharacteristics
 from app.services.agent.prompt_library import get_content_prompt
 from app.services.agent.model_selector import TaskType
-from app.services.agent.prompt_cache import get_tool_decision_static_prompt, get_planning_static_prompt
+from app.services.agent.prompt_cache import get_tool_decision_static_prompt, get_planning_static_prompt, get_complexity_decision_prompt
 from app.services.agent.progress_tracker import ProgressTracker
 from app.services.agent.node_metadata import get_node_info
 # Multi-Agent 写作系统
@@ -59,6 +60,7 @@ class AgentState(TypedDict):
     work_id: Optional[str]  # 作品ID
     chapter_id: Optional[str]  # 章节ID
     intent: Optional[str]  # 用户意图
+    intent_decision: Optional[Dict[str, Any]]  # CoT 复杂度决策 {complexity, action}
     context: Dict[str, Any]  # 上下文信息
     agent_steps: Annotated[List[Dict[str, Any]], operator.add]  # Agent执行步骤
     suggested_actions: Annotated[List[str], operator.add]  # 建议操作
@@ -1384,11 +1386,24 @@ class WritingAgentGraph:
         END
         """
 
+        # ✅ 回滚开关：支持快速禁用 CoT 快速路径
+        enable_quick_path = os.getenv("ENABLE_QUICK_PATH", "true").lower() == "true"
+
         # 创建图
         workflow = StateGraph(AgentState)
 
         # 添加节点
-        workflow.add_node("intent_classifier", self._classify_intent)
+        if enable_quick_path:
+            # ✅ CoT 快速路径：使用增强版意图识别
+            workflow.add_node("intent_classifier", self._classify_intent_with_cot)
+            # ✅ 新增快速执行节点
+            workflow.add_node("quick_tool_execute", self._quick_tool_execute)
+            workflow.add_node("direct_response", self._direct_response)
+        else:
+            # 回滚模式：使用原有意图分类
+            logger.warning("[LangGraph] CoT 快速路径已禁用，使用原有流程")
+            workflow.add_node("intent_classifier", self._classify_intent)
+        # 原有 Agent 节点
         workflow.add_node("writing_agent", self._handle_writing)
         workflow.add_node("planning_agent", self._handle_planning)
         workflow.add_node("analysis_agent", self._handle_analysis)
@@ -1403,18 +1418,41 @@ class WritingAgentGraph:
         # 设置入口点
         workflow.set_entry_point("intent_classifier")
 
-        # 添加条件边：根据意图路由到不同Agent
-        workflow.add_conditional_edges(
-            "intent_classifier",
-            self._route_intent,
-            {
-                "writing": "writing_agent",
-                "planning": "planning_agent",
-                "analysis": "analysis_agent",
-                "stuck": "stuck_agent",
-                "general": "general_chat"
-            }
-        )
+        # 添加条件边：根据意图/CoT 结果路由到不同节点
+        if enable_quick_path:
+            # ✅ CoT 模式：支持快速路径
+            workflow.add_conditional_edges(
+                "intent_classifier",
+                self._route_after_intent_cot,
+                {
+                    # 新增快速路径
+                    "quick_tool_execute": "quick_tool_execute",
+                    "direct_response": "direct_response",
+                    # 原有路径
+                    "writing_agent": "writing_agent",
+                    "planning_agent": "planning_agent",
+                    "analysis_agent": "analysis_agent",
+                    "stuck_agent": "stuck_agent",
+                    "general_chat": "general_chat"
+                }
+            )
+
+            # ✅ 快速路径直接结束
+            workflow.add_edge("quick_tool_execute", END)
+            workflow.add_edge("direct_response", END)
+        else:
+            # 回滚模式：使用原有路由
+            workflow.add_conditional_edges(
+                "intent_classifier",
+                self._route_intent,
+                {
+                    "writing": "writing_agent",
+                    "planning": "planning_agent",
+                    "analysis": "analysis_agent",
+                    "stuck": "stuck_agent",
+                    "general": "general_chat"
+                }
+            )
 
         # 各Agent节点添加条件边：判断是否需要调用工具
         for agent_node in ["writing_agent", "planning_agent", "analysis_agent", "stuck_agent"]:
@@ -1735,6 +1773,266 @@ class WritingAgentGraph:
         intent = state.get("intent", "general")
         logger.info(f"[LangGraph] 路由到: {intent}")
         return intent
+
+    # ==================== CoT 快速路径（新增）====================
+
+    async def _classify_intent_with_cot(self, state: AgentState) -> AgentState:
+        """增强版意图识别 - 在现有分类基础上增加复杂度判断
+
+        流程：
+        1. 调用现有的意图分类逻辑（复用 _classify_intent_by_rules + _ai_classify_intent）
+        2. 新增：判断复杂度（simple/complex）
+        3. 新增：如果 simple，确定执行方案
+
+        Returns:
+            AgentState: 包含 intent, intent_decision, agent_steps
+        """
+        message = state["messages"][-1].content
+        logger.info(f"[Intent-CoT] 开始分析: {message[:50]}...")
+
+        # ========== 步骤1: 复用现有意图分类 ==========
+        intent, confidence = self._classify_intent_by_rules(message)
+        classification_method = "快速通道"
+
+        if confidence < 0.9:
+            intent, confidence = await self._ai_classify_intent(message)
+            classification_method = "AI语义分类"
+
+        logger.info(f"[Intent-CoT] 意图: {intent} ({classification_method})")
+
+        # ========== 步骤2: 复杂度判断 ==========
+        # writing/planning/analysis/stuck 意图默认为 complex
+        if intent in ("writing", "planning", "analysis", "stuck"):
+            logger.info(f"[Intent-CoT] {intent} 意图默认为 complex")
+            return {
+                "intent": intent,
+                "intent_decision": {"complexity": "complex", "action": {}},
+                "agent_steps": [{
+                    "step": "intent_cot",
+                    "result": f"{intent}/complex (默认)",
+                }]
+            }
+
+        # general 意图需要进一步判断复杂度
+        complexity_decision = await self._judge_complexity(message, intent)
+
+        logger.info(
+            f"[Intent-CoT] 决策: intent={intent}, "
+            f"complexity={complexity_decision.get('complexity', 'complex')}"
+        )
+
+        return {
+            "intent": intent,
+            "intent_decision": complexity_decision,
+            "agent_steps": [{
+                "step": "intent_cot",
+                "result": f"{intent}/{complexity_decision.get('complexity', 'complex')}",
+            }]
+        }
+
+    async def _judge_complexity(self, message: str, intent: str) -> Dict:
+        """判断请求复杂度并确定执行方案
+
+        Args:
+            message: 用户消息
+            intent: 已识别的意图类型
+
+        Returns:
+            Dict: {"complexity": "simple|complex", "action": {...}}
+        """
+        prompt_template = await get_complexity_decision_prompt()
+        prompt = prompt_template.format(intent=intent, message=message)
+
+        try:
+            result = await self.ai_service.call_ai(
+                system_prompt="你是执行路径决策器，返回严格的JSON格式。",
+                user_prompt=prompt,
+                max_tokens=300,
+                temperature=0.1,
+                task_type=TaskType.TEXT_CLASSIFICATION
+            )
+
+            decision = self._extract_json_from_text(result)
+            if decision and decision.get("complexity"):
+                return decision
+
+        except Exception as e:
+            logger.warning(f"[Intent-CoT] 复杂度判断失败: {e}，降级为 complex")
+
+        # 降级：默认为 complex
+        return {"complexity": "complex", "action": {}}
+
+    def _route_after_intent_cot(self, state: AgentState) -> str:
+        """根据 CoT 结果路由到对应节点
+
+        路由规则：
+        - simple + direct_answer → direct_response 节点（新增）
+        - simple + tool_name → quick_tool_execute 节点（新增）
+        - complex → 原有 Agent 节点（按意图路由）
+
+        Returns:
+            str: 目标节点名称
+        """
+        decision = state.get("intent_decision", {})
+        complexity = decision.get("complexity", "complex")
+        action = decision.get("action", {})
+        intent = state.get("intent", "general")
+
+        # ========== 快速路径（新增）==========
+        if complexity == "simple":
+            if action.get("direct_answer"):
+                logger.info("[Route-CoT] → direct_response (直接回答)")
+                return "direct_response"
+            elif action.get("tool_name"):
+                logger.info(f"[Route-CoT] → quick_tool_execute ({action['tool_name']})")
+                return "quick_tool_execute"
+
+        # ========== 原有路径（保持不变）==========
+        # 复杂请求走原有的 Agent 节点
+        route_map = {
+            "writing": "writing_agent",
+            "planning": "planning_agent",
+            "analysis": "analysis_agent",
+            "stuck": "stuck_agent",
+            "general": "general_chat",
+        }
+        target = route_map.get(intent, "general_chat")
+        logger.info(f"[Route-CoT] → {target} (complex)")
+        return target
+
+    async def _quick_tool_execute(self, state: AgentState) -> AgentState:
+        """快速执行单工具（新增节点，跳过完整 Agent 流程）
+
+        用于 simple + tool 场景，直接调用工具并格式化返回。
+
+        Returns:
+            AgentState: 包含 final_response, agent_steps
+        """
+        decision = state.get("intent_decision", {})
+        action = decision.get("action", {})
+
+        tool_name = action.get("tool_name")
+        tool_args = action.get("tool_args", {})
+        response_hint = action.get("response_hint")
+
+        logger.info(f"[QuickExecute] 执行工具: {tool_name}, 参数: {tool_args}")
+
+        # 1. 获取工具函数
+        tool_func = self._get_tool_by_name(tool_name)
+        if not tool_func:
+            return {
+                "final_response": f"抱歉，无法执行该操作（未知工具: {tool_name}）",
+                "agent_steps": [{"step": "quick_tool_execute", "result": "工具不存在"}]
+            }
+
+        # 2. 执行工具
+        try:
+            # 添加 work_id 参数（如果工具需要）
+            work_id = state.get("work_id")
+
+            # ✅ 检查 work_id 是否存在（某些工具需要）
+            tools_need_work_id = {"get_chapter_by_order_tool", "get_context_tool", "read_chapter_tool"}
+            if tool_name in tools_need_work_id and not work_id:
+                return {
+                    "final_response": "需要先选择一部作品才能执行此操作。请告诉我您要查看哪部作品？",
+                    "agent_steps": [{"step": "quick_tool_execute", "result": "缺少 work_id"}]
+                }
+
+            if work_id and "work_id" not in tool_args:
+                tool_args["work_id"] = work_id
+
+            result = await tool_func.ainvoke(tool_args)
+        except Exception as e:
+            logger.error(f"[QuickExecute] 工具执行失败: {e}")
+            return {
+                "final_response": f"工具执行失败: {str(e)}",
+                "agent_steps": [{"step": "quick_tool_execute", "result": f"错误: {e}"}]
+            }
+
+        # 3. 根据 hint 格式化响应
+        response = self._format_tool_response(result, tool_args, response_hint)
+
+        return {
+            "final_response": response,
+            "agent_steps": [{
+                "step": "quick_tool_execute",
+                "result": f"执行 {tool_name}",
+            }]
+        }
+
+    async def _direct_response(self, state: AgentState) -> AgentState:
+        """直接返回答案（新增节点，无需工具）
+
+        用于 simple + direct_answer 场景。
+
+        Returns:
+            AgentState: 包含 final_response, agent_steps
+        """
+        decision = state.get("intent_decision", {})
+        action = decision.get("action", {})
+        answer = action.get("direct_answer", "")
+
+        logger.info(f"[DirectResponse] 返回预设答案")
+
+        return {
+            "final_response": answer,
+            "agent_steps": [{
+                "step": "direct_response",
+                "result": "直接回答"
+            }]
+        }
+
+    def _get_tool_by_name(self, tool_name: str):
+        """根据名称获取工具函数
+
+        维护一个工具名到函数的映射表。
+        """
+        # 从全局工具列表中查找
+        for tool in WRITING_TOOLS:
+            if tool.name == tool_name:
+                return tool
+        return None
+
+    def _format_tool_response(
+        self,
+        result: Any,
+        tool_args: Dict,
+        response_hint: Optional[str]
+    ) -> str:
+        """格式化工具响应
+
+        根据 response_hint 提取特定字段并格式化为用户友好的响应。
+        """
+        # 解析 result（可能是 JSON 字符串）
+        if isinstance(result, str):
+            try:
+                result = json.loads(result)
+            except json.JSONDecodeError:
+                return result
+
+        if not response_hint or not isinstance(result, dict):
+            return str(result)
+
+        chapter_order = tool_args.get("chapter_order", "")
+
+        if response_hint == "title":
+            title = result.get("title", "未知")
+            return f"第{chapter_order}章的标题是：**{title}**"
+
+        elif response_hint == "word_count":
+            word_count = result.get("word_count", 0)
+            return f"第{chapter_order}章共 **{word_count}** 字"
+
+        elif response_hint == "content":
+            return result.get("content", "")
+
+        elif response_hint == "title_and_word_count":
+            title = result.get("title", "未知")
+            word_count = result.get("word_count", 0)
+            return f"第{chapter_order}章「{title}」共 **{word_count}** 字"
+
+        else:
+            return str(result)
 
     async def _handle_agent_with_tools(self, state: AgentState, agent_type: str, system_prompt: str) -> AgentState:
         """

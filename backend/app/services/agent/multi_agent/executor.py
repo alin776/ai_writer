@@ -20,6 +20,7 @@ from .character_extractor import (
     extract_characters_from_text,
     check_character_presence
 )
+from .mode_selector import ModeSelector
 from ..timeout_config import TimeoutConfig
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,9 @@ class MultiAgentExecutor:
         self.ai_service = ai_service
         self.memory_manager = memory_manager
 
+        # 初始化模式选择器
+        self.mode_selector = ModeSelector()
+
         # 初始化各 Agent
         self.outline_agent = OutlineAgent(ai_service)
         self.writer_agent = WriterAgent(ai_service)
@@ -119,7 +123,7 @@ class MultiAgentExecutor:
         context: Dict[str, Any],
         on_event: Optional[Callable[[Dict], Awaitable[None]]] = None
     ) -> Dict[str, Any]:
-        """执行写作任务的完整 Multi-Agent 流程（带超时保护）
+        """执行写作任务（带动态模式选择）
 
         Args:
             task: 任务信息
@@ -131,17 +135,231 @@ class MultiAgentExecutor:
         Returns:
             执行结果
         """
-        logger.info(f"[MultiAgent] 开始执行写作任务: {task.get('description', '')[:50]}")
+        # 1. 选择执行模式
+        mode = self.mode_selector.select(task, context)
+        mode_config = self.mode_selector.get_config(mode)
 
+        logger.info(
+            f"[MultiAgent] 模式: {mode} ({mode_config['description']}), "
+            f"任务: {task.get('description', '')[:30]}"
+        )
+
+        # 2. 按模式执行（带超时保护）
         try:
-            # 整体超时保护（使用统一配置）
-            return await asyncio.wait_for(
-                self._execute_internal(task, work_id, chapter_id, context, on_event),
-                timeout=TimeoutConfig.MULTI_AGENT_TOTAL
+            if mode == "lite":
+                return await asyncio.wait_for(
+                    self._execute_lite(task, context, on_event, mode_config),
+                    timeout=TimeoutConfig.MULTI_AGENT_TOTAL // 3  # lite 模式超时更短
+                )
+            elif mode == "standard":
+                return await asyncio.wait_for(
+                    self._execute_standard(task, work_id, context, on_event, mode_config),
+                    timeout=TimeoutConfig.MULTI_AGENT_TOTAL * 2 // 3
+                )
+            else:  # full
+                return await asyncio.wait_for(
+                    self._execute_internal(task, work_id, chapter_id, context, on_event),
+                    timeout=TimeoutConfig.MULTI_AGENT_TOTAL
+                )
+        except asyncio.TimeoutError:
+            logger.error(f"[MultiAgent] 执行超时 (mode={mode})")
+            raise TimeoutError(f"Multi-Agent 写作流程超时 (mode={mode})")
+
+    async def _execute_lite(
+        self,
+        task: Dict[str, Any],
+        context: Dict[str, Any],
+        on_event: Optional[Callable[[Dict], Awaitable[None]]],
+        config: Dict
+    ) -> Dict[str, Any]:
+        """Lite 模式执行：大纲(可选) + 主笔
+
+        适用于短内容、简单任务（< 500 字）
+        """
+        # 发送计划（1-2 阶段）
+        await self._send_plan_event_for_mode(on_event, config["stages"])
+
+        # 阶段1: 大纲（可选）
+        outline = None
+        if 1 in config["stages"]:
+            if self._needs_outline(task):
+                await self._report_event(on_event, "task_start", 1, "快速构思中...")
+                start_time = time.time()
+                try:
+                    outline = await asyncio.wait_for(
+                        self.outline_agent.generate(task, context),
+                        timeout=TimeoutConfig.get_stage_timeout("outline") // 2
+                    )
+                except (asyncio.TimeoutError, Exception) as e:
+                    logger.warning(f"[MultiAgent-Lite] 大纲生成失败: {e}")
+                    outline = self._default_outline(task, context)
+                await self._report_event(on_event, "task_done", 1, elapsed_time=time.time() - start_time)
+            else:
+                # 跳过大纲
+                await self._report_event(on_event, "task_start", 1, "跳过大纲")
+                await self._report_event(on_event, "task_done", 1, elapsed_time=0)
+                outline = {"structure": "直接写作", "key_points": []}
+
+        # 阶段2: 主笔
+        await self._report_event(on_event, "task_start", 2, "撰写中...")
+        start_time = time.time()
+        # ✅ 添加超时保护
+        try:
+            draft = await asyncio.wait_for(
+                self.writer_agent.write(outline or {}, context),
+                timeout=TimeoutConfig.get_stage_timeout("writing")
             )
         except asyncio.TimeoutError:
-            logger.error(f"[MultiAgent] 整体执行超时（>{TimeoutConfig.MULTI_AGENT_TOTAL}s）")
-            raise TimeoutError(f"Multi-Agent 写作流程超时，请稍后重试")
+            logger.error("[MultiAgent-Lite] 主笔写作超时")
+            raise TimeoutError("Lite 模式写作超时")
+        writer_time = time.time() - start_time
+        await self._report_event(on_event, "task_done", 2, elapsed_time=writer_time)
+
+        # 发送内容
+        await self._send_content_event(on_event, draft.get("content", ""))
+
+        return {
+            "content": draft.get("content", ""),
+            "word_count": draft.get("word_count", 0),
+            "mode": "lite",
+            "quality_score": min(0.80, config["max_quality_score"]),
+            "stages_executed": config["stages"],
+            "outline": outline,
+            "draft": draft,
+        }
+
+    async def _execute_standard(
+        self,
+        task: Dict[str, Any],
+        work_id: str,
+        context: Dict[str, Any],
+        on_event: Optional[Callable[[Dict], Awaitable[None]]],
+        config: Dict
+    ) -> Dict[str, Any]:
+        """Standard 模式执行：大纲 + 主笔 + 并行审查（不修订）
+
+        适用于中等内容（500-1500 字）
+        """
+        # 发送计划（4 阶段）
+        await self._send_plan_event_for_mode(on_event, config["stages"])
+
+        # 阶段1: 大纲
+        await self._report_event(on_event, "task_start", 1, "规划结构中...")
+        start_time = time.time()
+        try:
+            outline = await asyncio.wait_for(
+                self.outline_agent.generate(task, context),
+                timeout=TimeoutConfig.get_stage_timeout("outline")
+            )
+        except (asyncio.TimeoutError, Exception) as e:
+            logger.warning(f"[MultiAgent-Standard] 大纲生成失败: {e}")
+            outline = self._default_outline(task, context)
+        await self._report_event(on_event, "task_done", 1, elapsed_time=time.time() - start_time)
+
+        # 传递角色信息
+        key_characters = outline.get("key_characters", [])
+        if key_characters:
+            context["analysis_result"] = f"主要角色：{'、'.join(key_characters)}"
+
+        # 阶段2: 主笔
+        await self._report_event(on_event, "task_start", 2, "撰写中...")
+        start_time = time.time()
+        draft = await asyncio.wait_for(
+            self.writer_agent.write(outline, context),
+            timeout=TimeoutConfig.get_stage_timeout("writing")
+        )
+        await self._report_event(on_event, "task_done", 2, elapsed_time=time.time() - start_time)
+
+        # 阶段3&4: 并行审查
+        await self._report_event(on_event, "task_start", 3, "检查角色...")
+        await self._report_event(on_event, "task_start", 4, "检查逻辑...")
+        start_time = time.time()
+
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(
+                    self.character_guard.check(draft, work_id, context),
+                    self.logic_auditor.check(draft, work_id, context),
+                    return_exceptions=True
+                ),
+                timeout=TimeoutConfig.get_check_timeout()
+            )
+
+            character_review = results[0] if not isinstance(results[0], Exception) else self._default_pass_review("角色检查跳过")
+            logic_review = results[1] if not isinstance(results[1], Exception) else self._default_pass_review("逻辑检查跳过")
+        except asyncio.TimeoutError:
+            character_review = self._default_pass_review("审查超时")
+            logic_review = self._default_pass_review("审查超时")
+
+        check_time = time.time() - start_time
+        await self._report_event(on_event, "task_done", 3, elapsed_time=check_time)
+        await self._report_event(on_event, "task_done", 4, elapsed_time=check_time)
+
+        # 提取警告（不修订）
+        warnings = self._extract_warnings([character_review, logic_review])
+
+        # 发送内容
+        await self._send_content_event(on_event, draft.get("content", ""))
+
+        return {
+            "content": draft.get("content", ""),
+            "word_count": draft.get("word_count", 0),
+            "mode": "standard",
+            "quality_score": min(0.85, config["max_quality_score"]),
+            "stages_executed": config["stages"],
+            "outline": outline,
+            "draft": draft,
+            "character_review": character_review,
+            "logic_review": logic_review,
+            "warnings": warnings,
+        }
+
+    def _needs_outline(self, task: Dict) -> bool:
+        """判断是否需要大纲"""
+        task_type = self.mode_selector._infer_task_type(task.get("description", ""))
+        if task_type in ["polish", "expand"]:
+            return False
+
+        target_words = self.mode_selector._get_target_words(task)
+        if target_words and target_words < 300:
+            return False
+
+        return True
+
+    def _extract_warnings(self, results: list) -> list:
+        """从审查结果提取警告"""
+        warnings = []
+        for result in results:
+            if isinstance(result, dict) and result.get("status") not in ["PASS", "SKIPPED"]:
+                issues = result.get("issues", [])
+                for issue in issues[:3]:
+                    if isinstance(issue, dict):
+                        warnings.append(issue.get("description", str(issue)))
+                    else:
+                        warnings.append(str(issue))
+        return warnings
+
+    async def _send_plan_event_for_mode(
+        self,
+        callback: Optional[Callable[[Dict], Awaitable[None]]],
+        stages: list
+    ):
+        """根据模式发送计划事件"""
+        if callback:
+            tasks = []
+            for stage_id in stages:
+                if stage_id in MULTI_AGENT_STAGES:
+                    stage = MULTI_AGENT_STAGES[stage_id]
+                    tasks.append({
+                        "task_id": stage_id,
+                        "description": f"{stage['name']}：{stage['description']}"
+                    })
+
+            plan = {
+                "type": "plan",
+                "data": {"tasks": tasks}
+            }
+            await callback(plan)
 
     async def _execute_internal(
         self,
@@ -298,7 +516,9 @@ class MultiAgentExecutor:
             return {
                 "content": final.get("content", ""),
                 "word_count": final.get("word_count", 0),
+                "mode": "full",  # ✅ 添加 mode 字段保持一致性
                 "quality_score": final.get("quality_score", 0.85),
+                "stages_executed": [1, 2, 3, 4, 5],  # ✅ 添加 stages_executed 字段
                 "outline": outline,
                 "draft": draft,
                 "character_review": character_review,

@@ -281,3 +281,81 @@ async def get_planning_static_prompt() -> str:
 }
 
 返回纯JSON（必须包含thinking字段）:"""
+
+
+@cache_review(expire=3600, key_prefix="prompt")
+async def get_complexity_decision_prompt() -> str:
+    """复杂度判断 Prompt（在意图分类后调用）
+
+    用于判断请求复杂度（simple/complex）并确定执行方案：
+    - simple + tool: 直接执行单个工具
+    - simple + answer: 直接返回答案
+    - complex: 交给原有 Agent 流程
+
+    Returns:
+        str: Prompt 模板（需要 .format(intent=..., message=...) 填充）
+    """
+    return """你是执行路径决策器。根据已识别的意图类型和用户请求，判断最优执行路径。
+
+【输入信息】
+- 意图类型: {intent} (已由意图分类器识别)
+- 用户请求: {message}
+
+【决策规则】
+
+## 复杂度判断
+问自己：这个请求需要复杂处理吗？
+
+判断为 simple（可直接执行）的条件：
+- 只需要 1 个工具调用（如获取标题、字数）
+- 或者可以直接回答（如问候、简单问答）
+- 没有依赖关系
+- 没有多步骤
+
+判断为 complex（需要完整流程）的条件：
+- 需要多个工具协作
+- 有步骤依赖（先获取A，再用A做B）
+- 涉及创作完整章节
+- 需要分析后再行动
+- 需要概括/总结内容
+
+## 执行方案
+如果是 simple，给出具体方案：
+
+工具调用时：
+- tool_name: 工具名称
+- tool_args: 参数
+- response_hint: 返回字段提示（title/content/word_count）
+
+直接回答时：
+- direct_answer: 答案内容
+
+【可用工具速查】
+
+获取类（返回数据，无副作用）：
+- get_chapter_by_order_tool(chapter_order: int) → {{title, content, word_count}}
+- get_context_tool() → 作品上下文
+
+注意：概括/总结内容需要分析处理，应判定为 complex
+
+【输出格式】
+
+```json
+{{
+  "complexity": "simple|complex",
+  "reason": "判断依据（简短）",
+  "action": {{
+    // simple + tool:
+    "tool_name": "工具名",
+    "tool_args": {{}},
+    "response_hint": "title|content|word_count"
+
+    // simple + answer:
+    "direct_answer": "直接回答内容"
+
+    // complex: 留空 {{}}
+  }}
+}}
+```
+
+请分析并返回 JSON:"""
