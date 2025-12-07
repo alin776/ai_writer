@@ -21,6 +21,7 @@ interface Task {
   estimated_time?: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   elapsed_time?: number;
+  progress_status?: string;  // Multi-Agent 内部进度状态
 }
 
 interface UseAgentChatOptions {
@@ -316,12 +317,24 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     sessionManager.updateSession(sessionId, {
                       tasks: (sessionManager.getSession(sessionId)?.tasks || []).map((t) =>
                         t.task_id === taskDone.task_id
-                          ? { ...t, status: 'completed', elapsed_time: elapsedTime }
+                          ? { ...t, status: 'completed', elapsed_time: elapsedTime, progress_status: undefined }
                           : t
                       ),
                       currentTaskId: null
                     });
                     taskStartTimes.delete(taskDone.task_id);
+                  },
+                  onTaskProgress: (progress: any) => {
+                    // 更新任务的进度状态（用于 Multi-Agent 内部进度）
+                    const taskId = progress.task_id;
+                    const status = progress.status;
+                    if (taskId !== undefined && status) {
+                      sessionManager.updateSession(sessionId, {
+                        tasks: (sessionManager.getSession(sessionId)?.tasks || []).map((t) =>
+                          t.task_id === taskId ? { ...t, progress_status: status } : t
+                        )
+                      });
+                    }
                   }
                 }
               : {}),

@@ -4,6 +4,7 @@
 """
 
 from typing import Dict, Any, List
+from app.services.agent.model_selector import TaskType
 from .base_agent import BaseAgent
 from ..prompts import EDITOR_PROMPT
 
@@ -118,7 +119,8 @@ class EditorAgent(BaseAgent):
             system_prompt=EDITOR_PROMPT,
             user_prompt=user_prompt,
             temperature=0.6,
-            max_tokens=4000
+            max_tokens=4000,
+            task_type=TaskType.TEXT_POLISH
         )
 
         # 计算质量评分（简单估算）

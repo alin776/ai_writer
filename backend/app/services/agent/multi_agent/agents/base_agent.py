@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional
 import json
 import re
 import logging
+from app.services.agent.model_selector import TaskType
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,8 @@ class BaseAgent(ABC):
         system_prompt: str,
         user_prompt: str,
         temperature: float = 0.7,
-        max_tokens: int = 2000
+        max_tokens: int = 2000,
+        task_type: Optional[TaskType] = None
     ) -> str:
         """调用 LLM
 
@@ -72,6 +74,7 @@ class BaseAgent(ABC):
             user_prompt: 用户提示
             temperature: 温度参数
             max_tokens: 最大 token 数
+            task_type: 任务类型（用于模型选择/成本追踪）
 
         Returns:
             LLM 响应文本
@@ -81,7 +84,8 @@ class BaseAgent(ABC):
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                task_type=task_type
             )
             return result
         except Exception as e:

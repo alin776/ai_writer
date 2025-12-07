@@ -38,7 +38,7 @@ from app.services.agent.prompt_cache import get_tool_decision_static_prompt, get
 from app.services.agent.progress_tracker import ProgressTracker
 from app.services.agent.node_metadata import get_node_info
 # Multi-Agent 写作系统
-from app.services.agent.multi_agent import MultiAgentExecutor
+from app.services.agent.multi_agent import MultiAgentExecutor, TOTAL_STAGES
 from app.services.agent.timeout_config import TimeoutConfig
 from app.services.agent.tools.editor_tools import (
     smart_continue,
@@ -4938,6 +4938,7 @@ chapter_id: {chapter_id}
     ) -> str:
         """执行单个任务"""
         tool_name = task.get("tool", "auto")
+        task_type = task.get("type", "")  # ✅ 新增：检测任务类型
         params = task.get("params", {})
 
         # 标准化参数格式
@@ -4945,6 +4946,16 @@ chapter_id: {chapter_id}
 
         if on_progress:
             await on_progress(task, "正在执行...")
+
+        # ✅ 优先处理 multi_agent_writing 类型（意图路由优化）
+        if task_type == "multi_agent_writing":
+            return await self._execute_multi_agent_writing(
+                task=task,
+                work_id=work_id,
+                chapter_id=chapter_id,
+                context=context,  # ✅ 修复问题1：传递累积上下文
+                on_progress=on_progress
+            )
 
         # 根据工具名称调用对应工具
         # ✅ Multi-Agent 写作任务检测（支持更多写作型任务，但仅在写作相关工具或 auto 时启用）
@@ -5146,6 +5157,206 @@ chapter_id: {chapter_id}
             await on_progress(task, "完成")
 
         return result
+
+    async def _execute_multi_agent_writing(
+        self,
+        task: Dict[str, Any],
+        work_id: str,
+        chapter_id: str,
+        context: str = "",  # ✅ 修复问题1：接收累积上下文
+        on_progress: Optional[callable] = None
+    ) -> str:
+        """执行 multi_agent_writing 类型任务（意图路由优化）
+
+        核心改进：
+        1. 自动获取所需章节（无需 Planning 分解）
+        2. 直接调用 Multi-Agent 流程
+        3. 大纲师内部完成分析（避免重复分析）
+        4. ✅ 修复：支持从累积上下文中提取前置任务结果
+
+        Args:
+            task: 任务信息，包含 params.chapters_needed, params.target_chapter, params.requirements
+            work_id: 作品 ID
+            chapter_id: 当前章节 ID
+            context: 累积的上下文（包含前置任务结果）
+            on_progress: 进度回调
+
+        Returns:
+            生成的内容
+        """
+        params = task.get("params", {})
+        chapters_needed = params.get("chapters_needed", [])
+        target_chapter = params.get("target_chapter", 0)
+        requirements = params.get("requirements", "")
+        description = task.get("description", "")
+
+        logger.info(
+            f"[MultiAgentWriting] 开始执行 | "
+            f"需要章节: {chapters_needed}, 目标章节: {target_chapter}, "
+            f"描述: {description[:50]}"
+        )
+
+        # ✅ 修复问题3：从累积上下文中提取分析结果
+        existing_analysis = ""
+        existing_content = ""
+        if context:
+            # 尝试提取前置任务的分析结果
+            import re
+            task_pattern = re.compile(r'任务(\d+)结果[：:]\s*\n([\s\S]*?)(?=\n任务\d+结果|$)')
+            matches = task_pattern.findall(context)
+
+            analysis_keywords = ["主题", "人物", "情节", "角色", "冲突", "发展", "分析", "总结"]
+            for task_id, result in matches:
+                result = result.strip()
+                keyword_count = sum(1 for kw in analysis_keywords if kw in result)
+                if keyword_count >= 3 and len(result) > len(existing_analysis):
+                    existing_analysis = result
+                    logger.info(f"[MultiAgentWriting] 从任务{task_id}提取分析结果，长度={len(result)}")
+
+                # 也检查是否有章节内容
+                if "content" in result.lower() or len(result) > 1000:
+                    if len(result) > len(existing_content):
+                        existing_content = result
+
+        # ✅ 修复问题2：如果累积上下文中已有章节内容，优先使用（避免重复获取）
+        previous_contents = []
+        chapter_titles = []
+
+        if existing_content and len(existing_content) > 500:
+            logger.info(f"[MultiAgentWriting] 使用累积上下文中的内容（{len(existing_content)}字），跳过章节获取")
+            previous_contents.append(existing_content)
+        elif chapters_needed:
+            if on_progress:
+                await on_progress(task, "正在获取上下文章节...")
+
+            # 获取章节
+            for chapter_order in chapters_needed:
+                try:
+                    result = await get_chapter_by_order_tool.ainvoke({
+                        "work_id": work_id,
+                        "chapter_order": chapter_order
+                    })
+                    if isinstance(result, str):
+                        try:
+                            result_data = json.loads(result)
+                            content = result_data.get("content", "")
+                            title = result_data.get("title", f"第{chapter_order}章")
+                            if content:
+                                previous_contents.append(f"【{title}】\n{content}")
+                                chapter_titles.append(title)
+                                logger.info(f"[MultiAgentWriting] ✅ 获取第{chapter_order}章: {title}")
+                        except json.JSONDecodeError:
+                            if result and len(result) > 100:
+                                previous_contents.append(result)
+                                logger.info(f"[MultiAgentWriting] ✅ 获取第{chapter_order}章（纯文本）")
+                except Exception as e:
+                    logger.warning(f"[MultiAgentWriting] ⚠️ 获取第{chapter_order}章失败: {e}")
+        else:
+            # ✅ 修复问题4：chapters_needed 为空时，尝试获取前一章
+            if target_chapter and target_chapter > 1:
+                logger.warning(f"[MultiAgentWriting] chapters_needed 为空，尝试获取第{target_chapter - 1}章")
+                try:
+                    result = await get_chapter_by_order_tool.ainvoke({
+                        "work_id": work_id,
+                        "chapter_order": target_chapter - 1
+                    })
+                    if isinstance(result, str):
+                        try:
+                            result_data = json.loads(result)
+                            content = result_data.get("content", "")
+                            title = result_data.get("title", f"第{target_chapter - 1}章")
+                            if content:
+                                previous_contents.append(f"【{title}】\n{content}")
+                                chapter_titles.append(title)
+                        except json.JSONDecodeError:
+                            if result and len(result) > 100:
+                                previous_contents.append(result)
+                except Exception as e:
+                    logger.warning(f"[MultiAgentWriting] ⚠️ 获取前一章失败: {e}")
+
+        if on_progress:
+            await on_progress(task, f"已获取{len(previous_contents)}个章节，开始写作...")
+
+        # 构建 Multi-Agent 上下文
+        previous_content = "\n\n".join(previous_contents)
+
+        ma_context = {
+            "character_document": "",  # TODO: 可以从作品设定获取
+            "previous_summary": "",
+            "previous_content": previous_content,  # ✅ 关键：传递前文内容
+            "total_outline": "",
+            "world_setting": "",
+            "analysis_result": existing_analysis,  # ✅ 修复问题3：使用前置任务的分析结果
+            # ✅ 新增：传递章节信息，帮助大纲师理解上下文
+            "chapters_info": {
+                "chapters_needed": chapters_needed,
+                "chapter_titles": chapter_titles,
+                "target_chapter": target_chapter
+            }
+        }
+
+        # 构建写作任务
+        writing_task = {
+            "task_id": task.get("task_id", "1"),
+            "description": description or f"续写第{target_chapter}章",
+            "type": "multi_agent_writing",
+            "chapter_id": chapter_id,
+            "requirements": requirements
+        }
+
+        logger.info(
+            f"[MultiAgentWriting] 上下文准备完成 | "
+            f"前文长度: {len(previous_content)}, 章节数: {len(previous_contents)}, "
+            f"分析结果: {'有' if existing_analysis else '无'}({len(existing_analysis)}字)"
+        )
+
+        # 创建 Multi-Agent 执行器
+        multi_agent = MultiAgentExecutor(self.ai_service)
+
+        async def on_multi_agent_event(event: Dict[str, Any]):
+            """Multi-Agent 事件回调"""
+            if on_progress:
+                event_type = event.get("type", "")
+                data = event.get("data", {})
+
+                if event_type == "plan":
+                    tasks = data.get("tasks", [])
+                    task_count = len(tasks)
+                    await on_progress(task, f"开始 Multi-Agent 写作流程（{task_count}个阶段）")
+                elif event_type == "task_start":
+                    task_id = data.get("task_id", 0)
+                    # 使用 executor 发送的 description，不再硬编码
+                    description = data.get("description", f"阶段{task_id}")
+                    await on_progress(task, f"[{task_id}/{TOTAL_STAGES}] {description}")
+                elif event_type == "task_done":
+                    task_id = data.get("task_id", 0)
+                    elapsed = data.get("elapsed_time", 0)
+                    await on_progress(task, f"[{task_id}/{TOTAL_STAGES}] 完成 ({elapsed:.1f}s)")
+                elif event_type == "content":
+                    await on_progress(task, "Multi-Agent 写作完成")
+
+        try:
+            ma_result = await multi_agent.execute(
+                task=writing_task,
+                work_id=work_id,
+                chapter_id=chapter_id,
+                context=ma_context,
+                on_event=on_multi_agent_event
+            )
+            result = ma_result.get("content", "")
+            word_count = ma_result.get("word_count", len(result))
+            logger.info(f"[MultiAgentWriting] ✅ 写作完成: {word_count} 字")
+            return result
+
+        except Exception as e:
+            logger.error(f"[MultiAgentWriting] ❌ 写作失败: {e}", exc_info=True)
+            if on_progress:
+                await on_progress(task, f"写作失败: {str(e)[:50]}")
+            return json.dumps({
+                "error": "Multi-Agent 写作失败",
+                "message": str(e),
+                "suggestion": "请稍后重试，或检查网络连接"
+            }, ensure_ascii=False)
 
 
 # ==================== 导出 ====================

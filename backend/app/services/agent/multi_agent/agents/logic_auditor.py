@@ -4,6 +4,7 @@
 """
 
 from typing import Dict, Any
+from app.services.agent.model_selector import TaskType
 from .base_agent import BaseAgent
 from ..prompts import LOGIC_AUDITOR_PROMPT
 
@@ -86,7 +87,8 @@ class LogicAuditor(BaseAgent):
             system_prompt=LOGIC_AUDITOR_PROMPT,
             user_prompt=user_prompt,
             temperature=0.3,
-            max_tokens=2000
+            max_tokens=2000,
+            task_type=TaskType.TEXT_CLASSIFICATION
         )
 
         # 解析响应

@@ -15,6 +15,7 @@ interface Task {
   estimated_time?: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   elapsed_time?: number;
+  progress_status?: string;  // Multi-Agent 内部进度状态
 }
 
 interface TaskListPanelProps {
@@ -75,6 +76,13 @@ const TaskListPanel: React.FC<TaskListPanelProps> = ({ tasks, currentTaskId }) =
                 <div className={styles.taskDescription}>
                   {task.description}
                 </div>
+
+                {/* 进度状态：Multi-Agent 内部阶段进度 */}
+                {task.progress_status && task.status === 'running' && (
+                  <div className={styles.progressStatus}>
+                    {task.progress_status}
+                  </div>
+                )}
 
                 <div className={styles.taskMeta}>
                   {task.tool && (

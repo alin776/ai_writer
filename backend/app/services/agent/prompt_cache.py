@@ -81,68 +81,125 @@ async def get_planning_static_prompt() -> str:
     """获取 Planning 的静态 Prompt 部分（可缓存 1 小时）
 
     Returns:
-        str: 静态 Prompt 文本（约 250 tokens）
+        str: 静态 Prompt 文本
 
     说明：
-        这部分 Prompt 包含工具列表、规则说明和示例，
-        对所有请求都相同，因此可以安全缓存。
+        这部分 Prompt 包含任务类型识别规则和示例。
 
     🔧 2025-12-02: P3根源修复 - 区分JSON工具和纯文本工具的占位符用法
     🔧 2025-12-06: P1优化 - 增强多章节分析+续写场景的指导
+    🔧 2025-12-07: 架构优化 - 引入意图路由，写作任务直接交给 Multi-Agent
     """
     return """生成任务清单JSON。
 
-可用工具:
-【返回JSON的工具 - 支持字段引用 $TASK_N.field$】
-1. get_chapter_by_order_tool: 按序号获取章节 (参数: chapter_order) → 返回 {content, title, order}
-2. read_chapter_tool: 按ID读取章节 (参数: chapter_id) → 返回 {content, title}
-3. get_context_tool: 获取作品上下文 (无参数) → 返回 {work_info, current_chapter}
-4. search_analysis_fragments_tool: 搜索设定 (参数: query) → 返回 {fragments}
+【核心规则 - 任务类型识别】
+⚠️ 最重要：先识别任务类型，再决定如何规划！
 
-【返回纯文本的工具 - 只能用完整输出 $TASK_N$】
-5. continue_writing_tool: 续写 (参数: context, requirements) → 返回纯文本
-6. polish_text_tool: 润色 (参数: text, style) → 返回纯文本
-7. analyze_text_tool: 分析 (参数: text, focus) → 返回纯文本
+1. 写作类任务 → 使用 multi_agent_writing（单个任务）
+   关键词：续写、写、创作、扩写、重写、生成章节、写第X章
+   规则：不要分解成「获取章节」「分析」等子任务，Multi-Agent 内部会自动处理
 
-规则:
-- "第X章" → 用 get_chapter_by_order_tool
-- UUID格式: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-- JSON工具可用字段引用: $TASK_N.content$, $TASK_N.title$ 等
-- 纯文本工具只能用完整输出: $TASK_N$ (不要加.field)
-- 写作/生成类任务（continue_writing_tool、polish_text_tool 等）必须串联前序任务：用 $TASK_N$ 或 $TASK_N.content$ 作为输入，禁止直接复述用户原话或空上下文。
-- 写作前先获取/分析：先用 read_chapter/get_chapter_by_order/analyze_text 拿到内容，再把 $TASK_N$ 传给写作工具的 params（如 context/text）。
-- ⚠️ 多章节分析后续写时：分析任务的 $TASK_N$ 必须传给续写任务的 context 参数，确保角色和剧情延续！
+2. 查询类任务 → 使用对应工具
+   关键词：获取、查看、读取、列出
 
-示例:
-用户: "分析第二章并润色"
-{
-  "user_intent": "分析第二章并润色",
-  "tasks": [
-    {"task_id": 1, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}},
-    {"task_id": 2, "description": "分析章节", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$", "focus": "all"}},
-    {"task_id": 3, "description": "润色内容", "tool": "polish_text_tool", "params": {"text": "$TASK_2$", "style": "文学"}}
-  ]
-}
+3. 分析类任务 → 使用 analyze_text_tool
+   关键词：分析、总结、归纳（不涉及写作时）
 
-用户: "基于前两章续写第三章"
-{
-  "user_intent": "基于前两章续写第三章",
-  "tasks": [
-    {"task_id": 1, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}},
-    {"task_id": 2, "description": "分析第二章", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$", "focus": "角色+剧情"}},
-    {"task_id": 3, "description": "续写第三章", "tool": "continue_writing_tool", "params": {"context": "$TASK_2$", "requirements": "承接角色关系与冲突"}}
-  ]
-}
+4. 编辑类任务 → 使用 smart_rewrite 等
+   关键词：修改、润色、改写某段
 
+【可用工具】
+查询工具:
+- get_chapter_by_order_tool: 按序号获取章节 (参数: chapter_order)
+- read_chapter_tool: 按ID读取章节 (参数: chapter_id)
+- get_context_tool: 获取作品上下文 (无参数)
+
+分析工具:
+- analyze_text_tool: 分析文本 (参数: text, focus)
+
+写作工具（仅用于非章节级写作）:
+- polish_text_tool: 润色 (参数: text, style)
+
+⚠️ 特殊类型 - multi_agent_writing:
+- 用于：续写章节、创作新章节、扩写内容
+- 不需要指定 tool 字段，使用 type: "multi_agent_writing"
+- params 包含: chapters_needed(数组), target_chapter(数字), requirements(字符串)
+
+【示例】
+
+✅ 写作类 - 使用 multi_agent_writing（正确）
 用户: "分析前三章，续写第四章"
 {
-  "user_intent": "分析前三章，续写第四章",
+  "user_intent": "基于前三章续写第四章",
+  "tasks": [
+    {
+      "task_id": 1,
+      "type": "multi_agent_writing",
+      "description": "基于前三章续写第四章",
+      "params": {
+        "chapters_needed": [1, 2, 3],
+        "target_chapter": 4,
+        "requirements": "分析前三章的角色、剧情、伏笔，续写第四章"
+      }
+    }
+  ]
+}
+
+✅ 写作类 - 简单续写
+用户: "续写第五章"
+{
+  "user_intent": "续写第五章",
+  "tasks": [
+    {
+      "task_id": 1,
+      "type": "multi_agent_writing",
+      "description": "续写第五章",
+      "params": {
+        "chapters_needed": [4],
+        "target_chapter": 5,
+        "requirements": "承接上一章内容续写"
+      }
+    }
+  ]
+}
+
+✅ 查询类 - 使用工具
+用户: "获取第二章内容"
+{
+  "user_intent": "获取第二章",
+  "tasks": [
+    {"task_id": 1, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}}
+  ]
+}
+
+✅ 分析类 - 不涉及写作
+用户: "分析第一章的人物关系"
+{
+  "user_intent": "分析第一章人物关系",
+  "tasks": [
+    {"task_id": 1, "description": "获取第一章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 1}},
+    {"task_id": 2, "description": "分析人物关系", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$", "focus": "人物关系"}}
+  ]
+}
+
+✅ 混合类 - 先分析再写作
+用户: "帮我分析一下前两章写得怎么样，然后续写第三章"
+{
+  "user_intent": "分析前两章并续写第三章",
   "tasks": [
     {"task_id": 1, "description": "获取第一章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 1}},
     {"task_id": 2, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}},
-    {"task_id": 3, "description": "获取第三章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 3}},
-    {"task_id": 4, "description": "分析前三章", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$\n\n$TASK_2.content$\n\n$TASK_3.content$", "focus": "角色+剧情+伏笔"}},
-    {"task_id": 5, "description": "续写第四章", "tool": "continue_writing_tool", "params": {"context": "$TASK_4$", "requirements": "基于分析结果续写，延续角色和故事线"}}
+    {"task_id": 3, "description": "分析前两章质量", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$\n\n$TASK_2.content$", "focus": "写作质量评估"}},
+    {
+      "task_id": 4,
+      "type": "multi_agent_writing",
+      "description": "续写第三章",
+      "params": {
+        "chapters_needed": [1, 2],
+        "target_chapter": 3,
+        "requirements": "基于前两章续写第三章"
+      }
+    }
   ]
 }
 

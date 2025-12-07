@@ -25,6 +25,18 @@ from ..timeout_config import TimeoutConfig
 logger = logging.getLogger(__name__)
 
 
+# Multi-Agent 阶段定义（避免硬编码）
+MULTI_AGENT_STAGES = {
+    1: {"name": "大纲师", "description": "生成章节大纲", "action": "正在分析任务..."},
+    2: {"name": "主笔", "description": "撰写章节内容", "action": "正在撰写内容..."},
+    3: {"name": "角色守护", "description": "检查角色一致性", "action": "正在检查..."},
+    4: {"name": "逻辑审计", "description": "检查逻辑合理性", "action": "正在检查..."},
+    5: {"name": "总编", "description": "综合审核与修订", "action": "正在审核..."},
+}
+
+TOTAL_STAGES = len(MULTI_AGENT_STAGES)
+
+
 class MultiAgentExecutor:
     """写作任务的 Multi-Agent 执行器
 
@@ -146,7 +158,7 @@ class MultiAgentExecutor:
 
         try:
             # 阶段1: 大纲师（可回退）
-            await self._report_event(on_event, "task_start", 1, "大纲师正在分析任务...")
+            await self._report_event(on_event, "task_start", 1, f"{MULTI_AGENT_STAGES[1]['name']}{MULTI_AGENT_STAGES[1]['action']}")
             start_time = time.time()
 
             try:
@@ -163,7 +175,7 @@ class MultiAgentExecutor:
             logger.info(f"[MultiAgent] 大纲生成完成: {outline.get('title', '')} ({outline_time:.1f}s)")
 
             # 阶段2: 主笔（不可回退 - 核心步骤）
-            await self._report_event(on_event, "task_start", 2, "主笔正在撰写内容...")
+            await self._report_event(on_event, "task_start", 2, f"{MULTI_AGENT_STAGES[2]['name']}{MULTI_AGENT_STAGES[2]['action']}")
             start_time = time.time()
 
             draft = await asyncio.wait_for(
@@ -176,8 +188,8 @@ class MultiAgentExecutor:
             logger.info(f"[MultiAgent] 初稿完成: {draft.get('word_count', 0)} 字 ({writer_time:.1f}s)")
 
             # 阶段3&4: 角色守护 + 逻辑审计（并行执行，可回退）
-            await self._report_event(on_event, "task_start", 3, "角色守护正在检查...")
-            await self._report_event(on_event, "task_start", 4, "逻辑审计正在检查...")
+            await self._report_event(on_event, "task_start", 3, f"{MULTI_AGENT_STAGES[3]['name']}{MULTI_AGENT_STAGES[3]['action']}")
+            await self._report_event(on_event, "task_start", 4, f"{MULTI_AGENT_STAGES[4]['name']}{MULTI_AGENT_STAGES[4]['action']}")
             start_time = time.time()
 
             # 使用 return_exceptions=True 允许部分失败
@@ -223,7 +235,7 @@ class MultiAgentExecutor:
             )
 
             # 阶段5: 总编裁决（可回退）
-            await self._report_event(on_event, "task_start", 5, "总编正在审核...")
+            await self._report_event(on_event, "task_start", 5, f"{MULTI_AGENT_STAGES[5]['name']}{MULTI_AGENT_STAGES[5]['action']}")
             start_time = time.time()
 
             if self._needs_revision(character_review, logic_review):
@@ -387,11 +399,11 @@ class MultiAgentExecutor:
                 "type": "plan",
                 "data": {
                     "tasks": [
-                        {"task_id": 1, "description": "大纲师：生成章节大纲"},
-                        {"task_id": 2, "description": "主笔：撰写章节内容"},
-                        {"task_id": 3, "description": "角色守护：检查角色一致性"},
-                        {"task_id": 4, "description": "逻辑审计：检查逻辑合理性"},
-                        {"task_id": 5, "description": "总编：综合审核与修订"},
+                        {
+                            "task_id": task_id,
+                            "description": f"{stage['name']}：{stage['description']}"
+                        }
+                        for task_id, stage in MULTI_AGENT_STAGES.items()
                     ]
                 }
             }

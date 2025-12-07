@@ -4,6 +4,7 @@
 """
 
 from typing import Dict, Any
+from app.services.agent.model_selector import TaskType
 from .base_agent import BaseAgent
 from ..prompts import WRITER_PROMPT
 
@@ -108,7 +109,8 @@ class WriterAgent(BaseAgent):
             system_prompt=WRITER_PROMPT,
             user_prompt=user_prompt,
             temperature=0.8,  # 写作需要更多创造性
-            max_tokens=4000
+            max_tokens=4000,
+            task_type=TaskType.CONTENT_CREATION
         )
 
         # 计算字数

@@ -8,6 +8,6 @@
 - 总编 (EditorAgent): 最终修订和整合
 """
 
-from .executor import MultiAgentExecutor
+from .executor import MultiAgentExecutor, MULTI_AGENT_STAGES, TOTAL_STAGES
 
-__all__ = ["MultiAgentExecutor"]
+__all__ = ["MultiAgentExecutor", "MULTI_AGENT_STAGES", "TOTAL_STAGES"]
