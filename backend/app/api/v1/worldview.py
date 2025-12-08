@@ -38,14 +38,21 @@ logger = logging.getLogger(__name__)
 
 # ==================== 辅助函数：缓存处理 ====================
 
-def _get_cached_worldview_data(cache_key: str):
-    """尝试从缓存获取世界观数据"""
+def _get_cached_worldview_data(cache_key: str, log_miss: bool = True):
+    """
+    尝试从缓存获取世界观数据
+
+    Args:
+        cache_key: 缓存键
+        log_miss: 是否记录未命中日志（并发场景下可设为False减少噪音）
+    """
     if redis_client.is_available():
         cached = redis_client.get_json(cache_key)
         if cached:
             logger.info(f"✅ [Worldview] 缓存命中: {cache_key}")
             return cached
-        logger.info(f"⚠️ [Worldview] 缓存未命中: {cache_key}")
+        if log_miss:
+            logger.debug(f"[Worldview] 缓存未命中: {cache_key}")  # 改为debug级别
     return None
 
 

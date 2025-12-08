@@ -130,7 +130,9 @@ class DeepAgentExecutor:
 
             # 发送任务完成事件
             if self.on_task_done:
-                await self._safe_callback(self.on_task_done, task, result)
+                # ✅ 将执行时间从 result 复制到 task，确保前端能正确显示
+                task_with_time = {**task, "elapsed_time": result.get("elapsed_time", 0)}
+                await self._safe_callback(self.on_task_done, task_with_time, result)
 
             # ═══════════════════════════════════════
             # 反思检查点

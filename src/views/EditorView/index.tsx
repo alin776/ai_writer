@@ -35,10 +35,6 @@ const EditorView: React.FC = () => {
   const { showToast } = useGlobalStore();
   const { setCurrentChapter, rightSidebarType, setRightSidebarType, closeRightSidebar } = useEditorStore();
   const { user, setUser } = useAuthStore();
-  const { tabs, activeTabId, createTab, closeTab, switchTab, updateTabTitle } = useTabManager(
-    chapterId || 'default',
-    undefined
-  );
 
   // 从用户偏好读取 AI 自动补全开关
   const aiAutoCompleteEnabled = user?.preferences?.aiAutoComplete ?? false;
@@ -97,6 +93,12 @@ const EditorView: React.FC = () => {
     locations: [],
     settings: [],
   });
+
+  // 将 useTabManager 移到 chapter 状态之后，使用 chapter?.workId
+  const { tabs, activeTabId, createTab, closeTab, switchTab, updateTabTitle } = useTabManager(
+    chapterId || 'default',
+    chapter?.workId  // 使用 chapter 中的 workId，避免传入 undefined
+  );
 
   /**
    * 默认打开 agent 面板

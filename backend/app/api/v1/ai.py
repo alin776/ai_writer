@@ -664,7 +664,8 @@ async def ai_health_check():
 )
 async def preload_metadata(
     request: AIPreloadMetadataRequest,
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """预加载元数据到缓存（降低首次自动补全延迟）"""
     logger.info(

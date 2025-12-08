@@ -2084,12 +2084,31 @@ async def create_agent_session(
     now = datetime.utcnow()
     expires_at = now + timedelta(days=30)
 
+    # 验证 chapter_id 是否有效（如果提供）
+    validated_chapter_id = None
+    if payload.chapter_id:
+        try:
+            from uuid import UUID as PyUUID
+            chapter_uuid = PyUUID(payload.chapter_id)
+            stmt = select(Chapter).where(Chapter.id == chapter_uuid)
+            result = await db.execute(stmt)
+            chapter = result.scalar_one_or_none()
+            if chapter:
+                validated_chapter_id = payload.chapter_id
+                # 如果 chapter 存在但 work_id 未提供，自动从 chapter 获取
+                if not payload.work_id and chapter.work_id:
+                    payload.work_id = str(chapter.work_id)
+            else:
+                logger.warning(f"[create_agent_session] chapter_id {payload.chapter_id} 不存在，已忽略")
+        except ValueError:
+            logger.warning(f"[create_agent_session] chapter_id {payload.chapter_id} 格式无效，已忽略")
+
     new_session = AgentSession(
         user_id=current_user.id,
         title=title,
         conversation_id=payload.conversation_id,
         work_id=payload.work_id,
-        chapter_id=payload.chapter_id,
+        chapter_id=validated_chapter_id,
         expires_at=expires_at,
         title_locked=payload.title_locked if payload.title_locked is not None else False,
     )
