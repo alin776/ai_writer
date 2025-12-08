@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Optional, Callable
 
 from .config import DeepAgentConfig
 from .reflection import think_tool, should_reflect, ReflectionResult
+from .task_enricher import get_task_enricher
 
 logger = logging.getLogger(__name__)
 
@@ -86,10 +87,27 @@ class DeepAgentExecutor:
         # 使用 while + 索引而非 for 循环，因为重规划时 tasks 列表可能被替换
         # 重规划只替换 tasks[i+1:] 部分，当前任务索引 i 不变
         # 因此 i += 1 后继续遍历新的任务列表是安全的
+        # 获取任务增强器（用于补全缺少 tool 的任务）
+        task_enricher = get_task_enricher()
+        # ✅ 注入 AI 生成函数（复用 agent 的 _generate_text 方法）
+        if hasattr(self.agent, '_generate_text'):
+            task_enricher.set_ai_generate_func(self.agent._generate_text)
+
         i = 0
         while i < len(tasks):
             task = tasks[i]
             task_id = task.get("task_id", i + 1)
+
+            # ✅ 任务增强：为缺少 tool 的任务自动推断工具
+            # 这对重规划生成的任务尤为重要
+            # 传递已完成任务结果，供 TaskEnricher 提取文本参数
+            if not task.get("tool") or task.get("tool") == "auto":
+                task = await task_enricher.enrich(
+                    task=task,
+                    context=context,
+                    completed_results=results  # ✅ 传递已完成任务结果
+                )
+                tasks[i] = task  # 更新任务列表
 
             # 发送任务开始事件
             if self.on_task_start:
