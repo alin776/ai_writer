@@ -35,7 +35,7 @@ from app.core.database import AsyncSessionLocal
 from app.services.agent.prompts import NovelPhase, PhaseCharacteristics
 from app.services.agent.prompt_library import get_content_prompt
 from app.services.agent.model_selector import TaskType
-from app.services.agent.prompt_cache import get_tool_decision_static_prompt, get_planning_static_prompt, get_complexity_decision_prompt
+from app.services.agent.prompt_cache import get_tool_decision_static_prompt, get_planning_static_prompt, get_planning_agent_mode_prompt, get_complexity_decision_prompt
 from app.services.agent.progress_tracker import ProgressTracker
 from app.services.agent.node_metadata import get_node_info
 # Multi-Agent 写作系统
@@ -4536,7 +4536,11 @@ class WritingAgentGraph:
 """
 
                 # ✅ Phase 2.6: 使用缓存的静态 Prompt（节省构建时间和 Token）
-                static_prompt = await get_planning_static_prompt()
+                # ✅ 2025-12-08: Agent 模式使用增强版 Prompt（支持 checkpoint 标记）
+                if enable_reflection:
+                    static_prompt = await get_planning_agent_mode_prompt()
+                else:
+                    static_prompt = await get_planning_static_prompt()
 
                 # ✅ P0修复: 注入知识库文档到Planning prompt
                 knowledge_section = ""

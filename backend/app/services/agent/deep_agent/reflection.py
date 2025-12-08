@@ -119,46 +119,42 @@ def _build_reflection_prompt(
 2. 是否发现需要补充的信息？
 3. 剩余任务是否仍然合理？
 
-## 输出格式（JSON）
-{{"reflection": "简短反思（<100字）", "needs_replan": true/false}}
+## 输出格式
+第一行必须是决策标记：REPLAN:YES 或 REPLAN:NO
+然后是简短反思（<100字）
+
+示例：
+REPLAN:NO
+分析结果符合预期，后续任务规划合理，继续执行。
 """
 
 
 def _parse_reflection_response(response: str) -> ReflectionResult:
-    """解析反思响应"""
-    try:
-        # 尝试提取 JSON
-        response = response.strip()
+    """解析反思响应
 
-        # 处理可能的 markdown 代码块
-        if "```json" in response:
-            start = response.find("```json") + 7
-            end = response.find("```", start)
-            response = response[start:end].strip()
-        elif "```" in response:
-            start = response.find("```") + 3
-            end = response.find("```", start)
-            response = response[start:end].strip()
+    解析标记式输出格式：
+    第一行：REPLAN:YES 或 REPLAN:NO
+    后续行：反思内容
 
-        # 尝试找到 JSON 对象
-        if "{" in response:
-            start = response.find("{")
-            end = response.rfind("}") + 1
-            json_str = response[start:end]
-            data = json.loads(json_str)
+    🔧 2025-12-08: 简化解析逻辑，移除 JSON 解析和关键词匹配
+    """
+    response = response.strip()
+    lines = response.split('\n')
 
-            return ReflectionResult(
-                reflection=data.get("reflection", response),
-                needs_replan=data.get("needs_replan", False),
-                suggested_tasks=data.get("suggested_tasks"),
-            )
-    except json.JSONDecodeError as e:
-        # P2-4: 记录 JSON 解析异常
-        logger.debug(f"反思响应 JSON 解析失败: {e}, 原始响应: {response[:200]}...")
+    # 解析第一行的决策标记
+    first_line = lines[0].strip().upper() if lines else ""
+    needs_replan = 'REPLAN' in first_line and 'YES' in first_line
 
-    # 降级处理：基于关键词判断
-    needs_replan = any(kw in response for kw in DeepAgentConfig.REPLAN_KEYWORDS)
-    return ReflectionResult(reflection=response, needs_replan=needs_replan)
+    # 反思内容是第一行之后的部分
+    reflection = '\n'.join(lines[1:]).strip() if len(lines) > 1 else response
+
+    # 如果反思内容为空，使用原始响应
+    if not reflection:
+        reflection = response
+
+    logger.debug(f"反思解析: needs_replan={needs_replan}, 第一行={first_line[:50]}")
+
+    return ReflectionResult(reflection=reflection, needs_replan=needs_replan)
 
 
 def should_reflect(
@@ -169,6 +165,10 @@ def should_reflect(
 ) -> bool:
     """判断是否需要触发反思
 
+    基于 LangChain DeepAgents 设计理念重构：
+    - 优先检查 AI 在规划阶段标记的 checkpoint 字段
+    - 保留任务失败时的兜底反思
+
     Args:
         task: 当前任务
         result: 任务结果
@@ -177,38 +177,28 @@ def should_reflect(
 
     Returns:
         bool: 是否需要反思
+
+    🔧 2025-12-08: 重构 - 基于 checkpoint 字段判断，让 AI 决定何时反思
     """
     config = DeepAgentConfig
 
-    # 达到上限
+    # 1. 达到上限检查
     if reflection_count >= config.MAX_REFLECTIONS:
         logger.debug(f"已达到最大反思次数 ({config.MAX_REFLECTIONS})，跳过反思")
         return False
 
-    # 任务失败
+    # 2. ✅ 新增：检查 AI 标记的 checkpoint 字段（核心逻辑）
+    #    这是 Agent 模式的核心：让 AI 在规划时就决定哪些任务需要反思
+    if task.get("checkpoint") is True:
+        task_id = task.get("task_id", "?")
+        logger.info(f"[Checkpoint] 任务 {task_id} 标记了 checkpoint，触发反思")
+        return True
+
+    # 3. 任务失败时兜底反思
     if config.REFLECT_ON_FAILURE and result.get("status") == "failed":
         logger.debug("任务失败，触发反思")
         return True
 
-    # 低质量
-    if config.REFLECT_ON_LOW_QUALITY:
-        quality = result.get("quality_score", 1.0)
-        if quality < config.QUALITY_THRESHOLD:
-            logger.debug(f"任务质量较低 ({quality} < {config.QUALITY_THRESHOLD})，触发反思")
-            return True
-
-    # 分析类任务
-    if config.REFLECT_ON_ANALYSIS:
-        desc = task.get("description", "").lower()
-        task_type = task.get("type", "")
-        # 使用配置的分析类关键词列表
-        if task_type == "analysis" or any(kw in desc for kw in config.ANALYSIS_KEYWORDS):
-            logger.debug(f"分析类任务完成，触发反思 (desc={desc[:30]})")
-            return True
-
-    # 定期反思
-    if completed_count > 0 and completed_count % config.REFLECT_EVERY_N_TASKS == 0:
-        logger.debug(f"定期反思检查点 (每 {config.REFLECT_EVERY_N_TASKS} 个任务)")
-        return True
-
+    # 4. 其他情况不触发反思
+    #    注意：移除了基于关键词的判断，因为现在由 AI 通过 checkpoint 字段控制
     return False
