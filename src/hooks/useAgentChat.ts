@@ -93,11 +93,11 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
   const sessionManager = useMemo(() => getGlobalSessionManager(), []);
   const [sessionState, setSessionState] = useState<SessionState>(() =>
-    sessionManager.getOrCreateSession(sessionId, { mode: 'planning' })
+    sessionManager.getOrCreateSession(sessionId, { mode: 'plan' })
   );
 
   const persistMessages = useCallback(
-    (messagesToSave: Message[], conversation?: string, mode?: 'planning' | 'react') => {
+    (messagesToSave: Message[], conversation?: string, mode?: 'plan' | 'agent') => {
       persistence.saveSession(messagesToSave, conversation, {
         mode,
         workId,
@@ -108,7 +108,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
   );
 
   const persistMessagesThrottled = useCallback(
-    (messagesToSave: Message[], conversation?: string, mode?: 'planning' | 'react', force: boolean = false) => {
+    (messagesToSave: Message[], conversation?: string, mode?: 'plan' | 'agent', force: boolean = false) => {
       const now = Date.now();
       if (!force && now - lastPersistRef.current < 500) {
         return;
@@ -120,7 +120,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
   );
 
   const refreshSessionSnapshot = useCallback(() => {
-    const snapshot = sessionManager.getOrCreateSession(sessionId, { mode: 'planning' });
+    const snapshot = sessionManager.getOrCreateSession(sessionId, { mode: 'plan' });
     setSessionState({ ...snapshot });
   }, [sessionId, sessionManager]);
 
@@ -130,7 +130,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       sessionManager.updateSession(sessionId, {
         messages: persisted.messages as Message[],
         conversationId: persisted.conversationId || undefined,
-        mode: persisted.mode || 'planning'
+        mode: persisted.mode || 'plan'
       });
     }
     refreshSessionSnapshot();
@@ -239,7 +239,9 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       }
 
       stopRequestedRef.current = false;
-      const mode = request.mode || 'planning';
+      // request.mode 是发送给后端的模式（'planning'），转换为前端 UI 模式
+      const backendMode = request.mode || 'planning';
+      const uiMode: 'plan' | 'agent' = request.enable_reflection ? 'agent' : 'plan';
       const now = new Date().toISOString();
       const userMessage: Message = {
         role: 'user',
@@ -296,9 +298,9 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         activities: [],
         progressData: null,
         pendingApproval: null,
-        mode
+        mode: uiMode
       });
-      persistMessages(baseMessages, streamConversationId, mode);
+      persistMessages(baseMessages, streamConversationId, uiMode);
 
       try {
         await agentApi.chatStream(
@@ -311,17 +313,37 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
               streamConversationId = convId;
               sessionManager.updateSession(sessionId, { conversationId: convId });
             },
-            ...(mode === 'planning'
+            ...(backendMode === 'planning'
               ? {
                   onPlan: (plan: any) => {
-                    const initialTasks: Task[] = plan.tasks.map((t: any) => ({
-                      task_id: t.task_id,
-                      description: t.description,
-                      tool: t.tool,
-                      estimated_time: t.estimated_time,
-                      status: 'pending'
-                    }));
-                    sessionManager.updateSession(sessionId, { tasks: initialTasks });
+                    // 获取当前任务列表，用于保留已完成任务的状态
+                    const currentTasks = sessionManager.getSession(sessionId)?.tasks || [];
+                    const currentTaskMap = new Map(currentTasks.map(t => [t.task_id, t]));
+                    const isUpdate = plan.is_update === true;
+
+                    const updatedTasks: Task[] = plan.tasks.map((t: any) => {
+                      const existing = currentTaskMap.get(t.task_id);
+
+                      // 重规划时：保留已完成任务的状态
+                      if (isUpdate && existing && existing.status === 'completed') {
+                        return existing;
+                      }
+
+                      // 保留正在运行任务的状态
+                      if (existing && existing.status === 'running') {
+                        return { ...existing, description: t.description };
+                      }
+
+                      return {
+                        task_id: t.task_id,
+                        description: t.description,
+                        tool: t.tool,
+                        estimated_time: t.estimated_time,
+                        status: t.status || 'pending',
+                      };
+                    });
+
+                    sessionManager.updateSession(sessionId, { tasks: updatedTasks });
                   },
                   onTaskStart: (task: any) => {
                     taskStartTimes.set(task.task_id, Date.now());
@@ -362,7 +384,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   }
                 }
               : {}),
-            ...(mode === 'react'
+            ...(backendMode === 'react'
               ? {
                   onProgress: (progress: any) => {
                     const progressState: ProgressData = {
@@ -467,7 +489,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     agentSteps
                   };
                   sessionManager.updateSession(sessionId, { messages: updated });
-                  persistMessagesThrottled(updated, streamConversationId, mode);
+                  persistMessagesThrottled(updated, streamConversationId, uiMode);
                 }
               }
             },
@@ -497,7 +519,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   a.status === 'active' ? { ...a, status: 'completed' } : a
                 )
               });
-              persistMessagesThrottled(updated, streamConversationId, mode, true);
+              persistMessagesThrottled(updated, streamConversationId, uiMode, true);
               sessionManager.disconnectSession(sessionId);
               abortControllerRef.current = null;
             },
@@ -528,7 +550,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                 error: isAbort ? null : errorMessage,
                 isLoading: false
               });
-              persistMessagesThrottled(updated, streamConversationId, mode, true);
+              persistMessagesThrottled(updated, streamConversationId, uiMode, true);
               sessionManager.disconnectSession(sessionId);
               abortControllerRef.current = null;
             }
@@ -645,7 +667,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         activities: [],
         progressData: null,
         pendingApproval: null,
-        mode: session.mode || 'planning'
+        // 兼容旧数据：将可能存在的 'planning'/'react' 转换为 'plan'/'agent'
+        mode: (session.mode as string) === 'react' || session.mode === 'agent' ? 'agent' : 'plan'
       });
       activityStartTimes.current.clear();
       refreshSessionSnapshot();

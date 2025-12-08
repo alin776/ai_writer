@@ -12,6 +12,7 @@ export interface AgentChatRequest {
   work_id?: string;
   chapter_id?: string;
   conversation_id?: string;
+  enable_reflection?: boolean;  // 启用 DeepAgent 反思模式
   context?: {
     chapter_context?: string;
     text?: string;
@@ -193,8 +194,8 @@ export interface ChatInputProps {
   disabled?: boolean;
   placeholder?: string;
   maxLength?: number;
-  mode: 'planning' | 'react';
-  onModeChange: (mode: 'planning' | 'react') => void;
+  mode: 'plan' | 'agent';
+  onModeChange: (mode: 'plan' | 'agent') => void;
   isLoading?: boolean;
   onStop?: () => void;
 }

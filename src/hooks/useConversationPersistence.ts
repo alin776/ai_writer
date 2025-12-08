@@ -8,7 +8,7 @@ export interface ConversationSession {
   createdAt: string;
   updatedAt: string;
   title: string;
-  mode?: 'planning' | 'react';
+  mode?: 'plan' | 'agent';
   workId?: string;
   chapterId?: string;
 }

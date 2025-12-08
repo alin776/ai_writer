@@ -125,7 +125,7 @@ function TabContent({ workId, chapterId, sessionId, initialMessage, onTitleChang
     stopStreaming
   } = useAgentChat({ workId, chapterId, sessionId });
 
-  const [mode, setMode] = useState<AgentMode>('planning');
+  const [mode, setMode] = useState<AgentMode>('plan');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -151,12 +151,17 @@ function TabContent({ workId, chapterId, sessionId, initialMessage, onTitleChang
   }, [messages, onTitleChange]);
 
   const handleSendMessage = async (message: string, context?: any) => {
+    // Agent 模式 = Planning + DeepAgent 反思（可动态调整任务）
+    // Plan 模式 = 纯 Planning，无反思（任务列表固定）
+    const enableDeepAgent = mode === 'agent';
+
     const request = {
       message,
-      mode,
+      mode: 'planning' as const,  // 后端始终使用 planning 模式
       work_id: workId,
       chapter_id: chapterId,
-      context
+      context,
+      enable_reflection: enableDeepAgent,  // Agent 模式启用 DeepAgent 反思
     };
 
     await sendMessageStream(request);

@@ -185,9 +185,9 @@ class DeepAgentExecutor:
     ) -> ReflectionResult:
         """执行反思"""
         # P1-1: ai_service 空值检查
-        if not hasattr(self.agent, 'ai_service') or self.agent.ai_service is None:
-            logger.warning("agent.ai_service 未初始化，跳过反思")
-            return ReflectionResult(reflection="ai_service 未初始化", needs_replan=False)
+        if not hasattr(self.agent, '_generate_text'):
+            logger.warning("agent._generate_text 方法不存在，跳过反思")
+            return ReflectionResult(reflection="agent 未初始化", needs_replan=False)
 
         try:
             reflection_result = await think_tool(
@@ -195,7 +195,7 @@ class DeepAgentExecutor:
                 result=result,
                 remaining_tasks=remaining_tasks,
                 context=context,
-                ai_service=self.agent.ai_service,
+                agent_graph=self.agent,  # 传入 agent_graph，复用 _generate_text 抽象层
             )
 
             self.reflection_count += 1
@@ -242,9 +242,9 @@ class DeepAgentExecutor:
         Returns:
             新的任务列表（用于替换 remaining_tasks），失败时返回 None
         """
-        # P1-1: ai_service 空值检查
-        if not hasattr(self.agent, 'ai_service') or self.agent.ai_service is None:
-            logger.warning("agent.ai_service 未初始化，跳过重规划")
+        # P1-1: _generate_text 方法检查（与 _do_reflection 保持一致）
+        if not hasattr(self.agent, '_generate_text'):
+            logger.warning("agent._generate_text 方法不存在，跳过重规划")
             return None
 
         try:
@@ -280,19 +280,25 @@ class DeepAgentExecutor:
 {{"tasks": [{{"description": "任务描述"}}, ...]}}
 """
 
+            # 复用 _generate_text 抽象层
             response = await asyncio.wait_for(
-                self.agent.ai_service.chat(
-                    messages=[{"role": "user", "content": prompt}],
+                self.agent._generate_text(
+                    prompt=prompt,
                     temperature=0.3,
+                    max_tokens=1000,
                 ),
                 timeout=DeepAgentConfig.REPLAN_TIMEOUT
             )
 
-            # 解析响应
-            if isinstance(response, dict):
-                content = response.get("content", str(response))
-            else:
-                content = str(response)
+            # 检查是否有错误
+            if response.get("error"):
+                logger.warning(f"重规划 AI 调用失败: {response.get('error')}")
+                return None
+
+            content = response.get("text", "")
+            if not content:
+                logger.warning("重规划响应为空")
+                return None
 
             # 尝试提取 JSON
             content = content.strip()

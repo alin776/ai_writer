@@ -43,7 +43,7 @@ export interface SessionState {
   // 元数据
   createdAt: number;
   lastActiveAt: number;
-  mode?: 'planning' | 'react';
+  mode?: 'plan' | 'agent';
 }
 
 // 状态变更监听器
@@ -81,7 +81,7 @@ export class SessionStateManager {
       abortController: null,
       createdAt: now,
       lastActiveAt: now,
-      mode: initialData?.mode || 'planning'
+      mode: initialData?.mode || 'plan'
     };
 
     this.sessions.set(sessionId, state);

@@ -169,7 +169,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
   const { currentChapter } = useEditorStore();
 
   const [inputValue, setInputValue] = useState('');
-  const [mode, setMode] = useState<AgentMode>('planning'); // ✅ Agent执行模式
+  const [mode, setMode] = useState<AgentMode>('plan'); // ✅ Agent执行模式：plan(固定规划) | agent(DeepAgent反思)
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true); // 用于追踪是否应该自动滚动
@@ -512,9 +512,14 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
     // 调试日志：查看发送的知识库文档ID
     console.log('[AIPanel] 发送消息，knowledge_doc_ids:', knowledgeDocIds, 'selectedDocs:', selectedDocs);
 
+    // Agent 模式 = Planning + DeepAgent 反思（可动态调整任务）
+    // Plan 模式 = 纯 Planning，无反思（任务列表固定）
+    const enableDeepAgent = mode === 'agent';
+
     const request: AgentChatRequest = {
       message,
-      mode,  // ✅ 使用用户选择的模式（动态）
+      mode: 'planning',  // 后端始终使用 planning 模式
+      enable_reflection: enableDeepAgent,  // Agent 模式启用 DeepAgent 反思
       work_id: workId,
       chapter_id: chapterId,
       context: {
@@ -705,8 +710,8 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
           );
         })}
 
-        {/* ReAct模式活动流 - 显示在所有历史消息之后，streaming消息之前 */}
-        {mode === 'react' && activities.length > 0 && (
+        {/* Agent模式（DeepAgent反思）活动流 - 显示在所有历史消息之后，streaming消息之前 */}
+        {mode === 'agent' && activities.length > 0 && (
           <div className="flex items-start gap-2">
             <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />
@@ -720,8 +725,8 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
           </div>
         )}
 
-        {/* Planning模式任务执行进度（todolist）- 显示在所有历史消息之后，streaming消息之前 */}
-        {mode === 'planning' && isLoading && tasks.length > 0 && (
+        {/* 任务执行进度（todolist）- 显示在所有历史消息之后，streaming消息之前 */}
+        {isLoading && tasks.length > 0 && (
           <div className="flex items-start gap-2">
             <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />

@@ -24,6 +24,12 @@ class DeepAgentConfig:
     REFLECT_ON_ANALYSIS: bool = True          # 分析类任务后反思
     REFLECT_EVERY_N_TASKS: int = 3            # 每 N 个任务反思一次
 
+    # 分析类任务关键词（触发反思）
+    ANALYSIS_KEYWORDS: List[str] = [
+        "分析", "概括", "总结", "归纳", "评估",
+        "对比", "比较", "推理", "解读", "梳理"
+    ]
+
     # 反思关键词（用于判断是否需要重规划）
     REPLAN_KEYWORDS: List[str] = [
         "需要", "补充", "调整", "新增", "不足",

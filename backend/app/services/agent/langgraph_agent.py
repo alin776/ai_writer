@@ -338,8 +338,19 @@ async def analyze_text_tool(text: str, focus: str = "all") -> str:
         - 分析任务本身需要AI进行概括和抽象，不应验证"实体编造"
         - 移除重试机制，减少API调用浪费
         - 使用prompt引导AI行为，而非代码强制验证
+        - 🔧 2025-12-08: 添加空文本保护，防止 AI 产生幻觉
     """
     from app.prompts.constraint_manager import get_constraint_manager
+
+    # ✅ 空文本保护：防止 AI 在无内容时产生幻觉
+    if not text or not text.strip():
+        logger.warning("[analyze_text_tool] 收到空文本，可能是参数解析失败")
+        return "错误：未提供待分析的文本内容。请确保前置任务（如获取章节）已正确执行，或手动提供文本内容。"
+
+    # ✅ 占位符残留检测：如果 text 仍包含 $TASK_N$ 格式，说明解析失败
+    if "$TASK_" in text and "$" in text[text.find("$TASK_")+1:]:
+        logger.warning(f"[analyze_text_tool] 检测到未解析的占位符: {text[:100]}...")
+        return f"错误：文本参数中包含未解析的占位符。这通常表示前置任务执行失败或参数配置错误。原始参数: {text[:200]}"
 
     try:
         # 1. 使用约束提示词管理器
@@ -4687,16 +4698,42 @@ chapter_id: {chapter_id}
                                 on_content=on_content,
                             )
 
+                            # ✅ 创建参数解析器（与 Plan 模式保持一致）
+                            from app.services.agent.parameter_resolver import ParameterResolver
+                            deep_resolver = ParameterResolver(strict_mode=False)
+                            logger.info("[DeepAgent] ParameterResolver 已启用")
+
                             # 定义任务执行函数（传递给 DeepAgentExecutor）
                             async def execute_single_task(task, context, on_task_progress):
+                                import time as time_module  # ✅ 添加计时支持
+                                start_time = time_module.time()
+
+                                # ✅ 解析任务参数中的占位符（修复 $TASK_N.content$ 未解析问题）
+                                resolved_task = task.copy()
+                                task_id = task.get("task_id", 0)
+                                if "params" in resolved_task:
+                                    resolved_task["params"] = await deep_resolver.resolve_params(
+                                        resolved_task["params"],
+                                        current_task_id=task_id
+                                    )
+                                    logger.debug(f"[DeepAgent] 任务{task_id}参数已解析")
+
                                 result_str = await self._execute_task(
-                                    task=task,
+                                    task=resolved_task,  # ✅ 使用解析后的任务
                                     work_id=work_id,
                                     chapter_id=chapter_id,
                                     context=context.get("context_str", initial_context),
                                     on_progress=on_task_progress,
                                 )
-                                return {"status": "completed", "content": result_str}
+
+                                # ✅ 注册任务结果到参数解析器（供后续任务使用）
+                                await deep_resolver.register_result(task_id, result_str)
+                                logger.debug(f"[DeepAgent] 任务{task_id}结果已注册")
+
+                                # ✅ 计算耗时（与 Plan 模式保持一致）
+                                elapsed_time = time_module.time() - start_time
+
+                                return {"status": "completed", "content": result_str, "elapsed_time": elapsed_time}
 
                             deep_result = await deep_executor.execute_with_reflection(
                                 plan=plan_data,
@@ -4706,11 +4743,17 @@ chapter_id: {chapter_id}
 
                             # 转换结果格式
                             task_results = []
+                            # ✅ 构建任务ID到任务的映射（用于获取 tool 字段）
+                            task_map = {t.get("task_id", i+1): t for i, t in enumerate(deep_result.get("tasks", []))}
                             for task_id, result in deep_result.get("results", {}).items():
+                                task_info = task_map.get(task_id, {})
                                 task_results.append({
                                     "task_id": task_id,
                                     "result": result.get("content", result.get("result", str(result))),
                                     "status": result.get("status", "completed"),
+                                    "tool": task_info.get("tool", ""),  # ✅ 添加 tool 字段，用于任务分类
+                                    "description": task_info.get("description", ""),  # ✅ 添加描述
+                                    "elapsed_time": result.get("elapsed_time", 0),  # ✅ 添加耗时字段
                                 })
 
                             logger.info(

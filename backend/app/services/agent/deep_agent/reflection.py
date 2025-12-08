@@ -27,43 +27,50 @@ async def think_tool(
     result: Dict[str, Any],
     remaining_tasks: List[Dict[str, Any]],
     context: Dict[str, Any],
-    ai_service: Optional[Any] = None,  # HTTPAIService 实例
+    agent_graph: Optional[Any] = None,  # WritingAgentGraph 实例（复用 _generate_text 抽象层）
 ) -> ReflectionResult:
     """反思工具
 
     纯上下文工程工具，迫使 Agent 在关键节点评估进度。
+    使用 agent_graph._generate_text() 复用已有的 AI 调用抽象层。
 
     Args:
         task: 刚执行完的任务
         result: 任务执行结果
         remaining_tasks: 剩余待执行的任务
         context: 上下文信息
-        ai_service: AI 服务实例
+        agent_graph: WritingAgentGraph 实例
 
     Returns:
         ReflectionResult: 反思结果
     """
     # P1-1: 空值检查
-    if ai_service is None:
-        logger.warning("ai_service 为空，跳过反思")
-        return ReflectionResult(reflection="ai_service 未初始化，跳过反思", needs_replan=False)
+    if agent_graph is None:
+        logger.warning("agent_graph 为空，跳过反思")
+        return ReflectionResult(reflection="agent_graph 未初始化，跳过反思", needs_replan=False)
 
     prompt = _build_reflection_prompt(task, result, remaining_tasks)
 
     try:
+        # 复用 _generate_text 抽象层（支持 ChatOpenAI/HTTPAIService 双模式）
         response = await asyncio.wait_for(
-            ai_service.chat(
-                messages=[{"role": "user", "content": prompt}],
+            agent_graph._generate_text(
+                prompt=prompt,
                 temperature=0.3,
+                max_tokens=500,
             ),
             timeout=DeepAgentConfig.REFLECTION_TIMEOUT
         )
 
-        # 提取响应内容
-        if isinstance(response, dict):
-            content = response.get("content", str(response))
-        else:
-            content = str(response)
+        # 检查是否有错误
+        if response.get("error"):
+            logger.warning(f"反思 AI 调用失败: {response.get('error')}")
+            return ReflectionResult(reflection="AI 调用失败，继续执行", needs_replan=False)
+
+        content = response.get("text", "")
+        if not content:
+            logger.warning("反思响应为空")
+            return ReflectionResult(reflection="响应为空，继续执行", needs_replan=False)
 
         return _parse_reflection_response(content)
 
@@ -194,8 +201,9 @@ def should_reflect(
     if config.REFLECT_ON_ANALYSIS:
         desc = task.get("description", "").lower()
         task_type = task.get("type", "")
-        if "分析" in desc or task_type == "analysis":
-            logger.debug("分析类任务完成，触发反思")
+        # 使用配置的分析类关键词列表
+        if task_type == "analysis" or any(kw in desc for kw in config.ANALYSIS_KEYWORDS):
+            logger.debug(f"分析类任务完成，触发反思 (desc={desc[:30]})")
             return True
 
     # 定期反思
