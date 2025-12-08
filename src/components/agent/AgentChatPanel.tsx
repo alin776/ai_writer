@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAgentChat } from '@/hooks/useAgentChat';
 import { useTabManager } from '@/hooks/useTabManager';
 import SessionTabs from './SessionTabs';
@@ -37,6 +37,12 @@ export default function AgentChatPanel({
   onSwitchTab,
   onUpdateTabTitle
 }: AgentChatPanelProps) {
+  const [selectionContext, setSelectionContext] = useState<{
+    selected_text?: string;
+    selected_text_html?: string;
+    selection_position?: { from: number; to: number };
+  } | null>(null);
+
   useEffect(() => {
     console.log('[AgentChatPanel] mounted', { workId, chapterId, className });
   }, [workId, chapterId, className]);
@@ -52,6 +58,61 @@ export default function AgentChatPanel({
   const tabsToUse = controlledTabs ?? tabs;
   const activeTabIdToUse = controlledActiveTabId ?? activeTabId;
   const renderInternalTabs = !controlledTabs;
+
+  // 全局：消费 InlineAI intent 队列并监听 intent 事件（与 tab 活动状态无关）
+  useEffect(() => {
+    const intentQueue: any[] = (window as any).__inlineAIIntentQueue__ || [];
+    if (intentQueue.length > 0) {
+      const last = intentQueue[intentQueue.length - 1];
+      console.log('[AgentChatPanel] intentQueue consumed (global):', last);
+      setSelectionContext(last || null);
+      (window as any).__inlineAIIntentQueue__ = [];
+    }
+
+    (window as any).__agentInlineIntent__ = (ctx?: {
+      selected_text?: string;
+      selected_text_html?: string;
+      selection_position?: { from: number; to: number };
+    }) => {
+      setSelectionContext(ctx || null);
+    };
+
+    const handleInlineAIIntent = (event: CustomEvent<{
+      selected_text?: string;
+      selected_text_html?: string;
+      selection_position?: { from: number; to: number };
+    }>) => {
+      console.log('[AgentChatPanel] 收到 InlineAI intent (global):', event.detail);
+      setSelectionContext(event.detail || null);
+    };
+
+    window.addEventListener('inline-ai-intent', handleInlineAIIntent as EventListener);
+    return () => {
+      window.removeEventListener('inline-ai-intent', handleInlineAIIntent as EventListener);
+      delete (window as any).__agentInlineIntent__;
+    };
+  }, []);
+
+  // 兜底：若 selectionContext 为空且队列中有新意图，取最新一条
+  useEffect(() => {
+    if (selectionContext) return;
+    const q: any[] = (window as any).__inlineAIIntentQueue__ || [];
+    if (q.length > 0) {
+      const last = q[q.length - 1];
+      console.log('[AgentChatPanel] fallback intentQueue hit:', last);
+      setSelectionContext(last || null);
+      (window as any).__inlineAIIntentQueue__ = [];
+    }
+  }, [selectionContext]);
+
+  // Debug: track selectionContext changes
+  useEffect(() => {
+    if (selectionContext) {
+      console.log('[AgentChatPanel] selectionContext ->', selectionContext);
+    } else {
+      console.log('[AgentChatPanel] selectionContext cleared');
+    }
+  }, [selectionContext]);
 
   // Create a new tab to the right of the current active tab.
   const handleCreateTab = async (): Promise<string> => {
@@ -96,6 +157,9 @@ export default function AgentChatPanel({
             sessionId={tab.sessionId}
             initialMessage={initialMessage}
             onTitleChange={(title) => (onUpdateTabTitle ?? updateTabTitle)(tab.id, title)}
+            isActive={tab.id === activeTabIdToUse}
+            selectionContext={selectionContext}
+            onClearSelection={() => setSelectionContext(null)}
           />
         </div>
       ))}
@@ -109,9 +173,26 @@ interface TabContentProps {
   sessionId: string;
   initialMessage?: string;
   onTitleChange?: (title: string) => void;
+  /** 是否为当前活动标签页（只有活动标签才处理 InlineAI 事件） */
+  isActive?: boolean;
+  selectionContext?: {
+    selected_text?: string;
+    selected_text_html?: string;
+    selection_position?: { from: number; to: number };
+  } | null;
+  onClearSelection?: () => void;
 }
 
-function TabContent({ workId, chapterId, sessionId, initialMessage, onTitleChange }: TabContentProps) {
+function TabContent({
+  workId,
+  chapterId,
+  sessionId,
+  initialMessage,
+  onTitleChange,
+  isActive = true,
+  selectionContext,
+  onClearSelection,
+}: TabContentProps) {
   const {
     messages,
     sendMessageStream,
@@ -127,6 +208,28 @@ function TabContent({ workId, chapterId, sessionId, initialMessage, onTitleChang
 
   const [mode, setMode] = useState<AgentMode>('planning');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // 🆕 提前定义 handleSendMessage，确保所有 useEffect 都能使用
+  const handleSendMessage = useCallback(async (message: string, context?: any) => {
+    // 🔍 调试日志：追踪 context 发送
+    console.log('===== AgentChatPanel handleSendMessage =====');
+    console.log('1. message:', message);
+    console.log('2. context 完整内容:', context);
+    console.log('3. context.selected_text:', context?.selected_text);
+    console.log('4. context.selection_position:', context?.selection_position);
+    console.log('=============================================');
+
+    const request = {
+      message,
+      mode,
+      work_id: workId,
+      chapter_id: chapterId,
+      context
+    };
+
+    console.log('[AgentChatPanel] 📤 发送请求:', JSON.stringify(request, null, 2));
+
+    await sendMessageStream(request);
+  }, [mode, workId, chapterId, sendMessageStream]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -136,7 +239,111 @@ function TabContent({ workId, chapterId, sessionId, initialMessage, onTitleChang
     if (initialMessage && messages.length === 0) {
       handleSendMessage(initialMessage);
     }
-  }, [initialMessage, messages.length]);
+  }, [initialMessage, messages.length, handleSendMessage]);
+
+  // 全局去重集合，确保跨组件只处理一次 inline-ai 消息
+  const getInlineAIProcessedSet = useCallback((): Set<string> => {
+    if (typeof window === 'undefined') return new Set<string>();
+    if (!(window as any).__inlineAIProcessed__) {
+      (window as any).__inlineAIProcessed__ = new Set<string>();
+    }
+    return (window as any).__inlineAIProcessed__ as Set<string>;
+  }, []);
+
+  // 🆕 合并：队列消费 + 全局回调 + 事件监听（共享去重 Set）（只有活动标签页才处理）
+  useEffect(() => {
+    // 非活动标签页不设置监听器
+    if (!isActive) {
+      console.log('[AgentChatPanel] TabContent 非活动，跳过 InlineAI 监听设置, sessionId:', sessionId);
+      return;
+    }
+
+    console.log('[AgentChatPanel] TabContent mounted (活动标签页), sessionId:', sessionId);
+
+    // 共享去重 Set（跨组件全局复用）
+    const consumed = getInlineAIProcessedSet();
+
+    // 1. 先消费队列中的遗留消息
+    const queue: any[] = (window as any).__inlineAIQueueFlushed__ || (window as any).__inlineAIQueue__ || [];
+    queue.forEach((item) => {
+      const rid = item?.requestId || JSON.stringify(item);
+      if (!consumed.has(rid)) {
+        consumed.add(rid);
+        console.log('[AgentChatPanel] consuming queued inline-ai payload', item);
+
+        const ctx = item.context || item.ctx || {};
+        const enrichedContext = {
+          ...ctx,
+          chapter_context: ctx.selected_text
+            ? `【选中的文字】\n${ctx.selected_text}\n\n【用户指令】\n${item.message || item.msg}`
+            : undefined,
+        };
+        handleSendMessage(item.message || item.msg || '', enrichedContext);
+      }
+    });
+    (window as any).__inlineAIQueueFlushed__ = [];
+    (window as any).__inlineAIQueue__ = [];
+
+    // 2. 暴露全局回调
+    (window as any).__agentInlineSend__ = (msg: string, ctx?: any, requestId?: string) => {
+      const rid = requestId || `inline-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      if (consumed.has(rid)) {
+        console.log('[AgentChatPanel] __agentInlineSend__ 消息已处理，跳过:', rid);
+        return;
+      }
+      consumed.add(rid);
+      console.log('[AgentChatPanel] __agentInlineSend__ invoked', { msg, ctx, rid });
+
+      const enrichedContext = {
+        ...ctx,
+        chapter_context: ctx?.selected_text
+          ? `【选中的文字】\n${ctx.selected_text}\n\n【用户指令】\n${msg}`
+          : undefined,
+      };
+      handleSendMessage(msg, enrichedContext);
+    };
+
+    // 3. 监听 inline-ai-send 事件（共享去重 Set）
+    const handleInlineAIMessage = (event: CustomEvent<{
+      message: string;
+      context: {
+        selected_text?: string;
+        selected_text_html?: string;
+        selection_position?: { from: number; to: number };
+        knowledge_doc_ids?: string[];
+      };
+      requestId?: string;
+    }>) => {
+      const { message, context, requestId } = event.detail;
+      console.log('[AgentChatPanel] 收到 InlineAI 消息:', { message, context, requestId });
+
+      // 去重检查
+      const rid = requestId || `inline-${Date.now()}`;
+      if (consumed.has(rid)) {
+        console.log('[AgentChatPanel] 消息已处理，跳过:', rid);
+        return;
+      }
+      consumed.add(rid);
+
+      // 构建带选中文字上下文的请求
+      const enrichedContext = {
+        ...context,
+        chapter_context: context.selected_text
+          ? `【选中的文字】\n${context.selected_text}\n\n【用户指令】\n${message}`
+          : undefined,
+      };
+
+      handleSendMessage(message, enrichedContext);
+    };
+
+    window.addEventListener('inline-ai-send', handleInlineAIMessage as EventListener);
+
+    return () => {
+      window.removeEventListener('inline-ai-send', handleInlineAIMessage as EventListener);
+      delete (window as any).__agentInlineSend__;
+      console.log('[AgentChatPanel] 卸载 InlineAI 事件监听');
+    };
+  }, [handleSendMessage, sessionId, isActive, getInlineAIProcessedSet]);
 
   // Update tab title using the first user message.
   useEffect(() => {
@@ -149,18 +356,6 @@ function TabContent({ workId, chapterId, sessionId, initialMessage, onTitleChang
       }
     }
   }, [messages, onTitleChange]);
-
-  const handleSendMessage = async (message: string, context?: any) => {
-    const request = {
-      message,
-      mode,
-      work_id: workId,
-      chapter_id: chapterId,
-      context
-    };
-
-    await sendMessageStream(request);
-  };
 
   const handleClearChat = () => {
     if (confirm('Clear this conversation and start a new one?')) {
@@ -253,6 +448,8 @@ function TabContent({ workId, chapterId, sessionId, initialMessage, onTitleChang
           onModeChange={setMode}
           isLoading={isLoading}
           onStop={stopStreaming}
+          selectionContext={selectionContext || undefined}
+          onClearSelection={() => setSelectionContext(null)}
         />
       </div>
 
@@ -290,3 +487,4 @@ function TabContent({ workId, chapterId, sessionId, initialMessage, onTitleChang
     </>
   );
 }
+

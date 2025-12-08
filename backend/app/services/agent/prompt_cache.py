@@ -155,11 +155,28 @@ async def get_planning_static_prompt() -> str:
   - 适用于：概括内容、分析人物、分析情节、写大纲、规划章节
   - ⚠️ 不要用于：查询标题/序号等元数据（工具已返回这些字段）
 
+文本润色/改写：
+- polish_text_tool: 润色/修改/丰富文本 (参数: text, style)
+  - 适用于：用户选中文本后要求修改、润色、丰富、改写
+  - ⚠️ 当【用户选中的文本】存在时，必须将选中文本作为 text 参数！
+  - style 可选值: professional, creative, concise, elaborate
+
 创作内容（重量级，谨慎使用）：
 - multi_agent_writing: 创作完整章节正文
   - ⚠️ 仅当用户明确要求"续写章节"、"写第X章"时使用
   - 不要用于：写大纲、概括、分析、获取内容
   - params: chapters_needed, target_chapter, requirements
+
+【选中文本处理规则】⚠️ 重要！
+
+当 Prompt 中包含【用户选中的文本】时，这表示用户在编辑器中选中了一段文字：
+1. 必须使用 polish_text_tool 处理选中的文本
+2. 将选中的文本作为 polish_text_tool 的 text 参数
+3. 根据用户指令确定 style 参数：
+   - "更丰富/丰富一些" → style="elaborate"
+   - "更简洁/精简" → style="concise"
+   - "更有文采/更优美" → style="creative"
+   - "更正式/专业" → style="professional"
 
 【输出格式】
 
@@ -277,6 +294,36 @@ async def get_planning_static_prompt() -> str:
     {"task_id": 5, "description": "分析前四章", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$\\n\\n$TASK_2.content$\\n\\n$TASK_3.content$\\n\\n$TASK_4.content$", "focus": "分析前四章：主要人物、情节发展、伏笔线索、写作风格"}},
     {"task_id": 6, "description": "规划第5-9章大纲", "tool": "analyze_text_tool", "params": {"text": "$TASK_5$", "focus": "基于分析结果，为第5-9章设计详细大纲"}},
     {"task_id": 7, "type": "multi_agent_writing", "description": "续写第五章", "params": {"chapters_needed": [4], "target_chapter": 5, "requirements": "基于大纲续写第五章正文"}}
+  ]
+}
+
+【选中文本示例】⚠️ 当 Prompt 包含【用户选中的文本】时
+
+用户选中文本: "天色未明，青冥中尚悬着几颗残星。"
+用户指令: "帮我把这一句话修改得更加丰富！"
+{
+  "thinking": {
+    "step1_output": "用户选中了一句话，希望润色/丰富这段文字",
+    "step2_material": "原料就是【用户选中的文本】",
+    "step3_process": "使用 polish_text_tool 润色选中的文本"
+  },
+  "user_intent": "润色选中的文本，使其更丰富",
+  "tasks": [
+    {"task_id": 1, "description": "润色选中文本", "tool": "polish_text_tool", "params": {"text": "天色未明，青冥中尚悬着几颗残星。", "style": "elaborate"}}
+  ]
+}
+
+用户选中文本: "他走进房间，看到了她。"
+用户指令: "更有文采一些"
+{
+  "thinking": {
+    "step1_output": "用户选中了一句话，希望改写得更有文采",
+    "step2_material": "原料就是【用户选中的文本】",
+    "step3_process": "使用 polish_text_tool 改写选中的文本"
+  },
+  "user_intent": "改写选中的文本，使其更有文采",
+  "tasks": [
+    {"task_id": 1, "description": "改写选中文本", "tool": "polish_text_tool", "params": {"text": "他走进房间，看到了她。", "style": "creative"}}
   ]
 }
 

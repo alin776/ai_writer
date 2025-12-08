@@ -1,7 +1,7 @@
 /**
  * 气泡菜单 - 选中文本时显示的浮动工具栏
  */
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { BubbleMenu as TiptapBubbleMenu } from '@tiptap/react/menus';
 import { Editor } from '@tiptap/core';
 import {
@@ -15,21 +15,28 @@ import {
   Unlink,
   Sparkles,
 } from 'lucide-react';
-import AIAutoComplete from './AIAutoComplete';
 
 interface BubbleMenuProps {
   editor: Editor;
+  onOpenInlineAI?: () => void;
 }
 
 /**
  * 气泡菜单组件
  */
-const BubbleMenu: React.FC<BubbleMenuProps> = ({ editor }) => {
-  const [openAI, setOpenAI] = useState(false);
-
+const BubbleMenu: React.FC<BubbleMenuProps> = ({ editor, onOpenInlineAI }) => {
   if (!editor) {
     return null;
   }
+
+  /**
+   * 打开浮动 AI 输入框
+   */
+  const handleAskAI = useCallback(() => {
+    if (onOpenInlineAI) {
+      onOpenInlineAI();
+    }
+  }, [onOpenInlineAI]);
 
   /**
    * 设置链接
@@ -57,9 +64,6 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ editor }) => {
     editor.chain().focus().unsetLink().run();
   };
 
-  /**
-   * 工具栏按钮
-   */
   const BubbleButton: React.FC<{
     onClick: () => void;
     isActive?: boolean;
@@ -76,21 +80,6 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ editor }) => {
     </button>
   );
 
-  // 当 AI 面板打开时，显示 AI 自动补全界面
-  if (openAI) {
-    return (
-      <TiptapBubbleMenu
-        editor={editor}
-        className="bubble-menu-container ai-mode"
-      >
-        <AIAutoComplete
-          editor={editor}
-          onOpenChange={setOpenAI}
-        />
-      </TiptapBubbleMenu>
-    );
-  }
-
   return (
     <TiptapBubbleMenu
       editor={editor}
@@ -98,7 +87,7 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ editor }) => {
     >
       {/* Ask AI 按钮 */}
       <button
-        onClick={() => setOpenAI(true)}
+        onClick={handleAskAI}
         className="bubble-menu-button ai-button"
         title="Ask AI"
         type="button"

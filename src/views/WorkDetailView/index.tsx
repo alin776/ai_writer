@@ -1365,6 +1365,7 @@ const WorkDetailView: React.FC = () => {
                       chapterId={currentChapterId}
                       sessionId={tab.sessionId}
                       onTitleChange={(title) => updateTabTitle(tab.id, title)}
+                      isActive={tab.id === activeTabId}
                     />
                   </div>
                 ))

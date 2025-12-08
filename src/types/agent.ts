@@ -21,6 +21,15 @@ export interface AgentChatRequest {
     /** @deprecated 已弃用，请使用 knowledge_doc_ids。此字段将在后续版本移除 */
     knowledge_tags?: string[];
     use_optimization?: boolean;
+    /** 编辑器选中的文字（纯文本） */
+    selected_text?: string;
+    /** 编辑器选中的文字（保留HTML格式） */
+    selected_text_html?: string;
+    /** 选中文字在编辑器中的位置 */
+    selection_position?: {
+      from: number;
+      to: number;
+    };
     [key: string]: any;
   };
 }
@@ -31,6 +40,29 @@ export interface AgentChatResponse {
   agent_steps: AgentStep[];
   suggested_actions: string[];
   metadata: AgentMetadata;
+  /** 编辑器操作指令（用于修改/续写） */
+  editor_action?: EditorAction;
+}
+
+/** 编辑器操作类型 */
+export interface EditorAction {
+  /** 操作类型：modify(修改) | continue(续写) | insert(插入) | none(无操作) */
+  type: 'modify' | 'continue' | 'insert' | 'none';
+  /** 原始文字（仅 modify 时有值） */
+  original_text?: string;
+  /** 新文字（修改后/续写/插入的内容） */
+  new_text?: string;
+  /** 新文字（HTML格式） */
+  new_text_html?: string;
+  /** 插入位置（仅 insert 时有值） */
+  position?: {
+    from: number;
+    to: number;
+  };
+  /** 是否需要用户确认 */
+  requires_confirmation?: boolean;
+  /** 操作描述 */
+  description?: string;
 }
 
 export interface AgentStep {

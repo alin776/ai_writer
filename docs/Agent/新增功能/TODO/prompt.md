@@ -34,3 +34,5 @@ npm run dev
 
 1. 将 warning 中的 borderRadius 改为标准 border-radius 并按需做代码分块以降低 chunk 体积。
   2. 若想恢复强类型保护，可逐步移除 @ts-nocheck 并按模块补全类型与 API。
+
+  帮我将代码提交到远程仓库的dev分支上，注释："feat:增加'@指令系统'，实现其中的引入知识库文档功能以及实现'@指令系统'浮层UI"

@@ -188,6 +188,16 @@ class AgentApiService {
       .replace(/\/$/, '');
     const url = `${streamBase}/api/v1/agent/chat/stream`;
 
+    // 🔍 调试日志：追踪实际发送到后端的 payload
+    console.log('===== agentApi.chatStream 发送请求 =====');
+    console.log('1. URL:', url);
+    console.log('2. request 完整内容:', request);
+    console.log('3. request.context:', request.context);
+    console.log('4. request.context?.selected_text:', request.context?.selected_text);
+    console.log('5. request.context?.selection_position:', request.context?.selection_position);
+    console.log('6. request.context?.instruction_context:', request.context?.instruction_context);
+    console.log('==========================================');
+
     try {
       const response = await fetch(url, {
         method: 'POST',

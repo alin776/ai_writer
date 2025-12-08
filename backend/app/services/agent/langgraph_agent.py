@@ -1789,10 +1789,33 @@ class WritingAgentGraph:
             return "general", 0.60
 
     async def _classify_intent(self, state: AgentState) -> AgentState:
-        """意图分类节点 - AI优先，极简规则快速通道"""
+        """意图分类节点 - AI优先，极简规则快速通道
+
+        🆕 支持 selected_text: 当检测到编辑器选中文字时，自动判定为 writing 意图
+        """
         logger.info("[LangGraph] 意图分类（AI优先架构）")
 
         last_message = state["messages"][-1].content
+        context = state.get("context", {})
+
+        # 🔍 调试日志：检查 context 内容
+        logger.info(f"[Intent] 📥 state.context 字段:")
+        logger.info(f"  - context keys: {list(context.keys()) if context else '空'}")
+        logger.info(f"  - selected_text: {context.get('selected_text', 'N/A')[:50] + '...' if context.get('selected_text') else 'N/A'}")
+        logger.info(f"  - selection_position: {context.get('selection_position', 'N/A')}")
+
+        # 🆕 检测选中文字 - 如果有选中文字，强制判定为 writing
+        selected_text = context.get("selected_text", "")
+        if selected_text and len(selected_text.strip()) > 0:
+            logger.info(f"[Intent] 检测到 selected_text ({len(selected_text)} 字符)，强制判定为 writing")
+            return {
+                "intent": "writing",
+                "agent_steps": [{
+                    "step": "intent_classification",
+                    "result": "识别意图: writing (编辑器选中文字模式)",
+                    "usage": {}
+                }]
+            }
 
         # 1. 极简规则快速通道（只处理极端情况）
         intent, confidence = self._classify_intent_by_rules(last_message)
@@ -1837,11 +1860,27 @@ class WritingAgentGraph:
         2. 新增：判断复杂度（simple/complex）
         3. 新增：如果 simple，确定执行方案
 
+        🆕 支持 selected_text: 当检测到编辑器选中文字时，自动判定为 writing 意图
+
         Returns:
             AgentState: 包含 intent, intent_decision, agent_steps
         """
         message = state["messages"][-1].content
+        context = state.get("context", {})
         logger.info(f"[Intent-CoT] 开始分析: {message[:50]}...")
+
+        # 🆕 检测选中文字 - 如果有选中文字，强制判定为 writing/complex
+        selected_text = context.get("selected_text", "")
+        if selected_text and len(selected_text.strip()) > 0:
+            logger.info(f"[Intent-CoT] 检测到 selected_text ({len(selected_text)} 字符)，强制判定为 writing/complex")
+            return {
+                "intent": "writing",
+                "intent_decision": {"complexity": "complex", "action": {}},
+                "agent_steps": [{
+                    "step": "intent_cot",
+                    "result": "writing/complex (编辑器选中文字模式)",
+                }]
+            }
 
         # ========== 步骤1: 复用现有意图分类 ==========
         intent, confidence = self._classify_intent_by_rules(message)
@@ -3018,6 +3057,18 @@ class WritingAgentGraph:
                 user_requirement = tool_args.get("user_requirement", "")
                 base_version = tool_args.get("base_version", "")
 
+                # 🆕 InlineAI 支持：优先使用 context 中的 selected_text
+                context = state.get("context", {})
+                selected_text = context.get("selected_text", "")
+                selection_position = context.get("selection_position", None)
+
+                # 🔑 关键修复：如果有 selected_text，强制使用它（覆盖 LLM 传入的 text_to_rewrite）
+                # 这是因为用户在编辑器中选中的文本才是他们真正想要修改的内容
+                if selected_text:
+                    logger.info(f"[LangGraph] 📝 强制使用 InlineAI selected_text 作为 text_to_rewrite ({len(selected_text)} 字符)")
+                    logger.info(f"[LangGraph] 📝 原 text_to_rewrite: {text_to_rewrite[:50] if text_to_rewrite else 'None'}...")
+                    text_to_rewrite = selected_text
+
                 # ✅ 智能版本引用：语义匹配用户的版本表达
                 last_versions = state.get("context", {}).get("last_rewrite_versions", {})
                 if base_version and last_versions:
@@ -3052,16 +3103,52 @@ class WritingAgentGraph:
                             "version_c": versions[2].get("content", "") if len(versions) > 2 else ""
                         }
                         logger.info(f"[LangGraph] 💾 已保存 {len(versions)} 个改写版本到 context")
+
+                        # 🆕 InlineAI: 添加 editor_action 字段
+                        if selected_text and selection_position:
+                            result_obj["editor_action"] = {
+                                "type": "modify",
+                                "original_text": text_to_rewrite,
+                                "position": selection_position,
+                                "requires_confirmation": True
+                            }
+                            # 更新 tool_result
+                            tool_result = json.dumps(result_obj, ensure_ascii=False) if isinstance(tool_result, str) else result_obj
+                            logger.info(f"[LangGraph] 📝 添加 editor_action (modify) 到 smart_rewrite 结果")
                 except Exception as e:
                     logger.warning(f"[LangGraph] 保存版本记忆失败: {e}")
             # ✅ 编辑器工具：smart_continue（续写章节）
             elif tool_name == "smart_continue":
                 logger.info(f"[LangGraph] 🚀 准备调用 smart_continue, chapter_id={tool_args.get('chapter_id')}")
+
+                # 🆕 InlineAI 支持：获取 selection_position
+                context = state.get("context", {})
+                selected_text = context.get("selected_text", "")
+                selection_position = context.get("selection_position", None)
+
                 tool_result = await smart_continue.ainvoke({
                     "chapter_id": tool_args.get("chapter_id", ""),
                     "context": tool_args.get("context", "")
                 })
                 logger.info(f"[LangGraph] ✅ smart_continue 返回结果长度: {len(tool_result)} 字符")
+
+                # 🆕 InlineAI: 添加 editor_action 字段 (type=continue)
+                if selected_text and selection_position:
+                    try:
+                        if isinstance(tool_result, str):
+                            result_obj = json.loads(tool_result)
+                        else:
+                            result_obj = tool_result
+
+                        result_obj["editor_action"] = {
+                            "type": "continue",
+                            "position": selection_position,
+                            "requires_confirmation": True
+                        }
+                        tool_result = json.dumps(result_obj, ensure_ascii=False) if isinstance(tool_result, str) else result_obj
+                        logger.info(f"[LangGraph] 📝 添加 editor_action (continue) 到 smart_continue 结果")
+                    except Exception as e:
+                        logger.warning(f"[LangGraph] 添加 editor_action 失败: {e}")
             # ✅ 编辑器工具：smart_insert（插入内容）
             elif tool_name == "smart_insert":
                 logger.info(f"[LangGraph] 🚀 准备调用 smart_insert, chapter_id={tool_args.get('chapter_id')}")
@@ -3991,9 +4078,11 @@ class WritingAgentGraph:
                                     "new_content": tool_result.get("content"),
                                     "description": tool_result.get("description"),
                                     "versions": versions,  # smart_rewrite的改写版本（包含content）
-                                    "chapter_id": tool_result.get("chapter_id")
+                                    "chapter_id": tool_result.get("chapter_id"),
+                                    # 🆕 InlineAI: 包含 editor_action 信息
+                                    "editor_action": tool_result.get("editor_action")
                                 }
-                                logger.info(f"[HITL] 准备调用回调: request_id={approval_data['request_id']}, versions数量={len(versions) if versions else 0}")
+                                logger.info(f"[HITL] 准备调用回调: request_id={approval_data['request_id']}, versions数量={len(versions) if versions else 0}, editor_action={approval_data.get('editor_action')}")
                                 await self._approval_callback(approval_data)
                                 logger.info(f"[HITL] ✅ 回调执行成功")
 
@@ -4550,7 +4639,36 @@ class WritingAgentGraph:
                     if knowledge_parts:
                         knowledge_section = "\n\n【用户引用的知识库文档】\n请参考以下文档内容回答用户问题：\n\n" + "\n\n".join(knowledge_parts) + "\n\n"
 
-                plan_prompt = f"""AI写作助手。{history_section}{knowledge_section}
+                # ✅ 2025-12-08 修复: 注入用户选中的文本到 Planning prompt
+                selected_text_section = ""
+                if context:
+                    selected_text = context.get("selected_text") or ""
+                    instruction_context = context.get("instruction_context") or ""
+                    selection_position = context.get("selection_position")
+
+                    if selected_text:
+                        logger.info(f"[Planning] 注入选中文本到prompt: {selected_text[:50]}...")
+                        selected_text_section = f"""
+
+【用户选中的文本】
+以下是用户在编辑器中选中的文本，请针对这段文本执行用户的指令：
+---
+{selected_text}
+---
+选区位置: from={selection_position.get('from') if selection_position else 'N/A'}, to={selection_position.get('to') if selection_position else 'N/A'}
+
+"""
+                    elif instruction_context:
+                        # 如果没有 selected_text 但有 instruction_context，也注入
+                        logger.info(f"[Planning] 注入指令上下文到prompt")
+                        selected_text_section = f"""
+
+【用户指令上下文】
+{instruction_context}
+
+"""
+
+                plan_prompt = f"""AI写作助手。{history_section}{knowledge_section}{selected_text_section}
 用户: {message}
 work_id: {work_id}
 chapter_id: {chapter_id}
@@ -4663,7 +4781,12 @@ chapter_id: {chapter_id}
                 logger.info("[Execution] 开始智能并行执行任务")
                 increment_counter("execution_phase_start")
 
+                # ✅ 2025-12-08 修复: 在执行阶段也包含 selected_text
                 initial_context = f"用户请求：{message}\n\n"
+                if context:
+                    exec_selected_text = context.get("selected_text") or ""
+                    if exec_selected_text:
+                        initial_context += f"用户选中的文本：\n---\n{exec_selected_text}\n---\n\n"
 
                 # 使用新的并行执行方法
                 # ✅ 为任务执行添加超时保护（使用统一配置）

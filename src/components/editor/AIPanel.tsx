@@ -21,6 +21,8 @@ interface AIPanelProps {
   chapterId?: string;
   sessionId?: string;
   onTitleChange?: (title: string) => void;
+  /** 是否为当前活动面板（只有活动面板才处理 InlineAI 事件） */
+  isActive?: boolean;
 }
 
 // Markdown渲染组件
@@ -150,7 +152,16 @@ const extractKnowledgeTags = (value: string): string[] => {
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanelProps) {
+// 全局去重集合，确保跨组件只处理一次 inline-ai 消息
+const getInlineAIProcessedSet = (): Set<string> => {
+  if (typeof window === 'undefined') return new Set<string>();
+  if (!(window as any).__inlineAIProcessed__) {
+    (window as any).__inlineAIProcessed__ = new Set<string>();
+  }
+  return (window as any).__inlineAIProcessed__ as Set<string>;
+};
+
+export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive = true }: AIPanelProps) {
   const {
     messages,
     isLoading,
@@ -193,6 +204,11 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
 
   const [selectedDocs, setSelectedDocs] = useState<Array<{ id: string; title: string }>>([]);
   const [optimizationSelected, setOptimizationSelected] = useState(false);
+  const [selectionContext, setSelectionContext] = useState<{
+    selected_text?: string;
+    selected_text_html?: string;
+    selection_position?: { from: number; to: number };
+  } | null>(null);
 
   const containsAt = useMemo(() => AT_CHARS.some((c) => inputValue.includes(c)), [inputValue]);
   // 去痕长度保护与提示
@@ -257,6 +273,165 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
   useEffect(() => {
     console.log('[AIPanel] 模式:', mode);
   }, [mode]);
+
+  // 🆕 定义 handleSendWithContext 用于处理带上下文的消息（InlineAI）
+  const handleSendWithContext = useCallback(async (message: string, context?: any) => {
+    if (!message.trim()) return;
+
+    console.log('[AIPanel] handleSendWithContext 调用:', { message, context });
+
+    // 🔑 固定 payload 结构：将选区信息放入独立的 selection 字段
+    // 避免将选中文本混入 prompt/chapter_context 导致被覆盖或结构混乱
+    const selectionData = context?.selected_text ? {
+      text: context.selected_text,
+      html: context.selected_text_html || context.selected_text,
+      from: context.selection_position?.from,
+      to: context.selection_position?.to,
+    } : null;
+
+    const request: AgentChatRequest = {
+      message,
+      mode,
+      work_id: workId,
+      chapter_id: chapterId,
+      context: {
+        ...context,
+        // 🔑 独立的 selection 字段（推荐结构）
+        selection: selectionData,
+        // 保留 selected_text 字段以兼容旧逻辑
+        selected_text: context?.selected_text,
+        selection_position: context?.selection_position,
+        // chapter_context 只放章节标识，不混入选中文本
+        chapter_context: chapterId ? `当前章节ID: ${chapterId}` : undefined,
+        // 🔑 如果有选中文本，添加结构化的指令上下文
+        instruction_context: context?.selected_text
+          ? `用户选中了以下文本进行操作:\n---\n${context.selected_text}\n---\n用户指令: ${message}`
+          : undefined,
+      },
+    };
+
+    console.log('[AIPanel] 🔑 固定结构 payload:', {
+      message,
+      selection: selectionData,
+      hasSelectedText: !!context?.selected_text,
+    });
+
+    // 用户发送消息时，标记应该自动滚动
+    shouldAutoScrollRef.current = true;
+
+    try {
+      await sendMessageStream(request);
+    } catch (err) {
+      console.error('[AIPanel] Failed to send message:', err);
+    }
+  }, [mode, workId, chapterId, sendMessageStream]);
+
+  // 🆕 监听来自编辑器 InlineAI 的消息（只有活动面板才处理）
+  useEffect(() => {
+    // 非活动面板不设置监听器
+    if (!isActive) {
+      console.log('[AIPanel] 非活动面板，跳过 InlineAI 监听设置');
+      return;
+    }
+
+    console.log('[AIPanel] 挂载 InlineAI 事件监听（活动面板）');
+
+    // 消费队列中的遗留消息
+    const queue: any[] = (window as any).__inlineAIQueue__ || [];
+    const consumed = getInlineAIProcessedSet();
+
+    queue.forEach((item) => {
+      const rid = item?.requestId || JSON.stringify(item);
+      if (!consumed.has(rid)) {
+        consumed.add(rid);
+        console.log('[AIPanel] consuming queued inline-ai payload', item);
+
+        // 🔑 直接传入原始 context，handleSendWithContext 会正确处理 selection 字段
+        handleSendWithContext(item.message || '', item.context || {});
+      }
+    });
+    (window as any).__inlineAIQueue__ = [];
+
+    // 暴露全局回调
+    (window as any).__agentInlineSend__ = (msg: string, ctx?: any, requestId?: string) => {
+      const rid = requestId || `inline-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      if (consumed.has(rid)) return;
+      consumed.add(rid);
+      console.log('[AIPanel] __agentInlineSend__ invoked', { msg, ctx, rid });
+
+      // 🔑 直接传入原始 context，handleSendWithContext 会正确处理 selection 字段
+      handleSendWithContext(msg, ctx);
+    };
+
+    // 监听 inline-ai-send 事件
+    const handleInlineAIMessage = (event: CustomEvent<{
+      message: string;
+      context: {
+        selected_text?: string;
+        selected_text_html?: string;
+        selection_position?: { from: number; to: number };
+        knowledge_doc_ids?: string[];
+      };
+      requestId?: string;
+    }>) => {
+      const { message, context, requestId } = event.detail;
+      console.log('[AIPanel] 收到 InlineAI 消息:', { message, context, requestId });
+
+      // 去重检查
+      const rid = requestId || `inline-${Date.now()}`;
+      if (consumed.has(rid)) {
+        console.log('[AIPanel] 消息已处理，跳过:', rid);
+        return;
+      }
+      consumed.add(rid);
+
+      // 🔑 直接传入原始 context，handleSendWithContext 会正确处理 selection 字段
+      handleSendWithContext(message, context);
+    };
+
+    window.addEventListener('inline-ai-send', handleInlineAIMessage as EventListener);
+
+    return () => {
+      window.removeEventListener('inline-ai-send', handleInlineAIMessage as EventListener);
+      delete (window as any).__agentInlineSend__;
+      console.log('[AIPanel] 卸载 InlineAI 事件监听');
+    };
+  }, [handleSendWithContext, isActive]);
+
+  // 🆕 监听 InlineAI intent（仅填充引用，不立即发送），全局 + 队列兜底
+  useEffect(() => {
+    if (!isActive) return;
+    const intentQueue: any[] = (window as any).__inlineAIIntentQueue__ || [];
+    if (intentQueue.length > 0) {
+      const last = intentQueue[intentQueue.length - 1];
+      console.log('[AIPanel] intentQueue consumed (AIPanel):', last);
+      setSelectionContext(last || null);
+      (window as any).__inlineAIIntentQueue__ = [];
+    }
+
+    (window as any).__agentInlineIntent__ = (ctx?: {
+      selected_text?: string;
+      selected_text_html?: string;
+      selection_position?: { from: number; to: number };
+    }) => {
+      setSelectionContext(ctx || null);
+    };
+
+    const handleInlineAIIntent = (event: CustomEvent<{
+      selected_text?: string;
+      selected_text_html?: string;
+      selection_position?: { from: number; to: number };
+    }>) => {
+      console.log('[AIPanel] 收到 InlineAI intent:', event.detail);
+      setSelectionContext(event.detail || null);
+    };
+
+    window.addEventListener('inline-ai-intent', handleInlineAIIntent as EventListener);
+    return () => {
+      window.removeEventListener('inline-ai-intent', handleInlineAIIntent as EventListener);
+      delete (window as any).__agentInlineIntent__;
+    };
+  }, [isActive]);
 
   // 检测用户是否在底部
   const checkIfAtBottom = useCallback(() => {
@@ -509,8 +684,22 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
         ? chapterContent.slice(0, MAX_HUMANIZE_CHARS)
         : chapterContent;
 
+    const selectionPayload = selectionContext?.selected_text
+      ? {
+          selected_text: selectionContext.selected_text,
+          selected_text_html: selectionContext.selected_text_html || selectionContext.selected_text,
+          selection_position: selectionContext.selection_position,
+          selection: {
+            text: selectionContext.selected_text,
+            html: selectionContext.selected_text_html || selectionContext.selected_text,
+            from: selectionContext.selection_position?.from,
+            to: selectionContext.selection_position?.to,
+          },
+        }
+      : {};
+
     // 调试日志：查看发送的知识库文档ID
-    console.log('[AIPanel] 发送消息，knowledge_doc_ids:', knowledgeDocIds, 'selectedDocs:', selectedDocs);
+    console.log('[AIPanel] 发送消息，knowledge_doc_ids:', knowledgeDocIds, 'selectedDocs:', selectedDocs, 'selection:', selectionPayload);
 
     const request: AgentChatRequest = {
       message,
@@ -521,12 +710,16 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
         chapter_context: chapterId ? `当前章节ID: ${chapterId}` : undefined,
         knowledge_doc_ids: knowledgeDocIds,
         use_optimization: useOptimization,
+        ...selectionPayload,
         ...(useOptimization && safeChapterContent
           ? {
               current_content: safeChapterContent,
               text: safeChapterContent, // 兼容后端可能读取 text 字段
             }
           : {}),
+        instruction_context: selectionContext?.selected_text
+          ? `用户选中了以下文本进行操作:\n---\n${selectionContext.selected_text}\n---\n用户指令: ${message}`
+          : undefined,
       },
     };
 
@@ -535,6 +728,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
     adjustInputHeight();
     setSelectedDocs([]);
     setOptimizationSelected(false);
+    setSelectionContext(null);
 
     // 用户发送消息时，标记应该自动滚动
     shouldAutoScrollRef.current = true;
@@ -851,6 +1045,28 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange }: AIPanel
         <div className="relative">
           <div className="flex flex-wrap items-start gap-2 w-full min-h-12 px-1 py-2 rounded-xl bg-transparent text-gray-800">
             {/* 胶囊在前，输入在后，保持同一行逻辑 */}
+            {selectionContext?.selected_text && (
+              <span
+                className="inline-flex items-center gap-2 rounded-xl bg-zinc-50 text-zinc-800 px-3 py-2 text-[11px] border border-zinc-200 shadow-sm"
+                style={{ maxWidth: '100%' }}
+                title={selectionContext.selected_text}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-zinc-600" />
+                <span className="truncate max-w-[240px]">{selectionContext.selected_text}</span>
+                <button
+                  type="button"
+                  className="hover:text-zinc-900 transition-colors"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setSelectionContext(null);
+                  }}
+                  aria-label="移除引用"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
             {optimizationSelected && (
               <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm">
                 <Sparkles className="w-3.5 h-3.5 text-zinc-600" />

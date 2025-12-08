@@ -1268,6 +1268,13 @@ async def agent_chat_stream(
                 # 准备上下文（创建新dict避免修改原request）
                 context = dict(request.context) if request.context else {}
 
+                # 🔍 调试日志：追踪 selected_text 是否到达后端
+                logger.info(f"[agent_chat_stream] 📥 收到的 context 字段:")
+                logger.info(f"  - selected_text: {context.get('selected_text', 'N/A')[:100] if context.get('selected_text') else 'N/A'}...")
+                logger.info(f"  - selection_position: {context.get('selection_position', 'N/A')}")
+                logger.info(f"  - chapter_context: {context.get('chapter_context', 'N/A')[:100] if context.get('chapter_context') else 'N/A'}...")
+                logger.info(f"  - instruction_context: {context.get('instruction_context', 'N/A')[:100] if context.get('instruction_context') else 'N/A'}...")
+
                 # 知识库文档注入
                 knowledge_service = KnowledgeService(db)
                 knowledge_docs: List[Dict[str, Any]] = []

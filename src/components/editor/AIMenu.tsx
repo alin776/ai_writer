@@ -5,29 +5,20 @@
 import React, { useState, useEffect } from 'react';
 import { BubbleMenu as TiptapBubbleMenu } from '@tiptap/react/menus';
 import { Editor } from '@tiptap/core';
-import {
-  Wand2,
-  Sparkles,
-  FileText,
-  Minimize2,
-  Languages,
-  Loader2,
-  Check,
-  X,
-  Pause,
-} from 'lucide-react';
+import { Loader2, Check, X, Pause, MessageSquare } from 'lucide-react';
 import { useAI } from '@/hooks/useAI';
 import { useToast } from '@/hooks/useToast';
 import AIContinueDrawer, { AIContinueConfig } from './AIContinueDrawer';
 
 interface AIMenuProps {
   editor: Editor;
+  onOpenInlineAI?: () => void; // 🆕 打开 InlineAI 浮动输入框
 }
 
 /**
  * AI 菜单组件
  */
-const AIMenu: React.FC<AIMenuProps> = ({ editor }) => {
+const AIMenu: React.FC<AIMenuProps> = ({ editor, onOpenInlineAI }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [aiGeneratedRange, setAiGeneratedRange] = useState<{ from: number; to: number } | null>(null);
   const [originalContent, setOriginalContent] = useState<string>('');
@@ -611,45 +602,21 @@ const AIMenu: React.FC<AIMenuProps> = ({ editor }) => {
         </div>
       )}
 
-      {/* AI 菜单 */}
-      <TiptapBubbleMenu
-        editor={editor}
-        shouldShow={shouldShow}
-        className="ai-menu-container"
-      >
+      {/* AI 气泡菜单 */}
+      <TiptapBubbleMenu editor={editor} shouldShow={shouldShow} className="ai-menu-container">
         {isProcessing ? (
           <div className="ai-menu-loading">
             <Loader2 className="w-4 h-4 animate-spin" />
             <span className="ai-menu-loading-text">AI 处理中...</span>
           </div>
         ) : (
-          <>
+          onOpenInlineAI && (
             <AIButton
-              onClick={() => setShowContinueDialog(true)}
-              icon={<Wand2 className="w-4 h-4" />}
-              label="续写"
+              onClick={onOpenInlineAI}
+              icon={<MessageSquare className="w-4 h-4" />}
+              label="Ask AI"
             />
-            <AIButton
-              onClick={handleExpand}
-              icon={<FileText className="w-4 h-4" />}
-              label="扩写"
-            />
-            <AIButton
-              onClick={handleSummarize}
-              icon={<Minimize2 className="w-4 h-4" />}
-              label="总结"
-            />
-            <AIButton
-              onClick={handlePolish}
-              icon={<Sparkles className="w-4 h-4" />}
-              label="润色"
-            />
-            <AIButton
-              onClick={handleTranslate}
-              icon={<Languages className="w-4 h-4" />}
-              label="翻译"
-            />
-          </>
+          )
         )}
       </TiptapBubbleMenu>
 
