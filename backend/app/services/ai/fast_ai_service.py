@@ -75,7 +75,7 @@ class FastAIService:
         start_time: datetime
     ):
         """
-        追踪API调用成本（使用request context）
+        追踪API调用成本并扣除积分（使用request context）
 
         Args:
             usage: usage统计信息（包含prompt_tokens, completion_tokens）
@@ -127,7 +127,62 @@ class FastAIService:
             # 使用独立db会话持久化
             async with create_db_session() as db:
                 temp_log_service = AILogService(db)
-                await temp_log_service.create_log(log_data)
+                ai_call_log = await temp_log_service.create_log(log_data)
+
+                # ==================== 积分扣费 ====================
+                # ✅ 2025-12-08: 添加积分扣费逻辑（与HTTPAIService一致）
+                try:
+                    from app.services.credits.credit_service import CreditService
+                    from app.services.credits.credit_utils import calculate_credits_from_cost
+                    from app.services.credits.credit_exceptions import (
+                        InsufficientCreditsError,
+                        CreditsExpiredError
+                    )
+                    from app.models.user import User
+                    from sqlalchemy import select
+
+                    # 查询用户信息
+                    user_stmt = select(User).where(User.id == UUID(user_id))
+                    user_result = await db.execute(user_stmt)
+                    user = user_result.scalar_one_or_none()
+
+                    if user:
+                        credit_service = CreditService(db)
+
+                        # 计算需要扣除的积分
+                        credits_to_deduct = calculate_credits_from_cost(cost_data["total_cost"])
+
+                        # 扣除积分（管理员自动豁免）
+                        transaction = await credit_service.consume(
+                            user_id=UUID(user_id),
+                            amount=credits_to_deduct,
+                            description=f"FastAI调用: {operation_type}",
+                            related_id=ai_call_log.id,
+                            skip_check=user.is_admin  # 管理员豁免
+                        )
+
+                        if transaction:  # 非管理员才有交易记录
+                            logger.info(
+                                f"[FastAI积分扣费] 用户 {user_id}: 扣除 {float(credits_to_deduct)} 积分, "
+                                f"余额: {float(transaction.balance_before)} → {float(transaction.balance_after)}"
+                            )
+                        else:
+                            logger.info(f"[FastAI积分扣费] 管理员 {user_id} 豁免积分扣费")
+                    else:
+                        logger.warning(f"[FastAI积分扣费] 用户 {user_id} 不存在，跳过扣费")
+
+                except InsufficientCreditsError as e:
+                    logger.error(
+                        f"[FastAI积分扣费] 用户 {user_id} 余额不足: "
+                        f"需要 {float(e.required)} 积分，当前 {float(e.available)} 积分"
+                    )
+                    # FastAI 是非流式调用，已完成，不抛异常中断
+                    # 但记录警告，后续可考虑预检查
+                except CreditsExpiredError as e:
+                    logger.error(f"[FastAI积分扣费] 用户 {user_id} 积分已过期: {e.expired_at}")
+                except Exception as e:
+                    logger.error(f"[FastAI积分扣费] 扣费失败: {type(e).__name__}: {str(e)}")
+                # ================================================
 
             logger.info(
                 f"[FastAI成本追踪] 已记录: operation={operation_type}, "
