@@ -18,7 +18,6 @@ from app.services.agent.parallel_tool_node import ParallelToolNode
 from langgraph.checkpoint.redis import AsyncRedisSaver
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
-from langchain_openai import ChatOpenAI
 import operator
 import logging
 import httpx
@@ -1162,10 +1161,9 @@ def _build_knowledge_system_messages(
 
 class WritingAgentGraph:
     """
-    LangGraph 写作 Agent - 支持双模式
+    LangGraph 写作 Agent
 
-    模式 1 (use_chatgpt=True): 使用 ChatOpenAI + 原生工具调用
-    模式 2 (use_chatgpt=False): 使用 HTTPAIService + 手动工具调用（绕过 Cloudflare）
+    使用 HTTPAIService + 手动工具调用
     """
 
     @classmethod
@@ -1209,17 +1207,14 @@ class WritingAgentGraph:
             logger.warning(f"[LangGraph] ⚠️ AsyncRedisSaver索引预创建失败: {e}")
             logger.warning("[LangGraph] 将在首次使用时自动创建索引")
 
-    def __init__(self, ai_service: HTTPAIService, use_chatgpt: bool = False):
+    def __init__(self, ai_service: HTTPAIService):
         """
         初始化 Agent
 
         Args:
             ai_service: HTTPAIService 实例
-            use_chatgpt: 是否使用 ChatOpenAI（True=原生工具调用，False=手动工具调用）
         """
         self.ai_service = ai_service
-        self.use_chatgpt = use_chatgpt  # 模式开关
-        self.monitoring_callback = None  # 监控回调（仅ChatOpenAI模式使用）
 
         # ✅ P0-6修复：HITL确认请求回调（存储为实例变量，避免序列化到Redis）
         self._approval_callback: Optional[callable] = None
@@ -1249,15 +1244,6 @@ class WritingAgentGraph:
         from app.prompts import get_prompt_manager
         self.prompt_manager = get_prompt_manager()
         logger.info("[LangGraph] ✅ PromptManager已初始化")
-
-        # 根据模式初始化
-        if use_chatgpt:
-            logger.info("[LangGraph] 使用 ChatOpenAI 模式（原生工具调用）")
-            self._init_chatgpt_mode()
-        else:
-            logger.info("[LangGraph] 使用 HTTPAIService 模式（手动工具调用，绕过 Cloudflare）")
-            self.llm = None
-            self.llm_with_tools = None
 
         # 创建 Checkpointer（记忆系统）
         # 使用 AsyncRedisSaver 替代 MemorySaver，解决内存泄漏和数据持久化问题
@@ -1304,57 +1290,6 @@ class WritingAgentGraph:
 
         # 构建图
         self.graph = self._build_graph()
-
-    def _init_chatgpt_mode(self):
-        """初始化 ChatOpenAI 模式"""
-        import httpx
-        from app.api.callbacks import MonitoringCallbackHandler
-
-        # 创建自定义 httpx 客户端（尝试绕过 Cloudflare）
-        sync_http_client = httpx.Client(
-            headers={
-                "User-Agent": "okhttp/4.12.0",
-                "Accept": "application/json",
-                "Accept-Encoding": "gzip, deflate",
-                "Connection": "keep-alive",
-            },
-            timeout=httpx.Timeout(float(TimeoutConfig.LLM_CALL), connect=10.0),
-            follow_redirects=True,
-            http2=False,
-        )
-
-        async_http_client = httpx.AsyncClient(
-            headers={
-                "User-Agent": "okhttp/4.12.0",
-                "Accept": "application/json",
-                "Accept-Encoding": "gzip, deflate",
-                "Connection": "keep-alive",
-            },
-            timeout=httpx.Timeout(float(TimeoutConfig.LLM_CALL), connect=10.0),
-            follow_redirects=True,
-            http2=False,
-        )
-
-        # 🔧 监控：创建监控回调（全局实例，支持动态设置context）
-        self.monitoring_callback = MonitoringCallbackHandler()
-        logger.info("[LangGraph] 已创建MonitoringCallbackHandler（支持动态context）")
-
-        # 创建 LLM（附加监控回调）
-        self.llm = ChatOpenAI(
-            model=settings.OPENAI_MODEL,
-            api_key=settings.OPENAI_API_KEY,
-            base_url=settings.OPENAI_BASE_URL,
-            temperature=0.7,
-            request_timeout=TimeoutConfig.LLM_CALL,  # ← 使用统一超时配置
-            http_client=sync_http_client,
-            http_async_client=async_http_client,
-            callbacks=[self.monitoring_callback],  # ← 添加监控回调
-            stream_usage=True,  # ✅ 关键修复：启用流式token统计
-            model_kwargs={"stream_options": {"include_usage": True}}  # ✅ 确保返回usage信息
-        )
-
-        # 绑定工具（工具调用也会触发回调）
-        self.llm_with_tools = self.llm.bind_tools(WRITING_TOOLS)
 
     def _init_unified_memory_coordinator(self):
         """
@@ -1577,7 +1512,7 @@ class WritingAgentGraph:
         max_tokens: int = 1000,
         task_type: Optional[TaskType] = None
     ) -> dict:
-        """生成文本的辅助方法（根据use_chatgpt选择使用ChatOpenAI或HTTPAIService）
+        """生成文本的辅助方法（使用HTTPAIService）
 
         Args:
             prompt: 提示词（可选，与messages二选一）
@@ -1599,89 +1534,40 @@ class WritingAgentGraph:
         # ✅ P0-1: 添加超时保护（使用统一配置）
         try:
             async with asyncio.timeout(TimeoutConfig.LLM_CALL):
-                # 🔧 修复：根据use_chatgpt选择使用ChatOpenAI还是HTTPAIService
-                if self.use_chatgpt:
-                    # 模式1：使用ChatOpenAI（触发监控）
-                    from langchain_core.messages import HumanMessage, AIMessage as LangChainAIMessage
-
-                    # ✅ 构建消息列表
-                    if messages is not None:
-                        # 使用提供的消息列表
-                        lc_messages = []
-                        for msg in messages:
-                            role = msg.get("role", "user")
-                            content = msg.get("content", "")
-                            if role == "user":
-                                lc_messages.append(HumanMessage(content=content))
-                            elif role == "assistant":
-                                lc_messages.append(LangChainAIMessage(content=content))
-                    else:
-                        # 使用单个prompt（向后兼容）
-                        lc_messages = [HumanMessage(content=prompt)]
-
-                    # 调用ChatOpenAI（会触发MonitoringCallbackHandler）
-                    # ✅ 使用 bind() 动态绑定参数，确保 temperature 和 max_tokens 生效
-                    llm_with_params = self.llm.bind(
-                        temperature=temperature,
-                        max_tokens=max_tokens
-                    )
-                    response = await llm_with_params.ainvoke(lc_messages)
-
-                    generated_text = response.content
-
-                    # 提取token使用情况
-                    usage = {}
-                    if hasattr(response, 'response_metadata'):
-                        token_usage = response.response_metadata.get('token_usage', {})
-                        if token_usage:
-                            usage = {
-                                "prompt_tokens": token_usage.get('prompt_tokens', 0),
-                                "completion_tokens": token_usage.get('completion_tokens', 0),
-                                "total_tokens": token_usage.get('total_tokens', 0)
-                            }
-
-                    logger.info(f"[_generate_text] 使用ChatOpenAI生成文本，tokens={usage.get('total_tokens', 0)}")
-
-                    return {
-                        "text": generated_text,
-                        "usage": usage
-                    }
+                # 使用HTTPAIService
+                # ✅ 构建消息列表
+                if messages is not None:
+                    # 使用提供的消息列表
+                    http_messages = messages
                 else:
-                    # 模式2：使用HTTPAIService（兼容模式）
-                    # ✅ 构建消息列表
-                    if messages is not None:
-                        # 使用提供的消息列表
-                        http_messages = messages
-                    else:
-                        # 使用单个prompt（向后兼容）
-                        http_messages = [{"role": "user", "content": prompt}]
+                    # 使用单个prompt（向后兼容）
+                    http_messages = [{"role": "user", "content": prompt}]
 
-                    generated_text = ""
-                    usage = None
+                generated_text = ""
+                usage = None
 
-                    async for chunk, chunk_usage in self.ai_service._stream_chat(
-                        messages=http_messages,
-                        max_tokens=max_tokens,
-                        temperature=temperature,
-                        task_type=task_type  # ← 传递task_type
-                    ):
-                        if chunk:
-                            generated_text += chunk
-                        if chunk_usage:
-                            usage = chunk_usage
+                async for chunk, chunk_usage in self.ai_service._stream_chat(
+                    messages=http_messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    task_type=task_type  # ← 传递task_type
+                ):
+                    if chunk:
+                        generated_text += chunk
+                    if chunk_usage:
+                        usage = chunk_usage
 
-                    logger.info(f"[_generate_text] 使用HTTPAIService生成文本，tokens={usage.get('total_tokens', 0) if usage else 0}")
+                logger.info(f"[_generate_text] 使用HTTPAIService生成文本，tokens={usage.get('total_tokens', 0) if usage else 0}")
 
-                    return {
-                        "text": generated_text,
-                        "usage": usage or {}
-                    }
+                return {
+                    "text": generated_text,
+                    "usage": usage or {}
+                }
 
         except asyncio.TimeoutError:
             # 超时处理
-            mode = "ChatOpenAI" if self.use_chatgpt else "HTTPAIService"
-            logger.error(f"[_generate_text] {mode} LLM调用超时（{TimeoutConfig.LLM_CALL}秒）")
-            increment_counter("generate_text_error", labels={"error_type": "TimeoutError", "mode": mode})
+            logger.error(f"[_generate_text] HTTPAIService LLM调用超时（{TimeoutConfig.LLM_CALL}秒）")
+            increment_counter("generate_text_error", labels={"error_type": "TimeoutError"})
 
             # 返回错误结果
             return {
@@ -1692,9 +1578,8 @@ class WritingAgentGraph:
 
         except Exception as e:
             # 其他异常处理
-            mode = "ChatOpenAI" if self.use_chatgpt else "HTTPAIService"
-            logger.error(f"[_generate_text] {mode} LLM调用失败: {e}", exc_info=True)
-            increment_counter("generate_text_error", labels={"error_type": type(e).__name__, "mode": mode})
+            logger.error(f"[_generate_text] HTTPAIService LLM调用失败: {e}", exc_info=True)
+            increment_counter("generate_text_error", labels={"error_type": type(e).__name__})
 
             # 返回错误结果
             return {
@@ -2343,62 +2228,10 @@ class WritingAgentGraph:
 
     async def _handle_agent_with_tools(self, state: AgentState, agent_type: str, system_prompt: str) -> AgentState:
         """
-        通用的Agent处理逻辑 - 支持双模式
-
-        模式 1: ChatOpenAI 原生工具调用
-        模式 2: HTTPAIService 手动工具调用
+        通用的Agent处理逻辑 - 使用HTTPAIService手动工具调用
         """
-        logger.info(f"[LangGraph] 处理{agent_type}场景 (use_chatgpt={self.use_chatgpt})")
-
-        if self.use_chatgpt:
-            # 模式 1: 使用 ChatOpenAI 原生工具调用
-            return await self._handle_with_chatgpt(state, agent_type, system_prompt)
-        else:
-            # 模式 2: 使用 HTTPAIService 手动工具调用
-            return await self._handle_with_httpai(state, agent_type, system_prompt)
-
-    async def _handle_with_chatgpt(self, state: AgentState, agent_type: str, system_prompt: str) -> AgentState:
-        """ChatOpenAI 模式 - 原生工具调用"""
-        messages = state["messages"]
-
-        # 检查是否已经有工具结果（第二次进入）
-        if messages and isinstance(messages[-1], ToolMessage):
-            logger.info(f"[LangGraph] {agent_type} - 处理工具执行结果 (ChatOpenAI)")
-            # ✅ P0-4修复：第二次进入也需要system_prompt + 绑定工具，让AI可以继续调用工具
-            messages_with_system = [SystemMessage(content=system_prompt)] + messages
-            response = await self.llm_with_tools.ainvoke(messages_with_system)
-            # ✅ 只返回新消息，避免 operator.add 重复添加
-            result = {
-                "messages": [response],
-                "agent_steps": [{
-                    "step": f"{agent_type}_after_tool",
-                    "result": f"处理工具结果 (ChatOpenAI): {'继续调用工具' if response.tool_calls else '生成最终响应'}",
-                    "tool_calls": len(response.tool_calls) if response.tool_calls else 0
-                }]
-            }
-            # 如果没有新的工具调用，则设置final_response
-            if not response.tool_calls:
-                result["final_response"] = response.content
-            return result
-
-        # 第一次进入：让 LLM 决定是否需要工具
-        messages_with_system = [SystemMessage(content=system_prompt)] + messages
-        response = await self.llm_with_tools.ainvoke(messages_with_system)
-
-        # ✅ 只返回新消息，避免 operator.add 重复添加
-        result = {
-            "messages": [response],
-            "agent_steps": [{
-                "step": f"{agent_type}_decision",
-                "result": f"LLM决策 (ChatOpenAI): {'调用工具' if response.tool_calls else '直接响应'}",
-                "tool_calls": len(response.tool_calls) if response.tool_calls else 0
-            }]
-        }
-
-        if not response.tool_calls:
-            result["final_response"] = response.content
-
-        return result
+        logger.info(f"[LangGraph] 处理{agent_type}场景")
+        return await self._handle_with_httpai(state, agent_type, system_prompt)
 
     async def _handle_with_httpai(self, state: AgentState, agent_type: str, system_prompt: str, recursion_depth: int = 0) -> AgentState:
         """HTTPAIService 模式 - 手动工具调用（绕过 Cloudflare）
@@ -2882,7 +2715,7 @@ class WritingAgentGraph:
 
         logger.info(f"[LangGraph] 🧠 记忆修复：传递 {len(chat_messages)} 条消息给AI（包含历史对话）")
 
-        # ✅ 使用 _generate_text 以支持 ChatOpenAI/HTTPAIService 双模式
+        # ✅ 使用 _generate_text 调用HTTPAIService
         result = await self._generate_text(
             messages=chat_messages,  # ✅ 传递完整消息历史
             max_tokens=200,  # ✅ Phase 2.5: 优化从500→200 (JSON响应通常<100 tokens)
@@ -3609,19 +3442,6 @@ class WritingAgentGraph:
         Returns:
             Dict: Agent响应（同chat()方法）
         """
-
-        # 🔧 设置监控回调的context（用于AICallLog记录）
-        if self.use_chatgpt and self.monitoring_callback and user_id and db:
-            self.monitoring_callback.set_context(
-                user_id=user_id,
-                db=db,
-                work_id=work_id,
-                chapter_id=chapter_id
-            )
-            logger.info(
-                f"[LangGraph] 监控callback context已设置 "
-                f"(user_id={user_id[:8]}..., db=enabled)"
-            )
 
         # 🔧 监控：导入监控工具
         import time
@@ -4433,19 +4253,6 @@ class WritingAgentGraph:
             import time
             from app.services.agent.utils.monitoring import increment_counter, record_timer
             start_time = time.time()
-
-            # ✅ 设置监控回调的context（用于AICallLog记录）
-            if self.use_chatgpt and self.monitoring_callback and user_id and db:
-                self.monitoring_callback.set_context(
-                    user_id=user_id,
-                    db=db,
-                    work_id=work_id,
-                    chapter_id=chapter_id
-                )
-                logger.info(
-                    f"[Planning] 已设置MonitoringCallback context "
-                    f"(user_id={user_id[:8]}..., db=enabled)"
-                )
 
             # ✅ P0修复：构建隔离的thread_id（包含work_id）
             # 确保不同work_id的对话使用不同的checkpoint，避免跨作品污染

@@ -52,7 +52,7 @@ async def think_tool(
     prompt = _build_reflection_prompt(task, result, remaining_tasks)
 
     try:
-        # 复用 _generate_text 抽象层（支持 ChatOpenAI/HTTPAIService 双模式）
+        # 复用 _generate_text 抽象层
         response = await asyncio.wait_for(
             agent_graph._generate_text(
                 prompt=prompt,

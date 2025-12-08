@@ -98,7 +98,7 @@ def get_agent_graph() -> WritingAgentGraph:
             enable_model_selector=settings.MODEL_SELECTION_ENABLED
         )
         # 创建Agent实例（只创建一次）
-        _global_agent_graph = WritingAgentGraph(ai_service, use_chatgpt=settings.AGENT_USE_CHATGPT)
+        _global_agent_graph = WritingAgentGraph(ai_service)
         logger.info("[Global Agent] created global agent instance; MemorySaver shared across requests")
     return _global_agent_graph
 
