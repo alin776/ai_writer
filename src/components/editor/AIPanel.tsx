@@ -1114,7 +1114,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
               onKeyDown={handleKeyDown}
               onClick={syncAtStateFromRef}
               onFocus={syncAtStateFromRef}
-              placeholder="输入问题或指令..."
+              placeholder="发消息或输入@选择指令..."
               className="flex-1 min-w-[200px] bg-transparent outline-none border-none text-[12px] placeholder:text-gray-400 resize-none leading-relaxed"
               disabled={isLoading}
               rows={1}
