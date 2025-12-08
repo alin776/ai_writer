@@ -25,7 +25,7 @@ from app.core.security import get_current_active_user
 from app.models.user import User
 from app.models.agent_session import AgentSession
 from app.models.agent_session_message import AgentSessionMessage
-from app.models.chat_models import ChatMode, ChatRequest as UnifiedChatRequest, format_react_event_to_sse, format_planning_event_to_sse, format_error_event
+from app.models.chat_models import ChatMode
 from app.models.chapter import Chapter
 from app.services.agent.memory import MemoryManager
 from app.services.agent.agents import PlanningAgent, ReflectionAgent
@@ -108,7 +108,7 @@ def get_agent_graph() -> WritingAgentGraph:
 class AgentChatRequest(BaseModel):
     """Agent chat request"""
     message: str = Field(..., description="User message", min_length=1)
-    mode: Optional[str] = Field(None, description="Chat mode: planning/react (default planning)")
+    mode: Optional[str] = Field(None, description="Chat mode: planning only (default)")
     work_id: Optional[str] = Field(None, description="Work ID")
     chapter_id: Optional[str] = Field(None, description="Chapter ID")
     conversation_id: Optional[str] = Field(None, description="Conversation ID for continuing session")
@@ -1159,13 +1159,7 @@ async def agent_chat_stream(
     """
     Agent 智能对话 - 统一流式响应（SSE）
 
-    支持两种模式：
-    - Planning模式（默认）：先规划再执行
-    - React模式：边思考边执行
-
-    使用方式：
-    1. Planning模式（默认）: 不传mode或mode="planning"
-    2. React模式: mode="react"
+    仅支持 Planning 模式（默认）：先规划再执行
 
     Args:
         request: 对话请求
@@ -1173,24 +1167,24 @@ async def agent_chat_stream(
         memory: 记忆管理器
         ai_service: AI服务
         db: 数据库会话
-        mode: 聊天模式（planning/react，默认planning）
+        mode: 聊天模式（仅planning，默认planning）
 
     Returns:
         StreamingResponse: SSE流式响应
     """
     import asyncio
 
-    # 确定使用的模式
-    # 优先级：URL查询参数 > Body参数 > 默认planning
-    actual_mode = mode or request.mode or ChatMode.PLANNING
+    # 仅支持 planning，任何其他输入均回退为 planning
+    requested_mode = mode or request.mode or ChatMode.PLANNING
+    try:
+        actual_mode = ChatMode(requested_mode.lower()) if isinstance(requested_mode, str) else ChatMode(requested_mode)
+    except Exception:
+        logger.warning(f"[Chat Stream] 无效的mode值: {requested_mode}, 使用默认planning")
+        actual_mode = ChatMode.PLANNING
 
-    # 字符串转枚举
-    if isinstance(actual_mode, str):
-        try:
-            actual_mode = ChatMode(actual_mode.lower())
-        except (ValueError, AttributeError):
-            logger.warning(f"[Chat Stream] 无效的mode值: {actual_mode}, 使用默认planning")
-            actual_mode = ChatMode.PLANNING
+    if actual_mode != ChatMode.PLANNING:
+        logger.info(f"[Chat Stream] 模式 {actual_mode} 已停用，回退到 planning")
+        actual_mode = ChatMode.PLANNING
 
     logger.info(f"[Chat Stream] Mode: {actual_mode}")
 
@@ -1200,7 +1194,6 @@ async def agent_chat_stream(
 
         async with create_db_session() as db:
             # 使用队列实现实时事件发送
-            import time  # ✅ 在这里导入，整个函数内都可以使用
             event_queue = asyncio.Queue()
             agent_task = None
             result = None
@@ -1400,8 +1393,6 @@ async def agent_chat_stream(
                         yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
                         return
 
-                # ✅ 追踪活动状态（用于发送 activity_complete 事件）
-                last_activity_step = {'step': None, 'start_time': None}
                 # ✅ 追踪内容是否已通过流式发送（避免重复发送）
                 content_sent = {'value': False}
 
@@ -1439,89 +1430,25 @@ async def agent_chat_stream(
                         assistant_chunks.append(str(chunk))
                     await event_queue.put(('content', chunk))
 
-                # 在后台运行 Agent
+                # 在后台运行 Agent（仅 planning 模式）
                 async def run_agent():
                     nonlocal result
                     try:
-                        # 根据模式调用不同的方法
-                        if actual_mode == ChatMode.REACT:
-                            # React模式：使用chat_stream()
-                            # 定义React模式的回调
-                            async def on_progress_react(event):
-                                """进度回调 - 添加activity_complete逻辑"""
-                                current_step = event.get('step')
-
-                                # ✅ 如果活动类型改变，发送前一个活动的完成事件
-                                if last_activity_step['step'] is not None and last_activity_step['step'] != current_step:
-                                    elapsed_time = time.time() - last_activity_step['start_time'] if last_activity_step['start_time'] else 0
-                                    await event_queue.put(('activity_complete', {
-                                        'step': last_activity_step['step'],
-                                        'elapsed_time': elapsed_time
-                                    }))
-                                    logger.info(f"[Stream] Activity完成: {last_activity_step['step']} ({elapsed_time:.1f}s)")
-
-                                # 更新当前活动
-                                last_activity_step['step'] = current_step
-                                last_activity_step['start_time'] = time.time()
-
-                                # 发送progress事件
-                                await event_queue.put(('progress', event))
-
-                            async def on_tool_call_react(tool_name: str, tool_args: dict):
-                                await event_queue.put(('tool_call', {'tool': tool_name, 'args': tool_args}))
-
-                            async def on_content_react(content: str):
-                                content_sent['value'] = True  # ✅ 标记内容已发送
-                                assistant_chunks.append(str(content) if content is not None else "")
-                                await event_queue.put(('content', {'content': content}))
-
-                            # ✅ P0-6修复：定义HITL确认请求回调（存储为实例变量，避免序列化）
-                            async def on_approval_request(request_data: dict):
-                                """Handle approval request stream event."""
-                                logger.info(f"[Stream] Approval request: {request_data.get('request_id')}")
-                                await event_queue.put(('approval_request', request_data))
-
-                            # ✅ P0-6修复：将回调设置为实例变量，而非添加到context（避免Redis序列化错误）
-                            agent_graph._approval_callback = on_approval_request
-
-                            result = await agent_graph.chat_stream(
-                                message=request.message,
-                                user_id=user_id,  # 新增：传入用户ID
-                                work_id=request.work_id,
-                                chapter_id=request.chapter_id,
-                                conversation_id=conversation_id,
-                                context=context,
-                                on_progress=on_progress_react,
-                                on_tool_call=on_tool_call_react,
-                                on_content=on_content_react,
-                                db=db  # ✅ 修复：传入生成器的独立db会话
-                            )
-                        else:
-                            # Planning模式：使用chat_with_planning()
-                            result = await agent_graph.chat_with_planning(
-                                message=request.message,
-                                user_id=user_id,
-                                work_id=request.work_id,
-                                chapter_id=request.chapter_id,
-                                conversation_id=conversation_id,
-                                context=context,
-                                on_plan=on_plan,
-                                on_task_start=on_task_start,
-                                on_task_progress=on_task_progress,
-                                on_task_done=on_task_done,
-                                on_content=on_content,
-                                db=db,
-                                enable_reflection=request.enable_reflection,  # DeepAgent 反思模式
-                            )
-                        # ✅ 发送最后一个活动的完成事件
-                        if last_activity_step['step'] is not None:
-                            elapsed_time = time.time() - last_activity_step['start_time'] if last_activity_step['start_time'] else 0
-                            await event_queue.put(('activity_complete', {
-                                'step': last_activity_step['step'],
-                                'elapsed_time': elapsed_time
-                            }))
-                            logger.info(f"[Stream] 最后活动完成: {last_activity_step['step']} ({elapsed_time:.1f}s)")
-
+                        result = await agent_graph.chat_with_planning(
+                            message=request.message,
+                            user_id=user_id,
+                            work_id=request.work_id,
+                            chapter_id=request.chapter_id,
+                            conversation_id=conversation_id,
+                            context=context,
+                            on_plan=on_plan,
+                            on_task_start=on_task_start,
+                            on_task_progress=on_task_progress,
+                            on_task_done=on_task_done,
+                            on_content=on_content,
+                            db=db,
+                            enable_reflection=request.enable_reflection,  # DeepAgent 反思模式
+                        )
                         # Agent 完成后放入结束标记
                         await event_queue.put(('__done__', None))
                     except Exception as e:

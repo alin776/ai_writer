@@ -240,7 +240,7 @@ if __name__ == "__main__":
 
     # 显示各场景的总权重
     print("\n📊 场景权重分布:")
-    for scenario in ["writing", "planning", "analysis", "stuck", "general", "react", "planning_mode"]:
+    for scenario in ["writing", "planning", "analysis", "stuck", "general", "planning_mode"]:
         total = calculate_scenario_total_weight(scenario)
         nodes = get_scenario_nodes(scenario)
         print(f"  {scenario:15} : {total:.2f} ({len(nodes)} 节点)")

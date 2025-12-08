@@ -11,7 +11,6 @@ class FeatureFlags:
     """功能开关"""
 
     # Agent相关功能
-    ENABLE_REACT_STREAM = True  # ReAct流式模式（新功能）
     ENABLE_PLANNING_MODE = True  # Planning模式（现有功能）
 
     # 其他功能开关可以在这里添加
@@ -30,12 +29,6 @@ class FeatureFlags:
             for key, value in cls.__dict__.items()
             if key.isupper() and not key.startswith('_')
         }
-
-
-# 便捷访问
-def is_react_stream_enabled() -> bool:
-    """检查ReAct流式模式是否启用"""
-    return FeatureFlags.ENABLE_REACT_STREAM
 
 
 def is_planning_mode_enabled() -> bool:
