@@ -897,7 +897,7 @@ class HTTPAIService:
 
             # 记录user_id来源（用于调试）
             source = "实例" if self.user_id else "上下文"
-            logger.debug(f"[成本追踪] user_id来源: {source}, user_id={user_id}")
+            logger.info(f"[成本追踪] user_id来源: {source}, user_id={user_id}")
 
             # 提取token使用情况
             prompt_tokens = usage_info.get('prompt_tokens', 0)

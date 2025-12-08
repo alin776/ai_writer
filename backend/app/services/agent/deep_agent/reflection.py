@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Dict, Any, List, Optional
 
 from .config import DeepAgentConfig
+from app.services.agent.model_selector import TaskType
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +54,14 @@ async def think_tool(
 
     try:
         # 复用 _generate_text 抽象层
+        # ✅ 2025-12-08: 添加 task_type=SIMPLE_QA，使用快速模型避免超时
+        logger.info(f"[DeepAgent反思] 开始调用 AI，task_id={task.get('task_id')}")
         response = await asyncio.wait_for(
             agent_graph._generate_text(
                 prompt=prompt,
                 temperature=0.3,
                 max_tokens=500,
+                task_type=TaskType.SIMPLE_QA,  # ✅ 反思是简单决策任务
             ),
             timeout=DeepAgentConfig.REFLECTION_TIMEOUT
         )

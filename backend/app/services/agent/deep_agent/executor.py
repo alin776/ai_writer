@@ -12,6 +12,7 @@ from typing import Dict, Any, List, Optional, Callable
 from .config import DeepAgentConfig
 from .reflection import think_tool, should_reflect, ReflectionResult
 from .task_enricher import get_task_enricher
+from app.services.agent.model_selector import TaskType
 
 logger = logging.getLogger(__name__)
 
@@ -301,12 +302,15 @@ class DeepAgentExecutor:
 """
 
             # 复用 _generate_text 抽象层
+            # ✅ 2025-12-08: 添加 task_type=SIMPLE_QA，使用快速模型避免超时
+            logger.info("[DeepAgent重规划] 开始调用 AI")
             response = await asyncio.wait_for(
                 self.agent._generate_text(
                     prompt=prompt,
                     # 降低采样温度与生成上限，缩短重规划延迟并提升确定性
                     temperature=0.2,
                     max_tokens=800,
+                    task_type=TaskType.SIMPLE_QA,  # ✅ 重规划是简单任务规划
                 ),
                 timeout=DeepAgentConfig.REPLAN_TIMEOUT
             )
