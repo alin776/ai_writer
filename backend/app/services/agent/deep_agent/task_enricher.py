@@ -49,18 +49,19 @@ class TaskEnricher:
     """
 
     # 关键词兜底规则（当 AI 推断失败时使用）
+    # 优先匹配“分析/规划/大纲”类任务，避免同时含“第X章”时误判为取章节
     FALLBACK_RULES: List[Dict[str, Any]] = [
         {
-            "keywords": ["获取第", "读取第", "查看第", "第.*章"],
-            "tool": "get_chapter_by_order_tool",
+            "keywords": ["分析", "梳理", "总结", "概括", "规划", "大纲", "设计", "提取", "归纳"],
+            "tool": "analyze_text_tool",
         },
         {
             "keywords": ["上下文", "背景", "设定", "世界观"],
             "tool": "get_context_tool",
         },
         {
-            "keywords": ["分析", "梳理", "总结", "概括", "规划", "大纲", "设计", "提取", "归纳"],
-            "tool": "analyze_text_tool",
+            "keywords": ["获取第", "读取第", "查看第", "第.*章"],
+            "tool": "get_chapter_by_order_tool",
         },
     ]
 
@@ -173,7 +174,7 @@ class TaskEnricher:
                     temperature=0.1,
                     max_tokens=200,
                 ),
-                timeout=10  # 10秒超时
+                timeout=20  # 放宽至20秒，降低因网络/模型延迟导致的误降级
             )
 
             text = response.get("text", "")

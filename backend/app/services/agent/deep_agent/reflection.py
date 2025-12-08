@@ -1,4 +1,4 @@
-"""反思工具和逻辑
+﻿"""反思工具和逻辑
 
 基于 Deep Agents 的 think_tool 设计，实现纯上下文工程的反思能力。
 """
@@ -136,23 +136,54 @@ def _parse_reflection_response(response: str) -> ReflectionResult:
     第一行：REPLAN:YES 或 REPLAN:NO
     后续行：反思内容
 
-    🔧 2025-12-08: 简化解析逻辑，移除 JSON 解析和关键词匹配
+    ?? 2025-12-08: 简化解析逻辑，移除 JSON 解析和关键词匹配
+    ?? 2025-12-08: 扩展判定规则，支持中文/同义表达，避免模型输出微调导致的漏判
     """
-    response = response.strip()
-    lines = response.split('\n')
+    raw_text = (response or "").strip()
+    lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
 
-    # 解析第一行的决策标记
-    first_line = lines[0].strip().upper() if lines else ""
-    needs_replan = 'REPLAN' in first_line and 'YES' in first_line
+    first_line = lines[0].upper() if lines else ""
 
-    # 反思内容是第一行之后的部分
-    reflection = '\n'.join(lines[1:]).strip() if len(lines) > 1 else response
+    positive_markers = ("REPLAN:YES", "REPLAN YES", "REPLAN=YES", "REPLAN TRUE", "REPLAN: TRUE", "REPLAN: Y")
+    negative_markers = ("REPLAN:NO", "REPLAN NO", "REPLAN=NO", "REPLAN FALSE", "REPLAN: FALSE", "REPLAN: N")
 
-    # 如果反思内容为空，使用原始响应
+    contains_positive_marker = any(m in first_line for m in positive_markers)
+    contains_negative_marker = any(m in first_line for m in negative_markers)
+
+    positive_cn_keywords = (
+        "需要重新规划", "需要重规划", "重新规划", "重规划", "重新计划",
+        "调整后续任务", "改一下计划", "补充任务", "调整任务"
+    )
+    negative_cn_keywords = (
+        "无需重规划", "不需要重规划", "无需重新规划", "不需要调整", "保持原计划", "继续执行"
+    )
+
+    needs_replan_cn = any(k in raw_text for k in positive_cn_keywords)
+    no_replan_cn = any(k in raw_text for k in negative_cn_keywords)
+
+    needs_replan = False
+    if contains_positive_marker:
+        needs_replan = True
+    elif contains_negative_marker:
+        needs_replan = False
+    elif no_replan_cn:
+        needs_replan = False
+    elif needs_replan_cn:
+        needs_replan = True
+
+    # 如果仍未决策，允许第一行包含 REPLAN 但未写 YES/NO 时，用关键词兜底
+    if not needs_replan and not contains_negative_marker and "REPLAN" in first_line:
+        if "YES" in first_line or "TRUE" in first_line:
+            needs_replan = True
+
+    reflection = "\n".join(lines[1:]).strip() if len(lines) > 1 else raw_text
     if not reflection:
-        reflection = response
+        reflection = raw_text
 
-    logger.debug(f"反思解析: needs_replan={needs_replan}, 第一行={first_line[:50]}")
+    logger.info(
+        "[Reflection] 解析结果: needs_replan=%s, first_line=%s, raw_len=%s",
+        needs_replan, first_line[:80], len(raw_text)
+    )
 
     return ReflectionResult(reflection=reflection, needs_replan=needs_replan)
 
@@ -202,3 +233,4 @@ def should_reflect(
     # 4. 其他情况不触发反思
     #    注意：移除了基于关键词的判断，因为现在由 AI 通过 checkpoint 字段控制
     return False
+

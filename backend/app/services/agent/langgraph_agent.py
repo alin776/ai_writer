@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 LangGraph Agent 工作流实现
 
@@ -4745,6 +4745,10 @@ chapter_id: {chapter_id}
                                 execute_task_func=execute_single_task,
                             )
 
+                            # 如果发生重规划，使用最新的任务列表覆盖原规划，确保后续返回/缓存一致
+                            if deep_result.get("replan_count", 0) > 0:
+                                plan_data["tasks"] = deep_result.get("tasks", plan_data.get("tasks", []))
+
                             # 转换结果格式
                             task_results = []
                             # ✅ 构建任务ID到任务的映射（用于获取 tool 字段）
@@ -6319,3 +6323,4 @@ chapter_id: {chapter_id}
 
 __all__ = ["WritingAgentGraph", "AgentState"]
  
+
