@@ -174,7 +174,7 @@ class TaskEnricher:
                     temperature=0.1,
                     max_tokens=200,
                 ),
-                timeout=20  # 放宽至20秒，降低因网络/模型延迟导致的误降级
+                timeout=30  # 再放宽至30秒，进一步降低偶发超时
             )
 
             text = response.get("text", "")

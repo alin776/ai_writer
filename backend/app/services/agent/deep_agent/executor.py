@@ -304,8 +304,9 @@ class DeepAgentExecutor:
             response = await asyncio.wait_for(
                 self.agent._generate_text(
                     prompt=prompt,
-                    temperature=0.3,
-                    max_tokens=1000,
+                    # 降低采样温度与生成上限，缩短重规划延迟并提升确定性
+                    temperature=0.2,
+                    max_tokens=800,
                 ),
                 timeout=DeepAgentConfig.REPLAN_TIMEOUT
             )
