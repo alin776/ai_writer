@@ -12,7 +12,8 @@ import logging
 from typing import List, Optional, Dict, Any
 
 from app.services.context.models import (
-    Context, Message, ShortMemory, SummaryMemory, TokenBudget
+    Context, Message, ShortMemory, SummaryMemory, TokenBudget,
+    IsolationLevel, build_isolation_key  # ✅ 新增：隔离层级
 )
 from app.services.context.store import ContextStore, RedisContextStore
 from app.services.context.monitoring_integration import (
@@ -1029,7 +1030,8 @@ class ContextManager:
         session_id: str,
         role: str,
         importance: Optional[float] = None,
-        work_id: Optional[str] = None  # ✅ 新增：作品ID
+        work_id: Optional[str] = None,
+        isolation_level: IsolationLevel = IsolationLevel.WORK  # ✅ 新增：隔离级别
     ):
         """
         保存到长期记忆
@@ -1039,7 +1041,8 @@ class ContextManager:
             session_id: 会话ID
             role: 角色（user/assistant）
             importance: 重要度（如未指定则自动评估）
-            work_id: 作品ID（可选，用于隔离不同作品的记忆）
+            work_id: 作品ID（WORK 级别时使用）
+            isolation_level: 隔离级别（默认 WORK）
         """
         if not self.enable_long_term_memory or not self._vector_store or not self.user_id:
             return
@@ -1054,20 +1057,21 @@ class ContextManager:
                 logger.debug(f"记忆重要度过低 ({importance:.2f})，跳过保存")
                 return
 
-            # 保存到向量库
+            # ✅ 保存到向量库（传递隔离级别）
             memory_id = await self._vector_store.add_memory(
                 content=content,
                 user_id=self.user_id,
-                work_id=work_id,  # ✅ 新增：传递work_id
+                work_id=work_id,
                 session_id=session_id,
                 memory_type="conversation",
-                importance=importance
+                importance=importance,
+                isolation_level=isolation_level  # ✅ 新增
             )
 
             logger.info(
                 f"✅ 保存长期记忆 | ID={memory_id[:20]}... | "
-                f"work_id={work_id or 'NONE'} | "  # ✅ 新增：显示work_id
-                f"重要度={importance:.2f} | 长度={len(content)}"
+                f"隔离={isolation_level.value}:{work_id or 'N/A'} | "
+                f"重要度={importance:.2f}"
             )
 
         except Exception as e:
@@ -1076,18 +1080,24 @@ class ContextManager:
     async def _retrieve_long_term_memories(
         self,
         query: str,
-        work_id: Optional[str] = None,  # ✅ 新增：作品ID过滤
+        work_id: Optional[str] = None,
+        session_id: Optional[str] = None,
         top_k: int = 3,
-        min_similarity: float = 0.3
+        min_similarity: float = 0.3,
+        include_user_level: bool = True,  # ✅ 新增：是否包含用户级记忆
+        isolation_level: IsolationLevel = IsolationLevel.WORK  # ✅ 新增：主要隔离级别
     ) -> List[Dict]:
         """
-        检索长期记忆
+        检索长期记忆（支持多级隔离）
 
         Args:
             query: 查询文本
-            work_id: 作品ID（可选，用于只检索特定作品的记忆）
+            work_id: 作品ID（WORK 级别时使用）
+            session_id: 会话ID（SESSION 级别时使用）
             top_k: 返回Top K结果
             min_similarity: 最低相似度
+            include_user_level: 是否包含用户级记忆（如偏好、风格）
+            isolation_level: 主要隔离级别（默认 WORK）
 
         Returns:
             记忆列表
@@ -1096,18 +1106,22 @@ class ContextManager:
             return []
 
         try:
-            # ✅ 修改：传递work_id进行过滤
+            # ✅ 使用新的多级检索 API
             memories = await self._vector_store.search_memories(
                 query=query,
                 user_id=self.user_id,
-                work_id=work_id,  # ✅ 新增：传递work_id
+                work_id=work_id,
+                session_id=session_id,
                 top_k=top_k,
-                min_similarity=min_similarity
+                min_similarity=min_similarity,
+                include_user_level=include_user_level,
+                isolation_level=isolation_level
             )
 
             logger.info(
-                f"🔍 检索长期记忆 | work_id={work_id or 'ALL'} | "  # ✅ 新增：显示work_id
-                f"查询='{query[:30]}...' | 找到={len(memories)}条 | 阈值={min_similarity}"
+                f"🔍 检索长期记忆 | 级别={isolation_level.value} | "
+                f"work_id={work_id or 'N/A'} | "
+                f"含用户级={include_user_level} | 找到={len(memories)}条"
             )
 
             return memories

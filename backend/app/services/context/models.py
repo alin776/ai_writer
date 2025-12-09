@@ -9,8 +9,63 @@
 
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
+from enum import Enum
 
 from app.services.context.token_counter import count_tokens
+
+
+# ==================== 记忆隔离层级 ====================
+
+class IsolationLevel(Enum):
+    """
+    记忆隔离级别
+
+    用于控制记忆的可见范围，解决跨作品记忆污染问题。
+
+    - USER: 用户级，跨所有作品共享（如写作偏好、禁忌词）
+    - WORK: 作品级，仅当前作品可见（如角色设定、大纲）- 默认
+    - SESSION: 会话级，仅当前对话可见（如临时上下文）
+    """
+    USER = "user"
+    WORK = "work"
+    SESSION = "session"
+
+
+def build_isolation_key(
+    user_id: str,
+    level: IsolationLevel = IsolationLevel.WORK,
+    work_id: Optional[str] = None,
+    session_id: Optional[str] = None
+) -> str:
+    """
+    构建隔离键
+
+    根据隔离级别生成唯一的隔离键，用于向量存储的过滤。
+
+    Args:
+        user_id: 用户ID（必须）
+        level: 隔离级别（默认 WORK）
+        work_id: 作品ID（WORK 级别时使用）
+        session_id: 会话ID（SESSION 级别时使用）
+
+    Returns:
+        隔离键字符串
+        - USER 级: "user:{user_id}"
+        - WORK 级: "user:{user_id}:work:{work_id}"
+        - SESSION 级: "user:{user_id}:session:{session_id}"
+
+    Examples:
+        >>> build_isolation_key("u123", IsolationLevel.USER)
+        "user:u123"
+        >>> build_isolation_key("u123", IsolationLevel.WORK, work_id="w456")
+        "user:u123:work:w456"
+    """
+    if level == IsolationLevel.USER:
+        return f"user:{user_id}"
+    elif level == IsolationLevel.WORK:
+        return f"user:{user_id}:work:{work_id or '_unassigned_'}"
+    else:  # SESSION
+        return f"user:{user_id}:session:{session_id or '_unassigned_'}"
 
 
 @dataclass

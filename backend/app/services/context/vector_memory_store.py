@@ -8,6 +8,7 @@
 - 语义检索：基于余弦相似度检索相关记忆
 - 元数据过滤：支持按用户、会话、时间等条件过滤
 - 持久化存储：本地存储，重启不丢失
+- 隔离层级：支持 USER/WORK/SESSION 三级隔离
 
 设计原则：
 - 使用本地模型（sentence-transformers）避免API调用成本
@@ -21,6 +22,8 @@ from typing import List, Dict, Optional, Any
 import logging
 import time
 import uuid
+
+from app.services.context.models import IsolationLevel, build_isolation_key
 
 logger = logging.getLogger(__name__)
 
@@ -78,10 +81,11 @@ class VectorMemoryStore:
         self,
         content: str,
         user_id: str,
-        work_id: Optional[str] = None,  # ✅ 新增：作品ID
+        work_id: Optional[str] = None,
         session_id: Optional[str] = None,
         memory_type: str = "general",
         importance: float = 0.5,
+        isolation_level: IsolationLevel = IsolationLevel.WORK,  # ✅ 新增：隔离级别
         metadata: Optional[Dict[str, Any]] = None
     ) -> str:
         """
@@ -90,10 +94,11 @@ class VectorMemoryStore:
         Args:
             content: 记忆内容（文本）
             user_id: 用户ID
-            work_id: 作品ID（可选，用于隔离不同作品的记忆）
-            session_id: 会话ID（可选）
+            work_id: 作品ID（WORK 级别时使用）
+            session_id: 会话ID（SESSION 级别时使用）
             memory_type: 记忆类型（如：character, plot, setting等）
             importance: 重要度（0.0-1.0）
+            isolation_level: 隔离级别（默认 WORK 级）
             metadata: 额外的元数据
 
         Returns:
@@ -103,11 +108,21 @@ class VectorMemoryStore:
             # 生成唯一ID
             memory_id = f"{user_id}_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
 
+            # ✅ 构建隔离键
+            isolation_key = build_isolation_key(
+                user_id=user_id,
+                level=isolation_level,
+                work_id=work_id,
+                session_id=session_id
+            )
+
             # 构建元数据
             mem_metadata = {
                 "user_id": user_id,
-                "work_id": work_id or "",  # ✅ 新增：记录work_id
+                "work_id": work_id or "",
                 "session_id": session_id or "",
+                "isolation_key": isolation_key,  # ✅ 新增：隔离键
+                "isolation_level": isolation_level.value,  # ✅ 新增：隔离级别
                 "memory_type": memory_type,
                 "importance": importance,
                 "timestamp": time.time(),
@@ -127,8 +142,8 @@ class VectorMemoryStore:
 
             logger.debug(
                 f"✅ 添加记忆 | ID={memory_id} | "
-                f"用户={user_id} | 类型={memory_type} | "
-                f"重要度={importance:.2f} | 长度={len(content)}"
+                f"用户={user_id} | 隔离={isolation_key} | "
+                f"类型={memory_type} | 重要度={importance:.2f}"
             )
 
             return memory_id
@@ -141,50 +156,59 @@ class VectorMemoryStore:
         self,
         query: str,
         user_id: str,
-        work_id: Optional[str] = None,  # ✅ 新增：作品ID过滤
+        work_id: Optional[str] = None,
+        session_id: Optional[str] = None,
         top_k: int = 5,
         min_similarity: float = 0.6,
         memory_type: Optional[str] = None,
-        session_id: Optional[str] = None
+        include_user_level: bool = True,  # ✅ 新增：是否包含用户级记忆
+        isolation_level: IsolationLevel = IsolationLevel.WORK  # ✅ 新增：主要隔离级别
     ) -> List[Dict[str, Any]]:
         """
-        语义检索相关记忆
+        语义检索相关记忆（支持多级隔离）
 
         Args:
             query: 查询文本
             user_id: 用户ID（必须）
-            work_id: 作品ID（可选，用于只检索特定作品的记忆）
+            work_id: 作品ID（WORK 级别时使用）
+            session_id: 会话ID（SESSION 级别时使用）
             top_k: 返回Top K结果
             min_similarity: 最低相似度阈值（0.0-1.0）
             memory_type: 记忆类型过滤（可选）
-            session_id: 会话ID过滤（可选）
+            include_user_level: 是否包含用户级记忆（默认 True）
+            isolation_level: 主要隔离级别（默认 WORK）
 
         Returns:
-            记忆列表，按相关度排序，每个记忆包含：
-            - id: 记忆ID
-            - content: 记忆内容
-            - similarity: 相似度（0.0-1.0）
-            - metadata: 元数据
+            记忆列表，按相关度排序
         """
         try:
-            # 构建过滤条件（支持多条件）
-            conditions = [{"user_id": user_id}]
+            # ✅ 构建多级隔离键查询
+            isolation_keys = []
 
-            # ✅ 新增：work_id过滤
-            if work_id:
-                conditions.append({"work_id": work_id})
-                logger.debug(f"[VectorMemory] 添加work_id过滤: {work_id}")
+            # 主要级别的隔离键
+            primary_key = build_isolation_key(
+                user_id=user_id,
+                level=isolation_level,
+                work_id=work_id,
+                session_id=session_id
+            )
+            isolation_keys.append(primary_key)
 
-            if memory_type:
-                conditions.append({"memory_type": memory_type})
-            if session_id:
-                conditions.append({"session_id": session_id})
+            # 可选：包含用户级记忆（如偏好、风格）
+            if include_user_level and isolation_level != IsolationLevel.USER:
+                user_key = build_isolation_key(user_id=user_id, level=IsolationLevel.USER)
+                isolation_keys.append(user_key)
 
-            # 根据条件数量构建查询
-            if len(conditions) == 1:
-                where_filter = conditions[0]
+            # ✅ 构建 ChromaDB 查询条件
+            # 使用 $or 匹配多个隔离键
+            if len(isolation_keys) == 1:
+                where_filter = {"isolation_key": isolation_keys[0]}
             else:
-                where_filter = {"$and": conditions}
+                where_filter = {"$or": [{"isolation_key": k} for k in isolation_keys]}
+
+            # 添加记忆类型过滤
+            if memory_type:
+                where_filter = {"$and": [where_filter, {"memory_type": memory_type}]}
 
             # 执行向量检索
             results = self.collection.query(
@@ -197,11 +221,9 @@ class VectorMemoryStore:
             memories = []
             if results["ids"] and len(results["ids"][0]) > 0:
                 for i in range(len(results["ids"][0])):
-                    # ChromaDB返回的是距离，转换为相似度
                     distance = results["distances"][0][i]
-                    similarity = 1.0 - distance  # 余弦距离转相似度
+                    similarity = 1.0 - distance
 
-                    # 过滤低相似度结果
                     if similarity < min_similarity:
                         continue
 
@@ -214,8 +236,8 @@ class VectorMemoryStore:
 
             logger.info(
                 f"🔍 检索记忆 | 查询='{query[:30]}...' | "
-                f"用户={user_id} | work_id={work_id or 'ALL'} | "  # ✅ 新增：显示work_id
-                f"找到={len(memories)}条 | 阈值={min_similarity}"
+                f"隔离键={isolation_keys} | "
+                f"找到={len(memories)}条"
             )
 
             return memories
@@ -426,6 +448,62 @@ class VectorMemoryStore:
         except Exception as e:
             logger.error(f"❌ 重置集合失败: {e}")
             return False
+
+    async def migrate_legacy_data(self) -> int:
+        """
+        迁移旧数据：为没有 isolation_key 的记忆添加隔离键
+
+        旧数据迁移策略：
+        - 有 work_id 的 → user:{user_id}:work:{work_id}
+        - 无 work_id 的 → user:{user_id}:work:_legacy_
+
+        Returns:
+            迁移的记忆数量
+        """
+        try:
+            # 查找没有 isolation_key 的记忆
+            # ChromaDB 不支持 "字段不存在" 查询，所以获取全部数据检查
+            all_results = self.collection.get()
+
+            if not all_results["ids"]:
+                logger.info("📦 无需迁移：没有记忆数据")
+                return 0
+
+            migrated_count = 0
+
+            for i, memory_id in enumerate(all_results["ids"]):
+                metadata = all_results["metadatas"][i]
+
+                # 检查是否已有 isolation_key
+                if "isolation_key" in metadata and metadata["isolation_key"]:
+                    continue
+
+                # 构建隔离键
+                user_id = metadata.get("user_id", "unknown")
+                work_id = metadata.get("work_id", "")
+
+                if work_id and work_id != "":
+                    isolation_key = f"user:{user_id}:work:{work_id}"
+                else:
+                    isolation_key = f"user:{user_id}:work:_legacy_"
+
+                # 更新元数据
+                metadata["isolation_key"] = isolation_key
+                metadata["isolation_level"] = IsolationLevel.WORK.value
+
+                # ChromaDB 的 update 方法
+                self.collection.update(
+                    ids=[memory_id],
+                    metadatas=[metadata]
+                )
+                migrated_count += 1
+
+            logger.info(f"📦 数据迁移完成 | 迁移={migrated_count}条记忆")
+            return migrated_count
+
+        except Exception as e:
+            logger.error(f"❌ 数据迁移失败: {e}")
+            return 0
 
     def close(self):
         """
