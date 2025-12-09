@@ -209,6 +209,14 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     selected_text_html?: string;
     selection_position?: { from: number; to: number };
   } | null>(null);
+  const [streamingDisplay, setStreamingDisplay] = useState('');
+  const streamingDisplayRef = useRef('');
+  const pendingCharsRef = useRef('');
+  const typingTimerRef = useRef<number | null>(null);
+  const lastStreamingKeyRef = useRef<string | null>(null);
+  const queuedLengthRef = useRef(0);
+  const activeStreamKeyRef = useRef<string | null>(null);
+  const [isStreamRendering, setIsStreamRendering] = useState(false);
 
   const containsAt = useMemo(() => AT_CHARS.some((c) => inputValue.includes(c)), [inputValue]);
   // 去痕长度保护与提示
@@ -467,7 +475,125 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     if (shouldAutoScrollRef.current) {
       scrollToBottom();
     }
-  }, [messages, tasks, scrollToBottom]);
+  }, [messages, tasks, streamingDisplay, scrollToBottom]);
+
+  // 逐字流式展示 agent 回复（即使后端stream结束也继续把剩余字符打完）
+  useEffect(() => {
+    const lastAgentMessage =
+      messages.length > 0 && messages[messages.length - 1]?.role === 'agent'
+        ? messages[messages.length - 1]
+        : null;
+    const streamingKey = lastAgentMessage ? `${lastAgentMessage.timestamp || messages.length}` : null;
+    const isNewStream = Boolean(isLoading && lastAgentMessage && streamingKey !== activeStreamKeyRef.current);
+
+    if (isNewStream) {
+      activeStreamKeyRef.current = streamingKey;
+      pendingCharsRef.current = '';
+      queuedLengthRef.current = 0;
+      streamingDisplayRef.current = '';
+      setStreamingDisplay('');
+      if (typingTimerRef.current) {
+        window.clearTimeout(typingTimerRef.current);
+        typingTimerRef.current = null;
+      }
+    }
+
+    const target = lastAgentMessage?.content || '';
+    const targetLength = target.length;
+    const hasPendingChars =
+      targetLength > streamingDisplayRef.current.length || pendingCharsRef.current.length > 0;
+
+    const shouldStream =
+      !!lastAgentMessage &&
+      activeStreamKeyRef.current === streamingKey &&
+      (isLoading || hasPendingChars);
+
+    if (!shouldStream) {
+      if (typingTimerRef.current) {
+        window.clearTimeout(typingTimerRef.current);
+        typingTimerRef.current = null;
+      }
+      pendingCharsRef.current = '';
+      queuedLengthRef.current = 0;
+      streamingDisplayRef.current = '';
+      setStreamingDisplay('');
+      lastStreamingKeyRef.current = null;
+      if (!isLoading) {
+        activeStreamKeyRef.current = null;
+      }
+      setIsStreamRendering(false);
+      return;
+    }
+
+    setIsStreamRendering(true);
+
+    if (streamingKey && streamingKey !== lastStreamingKeyRef.current) {
+      pendingCharsRef.current = '';
+      queuedLengthRef.current = 0;
+      streamingDisplayRef.current = '';
+      setStreamingDisplay('');
+      if (typingTimerRef.current) {
+        window.clearTimeout(typingTimerRef.current);
+        typingTimerRef.current = null;
+      }
+    }
+
+    lastStreamingKeyRef.current = streamingKey;
+
+    if (targetLength > queuedLengthRef.current) {
+      pendingCharsRef.current += target.slice(queuedLengthRef.current);
+      queuedLengthRef.current = targetLength;
+    }
+
+    if (!typingTimerRef.current && pendingCharsRef.current.length > 0) {
+      const typeNext = () => {
+        if (!pendingCharsRef.current.length) {
+          typingTimerRef.current = null;
+          const finishedTyping =
+            !isLoading &&
+            activeStreamKeyRef.current === streamingKey &&
+            streamingDisplayRef.current.length >= targetLength;
+          if (finishedTyping) {
+            setIsStreamRendering(false);
+            activeStreamKeyRef.current = null;
+            streamingDisplayRef.current = '';
+            setStreamingDisplay('');
+            queuedLengthRef.current = 0;
+          }
+          return;
+        }
+
+        const pendingLength = pendingCharsRef.current.length;
+        const batchSize = pendingLength > 200 ? 3 : pendingLength > 80 ? 2 : 1;
+        const nextChunk = pendingCharsRef.current.slice(0, batchSize);
+        pendingCharsRef.current = pendingCharsRef.current.slice(batchSize);
+
+        const nextText = streamingDisplayRef.current + nextChunk;
+        streamingDisplayRef.current = nextText;
+        setStreamingDisplay(nextText);
+
+        typingTimerRef.current = window.setTimeout(typeNext, 40);
+      };
+
+      typingTimerRef.current = window.setTimeout(typeNext, 0);
+    }
+
+    if (!isLoading && pendingCharsRef.current.length === 0 && streamingDisplayRef.current.length >= targetLength) {
+      setIsStreamRendering(false);
+      activeStreamKeyRef.current = null;
+      streamingDisplayRef.current = '';
+      setStreamingDisplay('');
+      queuedLengthRef.current = 0;
+    }
+  }, [isLoading, messages]);
+
+  useEffect(() => {
+    return () => {
+      if (typingTimerRef.current) {
+        window.clearTimeout(typingTimerRef.current);
+      }
+    };
+  }, []);
 
   const repositionMenu = useCallback(() => {
     const inputEl = inputRef.current;
@@ -816,6 +942,10 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     adjustInputHeight();
   }, [inputValue, selectedDocs.length, optimizationSelected, adjustInputHeight]);
 
+  const lastMessageIsAgent = messages.length > 0 && messages[messages.length - 1]?.role === 'agent';
+  const hasStreamingAgentMessage = isStreamRendering && lastMessageIsAgent;
+  const streamingVisibleContent = hasStreamingAgentMessage ? streamingDisplay : '';
+
   return (
     <div className="p-3 h-full flex flex-col overflow-hidden">
       <div
@@ -846,7 +976,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
           // 判断是否是最后一条消息
           const isLastMessage = index === messages.length - 1;
           // 判断这条消息是否是正在streaming的agent消息
-          const isStreamingMessage = isLastMessage && message.role === 'agent' && isLoading;
+          const isStreamingMessage = isLastMessage && message.role === 'agent' && hasStreamingAgentMessage;
 
           // 如果是正在streaming的消息，先不渲染它，等渲染完todolist后再渲染
           if (isStreamingMessage) {
@@ -977,14 +1107,14 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         )}
 
         {/* 正在streaming的agent消息 - 显示在todolist之后 */}
-        {isLoading && messages.length > 0 && messages[messages.length - 1].role === 'agent' && messages[messages.length - 1].content && (
+        {hasStreamingAgentMessage && streamingVisibleContent && (
           <div className="flex items-start gap-2">
             <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
             <div className="flex-1 max-w-[85%] p-2.5 rounded-lg bg-zinc-50/70 border border-zinc-100">
               <div style={{ color: 'rgb(113, 113, 122)' }}>
-                <MarkdownContent content={messages[messages.length - 1].content} />
+                <MarkdownContent content={streamingVisibleContent} />
               </div>
             </div>
           </div>

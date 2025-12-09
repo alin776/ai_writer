@@ -198,6 +198,42 @@ class AgentApiService {
     console.log('6. request.context?.instruction_context:', request.context?.instruction_context);
     console.log('==========================================');
 
+    // 将后端返回的内容细粒度拆分为逐字符小块，保证前端能触发逐字流式动画
+    const contentQueue: string[] = [];
+    let contentTimer: ReturnType<typeof setTimeout> | null = null;
+    const flushContentQueue = () => {
+      if (!contentQueue.length) {
+        contentTimer = null;
+        return;
+      }
+      const piece = contentQueue.shift();
+      if (piece !== undefined) {
+        callbacks.onContent?.(piece);
+      }
+      contentTimer = setTimeout(flushContentQueue, 0);
+    };
+    const enqueueContent = (text: string | undefined | null) => {
+      if (!text) return;
+      for (const ch of text) {
+        contentQueue.push(ch);
+      }
+      if (!contentTimer) {
+        contentTimer = setTimeout(flushContentQueue, 0);
+      }
+    };
+    const flushRemainingContentSync = () => {
+      if (contentTimer) {
+        clearTimeout(contentTimer);
+        contentTimer = null;
+      }
+      while (contentQueue.length) {
+        const piece = contentQueue.shift();
+        if (piece !== undefined) {
+          callbacks.onContent?.(piece);
+        }
+      }
+    };
+
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -250,15 +286,17 @@ class AgentApiService {
                   const content = typeof data.data === 'string'
                     ? data.data
                     : data.data?.content || data.data;
-                  callbacks.onContent?.(content);
+                  enqueueContent(content);
                   break;
                 case 'step':
                   callbacks.onStep?.(data.data);
                   break;
                 case 'done':
+                  flushRemainingContentSync();
                   callbacks.onDone?.(data.metadata, data.suggested_actions);
                   break;
                 case 'error':
+                  flushRemainingContentSync();
                   callbacks.onError?.(data.error);
                   break;
 
@@ -298,8 +336,14 @@ class AgentApiService {
       }
     } catch (error: any) {
       console.error('[AgentApi] Stream error:', error);
+      flushRemainingContentSync();
       callbacks.onError?.(error.message || 'Stream connection failed');
       throw error;
+    } finally {
+      // 防止定时器泄漏
+      if (contentTimer) {
+        clearTimeout(contentTimer);
+      }
     }
   }
   async createSession(payload: { title?: string; work_id?: string; chapter_id?: string }): Promise<{ session_id: string; title?: string; conversation_id?: string; created_at?: string }> {
