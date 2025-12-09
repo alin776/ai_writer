@@ -12,7 +12,9 @@ interface OutputPanelProps {
   processingTime: number | null;
   tokensUsed: number | null;
   sessionId: string | null;
+  skipped?: boolean;
   onFeedback: (accepted: boolean) => void;
+  renderComplete?: boolean;
   isHistoryCollapsed?: boolean; // 新增
   onExpandHistory?: () => void; // 新增
 }
@@ -25,7 +27,9 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
   processingTime,
   tokensUsed,
   sessionId,
+  skipped,
   onFeedback,
+  renderComplete,
   isHistoryCollapsed,
   onExpandHistory,
 }) => {
@@ -48,7 +52,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
     }
   };
 
-  const hasResult = outputText && currentStage === 'done';
+  const hasResult = !!outputText && renderComplete && !skipped;
 
   return (
     <div className="h-full flex flex-col bg-white rounded-lg border border-gray-200 shadow-sm min-h-[520px] max-h-[520px]">
@@ -99,6 +103,12 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
           </div>
         )}
       </div>
+
+      {currentStage === 'done' && skipped && (
+        <div className="px-4 py-3 border-t border-gray-200 bg-yellow-50 text-sm text-yellow-800">
+          文本AI特征较低，未执行改写，已返回原文。
+        </div>
+      )}
 
       {/* 改进结果 */}
       {hasResult && improvement !== null && (

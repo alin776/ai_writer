@@ -421,6 +421,54 @@ async def humanize_rewrite(
         verification = result.get("verification")
         processing_time = result.get("processing_time", 0)
 
+        # 4.1 检查是否需要跳过（检测分低于阈值）
+        # 与流式端点行为保持一致：检测分低时不写会话、不计成功
+        if detection and detection.overall_score < config.detection_threshold:
+            logger.info(
+                f"检测分数较低({detection.overall_score:.1f} < {config.detection_threshold})，跳过改写"
+            )
+
+            # 记录跳过指标
+            increment_counter("humanize_requests_skipped", labels={
+                "intensity": request_data.intensity,
+                "function": request_data.ai_function or "rewrite"
+            })
+
+            # 计算检测阶段的token和成本
+            detection_tokens = result.get("detection_tokens", 0)
+            detection_prompt = result.get("detection_prompt_tokens", 0)
+            detection_completion = result.get("detection_completion_tokens", 0)
+
+            if detection_tokens == 0:
+                detection_tokens = int(len(request_data.text) * 1.5)
+            if detection_prompt == 0 and detection_completion == 0:
+                detection_prompt = detection_tokens // 2
+                detection_completion = detection_tokens - detection_prompt
+
+            detection_cost_result = CostCalculator.calculate_cost(
+                "gemini-2.5-flash-lite",
+                detection_prompt,
+                detection_completion
+            )
+
+            # 返回跳过响应（不创建会话记录）
+            return HumanizeSessionResponse(
+                id=None,  # 无会话ID
+                user_id=current_user.id,
+                ai_function=request_data.ai_function or "rewrite",
+                score_before=detection.overall_score,
+                score_after=detection.overall_score,  # 未改写，分数不变
+                improvement=0.0,
+                intensity=request_data.intensity,
+                user_accepted=None,
+                processing_time=processing_time,
+                tokens_used=detection_tokens,
+                cost=detection_cost_result["total_cost"],
+                created_at=get_utc_now(),
+                detail=None,
+                skipped=True  # 标记为跳过
+            )
+
         # 5. 计算token和成本 (使用实际值)
         text_length = len(request_data.text)  # 提前定义
         total_tokens = result.get("total_tokens", 0)
@@ -691,100 +739,15 @@ async def humanize_rewrite_stream(
                             detection_prompt = detection_tokens // 2
                             detection_completion = detection_tokens - detection_prompt
 
-                        total_tokens = detection_tokens
-                        detection_cost_result = CostCalculator.calculate_cost(
-                            "gemini-2.5-flash-lite",
-                            detection_prompt,
-                            detection_completion
-                        )
-                        estimated_cost = detection_cost_result["total_cost"]
-
-                        score_before = detection_result.overall_score
-                        score_after = score_before
-                        improvement = 0.0
-
-                        dimensions_before_dict = {}
-                        if detection_result and detection_result.dimensions:
-                            dimensions_before_dict = {
-                                key: dim.model_dump()
-                                for key, dim in detection_result.dimensions.items()
-                            }
-
-                        session = HumanizeSession(
-                            user_id=current_user.id,
-                            ai_function=request_data.ai_function or "rewrite",
-                            score_before=score_before,
-                            score_after=score_after,
-                            improvement=improvement,
-                            intensity=request_data.intensity,
-                            processing_time=time.time() - start_time,
-                            tokens_used=total_tokens,
-                            cost=estimated_cost,
-                            user_accepted=None
-                        )
-                        db.add(session)
-                        await db.flush()
-
-                        detail = HumanizeSessionDetail(
-                            session_id=session.id,
-                            original_preview=request_data.text[:200],
-                            humanized_preview=request_data.text[:200],
-                            original_full=request_data.text,
-                            humanized_full=request_data.text,
-                            dimensions_before=dimensions_before_dict,
-                            dimensions_after={},
-                            detected_patterns=detection_result.detected_patterns if detection_result else [],
-                            expires_at=get_utc_now() + timedelta(days=7)
-                        )
-                        db.add(detail)
-
-                        try:
-                            if detection_tokens > 0:
-                                detection_log = AICallLog(
-                                    user_id=current_user.id,
-                                    model_name="gemini-2.5-flash-lite",
-                                    operation_type="humanize_detect_stream",
-                                    prompt_tokens=detection_prompt,
-                                    completion_tokens=detection_completion,
-                                    total_tokens=detection_tokens,
-                                    prompt_cost=detection_cost_result["prompt_cost"],
-                                    completion_cost=detection_cost_result["completion_cost"],
-                                    total_cost=detection_cost_result["total_cost"],
-                                    duration_ms=int((time.time() - start_time) * 1000),
-                                    is_success=True,
-                                    extra_data={
-                                        "ai_function": request_data.ai_function or "rewrite",
-                                        "intensity": request_data.intensity,
-                                        "session_id": str(session.id),
-                                        "stream": True,
-                                        "skipped": True
-                                    }
-                                )
-                                db.add(detection_log)
-                        except Exception as log_err:
-                            logger.error(f"记录检测阶段AI日志失败(跳过去痕迹): {log_err}")
-
-                        try:
-                            profile_service = UserProfileService(db)
-                            await profile_service.record_humanize_use(
-                                user_id=current_user.id,
-                                text_length=len(request_data.text),
-                                ai_function=request_data.ai_function or "rewrite",
-                                intensity=request_data.intensity,
-                                improvement=improvement
-                            )
-                        except Exception as profile_err:
-                            logger.error(f"更新用户画像失败(跳过去痕迹): {profile_err}")
-
-                        await db.commit()
-
                         request_duration = time.time() - start_time
-                        record_timer("humanize_stream_duration_seconds", request_duration, labels={"intensity": request_data.intensity})
-                        increment_counter("humanize_stream_requests_success", labels={"intensity": request_data.intensity})
-                        record_timer("humanize_stream_tokens_used", total_tokens, labels={"intensity": request_data.intensity})
-                        record_timer("humanize_stream_improvement", improvement, labels={"intensity": request_data.intensity})
 
-                        yield f"data: {json.dumps({'type': 'done', 'session_id': str(session.id), 'improvement': improvement, 'processing_time': request_duration, 'tokens_used': total_tokens, 'skipped': True}, ensure_ascii=False)}\n\n"
+                        # 记录跳过指标
+                        increment_counter("humanize_stream_requests_skipped", labels={
+                            "intensity": request_data.intensity,
+                            "function": request_data.ai_function or "rewrite"
+                        })
+
+                        yield f"data: {json.dumps({'type': 'done', 'improvement': 0.0, 'processing_time': request_duration, 'tokens_used': detection_tokens, 'skipped': True}, ensure_ascii=False)}\n\n"
 
                         return
 

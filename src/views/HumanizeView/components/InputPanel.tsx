@@ -29,8 +29,11 @@ export const InputPanel: React.FC<InputPanelProps> = ({
   onRewrite,
 }) => {
   const inputLength = inputText.length;
+  const trimmedLength = inputText.trim().length;  // 使用trim后的长度进行判断
   const maxLength = 5000;
+  const minLength = 10;
   const isOverLimit = inputLength > maxLength;
+  const isBelowMin = trimmedLength > 0 && trimmedLength < minLength;  // 使用trimmedLength
 
   return (
     <div className="h-full flex flex-col bg-white rounded-lg border border-gray-200 shadow-sm min-h-[520px] max-h-[520px]">
@@ -51,6 +54,9 @@ export const InputPanel: React.FC<InputPanelProps> = ({
           className="flex-1 resize-none text-sm border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           disabled={isProcessing}
         />
+        {isBelowMin && (
+          <p className="mt-2 text-xs text-red-600">请输入至少 10 个字符</p>
+        )}
       </div>
 
       {/* 强度选择 */}
@@ -95,6 +101,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
             <Loader2 className="w-4 h-4 animate-spin" />
             <span>
               {currentStage === 'detecting' && '正在检测AI痕迹...'}
+              {currentStage === 'detected' && '检测完成，准备改写...'}
               {currentStage === 'rewriting' && '正在智能改写...'}
               {currentStage === 'verifying' && '正在验证效果...'}
             </span>
@@ -121,7 +128,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
       <div className="px-4 py-3 border-t border-gray-200">
         <Button
           onClick={onRewrite}
-          disabled={isProcessing || !inputText.trim() || isOverLimit}
+          disabled={isProcessing || !inputText.trim() || isOverLimit || isBelowMin}
           fullWidth
           variant="primary"
           size="md"
