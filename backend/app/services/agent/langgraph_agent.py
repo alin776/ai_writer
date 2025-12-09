@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 LangGraph Agent 工作流实现
 
@@ -7,6 +7,10 @@ LangGraph Agent 工作流实现
 - 工具调用（HTTPAIService集成）
 - 记忆管理（Checkpointer）
 - 人机协同（HITL）
+
+重构说明（2025-12-09）：
+- 工具函数拆分到 langgraph_tools.py
+- 上下文构建拆分到 utils/context_builder.py
 """
 
 from typing import TypedDict, Annotated, List, Dict, Any, Optional, Literal
@@ -17,7 +21,6 @@ from langgraph.prebuilt import ToolNode
 from app.services.agent.parallel_tool_node import ParallelToolNode
 from langgraph.checkpoint.redis import AsyncRedisSaver
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
-from langchain_core.tools import tool
 import operator
 import logging
 import httpx
@@ -51,6 +54,24 @@ from app.services.agent.tools.editor_tools import (
 )
 from app.utils.datetime_utils import get_utc_now
 
+# ✅ 拆分模块导入
+from app.services.agent.langgraph_tools import (
+    # 全局服务管理
+    set_global_ai_service,
+    get_global_ai_service,
+    # 辅助函数
+    validate_uuid,
+    _retry_on_failure,
+    _generate_text_helper,
+    # 工具列表
+    LANGGRAPH_TOOLS,
+)
+from app.services.agent.utils.context_builder import (
+    _compress_task_result,
+    _build_summarization_context,
+    _build_knowledge_system_messages,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -69,1093 +90,10 @@ class AgentState(TypedDict):
     final_response: Optional[str]  # 最终响应
 
 
-# ==================== UUID 验证 ====================
+# ==================== 工具列表（从 langgraph_tools 导入）====================
 
-# 标准UUID格式正则表达式
-UUID_PATTERN = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
-
-def validate_uuid(value: str, field_name: str = "ID") -> Optional[str]:
-    """验证UUID格式
-
-    Args:
-        value: 要验证的UUID字符串
-        field_name: 字段名称（用于错误消息）
-
-    Returns:
-        如果格式正确返回None，否则返回错误消息JSON字符串
-    """
-    if not value:
-        return None
-
-    if not UUID_PATTERN.match(value):
-        return json.dumps({
-            "error": f"无效的{field_name}格式",
-            "provided_value": value,
-            "message": f"{field_name}必须是标准UUID格式（36字符）",
-            "example": "627feba4-2097-4f28-a3f3-7641d10f7f40",
-            "suggestion": "请使用get_context_tool获取章节列表，或使用get_chapter_by_order_tool通过章节序号查询"
-        }, ensure_ascii=False, indent=2)
-
-    return None
-
-
-# ==================== 工具定义 ====================
-
-# 全局 AI Service 实例（用于工具调用）
-_global_ai_service: Optional[HTTPAIService] = None
-_global_ai_service_lock = threading.Lock()  # ✅ P0-2修复: 线程安全锁
-
-def set_global_ai_service(ai_service: HTTPAIService):
-    """设置全局 AI Service（线程安全版本）"""
-    global _global_ai_service
-    with _global_ai_service_lock:
-        _global_ai_service = ai_service
-        logger.debug("[set_global_ai_service] AI Service已设置（线程安全）")
-
-def get_global_ai_service() -> Optional[HTTPAIService]:
-    """获取全局 AI Service（线程安全版本）✅ P0-2修复"""
-    with _global_ai_service_lock:
-        return _global_ai_service
-
-
-async def _retry_on_failure(func, *args, max_retries=3, **kwargs):
-    """通用重试包装器：用于数据库操作等可能失败的操作
-
-    Args:
-        func: 要执行的异步函数
-        max_retries: 最大重试次数
-        *args, **kwargs: 传递给func的参数
-
-    Returns:
-        函数执行结果
-    """
-    import asyncio
-    retry_count = 0
-
-    while retry_count < max_retries:
-        try:
-            result = await func(*args, **kwargs)
-            return result
-        except Exception as e:
-            retry_count += 1
-            logger.error(f"[Retry] {func.__name__} 失败 (尝试 {retry_count}/{max_retries}): {e}")
-
-            if retry_count >= max_retries:
-                raise  # 重试次数用尽，抛出异常
-
-            # 指数退避
-            await asyncio.sleep(2 ** retry_count)
-
-    raise Exception(f"{func.__name__} 失败，已重试{max_retries}次")
-
-
-async def _with_timeout_and_retry(
-    coro,
-    timeout_seconds: int = None,  # 默认使用 TimeoutConfig.LANGGRAPH_STREAM
-    max_retries: int = 2,
-    operation_name: str = "Operation",
-    retry_on_timeout: bool = False
-):
-    """
-    为协程添加超时保护和重试机制
-
-    Args:
-        coro: 要执行的协程
-        timeout_seconds: 超时时间（秒），默认使用 TimeoutConfig.LANGGRAPH_STREAM
-        max_retries: 最大重试次数（不包括首次尝试）
-        operation_name: 操作名称（用于日志）
-        retry_on_timeout: 是否在超时后重试（默认False，超时直接抛出）
-
-    Returns:
-        协程执行结果
-
-    Raises:
-        asyncio.TimeoutError: 超时
-        Exception: 其他异常
-    """
-    if timeout_seconds is None:
-        timeout_seconds = TimeoutConfig.LANGGRAPH_STREAM
-    retry_count = 0
-
-    # ✅ P0-3: 修复循环条件（<= 改为 <，避免多执行一次）
-    while retry_count < max_retries + 1:
-        try:
-            # 添加超时保护
-            async with asyncio.timeout(timeout_seconds):
-                result = await coro
-                return result
-
-        except asyncio.TimeoutError:
-            logger.error(f"[Timeout] {operation_name} 超时（{timeout_seconds}秒），尝试 {retry_count + 1}/{max_retries + 1}")
-
-            if not retry_on_timeout or retry_count >= max_retries:
-                # 不重试或已达最大重试次数
-                raise
-
-            retry_count += 1
-            await asyncio.sleep(2 ** retry_count)  # 指数退避
-
-        except Exception as e:
-            logger.error(f"[Error] {operation_name} 失败：{e}，尝试 {retry_count + 1}/{max_retries + 1}")
-
-            if retry_count >= max_retries:
-                raise
-
-            retry_count += 1
-            await asyncio.sleep(2 ** retry_count)
-
-    raise Exception(f"{operation_name} 失败，已重试{max_retries}次")
-
-
-async def _generate_text_helper(
-    prompt: str,
-    temperature: float = 0.7,
-    max_tokens: int = 1000,
-    task_type: Optional[TaskType] = None  # ← 新增参数
-) -> str:
-    """辅助函数：使用 HTTPAIService 生成文本（带重试机制）"""
-    # ✅ P0-2修复：使用线程安全的getter
-    ai_service = get_global_ai_service()
-    if not ai_service:
-        return "错误：AI服务未初始化"
-
-    messages = [{"role": "user", "content": prompt}]
-    generated_text = ""
-    max_retries = 3
-    retry_count = 0
-
-    while retry_count < max_retries:
-        try:
-            # ✅ 为单次LLM调用添加超时保护（使用统一配置）
-            async with asyncio.timeout(TimeoutConfig.LLM_CALL):
-                async for chunk, _ in ai_service._stream_chat(
-                    messages=messages,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    task_type=task_type  # ← 传递task_type参数
-                ):
-                    if chunk:
-                        generated_text += chunk
-
-            # 成功生成内容，退出循环
-            if generated_text:
-                return generated_text
-
-            # 如果没有生成内容，重试
-            retry_count += 1
-            logger.warning(f"[_generate_text_helper] 生成文本为空，重试 {retry_count}/{max_retries}")
-
-        except asyncio.TimeoutError:
-            retry_count += 1
-            logger.error(f"[_generate_text_helper] 生成超时（{TimeoutConfig.LLM_CALL}秒）(尝试 {retry_count}/{max_retries})")
-
-            if retry_count >= max_retries:
-                return f"错误：AI服务调用超时，已重试{max_retries}次"
-
-            # 等待后重试（指数退避）
-            await asyncio.sleep(2 ** retry_count)
-
-        except Exception as e:
-            retry_count += 1
-            logger.error(f"[_generate_text_helper] 生成失败 (尝试 {retry_count}/{max_retries}): {e}")
-
-            if retry_count >= max_retries:
-                return f"错误：AI服务调用失败，已重试{max_retries}次。错误信息：{str(e)}"
-
-            # 等待后重试（指数退避）
-            await asyncio.sleep(2 ** retry_count)
-
-    return generated_text or "错误：生成内容为空"
-
-
-@tool
-async def continue_writing_tool(context: str, requirements: str = "") -> str:
-    """续写工具：根据上下文续写内容
-
-    Args:
-        context: 已有的文本上下文
-        requirements: 续写要求（可选）
-
-    Returns:
-        续写后的文本
-    """
-    prompt = f"""你是专业的小说续写助手。请直接续写小说内容，不要给建议或提问！
-
-上下文：
-{context}
-
-续写要求：{requirements if requirements else '保持原有风格，情节自然连贯，字数500-800字'}
-
-重要：请直接输出续写的小说正文，不要输出任何说明文字、建议或问题。立即开始续写："""
-
-    return await _generate_text_helper(
-        prompt,
-        temperature=0.8,
-        max_tokens=2000,
-        task_type=TaskType.CONTENT_CREATION  # ← 新增：续写任务
-    )
-
-
-@tool
-async def polish_text_tool(text: str, style: str = "professional") -> str:
-    """润色工具：优化文本质量
-
-    Args:
-        text: 待润色的文本
-        style: 润色风格（professional/creative/concise）
-
-    Returns:
-        润色后的文本
-    """
-    prompt = f"""请润色以下文本，风格：{style}
-
-原文：
-{text}
-
-请提供润色后的版本："""
-
-    return await _generate_text_helper(
-        prompt,
-        temperature=0.7,
-        max_tokens=2000,
-        task_type=TaskType.TEXT_POLISH  # ← 新增：润色任务
-    )
-
-
-@tool
-async def analyze_text_tool(text: str, focus: str = "all") -> str:
-    """分析工具：分析文本问题（V4.0 - 简化版）
-
-    Args:
-        text: 待分析的文本
-        focus: 分析重点（all/grammar/logic/style）
-
-    Returns:
-        分析报告
-
-    变更:
-        - 🔧 2025-12-02: V4.0重构 - 移除不合理的验证机制
-        - 分析任务本身需要AI进行概括和抽象，不应验证"实体编造"
-        - 移除重试机制，减少API调用浪费
-        - 使用prompt引导AI行为，而非代码强制验证
-        - 🔧 2025-12-08: 添加空文本保护，防止 AI 产生幻觉
-    """
-    from app.prompts.constraint_manager import get_constraint_manager
-
-    # ✅ 空文本保护：防止 AI 在无内容时产生幻觉
-    if not text or not text.strip():
-        logger.warning("[analyze_text_tool] 收到空文本，可能是参数解析失败")
-        return "错误：未提供待分析的文本内容。请确保前置任务（如获取章节）已正确执行，或手动提供文本内容。"
-
-    # ✅ 占位符残留检测：如果 text 仍包含 $TASK_N$ 格式，说明解析失败
-    if "$TASK_" in text and "$" in text[text.find("$TASK_")+1:]:
-        logger.warning(f"[analyze_text_tool] 检测到未解析的占位符: {text[:100]}...")
-        return f"错误：文本参数中包含未解析的占位符。这通常表示前置任务执行失败或参数配置错误。原始参数: {text[:200]}"
-
-    try:
-        # 1. 使用约束提示词管理器
-        prompt_manager = get_constraint_manager()
-
-        # 2. 格式化提示词
-        base_prompt = prompt_manager.format_prompt(
-            "analyze_text",
-            text=text,
-            focus=focus
-        )
-
-        # 3. 调用AI生成分析结果
-        result = await _generate_text_helper(
-            base_prompt,
-            temperature=0.3,  # 分析任务可以稍高一点，允许更自然的表达
-            max_tokens=1500,
-            task_type=TaskType.SUMMARIZATION
-        )
-
-        logger.info(f"✅ [Agent分析] 分析完成，结果长度: {len(result)}")
-        return result
-
-    except Exception as e:
-        # 降级方案：如果模板系统失败，使用简单提示词
-        logger.error(f"约束提示词系统失败，使用降级方案: {e}", exc_info=True)
-        prompt = f"""请分析以下文本，重点关注：{focus}
-
-文本：
-{text}
-
-请提供详细的分析报告："""
-
-        return await _generate_text_helper(
-            prompt,
-            temperature=0.3,
-            max_tokens=1500,
-            task_type=TaskType.SUMMARIZATION
-        )
-
-
-def _optimize_prompt_for_retry(
-    original_prompt: str,
-    failed_constraints: list,
-    attempt: int
-) -> str:
-    """
-    根据验证失败的约束优化prompt
-
-    Args:
-        original_prompt: 原始prompt
-        failed_constraints: 失败的约束列表
-        attempt: 当前尝试次数
-
-    Returns:
-        优化后的prompt
-    """
-    # 添加更严格的指令
-    additional_instructions = "\n\n**⚠️ 重要提醒**：\n"
-
-    if any("编造" in constraint or "fabricat" in constraint.lower() for constraint in failed_constraints):
-        additional_instructions += (
-            "- 严禁添加原文中不存在的任何信息\n"
-            "- 严禁编造人物、情节、对话或任何细节\n"
-            "- 所有分析必须基于原文明确提到的内容\n"
-        )
-
-    if any("引用" in constraint or "citation" in constraint.lower() for constraint in failed_constraints):
-        additional_instructions += (
-            "- 所有观点必须引用原文作为证据\n"
-            "- 引用内容必须与原文完全一致\n"
-            "- 不要引用原文中不存在的内容\n"
-        )
-
-    additional_instructions += f"\n（这是第{attempt + 1}次尝试，请特别注意以上要求）\n"
-
-    # 在原始prompt后添加指令
-    return original_prompt + additional_instructions
-
-
-@tool
-async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "") -> str:
-    """读取指定章节工具：从数据库读取章节内容（连接安全版本 v2）
-
-    Args:
-        work_id: 作品ID（可选，但强烈推荐提供），必须是标准UUID格式（36字符）
-                 示例: c9dd9cbf-fa57-447e-9605-3020bbde5350
-        chapter_id: 章节ID，必须是标准UUID格式（36字符），不能使用简化ID如"ch_1"
-                    示例: 627feba4-2097-4f28-a3f3-7641d10f7f40
-                    获取方式：从RAG检索结果、用户上下文或get_context_tool返回的章节列表中获取
-
-    Returns:
-        章节信息（包含标题和内容）的JSON字符串
-    """
-    # ✅ 优化：提前验证参数，避免不必要的数据库连接
-    if not work_id:
-        return json.dumps({
-            "status": "missing_prerequisite",
-            "missing": "work_id",
-            "message": "需要指定作品ID才能读取章节",
-            "user_action_required": True,
-            "suggested_response": "请问您想读取哪个作品的章节？您可以在作品详情页使用此功能，或者告诉我作品ID。"
-        }, ensure_ascii=False, indent=2)
-
-    if not chapter_id:
-        return json.dumps({
-            "status": "missing_prerequisite",
-            "missing": "chapter_id",
-            "message": "需要指定章节ID才能读取章节",
-            "user_action_required": True,
-            "suggested_response": "请问您想读取第几章？或者告诉我章节ID。"
-        }, ensure_ascii=False, indent=2)
-
-    # UUID格式验证（提前返回，避免数据库连接）
-    uuid_error = validate_uuid(work_id, "作品ID")
-    if uuid_error:
-        return uuid_error
-
-    uuid_error = validate_uuid(chapter_id, "章节ID")
-    if uuid_error:
-        return uuid_error
-
-    # ✅ 修复：正确使用 async with 管理连接
-    async with AsyncSessionLocal() as db:
-        try:
-            from app.services.chapter_service import ChapterService
-
-            chapter_service = ChapterService(db)
-
-            # 使用重试机制（防止临时网络错误）
-            chapter = await _retry_on_failure(
-                chapter_service.get_chapter_by_id,
-                chapter_id,
-                max_retries=2
-            )
-
-            if not chapter:
-                return json.dumps({
-                    "error": f"未找到章节 {chapter_id}",
-                    "work_id": work_id
-                }, ensure_ascii=False, indent=2)
-
-            # 返回章节信息
-            chapter_info = {
-                "chapter_id": str(chapter.id),
-                "title": chapter.title,
-                "order": chapter.order,
-                "content": chapter.content[:5000] if chapter.content else "",
-                "content_length": len(chapter.content) if chapter.content else 0,
-                "word_count": chapter.word_count,
-                "status": chapter.status.value if hasattr(chapter, 'status') else "unknown"
-            }
-
-            logger.info(f"[read_chapter_tool] ✅ 读取章节成功: {chapter.title}")
-            return json.dumps(chapter_info, ensure_ascii=False, indent=2)
-
-        except Exception as e:
-            # ✅ 异常时回滚事务
-            try:
-                await db.rollback()
-            except:
-                pass
-
-            logger.error(f"[read_chapter_tool] ❌ 读取章节失败: {e}", exc_info=True)
-            return json.dumps({
-                "error": f"读取章节失败: {str(e)}",
-                "work_id": work_id,
-                "chapter_id": chapter_id
-            }, ensure_ascii=False, indent=2)
-
-        finally:
-            # ✅ 双重保险：确保连接关闭
-            try:
-                await db.close()
-                logger.debug(f"[read_chapter_tool] 数据库连接已关闭")
-            except Exception as close_error:
-                logger.warning(f"[read_chapter_tool] 关闭数据库连接时出错: {close_error}")
-                # 强制失效连接
-                try:
-                    await db.invalidate()
-                except Exception as invalidate_error:
-                    logger.error(f"[read_chapter_tool] 强制失效连接失败: {invalidate_error}")
-                    # 这是最后的防线，如果失败说明连接可能已泄漏
-
-
-@tool
-async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order: int = 1) -> str:
-    """通过章节序号获取章节ID和内容（连接安全版本 v2）
-
-    Args:
-        work_id: 作品ID（可选，但强烈推荐提供），必须是标准UUID格式（36字符）
-                 示例: c9dd9cbf-fa57-447e-9605-3020bbde5350
-        chapter_order: 章节序号（第1章=1，第2章=2，...）
-
-    Returns:
-        章节信息（包含ID、标题和内容）的JSON字符串
-    """
-    # ✅ 优化：提前验证参数
-    if not work_id:
-        return json.dumps({
-            "status": "missing_prerequisite",
-            "missing": "work_id",
-            "message": "需要指定作品ID才能查询章节",
-            "user_action_required": True,
-            "suggested_response": "请问您想查询哪个作品的第{}章？您可以在作品详情页使用此功能，或者告诉我作品ID。".format(chapter_order)
-        }, ensure_ascii=False, indent=2)
-
-    # UUID格式验证（提前返回）
-    uuid_error = validate_uuid(work_id, "作品ID")
-    if uuid_error:
-        return uuid_error
-
-    # ✅ 修复：正确使用 async with 管理连接
-    async with AsyncSessionLocal() as db:
-        try:
-            from app.services.work_service import WorkService
-            from app.utils.text_cleaner import text_cleaner
-
-            work_service = WorkService(db)
-
-            # 使用重试机制获取作品
-            work = await _retry_on_failure(
-                work_service.get_work_by_id,
-                work_id,
-                use_cache=False,
-                max_retries=2
-            )
-
-            if not work or not work.chapters:
-                return json.dumps({
-                    "error": f"未找到作品或作品没有章节",
-                    "work_id": work_id
-                }, ensure_ascii=False, indent=2)
-
-            # 查找对应序号的章节
-            target_chapter = None
-            for chapter in work.chapters:
-                if chapter.order == chapter_order:
-                    target_chapter = chapter
-                    break
-
-            if not target_chapter:
-                return json.dumps({
-                    "error": f"未找到第{chapter_order}章",
-                    "work_id": work_id,
-                    "total_chapters": len(work.chapters)
-                }, ensure_ascii=False, indent=2)
-
-            # 返回章节信息（V2.0 - 添加HTML清理）
-            clean_content = text_cleaner.html_to_clean_text(
-                target_chapter.content if target_chapter.content else "",
-                preserve_structure=True,
-                max_length=5000
-            )
-
-            token_estimate = text_cleaner.estimate_tokens(clean_content)
-
-            chapter_info = {
-                "chapter_id": str(target_chapter.id),
-                "title": target_chapter.title,
-                "order": target_chapter.order,
-                "content": clean_content,
-                "content_length": len(clean_content),
-                "word_count": target_chapter.word_count,
-                "token_estimate": token_estimate,
-                "status": target_chapter.status.value if hasattr(target_chapter, 'status') else "unknown"
-            }
-
-            logger.info(f"[get_chapter_by_order_tool] ✅ 找到第{chapter_order}章: {target_chapter.title}")
-            return json.dumps(chapter_info, ensure_ascii=False, indent=2)
-
-        except Exception as e:
-            # ✅ 异常时回滚事务
-            try:
-                await db.rollback()
-            except:
-                pass
-
-            logger.error(f"[get_chapter_by_order_tool] ❌ 查询失败: {e}", exc_info=True)
-            return json.dumps({
-                "error": f"查询失败: {str(e)}",
-                "work_id": work_id,
-                "chapter_order": chapter_order
-            }, ensure_ascii=False, indent=2)
-
-        finally:
-            # ✅ 双重保险：确保连接关闭
-            try:
-                await db.close()
-                logger.debug(f"[get_chapter_by_order_tool] 数据库连接已关闭")
-            except Exception as close_error:
-                logger.warning(f"[get_chapter_by_order_tool] 关闭数据库连接时出错: {close_error}")
-                try:
-                    await db.invalidate()
-                except Exception as invalidate_error:
-                    logger.error(f"[get_chapter_by_order_tool] 强制失效连接失败: {invalidate_error}")
-                    # 这是最后的防线，如果失败说明连接可能已泄漏
-
-
-@tool
-async def search_analysis_fragments_tool(work_id: Optional[str] = None, query: str = "", top_k: int = 5) -> str:
-    """检索分析碎片工具：从向量数据库检索相关的小说分析片段（RAG）（连接安全版本）
-
-    Args:
-        work_id: 作品ID（可选，但强烈推荐提供），必须是标准UUID格式（36字符）
-                 示例: c9dd9cbf-fa57-447e-9605-3020bbde5350
-                 不能使用简化ID如"YXTW_001"
-        query: 查询文本（用户的问题或需求）
-        top_k: 返回前K个最相关结果（默认5个）
-
-    Returns:
-        相关的分析片段列表（JSON格式）
-    """
-    # ✅ 优化：提前验证参数
-    if not work_id:
-        return json.dumps({
-            "status": "missing_prerequisite",
-            "missing": "work_id",
-            "message": "需要指定作品ID才能检索分析片段",
-            "user_action_required": True,
-            "suggested_response": "请问您想检索哪个作品的分析内容？您可以在作品详情页使用此功能，或者告诉我作品ID。"
-        }, ensure_ascii=False, indent=2)
-
-    # UUID格式验证（提前返回）
-    uuid_error = validate_uuid(work_id, "作品ID")
-    if uuid_error:
-        return uuid_error
-
-    # ✅ 修复：正确使用 async with 管理连接
-    async with AsyncSessionLocal() as db:
-        try:
-            from app.services.vector_store_service import VectorStoreService
-
-            vector_service = VectorStoreService(db)
-
-            # RAG检索（使用重试机制）
-            results = await _retry_on_failure(
-                vector_service.retrieve_relevant_analysis,
-                work_id=work_id,
-                query=query,
-                top_k=top_k,
-                similarity_threshold=0.3,
-                max_retries=2
-            )
-
-            if not results:
-                return json.dumps({
-                    "message": "未找到相关的分析片段",
-                    "work_id": work_id,
-                    "query": query,
-                    "results": []
-                }, ensure_ascii=False, indent=2)
-
-            # 格式化结果
-            formatted_results = []
-            for i, result in enumerate(results):
-                formatted_results.append({
-                    "rank": i + 1,
-                    "similarity": result['similarity'],
-                    "chapter_id": result['chapter_id'],
-                    "content": result['content_text'][:2000],
-                    "micro_data_summary": {
-                        "theme": result['micro_data'].get('chapter_theme', 'N/A') if result['micro_data'] else 'N/A'
-                    }
-                })
-
-            logger.info(f"[search_analysis_fragments_tool] ✅ RAG检索成功: 找到{len(results)}个相关片段")
-
-            return json.dumps({
-                "work_id": work_id,
-                "query": query,
-                "total_results": len(results),
-                "results": formatted_results
-            }, ensure_ascii=False, indent=2)
-
-        except Exception as e:
-            # ✅ 异常时回滚事务
-            try:
-                await db.rollback()
-            except:
-                pass
-
-            logger.error(f"[search_analysis_fragments_tool] ❌ RAG检索失败: {e}", exc_info=True)
-            return json.dumps({
-                "error": f"检索失败: {str(e)}",
-                "work_id": work_id,
-                "query": query
-            }, ensure_ascii=False, indent=2)
-
-        finally:
-            # ✅ 双重保险：确保连接关闭
-            try:
-                await db.close()
-                logger.debug(f"[search_analysis_fragments_tool] 数据库连接已关闭")
-            except Exception as close_error:
-                logger.warning(f"[search_analysis_fragments_tool] 关闭数据库连接时出错: {close_error}")
-                try:
-                    await db.invalidate()
-                except Exception as invalidate_error:
-                    logger.error(f"[search_analysis_fragments_tool] 强制失效连接失败: {invalidate_error}")
-                    # 这是最后的防线，如果失败说明连接可能已泄漏
-
-
-@tool
-async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") -> str:
-    """获取上下文工具：检索作品、章节和世界观信息（真实数据）（连接安全版本）
-
-    Args:
-        work_id: 作品ID（可选，但强烈推荐提供），必须是标准UUID格式（36字符）
-                 示例: c9dd9cbf-fa57-447e-9605-3020bbde5350
-        chapter_id: 章节ID（可选），必须是标准UUID格式（36字符）
-                    示例: 627feba4-2097-4f28-a3f3-7641d10f7f40
-
-    Returns:
-        上下文信息（JSON格式字符串）
-    """
-    # ✅ P1修复：改为降级模式而非直接拒绝
-    if not work_id:
-        logger.info("[get_context_tool] work_id未提供，使用降级模式")
-        # ✅ P1遗漏修复：补全JSON结构，保持与正常模式一致
-        return json.dumps({
-            "status": "limited_mode",
-            "error": "missing_work_id",  # ✅ 新增：错误代码
-            "work_id": None,  # ✅ 新增：保持结构一致
-            "work_info": {},  # ✅ 新增：保持结构一致
-            "current_chapter": {},  # ✅ 新增：保持结构一致
-            "related_analysis": [],  # ✅ 新增：保持结构一致
-            "message": "未指定作品，无法获取详细上下文。请提供work_id。",
-            "available_features": [
-                "通用写作建议",
-                "风格分析",
-                "语法检查",
-                "创意启发"
-            ],
-            "suggestion": "提供作品ID可获得更详细的上下文信息（角色、设定、大纲等）",
-            "tip": "您可以在作品详情页使用完整功能，或告诉我作品ID"
-        }, ensure_ascii=False, indent=2)
-
-    # UUID格式验证（提前返回）
-    uuid_error = validate_uuid(work_id, "作品ID")
-    if uuid_error:
-        return uuid_error
-
-    if chapter_id:  # chapter_id是可选的，只在提供时验证
-        uuid_error = validate_uuid(chapter_id, "章节ID")
-        if uuid_error:
-            return uuid_error
-
-    # ✅ 修复：正确使用 async with 管理连接
-    async with AsyncSessionLocal() as db:
-        try:
-            from app.services.work_service import WorkService
-            from app.services.chapter_service import ChapterService
-            from app.services.chapter_vector_service import ChapterVectorService
-
-            logger.info(f"[get_context_tool] 🔥 新版本工具被调用！work_id={work_id}, chapter_id={chapter_id}")
-
-            work_service = WorkService(db)
-            chapter_service = ChapterService(db)
-            chapter_vector_service = ChapterVectorService(db)
-
-            context_info = {
-                "work_id": work_id,
-                "work_info": {},
-                "current_chapter": {},
-                "related_analysis": []
-            }
-
-            # 1. 获取作品信息（使用重试机制）
-            work = await _retry_on_failure(
-                work_service.get_work_by_id,
-                work_id,
-                use_cache=False,
-                max_retries=2
-            )
-
-            if work:
-                context_info["work_info"] = {
-                    "title": work.title,
-                    "description": work.description[:200] if work.description else "",
-                    "genre": work.genre if hasattr(work, 'genre') else "未知",
-                    "total_chapters": len(work.chapters) if work.chapters else 0
-                }
-            else:
-                context_info["work_info"] = {"error": "作品未找到"}
-
-            # 2. 获取当前章节（如果提供了chapter_id）
-            if chapter_id:
-                chapter = await _retry_on_failure(
-                    chapter_service.get_chapter_by_id,
-                    chapter_id,
-                    max_retries=2
-                )
-
-                if chapter:
-                    context_info["current_chapter"] = {
-                        "chapter_id": str(chapter.id),
-                        "title": chapter.title,
-                        "order": chapter.order,
-                        "content_preview": chapter.content[:1000] if chapter.content else "",
-                        "word_count": chapter.word_count
-                    }
-                else:
-                    context_info["current_chapter"] = {"error": "章节未找到"}
-
-            # 3. 🆕 RAG检索章节上下文（带时序过滤）
-            try:
-                # 获取当前章节的order（用于时序过滤）
-                current_order = 999  # 默认值：检索所有章节（用于全局分析场景）
-                if chapter_id:
-                    chapter = await _retry_on_failure(
-                        chapter_service.get_chapter_by_id,
-                        chapter_id,
-                        max_retries=2
-                    )
-                    if chapter:
-                        current_order = chapter.order
-                        logger.info(f"[get_context_tool] 当前章节order={current_order}，将检索前{current_order-1}章")
-                    else:
-                        logger.warning(f"[get_context_tool] ⚠️ chapter_id={chapter_id} 未找到，降级为全局检索（order=999）")
-
-                # 使用新的ChapterVectorService检索（自动过滤时序）
-                query = "作品背景、人物关系、情节发展、伏笔线索"
-                chapter_rag_results = await _retry_on_failure(
-                    chapter_vector_service.retrieve_for_writing,
-                    work_id=work_id,
-                    current_chapter_order=current_order,
-                    query=query,
-                    top_k=5,
-                    similarity_threshold=0.3,
-                    max_retries=2
-                )
-
-                if chapter_rag_results:
-                    context_info["related_context"] = [
-                        {
-                            "chapter_title": r['chapter_title'],
-                            "chapter_order": r['chapter_order'],
-                            "similarity": r['similarity'],
-                            "content": r['chunk_text'][:500]
-                        }
-                        for r in chapter_rag_results
-                    ]
-                    logger.info(f"[get_context_tool] ✅ RAG检索成功: {len(chapter_rag_results)}个相关段落")
-                else:
-                    # 🆕 降级策略：使用Worldview数据
-                    logger.warning(f"[get_context_tool] RAG检索为空，使用Worldview降级")
-                    from app.services.worldview_service import WorldviewService
-                    worldview_service = WorldviewService(db)
-
-                    characters = await worldview_service.get_characters_by_work(work_id)
-                    locations = await worldview_service.get_locations_by_work(work_id)
-                    settings = await worldview_service.get_settings_by_work(work_id)
-
-                    context_info["worldview_fallback"] = {
-                        "characters": [{"name": c.name, "description": (c.description or "")[:200]} for c in (characters[:5] if characters else [])],
-                        "locations": [{"name": l.name, "description": (l.description or "")[:200]} for l in (locations[:5] if locations else [])],
-                        # Setting 模型没有 name/description 字段，使用 title + content 兜底
-                        "settings": [
-                            {
-                                "name": getattr(s, "title", getattr(s, "name", "")),
-                                "description": (getattr(s, "content", getattr(s, "description", "")) or "")[:200],
-                            }
-                            for s in (settings[:5] if settings else [])
-                        ],
-                    }
-                    context_info["related_context"] = []
-
-            except Exception as rag_error:
-                logger.error(f"[get_context_tool] RAG检索失败: {rag_error}", exc_info=True)
-                context_info["related_context"] = []
-                context_info["rag_error"] = str(rag_error)
-
-            logger.info(f"[get_context_tool] ✅ 获取上下文成功: work={work.title if work else 'N/A'}")
-            return json.dumps(context_info, ensure_ascii=False, indent=2)
-
-        except Exception as e:
-            # ✅ 异常时回滚事务
-            try:
-                await db.rollback()
-            except:
-                pass
-
-            logger.error(f"[get_context_tool] ❌ 获取上下文失败: {e}", exc_info=True)
-            return json.dumps({
-                "error": f"获取上下文失败: {str(e)}",
-                "work_id": work_id
-            }, ensure_ascii=False, indent=2)
-
-        finally:
-            # ✅ 双重保险：确保连接关闭
-            try:
-                await db.close()
-                logger.debug(f"[get_context_tool] 数据库连接已关闭")
-            except Exception as close_error:
-                logger.warning(f"[get_context_tool] 关闭数据库连接时出错: {close_error}")
-                try:
-                    await db.invalidate()
-                except Exception as invalidate_error:
-                    logger.error(f"[get_context_tool] 强制失效连接失败: {invalidate_error}")
-                    # 这是最后的防线，如果失败说明连接可能已泄漏
-
-
-# 工具列表
-WRITING_TOOLS = [
-    continue_writing_tool,
-    polish_text_tool,
-    analyze_text_tool,
-    get_context_tool,
-    read_chapter_tool,
-    get_chapter_by_order_tool,  # 新增：通过章节序号获取章节
-    search_analysis_fragments_tool,
-    # 编辑器工具
-    smart_continue,
-    smart_rewrite,
-    smart_insert,
-    apply_chapter_edit
-]
-
-
-# ==================== Summarization上下文压缩工具 ====================
-
-def _compress_task_result(
-    task_id: int,
-    task_description: str,
-    task_result: str,
-    max_length: int = 2000  # 提高默认限制，保留更多上下文
-) -> str:
-    """智能压缩任务结果
-
-    Args:
-        task_id: 任务ID
-        task_description: 任务描述
-        task_result: 原始任务结果
-        max_length: 最大保留长度
-
-    Returns:
-        压缩后的结果
-    """
-    # 类型安全检查
-    if not isinstance(task_result, str):
-        logger.warning(
-            f"[Compress] 任务{task_id}结果不是字符串: {type(task_result)}, "
-            f"已转换为字符串"
-        )
-        task_result = str(task_result) if task_result is not None else ""
-
-    # 如果结果很短，直接返回
-    if len(task_result) <= max_length:
-        return task_result
-
-    # 【修复】尝试解析JSON格式的工具返回结果（如get_chapter_by_order_tool）
-    try:
-        data = json.loads(task_result)
-        # 如果是JSON且有content字段，提取真正的内容
-        if isinstance(data, dict) and 'content' in data:
-            content = data.get('content')
-            task_result = content if content is not None else ""
-            # 重新检查长度
-            if len(task_result) <= max_length:
-                return task_result
-    except (json.JSONDecodeError, TypeError, ValueError) as e:
-        logger.debug(f"任务结果不是JSON格式: {e}")
-        # 不是JSON或解析失败，继续原有逻辑
-
-    # 章节内容：只保留摘要
-    if "章" in task_result and ("第" in task_result or "标题" in task_result):
-        lines = task_result.split('\n')
-        summary_lines = []
-
-        for line in lines[:10]:  # 只看前10行
-            if "标题" in line or "章" in line or "摘要" in line:
-                summary_lines.append(line)
-
-        if summary_lines:
-            compressed = '\n'.join(summary_lines)
-            return f"[章节信息摘要]\n{compressed}\n[完整内容已压缩]"
-        else:
-            # 保留开头和结尾（增加保留长度）
-            return f"[章节内容摘要]\n{task_result[:1500]}...\n{task_result[-500:]}"
-
-    # RAG检索结果
-    if "检索" in task_description or "搜索" in task_description:
-        # 只保留关键信息
-        return f"[检索结果摘要]\n{task_result[:max_length]}"
-
-    # 其他类型结果：保留前后部分
-    half = max_length // 2
-    return f"{task_result[:half]}...[省略{len(task_result)-max_length}字符]...{task_result[-half:]}"
-
-
-def _build_summarization_context(
-    user_message: str,
-    task_results: List[Dict[str, Any]],
-    max_context_length: int = 3000
-) -> str:
-    """构建Summarization的压缩上下文
-
-    Args:
-        user_message: 用户原始请求
-        task_results: 任务执行结果列表 [{"task_id": 1, "description": "...", "result": "...", "status": "completed"}, ...]
-        max_context_length: 最大上下文长度（字符）
-
-    Returns:
-        压缩后的上下文字符串
-    """
-    context_parts = [f"用户请求：{user_message}\n\n执行结果："]
-    current_length = len(context_parts[0])
-
-    for task in task_results:
-        task_id = task["task_id"]
-        description = task["description"]
-        result = task.get("result")
-        result = result if result is not None else ""  # 防御性编程：处理None值
-        status = task["status"]
-
-        # 压缩结果
-        if status == "completed":
-            compressed_result = _compress_task_result(
-                task_id=task_id,
-                task_description=description,
-                task_result=result,
-                max_length=2000  # 提高压缩限制，保留更多上下文
-            )
-        else:
-            # 失败的任务保留错误信息
-            compressed_result = result[:200] if result else ""
-
-        # 构建任务文本
-        task_text = f"\n任务{task_id}（{description}）：\n{compressed_result}\n"
-
-        # 检查是否超过限制
-        if current_length + len(task_text) > max_context_length:
-            # 超过限制，进一步简化
-            task_text = f"\n任务{task_id}：[结果已省略]\n"
-
-        context_parts.append(task_text)
-        current_length += len(task_text)
-
-        # 如果已经接近限制，停止添加
-        if current_length >= max_context_length * 0.95:
-            remaining_tasks = len(task_results) - (task_id)
-            if remaining_tasks > 0:
-                omit_msg = f"\n[还有{remaining_tasks}个任务结果已省略]\n"
-                # 检查提示信息本身是否会超限
-                if current_length + len(omit_msg) <= max_context_length:
-                    context_parts.append(omit_msg)
-            break
-
-    return ''.join(context_parts)
-
-
-def _build_knowledge_system_messages(
-    context: Optional[Dict[str, Any]],
-    max_docs: int = 3,
-    max_snippet_chars: int = 800,
-    max_total_chars: int = 2400
-) -> List[SystemMessage]:
-    """
-    将 knowledge_docs 构造成系统提示，限制数量和长度，避免超长。
-    """
-    if not context:
-        return []
-    docs = context.get("knowledge_docs")
-    if not isinstance(docs, list) or not docs:
-        return []
-
-    parts: List[str] = []
-    total = 0
-    for doc in docs[:max_docs]:
-        title = doc.get("title") or "未命名文档"
-        tags = doc.get("tags") or []
-        source = doc.get("source_type") or "unknown"
-        highlight = doc.get("highlight")
-        content = highlight or doc.get("content") or ""
-        snippet = content.strip()[:max_snippet_chars]
-        if not snippet:
-            continue
-
-        # ✅ P0修复: 更明确地标注文档元数据，避免AI混淆
-        tags_str = ', '.join(tags) if tags else '无'
-        block = (
-            f"=== 知识库文档 ===\n"
-            f"文档标题: {title}\n"
-            f"文档来源: {source}\n"
-            f"文档标签: {tags_str}\n"
-            f"文档正文内容:\n{snippet}\n"
-            f"=== 文档结束 ==="
-        )
-        if total + len(block) > max_total_chars:
-            break
-        parts.append(block)
-        total += len(block)
-
-    if not parts:
-        return []
-
-    system_text = (
-        "以下是用户指定或检索到的知识库文档，请严格参考其内容回答，避免臆造：\n\n"
-        + "\n\n".join(parts)
-    )
-
-    return [SystemMessage(content=system_text)]
-
-# ==================================================================
+# 使用 LANGGRAPH_TOOLS 替代原 WRITING_TOOLS
+WRITING_TOOLS = LANGGRAPH_TOOLS
 
 
 # ==================== Agent 节点定义 ====================
@@ -3309,117 +2247,6 @@ class WritingAgentGraph:
             }]
         }
 
-    async def chat(
-        self,
-        message: str,
-        user_id: Optional[str] = None,  # ✅ 2025-12-09: 添加 user_id 参数
-        work_id: Optional[str] = None,
-        chapter_id: Optional[str] = None,
-        conversation_id: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """
-        与 Agent 对话
-
-        Args:
-            message: 用户消息
-            work_id: 作品ID
-            chapter_id: 章节ID
-            conversation_id: 会话ID（用于记忆）
-            context: 额外上下文
-
-        Returns:
-            Dict: Agent响应
-        """
-
-        # 懒加载：第一次使用时初始化AsyncRedisSaver索引
-        if isinstance(self.checkpointer, AsyncRedisSaver) and not self._checkpointer_setup_done:
-            try:
-                await self.checkpointer.asetup()
-                self._checkpointer_setup_done = True
-                logger.info(f"[LangGraph] AsyncRedisSaver索引创建成功")
-            except Exception as setup_error:
-                logger.error(f"[LangGraph] AsyncRedisSaver索引创建失败: {setup_error}")
-                raise
-
-        # 构建初始状态
-        knowledge_messages = _build_knowledge_system_messages(context)
-
-        initial_state = {
-            "messages": knowledge_messages + [HumanMessage(content=message)],
-            "work_id": work_id,
-            "chapter_id": chapter_id,
-            "intent": None,
-            "context": context or {},
-            "agent_steps": [],
-            "suggested_actions": [],
-            "final_response": None
-        }
-
-        # ✅ P0修复：构建隔离的thread_id（包含user_id和work_id）
-        # 三层隔离：user_id > work_id > conversation_id，避免跨用户/跨作品污染
-        user_prefix = f"{user_id}:" if user_id else ""
-
-        if work_id and conversation_id:
-            thread_id = f"{user_prefix}{work_id}:{conversation_id}"
-        elif work_id:
-            thread_id = f"{user_prefix}{work_id}:default"
-        elif conversation_id:
-            thread_id = f"{user_prefix}{conversation_id}"
-        else:
-            # 兜底：无user_id时使用随机UUID，确保不会全局共享
-            import uuid as uuid_module
-            thread_id = f"{user_prefix}anonymous:{uuid_module.uuid4()}" if not user_prefix else f"{user_prefix}default"
-
-        # ✅ P2防护：thread_id长度验证
-        max_thread_id_length = ContextConfig.MAX_THREAD_ID_LENGTH
-        if len(thread_id) > max_thread_id_length:
-            import hashlib as _hashlib
-            logger.warning(
-                f"[LangGraph] thread_id过长({len(thread_id)}字符), "
-                f"使用哈希缩短"
-            )
-            hash_suffix = _hashlib.sha1(thread_id.encode("utf-8")).hexdigest()[:10]
-            prefix_budget = max_thread_id_length - len(hash_suffix) - 1
-            thread_id = f"{thread_id[:prefix_budget]}:{hash_suffix}"
-
-        logger.info(
-            f"[LangGraph] chat() 使用隔离的thread_id: {thread_id} "
-            f"(user_id={user_id}, work_id={work_id}, conversation_id={conversation_id})"
-        )
-
-        # 运行图
-        config = {"configurable": {"thread_id": thread_id}}
-
-        try:
-            result = await self.graph.ainvoke(initial_state, config)
-
-            return {
-                "response": result["final_response"],
-                "conversation_id": conversation_id or "default",
-                "messages": result["messages"],  # ✅ 添加 messages 到返回值
-                "agent_steps": result["agent_steps"],
-                "suggested_actions": result["suggested_actions"],
-                "metadata": {
-                    "intent": result.get("intent"),
-                    "timestamp": str(get_utc_now())
-                }
-            }
-
-        except Exception as e:
-            import traceback
-            error_msg = str(e) or repr(e)
-            error_trace = traceback.format_exc()
-            logger.error(f"[LangGraph] Agent执行失败: {error_msg}")
-            logger.error(f"[LangGraph] 错误堆栈:\n{error_trace}")
-            return {
-                "response": f"抱歉，处理您的请求时出错了：{error_msg}",
-                "conversation_id": conversation_id or "default",
-                "agent_steps": [],
-                "suggested_actions": [],
-                "metadata": {"error": error_msg, "traceback": error_trace}
-            }
-
     async def chat_stream(
         self,
         message: str,
@@ -4304,34 +3131,43 @@ class WritingAgentGraph:
 
             # 设置总体超时（使用统一配置）
             async with asyncio.timeout(TimeoutConfig.TASK_EXECUTION):
-                # ========== 加载对话历史 ==========
+                # ========== 加载对话历史（使用 ContextManager 压缩） ==========
                 conversation_history = ""
+                context_bundle = None  # 保存上下文包，用于后续更新
 
-                if conversation_id and self.checkpointer:
-                    try:
-                        # 从checkpointer加载历史状态
-                        from langgraph.checkpoint.base import CheckpointTuple
-                        # ✅ P0修复：使用隔离的thread_id，避免跨作品数据泄露
-                        config = {"configurable": {"thread_id": isolated_thread_id, "checkpoint_ns": ""}}
+                # 动态设置 user_id（用于长期记忆隔离）
+                if user_id:
+                    self.context_manager.user_id = user_id
 
-                        checkpoint_tuple = await self.checkpointer.aget_tuple(config)
+                try:
+                    # 使用 ContextManager 构建上下文（自动压缩）
+                    context_bundle = await self.context_manager.build_context(
+                        session_id=isolated_thread_id,
+                        system_prompt="",  # Planning 阶段不需要系统提示
+                        query=message,
+                        work_id=work_id
+                    )
 
-                        if checkpoint_tuple and checkpoint_tuple.checkpoint:
-                            messages = checkpoint_tuple.checkpoint.get("channel_values", {}).get("messages", [])
-
-                            if messages:
-                                logger.info(f"[Planning] 从checkpointer加载了 {len(messages)} 条历史消息")
-                                # 格式化历史消息
-                                history_lines = []
-                                for msg in messages:
-                                    if isinstance(msg, HumanMessage):
-                                        history_lines.append(f"用户: {msg.content}")
-                                    elif isinstance(msg, AIMessage):
-                                        history_lines.append(f"助手: {msg.content}")
-                                if history_lines:
-                                    conversation_history = "\n".join(history_lines)
-                    except Exception as e:
-                        logger.warning(f"[Planning] 加载历史失败: {e}", exc_info=True)
+                    # 从压缩后的上下文中提取历史消息
+                    messages = context_bundle.get("messages", [])
+                    if messages:
+                        logger.info(
+                            f"[Planning] 从 ContextManager 加载了 {len(messages)} 条历史消息 "
+                            f"(token: {context_bundle['metadata'].get('token_count', 0)})"
+                        )
+                        # 格式化历史消息（保持原有格式兼容）
+                        history_lines = []
+                        for msg in messages:
+                            role = msg.get("role", "")
+                            content = msg.get("content", "")
+                            if role == "user":
+                                history_lines.append(f"用户: {content}")
+                            elif role == "assistant":
+                                history_lines.append(f"助手: {content}")
+                        if history_lines:
+                            conversation_history = "\n".join(history_lines)
+                except Exception as e:
+                    logger.warning(f"[Planning] ContextManager 加载历史失败: {e}", exc_info=True)
 
                 # ========== 快速路径判断（新增）==========
                 # 在规划生成前判断是否可以走快速路径
@@ -4348,6 +3184,20 @@ class WritingAgentGraph:
                     )
                     if quick_result:
                         logger.info(f"[Planning] 快速路径命中，跳过规划流程")
+                        # ✅ 修复：快速路径也需要保存对话到 ContextManager
+                        try:
+                            await self.context_manager.update_context(
+                                session_id=isolated_thread_id,
+                                new_messages=[
+                                    {"role": "user", "content": message},
+                                    {"role": "assistant", "content": quick_result.get("response", "")}
+                                ],
+                                context=context_bundle.get("context") if context_bundle else None,
+                                work_id=work_id
+                            )
+                            logger.info(f"[Planning] 快速路径对话已保存到 ContextManager")
+                        except Exception as e:
+                            logger.warning(f"[Planning] 快速路径保存对话失败: {e}")
                         return quick_result
 
                 # ========== 阶段1: 规划（Planning） ==========
@@ -4649,60 +3499,20 @@ chapter_id: {chapter_id}
                     knowledge_docs=knowledge_docs_for_response  # ✅ P0修复: 传递知识库文档
                 )
 
-                # ========== 保存对话到checkpointer ==========
-                if conversation_id and self.checkpointer:
-                    try:
-                        # 构建新消息
-                        new_messages = [
-                        HumanMessage(content=message),
-                        AIMessage(content=final_content)
-                        ]
-
-                        # 从checkpointer加载现有消息
-                        # ✅ P0修复：使用隔离的thread_id保存对话
-                        config = {"configurable": {"thread_id": isolated_thread_id, "checkpoint_ns": ""}}
-                        checkpoint_tuple = await self.checkpointer.aget_tuple(config)
-
-                        existing_messages = []
-                        if checkpoint_tuple and checkpoint_tuple.checkpoint:
-                            existing_messages = checkpoint_tuple.checkpoint.get("channel_values", {}).get("messages", [])
-
-                            # 合并消息
-                            all_messages = existing_messages + new_messages
-
-                            # 构建新checkpoint
-                            checkpoint_id = str(uuid.uuid4())
-                            new_checkpoint = {
-                            "v": 1,
-                            "id": checkpoint_id,
-                            "ts": get_utc_now().isoformat(),
-                            "channel_values": {
-                            "messages": all_messages,
-                            "work_id": work_id,
-                            "chapter_id": chapter_id
-                            },
-                            "channel_versions": {
-                            "messages": checkpoint_id,
-                            "work_id": checkpoint_id,
-                            "chapter_id": checkpoint_id
-                            },
-                            "versions_seen": {
-                            "__start__": checkpoint_id
-                            }
-                            }
-
-                            # 构建new_versions（用于标识哪些channel被更新了）
-                            new_versions = {
-                            "messages": checkpoint_id,
-                            "work_id": checkpoint_id,
-                            "chapter_id": checkpoint_id
-                            }
-
-                            # 保存checkpoint（提供完整的4个参数）
-                            await self.checkpointer.aput(config, new_checkpoint, {}, new_versions)
-                            logger.info(f"[Planning] 已保存 {len(new_messages)} 条新消息到checkpointer (总计: {len(all_messages)})")
-                    except Exception as e:
-                        logger.warning(f"[Planning] 保存消息到checkpointer失败: {e}")
+                # ========== 保存对话到 ContextManager ==========
+                try:
+                    await self.context_manager.update_context(
+                        session_id=isolated_thread_id,
+                        new_messages=[
+                            {"role": "user", "content": message},
+                            {"role": "assistant", "content": final_content}
+                        ],
+                        context=context_bundle.get("context") if context_bundle else None,
+                        work_id=work_id
+                    )
+                    logger.info(f"[Planning] 已保存对话到 ContextManager (session={isolated_thread_id})")
+                except Exception as e:
+                    logger.warning(f"[Planning] 保存对话到 ContextManager 失败: {e}")
 
                 return {
                     "response": final_content,

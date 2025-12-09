@@ -34,12 +34,77 @@ P1 - 重要问题
 
 ---
 架构 / 代码质量
-| 问题 | 描述 |
-|---|---|
-| Prompt 分散存储 | 分布于 backend/app/prompts/*、backend/app/services/agent/prompts/*、backend/app/prompts/templates/* 等，难以维护 |
-| 缺乏 Prompt 版本管理 | 目前无版本元数据，无法追踪演变 |
-| langgraph_agent.py 过大 | 4500+ 行，建议按节点/工具拆分 |
-| 记忆系统复杂度高 | 跨 context/memory/agent，多处逻辑缺统一接口和测试 |
+| 问题 | 描述 | 状态 |
+|---|---|---|
+| Prompt 分散存储 | 分布于多个目录，难以维护 | ✅ 已解决（新增 prompt_config.py 集中配置，见下方详情） |
+| 缺乏 Prompt 版本管理 | 目前无版本元数据 | ✅ 已解决（PromptModuleInfo 包含版本字段） |
+| langgraph_agent.py 过大 | 6156 行，需拆分 | 🔄 进行中 |
+| 记忆系统复杂度高 | 跨模块，缺统一接口 | 待处理 |
+
+---
+## 拆分 langgraph_agent.py 计划（6156行 → ~800行）
+
+### 当前结构分析
+
+| 代码段 | 行号范围 | 行数 | 职责 |
+|-------|---------|------|------|
+| 导入和全局函数 | 1-120 | 120 | 导入、validate_uuid、全局AI服务 |
+| _generate_text_helper | 210-268 | 60 | 文本生成辅助函数 |
+| **工具函数** | 271-975 | **700** | 6个@tool装饰的工具 |
+| 压缩/上下文辅助 | 976-1160 | 185 | _compress_task_result 等 |
+| WritingAgentGraph.__init__ | 1163-1850 | 690 | 初始化 + 图构建 |
+| Handler方法 | 1855-3310 | 1455 | _handle_writing/planning/analysis等 |
+| chat/chat_stream | 3312-3860 | 550 | 主入口方法 |
+| 流事件处理 | 3863-4230 | 370 | _handle_stream_event 等 |
+| chat_with_planning | 4230-5210 | 980 | 规划执行入口 |
+| 任务执行 | 5212-6156 | 945 | _execute_task/_execute_tasks_in_parallel |
+
+### 拆分方案
+
+```
+backend/app/services/agent/
+├── langgraph_agent.py          # 保留：主类 + 入口（~800行）
+├── tools/
+│   ├── __init__.py             # 新增
+│   ├── writing_tools.py        # 新增：续写/润色/分析工具（~200行）
+│   └── chapter_tools.py        # 新增：章节读取/检索工具（~500行）
+├── handlers/
+│   ├── __init__.py             # 新增
+│   ├── base_handler.py         # 新增：Handler基类（~100行）
+│   ├── writing_handler.py      # 新增：_handle_writing（~200行）
+│   ├── planning_handler.py     # 新增：_handle_planning（~200行）
+│   ├── analysis_handler.py     # 新增：_handle_analysis（~200行）
+│   └── general_handler.py      # 新增：_handle_general + _handle_stuck（~300行）
+├── execution/
+│   ├── __init__.py             # 新增
+│   ├── task_executor.py        # 新增：_execute_task（~600行）
+│   └── parallel_executor.py    # 新增：_execute_tasks_in_parallel（~400行）
+└── utils/
+    ├── context_builder.py      # 新增：_build_knowledge_system_messages等（~200行）
+    └── result_compressor.py    # 新增：_compress_task_result等（~150行）
+```
+
+### 拆分步骤（按依赖顺序）
+
+- [ ] **Step 1**: 创建 `tools/writing_tools.py` - 拆出 continue_writing_tool, polish_text_tool, analyze_text_tool
+- [ ] **Step 2**: 创建 `tools/chapter_tools.py` - 拆出 read_chapter_tool, get_chapter_by_order_tool, search_analysis_fragments_tool, get_context_tool
+- [ ] **Step 3**: 创建 `utils/context_builder.py` - 拆出 _build_knowledge_system_messages, _build_summarization_context
+- [ ] **Step 4**: 创建 `utils/result_compressor.py` - 拆出 _compress_task_result, _optimize_prompt_for_retry
+- [ ] **Step 5**: 创建 `handlers/base_handler.py` - 抽取 Handler 公共逻辑
+- [ ] **Step 6**: 创建 `handlers/writing_handler.py` - 拆出 _handle_writing
+- [ ] **Step 7**: 创建 `handlers/planning_handler.py` - 拆出 _handle_planning
+- [ ] **Step 8**: 创建 `handlers/analysis_handler.py` - 拆出 _handle_analysis
+- [ ] **Step 9**: 创建 `handlers/general_handler.py` - 拆出 _handle_general, _handle_stuck
+- [ ] **Step 10**: 创建 `execution/task_executor.py` - 拆出 _execute_task
+- [ ] **Step 11**: 创建 `execution/parallel_executor.py` - 拆出 _execute_tasks_in_parallel, chat_with_planning
+- [ ] **Step 12**: 清理 langgraph_agent.py - 删除已拆出代码，添加导入
+
+### 拆分原则
+
+1. **保持接口不变**：外部调用方式不变，只是内部重构
+2. **最小依赖**：每个模块只依赖必要的内容
+3. **逐步验证**：每拆一个模块就运行测试
+4. **保留注释**：所有修复标记（✅ P0修复等）保留原位置
 
 ---
 ## Review: P2-16 阈值/监控集中扩展到 agent/memory 侧
@@ -81,9 +146,118 @@ P1 - 重要问题
 │   ├── 去重阈值
 │   └── thread_id 长度
 │
-└── memory_config.py     # Memory 模块配置（新增）
-    ├── TTL 配置
-    ├── 容量限制
-    ├── 锁超时配置
-    └── 遗忘策略参数
+├── memory_config.py     # Memory 模块配置（新增）
+│   ├── TTL 配置
+│   ├── 容量限制
+│   ├── 锁超时配置
+│   └── 遗忘策略参数
+│
+└── prompt_config.py     # Prompt 模块配置（新增）
+    ├── 模块注册表
+    ├── 缓存配置
+    ├── 长度限制
+    └── 版本控制配置
 ```
+
+---
+## Review: Prompt 统一存储
+
+### 修改内容
+
+**新增文件：**
+- `backend/app/prompts/prompt_config.py` - Prompt 模块集中配置
+
+**修改文件：**
+| 文件 | 修改内容 |
+|---|---|
+| `app/prompts/__init__.py` | 导出 PromptConfig, PromptCategory, PromptFileType, PromptRegistry 等 |
+
+### 索引统计
+
+| 类型 | 数量 |
+|---|---|
+| Python 模块 | 16 |
+| YAML 模板 | 8 |
+| JSON 配置 | 2 |
+| **总计** | **26** |
+
+### 集中配置项清单
+
+| 配置项 | 说明 |
+|---|---|
+| MODULES | Python Prompt 模块注册表 |
+| YAML_TEMPLATES | YAML 模板文件注册表 |
+| JSON_CONFIGS | JSON 配置文件注册表 |
+| CACHE_ENABLED | 缓存开关 |
+| CACHE_TTL | 缓存 TTL (3600s) |
+| MAX_SYSTEM_PROMPT_LENGTH | 系统 Prompt 最大长度 (8000) |
+| MAX_USER_PROMPT_LENGTH | 用户 Prompt 最大长度 (4000) |
+| VERSION_TRACKING_ENABLED | 版本追踪开关 |
+
+### Prompt 模块索引
+
+**Python 模块 (16个)**
+| 类别 | 模块 | 路径 |
+|---|---|---|
+| AI_SERVICE | ai_prompts | app.services.ai.prompts |
+| EVALUATION | evaluation_prompts | app.services.ai.evaluation_prompts |
+| HUMANIZE | humanize_prompts | app.services.ai.humanize_prompts |
+| REVIEW | review_prompts | app.prompts.review_prompts |
+| CONTENT_CREATION | content_creation_prompts | app.services.agent.prompts.content_creation_prompts |
+| PLANNING | novel_planning_prompts | app.services.agent.prompts.novel_planning_prompts |
+| AGENT | prompt_manager/optimizer/library/cache | app.prompts.*/app.services.agent.* |
+| MULTI_AGENT | writer/outline/editor/character_guard/logic_auditor | app.services.agent.multi_agent.prompts.* |
+| CONFIG | agent_config | app.core.agent_config |
+
+**YAML 模板 (8个)**
+| 模块 | 路径 |
+|---|---|
+| intent_classifier | app/prompts/templates/intent_classifier.yaml |
+| writing_agent | app/prompts/templates/writing_agent.yaml |
+| planning_agent | app/prompts/templates/planning_agent.yaml |
+| tool_agent | app/prompts/templates/tool_agent.yaml |
+| query_agent | app/prompts/templates/query_agent.yaml |
+| system_agent_prompt | app/prompts/templates/system_agent_prompt.yaml |
+| creative_writing_prompt | app/prompts/templates/creative_writing_prompt.yaml |
+| analyze_text | app/prompts/templates/analyze_text.yaml |
+
+**JSON 配置 (2个)**
+| 模块 | 路径 |
+|---|---|
+| default_prompts | app/services/ai/prompts/default.json |
+| novel_analysis | app/services/ai/prompts/novel_analysis.json |
+
+### 使用示例
+
+```python
+from app.prompts import PromptConfig, PromptCategory, PromptFileType
+
+# 获取所有模块（26个）
+all_modules = PromptConfig.list_all_modules()
+
+# 按类别获取
+agent_prompts = PromptConfig.get_modules_by_category(PromptCategory.AGENT)
+
+# 按文件类型获取
+yaml_templates = PromptConfig.get_modules_by_file_type(PromptFileType.YAML)
+
+# 获取模块路径
+path = PromptConfig.get_module_path("content_creation_prompts")
+
+# 统计各类别数量
+summary = PromptConfig.get_category_summary()
+
+# 统计各文件类型数量
+file_summary = PromptConfig.get_file_type_summary()
+```
+
+### 遗留问题说明
+
+本次修改创建了 **Prompt 统一索引**，解决了"难以找到 Prompt 位置"的问题。但以下问题仍需后续处理：
+
+| 问题 | 说明 | 建议 |
+|---|---|---|
+| 内联 Prompt 未索引 | langgraph_agent.py 等文件中有内联 Prompt | 逐步迁移到独立模块 |
+| 统一访问接口 | 目前只是索引，无统一访问 API | 可扩展 PromptRegistry |
+| 版本控制实际应用 | version 字段仅存储，未实际使用 | 与 PromptVersionManager 集成 |
+

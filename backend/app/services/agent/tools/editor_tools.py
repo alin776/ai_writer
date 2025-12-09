@@ -2,12 +2,18 @@
 Agent编辑器工具 - 允许Agent直接修改编辑器内容
 
 这些工具需要用户确认才能执行实际修改。
+
+修复说明（2025-12-09）：
+- 添加 LangChain @tool 装饰器，支持 .ainvoke() 方法调用
+- 保留 @register_as_tool 用于自定义注册表兼容
 """
 from typing import Dict, Any, Optional, List
 from uuid import UUID
 import logging
 import asyncio
+import json
 
+from langchain_core.tools import tool
 from .tool_registry import register_as_tool
 from .position_inferrer import position_inferrer
 from .style_adapter import style_adapter
@@ -234,6 +240,7 @@ async def _generate_rewrite_versions(
     }]
 
 
+@tool
 @register_as_tool(
     "apply_chapter_edit",
     "editor",
@@ -246,7 +253,7 @@ async def apply_chapter_edit(
     position: int = None,
     user_id: str = None,
     description: str = None
-) -> Dict[str, Any]:
+) -> str:
     """
     对章节执行编辑操作
 
@@ -266,28 +273,28 @@ async def apply_chapter_edit(
         if user_id:
             is_allowed, remaining = await agent_edit_limiter.check(user_id)
             if not is_allowed:
-                return {
+                return json.dumps({
                     "success": False,
                     "error": "rate_limit_exceeded",
                     "message": f"操作过于频繁，请稍后再试。剩余配额将在1分钟后恢复。",
                     "retry_after": 60
-                }
+                }, ensure_ascii=False)
 
         # 验证参数
         if not chapter_id:
-            return {"success": False, "error": "missing_chapter_id"}
+            return json.dumps({"success": False, "error": "missing_chapter_id"}, ensure_ascii=False)
 
         if not content or not content.strip():
-            return {"success": False, "error": "empty_content"}
+            return json.dumps({"success": False, "error": "empty_content"}, ensure_ascii=False)
 
         if operation not in ["append", "replace", "insert"]:
-            return {"success": False, "error": "invalid_operation"}
+            return json.dumps({"success": False, "error": "invalid_operation"}, ensure_ascii=False)
 
         if operation == "insert" and position is None:
-            return {"success": False, "error": "missing_position_for_insert"}
+            return json.dumps({"success": False, "error": "missing_position_for_insert"}, ensure_ascii=False)
 
         # 返回需要用户确认的信息
-        return {
+        return json.dumps({
             "success": True,
             "requires_confirmation": True,
             "action_type": "edit",
@@ -298,13 +305,14 @@ async def apply_chapter_edit(
             "position": position,
             "description": description or f"AI{_get_operation_name(operation)}：+{len(content)}字",
             "remaining_quota": remaining if user_id else None
-        }
+        }, ensure_ascii=False)
 
     except Exception as e:
         logger.error(f"apply_chapter_edit failed: {e}")
-        return {"success": False, "error": str(e)}
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
 
 
+@tool
 @register_as_tool(
     "smart_continue",
     "editor",
@@ -314,7 +322,7 @@ async def smart_continue(
     chapter_id: str,
     content: str,
     user_id: str = None
-) -> Dict[str, Any]:
+) -> str:
     """
     智能续写 - 自动添加到章节末尾
 
@@ -335,6 +343,7 @@ async def smart_continue(
     )
 
 
+@tool
 @register_as_tool(
     "smart_rewrite",
     "editor",
@@ -369,7 +378,7 @@ async def smart_rewrite(
     user_requirement: str = None,
     base_version: str = None,
     user_id: str = None
-) -> Dict[str, Any]:
+) -> str:
     """
     智能改写 - 改写用户指定范围的文本
 
@@ -395,12 +404,12 @@ async def smart_rewrite(
         if actual_user_id:
             is_allowed, remaining = await agent_edit_limiter.check(actual_user_id)
             if not is_allowed:
-                return {
+                return json.dumps({
                     "success": False,
                     "error": "rate_limit_exceeded",
                     "message": "操作过于频繁，请稍后再试。",
                     "retry_after": 60
-                }
+                }, ensure_ascii=False)
 
         # ✅ P0-6修复：如果没有提供text_to_rewrite，自动获取章节内容
         if not text_to_rewrite and chapter_id:
@@ -416,26 +425,26 @@ async def smart_rewrite(
                         chapter_content = chapter.content  # 同时用于风格分析
                         logger.info(f"[smart_rewrite] 自动获取章节内容成功，长度: {len(text_to_rewrite)}")
                     else:
-                        return {
+                        return json.dumps({
                             "success": False,
                             "error": "chapter_not_found",
                             "message": f"无法获取章节内容: {chapter_id}"
-                        }
+                        }, ensure_ascii=False)
             except Exception as e:
                 logger.error(f"[smart_rewrite] 获取章节内容失败: {e}")
-                return {
+                return json.dumps({
                     "success": False,
                     "error": "fetch_chapter_failed",
                     "message": f"获取章节内容失败: {str(e)}"
-                }
+                }, ensure_ascii=False)
 
         # 验证text_to_rewrite
         if not text_to_rewrite:
-            return {
+            return json.dumps({
                 "success": False,
                 "error": "missing_content",
                 "message": "缺少要改写的内容"
-            }
+            }, ensure_ascii=False)
 
         # ✅ 使用AI生成3个实际的改写版本
         logger.info(f"[smart_rewrite] 开始生成改写版本，原文长度: {len(text_to_rewrite)}, 用户要求: {user_requirement}, 基准版本: {'有' if base_version else '无'}")
@@ -448,21 +457,22 @@ async def smart_rewrite(
             num_versions=3
         )
 
-        return {
+        return json.dumps({
             "success": True,
             "requires_confirmation": True,
             "action_type": "rewrite",
             "chapter_id": chapter_id,
             "original_text": text_to_rewrite,
-            "versions": versions,  # ✅ 包含实际改写内容的版本列表
+            "versions": versions,
             "description": f"AI改写：{len(text_to_rewrite)}字 → 生成{len(versions)}个版本"
-        }
+        }, ensure_ascii=False)
 
     except Exception as e:
         logger.error(f"smart_rewrite failed: {e}")
-        return {"success": False, "error": str(e)}
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
 
 
+@tool
 @register_as_tool(
     "smart_insert",
     "editor",
@@ -475,7 +485,7 @@ async def smart_insert(
     chapter_content: str = None,
     context: dict = None,
     user_id: str = None
-) -> Dict[str, Any]:
+) -> str:
     """
     智能插入内容 - 自动推断最佳位置
 
@@ -495,12 +505,12 @@ async def smart_insert(
         if user_id:
             is_allowed, remaining = await agent_edit_limiter.check(user_id)
             if not is_allowed:
-                return {
+                return json.dumps({
                     "success": False,
                     "error": "rate_limit_exceeded",
                     "message": "操作过于频繁，请稍后再试。",
                     "retry_after": 60
-                }
+                }, ensure_ascii=False)
 
         # 智能推断位置
         if chapter_content:
@@ -517,7 +527,7 @@ async def smart_insert(
                 "reason": "默认插入到末尾"
             }
 
-        return {
+        return json.dumps({
             "success": True,
             "requires_confirmation": True,
             "action_type": "insert",
@@ -526,11 +536,11 @@ async def smart_insert(
             "content_length": len(content),
             "position_inference": position_result,
             "description": f"AI插入：+{len(content)}字 ({position_result['reason']})"
-        }
+        }, ensure_ascii=False)
 
     except Exception as e:
         logger.error(f"smart_insert failed: {e}")
-        return {"success": False, "error": str(e)}
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
 
 
 def _get_operation_name(operation: str) -> str:
