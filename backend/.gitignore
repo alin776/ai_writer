@@ -66,6 +66,9 @@ htmlcov/
 
 # 临时测试脚本（不提交到仓库）
 test_*.py
+tests/test_*.py
+tests/debug_*.py
+tests/__init__.py
 auto_test.py
 clear_users.py
 view_data.py
