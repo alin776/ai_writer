@@ -227,6 +227,13 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
   const sendMessageStream = useCallback(
     async (request: AgentChatRequest): Promise<void> => {
+      // 防止在加载中被重复触发（例如 StrictMode 双调用或多次点击）
+      const loadingSnap = sessionManager.getSession(sessionId);
+      if (loadingSnap?.isLoading) {
+        console.warn('[useAgentChat] stream already in progress, skip duplicate trigger');
+        return;
+      }
+
       // 如果开启 @optimization：补齐文本后走 Agent 接口（不写 humanize 历史）
       if (request.context?.use_optimization) {
         const current = sessionManager.getOrCreateSession(sessionId);
@@ -488,6 +495,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                 }
               : {}),
             onContent: (chunk) => {
+              if (stopRequestedRef.current) return; // 已请求停止时丢弃后续流内容
               streamingContent += chunk;
               const currentSession = sessionManager.getSession(sessionId);
               const currentMessages = currentSession?.messages || baseMessages;
@@ -542,7 +550,10 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
               const currentSession = sessionManager.getSession(sessionId);
               const currentMessages = currentSession?.messages || baseMessages;
               const updated = [...currentMessages];
-              const isAbort = stopRequestedRef.current || errorMessage.toLowerCase().includes('abort');
+              const isAbort =
+                stopRequestedRef.current ||
+                errorMessage.toLowerCase().includes('abort') ||
+                errorMessage.toLowerCase().includes('cancel');
               if (updated[agentMessageIndex]) {
                 updated[agentMessageIndex] = {
                   role: 'agent',
