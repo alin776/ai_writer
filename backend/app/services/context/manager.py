@@ -159,7 +159,12 @@ class ContextManager:
                 threshold=None  # 自适应阈值
             )
             if len(context.short_memory.messages) < original_count:
-                record_memory_size("short_memory_after_dedup", len(context.short_memory.messages))
+                # 记录去重后的短期记忆大小（摘要长度保持不变）
+                record_memory_size(
+                    len(context.short_memory.messages),
+                    len(context.summary_memory.summary),
+                    session_id
+                )
                 record_dedup(original_count - len(context.short_memory.messages))
 
         # 构建LLM消息列表

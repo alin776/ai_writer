@@ -32,6 +32,16 @@ from app.models.user_invitation import UserInvitation
 from app.models.invitation_usage import InvitationUsage
 from app.models.agent_session import AgentSession
 from app.models.agent_session_message import AgentSessionMessage
+from app.models.notification import (
+    Notification,
+    UserNotification,
+    NotificationTemplate,
+    NotificationCategory,
+    NotificationType,
+    NotificationPriority,
+    NotificationStatus,
+    TargetUserType,
+)
 
 __all__ = [
     "User",
@@ -87,5 +97,13 @@ __all__ = [
     "UserInvitation",
     "InvitationUsage",
     "AgentSession",
-    "AgentSessionMessage"
+    "AgentSessionMessage",
+    "Notification",
+    "UserNotification",
+    "NotificationTemplate",
+    "NotificationCategory",
+    "NotificationType",
+    "NotificationPriority",
+    "NotificationStatus",
+    "TargetUserType",
 ]
