@@ -22,7 +22,6 @@ from .novel_phases import (
 from .content_creation_prompts import ContentCreationPrompts
 from .novel_planning_prompts import NovelPlanningPrompts
 from .prompt_optimizer import PromptOptimizer
-from .quality_prompts import QualityPrompts
 
 __all__ = [
     # 枚举和数据类
@@ -35,6 +34,5 @@ __all__ = [
     # Prompt 类
     'ContentCreationPrompts',
     'NovelPlanningPrompts',
-    'QualityPrompts',
     'PromptOptimizer',
 ]

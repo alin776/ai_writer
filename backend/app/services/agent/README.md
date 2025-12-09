@@ -23,7 +23,7 @@
 
 | # | 功能名称 | 重要性 | 预计时间 | 实际状态 | 文件位置 |
 |---|---------|--------|---------|---------|---------|
-| 4 | 自我反思机制 | ⭐⭐⭐⭐ | 2天 | ✅ 已完成 | `agent/agents/reflection_agent.py` |
+| 4 | 自我反思机制 | ⭐⭐⭐⭐ | 2天 | ✅ 已完成 | `agent/deep_agent/reflection.py` |
 | 5 | 并行任务执行 | ⭐⭐⭐⭐ | 3天 | ✅ 已完成 | `agent/agents/parallel_executor.py` |
 | 6 | 工具动态注册 | ⭐⭐⭐ | 2天 | ✅ 已完成 | `agent/tools/tool_registry.py` |
 | 7 | Story Bible一致性检查 | ⭐⭐⭐⭐ | 4天 | ✅ 已完成 | `agent/tools/consistency_checker.py` |
@@ -55,7 +55,6 @@ backend/app/services/agent/
 └── agents/                              # Agent实现
     ├── __init__.py
     ├── planning_agent.py               # ✅ 规划Agent
-    ├── reflection_agent.py             # ✅ 自我反思Agent
     └── parallel_executor.py            # ✅ 并行执行器
 ```
 
@@ -185,26 +184,9 @@ result = await planner.execute_plan(
 生成 → 自我评估 → 判断是否达标 → 未达标则改进 → 再次评估
 ```
 
-**核心类**：
-- `ReflectionAgent`: 反思Agent
-- `TextQualityEvaluator`: 质量评估器
-- `TextImprover`: 文本改进器
-
-**使用示例**：
-```python
-from app.services.agent.agents.reflection_agent import reflect_on_chapter_writing
-
-# 对章节进行反思和改进
-result = await reflect_on_chapter_writing(
-    content=chapter_text,
-    ai_service=openai_service,
-    max_iterations=3
-)
-
-print(f"最终质量分数: {result['quality_score']}")
-print(f"迭代次数: {result['iteration_count']}")
-print(f"最终内容: {result['final_content']}")
-```
+**核心实现**：
+- `deep_agent/reflection.py`: 基于 DeepAgent 的反思机制
+- `think_tool`: 纯上下文工程的反思工具
 
 **预期效果**：
 - ✅ 生成内容质量提升 20-30%

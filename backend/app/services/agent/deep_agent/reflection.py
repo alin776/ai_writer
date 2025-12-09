@@ -123,73 +123,63 @@ def _build_reflection_prompt(
 2. 是否发现需要补充的信息？
 3. 剩余任务是否仍然合理？
 
-## 输出格式
-第一行必须是决策标记：REPLAN:YES 或 REPLAN:NO
-然后是简短反思（<100字）
+## 输出格式（必须是合法JSON，不要添加其他内容）
+{{"needs_replan": false, "reflection": "简短反思内容（<100字）"}}
 
 示例：
-REPLAN:NO
-分析结果符合预期，后续任务规划合理，继续执行。
+{{"needs_replan": false, "reflection": "分析结果符合预期，后续任务规划合理，继续执行。"}}
+{{"needs_replan": true, "reflection": "发现缺少关键信息，需要补充一个查询任务。"}}
 """
 
 
 def _parse_reflection_response(response: str) -> ReflectionResult:
-    """解析反思响应
+    """解析反思响应（JSON格式）
 
-    解析标记式输出格式：
-    第一行：REPLAN:YES 或 REPLAN:NO
-    后续行：反思内容
+    解析 JSON 格式输出：
+    {"needs_replan": false, "reflection": "反思内容"}
 
-    ?? 2025-12-08: 简化解析逻辑，移除 JSON 解析和关键词匹配
-    ?? 2025-12-08: 扩展判定规则，支持中文/同义表达，避免模型输出微调导致的漏判
+    🔧 2025-12-09: 重构为 JSON 解析，消除文本匹配歧义
     """
     raw_text = (response or "").strip()
-    lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
 
-    first_line = lines[0].upper() if lines else ""
+    # 尝试直接解析 JSON
+    try:
+        data = json.loads(raw_text)
+        needs_replan = bool(data.get("needs_replan", False))
+        reflection = str(data.get("reflection", ""))
+        logger.info(f"[Reflection] JSON解析成功: needs_replan={needs_replan}")
+        return ReflectionResult(reflection=reflection, needs_replan=needs_replan)
+    except json.JSONDecodeError:
+        pass
 
-    positive_markers = ("REPLAN:YES", "REPLAN YES", "REPLAN=YES", "REPLAN TRUE", "REPLAN: TRUE", "REPLAN: Y")
-    negative_markers = ("REPLAN:NO", "REPLAN NO", "REPLAN=NO", "REPLAN FALSE", "REPLAN: FALSE", "REPLAN: N")
+    # 尝试从文本中提取第一个完整的 JSON 对象
+    # 🔧 2025-12-09: 使用括号匹配而非 rfind，避免多个 JSON 对象时提取错误
+    try:
+        start = raw_text.find("{")
+        if start != -1:
+            depth = 0
+            end = start
+            for i, char in enumerate(raw_text[start:], start):
+                if char == "{":
+                    depth += 1
+                elif char == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end = i + 1
+                        break
+            if end > start:
+                json_str = raw_text[start:end]
+                data = json.loads(json_str)
+                needs_replan = bool(data.get("needs_replan", False))
+                reflection = str(data.get("reflection", ""))
+                logger.info(f"[Reflection] JSON提取成功: needs_replan={needs_replan}")
+                return ReflectionResult(reflection=reflection, needs_replan=needs_replan)
+    except json.JSONDecodeError:
+        pass
 
-    contains_positive_marker = any(m in first_line for m in positive_markers)
-    contains_negative_marker = any(m in first_line for m in negative_markers)
-
-    positive_cn_keywords = (
-        "需要重新规划", "需要重规划", "重新规划", "重规划", "重新计划",
-        "调整后续任务", "改一下计划", "补充任务", "调整任务"
-    )
-    negative_cn_keywords = (
-        "无需重规划", "不需要重规划", "无需重新规划", "不需要调整", "保持原计划", "继续执行"
-    )
-
-    needs_replan_cn = any(k in raw_text for k in positive_cn_keywords)
-    no_replan_cn = any(k in raw_text for k in negative_cn_keywords)
-
-    needs_replan = False
-    if contains_positive_marker:
-        needs_replan = True
-    elif contains_negative_marker:
-        needs_replan = False
-    elif no_replan_cn:
-        needs_replan = False
-    elif needs_replan_cn:
-        needs_replan = True
-
-    # 如果仍未决策，允许第一行包含 REPLAN 但未写 YES/NO 时，用关键词兜底
-    if not needs_replan and not contains_negative_marker and "REPLAN" in first_line:
-        if "YES" in first_line or "TRUE" in first_line:
-            needs_replan = True
-
-    reflection = "\n".join(lines[1:]).strip() if len(lines) > 1 else raw_text
-    if not reflection:
-        reflection = raw_text
-
-    logger.info(
-        "[Reflection] 解析结果: needs_replan=%s, first_line=%s, raw_len=%s",
-        needs_replan, first_line[:80], len(raw_text)
-    )
-
-    return ReflectionResult(reflection=reflection, needs_replan=needs_replan)
+    # 兜底：无法解析时，默认不重规划
+    logger.warning(f"[Reflection] JSON解析失败，使用默认值: {raw_text[:100]}")
+    return ReflectionResult(reflection=raw_text, needs_replan=False)
 
 
 def should_reflect(

@@ -28,7 +28,7 @@ from app.models.agent_session_message import AgentSessionMessage
 from app.models.chat_models import ChatMode
 from app.models.chapter import Chapter
 from app.services.agent.memory import MemoryManager
-from app.services.agent.agents import PlanningAgent, ReflectionAgent
+from app.services.agent.agents import PlanningAgent
 from app.services.agent.tools import HITLManager
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.ai.humanize_service import HumanizeService
@@ -534,6 +534,7 @@ async def agent_chat(
         # 调用 LangGraph Agent 进行对话
         result = await agent_graph.chat(
             message=request.message,
+            user_id=user_id,  # ✅ 2025-12-09: 传递 user_id 用于 thread_id 隔离
             work_id=request.work_id,
             chapter_id=request.chapter_id,
             conversation_id=conversation_id,

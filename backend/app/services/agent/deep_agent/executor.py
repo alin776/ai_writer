@@ -262,6 +262,8 @@ class DeepAgentExecutor:
 
         Returns:
             新的任务列表（用于替换 remaining_tasks），失败时返回 None
+
+        🔧 2025-12-09: 重构 JSON 解析逻辑，消除歧义和边界问题
         """
         # P1-1: _generate_text 方法检查（与 _do_reflection 保持一致）
         if not hasattr(self.agent, '_generate_text'):
@@ -297,8 +299,8 @@ class DeepAgentExecutor:
 3. 可以删除不必要的任务
 4. 保持任务描述简洁
 
-## 输出格式（JSON）
-{{"tasks": [{{"description": "任务描述"}}, ...]}}
+## 输出格式（必须是合法JSON，不要添加其他内容）
+{{"tasks": [{{"description": "任务描述1"}}, {{"description": "任务描述2"}}]}}
 """
 
             # 复用 _generate_text 抽象层
@@ -325,38 +327,29 @@ class DeepAgentExecutor:
                 logger.warning("重规划响应为空")
                 return None
 
-            # 尝试提取 JSON
-            content = content.strip()
-            if "```json" in content:
-                start = content.find("```json") + 7
-                end = content.find("```", start)
-                content = content[start:end].strip()
-            elif "```" in content:
-                start = content.find("```") + 3
-                end = content.find("```", start)
-                content = content[start:end].strip()
+            # 🔧 2025-12-09: 健壮的 JSON 解析
+            new_tasks = self._parse_replan_response(content)
+            if not new_tasks:
+                return None
 
-            if "{" in content:
-                start = content.find("{")
-                end = content.rfind("}") + 1
-                json_str = content[start:end]
-                data = json.loads(json_str)
+            # 🔧 2025-12-09: 修复 task_id 冲突 - 收集所有已用的 ID
+            used_ids = {t.get("task_id") for t in completed_tasks if t.get("task_id")}
+            used_ids.update(t.get("task_id") for t in remaining_tasks if t.get("task_id"))
+            max_id = max((t.get("task_id", 0) for t in completed_tasks), default=0)
 
-                new_tasks = data.get("tasks", [])
-                # 确保任务有 task_id
-                max_id = max(
-                    (t.get("task_id", 0) for t in completed_tasks),
-                    default=0
-                )
-                for idx, task in enumerate(new_tasks):
-                    if "task_id" not in task:
-                        task["task_id"] = max_id + idx + 1
-                    task.setdefault("status", "pending")
+            for idx, task in enumerate(new_tasks):
+                # 如果没有 task_id，或者 task_id 已被使用，重新分配
+                if "task_id" not in task or task["task_id"] in used_ids:
+                    new_id = max_id + idx + 1
+                    # 确保新 ID 也不冲突
+                    while new_id in used_ids:
+                        new_id += 1
+                    task["task_id"] = new_id
+                    used_ids.add(new_id)
+                task.setdefault("status", "pending")
 
-                return new_tasks
-
-            logger.warning("重规划响应格式无效，保持原计划")
-            return None
+            logger.info(f"[DeepAgent重规划] 成功生成 {len(new_tasks)} 个新任务")
+            return new_tasks
 
         except asyncio.TimeoutError:
             logger.warning("重规划超时，保持原计划")
@@ -364,6 +357,96 @@ class DeepAgentExecutor:
         except Exception as e:
             logger.error(f"重规划失败: {e}")
             return None
+
+    def _parse_replan_response(self, content: str) -> Optional[List[Dict[str, Any]]]:
+        """解析重规划响应（JSON格式）
+
+        🔧 2025-12-09: 新增方法，健壮的 JSON 解析逻辑
+        """
+        content = (content or "").strip()
+
+        # 方法1：直接解析
+        try:
+            data = json.loads(content)
+            return self._validate_replan_data(data)
+        except json.JSONDecodeError:
+            pass
+
+        # 方法2：提取 ```json ... ``` 代码块
+        if "```" in content:
+            try:
+                # 查找代码块
+                if "```json" in content:
+                    start = content.find("```json") + 7
+                else:
+                    start = content.find("```") + 3
+                end = content.find("```", start)
+                if end > start:
+                    json_str = content[start:end].strip()
+                    data = json.loads(json_str)
+                    return self._validate_replan_data(data)
+            except json.JSONDecodeError:
+                pass
+
+        # 方法3：提取第一个完整的 JSON 对象
+        try:
+            start = content.find("{")
+            if start != -1:
+                # 使用括号匹配找到完整的 JSON 对象
+                depth = 0
+                end = start
+                for i, char in enumerate(content[start:], start):
+                    if char == "{":
+                        depth += 1
+                    elif char == "}":
+                        depth -= 1
+                        if depth == 0:
+                            end = i + 1
+                            break
+                if end > start:
+                    json_str = content[start:end]
+                    data = json.loads(json_str)
+                    return self._validate_replan_data(data)
+        except json.JSONDecodeError:
+            pass
+
+        logger.warning(f"[DeepAgent重规划] JSON解析失败: {content[:200]}")
+        return None
+
+    def _validate_replan_data(self, data: Any) -> Optional[List[Dict[str, Any]]]:
+        """验证重规划数据结构
+
+        🔧 2025-12-09: 新增方法，验证解析后的数据
+        """
+        if not isinstance(data, dict):
+            logger.warning("[DeepAgent重规划] 数据不是字典")
+            return None
+
+        tasks = data.get("tasks")
+        if not isinstance(tasks, list):
+            logger.warning("[DeepAgent重规划] tasks 不是数组")
+            return None
+
+        if len(tasks) == 0:
+            logger.warning("[DeepAgent重规划] tasks 为空数组")
+            return None
+
+        # 验证每个任务
+        valid_tasks = []
+        for i, task in enumerate(tasks):
+            if not isinstance(task, dict):
+                logger.warning(f"[DeepAgent重规划] 任务 {i} 不是字典，跳过")
+                continue
+            if not task.get("description"):
+                logger.warning(f"[DeepAgent重规划] 任务 {i} 缺少 description，跳过")
+                continue
+            valid_tasks.append(task)
+
+        if not valid_tasks:
+            logger.warning("[DeepAgent重规划] 没有有效任务")
+            return None
+
+        return valid_tasks
 
     def _format_task(self, task: Dict[str, Any], task_id: int) -> Dict[str, Any]:
         """格式化任务"""

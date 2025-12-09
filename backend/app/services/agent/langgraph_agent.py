@@ -3311,6 +3311,7 @@ class WritingAgentGraph:
     async def chat(
         self,
         message: str,
+        user_id: Optional[str] = None,  # ✅ 2025-12-09: 添加 user_id 参数
         work_id: Optional[str] = None,
         chapter_id: Optional[str] = None,
         conversation_id: Optional[str] = None,
@@ -3354,16 +3355,20 @@ class WritingAgentGraph:
             "final_response": None
         }
 
-        # ✅ P0遗漏修复：构建隔离的thread_id（包含work_id）
-        # 与chat_stream()和chat_with_planning()保持一致
+        # ✅ P0修复：构建隔离的thread_id（包含user_id和work_id）
+        # 三层隔离：user_id > work_id > conversation_id，避免跨用户/跨作品污染
+        user_prefix = f"{user_id}:" if user_id else ""
+
         if work_id and conversation_id:
-            thread_id = f"{work_id}:{conversation_id}"
+            thread_id = f"{user_prefix}{work_id}:{conversation_id}"
         elif work_id:
-            thread_id = f"{work_id}:default"
+            thread_id = f"{user_prefix}{work_id}:default"
         elif conversation_id:
-            thread_id = conversation_id
+            thread_id = f"{user_prefix}{conversation_id}"
         else:
-            thread_id = "default"
+            # 兜底：无user_id时使用随机UUID，确保不会全局共享
+            import uuid as uuid_module
+            thread_id = f"{user_prefix}anonymous:{uuid_module.uuid4()}" if not user_prefix else f"{user_prefix}default"
 
         # ✅ P2防护：thread_id长度验证
         max_thread_id_length = 256
@@ -3376,7 +3381,7 @@ class WritingAgentGraph:
 
         logger.info(
             f"[LangGraph] chat() 使用隔离的thread_id: {thread_id} "
-            f"(work_id={work_id}, conversation_id={conversation_id})"
+            f"(user_id={user_id}, work_id={work_id}, conversation_id={conversation_id})"
         )
 
         # 运行图
@@ -3523,16 +3528,20 @@ class WritingAgentGraph:
             "final_response": None
         }
 
-        # ✅ P0-3修复：构建隔离的thread_id（包含work_id）
-        # 不同work_id的对话使用不同的thread_id，避免跨作品上下文污染
+        # ✅ P0-3修复：构建隔离的thread_id（包含user_id和work_id）
+        # 三层隔离：user_id > work_id > conversation_id，避免跨用户/跨作品污染
+        user_prefix = f"{user_id}:" if user_id else ""
+
         if work_id and conversation_id:
-            thread_id = f"{work_id}:{conversation_id}"
+            thread_id = f"{user_prefix}{work_id}:{conversation_id}"
         elif work_id:
-            thread_id = f"{work_id}:default"
+            thread_id = f"{user_prefix}{work_id}:default"
         elif conversation_id:
-            thread_id = conversation_id
+            thread_id = f"{user_prefix}{conversation_id}"
         else:
-            thread_id = "default"
+            # 兜底：无user_id时使用随机UUID，确保不会全局共享
+            import uuid as uuid_module
+            thread_id = f"{user_prefix}anonymous:{uuid_module.uuid4()}" if not user_prefix else f"{user_prefix}default"
 
         # ✅ P2防护：thread_id长度验证
         max_thread_id_length = 256
@@ -3543,7 +3552,7 @@ class WritingAgentGraph:
             )
             thread_id = thread_id[:max_thread_id_length]
 
-        logger.info(f"[LangGraph] 使用隔离的thread_id: {thread_id} (work_id={work_id}, conversation_id={conversation_id})")
+        logger.info(f"[LangGraph] 使用隔离的thread_id: {thread_id} (user_id={user_id}, work_id={work_id}, conversation_id={conversation_id})")
 
         # 配置
         config = {
@@ -4254,16 +4263,20 @@ class WritingAgentGraph:
             from app.services.agent.utils.monitoring import increment_counter, record_timer
             start_time = time.time()
 
-            # ✅ P0修复：构建隔离的thread_id（包含work_id）
-            # 确保不同work_id的对话使用不同的checkpoint，避免跨作品污染
+            # ✅ P0修复：构建隔离的thread_id（包含user_id和work_id）
+            # 三层隔离：user_id > work_id > conversation_id，避免跨用户/跨作品污染
+            user_prefix = f"{user_id}:" if user_id else ""
+
             if work_id and conversation_id:
-                isolated_thread_id = f"{work_id}:{conversation_id}"
+                isolated_thread_id = f"{user_prefix}{work_id}:{conversation_id}"
             elif work_id:
-                isolated_thread_id = f"{work_id}:default"
+                isolated_thread_id = f"{user_prefix}{work_id}:default"
             elif conversation_id:
-                isolated_thread_id = conversation_id
+                isolated_thread_id = f"{user_prefix}{conversation_id}"
             else:
-                isolated_thread_id = "default"
+                # 兜底：无user_id时使用随机UUID，确保不会全局共享
+                import uuid as uuid_module
+                isolated_thread_id = f"{user_prefix}anonymous:{uuid_module.uuid4()}" if not user_prefix else f"{user_prefix}default"
 
             # ✅ P2防护：thread_id长度验证
             max_thread_id_length = 256
@@ -4276,7 +4289,7 @@ class WritingAgentGraph:
 
             logger.info(
                 f"[Planning] 使用隔离的thread_id: {isolated_thread_id} "
-                f"(work_id={work_id}, conversation_id={conversation_id})"
+                f"(user_id={user_id}, work_id={work_id}, conversation_id={conversation_id})"
             )
 
             # 设置总体超时（使用统一配置）
