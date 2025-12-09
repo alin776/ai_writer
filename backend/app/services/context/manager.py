@@ -9,6 +9,7 @@
 
 import time
 import logging
+import asyncio
 from typing import List, Optional, Dict, Any
 
 from app.services.context.models import (
@@ -21,8 +22,11 @@ from app.services.context.monitoring_integration import (
     monitor_context_update,
     monitor_summary_generation,
     record_compression_metrics,
-    record_memory_size
+    record_memory_size,
+    record_dedup,
+    record_timeout_event
 )
+from app.services.context.context_config import ContextConfig
 
 logger = logging.getLogger(__name__)
 
@@ -120,15 +124,17 @@ class ContextManager:
 
         logger.info(f"[ContextManager] Session {session_id}: {total_tokens}/{max_tokens} tokens")
 
-        # ✅ P0-4修复：添加硬限制检查
-        HARD_LIMIT_RATIO = 0.95  # 硬限制：95%
-        if total_tokens > max_tokens * HARD_LIMIT_RATIO:
+        # ✅ P0-4修复：添加硬限制检查（集中配置）
+        if total_tokens > max_tokens * ContextConfig.HARD_LIMIT_RATIO:
             logger.error(
                 f"[ContextManager] ❌ Token超过硬限制({total_tokens}/{max_tokens})，"
-                f"强制截断到{int(max_tokens * 0.7)}tokens"
+                f"强制截断到{int(max_tokens * ContextConfig.TRUNCATE_TARGET_RATIO)}tokens"
             )
             # 强制截断：只保留最近的消息，确保不超过70%预算
-            context = await self._force_truncate_context(context, int(max_tokens * 0.7))
+            context = await self._force_truncate_context(
+                context,
+                int(max_tokens * ContextConfig.TRUNCATE_TARGET_RATIO)
+            )
             total_tokens = context.get_total_tokens()
 
         # 如果超过80%预算，触发压缩
@@ -150,10 +156,11 @@ class ContextManager:
             original_count = len(context.short_memory.messages)
             context.short_memory.messages = self._deduplicate_messages(
                 context.short_memory.messages,
-                threshold=0.85  # 85%相似度视为重复
+                threshold=None  # 自适应阈值
             )
             if len(context.short_memory.messages) < original_count:
                 record_memory_size("short_memory_after_dedup", len(context.short_memory.messages))
+                record_dedup(original_count - len(context.short_memory.messages))
 
         # 构建LLM消息列表
         messages = self._build_messages(context, long_term_memories)
@@ -283,8 +290,8 @@ class ContextManager:
         压缩上下文 - 当Token超限时调用
 
         策略：
-        1. 保留最近2轮对话（4条消息）
-        2. 将旧消息生成摘要
+        1. 保留短期记忆窗口（与max_turns一致）
+        2. 将更旧的消息生成摘要
         3. 提取重要事实
         """
         logger.info(f"[ContextManager] 开始压缩: {context.session_id}")
@@ -292,15 +299,24 @@ class ContextManager:
         # ✅ 记录压缩前的Token数（用于监控）
         original_tokens = context.get_total_tokens()
 
-        # 获取需要摘要的消息（保留最近2轮）
-        messages_to_summarize = context.short_memory.messages[:-4] if len(context.short_memory.messages) > 4 else []
+        # 获取需要摘要的消息（保留最近max_turns轮）
+        keep_count = context.short_memory.max_turns * 2
+        messages_to_summarize = context.short_memory.messages[:-keep_count] if len(context.short_memory.messages) > keep_count else []
 
         if not messages_to_summarize:
             logger.info(f"[ContextManager] 消息数不足，无需压缩")
             return
 
-        # 生成摘要
-        new_summary = await self._generate_summary(messages_to_summarize)
+        # 生成摘要，添加超时保护
+        try:
+            new_summary = await asyncio.wait_for(
+                self._generate_summary(messages_to_summarize),
+                timeout=ContextConfig.SUMMARY_TIMEOUT
+            )
+        except asyncio.TimeoutError:
+            logger.error("[ContextManager] 摘要生成超时，使用降级摘要")
+            record_timeout_event("summary_generation_timeout")
+            new_summary = self._fallback_summary(messages_to_summarize)
 
         # 合并到现有摘要
         if context.summary_memory.summary:
@@ -310,8 +326,12 @@ class ContextManager:
 
         context.summary_memory.last_updated = time.time()
 
-        # 清理已摘要的消息，只保留最近4条
-        context.short_memory.messages = context.short_memory.messages[-4:] if len(context.short_memory.messages) > 4 else context.short_memory.messages
+        # 清理已摘要的消息，只保留配置的短期窗口
+        context.short_memory.messages = (
+            context.short_memory.messages[-keep_count:]
+            if len(context.short_memory.messages) > keep_count
+            else context.short_memory.messages
+        )
 
         # ✅ 记录压缩后的Token数和内存使用（用于监控）
         compressed_tokens = context.get_total_tokens()
@@ -1107,15 +1127,18 @@ class ContextManager:
 
         try:
             # ✅ 使用新的多级检索 API
-            memories = await self._vector_store.search_memories(
-                query=query,
-                user_id=self.user_id,
-                work_id=work_id,
-                session_id=session_id,
-                top_k=top_k,
-                min_similarity=min_similarity,
-                include_user_level=include_user_level,
-                isolation_level=isolation_level
+            memories = await asyncio.wait_for(
+                self._vector_store.search_memories(
+                    query=query,
+                    user_id=self.user_id,
+                    work_id=work_id,
+                    session_id=session_id,
+                    top_k=top_k,
+                    min_similarity=min_similarity,
+                    include_user_level=include_user_level,
+                    isolation_level=isolation_level
+                ),
+                timeout=ContextConfig.LTM_TIMEOUT
             )
 
             logger.info(
@@ -1126,6 +1149,10 @@ class ContextManager:
 
             return memories
 
+        except asyncio.TimeoutError:
+            logger.error(f"❌ 检索长期记忆超时 ({ContextConfig.LTM_TIMEOUT}s)")
+            record_timeout_event("ltm_search_timeout")
+            return []
         except Exception as e:
             logger.error(f"❌ 检索长期记忆失败: {e}")
             return []
@@ -1310,7 +1337,7 @@ class ContextManager:
     def _deduplicate_messages(
         self,
         messages: List[Message],
-        threshold: float = 0.85
+        threshold: Optional[float] = None
     ) -> List[Message]:
         """
         去除重复消息（✅ P1-4修复：记忆去重）
@@ -1322,7 +1349,7 @@ class ContextManager:
 
         Args:
             messages: 消息列表
-            threshold: 相似度阈值（默认0.85，即85%相似视为重复）
+            threshold: 相似度阈值（可选，未指定时根据消息长度自适应）
 
         Returns:
             去重后的消息列表
@@ -1346,8 +1373,14 @@ class ContextManager:
 
                 similarity = self._calculate_text_similarity(msg.content, existing.content)
 
+                # 自适应阈值：短消息要求更高相似度，长消息放宽
+                adaptive_threshold = threshold
+                if adaptive_threshold is None:
+                    msg_tokens = self._estimate_tokens(msg.content)
+                    adaptive_threshold = ContextConfig.dedup_threshold(msg_tokens)
+
                 # 相似度超过阈值，视为重复
-                if similarity >= threshold:
+                if similarity >= adaptive_threshold:
                     is_duplicate = True
                     duplicate_count += 1
 

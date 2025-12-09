@@ -42,6 +42,7 @@ from app.services.agent.multi_agent import MultiAgentExecutor, TOTAL_STAGES
 # DeepAgent 反思系统
 from app.services.agent.deep_agent import DeepAgentExecutor
 from app.services.agent.timeout_config import TimeoutConfig
+from app.services.context.context_config import ContextConfig
 from app.services.agent.tools.editor_tools import (
     smart_continue,
     smart_rewrite,
@@ -3371,13 +3372,16 @@ class WritingAgentGraph:
             thread_id = f"{user_prefix}anonymous:{uuid_module.uuid4()}" if not user_prefix else f"{user_prefix}default"
 
         # ✅ P2防护：thread_id长度验证
-        max_thread_id_length = 256
+        max_thread_id_length = ContextConfig.MAX_THREAD_ID_LENGTH
         if len(thread_id) > max_thread_id_length:
+            import hashlib as _hashlib
             logger.warning(
                 f"[LangGraph] thread_id过长({len(thread_id)}字符), "
-                f"截断到{max_thread_id_length}字符"
+                f"使用哈希缩短"
             )
-            thread_id = thread_id[:max_thread_id_length]
+            hash_suffix = _hashlib.sha1(thread_id.encode("utf-8")).hexdigest()[:10]
+            prefix_budget = max_thread_id_length - len(hash_suffix) - 1
+            thread_id = f"{thread_id[:prefix_budget]}:{hash_suffix}"
 
         logger.info(
             f"[LangGraph] chat() 使用隔离的thread_id: {thread_id} "
@@ -3544,13 +3548,16 @@ class WritingAgentGraph:
             thread_id = f"{user_prefix}anonymous:{uuid_module.uuid4()}" if not user_prefix else f"{user_prefix}default"
 
         # ✅ P2防护：thread_id长度验证
-        max_thread_id_length = 256
+        max_thread_id_length = ContextConfig.MAX_THREAD_ID_LENGTH
         if len(thread_id) > max_thread_id_length:
+            import hashlib as _hashlib
             logger.warning(
                 f"[LangGraph] thread_id过长({len(thread_id)}字符), "
-                f"截断到{max_thread_id_length}字符"
+                f"使用哈希缩短"
             )
-            thread_id = thread_id[:max_thread_id_length]
+            hash_suffix = _hashlib.sha1(thread_id.encode("utf-8")).hexdigest()[:10]
+            prefix_budget = max_thread_id_length - len(hash_suffix) - 1
+            thread_id = f"{thread_id[:prefix_budget]}:{hash_suffix}"
 
         logger.info(f"[LangGraph] 使用隔离的thread_id: {thread_id} (user_id={user_id}, work_id={work_id}, conversation_id={conversation_id})")
 
@@ -4279,13 +4286,16 @@ class WritingAgentGraph:
                 isolated_thread_id = f"{user_prefix}anonymous:{uuid_module.uuid4()}" if not user_prefix else f"{user_prefix}default"
 
             # ✅ P2防护：thread_id长度验证
-            max_thread_id_length = 256
+            max_thread_id_length = ContextConfig.MAX_THREAD_ID_LENGTH
             if len(isolated_thread_id) > max_thread_id_length:
+                import hashlib as _hashlib
                 logger.warning(
                     f"[Planning] thread_id过长({len(isolated_thread_id)}字符), "
-                    f"截断到{max_thread_id_length}字符"
+                    f"使用哈希缩短"
                 )
-                isolated_thread_id = isolated_thread_id[:max_thread_id_length]
+                hash_suffix = _hashlib.sha1(isolated_thread_id.encode("utf-8")).hexdigest()[:10]
+                prefix_budget = max_thread_id_length - len(hash_suffix) - 1
+                isolated_thread_id = f"{isolated_thread_id[:prefix_budget]}:{hash_suffix}"
 
             logger.info(
                 f"[Planning] 使用隔离的thread_id: {isolated_thread_id} "

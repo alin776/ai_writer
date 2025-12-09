@@ -219,6 +219,32 @@ def should_reflect(
         logger.info(f"[Checkpoint] 任务 {task_id} 标记了 checkpoint，触发反思")
         return True
 
+    # 2.0 规划未标记任何 checkpoint 的兜底：首个任务后强制一次
+    if (
+        DeepAgentConfig.REFLECT_ON_FIRST_TASK_IF_NO_CHECKPOINT
+        and completed_count == 0
+        and reflection_count == 0
+        and not task.get("checkpoint")
+    ):
+        task_id = task.get("task_id", "?")
+        logger.info(
+            f"[Checkpoint] 首个任务 {task_id} 未标记 checkpoint，触发兜底反思以校验规划"
+        )
+        return True
+
+    # 2.1 Planner 未标记 checkpoint 的兜底策略
+    if (
+        DeepAgentConfig.REFLECT_ON_MISSING_CHECKPOINT
+        and not task.get("checkpoint")
+        and (completed_count + 1) % DeepAgentConfig.MISSING_CHECKPOINT_INTERVAL == 0
+    ):
+        task_id = task.get("task_id", "?")
+        logger.info(
+            f"[Checkpoint] 任务 {task_id} 未标记 checkpoint，按间隔触发兜底反思 "
+            f"(已完成 {completed_count} 个任务，间隔={DeepAgentConfig.MISSING_CHECKPOINT_INTERVAL})"
+        )
+        return True
+
     # 3. 任务失败时兜底反思
     if config.REFLECT_ON_FAILURE and result.get("status") == "failed":
         logger.debug("任务失败，触发反思")

@@ -44,6 +44,7 @@ from dataclasses import dataclass, field, asdict
 from redis import Redis
 from enum import Enum
 from app.utils.datetime_utils import get_utc_now
+from .memory_config import MemoryConfig
 
 logger = logging.getLogger(__name__)
 
@@ -153,10 +154,10 @@ class MemoryVersionControl:
     - 自动清理过期版本
     """
 
-    # 配置常量
-    VERSION_TTL = 86400 * 30      # 版本保留时间（30天）
-    MAX_VERSIONS = 50             # 每用户最大版本数
-    COMPRESS_THRESHOLD = 10000    # 压缩阈值（字符数）
+    # 配置常量（从集中配置读取）
+    VERSION_TTL = MemoryConfig.VERSION_TTL
+    MAX_VERSIONS = MemoryConfig.MAX_VERSIONS
+    COMPRESS_THRESHOLD = MemoryConfig.COMPRESS_THRESHOLD
 
     def __init__(
         self,

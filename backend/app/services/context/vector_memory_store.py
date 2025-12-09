@@ -22,6 +22,7 @@ from typing import List, Dict, Optional, Any
 import logging
 import time
 import uuid
+import hashlib
 
 from app.services.context.models import IsolationLevel, build_isolation_key
 
@@ -105,6 +106,18 @@ class VectorMemoryStore:
             memory_id: 记忆的唯一ID
         """
         try:
+            content_hash = hashlib.md5(content.encode("utf-8")).hexdigest()
+
+            # 简单去重：相同content_hash则直接复用已有ID
+            try:
+                existing = self.collection.get(where={"content_hash": content_hash}, limit=1)
+                if existing and existing.get("ids"):
+                    existing_id = existing["ids"][0]
+                    logger.info(f"🔁 跳过重复记忆，复用ID={existing_id}")
+                    return existing_id
+            except Exception as dedup_err:
+                logger.warning(f"⚠️ 去重检查失败，继续写入: {dedup_err}")
+
             # 生成唯一ID
             memory_id = f"{user_id}_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
 
@@ -126,7 +139,8 @@ class VectorMemoryStore:
                 "memory_type": memory_type,
                 "importance": importance,
                 "timestamp": time.time(),
-                "content_length": len(content)
+                "content_length": len(content),
+                "content_hash": content_hash
             }
 
             # 合并自定义元数据
