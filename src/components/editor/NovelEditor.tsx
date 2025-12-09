@@ -203,8 +203,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       AIInserted,
       // AI 自动补全扩展（流式版本）
       AIAutoCompleteExtension.configure({
-        delay: 2000, // 2秒延迟，快速响应
-        minChars: 50, // 至少50个字符才触发
+        delay: 1000, // 提前触发，提升响应速度
+        minChars: 30, // 提前触发，减少等待
         enabled: aiAutoCompleteEnabled, // 由用户偏好控制
         onTrigger: async (text: string, onChunk: (chunk: string, fullText: string) => void) => {
           try {
