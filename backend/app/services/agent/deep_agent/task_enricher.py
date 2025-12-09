@@ -12,6 +12,8 @@ import logging
 import asyncio
 from typing import Dict, Any, Optional, List, Callable
 
+from app.services.agent.model_selector import TaskType
+
 logger = logging.getLogger(__name__)
 
 
@@ -168,11 +170,13 @@ class TaskEnricher:
 """
 
         try:
+            # ✅ 2025-12-08: 添加 task_type=SIMPLE_QA，使用快速模型
             response = await asyncio.wait_for(
                 self._ai_generate(
                     prompt=prompt,
                     temperature=0.1,
                     max_tokens=200,
+                    task_type=TaskType.SIMPLE_QA,  # 工具推断是简单分类任务
                 ),
                 timeout=30  # 再放宽至30秒，进一步降低偶发超时
             )

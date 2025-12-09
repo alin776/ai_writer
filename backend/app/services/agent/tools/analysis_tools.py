@@ -14,6 +14,7 @@ from pydantic import Field
 
 from .tool_types import ToolInput, ToolOutput, ToolCategory, StandardTool
 from .writing_tools import _ensure_ai_service, _generate_text
+from app.services.agent.model_selector import TaskType
 
 logger = logging.getLogger(__name__)
 
@@ -150,10 +151,12 @@ async def analyze_content_executor(
 请开始分析:"""
 
         # 调用 AI 生成
+        # ✅ 2025-12-08: 添加 task_type，使用适合分析任务的模型
         analysis_text = await _generate_text(
             prompt=prompt,
             temperature=0.3,  # 较低温度,更客观
-            max_tokens=3000
+            max_tokens=3000,
+            task_type=TaskType.SUMMARIZATION  # 分析任务属于摘要类型
         )
 
         # 解析结果
@@ -376,10 +379,12 @@ async def evaluate_quality_executor(
 请开始评估:"""
 
         # 调用 AI 生成
+        # ✅ 2025-12-08: 添加 task_type，使用适合评估任务的模型
         evaluation_text = await _generate_text(
             prompt=prompt,
             temperature=0.3,
-            max_tokens=2500
+            max_tokens=2500,
+            task_type=TaskType.QUALITY_EVALUATION  # 质量评估任务
         )
 
         # 解析结果

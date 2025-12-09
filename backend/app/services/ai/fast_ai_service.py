@@ -216,6 +216,66 @@ class FastAIService:
         Raises:
             Exception: API调用失败时抛出异常
         """
+        # ==================== 积分预检查 ====================
+        # ✅ 2025-12-08: 添加预检查，与HTTPAIService一致
+        user_id = get_request_user_id()
+        if user_id:
+            try:
+                from app.core.database import create_db_session
+                from app.services.credits.credit_service import CreditService
+                from app.models.user import User
+                from app.utils.cost_calculator import CostCalculator
+                from app.core.config import settings
+                from sqlalchemy import select
+                from uuid import UUID
+
+                async with create_db_session() as db:
+                    # 查询用户信息
+                    user_stmt = select(User).where(User.id == UUID(user_id))
+                    user_result = await db.execute(user_stmt)
+                    user = user_result.scalar_one_or_none()
+
+                    if user and not user.is_admin:
+                        # 非管理员需要检查余额
+                        credit_service = CreditService(db)
+
+                        # 粗略估算需要的积分（基于max_tokens）
+                        estimated_cost_data = CostCalculator.calculate_cost(
+                            model_name=self.model,
+                            prompt_tokens=len(str(messages)) // 4,  # 粗略估算
+                            completion_tokens=max_tokens  # 使用最大值
+                        )
+                        estimated_credits = estimated_cost_data["total_cost"] * settings.CREDITS_PER_DOLLAR
+
+                        # 检查余额是否充足
+                        is_sufficient, current_balance = await credit_service.check_sufficient(
+                            user_id=UUID(user_id),
+                            required_credits=estimated_credits
+                        )
+
+                        if not is_sufficient:
+                            logger.warning(
+                                f"[FastAI积分检查] 用户 {user_id} 余额不足: "
+                                f"需要约 {float(estimated_credits):.2f} 积分，当前 {float(current_balance):.2f} 积分"
+                            )
+                            raise Exception(
+                                f"积分余额不足：当前余额 {float(current_balance):.2f}，"
+                                f"预计需要 {float(estimated_credits):.2f} 积分。请先充值。"
+                            )
+
+                        logger.debug(
+                            f"[FastAI积分检查] 用户 {user_id} 余额充足: "
+                            f"当前 {float(current_balance):.2f} 积分"
+                        )
+
+            except Exception as e:
+                # 如果是余额不足异常，直接传递
+                if "积分余额不足" in str(e):
+                    raise
+                # 其他检查失败不影响调用（降级处理）
+                logger.warning(f"[FastAI积分检查] 检查失败，继续调用: {e}")
+        # ====================================================
+
         url = f"{self.base_url}/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
