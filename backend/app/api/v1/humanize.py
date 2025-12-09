@@ -8,7 +8,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, delete
 from typing import List
 from uuid import UUID
 from datetime import datetime, timedelta
@@ -131,17 +131,53 @@ async def get_humanize_history(
     # 计算分页
     offset = (page - 1) * page_size
 
+    # 清理未接受的旧记录（超过24小时）：仅保留用户确认接受的历史
+    cleanup_before = get_utc_now() - timedelta(hours=24)
+    await db.execute(
+        delete(HumanizeSessionDetail).where(
+            HumanizeSessionDetail.session_id.in_(
+                select(HumanizeSession.id).where(
+                    and_(
+                        HumanizeSession.user_id == current_user.id,
+                        HumanizeSession.user_accepted != True,
+                        HumanizeSession.created_at < cleanup_before
+                    )
+                )
+            )
+        )
+    )
+    await db.execute(
+        delete(HumanizeSession).where(
+            and_(
+                HumanizeSession.user_id == current_user.id,
+                HumanizeSession.user_accepted != True,
+                HumanizeSession.created_at < cleanup_before
+            )
+        )
+    )
+    await db.commit()
+
     # 查询总数
     count_result = await db.execute(
         select(func.count(HumanizeSession.id))
-        .where(HumanizeSession.user_id == current_user.id)
+        .where(
+            and_(
+                HumanizeSession.user_id == current_user.id,
+                HumanizeSession.user_accepted == True  # 只统计已接受的记录
+            )
+        )
     )
     total = count_result.scalar_one()
 
     # 查询会话列表
     result = await db.execute(
         select(HumanizeSession)
-        .where(HumanizeSession.user_id == current_user.id)
+        .where(
+            and_(
+                HumanizeSession.user_id == current_user.id,
+                HumanizeSession.user_accepted == True  # 仅返回已接受的记录
+            )
+        )
         .order_by(HumanizeSession.created_at.desc())
         .offset(offset)
         .limit(page_size)
@@ -204,7 +240,8 @@ async def get_humanize_session(
         .where(
             and_(
                 HumanizeSession.id == session_id,
-                HumanizeSession.user_id == current_user.id
+                HumanizeSession.user_id == current_user.id,
+                HumanizeSession.user_accepted == True  # 仅允许查看已接受的记录
             )
         )
     )
@@ -332,8 +369,29 @@ async def submit_feedback(
             detail="Session not found"
         )
 
-    # 更新会话反馈
-    session.user_accepted = feedback.accepted
+    # 拒绝时直接删除会话及详情，避免存入历史
+    if feedback.accepted is False:
+        profile_service = UserProfileService(db)
+        await profile_service.record_feedback(current_user.id, feedback.accepted)
+
+        await db.execute(
+            delete(HumanizeSessionDetail).where(
+                HumanizeSessionDetail.session_id == session.id
+            )
+        )
+        await db.execute(
+            delete(HumanizeSession).where(
+                and_(
+                    HumanizeSession.id == session.id,
+                    HumanizeSession.user_id == current_user.id
+                )
+            )
+        )
+        await db.commit()
+        return {"detail": "Feedback submitted and session removed"}
+
+    # 接受时更新会话反馈
+    session.user_accepted = True
 
     # 更新用户画像
     profile_service = UserProfileService(db)

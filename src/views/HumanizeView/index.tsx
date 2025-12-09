@@ -259,8 +259,6 @@ export const HumanizeView: React.FC = () => {
           doneReceivedRef.current = false;
           showToast('info', '文本AI特征较低，未执行改写');
         } else {
-          // 刷新历史记录
-          setHistoryRefreshKey((prev) => prev + 1);
           if (renderQueueRef.current.length === 0) {
             renderCompleteRef.current = true;
             setRenderComplete(true);
@@ -294,8 +292,10 @@ export const HumanizeView: React.FC = () => {
 
       // 反馈成功后隐藏按钮以避免重复提交，但保留当前结果供用户查看/复制
       if (accepted) {
-        setSessionId(null);
+        setHistoryRefreshKey((prev) => prev + 1);
       }
+      // 无论接受/拒绝，都会隐藏按钮避免重复提交
+      setSessionId(null);
     } catch (err) {
       console.error('Failed to submit feedback:', err);
       showToast('error', '反馈提交失败');

@@ -339,7 +339,7 @@ h1, h2, h3, h4, h5, h6 {
  */
 ::selection {
   background-color: var(--color-primary-light);
-  color: white;
+  color: var(--color-text-primary, #111827); /* 保持高亮底色不变，文字改为深色 */
 }
 
 /**
