@@ -86,13 +86,16 @@ class HumanizeSessionCreate(HumanizeSessionBase):
 
 class HumanizeSessionResponse(HumanizeSessionBase):
     """去痕迹会话响应"""
-    id: UUID
+    id: Optional[UUID] = None  # 跳过时为None
     user_id: UUID
     user_accepted: Optional[bool] = None
     created_at: datetime
 
     # 详情数据 (可能为空,如果已过期)
     detail: Optional["HumanizeSessionDetailResponse"] = None
+
+    # 跳过标记 (检测分低于阈值时为True)
+    skipped: bool = Field(default=False, description="是否跳过改写（检测分低于阈值）")
 
     class Config:
         from_attributes = True

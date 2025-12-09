@@ -30,6 +30,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
 }) => {
   const { rightSidebarType, toggleRightSidebar, closeRightSidebar } = useEditorStore();
   const [creating, setCreating] = React.useState(false);
+  const tabsContainerRef = React.useRef<HTMLDivElement>(null);
 
   const handleCreate = async () => {
     if (creating) return;
@@ -49,10 +50,23 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
     { type: 'worldview' as RightSidebarType, icon: Globe2, title: '世界观' },
   ];
 
+  const handleTabsWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    const container = tabsContainerRef.current;
+    if (!container) return;
+    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (delta === 0) return;
+    container.scrollLeft += delta;
+    e.preventDefault();
+  };
+
   return (
     <div className="flex items-center justify-between h-10 px-3 border-b bg-white" style={{ borderColor: '#e5e7eb' }}>
       {/* 左侧：会话标签区域 */}
-      <div className="flex items-center gap-1 flex-1 overflow-x-auto">
+      <div
+        ref={tabsContainerRef}
+        onWheel={handleTabsWheel}
+        className="flex items-center gap-1 flex-1 overflow-x-auto overflow-y-hidden"
+      >
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId;
           const title = tab.title?.trim() || '新会话';
@@ -110,24 +124,6 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           <Plus className="w-4 h-4" />
         </button>
 
-        {/* 收起右侧面板 */}
-        <button
-          className="p-1.5 rounded transition-all"
-          style={{ color: '#6b7280' }}
-          onClick={() => onCollapseRightPanel?.()}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = '#111827';
-            e.currentTarget.style.backgroundColor = '#f3f4f6';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = '#6b7280';
-            e.currentTarget.style.backgroundColor = 'transparent';
-          }}
-          title="收起侧栏"
-        >
-          <PanelRightClose className="w-4 h-4" />
-        </button>
-
         {/* 功能图标按钮 */}
         {functionButtons.map(({ type, icon: Icon, title }) => (
           <button
@@ -173,6 +169,24 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           title="历史会话"
         >
           <Clock3 className="w-4 h-4" />
+        </button>
+
+        {/* 收起右侧面板 - 挪到历史会话之后 */}
+        <button
+          className="p-1.5 rounded transition-all"
+          style={{ color: '#6b7280' }}
+          onClick={() => onCollapseRightPanel?.()}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = '#111827';
+            e.currentTarget.style.backgroundColor = '#f3f4f6';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = '#6b7280';
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+          title="收起侧栏"
+        >
+          <PanelRightClose className="w-4 h-4" />
         </button>
       </div>
     </div>

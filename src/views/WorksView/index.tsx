@@ -9,6 +9,7 @@ import ImportDialog from '../../components/import/ImportDialog';
 import type { Work } from '../../types';
 import { formatDate } from '../../utils/formatDate';
 import styles from './WorksView.module.css';
+import { useWorkNavStore } from '@/store/workNavStore';
 
 /**
  * WorksView 组件 - 作品管理列表页
@@ -21,8 +22,12 @@ const WorksView: React.FC = () => {
   const { showToast } = useGlobalStore();
   const { confirmState, confirm, closeConfirm } = useConfirm();
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const clearLastWork = useWorkNavStore((state) => state.clearLastWork);
 
   useEffect(() => {
+    // 回到作品列表时，重置“最近作品”导航状态
+    clearLastWork();
+
     const loadWorks = async () => {
       try {
         setIsLoading(true);
@@ -39,7 +44,7 @@ const WorksView: React.FC = () => {
     };
 
     loadWorks();
-  }, [showToast]);
+  }, [showToast, clearLastWork]);
 
   const handleCreateWork = () => {
     navigate('/works/create');

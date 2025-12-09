@@ -109,8 +109,8 @@ export interface HumanizeSessionDetail {
  * 去痕迹会话记录
  */
 export interface HumanizeSession {
-  /** 会话ID */
-  id: string;
+  /** 会话ID (跳过时为null) */
+  id: string | null;
 
   /** 用户ID */
   user_id: string;
@@ -147,6 +147,9 @@ export interface HumanizeSession {
 
   /** 会话详情 (可能为空，如果已过期) */
   detail?: HumanizeSessionDetail;
+
+  /** 是否跳过改写（检测分低于阈值） */
+  skipped?: boolean;
 }
 
 /**

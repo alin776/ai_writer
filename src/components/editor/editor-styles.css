@@ -74,6 +74,7 @@
 /* 选中文本样式 */
 .ProseMirror ::selection {
   background: rgba(59, 130, 246, 0.2);
+  color: #111827; /* 保持选区底色，文字改为深色便于阅读 */
 }
 
 /* ========== 标题样式 ========== */
@@ -455,4 +456,249 @@
   .ProseMirror {
     padding: 0;
   }
+}
+
+/* ========== AI 修订标记样式 ========== */
+
+/* AI 删除标记 - 显示被删除的原文 */
+.ProseMirror del.ai-deleted,
+.novel-editor-content del.ai-deleted {
+  text-decoration: line-through;
+  color: #dc2626;
+  background-color: #fef2f2;
+  padding: 0 2px;
+  border-radius: 2px;
+  text-decoration-color: #dc2626;
+  text-decoration-thickness: 2px;
+}
+
+/* AI 插入标记 - 显示新增的内容 */
+.ProseMirror ins.ai-inserted,
+.novel-editor-content ins.ai-inserted {
+  text-decoration: none;
+  color: #16a34a;
+  background-color: #f0fdf4;
+  padding: 0 2px;
+  border-radius: 2px;
+  border-bottom: 2px solid #16a34a;
+}
+
+/* 修订标记容器 - 用于分组显示 */
+.ai-revision-group {
+  display: inline;
+  position: relative;
+}
+
+/* 修订操作按钮容器 */
+.ai-revision-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+/* 接受按钮 */
+.ai-revision-accept {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  border-radius: 4px;
+  color: #16a34a;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ai-revision-accept:hover {
+  background: #bbf7d0;
+  border-color: #4ade80;
+}
+
+/* 拒绝按钮 */
+.ai-revision-reject {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: 4px;
+  color: #dc2626;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ai-revision-reject:hover {
+  background: #fecaca;
+  border-color: #f87171;
+}
+
+/* 暗色主题支持 */
+.dark .ProseMirror del.ai-deleted,
+.dark .novel-editor-content del.ai-deleted {
+  color: #fca5a5;
+  background-color: #450a0a;
+}
+
+.dark .ProseMirror ins.ai-inserted,
+.dark .novel-editor-content ins.ai-inserted {
+  color: #86efac;
+  background-color: #052e16;
+  border-color: #86efac;
+}
+
+.dark .ai-revision-accept {
+  background: #052e16;
+  border-color: #166534;
+  color: #86efac;
+}
+
+.dark .ai-revision-accept:hover {
+  background: #14532d;
+}
+
+.dark .ai-revision-reject {
+  background: #450a0a;
+  border-color: #991b1b;
+  color: #fca5a5;
+}
+
+.dark .ai-revision-reject:hover {
+  background: #7f1d1d;
+}
+
+/* ========== AI 修订操作栏样式 ========== */
+
+.ai-revision-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+  animation: revisionBarFadeIn 0.2s ease-out;
+}
+
+@keyframes revisionBarFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ai-revision-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.ai-revision-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 刷新按钮 - 中性色 */
+.ai-revision-btn-refresh {
+  background: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid #e5e7eb;
+}
+
+.ai-revision-btn-refresh:hover:not(:disabled) {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+}
+
+/* 弃用按钮 - 红色 */
+.ai-revision-btn-discard {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.ai-revision-btn-discard:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+/* 采纳按钮 - 绿色 */
+.ai-revision-btn-accept {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.ai-revision-btn-accept:hover:not(:disabled) {
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+/* 暗色主题 */
+.dark .ai-revision-bar {
+  background: #1f2937;
+  border-color: #374151;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.dark .ai-revision-btn-refresh {
+  background: #374151;
+  color: #d1d5db;
+  border-color: #4b5563;
+}
+
+.dark .ai-revision-btn-refresh:hover:not(:disabled) {
+  background: #4b5563;
+}
+
+.dark .ai-revision-btn-discard {
+  background: #450a0a;
+  color: #fca5a5;
+  border-color: #991b1b;
+}
+
+.dark .ai-revision-btn-discard:hover:not(:disabled) {
+  background: #7f1d1d;
+}
+
+.dark .ai-revision-btn-accept {
+  background: #052e16;
+  color: #86efac;
+  border-color: #166534;
+}
+
+.dark .ai-revision-btn-accept:hover:not(:disabled) {
+  background: #14532d;
+}
+
+/* 修订高亮动画 - 用于定位修订内容 */
+@keyframes revisionPulse {
+  0%, 100% {
+    background-color: inherit;
+  }
+  50% {
+    background-color: rgba(59, 130, 246, 0.2);
+  }
+}
+
+.ai-revision-highlight {
+  animation: revisionPulse 1s ease-in-out 2;
 }

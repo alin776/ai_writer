@@ -30,6 +30,16 @@ interface UseAgentChatOptions {
   sessionId?: string;
 }
 
+export interface EditorAction {
+  type: 'modify' | 'continue' | 'insert' | 'none';
+  original_text?: string;
+  new_text?: string;
+  new_text_html?: string;
+  position?: { from: number; to: number };
+  requires_confirmation?: boolean;
+  description?: string;
+}
+
 export interface ApprovalRequest {
   request_id: string;
   action_type: 'edit' | 'rewrite' | 'insert';
@@ -44,6 +54,8 @@ export interface ApprovalRequest {
     content?: string;
   }>;
   chapter_id?: string;
+  // 🆕 InlineAI 编辑器操作
+  editor_action?: EditorAction;
 }
 
 interface UseAgentChatReturn {
@@ -467,7 +479,9 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                         original_content: approvalReq.original_content,
                         new_content: approvalReq.new_content,
                         description: approvalReq.description,
-                        versions: approvalReq.versions
+                        versions: approvalReq.versions,
+                        // 🆕 InlineAI: 包含 editor_action
+                        editor_action: approvalReq.editor_action
                       }
                     });
                   }
@@ -694,17 +708,75 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       }
 
       try {
-        if (approved && pending.action_type === 'rewrite' && selectedVersion !== undefined) {
-          const versions = pending.versions;
-          if (versions && versions[selectedVersion]) {
-            const selectedContent = versions[selectedVersion].content;
-            const originalContent = pending.original_content;
+        if (approved) {
+          // 处理 rewrite 类型（改写，有多个版本选择）
+          if (pending.action_type === 'rewrite' && selectedVersion !== undefined) {
+            const versions = pending.versions;
+            if (versions && versions[selectedVersion]) {
+              const selectedContent = versions[selectedVersion].content;
+              const originalContent = pending.original_content;
+              const editorAction = pending.editor_action;
+
+              // 🆕 WPS修订模式: 触发显示修订标记事件（而非直接替换）
+              window.dispatchEvent(
+                new CustomEvent('agent-show-revision', {
+                  detail: {
+                    type: 'modify',
+                    original: originalContent,
+                    replacement: selectedContent,
+                    position: editorAction?.position,
+                    revisionId: `rev-${pending.request_id}-${Date.now()}`
+                  }
+                })
+              );
+            }
+          }
+          // 处理 continue 类型（续写）
+          else if (pending.editor_action?.type === 'continue') {
+            const newContent = pending.new_content;
+            const editorAction = pending.editor_action;
 
             window.dispatchEvent(
-              new CustomEvent('agent-replace-text', {
+              new CustomEvent('agent-show-revision', {
                 detail: {
+                  type: 'continue',
+                  replacement: newContent,
+                  position: editorAction?.position,
+                  revisionId: `rev-${pending.request_id}-${Date.now()}`
+                }
+              })
+            );
+          }
+          // 🆕 处理 edit 类型（编辑）
+          else if (pending.action_type === 'edit') {
+            const newContent = pending.new_content;
+            const originalContent = pending.original_content;
+            const editorAction = pending.editor_action;
+
+            window.dispatchEvent(
+              new CustomEvent('agent-show-revision', {
+                detail: {
+                  type: editorAction?.type === 'continue' ? 'continue' : 'modify',
                   original: originalContent,
-                  replacement: selectedContent
+                  replacement: newContent,
+                  position: editorAction?.position,
+                  revisionId: `rev-${pending.request_id}-${Date.now()}`
+                }
+              })
+            );
+          }
+          // 🆕 处理 insert 类型（插入）
+          else if (pending.action_type === 'insert') {
+            const newContent = pending.new_content;
+            const editorAction = pending.editor_action;
+
+            window.dispatchEvent(
+              new CustomEvent('agent-show-revision', {
+                detail: {
+                  type: 'continue',
+                  replacement: newContent,
+                  position: editorAction?.position,
+                  revisionId: `rev-${pending.request_id}-${Date.now()}`
                 }
               })
             );
@@ -717,11 +789,13 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           selected_version: selectedVersion
         });
 
+        // 🆕 无论批准还是拒绝，都清理 pendingApproval 状态
         sessionManager.updateSession(sessionId, { pendingApproval: null });
       } catch (err: any) {
         console.error('[useAgentChat] submit approval failed:', err);
         sessionManager.updateSession(sessionId, {
-          error: err.response?.data?.detail || err.message || 'Approval failed'
+          error: err.response?.data?.detail || err.message || 'Approval failed',
+          pendingApproval: null  // 🆕 错误时也清理状态
         });
       }
     },

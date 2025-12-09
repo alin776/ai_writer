@@ -153,7 +153,8 @@ class HumanizeService {
     text: string,
     intensity: HumanizeIntensity = 'medium',
     ai_function: string = 'rewrite',
-    onChunk: (event: HumanizeStreamEvent) => void
+    onChunk: (event: HumanizeStreamEvent) => void,
+    signal?: AbortSignal
   ): Promise<void> {
     const token = this.getToken();
     const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -167,6 +168,7 @@ class HumanizeService {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : '',
         },
+        signal,
         body: JSON.stringify({
           text,
           intensity,
@@ -187,6 +189,8 @@ class HumanizeService {
       throw new Error('No response body');
     }
 
+    let buffer = '';
+
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -195,19 +199,34 @@ class HumanizeService {
 
         // 解码数据
         const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        buffer += chunk;
 
-        // 解析SSE格式
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        // 解析SSE格式（逐行，容错半包）
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const jsonStr = line.slice(6); // 移除 "data: " 前缀
-              const event: HumanizeStreamEvent = JSON.parse(jsonStr);
-              onChunk(event);
-            } catch (e) {
-              console.warn('Failed to parse SSE data:', line, e);
-            }
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) continue;
+          try {
+            const payload = trimmed.slice(5).trim();
+            const event: HumanizeStreamEvent = JSON.parse(payload);
+            onChunk(event);
+          } catch (e) {
+            console.warn('Failed to parse SSE data:', trimmed, e);
           }
+        }
+      }
+
+      // 处理剩余缓冲
+      const tail = buffer.trim();
+      if (tail.startsWith('data:')) {
+        try {
+          const payload = tail.slice(5).trim();
+          const event: HumanizeStreamEvent = JSON.parse(payload);
+          onChunk(event);
+        } catch (e) {
+          console.warn('Failed to parse trailing SSE data:', tail, e);
         }
       }
     } finally {

@@ -30,6 +30,12 @@ interface ChatInputProps {
   onModeChange: (mode: AgentMode) => void;
   isLoading?: boolean;
   onStop?: () => void;
+  selectionContext?: {
+    selected_text?: string;
+    selected_text_html?: string;
+    selection_position?: { from: number; to: number };
+  };
+  onClearSelection?: () => void;
 }
 
 type AtCommandStage = 'root' | 'knowledge';
@@ -75,6 +81,8 @@ export default function ChatInput({
   onModeChange,
   isLoading = false,
   onStop,
+  selectionContext,
+  onClearSelection,
 }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [showContext, setShowContext] = useState(false);
@@ -126,6 +134,13 @@ export default function ChatInput({
   useEffect(() => {
     console.log('[ChatInput] mounted');
   }, []);
+
+  // 选区引用到达时自动聚焦输入框
+  useEffect(() => {
+    if (selectionContext?.selected_text && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [selectionContext]);
 
   const adjustHeight = () => {
     const textarea = textareaRef.current;
@@ -191,7 +206,7 @@ export default function ChatInput({
     adjustHeight();
   }, [message]);
 
-  // Always open menu when存在 @，确保不被事件时机影响
+  // Always open menu when 存在 @，确保不被事件时机影响
   useEffect(() => {
     syncAtStateFromRef();
     if (containsAt) {
@@ -351,7 +366,18 @@ export default function ChatInput({
           }
         : {};
 
-    const mergedContext = { ...contextPayload, ...directiveContext };
+    const selectionPayload = selectionContext?.selected_text
+      ? {
+          selected_text: selectionContext.selected_text,
+          selected_text_html: selectionContext.selected_text_html || selectionContext.selected_text,
+          selection_position: selectionContext.selection_position,
+          chapter_context: selectionContext.selected_text
+            ? `Selected text:\n${selectionContext.selected_text}\n\nUser instruction:\n${trimmedMessage}`
+            : undefined,
+        }
+      : {};
+
+    const mergedContext = { ...selectionPayload, ...contextPayload, ...directiveContext };
     const hasContext = Object.keys(mergedContext).length > 0;
 
     onSend(trimmedMessage, hasContext ? mergedContext : undefined);
@@ -361,6 +387,7 @@ export default function ChatInput({
     setShowContext(false);
     setSelectedDocs([]);
     closeAtMenu();
+    if (onClearSelection) onClearSelection();
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
 
@@ -559,6 +586,31 @@ export default function ChatInput({
         document.body
       )}
       {/* Context input */}
+      {selectionContext?.selected_text && (
+        <div className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+          <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-900 text-white text-xs font-semibold shadow-sm">
+            <Sparkles className="w-4 h-4" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-[11px] text-gray-500 mb-1 leading-tight">引用选中文本</div>
+            <div
+              className="text-sm text-gray-800 leading-snug break-words"
+              style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+              title={selectionContext.selected_text}
+            >
+              {selectionContext.selected_text}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClearSelection}
+            className="mt-1 p-1 rounded-full hover:bg-gray-200 text-gray-500"
+            aria-label="移除引用"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {showContext && (
         <div className="context-input p-3 bg-gray-50 border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-1.5">
@@ -626,7 +678,7 @@ export default function ChatInput({
         {/* @ menu portal */}
         {atMenuOpen && createPortal(
           <>
-            {/* Debug overlay to确认渲染 */}
+            {/* Debug overlay to 确认渲染 */}
             <div style={{
               position: 'fixed',
               left: 8,
