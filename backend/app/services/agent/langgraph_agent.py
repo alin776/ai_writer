@@ -2288,6 +2288,15 @@ class WritingAgentGraph:
 
         logger.info(f"[LangGraph Stream] 开始流式执行: {message[:50]}...")
 
+        # ✅ 前端兜底：若未传 conversation_id，则生成随机ID并返回给前端
+        if not conversation_id:
+            conversation_id = str(uuid.uuid4())
+            logger.warning(f"[LangGraph Stream] 未提供 conversation_id，自动生成: {conversation_id}")
+
+        # ✅ 前端兜底：提示缺失 work_id 可能导致跨作品污染
+        if not work_id:
+            logger.warning("[LangGraph Stream] work_id 缺失，将退化为用户/会话级隔离，请尽快在前端补充 work_id 以防跨作品污染")
+
         # 懒加载AsyncRedisSaver索引
         if isinstance(self.checkpointer, AsyncRedisSaver) and not self._checkpointer_setup_done:
             try:
@@ -2299,7 +2308,7 @@ class WritingAgentGraph:
                 raise
 
         # 🔧 新增：构建上下文（加载历史对话）
-        session_id = conversation_id or "default"
+        session_id = conversation_id
 
         # 动态设置user_id（用于长期记忆隔离）
         if user_id:
@@ -2371,8 +2380,7 @@ class WritingAgentGraph:
             thread_id = f"{user_prefix}{conversation_id}"
         else:
             # 兜底：无user_id时使用随机UUID，确保不会全局共享
-            import uuid as uuid_module
-            thread_id = f"{user_prefix}anonymous:{uuid_module.uuid4()}" if not user_prefix else f"{user_prefix}default"
+            thread_id = f"{user_prefix}anonymous:{uuid.uuid4()}" if not user_prefix else f"{user_prefix}default"
 
         # ✅ P2防护：thread_id长度验证
         max_thread_id_length = ContextConfig.MAX_THREAD_ID_LENGTH
@@ -2497,7 +2505,7 @@ class WritingAgentGraph:
 
                 return {
                     "response": final_response,
-                    "conversation_id": conversation_id or "default",
+                    "conversation_id": conversation_id,
                     "messages": result.get("messages", []),
                     "agent_steps": result.get("agent_steps", []),
                     "suggested_actions": result.get("suggested_actions", []),
@@ -2517,7 +2525,7 @@ class WritingAgentGraph:
 
                 return {
                     "response": "执行完成，但无法获取结果",
-                    "conversation_id": conversation_id or "default",
+                    "conversation_id": conversation_id,
                     "agent_steps": [],
                     "suggested_actions": [],
                     "metadata": {"error": "No final state"}
@@ -2533,7 +2541,7 @@ class WritingAgentGraph:
 
             return {
                 "response": "抱歉，请求处理超时（超过5分钟）。请尝试简化您的问题或稍后再试。",
-                "conversation_id": conversation_id or "default",
+                "conversation_id": conversation_id,
                 "agent_steps": [],
                 "suggested_actions": ["简化问题", "稍后重试"],
                 "metadata": {"error": f"Request timeout after {TimeoutConfig.LANGGRAPH_STREAM} seconds", "timeout": TimeoutConfig.LANGGRAPH_STREAM}
@@ -2552,7 +2560,7 @@ class WritingAgentGraph:
             logger.error(f"[LangGraph Stream] 错误堆栈:\n{error_trace}")
             return {
                 "response": f"抱歉，处理您的请求时出错了：{error_msg}",
-                "conversation_id": conversation_id or "default",
+                "conversation_id": conversation_id,
                 "agent_steps": [],
                 "suggested_actions": [],
                 "metadata": {"error": error_msg, "traceback": error_trace}
@@ -4388,13 +4396,25 @@ chapter_id: {chapter_id}
 
 请生成最终响应："""
 
-        # ✅ 直接调用 _generate_text（内部已有120秒超时保护）
-        result = await self._generate_text(
-            prompt=summary_prompt,
-            max_tokens=2000,
-            temperature=0.7,
-            task_type=TaskType.SUMMARIZATION
-        )
+        # ✅ 直接调用 _generate_text，并再加一层超时保护，避免卡死
+        try:
+            async with asyncio.timeout(TimeoutConfig.LLM_CALL):
+                result = await self._generate_text(
+                    prompt=summary_prompt,
+                    max_tokens=2000,
+                    temperature=0.7,
+                    task_type=TaskType.SUMMARIZATION
+                )
+        except asyncio.TimeoutError:
+            logger.warning(f"[Summarization] 超时({TimeoutConfig.LLM_CALL}s)，返回任务结果摘要作为降级")
+            increment_counter("ai_summarization_error", labels={"error_type": "Timeout"})
+            fallback_content = "抱歉，生成摘要超时。以下是任务结果摘要：\n\n"
+            for task_result in task_results:
+                fallback_content += f"- 任务{task_result['task_id']}: {task_result.get('description', 'N/A')}\n"
+                if task_result.get('status') == 'completed':
+                    result_text = str(task_result.get('result', ''))[:200]
+                    fallback_content += f"  结果: {result_text}...\n"
+            return fallback_content
 
         # 检查是否有错误（超时或其他异常）
         if "error" in result:

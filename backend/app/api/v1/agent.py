@@ -883,6 +883,9 @@ async def agent_chat_stream(
 
     logger.info(f"[Chat Stream] Mode: {actual_mode}")
 
+    # 预先确定conversation_id，供SSE头与生成器共用
+    generated_conversation_id = request.conversation_id or str(uuid.uuid4())
+
     async def event_generator():
         # ✅ 修复：生成器内创建独立db会话，完全控制生命周期
         from app.core.database import create_db_session
@@ -897,7 +900,7 @@ async def agent_chat_stream(
 
             try:
                 user_id = str(current_user.id)
-                conversation_id = request.conversation_id or str(uuid.uuid4())
+                conversation_id = generated_conversation_id
                 session = await _find_session_by_conversation(db, user_id, conversation_id)
 
                 # ✅ 2025-12-01: 设置请求上下文，让全局Agent的HTTPAIService能追踪成本
@@ -940,8 +943,18 @@ async def agent_chat_stream(
                 logger.info(f"[LangGraph Agent Stream] ⏱️ 请求开始 - User: {user_id}, Mode: {actual_mode}, Message: {request.message[:50]}...")
 
                 # 发送开始事件（包含mode信息）
-                start_event = {'type': 'start', 'conversation_id': conversation_id, 'mode': str(actual_mode)}
-                yield f"data: {json.dumps(start_event, ensure_ascii=False)}\n\n"
+                start_event = {
+                    'type': 'start',
+                    'conversation_id': conversation_id,
+                    'mode': str(actual_mode)
+                }
+                stream_start_event = {
+                    'type': 'stream_start',  # 兼容测试/前端获取cid
+                    'conversation_id': conversation_id,
+                    'mode': str(actual_mode)
+                }
+                for ev in (start_event, stream_start_event):
+                    yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
 
                 # ✅ 修复：删除多余的 MemoryManager 调用
                 # WritingAgentGraph 内部已有 ContextManager（使用 VectorStore 的语义搜索）
@@ -1180,8 +1193,12 @@ async def agent_chat_stream(
                     event_payload = {
                         'type': event_type,
                         'data': event_data,
-                        'mode': str(actual_mode)
+                        'mode': str(actual_mode),
+                        'conversation_id': conversation_id
                     }
+                    # 兼容前端/测试用例：对content事件添加content字段
+                    if event_type == 'content':
+                        event_payload['content'] = event_data
                     # 添加调试日志
                     if event_type == 'progress':
                         logger.info(f"[SSE] 发送 progress 事件: step={event_data.get('step')}, desc={event_data.get('description')}")
@@ -1198,7 +1215,8 @@ async def agent_chat_stream(
                     error_event = {
                         'type': 'error',
                         'error': 'Agent执行失败，未返回结果',
-                        'mode': str(actual_mode)
+                        'mode': str(actual_mode),
+                        'conversation_id': conversation_id
                     }
                     yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
                     return
@@ -1261,6 +1279,7 @@ async def agent_chat_stream(
                 done_event = {
                     'type': 'done',
                     'mode': str(actual_mode),
+                    'conversation_id': conversation_id,
                     'metadata': result.get('metadata', {}),
                     'suggested_actions': result.get('suggested_actions', [])
                 }
@@ -1288,7 +1307,8 @@ async def agent_chat_stream(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"  # 禁用 nginx 缓冲
+            "X-Accel-Buffering": "no",  # 禁用 nginx 缓冲
+            "X-Conversation-Id": generated_conversation_id  # 便于前端保存续聊
         }
     )
 
