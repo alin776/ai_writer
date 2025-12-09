@@ -1,14 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
+from app.core.config import settings
 from app.models.user import User
 from app.schemas.work import WorkCreate, WorkUpdate, WorkResponse, WorkListResponse
 from app.services.work_service import WorkService
+from app.services.cos_service import get_cos_service
 
 router = APIRouter()
+
+
+class CoverUploadResponse(BaseModel):
+    """封面上传响应"""
+    cover_url: str
 
 
 @router.get("", response_model=WorkListResponse)
@@ -150,3 +158,68 @@ async def delete_work(
         )
     
     await work_service.delete_work(work_id)
+
+
+@router.post("/{work_id}/cover", response_model=CoverUploadResponse)
+async def upload_work_cover(
+    work_id: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """上传作品封面"""
+    # 检查文件类型
+    allowed_types = {"image/jpeg", "image/png", "image/webp"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="仅支持 JPG/PNG/WebP 图片文件"
+        )
+
+    # 读取文件内容
+    content = await file.read()
+    max_size = settings.MAX_UPLOAD_SIZE or 10485760
+    if len(content) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="文件过大，请选择 10MB 以下的图片"
+        )
+
+    # 检查作品是否存在
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(work_id)
+    if not work:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Work not found"
+        )
+
+    # 检查权限
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to upload cover for this work"
+        )
+
+    # 上传到 COS
+    try:
+        cos_service = get_cos_service()
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc)
+        )
+
+    cover_url = await cos_service.upload_avatar(
+        user_id=str(current_user.id),
+        filename=file.filename,
+        content=content,
+        content_type=file.content_type
+    )
+
+    # 更新作品封面
+    from app.schemas.work import WorkUpdate
+    work_data = WorkUpdate(cover_image=cover_url)
+    await work_service.update_work(work_id, work_data)
+
+    return CoverUploadResponse(cover_url=cover_url)

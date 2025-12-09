@@ -24,6 +24,16 @@ from app.models.rewrite_history import RewriteSession, RewriteResult
 from app.models.book_analysis import BookAnalysisJob, JobStatus
 from app.models.worldview_suggestion import WorldviewSuggestion, SuggestionType, SuggestionAction, SuggestionStatus
 from app.models.chapter_history import ChapterHistory
+from app.models.notification import (
+    Notification,
+    UserNotification,
+    NotificationTemplate,
+    NotificationCategory,
+    NotificationType,
+    NotificationPriority,
+    NotificationStatus,
+    TargetUserType
+)
 
 __all__ = [
     "User",
@@ -71,5 +81,13 @@ __all__ = [
     "SuggestionType",
     "SuggestionAction",
     "SuggestionStatus",
-    "ChapterHistory"
+    "ChapterHistory",
+    "Notification",
+    "UserNotification",
+    "NotificationTemplate",
+    "NotificationCategory",
+    "NotificationType",
+    "NotificationPriority",
+    "NotificationStatus",
+    "TargetUserType"
 ]

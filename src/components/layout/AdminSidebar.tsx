@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Cpu, DollarSign, ArrowLeft } from 'lucide-react';
+import { LayoutDashboard, Users, Cpu, DollarSign, Bell, ArrowLeft } from 'lucide-react';
 
 /**
  * AdminSidebar 组件 - 管理后台侧边栏
@@ -47,6 +47,12 @@ const AdminSidebar: React.FC = () => {
       icon: DollarSign,
       label: '成本监控',
       description: '查看使用成本',
+    },
+    {
+      path: '/admin/notifications',
+      icon: Bell,
+      label: '通知管理',
+      description: '发送系统通知',
     },
   ];
 

@@ -12,6 +12,7 @@ import {
   DollarSign,
   Sparkles,
   Library,
+  Bell,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import clsx from 'clsx';
@@ -42,6 +43,12 @@ const mainNavItems: NavItem[] = [
     label: '知识库',
     icon: Library,
     path: '/knowledge',
+  },
+  {
+    id: 'notifications',
+    label: '通知中心',
+    icon: Bell,
+    path: '/notifications',
   },
 ];
 
@@ -75,6 +82,13 @@ const adminNavItems: NavItem[] = [
     label: '成本监控',
     icon: DollarSign,
     path: '/admin/cost',
+    roles: ['admin'],
+  },
+  {
+    id: 'notifications',
+    label: '通知管理',
+    icon: Bell,
+    path: '/admin/notifications',
     roles: ['admin'],
   },
 ];

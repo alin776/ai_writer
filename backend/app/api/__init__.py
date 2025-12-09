@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, users, works, chapters, ai, worldview, novel_analysis, admin, search, relationships, timeline, groups, rewrite_history, humanize, review, ws, knowledge, agent, agent_react_stream, monitoring
+from app.api.v1 import auth, users, works, chapters, ai, worldview, novel_analysis, admin, search, relationships, timeline, groups, rewrite_history, humanize, review, ws, knowledge, agent, agent_react_stream, monitoring, notifications
 from app.api.v1.endpoints import books
 from app.api.v1 import export as export_routes
 from app.api.v1 import import_routes
@@ -35,3 +35,4 @@ api_router.include_router(ws.router, tags=["websocket"])  # WebSocket实时推�
 api_router.include_router(export_routes.router, tags=["export"])  # 导出功能（路由已包含/works前缀）
 api_router.include_router(import_routes.router, tags=["import"])  # 导入功能（路由已包含/works前缀）
 api_router.include_router(ai_logs.router)  # AI日志和成本统计
+api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])  # 通知系统

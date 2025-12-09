@@ -24,8 +24,10 @@ const AdminDashboardView = React.lazy(() => import('../views/AdminDashboardView'
 const AdminUsersView = React.lazy(() => import('../views/AdminUsersView'));
 const AdminAIModelsView = React.lazy(() => import('../views/AdminAIModelsView'));
 const AdminCostView = React.lazy(() => import('../views/AdminCostView'));
+const AdminNotificationsView = React.lazy(() => import('../views/AdminNotificationsView'));
 const SettingsView = React.lazy(() => import('../views/SettingsView'));
 const KnowledgeView = React.lazy(() => import('../views/KnowledgeView'));
+const NotificationCenter = React.lazy(() => import('../pages/NotificationCenter'));
 const NotFoundView = React.lazy(() => import('../views/NotFoundView'));
 
 /**
@@ -178,6 +180,18 @@ export const router = createBrowserRouter([
           </SuspenseWrapper>
         ),
       },
+
+      /**
+       * 通知中心路由
+       */
+      {
+        path: '/notifications',
+        element: (
+          <SuspenseWrapper>
+            <NotificationCenter />
+          </SuspenseWrapper>
+        ),
+      },
     ],
   },
 
@@ -224,6 +238,14 @@ export const router = createBrowserRouter([
             element: (
               <SuspenseWrapper>
                 <AdminCostView />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: 'notifications',
+            element: (
+              <SuspenseWrapper>
+                <AdminNotificationsView />
               </SuspenseWrapper>
             ),
           },

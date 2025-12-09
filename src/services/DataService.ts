@@ -255,6 +255,20 @@ class DataServiceClass {
     return this.adapter.delete(`/works/${id}`);
   }
 
+  /**
+   * 上传作品封面
+   * @param workId 作品ID
+   * @param file 封面图片文件
+   * @returns Promise<string> 返回封面URL
+   */
+  async uploadWorkCover(workId: string, file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await this.adapter.post<{ cover_url: string }>(`/works/${workId}/cover`, formData);
+    return response.cover_url;
+  }
+
   // ==================== 章节相关 ====================
 
   /**

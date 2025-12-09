@@ -4,6 +4,8 @@ import { useAuthStore } from '../../store/authStore';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import Loading from '../common/Loading';
+import { useNotificationWebSocket } from '../../hooks/useNotificationWebSocket';
+import NotificationModal from '../notifications/NotificationModal';
 
 /**
  * AuthLayout 组件 - 需要认证的页面布局
@@ -20,6 +22,9 @@ export const AuthLayout: React.FC = () => {
   const location = useLocation();
   const { isAuthenticated, user } = useAuthStore();
   const [isChecking, setIsChecking] = React.useState(true);
+
+  // 启用通知 WebSocket 和弹窗
+  const { showModal, modalNotification, closeModal } = useNotificationWebSocket();
 
   // 检查是否是需要全屏显示的页面（不需要 padding）
   const isFullWidthPage = location.pathname === '/works' ||
@@ -86,6 +91,14 @@ export const AuthLayout: React.FC = () => {
           )}
         </main>
       </div>
+
+      {/* 通知弹窗 */}
+      {showModal && modalNotification && (
+        <NotificationModal
+          notification={modalNotification}
+          onClose={closeModal}
+        />
+      )}
     </div>
   );
 };
