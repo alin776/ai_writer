@@ -81,7 +81,6 @@ from .hitl import (
 # ==================== 高级工具 ====================
 from .advanced_tools import (
     book_analysis,
-    rewrite_arena,
     novel_review,
     ai_evaluation,
     deai_rewrite,
@@ -156,7 +155,6 @@ __all__ = [
 
     # ==================== 高级工具 ====================
     "book_analysis",
-    "rewrite_arena",
     "novel_review",
     "ai_evaluation",
     "deai_rewrite",

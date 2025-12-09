@@ -88,91 +88,6 @@ async def book_analysis(
         }
 
 
-# ==================== 改写竞技场工具 ====================
-
-@register_as_tool(
-    "rewrite_arena",
-    "writing",
-    "对文本进行多风格改写，生成多个版本供用户选择。支持不同风格如正式、口语、诗意等。"
-)
-async def rewrite_arena(
-    text: str,
-    styles: List[str] = None,
-    count: int = 3,
-    user_id: str = None
-) -> Dict[str, Any]:
-    """
-    改写竞技场 - 多风格改写对比
-
-    Args:
-        text: 要改写的文本
-        styles: 目标风格列表 (如 ["formal", "casual", "poetic"])
-        count: 生成版本数量
-        user_id: 用户ID
-
-    Returns:
-        多个改写版本供用户选择
-    """
-    if not styles:
-        styles = ["formal", "casual", "poetic"]
-
-    try:
-        from app.services.rewrite_arena_service import RewriteArenaService
-        from app.core.database import get_async_session
-
-        async for session in get_async_session():
-            service = RewriteArenaService(session)
-
-            result = await service.generate_rewrites(
-                text=text,
-                styles=styles[:count],
-                user_id=UUID(user_id) if user_id else None
-            )
-
-            return {
-                "success": True,
-                "session_id": str(result.get("session_id", "")),
-                "original_text": text,
-                "rewrites": result.get("rewrites", []),
-                "voting_enabled": True
-            }
-
-    except ImportError:
-        logger.warning("RewriteArenaService not available, returning mock data")
-        # 模拟数据
-        mock_rewrites = []
-        style_names = {
-            "formal": "正式风格",
-            "casual": "口语风格",
-            "poetic": "诗意风格",
-            "concise": "简洁风格",
-            "elaborate": "华丽风格"
-        }
-
-        for i, style in enumerate(styles[:count]):
-            mock_rewrites.append({
-                "version_id": f"v{i+1}",
-                "style": style,
-                "style_name": style_names.get(style, style),
-                "text": f"[{style_names.get(style, style)}改写版本] {text}...",
-                "score": 0
-            })
-
-        return {
-            "success": True,
-            "session_id": "mock-session",
-            "original_text": text,
-            "rewrites": mock_rewrites,
-            "voting_enabled": True
-        }
-    except Exception as e:
-        logger.error(f"Rewrite arena failed: {e}")
-        return {
-            "success": False,
-            "error": str(e)
-        }
-
-
 # ==================== 小说审阅工具 ====================
 
 @register_as_tool(
@@ -503,7 +418,6 @@ def register_advanced_tools():
     # 工具已通过装饰器注册，这里只做日志
     tools = [
         "book_analysis",
-        "rewrite_arena",
         "novel_review",
         "ai_evaluation",
         "deai_rewrite",
