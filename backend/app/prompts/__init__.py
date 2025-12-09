@@ -10,6 +10,16 @@ from app.prompts.version_manager import PromptVersionManager, get_version_manage
 from app.prompts.base import PromptTemplate, Constraint, ConstraintType
 from app.prompts.constraint_manager import ConstraintPromptManager, get_constraint_manager
 
+# 新增：Prompt 配置集中管理
+from app.prompts.prompt_config import (
+    PromptConfig,
+    PromptCategory,
+    PromptFileType,
+    PromptModuleInfo,
+    PromptRegistry,
+    get_prompt_registry
+)
+
 __all__ = [
     "ReviewPromptTemplates",
     "PromptManager",
@@ -21,5 +31,12 @@ __all__ = [
     "Constraint",
     "ConstraintType",
     "ConstraintPromptManager",
-    "get_constraint_manager"
+    "get_constraint_manager",
+    # Prompt 配置集中管理
+    "PromptConfig",
+    "PromptCategory",
+    "PromptFileType",
+    "PromptModuleInfo",
+    "PromptRegistry",
+    "get_prompt_registry"
 ]

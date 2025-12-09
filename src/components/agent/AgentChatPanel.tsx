@@ -206,7 +206,7 @@ function TabContent({
     stopStreaming
   } = useAgentChat({ workId, chapterId, sessionId });
 
-  const [mode, setMode] = useState<AgentMode>('planning');
+  const [mode, setMode] = useState<AgentMode>('plan');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   // 🆕 提前定义 handleSendMessage，确保所有 useEffect 都能使用
   const handleSendMessage = useCallback(async (message: string, context?: any) => {
@@ -218,12 +218,16 @@ function TabContent({
     console.log('4. context.selection_position:', context?.selection_position);
     console.log('=============================================');
 
+    // Agent 模式 = Planning + DeepAgent 反思（可动态调整任务）
+    const enableDeepAgent = mode === 'agent';
+
     const request = {
       message,
       mode,
       work_id: workId,
       chapter_id: chapterId,
-      context
+      context,
+      enable_reflection: enableDeepAgent,
     };
 
     console.log('[AgentChatPanel] 📤 发送请求:', JSON.stringify(request, null, 2));

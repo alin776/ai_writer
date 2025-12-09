@@ -35,6 +35,8 @@ from typing import List, Dict, Any, Optional, Set, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 
+from .memory_config import MemoryConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -62,33 +64,34 @@ class ForgetConfig:
     遗忘策略配置
 
     可根据不同场景调整参数
+    默认值统一从 MemoryConfig 读取
     """
     # === 时间衰减参数 ===
-    decay_half_life_days: float = 7.0      # 半衰期（天）
-    max_retention_days: int = 90            # 最大保留天数
+    decay_half_life_days: float = MemoryConfig.DECAY_HALF_LIFE_DAYS
+    max_retention_days: int = MemoryConfig.MAX_RETENTION_DAYS
 
     # === 重要度阈值 ===
-    critical_importance: float = 0.9        # 关键重要度（不遗忘）
-    high_importance: float = 0.7            # 高重要度（降低遗忘率）
-    medium_importance: float = 0.5          # 中等重要度
+    critical_importance: float = MemoryConfig.CRITICAL_IMPORTANCE
+    high_importance: float = MemoryConfig.HIGH_IMPORTANCE
+    medium_importance: float = MemoryConfig.MEDIUM_IMPORTANCE
 
     # === 访问频率参数 ===
-    access_boost_factor: float = 0.1        # 每次访问的提升
-    max_access_boost: float = 0.5           # 最大访问提升
+    access_boost_factor: float = MemoryConfig.ACCESS_BOOST_FACTOR
+    max_access_boost: float = MemoryConfig.MAX_ACCESS_BOOST
 
     # === 关联性参数 ===
-    link_protection_factor: float = 0.05    # 每个关联的保护值
-    max_link_protection: float = 0.3        # 最大关联保护
+    link_protection_factor: float = MemoryConfig.LINK_PROTECTION_FACTOR
+    max_link_protection: float = MemoryConfig.MAX_LINK_PROTECTION
 
     # === 遗忘阶段阈值 ===
-    fading_threshold: float = 0.3           # 进入褪色阶段的阈值
-    dormant_threshold: float = 0.5          # 进入休眠阶段的阈值
-    archived_threshold: float = 0.7         # 进入归档阶段的阈值
-    forgotten_threshold: float = 0.85       # 进入遗忘阶段的阈值
+    fading_threshold: float = MemoryConfig.FADING_THRESHOLD
+    dormant_threshold: float = MemoryConfig.DORMANT_THRESHOLD
+    archived_threshold: float = MemoryConfig.ARCHIVED_THRESHOLD
+    forgotten_threshold: float = MemoryConfig.FORGOTTEN_THRESHOLD
 
     # === 批量遗忘参数 ===
-    min_retention_count: int = 10           # 最少保留记忆数
-    max_forget_per_batch: int = 20          # 每批最多遗忘数
+    min_retention_count: int = MemoryConfig.MIN_RETENTION_COUNT
+    max_forget_per_batch: int = MemoryConfig.MAX_FORGET_PER_BATCH
 
 
 @dataclass

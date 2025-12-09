@@ -90,10 +90,3 @@ ai_generation_limiter = RateLimiter(
     limit=20,
     window=60
 )
-
-# 改写竞技场速率限制器：每分钟最多5次
-rewrite_arena_limiter = RateLimiter(
-    key_prefix="rewrite_arena",
-    limit=5,
-    window=60
-)

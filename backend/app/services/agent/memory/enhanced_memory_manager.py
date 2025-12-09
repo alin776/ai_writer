@@ -27,6 +27,7 @@ from .types import MemoryItem, MemoryLayer, MemorySnapshot, MemoryStats
 from .memory_strategy import SmartForgetStrategy
 from .metrics import get_metrics  # ✅ P1-5修复: 集成监控
 from .long_term_store import get_long_term_store  # ✅ P1-6修复: 长期记忆持久化
+from .memory_config import MemoryConfig  # ✅ 集中配置
 from app.core.config import settings
 from ..utils import robust_retry, safe_execute_async, global_error_handler, ErrorCategory, cache_result, performance_optimizer
 from ..utils.redis_fallback import get_fallback_store, FallbackReason
@@ -45,10 +46,10 @@ class EnhancedMemoryManager:
     管理用户的三层记忆（短期/中期/长期），支持智能遗忘和快照恢复。
     """
 
-    # Redis TTL 常量
-    SHORT_TERM_TTL = 86400  # 24小时（修复P0-2：原1小时太短导致上下文丢失）
-    MEDIUM_TERM_TTL = 86400 * 3  # 3天（修复P1-1：基础TTL，重要记忆会更长）
-    SNAPSHOT_TTL = 86400 * 7  # 7天
+    # Redis TTL 常量（从集中配置读取）
+    SHORT_TERM_TTL = MemoryConfig.SHORT_TERM_TTL
+    MEDIUM_TERM_TTL = MemoryConfig.MEDIUM_TERM_TTL
+    SNAPSHOT_TTL = MemoryConfig.SNAPSHOT_TTL
 
     def __init__(self, redis_client: Redis):
         """
@@ -73,7 +74,7 @@ class EnhancedMemoryManager:
         # ✅ P1-6修复: 初始化长期记忆持久化存储
         self.long_term_store = get_long_term_store(
             base_dir=getattr(settings, 'LONG_TERM_MEMORY_DIR', './data/long_term_memory'),
-            max_size_kb=getattr(settings, 'LONG_TERM_MAX_SIZE_KB', 50),
+            max_size_kb=getattr(settings, 'LONG_TERM_MAX_SIZE_KB', MemoryConfig.LONG_TERM_MAX_SIZE_KB),
             compression_enabled=getattr(settings, 'LONG_TERM_COMPRESSION', True)
         )
 
@@ -464,7 +465,11 @@ class EnhancedMemoryManager:
 
         # 使用Redis分布式锁确保同一用户只有一个进程执行遗忘（修复P0-6）
         lock_key = f"lock:forget:{user_id}"
-        lock = self.redis.lock(lock_key, timeout=30, blocking_timeout=5)
+        lock = self.redis.lock(
+            lock_key,
+            timeout=MemoryConfig.LOCK_TIMEOUT,
+            blocking_timeout=MemoryConfig.LOCK_BLOCKING_TIMEOUT
+        )
 
         if not lock.acquire(blocking=False):
             # 无法获取锁，说明有其他进程正在执行，跳过本次

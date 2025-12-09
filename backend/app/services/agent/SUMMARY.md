@@ -73,12 +73,11 @@
 ### P1级功能（增强）✅
 
 #### 4. ✅ 自我反思机制
-- **文件**: `agent/agents/reflection_agent.py`
-- **代码量**: 387行
+- **文件**: `agent/deep_agent/reflection.py`
 - **核心能力**:
-  - 自我质量评估
-  - 迭代改进
-  - 质量阈值控制
+  - 基于 DeepAgent 的反思工具 (think_tool)
+  - 纯上下文工程实现
+  - checkpoint 驱动的反思触发
 - **效果**: 内容质量提升20-30%
 
 #### 5. ✅ 并行任务执行
@@ -274,8 +273,8 @@ Agent生成计划 → 暂停请求批准 → 用户操作 → 恢复执行
 12. ✅ `agent/tools/style_learning.py` - 风格学习系统
 13. ✅ `agent/agents/__init__.py` - Agent模块入口
 14. ✅ `agent/agents/planning_agent.py` - 规划Agent
-15. ✅ `agent/agents/reflection_agent.py` - 反思Agent
-16. ✅ `agent/agents/parallel_executor.py` - 并行执行器
+15. ✅ `agent/agents/parallel_executor.py` - 并行执行器
+16. ✅ `agent/deep_agent/reflection.py` - 反思机制
 
 ### 文档（2个）
 

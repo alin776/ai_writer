@@ -67,6 +67,10 @@ class ContextMetrics:
     SHORT_MEMORY_SIZE = "context_short_memory_size"  # 短期记忆大小
     SUMMARY_MEMORY_SIZE = "context_summary_memory_size"  # 摘要记忆大小
 
+    # 去重与异常
+    DEDUP_REMOVED = "context_dedup_removed"  # 去重移除条数累加
+    TIMEOUT_EVENTS = "context_timeout_events"  # 超时事件计数（带event标签）
+
 
 # ==================== 监控装饰器 ====================
 
@@ -115,6 +119,18 @@ def monitor_token_counting(func: Callable) -> Callable:
             raise
 
     return wrapper
+
+
+def record_dedup(removed: int):
+    """记录去重移除数量"""
+    collector = get_metrics_collector()
+    collector.increment_counter(ContextMetrics.DEDUP_REMOVED, value=removed)
+
+
+def record_timeout_event(event: str):
+    """记录超时事件"""
+    collector = get_metrics_collector()
+    collector.increment_counter(ContextMetrics.TIMEOUT_EVENTS, labels={"event": event})
 
 
 def monitor_summary_generation(func: Callable) -> Callable:

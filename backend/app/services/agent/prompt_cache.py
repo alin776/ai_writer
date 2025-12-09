@@ -330,6 +330,84 @@ async def get_planning_static_prompt() -> str:
 返回纯JSON（必须包含thinking字段）:"""
 
 
+# ════════════════════════════════════════════════════════════════
+# Agent 模式增强版 Planning Prompt
+# ════════════════════════════════════════════════════════════════
+
+# Agent 模式专用的 checkpoint 说明（追加到基础 prompt）
+_AGENT_MODE_CHECKPOINT_SECTION = """
+
+【Agent 模式：检查点标记】
+
+在 Agent 模式下，你可以为关键任务标记 `"checkpoint": true`。
+标记检查点的任务完成后，系统会评估执行结果，必要时调整后续计划。
+
+## 什么时候标记 checkpoint？
+
+需要标记 checkpoint 的任务：
+- 分析类任务（analyze_text_tool）→ 结果可能影响后续任务
+- 规划/设计类任务 → 需要验证规划是否合理
+- 复杂的多步骤任务的中间关键节点
+
+不需要标记 checkpoint 的任务：
+- 简单获取任务（get_chapter_by_order_tool, get_context_tool）
+- 最后一个任务（执行完就结束了）
+- 独立的单步骤任务
+
+## 输出格式（Agent 模式）
+
+{
+  "thinking": {...},
+  "user_intent": "...",
+  "tasks": [
+    {"task_id": 1, "description": "获取上下文", "tool": "get_context_tool", "checkpoint": false},
+    {"task_id": 2, "description": "分析并规划大纲", "tool": "analyze_text_tool", "checkpoint": true, "params": {...}}
+  ]
+}
+
+## 示例
+
+用户: "根据前面的章节，规划后续5章大纲"
+{
+  "thinking": {
+    "step1_output": "用户想看到后续5章的大纲规划",
+    "step2_material": "需要前面章节的内容",
+    "step3_process": "获取上下文后进行大纲规划"
+  },
+  "user_intent": "规划后续章节大纲",
+  "tasks": [
+    {"task_id": 1, "description": "获取作品上下文", "tool": "get_context_tool", "checkpoint": false},
+    {"task_id": 2, "description": "规划后续5章大纲", "tool": "analyze_text_tool", "checkpoint": true, "params": {"text": "$TASK_1$", "focus": "基于已有内容，规划后续5章的大纲"}}
+  ]
+}
+
+注意：checkpoint 字段是可选的，默认为 false。只有需要在该任务后进行评估时才标记为 true。
+"""
+
+
+@cache_review(expire=3600, key_prefix="prompt")
+async def get_planning_agent_mode_prompt() -> str:
+    """获取 Agent 模式的 Planning Prompt（带 checkpoint 标记功能）
+
+    Returns:
+        str: Agent 模式专用的 Planning Prompt
+
+    说明：
+        Agent 模式与 Plan 模式的区别：
+        - 任务可以标记 checkpoint: true
+        - checkpoint 任务完成后会触发反思评估
+        - 支持动态调整后续任务
+
+    🔧 2025-12-08: 新增 Agent 模式支持，基于 LangChain DeepAgents 设计理念
+    """
+    base_prompt = await get_planning_static_prompt()
+    # 在基础 prompt 的 "返回纯JSON" 之前插入 checkpoint 说明
+    return base_prompt.replace(
+        "返回纯JSON（必须包含thinking字段）:",
+        _AGENT_MODE_CHECKPOINT_SECTION + "\n返回纯JSON（必须包含thinking字段，Agent模式下任务需包含checkpoint字段）:"
+    )
+
+
 @cache_review(expire=3600, key_prefix="prompt")
 async def get_complexity_decision_prompt() -> str:
     """复杂度判断 Prompt（在意图分类后调用）

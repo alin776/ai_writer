@@ -75,7 +75,7 @@ class FastAIService:
         start_time: datetime
     ):
         """
-        追踪API调用成本（使用request context）
+        追踪API调用成本并扣除积分（使用request context）
 
         Args:
             usage: usage统计信息（包含prompt_tokens, completion_tokens）
@@ -127,7 +127,62 @@ class FastAIService:
             # 使用独立db会话持久化
             async with create_db_session() as db:
                 temp_log_service = AILogService(db)
-                await temp_log_service.create_log(log_data)
+                ai_call_log = await temp_log_service.create_log(log_data)
+
+                # ==================== 积分扣费 ====================
+                # ✅ 2025-12-08: 添加积分扣费逻辑（与HTTPAIService一致）
+                try:
+                    from app.services.credits.credit_service import CreditService
+                    from app.services.credits.credit_utils import calculate_credits_from_cost
+                    from app.services.credits.credit_exceptions import (
+                        InsufficientCreditsError,
+                        CreditsExpiredError
+                    )
+                    from app.models.user import User
+                    from sqlalchemy import select
+
+                    # 查询用户信息
+                    user_stmt = select(User).where(User.id == UUID(user_id))
+                    user_result = await db.execute(user_stmt)
+                    user = user_result.scalar_one_or_none()
+
+                    if user:
+                        credit_service = CreditService(db)
+
+                        # 计算需要扣除的积分
+                        credits_to_deduct = calculate_credits_from_cost(cost_data["total_cost"])
+
+                        # 扣除积分（管理员自动豁免）
+                        transaction = await credit_service.consume(
+                            user_id=UUID(user_id),
+                            amount=credits_to_deduct,
+                            description=f"FastAI调用: {operation_type}",
+                            related_id=ai_call_log.id,
+                            skip_check=user.is_admin  # 管理员豁免
+                        )
+
+                        if transaction:  # 非管理员才有交易记录
+                            logger.info(
+                                f"[FastAI积分扣费] 用户 {user_id}: 扣除 {float(credits_to_deduct)} 积分, "
+                                f"余额: {float(transaction.balance_before)} → {float(transaction.balance_after)}"
+                            )
+                        else:
+                            logger.info(f"[FastAI积分扣费] 管理员 {user_id} 豁免积分扣费")
+                    else:
+                        logger.warning(f"[FastAI积分扣费] 用户 {user_id} 不存在，跳过扣费")
+
+                except InsufficientCreditsError as e:
+                    logger.error(
+                        f"[FastAI积分扣费] 用户 {user_id} 余额不足: "
+                        f"需要 {float(e.required)} 积分，当前 {float(e.available)} 积分"
+                    )
+                    # FastAI 是非流式调用，已完成，不抛异常中断
+                    # 但记录警告，后续可考虑预检查
+                except CreditsExpiredError as e:
+                    logger.error(f"[FastAI积分扣费] 用户 {user_id} 积分已过期: {e.expired_at}")
+                except Exception as e:
+                    logger.error(f"[FastAI积分扣费] 扣费失败: {type(e).__name__}: {str(e)}")
+                # ================================================
 
             logger.info(
                 f"[FastAI成本追踪] 已记录: operation={operation_type}, "
@@ -161,6 +216,66 @@ class FastAIService:
         Raises:
             Exception: API调用失败时抛出异常
         """
+        # ==================== 积分预检查 ====================
+        # ✅ 2025-12-08: 添加预检查，与HTTPAIService一致
+        user_id = get_request_user_id()
+        if user_id:
+            try:
+                from app.core.database import create_db_session
+                from app.services.credits.credit_service import CreditService
+                from app.models.user import User
+                from app.utils.cost_calculator import CostCalculator
+                from app.core.config import settings
+                from sqlalchemy import select
+                from uuid import UUID
+
+                async with create_db_session() as db:
+                    # 查询用户信息
+                    user_stmt = select(User).where(User.id == UUID(user_id))
+                    user_result = await db.execute(user_stmt)
+                    user = user_result.scalar_one_or_none()
+
+                    if user and not user.is_admin:
+                        # 非管理员需要检查余额
+                        credit_service = CreditService(db)
+
+                        # 粗略估算需要的积分（基于max_tokens）
+                        estimated_cost_data = CostCalculator.calculate_cost(
+                            model_name=self.model,
+                            prompt_tokens=len(str(messages)) // 4,  # 粗略估算
+                            completion_tokens=max_tokens  # 使用最大值
+                        )
+                        estimated_credits = estimated_cost_data["total_cost"] * settings.CREDITS_PER_DOLLAR
+
+                        # 检查余额是否充足
+                        is_sufficient, current_balance = await credit_service.check_sufficient(
+                            user_id=UUID(user_id),
+                            required_credits=estimated_credits
+                        )
+
+                        if not is_sufficient:
+                            logger.warning(
+                                f"[FastAI积分检查] 用户 {user_id} 余额不足: "
+                                f"需要约 {float(estimated_credits):.2f} 积分，当前 {float(current_balance):.2f} 积分"
+                            )
+                            raise Exception(
+                                f"积分余额不足：当前余额 {float(current_balance):.2f}，"
+                                f"预计需要 {float(estimated_credits):.2f} 积分。请先充值。"
+                            )
+
+                        logger.debug(
+                            f"[FastAI积分检查] 用户 {user_id} 余额充足: "
+                            f"当前 {float(current_balance):.2f} 积分"
+                        )
+
+            except Exception as e:
+                # 如果是余额不足异常，直接传递
+                if "积分余额不足" in str(e):
+                    raise
+                # 其他检查失败不影响调用（降级处理）
+                logger.warning(f"[FastAI积分检查] 检查失败，继续调用: {e}")
+        # ====================================================
+
         url = f"{self.base_url}/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.api_key}",

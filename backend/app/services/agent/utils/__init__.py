@@ -53,6 +53,12 @@ from .llm_optimizer import (
     get_llm_performance_stats
 )
 
+from .context_builder import (
+    _compress_task_result,
+    _build_summarization_context,
+    _build_knowledge_system_messages
+)
+
 __all__ = [
     # 错误处理
     "ErrorHandler",
@@ -93,5 +99,10 @@ __all__ = [
     "get_llm_optimizer",
     "optimized_llm_call",
     "clear_llm_cache",
-    "get_llm_performance_stats"
+    "get_llm_performance_stats",
+
+    # 上下文构建
+    "_compress_task_result",
+    "_build_summarization_context",
+    "_build_knowledge_system_messages",
 ]

@@ -199,6 +199,7 @@ class AgentApiService {
     console.log('==========================================');
 
     // 将后端返回的内容细粒度拆分为逐字符小块，保证前端能触发逐字流式动画
+    const TYPE_INTERVAL_MS = 15; // 略微加速逐字节奏
     const contentQueue: string[] = [];
     let contentTimer: ReturnType<typeof setTimeout> | null = null;
     const flushContentQueue = () => {
@@ -210,7 +211,7 @@ class AgentApiService {
       if (piece !== undefined) {
         callbacks.onContent?.(piece);
       }
-      contentTimer = setTimeout(flushContentQueue, 0);
+      contentTimer = setTimeout(flushContentQueue, TYPE_INTERVAL_MS);
     };
     const enqueueContent = (text: string | undefined | null) => {
       if (!text) return;
@@ -218,7 +219,7 @@ class AgentApiService {
         contentQueue.push(ch);
       }
       if (!contentTimer) {
-        contentTimer = setTimeout(flushContentQueue, 0);
+        contentTimer = setTimeout(flushContentQueue, TYPE_INTERVAL_MS);
       }
     };
     const flushRemainingContentSync = () => {
@@ -335,9 +336,18 @@ class AgentApiService {
         }
       }
     } catch (error: any) {
+      const isAbort =
+        error?.name === 'AbortError' ||
+        error?.message?.toLowerCase?.().includes('abort') ||
+        options?.signal?.aborted;
+
       console.error('[AgentApi] Stream error:', error);
-      flushRemainingContentSync();
-      callbacks.onError?.(error.message || 'Stream connection failed');
+
+      // 如果是主动停止/中断，不再把队列里内容推给 UI，直接静默结束
+      if (!isAbort) {
+        flushRemainingContentSync();
+        callbacks.onError?.(error.message || 'Stream connection failed');
+      }
       throw error;
     } finally {
       // 防止定时器泄漏

@@ -71,7 +71,7 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
     saveTab(newTab);
     addTabToChapter(resolvedChapterId, newTab.id);
     return newTab;
-  }, [resolvedChapterId]);
+  }, [resolvedChapterId, workId]);
 
   // Load tabs for the chapter and bootstrap a first tab when empty.
   useEffect(() => {

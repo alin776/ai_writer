@@ -36,7 +36,7 @@ class ProgressTracker:
         """初始化进度追踪器
 
         Args:
-            scenario: 场景类型 (writing/planning/analysis/react等)，用于自动设置expected_nodes
+            scenario: 场景类型 (writing/planning/analysis等)，用于自动设置expected_nodes
             expected_nodes: 预期会经过的节点列表（优先级高于scenario）
         """
         self.start_time = time.time()
@@ -498,15 +498,4 @@ if __name__ == "__main__":
     event = tracker.get_progress_event()
     print(f"  完成: {event['progress']}%, 总耗时: {event['elapsed']}s\n")
 
-    # 场景2: React场景
-    print("场景2: React场景")
-    tracker2 = ProgressTracker(scenario="react")
-
-    for node in ["intent_classifier", "react_think", "react_act", "tools"]:
-        tracker2.start_node(node)
-        time_module.sleep(0.3)
-        event = tracker2.get_progress_event()
-        print(f"  {node}: {event['progress']}%, ETA: {event['eta_display']}")
-        tracker2.end_node(node)
-
-    print("\n测试完成!")
+    print("测试完成!")

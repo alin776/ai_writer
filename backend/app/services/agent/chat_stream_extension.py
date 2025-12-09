@@ -7,8 +7,13 @@ chat_stream扩展方法
 
 from typing import Optional, Callable, Dict, Any
 from datetime import datetime
-from langchain_core.messages import AIMessage, ToolMessage
 import logging
+import uuid
+
+from langchain_core.messages import AIMessage, ToolMessage
+from langgraph.checkpoint.redis import AsyncRedisSaver
+
+from app.services.context.context_config import ContextConfig
 from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
@@ -25,7 +30,8 @@ async def chat_stream(
     context: Optional[dict] = None,
     on_progress: Optional[Callable] = None,
     on_tool_call: Optional[Callable] = None,
-    on_content: Optional[Callable] = None
+    on_content: Optional[Callable] = None,
+    user_id: Optional[str] = None  # 补充用户隔离信息（向后兼容，默认可为空）
 ) -> Dict[str, Any]:
     """
     流式执行chat()，提供实时进度反馈
@@ -56,6 +62,15 @@ async def chat_stream(
             logger.error(f"[LangGraph] AsyncRedisSaver索引创建失败: {setup_error}")
             raise
 
+    # 兜底 conversation_id，防止落入默认共享线程
+    if not conversation_id:
+        conversation_id = str(uuid.uuid4())
+        logger.warning(f"[LangGraph Stream] 未提供 conversation_id，自动生成: {conversation_id}")
+
+    # 提示缺失 work_id 可能导致跨作品污染
+    if not work_id:
+        logger.warning("[LangGraph Stream] work_id 缺失，将退化为用户/会话级隔离，请尽快在前端补充 work_id")
+
     # 构建初始状态（与chat()相同）
     from langchain_core.messages import HumanMessage
     initial_state = {
@@ -69,10 +84,31 @@ async def chat_stream(
         "final_response": None
     }
 
+    # 构建隔离 thread_id（与主流程对齐）
+    user_prefix = f"{user_id}:" if user_id else ""
+    if work_id and conversation_id:
+        thread_id = f"{user_prefix}{work_id}:{conversation_id}"
+    elif work_id:
+        thread_id = f"{user_prefix}{work_id}:default"
+    elif conversation_id:
+        thread_id = f"{user_prefix}{conversation_id}"
+    else:
+        thread_id = f"{user_prefix}anonymous:{uuid.uuid4()}" if user_prefix else f"{user_prefix}anonymous:{uuid.uuid4()}"
+
+    max_len = ContextConfig.MAX_THREAD_ID_LENGTH
+    if len(thread_id) > max_len:
+        import hashlib as _hashlib
+        hash_suffix = _hashlib.sha1(thread_id.encode("utf-8")).hexdigest()[:10]
+        prefix_budget = max_len - len(hash_suffix) - 1
+        thread_id = f"{thread_id[:prefix_budget]}:{hash_suffix}"
+        logger.warning(f"[LangGraph Stream] thread_id 过长，已压缩为: {thread_id}")
+
+    logger.info(f"[LangGraph Stream] 使用隔离的thread_id: {thread_id} (user_id={user_id}, work_id={work_id}, conversation_id={conversation_id})")
+
     # 配置
     config = {
         "configurable": {
-            "thread_id": conversation_id or "default",
+            "thread_id": thread_id,
             "checkpoint_ns": ""
         }
     }
@@ -102,7 +138,7 @@ async def chat_stream(
             result = final_state.values
             return {
                 "response": result.get("final_response"),
-                "conversation_id": conversation_id or "default",
+                "conversation_id": conversation_id,
                 "messages": result.get("messages", []),
                 "agent_steps": result.get("agent_steps", []),
                 "suggested_actions": result.get("suggested_actions", []),
@@ -116,7 +152,7 @@ async def chat_stream(
             logger.error("[LangGraph Stream] 无法获取最终状态")
             return {
                 "response": "执行完成，但无法获取结果",
-                "conversation_id": conversation_id or "default",
+                "conversation_id": conversation_id,
                 "agent_steps": [],
                 "suggested_actions": [],
                 "metadata": {"error": "No final state"}
@@ -130,7 +166,7 @@ async def chat_stream(
         logger.error(f"[LangGraph Stream] 错误堆栈:\n{error_trace}")
         return {
             "response": f"抱歉，处理您的请求时出错了：{error_msg}",
-            "conversation_id": conversation_id or "default",
+            "conversation_id": conversation_id,
             "agent_steps": [],
             "suggested_actions": [],
             "metadata": {"error": error_msg, "traceback": error_trace}

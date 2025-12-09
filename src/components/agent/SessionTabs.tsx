@@ -6,7 +6,7 @@ interface ConversationSession {
   updatedAt: string;
   messages: any[];
   conversationId?: string;
-  mode?: 'planning' | 'react';
+  mode?: 'plan' | 'agent';  // 更新为新的模式命名
 }
 
 interface SessionTabsProps {
@@ -57,8 +57,8 @@ export default function SessionTabs({
   }, [sessions, searchQuery]);
 
   const getSessionIcon = (session: ConversationSession) => {
-    if (session.mode === 'react') return '⚡';
-    if (session.mode === 'planning') return '📋';
+    if (session.mode === 'agent') return '⚡';  // Agent 模式 (DeepAgent)
+    if (session.mode === 'plan') return '📋';   // Plan 模式
     if (!session.messages || session.messages.length === 0) return '💬';
     return '📝';
   };
@@ -169,7 +169,7 @@ export default function SessionTabs({
             >
               <span
                 className="text-xs flex-shrink-0"
-                title={session.mode === 'react' ? 'ReAct 模式' : session.mode === 'planning' ? 'Planning 模式' : '对话'}
+                title={session.mode === 'agent' ? 'Agent 模式 (DeepAgent)' : session.mode === 'plan' ? 'Plan 模式' : '对话'}
               >
                 {getSessionIcon(session)}
               </span>

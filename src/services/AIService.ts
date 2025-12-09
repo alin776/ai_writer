@@ -362,10 +362,10 @@ class AIService {
   }
 
   /**
-   * 快速 AI 补全（流式版本，边生成边回调）
+   * 流式快速 AI 补全（实时自动补全，边生成边回调）
    * @param context - 上下文文本
    * @param onChunk - 每收到新内容时的回调，参数为 (当前chunk, 完整累积文本)
-   * @param workId - 作品ID（可选，用于Context-Aware补全）
+   * @param workId - 作品ID（可选，用于 Context-Aware 补全）
    * @param chapterId - 章节ID（可选，用于加载章节概要）
    */
   async quickCompleteStream(
@@ -375,7 +375,6 @@ class AIService {
     chapterId?: string
   ): Promise<string> {
     let fullText = '';
-
     try {
       const result = await this.complete({
         prompt: context,
@@ -384,7 +383,7 @@ class AIService {
         // ===== Context-Aware 元数据 =====
         workId,
         chapterId,
-        enableRag: false,  // 自动补全默认关闭RAG（速度优先）
+        enableRag: false,  // 自动补全默认关闭 RAG（速度优先）
       }, (chunk: string) => {
         fullText += chunk;
         onChunk(chunk, fullText);
@@ -393,7 +392,7 @@ class AIService {
       return result.trim();
     } catch (error) {
       console.error('流式快速补全失败:', error);
-      return '';
+      return fullText; // 尝试返回已生成的部分以提升体验
     }
   }
 

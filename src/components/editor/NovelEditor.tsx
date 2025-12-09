@@ -347,8 +347,19 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
   // ===== 动态更新 AI 自动补全开关状态 =====
   useEffect(() => {
-    if (editor && (editor.storage as any).aiAutoComplete) {
-      (editor.storage as any).aiAutoComplete.enabled = aiAutoCompleteEnabled;
+    if (!editor) return;
+
+    const storage: any = (editor as any).storage;
+
+    console.log('[NovelEditor] 检查 AI 自动补全状态:', {
+      hasEditor: !!editor,
+      storage,
+      aiAutoComplete: storage?.aiAutoComplete,
+      enabled: aiAutoCompleteEnabled
+    });
+
+    if (storage?.aiAutoComplete) {
+      storage.aiAutoComplete.enabled = aiAutoCompleteEnabled;
       console.log('[NovelEditor] AI 自动补全状态更新:', aiAutoCompleteEnabled);
     }
   }, [editor, aiAutoCompleteEnabled]);

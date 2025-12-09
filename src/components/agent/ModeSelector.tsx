@@ -1,9 +1,9 @@
 /**
  * ModeSelector - Agent 模式选择器
  *
- * 支持两种模式（与后端完全对齐）：
- * - Planning: 先规划再执行（planning 模式）
- * - ReAct: 边思考边执行（react 模式）
+ * 支持两种模式：
+ * - Plan: 纯规划执行（planning + enable_reflection=false）
+ * - Agent: 规划 + DeepAgent 反思（planning + enable_reflection=true）
  *
  * 参考 Cursor 风格的胶囊按钮
  */
@@ -11,7 +11,7 @@
 import React from 'react';
 import { Check, ChevronDown, Sparkles, Workflow } from 'lucide-react';
 
-export type AgentMode = 'planning' | 'react';
+export type AgentMode = 'plan' | 'agent';
 
 interface ModeSelectorProps {
   mode: AgentMode;
@@ -29,16 +29,16 @@ interface ModeConfig {
 }
 
 const MODE_CONFIG: Record<AgentMode, ModeConfig> = {
-  planning: {
+  plan: {
     label: 'Plan',
     icon: Workflow,
-    description: '先规划再执行，任务分解',
+    description: '规划执行，任务列表固定',
     badgeClass: 'bg-primary-50 text-primary-700 ring-1 ring-primary-100',
   },
-  react: {
+  agent: {
     label: 'Agent',
     icon: Sparkles,
-    description: '边思考边执行，实时推理',
+    description: 'DeepAgent 反思，可动态调整',
     badgeClass: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100',
   },
 };
@@ -94,7 +94,7 @@ export default function ModeSelector({
           {/* 菜单内容 - 轻量明亮主题 */}
           <div className="absolute left-0 bottom-full mb-2 z-20 w-64 rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden">
             <div className="p-1">
-              {(['planning', 'react'] as AgentMode[]).map((item) => {
+              {(['plan', 'agent'] as AgentMode[]).map((item) => {
                 const ItemIcon = MODE_CONFIG[item].icon;
                 const isActive = mode === item;
 
@@ -117,7 +117,7 @@ export default function ModeSelector({
                       </div>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-gray-500">
-                      {item === 'planning' && <span className="text-gray-400">默认</span>}
+                      {item === 'plan' && <span className="text-gray-400">默认</span>}
                       {isActive && <Check className="w-4 h-4 text-primary-600" />}
                     </div>
                   </button>

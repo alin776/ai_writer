@@ -114,6 +114,7 @@ class HTTPAIService:
                 logger.info("[成本追踪] 初始化未传db/user_id，暂不创建AILogService；_track_api_cost会按需尝试")
 
         # 创建持久化客户端，模拟普通浏览器/应用
+        # 流式场景容易超过总超时，单独放宽读超时以避免长响应被误判为超时
         self.client = httpx.AsyncClient(
             headers={
                 "User-Agent": "okhttp/4.12.0",
@@ -122,8 +123,10 @@ class HTTPAIService:
                 "Connection": "keep-alive",
             },
             timeout=httpx.Timeout(
-                timeout_value,  # 使用可配置的超时
-                connect=10.0
+                connect=10.0,
+                read=None,             # 流式读取不设超时，避免长生成被截断
+                write=timeout_value,   # 发送请求体受配置超时限制
+                pool=timeout_value     # httpx 要求四项都明确设置
             ),
             follow_redirects=True,
             http2=_http2_supported,  # 启用 HTTP/2（若缺少 h2 库则自动降级）
@@ -295,65 +298,75 @@ class HTTPAIService:
                 total_content = ""
                 usage_info = None  # 用于存储最终的usage信息
 
-                async for line in response.aiter_lines():
-                    line = line.strip()
+                try:
+                    async for line in response.aiter_lines():
+                        line = line.strip()
 
-                    # SSE 格式: data: {...}
-                    if not line or not line.startswith("data: "):
-                        continue
+                        # SSE 格式: data: {...}
+                        if not line or not line.startswith("data: "):
+                            continue
 
-                    # 移除 "data: " 前缀
-                    data_str = line[6:]
+                        # 移除 "data: " 前缀
+                        data_str = line[6:]
 
-                    # 结束标记
-                    if data_str == "[DONE]":
-                        logger.info(
-                            f"API 响应完成，共接收 {chunk_count} 个数据块，总长度: {len(total_content)}"
-                        )
-
-                        # P1修复: 如果 completion_tokens=0 但有内容，使用 TokenCounter 估算
-                        if usage_info and usage_info.get('completion_tokens', 0) == 0 and len(total_content) > 0:
-                            from app.services.context.token_counter import count_tokens
-                            # TokenCounter 策略: tiktoken精确(100%) > 中文优化(95%) > 简单估算(75%)
-                            estimated_completion = count_tokens(total_content, model=model)
-                            usage_info['completion_tokens'] = estimated_completion
-                            usage_info['total_tokens'] = usage_info.get('prompt_tokens', 0) + estimated_completion
-                            logger.warning(
-                                f"[Token估算] API返回completion_tokens=0，使用TokenCounter估算: {estimated_completion} tokens (内容{len(total_content)}字符)"
-                            )
-
-                        # 记录usage统计
-                        if usage_info:
+                        # 结束标记
+                        if data_str == "[DONE]":
                             logger.info(
-                                f"流式响应Token统计: {usage_info.get('total_tokens', 0)} "
-                                f"(prompt={usage_info.get('prompt_tokens', 0)}, "
-                                f"completion={usage_info.get('completion_tokens', 0)})"
+                                f"API 响应完成，共接收 {chunk_count} 个数据块，总长度: {len(total_content)}"
                             )
-                        break
 
+                            # P1修复: 如果 completion_tokens=0 但有内容，使用 TokenCounter 估算
+                            if usage_info and usage_info.get('completion_tokens', 0) == 0 and len(total_content) > 0:
+                                from app.services.context.token_counter import count_tokens
+                                # TokenCounter 策略: tiktoken精确(100%) > 中文优化(95%) > 简单估算(75%)
+                                estimated_completion = count_tokens(total_content, model=model)
+                                usage_info['completion_tokens'] = estimated_completion
+                                usage_info['total_tokens'] = usage_info.get('prompt_tokens', 0) + estimated_completion
+                                logger.warning(
+                                    "[Token估算] API返回completion_tokens=0，使用TokenCounter估算: "
+                                    f"{estimated_completion} tokens (内容{len(total_content)}字符)"
+                                )
+
+                            # 记录usage统计
+                            if usage_info:
+                                logger.info(
+                                    "流式响应Token统计: "
+                                    f"{usage_info.get('total_tokens', 0)} "
+                                    f"(prompt={usage_info.get('prompt_tokens', 0)}, "
+                                    f"completion={usage_info.get('completion_tokens', 0)})"
+                                )
+                            break
+
+                        try:
+                            data = json.loads(data_str)
+
+                            # 提取usage信息(通常在最后一个块)
+                            if "usage" in data:
+                                usage_info = data["usage"]
+
+                            # 提取内容
+                            if "choices" in data and len(data["choices"]) > 0:
+                                choice = data["choices"][0]
+
+                                if "delta" in choice and "content" in choice["delta"]:
+                                    content = choice["delta"]["content"]
+
+                                    # 修复: Gemini API 第一个块的 content 可能是 null
+                                    if content is not None and content and not self._should_filter(content):
+                                        chunk_count += 1
+                                        total_content += content
+                                        yield content, None  # 中间块不返回usage
+
+                        except json.JSONDecodeError as e:
+                            logger.warning(f"JSON 解析错误: {e}, 数据: {data_str[:100]}")
+                            continue
+                except asyncio.CancelledError:
+                    logger.info("[HTTPAIService] 流式请求被取消，关闭连接")
                     try:
-                        data = json.loads(data_str)
-
-                        # 提取usage信息(通常在最后一个块)
-                        if "usage" in data:
-                            usage_info = data["usage"]
-
-                        # 提取内容
-                        if "choices" in data and len(data["choices"]) > 0:
-                            choice = data["choices"][0]
-
-                            if "delta" in choice and "content" in choice["delta"]:
-                                content = choice["delta"]["content"]
-
-                                # 修复: Gemini API 第一个块的 content 可能是 null
-                                if content is not None and content and not self._should_filter(content):
-                                    chunk_count += 1
-                                    total_content += content
-                                    yield content, None  # 中间块不返回usage
-
-                    except json.JSONDecodeError as e:
-                        logger.warning(f"JSON 解析错误: {e}, 数据: {data_str[:100]}")
-                        continue
+                        await response.aclose()
+                    except Exception:
+                        pass
+                    raise
 
                 # Week 7: 追踪成本
                 # ✅ 2025-12-01: 移除ai_log_service检查（现在使用独立db session）
@@ -894,7 +907,7 @@ class HTTPAIService:
 
             # 记录user_id来源（用于调试）
             source = "实例" if self.user_id else "上下文"
-            logger.debug(f"[成本追踪] user_id来源: {source}, user_id={user_id}")
+            logger.info(f"[成本追踪] user_id来源: {source}, user_id={user_id}")
 
             # 提取token使用情况
             prompt_tokens = usage_info.get('prompt_tokens', 0)

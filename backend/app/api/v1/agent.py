@@ -8,7 +8,7 @@ Agent 智能助手 API 路由
 - 记忆管理
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -25,10 +25,10 @@ from app.core.security import get_current_active_user
 from app.models.user import User
 from app.models.agent_session import AgentSession
 from app.models.agent_session_message import AgentSessionMessage
-from app.models.chat_models import ChatMode, ChatRequest as UnifiedChatRequest, format_react_event_to_sse, format_planning_event_to_sse, format_error_event
+from app.models.chat_models import ChatMode
 from app.models.chapter import Chapter
 from app.services.agent.memory import MemoryManager
-from app.services.agent.agents import PlanningAgent, ReflectionAgent
+from app.services.agent.agents import PlanningAgent
 from app.services.agent.tools import HITLManager
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.ai.humanize_service import HumanizeService
@@ -98,7 +98,7 @@ def get_agent_graph() -> WritingAgentGraph:
             enable_model_selector=settings.MODEL_SELECTION_ENABLED
         )
         # 创建Agent实例（只创建一次）
-        _global_agent_graph = WritingAgentGraph(ai_service, use_chatgpt=settings.AGENT_USE_CHATGPT)
+        _global_agent_graph = WritingAgentGraph(ai_service)
         logger.info("[Global Agent] created global agent instance; MemorySaver shared across requests")
     return _global_agent_graph
 
@@ -108,11 +108,12 @@ def get_agent_graph() -> WritingAgentGraph:
 class AgentChatRequest(BaseModel):
     """Agent chat request"""
     message: str = Field(..., description="User message", min_length=1)
-    mode: Optional[str] = Field(None, description="Chat mode: planning/react (default planning)")
+    mode: Optional[str] = Field(None, description="Chat mode: planning only (default)")
     work_id: Optional[str] = Field(None, description="Work ID")
     chapter_id: Optional[str] = Field(None, description="Chapter ID")
     conversation_id: Optional[str] = Field(None, description="Conversation ID for continuing session")
     context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Extra context")
+    enable_reflection: bool = Field(False, description="Enable DeepAgent reflection mode")
 
 
 class AgentChatResponse(BaseModel):
@@ -299,311 +300,6 @@ async def get_ai_service(
 
 
 # ==================== Agent 对话接口 ====================
-
-@router.post("/chat", response_model=AgentChatResponse)
-async def agent_chat(
-    request: AgentChatRequest,
-    current_user: User = Depends(get_current_active_user),
-    memory: MemoryManager = Depends(get_memory_manager),
-    ai_service: HTTPAIService = Depends(get_ai_service),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Agent chat endpoint powered by LangGraph.
-
-    Modes:
-    - "writing"
-    - "planning"
-    - "analysis"
-    - "stuck"
-
-    Returns:
-        AgentChatResponse
-    """
-    try:
-        user_id = str(current_user.id)
-        conversation_id = request.conversation_id or str(uuid.uuid4())
-
-        # ✅ 2025-12-01: 设置请求上下文，让全局Agent的HTTPAIService能追踪成本
-        set_request_context(db, user_id)
-
-        logger.info(f"[LangGraph Agent] User: {user_id}, Message: {request.message[:50]}...")
-
-        # 获取用户记忆上下文
-        # 🔧 修复：使用await调用async方法
-        # ✅ P0修复：传递work_id以隔离不同作品的记忆
-        user_context = await memory.get_complete_context(
-            user_id,
-            work_id=request.work_id  # ✅ 传递work_id进行记忆隔离
-        )
-        memory_context = memory.format_context_for_agent(
-            user_id,
-            mode="chat",
-            work_id=request.work_id  # ✅ 修复：传递work_id避免记忆污染
-        )
-
-        # 获取全局共享的 LangGraph Agent（修复记忆功能）
-        # 使用全局单例模式，确保MemorySaver在请求间共享
-        agent_graph = get_agent_graph()
-
-        # 准备上下文（将记忆上下文加入到请求上下文中）
-        context = request.context or {}
-        context["memory_context"] = memory_context
-        context["user_context"] = user_context
-
-        # 完成知识文档上下文插入
-        knowledge_service = KnowledgeService(db)
-        knowledge_docs: List[Dict[str, Any]] = []
-
-        doc_ids = context.get("knowledge_doc_ids") if isinstance(context.get("knowledge_doc_ids"), list) else []
-        if doc_ids:
-            seen_ids = set()
-            for doc_id in doc_ids:
-                if not doc_id or doc_id in seen_ids:
-                    continue
-                seen_ids.add(doc_id)
-                try:
-                    item = await knowledge_service.get_item(doc_id, user_id, increment_view=False)
-                    if item:
-                        knowledge_docs.append({
-                            "id": str(item.id),
-                            "title": item.title,
-                            "content": item.content,
-                            "tags": item.tags,
-                            "source_type": getattr(item.source_type, "value", str(item.source_type)),
-                        })
-                        try:
-                            await knowledge_service.increment_reference_count(doc_id, user_id)
-                        except Exception as ref_err:
-                            logger.debug(f"[agent_chat] increment_reference_count failed: {ref_err}")
-                    else:
-                        logger.warning(f"[agent_chat] Knowledge doc not found or access denied: doc_id={doc_id}, user_id={user_id}")
-                except Exception as load_err:
-                    logger.warning(f"[agent_chat] load knowledge item failed: {load_err}")
-
-        # 向后兼容：tags 搜索
-        if not knowledge_docs:
-            tags = context.get("knowledge_tags") if isinstance(context.get("knowledge_tags"), list) else []
-            if tags:
-                logger.info(f"[agent_chat] Using legacy knowledge_tags search (deprecated): tags={tags}")
-                try:
-                    search_results = await knowledge_service.search_by_semantic(
-                        user_id=user_id,
-                        query=request.message,
-                        tags=tags,
-                        top_k=5,
-                        work_id=str(request.work_id) if request.work_id else None
-                    )
-                    for res in search_results:
-                        item = res.get("item")
-                        if not item:
-                            continue
-                        knowledge_docs.append({
-                            "id": str(item.id),
-                            "title": item.title,
-                            "content": item.content,
-                            "tags": item.tags,
-                            "source_type": getattr(item.source_type, "value", str(item.source_type)),
-                            "highlight": res.get("highlight"),
-                            "relevance_score": res.get("relevance_score"),
-                        })
-                except Exception as search_err:
-                    logger.warning(f"[agent_chat] knowledge semantic search failed: {search_err}")
-
-        if knowledge_docs:
-            context["knowledge_docs"] = knowledge_docs
-            logger.info(f"[agent_chat] Injected {len(knowledge_docs)} knowledge docs into context")
-
-        # ✨ 优先处理 @optimization: 直接走去痕迹流程
-        if context.get("use_optimization"):
-            humanize_text = (
-                context.get("current_content")
-                or context.get("text")
-                or ""
-            )
-
-            if not humanize_text and request.chapter_id:
-                chapter_stmt = select(Chapter).where(Chapter.id == request.chapter_id)
-                if request.work_id:
-                    chapter_stmt = chapter_stmt.where(Chapter.work_id == request.work_id)
-                chapter_result = await db.execute(chapter_stmt)
-                chapter_obj = chapter_result.scalar_one_or_none()
-                if chapter_obj and chapter_obj.content:
-                    humanize_text = chapter_obj.content
-
-            humanize_conf = get_config()
-            if len(humanize_text) > humanize_conf.max_text_chars:
-                raise HTTPException(
-                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                    detail=f"去痕迹文本长度超过限制 ({len(humanize_text)} > {humanize_conf.max_text_chars})"
-                )
-
-            if not humanize_text:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="开启去痕迹优化但未提供可用文本"
-                )
-
-            try:
-                humanize_service = HumanizeService(ai_service=ai_service)
-                humanize_result = await humanize_service.full_humanize_process(
-                    text=humanize_text,
-                    intensity=context.get("intensity") or "medium",
-                    skip_detection=False,
-                    skip_verification=None,
-                    use_nlp_preprocessing=None
-                )
-                humanized_text = humanize_result.get("humanized_text") or humanize_text
-                detection = humanize_result.get("detection")
-                verification = humanize_result.get("verification")
-
-                token_usage_data = {
-                    "prompt_tokens": (
-                        humanize_result.get("detection_prompt_tokens", 0)
-                        + humanize_result.get("rewrite_prompt_tokens", 0)
-                        + humanize_result.get("verification_prompt_tokens", 0)
-                    ),
-                    "completion_tokens": (
-                        humanize_result.get("detection_completion_tokens", 0)
-                        + humanize_result.get("rewrite_completion_tokens", 0)
-                        + humanize_result.get("verification_completion_tokens", 0)
-                    ),
-                    "total_tokens": humanize_result.get("total_tokens", 0),
-                }
-
-                metadata = {
-                    "tool": "humanize_rewrite",
-                    "use_optimization": True,
-                    "detection_score": getattr(detection, "overall_score", None),
-                    "verification_score": getattr(verification, "score_after", None),
-                    "total_tokens": humanize_result.get("total_tokens"),
-                }
-
-                agent_steps = [
-                    {"step": "humanize_rewrite", "result": "applied @optimization"}
-                ]
-
-                try:
-                    session = await _find_session_by_conversation(db, user_id, conversation_id)
-                    if session:
-                        await _persist_message(
-                            db, session, role="user", content=request.message,
-                            metadata={"mode": request.mode, "use_optimization": True},
-                        )
-                        await _persist_message(
-                            db, session, role="agent", content=humanized_text,
-                            metadata=metadata, token_usage=token_usage_data,
-                        )
-                        await db.commit()
-                        try:
-                            redis_client = get_redis_client()
-                            redis_client.delete(_session_detail_cache_key(str(session.id)))
-                            _invalidate_session_caches(redis_client, user_id)
-                        except Exception as cache_err:
-                            logger.warning(f"[LangGraph Agent @optimization] Clear session cache failed: {cache_err}")
-                except Exception as persist_err:
-                    await db.rollback()
-                    logger.warning(f"[LangGraph Agent @optimization] Persist message failed: {persist_err}")
-
-                memory.record_user_interaction(
-                    user_id, "agent_chat",
-                    {
-                        "message": request.message,
-                        "intent": "humanize_rewrite",
-                        "conversation_id": conversation_id,
-                        "mode": request.mode or ChatMode.PLANNING,
-                        "use_optimization": True,
-                    }
-                )
-
-                return AgentChatResponse(
-                    response=humanized_text,
-                    conversation_id=conversation_id,
-                    agent_steps=agent_steps,
-                    suggested_actions=[],
-                    metadata=metadata
-                )
-            except Exception as humanize_err:
-                logger.error(f"[agent_chat] humanize flow failed: {humanize_err}", exc_info=True)
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"AI去痕迹执行失败: {str(humanize_err)}"
-                )
-
-        # 调用 LangGraph Agent 进行对话
-        result = await agent_graph.chat(
-            message=request.message,
-            work_id=request.work_id,
-            chapter_id=request.chapter_id,
-            conversation_id=conversation_id,
-            context=context
-        )
-
-        # 记录交互到用户记忆
-        memory.record_user_interaction(
-            user_id,
-            "agent_chat",
-            {
-                "message": request.message,
-                "intent": result["metadata"].get("intent"),
-                "conversation_id": conversation_id
-            }
-        )
-
-        logger.info(
-            f"[LangGraph Agent] User {user_id} - Intent: {result['metadata'].get('intent')}, "
-            f"Steps: {len(result['agent_steps'])}"
-        )
-
-        # 提示：将用户/Agent消息持久化到会话保存（符合正在使用的会话）
-        try:
-            session = await _find_session_by_conversation(db, user_id, conversation_id)
-            if session:
-                await _persist_message(
-                    db,
-                    session,
-                    role="user",
-                    content=request.message,
-                    metadata={"mode": request.mode},
-                )
-                await _persist_message(
-                    db,
-                    session,
-                    role="agent",
-                    content=result.get("response", ""),
-                    metadata=result.get("metadata"),
-                    token_usage=(result.get("metadata") or {}).get("token_usage"),
-                )
-                await db.commit()
-                try:
-                    redis_client = get_redis_client()
-                    redis_client.delete(_session_detail_cache_key(str(session.id)))
-                    _invalidate_session_caches(redis_client, user_id)
-                except Exception as cache_err:
-                    logger.warning(f"[LangGraph Agent] Clear session cache failed: {cache_err}")
-        except Exception as persist_err:
-            await db.rollback()
-            logger.warning(f"[LangGraph Agent] Persist message failed: {persist_err}")
-
-        return AgentChatResponse(
-            response=result["response"],
-            conversation_id=result["conversation_id"],
-            agent_steps=result["agent_steps"],
-            suggested_actions=result["suggested_actions"],
-            metadata={
-                **result["metadata"],
-                "memory_quality": user_context.get("user_context", {}).get("memory_quality", "low"),
-                "framework": "langgraph"
-            }
-        )
-
-    except Exception as e:
-        logger.error(f"[LangGraph Agent] Error: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Agent对话失败: {str(e)}"
-        )
-
 
 @router.post("/chat/reset", response_model=ResetConversationResponse)
 async def reset_conversation(
@@ -1153,18 +849,13 @@ async def agent_chat_stream(
     memory: MemoryManager = Depends(get_memory_manager),
     ai_service: HTTPAIService = Depends(get_ai_service),
     # ✅ 修复：移除db依赖，避免生命周期不匹配
-    mode: Optional[str] = None  # 新增：支持mode参数（通过查询参数或Body）
+    mode: Optional[str] = None,  # 新增：支持mode参数（通过查询参数或Body）
+    fastapi_request: Request = None,  # 注入原始 Request 以检测断连
 ):
     """
     Agent 智能对话 - 统一流式响应（SSE）
 
-    支持两种模式：
-    - Planning模式（默认）：先规划再执行
-    - React模式：边思考边执行
-
-    使用方式：
-    1. Planning模式（默认）: 不传mode或mode="planning"
-    2. React模式: mode="react"
+    仅支持 Planning 模式（默认）：先规划再执行
 
     Args:
         request: 对话请求
@@ -1172,26 +863,29 @@ async def agent_chat_stream(
         memory: 记忆管理器
         ai_service: AI服务
         db: 数据库会话
-        mode: 聊天模式（planning/react，默认planning）
+        mode: 聊天模式（仅planning，默认planning）
 
     Returns:
         StreamingResponse: SSE流式响应
     """
     import asyncio
 
-    # 确定使用的模式
-    # 优先级：URL查询参数 > Body参数 > 默认planning
-    actual_mode = mode or request.mode or ChatMode.PLANNING
+    # 仅支持 planning，任何其他输入均回退为 planning
+    requested_mode = mode or request.mode or ChatMode.PLANNING
+    try:
+        actual_mode = ChatMode(requested_mode.lower()) if isinstance(requested_mode, str) else ChatMode(requested_mode)
+    except Exception:
+        logger.warning(f"[Chat Stream] 无效的mode值: {requested_mode}, 使用默认planning")
+        actual_mode = ChatMode.PLANNING
 
-    # 字符串转枚举
-    if isinstance(actual_mode, str):
-        try:
-            actual_mode = ChatMode(actual_mode.lower())
-        except (ValueError, AttributeError):
-            logger.warning(f"[Chat Stream] 无效的mode值: {actual_mode}, 使用默认planning")
-            actual_mode = ChatMode.PLANNING
+    if actual_mode != ChatMode.PLANNING:
+        logger.info(f"[Chat Stream] 模式 {actual_mode} 已停用，回退到 planning")
+        actual_mode = ChatMode.PLANNING
 
     logger.info(f"[Chat Stream] Mode: {actual_mode}")
+
+    # 预先确定conversation_id，供SSE头与生成器共用
+    generated_conversation_id = request.conversation_id or str(uuid.uuid4())
 
     async def event_generator():
         # ✅ 修复：生成器内创建独立db会话，完全控制生命周期
@@ -1199,7 +893,6 @@ async def agent_chat_stream(
 
         async with create_db_session() as db:
             # 使用队列实现实时事件发送
-            import time  # ✅ 在这里导入，整个函数内都可以使用
             event_queue = asyncio.Queue()
             agent_task = None
             result = None
@@ -1208,7 +901,7 @@ async def agent_chat_stream(
 
             try:
                 user_id = str(current_user.id)
-                conversation_id = request.conversation_id or str(uuid.uuid4())
+                conversation_id = generated_conversation_id
                 session = await _find_session_by_conversation(db, user_id, conversation_id)
 
                 # ✅ 2025-12-01: 设置请求上下文，让全局Agent的HTTPAIService能追踪成本
@@ -1251,8 +944,18 @@ async def agent_chat_stream(
                 logger.info(f"[LangGraph Agent Stream] ⏱️ 请求开始 - User: {user_id}, Mode: {actual_mode}, Message: {request.message[:50]}...")
 
                 # 发送开始事件（包含mode信息）
-                start_event = {'type': 'start', 'conversation_id': conversation_id, 'mode': str(actual_mode)}
-                yield f"data: {json.dumps(start_event, ensure_ascii=False)}\n\n"
+                start_event = {
+                    'type': 'start',
+                    'conversation_id': conversation_id,
+                    'mode': str(actual_mode)
+                }
+                stream_start_event = {
+                    'type': 'stream_start',  # 兼容测试/前端获取cid
+                    'conversation_id': conversation_id,
+                    'mode': str(actual_mode)
+                }
+                for ev in (start_event, stream_start_event):
+                    yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
 
                 # ✅ 修复：删除多余的 MemoryManager 调用
                 # WritingAgentGraph 内部已有 ContextManager（使用 VectorStore 的语义搜索）
@@ -1406,8 +1109,6 @@ async def agent_chat_stream(
                         yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
                         return
 
-                # ✅ 追踪活动状态（用于发送 activity_complete 事件）
-                last_activity_step = {'step': None, 'start_time': None}
                 # ✅ 追踪内容是否已通过流式发送（避免重复发送）
                 content_sent = {'value': False}
 
@@ -1445,88 +1146,25 @@ async def agent_chat_stream(
                         assistant_chunks.append(str(chunk))
                     await event_queue.put(('content', chunk))
 
-                # 在后台运行 Agent
+                # 在后台运行 Agent（仅 planning 模式）
                 async def run_agent():
                     nonlocal result
                     try:
-                        # 根据模式调用不同的方法
-                        if actual_mode == ChatMode.REACT:
-                            # React模式：使用chat_stream()
-                            # 定义React模式的回调
-                            async def on_progress_react(event):
-                                """进度回调 - 添加activity_complete逻辑"""
-                                current_step = event.get('step')
-
-                                # ✅ 如果活动类型改变，发送前一个活动的完成事件
-                                if last_activity_step['step'] is not None and last_activity_step['step'] != current_step:
-                                    elapsed_time = time.time() - last_activity_step['start_time'] if last_activity_step['start_time'] else 0
-                                    await event_queue.put(('activity_complete', {
-                                        'step': last_activity_step['step'],
-                                        'elapsed_time': elapsed_time
-                                    }))
-                                    logger.info(f"[Stream] Activity完成: {last_activity_step['step']} ({elapsed_time:.1f}s)")
-
-                                # 更新当前活动
-                                last_activity_step['step'] = current_step
-                                last_activity_step['start_time'] = time.time()
-
-                                # 发送progress事件
-                                await event_queue.put(('progress', event))
-
-                            async def on_tool_call_react(tool_name: str, tool_args: dict):
-                                await event_queue.put(('tool_call', {'tool': tool_name, 'args': tool_args}))
-
-                            async def on_content_react(content: str):
-                                content_sent['value'] = True  # ✅ 标记内容已发送
-                                assistant_chunks.append(str(content) if content is not None else "")
-                                await event_queue.put(('content', {'content': content}))
-
-                            # ✅ P0-6修复：定义HITL确认请求回调（存储为实例变量，避免序列化）
-                            async def on_approval_request(request_data: dict):
-                                """Handle approval request stream event."""
-                                logger.info(f"[Stream] Approval request: {request_data.get('request_id')}")
-                                await event_queue.put(('approval_request', request_data))
-
-                            # ✅ P0-6修复：将回调设置为实例变量，而非添加到context（避免Redis序列化错误）
-                            agent_graph._approval_callback = on_approval_request
-
-                            result = await agent_graph.chat_stream(
-                                message=request.message,
-                                user_id=user_id,  # 新增：传入用户ID
-                                work_id=request.work_id,
-                                chapter_id=request.chapter_id,
-                                conversation_id=conversation_id,
-                                context=context,
-                                on_progress=on_progress_react,
-                                on_tool_call=on_tool_call_react,
-                                on_content=on_content_react,
-                                db=db  # ✅ 修复：传入生成器的独立db会话
-                            )
-                        else:
-                            # Planning模式：使用chat_with_planning()
-                            result = await agent_graph.chat_with_planning(
-                                message=request.message,
-                                user_id=user_id,
-                                work_id=request.work_id,
-                                chapter_id=request.chapter_id,
-                                conversation_id=conversation_id,
-                                context=context,
-                                on_plan=on_plan,
-                                on_task_start=on_task_start,
-                                on_task_progress=on_task_progress,
-                                on_task_done=on_task_done,
-                                on_content=on_content,
-                                db=db
-                            )
-                        # ✅ 发送最后一个活动的完成事件
-                        if last_activity_step['step'] is not None:
-                            elapsed_time = time.time() - last_activity_step['start_time'] if last_activity_step['start_time'] else 0
-                            await event_queue.put(('activity_complete', {
-                                'step': last_activity_step['step'],
-                                'elapsed_time': elapsed_time
-                            }))
-                            logger.info(f"[Stream] 最后活动完成: {last_activity_step['step']} ({elapsed_time:.1f}s)")
-
+                        result = await agent_graph.chat_with_planning(
+                            message=request.message,
+                            user_id=user_id,
+                            work_id=request.work_id,
+                            chapter_id=request.chapter_id,
+                            conversation_id=conversation_id,
+                            context=context,
+                            on_plan=on_plan,
+                            on_task_start=on_task_start,
+                            on_task_progress=on_task_progress,
+                            on_task_done=on_task_done,
+                            on_content=on_content,
+                            db=db,
+                            enable_reflection=request.enable_reflection,  # DeepAgent 反思模式
+                        )
                         # Agent 完成后放入结束标记
                         await event_queue.put(('__done__', None))
                     except Exception as e:
@@ -1542,7 +1180,22 @@ async def agent_chat_stream(
 
                 # 实时从队列中取出事件并发送
                 while True:
-                    event_type, event_data = await event_queue.get()
+                    # 客户端断开检测（避免后端继续输出）
+                    if fastapi_request and await fastapi_request.is_disconnected():
+                        logger.info(f"[Stream] 客户端断开，取消任务 conversation_id={conversation_id}")
+                        if agent_task and not agent_task.done():
+                            agent_task.cancel()
+                            try:
+                                await agent_task
+                            except asyncio.CancelledError:
+                                pass
+                        break
+
+                    try:
+                        event_type, event_data = await asyncio.wait_for(event_queue.get(), timeout=0.5)
+                    except asyncio.TimeoutError:
+                        # 周期性轮询断开状态
+                        continue
 
                     if event_type == '__done__':
                         # Agent 执行完成
@@ -1563,8 +1216,12 @@ async def agent_chat_stream(
                     event_payload = {
                         'type': event_type,
                         'data': event_data,
-                        'mode': str(actual_mode)
+                        'mode': str(actual_mode),
+                        'conversation_id': conversation_id
                     }
+                    # 兼容前端/测试用例：对content事件添加content字段
+                    if event_type == 'content':
+                        event_payload['content'] = event_data
                     # 添加调试日志
                     if event_type == 'progress':
                         logger.info(f"[SSE] 发送 progress 事件: step={event_data.get('step')}, desc={event_data.get('description')}")
@@ -1581,7 +1238,8 @@ async def agent_chat_stream(
                     error_event = {
                         'type': 'error',
                         'error': 'Agent执行失败，未返回结果',
-                        'mode': str(actual_mode)
+                        'mode': str(actual_mode),
+                        'conversation_id': conversation_id
                     }
                     yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
                     return
@@ -1644,6 +1302,7 @@ async def agent_chat_stream(
                 done_event = {
                     'type': 'done',
                     'mode': str(actual_mode),
+                    'conversation_id': conversation_id,
                     'metadata': result.get('metadata', {}),
                     'suggested_actions': result.get('suggested_actions', [])
                 }
@@ -1651,6 +1310,16 @@ async def agent_chat_stream(
 
                 logger.info(f"[LangGraph Agent Stream] User {user_id} - Mode: {actual_mode}, Stream completed")
 
+            except asyncio.CancelledError:
+                # 生成器被取消时，确保子任务与资源清理
+                if agent_task and not agent_task.done():
+                    agent_task.cancel()
+                    try:
+                        await agent_task
+                    except asyncio.CancelledError:
+                        pass
+                logger.info(f"[LangGraph Agent Stream] 生成器取消，conversation_id={generated_conversation_id}")
+                raise
             except Exception as e:
                 logger.error(f"[LangGraph Agent Stream] Error: {str(e)}", exc_info=True)
                 # 发送错误事件（包含mode标识）
@@ -1671,7 +1340,8 @@ async def agent_chat_stream(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"  # 禁用 nginx 缓冲
+            "X-Accel-Buffering": "no",  # 禁用 nginx 缓冲
+            "X-Conversation-Id": generated_conversation_id  # 便于前端保存续聊
         }
     )
 
@@ -2089,12 +1759,31 @@ async def create_agent_session(
     now = datetime.utcnow()
     expires_at = now + timedelta(days=30)
 
+    # 验证 chapter_id 是否有效（如果提供）
+    validated_chapter_id = None
+    if payload.chapter_id:
+        try:
+            from uuid import UUID as PyUUID
+            chapter_uuid = PyUUID(payload.chapter_id)
+            stmt = select(Chapter).where(Chapter.id == chapter_uuid)
+            result = await db.execute(stmt)
+            chapter = result.scalar_one_or_none()
+            if chapter:
+                validated_chapter_id = payload.chapter_id
+                # 如果 chapter 存在但 work_id 未提供，自动从 chapter 获取
+                if not payload.work_id and chapter.work_id:
+                    payload.work_id = str(chapter.work_id)
+            else:
+                logger.warning(f"[create_agent_session] chapter_id {payload.chapter_id} 不存在，已忽略")
+        except ValueError:
+            logger.warning(f"[create_agent_session] chapter_id {payload.chapter_id} 格式无效，已忽略")
+
     new_session = AgentSession(
         user_id=current_user.id,
         title=title,
         conversation_id=payload.conversation_id,
         work_id=payload.work_id,
-        chapter_id=payload.chapter_id,
+        chapter_id=validated_chapter_id,
         expires_at=expires_at,
         title_locked=payload.title_locked if payload.title_locked is not None else False,
     )

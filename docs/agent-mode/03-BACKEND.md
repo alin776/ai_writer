@@ -179,7 +179,7 @@ async def think_tool(
     result: Dict[str, Any],
     remaining_tasks: List[Dict[str, Any]],
     context: Dict[str, Any],
-    ai_service,
+    ai_service,  # HTTPAIService 实例，通过 WritingAgentGraph.ai_service 获取
 ) -> ReflectionResult:
     """反思工具
 
@@ -316,6 +316,46 @@ def should_reflect(
 │   └─────────────────────────────────────────┘                   │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
+```
+
+### 5.1.1 任务路由机制
+
+DeepAgentExecutor 通过 `agent._execute_task_in_parallel()` 执行任务，该方法内部会根据任务类型自动路由：
+
+```python
+# langgraph_agent.py 中的任务路由逻辑（简化示意）
+
+async def _execute_task_in_parallel(self, task, context, on_task_progress):
+    task_type = task.get("type", "")
+
+    # 写作类任务 → MultiAgentExecutor
+    if task_type in ["write", "rewrite", "continue", "expand"]:
+        from .multi_agent.executor import MultiAgentExecutor
+        executor = MultiAgentExecutor(
+            ai_service=self.ai_service,
+            on_progress=on_task_progress,
+        )
+        return await executor.execute(task, context)
+
+    # 分析类任务 → 直接调用 AI
+    elif task_type in ["analyze", "summarize", "extract"]:
+        return await self._execute_analysis_task(task, context)
+
+    # 工具类任务 → 调用对应工具
+    else:
+        return await self._execute_tool_task(task, context)
+```
+
+**关键参数传递链路**：
+
+```
+API层 (agent.py)
+    ↓ enable_reflection=True
+langgraph_agent.py:chat_with_planning()
+    ↓ 创建 DeepAgentExecutor
+DeepAgentExecutor.execute_with_reflection()
+    ↓ 调用 agent._execute_task_in_parallel()
+        ↓ 写作任务自动路由到 MultiAgentExecutor
 ```
 
 ### 5.2 完整代码
@@ -609,7 +649,7 @@ print(f"反思次数: {result.get('reflection_count', 0)}")
 
 | 方面 | 说明 |
 |------|------|
-| **设计原则** | langgraph_agent.py 仅改 4 行 |
+| **设计原则** | langgraph_agent.py 仅改 6-8 行 |
 | **新增目录** | `deep_agent/` 包含 4 个文件 |
 | **总代码量** | ~260 行（全部新建） |
 | **侵入性** | 极低，通过组合而非修改 |

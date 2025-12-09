@@ -321,3 +321,92 @@ done
 | 推荐程度 | **⭐⭐⭐⭐⭐** | ⭐⭐⭐ |
 
 **MVP 阶段建议使用方案 A**，后续根据产品需求再决定是否升级到方案 B。
+
+---
+
+## 7. API 调用示例
+
+### 7.1 启用反思的请求
+
+```bash
+# cURL 示例
+curl -X POST "http://localhost:8000/api/v1/agent/chat/stream" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "message": "帮我写第三章，要承接前面的伏笔",
+    "work_id": "uuid-work-id",
+    "chapter_id": "uuid-chapter-id",
+    "mode": "planning",
+    "enable_reflection": true
+  }'
+```
+
+### 7.2 前端 TypeScript 调用
+
+```typescript
+// 使用 agentApi.ts 调用
+import { streamChat } from '@/services/agentApi';
+
+const response = await streamChat({
+  message: "帮我写第三章，要承接前面的伏笔",
+  work_id: workId,
+  chapter_id: chapterId,
+  mode: 'planning',
+  enable_reflection: true,  // 启用反思
+}, {
+  onPlan: (plan) => {
+    console.log('收到计划:', plan);
+    // plan.is_update === true 表示重规划
+  },
+  onTaskStart: (task) => {
+    console.log('任务开始:', task);
+  },
+  onTaskProgress: (progress) => {
+    // MVP方案：反思内容通过此回调接收
+    // progress.status 包含 "💭 反思: ..." 格式的内容
+    console.log('任务进度:', progress);
+  },
+  onTaskDone: (task) => {
+    console.log('任务完成:', task);
+  },
+  onContent: (content) => {
+    console.log('内容:', content);
+  },
+  onDone: (result) => {
+    console.log('完成:', result);
+  },
+});
+```
+
+### 7.3 请求参数说明
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `message` | string | ✅ | 用户消息 |
+| `work_id` | string | ❌ | 作品 ID（写作任务需要） |
+| `chapter_id` | string | ❌ | 章节 ID |
+| `mode` | string | ❌ | 模式：`planning`（默认）或 `react` |
+| `enable_reflection` | boolean | ❌ | 是否启用反思，默认 `false` |
+| `context` | object | ❌ | 额外上下文信息 |
+
+### 7.4 响应事件示例
+
+```json
+// 1. 初始计划
+data: {"type": "plan", "data": {"tasks": [...]}}
+
+// 2. 任务执行
+data: {"type": "task_start", "data": {"task_id": 1, "description": "分析伏笔"}}
+data: {"type": "task_done", "data": {"task_id": 1, "elapsed_time": 2.1}}
+
+// 3. 反思（MVP方案通过 task_progress）
+data: {"type": "task_progress", "data": {"task_id": 1, "status": "💭 反思: 发现3个伏笔..."}}
+
+// 4. 重规划（如需要）
+data: {"type": "plan", "data": {"tasks": [...], "is_update": true, "new_task_ids": [4]}}
+
+// 5. 最终内容
+data: {"type": "content", "data": "第三章：..."}
+data: {"type": "done", "data": {}}
+```

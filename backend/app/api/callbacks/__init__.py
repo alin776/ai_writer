@@ -1,15 +1,8 @@
 """
-LangChain回调处理器
+LangChain回调处理器（已清理）
 
-提供LangChain LLM调用的监控能力，包括：
-- LLM调用次数
-- 响应时间
-- Token使用量
-- 错误追踪
+原本提供ChatOpenAI模式的监控能力，现已移除。
+保留此文件以避免导入错误。
 """
 
-from .monitoring_callback import MonitoringCallbackHandler
-
-__all__ = [
-    "MonitoringCallbackHandler"
-]
+__all__ = []

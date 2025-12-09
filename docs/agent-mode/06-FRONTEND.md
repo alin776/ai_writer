@@ -55,7 +55,7 @@ onTaskProgress: (progress: any) => {
 }
 ```
 
-```tsx
+```typescript
 // TaskListPanel.tsx - 已有代码
 
 {task.progress_status && task.status === 'running' && (
@@ -101,6 +101,50 @@ onTaskProgress: (progress: any) => {
 | `useAgentChat.ts` | 修改 | +15 行 |
 | `agentApi.ts` | 修改 | +10 行 |
 | **总计** | | **~100 行** |
+
+### 2.2.1 类型定义文件修改
+
+完整版需要扩展 `src/types/agent.ts` 中的类型定义：
+
+```typescript
+// src/types/agent.ts - 需要添加的类型
+
+/** 扩展 Task 接口 */
+export interface Task {
+  task_id: number;
+  description: string;
+  tool?: string;
+  estimated_time?: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  elapsed_time?: number;
+  progress_status?: string;
+
+  // === DeepAgent 完整版新增 ===
+  reflection?: string;           // 反思内容
+  isNewFromReplan?: boolean;     // 是否是重规划新增的任务
+}
+
+/** 反思事件数据（如使用独立 reflection 事件） */
+export interface ReflectionEventData {
+  task_id: number;
+  reflection: string;
+  needs_replan: boolean;
+}
+
+/** 扩展 AgentStreamCallbacks */
+export interface AgentStreamCallbacks {
+  // ... 现有回调 ...
+  onReflection?: (data: ReflectionEventData) => void;  // 新增
+}
+```
+
+**文件改动清单**：
+
+| 文件 | 改动类型 | 说明 |
+|------|----------|------|
+| `src/types/agent.ts` | 修改 | 扩展 Task 接口，新增 ReflectionEventData |
+| `src/hooks/useAgentChat.ts` | 修改 | 导入新类型，实现 onReflection |
+| `src/services/agentApi.ts` | 修改 | 解析 reflection 事件 |
 
 ### 2.3 数据结构扩展
 
@@ -205,7 +249,7 @@ case 'reflection':
 
 ### 2.6 TaskListPanel.tsx 改动
 
-```tsx
+```typescript
 // TaskListPanel.tsx - 新增反思气泡和新增标记
 
 {/* 任务项 */}

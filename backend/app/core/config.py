@@ -96,9 +96,6 @@ class Settings(BaseSettings):
 
     OPENAI_RETRY_DELAY: float = 2.0  # 重试延迟（秒），默认2秒
 
-    # LangGraph Agent 配置
-    AGENT_USE_CHATGPT: bool = True  # False=HTTPAIService模式（绕过Cloudflare），True=ChatOpenAI模式（原生工具调用）
-
     # 🆕 双Prompt架构配置
     AGENT_USE_DUAL_PROMPT: bool = False  # True=双Prompt架构（系统层+创作层），False=传统单Prompt架构
 

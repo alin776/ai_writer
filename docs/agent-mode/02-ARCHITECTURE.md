@@ -471,3 +471,50 @@ except Exception as e:
     logger.error(f"反思失败: {e}")
     continue
 ```
+
+## 8. 数据持久化说明
+
+### 8.1 反思历史存储策略
+
+| 数据类型 | 存储位置 | 生命周期 | 说明 |
+|----------|----------|----------|------|
+| 反思内容 | **内存** | 单次请求 | 通过 SSE 事件发送给前端后丢弃 |
+| 反思次数 | **内存** | 单次请求 | `DeepAgentExecutor.reflection_count` |
+| 重规划次数 | **内存** | 单次请求 | `DeepAgentExecutor.replan_count` |
+
+### 8.2 为什么不持久化反思历史
+
+1. **用户已通过 SSE 接收**：反思内容实时推送到前端，用户可见
+2. **避免存储膨胀**：反思内容可能较长，每次请求都存储会增加数据库负担
+3. **隐私考虑**：反思内容可能包含 AI 的中间推理过程，不适合长期保留
+4. **简化实现**：MVP 阶段保持简单，后续可按需添加
+
+### 8.3 前端临时存储
+
+前端可在会话级别临时保留反思内容：
+
+```typescript
+// useAgentChat.ts 中的 Task 状态
+interface Task {
+  // ...
+  reflection?: string;  // 临时存储，刷新页面后丢失
+}
+```
+
+### 8.4 未来扩展（可选）
+
+如需持久化反思历史，可扩展 `agent_session_messages` 表：
+
+```sql
+-- 在 metadata JSONB 字段中存储
+{
+  "reflections": [
+    {"task_id": 1, "content": "...", "needs_replan": false},
+    {"task_id": 2, "content": "...", "needs_replan": true}
+  ],
+  "reflection_count": 2,
+  "replan_count": 1
+}
+```
+
+**暂不实现原因**：MVP 阶段优先验证反思功能本身的价值，再决定是否需要持久化。
