@@ -449,7 +449,7 @@ function TabContent({
           isLoading={isLoading}
           onStop={stopStreaming}
           selectionContext={selectionContext || undefined}
-          onClearSelection={() => setSelectionContext(null)}
+          onClearSelection={onClearSelection}
         />
       </div>
 

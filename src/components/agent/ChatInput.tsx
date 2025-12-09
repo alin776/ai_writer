@@ -52,19 +52,19 @@ const ROOT_OPTIONS: RootCommandOption[] = [
   {
     key: 'knowledge',
     label: '@Knowledge',
-    description: '引用知识库文�?,
+    description: '引用知识库文档',
     icon: <BookOpen className="w-4 h-4" />,
     hasChildren: true,
   },
   {
     key: 'optimization',
     label: '@optimization',
-    description: '开�?AI 去痕�?,
+    description: '开启 AI 去痕迹',
     icon: <Sparkles className="w-4 h-4" />,
   },
 ];
 
-// 知识库文档类�?
+// 知识库文档类型
 interface KnowledgeDoc {
   id: string;
   title: string;
@@ -103,7 +103,7 @@ export default function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const optimizationEnabled = useMemo(() => message.toLowerCase().includes('@optimization'), [message]);
-  const containsAt = useMemo(() => message.includes('@') || message.includes('�?), [message]);
+  const containsAt = useMemo(() => message.includes('@') || message.includes('＠'), [message]);
 
   const MAX_HUMANIZE_CHARS = 5000;
   const truncatedChapterContent =
@@ -161,7 +161,7 @@ export default function ChatInput({
     const rect = textarea.getBoundingClientRect();
     const estimatedHeight = 280;
     const belowSpace = window.innerHeight - rect.bottom;
-    let top = rect.bottom + 8; // fixed 相对视口，无需�?scroll
+    let top = rect.bottom + 8; // fixed 相对视口，无需加 scroll
     if (belowSpace < estimatedHeight && rect.top > estimatedHeight) {
       top = rect.top - estimatedHeight - 8;
     }
@@ -176,7 +176,7 @@ export default function ChatInput({
     if (caret === null) return;
 
     const lastAscii = value.lastIndexOf('@', caret - 1);
-    const lastFull = value.lastIndexOf('�?, caret - 1);
+    const lastFull = value.lastIndexOf('＠', caret - 1);
     const triggerIndex = Math.max(lastAscii, lastFull);
     if (triggerIndex === -1) {
       return;
@@ -206,7 +206,7 @@ export default function ChatInput({
     adjustHeight();
   }, [message]);
 
-  // Always open menu when存在 @，确保不被事件时机影�?
+  // Always open menu when 存在 @，确保不被事件时机影响
   useEffect(() => {
     syncAtStateFromRef();
     if (containsAt) {
@@ -242,7 +242,7 @@ export default function ChatInput({
         const docs = await knowledgeApi.getDocTitles();
         setKnowledgeDocs(docs || []);
       } catch (error: any) {
-        setKnowledgeError(error?.message || '知识库文档获取失�?);
+        setKnowledgeError(error?.message || '知识库文档获取失败');
       } finally {
         setKnowledgeLoading(false);
       }
@@ -301,12 +301,12 @@ export default function ChatInput({
   };
 
   const handleKnowledgeOption = (doc: KnowledgeDoc) => {
-    // 添加到已选文档列表（避免重复�?
+    // 添加到已选文档列表（避免重复）
     setSelectedDocs((prev) => {
       if (prev.some((d) => d.id === doc.id)) return prev;
       return [...prev, doc];
     });
-    // 关闭菜单，清�?@ 触发文本
+    // 关闭菜单，清除 @ 触发文本
     const textarea = textareaRef.current;
     const caret = textarea?.selectionStart ?? message.length;
     const start = atTriggerIndex ?? Math.max(caret - (atQuery.length + 1), 0);
@@ -418,7 +418,7 @@ export default function ChatInput({
       }
     }
 
-    if (e.key === '@' || e.key === '�?) {
+    if (e.key === '@' || e.key === '＠') {
       setAtMenuOpen(true);
       setAtStage('root');
       setAtQuery('');
@@ -480,7 +480,7 @@ export default function ChatInput({
             </button>
             <span className="font-medium text-gray-800">@Knowledge</span>
             <span className="text-gray-400">·</span>
-            <span className="text-gray-500">选择知识库文�?/span>
+            <span className="text-gray-500">选择知识库文档</span>
           </div>
         ) : (
           <div className="px-1 pb-1 text-xs text-gray-500">选择要插入的 @ 指令</div>
@@ -492,7 +492,7 @@ export default function ChatInput({
               {knowledgeLoading && (
                 <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  加载知识库文�?..
+                  加载知识库文档...
                 </div>
               )}
               {knowledgeError && !knowledgeLoading && (
@@ -625,7 +625,7 @@ export default function ChatInput({
           <textarea
             value={contextText}
             onChange={(e) => setContextText(e.target.value)}
-            placeholder="输入章节内容、待分析文本�?.."
+            placeholder="输入章节内容、待分析文本等..."
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none text-xs bg-white"
             rows={3}
           />
@@ -678,7 +678,7 @@ export default function ChatInput({
         {/* @ menu portal */}
         {atMenuOpen && createPortal(
           <>
-            {/* Debug overlay to确认渲染 */}
+            {/* Debug overlay to 确认渲染 */}
             <div style={{
               position: 'fixed',
               left: 8,
@@ -704,17 +704,17 @@ export default function ChatInput({
             {optimizationEnabled && (
               <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-purple-50 text-purple-700 text-xs font-medium border border-purple-100">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>AI去痕�?/span>
+                <span>AI去痕迹</span>
                 {truncatedCount > 0 && (
                   <span className="text-[10px] text-amber-600 ml-1">
-                    已截�?{truncatedCount} �?
+                    已截断 {truncatedCount} 字
                   </span>
                 )}
                 <button
                   type="button"
                   onClick={removeOptimization}
                   className="p-0.5 rounded-full hover:bg-purple-100 text-purple-600"
-                  aria-label="移除 AI 去痕�?
+                  aria-label="移除 AI 去痕迹"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -757,9 +757,9 @@ export default function ChatInput({
               className={`px-3 py-2 rounded-full border border-transparent text-sm transition-colors ${
                 showContext ? 'bg-primary-50 text-primary-700' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
               } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-              title="添加上下�?
+              title="添加上下文"
             >
-              上下�?
+              上下文
             </button>
 
             {showStop ? (
@@ -775,7 +775,7 @@ export default function ChatInput({
                 onClick={handleSend}
                 disabled={isSendDisabled}
                 className="w-10 h-10 rounded-full transition-all flex items-center justify-center bg-gray-900 text-white hover:bg-gray-800 active:scale-95 shadow-sm"
-                aria-label="发�?
+                aria-label="发送"
               >
                 <Send className="w-4 h-4" strokeWidth={2.4} />
               </button>
@@ -784,7 +784,7 @@ export default function ChatInput({
         </div>
 
         <div className="text-[11px] text-gray-500 flex items-center gap-2 pt-1">
-          <span>�?Enter 发�?/span>
+          <span>按 Enter 发送</span>
           <span className="text-gray-300">·</span>
           <span>Shift + Enter 换行</span>
         </div>

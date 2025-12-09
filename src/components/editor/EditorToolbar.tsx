@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 编辑器工具栏组件
  */
 import React from 'react';
@@ -102,8 +102,15 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
 
   return (
     <div className="px-3 py-1.5 flex items-center gap-1.5 border-b border-zinc-100 bg-white shadow-sm shadow-zinc-100/50">
-      {/* 撤销/重做 */}
-      <div className="flex items-center">
+      {/* AI 自动补全 + 撤销/重做 */}
+      <div className="flex items-center gap-0.5">
+        <ToolbarButton
+          onClick={() => onToggleAIAutoComplete?.()}
+          isActive={aiAutoCompleteEnabled}
+          title={aiAutoCompleteEnabled ? 'AI 自动补全已开启（点击关闭）' : 'AI 自动补全已关闭（点击开启）'}
+        >
+          <Wand2 className="h-3.5 w-3.5" />
+        </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().undo().run()}
           disabled={!editor.can().undo()}
@@ -281,17 +288,6 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
           <ImageIcon className="h-3 w-3" />
         </ToolbarButton>
       </div>
-
-      <div className="flex-1" />
-
-      {/* AI 自动补全开关 */}
-      <ToolbarButton
-        onClick={() => onToggleAIAutoComplete?.()}
-        isActive={aiAutoCompleteEnabled}
-        title={aiAutoCompleteEnabled ? 'AI 自动补全已开启（点击关闭）' : 'AI 自动补全已关闭（点击开启）'}
-      >
-        <Wand2 className="h-3.5 w-3.5" />
-      </ToolbarButton>
     </div>
   );
 };

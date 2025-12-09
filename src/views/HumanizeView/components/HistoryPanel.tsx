@@ -73,7 +73,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
               <div
                 key={session.id}
                 className="p-3 hover:bg-gray-50 transition-colors cursor-pointer"
-                onClick={() => onSelectSession(session.id)}
+                onClick={() => session.id && onSelectSession(session.id)}
               >
                 <div className="flex items-start justify-between mb-1.5">
                   <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
