@@ -298,65 +298,75 @@ class HTTPAIService:
                 total_content = ""
                 usage_info = None  # 用于存储最终的usage信息
 
-                async for line in response.aiter_lines():
-                    line = line.strip()
+                try:
+                    async for line in response.aiter_lines():
+                        line = line.strip()
 
-                    # SSE 格式: data: {...}
-                    if not line or not line.startswith("data: "):
-                        continue
+                        # SSE 格式: data: {...}
+                        if not line or not line.startswith("data: "):
+                            continue
 
-                    # 移除 "data: " 前缀
-                    data_str = line[6:]
+                        # 移除 "data: " 前缀
+                        data_str = line[6:]
 
-                    # 结束标记
-                    if data_str == "[DONE]":
-                        logger.info(
-                            f"API 响应完成，共接收 {chunk_count} 个数据块，总长度: {len(total_content)}"
-                        )
-
-                        # P1修复: 如果 completion_tokens=0 但有内容，使用 TokenCounter 估算
-                        if usage_info and usage_info.get('completion_tokens', 0) == 0 and len(total_content) > 0:
-                            from app.services.context.token_counter import count_tokens
-                            # TokenCounter 策略: tiktoken精确(100%) > 中文优化(95%) > 简单估算(75%)
-                            estimated_completion = count_tokens(total_content, model=model)
-                            usage_info['completion_tokens'] = estimated_completion
-                            usage_info['total_tokens'] = usage_info.get('prompt_tokens', 0) + estimated_completion
-                            logger.warning(
-                                f"[Token估算] API返回completion_tokens=0，使用TokenCounter估算: {estimated_completion} tokens (内容{len(total_content)}字符)"
-                            )
-
-                        # 记录usage统计
-                        if usage_info:
+                        # 结束标记
+                        if data_str == "[DONE]":
                             logger.info(
-                                f"流式响应Token统计: {usage_info.get('total_tokens', 0)} "
-                                f"(prompt={usage_info.get('prompt_tokens', 0)}, "
-                                f"completion={usage_info.get('completion_tokens', 0)})"
+                                f"API 响应完成，共接收 {chunk_count} 个数据块，总长度: {len(total_content)}"
                             )
-                        break
 
+                            # P1修复: 如果 completion_tokens=0 但有内容，使用 TokenCounter 估算
+                            if usage_info and usage_info.get('completion_tokens', 0) == 0 and len(total_content) > 0:
+                                from app.services.context.token_counter import count_tokens
+                                # TokenCounter 策略: tiktoken精确(100%) > 中文优化(95%) > 简单估算(75%)
+                                estimated_completion = count_tokens(total_content, model=model)
+                                usage_info['completion_tokens'] = estimated_completion
+                                usage_info['total_tokens'] = usage_info.get('prompt_tokens', 0) + estimated_completion
+                                logger.warning(
+                                    "[Token估算] API返回completion_tokens=0，使用TokenCounter估算: "
+                                    f"{estimated_completion} tokens (内容{len(total_content)}字符)"
+                                )
+
+                            # 记录usage统计
+                            if usage_info:
+                                logger.info(
+                                    "流式响应Token统计: "
+                                    f"{usage_info.get('total_tokens', 0)} "
+                                    f"(prompt={usage_info.get('prompt_tokens', 0)}, "
+                                    f"completion={usage_info.get('completion_tokens', 0)})"
+                                )
+                            break
+
+                        try:
+                            data = json.loads(data_str)
+
+                            # 提取usage信息(通常在最后一个块)
+                            if "usage" in data:
+                                usage_info = data["usage"]
+
+                            # 提取内容
+                            if "choices" in data and len(data["choices"]) > 0:
+                                choice = data["choices"][0]
+
+                                if "delta" in choice and "content" in choice["delta"]:
+                                    content = choice["delta"]["content"]
+
+                                    # 修复: Gemini API 第一个块的 content 可能是 null
+                                    if content is not None and content and not self._should_filter(content):
+                                        chunk_count += 1
+                                        total_content += content
+                                        yield content, None  # 中间块不返回usage
+
+                        except json.JSONDecodeError as e:
+                            logger.warning(f"JSON 解析错误: {e}, 数据: {data_str[:100]}")
+                            continue
+                except asyncio.CancelledError:
+                    logger.info("[HTTPAIService] 流式请求被取消，关闭连接")
                     try:
-                        data = json.loads(data_str)
-
-                        # 提取usage信息(通常在最后一个块)
-                        if "usage" in data:
-                            usage_info = data["usage"]
-
-                        # 提取内容
-                        if "choices" in data and len(data["choices"]) > 0:
-                            choice = data["choices"][0]
-
-                            if "delta" in choice and "content" in choice["delta"]:
-                                content = choice["delta"]["content"]
-
-                                # 修复: Gemini API 第一个块的 content 可能是 null
-                                if content is not None and content and not self._should_filter(content):
-                                    chunk_count += 1
-                                    total_content += content
-                                    yield content, None  # 中间块不返回usage
-
-                    except json.JSONDecodeError as e:
-                        logger.warning(f"JSON 解析错误: {e}, 数据: {data_str[:100]}")
-                        continue
+                        await response.aclose()
+                    except Exception:
+                        pass
+                    raise
 
                 # Week 7: 追踪成本
                 # ✅ 2025-12-01: 移除ai_log_service检查（现在使用独立db session）

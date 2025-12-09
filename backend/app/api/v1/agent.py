@@ -8,7 +8,7 @@ Agent 智能助手 API 路由
 - 记忆管理
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -849,7 +849,8 @@ async def agent_chat_stream(
     memory: MemoryManager = Depends(get_memory_manager),
     ai_service: HTTPAIService = Depends(get_ai_service),
     # ✅ 修复：移除db依赖，避免生命周期不匹配
-    mode: Optional[str] = None  # 新增：支持mode参数（通过查询参数或Body）
+    mode: Optional[str] = None,  # 新增：支持mode参数（通过查询参数或Body）
+    fastapi_request: Request = None,  # 注入原始 Request 以检测断连
 ):
     """
     Agent 智能对话 - 统一流式响应（SSE）
@@ -1179,7 +1180,22 @@ async def agent_chat_stream(
 
                 # 实时从队列中取出事件并发送
                 while True:
-                    event_type, event_data = await event_queue.get()
+                    # 客户端断开检测（避免后端继续输出）
+                    if fastapi_request and await fastapi_request.is_disconnected():
+                        logger.info(f"[Stream] 客户端断开，取消任务 conversation_id={conversation_id}")
+                        if agent_task and not agent_task.done():
+                            agent_task.cancel()
+                            try:
+                                await agent_task
+                            except asyncio.CancelledError:
+                                pass
+                        break
+
+                    try:
+                        event_type, event_data = await asyncio.wait_for(event_queue.get(), timeout=0.5)
+                    except asyncio.TimeoutError:
+                        # 周期性轮询断开状态
+                        continue
 
                     if event_type == '__done__':
                         # Agent 执行完成
@@ -1294,6 +1310,16 @@ async def agent_chat_stream(
 
                 logger.info(f"[LangGraph Agent Stream] User {user_id} - Mode: {actual_mode}, Stream completed")
 
+            except asyncio.CancelledError:
+                # 生成器被取消时，确保子任务与资源清理
+                if agent_task and not agent_task.done():
+                    agent_task.cancel()
+                    try:
+                        await agent_task
+                    except asyncio.CancelledError:
+                        pass
+                logger.info(f"[LangGraph Agent Stream] 生成器取消，conversation_id={generated_conversation_id}")
+                raise
             except Exception as e:
                 logger.error(f"[LangGraph Agent Stream] Error: {str(e)}", exc_info=True)
                 # 发送错误事件（包含mode标识）
