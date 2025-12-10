@@ -10,7 +10,7 @@
  * - 编辑弹窗
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus,
@@ -26,13 +26,17 @@ import {
   Search,
   Pin,
   Circle,
-  X
+  X,
+  File,
+  AlertCircle,
+  CheckCircle
 } from 'lucide-react';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
 import { useConfirm } from '../../hooks/useConfirm';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import type { Work, WorkStatus, WorkGenre } from '../../types';
+import type { ImportOptions, ImportPreviewResponse } from '../../types/export';
 
 // 默认封面路径
 const DEFAULT_COVER_IMAGE = '/default-cover.jpg';
@@ -61,6 +65,15 @@ const WorksView: React.FC = () => {
     status: 'draft' as WorkStatus,
     coverImage: ''
   });
+
+  // 导入弹窗状态
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importFormat, setImportFormat] = useState<'json' | 'markdown' | 'txt'>('json');
+  const [importPreview, setImportPreview] = useState<ImportPreviewResponse | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 加载作品列表
   useEffect(() => {
@@ -209,6 +222,84 @@ const WorksView: React.FC = () => {
     showToast('info', '导出功能即将上线');
   };
 
+  // 打开导入弹窗
+  const openImportModal = () => {
+    setShowImportModal(true);
+    setImportFile(null);
+    setImportPreview(null);
+    setImportFormat('json');
+  };
+
+  // 关闭导入弹窗
+  const closeImportModal = () => {
+    setShowImportModal(false);
+    setImportFile(null);
+    setImportPreview(null);
+  };
+
+  // 处理文件选择
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportFile(file);
+    setImportPreview(null);
+
+    // 根据文件扩展名自动选择格式
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (ext === 'json') {
+      setImportFormat('json');
+    } else if (ext === 'md' || ext === 'markdown') {
+      setImportFormat('markdown');
+    } else if (ext === 'txt') {
+      setImportFormat('txt');
+    }
+
+    // 自动预览
+    try {
+      setIsPreviewing(true);
+      const format = ext === 'json' ? 'json' : ext === 'md' || ext === 'markdown' ? 'markdown' : 'txt';
+      const preview = await DataService.previewImport(file, format);
+      setImportPreview(preview);
+    } catch (error: any) {
+      console.error('预览失败:', error);
+      showToast('error', error?.message || '文件预览失败');
+    } finally {
+      setIsPreviewing(false);
+    }
+  };
+
+  // 执行导入
+  const handleImport = async () => {
+    if (!importFile) {
+      showToast('error', '请选择要导入的文件');
+      return;
+    }
+
+    try {
+      setIsImporting(true);
+      const options: ImportOptions = {
+        format: importFormat,
+        createNew: true,
+        includeWorldview: true,
+        includeGuidelines: true
+      };
+
+      const result = await DataService.importWork(importFile, options);
+      showToast('success', `导入成功！创建了 ${result.chaptersCreated} 个章节`);
+      closeImportModal();
+      await loadWorks(); // 重新加载作品列表
+
+      // 导入成功后跳转到作品详情页
+      navigate(`/works/${result.workId}`);
+    } catch (error: any) {
+      console.error('导入失败:', error);
+      showToast('error', error?.message || '导入失败，请检查文件格式');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   // 筛选和排序
   const filteredWorks = works
     .filter(work => {
@@ -288,7 +379,7 @@ const WorksView: React.FC = () => {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => showToast('info', '导入功能即将上线')}
+                onClick={openImportModal}
                 className="px-5 py-2.5 border border-gray-300 text-gray-700 hover:bg-white hover:border-gray-900 transition-colors flex items-center gap-2"
                 style={{ transform: 'skewX(-2deg)', fontSize: '13px' }}
               >
@@ -715,6 +806,170 @@ const WorksView: React.FC = () => {
                   style={{ transform: 'skewX(-2deg)', fontSize: '11px' }}
                 >
                   <span style={{ transform: 'skewX(2deg)' }}>保存修改</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 导入弹窗 */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeImportModal}>
+          <div className="bg-white w-[550px] max-h-[700px] overflow-y-auto scrollbar-hide" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ transform: 'skewX(2deg)' }} className="p-6">
+              {/* 标题栏 */}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg text-gray-900">导入作品</h2>
+                <button onClick={closeImportModal} className="p-1 hover:bg-gray-100 transition-colors">
+                  <X className="w-4 h-4 text-gray-600" />
+                </button>
+              </div>
+
+              {/* 文件选择区域 */}
+              <div className="mb-4">
+                <label className="block text-gray-700 mb-2" style={{ fontSize: '12px' }}>选择文件</label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json,.md,.markdown,.txt"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-gray-300 hover:border-gray-900 p-8 text-center cursor-pointer transition-colors"
+                >
+                  {importFile ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <File className="w-5 h-5 text-gray-600" />
+                      <span className="text-gray-900" style={{ fontSize: '13px' }}>{importFile.name}</span>
+                      <span className="text-gray-400" style={{ fontSize: '11px' }}>
+                        ({(importFile.size / 1024).toFixed(1)} KB)
+                      </span>
+                    </div>
+                  ) : (
+                    <div>
+                      <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-gray-600" style={{ fontSize: '13px' }}>点击选择文件或拖拽到此处</p>
+                      <p className="text-gray-400 mt-1" style={{ fontSize: '11px' }}>支持 .json / .md / .txt 格式</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 格式说明 */}
+              <div className="mb-4 p-3 bg-gray-50 border border-gray-200" style={{ fontSize: '11px' }}>
+                <p className="text-gray-600 mb-1"><strong>JSON格式</strong>：完整导入（作品+章节+世界观+规范）</p>
+                <p className="text-gray-600 mb-1"><strong>Markdown格式</strong>：自动识别章节标题（## 或 第X章）</p>
+                <p className="text-gray-600"><strong>TXT格式</strong>：自动分割章节</p>
+              </div>
+
+              {/* 预览加载中 */}
+              {isPreviewing && (
+                <div className="mb-4 p-4 bg-gray-50 border border-gray-200 text-center">
+                  <div className="animate-spin w-6 h-6 border-2 border-gray-300 border-t-gray-900 rounded-full mx-auto mb-2"></div>
+                  <p className="text-gray-600" style={{ fontSize: '12px' }}>正在解析文件...</p>
+                </div>
+              )}
+
+              {/* 预览结果 */}
+              {importPreview && !isPreviewing && (
+                <div className="mb-4 p-4 bg-gray-50 border border-gray-200">
+                  <h3 className="text-gray-900 font-medium mb-3" style={{ fontSize: '13px' }}>预览信息</h3>
+
+                  <div className="space-y-2" style={{ fontSize: '12px' }}>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">作品标题</span>
+                      <span className="text-gray-900 font-medium">{importPreview.work.title}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">章节数量</span>
+                      <span className="text-gray-900">{importPreview.work.totalChapters} 章</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">总字数</span>
+                      <span className="text-gray-900">{importPreview.work.totalWords.toLocaleString()} 字</span>
+                    </div>
+                    {importPreview.charactersCount > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">人物</span>
+                        <span className="text-gray-900">{importPreview.charactersCount} 个</span>
+                      </div>
+                    )}
+                    {importPreview.locationsCount > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">地点</span>
+                        <span className="text-gray-900">{importPreview.locationsCount} 个</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 章节列表 */}
+                  {importPreview.chapters.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <p className="text-gray-600 mb-2" style={{ fontSize: '11px' }}>章节列表（前5章）：</p>
+                      <div className="space-y-1">
+                        {importPreview.chapters.slice(0, 5).map((chapter, idx) => (
+                          <div key={idx} className="flex justify-between text-gray-500" style={{ fontSize: '11px' }}>
+                            <span className="truncate flex-1 mr-2">{chapter.title}</span>
+                            <span>{chapter.wordCount.toLocaleString()} 字</span>
+                          </div>
+                        ))}
+                        {importPreview.chapters.length > 5 && (
+                          <p className="text-gray-400" style={{ fontSize: '11px' }}>
+                            ...还有 {importPreview.chapters.length - 5} 章
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 警告信息 */}
+                  {importPreview.warnings.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      {importPreview.warnings.map((warning, idx) => (
+                        <div key={idx} className="flex items-center gap-2 text-yellow-600" style={{ fontSize: '11px' }}>
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          <span>{warning}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 底部按钮 */}
+              <div className="flex items-center gap-2 mt-6">
+                <button
+                  onClick={closeImportModal}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 hover:bg-white hover:border-gray-900 transition-colors"
+                  style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
+                  disabled={isImporting}
+                >
+                  <span style={{ transform: 'skewX(2deg)' }}>取消</span>
+                </button>
+                <button
+                  onClick={handleImport}
+                  disabled={!importFile || !importPreview || isImporting}
+                  className={`flex-1 px-4 py-2.5 transition-colors flex items-center justify-center gap-2 ${
+                    !importFile || !importPreview || isImporting
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-black text-white hover:bg-gray-800'
+                  }`}
+                  style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
+                >
+                  {isImporting ? (
+                    <>
+                      <div className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"></div>
+                      <span style={{ transform: 'skewX(2deg)' }}>导入中...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4" style={{ transform: 'skewX(2deg)' }} />
+                      <span style={{ transform: 'skewX(2deg)' }}>确认导入</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
