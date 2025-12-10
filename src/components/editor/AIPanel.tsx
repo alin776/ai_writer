@@ -1,7 +1,7 @@
 ﻿import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/button';
-import { Bot, Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronLeft, Tag, X } from 'lucide-react';
+import { Bot, Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronLeft, Tag, X, Copy } from 'lucide-react';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import { useEditorStore } from '../../store/editorStore';
 import type { AgentChatRequest } from '../../types/agent';
@@ -217,6 +217,14 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   const queuedLengthRef = useRef(0);
   const activeStreamKeyRef = useRef<string | null>(null);
   const [isStreamRendering, setIsStreamRendering] = useState(false);
+
+  const copyMessage = useCallback(async (content: string) => {
+    try {
+      await navigator.clipboard.writeText(content || '');
+    } catch (err) {
+      console.error('Copy failed:', err);
+    }
+  }, []);
 
   const containsAt = useMemo(() => AT_CHARS.some((c) => inputValue.includes(c)), [inputValue]);
   // 去痕长度保护与提示
@@ -988,46 +996,59 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
             return null;
           }
 
+          const isUser = message.role === 'user';
           return (
-            <div key={index} className={`flex items-start gap-2 ${message.role === 'user' ? 'justify-end' : ''}`}>
-              {message.role === 'agent' && (
+            <div key={index} className={`flex items-start gap-2 ${isUser ? 'justify-end' : ''}`}>
+              {!isUser && (
                 <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
                   <Bot className="h-3.5 w-3.5 text-white" />
                 </div>
               )}
 
-              <div
-                className={`flex-1 p-2.5 rounded-lg ${
-                  message.role === 'user'
-                    ? 'max-w-[85%] bg-zinc-800 text-zinc-50 shadow-sm ml-auto'
-                    : 'max-w-[95%] bg-transparent text-zinc-700'
-                }`}
-              >
-                {message.role === 'agent' ? (
-                  <div style={{ color: 'rgb(113, 113, 122)' }}>
-                    <MarkdownContent content={message.content} />
-                  </div>
-                ) : (
-                  <p className="text-[12px] leading-relaxed whitespace-pre-wrap">
-                    {message.content}
-                  </p>
-                )}
+              <div className={`flex flex-col gap-1 w-full ${isUser ? 'items-end' : 'items-start'} group`}>
+                <div
+                  className={`relative p-2.5 rounded-lg ${
+                    isUser
+                      ? 'flex-initial w-fit max-w-[85%] md:max-w-[75ch] bg-zinc-800 text-zinc-50 shadow-sm ml-auto break-words'
+                      : 'flex-1 max-w-[95%] bg-transparent text-zinc-700'
+                  }`}
+                >
+                  {isUser ? (
+                    <p className="text-[12px] leading-relaxed whitespace-pre-wrap break-words">
+                      {message.content}
+                    </p>
+                  ) : (
+                    <div style={{ color: 'rgb(113, 113, 122)' }}>
+                      <MarkdownContent content={message.content} />
+                    </div>
+                  )}
 
-                {/* Agent步骤展示（可选） */}
-                {message.role === 'agent' && message.agentSteps && message.agentSteps.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-zinc-200/50">
-                    <details className="text-[10px] text-zinc-400">
-                      <summary className="cursor-pointer hover:text-zinc-600">查看执行步骤</summary>
-                      <div className="mt-1 space-y-1">
-                        {message.agentSteps.map((step, idx) => (
-                          <div key={idx} className="pl-2 border-l-2 border-zinc-200">
-                            <div className="font-medium">{step.step}</div>
-                            <div className="text-zinc-500">{step.result}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  </div>
+                  {/* Agent步骤展示（可选） */}
+                  {message.role === 'agent' && message.agentSteps && message.agentSteps.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-zinc-200/50">
+                      <details className="text-[10px] text-zinc-400">
+                        <summary className="cursor-pointer hover:text-zinc-600">查看执行步骤</summary>
+                        <div className="mt-1 space-y-1">
+                          {message.agentSteps.map((step, idx) => (
+                            <div key={idx} className="pl-2 border-l-2 border-zinc-200">
+                              <div className="font-medium">{step.step}</div>
+                              <div className="text-zinc-500">{step.result}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    </div>
+                  )}
+                </div>
+
+                {isUser ? null : (
+                  <button
+                    onClick={() => copyMessage(message.content)}
+                    className="inline-flex self-start items-center justify-center w-8 h-8 text-zinc-500 hover:text-zinc-700 transition-colors"
+                    aria-label="复制AI内容"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
                 )}
               </div>
             </div>
