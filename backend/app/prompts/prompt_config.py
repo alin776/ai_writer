@@ -19,7 +19,6 @@ class PromptCategory(Enum):
     """Prompt 类别枚举"""
     AI_SERVICE = "ai_service"           # AI 服务层 Prompt
     AGENT = "agent"                     # Agent 专用 Prompt
-    MULTI_AGENT = "multi_agent"         # 多 Agent Prompt
     REVIEW = "review"                   # 评审 Prompt
     EVALUATION = "evaluation"           # 评估 Prompt
     HUMANIZE = "humanize"               # 人性化 Prompt
@@ -116,38 +115,6 @@ class PromptConfig:
             path="app.services.agent.prompt_cache",
             description="Prompt 缓存系统",
             category=PromptCategory.AGENT,
-            version="1.0.0"
-        ),
-
-        # 多 Agent Prompt
-        "writer_prompt": PromptModuleInfo(
-            path="app.services.agent.multi_agent.prompts.writer_prompt",
-            description="写作 Agent Prompt",
-            category=PromptCategory.MULTI_AGENT,
-            version="1.0.0"
-        ),
-        "outline_prompt": PromptModuleInfo(
-            path="app.services.agent.multi_agent.prompts.outline_prompt",
-            description="大纲 Agent Prompt",
-            category=PromptCategory.MULTI_AGENT,
-            version="1.0.0"
-        ),
-        "character_guard_prompt": PromptModuleInfo(
-            path="app.services.agent.multi_agent.prompts.character_guard_prompt",
-            description="角色守护 Agent Prompt",
-            category=PromptCategory.MULTI_AGENT,
-            version="1.0.0"
-        ),
-        "logic_auditor_prompt": PromptModuleInfo(
-            path="app.services.agent.multi_agent.prompts.logic_auditor_prompt",
-            description="逻辑审核 Agent Prompt",
-            category=PromptCategory.MULTI_AGENT,
-            version="1.0.0"
-        ),
-        "editor_prompt": PromptModuleInfo(
-            path="app.services.agent.multi_agent.prompts.editor_prompt",
-            description="编辑 Agent Prompt",
-            category=PromptCategory.MULTI_AGENT,
             version="1.0.0"
         ),
 

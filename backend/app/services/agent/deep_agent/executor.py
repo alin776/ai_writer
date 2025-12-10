@@ -22,11 +22,6 @@ class DeepAgentExecutor:
 
     包装 WritingAgentGraph 的执行流程，添加反思能力。
     不修改原有代码，仅在执行过程中插入反思检查点。
-
-    与 MultiAgentExecutor 的关系：
-    - DeepAgentExecutor 负责「任务间」的反思和重规划
-    - MultiAgentExecutor 负责「写作类任务内部」的多 Agent 协作
-    - 两者是组合关系，DeepAgentExecutor 通过 agent 间接调用 MultiAgentExecutor
     """
 
     def __init__(
