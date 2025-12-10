@@ -123,11 +123,17 @@ def _build_reflection_prompt(
 2. 是否发现需要补充的信息？
 3. 剩余任务是否仍然合理？
 
+⚠️ **重要规则**：
+- 如果剩余任务为"(无剩余任务)"，说明这是最后一个任务，**必须返回 needs_replan=false**
+- 如果当前任务描述包含"给出建议"、"分析并输出"、"生成"等最终输出关键词，**必须返回 needs_replan=false**
+- 只有在发现**明确缺失必要数据**时才需要重规划
+
 ## 输出格式（必须是合法JSON，不要添加其他内容）
 {{"needs_replan": false, "reflection": "简短反思内容（<100字）"}}
 
 示例：
 {{"needs_replan": false, "reflection": "分析结果符合预期，后续任务规划合理，继续执行。"}}
+{{"needs_replan": false, "reflection": "这是最后一个任务，已给出改写建议，无需重规划。"}}
 {{"needs_replan": true, "reflection": "发现缺少关键信息，需要补充一个查询任务。"}}
 """
 
