@@ -42,10 +42,6 @@ from .writing_tools import (
     ContinueWritingInput,
     ContinueWritingOutput,
     continue_writing_tool,
-    # 润色工具
-    PolishTextInput,
-    PolishTextOutput,
-    polish_text_tool,
     # 扩写工具
     ExpandTextInput,
     ExpandTextOutput,
@@ -124,10 +120,6 @@ __all__ = [
     "ContinueWritingInput",
     "ContinueWritingOutput",
     "continue_writing_tool",
-    # 润色工具
-    "PolishTextInput",
-    "PolishTextOutput",
-    "polish_text_tool",
     # 扩写工具
     "ExpandTextInput",
     "ExpandTextOutput",

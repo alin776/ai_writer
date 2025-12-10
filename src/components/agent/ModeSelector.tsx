@@ -66,9 +66,9 @@ export default function ModeSelector({
         onClick={() => setIsOpen(!isOpen)}
         disabled={disabled}
         className={`
-          inline-flex items-center gap-2 rounded-full
-          border text-sm font-medium transition-all shadow-sm
-          ${compact ? 'px-2.5 py-1.5 h-9' : 'px-3.5 py-2.5 h-11'}
+          inline-flex items-center gap-1.5 rounded-full
+          border text-xs font-medium transition-all shadow-sm
+          ${compact ? 'px-2 py-1 h-7' : 'px-2.5 py-1.5 h-8'}
           ${isOpen ? 'border-primary-200 bg-primary-50/80' : 'border-gray-200 bg-white/90 hover:border-primary-200 hover:bg-primary-50/70'}
           ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
         `}
@@ -77,12 +77,12 @@ export default function ModeSelector({
         aria-expanded={isOpen}
       >
         <span
-          className={`flex items-center justify-center ${compact ? 'w-6.5 h-6.5' : 'w-8 h-8'} rounded-full ${MODE_CONFIG[mode].badgeClass}`}
+          className={`flex items-center justify-center ${compact ? 'w-5 h-5' : 'w-5.5 h-5.5'} rounded-full ${MODE_CONFIG[mode].badgeClass}`}
         >
-          <CurrentIcon className={`${compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-current`} />
+          <CurrentIcon className={`${compact ? 'w-3 h-3' : 'w-3 h-3'} text-current`} />
         </span>
         <span className="text-gray-900">{MODE_CONFIG[mode].label}</span>
-        <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {/* 下拉菜单 - 向上弹出 */}
@@ -103,22 +103,22 @@ export default function ModeSelector({
                     key={item}
                     onClick={() => handleModeClick(item)}
                     className={`
-                      w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg transition-colors
+                      w-full flex items-center justify-between gap-2.5 px-2.5 py-2 rounded-lg transition-colors
                       ${isActive ? 'bg-primary-50 border border-primary-100' : 'hover:bg-gray-50'}
                     `}
                   >
-                    <div className="flex items-center gap-3 text-left">
-                      <div className={`flex items-center justify-center w-9 h-9 rounded-full ${MODE_CONFIG[item].badgeClass}`}>
-                        <ItemIcon className="w-4 h-4 text-current" />
+                    <div className="flex items-center gap-2.5 text-left">
+                      <div className={`flex items-center justify-center w-7 h-7 rounded-full ${MODE_CONFIG[item].badgeClass}`}>
+                        <ItemIcon className="w-3.5 h-3.5 text-current" />
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium text-gray-900">{MODE_CONFIG[item].label}</span>
-                        <span className="text-xs text-gray-500">{MODE_CONFIG[item].description}</span>
+                        <span className="text-xs font-medium text-gray-900">{MODE_CONFIG[item].label}</span>
+                        <span className="text-[11px] text-gray-500 leading-tight">{MODE_CONFIG[item].description}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
                       {item === 'plan' && <span className="text-gray-400">默认</span>}
-                      {isActive && <Check className="w-4 h-4 text-primary-600" />}
+                      {isActive && <Check className="w-3.5 h-3.5 text-primary-600" />}
                     </div>
                   </button>
                 );

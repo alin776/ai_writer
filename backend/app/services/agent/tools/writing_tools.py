@@ -3,8 +3,7 @@
 
 提供标准化的写作相关工具,包括:
 1. continue_writing_tool - 续写工具
-2. polish_text_tool - 润色工具
-3. expand_text_tool - 扩写工具
+2. expand_text_tool - 扩写工具
 
 所有工具使用 StandardTool 包装,支持强类型输入输出验证。
 """
@@ -229,174 +228,7 @@ continue_writing_tool = StandardTool(
 )
 
 
-# ==================== 2. 润色工具 (Polish Text) ====================
-
-class PolishTextInput(ToolInput):
-    """
-    润色工具输入
-
-    Attributes:
-        content: 待润色的文本内容(必需)
-        aspect: 润色重点(可选: grammar/style/flow/all)
-        style: 目标风格(可选: professional/creative/concise)
-        preserve_meaning: 是否保持原意(默认True)
-    """
-
-    content: str = Field(
-        ...,
-        description="待润色的文本内容",
-        min_length=10,
-        max_length=10000
-    )
-
-    aspect: str = Field(
-        default="all",
-        description="润色重点: grammar(语法), style(风格), flow(流畅度), all(全面)",
-        pattern="^(grammar|style|flow|all)$"
-    )
-
-    style: str = Field(
-        default="professional",
-        description="目标风格: professional(专业), creative(创意), concise(简洁)",
-        pattern="^(professional|creative|concise)$"
-    )
-
-    preserve_meaning: bool = Field(
-        default=True,
-        description="是否严格保持原意"
-    )
-
-
-class PolishTextOutput(ToolOutput):
-    """
-    润色工具输出
-
-    在 ToolOutput.data 中包含:
-    - polished_text: 润色后的文本
-    - changes: 主要修改说明列表
-    - improvement_score: 改进评分(0-100)
-    """
-    pass
-
-
-async def polish_text_executor(
-    input_data: PolishTextInput
-) -> PolishTextOutput:
-    """
-    润色工具执行器
-
-    对文本进行润色,改善语法、风格和流畅度。
-
-    Args:
-        input_data: 润色输入参数
-
-    Returns:
-        润色输出结果
-    """
-    try:
-        # 构建提示词
-        aspect_desc = {
-            "grammar": "重点改善语法错误和用词不当",
-            "style": "重点优化写作风格和表达方式",
-            "flow": "重点提升文本流畅度和连贯性",
-            "all": "全面优化语法、风格和流畅度"
-        }
-
-        style_desc = {
-            "professional": "专业、正式的表达",
-            "creative": "富有创意、生动的描写",
-            "concise": "简洁明了、精炼的叙述"
-        }
-
-        prompt = f"""你是一位专业的文本润色专家。请对以下文本进行润色优化。
-
-【原文】
-{input_data.content}
-
-【润色要求】
-- 润色重点: {aspect_desc[input_data.aspect]}
-- 目标风格: {style_desc[input_data.style]}
-- 保持原意: {'是(严格保持原文意思)' if input_data.preserve_meaning else '否(可适度改写)'}
-
-【输出格式】
-请按以下格式输出:
-
-润色后文本:
-[这里输出润色后的完整文本]
-
-主要修改:
-1. [修改点1]
-2. [修改点2]
-...(列出主要修改)
-
-请开始润色:"""
-
-        # 调用 AI 生成
-        result_text = await _generate_text(
-            prompt=prompt,
-            temperature=0.7,
-            max_tokens=3000,
-            task_type=TaskType.CONTENT_CREATION  # ← 新增：指定为创作任务
-        )
-
-        # 解析结果
-        polished_text = ""
-        changes = []
-
-        if "润色后文本:" in result_text:
-            parts = result_text.split("主要修改:")
-            polished_text = parts[0].replace("润色后文本:", "").strip()
-
-            if len(parts) > 1:
-                changes_text = parts[1].strip()
-                changes = [
-                    line.strip()
-                    for line in changes_text.split("\n")
-                    if line.strip() and (line.strip()[0].isdigit() or line.strip().startswith("-"))
-                ]
-        else:
-            polished_text = result_text
-
-        return PolishTextOutput(
-            success=True,
-            message="润色成功",
-            data={
-                "polished_text": polished_text,
-                "changes": changes,
-                "improvement_score": 85  # 简化版,实际可用AI评分
-            },
-            metadata={
-                "original_length": len(input_data.content),
-                "polished_length": len(polished_text),
-                "aspect": input_data.aspect,
-                "style": input_data.style
-            }
-        )
-
-    except Exception as e:
-        logger.error(f"润色工具执行失败: {e}")
-        return PolishTextOutput(
-            success=False,
-            message=f"润色失败: {str(e)}",
-            data=None,
-            metadata={"error": str(e)}
-        )
-
-
-# 创建润色工具实例
-polish_text_tool = StandardTool(
-    name="polish_text",
-    description="润色优化文本内容,改善语法、风格和流畅度",
-    category=ToolCategory.WRITING,
-    input_schema=PolishTextInput,
-    output_schema=PolishTextOutput,
-    executor=polish_text_executor,
-    tags=["writing", "editing", "polish"],
-    version="1.0.0"
-)
-
-
-# ==================== 3. 扩写工具 (Expand Text) ====================
+# ==================== 2. 扩写工具 (Expand Text) ====================
 
 class ExpandTextInput(ToolInput):
     """
@@ -568,12 +400,9 @@ __all__ = [
     # 输入输出模型
     "ContinueWritingInput",
     "ContinueWritingOutput",
-    "PolishTextInput",
-    "PolishTextOutput",
     "ExpandTextInput",
     "ExpandTextOutput",
     # 工具实例
     "continue_writing_tool",
-    "polish_text_tool",
     "expand_text_tool",
 ]

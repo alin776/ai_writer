@@ -55,7 +55,7 @@ const HomeView: React.FC = () => {
             <div className={styles.logoIcon}>
               <Sparkles size={14} color="#ffffff" />
             </div>
-            <span className={styles.logoText}>AI Writer</span>
+            <span className={styles.logoText}>文枢AI</span>
           </div>
 
           {/* Navigation - 去除装饰 */}
@@ -164,9 +164,9 @@ const HomeView: React.FC = () => {
         <div className={styles.footerContainer}>
           <div className={styles.footerBrand}>
             <Sparkles size={12} />
-            <span>AI Writer</span>
+            <span>文枢AI</span>
           </div>
-          <div className={styles.footerCopyright}>© 2025</div>
+          <div className={styles.footerCopyright}>© 2025 文枢AI</div>
         </div>
       </footer>
     </div>

@@ -66,7 +66,6 @@ from app.services.agent.langgraph_tools import (
     # 工具列表 & 单个工具（LangGraph 节点内直接调用）
     LANGGRAPH_TOOLS,
     continue_writing_tool,
-    polish_text_tool,
     analyze_text_tool,
     read_chapter_tool,
     get_chapter_by_order_tool,
@@ -1663,6 +1662,19 @@ class WritingAgentGraph:
         # ✅ Phase 2.6: 使用缓存的静态 Prompt（节省构建时间和 Token）
         static_prompt = await get_tool_decision_static_prompt()
 
+        # 🆕 Phase 2.7: 动态添加章节上下文提示（如果存在 chapter_id）
+        chapter_context_hint = ""
+        if state.get("chapter_id"):
+            work_id = state.get("work_id", "未知")
+            chapter_id = state.get("chapter_id")
+            chapter_context_hint = f"""
+
+⚠️ 【章节上下文提示】：
+- 当前用户在章节聊天面板中（work_id={work_id}, chapter_id={chapter_id}）
+- 如果用户要求修改/润色/分析本章内容，**必须先调用 read_chapter_tool(work_id="{work_id}", chapter_id="{chapter_id}")** 读取章节原文
+- 正确流程：read_chapter_tool → 理解上下文 → smart_rewrite 或其他工具
+"""
+
         # ✅ 记忆修复：构建包含历史消息的完整对话上下文
         chat_messages = []
 
@@ -1673,7 +1685,7 @@ class WritingAgentGraph:
 
 {context_info}
 
-{static_prompt}"""
+{static_prompt}{chapter_context_hint}"""
         })
 
         # 2. 添加历史对话消息（保留上下文）
@@ -1764,11 +1776,6 @@ class WritingAgentGraph:
                 tool_result = await continue_writing_tool.ainvoke({
                     "context": tool_args.get("context", last_user_message),
                     "requirements": tool_args.get("requirements", "")
-                })
-            elif tool_name == "polish_text_tool":
-                tool_result = await polish_text_tool.ainvoke({
-                    "text": tool_args.get("text", last_user_message),
-                    "style": tool_args.get("style", "professional")
                 })
             elif tool_name == "analyze_text_tool":
                 tool_result = await analyze_text_tool.ainvoke({
@@ -3002,10 +3009,6 @@ class WritingAgentGraph:
                 return f"💭 正在搜索「{query}」相关记忆..."
             return "💭 正在搜索记忆..."
 
-        # polish_text_tool - 润色文本
-        elif tool_name == "polish_text_tool":
-            return "✨ 正在润色文本..."
-
         # analyze_text_tool - 分析文本
         elif tool_name == "analyze_text_tool":
             return "🔍 正在分析文本..."
@@ -3031,7 +3034,6 @@ class WritingAgentGraph:
             "add_todo_tool": "添加待办",
             "get_work_details_tool": "获取作品信息",
             "update_work_metadata_tool": "更新元数据",
-            "polish_text_tool": "润色文本",
             "analyze_text_tool": "分析文本"
         }
         display_name = tool_display_names.get(tool_name, tool_name)
@@ -3382,12 +3384,26 @@ class WritingAgentGraph:
 
 """
 
+                # 🆕 动态添加章节上下文提示（如果存在 chapter_id）
+                chapter_planning_hint = ""
+                if chapter_id:
+                    chapter_planning_hint = f"""
+
+⚠️ 【章节上下文提示】：
+- 当前用户在章节聊天面板中（chapter_id={chapter_id}）
+- 用户要求修改/润色本章内容时，必须使用以下流程：
+  1. 任务1: 调用 read_chapter_tool(work_id="{work_id}", chapter_id="{chapter_id}") 读取章节完整内容
+  2. 任务2: 调用 analyze_text_tool 分析原文中该句话的场景、情绪、角色状态
+  3. 任务3: 基于分析结果，给出符合场景的多个修改建议（用 analyze_text_tool 输出）
+- ✅ 正确示例：read_chapter_tool → analyze_text_tool(focus="分析'微光如露落雪'在原文中的场景和情绪，给出符合语境的改写建议")
+"""
+
                 plan_prompt = f"""AI写作助手。{history_section}{knowledge_section}{selected_text_section}
 用户: {message}
 work_id: {work_id}
 chapter_id: {chapter_id}
 
-{static_prompt}"""
+{static_prompt}{chapter_planning_hint}"""
 
                 try:
                     plan_result = await self._generate_text(
@@ -4181,7 +4197,6 @@ chapter_id: {chapter_id}
         # 定义输出型工具（产生用户需要的最终内容）
         OUTPUT_TOOLS = {
             "continue_writing_tool",   # 续写
-            "polish_text_tool",        # 润色
             "analyze_text_tool"        # 分析
         }
 
@@ -4298,7 +4313,7 @@ chapter_id: {chapter_id}
             result = task.get("result", "") or ""  # 处理None的情况
 
             # 创作类任务，且输出充分 → 直接返回
-            if tool_name in ["continue_writing_tool", "polish_text_tool"]:
+            if tool_name in ["continue_writing_tool"]:
                 if len(result) > 500:
                     logger.info(
                         f"[Response] 单个创作任务({tool_name})，"
@@ -4333,8 +4348,6 @@ chapter_id: {chapter_id}
                     parts.append(f"## 分析结果\n\n{result}")
                 elif tool_name == "continue_writing_tool":
                     parts.append(f"## 续写内容\n\n{result}")
-                elif tool_name == "polish_text_tool":
-                    parts.append(f"## 润色结果\n\n{result}")
                 else:
                     parts.append(result)
 
@@ -4653,14 +4666,6 @@ chapter_id: {chapter_id}
                 normalized["requirements"] = "，".join(parts)
                 logger.info(f"[参数标准化] continue_writing_tool.requirements: dict → str")
 
-        # polish_text_tool 的 text 和 style 必须是字符串
-        elif tool_name == "polish_text_tool":
-            if "text" in params and not isinstance(params["text"], str):
-                normalized["text"] = str(params["text"])
-                logger.info(f"[参数标准化] polish_text_tool.text: {type(params['text']).__name__} → str")
-            if "style" in params and not isinstance(params["style"], str):
-                normalized["style"] = str(params["style"])
-
         # analyze_text_tool 的参数必须是字符串
         elif tool_name == "analyze_text_tool":
             if "text" in params and not isinstance(params["text"], str):
@@ -4881,11 +4886,6 @@ chapter_id: {chapter_id}
                     ],
                     "message": "请提供角色设定、前文摘要/正文、世界观或总纲后再尝试续写。"
                 }, ensure_ascii=False)
-        elif tool_name == "polish_text_tool":
-            result = await polish_text_tool.ainvoke({
-                "text": params.get("text", ""),
-                "style": params.get("style", "professional")
-            })
         elif tool_name == "analyze_text_tool":
             # ✅ 参数已由ParameterResolver解析，直接使用
             result = await analyze_text_tool.ainvoke({

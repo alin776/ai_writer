@@ -307,7 +307,7 @@ const AuthView: React.FC = () => {
             <div className="w-12 h-12 bg-black/30 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/20 shadow-lg">
               <BookOpen className="w-6 h-6 text-white drop-shadow-lg" />
             </div>
-            <span className="text-white tracking-wide drop-shadow-lg">AI Writer</span>
+            <span className="text-white tracking-wide drop-shadow-lg">文枢AI</span>
           </div>
 
           {/* 中间文字 */}
@@ -360,7 +360,7 @@ const AuthView: React.FC = () => {
             <div className="w-12 h-12 bg-gray-900 rounded-xl flex items-center justify-center">
               <BookOpen className="w-6 h-6 text-white" />
             </div>
-            <span className="text-gray-800 tracking-wide">AI Writer</span>
+            <span className="text-gray-800 tracking-wide">文枢AI</span>
           </div>
 
           <div className="mb-10">
@@ -580,7 +580,7 @@ const AuthView: React.FC = () => {
 
           <div className="mt-10 text-center">
             <p className="text-sm text-gray-500">
-              © 2025 AI Writer · 让创作更简单
+              © 2025 文枢AI · 让创作更简单
             </p>
           </div>
         </div>

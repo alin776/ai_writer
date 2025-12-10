@@ -27,7 +27,6 @@ PARALLEL_SAFE_TOOLS = {
     "search_analysis_fragments_tool"
     # 注意：以下工具不能并行
     # - continue_writing_tool: 数据写入，必须串行
-    # - polish_text_tool: 数据写入，必须串行
     # - analyze_text_tool: 可能依赖其他工具结果，应串行
 }
 

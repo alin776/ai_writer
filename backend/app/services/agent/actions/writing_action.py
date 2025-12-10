@@ -452,7 +452,6 @@ class WritingAction(BaseAction):
 
 ## 📝 普通写作工具
 - continue_writing_tool: 续写内容（仅返回文本，不修改编辑器）
-- polish_text_tool: 润色文本（仅返回文本，不修改编辑器）
 
 当前信息：作品ID={work_id}, 当前页面章节ID={chapter_id}
 

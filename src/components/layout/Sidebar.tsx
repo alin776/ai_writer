@@ -20,7 +20,6 @@ import {
   Bell,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
-import { useWorkNavStore } from '../../store/workNavStore';
 import clsx from 'clsx';
 
 interface NavItem {
@@ -56,22 +55,13 @@ const adminNavItems: NavItem[] = [
 export const Sidebar: React.FC = () => {
   const location = useLocation();
   const { user } = useAuthStore();
-  const lastWorkPath = useWorkNavStore((state) => state.lastWorkPath);
-  const lastWorkTitle = useWorkNavStore((state) => state.lastWorkTitle);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isServiceExpanded, setIsServiceExpanded] = useState(true);
 
-  const isOnWorksList = location.pathname === '/works';
-  const isOnWorkDetailRoute = /^\/works\/(?!create)([^/]+)/.test(location.pathname);
-  const currentWorkPath = isOnWorksList ? null : isOnWorkDetailRoute ? location.pathname : lastWorkPath;
-  const worksNavLabel = currentWorkPath ? '作品详情' : '作品管理';
-  const worksNavPath = currentWorkPath || '/works';
-  const worksNavTooltip = worksNavLabel === '作品详情' ? lastWorkTitle || worksNavLabel : worksNavLabel;
-
+  // 始终显示"作品管理"，不管是在列表页还是详情页
   const dynamicMainNavItems: NavItem[] = useMemo(() => {
-    const [worksItem, ...rest] = mainNavItems;
-    return [{ ...worksItem, label: worksNavLabel, path: worksNavPath, tooltip: worksNavTooltip }, ...rest];
-  }, [worksNavLabel, worksNavPath, worksNavTooltip]);
+    return mainNavItems;
+  }, []);
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(`${path}/`);
   const hasPermission = (item: NavItem) => !item.roles?.length || item.roles.includes(user?.role || '');
@@ -120,8 +110,8 @@ export const Sidebar: React.FC = () => {
                 <Sparkles className="w-3.5 h-3.5 text-white" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-gray-900 leading-tight">AI Writer</h2>
-                <p className="text-xs text-gray-500 leading-tight">智能创作</p>
+                <h2 className="text-sm font-semibold text-gray-900 leading-tight">文枢AI</h2>
+                <p className="text-xs text-gray-500 leading-tight">智能创作助手</p>
               </div>
             </Link>
             <button

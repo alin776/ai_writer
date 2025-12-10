@@ -3,10 +3,13 @@
 LangGraph 工具定义
 
 从 langgraph_agent.py 拆分的 LangChain @tool 装饰器工具：
-- 写作工具: continue_writing_tool, polish_text_tool, analyze_text_tool
-- 章节工具: read_chapter_tool, get_chapter_by_order_tool, get_context_tool
+- 写作工具: continue_writing_tool, analyze_text_tool
+- 章节工具: read_chapter_tool (支持多章节), get_chapter_by_order_tool, get_context_tool
 - 检索工具: search_analysis_fragments_tool
 - 辅助函数: _generate_text_helper, validate_uuid, _retry_on_failure
+
+更新记录:
+- v2.8.0 (2025-12-10): 删除 polish_text_tool，read_chapter_tool 支持多章节读取
 """
 
 import asyncio
@@ -186,32 +189,6 @@ async def continue_writing_tool(context: str, requirements: str = "") -> str:
 
 
 @tool
-async def polish_text_tool(text: str, style: str = "professional") -> str:
-    """润色工具：优化文本质量
-
-    Args:
-        text: 待润色的文本
-        style: 润色风格（professional/creative/concise）
-
-    Returns:
-        润色后的文本
-    """
-    prompt = f"""请润色以下文本，风格：{style}
-
-原文：
-{text}
-
-请提供润色后的版本："""
-
-    return await _generate_text_helper(
-        prompt,
-        temperature=0.7,
-        max_tokens=2000,
-        task_type=TaskType.TEXT_POLISH
-    )
-
-
-@tool
 async def analyze_text_tool(text: str, focus: str = "all") -> str:
     """分析工具：分析文本问题
 
@@ -267,14 +244,14 @@ async def analyze_text_tool(text: str, focus: str = "all") -> str:
 
 @tool
 async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "") -> str:
-    """读取指定章节工具：从数据库读取章节内容
+    """读取指定章节工具：从数据库读取单个或多个章节内容
 
     Args:
         work_id: 作品ID（UUID格式）
-        chapter_id: 章节ID（UUID格式）
+        chapter_id: 章节ID（UUID格式）或多个章节ID（用逗号分隔，如 "id1,id2,id3"）
 
     Returns:
-        章节信息JSON
+        章节信息JSON（单章节）或章节列表JSON（多章节）
     """
     if not work_id:
         return json.dumps({
@@ -294,39 +271,80 @@ async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "")
     if uuid_error:
         return uuid_error
 
-    uuid_error = validate_uuid(chapter_id, "章节ID")
-    if uuid_error:
-        return uuid_error
+    # 🆕 支持多章节ID（逗号分隔）
+    chapter_ids = [cid.strip() for cid in chapter_id.split(",") if cid.strip()]
+
+    # 验证所有章节ID格式
+    for cid in chapter_ids:
+        uuid_error = validate_uuid(cid, "章节ID")
+        if uuid_error:
+            return uuid_error
 
     async with AsyncSessionLocal() as db:
         try:
             from app.services.chapter_service import ChapterService
 
             chapter_service = ChapterService(db)
-            chapter = await _retry_on_failure(
-                chapter_service.get_chapter_by_id,
-                chapter_id,
-                max_retries=2
-            )
 
-            if not chapter:
+            # 🆕 多章节处理
+            if len(chapter_ids) > 1:
+                chapters_info = []
+                for cid in chapter_ids:
+                    chapter = await _retry_on_failure(
+                        chapter_service.get_chapter_by_id,
+                        cid,
+                        max_retries=2
+                    )
+
+                    if chapter:
+                        chapters_info.append({
+                            "chapter_id": str(chapter.id),
+                            "title": chapter.title,
+                            "order": chapter.order,
+                            "content": chapter.content[:5000] if chapter.content else "",
+                            "content_length": len(chapter.content) if chapter.content else 0,
+                            "word_count": chapter.word_count,
+                            "status": chapter.status.value if hasattr(chapter, 'status') else "unknown"
+                        })
+                    else:
+                        chapters_info.append({
+                            "chapter_id": cid,
+                            "error": f"未找到章节 {cid}"
+                        })
+
+                logger.info(f"[read_chapter_tool] ✅ 读取多章节成功: 共 {len(chapters_info)} 章")
                 return json.dumps({
-                    "error": f"未找到章节 {chapter_id}",
-                    "work_id": work_id
+                    "type": "multi_chapter",
+                    "count": len(chapters_info),
+                    "chapters": chapters_info
                 }, ensure_ascii=False, indent=2)
 
-            chapter_info = {
-                "chapter_id": str(chapter.id),
-                "title": chapter.title,
-                "order": chapter.order,
-                "content": chapter.content[:5000] if chapter.content else "",
-                "content_length": len(chapter.content) if chapter.content else 0,
-                "word_count": chapter.word_count,
-                "status": chapter.status.value if hasattr(chapter, 'status') else "unknown"
-            }
+            # 单章节处理（保持原有逻辑）
+            else:
+                chapter = await _retry_on_failure(
+                    chapter_service.get_chapter_by_id,
+                    chapter_ids[0],
+                    max_retries=2
+                )
 
-            logger.info(f"[read_chapter_tool] ✅ 读取章节成功: {chapter.title}")
-            return json.dumps(chapter_info, ensure_ascii=False, indent=2)
+                if not chapter:
+                    return json.dumps({
+                        "error": f"未找到章节 {chapter_ids[0]}",
+                        "work_id": work_id
+                    }, ensure_ascii=False, indent=2)
+
+                chapter_info = {
+                    "chapter_id": str(chapter.id),
+                    "title": chapter.title,
+                    "order": chapter.order,
+                    "content": chapter.content[:5000] if chapter.content else "",
+                    "content_length": len(chapter.content) if chapter.content else 0,
+                    "word_count": chapter.word_count,
+                    "status": chapter.status.value if hasattr(chapter, 'status') else "unknown"
+                }
+
+                logger.info(f"[read_chapter_tool] ✅ 读取章节成功: {chapter.title}")
+                return json.dumps(chapter_info, ensure_ascii=False, indent=2)
 
         except Exception as e:
             try:
@@ -676,7 +694,6 @@ from app.services.agent.tools.editor_tools import (
 LANGGRAPH_TOOLS = [
     # 写作工具
     continue_writing_tool,
-    polish_text_tool,
     analyze_text_tool,
     # 章节工具
     get_context_tool,
@@ -700,7 +717,6 @@ __all__ = [
     "_generate_text_helper",
     # 写作工具
     "continue_writing_tool",
-    "polish_text_tool",
     "analyze_text_tool",
     # 章节工具
     "read_chapter_tool",

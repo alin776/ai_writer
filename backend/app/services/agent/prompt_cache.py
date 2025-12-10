@@ -10,12 +10,19 @@ Prompt 缓存模块 - Phase 2.6
 - 减少 Prompt 构建时间（5ms → 0.1ms）
 - 节省 Token 费用（如果 API 支持服务端缓存）
 - 提升系统响应速度
+
+版本管理：
+- 每次修改 Prompt 内容时，请更新 PROMPT_VERSION
+- 部署时会自动使用新版本的缓存 key
 """
 
 from app.core.cache import cache_review
 
+# Prompt 版本号 - 修改 Prompt 时请更新此版本号
+PROMPT_VERSION = "v2.8.0"  # 2025-12-10: 删除 polish_text_tool + read_chapter_tool 支持多章节
 
-@cache_review(expire=3600, key_prefix="prompt")
+
+@cache_review(expire=3600, key_prefix=f"prompt:tool_decision:{PROMPT_VERSION}")
 async def get_tool_decision_static_prompt() -> str:
     """获取工具决策的静态 Prompt 部分（可缓存 1 小时）
 
@@ -37,7 +44,25 @@ async def get_tool_decision_static_prompt() -> str:
 
 【读取工具】
 需work_id: get_chapter_by_order_tool, get_context_tool, read_chapter_tool, search_analysis_fragments_tool
-不需work_id: continue_writing_tool, polish_text_tool, analyze_text_tool
+不需work_id: continue_writing_tool, analyze_text_tool
+
+⚠️ **重要变更**：polish_text_tool 已移除
+- 所有润色/修改请求必须提供 chapter_id，使用基于章节上下文的工具
+- 如果涉及多个章节，read_chapter_tool 支持传递多个 chapter_id（用逗号分隔，如 "id1,id2,id3"）
+
+⚠️ 【关键规则】用户提到具体文字但未说章节时：
+- 用户只给了句子（如"微光如露落雪太书面化"），但没说是第几章
+- → **必须先调用 search_analysis_fragments_tool 搜索这句话，找到它在第几章**
+- → 示例：{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {"query": "微光如露落雪"}}
+- → **禁止直接给出修改建议！必须先定位！**
+
+⚠️ 【搜索兜底规则】：
+- 如果用户提供的文字**过于简短**（少于3个字）或是**通用描述**（如"这一章"、"这段话"、"这里"）
+- → **不要调用搜索工具**，直接返回：
+  {"need_tools": false, "direct_response": "请问您指的是哪一章？或者能否提供更多原文片段帮助我定位？"}
+- 示例：
+  "这段话太平淡" → {"need_tools": false, "direct_response": "请问您指的是哪一章的哪段话？..."}
+  "这里改改" → {"need_tools": false, "direct_response": "请问您指的是哪一章？..."}
 
 ⚠️ smart_rewrite 参数提取规则：
 1. user_requirement（用户要求）：
@@ -56,11 +81,12 @@ async def get_tool_decision_static_prompt() -> str:
    - 用户说"就按这个改"/"直接用这个"并给出内容 → 用apply_chapter_edit直接应用
 
 ⚠️ 重要规则：
-1. 用户说"修改"、"改写"、"重写" → 使用 smart_rewrite
-2. 用户说"续写"、"继续写" → 使用 smart_continue
-3. 用户说"插入" → 使用 smart_insert
-4. 简单问候/寒暄（如"你好"、"在吗"、"谢谢"）→ 不需要工具，直接回复
-5. 必须严格返回JSON格式！
+1. 用户提到具体文字但未说章节 → **先用 search_analysis_fragments_tool 定位**
+2. 用户说"修改第X章"、"改写第X章" → 使用 smart_rewrite（已知章节）
+3. 用户说"续写"、"继续写" → 使用 smart_continue
+4. 用户说"插入" → 使用 smart_insert
+5. 简单问候/寒暄（如"你好"、"在吗"、"谢谢"）→ 不需要工具，直接回复
+6. 必须严格返回JSON格式！
 
 返回JSON:
 - 需要: {"need_tools": true, "tool_name": "工具名", "tool_args": {}}
@@ -70,13 +96,14 @@ async def get_tool_decision_static_prompt() -> str:
 
 示例:
 "你好" → {"need_tools": false, "direct_response": "您好！我是AI写作助手，可以帮您修改、续写章节内容。请问有什么可以帮您的？"}
-"白光退去太平淡" → {"need_tools": true, "tool_name": "smart_rewrite", "tool_args": {"chapter_id": "xxx", "text_to_rewrite": "白光退去...", "user_requirement": "更有画面感"}}
-"在第二版基础上更简洁" → {"need_tools": true, "tool_name": "smart_rewrite", "tool_args": {"chapter_id": "xxx", "user_requirement": "更简洁", "base_version": "第二版"}}
+"微光如露落雪太书面化" → {"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {"query": "微光如露落雪"}}
+"白光退去太平淡" → {"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {"query": "白光退去"}}
+"修改第三章，白光退去太平淡" → {"need_tools": true, "tool_name": "smart_rewrite", "tool_args": {"chapter_id": "xxx", "text_to_rewrite": "白光退去...", "user_requirement": "更有画面感"}}
 
 ⚠️ 请严格返回JSON格式，不要直接回答问题:"""
 
 
-@cache_review(expire=3600, key_prefix="prompt")
+@cache_review(expire=3600, key_prefix=f"prompt:planning:{PROMPT_VERSION}")
 async def get_planning_static_prompt() -> str:
     """获取 Planning 的静态 Prompt 部分（可缓存 1 小时）
 
@@ -132,6 +159,14 @@ async def get_planning_static_prompt() -> str:
   × 分析人物/情节 → analyze_text_tool
   × 润色/修改 → 其他工具
 
+<anti_patterns>
+禁止使用 multi_agent_writing 的典型错误：
+- 用户："把第三章发给我" → ❌ 禁止 multi_agent_writing → ✅ get_chapter_by_order_tool
+- 用户："第三章写得怎么样？" → ❌ 禁止 multi_agent_writing → ✅ analyze_text_tool
+- 用户："帮我改写第三章" → ❌ 禁止 multi_agent_writing → ✅ smart_rewrite
+- 用户："修改这一段" → ❌ 禁止 multi_agent_writing → ✅ smart_rewrite 或 analyze_text_tool
+</anti_patterns>
+
 大纲 vs 正文：
 - 大纲 = 结构化规划（章节标题、主线、伏笔列表）→ analyze_text_tool
 - 正文 = 完整故事叙述（2000-4000字，有对话、描写、情节）→ multi_agent_writing
@@ -156,9 +191,10 @@ async def get_planning_static_prompt() -> str:
   - ⚠️ 不要用于：查询标题/序号等元数据（工具已返回这些字段）
 
 文本润色/改写：
-- polish_text_tool: 润色/修改/丰富文本 (参数: text, style)
-  - 适用于：用户选中文本后要求修改、润色、丰富、改写
+- analyze_text_tool: 分析并给出修改建议 (参数: text, focus)
+  - 适用于：用户选中文本后要求修改、润色、分析、改写
   - ⚠️ 当【用户选中的文本】存在时，必须将选中文本作为 text 参数！
+  - focus 参数示例："给出润色建议"、"分析问题并改写"、"使其更有画面感"
   - style 可选值: professional, creative, concise, elaborate
 
 创作内容（重量级，谨慎使用）：
@@ -170,13 +206,14 @@ async def get_planning_static_prompt() -> str:
 【选中文本处理规则】⚠️ 重要！
 
 当 Prompt 中包含【用户选中的文本】时，这表示用户在编辑器中选中了一段文字：
-1. 必须使用 polish_text_tool 处理选中的文本
-2. 将选中的文本作为 polish_text_tool 的 text 参数
-3. 根据用户指令确定 style 参数：
-   - "更丰富/丰富一些" → style="elaborate"
-   - "更简洁/精简" → style="concise"
-   - "更有文采/更优美" → style="creative"
-   - "更正式/专业" → style="professional"
+1. **必须先读取章节内容**（如果有 chapter_id）：调用 read_chapter_tool
+2. 然后使用 analyze_text_tool 分析选中的文本
+3. 将选中的文本作为 analyze_text_tool 的 text 参数
+4. 根据用户指令确定 focus 参数：
+   - "更丰富/丰富一些" → focus="分析并给出更丰富的改写建议"
+   - "更简洁/精简" → focus="分析并给出更简洁的改写建议"
+   - "更有文采/更优美" → focus="分析并给出更有文采的改写建议"
+   - "有什么问题" → focus="分析文本问题并给出改进建议"
 
 【输出格式】
 
@@ -301,29 +338,51 @@ async def get_planning_static_prompt() -> str:
 
 用户选中文本: "天色未明，青冥中尚悬着几颗残星。"
 用户指令: "帮我把这一句话修改得更加丰富！"
+chapter_id: "abc-123"
 {
   "thinking": {
     "step1_output": "用户选中了一句话，希望润色/丰富这段文字",
-    "step2_material": "原料就是【用户选中的文本】",
-    "step3_process": "使用 polish_text_tool 润色选中的文本"
+    "step2_material": "需要读取本章内容了解上下文，然后基于上下文给出改写建议",
+    "step3_process": "先 read_chapter_tool 读章节，再 analyze_text_tool 分析并给出建议"
   },
   "user_intent": "润色选中的文本，使其更丰富",
   "tasks": [
-    {"task_id": 1, "description": "润色选中文本", "tool": "polish_text_tool", "params": {"text": "天色未明，青冥中尚悬着几颗残星。", "style": "elaborate"}}
+    {"task_id": 1, "description": "读取章节内容", "tool": "read_chapter_tool", "params": {"work_id": "$WORK_ID$", "chapter_id": "abc-123"}},
+    {"task_id": 2, "description": "分析并给出更丰富的改写建议", "tool": "analyze_text_tool", "params": {"text": "天色未明，青冥中尚悬着几颗残星。", "focus": "基于章节上下文，给出更丰富的改写建议"}}
   ]
 }
 
 用户选中文本: "他走进房间，看到了她。"
 用户指令: "更有文采一些"
+chapter_id: "def-456"
 {
   "thinking": {
     "step1_output": "用户选中了一句话，希望改写得更有文采",
-    "step2_material": "原料就是【用户选中的文本】",
-    "step3_process": "使用 polish_text_tool 改写选中的文本"
+    "step2_material": "需要读取本章内容了解场景和情绪",
+    "step3_process": "先 read_chapter_tool 读章节，再 analyze_text_tool 分析并给出改写建议"
   },
   "user_intent": "改写选中的文本，使其更有文采",
   "tasks": [
-    {"task_id": 1, "description": "改写选中文本", "tool": "polish_text_tool", "params": {"text": "他走进房间，看到了她。", "style": "creative"}}
+    {"task_id": 1, "description": "读取章节内容", "tool": "read_chapter_tool", "params": {"work_id": "$WORK_ID$", "chapter_id": "def-456"}},
+    {"task_id": 2, "description": "分析并给出更有文采的改写建议", "tool": "analyze_text_tool", "params": {"text": "他走进房间，看到了她。", "focus": "基于章节上下文，给出更有文采的改写建议"}}
+  ]
+}
+
+【多章节读取示例】⚠️ 涉及多个章节时
+
+用户: "对比分析第3章和第7章中主角的心理变化"
+{
+  "thinking": {
+    "step1_output": "用户需要对比两个章节中的内容",
+    "step2_material": "需要同时读取第3章和第7章的内容",
+    "step3_process": "使用 read_chapter_tool 一次性读取多个章节，然后用 analyze_text_tool 进行对比分析"
+  },
+  "user_intent": "对比分析多个章节的心理变化",
+  "tasks": [
+    {"task_id": 1, "description": "获取第3章的chapter_id", "tool": "get_chapter_by_order_tool", "params": {"work_id": "$WORK_ID$", "chapter_order": 3}},
+    {"task_id": 2, "description": "获取第7章的chapter_id", "tool": "get_chapter_by_order_tool", "params": {"work_id": "$WORK_ID$", "chapter_order": 7}},
+    {"task_id": 3, "description": "读取第3章和第7章内容", "tool": "read_chapter_tool", "params": {"work_id": "$WORK_ID$", "chapter_id": "$TASK_1.chapter_id$,$TASK_2.chapter_id$"}},
+    {"task_id": 4, "description": "对比分析主角心理变化", "tool": "analyze_text_tool", "params": {"text": "$TASK_3$", "focus": "对比第3章和第7章中主角的心理状态、情绪变化、成长轨迹"}}
   ]
 }
 
@@ -385,7 +444,7 @@ _AGENT_MODE_CHECKPOINT_SECTION = """
 """
 
 
-@cache_review(expire=3600, key_prefix="prompt")
+@cache_review(expire=3600, key_prefix=f"prompt:planning_agent:{PROMPT_VERSION}")
 async def get_planning_agent_mode_prompt() -> str:
     """获取 Agent 模式的 Planning Prompt（带 checkpoint 标记功能）
 
@@ -408,7 +467,7 @@ async def get_planning_agent_mode_prompt() -> str:
     )
 
 
-@cache_review(expire=3600, key_prefix="prompt")
+@cache_review(expire=3600, key_prefix=f"prompt:complexity:{PROMPT_VERSION}")
 async def get_complexity_decision_prompt() -> str:
     """复杂度判断 Prompt（在意图分类后调用）
 

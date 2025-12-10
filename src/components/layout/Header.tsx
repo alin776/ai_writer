@@ -63,7 +63,7 @@ const Header: React.FC = () => {
     if (path.includes('/admin/ai-models')) return 'AI 模型';
     if (path.includes('/admin/cost')) return '成本监控';
     if (path.includes('/settings')) return '系统设置';
-    return 'AI Writer';
+    return '文枢AI';
   };
 
   // 判断是否在编辑器页面

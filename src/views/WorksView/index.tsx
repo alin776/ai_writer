@@ -190,30 +190,10 @@ const WorksView: React.FC = () => {
     }
   };
 
-  // 继续创作 - 获取最后一个章节或创建新章节
-  const handleContinueWriting = async (work: Work) => {
-    try {
-      // 获取该作品的章节列表
-      const chapters = await DataService.getChapters(work.id);
-
-      if (chapters.length > 0) {
-        // 如果有章节，跳转到最后一个章节
-        const lastChapter = chapters[chapters.length - 1];
-        navigate(`/editor/${lastChapter.id}`);
-      } else {
-        // 如果没有章节，创建一个新章节
-        const newChapter = await DataService.createChapter({
-          work_id: work.id,
-          title: '第一章',
-          content: '',
-          order: 1
-        });
-        navigate(`/editor/${newChapter.id}`);
-      }
-    } catch (error) {
-      console.error('继续创作失败:', error);
-      showToast('error', '无法打开编辑器');
-    }
+  // 继续创作 - 跳转到作品详情页
+  const handleContinueWriting = (work: Work) => {
+    // 直接跳转到作品详情页，作品详情页会自动定位到最后一章
+    navigate(`/works/${work.id}`);
   };
 
   // 导出作品

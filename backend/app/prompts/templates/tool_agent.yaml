@@ -73,13 +73,6 @@ template: |
   - `chapter_id` (string): 要续写的章节ID [必需]
   - `content` (string): 续写的内容 [必需]
   **说明**：将续写内容添加到指定章节
-
-  ## polish_text_tool
-  **功能**：润色文本，提升文笔质量
-  **参数**：
-  - `text` (string): 需要润色的文本 [必需]
-  - `style` (string): 润色风格（网文/文学/简洁等） [可选]
-  **说明**：优化文本表达，增强可读性
   {% endif %}
 
   # 工具选择原则
@@ -93,10 +86,7 @@ template: |
      - 需要作品信息 → 用 `get_context_tool`
      - 需要世界观/角色设定 → 用 `search_analysis_fragments_tool`
 
-  3. **内容优化**：
-     - 文笔不够好 → 用 `polish_text_tool`
-
-  4. **参数完整性**：
+  3. **参数完整性**：
      - 确保所有必需参数都有值
      - 如果缺少参数，先提示用户或使用默认值
 
