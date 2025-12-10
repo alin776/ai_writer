@@ -28,7 +28,7 @@ interface AIPanelProps {
 // Markdown渲染组件
 const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
   return (
-    <div className="text-[11px] leading-relaxed markdown-content">
+    <div className="text-[12px] leading-relaxed markdown-content">
       <ReactMarkdown
         rehypePlugins={[rehypeRaw]}
         components={{
@@ -40,52 +40,52 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
                 style={vscDarkPlus}
                 language={match[1]}
                 PreTag="div"
-                className="rounded-md text-[9px] my-1.5"
+                className="rounded-md text-[10px] my-1.5"
                 {...props}
               >
                 {String(children).replace(/\n$/, '')}
               </SyntaxHighlighter>
             ) : (
-              <code className="bg-zinc-100 text-zinc-800 px-1 py-0.5 rounded text-[9px] font-mono" {...props}>
+              <code className="bg-zinc-100 text-zinc-800 px-1 py-0.5 rounded text-[10px] font-mono" {...props}>
                 {children}
               </code>
             );
           },
           // 段落
           p({ children }) {
-            return <p className="mb-1.5 last:mb-0 text-[11px]">{children}</p>;
+            return <p className="mb-1.5 last:mb-0 text-[12px]">{children}</p>;
           },
           // 标题
           h1({ children }) {
-            return <h1 className="text-[12px] font-semibold mb-1.5 mt-2 first:mt-0">{children}</h1>;
+            return <h1 className="text-[13px] font-semibold mb-1.5 mt-2 first:mt-0">{children}</h1>;
           },
           h2({ children }) {
-            return <h2 className="text-[11px] font-semibold mb-1.5 mt-2 first:mt-0">{children}</h2>;
+            return <h2 className="text-[12px] font-semibold mb-1.5 mt-2 first:mt-0">{children}</h2>;
           },
           h3({ children }) {
-            return <h3 className="text-[11px] font-medium mb-1 mt-1.5 first:mt-0">{children}</h3>;
+            return <h3 className="text-[12px] font-medium mb-1 mt-1.5 first:mt-0">{children}</h3>;
           },
           // 列表
           ul({ children }) {
-            return <ul className="list-disc list-inside mb-1.5 space-y-0.5 text-[11px]">{children}</ul>;
+            return <ul className="list-disc list-inside mb-1.5 space-y-0.5 text-[12px]">{children}</ul>;
           },
           ol({ children }) {
-            return <ol className="list-decimal list-inside mb-1.5 space-y-0.5 text-[11px]">{children}</ol>;
+            return <ol className="list-decimal list-inside mb-1.5 space-y-0.5 text-[12px]">{children}</ol>;
           },
           li({ children }) {
-            return <li className="text-[11px]">{children}</li>;
+            return <li className="text-[12px]">{children}</li>;
           },
           // 链接
           a({ href, children }) {
             return (
-              <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-[11px]">
+              <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-[12px]">
                 {children}
               </a>
             );
           },
           // 引用
           blockquote({ children }) {
-            return <blockquote className="border-l-2 border-zinc-300 pl-2 my-1.5 text-zinc-600 text-[11px]">{children}</blockquote>;
+            return <blockquote className="border-l-2 border-zinc-300 pl-2 my-1.5 text-zinc-600 text-[12px]">{children}</blockquote>;
           },
           // 分割线
           hr() {
@@ -93,16 +93,16 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
           },
           // 表格
           table({ children }) {
-            return <table className="border-collapse border border-zinc-200 my-1.5 text-[9px]">{children}</table>;
+            return <table className="border-collapse border border-zinc-200 my-1.5 text-[10px]">{children}</table>;
           },
           thead({ children }) {
             return <thead className="bg-zinc-50">{children}</thead>;
           },
           th({ children }) {
-            return <th className="border border-zinc-200 px-1.5 py-0.5 font-semibold text-[9px]">{children}</th>;
+            return <th className="border border-zinc-200 px-1.5 py-0.5 font-semibold text-[10px]">{children}</th>;
           },
           td({ children }) {
-            return <td className="border border-zinc-200 px-1.5 py-0.5 text-[9px]">{children}</td>;
+            return <td className="border border-zinc-200 px-1.5 py-0.5 text-[10px]">{children}</td>;
           },
         }}
       >
@@ -955,7 +955,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     <div className="p-3 h-full flex flex-col overflow-hidden">
       <div
         ref={messagesContainerRef}
-        className="flex-1 min-h-0 mb-3 space-y-2.5 overflow-y-auto overflow-x-hidden custom-scrollbar"
+        className="flex-1 min-h-0 mb-3 space-y-2.5 overflow-y-auto overflow-x-hidden custom-scrollbar bg-white"
       >
         {/* 欢迎消息 */}
         {messages.length === 0 && (
@@ -997,10 +997,10 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
               )}
 
               <div
-                className={`flex-1 max-w-[85%] p-2.5 rounded-lg ${
+                className={`flex-1 p-2.5 rounded-lg ${
                   message.role === 'user'
-                    ? 'bg-zinc-800 text-zinc-50 shadow-sm ml-auto'
-                    : 'bg-zinc-50/70 border border-zinc-100'
+                    ? 'max-w-[85%] bg-zinc-800 text-zinc-50 shadow-sm ml-auto'
+                    : 'max-w-[95%] bg-transparent text-zinc-700'
                 }`}
               >
                 {message.role === 'agent' ? (
@@ -1008,7 +1008,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                     <MarkdownContent content={message.content} />
                   </div>
                 ) : (
-                  <p className="text-[11px] leading-relaxed whitespace-pre-wrap">
+                  <p className="text-[12px] leading-relaxed whitespace-pre-wrap">
                     {message.content}
                   </p>
                 )}

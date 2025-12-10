@@ -1031,7 +1031,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     (window as any).__inlineAIQueue__.push(payload);
     console.log('[NovelEditor] inline-ai payload queued', payload, 'queue size', (window as any).__inlineAIQueue__?.length);
 
-    // 尝试直接调用全局回调（由 AgentChatPanel 挂载）
+    // 尝试直接调用全局回调（由 AIPanel 挂载）
     const globalHandler = (window as any).__agentInlineSend__;
     const dispatchEventToAgent = () => {
       const event = new CustomEvent('inline-ai-send', { detail: payload });
