@@ -11,7 +11,6 @@ import {
   Menu,
   ChevronDown,
   ArrowLeft,
-  Plus,
   Save,
   MoreHorizontal,
   Clock
@@ -21,6 +20,8 @@ import { DataService } from '@/services/DataService';
 import { useNavigate } from 'react-router-dom';
 import Button from '@/components/common/Button';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
+import { useNotificationStore } from '@/store/notificationStore';
+import NotificationDropdown from '@/components/notifications/NotificationDropdown';
 
 const Header: React.FC = () => {
   const { user, logout } = useAuthStore();
@@ -29,6 +30,8 @@ const Header: React.FC = () => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [lastSaved] = useState<Date>(new Date());
   const [showSearch, setShowSearch] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const unreadCount = useNotificationStore((state) => state.unreadCount);
 
   // 监听 Cmd+K / Ctrl+K 快捷键打开搜索
   useEffect(() => {
@@ -65,9 +68,6 @@ const Header: React.FC = () => {
 
   // 判断是否在编辑器页面
   const isEditorPage = location.pathname.includes('/editor');
-
-  // 判断是否在作品列表页
-  const isWorksPage = location.pathname === '/works';
 
   return (
     <header className="bg-white border-b border-gray-200 h-14 flex items-center px-4 sticky top-0 z-40">
@@ -116,20 +116,6 @@ const Header: React.FC = () => {
             </>
           )}
 
-          {/* 作品列表页：新建作品按钮 */}
-          {isWorksPage && (
-            <>
-              <button
-                className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors shadow-sm"
-                onClick={() => alert('创建新作品功能')}
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>新建作品</span>
-              </button>
-              <div className="h-4 w-px bg-gray-200 mx-1"></div>
-            </>
-          )}
-
           {/* 通用操作：搜索和通知 */}
           <button 
             className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
@@ -139,10 +125,33 @@ const Header: React.FC = () => {
             <Search className="w-4 h-4" />
           </button>
 
-          <button className="relative p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors">
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
-          </button>
+          {/* 通知铃铛 */}
+          <div className="relative">
+            <button
+              className="relative p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+              onClick={() => setShowNotifications(!showNotifications)}
+            >
+              <Bell className="w-4 h-4" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-500 rounded-full">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* 通知下拉列表 */}
+            {showNotifications && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowNotifications(false)}
+                ></div>
+                <div className="absolute right-0 mt-1.5 z-50">
+                  <NotificationDropdown onClose={() => setShowNotifications(false)} />
+                </div>
+              </>
+            )}
+          </div>
 
           {/* 分隔线 */}
           <div className="h-4 w-px bg-gray-200 mx-1"></div>

@@ -1,28 +1,14 @@
-import React from 'react';
+﻿import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Cpu, DollarSign, ArrowLeft, Gift, Coins } from 'lucide-react';
+import { LayoutDashboard, Users, Cpu, DollarSign, ArrowLeft, Gift, Coins, Bell } from 'lucide-react';
 
-/**
- * AdminSidebar 组件 - 管理后台侧边栏
- *
- * 功能：
- * - 显示管理后台导航菜单
- * - 高亮当前激活的菜单项
- * - 返回普通用户界面的入口
- */
 const AdminSidebar: React.FC = () => {
   const location = useLocation();
 
-  /**
-   * 判断菜单项是否激活
-   */
   const isActive = (path: string) => {
     return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
-  /**
-   * 管理后台菜单配置
-   */
   const menuItems = [
     {
       path: '/admin/dashboard',
@@ -60,11 +46,16 @@ const AdminSidebar: React.FC = () => {
       label: '成本监控',
       description: '查看使用成本',
     },
+    {
+      path: '/admin/notifications',
+      icon: Bell,
+      label: '通知管理',
+      description: '发送系统通知',
+    },
   ];
 
   return (
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
-      {/* 返回按钮 */}
       <div className="p-4 border-b border-gray-200">
         <Link
           to="/works"
@@ -75,14 +66,12 @@ const AdminSidebar: React.FC = () => {
         </Link>
       </div>
 
-      {/* 管理后台标题 */}
       <div className="px-4 py-3 border-b border-gray-100">
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
           管理后台
         </h2>
       </div>
 
-      {/* 导航菜单 */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-1">
         {menuItems.map((item) => {
           const Icon = item.icon;
@@ -117,7 +106,6 @@ const AdminSidebar: React.FC = () => {
         })}
       </nav>
 
-      {/* 底部提示 */}
       <div className="p-4 border-t border-gray-200 bg-gray-50">
         <div className="flex items-start space-x-2">
           <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0 mt-1.5"></div>
