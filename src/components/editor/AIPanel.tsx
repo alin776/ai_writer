@@ -1007,10 +1007,10 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
               <div className={`flex flex-col gap-1 w-full ${isUser ? 'items-end' : 'items-start'} group`}>
                 <div
-                  className={`relative p-2.5 rounded-lg ${
+                  className={`relative ${
                     isUser
-                      ? 'flex-initial w-fit max-w-[85%] md:max-w-[75ch] bg-zinc-800 text-zinc-50 shadow-sm ml-auto break-words'
-                      : 'flex-1 max-w-[95%] bg-transparent text-zinc-700'
+                      ? 'p-2.5 rounded-lg flex-initial w-fit max-w-[85%] md:max-w-[75ch] bg-zinc-800 text-zinc-50 shadow-sm ml-auto break-words'
+                      : 'flex-1 max-w-[95%]'
                   }`}
                 >
                   {isUser ? (
@@ -1138,7 +1138,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
             <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
-            <div className="flex-1 max-w-[85%] p-2.5 rounded-lg bg-zinc-50/70 border border-zinc-100">
+            <div className="flex-1 max-w-[95%]">
               <div style={{ color: 'rgb(113, 113, 122)' }}>
                 <MarkdownContent content={streamingVisibleContent} />
               </div>
@@ -1152,12 +1152,10 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
             <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
-            <div className="flex-1 p-2.5 rounded-lg bg-zinc-50/70 border border-zinc-100">
-              <div className="flex items-center gap-1.5 h-5">
-                <div className="w-1 h-1 rounded-full bg-zinc-400 animate-[bounce_1.4s_ease-in-out_infinite]"></div>
-                <div className="w-1 h-1 rounded-full bg-zinc-400 animate-[bounce_1.4s_ease-in-out_0.2s_infinite]"></div>
-                <div className="w-1 h-1 rounded-full bg-zinc-400 animate-[bounce_1.4s_ease-in-out_0.4s_infinite]"></div>
-              </div>
+            <div className="flex-1">
+              <span className="text-[12px] text-zinc-400 animate-[pulse_2s_ease-in-out_infinite]">
+                Thinking...
+              </span>
             </div>
           </div>
         )}
