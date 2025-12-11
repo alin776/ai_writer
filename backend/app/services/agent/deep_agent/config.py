@@ -40,7 +40,7 @@ class DeepAgentConfig:
     REFLECT_ON_FAILURE: bool = True  # 任务失败时触发反思（兜底机制）
     # 补偿机制：当planner未标记checkpoint时，按间隔触发兜底反思
     REFLECT_ON_MISSING_CHECKPOINT: bool = True
-    MISSING_CHECKPOINT_INTERVAL: int = 3  # 每完成N个未标记任务强制一次反思
+    MISSING_CHECKPOINT_INTERVAL: int = 2  # 每完成N个未标记任务强制一次反思（短链更易触发）
     # 规划未标记任何checkpoint时，首个任务执行后强制一次反思
     REFLECT_ON_FIRST_TASK_IF_NO_CHECKPOINT: bool = True
 

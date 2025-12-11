@@ -4,7 +4,6 @@ Agent 智能助手 API 路由
 提供 Agent 相关的 RESTful API 接口，包括：
 - Agent 对话（支持流式响应）
 - 人机协同（HITL）批准管理
-- 执行计划管理
 - 记忆管理
 """
 
@@ -28,7 +27,6 @@ from app.models.agent_session_message import AgentSessionMessage
 from app.models.chat_models import ChatMode
 from app.models.chapter import Chapter
 from app.services.agent.memory import MemoryManager
-from app.services.agent.agents import PlanningAgent
 from app.services.agent.tools import HITLManager
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.ai.humanize_service import HumanizeService
@@ -124,22 +122,6 @@ class AgentChatResponse(BaseModel):
     suggested_actions: List[str] = Field(default_factory=list, description="Suggested follow-up actions")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Metadata")
 
-
-class PlanCreationRequest(BaseModel):
-    """Create execution plan request"""
-    goal: str = Field(..., description="Goal description", min_length=1)
-    genre: Optional[str] = Field(None, description="Novel genre")
-    work_id: Optional[str] = Field(None, description="Work ID")
-    context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Context info")
-
-
-class PlanResponse(BaseModel):
-    """Execution plan response"""
-    plan_id: str = Field(..., description="Plan ID")
-    goal: str = Field(..., description="Goal")
-    tasks: List[Dict[str, Any]] = Field(..., description="Task list")
-    status: str = Field(..., description="Plan status")
-    progress: float = Field(..., description="Progress 0-1")
 
 class ApprovalActionRequest(BaseModel):
     """批准操作请求"""
@@ -278,11 +260,6 @@ async def get_memory_manager(
     redis_client = get_redis_client()
     manager = MemoryManager(redis_client)
     return manager
-
-
-async def get_planning_agent() -> PlanningAgent:
-    """Dependency provider for PlanningAgent."""
-    return PlanningAgent()
 
 
 async def get_hitl_manager() -> HITLManager:
@@ -1343,79 +1320,6 @@ async def agent_chat_stream(
             "X-Accel-Buffering": "no",  # 禁用 nginx 缓冲
             "X-Conversation-Id": generated_conversation_id  # 便于前端保存续聊
         }
-    )
-
-
-# ==================== 执行计划管理 ====================
-
-@router.post("/plans", response_model=PlanResponse)
-async def create_plan(
-    request: PlanCreationRequest,
-    current_user: User = Depends(get_current_active_user),
-    planner: PlanningAgent = Depends(get_planning_agent)
-):
-    """
-    创建执行计划
-
-    根据用户目标自动生成执行计划，支持：
-    - 小说创作规划
-    - 作品改进规划
-    - 自定义规划
-
-    Args:
-        request: 计划创建请求
-        current_user: 当前用户
-        planner: 规划Agent
-
-    Returns:
-        PlanResponse: 执行计划
-    """
-    try:
-        logger.info(f"Creating plan - User: {current_user.id}, Goal: {request.goal}")
-
-        plan = planner.create_plan_for_novel_writing(
-            user_goal=request.goal,
-            genre=request.genre,
-            context=request.context
-        )
-
-
-        return PlanResponse(
-            plan_id=plan.plan_id,
-            goal=plan.goal,
-            tasks=[
-                {
-                    "task_id": task.task_id,
-                    "type": task.task_type.value,
-                    "description": task.description,
-                    "status": task.status.value,
-                    "dependencies": task.dependencies,
-                    "priority": task.priority
-                }
-                for task in plan.tasks
-            ],
-            status=plan.status,
-            progress=plan.progress
-        )
-
-    except Exception as e:
-        logger.error(f"Create plan error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"创建计划失败: {str(e)}"
-        )
-
-
-@router.get("/plans/{plan_id}", response_model=PlanResponse)
-async def get_plan(
-    plan_id: str,
-    current_user: User = Depends(get_current_active_user)
-):
-    """获取执行计划详情"""
-    # TODO: 从存储中获取计划
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="功能开发中"
     )
 
 

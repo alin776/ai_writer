@@ -50,7 +50,7 @@ async def think_tool(
         logger.warning("agent_graph 为空，跳过反思")
         return ReflectionResult(reflection="agent_graph 未初始化，跳过反思", needs_replan=False)
 
-    prompt = _build_reflection_prompt(task, result, remaining_tasks)
+    prompt = _build_reflection_prompt(task, result, remaining_tasks, context)
 
     try:
         # 复用 _generate_text 抽象层
@@ -90,10 +90,17 @@ def _build_reflection_prompt(
     task: Dict[str, Any],
     result: Dict[str, Any],
     remaining_tasks: List[Dict[str, Any]],
+    context: Dict[str, Any],
 ) -> str:
     """构建反思 Prompt"""
     task_desc = task.get("description", "未知任务")
     task_status = result.get("status", "unknown")
+    user_intent = (
+        context.get("user_intent")
+        or context.get("intent")
+        or context.get("goal")
+        or ""
+    )
 
     # 获取任务输出摘要
     task_output = result.get("output", result.get("content", ""))
@@ -118,23 +125,26 @@ def _build_reflection_prompt(
 ## 剩余任务
 {remaining_str}
 
-## 请思考
-1. 结果是否达到预期？
-2. 是否发现需要补充的信息？
-3. 剩余任务是否仍然合理？
+## 用户意图
+- {user_intent or "未指定"}
 
-⚠️ **重要规则**：
-- 如果剩余任务为"(无剩余任务)"，说明这是最后一个任务，**必须返回 needs_replan=false**
-- 如果当前任务描述包含"给出建议"、"分析并输出"、"生成"等最终输出关键词，**必须返回 needs_replan=false**
-- 只有在发现**明确缺失必要数据**时才需要重规划
+## 请判断
+1. 当前结果是否完整满足用户意图（数量/质量/范围）？例如用户要"5个"结果，是否都生成了？
+2. 如果有剩余任务，它们是否足以完成用户意图？
+3. 是否因为数据缺失、处理方式错误或数量不足需要调整？
+
+⚠️ **判断规则**：
+- 如果结果的数量/质量/范围不符合用户意图 → needs_replan=true，补充任务
+- 如果发现数据缺失或处理方式错误 → needs_replan=true，调整任务
+- 如果一切符合预期 → needs_replan=false，继续执行
 
 ## 输出格式（必须是合法JSON，不要添加其他内容）
 {{"needs_replan": false, "reflection": "简短反思内容（<100字）"}}
 
 示例：
 {{"needs_replan": false, "reflection": "分析结果符合预期，后续任务规划合理，继续执行。"}}
-{{"needs_replan": false, "reflection": "这是最后一个任务，已给出改写建议，无需重规划。"}}
-{{"needs_replan": true, "reflection": "发现缺少关键信息，需要补充一个查询任务。"}}
+{{"needs_replan": true, "reflection": "用户要求3个，但只生成了2个，需要补充任务。"}}
+
 """
 
 
@@ -193,6 +203,9 @@ def should_reflect(
     result: Dict[str, Any],
     completed_count: int,
     reflection_count: int,
+    total_tasks: int,
+    remaining_tasks_count: int,
+    has_checkpoint: bool,
 ) -> bool:
     """判断是否需要触发反思
 
@@ -205,11 +218,15 @@ def should_reflect(
         result: 任务结果
         completed_count: 已完成任务数
         reflection_count: 已反思次数
+        total_tasks: 任务总数
+        remaining_tasks_count: 剩余任务数
+        has_checkpoint: 计划中是否有任务标记了 checkpoint
 
     Returns:
         bool: 是否需要反思
 
     🔧 2025-12-08: 重构 - 基于 checkpoint 字段判断，让 AI 决定何时反思
+    🔧 2025-12-11: 新增 total_tasks, remaining_tasks_count, has_checkpoint 参数
     """
     config = DeepAgentConfig
 
@@ -228,7 +245,8 @@ def should_reflect(
     # 2.0 规划未标记任何 checkpoint 的兜底：首个任务后强制一次
     if (
         DeepAgentConfig.REFLECT_ON_FIRST_TASK_IF_NO_CHECKPOINT
-        and completed_count == 0
+        and not has_checkpoint
+        and completed_count == 1
         and reflection_count == 0
         and not task.get("checkpoint")
     ):
@@ -242,7 +260,7 @@ def should_reflect(
     if (
         DeepAgentConfig.REFLECT_ON_MISSING_CHECKPOINT
         and not task.get("checkpoint")
-        and (completed_count + 1) % DeepAgentConfig.MISSING_CHECKPOINT_INTERVAL == 0
+        and completed_count % DeepAgentConfig.MISSING_CHECKPOINT_INTERVAL == 0
     ):
         task_id = task.get("task_id", "?")
         logger.info(
@@ -250,6 +268,39 @@ def should_reflect(
             f"(已完成 {completed_count} 个任务，间隔={DeepAgentConfig.MISSING_CHECKPOINT_INTERVAL})"
         )
         return True
+
+    # 2.2 分析/决策类任务兜底（防止 checkpoint 误标在纯数据任务）
+    desc = str(task.get("description", ""))
+    tool = str(task.get("tool", ""))
+    if (
+        remaining_tasks_count > 0
+        and not task.get("checkpoint")
+        and (
+            tool in {"analyze_text_tool", "get_context_tool", "search_analysis_fragments_tool"}
+            or any(keyword in desc for keyword in ("分析", "规划", "决策"))
+        )
+    ):
+        task_id = task.get("task_id", "?")
+        logger.info(f"[Checkpoint] 任务 {task_id} 为分析/决策节点，触发兜底反思")
+        return True
+
+    # 2.3 短任务链优先保障：总任务 ≤3 时，倒数第二步必反思（若尚未反思）
+    if (
+        total_tasks <= 3
+        and reflection_count == 0
+        and remaining_tasks_count == 1
+    ):
+        task_id = task.get("task_id", "?")
+        logger.info(f"[Checkpoint] 短链倒数第二步触发兜底反思 (总任务={total_tasks})")
+        return True
+
+    # 2.4 最后一步兜底：输出为空且尚无反思时，再给一次机会
+    if remaining_tasks_count == 0 and reflection_count == 0:
+        output = result.get("output") or result.get("content")
+        if not output:
+            task_id = task.get("task_id", "?")
+            logger.info(f"[Checkpoint] 最后一步输出为空，触发兜底反思 (task {task_id})")
+            return True
 
     # 3. 任务失败时兜底反思
     if config.REFLECT_ON_FAILURE and result.get("status") == "failed":
@@ -259,4 +310,3 @@ def should_reflect(
     # 4. 其他情况不触发反思
     #    注意：移除了基于关键词的判断，因为现在由 AI 通过 checkpoint 字段控制
     return False
-

@@ -379,68 +379,23 @@ chapter_id: "def-456"
 # Agent 模式专用的 checkpoint 说明（追加到基础 prompt）
 _AGENT_MODE_CHECKPOINT_SECTION = """
 
-【Agent 模式：检查点标记】
+?Agent ?????????
 
-在 Agent 模式下，你可以为关键任务标记 `"checkpoint": true`。
-标记检查点的任务完成后，系统会评估执行结果，必要时调整后续计划。
+? Agent ?????????????? `checkpoint: true`?
+????????????????????????????????
 
-## ⚠️ checkpoint 标记规则（非常重要！）
+## ?? checkpoint ???????????
 
-**核心原则：只在"中间关键决策点"标记 checkpoint，避免在最终输出任务标记！**
+**???????????????/??????? checkpoint?????????????????????**
 
-需要标记 checkpoint 的任务：
-- 数据获取任务（read_chapter_tool, get_context_tool）→ 需要验证数据是否足够
-- 复杂的多步骤任务的**中间**关键节点
+???? checkpoint ????
+- ???????read_chapter_tool, get_context_tool ????**??????/???**????????????????
+- ?????????????/???????????????????????????????
 
-**绝对不要**标记 checkpoint 的任务：
-- ❌ **最后一个任务（无论是什么类型）** - 执行完就应该结束，不需要反思
-- ❌ 独立的单步骤任务
-- ❌ 输出类任务（analyze_text_tool 用于"给出建议"时）
+????? checkpoint ????
+- ????????????????????? checkpoint ??????/?????
+- ??????????
 
-## 输出格式（Agent 模式）
-
-{
-  "thinking": {...},
-  "user_intent": "...",
-  "tasks": [
-    {"task_id": 1, "description": "获取上下文", "tool": "get_context_tool", "checkpoint": false},
-    {"task_id": 2, "description": "分析并规划大纲", "tool": "analyze_text_tool", "checkpoint": true, "params": {...}}
-  ]
-}
-
-## 示例
-
-用户（章节聊天）: "帮我改写文中的'随着白光退去，神女看见了他的背影。'"
-{
-  "thinking": {
-    "step1_output": "用户想看到这句话的改写建议",
-    "step2_material": "需要读取本章内容了解上下文",
-    "step3_process": "先读章节，再分析并给出改写建议"
-  },
-  "user_intent": "改写选中的句子",
-  "tasks": [
-    {"task_id": 1, "description": "读取章节内容", "tool": "read_chapter_tool", "checkpoint": true, "params": {"work_id": "$WORK_ID$", "chapter_id": "$CHAPTER_ID$"}},
-    {"task_id": 2, "description": "分析并给出改写建议", "tool": "analyze_text_tool", "checkpoint": false, "params": {"text": "随着白光退去，神女看见了他的背影。\\n\\n[章节上下文: $TASK_1$]", "focus": "基于章节上下文，给出3-5个改写建议，要求更有画面感"}}
-  ]
-}
-⚠️ 注意：最后一个任务 checkpoint=false，因为它是最终输出，无需反思！
-
-用户: "根据前面的章节，规划后续5章大纲"
-{
-  "thinking": {
-    "step1_output": "用户想看到后续5章的大纲规划",
-    "step2_material": "需要前面章节的内容",
-    "step3_process": "获取上下文后进行大纲规划"
-  },
-  "user_intent": "规划后续章节大纲",
-  "tasks": [
-    {"task_id": 1, "description": "获取作品上下文", "tool": "get_context_tool", "checkpoint": true, "params": {}},
-    {"task_id": 2, "description": "规划后续5章大纲", "tool": "analyze_text_tool", "checkpoint": false, "params": {"text": "$TASK_1$", "focus": "基于已有内容，规划后续5章的大纲"}}
-  ]
-}
-⚠️ 注意：Task 1 标记 checkpoint 验证数据是否足够，Task 2 是最终输出所以 checkpoint=false！
-
-**关键提醒：最后一个任务永远不要标记 checkpoint=true，否则会导致无限反思循环！**
 """
 
 
