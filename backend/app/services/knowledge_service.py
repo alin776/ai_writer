@@ -5,7 +5,7 @@
 import logging
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_, and_
+from sqlalchemy import select, func, or_, and_, bindparam, text
 from uuid import UUID
 
 from app.models.knowledge_item import KnowledgeItem, KnowledgeCategory
@@ -152,10 +152,21 @@ class KnowledgeService:
                 query = query.where(KnowledgeItem.category == category)
                 count_query = count_query.where(KnowledgeItem.category == category)
 
-            # 标签过滤（包含任意一个标签）
+            # 标签过滤（支持模糊匹配任意标签：输入任意一段文字，只要有标签包含即可命中）
             if tags:
-                query = query.where(KnowledgeItem.tags.overlap(tags))
-                count_query = count_query.where(KnowledgeItem.tags.overlap(tags))
+                tag_conditions = []
+                for idx, tag in enumerate(tags):
+                    if not tag:
+                        continue
+                    pattern = f"%{tag}%"
+                    clause = text(
+                        f"EXISTS (SELECT 1 FROM unnest(knowledge_items.tags) AS t(tag) WHERE t ILIKE :tag_pattern_{idx})"
+                    ).bindparams(bindparam(f"tag_pattern_{idx}", pattern))
+                    tag_conditions.append(clause)
+                if tag_conditions:
+                    tag_filter = or_(*tag_conditions)
+                    query = query.where(tag_filter)
+                    count_query = count_query.where(tag_filter)
 
             # 作品过滤
             if work_id:
