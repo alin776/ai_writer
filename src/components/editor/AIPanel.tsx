@@ -1117,7 +1117,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
                     <div className="flex-1 min-w-0 flex items-baseline justify-between gap-2">
                       <p className={`text-[11px] leading-relaxed transition-colors duration-200 ${
-                        task.status === 'running' ? 'text-zinc-700' : 'text-zinc-400'
+                        task.status === 'running' ? 'text-zinc-700 animate-pulse' : 'text-zinc-400'
                       }`}>
                         {task.description}
                       </p>
