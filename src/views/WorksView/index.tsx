@@ -35,7 +35,7 @@ import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
 import { useConfirm } from '../../hooks/useConfirm';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
-import type { Work, WorkStatus, WorkGenre } from '../../types';
+import type { Work, WorkStatus, WorkGenre, WorkSummary } from '../../types';
 import type { ImportOptions, ImportPreviewResponse } from '../../types/export';
 
 // 默认封面路径
@@ -48,6 +48,8 @@ const WorksView: React.FC = () => {
 
   // 数据状态
   const [works, setWorks] = useState<Work[]>([]);
+  const [summary, setSummary] = useState<WorkSummary | null>(null);
+  const [totalWorksCount, setTotalWorksCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
   // 筛选和搜索状态
@@ -65,6 +67,8 @@ const WorksView: React.FC = () => {
     status: 'draft' as WorkStatus,
     coverImage: ''
   });
+  const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string>('');
 
   // 导入弹窗状态
   const [showImportModal, setShowImportModal] = useState(false);
@@ -84,7 +88,9 @@ const WorksView: React.FC = () => {
     try {
       setIsLoading(true);
       const data = await DataService.getWorks();
-      setWorks(data);
+      setWorks(data.items || []);
+      setSummary(data.summary || null);
+      setTotalWorksCount(data.total ?? (data.items ? data.items.length : 0));
     } catch (error) {
       console.error('加载作品失败:', error);
       showToast('error', '加载作品失败');
@@ -130,8 +136,15 @@ const WorksView: React.FC = () => {
     return `${Math.floor(diffDays / 365)}年前`;
   };
 
+  const cleanupCoverPreview = () => {
+    if (coverPreview && coverPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(coverPreview);
+    }
+  };
+
   // 打开编辑弹窗
   const openEditModal = (work: Work) => {
+    cleanupCoverPreview();
     setEditingWork(work);
     setEditFormData({
       title: work.title,
@@ -140,10 +153,15 @@ const WorksView: React.FC = () => {
       status: work.status,
       coverImage: work.coverImage || ''
     });
+    setPendingCoverFile(null);
+    setCoverPreview(work.coverImage || '');
   };
 
   // 关闭编辑弹窗
   const closeEditModal = () => {
+    cleanupCoverPreview();
+    setPendingCoverFile(null);
+    setCoverPreview('');
     setEditingWork(null);
   };
 
@@ -152,12 +170,17 @@ const WorksView: React.FC = () => {
     if (!editingWork) return;
 
     try {
+      let coverUrl = editFormData.coverImage;
+      if (pendingCoverFile) {
+        coverUrl = await DataService.uploadWorkCover(editingWork.id, pendingCoverFile);
+      }
+
       await DataService.updateWork(editingWork.id, {
         title: editFormData.title,
         description: editFormData.description,
         genre: editFormData.genre as WorkGenre,
         status: editFormData.status,
-        coverImage: editFormData.coverImage
+        coverImage: coverUrl
       });
 
       // 重新加载数据
@@ -188,12 +211,6 @@ const WorksView: React.FC = () => {
       console.error('删除失败:', error);
       showToast('error', '删除失败');
     }
-  };
-
-  // 继续创作 - 跳转到作品详情页
-  const handleContinueWriting = (work: Work) => {
-    // 直接跳转到作品详情页，作品详情页会自动定位到最后一章
-    navigate(`/works/${work.id}`);
   };
 
   // 导出作品
@@ -303,16 +320,11 @@ const WorksView: React.FC = () => {
     });
 
   // 统计数据
-  const totalWords = works.reduce((sum, work) => sum + work.totalWords, 0);
-  const writingCount = works.filter(work => work.status === 'writing').length;
+  const totalWords = summary?.totalWords ?? works.reduce((sum, work) => sum + work.totalWords, 0);
+  const writingCount = summary?.writingCount ?? works.filter(work => work.status === 'writing').length;
 
   // 获取本周新增字数（示例：使用最近7天内更新的作品字数）
-  const weekNewWords = works
-    .filter(work => {
-      const diff = Date.now() - new Date(work.updatedAt).getTime();
-      return diff < 7 * 24 * 60 * 60 * 1000;
-    })
-    .reduce((sum, work) => sum + work.totalWords, 0);
+  const weekNewWords = summary?.weeklyNewWords ?? 0;
 
   // 所有类型列表
   const allGenres = ['all', ...Array.from(new Set(works.map(work => work.genre).filter(Boolean)))];
@@ -353,7 +365,7 @@ const WorksView: React.FC = () => {
               </div>
               <div className="flex items-center gap-1" style={{ fontSize: '13px' }}>
                 <span className="text-gray-400">共</span>
-                <span className="text-gray-900 font-medium">{works.length}</span>
+                <span className="text-gray-900 font-medium">{totalWorksCount}</span>
                 <span className="text-gray-400">部作品</span>
               </div>
             </div>
@@ -614,16 +626,6 @@ const WorksView: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleContinueWriting(work);
-                          }}
-                          className="p-2 hover:bg-gray-100 transition-colors"
-                          title="继续创作"
-                        >
-                          <BookOpen className="w-3.5 h-3.5 text-gray-600" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
                             openEditModal(work);
                           }}
                           className="p-2 hover:bg-gray-100 transition-colors"
@@ -741,25 +743,22 @@ const WorksView: React.FC = () => {
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
-                    onChange={async (e) => {
+                    onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file && editingWork) {
-                        try {
-                          const coverUrl = await DataService.uploadWorkCover(editingWork.id, file);
-                          setEditFormData({ ...editFormData, coverImage: coverUrl });
-                        } catch (error) {
-                          console.error('上传封面失败:', error);
-                          alert('上传封面失败，请重试');
-                        }
-                      }
+                      if (!file) return;
+
+                      cleanupCoverPreview();
+                      const previewUrl = URL.createObjectURL(file);
+                      setCoverPreview(previewUrl);
+                      setPendingCoverFile(file);
                     }}
                     className="w-full px-3 py-2 border border-gray-200 text-gray-900 focus:outline-none focus:border-gray-900 transition-colors cursor-pointer bg-white"
                     style={{ fontSize: '12px' }}
                   />
-                  {editFormData.coverImage && (
+                  {(coverPreview || editFormData.coverImage) && (
                     <div className="mt-2">
                       <img
-                        src={editFormData.coverImage}
+                        src={coverPreview || editFormData.coverImage}
                         alt="封面预览"
                         className="w-full h-32 object-cover border border-gray-200"
                         onError={(e) => {

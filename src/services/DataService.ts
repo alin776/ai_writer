@@ -67,6 +67,7 @@ import type {
   GroupMember,
   CreateGroupMemberData
 } from '@/types/group';
+import type { WorkListResponse } from '@/types';
 
 type WorkGuidelines = Record<string, unknown>;
 type AdminStatistics = {
@@ -247,12 +248,12 @@ class DataServiceClass {
 
   /**
    * 获取所有作品
-   * @returns Promise<Work[]>
+   * @returns Promise<WorkListResponse>
    */
-  async getWorks(): Promise<Work[]> {
+  async getWorks(): Promise<WorkListResponse> {
     // 后端返回分页格式：{ total, page, page_size, items }
-    const response = await this.adapter.get<{ items: Work[]; total: number }>('/works');
-    return response.items || [];
+    const response = await this.adapter.get<WorkListResponse>('/works', { skip: 0, limit: 100 });
+    return response;
   }
 
   /**

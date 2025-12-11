@@ -25,8 +25,8 @@ export const useWorks = (
   return useQuery<Work[], Error>({
     queryKey: queryKeys.works.lists(),
     queryFn: async () => {
-      const works = await DataService.getWorks();
-      return works;
+      const result = await DataService.getWorks();
+      return result.items || [];
     },
     // 使用静态数据配置（作品列表变化不频繁）
     ...queryOptions.static,

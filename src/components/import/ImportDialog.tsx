@@ -38,7 +38,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
     try {
       setWorksLoading(true);
       const list = await DataService.getWorks();
-      setWorks(list);
+      setWorks(list.items || []);
     } catch (err) {
       console.error('加载作品列表失败:', err);
       setError('加载作品列表失败，请稍后重试');
