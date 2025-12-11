@@ -32,6 +32,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { DataService } from '../../services/DataService';
+import { TxtExportService, type TxtExportResult } from '../../services/TxtExportService';
 import { useGlobalStore } from '../../store/globalStore';
 import { useConfirm } from '../../hooks/useConfirm';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
@@ -78,6 +79,15 @@ const WorksView: React.FC = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 导出弹窗状态
+  const [exportingWork, setExportingWork] = useState<Work | null>(null);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportMode, setExportMode] = useState<'full' | 'range'>('full');
+  const [exportStartChapter, setExportStartChapter] = useState('');
+  const [exportEndChapter, setExportEndChapter] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // 加载作品列表
   useEffect(() => {
@@ -213,10 +223,99 @@ const WorksView: React.FC = () => {
     }
   };
 
-  // 导出作品
-  const handleExport = (work: Work) => {
-    // TODO: 实现导出功能
-    showToast('info', '导出功能即将上线');
+  // 打开导出弹窗
+  const openExportModal = (work: Work) => {
+    const endChapter = work.totalChapters > 0 ? work.totalChapters : 1;
+    setExportingWork(work);
+    setExportMode('full');
+    setExportStartChapter('1');
+    setExportEndChapter(String(endChapter));
+    setExportError(null);
+    setShowExportModal(true);
+  };
+
+  const closeExportModal = () => {
+    setShowExportModal(false);
+    setExportingWork(null);
+    setExportError(null);
+    setIsExporting(false);
+  };
+
+  // 导出作品为TXT
+  const handleExport = async () => {
+    if (!exportingWork) return;
+
+    try {
+      setIsExporting(true);
+      setExportError(null);
+
+      let rangeLabel = '';
+      let result: TxtExportResult;
+
+      if (exportMode === 'range') {
+        const start = parseInt(exportStartChapter, 10);
+        const end = parseInt(exportEndChapter, 10);
+        const total = exportingWork.totalChapters || 0;
+
+        if (Number.isNaN(start) || Number.isNaN(end)) {
+          const message = '请输入有效的章节数字';
+          setExportError(message);
+          showToast('error', message);
+          setIsExporting(false);
+          return;
+        }
+
+        if (start < 1 || end < 1) {
+          const message = '章节序号需要从 1 开始';
+          setExportError(message);
+          showToast('error', message);
+          setIsExporting(false);
+          return;
+        }
+
+        if (start > end) {
+          const message = '开始章节不能大于结束章节';
+          setExportError(message);
+          showToast('error', message);
+          setIsExporting(false);
+          return;
+        }
+
+        if (total > 0 && (start > total || end > total)) {
+          const message = `超出作品章节数（共 ${total} 章）`;
+          setExportError(message);
+          showToast('error', message);
+          setIsExporting(false);
+          return;
+        }
+
+        rangeLabel = start === end ? `（第${start}章）` : `（第${start}-${end}章）`;
+
+        showToast('info', '正在导出...');
+        result = await TxtExportService.export(exportingWork, {
+          includeDescription: true,
+          chapterRange: { start, end },
+        });
+      } else {
+        showToast('info', '正在导出...');
+        result = await TxtExportService.export(exportingWork, { includeDescription: true });
+      }
+
+      if (result.chapterCount === 0) {
+        showToast('success', `《${exportingWork.title}》导出成功（暂无章节内容）`);
+      } else {
+        showToast('success', `《${exportingWork.title}》导出成功，共 ${result.chapterCount} 章${rangeLabel}`);
+      }
+
+      closeExportModal();
+    } catch (error: any) {
+      console.error('导出失败:', error);
+      const message = error?.message || '导出失败，请稍后重试';
+      setExportError(message);
+      showToast('error', message);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   // 打开导入弹窗
@@ -636,7 +735,7 @@ const WorksView: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleExport(work);
+                            openExportModal(work);
                           }}
                           className="p-2 hover:bg-gray-100 transition-colors"
                           title="导出"
@@ -949,6 +1048,122 @@ const WorksView: React.FC = () => {
                       <span style={{ transform: 'skewX(2deg)' }}>确认导入</span>
                     </>
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 导出弹窗 */}
+      {showExportModal && exportingWork && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeExportModal}>
+          <div className="bg-white w-[520px] max-h-[640px] overflow-y-auto scrollbar-hide" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ transform: 'skewX(2deg)' }} className="p-6 space-y-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg text-gray-900">导出作品</h2>
+                  <p className="text-[12px] text-gray-500 mt-1">《{exportingWork.title}》 · 共 {exportingWork.totalChapters} 章</p>
+                </div>
+                <button onClick={closeExportModal} className="p-1 hover:bg-gray-100 transition-colors">
+                  <X className="w-4 h-4 text-gray-600" />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[12px] text-gray-700">导出方式</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setExportMode('full')}
+                    className={`px-4 py-3 border text-sm transition-colors ${
+                      exportMode === 'full'
+                        ? 'bg-black text-white border-black'
+                        : 'bg-white text-gray-700 border-gray-200 hover:border-gray-900'
+                    }`}
+                    style={{ transform: 'skewX(-2deg)' }}
+                  >
+                    <span style={{ transform: 'skewX(2deg)' }} className="block text-left">
+                      <span className="font-medium">全文导出</span>
+                      <span className="block text-[11px] text-gray-400">导出所有章节和简介</span>
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setExportMode('range')}
+                    className={`px-4 py-3 border text-sm transition-colors ${
+                      exportMode === 'range'
+                        ? 'bg-black text-white border-black'
+                        : 'bg-white text-gray-700 border-gray-200 hover:border-gray-900'
+                    }`}
+                    style={{ transform: 'skewX(-2deg)' }}
+                  >
+                    <span style={{ transform: 'skewX(2deg)' }} className="block text-left">
+                      <span className="font-medium">批量导出</span>
+                      <span className="block text-[11px] text-gray-400">按章节范围导出，可单章</span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {exportMode === 'range' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-[12px] text-gray-500">
+                    <span>选择导出的章节范围</span>
+                    <span>共 {exportingWork.totalChapters} 章</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-gray-700 mb-1" style={{ fontSize: '12px' }}>从第几章</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={exportStartChapter}
+                        onChange={(e) => setExportStartChapter(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 text-gray-900 focus:outline-none focus:border-gray-900 transition-colors"
+                        style={{ fontSize: '13px' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-700 mb-1" style={{ fontSize: '12px' }}>到第几章</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={exportEndChapter}
+                        onChange={(e) => setExportEndChapter(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 text-gray-900 focus:outline-none focus:border-gray-900 transition-colors"
+                        style={{ fontSize: '13px' }}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-gray-400">
+                    例如：从第 2 章到第 5 章；若导出单章，请将开始和结束设置为同一章。
+                  </p>
+                </div>
+              )}
+
+              {exportError && (
+                <div className="bg-red-50 text-red-600 text-[12px] px-3 py-2 border border-red-100">
+                  {exportError}
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  onClick={closeExportModal}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 hover:bg-white hover:border-gray-900 transition-colors"
+                  style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
+                  disabled={isExporting}
+                >
+                  <span style={{ transform: 'skewX(2deg)' }}>取消</span>
+                </button>
+                <button
+                  onClick={handleExport}
+                  disabled={isExporting}
+                  className={`flex-1 px-4 py-2.5 text-white transition-colors ${
+                    isExporting ? 'bg-gray-400 cursor-not-allowed' : 'bg-black hover:bg-gray-800'
+                  }`}
+                  style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
+                >
+                  <span style={{ transform: 'skewX(2deg)' }}>{isExporting ? '导出中...' : '开始导出'}</span>
                 </button>
               </div>
             </div>
