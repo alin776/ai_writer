@@ -152,37 +152,61 @@ class DeepAgentExecutor:
             ):
                 logger.info(f"任务 {task_id} 触发反思检查点")
 
-                reflection_result = await self._do_reflection(
-                    task=task,
-                    result=result,
-                    remaining_tasks=tasks[i + 1:],
-                    context={**context, "user_intent": user_intent},  # ✅ 注入 user_intent
-                )
+                acceptance = await self._get_acceptance(task, user_intent)
 
-                # 如果需要重规划
-                if reflection_result.needs_replan and self._can_replan():
+            reflection_result = await self._do_reflection(
+                task=task,
+                result=result,
+                remaining_tasks=tasks[i + 1:],
+                context={**context, "user_intent": user_intent},
+                acceptance=acceptance,
+            )
+
+            # 若已满足验收数量但反思仍要求重规划，则短路避免无谓循环
+            # [临时禁用] 用于测试重规划功能是否正常
+            # if acceptance and acceptance.get("expected_count"):
+            #     output_text = result.get("output") or result.get("content") or ""
+            #     if output_text:
+            #         item_count = self._count_items(output_text)
+            #         if item_count >= acceptance.get("expected_count", 0):
+            #             reflection_result = ReflectionResult(
+            #                 reflection=f"{reflection_result.reflection} | 已达到数量要求，跳过重规划",
+            #                 needs_replan=False,
+            #                 suggested_tasks=reflection_result.suggested_tasks,
+            #             )
+
+            # 如果需要重规划
+            if reflection_result.needs_replan and self._can_replan():
                     logger.info(f"反思结果需要重规划 (第 {self.replan_count + 1} 次)")
 
                     new_tasks = await self._do_replan(
                         reflection=reflection_result.reflection,
                         completed_tasks=tasks[:i + 1],
                         remaining_tasks=tasks[i + 1:],
-                        user_intent=user_intent,  # ✅ 传递用户意图
+                        user_intent=user_intent,
                     )
 
-                    if new_tasks:
+                    remedy_task = None
+                    if acceptance:
+                        # 计算补写任务 ID 时考虑可能新增的任务，避免 ID 冲突
+                        all_for_id = tasks + (new_tasks or [])
+                        remedy_task = self._build_remedy_task(task, acceptance, user_intent, all_for_id)
+
+                    if remedy_task or new_tasks:
                         # 更新任务列表
                         old_remaining = tasks[i + 1:]
-                        tasks = tasks[:i + 1] + new_tasks
-                        self.replan_count += 1
+                        updated_remaining = new_tasks if new_tasks else old_remaining
+                        tasks = tasks[:i + 1] + ([remedy_task] if remedy_task else []) + updated_remaining
+                        if new_tasks:
+                            self.replan_count += 1
 
                         # 发送更新的计划事件
                         if self.on_plan:
                             # 找出新增的任务 ID
                             old_ids = {t.get("task_id") for t in old_remaining}
                             new_task_ids = [
-                                t.get("task_id") for t in new_tasks
-                                if t.get("task_id") not in old_ids
+                                t.get("task_id") for t in ([remedy_task] if remedy_task else []) + (new_tasks or [])
+                                if t and t.get("task_id") not in old_ids
                             ]
 
                             await self._safe_callback(self.on_plan, {
@@ -192,7 +216,7 @@ class DeepAgentExecutor:
                                 "reason": reflection_result.reflection[:100],
                             })
 
-                        logger.info(f"计划已更新，新任务数: {len(new_tasks)}")
+                        logger.info(f"计划已更新，新任务数: {len(new_tasks or []) + (1 if remedy_task else 0)}")
 
             i += 1
 
@@ -224,6 +248,7 @@ class DeepAgentExecutor:
         result: Dict[str, Any],
         remaining_tasks: List[Dict[str, Any]],
         context: Dict[str, Any],
+        acceptance: Optional[Dict[str, Any]] = None,
     ) -> ReflectionResult:
         """执行反思"""
         # P1-1: ai_service 空值检查
@@ -237,6 +262,7 @@ class DeepAgentExecutor:
                 result=result,
                 remaining_tasks=remaining_tasks,
                 context=context,
+                acceptance=acceptance,
                 agent_graph=self.agent,  # 传入 agent_graph，复用 _generate_text 抽象层
             )
 
@@ -276,6 +302,25 @@ class DeepAgentExecutor:
             except (TypeError, ValueError):
                 continue
         return max(ids) if ids else 0
+
+    def _build_remedy_task(
+        self,
+        base_task: Dict[str, Any],
+        acceptance: Dict[str, Any],
+        user_intent: str,
+        all_tasks: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """基于当前任务快速生成补写/修复任务"""
+        new_task_id = self._get_max_task_id(all_tasks) + 1
+        requirement_text = acceptance.get("requirement") or user_intent or "完善输出"
+        return {
+            "task_id": new_task_id,
+            "description": f"补充/修正上一任务结果，确保满足：{requirement_text}",
+            "tool": base_task.get("tool", "auto"),
+            "params": base_task.get("params", {}),
+            "checkpoint": True,
+            "acceptance": acceptance,
+        }
 
     def _infer_acceptance_by_regex(self, task: Dict[str, Any], user_intent: str) -> Optional[Dict[str, Any]]:
         """【第二层】正则快速提取验收标准（成本=0）"""
@@ -465,6 +510,7 @@ class DeepAgentExecutor:
                     result=failed_result,
                     remaining_tasks=[],
                     context={**context, "user_intent": user_intent},
+                    acceptance=failed_acceptance,
                 )
                 reflection_note = reflection.reflection
             except Exception:

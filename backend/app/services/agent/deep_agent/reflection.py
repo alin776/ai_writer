@@ -28,6 +28,7 @@ async def think_tool(
     result: Dict[str, Any],
     remaining_tasks: List[Dict[str, Any]],
     context: Dict[str, Any],
+    acceptance: Optional[Dict[str, Any]] = None,
     agent_graph: Optional[Any] = None,  # WritingAgentGraph 实例（复用 _generate_text 抽象层）
 ) -> ReflectionResult:
     """反思工具
@@ -50,7 +51,7 @@ async def think_tool(
         logger.warning("agent_graph 为空，跳过反思")
         return ReflectionResult(reflection="agent_graph 未初始化，跳过反思", needs_replan=False)
 
-    prompt = _build_reflection_prompt(task, result, remaining_tasks, context)
+    prompt = _build_reflection_prompt(task, result, remaining_tasks, context, acceptance)
 
     try:
         # 复用 _generate_text 抽象层
@@ -91,6 +92,7 @@ def _build_reflection_prompt(
     result: Dict[str, Any],
     remaining_tasks: List[Dict[str, Any]],
     context: Dict[str, Any],
+    acceptance: Optional[Dict[str, Any]] = None,
 ) -> str:
     """构建反思 Prompt"""
     task_desc = task.get("description", "未知任务")
@@ -121,6 +123,7 @@ def _build_reflection_prompt(
 - 描述: {task_desc}
 - 状态: {task_status}
 - 输出: {task_output}
+{"- 验收标准: " + json.dumps(acceptance, ensure_ascii=False) if acceptance else ""}
 
 ## 剩余任务
 {remaining_str}
@@ -282,6 +285,18 @@ def should_reflect(
     ):
         task_id = task.get("task_id", "?")
         logger.info(f"[Checkpoint] 任务 {task_id} 为分析/决策节点，触发兜底反思")
+        return True
+
+    # 2.2b 写入/改写类任务兜底：保障输出质量与长度
+    if (
+        not task.get("checkpoint")
+        and (
+            any(kw in tool for kw in ("write", "save", "update", "edit", "rewrite"))
+            or any(kw in desc for kw in ("写", "撰写", "改写", "保存", "更新", "同步"))
+        )
+    ):
+        task_id = task.get("task_id", "?")
+        logger.info(f"[Checkpoint] 写入类任务 {task_id} 触发兜底反思")
         return True
 
     # 2.3 短任务链优先保障：总任务 ≤3 时，倒数第二步必反思（若尚未反思）

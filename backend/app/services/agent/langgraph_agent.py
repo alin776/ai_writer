@@ -3492,6 +3492,24 @@ chapter_id: {chapter_id}
                         ]
                     }
 
+                # === 规划后处理：补充验收与 checkpoint，降低兜底反思频率 ===
+                def _quick_acceptance_from_text(text: str):
+                    import re
+                    m = re.search(r"(\d{1,3})\s*(个|条|点|段|篇|章节|章|转折点|要点|场景|角色|人物|种|类|组|步|项|处|部分|方面|建议|方案|问题|观点)", text or "")
+                    if m:
+                        return {"expected_count": int(m.group(1)), "requirement": m.group(0)}
+                    return None
+
+                acceptance_hint = _quick_acceptance_from_text(plan_data.get("user_intent") or message)
+                tasks = plan_data.get("tasks") or []
+                for idx, t in enumerate(tasks):
+                    if acceptance_hint and not t.get("acceptance"):
+                        t["acceptance"] = acceptance_hint
+                    # 保证至少首个任务打 checkpoint，便于早期反思校验
+                    if "checkpoint" not in t:
+                        t["checkpoint"] = (idx == 0)
+                plan_data["tasks"] = tasks
+
                 # ✅ P1-7: 记录Planning阶段完成
                 planning_duration = time.time() - planning_start
 
@@ -4761,4 +4779,3 @@ chapter_id: {chapter_id}
 
 __all__ = ["WritingAgentGraph", "AgentState"]
  
-
