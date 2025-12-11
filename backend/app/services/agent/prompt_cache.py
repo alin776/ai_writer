@@ -168,6 +168,18 @@ async def get_planning_static_prompt() -> str:
   ⚠️ 返回数据已包含: {title, order, content, word_count} → 标题/序号等元数据无需再分析！
 - get_context_tool: 获取作品上下文
 
+检索工具（跨章节/跨数据源搜索）：
+- search_chapter_title_tool: 按标题/正文模糊搜索章节 (参数: query, limit)
+  - 适用于：查找提到某个关键词的章节、搜索包含特定内容的章节
+  - 示例："哪个章节提到了XXX"、"搜索包含YYY的章节"
+- search_worldview_tool: 搜索世界观数据 (参数: query, entity_type, limit)
+  - 适用于：查找角色/人物、地点、设定信息
+  - entity_type: all/character/location/setting
+  - 示例："查一下XXX这个角色"、"作品里有没有叫YYY的人物"、"关于ZZZ地点的设定"
+- search_knowledge_tool: 知识库语义搜索 (参数: query, category, tags, top_k)
+  - 适用于：从知识库中检索相关设定、参考资料
+  - 示例："从知识库中找XXX相关的设定"
+
 处理原料：
 - analyze_text_tool: 概括、分析、规划大纲 (参数: text, focus)
   - 适用于：概括内容、分析人物、分析情节、写大纲、规划章节
