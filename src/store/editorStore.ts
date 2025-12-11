@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Chapter } from '@/types';
+import { countWordsInHtml } from '@/utils/wordCount';
 
 /**
  * 右侧面板类型
@@ -162,8 +163,8 @@ export const useEditorStore = create<EditorState>((set) => ({
     set((state) => {
       if (!state.currentChapter) return state;
 
-      // 计算字数（移除空格和标点符号）
-      const wordCount = content.replace(/[\s\p{P}]/gu, '').length;
+      // 使用统一的字数统计算法（与后端一致）
+      const wordCount = countWordsInHtml(content);
 
       return {
         currentChapter: {

@@ -4,19 +4,46 @@
  */
 
 /**
- * 从HTML内容中提取纯文本
+ * 将 HTML 转为保留换行的纯文本
+ * - 先把常见块级/换行标签转成换行符，再用 DOM 去掉其它标签
+ * - 最后规范换行，最大化保留段落结构
+ */
+export function htmlToPlainText(html: string): string {
+  if (!html) return '';
+
+  // 先把常见块级/换行标签转成换行
+  const htmlWithBreaks = html
+    .replace(/<(br)\s*\/?>/gi, '\n')
+    .replace(
+      /<\/(p|div|section|article|header|footer|aside|main|nav|figure|figcaption|blockquote|pre|li|ul|ol|h[1-6]|table|tr|td|th)>/gi,
+      '\n'
+    );
+
+  const temp = document.createElement('div');
+  temp.innerHTML = htmlWithBreaks;
+  const text = temp.textContent || temp.innerText || '';
+
+  // 规范换行与尾部空白：保留段落分隔，避免过多空行
+  const normalized = text
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/\s+$/g, '')) // 去除行尾空白但保留前导空白
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n') // 最多保留一个空行作为段落分隔
+    .trim();
+
+  return normalized;
+}
+
+/**
+ * 从HTML内容中提取纯文本（用于字数统计，折叠空白）
  * @param html HTML内容
  * @returns 纯文本
  */
 export function stripHtml(html: string): string {
-  if (!html) return '';
-  
-  // 创建临时DOM元素来解析HTML
-  const temp = document.createElement('div');
-  temp.innerHTML = html;
-  
-  // 获取纯文本
-  return temp.textContent || temp.innerText || '';
+  const plainText = htmlToPlainText(html);
+  if (!plainText) return '';
+  return plainText.replace(/\s+/g, ' ').trim();
 }
 
 /**
