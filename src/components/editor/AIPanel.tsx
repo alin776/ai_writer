@@ -1010,7 +1010,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                   className={`relative ${
                     isUser
                       ? 'p-2.5 rounded-lg flex-initial w-fit max-w-[85%] md:max-w-[75ch] bg-zinc-800 text-zinc-50 shadow-sm ml-auto break-words'
-                      : 'flex-1 max-w-[95%]'
+                      : 'flex-1 max-w-[95%] mt-2'
                   }`}
                 >
                   {isUser ? (
@@ -1038,6 +1038,17 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                         </div>
                       </details>
                     </div>
+                  )}
+
+                  {/* 用户消息复制按钮 - 悬停显示 */}
+                  {isUser && (
+                    <button
+                      onClick={() => copyMessage(message.content)}
+                      className="absolute -bottom-1 -right-1 translate-y-full opacity-0 group-hover:opacity-100 inline-flex items-center justify-center w-6 h-6 text-zinc-400 hover:text-zinc-600 transition-all"
+                      aria-label="复制消息"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
                   )}
                 </div>
 
