@@ -141,6 +141,8 @@ class DeepAgentExecutor:
             # ═══════════════════════════════════════
             # 反思检查点
             # ═══════════════════════════════════════
+            acceptance = None
+            reflection_result: ReflectionResult = ReflectionResult(reflection="", needs_replan=False)
             if should_reflect(
                 task,
                 result,
@@ -151,16 +153,15 @@ class DeepAgentExecutor:
                 has_checkpoint,
             ):
                 logger.info(f"任务 {task_id} 触发反思检查点")
-
                 acceptance = await self._get_acceptance(task, user_intent)
 
-            reflection_result = await self._do_reflection(
-                task=task,
-                result=result,
-                remaining_tasks=tasks[i + 1:],
-                context={**context, "user_intent": user_intent},
-                acceptance=acceptance,
-            )
+                reflection_result = await self._do_reflection(
+                    task=task,
+                    result=result,
+                    remaining_tasks=tasks[i + 1:],
+                    context={**context, "user_intent": user_intent},
+                    acceptance=acceptance,
+                )
 
             # 若已满足验收数量但反思仍要求重规划，则短路避免无谓循环
             # [临时禁用] 用于测试重规划功能是否正常
@@ -177,46 +178,46 @@ class DeepAgentExecutor:
 
             # 如果需要重规划
             if reflection_result.needs_replan and self._can_replan():
-                    logger.info(f"反思结果需要重规划 (第 {self.replan_count + 1} 次)")
+                logger.info(f"反思结果需要重规划 (第 {self.replan_count + 1} 次)")
 
-                    new_tasks = await self._do_replan(
-                        reflection=reflection_result.reflection,
-                        completed_tasks=tasks[:i + 1],
-                        remaining_tasks=tasks[i + 1:],
-                        user_intent=user_intent,
-                    )
+                new_tasks = await self._do_replan(
+                    reflection=reflection_result.reflection,
+                    completed_tasks=tasks[:i + 1],
+                    remaining_tasks=tasks[i + 1:],
+                    user_intent=user_intent,
+                )
 
-                    remedy_task = None
-                    if acceptance:
-                        # 计算补写任务 ID 时考虑可能新增的任务，避免 ID 冲突
-                        all_for_id = tasks + (new_tasks or [])
-                        remedy_task = self._build_remedy_task(task, acceptance, user_intent, all_for_id)
+                remedy_task = None
+                if acceptance:
+                    # 计算补写任务 ID 时考虑可能新增的任务，避免 ID 冲突
+                    all_for_id = tasks + (new_tasks or [])
+                    remedy_task = self._build_remedy_task(task, acceptance, user_intent, all_for_id)
 
-                    if remedy_task or new_tasks:
-                        # 更新任务列表
-                        old_remaining = tasks[i + 1:]
-                        updated_remaining = new_tasks if new_tasks else old_remaining
-                        tasks = tasks[:i + 1] + ([remedy_task] if remedy_task else []) + updated_remaining
-                        if new_tasks:
-                            self.replan_count += 1
+                if remedy_task or new_tasks:
+                    # 更新任务列表
+                    old_remaining = tasks[i + 1:]
+                    updated_remaining = new_tasks if new_tasks else old_remaining
+                    tasks = tasks[:i + 1] + ([remedy_task] if remedy_task else []) + updated_remaining
+                    if new_tasks:
+                        self.replan_count += 1
 
-                        # 发送更新的计划事件
-                        if self.on_plan:
-                            # 找出新增的任务 ID
-                            old_ids = {t.get("task_id") for t in old_remaining}
-                            new_task_ids = [
-                                t.get("task_id") for t in ([remedy_task] if remedy_task else []) + (new_tasks or [])
-                                if t and t.get("task_id") not in old_ids
-                            ]
+                    # 发送更新的计划事件
+                    if self.on_plan:
+                        # 找出新增的任务 ID
+                        old_ids = {t.get("task_id") for t in old_remaining}
+                        new_task_ids = [
+                            t.get("task_id") for t in ([remedy_task] if remedy_task else []) + (new_tasks or [])
+                            if t and t.get("task_id") not in old_ids
+                        ]
 
-                            await self._safe_callback(self.on_plan, {
-                                "tasks": [self._format_task(t, j) for j, t in enumerate(tasks, 1)],
-                                "is_update": True,
-                                "new_task_ids": new_task_ids,
-                                "reason": reflection_result.reflection[:100],
-                            })
+                        await self._safe_callback(self.on_plan, {
+                            "tasks": [self._format_task(t, j) for j, t in enumerate(tasks, 1)],
+                            "is_update": True,
+                            "new_task_ids": new_task_ids,
+                            "reason": reflection_result.reflection[:100],
+                        })
 
-                        logger.info(f"计划已更新，新任务数: {len(new_tasks or []) + (1 if remedy_task else 0)}")
+                    logger.info(f"计划已更新，新任务数: {len(new_tasks or []) + (1 if remedy_task else 0)}")
 
             i += 1
 

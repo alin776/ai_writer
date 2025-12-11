@@ -238,84 +238,24 @@ def should_reflect(
         logger.debug(f"已达到最大反思次数 ({config.MAX_REFLECTIONS})，跳过反思")
         return False
 
-    # 2. ✅ 新增：检查 AI 标记的 checkpoint 字段（核心逻辑）
-    #    这是 Agent 模式的核心：让 AI 在规划时就决定哪些任务需要反思
+    # 2. 核心：Planner 标记 checkpoint 的任务才反思
     if task.get("checkpoint") is True:
         task_id = task.get("task_id", "?")
         logger.info(f"[Checkpoint] 任务 {task_id} 标记了 checkpoint，触发反思")
         return True
 
-    # 2.0 规划未标记任何 checkpoint 的兜底：首个任务后强制一次
+    # 2.1 规划完全未标记 checkpoint 时的兜底（仅首个任务一次）
     if (
-        DeepAgentConfig.REFLECT_ON_FIRST_TASK_IF_NO_CHECKPOINT
+        config.REFLECT_ON_FIRST_TASK_IF_NO_CHECKPOINT
         and not has_checkpoint
         and completed_count == 1
         and reflection_count == 0
-        and not task.get("checkpoint")
     ):
         task_id = task.get("task_id", "?")
         logger.info(
-            f"[Checkpoint] 首个任务 {task_id} 未标记 checkpoint，触发兜底反思以校验规划"
+            f"[Checkpoint] 首个任务 {task_id} 未标记 checkpoint，触发一次兜底反思以校验规划"
         )
         return True
-
-    # 2.1 Planner 未标记 checkpoint 的兜底策略
-    if (
-        DeepAgentConfig.REFLECT_ON_MISSING_CHECKPOINT
-        and not task.get("checkpoint")
-        and completed_count % DeepAgentConfig.MISSING_CHECKPOINT_INTERVAL == 0
-    ):
-        task_id = task.get("task_id", "?")
-        logger.info(
-            f"[Checkpoint] 任务 {task_id} 未标记 checkpoint，按间隔触发兜底反思 "
-            f"(已完成 {completed_count} 个任务，间隔={DeepAgentConfig.MISSING_CHECKPOINT_INTERVAL})"
-        )
-        return True
-
-    # 2.2 分析/决策类任务兜底（防止 checkpoint 误标在纯数据任务）
-    desc = str(task.get("description", ""))
-    tool = str(task.get("tool", ""))
-    if (
-        remaining_tasks_count > 0
-        and not task.get("checkpoint")
-        and (
-            tool in {"analyze_text_tool", "get_context_tool", "search_analysis_fragments_tool"}
-            or any(keyword in desc for keyword in ("分析", "规划", "决策"))
-        )
-    ):
-        task_id = task.get("task_id", "?")
-        logger.info(f"[Checkpoint] 任务 {task_id} 为分析/决策节点，触发兜底反思")
-        return True
-
-    # 2.2b 写入/改写类任务兜底：保障输出质量与长度
-    if (
-        not task.get("checkpoint")
-        and (
-            any(kw in tool for kw in ("write", "save", "update", "edit", "rewrite"))
-            or any(kw in desc for kw in ("写", "撰写", "改写", "保存", "更新", "同步"))
-        )
-    ):
-        task_id = task.get("task_id", "?")
-        logger.info(f"[Checkpoint] 写入类任务 {task_id} 触发兜底反思")
-        return True
-
-    # 2.3 短任务链优先保障：总任务 ≤3 时，倒数第二步必反思（若尚未反思）
-    if (
-        total_tasks <= 3
-        and reflection_count == 0
-        and remaining_tasks_count == 1
-    ):
-        task_id = task.get("task_id", "?")
-        logger.info(f"[Checkpoint] 短链倒数第二步触发兜底反思 (总任务={total_tasks})")
-        return True
-
-    # 2.4 最后一步兜底：输出为空且尚无反思时，再给一次机会
-    if remaining_tasks_count == 0 and reflection_count == 0:
-        output = result.get("output") or result.get("content")
-        if not output:
-            task_id = task.get("task_id", "?")
-            logger.info(f"[Checkpoint] 最后一步输出为空，触发兜底反思 (task {task_id})")
-            return True
 
     # 3. 任务失败时兜底反思
     if config.REFLECT_ON_FAILURE and result.get("status") == "failed":

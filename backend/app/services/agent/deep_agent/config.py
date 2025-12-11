@@ -36,13 +36,16 @@ class DeepAgentConfig:
     # 反思触发条件
     # ════════════════════════════════════════════════════════════════
     # 主要触发条件：task.checkpoint == True（由 AI 在规划阶段标记）
-    # 兜底触发条件：任务失败时反思
+    # 兜底触发条件1：任务失败时反思
     REFLECT_ON_FAILURE: bool = True  # 任务失败时触发反思（兜底机制）
-    # 补偿机制：当planner未标记checkpoint时，按间隔触发兜底反思
-    REFLECT_ON_MISSING_CHECKPOINT: bool = True
-    MISSING_CHECKPOINT_INTERVAL: int = 2  # 每完成N个未标记任务强制一次反思（短链更易触发）
-    # 规划未标记任何checkpoint时，首个任务执行后强制一次反思
+    # 兜底触发条件2：规划未标记任何checkpoint时，首个任务执行后强制一次反思（校验规划质量）
     REFLECT_ON_FIRST_TASK_IF_NO_CHECKPOINT: bool = True
+
+    # 🔧 2025-12-11: 已移除的触发条件（代码中不再使用）
+    # - REFLECT_ON_MISSING_CHECKPOINT（间隔触发）
+    # - MISSING_CHECKPOINT_INTERVAL（每N个任务触发）
+    # - 分析类/写作类任务自动触发
+    # - 短任务链倒数第二步触发
 
     # ════════════════════════════════════════════════════════════════
     # 重规划判断
