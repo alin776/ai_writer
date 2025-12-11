@@ -160,6 +160,20 @@ export interface Work {
   publishedAt?: string;    // 后端: published_at
 }
 
+export interface WorkSummary {
+  totalWords: number;
+  writingCount: number;
+  weeklyNewWords: number;
+}
+
+export interface WorkListResponse {
+  total: number;
+  page: number;
+  pageSize: number;
+  items: Work[];
+  summary?: WorkSummary;
+}
+
 /**
  * 创建作品数据
  */

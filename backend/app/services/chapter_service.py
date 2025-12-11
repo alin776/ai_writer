@@ -2,11 +2,16 @@ from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 import re
+import logging
 
 from app.models.chapter import Chapter, ChapterStatus
 from app.schemas.chapter import ChapterCreate, ChapterUpdate
 from app.utils.cache import CacheInvalidator
 from app.core.redis import redis_client, CacheKey, CacheExpire
+from app.services.chapter_history_service import ChapterHistoryService
+from app.services.chapter_word_stat_service import ChapterWordStatService
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_word_count(content: str) -> int:
@@ -129,6 +134,28 @@ class ChapterService:
         self.db.add(chapter)
         await self.db.commit()
         await self.db.refresh(chapter)
+
+        # 记录历史，便于后续增量统计
+        try:
+            await history_service.save_history(
+                chapter_id=str(chapter.id),
+                content=chapter.content or "",
+                version=chapter.version,
+                modified_by="user",
+                operation="create",
+                description="初始创建快照"
+            )
+        except Exception:
+            # 不影响主流程
+            pass
+
+        # 记录增量（新建章节，delta = 总字数）
+        try:
+            stat_service = ChapterWordStatService(self.db)
+            await stat_service.add_delta(chapter.id, word_count)
+        except Exception as e:
+            logger.warning(f"Failed to record word count delta for chapter {chapter.id}: {e}")
+            pass
         
         return chapter
     
@@ -139,6 +166,11 @@ class ChapterService:
             return None
         
         work_id = str(chapter.work_id)
+        original_content = chapter.content or ""
+        original_version = chapter.version
+        original_word_count = chapter.word_count or 0
+        history_service = ChapterHistoryService(self.db)
+        stat_service = ChapterWordStatService(self.db)
         
         # 更新字段
         update_data = chapter_data.model_dump(exclude_unset=True)
@@ -159,12 +191,47 @@ class ChapterService:
         
         for field, value in update_data.items():
             setattr(chapter, field, value)
+
+        # 版本+1，标记修改者
+        chapter.version = (chapter.version or 0) + 1
+        chapter.last_modified_by = "user"
         
         await self.db.commit()
         await self.db.refresh(chapter)
         
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, work_id)
+
+        # 记录历史，便于后续增量统计：先保存旧版本，再保存新版本
+        try:
+            await history_service.save_history(
+                chapter_id=str(chapter.id),
+                content=original_content,
+                version=original_version,
+                modified_by="user",
+                operation="before_update",
+                description="更新前快照"
+            )
+            await history_service.save_history(
+                chapter_id=str(chapter.id),
+                content=chapter.content or "",
+                version=chapter.version,
+                modified_by="user",
+                operation="update",
+                description="自动保存快照"
+            )
+        except Exception:
+            # 不影响主流程
+            pass
+
+        # 记录增量（delta = 新旧字数差）
+        try:
+            new_word_count = chapter.word_count or 0
+            delta = new_word_count - original_word_count
+            await stat_service.add_delta(chapter.id, delta)
+        except Exception as e:
+            logger.warning(f"Failed to record word count delta for chapter {chapter.id}: {e}")
+            pass
         
         return chapter
     
@@ -238,6 +305,7 @@ class ChapterService:
             return (None, "conflict")
 
         work_id = str(chapter.work_id)
+        original_word_count = chapter.word_count or 0
 
         # 更新数据
         update_data = chapter_data.model_dump(exclude_unset=True)
@@ -269,6 +337,16 @@ class ChapterService:
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, work_id)
 
+        # 记录增量（delta = 新旧字数差）
+        try:
+            stat_service = ChapterWordStatService(self.db)
+            new_word_count = chapter.word_count or 0
+            delta = new_word_count - original_word_count
+            await stat_service.add_delta(chapter.id, delta)
+        except Exception as e:
+            logger.warning(f"Failed to record word count delta for chapter {chapter.id}: {e}")
+            pass
+
         return (chapter, "")
 
     async def apply_agent_edit(
@@ -294,6 +372,8 @@ class ChapterService:
         if not chapter:
             return None
 
+        original_word_count = chapter.word_count or 0
+
         # 根据操作类型构建新内容
         if operation == "append":
             new_content = chapter.content + content
@@ -316,5 +396,15 @@ class ChapterService:
 
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, str(chapter.work_id))
+
+        # 记录增量（delta = 新旧字数差）
+        try:
+            stat_service = ChapterWordStatService(self.db)
+            new_word_count = chapter.word_count or 0
+            delta = new_word_count - original_word_count
+            await stat_service.add_delta(chapter.id, delta)
+        except Exception as e:
+            logger.warning(f"Failed to record word count delta for chapter {chapter.id}: {e}")
+            pass
 
         return chapter

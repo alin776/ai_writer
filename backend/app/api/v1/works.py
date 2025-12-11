@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
+from datetime import datetime, timedelta, timezone
 import logging
 from pydantic import BaseModel
 
@@ -8,12 +10,20 @@ from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.core.config import settings
 from app.models.user import User
-from app.schemas.work import WorkCreate, WorkUpdate, WorkResponse, WorkListResponse
+from app.models.work import Work, WorkStatus
+from app.schemas.work import WorkCreate, WorkUpdate, WorkResponse, WorkListResponse, WorkSummary
 from app.services.work_service import WorkService
 from app.services.cos_service import get_cos_service
+from app.services.chapter_word_stat_service import ChapterWordStatService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+async def _calculate_weekly_new_words(db: AsyncSession, author_id: str) -> int:
+    """计算本周新增字数：直接汇总 delta，不再回放全文历史"""
+    week_start = datetime.now(timezone.utc) - timedelta(days=7)
+    stat_service = ChapterWordStatService(db)
+    return await stat_service.sum_delta_for_author_since(author_id, week_start)
 
 
 class CoverUploadResponse(BaseModel):
@@ -53,11 +63,28 @@ async def get_works(
 
     page = skip // limit + 1
 
+    # 统计汇总数据（全量计算，不受分页影响）
+    total_words = await db.scalar(
+        select(func.coalesce(func.sum(Work.total_words), 0)).where(Work.author_id == author_id)
+    ) or 0
+    writing_count = await db.scalar(
+        select(func.count(Work.id)).where(
+            Work.author_id == author_id,
+            Work.status == WorkStatus.WRITING
+        )
+    ) or 0
+    weekly_new_words = await _calculate_weekly_new_words(db, author_id)
+
     return WorkListResponse(
         total=total,
         page=page,
         page_size=limit,
-        items=works
+        items=works,
+        summary=WorkSummary(
+            total_words=total_words,
+            writing_count=writing_count,
+            weekly_new_words=weekly_new_words
+        )
     )
 
 

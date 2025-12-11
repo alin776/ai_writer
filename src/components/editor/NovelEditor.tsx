@@ -2,7 +2,7 @@
  * Novel 编辑器组件
  * 基于 Tiptap 的富文本编辑器
  */
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -117,6 +117,16 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   const [isRevisionLoading, setIsRevisionLoading] = useState(false);
   const lastRevisionContextRef = useRef<{ message: string; context: InlineAIContext } | null>(null);
   const handleInlineAISendRef = useRef<((message: string, context: InlineAIContext) => void) | null>(null);
+
+  // 按作品/章节隔离本地缓存，避免不同作品间内容串联
+  const contentStorageKey = useMemo(() => {
+    if (workId && chapterId) return `novel-editor-content-${workId}-${chapterId}`;
+    return null;
+  }, [workId, chapterId]);
+  const jsonStorageKey = useMemo(() => {
+    if (workId && chapterId) return `novel-editor-json-${workId}-${chapterId}`;
+    return null;
+  }, [workId, chapterId]);
 
   // 🆕 Agent 编辑确认对话框状态
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -280,8 +290,12 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       const json = editor.getJSON();
 
       // 保存到 localStorage（作为备份）
-      localStorage.setItem('novel-editor-content', html);
-      localStorage.setItem('novel-editor-json', JSON.stringify(json));
+      if (contentStorageKey) {
+        localStorage.setItem(contentStorageKey, html);
+      }
+      if (jsonStorageKey) {
+        localStorage.setItem(jsonStorageKey, JSON.stringify(json));
+      }
 
       // 调用外部保存回调
       if (onSave) {
@@ -313,8 +327,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
   // 从 localStorage 恢复内容（仅在初始化且没有传入 content 时）
   useEffect(() => {
-    if (!content && editor) {
-      const savedContent = localStorage.getItem('novel-editor-content');
+    if (!content && editor && contentStorageKey) {
+      const savedContent = localStorage.getItem(contentStorageKey);
       if (savedContent && savedContent !== '<p></p>') {
         editor.commands.setContent(savedContent);
       }
@@ -328,14 +342,18 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       if (editor && autoSave) {
         const html = editor.getHTML();
         const json = editor.getJSON();
-        localStorage.setItem('novel-editor-content', html);
-        localStorage.setItem('novel-editor-json', JSON.stringify(json));
+        if (contentStorageKey) {
+          localStorage.setItem(contentStorageKey, html);
+        }
+        if (jsonStorageKey) {
+          localStorage.setItem(jsonStorageKey, JSON.stringify(json));
+        }
         if (onSave) {
           onSave(html, json);
         }
       }
     };
-  }, [editor, autoSave, onSave]);
+  }, [editor, autoSave, onSave, contentStorageKey, jsonStorageKey]);
 
   // ===== 预加载元数据（降低首次自动补全延迟） =====
   useEffect(() => {
@@ -1173,4 +1191,3 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 };
 
 export default NovelEditor;
-

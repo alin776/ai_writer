@@ -239,7 +239,35 @@ export class MockAdapter implements IDataAdapter {
 
     // 作品列表
     if (url === '/works') {
-      return mockWorks as T;
+      const normalizedWorks = mockWorks.map((w) => ({
+        totalChapters: w.totalChapters ?? w.chapterCount ?? 0,
+        viewCount: w.viewCount ?? 0,
+        createdAt: w.createdAt ?? w.createTime ?? new Date().toISOString(),
+        updatedAt: w.updatedAt ?? w.updateTime ?? new Date().toISOString(),
+        ...w,
+      }));
+
+      const totalWords = normalizedWorks.reduce((sum, work) => sum + (work.totalWords || 0), 0);
+      const writingCount = normalizedWorks.filter((work) => work.status === 'writing').length;
+      const weekStart = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const weekNewWords = mockChapters
+        .filter((c) => {
+          const updated = new Date(c.updatedAt ?? c.updateTime ?? c.lastSaveTime ?? c.createTime ?? 0).getTime();
+          return updated >= weekStart;
+        })
+        .reduce((sum, c) => sum + (c.wordCount || 0), 0);
+
+      return {
+        total: normalizedWorks.length,
+        page: 1,
+        pageSize: normalizedWorks.length,
+        items: normalizedWorks,
+        summary: {
+          totalWords,
+          writingCount,
+          weeklyNewWords: weekNewWords,
+        },
+      } as T;
     }
 
     // 单个作品
@@ -247,7 +275,13 @@ export class MockAdapter implements IDataAdapter {
       const id = url.split('/')[2];
       const work = mockWorks.find((w) => w.id === id);
       if (!work) throw new Error('作品不存在');
-      return work as T;
+      return {
+        totalChapters: work.totalChapters ?? (work as any).chapterCount ?? 0,
+        viewCount: work.viewCount ?? 0,
+        createdAt: (work as any).createdAt ?? (work as any).createTime ?? new Date().toISOString(),
+        updatedAt: (work as any).updatedAt ?? (work as any).updateTime ?? new Date().toISOString(),
+        ...work,
+      } as T;
     }
 
     // 作品的章节列表

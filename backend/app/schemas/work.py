@@ -48,9 +48,17 @@ class WorkResponse(WorkBase):
         return str(value)
 
 
+class WorkSummary(BaseModel):
+    """作品汇总统计"""
+    total_words: int = 0
+    writing_count: int = 0
+    weekly_new_words: int = 0
+
+
 class WorkListResponse(BaseModel):
     """作品列表响应"""
     total: int
     page: int
     page_size: int
     items: list[WorkResponse]
+    summary: Optional[WorkSummary] = None

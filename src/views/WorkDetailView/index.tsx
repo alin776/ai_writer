@@ -242,6 +242,10 @@ const WorkDetailView: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [chapterToDelete, setChapterToDelete] = useState<string | null>(null);
 
+  // 重命名章节状态
+  const [editingChapterId, setEditingChapterId] = useState<string | null>(null);
+  const [editingChapterTitle, setEditingChapterTitle] = useState('');
+
   /**
    * 转换 Chapter 到 NovelChapter 格式
    */
@@ -273,6 +277,18 @@ const WorkDetailView: React.FC = () => {
       try {
         setIsLoading(true);
         setError(null);
+        // 每次加载/切换作品前先重置状态，避免沿用上一作品的章节内容
+        setChapters([]);
+        setCurrentChapterId(undefined);
+        setCurrentChapterContent('');
+        editorChapterIdRef.current = undefined;
+        setWorldData({
+          characters: [],
+          locations: [],
+          settings: [],
+          guidelines: undefined,
+          aiGuidelines: undefined,
+        });
         const [workData, chaptersData, worldDataFromServer] = await Promise.all([
           DataService.getWork(workId),
           DataService.getChapters(workId),
@@ -283,11 +299,33 @@ const WorkDetailView: React.FC = () => {
         setChapters(chaptersData);
         setWorldData(worldDataFromServer as any);
 
-        // 如果有章节，默认选中第一个
+        // 如果有章节，默认选中第一个；否则自动创建默认章节
         if (chaptersData.length > 0) {
           setCurrentChapterId(chaptersData[0].id);
           setCurrentChapterContent(chaptersData[0].content);
           editorChapterIdRef.current = chaptersData[0].id; // 更新 ref
+        } else {
+          // 方案B：自动创建默认章节
+          try {
+            const defaultChapterData = {
+              work_id: workId,
+              title: '第一章',
+              content: '',
+              order: 1,
+            };
+            const defaultChapter = await DataService.createChapter(defaultChapterData);
+            setChapters([defaultChapter]);
+            setCurrentChapterId(defaultChapter.id);
+            setCurrentChapterContent('');
+            editorChapterIdRef.current = defaultChapter.id;
+            showToast('info', '已自动创建第一章，开始创作吧！');
+          } catch (createError) {
+            console.error('Failed to create default chapter:', createError);
+            // 创建失败时，显示错误提示但不设置undefined
+            // 保持章节列表为空，让用户手动创建
+            showToast('error', '创建章节失败，请手动添加章节');
+            // 不设置currentChapterId为undefined，保持初始状态
+          }
         }
 
         // 🔥 首次打开作品时，自动检查并触发分析
@@ -337,6 +375,12 @@ const WorkDetailView: React.FC = () => {
   const handleChapterSelect = useCallback((chapterId: string) => {
     const chapter = chapters.find((c) => c.id === chapterId);
     if (chapter) {
+      // 取消正在进行的章节重命名编辑
+      if (editingChapterId) {
+        setEditingChapterId(null);
+        setEditingChapterTitle('');
+      }
+
       // 先更新章节ID，再更新内容，确保编辑器使用正确的章节数据
       setCurrentChapterId(chapterId);
       setCurrentChapterContent(chapter.content);
@@ -349,7 +393,7 @@ const WorkDetailView: React.FC = () => {
         contentLength: chapter.content?.length || 0,
       });
     }
-  }, [chapters]);
+  }, [chapters, editingChapterId]);
 
   /**
    * 处理添加章节
@@ -384,6 +428,12 @@ const WorkDetailView: React.FC = () => {
       // 使用后端返回的完整章节对象
       setChapters((prev) => [...prev, savedChapter]);
 
+      // 取消正在进行的章节重命名编辑
+      if (editingChapterId) {
+        setEditingChapterId(null);
+        setEditingChapterTitle('');
+      }
+
       // 先清空当前内容，再选中新章节（确保编辑器内容被清空）
       setCurrentChapterContent('');
       // 使用 setTimeout 确保状态更新顺序正确
@@ -412,7 +462,7 @@ const WorkDetailView: React.FC = () => {
       showToast('error', '章节添加失败');
       console.error('Failed to add chapter:', error);
     }
-  }, [workId, chapters.length, newChapterTitle, showToast]);
+  }, [workId, chapters.length, newChapterTitle, editingChapterId, showToast]);
 
   /**
    * 取消添加章节
@@ -420,6 +470,63 @@ const WorkDetailView: React.FC = () => {
   const handleCancelAddChapter = useCallback(() => {
     setNewChapterTitle('');
     setIsAddingChapter(false);
+  }, []);
+
+  /**
+   * 开始编辑章节名称
+   */
+  const handleStartRenameChapter = useCallback((chapterId: string, currentTitle: string) => {
+    setEditingChapterId(chapterId);
+    setEditingChapterTitle(currentTitle);
+  }, []);
+
+  /**
+   * 保存章节名称
+   */
+  const handleSaveChapterTitle = useCallback(async () => {
+    if (!editingChapterId) return;
+    if (!editingChapterTitle.trim()) {
+      showToast('warning', '章节标题不能为空');
+      return;
+    }
+
+    try {
+      const chapter = chapters.find((c) => c.id === editingChapterId);
+      if (!chapter) return;
+
+      // 如果标题没有变化，直接取消编辑
+      if (chapter.title === editingChapterTitle.trim()) {
+        setEditingChapterId(null);
+        setEditingChapterTitle('');
+        return;
+      }
+
+      // 更新后端
+      const updatedChapter = await DataService.updateChapter(editingChapterId, {
+        title: editingChapterTitle.trim(),
+      });
+
+      // 更新本地状态
+      setChapters((prev) =>
+        prev.map((c) => (c.id === editingChapterId ? updatedChapter : c))
+      );
+
+      showToast('success', '章节名称已更新');
+    } catch (error) {
+      showToast('error', '更新章节名称失败');
+      console.error('Failed to rename chapter:', error);
+    } finally {
+      setEditingChapterId(null);
+      setEditingChapterTitle('');
+    }
+  }, [editingChapterId, editingChapterTitle, chapters, showToast]);
+
+  /**
+   * 取消编辑章节名称
+   */
+  const handleCancelRenameChapter = useCallback(() => {
+    setEditingChapterId(null);
+    setEditingChapterTitle('');
   }, []);
 
   /**
@@ -490,7 +597,67 @@ const WorkDetailView: React.FC = () => {
   }, [workId, chapters, showToast]);
 
   /**
-   * 处理删除章节
+   * 处理删除章节（核心逻辑，不含确认对话框）
+   */
+  const executeDeleteChapter = useCallback(async (chapterId: string) => {
+    if (!workId) return;
+
+    try {
+      // 先从后端删除（确保操作成功后再更新前端状态）
+      await DataService.deleteChapter(chapterId);
+
+      // 如果正在编辑被删除的章节名称，取消编辑
+      if (editingChapterId === chapterId) {
+        setEditingChapterId(null);
+        setEditingChapterTitle('');
+      }
+
+      // 计算剩余章节
+      const remainingChapters = chapters.filter((c) => c.id !== chapterId);
+      const needsNewChapter = remainingChapters.length === 0;
+      const isCurrentChapter = currentChapterId === chapterId;
+
+      // 从状态中删除
+      setChapters(remainingChapters);
+
+      if (needsNewChapter) {
+        // 删除了最后一个章节，自动创建新章节
+        try {
+          const defaultChapterData = {
+            work_id: workId,
+            title: '第一章',
+            content: '',
+            order: 1,
+          };
+          const defaultChapter = await DataService.createChapter(defaultChapterData);
+          setChapters([defaultChapter]);
+          setCurrentChapterId(defaultChapter.id);
+          setCurrentChapterContent('');
+          editorChapterIdRef.current = defaultChapter.id;
+          showToast('info', '已自动创建新章节');
+        } catch (createError) {
+          console.error('Failed to create default chapter after delete:', createError);
+          // 创建失败时，显示错误提示但不设置undefined
+          // 保持章节列表为空，让用户手动创建
+          showToast('error', '创建章节失败，请手动添加章节');
+          // 不设置currentChapterId为undefined，保持空状态让编辑器显示提示
+        }
+      } else if (isCurrentChapter) {
+        // 删除的是当前章节，切换到第一个剩余章节
+        setCurrentChapterId(remainingChapters[0].id);
+        setCurrentChapterContent(remainingChapters[0].content);
+        editorChapterIdRef.current = remainingChapters[0].id;
+      }
+
+      showToast('success', '章节删除成功');
+    } catch (error) {
+      showToast('error', '章节删除失败');
+      console.error('Failed to delete chapter:', error);
+    }
+  }, [workId, chapters, currentChapterId, editingChapterId, showToast]);
+
+  /**
+   * 处理删除章节（带确认对话框）
    */
   const handleDeleteChapter = useCallback(async (chapterId: string) => {
     const chapter = chapters.find((c) => c.id === chapterId);
@@ -508,33 +675,8 @@ const WorkDetailView: React.FC = () => {
       return;
     }
 
-    try {
-      // 从状态中删除
-      setChapters((prev) => prev.filter((c) => c.id !== chapterId));
-
-      // 如果删除的是当前章节，切换到第一个章节
-      if (currentChapterId === chapterId) {
-        const remainingChapters = chapters.filter((c) => c.id !== chapterId);
-        if (remainingChapters.length > 0) {
-          setCurrentChapterId(remainingChapters[0].id);
-          setCurrentChapterContent(remainingChapters[0].content);
-          editorChapterIdRef.current = remainingChapters[0].id; // 更新 ref
-        } else {
-          setCurrentChapterId(undefined);
-          setCurrentChapterContent('');
-          editorChapterIdRef.current = undefined; // 更新 ref
-        }
-      }
-
-      // 从后端删除
-      await DataService.deleteChapter(chapterId);
-
-      showToast('success', '章节删除成功');
-    } catch (error) {
-      showToast('error', '章节删除失败');
-      console.error('Failed to delete chapter:', error);
-    }
-  }, [chapters, currentChapterId, showToast]);
+    await executeDeleteChapter(chapterId);
+  }, [chapters, confirm, executeDeleteChapter]);
 
   /**
    * 处理章节移动/排序
@@ -1200,67 +1342,148 @@ const WorkDetailView: React.FC = () => {
 
                         {/* 章节内容 */}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className={`text-[13px] leading-snug truncate flex-1 transition-colors duration-300 ${
-                              chapter.id === currentChapterId ? 'text-zinc-900' : 'text-zinc-700'
-                            }`}>
-                              {chapter.title.replace(/^第\d+章\s*/, '')}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setChapterToDelete(chapter.id);
-                                setDeleteDialogOpen(true);
-                              }}
-                              className={`h-6 w-6 p-0 rounded flex items-center justify-center border-0 bg-transparent opacity-0 group-hover:opacity-100 flex-shrink-0 transition-all ${
-                                chapter.id === currentChapterId
-                                  ? 'text-zinc-400 hover:text-red-500 hover:bg-red-50/80'
-                                  : 'text-zinc-400 hover:text-red-500 hover:bg-red-50'
-                              }`}
-                              aria-label="删除章节"
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="12"
-                                height="12"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M3 6h18"></path>
-                                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-                                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-                                <line x1="10" x2="10" y1="11" y2="17"></line>
-                                <line x1="14" x2="14" y1="11" y2="17"></line>
-                              </svg>
-                            </button>
-                          </div>
-
-                          {/* 字数统计与进度 */}
-                          <div className="flex items-center gap-2 mt-2">
-                            <div className={`text-[10px] transition-colors duration-300 ${
-                              chapter.id === currentChapterId ? 'text-zinc-500' : 'text-zinc-400'
-                            }`}>
-                              {chapter.wordCount.toLocaleString()} 字
-                            </div>
-                            {/* 进度指示器 */}
-                            <div className={`flex-1 h-1 rounded-full transition-all duration-300 ${
-                              chapter.id === currentChapterId ? 'bg-zinc-100' : 'bg-zinc-100/60'
-                            }`}>
-                              <div
-                                className={`h-full rounded-full transition-all duration-500 ${
-                                  chapter.id === currentChapterId
-                                    ? 'bg-gradient-to-r from-zinc-500 via-zinc-600 to-zinc-700 shadow-sm'
-                                    : 'bg-zinc-300 group-hover:bg-zinc-400'
-                                }`}
-                                style={{ width: `${Math.min((chapter.wordCount / 5000) * 100, 100)}%` }}
+                          {editingChapterId === chapter.id ? (
+                            /* 编辑模式 */
+                            <div className="flex flex-col gap-2">
+                              <input
+                                autoFocus
+                                type="text"
+                                value={editingChapterTitle}
+                                onChange={(e) => setEditingChapterTitle(e.target.value)}
+                                onKeyDown={(e) => {
+                                  e.stopPropagation();
+                                  if (e.key === 'Enter') {
+                                    handleSaveChapterTitle();
+                                  } else if (e.key === 'Escape') {
+                                    handleCancelRenameChapter();
+                                  }
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="h-7 w-full text-[13px] border-0 px-0 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-zinc-400"
+                                style={{ outline: 'none', boxShadow: 'none' }}
                               />
+                              <div className="flex items-center justify-between">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCancelRenameChapter();
+                                  }}
+                                  className="h-6 px-2 text-[10px] bg-transparent hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 border-0 shadow-none"
+                                >
+                                  取消
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSaveChapterTitle();
+                                  }}
+                                  className="h-6 px-2 text-[10px] bg-zinc-800 hover:bg-zinc-900 text-white border-0"
+                                >
+                                  保存
+                                </Button>
+                              </div>
                             </div>
-                          </div>
+                          ) : (
+                            /* 显示模式 */
+                            <>
+                              <div className="flex items-start justify-between gap-1">
+                                <div className={`text-[13px] leading-snug truncate flex-1 transition-colors duration-300 ${
+                                  chapter.id === currentChapterId ? 'text-zinc-900' : 'text-zinc-700'
+                                }`}>
+                                  {chapter.title.replace(/^第\d+章\s*/, '')}
+                                </div>
+                                <div className="flex items-center gap-0.5 flex-shrink-0">
+                                  {/* 铅笔按钮 - 编辑章节名称 */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleStartRenameChapter(chapter.id, chapter.title);
+                                    }}
+                                    className={`h-6 w-6 p-0 rounded flex items-center justify-center border-0 bg-transparent opacity-0 group-hover:opacity-100 transition-all ${
+                                      chapter.id === currentChapterId
+                                        ? 'text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100'
+                                        : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100'
+                                    }`}
+                                    aria-label="编辑章节名称"
+                                  >
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width="12"
+                                      height="12"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                      <path d="m15 5 4 4" />
+                                    </svg>
+                                  </button>
+                                  {/* 删除按钮 */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setChapterToDelete(chapter.id);
+                                      setDeleteDialogOpen(true);
+                                    }}
+                                    className={`h-6 w-6 p-0 rounded flex items-center justify-center border-0 bg-transparent opacity-0 group-hover:opacity-100 transition-all ${
+                                      chapter.id === currentChapterId
+                                        ? 'text-zinc-400 hover:text-red-500 hover:bg-red-50/80'
+                                        : 'text-zinc-400 hover:text-red-500 hover:bg-red-50'
+                                    }`}
+                                    aria-label="删除章节"
+                                  >
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width="12"
+                                      height="12"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <path d="M3 6h18"></path>
+                                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                      <line x1="10" x2="10" y1="11" y2="17"></line>
+                                      <line x1="14" x2="14" y1="11" y2="17"></line>
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* 字数统计与进度 */}
+                              <div className="flex items-center gap-2 mt-2">
+                                <div className={`text-[10px] transition-colors duration-300 ${
+                                  chapter.id === currentChapterId ? 'text-zinc-500' : 'text-zinc-400'
+                                }`}>
+                                  {chapter.wordCount.toLocaleString()} 字
+                                </div>
+                                {/* 进度指示器 */}
+                                <div className={`flex-1 h-1 rounded-full transition-all duration-300 ${
+                                  chapter.id === currentChapterId ? 'bg-zinc-100' : 'bg-zinc-100/60'
+                                }`}>
+                                  <div
+                                    className={`h-full rounded-full transition-all duration-500 ${
+                                      chapter.id === currentChapterId
+                                        ? 'bg-gradient-to-r from-zinc-500 via-zinc-600 to-zinc-700 shadow-sm'
+                                        : 'bg-zinc-300 group-hover:bg-zinc-400'
+                                    }`}
+                                    style={{ width: `${Math.min((chapter.wordCount / 5000) * 100, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
 
@@ -1421,35 +1644,8 @@ const WorkDetailView: React.FC = () => {
             <AlertDialogAction
               onClick={async () => {
                 if (chapterToDelete) {
-                  const chapter = chapters.find((c) => c.id === chapterToDelete);
-                  if (!chapter) return;
-
-                  try {
-                    // 从状态中删除
-                    setChapters((prev) => prev.filter((c) => c.id !== chapterToDelete));
-
-                    // 如果删除的是当前章节，切换到第一个章节
-                    if (currentChapterId === chapterToDelete) {
-                      const remainingChapters = chapters.filter((c) => c.id !== chapterToDelete);
-                      if (remainingChapters.length > 0) {
-                        setCurrentChapterId(remainingChapters[0].id);
-                        setCurrentChapterContent(remainingChapters[0].content);
-                        editorChapterIdRef.current = remainingChapters[0].id; // 更新 ref
-                      } else {
-                        setCurrentChapterId(undefined);
-                        setCurrentChapterContent('');
-                        editorChapterIdRef.current = undefined; // 更新 ref
-                      }
-                    }
-
-                    // 从后端删除
-                    await DataService.deleteChapter(chapterToDelete);
-                    showToast('success', '章节删除成功');
-                  } catch (error) {
-                    showToast('error', '章节删除失败');
-                  } finally {
-                    setChapterToDelete(null);
-                  }
+                  await executeDeleteChapter(chapterToDelete);
+                  setChapterToDelete(null);
                 }
               }}
               className="text-[12px] h-8 bg-red-500 hover:bg-red-600 text-white"

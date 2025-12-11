@@ -35,7 +35,6 @@ const mainNavItems: NavItem[] = [
   { id: 'works', label: '作品管理', icon: BookOpen, path: '/works' },
   { id: 'knowledge', label: '知识库', icon: Library, path: '/knowledge' },
   { id: 'humanize', label: 'AI去痕', icon: Wand2, path: '/humanize' },
-  { id: 'notifications', label: '通知中心', icon: Bell, path: '/notifications' },
 ];
 
 const serviceNavItems: NavItem[] = [
@@ -58,13 +57,23 @@ export const Sidebar: React.FC = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isServiceExpanded, setIsServiceExpanded] = useState(true);
 
-  // 始终显示"作品管理"，不管是在列表页还是详情页
+  const isWorkDetail = location.pathname.startsWith('/works/') && location.pathname !== '/works';
+
   const dynamicMainNavItems: NavItem[] = useMemo(() => {
-    return mainNavItems;
-  }, []);
+    return mainNavItems.map(item =>
+      item.id === 'works'
+        ? { ...item, label: isWorkDetail ? '作品详情' : '作品管理' }
+        : item
+    );
+  }, [isWorkDetail]);
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(`${path}/`);
   const hasPermission = (item: NavItem) => !item.roles?.length || item.roles.includes(user?.role || '');
+
+  const bottomNavItems: NavItem[] = [
+    { id: 'notifications', label: '通知中心', icon: Bell, path: '/notifications' },
+    { id: 'settings', label: '系统设置', icon: Settings, path: '/settings' },
+  ];
 
   const renderNavItem = (item: NavItem) => {
     if (!hasPermission(item)) return null;
@@ -163,7 +172,7 @@ export const Sidebar: React.FC = () => {
         )}
 
         <div className="mt-6 pt-6 border-t border-gray-200 space-y-0.5">
-          {renderNavItem({ id: 'settings', label: '系统设置', icon: Settings, path: '/settings' })}
+          {bottomNavItems.map(renderNavItem)}
         </div>
       </nav>
 
