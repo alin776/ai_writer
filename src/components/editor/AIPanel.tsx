@@ -8,7 +8,6 @@ import type { AgentChatRequest } from '../../types/agent';
 import type { AgentMode } from '../agent/ModeSelector';
 import ModeSelector from '../agent/ModeSelector';
 import ActivityStream from '../agent/ActivityStream';  // ✅ 导入ActivityStream
-import TaskListPanel from '../agent/TaskListPanel';    // ✅ 导入TaskListPanel
 import AgentEditConfirmDialog from '../agent/AgentEditConfirmDialog';  // ✅ 导入确认对话框
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -1000,7 +999,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
           return (
             <div key={index} className={`flex items-start gap-2 ${isUser ? 'justify-end' : ''}`}>
               {!isUser && (
-                <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
+                <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0 mt-4">
                   <Bot className="h-3.5 w-3.5 text-white" />
                 </div>
               )}
@@ -1010,7 +1009,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                   className={`relative ${
                     isUser
                       ? 'p-2.5 rounded-lg flex-initial w-fit max-w-[85%] md:max-w-[75ch] bg-zinc-800 text-zinc-50 shadow-sm ml-auto break-words'
-                      : 'flex-1 max-w-[95%] mt-2'
+                      : 'flex-1 max-w-[95%] mt-8'
                   }`}
                 >
                   {isUser ? (
@@ -1083,7 +1082,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
         {/* 任务执行进度（todolist）- 显示在所有历史消息之后，streaming消息之前 */}
         {isLoading && tasks.length > 0 && (
-          <div className="flex items-start gap-2">
+          <div className="flex items-start gap-2 mt-8">
             <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
@@ -1146,10 +1145,10 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         {/* 正在streaming的agent消息 - 显示在todolist之后 */}
         {hasStreamingAgentMessage && streamingVisibleContent && (
           <div className="flex items-start gap-2">
-            <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
+            <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0 mt-4">
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
-            <div className="flex-1 max-w-[95%]">
+            <div className="flex-1 max-w-[95%] mt-8">
               <div style={{ color: 'rgb(113, 113, 122)' }}>
                 <MarkdownContent content={streamingVisibleContent} />
               </div>
@@ -1159,7 +1158,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
         {/* 思考状态（无任务时） */}
         {isLoading && tasks.length === 0 && (
-          <div className="flex items-start gap-2">
+          <div className="flex items-start gap-2 mt-8">
             <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
