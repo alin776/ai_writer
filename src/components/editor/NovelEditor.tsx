@@ -1085,8 +1085,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
   if (!editor) {
     return (
-      <div className="flex items-center justify-center min-h-[500px]">
-        <div className="text-gray-500">加载编辑器...</div>
+      <div className="flex items-center justify-center min-h-[500px] dark:bg-slate-900">
+        <div className="text-gray-500 dark:text-slate-400">加载编辑器...</div>
       </div>
     );
   }
@@ -1105,7 +1105,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         onClose={confirmDialog.onReject}
       />
 
-      <div className="novel-editor w-full h-full flex flex-col bg-white">
+      <div className="novel-editor w-full h-full flex flex-col bg-white dark:bg-slate-900">
         {/* 顶部工具栏 */}
         <EditorToolbar
           editor={editor}
@@ -1114,15 +1114,15 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         />
 
         {/* 状态栏 - 极简设计 */}
-        <div className="flex items-center justify-between px-5 py-1.5 bg-zinc-50/40 border-b border-zinc-100">
-          <div className="flex items-center gap-3 text-[11px] text-zinc-600">
+        <div className="flex items-center justify-between px-5 py-1.5 bg-zinc-50/40 border-b border-zinc-100 dark:bg-slate-800/50 dark:border-slate-700">
+          <div className="flex items-center gap-3 text-[11px] text-zinc-600 dark:text-slate-400">
             <div className="flex items-center gap-1.5">
               <span>字数:</span>
-              <span className="text-zinc-900">{wordCount}</span>
+              <span className="text-zinc-900 dark:text-slate-200">{wordCount}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span>字符:</span>
-              <span className="text-zinc-900">{countCharactersInHtml(editor.getHTML())}</span>
+              <span className="text-zinc-900 dark:text-slate-200">{countCharactersInHtml(editor.getHTML())}</span>
             </div>
           </div>
 
@@ -1166,7 +1166,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         </div>
 
         {/* 编辑器内容区域 - 沉浸式画布 */}
-        <div className="flex-1 overflow-y-auto bg-white">
+        <div className="flex-1 overflow-y-auto bg-white dark:bg-slate-900">
           <EditorContent editor={editor} className="editor-canvas" />
           {/* 气泡菜单 - 选中文本时显示 */}
           <BubbleMenu editor={editor} onOpenInlineAI={handleOpenInlineAI} />

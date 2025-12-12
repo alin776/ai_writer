@@ -123,12 +123,12 @@ const WorksView: React.FC = () => {
   // 状态颜色映射
   const getStatusColor = (status: WorkStatus) => {
     const map: Record<WorkStatus, string> = {
-      writing: 'bg-green-100 text-green-700',
-      completed: 'bg-blue-100 text-blue-700',
-      draft: 'bg-gray-100 text-gray-600',
-      abandoned: 'bg-red-100 text-red-600'
+      writing: 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300',
+      completed: 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300',
+      draft: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
+      abandoned: 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400'
     };
-    return map[status] || 'bg-gray-100 text-gray-600';
+    return map[status] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300';
   };
 
   // 相对时间格式化
@@ -443,35 +443,35 @@ const WorksView: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#fafafa] flex items-center justify-center">
-        <div className="text-gray-500">加载中...</div>
+      <div className="min-h-screen bg-[#fafafa] dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-gray-500 dark:text-gray-400">加载中...</div>
       </div>
     );
   }
 
   return (
-    <div className="bg-[#fafafa] flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 56px)' }}>
+    <div className="bg-[#fafafa] dark:bg-gray-900 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 56px)' }}>
       {/* Header */}
-      <header className="bg-[#fafafa] border-b border-gray-200 flex-shrink-0">
+      <header className="bg-[#fafafa] dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
         <div className="w-full max-w-[1400px] mx-auto px-12 py-6">
           {/* 第一行：标题和按钮 */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-6">
               <div className="relative">
-                <div className="bg-black text-white px-8 py-3.5" style={{ transform: 'skewX(-2deg)' }}>
+                <div className="bg-black text-white dark:bg-gray-800 dark:text-gray-100 px-8 py-3.5" style={{ transform: 'skewX(-2deg)' }}>
                   <h1 className="text-2xl font-medium" style={{ transform: 'skewX(2deg)' }}>我的作品</h1>
                 </div>
               </div>
               <div className="flex items-center gap-1" style={{ fontSize: '13px' }}>
-                <span className="text-gray-400">共</span>
-                <span className="text-gray-900 font-medium">{totalWorksCount}</span>
-                <span className="text-gray-400">部作品</span>
+                <span className="text-gray-400 dark:text-gray-500">共</span>
+                <span className="text-gray-900 dark:text-gray-100 font-medium">{totalWorksCount}</span>
+                <span className="text-gray-400 dark:text-gray-500">部作品</span>
               </div>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={openImportModal}
-                className="px-5 py-2.5 border border-gray-300 text-gray-700 hover:bg-white hover:border-gray-900 transition-colors flex items-center gap-2"
+                className="px-5 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:border-gray-900 dark:hover:border-gray-400 transition-colors flex items-center gap-2"
                 style={{ transform: 'skewX(-2deg)', fontSize: '13px' }}
               >
                 <Upload className="w-4 h-4" style={{ transform: 'skewX(2deg)' }} />
@@ -479,7 +479,7 @@ const WorksView: React.FC = () => {
               </button>
               <button
                 onClick={() => navigate('/works/create')}
-                className="px-5 py-2.5 bg-black text-white hover:bg-gray-800 transition-colors flex items-center gap-2"
+                className="px-5 py-2.5 bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white transition-colors flex items-center gap-2"
                 style={{ transform: 'skewX(-2deg)', fontSize: '13px' }}
               >
                 <Plus className="w-4 h-4" style={{ transform: 'skewX(2deg)' }} />
@@ -490,22 +490,22 @@ const WorksView: React.FC = () => {
 
           {/* 第二行：统计卡片 */}
           <div className="flex gap-4 mb-6">
-            <div className="bg-white border border-gray-200 px-6 py-4 flex-1" style={{ transform: 'skewX(-2deg)' }}>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-6 py-4 flex-1" style={{ transform: 'skewX(-2deg)' }}>
               <div style={{ transform: 'skewX(2deg)' }}>
-                <div className="text-gray-400 mb-1.5" style={{ fontSize: '12px' }}>总字数</div>
-                <div className="text-3xl text-gray-900 font-medium">{totalWords.toLocaleString()}</div>
+                <div className="text-gray-400 dark:text-gray-500 mb-1.5" style={{ fontSize: '12px' }}>总字数</div>
+                <div className="text-3xl text-gray-900 dark:text-gray-100 font-medium">{totalWords.toLocaleString()}</div>
               </div>
             </div>
-            <div className="bg-white border border-gray-200 px-6 py-4 flex-1" style={{ transform: 'skewX(-2deg)' }}>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-6 py-4 flex-1" style={{ transform: 'skewX(-2deg)' }}>
               <div style={{ transform: 'skewX(2deg)' }}>
-                <div className="text-gray-400 mb-1.5" style={{ fontSize: '12px' }}>本周新增</div>
-                <div className="text-3xl text-gray-900 font-medium">+{weekNewWords.toLocaleString()}</div>
+                <div className="text-gray-400 dark:text-gray-500 mb-1.5" style={{ fontSize: '12px' }}>本周新增</div>
+                <div className="text-3xl text-gray-900 dark:text-gray-100 font-medium">+{weekNewWords.toLocaleString()}</div>
               </div>
             </div>
-            <div className="bg-white border border-gray-200 px-6 py-4 flex-1" style={{ transform: 'skewX(-2deg)' }}>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-6 py-4 flex-1" style={{ transform: 'skewX(-2deg)' }}>
               <div style={{ transform: 'skewX(2deg)' }}>
-                <div className="text-gray-400 mb-1.5" style={{ fontSize: '12px' }}>连载中</div>
-                <div className="text-3xl text-gray-900 font-medium">{writingCount}</div>
+                <div className="text-gray-400 dark:text-gray-500 mb-1.5" style={{ fontSize: '12px' }}>连载中</div>
+                <div className="text-3xl text-gray-900 dark:text-gray-100 font-medium">{writingCount}</div>
               </div>
             </div>
           </div>
@@ -520,7 +520,7 @@ const WorksView: React.FC = () => {
                 placeholder="搜索作品标题或简介..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-gray-900 transition-colors"
+                className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors"
                 style={{ fontSize: '13px' }}
               />
             </div>
@@ -533,8 +533,8 @@ const WorksView: React.FC = () => {
                   onClick={() => setSelectedStatus(status)}
                   className={`px-3 py-2 border transition-colors ${
                     selectedStatus === status
-                      ? 'bg-black text-white border-black'
-                      : 'bg-white text-gray-700 border-gray-200 hover:border-gray-900'
+                      ? 'bg-black dark:bg-gray-100 text-white dark:text-gray-900 border-black dark:border-gray-100'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-gray-900 dark:hover:border-gray-400'
                   }`}
                   style={{ transform: 'skewX(-2deg)', fontSize: '10px' }}
                 >
@@ -549,7 +549,7 @@ const WorksView: React.FC = () => {
             <select
               value={selectedGenre}
               onChange={(e) => setSelectedGenre(e.target.value)}
-              className="px-3 py-2 bg-white border border-gray-200 text-gray-700 focus:outline-none focus:border-gray-900 transition-colors cursor-pointer"
+              className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer"
               style={{ transform: 'skewX(-2deg)', fontSize: '10px' }}
             >
               {allGenres.map(genre => (
@@ -563,7 +563,7 @@ const WorksView: React.FC = () => {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-3 py-2 bg-white border border-gray-200 text-gray-700 focus:outline-none focus:border-gray-900 transition-colors cursor-pointer"
+              className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer"
               style={{ transform: 'skewX(-2deg)', fontSize: '10px' }}
             >
               <option value="date">最近编辑</option>
@@ -579,11 +579,11 @@ const WorksView: React.FC = () => {
         {filteredWorks.length === 0 ? (
           // 空状态
           <div className="flex flex-col items-center justify-center h-full">
-            <div className="bg-white border border-gray-200 p-12 text-center" style={{ transform: 'skewX(-2deg)' }}>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-12 text-center" style={{ transform: 'skewX(-2deg)' }}>
               <div style={{ transform: 'skewX(2deg)' }}>
-                <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg text-gray-900 mb-2">暂无作品</h3>
-                <p className="text-gray-400 mb-6" style={{ fontSize: '11px' }}>
+                <BookOpen className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+                <h3 className="text-lg text-gray-900 dark:text-gray-100 mb-2">暂无作品</h3>
+                <p className="text-gray-400 dark:text-gray-500 mb-6" style={{ fontSize: '11px' }}>
                   {searchQuery || selectedStatus !== 'all' || selectedGenre !== 'all'
                     ? '没有找到匹配的作品，试试调整筛选条件'
                     : '开始创作你的第一部作品吧'}
@@ -591,7 +591,7 @@ const WorksView: React.FC = () => {
                 {!searchQuery && selectedStatus === 'all' && selectedGenre === 'all' && (
                   <button
                     onClick={() => navigate('/works/create')}
-                    className="px-6 py-2.5 bg-black text-white hover:bg-gray-800 transition-colors inline-flex items-center gap-2"
+                    className="px-6 py-2.5 bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white transition-colors inline-flex items-center gap-2"
                     style={{ transform: 'skewX(-2deg)', fontSize: '11px' }}
                   >
                     <Plus className="w-4 h-4" style={{ transform: 'skewX(2deg)' }} />
@@ -606,7 +606,7 @@ const WorksView: React.FC = () => {
             {filteredWorks.map((work) => (
               <div
                 key={work.id}
-                className="group bg-white overflow-hidden transition-all duration-300 ease-out border border-gray-100 hover:border-gray-900 h-[140px] hover:h-[160px] hover:my-4 hover:shadow-2xl relative cursor-pointer"
+                className="group bg-white dark:bg-gray-800 overflow-hidden transition-all duration-300 ease-out border border-gray-100 dark:border-gray-700 hover:border-gray-900 dark:hover:border-gray-400 h-[140px] hover:h-[160px] hover:my-4 hover:shadow-2xl relative cursor-pointer"
                 style={{ transform: 'skewX(-2deg)', transitionProperty: 'all' }}
                 onClick={() => navigate(`/works/${work.id}`)}
                 onMouseEnter={(e) => {
@@ -643,14 +643,14 @@ const WorksView: React.FC = () => {
                     <div className="flex-1 transition-transform duration-300 ease-out group-hover:scale-105" style={{ transformOrigin: 'left center' }}>
                       {/* Title & Status */}
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-lg font-medium text-gray-900 group-hover:text-black transition-colors">
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 group-hover:text-black dark:group-hover:text-white transition-colors">
                           {work.title}
                         </h3>
                         <span className={`px-2 py-0.5 ${getStatusColor(work.status)}`} style={{ fontSize: '11px' }}>
                           {getStatusText(work.status)}
                         </span>
                         {work.genre && (
-                          <span className="px-2 py-0.5 bg-gray-50 text-gray-600" style={{ fontSize: '11px' }}>
+                          <span className="px-2 py-0.5 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300" style={{ fontSize: '11px' }}>
                             {genreDisplayName[work.genre] || work.genre}
                           </span>
                         )}
@@ -658,7 +658,7 @@ const WorksView: React.FC = () => {
 
                       {/* Description */}
                       {work.description && (
-                        <p className="text-gray-500 mb-2 line-clamp-1" style={{ fontSize: '13px' }}>
+                        <p className="text-gray-500 dark:text-gray-400 mb-2 line-clamp-1" style={{ fontSize: '13px' }}>
                           {work.description}
                         </p>
                       )}
@@ -667,14 +667,14 @@ const WorksView: React.FC = () => {
                       {work.totalWords > 0 && (
                         <div className="mb-2">
                           <div className="flex items-center gap-2 mb-0.5">
-                            <span className="text-gray-400" style={{ fontSize: '10px' }}>创作进度</span>
-                            <span className="text-gray-500" style={{ fontSize: '10px' }}>
+                            <span className="text-gray-400 dark:text-gray-500" style={{ fontSize: '10px' }}>创作进度</span>
+                            <span className="text-gray-500 dark:text-gray-400" style={{ fontSize: '10px' }}>
                               {work.totalWords.toLocaleString()} / {(100000).toLocaleString()} 字
                             </span>
                           </div>
-                          <div className="w-2/3 bg-gray-200 h-1 overflow-hidden" style={{ transform: 'skewX(-2deg)' }}>
+                          <div className="w-2/3 bg-gray-200 dark:bg-gray-700 h-1 overflow-hidden" style={{ transform: 'skewX(-2deg)' }}>
                             <div
-                              className={`h-1 transition-all ${work.status === 'writing' ? 'bg-black progress-stripes' : 'bg-black'}`}
+                              className={`h-1 transition-all ${work.status === 'writing' ? 'bg-black dark:bg-gray-100 progress-stripes' : 'bg-black dark:bg-gray-100'}`}
                               style={{
                                 width: `${Math.min((work.totalWords / 100000) * 100, 100)}%`,
                                 boxShadow: '0 0 6px rgba(0, 0, 0, 0.2)'
@@ -685,7 +685,7 @@ const WorksView: React.FC = () => {
                       )}
 
                       {/* Stats */}
-                      <div className="flex items-center gap-4 text-gray-400" style={{ fontSize: '13px' }}>
+                      <div className="flex items-center gap-4 text-gray-400 dark:text-gray-500" style={{ fontSize: '13px' }}>
                         <div className="flex items-center gap-1.5">
                           <Clock className="w-3.5 h-3.5" />
                           <span>{getRelativeTime(work.updatedAt)}</span>
@@ -714,7 +714,7 @@ const WorksView: React.FC = () => {
                           e.stopPropagation();
                           navigate(`/works/${work.id}`);
                         }}
-                        className="px-4 py-1.5 bg-black text-white hover:bg-gray-800 transition-colors"
+                        className="px-4 py-1.5 bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white transition-colors"
                         style={{ transform: 'skewX(-2deg)', fontSize: '13px' }}
                       >
                         <span style={{ transform: 'skewX(2deg)', display: 'inline-block' }}>查看详情</span>
@@ -727,27 +727,27 @@ const WorksView: React.FC = () => {
                             e.stopPropagation();
                             openEditModal(work);
                           }}
-                          className="p-2 hover:bg-gray-100 transition-colors"
+                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                           title="编辑信息"
                         >
-                          <Edit3 className="w-3.5 h-3.5 text-gray-600" />
+                          <Edit3 className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             openExportModal(work);
                           }}
-                          className="p-2 hover:bg-gray-100 transition-colors"
+                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                           title="导出"
                         >
-                          <Download className="w-3.5 h-3.5 text-gray-600" />
+                          <Download className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDelete(work.id, work.title);
                           }}
-                          className="p-2 hover:bg-red-50 transition-colors"
+                          className="p-2 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
                           title="删除"
                         >
                           <Trash2 className="w-3.5 h-3.5 text-red-500" />
@@ -765,13 +765,13 @@ const WorksView: React.FC = () => {
       {/* 编辑弹窗 */}
       {editingWork && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeEditModal}>
-          <div className="bg-white w-[500px] max-h-[600px] overflow-y-auto scrollbar-hide" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-gray-800 w-[500px] max-h-[600px] overflow-y-auto scrollbar-hide" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ transform: 'skewX(2deg)' }} className="p-6">
               {/* 标题栏 */}
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg text-gray-900">编辑作品信息</h2>
-                <button onClick={closeEditModal} className="p-1 hover:bg-gray-100 transition-colors">
-                  <X className="w-4 h-4 text-gray-600" />
+                <h2 className="text-lg text-gray-900 dark:text-gray-100">编辑作品信息</h2>
+                <button onClick={closeEditModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                  <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 </button>
               </div>
 
@@ -779,12 +779,12 @@ const WorksView: React.FC = () => {
               <div className="space-y-3">
                 {/* 标题 */}
                 <div>
-                  <label className="block text-gray-700 mb-1" style={{ fontSize: '11px' }}>作品标题</label>
+                  <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '11px' }}>作品标题</label>
                   <input
                     type="text"
                     value={editFormData.title}
                     onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 text-gray-900 focus:outline-none focus:border-gray-900 transition-colors"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors"
                     style={{ fontSize: '12px' }}
                     placeholder="输入作品标题"
                   />
@@ -792,11 +792,11 @@ const WorksView: React.FC = () => {
 
                 {/* 简介 */}
                 <div>
-                  <label className="block text-gray-700 mb-1" style={{ fontSize: '11px' }}>作品简介</label>
+                  <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '11px' }}>作品简介</label>
                   <textarea
                     value={editFormData.description}
                     onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 text-gray-900 focus:outline-none focus:border-gray-900 transition-colors resize-none"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors resize-none"
                     style={{ fontSize: '12px' }}
                     rows={2}
                     placeholder="输入作品简介"
@@ -806,11 +806,11 @@ const WorksView: React.FC = () => {
                 {/* 类型和状态 */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-gray-700 mb-1" style={{ fontSize: '11px' }}>作品类型</label>
+                    <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '11px' }}>作品类型</label>
                     <select
                       value={editFormData.genre}
                       onChange={(e) => setEditFormData({ ...editFormData, genre: e.target.value as WorkGenre })}
-                      className="w-full px-3 py-2 border border-gray-200 text-gray-900 focus:outline-none focus:border-gray-900 transition-colors cursor-pointer bg-white"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer"
                       style={{ fontSize: '12px' }}
                     >
                       <option value="">选择类型</option>
@@ -821,11 +821,11 @@ const WorksView: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-gray-700 mb-1" style={{ fontSize: '11px' }}>作品状态</label>
+                    <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '11px' }}>作品状态</label>
                     <select
                       value={editFormData.status}
                       onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value as WorkStatus })}
-                      className="w-full px-3 py-2 border border-gray-200 text-gray-900 focus:outline-none focus:border-gray-900 transition-colors cursor-pointer bg-white"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer"
                       style={{ fontSize: '12px' }}
                     >
                       <option value="draft">草稿</option>
@@ -838,7 +838,7 @@ const WorksView: React.FC = () => {
 
                 {/* 封面图片上传 */}
                 <div>
-                  <label className="block text-gray-700 mb-1" style={{ fontSize: '11px' }}>封面图片</label>
+                  <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '11px' }}>封面图片</label>
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
@@ -851,7 +851,7 @@ const WorksView: React.FC = () => {
                       setCoverPreview(previewUrl);
                       setPendingCoverFile(file);
                     }}
-                    className="w-full px-3 py-2 border border-gray-200 text-gray-900 focus:outline-none focus:border-gray-900 transition-colors cursor-pointer bg-white"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer"
                     style={{ fontSize: '12px' }}
                   />
                   {(coverPreview || editFormData.coverImage) && (
@@ -859,7 +859,7 @@ const WorksView: React.FC = () => {
                       <img
                         src={coverPreview || editFormData.coverImage}
                         alt="封面预览"
-                        className="w-full h-32 object-cover border border-gray-200"
+                        className="w-full h-32 object-cover border border-gray-200 dark:border-gray-600"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
                         }}
@@ -873,14 +873,14 @@ const WorksView: React.FC = () => {
               <div className="flex items-center gap-2 mt-6">
                 <button
                   onClick={closeEditModal}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 hover:bg-white hover:border-gray-900 transition-colors"
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-900 dark:hover:border-gray-400 transition-colors"
                   style={{ transform: 'skewX(-2deg)', fontSize: '11px' }}
                 >
                   <span style={{ transform: 'skewX(2deg)' }}>取消</span>
                 </button>
                 <button
                   onClick={saveEdit}
-                  className="flex-1 px-4 py-2.5 bg-black text-white hover:bg-gray-800 transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white transition-colors"
                   style={{ transform: 'skewX(-2deg)', fontSize: '11px' }}
                 >
                   <span style={{ transform: 'skewX(2deg)' }}>保存修改</span>
@@ -894,19 +894,19 @@ const WorksView: React.FC = () => {
       {/* 导入弹窗 */}
       {showImportModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeImportModal}>
-          <div className="bg-white w-[550px] max-h-[700px] overflow-y-auto scrollbar-hide" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-gray-800 w-[550px] max-h-[700px] overflow-y-auto scrollbar-hide" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ transform: 'skewX(2deg)' }} className="p-6">
               {/* 标题栏 */}
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg text-gray-900">导入作品</h2>
-                <button onClick={closeImportModal} className="p-1 hover:bg-gray-100 transition-colors">
-                  <X className="w-4 h-4 text-gray-600" />
+                <h2 className="text-lg text-gray-900 dark:text-gray-100">导入作品</h2>
+                <button onClick={closeImportModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                  <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 </button>
               </div>
 
               {/* 文件选择区域 */}
               <div className="mb-4">
-                <label className="block text-gray-700 mb-2" style={{ fontSize: '12px' }}>选择文件</label>
+                <label className="block text-gray-700 dark:text-gray-300 mb-2" style={{ fontSize: '12px' }}>选择文件</label>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -916,86 +916,86 @@ const WorksView: React.FC = () => {
                 />
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-300 hover:border-gray-900 p-8 text-center cursor-pointer transition-colors"
+                  className="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-gray-900 dark:hover:border-gray-400 p-8 text-center cursor-pointer transition-colors"
                 >
                   {importFile ? (
                     <div className="flex items-center justify-center gap-2">
-                      <File className="w-5 h-5 text-gray-600" />
-                      <span className="text-gray-900" style={{ fontSize: '13px' }}>{importFile.name}</span>
-                      <span className="text-gray-400" style={{ fontSize: '11px' }}>
+                      <File className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                      <span className="text-gray-900 dark:text-gray-100" style={{ fontSize: '13px' }}>{importFile.name}</span>
+                      <span className="text-gray-400 dark:text-gray-500" style={{ fontSize: '11px' }}>
                         ({(importFile.size / 1024).toFixed(1)} KB)
                       </span>
                     </div>
                   ) : (
                     <div>
-                      <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                      <p className="text-gray-600" style={{ fontSize: '13px' }}>点击选择文件或拖拽到此处</p>
-                      <p className="text-gray-400 mt-1" style={{ fontSize: '11px' }}>支持 .json / .md / .txt 格式</p>
+                      <Upload className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+                      <p className="text-gray-600 dark:text-gray-400" style={{ fontSize: '13px' }}>点击选择文件或拖拽到此处</p>
+                      <p className="text-gray-400 dark:text-gray-500 mt-1" style={{ fontSize: '11px' }}>支持 .json / .md / .txt 格式</p>
                     </div>
                   )}
                 </div>
               </div>
 
               {/* 格式说明 */}
-              <div className="mb-4 p-3 bg-gray-50 border border-gray-200" style={{ fontSize: '11px' }}>
-                <p className="text-gray-600 mb-1"><strong>JSON格式</strong>：完整导入（作品+章节+世界观+规范）</p>
-                <p className="text-gray-600 mb-1"><strong>Markdown格式</strong>：自动识别章节标题（## 或 第X章）</p>
-                <p className="text-gray-600"><strong>TXT格式</strong>：自动分割章节</p>
+              <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600" style={{ fontSize: '11px' }}>
+                <p className="text-gray-600 dark:text-gray-400 mb-1"><strong>JSON格式</strong>：完整导入（作品+章节+世界观+规范）</p>
+                <p className="text-gray-600 dark:text-gray-400 mb-1"><strong>Markdown格式</strong>：自动识别章节标题（## 或 第X章）</p>
+                <p className="text-gray-600 dark:text-gray-400"><strong>TXT格式</strong>：自动分割章节</p>
               </div>
 
               {/* 预览加载中 */}
               {isPreviewing && (
-                <div className="mb-4 p-4 bg-gray-50 border border-gray-200 text-center">
-                  <div className="animate-spin w-6 h-6 border-2 border-gray-300 border-t-gray-900 rounded-full mx-auto mb-2"></div>
-                  <p className="text-gray-600" style={{ fontSize: '12px' }}>正在解析文件...</p>
+                <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-center">
+                  <div className="animate-spin w-6 h-6 border-2 border-gray-300 dark:border-gray-500 border-t-gray-900 dark:border-t-gray-100 rounded-full mx-auto mb-2"></div>
+                  <p className="text-gray-600 dark:text-gray-400" style={{ fontSize: '12px' }}>正在解析文件...</p>
                 </div>
               )}
 
               {/* 预览结果 */}
               {importPreview && !isPreviewing && (
-                <div className="mb-4 p-4 bg-gray-50 border border-gray-200">
-                  <h3 className="text-gray-900 font-medium mb-3" style={{ fontSize: '13px' }}>预览信息</h3>
+                <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
+                  <h3 className="text-gray-900 dark:text-gray-100 font-medium mb-3" style={{ fontSize: '13px' }}>预览信息</h3>
 
                   <div className="space-y-2" style={{ fontSize: '12px' }}>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">作品标题</span>
-                      <span className="text-gray-900 font-medium">{importPreview.work.title}</span>
+                      <span className="text-gray-600 dark:text-gray-400">作品标题</span>
+                      <span className="text-gray-900 dark:text-gray-100 font-medium">{importPreview.work.title}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">章节数量</span>
-                      <span className="text-gray-900">{importPreview.work.totalChapters} 章</span>
+                      <span className="text-gray-600 dark:text-gray-400">章节数量</span>
+                      <span className="text-gray-900 dark:text-gray-100">{importPreview.work.totalChapters} 章</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">总字数</span>
-                      <span className="text-gray-900">{importPreview.work.totalWords.toLocaleString()} 字</span>
+                      <span className="text-gray-600 dark:text-gray-400">总字数</span>
+                      <span className="text-gray-900 dark:text-gray-100">{importPreview.work.totalWords.toLocaleString()} 字</span>
                     </div>
                     {importPreview.charactersCount > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">人物</span>
-                        <span className="text-gray-900">{importPreview.charactersCount} 个</span>
+                        <span className="text-gray-600 dark:text-gray-400">人物</span>
+                        <span className="text-gray-900 dark:text-gray-100">{importPreview.charactersCount} 个</span>
                       </div>
                     )}
                     {importPreview.locationsCount > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">地点</span>
-                        <span className="text-gray-900">{importPreview.locationsCount} 个</span>
+                        <span className="text-gray-600 dark:text-gray-400">地点</span>
+                        <span className="text-gray-900 dark:text-gray-100">{importPreview.locationsCount} 个</span>
                       </div>
                     )}
                   </div>
 
                   {/* 章节列表 */}
                   {importPreview.chapters.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                      <p className="text-gray-600 mb-2" style={{ fontSize: '11px' }}>章节列表（前5章）：</p>
+                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                      <p className="text-gray-600 dark:text-gray-400 mb-2" style={{ fontSize: '11px' }}>章节列表（前5章）：</p>
                       <div className="space-y-1">
                         {importPreview.chapters.slice(0, 5).map((chapter, idx) => (
-                          <div key={idx} className="flex justify-between text-gray-500" style={{ fontSize: '11px' }}>
+                          <div key={idx} className="flex justify-between text-gray-500 dark:text-gray-400" style={{ fontSize: '11px' }}>
                             <span className="truncate flex-1 mr-2">{chapter.title}</span>
                             <span>{chapter.wordCount.toLocaleString()} 字</span>
                           </div>
                         ))}
                         {importPreview.chapters.length > 5 && (
-                          <p className="text-gray-400" style={{ fontSize: '11px' }}>
+                          <p className="text-gray-400 dark:text-gray-500" style={{ fontSize: '11px' }}>
                             ...还有 {importPreview.chapters.length - 5} 章
                           </p>
                         )}
@@ -1005,9 +1005,9 @@ const WorksView: React.FC = () => {
 
                   {/* 警告信息 */}
                   {importPreview.warnings.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
+                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
                       {importPreview.warnings.map((warning, idx) => (
-                        <div key={idx} className="flex items-center gap-2 text-yellow-600" style={{ fontSize: '11px' }}>
+                        <div key={idx} className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400" style={{ fontSize: '11px' }}>
                           <AlertCircle className="w-3.5 h-3.5" />
                           <span>{warning}</span>
                         </div>
@@ -1021,7 +1021,7 @@ const WorksView: React.FC = () => {
               <div className="flex items-center gap-2 mt-6">
                 <button
                   onClick={closeImportModal}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 hover:bg-white hover:border-gray-900 transition-colors"
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-900 dark:hover:border-gray-400 transition-colors"
                   style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
                   disabled={isImporting}
                 >
@@ -1032,8 +1032,8 @@ const WorksView: React.FC = () => {
                   disabled={!importFile || !importPreview || isImporting}
                   className={`flex-1 px-4 py-2.5 transition-colors flex items-center justify-center gap-2 ${
                     !importFile || !importPreview || isImporting
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-black text-white hover:bg-gray-800'
+                      ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                      : 'bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white'
                   }`}
                   style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
                 >
@@ -1058,47 +1058,47 @@ const WorksView: React.FC = () => {
       {/* 导出弹窗 */}
       {showExportModal && exportingWork && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeExportModal}>
-          <div className="bg-white w-[520px] max-h-[640px] overflow-y-auto scrollbar-hide" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-gray-800 w-[520px] max-h-[640px] overflow-y-auto scrollbar-hide" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ transform: 'skewX(2deg)' }} className="p-6 space-y-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg text-gray-900">导出作品</h2>
-                  <p className="text-[12px] text-gray-500 mt-1">《{exportingWork.title}》 · 共 {exportingWork.totalChapters} 章</p>
+                  <h2 className="text-lg text-gray-900 dark:text-gray-100">导出作品</h2>
+                  <p className="text-[12px] text-gray-500 dark:text-gray-400 mt-1">《{exportingWork.title}》 · 共 {exportingWork.totalChapters} 章</p>
                 </div>
-                <button onClick={closeExportModal} className="p-1 hover:bg-gray-100 transition-colors">
-                  <X className="w-4 h-4 text-gray-600" />
+                <button onClick={closeExportModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                  <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 </button>
               </div>
 
               <div className="space-y-2">
-                <label className="text-[12px] text-gray-700">导出方式</label>
+                <label className="text-[12px] text-gray-700 dark:text-gray-300">导出方式</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => setExportMode('full')}
                     className={`px-4 py-3 border text-sm transition-colors ${
                       exportMode === 'full'
-                        ? 'bg-black text-white border-black'
-                        : 'bg-white text-gray-700 border-gray-200 hover:border-gray-900'
+                        ? 'bg-black dark:bg-gray-100 text-white dark:text-gray-900 border-black dark:border-gray-100'
+                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-gray-900 dark:hover:border-gray-400'
                     }`}
                     style={{ transform: 'skewX(-2deg)' }}
                   >
                     <span style={{ transform: 'skewX(2deg)' }} className="block text-left">
                       <span className="font-medium">全文导出</span>
-                      <span className="block text-[11px] text-gray-400">导出所有章节和简介</span>
+                      <span className="block text-[11px] text-gray-400 dark:text-gray-500">导出所有章节和简介</span>
                     </span>
                   </button>
                   <button
                     onClick={() => setExportMode('range')}
                     className={`px-4 py-3 border text-sm transition-colors ${
                       exportMode === 'range'
-                        ? 'bg-black text-white border-black'
-                        : 'bg-white text-gray-700 border-gray-200 hover:border-gray-900'
+                        ? 'bg-black dark:bg-gray-100 text-white dark:text-gray-900 border-black dark:border-gray-100'
+                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-gray-900 dark:hover:border-gray-400'
                     }`}
                     style={{ transform: 'skewX(-2deg)' }}
                   >
                     <span style={{ transform: 'skewX(2deg)' }} className="block text-left">
                       <span className="font-medium">批量导出</span>
-                      <span className="block text-[11px] text-gray-400">按章节范围导出，可单章</span>
+                      <span className="block text-[11px] text-gray-400 dark:text-gray-500">按章节范围导出，可单章</span>
                     </span>
                   </button>
                 </div>
@@ -1106,42 +1106,42 @@ const WorksView: React.FC = () => {
 
               {exportMode === 'range' && (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between text-[12px] text-gray-500">
+                  <div className="flex items-center justify-between text-[12px] text-gray-500 dark:text-gray-400">
                     <span>选择导出的章节范围</span>
                     <span>共 {exportingWork.totalChapters} 章</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-gray-700 mb-1" style={{ fontSize: '12px' }}>从第几章</label>
+                      <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '12px' }}>从第几章</label>
                       <input
                         type="number"
                         min={1}
                         value={exportStartChapter}
                         onChange={(e) => setExportStartChapter(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-200 text-gray-900 focus:outline-none focus:border-gray-900 transition-colors"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors"
                         style={{ fontSize: '13px' }}
                       />
                     </div>
                     <div>
-                      <label className="block text-gray-700 mb-1" style={{ fontSize: '12px' }}>到第几章</label>
+                      <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '12px' }}>到第几章</label>
                       <input
                         type="number"
                         min={1}
                         value={exportEndChapter}
                         onChange={(e) => setExportEndChapter(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-200 text-gray-900 focus:outline-none focus:border-gray-900 transition-colors"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors"
                         style={{ fontSize: '13px' }}
                       />
                     </div>
                   </div>
-                  <p className="text-[11px] text-gray-400">
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500">
                     例如：从第 2 章到第 5 章；若导出单章，请将开始和结束设置为同一章。
                   </p>
                 </div>
               )}
 
               {exportError && (
-                <div className="bg-red-50 text-red-600 text-[12px] px-3 py-2 border border-red-100">
+                <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[12px] px-3 py-2 border border-red-100 dark:border-red-800">
                   {exportError}
                 </div>
               )}
@@ -1149,7 +1149,7 @@ const WorksView: React.FC = () => {
               <div className="flex items-center gap-2 pt-2">
                 <button
                   onClick={closeExportModal}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 hover:bg-white hover:border-gray-900 transition-colors"
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-900 dark:hover:border-gray-400 transition-colors"
                   style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
                   disabled={isExporting}
                 >
@@ -1159,7 +1159,7 @@ const WorksView: React.FC = () => {
                   onClick={handleExport}
                   disabled={isExporting}
                   className={`flex-1 px-4 py-2.5 text-white transition-colors ${
-                    isExporting ? 'bg-gray-400 cursor-not-allowed' : 'bg-black hover:bg-gray-800'
+                    isExporting ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed' : 'bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white'
                   }`}
                   style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
                 >

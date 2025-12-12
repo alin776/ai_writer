@@ -40,23 +40,23 @@ const ServiceUsageView: React.FC = () => {
   }
 
   return (
-    <div className="h-full overflow-auto bg-gray-50">
+    <div className="h-full overflow-auto bg-gray-50 dark:bg-gray-900">
       <div className="max-w-6xl mx-auto p-6 space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">使用记录</h1>
-          <p className="mt-1 text-sm text-gray-500">查看您的积分交易流水</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">使用记录</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">查看您的积分交易流水</p>
         </div>
 
         <Card padding="lg">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">积分流水</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">积分流水</h2>
               <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">筛选类型:</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">筛选类型:</span>
                 <select
                   value={selectedType}
                   onChange={(e) => handleTypeChange(e.target.value as TransactionType | 'all')}
-                  className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">全部</option>
                   <option value="recharge">充值</option>
@@ -75,32 +75,32 @@ const ServiceUsageView: React.FC = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <tr className="border-b border-gray-200 dark:border-gray-700">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           类型
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           积分
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           描述
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           交易前
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           交易后
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           时间
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                       {transactions.map((transaction) => {
                         const config = TRANSACTION_TYPE_CONFIG[transaction.type];
                         return (
-                          <tr key={transaction.id} className="hover:bg-gray-50 transition-colors">
+                          <tr key={transaction.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                             <td className="px-4 py-4 whitespace-nowrap">
                               <div className={`inline-flex px-2 py-1 rounded text-xs font-medium ${config.color}`}>
                                 {config.icon} {config.label}
@@ -109,7 +109,7 @@ const ServiceUsageView: React.FC = () => {
                             <td className="px-4 py-4 whitespace-nowrap">
                               <span
                                 className={`text-sm font-semibold ${
-                                  transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'
+                                  transaction.amount >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                                 }`}
                               >
                                 {transaction.amount >= 0 ? '+' : ''}
@@ -117,20 +117,20 @@ const ServiceUsageView: React.FC = () => {
                               </span>
                             </td>
                             <td className="px-4 py-4">
-                              <span className="text-sm text-gray-700">{transaction.description}</span>
+                              <span className="text-sm text-gray-700 dark:text-gray-300">{transaction.description}</span>
                             </td>
                             <td className="px-4 py-4 whitespace-nowrap">
-                              <span className="text-sm text-gray-600">
+                              <span className="text-sm text-gray-600 dark:text-gray-400">
                                 {transaction.balanceBefore.toFixed(2)}
                               </span>
                             </td>
                             <td className="px-4 py-4 whitespace-nowrap">
-                              <span className="text-sm text-gray-600">
+                              <span className="text-sm text-gray-600 dark:text-gray-400">
                                 {transaction.balanceAfter.toFixed(2)}
                               </span>
                             </td>
                             <td className="px-4 py-4 whitespace-nowrap">
-                              <span className="text-xs text-gray-500">
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
                                 {formatDistanceToNow(new Date(transaction.createdAt), {
                                   addSuffix: true,
                                   locale: zhCN,
@@ -144,8 +144,8 @@ const ServiceUsageView: React.FC = () => {
                   </table>
                 </div>
 
-                <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                  <div className="text-sm text-gray-600">
+                <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
                     共 {transactionTotal} 条记录，第 {transactionPage} / {transactionTotalPages} 页
                   </div>
                   <div className="flex items-center space-x-2">

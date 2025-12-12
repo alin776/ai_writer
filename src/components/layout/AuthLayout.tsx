@@ -61,7 +61,7 @@ export const AuthLayout: React.FC = () => {
    */
   if (!hasHydrated || isChecking) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-white">
+      <div className="flex items-center justify-center min-h-screen bg-white dark:bg-gray-950">
         <Loading size="lg" text="加载中..." />
       </div>
     );
@@ -71,7 +71,7 @@ export const AuthLayout: React.FC = () => {
    * 已认证，显示完整布局
    */
   return (
-    <div className="flex flex-col h-screen bg-white">
+    <div className="flex flex-col h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
       {/* 顶部导航栏 */}
       <Header />
 
@@ -81,9 +81,9 @@ export const AuthLayout: React.FC = () => {
         <Sidebar />
 
         {/* 内容区域 */}
-        <main className="flex-1 overflow-y-auto bg-gray-50">
+        <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
           {isFullWidthPage ? (
-            /* 全宽页面：不添加 container 和 padding */
+            /* 全屏页面：不添加 container 和 padding */
             <Outlet />
           ) : (
             /* 普通页面：添加 container 和 padding */

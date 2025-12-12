@@ -60,7 +60,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
   };
 
   return (
-    <div className="flex items-center justify-between h-10 px-3 border-b bg-white" style={{ borderColor: '#e5e7eb' }}>
+    <div className="flex items-center justify-between h-10 px-3 border-b bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700">
       {/* 左侧：会话标签区域 */}
       <div
         ref={tabsContainerRef}
@@ -78,8 +78,8 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
               className={clsx(
                 'group flex items-center gap-2 px-3 h-8 rounded-md border transition-all text-sm min-w-[120px]',
                 isActive
-                  ? 'bg-[#f1f5f9] border-[#e5e7eb] text-[#0f172a] shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
-                  : 'bg-white border-transparent text-[#475569] hover:bg-[#f8fafc] hover:border-[#e5e7eb]'
+                  ? 'bg-slate-100 dark:bg-slate-800 border-gray-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
+                  : 'bg-white dark:bg-slate-900 border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-gray-200 dark:hover:border-slate-600'
               )}
               title={title}
             >
@@ -90,7 +90,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
                     e.stopPropagation();
                     onCloseTab(tab.id);
                   }}
-                  className="ml-1 text-[#94a3b8] hover:text-[#0f172a] text-xs transition-colors"
+                  className="ml-1 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 text-xs transition-colors"
                   title="关闭会话"
                 >
                   ×
@@ -100,25 +100,16 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           );
         })}
 
-        {tabs.length === 0 && <span className="text-sm text-[#94a3b8] px-2">暂无会话</span>}
+        {tabs.length === 0 && <span className="text-sm text-slate-400 dark:text-slate-500 px-2">暂无会话</span>}
       </div>
 
       {/* 右侧：功能按钮组 */}
       <div className="flex items-center gap-1">
         {/* + 新增会话按钮 */}
         <button
-          className="p-1.5 rounded transition-all"
-          style={{ color: '#6b7280' }}
+          className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
           onClick={handleCreate}
           disabled={creating}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = '#111827';
-            e.currentTarget.style.backgroundColor = '#f3f4f6';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = '#6b7280';
-            e.currentTarget.style.backgroundColor = 'transparent';
-          }}
           title="新增会话"
         >
           <Plus className="w-4 h-4" />
@@ -129,24 +120,12 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           <button
             key={type}
             onClick={() => toggleRightSidebar(type)}
-            className={clsx('p-1.5 rounded transition-all')}
-            style={
+            className={clsx(
+              'p-1.5 rounded transition-all',
               rightSidebarType === type
-                ? { backgroundColor: '#eff6ff', color: '#2563eb' }
-                : { color: '#6b7280' }
-            }
-            onMouseEnter={(e) => {
-              if (rightSidebarType !== type) {
-                e.currentTarget.style.color = '#111827';
-                e.currentTarget.style.backgroundColor = '#f3f4f6';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (rightSidebarType !== type) {
-                e.currentTarget.style.color = '#6b7280';
-                e.currentTarget.style.backgroundColor = 'transparent';
-              }
-            }}
+                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700'
+            )}
             title={title}
           >
             <Icon className="w-4 h-4" />
@@ -156,16 +135,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
         {/* 历史入口：改为时钟图标，保持浅色风格 */}
         <button
           onClick={() => (onOpenHistory ? onOpenHistory() : closeRightSidebar())}
-          className="p-1.5 rounded transition-all"
-          style={{ color: '#6b7280' }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = '#111827';
-            e.currentTarget.style.backgroundColor = '#f3f4f6';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = '#6b7280';
-            e.currentTarget.style.backgroundColor = 'transparent';
-          }}
+          className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
           title="历史会话"
         >
           <Clock3 className="w-4 h-4" />
@@ -173,17 +143,8 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
 
         {/* 收起右侧面板 - 挪到历史会话之后 */}
         <button
-          className="p-1.5 rounded transition-all"
-          style={{ color: '#6b7280' }}
+          className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
           onClick={() => onCollapseRightPanel?.()}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = '#111827';
-            e.currentTarget.style.backgroundColor = '#f3f4f6';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = '#6b7280';
-            e.currentTarget.style.backgroundColor = 'transparent';
-          }}
           title="收起侧栏"
         >
           <PanelRightClose className="w-4 h-4" />

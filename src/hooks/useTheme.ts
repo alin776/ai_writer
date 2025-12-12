@@ -9,6 +9,7 @@ interface ApplyThemeOptions {
 
 const STORAGE_KEY = 'novelaide-theme-preference';
 const DARK_MEDIA_QUERY = '(prefers-color-scheme: dark)';
+const THEME_CHANGE_EVENT = 'theme-preference-change';
 
 const getSystemTheme = (): ThemeMode => {
   if (typeof window === 'undefined') {
@@ -22,16 +23,19 @@ const applyThemeClass = (theme: ThemeMode) => {
   document.documentElement.classList.toggle('dark', theme === 'dark');
 };
 
+// 获取当前存储的主题偏好
+export const getStoredThemePreference = (): ThemePreference => {
+  if (typeof window === 'undefined') return 'auto';
+  const stored = window.localStorage.getItem(STORAGE_KEY) as ThemePreference | null;
+  return stored ?? 'auto';
+};
+
 export function useTheme(initialPreference?: ThemePreference) {
   const resolvedInitial = useMemo<ThemePreference>(() => {
     if (initialPreference) {
       return initialPreference;
     }
-    if (typeof window === 'undefined') {
-      return 'auto';
-    }
-    const stored = window.localStorage.getItem(STORAGE_KEY) as ThemePreference | null;
-    return stored ?? 'auto';
+    return getStoredThemePreference();
   }, [initialPreference]);
 
   const [preference, setPreferenceState] = useState<ThemePreference>(resolvedInitial);
@@ -53,10 +57,32 @@ export function useTheme(initialPreference?: ThemePreference) {
 
       if (persist && typeof window !== 'undefined') {
         window.localStorage.setItem(STORAGE_KEY, nextPreference);
+        // 触发自定义事件，让其他 useTheme 实例同步状态
+        window.dispatchEvent(new CustomEvent(THEME_CHANGE_EVENT, {
+          detail: { preference: nextPreference, effectiveTheme: targetTheme }
+        }));
       }
     },
     []
   );
+
+  // 监听主题变化事件，实现跨组件同步
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleThemeChange = (event: CustomEvent<{ preference: ThemePreference; effectiveTheme: ThemeMode }>) => {
+      const { preference: newPreference, effectiveTheme: newEffectiveTheme } = event.detail;
+      preferenceRef.current = newPreference;
+      setPreferenceState(newPreference);
+      setEffectiveTheme(newEffectiveTheme);
+    };
+
+    window.addEventListener(THEME_CHANGE_EVENT, handleThemeChange as EventListener);
+
+    return () => {
+      window.removeEventListener(THEME_CHANGE_EVENT, handleThemeChange as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

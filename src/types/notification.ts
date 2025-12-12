@@ -229,3 +229,7 @@ export interface BatchOperationResponse {
   message: string;
   affectedCount: number;
 }
+
+// 兼容旧命名
+export type NotificationCreate = CreateNotificationRequest;
+export type NotificationResponse = Notification;

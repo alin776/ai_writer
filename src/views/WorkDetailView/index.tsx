@@ -63,7 +63,6 @@ const WorkDetailView: React.FC = () => {
     const currentPreferences = user.preferences || {
       theme: 'light' as const,
       language: 'zh-CN' as const,
-      fontSize: 'medium' as const,
       autoSave: true,
       autoSaveInterval: 30,
       aiAutoComplete: false,
@@ -1205,10 +1204,10 @@ const WorkDetailView: React.FC = () => {
 
   return (
     <>
-      <div className="flex bg-zinc-50/30" style={{ height: 'calc(100vh - 60px)' }}>
+      <div className="flex bg-zinc-50/30 dark:bg-slate-900" style={{ height: 'calc(100vh - 60px)' }}>
         {/* 左侧章节面板 */}
         <div
-          className={`bg-gradient-to-b from-white to-zinc-50/30 flex flex-col border-r border-zinc-100/80 transition-all duration-300 h-full overflow-hidden ${
+          className={`bg-gradient-to-b from-white to-zinc-50/30 dark:from-slate-900 dark:to-slate-900 flex flex-col border-r border-zinc-100/80 dark:border-slate-700 transition-all duration-300 h-full overflow-hidden ${
             isLeftCollapsed ? 'w-12' : 'w-60'
           }`}
         >
@@ -1219,11 +1218,11 @@ const WorkDetailView: React.FC = () => {
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsLeftCollapsed(false)}
-                className="h-10 w-10 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+                className="h-10 w-10 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
               >
                 <ChevronRight className="h-6 w-6" />
               </Button>
-              <div className="writing-mode-vertical text-[11px] text-zinc-400 tracking-widest" style={{ writingMode: 'vertical-rl' }}>
+              <div className="writing-mode-vertical text-[11px] text-zinc-400 dark:text-slate-500 tracking-widest" style={{ writingMode: 'vertical-rl' }}>
                 目录
               </div>
             </div>
@@ -1233,13 +1232,13 @@ const WorkDetailView: React.FC = () => {
               {/* 标题区域 */}
               <div className="mb-3 flex-shrink-0">
                 <div className="flex items-center justify-between mb-1">
-                  <h2 className="text-[15px] text-zinc-800 tracking-tight">目录</h2>
+                  <h2 className="text-[15px] text-zinc-800 dark:text-slate-100 tracking-tight">目录</h2>
                   <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleAddChapter()}
-                      className="h-9 w-9 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+                      className="h-9 w-9 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
                     >
                       <Plus className="h-6 w-6" />
                     </Button>
@@ -1247,13 +1246,13 @@ const WorkDetailView: React.FC = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => setIsLeftCollapsed(true)}
-                      className="h-9 w-9 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+                      className="h-9 w-9 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
                     >
                       <ChevronLeft className="h-6 w-6" />
                     </Button>
                   </div>
                 </div>
-                <div className="h-px bg-gradient-to-r from-zinc-200 via-zinc-100 to-transparent" />
+                <div className="h-px bg-gradient-to-r from-zinc-200 via-zinc-100 to-transparent dark:from-slate-700 dark:via-slate-800 dark:to-transparent" />
               </div>
 
               {/* 章节列表 */}
@@ -1261,13 +1260,13 @@ const WorkDetailView: React.FC = () => {
                 <div className="px-2 space-y-1">
                   {/* 新章节输入框 */}
                   {isAddingChapter && (
-                    <div className="relative px-3 py-2.5 rounded-xl bg-white shadow-lg shadow-zinc-200/60 ring-1 ring-zinc-900/5 transition-all">
+                    <div className="relative px-3 py-2.5 rounded-xl bg-white shadow-lg shadow-zinc-200/60 ring-1 ring-zinc-900/5 transition-all dark:bg-slate-800 dark:shadow-slate-900/40 dark:ring-slate-700">
                       {/* 顶部装饰线 */}
-                      <div className="absolute top-0 left-3 right-3 h-0.5 rounded-full bg-gradient-to-r from-zinc-400 via-zinc-600 to-zinc-400" />
+                      <div className="absolute top-0 left-3 right-3 h-0.5 rounded-full bg-gradient-to-r from-zinc-400 via-zinc-600 to-zinc-400 dark:from-blue-500 dark:via-blue-400 dark:to-blue-500" />
 
                       <div className="flex items-start gap-3 pt-0.5">
                         {/* 章节编号占位 */}
-                        <div className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[11px] bg-zinc-100/80 text-zinc-400">
+                        <div className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[11px] bg-zinc-100/80 text-zinc-400 dark:bg-slate-700 dark:text-slate-400">
                           {chapters.length + 1}
                         </div>
 
@@ -1286,7 +1285,7 @@ const WorkDetailView: React.FC = () => {
                               }
                             }}
                             placeholder="章节标题"
-                            className="h-7 w-full text-[13px] border-0 px-0 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-zinc-400"
+                            className="h-7 w-full text-[13px] border-0 px-0 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-zinc-400 dark:text-slate-100 dark:placeholder:text-slate-500"
                             style={{ outline: 'none', boxShadow: 'none' }}
                           />
 
@@ -1296,14 +1295,14 @@ const WorkDetailView: React.FC = () => {
                               variant="ghost"
                               size="sm"
                               onClick={handleCancelAddChapter}
-                              className="h-6 px-2 text-[10px] bg-transparent hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 border-0 shadow-none"
+                              className="h-6 px-2 text-[10px] bg-transparent hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 border-0 shadow-none dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                             >
                               取消
                             </Button>
                             <Button
                               size="sm"
                               onClick={handleSaveNewChapter}
-                              className="h-6 px-2 text-[10px] bg-zinc-800 hover:bg-zinc-900 text-white border-0"
+                              className="h-6 px-2 text-[10px] bg-zinc-800 hover:bg-zinc-900 text-white border-0 dark:bg-blue-600 dark:hover:bg-blue-500"
                             >
                               保存
                             </Button>
@@ -1319,23 +1318,23 @@ const WorkDetailView: React.FC = () => {
                       onClick={() => handleChapterSelect(chapter.id)}
                       className={`group relative px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-300 ${
                         chapter.id === currentChapterId
-                          ? 'bg-white shadow-lg shadow-zinc-200/60 ring-1 ring-zinc-900/5'
-                          : 'text-zinc-700 hover:bg-white/60 hover:shadow-md hover:shadow-zinc-100'
+                          ? 'bg-white shadow-lg shadow-zinc-200/60 ring-1 ring-zinc-900/5 dark:bg-slate-800 dark:shadow-slate-900/40 dark:ring-slate-700'
+                          : 'text-zinc-700 hover:bg-white/60 hover:shadow-md hover:shadow-zinc-100 dark:text-slate-300 dark:hover:bg-slate-800/60'
                       }`}
                     >
                       {/* 顶部装饰线 */}
                       <div className={`absolute top-0 left-3 right-3 h-0.5 rounded-full transition-all duration-300 ${
                         chapter.id === currentChapterId
-                          ? 'bg-gradient-to-r from-zinc-400 via-zinc-600 to-zinc-400'
-                          : 'bg-transparent group-hover:bg-zinc-200'
+                          ? 'bg-gradient-to-r from-zinc-400 via-zinc-600 to-zinc-400 dark:from-blue-500 dark:via-blue-400 dark:to-blue-500'
+                          : 'bg-transparent group-hover:bg-zinc-200 dark:group-hover:bg-slate-700'
                       }`} />
 
                       <div className="flex items-start gap-3 pt-0.5">
                         {/* 章节编号 */}
                         <div className={`flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-medium transition-all duration-300 ${
                           chapter.id === currentChapterId
-                            ? 'bg-gradient-to-br from-zinc-700 to-zinc-900 text-white shadow-md shadow-zinc-900/20'
-                            : 'bg-zinc-100/80 text-zinc-500 group-hover:bg-zinc-200 group-hover:text-zinc-700'
+                            ? 'bg-gradient-to-br from-zinc-700 to-zinc-900 text-white shadow-md shadow-zinc-900/20 dark:from-blue-600 dark:to-blue-700'
+                            : 'bg-zinc-100/80 text-zinc-500 group-hover:bg-zinc-200 group-hover:text-zinc-700 dark:bg-slate-700 dark:text-slate-400 dark:group-hover:bg-slate-600 dark:group-hover:text-slate-300'
                         }`}>
                           {index + 1}
                         </div>
@@ -1359,7 +1358,7 @@ const WorkDetailView: React.FC = () => {
                                   }
                                 }}
                                 onClick={(e) => e.stopPropagation()}
-                                className="h-7 w-full text-[13px] border-0 px-0 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-zinc-400"
+                                className="h-7 w-full text-[13px] border-0 px-0 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-zinc-400 dark:text-slate-100 dark:placeholder:text-slate-500"
                                 style={{ outline: 'none', boxShadow: 'none' }}
                               />
                               <div className="flex items-center justify-between">
@@ -1370,7 +1369,7 @@ const WorkDetailView: React.FC = () => {
                                     e.stopPropagation();
                                     handleCancelRenameChapter();
                                   }}
-                                  className="h-6 px-2 text-[10px] bg-transparent hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 border-0 shadow-none"
+                                  className="h-6 px-2 text-[10px] bg-transparent hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 border-0 shadow-none dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                                 >
                                   取消
                                 </Button>
@@ -1380,7 +1379,7 @@ const WorkDetailView: React.FC = () => {
                                     e.stopPropagation();
                                     handleSaveChapterTitle();
                                   }}
-                                  className="h-6 px-2 text-[10px] bg-zinc-800 hover:bg-zinc-900 text-white border-0"
+                                  className="h-6 px-2 text-[10px] bg-zinc-800 hover:bg-zinc-900 text-white border-0 dark:bg-blue-600 dark:hover:bg-blue-500"
                                 >
                                   保存
                                 </Button>
@@ -1391,7 +1390,7 @@ const WorkDetailView: React.FC = () => {
                             <>
                               <div className="flex items-start justify-between gap-1">
                                 <div className={`text-[13px] leading-snug truncate flex-1 transition-colors duration-300 ${
-                                  chapter.id === currentChapterId ? 'text-zinc-900' : 'text-zinc-700'
+                                  chapter.id === currentChapterId ? 'text-zinc-900 dark:text-slate-100' : 'text-zinc-700 dark:text-slate-300'
                                 }`}>
                                   {chapter.title.replace(/^第\d+章\s*/, '')}
                                 </div>
@@ -1405,8 +1404,8 @@ const WorkDetailView: React.FC = () => {
                                     }}
                                     className={`h-6 w-6 p-0 rounded flex items-center justify-center border-0 bg-transparent opacity-0 group-hover:opacity-100 transition-all ${
                                       chapter.id === currentChapterId
-                                        ? 'text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100'
-                                        : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100'
+                                        ? 'text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-700'
+                                        : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:text-slate-500 dark:hover:text-slate-300 dark:hover:bg-slate-700'
                                     }`}
                                     aria-label="编辑章节名称"
                                   >
@@ -1435,8 +1434,8 @@ const WorkDetailView: React.FC = () => {
                                     }}
                                     className={`h-6 w-6 p-0 rounded flex items-center justify-center border-0 bg-transparent opacity-0 group-hover:opacity-100 transition-all ${
                                       chapter.id === currentChapterId
-                                        ? 'text-zinc-400 hover:text-red-500 hover:bg-red-50/80'
-                                        : 'text-zinc-400 hover:text-red-500 hover:bg-red-50'
+                                        ? 'text-zinc-400 hover:text-red-500 hover:bg-red-50/80 dark:text-slate-500 dark:hover:text-red-400 dark:hover:bg-red-900/30'
+                                        : 'text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:text-slate-500 dark:hover:text-red-400 dark:hover:bg-red-900/30'
                                     }`}
                                     aria-label="删除章节"
                                   >
@@ -1464,19 +1463,19 @@ const WorkDetailView: React.FC = () => {
                               {/* 字数统计与进度 */}
                               <div className="flex items-center gap-2 mt-2">
                                 <div className={`text-[10px] transition-colors duration-300 ${
-                                  chapter.id === currentChapterId ? 'text-zinc-500' : 'text-zinc-400'
+                                  chapter.id === currentChapterId ? 'text-zinc-500 dark:text-slate-400' : 'text-zinc-400 dark:text-slate-500'
                                 }`}>
                                   {chapter.wordCount.toLocaleString()} 字
                                 </div>
                                 {/* 进度指示器 */}
                                 <div className={`flex-1 h-1 rounded-full transition-all duration-300 ${
-                                  chapter.id === currentChapterId ? 'bg-zinc-100' : 'bg-zinc-100/60'
+                                  chapter.id === currentChapterId ? 'bg-zinc-100 dark:bg-slate-700' : 'bg-zinc-100/60 dark:bg-slate-700/50'
                                 }`}>
                                   <div
                                     className={`h-full rounded-full transition-all duration-500 ${
                                       chapter.id === currentChapterId
-                                        ? 'bg-gradient-to-r from-zinc-500 via-zinc-600 to-zinc-700 shadow-sm'
-                                        : 'bg-zinc-300 group-hover:bg-zinc-400'
+                                        ? 'bg-gradient-to-r from-zinc-500 via-zinc-600 to-zinc-700 shadow-sm dark:from-blue-500 dark:via-blue-400 dark:to-blue-500'
+                                        : 'bg-zinc-300 group-hover:bg-zinc-400 dark:bg-slate-600 dark:group-hover:bg-slate-500'
                                     }`}
                                     style={{ width: `${Math.min((chapter.wordCount / 5000) * 100, 100)}%` }}
                                   />
@@ -1489,7 +1488,7 @@ const WorkDetailView: React.FC = () => {
 
                       {/* 底部微光效果 */}
                       {chapter.id === currentChapterId && (
-                        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-zinc-200/50 to-transparent" />
+                        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-zinc-200/50 to-transparent dark:via-slate-700" />
                       )}
                     </div>
                   ))}
@@ -1500,7 +1499,7 @@ const WorkDetailView: React.FC = () => {
         </div>
 
         {/* 中间编辑器区域 */}
-        <div className="flex-1 flex flex-col bg-white overflow-hidden">
+        <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 overflow-hidden">
           <NovelEditor
             key={currentChapterId}
             content={currentChapterContent}
@@ -1517,7 +1516,7 @@ const WorkDetailView: React.FC = () => {
 
         {/* 右侧面板 */}
         <div
-          className={`relative bg-white border-l border-zinc-100 flex flex-col overflow-hidden ${isResizing ? '' : 'transition-[width] duration-200 ease-out'}`}
+          className={`relative bg-white dark:bg-slate-900 border-l border-zinc-100 dark:border-slate-700 flex flex-col overflow-hidden ${isResizing ? '' : 'transition-[width] duration-200 ease-out'}`}
           style={{ width: `${isRightCollapsed ? COLLAPSED_RIGHT_PANEL_WIDTH : rightPanelWidth}px` }}
         >
           {/* 可拖动的分隔条 */}
@@ -1532,16 +1531,16 @@ const WorkDetailView: React.FC = () => {
           )}
           {isRightCollapsed && (
             /* 折叠状态 */
-            <div className="absolute inset-0 z-20 flex flex-col items-center py-5 gap-4 bg-white">
+            <div className="absolute inset-0 z-20 flex flex-col items-center py-5 gap-4 bg-white dark:bg-slate-900">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsRightCollapsed(false)}
-                className="h-10 w-10 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-50 hover:shadow-sm rounded-lg transition-all"
+                className="h-10 w-10 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-50 hover:shadow-sm rounded-lg transition-all dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
               >
                 <ChevronLeft className="h-6 w-6" />
               </Button>
-              <div className="writing-mode-vertical text-[11px] text-zinc-400 tracking-widest" style={{ writingMode: 'vertical-rl' }}>
+              <div className="writing-mode-vertical text-[11px] text-zinc-400 dark:text-slate-500 tracking-widest" style={{ writingMode: 'vertical-rl' }}>
                 {rightSidebarType === 'worldview' ? '世界观' : rightSidebarType === 'summary' ? '概括' : 'AI'}
               </div>
             </div>

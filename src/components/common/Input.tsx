@@ -129,17 +129,17 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
      */
     const getInputStyles = (): string => {
       const baseStyles =
-        'block px-3 py-2 border rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all duration-200 dark:bg-white dark:text-gray-900 dark:placeholder-gray-500';
+        'block px-3 py-2 border rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all duration-200 bg-white dark:bg-gray-900';
 
       // 错误状态样式
       const errorStyles = error
         ? 'border-red-500 focus:border-red-500 focus:ring-red-500 dark:border-red-400 dark:focus:border-red-400 dark:focus:ring-red-400'
-        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-400 dark:focus:border-blue-400 dark:focus:ring-blue-400';
+        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:focus:border-blue-400 dark:focus:ring-blue-400';
 
       // 禁用状态样式
       const disabledStyles = disabled
-        ? 'bg-gray-100 cursor-not-allowed opacity-60 dark:bg-gray-100 dark:text-gray-500'
-        : 'bg-white hover:border-gray-400 dark:bg-white dark:hover:border-gray-500';
+        ? 'bg-gray-100 cursor-not-allowed opacity-60 dark:bg-gray-800 dark:text-gray-500 dark:border-gray-700'
+        : 'bg-white hover:border-gray-400 dark:bg-gray-900 dark:border-gray-700 dark:hover:border-gray-500';
 
       // 宽度样式
       const widthStyles = fullWidth ? 'w-full' : '';

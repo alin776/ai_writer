@@ -1,6 +1,6 @@
-/**
- * InputDialog - 输入对话框组件
- * 用于替代原生的 prompt，提供更专业的输入体验
+﻿/**
+ * InputDialog - 杈撳叆瀵硅瘽妗嗙粍浠?
+ * 鐢ㄤ簬鏇夸唬鍘熺敓鐨?prompt锛屾彁渚涙洿涓撲笟鐨勮緭鍏ヤ綋楠?
  */
 import React, { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
@@ -31,13 +31,13 @@ const InputDialog: React.FC<InputDialogProps> = ({
   onConfirm,
   title,
   fields,
-  confirmText = '确定',
-  cancelText = '取消',
+  confirmText = '纭畾',
+  cancelText = '鍙栨秷',
 }) => {
   const [values, setValues] = useState<Record<string, string>>({});
   const firstInputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
-  // 初始化表单值
+  // 鍒濆鍖栬〃鍗曞€?
   useEffect(() => {
     if (isOpen) {
       const initialValues: Record<string, string> = {};
@@ -46,7 +46,7 @@ const InputDialog: React.FC<InputDialogProps> = ({
       });
       setValues(initialValues);
 
-      // 聚焦第一个输入框
+      // 鑱氱劍绗竴涓緭鍏ユ
       setTimeout(() => {
         firstInputRef.current?.focus();
       }, 100);
@@ -60,7 +60,7 @@ const InputDialog: React.FC<InputDialogProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 验证必填字段
+    // 楠岃瘉蹇呭～瀛楁
     for (const field of fields) {
       if (field.required && !values[field.name]?.trim()) {
         return;
@@ -81,34 +81,34 @@ const InputDialog: React.FC<InputDialogProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* 遮罩层 */}
+      {/* 閬僵灞?*/}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fadeIn"
+        className="absolute inset-0 bg-black/50 dark:bg-black/60 backdrop-blur-sm animate-fadeIn"
         onClick={onClose}
       />
 
-      {/* 对话框 */}
+      {/* 瀵硅瘽妗?*/}
       <div
-        className="relative bg-white rounded-lg shadow-2xl w-full max-w-md mx-4 animate-scaleIn"
+        className="relative bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg shadow-2xl w-full max-w-md mx-4 animate-scaleIn border border-gray-200 dark:border-gray-700"
         onKeyDown={handleKeyDown}
       >
-        {/* 头部 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+        {/* 澶撮儴 */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors p-1 hover:bg-gray-100 rounded"
+            className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* 表单内容 */}
+        {/* 琛ㄥ崟鍐呭 */}
         <form onSubmit={handleSubmit} className="px-6 py-4">
           <div className="space-y-4">
             {fields.map((field, index) => (
               <div key={field.name}>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   {field.label}
                   {field.required && <span className="text-red-500 ml-1">*</span>}
                 </label>
@@ -119,7 +119,7 @@ const InputDialog: React.FC<InputDialogProps> = ({
                     onChange={(e) => handleChange(field.name, e.target.value)}
                     placeholder={field.placeholder}
                     rows={field.rows || 3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all resize-none bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                     required={field.required}
                   />
                 ) : (
@@ -129,7 +129,7 @@ const InputDialog: React.FC<InputDialogProps> = ({
                     value={values[field.name] || ''}
                     onChange={(e) => handleChange(field.name, e.target.value)}
                     placeholder={field.placeholder}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                     required={field.required}
                   />
                 )}
@@ -137,18 +137,18 @@ const InputDialog: React.FC<InputDialogProps> = ({
             ))}
           </div>
 
-          {/* 底部按钮 */}
+          {/* 搴曢儴鎸夐挳 */}
           <div className="flex justify-end gap-3 mt-6">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
               {cancelText}
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm hover:shadow-md"
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 dark:bg-blue-500 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-400 transition-colors shadow-sm hover:shadow-md"
             >
               {confirmText}
             </button>
@@ -160,3 +160,13 @@ const InputDialog: React.FC<InputDialogProps> = ({
 };
 
 export default InputDialog;
+
+
+
+
+
+
+
+
+
+

@@ -4,7 +4,7 @@
  * 在用户登录后自动连接 WebSocket 接收实时通知
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useNotificationStore } from '../store/notificationStore';
 import type { UserNotification } from '../types/notification';
@@ -14,7 +14,7 @@ import { NotificationPriority } from '../types/notification';
  * 使用通知 WebSocket
  *
  * @returns showModal - 是否显示弹窗
- * @returns modalNotification - 当前要显示的弹窗通知
+ * @returns modalNotification - 当前要展示的弹窗通知
  * @returns closeModal - 关闭弹窗的方法
  */
 export const useNotificationWebSocket = () => {
@@ -39,40 +39,40 @@ export const useNotificationWebSocket = () => {
 
   // 监听新通知，判断是否需要弹窗
   useEffect(() => {
-    const unsubscribe = useNotificationStore.subscribe(
-      (state) => state.notifications,
-      (notifications, prevNotifications) => {
-        // 找出新增的通知
-        const newNotifications = notifications.filter(
-          (notif) => !prevNotifications.some((prev) => prev.id === notif.id)
-        );
+    const unsubscribe = useNotificationStore.subscribe((state, prevState) => {
+      const notifications = state.notifications;
+      const prevNotifications = prevState?.notifications || [];
 
-        // 筛选需要弹窗的通知
-        const modalNotifications = newNotifications.filter(
-          (notif) =>
-            notif.displayType.includes('modal') &&
-            !notif.isDismissed &&
-            (notif.priority === NotificationPriority.URGENT ||
-              notif.priority === NotificationPriority.IMPORTANT)
-        );
+      // 找出新增的通知
+      const newNotifications = notifications.filter(
+        (notif) => !prevNotifications.some((prev) => prev.id === notif.id)
+      );
 
-        if (modalNotifications.length > 0) {
-          // 如果当前没有显示弹窗，立即显示第一个
-          if (!showModal && !modalNotification) {
-            setModalNotification(modalNotifications[0]);
-            setShowModal(true);
+      // 过滤出需要弹窗的通知
+      const modalNotifications = newNotifications.filter(
+        (notif) =>
+          notif.displayType.includes('modal') &&
+          !notif.isDismissed &&
+          (notif.priority === NotificationPriority.URGENT ||
+            notif.priority === NotificationPriority.IMPORTANT)
+      );
 
-            // 如果还有更多，加入待处理队列
-            if (modalNotifications.length > 1) {
-              setPendingModals(modalNotifications.slice(1));
-            }
-          } else {
-            // 否则加入待处理队列
-            setPendingModals((prev) => [...prev, ...modalNotifications]);
+      if (modalNotifications.length > 0) {
+        // 当前没有弹窗则立即展示第一条
+        if (!showModal && !modalNotification) {
+          setModalNotification(modalNotifications[0]);
+          setShowModal(true);
+
+          // 剩余的进入待处理队列
+          if (modalNotifications.length > 1) {
+            setPendingModals(modalNotifications.slice(1));
           }
+        } else {
+          // 否则加入待处理队列
+          setPendingModals((prev) => [...prev, ...modalNotifications]);
         }
       }
-    );
+    });
 
     return unsubscribe;
   }, [showModal, modalNotification]);
@@ -85,7 +85,7 @@ export const useNotificationWebSocket = () => {
     setTimeout(() => {
       setModalNotification(null);
 
-      // 如果有待处理的弹窗，显示下一个
+      // 如果有待处理的弹窗，显示下一条
       if (pendingModals.length > 0) {
         setModalNotification(pendingModals[0]);
         setPendingModals(pendingModals.slice(1));

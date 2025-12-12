@@ -170,25 +170,25 @@ export default function NotificationCenter() {
 
   if (loading) {
     return (
-      <div className="bg-white min-h-screen flex items-center justify-center">
-        <div className="text-gray-500">加载中...</div>
+      <div className="bg-white dark:bg-gray-900 min-h-screen flex items-center justify-center">
+        <div className="text-gray-500 dark:text-gray-400">加载中...</div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white">
+    <div className="bg-white dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 h-[calc(100vh-120px)]">
           <div className="lg:col-span-3 flex flex-col overflow-hidden">
-            <div className="flex justify-between items-center gap-8 mb-8 border-b border-gray-100 flex-shrink-0">
+            <div className="flex justify-between items-center gap-8 mb-8 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
               <div className="flex gap-8">
                 <button
                   onClick={() => setActiveTab('activities')}
                   className={`pb-3 px-2 transition-all relative text-sm ${
                     activeTab === 'activities'
-                      ? 'text-black'
-                      : 'text-gray-400 hover:text-gray-600'
+                      ? 'text-black dark:text-white'
+                      : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -196,28 +196,28 @@ export default function NotificationCenter() {
                     <span>活动</span>
                   </div>
                   {activeTab === 'activities' && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black dark:bg-white" />
                   )}
                 </button>
                 <button
                   onClick={() => setActiveTab('notifications')}
                   className={`pb-3 px-2 transition-all relative text-sm ${
                     activeTab === 'notifications'
-                      ? 'text-black'
-                      : 'text-gray-400 hover:text-gray-600'
+                      ? 'text-black dark:text-white'
+                      : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
                   }`}
                 >
                   <div className="flex items-center gap-2">
                     <Bell className="w-4 h-4" />
                     <span>通知</span>
                     {unreadCount > 0 && (
-                      <span className="bg-black text-white rounded-full w-4 h-4 flex items-center justify-center text-xs">
+                      <span className="bg-black dark:bg-white text-white dark:text-gray-900 rounded-full w-4 h-4 flex items-center justify-center text-xs">
                         {unreadCount}
                       </span>
                     )}
                   </div>
                   {activeTab === 'notifications' && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black dark:bg-white" />
                   )}
                 </button>
               </div>
@@ -228,14 +228,14 @@ export default function NotificationCenter() {
                     <>
                       <button
                         onClick={markAllAsRead}
-                        className="px-3 py-1.5 text-xs text-gray-600 hover:text-black border border-gray-200 rounded-full hover:border-gray-300 transition-all flex items-center gap-1.5"
+                        className="px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white border border-gray-200 dark:border-gray-600 rounded-full hover:border-gray-300 dark:hover:border-gray-500 transition-all flex items-center gap-1.5"
                       >
                         <Check className="w-3.5 h-3.5" />
                         全部已读
                       </button>
                       <button
                         onClick={toggleBatchMode}
-                        className="px-3 py-1.5 text-xs text-gray-600 hover:text-red-600 border border-gray-200 rounded-full hover:border-red-300 transition-all flex items-center gap-1.5"
+                        className="px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 border border-gray-200 dark:border-gray-600 rounded-full hover:border-red-300 dark:hover:border-red-500 transition-all flex items-center gap-1.5"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         批量删除
@@ -245,27 +245,27 @@ export default function NotificationCenter() {
                     <>
                       <button
                         onClick={selectAll}
-                        className="px-3 py-1.5 text-xs text-gray-600 hover:text-black border border-gray-200 rounded-full hover:border-gray-300 transition-all flex items-center gap-1.5"
+                        className="px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white border border-gray-200 dark:border-gray-600 rounded-full hover:border-gray-300 dark:hover:border-gray-500 transition-all flex items-center gap-1.5"
                       >
                         <CheckSquare className="w-3.5 h-3.5" />
                         {selectedIds.length === notifications.length ? '取消全选' : '全选'}
                       </button>
                       {selectedIds.length > 0 && (
-                        <span className="text-xs text-gray-500 px-2">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 px-2">
                           已选 {selectedIds.length} 条
                         </span>
                       )}
                       <button
                         onClick={deleteSelected}
                         disabled={selectedIds.length === 0}
-                        className="px-3 py-1.5 text-xs text-white bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full transition-all flex items-center gap-1.5"
+                        className="px-3 py-1.5 text-xs text-white bg-red-600 hover:bg-red-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed rounded-full transition-all flex items-center gap-1.5"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         删除选中项
                       </button>
                       <button
                         onClick={toggleBatchMode}
-                        className="px-3 py-1.5 text-xs text-gray-600 hover:text-black border border-gray-200 rounded-full hover:border-gray-300 transition-all flex items-center gap-1.5"
+                        className="px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white border border-gray-200 dark:border-gray-600 rounded-full hover:border-gray-300 dark:hover:border-gray-500 transition-all flex items-center gap-1.5"
                       >
                         <X className="w-3.5 h-3.5" />
                         取消
@@ -279,12 +279,12 @@ export default function NotificationCenter() {
             <div className="overflow-y-auto pr-4 scrollbar-auto-hide">
               {activeTab === 'notifications' ? (
                 <div className="relative">
-                  <div className={`absolute ${batchDeleteMode ? 'left-12' : 'left-4'} top-0 bottom-0 w-px bg-gray-200 transition-all`} />
+                  <div className={`absolute ${batchDeleteMode ? 'left-12' : 'left-4'} top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700 transition-all`} />
                   <div className="space-y-0">
                     {notifications.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-12">
-                        <Bell className="w-12 h-12 text-gray-300 mb-3" />
-                        <p className="text-sm text-gray-500">暂无通知</p>
+                        <Bell className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" />
+                        <p className="text-sm text-gray-500 dark:text-gray-400">暂无通知</p>
                       </div>
                     ) : (
                       notifications.map((notification, index) => (
@@ -304,8 +304,8 @@ export default function NotificationCenter() {
                 <div className="space-y-6">
                   {activities.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12">
-                      <Sparkles className="w-12 h-12 text-gray-300 mb-3" />
-                      <p className="text-sm text-gray-500">暂无活动</p>
+                      <Sparkles className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400">暂无活动</p>
                     </div>
                   ) : (
                     activities.map((activity) =>
@@ -330,32 +330,32 @@ export default function NotificationCenter() {
 
           <div className="lg:col-span-1">
             <div className="sticky top-8 space-y-6">
-              <div className="border-l-4 border-black pl-4 py-2">
-                <p className="text-sm text-gray-600 italic mb-1">
+              <div className="border-l-4 border-black dark:border-gray-400 pl-4 py-2">
+                <p className="text-sm text-gray-600 dark:text-gray-400 italic mb-1">
                   "创作的路上，我们从不孤单。"
                 </p>
-                <span className="text-xs text-gray-400">— 创作者社区</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500">— 创作者社区</span>
               </div>
 
-              <div className="bg-black text-white rounded-3xl p-6">
+              <div className="bg-black dark:bg-gray-800 text-white rounded-3xl p-6">
                 <h3 className="text-base font-medium mb-4 text-white">本月数据</h3>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between pb-3 border-b border-gray-700">
-                    <span className="text-sm text-gray-300">未读通知</span>
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-700 dark:border-gray-600">
+                    <span className="text-sm text-gray-300 dark:text-gray-400">未读通知</span>
                     <span className="text-xl font-medium">{unreadCount}</span>
                   </div>
-                  <div className="flex items-center justify-between pb-3 border-b border-gray-700">
-                    <span className="text-sm text-gray-300">即将到来的活动</span>
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-700 dark:border-gray-600">
+                    <span className="text-sm text-gray-300 dark:text-gray-400">即将到来的活动</span>
                     <span className="text-xl font-medium">{activities.length}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-300">参与活动</span>
+                    <span className="text-sm text-gray-300 dark:text-gray-400">参与活动</span>
                     <span className="text-xl font-medium">{activities.filter(a => a.notification?.isRead).length}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="relative rounded-3xl overflow-hidden border border-gray-100 aspect-[4/3]">
+              <div className="relative rounded-3xl overflow-hidden border border-gray-100 dark:border-gray-700 aspect-[4/3]">
                 <ImageWithFallback
                   src="https://images.unsplash.com/photo-1627860572942-27bc789d94bf?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtaW5pbWFsJTIwYWJzdHJhY3QlMjBhcnR8ZW58MXx8fHwxNzY1MTYwMzgyfDA&ixlib=rb-4.1.0&q=80&w=1080"
                   alt="艺术插画"

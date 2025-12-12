@@ -52,7 +52,6 @@ export interface NotificationSettings {
 export interface UserPreferences {
   theme: 'light' | 'dark' | 'auto';
   language: 'zh-CN' | 'en-US';
-  fontSize: 'small' | 'medium' | 'large';
   autoSave: boolean;
   autoSaveInterval: number;
   aiAutoComplete: boolean; // AI 自动补全开关（消耗积分）

@@ -10,6 +10,12 @@
   border: none;
   box-shadow: none;
   border-radius: 0;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 深色模式 - 编辑器容器 */
+.dark .novel-editor {
+  background-color: #0f172a;
 }
 
 /* ========== 自定义编辑器内容样式（替代 prose） ========== */
@@ -701,4 +707,206 @@
 
 .ai-revision-highlight {
   animation: revisionPulse 1s ease-in-out 2;
+}
+
+/* ========== 深色模式 - 编辑器完整样式 ========== */
+
+/* 编辑器内容区域 - 深色模式 */
+.dark .novel-editor-content,
+.dark .ProseMirror {
+  color: #e2e8f0;
+  background-color: #0f172a;
+}
+
+/* 段落文本 - 深色模式 */
+.dark .novel-editor-content p,
+.dark .ProseMirror p {
+  color: #e2e8f0;
+}
+
+/* 标题 - 深色模式 */
+.dark .novel-editor-content h1,
+.dark .novel-editor-content h2,
+.dark .novel-editor-content h3,
+.dark .novel-editor-content h4,
+.dark .ProseMirror h1,
+.dark .ProseMirror h2,
+.dark .ProseMirror h3,
+.dark .ProseMirror h4 {
+  color: #f8fafc;
+}
+
+/* 占位符 - 深色模式 */
+.dark .ProseMirror p.is-editor-empty:first-child::before {
+  color: #64748b;
+}
+
+/* 选中文本 - 深色模式 */
+.dark .ProseMirror ::selection {
+  background: rgba(59, 130, 246, 0.4);
+  color: #f8fafc;
+}
+
+/* 引用 - 深色模式 */
+.dark .novel-editor-content blockquote,
+.dark .ProseMirror blockquote {
+  border-left-color: #475569;
+  color: #94a3b8;
+}
+
+/* 链接 - 深色模式 */
+.dark .novel-editor-content a,
+.dark .ProseMirror a {
+  color: #60a5fa;
+}
+
+.dark .novel-editor-content a:hover,
+.dark .ProseMirror a:hover {
+  color: #93c5fd;
+}
+
+/* 行内代码 - 深色模式 */
+.dark .novel-editor-content code,
+.dark .ProseMirror code {
+  background: #334155;
+  color: #f472b6;
+}
+
+/* 高亮 - 深色模式 */
+.dark .novel-editor-content mark,
+.dark .ProseMirror mark {
+  background-color: rgba(250, 204, 21, 0.3);
+  color: #fef08a;
+}
+
+/* 水平分割线 - 深色模式 */
+.dark .novel-editor-content hr,
+.dark .ProseMirror hr {
+  border-top-color: #334155;
+}
+
+/* 表格 - 深色模式 */
+.dark .novel-editor-content td,
+.dark .novel-editor-content th,
+.dark .ProseMirror td,
+.dark .ProseMirror th {
+  border-color: #475569;
+}
+
+.dark .novel-editor-content th,
+.dark .ProseMirror th {
+  background-color: #1e293b;
+  color: #f8fafc;
+}
+
+.dark .novel-editor-content td,
+.dark .ProseMirror td {
+  color: #e2e8f0;
+}
+
+/* 表格选中单元格 - 深色模式 */
+.dark .ProseMirror .selectedCell:after {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+/* 列表 - 深色模式 */
+.dark .novel-editor-content ul li,
+.dark .novel-editor-content ol li,
+.dark .ProseMirror ul li,
+.dark .ProseMirror ol li {
+  color: #e2e8f0;
+}
+
+/* 任务列表复选框 - 深色模式 */
+.dark .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
+  accent-color: #3b82f6;
+}
+
+/* 图片选中状态 - 深色模式 */
+.dark .ProseMirror img.ProseMirror-selectednode {
+  outline-color: #60a5fa;
+}
+
+/* 编辑器工具栏 - 深色模式 */
+.dark .editor-toolbar {
+  background-color: #1e293b;
+  border-bottom-color: #334155;
+}
+
+/* 编辑器状态栏 - 深色模式（在 NovelEditor 组件中） */
+.dark .editor-status-bar {
+  background-color: #1e293b;
+  border-top-color: #334155;
+  color: #94a3b8;
+}
+
+/* 编辑器画布容器 - 深色模式 */
+.dark .editor-canvas {
+  background-color: #0f172a;
+}
+
+/* 拖拽手柄 - 深色模式 */
+.dark [data-drag-handle] {
+  color: #64748b;
+}
+
+.dark [data-drag-handle]:hover {
+  color: #94a3b8;
+  background-color: #334155;
+}
+
+/* Slash命令菜单 - 深色模式 */
+.dark .slash-command-menu {
+  background-color: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.dark .slash-command-item {
+  color: #e2e8f0;
+}
+
+.dark .slash-command-item:hover,
+.dark .slash-command-item.is-selected {
+  background-color: #334155;
+}
+
+.dark .slash-command-item-icon {
+  color: #94a3b8;
+}
+
+/* 气泡菜单 - 深色模式 */
+.dark .bubble-menu {
+  background-color: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.dark .bubble-menu button {
+  color: #e2e8f0;
+}
+
+.dark .bubble-menu button:hover {
+  background-color: #334155;
+}
+
+.dark .bubble-menu button.is-active {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+/* 滚动条 - 深色模式 */
+.dark .novel-editor::-webkit-scrollbar-track,
+.dark .editor-canvas::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+.dark .novel-editor::-webkit-scrollbar-thumb,
+.dark .editor-canvas::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.dark .novel-editor::-webkit-scrollbar-thumb:hover,
+.dark .editor-canvas::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }

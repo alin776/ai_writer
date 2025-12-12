@@ -18,7 +18,7 @@ interface FeaturedActivityProps {
 
 export function FeaturedActivity({ activity }: FeaturedActivityProps) {
   return (
-    <div className="group relative overflow-hidden rounded-3xl bg-black text-white h-96">
+    <div className="group relative overflow-hidden rounded-3xl bg-black dark:bg-gray-800 text-white h-96">
       {/* Background Image */}
       <div className="absolute inset-0 opacity-50">
         <ImageWithFallback
