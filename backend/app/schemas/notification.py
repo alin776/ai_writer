@@ -43,6 +43,10 @@ class NotificationBase(BaseModel):
     allow_dismiss: bool = Field(default=True, description="允许用户关闭")
     show_once: bool = Field(default=False, description="每个用户只展示一次")
 
+    # 活动相关字段（仅当 type 为 EVENT 时使用）
+    activity_type: Optional[str] = Field(None, description="活动类型：invitation, competition, points 等")
+    activity_rules: Optional[Dict[str, Any]] = Field(None, description="活动规则，根据 activity_type 不同而不同")
+
 
 # ==================== 创建通知 ====================
 class NotificationCreate(NotificationBase):
@@ -78,6 +82,10 @@ class NotificationUpdate(BaseModel):
 
     allow_dismiss: Optional[bool] = None
     show_once: Optional[bool] = None
+
+    # 活动相关字段
+    activity_type: Optional[str] = None
+    activity_rules: Optional[Dict[str, Any]] = None
 
     status: Optional[NotificationStatus] = None
 
@@ -127,6 +135,10 @@ class UserNotificationResponse(BaseModel):
     display_type: List[str]
     action_button: Optional[Dict[str, str]] = None  # ActionButton 转换为 dict
     banner_color: Optional[str] = None
+
+    # 活动相关字段（仅当 type 为 EVENT 时存在）
+    activity_type: Optional[str] = None
+    activity_rules: Optional[Dict[str, Any]] = None
 
     # 用户特定状态
     is_read: bool

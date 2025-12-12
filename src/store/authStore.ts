@@ -76,6 +76,9 @@ export const useAuthStore = create<AuthState>()(
 
       // 登出方法
       logout: () => {
+        // 清除活动弹窗标记，确保下次登录时重新显示
+        sessionStorage.removeItem('activity_modal_shown');
+
         set({
           user: null,
           token: null,

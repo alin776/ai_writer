@@ -59,6 +59,11 @@ class NotificationService:
         if notification_data.action_button:
             action_button_dict = notification_data.action_button.model_dump()
 
+        # 调试日志：打印接收到的活动数据
+        print(f"🔧 创建通知 - 接收到的数据:")
+        print(f"  activity_type: {notification_data.activity_type}")
+        print(f"  activity_rules: {notification_data.activity_rules}")
+
         # 创建通知
         notification = Notification(
             title=notification_data.title,
@@ -78,6 +83,9 @@ class NotificationService:
             valid_until=notification_data.valid_until,
             allow_dismiss=notification_data.allow_dismiss,
             show_once=notification_data.show_once,
+            # 活动相关字段
+            activity_type=notification_data.activity_type,
+            activity_rules=notification_data.activity_rules,
             created_by=created_by
         )
 
@@ -152,18 +160,40 @@ class NotificationService:
         # 更新字段
         update_data = notification_data.model_dump(exclude_unset=True)
 
+        # 调试日志：打印更新数据
+        print(f"\n{'='*80}")
+        print(f"🔧 更新通知 ID: {notification_id}")
+        print(f"{'='*80}")
+        print(f"接收到的字段: {list(update_data.keys())}")
+        print(f"activity_type: {update_data.get('activity_type')}")
+        print(f"activity_rules: {update_data.get('activity_rules')}")
+        print(f"{'='*80}\n")
+
         # 特殊处理 action_button
         if "action_button" in update_data and update_data["action_button"]:
             if hasattr(update_data["action_button"], "model_dump"):
                 update_data["action_button"] = update_data["action_button"].model_dump()
 
+        # 逐个更新字段
         for field, value in update_data.items():
-            setattr(notification, field, value)
+            if hasattr(notification, field):
+                setattr(notification, field, value)
+                print(f"✅ 更新字段 {field}: {value if field not in ['activity_rules'] else '(JSONB data)'}")
+            else:
+                print(f"⚠️  跳过不存在的字段: {field}")
 
         notification.updated_at = datetime.now(timezone.utc)
 
+        # 提交并刷新
         await self.db.commit()
         await self.db.refresh(notification)
+
+        # 验证保存结果
+        print(f"\n{'='*80}")
+        print(f"✅ 保存后验证:")
+        print(f"activity_type: {notification.activity_type}")
+        print(f"activity_rules: {notification.activity_rules}")
+        print(f"{'='*80}\n")
 
         return notification
 

@@ -1,8 +1,9 @@
 import { Calendar, MapPin, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { ImageWithFallback } from './ImageWithFallback';
 
 interface Activity {
-  id: number;
+  id: string;  // 修改为 string 以匹配通知ID类型
   title: string;
   description: string;
   startTime: string;
@@ -17,8 +18,17 @@ interface FeaturedActivityProps {
 }
 
 export function FeaturedActivity({ activity }: FeaturedActivityProps) {
+  const navigate = useNavigate();
+
+  const handleClick = () => {
+    navigate(`/activities/${activity.id}`);
+  };
+
   return (
-    <div className="group relative overflow-hidden rounded-3xl bg-black text-white h-96">
+    <div
+      onClick={handleClick}
+      className="group relative overflow-hidden rounded-3xl bg-black text-white h-96 cursor-pointer"
+    >
       {/* Background Image */}
       <div className="absolute inset-0 opacity-50">
         <ImageWithFallback
@@ -43,12 +53,9 @@ export function FeaturedActivity({ activity }: FeaturedActivityProps) {
         </div>
 
         <div>
-          <h2 className="text-2xl font-medium mb-3 text-white">
+          <h2 className="text-2xl font-medium mb-6 text-white">
             {activity.title}
           </h2>
-          <p className="text-sm text-gray-300 mb-6 max-w-2xl leading-relaxed">
-            {activity.description}
-          </p>
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-6">

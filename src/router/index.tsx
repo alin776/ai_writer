@@ -25,6 +25,7 @@ const AdminNotificationsView = React.lazy(() => import('../views/AdminNotificati
 const SettingsView = React.lazy(() => import('../views/SettingsView'));
 const KnowledgeView = React.lazy(() => import('../views/KnowledgeView'));
 const NotificationCenter = React.lazy(() => import('../pages/NotificationCenter'));
+const ActivityDetail = React.lazy(() => import('../pages/ActivityDetail'));
 const NotFoundView = React.lazy(() => import('../views/NotFoundView'));
 
 const LoadingFallback: React.FC = () => (
@@ -179,6 +180,14 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <NotificationCenter />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/activities/:activityId',
+        element: (
+          <SuspenseWrapper>
+            <ActivityDetail />
           </SuspenseWrapper>
         ),
       },

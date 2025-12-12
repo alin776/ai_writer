@@ -1,8 +1,9 @@
 import { Calendar, MapPin, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { ImageWithFallback } from './ImageWithFallback';
 
 interface Activity {
-  id: number;
+  id: string;  // 修改为 string 以匹配通知ID类型
   title: string;
   description: string;
   startTime: string;
@@ -16,8 +17,17 @@ interface CompactActivityProps {
 }
 
 export function CompactActivity({ activity }: CompactActivityProps) {
+  const navigate = useNavigate();
+
+  const handleClick = () => {
+    navigate(`/activities/${activity.id}`);
+  };
+
   return (
-    <div className="group border border-gray-100 rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300 bg-white">
+    <div
+      onClick={handleClick}
+      className="group border border-gray-100 rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300 bg-white cursor-pointer"
+    >
       {/* Image */}
       <div className="relative overflow-hidden aspect-video">
         <ImageWithFallback
@@ -39,12 +49,9 @@ export function CompactActivity({ activity }: CompactActivityProps) {
 
       {/* Content */}
       <div className="p-4">
-        <h3 className="text-sm font-medium mb-2 group-hover:text-gray-600 transition-colors line-clamp-1">
+        <h3 className="text-sm font-medium mb-4 group-hover:text-gray-600 transition-colors line-clamp-1">
           {activity.title}
         </h3>
-        <p className="text-xs text-gray-600 mb-4 line-clamp-2 leading-relaxed">
-          {activity.description}
-        </p>
 
         <div className="flex items-center justify-between text-gray-500">
           <div className="flex items-center gap-1.5">

@@ -8,7 +8,7 @@ import { getUserNotifications, markNotificationsAsRead, dismissNotification } fr
 import { NotificationType, type UserNotification } from '../types/notification';
 
 interface Activity {
-  id: number;
+  id: string;  // 修改为 string 以匹配通知ID类型
   title: string;
   description: string;
   startTime: string;
@@ -49,17 +49,24 @@ export default function NotificationCenter() {
 
       setNotifications(regularNotifications);
 
-      const convertedActivities: Activity[] = eventNotifications.map((n, index) => ({
-        id: index + 1,
-        title: n.title,
-        description: n.content || '',
-        startTime: formatEventTime(n.validFrom || n.createdAt),
-        endTime: formatEventTime(n.validUntil || n.createdAt),
-        image: n.coverImageUrl || getDefaultActivityImage(index),
-        category: getActivityCategory(n),
-        featured: index === 0,
-        notification: n
-      }));
+      const convertedActivities: Activity[] = eventNotifications.map((n, index) => {
+        // 只显示第一段作为简短描述，或截取前100个字符
+        const shortDescription = n.content
+          ? n.content.split('\n\n')[0].substring(0, 100) + (n.content.length > 100 ? '...' : '')
+          : '';
+
+        return {
+          id: n.id,  // 使用通知的真实ID而不是索引
+          title: n.title,
+          description: shortDescription,
+          startTime: formatEventTime(n.validFrom || n.createdAt),
+          endTime: formatEventTime(n.validUntil || n.createdAt),
+          image: n.coverImageUrl || getDefaultActivityImage(index),
+          category: getActivityCategory(n),
+          featured: index === 0,
+          notification: n
+        };
+      });
 
       setActivities(convertedActivities);
     } catch (error) {
@@ -308,20 +315,19 @@ export default function NotificationCenter() {
                       <p className="text-sm text-gray-500">暂无活动</p>
                     </div>
                   ) : (
-                    activities.map((activity) =>
-                      activity.featured ? (
+                    <>
+                      {/* Featured activity */}
+                      {activities.filter(a => a.featured).map(activity => (
                         <FeaturedActivity key={activity.id} activity={activity} />
-                      ) : (
-                        <div key={activity.id} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <CompactActivity activity={activity} />
-                          {activities.find(a => a.id === activity.id + 1 && !a.featured) && (
-                            <CompactActivity
-                              activity={activities.find(a => a.id === activity.id + 1)!}
-                            />
-                          )}
-                        </div>
-                      )
-                    )
+                      ))}
+
+                      {/* Compact activities in grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {activities.filter(a => !a.featured).map(activity => (
+                          <CompactActivity key={activity.id} activity={activity} />
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
               )}
