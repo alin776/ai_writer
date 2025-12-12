@@ -19,7 +19,35 @@ Prompt 缓存模块 - Phase 2.6
 from app.core.cache import cache_review
 
 # Prompt 版本号 - 修改 Prompt 时请更新此版本号
-PROMPT_VERSION = "v2.8.0"  # 2025-12-10: 删除 polish_text_tool + read_chapter_tool 支持多章节
+PROMPT_VERSION = "v2.9.1"  # 2025-12-12: 修复虚假工具声明，只保留实际存在的检索工具
+
+
+# ════════════════════════════════════════════════════════════════
+# 共享工具描述 - 单一数据源，避免多个 Prompt 不同步
+# ════════════════════════════════════════════════════════════════
+
+def _get_retrieval_tools_section() -> str:
+    """检索工具描述 - 统一数据源
+
+    被 get_tool_decision_static_prompt 和 get_planning_static_prompt 共同引用，
+    确保工具列表和使用场景说明保持同步。
+
+    注意：只描述 LANGGRAPH_TOOLS 中实际存在的工具！
+    """
+    return """
+【检索工具 - 内容搜索场景使用】
+- search_analysis_fragments_tool: 混合检索（向量+全文）召回作品相关片段
+  参数: query(必需), top_k(默认5), work_id(可选), chapter_id(可选)
+  → 适用场景:
+    - 用户给出具体文字片段但不知道在哪章: "微光如露落雪在哪"
+    - 搜索包含某关键词的内容: "哪里提到了XX"、"找一下XX相关的内容"
+    - 查找人物/地点/设定相关描述: "赵穆出现在哪"、"关于源顺镖局的描述"
+
+⚠️ 【检索规则】
+- 用户提到具体文字/关键词但不知位置 → 必须先调用 search_analysis_fragments_tool
+- 用户问"XX在哪"/"哪里提到XX" → 必须先调用 search_analysis_fragments_tool
+- **禁止不检索就直接回答"没有找到"或"不存在"！必须先检索确认！**
+"""
 
 
 @cache_review(expire=3600, key_prefix=f"prompt:tool_decision:{PROMPT_VERSION}")
@@ -32,8 +60,12 @@ async def get_tool_decision_static_prompt() -> str:
     说明：
         这部分 Prompt 包含工具列表、JSON 格式说明和示例，
         对所有请求都相同，因此可以安全缓存。
+
+    🔧 2025-12-12: 引用共享的检索工具描述，确保与规划 Prompt 同步
     """
-    return """判断是否需要工具。可用工具:
+    retrieval_tools = _get_retrieval_tools_section()
+
+    return f"""判断是否需要工具。可用工具:
 
 【编辑器工具 - 修改内容时优先使用】
 - smart_rewrite: 改写/修改章节内容
@@ -43,9 +75,9 @@ async def get_tool_decision_static_prompt() -> str:
 - apply_chapter_edit: 直接应用编辑 (参数: chapter_id, operation, content)
 
 【读取工具】
-需work_id: get_chapter_by_order_tool, get_context_tool, read_chapter_tool, search_analysis_fragments_tool
+需work_id: get_chapter_by_order_tool, get_context_tool, read_chapter_tool
 不需work_id: continue_writing_tool, analyze_text_tool
-
+{retrieval_tools}
 ⚠️ **重要变更**：polish_text_tool 已移除
 - 所有润色/修改请求必须提供 chapter_id，使用基于章节上下文的工具
 - 如果涉及多个章节，read_chapter_tool 支持传递多个 chapter_id（用逗号分隔，如 "id1,id2,id3"）
@@ -53,16 +85,16 @@ async def get_tool_decision_static_prompt() -> str:
 ⚠️ 【关键规则】用户提到具体文字但未说章节时：
 - 用户只给了句子（如"微光如露落雪太书面化"），但没说是第几章
 - → **必须先调用 search_analysis_fragments_tool 搜索这句话，找到它在第几章**
-- → 示例：{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {"query": "微光如露落雪"}}
+- → 示例：{{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "微光如露落雪"}}}}
 - → **禁止直接给出修改建议！必须先定位！**
 
 ⚠️ 【搜索兜底规则】：
 - 如果用户提供的文字**过于简短**（少于3个字）或是**通用描述**（如"这一章"、"这段话"、"这里"）
 - → **不要调用搜索工具**，直接返回：
-  {"need_tools": false, "direct_response": "请问您指的是哪一章？或者能否提供更多原文片段帮助我定位？"}
+  {{"need_tools": false, "direct_response": "请问您指的是哪一章？或者能否提供更多原文片段帮助我定位？"}}
 - 示例：
-  "这段话太平淡" → {"need_tools": false, "direct_response": "请问您指的是哪一章的哪段话？..."}
-  "这里改改" → {"need_tools": false, "direct_response": "请问您指的是哪一章？..."}
+  "这段话太平淡" → {{"need_tools": false, "direct_response": "请问您指的是哪一章的哪段话？..."}}
+  "这里改改" → {{"need_tools": false, "direct_response": "请问您指的是哪一章？..."}}
 
 ⚠️ smart_rewrite 参数提取规则：
 1. user_requirement（用户要求）：
@@ -89,16 +121,19 @@ async def get_tool_decision_static_prompt() -> str:
 6. 必须严格返回JSON格式！
 
 返回JSON:
-- 需要: {"need_tools": true, "tool_name": "工具名", "tool_args": {}}
-- 缺参数: {"need_tools": false, "direct_response": "请提供..."}
-- 直接答: {"need_tools": false, "direct_response": "..."}
-- 问候: {"need_tools": false, "direct_response": "您好！我是AI写作助手，可以帮您修改、续写章节内容。请问有什么可以帮您的？"}
+- 需要: {{"need_tools": true, "tool_name": "工具名", "tool_args": {{}}}}
+- 缺参数: {{"need_tools": false, "direct_response": "请提供..."}}
+- 直接答: {{"need_tools": false, "direct_response": "..."}}
+- 问候: {{"need_tools": false, "direct_response": "您好！我是AI写作助手，可以帮您修改、续写章节内容。请问有什么可以帮您的？"}}
 
 示例:
-"你好" → {"need_tools": false, "direct_response": "您好！我是AI写作助手，可以帮您修改、续写章节内容。请问有什么可以帮您的？"}
-"微光如露落雪太书面化" → {"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {"query": "微光如露落雪"}}
-"白光退去太平淡" → {"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {"query": "白光退去"}}
-"修改第三章，白光退去太平淡" → {"need_tools": true, "tool_name": "smart_rewrite", "tool_args": {"chapter_id": "xxx", "text_to_rewrite": "白光退去...", "user_requirement": "更有画面感"}}
+"你好" → {{"need_tools": false, "direct_response": "您好！我是AI写作助手..."}}
+"微光如露落雪太书面化" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "微光如露落雪"}}}}
+"白光退去太平淡" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "白光退去"}}}}
+"修改第三章，白光退去太平淡" → {{"need_tools": true, "tool_name": "smart_rewrite", "tool_args": {{"chapter_id": "xxx", "text_to_rewrite": "白光退去...", "user_requirement": "更有画面感"}}}}
+"有没有叫赵穆的人物" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "赵穆"}}}}
+"哪个章节讲到了浑圆桩" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "浑圆桩"}}}}
+"段融是谁" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "段融"}}}}
 
 ⚠️ 请严格返回JSON格式，不要直接回答问题:"""
 
@@ -117,8 +152,12 @@ async def get_planning_static_prompt() -> str:
     🔧 2025-12-06: P1优化 - 增强多章节分析+续写场景的指导
     🔧 2025-12-07: 架构优化 - 引入意图路由，写作任务直接交给 Multi-Agent
     🔧 2025-12-07: 重构 - Chain-of-Thought 思维链，教 AI 如何思考而非匹配关键词
+    🔧 2025-12-12: 引用共享的检索工具描述，确保与工具决策 Prompt 同步
     """
-    return """你是一个任务规划助手。请使用【三步思维链】来理解用户意图并生成任务。
+    retrieval_tools = _get_retrieval_tools_section()
+
+    # 使用字符串拼接而非 f-string，避免转义大量 JSON 大括号
+    part1 = """你是一个任务规划助手。请使用【三步思维链】来理解用户意图并生成任务。
 
 【三步思维链】- 生成任务前必须完成
 
@@ -167,20 +206,9 @@ async def get_planning_static_prompt() -> str:
 - get_chapter_by_order_tool: 按序号获取章节 (参数: chapter_order)
   ⚠️ 返回数据已包含: {title, order, content, word_count} → 标题/序号等元数据无需再分析！
 - get_context_tool: 获取作品上下文
+"""
 
-检索工具（跨章节/跨数据源搜索）：
-- search_chapter_title_tool: 按标题/正文模糊搜索章节 (参数: query, limit)
-  - 适用于：查找提到某个关键词的章节、搜索包含特定内容的章节
-  - 示例："哪个章节提到了XXX"、"搜索包含YYY的章节"
-- search_worldview_tool: 搜索世界观数据 (参数: query, entity_type, limit)
-  - 适用于：查找角色/人物、地点、设定信息
-  - entity_type: all/character/location/setting
-  - 示例："查一下XXX这个角色"、"作品里有没有叫YYY的人物"、"关于ZZZ地点的设定"
-- search_knowledge_tool: 知识库语义搜索 (参数: query, category, tags, top_k)
-  - 适用于：从知识库中检索相关设定、参考资料
-  - 示例："从知识库中找XXX相关的设定"
-
-处理原料：
+    part2 = """处理原料：
 - analyze_text_tool: 概括、分析、规划大纲 (参数: text, focus)
   - 适用于：概括内容、分析人物、分析情节、写大纲、规划章节
   - ⚠️ 不要用于：查询标题/序号等元数据（工具已返回这些字段）
@@ -382,6 +410,8 @@ chapter_id: "def-456"
 }
 
 返回纯JSON（必须包含thinking字段）:"""
+
+    return part1 + retrieval_tools + part2
 
 
 # ════════════════════════════════════════════════════════════════
