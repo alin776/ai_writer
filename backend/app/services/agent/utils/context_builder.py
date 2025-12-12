@@ -17,11 +17,42 @@ from langchain_core.messages import SystemMessage
 logger = logging.getLogger(__name__)
 
 
+# === 小说写作专用：任务感知压缩配置 ===
+# 参考 KoboldAI 的关键词触发机制
+# 根据工具名称决定保留长度（更可靠）
+FULL_CONTENT_TOOLS = {
+    # 章节读取类工具 - 需要完整内容
+    "read_chapter_tool": 8000,
+    "get_chapter_by_order_tool": 8000,
+    "get_context_tool": 6000,
+    # 分析类工具 - 需要较多内容
+    "analyze_text_tool": 5000,
+    # 检索类工具 - 保留中等内容
+    "search_analysis_fragments_tool": 4000,
+}
+
+# 任务描述关键词匹配（作为备用方案）
+FULL_CONTENT_KEYWORDS = {
+    # 章节读取类 - 支持中英文
+    "读取章节": 8000,
+    "获取第": 8000,      # 匹配 "获取第X章"
+    "读取第": 8000,      # 匹配 "读取第X章"
+    "章节内容": 8000,
+    # 分析类
+    "分析": 5000,
+    "概括": 5000,
+    # 检索类
+    "检索": 4000,
+    "搜索": 4000,
+}
+
+
 def _compress_task_result(
     task_id: int,
     task_description: str,
     task_result: str,
-    max_length: int = 2000
+    max_length: int = 2000,
+    tool_name: str = ""
 ) -> str:
     """智能压缩任务结果
 
@@ -30,6 +61,7 @@ def _compress_task_result(
         task_description: 任务描述
         task_result: 原始任务结果
         max_length: 最大保留长度
+        tool_name: 工具名称（优先使用）
 
     Returns:
         压缩后的结果
@@ -41,6 +73,44 @@ def _compress_task_result(
             f"已转换为字符串"
         )
         task_result = str(task_result) if task_result is not None else ""
+
+    # === 方案1：优先根据工具名称决定保留长度（最可靠） ===
+    if tool_name and tool_name in FULL_CONTENT_TOOLS:
+        limit = FULL_CONTENT_TOOLS[tool_name]
+        if len(task_result) <= limit:
+            logger.debug(
+                f"[Compress] 任务{task_id}工具'{tool_name}'，"
+                f"内容长度{len(task_result)}<=限制{limit}，保留完整内容"
+            )
+            return task_result
+        # 超出限制时，保留首尾内容（70%头部 + 30%尾部）
+        head_len = int(limit * 0.7)
+        tail_len = int(limit * 0.3)
+        omitted = len(task_result) - limit
+        logger.info(
+            f"[Compress] 任务{task_id}工具'{tool_name}'，"
+            f"内容长度{len(task_result)}，保留{limit}字符（省略{omitted}字符）"
+        )
+        return f"{task_result[:head_len]}\n\n...[省略 {omitted} 字符]...\n\n{task_result[-tail_len:]}"
+
+    # === 方案2：根据任务描述关键词匹配（备用方案） ===
+    for keyword, limit in FULL_CONTENT_KEYWORDS.items():
+        if keyword in task_description:
+            if len(task_result) <= limit:
+                logger.debug(
+                    f"[Compress] 任务{task_id}匹配关键词'{keyword}'，"
+                    f"内容长度{len(task_result)}<=限制{limit}，保留完整内容"
+                )
+                return task_result
+            # 超出限制时，保留首尾内容
+            head_len = int(limit * 0.7)
+            tail_len = int(limit * 0.3)
+            omitted = len(task_result) - limit
+            logger.info(
+                f"[Compress] 任务{task_id}匹配关键词'{keyword}'，"
+                f"内容长度{len(task_result)}，保留{limit}字符（省略{omitted}字符）"
+            )
+            return f"{task_result[:head_len]}\n\n...[省略 {omitted} 字符]...\n\n{task_result[-tail_len:]}"
 
     # 如果结果很短，直接返回
     if len(task_result) <= max_length:
@@ -102,17 +172,19 @@ def _build_summarization_context(
     for task in task_results:
         task_id = task["task_id"]
         description = task["description"]
+        tool_name = task.get("tool", "")  # 获取工具名称
         result = task.get("result")
         result = result if result is not None else ""
         status = task["status"]
 
-        # 压缩结果
+        # 压缩结果（传递工具名称以便精确匹配）
         if status == "completed":
             compressed_result = _compress_task_result(
                 task_id=task_id,
                 task_description=description,
                 task_result=result,
-                max_length=2000
+                max_length=2000,
+                tool_name=tool_name  # 新增：传递工具名称
             )
         else:
             compressed_result = result[:200] if result else ""
