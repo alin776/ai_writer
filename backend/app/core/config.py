@@ -247,6 +247,13 @@ class Settings(BaseSettings):
     COS_SCHEME: str = "https"
     COS_PREFIX: Optional[str] = "uploads"
     
+    # SMTP 邮件配置
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_USE_TLS: bool = True
+
     # 日志配置
     LOG_LEVEL: str = "INFO"
     LOG_FILE: str = "./logs/app.log"

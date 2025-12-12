@@ -3,12 +3,14 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { DataService } from '../../services/DataService';
 import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
 import { Button } from '../../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { ImageWithFallback } from '../../components/common/ImageWithFallback';
-import { BookOpen, Feather, Sparkles, ChevronRight, CheckCircle } from 'lucide-react';
+import { BookOpen, Feather, Sparkles, ChevronRight, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { ApiAdapter } from '@/services/ApiAdapter';
+
+// 创建API实例
+const api = new ApiAdapter();
 
 /**
  * AuthView 组件 - 统一的登录/注册页面
@@ -34,6 +36,7 @@ const AuthView: React.FC = () => {
   const [registerForm, setRegisterForm] = useState({
     username: '',
     email: '',
+    emailVerificationCode: '',
     password: '',
     confirmPassword: '',
     invitationCode: ''
@@ -43,6 +46,11 @@ const AuthView: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState(registerSuccess?.message || '');
   const loginInFlight = useRef(false);
+  const [emailVerificationCountdown, setEmailVerificationCountdown] = useState(0);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // 打字机效果
   const [typewriterText, setTypewriterText] = useState('');
@@ -122,7 +130,7 @@ const AuthView: React.FC = () => {
     const newErrors: Record<string, string> = {};
 
     if (!loginForm.username) {
-      newErrors.username = '请输入用户名';
+      newErrors.username = '请输入邮箱或用户名';
     }
 
     if (!loginForm.password) {
@@ -151,6 +159,12 @@ const AuthView: React.FC = () => {
       newErrors.email = '请输入邮箱地址';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerForm.email)) {
       newErrors.email = '请输入有效的邮箱地址';
+    }
+
+    if (!registerForm.emailVerificationCode) {
+      newErrors.emailVerificationCode = '请输入邮箱验证码';
+    } else if (registerForm.emailVerificationCode.length !== 6) {
+      newErrors.emailVerificationCode = '验证码为6位数字';
     }
 
     if (!registerForm.invitationCode) {
@@ -183,6 +197,87 @@ const AuthView: React.FC = () => {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  /**
+   * 发送邮箱验证码
+   */
+  const handleSendEmailVerification = async () => {
+    // 验证邮箱格式
+    if (!registerForm.email) {
+      setErrors({ ...errors, email: '请输入邮箱地址' });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerForm.email)) {
+      setErrors({ ...errors, email: '请输入有效的邮箱地址' });
+      return;
+    }
+
+    if (emailVerificationCountdown > 0) return;
+
+    setIsLoading(true);
+    setErrors({});
+
+    try {
+      await api.post('/auth/send-email-verification', {
+        email: registerForm.email
+      });
+
+      // 开始倒计时
+      setEmailVerificationCountdown(60);
+      const timer = setInterval(() => {
+        setEmailVerificationCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      setSuccessMessage('验证码已发送到您的邮箱');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.detail || error?.message || '发送验证码失败';
+      setErrors({ email: errorMessage });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * 验证邮箱验证码
+   */
+  const handleVerifyEmailCode = async (code?: string) => {
+    const verificationCode = (code ?? registerForm.emailVerificationCode).trim();
+    if (!verificationCode) {
+      setErrors({ ...errors, emailVerificationCode: '请输入验证码' });
+      return;
+    }
+
+    if (verificationCode.length !== 6) {
+      setErrors({ ...errors, emailVerificationCode: '验证码为6位数字' });
+      return;
+    }
+
+    setIsLoading(true);
+    setErrors({});
+
+    try {
+      await api.post('/auth/verify-email', {
+        email: registerForm.email,
+        code: verificationCode
+      });
+
+      setIsEmailVerified(true);
+      setSuccessMessage('邮箱验证成功');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.detail || error?.message || '验证码错误';
+      setErrors({ emailVerificationCode: errorMessage });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   /**
@@ -254,6 +349,7 @@ const AuthView: React.FC = () => {
       await DataService.register({
         username: registerForm.username,
         email: registerForm.email,
+        email_verification_code: registerForm.emailVerificationCode,
         password: registerForm.password,
         invitation_code: registerForm.invitationCode
       });
@@ -267,10 +363,13 @@ const AuthView: React.FC = () => {
       setRegisterForm({
         username: '',
         email: '',
+        emailVerificationCode: '',
         password: '',
         confirmPassword: '',
         invitationCode: ''
       });
+      setIsEmailVerified(false);
+      setEmailVerificationCountdown(0);
     } catch (error: any) {
       const errorMessage = error?.response?.data?.detail || error?.message || '注册失败，请稍后重试';
       setErrors({ submit: errorMessage });
@@ -390,10 +489,10 @@ const AuthView: React.FC = () => {
 
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'login' | 'register')} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-8 bg-white shadow-sm border border-gray-200">
-              <TabsTrigger value="login" className="data-[state=active]:bg-gray-900 data-[state=active]:text-white">
+              <TabsTrigger value="login" className="data-[state=active]:!bg-gray-900 data-[state=active]:text-white">
                 登录
               </TabsTrigger>
-              <TabsTrigger value="register" className="data-[state=active]:bg-gray-900 data-[state=active]:text-white">
+              <TabsTrigger value="register" className="data-[state=active]:!bg-gray-900 data-[state=active]:text-white">
                 注册
               </TabsTrigger>
             </TabsList>
@@ -402,12 +501,11 @@ const AuthView: React.FC = () => {
             <TabsContent value="login" className="space-y-6">
               <form onSubmit={handleLogin} className="space-y-5">
                 <div className="space-y-2 group">
-                  <Label htmlFor="login-username" className="text-gray-700">用户名</Label>
                   <Input
                     id="login-username"
                     type="text"
-                    placeholder="请输入用户名"
-                    className="h-12 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200"
+                    placeholder="请输入邮箱或用户名"
+                    className="h-12 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900"
                     value={loginForm.username}
                     onChange={(e) => {
                       setLoginForm({ ...loginForm, username: e.target.value });
@@ -418,24 +516,32 @@ const AuthView: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="login-password" className="text-gray-700">密码</Label>
-                    <a href="#" className="text-sm text-gray-700 hover:text-gray-900 transition-colors flex items-center gap-1 group">
+                  <div className="flex items-center justify-end mb-1">
+                    <Link to="/forgot-password" className="text-sm text-gray-700 hover:text-gray-900 transition-colors flex items-center gap-1 group">
                       忘记密码
                       <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-                    </a>
+                    </Link>
                   </div>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    placeholder="请输入密码"
-                    className="h-12 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200"
-                    value={loginForm.password}
-                    onChange={(e) => {
-                      setLoginForm({ ...loginForm, password: e.target.value });
-                      if (errors.password) setErrors({ ...errors, password: '' });
-                    }}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="login-password"
+                      type={showLoginPassword ? "text" : "password"}
+                      placeholder="请输入密码"
+                      className="h-12 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
+                      value={loginForm.password}
+                      onChange={(e) => {
+                        setLoginForm({ ...loginForm, password: e.target.value });
+                        if (errors.password) setErrors({ ...errors, password: '' });
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowLoginPassword(!showLoginPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      {showLoginPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                   {errors.password && <span className="text-sm text-red-500">{errors.password}</span>}
                 </div>
 
@@ -471,12 +577,11 @@ const AuthView: React.FC = () => {
             <TabsContent value="register" className="space-y-4">
               <form onSubmit={handleRegister} className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="register-username" className="text-gray-700">用户名</Label>
                   <Input
                     id="register-username"
                     type="text"
                     placeholder="设置你的用户名"
-                    className="h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200"
+                    className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900"
                     value={registerForm.username}
                     onChange={(e) => {
                       setRegisterForm({ ...registerForm, username: e.target.value });
@@ -487,29 +592,116 @@ const AuthView: React.FC = () => {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="register-email" className="text-gray-700">邮箱地址</Label>
                   <Input
                     id="register-email"
                     type="email"
-                    placeholder="your@email.com"
-                    className="h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200"
+                    placeholder="请输入邮箱"
+                    className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900"
                     value={registerForm.email}
                     onChange={(e) => {
                       setRegisterForm({ ...registerForm, email: e.target.value });
                       if (errors.email) setErrors({ ...errors, email: '' });
+                      setIsEmailVerified(false); // 邮箱改变后重置验证状态
                     }}
                   />
                   {errors.email && <span className="text-sm text-red-500">{errors.email}</span>}
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="register-invitation-code" className="text-gray-700">邀请码</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="register-email-code"
+                      type="text"
+                      placeholder="请输入6位验证码"
+                      maxLength={6}
+                      className="h-11 flex-1 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono text-gray-900"
+                      value={registerForm.emailVerificationCode}
+                      onChange={(e) => {
+                        const code = e.target.value.replace(/\D/g, '');
+                        setRegisterForm({ ...registerForm, emailVerificationCode: code });
+                        if (errors.emailVerificationCode) setErrors({ ...errors, emailVerificationCode: '' });
+
+                        // 当输入6位验证码时，自动验证
+                        if (code.length === 6) {
+                          void handleVerifyEmailCode(code);
+                        }
+                      }}
+                      disabled={!registerForm.email || isEmailVerified}
+                    />
+                    {!isEmailVerified ? (
+                      <Button
+                        type="button"
+                        onClick={handleSendEmailVerification}
+                        disabled={!registerForm.email || emailVerificationCountdown > 0 || isLoading}
+                        className="h-11 px-6 whitespace-nowrap bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all duration-200"
+                      >
+                        {emailVerificationCountdown > 0 ? `${emailVerificationCountdown}秒` : '发送验证码'}
+                      </Button>
+                    ) : (
+                      <div className="h-11 px-6 flex items-center bg-green-50 border border-green-200 rounded-md text-green-700 text-sm whitespace-nowrap">
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        已验证
+                      </div>
+                    )}
+                  </div>
+                  {errors.emailVerificationCode && <span className="text-sm text-red-500">{errors.emailVerificationCode}</span>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="relative">
+                    <Input
+                      id="register-password"
+                      type={showRegisterPassword ? "text" : "password"}
+                      placeholder="8-20位，含字母、数字、特殊符号"
+                      className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
+                      value={registerForm.password}
+                      onChange={(e) => {
+                        setRegisterForm({ ...registerForm, password: e.target.value });
+                        if (errors.password) setErrors({ ...errors, password: '' });
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      {showRegisterPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  {errors.password && <span className="text-sm text-red-500">{errors.password}</span>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="relative">
+                    <Input
+                      id="register-confirm-password"
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="再次输入密码"
+                      className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
+                      value={registerForm.confirmPassword}
+                      onChange={(e) => {
+                        setRegisterForm({ ...registerForm, confirmPassword: e.target.value });
+                        if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: '' });
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  {errors.confirmPassword && <span className="text-sm text-red-500">{errors.confirmPassword}</span>}
+                </div>
+
+                <div className="space-y-1.5">
                   <Input
                     id="register-invitation-code"
                     type="text"
                     placeholder="请输入8位邀请码"
                     maxLength={8}
-                    className="h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono uppercase"
+                    className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono uppercase text-gray-900"
                     value={registerForm.invitationCode}
                     onChange={(e) => {
                       setRegisterForm({ ...registerForm, invitationCode: e.target.value.toUpperCase() });
@@ -517,38 +709,6 @@ const AuthView: React.FC = () => {
                     }}
                   />
                   {errors.invitationCode && <span className="text-sm text-red-500">{errors.invitationCode}</span>}
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="register-password" className="text-gray-700">密码</Label>
-                  <Input
-                    id="register-password"
-                    type="password"
-                    placeholder="8-20位，含字母、数字、特殊符号"
-                    className="h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200"
-                    value={registerForm.password}
-                    onChange={(e) => {
-                      setRegisterForm({ ...registerForm, password: e.target.value });
-                      if (errors.password) setErrors({ ...errors, password: '' });
-                    }}
-                  />
-                  {errors.password && <span className="text-sm text-red-500">{errors.password}</span>}
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="register-confirm-password" className="text-gray-700">确认密码</Label>
-                  <Input
-                    id="register-confirm-password"
-                    type="password"
-                    placeholder="再次输入密码"
-                    className="h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200"
-                    value={registerForm.confirmPassword}
-                    onChange={(e) => {
-                      setRegisterForm({ ...registerForm, confirmPassword: e.target.value });
-                      if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: '' });
-                    }}
-                  />
-                  {errors.confirmPassword && <span className="text-sm text-red-500">{errors.confirmPassword}</span>}
                 </div>
 
                 <div className="flex items-start pt-2">

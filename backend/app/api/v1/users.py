@@ -24,7 +24,6 @@ from app.schemas.user import (
 )
 from app.services.user_service import UserService
 from app.services.cos_service import get_cos_service
-from app.services.email_verification_service import get_email_verification_service
 from app.core.config import settings
 
 router = APIRouter()
