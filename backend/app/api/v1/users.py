@@ -17,9 +17,14 @@ from app.schemas.user import (
     DeleteAccountResponse,
     AvatarUploadResponse,
     UserSessionResponse,
+    SendEmailCodeRequest,
+    SendEmailCodeResponse,
+    VerifyAndUpdateEmailRequest,
+    VerifyAndUpdateEmailResponse,
 )
 from app.services.user_service import UserService
 from app.services.cos_service import get_cos_service
+from app.services.email_verification_service import get_email_verification_service
 from app.core.config import settings
 
 router = APIRouter()
@@ -136,6 +141,97 @@ async def change_my_password(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc)
+        )
+
+
+# ==================== 修改邮箱 ====================
+
+@router.post("/me/send-email-code", response_model=SendEmailCodeResponse)
+async def send_email_verification_code(
+    payload: SendEmailCodeRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """发送邮箱验证码"""
+    user_service = UserService(db)
+
+    # 检查新邮箱是否已被使用
+    existing = await user_service.get_user_by_email(payload.new_email)
+    if existing and str(existing.id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="该邮箱已被其他用户使用"
+        )
+
+    # 检查是否与当前邮箱相同
+    if current_user.email == payload.new_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="新邮箱不能与当前邮箱相同"
+        )
+
+    try:
+        email_service = await get_email_verification_service()
+        await email_service.send_verification_code(
+            user_id=str(current_user.id),
+            new_email=payload.new_email,
+            current_email=current_user.email
+        )
+        return SendEmailCodeResponse(detail="验证码已发送到新邮箱")
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc)
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"发送验证码失败: {str(exc)}"
+        )
+
+
+@router.post("/me/verify-and-update-email", response_model=UserResponse)
+async def verify_and_update_email(
+    payload: VerifyAndUpdateEmailRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """验证并更新邮箱"""
+    try:
+        # 验证验证码
+        email_service = await get_email_verification_service()
+        is_valid = await email_service.verify_code(
+            user_id=str(current_user.id),
+            email=payload.new_email,
+            code=payload.code
+        )
+
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="验证码无效或已过期"
+            )
+
+        # 更新邮箱
+        user_service = UserService(db)
+        updated_user = await user_service.update_email(
+            user_id=str(current_user.id),
+            new_email=payload.new_email
+        )
+        await db.commit()
+
+        return updated_user
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc)
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"更新邮箱失败: {str(exc)}"
         )
 
 

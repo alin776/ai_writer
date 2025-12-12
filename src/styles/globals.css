@@ -664,9 +664,9 @@ select option {
   }
 }
 
-/* 移除 textarea 的所有 focus 边框和轮廓 */
-textarea:focus,
-textarea:focus-visible {
+/* 移除聊天输入框 textarea 的 focus 边框和轮廓 */
+.chat-input-wrapper textarea:focus,
+.chat-input-wrapper textarea:focus-visible {
   outline: none !important;
   box-shadow: none !important;
   border-color: transparent !important;

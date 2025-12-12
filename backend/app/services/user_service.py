@@ -12,6 +12,7 @@ from app.schemas.user import (
     NotificationSettings,
     Preferences,
     UserSessionResponse,
+    validate_password_strength,
 )
 from app.core.security import get_password_hash, verify_password
 
@@ -200,13 +201,16 @@ class UserService:
             raise ValueError("User not found")
 
         if not verify_password(current_password, user.hashed_password):
-            raise ValueError("Current password is incorrect")
+            raise ValueError("当前密码不正确")
 
         if verify_password(new_password, user.hashed_password):
-            raise ValueError("New password must be different from current password")
+            raise ValueError("新密码不能与当前密码相同")
 
-        if len(new_password) < 6:
-            raise ValueError("Password must be at least 6 characters long")
+        # 验证新密码强度
+        try:
+            validate_password_strength(new_password)
+        except ValueError as e:
+            raise ValueError(str(e))
 
         user.hashed_password = get_password_hash(new_password)
         await self.db.flush()
@@ -408,4 +412,40 @@ class UserService:
         if session:
             session.last_active_at = datetime.now(timezone.utc)
             await self.db.flush()
+
+    async def update_email(self, user_id: str, new_email: str) -> User:
+        """
+        更新用户邮箱
+
+        Args:
+            user_id: 用户ID
+            new_email: 新邮箱地址
+
+        Returns:
+            更新后的用户对象
+
+        Raises:
+            ValueError: 邮箱已被使用或用户不存在
+        """
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            raise ValueError("用户不存在")
+
+        # 检查新邮箱是否与当前邮箱相同
+        if user.email == new_email:
+            raise ValueError("新邮箱不能与当前邮箱相同")
+
+        # 检查新邮箱是否已被其他用户使用
+        existing = await self.get_user_by_email(new_email)
+        if existing and str(existing.id) != user_id:
+            raise ValueError("该邮箱已被其他用户使用")
+
+        # 更新邮箱
+        user.email = new_email
+        user.updated_at = datetime.now(timezone.utc)
+
+        await self.db.flush()
+        await self.db.refresh(user)
+
+        return user
 

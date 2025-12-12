@@ -23,6 +23,8 @@ const AdminInvitationsView = React.lazy(() => import('../views/AdminInvitationsV
 const AdminCreditsView = React.lazy(() => import('../views/AdminCreditsView'));
 const AdminNotificationsView = React.lazy(() => import('../views/AdminNotificationsView'));
 const SettingsView = React.lazy(() => import('../views/SettingsView'));
+const ChangePasswordView = React.lazy(() => import('../views/ChangePasswordView'));
+const ChangeEmailView = React.lazy(() => import('../views/ChangeEmailView'));
 const KnowledgeView = React.lazy(() => import('../views/KnowledgeView'));
 const NotificationCenter = React.lazy(() => import('../pages/NotificationCenter'));
 const NotFoundView = React.lazy(() => import('../views/NotFoundView'));
@@ -115,6 +117,22 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <SettingsView />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/settings/change-password',
+        element: (
+          <SuspenseWrapper>
+            <ChangePasswordView />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/settings/change-email',
+        element: (
+          <SuspenseWrapper>
+            <ChangeEmailView />
           </SuspenseWrapper>
         ),
       },

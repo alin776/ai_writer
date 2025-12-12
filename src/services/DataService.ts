@@ -244,6 +244,31 @@ class DataServiceClass {
     await this.adapter.post('/users/me/sessions/logout-others');
   }
 
+  /**
+   * 发送邮箱验证码
+   * @param newEmail 新邮箱地址
+   * @returns Promise<string> 提示消息
+   */
+  async sendEmailVerificationCode(newEmail: string): Promise<string> {
+    const response = await this.adapter.post<{ detail: string }>('/users/me/send-email-code', {
+      newEmail,
+    });
+    return response.detail;
+  }
+
+  /**
+   * 验证并更新邮箱
+   * @param newEmail 新邮箱地址
+   * @param code 验证码
+   * @returns Promise<User> 更新后的用户信息
+   */
+  async verifyAndUpdateEmail(newEmail: string, code: string): Promise<User> {
+    return this.adapter.post<User>('/users/me/verify-and-update-email', {
+      newEmail,
+      code,
+    });
+  }
+
   // ==================== 作品相关 ====================
 
   /**

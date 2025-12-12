@@ -1,7 +1,29 @@
-from pydantic import BaseModel, EmailStr, Field, field_serializer
+from pydantic import BaseModel, EmailStr, Field, field_serializer, field_validator
 from typing import Optional, Literal
 from datetime import datetime
 from uuid import UUID
+import re
+
+
+def validate_password_strength(password: str) -> str:
+    """
+    验证密码强度
+    - 长度8-20位
+    - 必须包含字母、数字、特殊符号三种字符
+    """
+    if len(password) < 8:
+        raise ValueError("密码长度至少为8位")
+    if len(password) > 20:
+        raise ValueError("密码长度不能超过20位")
+
+    has_letter = bool(re.search(r'[a-zA-Z]', password))
+    has_number = bool(re.search(r'\d', password))
+    has_special = bool(re.search(r'[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]', password))
+
+    if not (has_letter and has_number and has_special):
+        raise ValueError("密码必须包含字母、数字、特殊符号三种字符")
+
+    return password
 
 
 class NotificationSettings(BaseModel):
@@ -26,8 +48,13 @@ class Preferences(BaseModel):
 
 class ChangePasswordRequest(BaseModel):
     """修改密码请求"""
-    current_password: str = Field(..., min_length=6, max_length=50)
-    new_password: str = Field(..., min_length=6, max_length=50)
+    current_password: str = Field(..., min_length=1, max_length=50)
+    new_password: str = Field(..., min_length=8, max_length=20)
+
+    @field_validator('new_password')
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        return validate_password_strength(v)
 
 
 class ChangePasswordResponse(BaseModel):
@@ -58,9 +85,14 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     """创建用户"""
-    password: str = Field(..., min_length=6, max_length=50)
+    password: str = Field(..., min_length=8, max_length=20)
     invitation_code: str = Field(..., min_length=8, max_length=8, description="邀请码")
     device_fingerprint: Optional[str] = Field(None, max_length=255, description="设备指纹（用于防刷）")
+
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        return validate_password_strength(v)
 
 
 class UserLogin(BaseModel):
@@ -148,3 +180,26 @@ class UserSessionResponse(BaseModel):
     def serialize_id(self, value: UUID, _info) -> str:
         """将 UUID 序列化为字符串"""
         return str(value)
+
+
+# ==================== 修改邮箱相关 ====================
+
+class SendEmailCodeRequest(BaseModel):
+    """发送邮箱验证码请求"""
+    new_email: EmailStr = Field(..., description="新邮箱地址")
+
+
+class SendEmailCodeResponse(BaseModel):
+    """发送邮箱验证码响应"""
+    detail: str = "验证码已发送"
+
+
+class VerifyAndUpdateEmailRequest(BaseModel):
+    """验证并更新邮箱请求"""
+    new_email: EmailStr = Field(..., description="新邮箱地址")
+    code: str = Field(..., min_length=6, max_length=6, description="验证码")
+
+
+class VerifyAndUpdateEmailResponse(BaseModel):
+    """验证并更新邮箱响应"""
+    detail: str = "邮箱修改成功"
