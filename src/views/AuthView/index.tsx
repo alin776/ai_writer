@@ -161,8 +161,18 @@ const AuthView: React.FC = () => {
 
     if (!registerForm.password) {
       newErrors.password = '请输入密码';
-    } else if (registerForm.password.length < 6) {
-      newErrors.password = '密码至少需要 6 个字符';
+    } else if (registerForm.password.length < 8) {
+      newErrors.password = '密码长度至少为 8 位';
+    } else if (registerForm.password.length > 20) {
+      newErrors.password = '密码长度不能超过 20 位';
+    } else {
+      // 验证密码复杂度
+      const hasLetter = /[a-zA-Z]/.test(registerForm.password);
+      const hasNumber = /\d/.test(registerForm.password);
+      const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(registerForm.password);
+      if (!hasLetter || !hasNumber || !hasSpecial) {
+        newErrors.password = '密码必须包含字母、数字、特殊符号三种字符';
+      }
     }
 
     if (!registerForm.confirmPassword) {
@@ -514,7 +524,7 @@ const AuthView: React.FC = () => {
                   <Input
                     id="register-password"
                     type="password"
-                    placeholder="至少6个字符"
+                    placeholder="8-20位，含字母、数字、特殊符号"
                     className="h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200"
                     value={registerForm.password}
                     onChange={(e) => {

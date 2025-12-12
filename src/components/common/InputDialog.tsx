@@ -129,7 +129,7 @@ const InputDialog: React.FC<InputDialogProps> = ({
                     value={values[field.name] || ''}
                     onChange={(e) => handleChange(field.name, e.target.value)}
                     placeholder={field.placeholder}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 dark:[&::-ms-reveal]:invert dark:[&::-ms-reveal]:brightness-200"
                     required={field.required}
                   />
                 )}

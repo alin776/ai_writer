@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Settings, User, Bell, Shield, Save, Moon, Sun, Monitor, Smartphone, Tablet } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Settings, User, Bell, Shield, Save, Moon, Sun, Monitor, Smartphone, Tablet, Mail, Lock, ChevronRight } from 'lucide-react';
 import { Card, Button, Input } from '../../components/common';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import InputDialog from '../../components/common/InputDialog';
@@ -37,11 +38,16 @@ type SettingTab = 'profile' | 'notifications' | 'security' | 'preferences';
  */
 const SettingsView: React.FC = () => {
   const { user, setUser, logout } = useAuthStore();
+  const navigate = useNavigate();
+  const location = useLocation();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [activeTab, setActiveTab] = useState<SettingTab>('profile');
+  const bioTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // 支持从修改密码页面返回时恢复到安全设置标签
+  const initialTab = (location.state as { activeTab?: SettingTab })?.activeTab || 'profile';
+  const [activeTab, setActiveTab] = useState<SettingTab>(initialTab);
   const [isSaving, setIsSaving] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const { success: showSuccess, error: showError, info: showInfo, messages, close } = useToast();
@@ -50,22 +56,12 @@ const SettingsView: React.FC = () => {
   // 个人信息表单
   const [profileForm, setProfileForm] = useState({
     username: user?.username || '',
-    email: user?.email || '',
-    fullName: user?.fullName || '',
     bio: user?.bio || '',
-    website: '', // 娉ㄦ剰锛氬悗绔殏涓嶆敮鎸亀ebsite瀛楁
   });
 
   // 通知设置
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
     ...notificationDefaults,
-  });
-
-  // 安全设置
-  const [securityForm, setSecurityForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
   });
 
   // 偏好设置
@@ -145,10 +141,7 @@ const SettingsView: React.FC = () => {
     if (user) {
       setProfileForm({
         username: user.username || '',
-        email: user.email || '',
-        fullName: user.fullName || '',
         bio: user.bio || '',
-        website: '',
       });
       if (user.notificationSettings) {
         setNotificationSettings({
@@ -164,6 +157,14 @@ const SettingsView: React.FC = () => {
       }
     }
   }, [user]);
+
+  // 自动调整 bio textarea 高度
+  useEffect(() => {
+    if (bioTextareaRef.current && profileForm.bio) {
+      bioTextareaRef.current.style.height = 'auto';
+      bioTextareaRef.current.style.height = `${bioTextareaRef.current.scrollHeight}px`;
+    }
+  }, [profileForm.bio]);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -210,10 +211,7 @@ const SettingsView: React.FC = () => {
       if (activeTab === 'profile') {
         const updatedUser = await DataService.updateUserProfile({
           username: profileForm.username,
-          email: profileForm.email,
-          fullName: profileForm.fullName,
           bio: profileForm.bio,
-          // website: profileForm.website, // 后端暂不支持
         });
         // 更新本地状态
         setUser(updatedUser);
@@ -264,10 +262,7 @@ const SettingsView: React.FC = () => {
       // 重置个人信息表单
       setProfileForm({
         username: user?.username || '',
-        email: user?.email || '',
-        fullName: user?.fullName || '',
         bio: user?.bio || '',
-        website: '',
       });
       showInfo('已取消修改');
     } else if (activeTab === 'notifications') {
@@ -334,42 +329,6 @@ const SettingsView: React.FC = () => {
     }
   };
 
-  const handleChangePassword = async () => {
-    if (!securityForm.currentPassword || !securityForm.newPassword || !securityForm.confirmPassword) {
-      showError('请完整填写密码信息');
-      return;
-    }
-
-    if (securityForm.newPassword !== securityForm.confirmPassword) {
-      showError('新密码与确认密码不一致');
-      return;
-    }
-
-    if (securityForm.newPassword.length < 6) {
-      showError('新密码长度至少为 6 位');
-      return;
-    }
-
-    setIsChangingPassword(true);
-    try {
-      const message = await DataService.changePassword(
-        securityForm.currentPassword,
-        securityForm.newPassword
-      );
-      showSuccess(message || '密码已更新');
-      setSecurityForm({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: '',
-      });
-    } catch (error: any) {
-      console.error('修改密码失败:', error);
-      showError(error?.message || '修改密码失败，请稍后重试');
-    } finally {
-      setIsChangingPassword(false);
-    }
-  };
-
   const handleDeleteAccount = async () => {
     setShowDeleteAccountDialog(true);
   };
@@ -389,29 +348,18 @@ const SettingsView: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">邮箱</label>
-            <Input
-              type="email"
-              value={profileForm.email}
-              onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-              placeholder="请输入邮箱地址"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">真实姓名</label>
-            <Input
-              value={profileForm.fullName}
-              onChange={(e) => setProfileForm({ ...profileForm, fullName: e.target.value })}
-              placeholder="请输入真实姓名（可选）"
-            />
-          </div>
-          <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">个人简介</label>
             <textarea
+              ref={bioTextareaRef}
               value={profileForm.bio}
-              onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-              rows={4}
+              onChange={(e) => {
+                setProfileForm({ ...profileForm, bio: e.target.value });
+                // 自动调整高度
+                e.target.style.height = 'auto';
+                e.target.style.height = `${e.target.scrollHeight}px`;
+              }}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-none overflow-hidden transition-all duration-200"
+              rows={2}
               placeholder="介绍一下自己..."
             />
           </div>
@@ -549,43 +497,50 @@ const SettingsView: React.FC = () => {
   // 渲染安全设置
   const renderSecuritySettings = () => (
     <div className="space-y-6">
+      {/* 账户安全 */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">修改密码</h3>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">当前密码</label>
-            <Input
-              type="password"
-              value={securityForm.currentPassword}
-              onChange={(e) => setSecurityForm({ ...securityForm, currentPassword: e.target.value })}
-              placeholder="请输入当前密码"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">新密码</label>
-            <Input
-              type="password"
-              value={securityForm.newPassword}
-              onChange={(e) => setSecurityForm({ ...securityForm, newPassword: e.target.value })}
-              placeholder="请输入新密码"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">确认新密码</label>
-            <Input
-              type="password"
-              value={securityForm.confirmPassword}
-              onChange={(e) => setSecurityForm({ ...securityForm, confirmPassword: e.target.value })}
-              placeholder="再次输入新密码"
-            />
-          </div>
-          <Button
-            variant="secondary"
-            onClick={handleChangePassword}
-            disabled={isChangingPassword}
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">账户安全</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">管理您的登录凭证和安全设置</p>
+        <div className="space-y-3">
+          {/* 邮箱地址 */}
+          <button
+            onClick={() => navigate('/settings/change-email')}
+            className="w-full flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer text-left"
           >
-            {isChangingPassword ? '更新中...' : '更新密码'}
-          </Button>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center justify-center w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                <Mail className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-900 dark:text-gray-100">邮箱地址</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{user?.email || '未设置'}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+              <span className="text-sm">修改</span>
+              <ChevronRight className="w-5 h-5" />
+            </div>
+          </button>
+
+          {/* 登录密码 */}
+          <button
+            onClick={() => navigate('/settings/change-password')}
+            className="w-full flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer text-left"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex items-center justify-center w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                <Lock className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-900 dark:text-gray-100">登录密码</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">定期更换密码可以提高账户安全性</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+              <span className="text-sm">修改</span>
+              <ChevronRight className="w-5 h-5" />
+            </div>
+          </button>
         </div>
       </div>
 

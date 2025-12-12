@@ -129,7 +129,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
      */
     const getInputStyles = (): string => {
       const baseStyles =
-        'block px-3 py-2 border rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all duration-200 bg-white dark:bg-gray-900';
+        'block px-3 py-2 border rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all duration-200 bg-white dark:bg-gray-900 dark:[&::-ms-reveal]:invert dark:[&::-ms-reveal]:brightness-200';
 
       // 错误状态样式
       const errorStyles = error

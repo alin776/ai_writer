@@ -30,7 +30,7 @@ async def register(
 
     - **email**: 邮箱地址
     - **username**: 用户名（3-50字符）
-    - **password**: 密码（至少6字符）
+    - **password**: 密码（8-20字符，必须包含字母、数字、特殊符号）
     - **invitation_code**: 8位邀请码（必填）
     - **device_fingerprint**: 设备指纹（可选，用于防刷）
 
