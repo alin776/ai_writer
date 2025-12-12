@@ -1844,7 +1844,10 @@ class WritingAgentGraph:
                     tool_result = await search_analysis_fragments_tool.ainvoke({
                         "work_id": work_id_value,
                         "query": tool_args.get("query", last_user_message),
-                        "top_k": tool_args.get("top_k", 5)
+                        "top_k": tool_args.get("top_k", 5),
+                        "chapter_id": state.get("chapter_id", ""),  # ✅ P0修复：传递 chapter_id 支持时序限制
+                        "include_current": tool_args.get("include_current", True),
+                        "look_ahead": tool_args.get("look_ahead", 2),
                     })
             # ✅ 编辑器工具：smart_rewrite（改写章节）
             elif tool_name == "smart_rewrite":
@@ -4352,6 +4355,23 @@ chapter_id: {chapter_id}
 
         # 情况3：多个输出任务（约15%）
         else:
+            # ✅ 方案B优化：检查是否全是分析/摘要类任务
+            analysis_like_tools = {"analyze_text_tool", "summarization", "analyze_content"}
+            all_analyze = all(
+                task.get("tool") in analysis_like_tools
+                for task in output_tasks
+            )
+            has_writing = any(
+                task.get("tool") == "continue_writing_tool"
+                for task in output_tasks
+            )
+
+            # 多个分析/摘要任务 → AI整合（避免冗余拼接）
+            if all_analyze and not has_writing:
+                logger.info(f"[Response] {len(output_tasks)}个分析类任务，使用AI整合（避免冗余）")
+                return await self._ai_summarization(task_results, message, on_content, knowledge_docs)
+
+            # 包含续写任务 → 简单拼接（保持创作内容完整）
             logger.info(f"[Response] {len(output_tasks)}个输出任务，简单拼接")
 
             parts = []
@@ -4751,7 +4771,10 @@ chapter_id: {chapter_id}
                 result = await search_analysis_fragments_tool.ainvoke({
                     "work_id": work_id,
                     "query": params.get("query", "相关内容"),
-                    "top_k": params.get("top_k", 5)
+                    "top_k": params.get("top_k", 5),
+                    "chapter_id": chapter_id or "",  # ✅ 传递 chapter_id 支持时序限制
+                    "include_current": params.get("include_current", True),
+                    "look_ahead": params.get("look_ahead", 2),
                 })
         elif tool_name == "continue_writing_tool":
             # 直接调用续写工具

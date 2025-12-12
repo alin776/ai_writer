@@ -361,14 +361,18 @@ async def search_knowledge_advanced(
         from app.services.knowledge_service import KnowledgeService
         from app.core.database import get_async_session
 
+        if not user_id:
+            raise ValueError("user_id is required for knowledge search")
+
         async for session in get_async_session():
             service = KnowledgeService(session)
 
-            results = await service.semantic_search(
-                user_id=UUID(user_id) if user_id else None,
+            results = await service.search_by_semantic(
+                user_id=str(user_id),
                 query=query,
                 category=category,
                 tags=tags,
+                work_id=None,
                 top_k=limit
             )
 
@@ -377,12 +381,12 @@ async def search_knowledge_advanced(
                 "query": query,
                 "results": [
                     {
-                        "id": str(r.item.id),
-                        "title": r.item.title,
-                        "content": r.item.content[:200] + "..." if len(r.item.content) > 200 else r.item.content,
-                        "category": r.item.category,
-                        "tags": r.item.tags,
-                        "relevance_score": r.relevance_score
+                        "id": str(r["item"].id),
+                        "title": r["item"].title,
+                        "content": r["item"].content[:200] + "..." if len(r["item"].content) > 200 else r["item"].content,
+                        "category": r["item"].category,
+                        "tags": r["item"].tags,
+                        "relevance_score": r["relevance_score"]
                     }
                     for r in results
                 ],

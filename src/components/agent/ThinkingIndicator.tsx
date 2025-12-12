@@ -21,7 +21,7 @@ export default function ThinkingIndicator() {
               <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
               <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
             </div>
-            <span className="text-xs text-gray-600 ml-1.5">AI正在思考...</span>
+            <span className="text-xs text-gray-600 ml-1.5 animate-pulse">AI正在思考...</span>
           </div>
         </div>
       </div>

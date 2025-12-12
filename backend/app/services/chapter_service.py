@@ -84,11 +84,15 @@ class ChapterService:
             .limit(limit)
         )
         chapters = list(result.scalars().all())
-        
+
         logger.info(f"[ChapterService] Found {len(chapters)} chapters")
-        for ch in chapters:
-            logger.info(f"  - Chapter: {ch.title}, order={ch.order}")
-        
+        if chapters:
+            logger.info(f"  - Chapter: {chapters[0].title}, order={chapters[0].order}")
+            if len(chapters) > 2:
+                logger.info(f"  - ... ({len(chapters) - 2} more chapters)")
+            if len(chapters) > 1:
+                logger.info(f"  - Chapter: {chapters[-1].title}, order={chapters[-1].order}")
+
         return chapters
     
     async def create_chapter(self, chapter_data: ChapterCreate) -> Chapter:

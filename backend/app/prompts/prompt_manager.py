@@ -41,6 +41,7 @@ class PromptManager:
 
         # 定义需要加载的模板列表
         template_files = [
+            "analyze_text.yaml",  # 文本分析模板
             "intent_classifier.yaml",
             "writing_agent.yaml",
             "planning_agent.yaml",

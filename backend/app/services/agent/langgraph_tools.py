@@ -199,7 +199,7 @@ async def analyze_text_tool(text: str, focus: str = "all") -> str:
     Returns:
         分析报告
     """
-    from app.prompts.constraint_manager import get_constraint_manager
+    from app.prompts import get_prompt_manager
 
     if not text or not text.strip():
         logger.warning("[analyze_text_tool] 收到空文本")
@@ -210,8 +210,8 @@ async def analyze_text_tool(text: str, focus: str = "all") -> str:
         return f"错误：文本参数中包含未解析的占位符。原始参数: {text[:200]}"
 
     try:
-        prompt_manager = get_constraint_manager()
-        base_prompt = prompt_manager.format_prompt("analyze_text", text=text, focus=focus)
+        prompt_manager = get_prompt_manager()
+        base_prompt = prompt_manager.render("analyze_text", text=text, focus=focus)
 
         result = await _generate_text_helper(
             base_prompt,
@@ -457,13 +457,23 @@ async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order
 
 
 @tool
-async def search_analysis_fragments_tool(work_id: Optional[str] = None, query: str = "", top_k: int = 5) -> str:
-    """检索分析碎片工具：从向量数据库检索相关的小说分析片段（RAG）
+async def search_analysis_fragments_tool(
+    work_id: Optional[str] = None,
+    query: str = "",
+    top_k: int = 5,
+    chapter_id: str = "",
+    include_current: bool = True,
+    look_ahead: int = 2
+) -> str:
+    """检索分析碎片工具：混合检索（向量+全文），召回作品相关片段
 
     Args:
         work_id: 作品ID（UUID格式）
         query: 查询文本
         top_k: 返回前K个最相关结果
+        chapter_id: 当前章节ID（可选，用于确定时序窗口）
+        include_current: 是否包含当前章
+        look_ahead: 允许向后看的章节数
 
     Returns:
         相关片段JSON
@@ -479,23 +489,41 @@ async def search_analysis_fragments_tool(work_id: Optional[str] = None, query: s
     if uuid_error:
         return uuid_error
 
+    current_order = None
+    if chapter_id:
+        uuid_error = validate_uuid(chapter_id, "章节ID")
+        if uuid_error:
+            return uuid_error
+
     async with AsyncSessionLocal() as db:
         try:
-            from app.services.vector_store_service import VectorStoreService
+            from app.services.search import HybridRetriever
+            from app.services.chapter_service import ChapterService
 
-            vector_service = VectorStoreService(db)
-            results = await _retry_on_failure(
-                vector_service.retrieve_relevant_analysis,
+            # 获取当前章节序号（若提供）
+            if chapter_id:
+                chapter_service = ChapterService(db)
+                chapter = await _retry_on_failure(
+                    chapter_service.get_chapter_by_id,
+                    chapter_id,
+                    max_retries=2
+                )
+                if chapter:
+                    current_order = chapter.order
+
+            retriever = HybridRetriever(db)
+            results = await retriever.search(
                 work_id=work_id,
                 query=query,
+                current_order=current_order if current_order is not None else 10**6,
                 top_k=top_k,
-                similarity_threshold=0.3,
-                max_retries=2
+                include_current=include_current,
+                look_ahead=look_ahead,
             )
 
             if not results:
                 return json.dumps({
-                    "message": "未找到相关的分析片段",
+                    "message": "未找到相关片段",
                     "work_id": work_id,
                     "query": query,
                     "results": []
@@ -505,15 +533,14 @@ async def search_analysis_fragments_tool(work_id: Optional[str] = None, query: s
             for i, result in enumerate(results):
                 formatted_results.append({
                     "rank": i + 1,
-                    "similarity": result['similarity'],
-                    "chapter_id": result['chapter_id'],
-                    "content": result['content_text'][:2000],
-                    "micro_data_summary": {
-                        "theme": result['micro_data'].get('chapter_theme', 'N/A') if result['micro_data'] else 'N/A'
-                    }
+                    "similarity": result.get("similarity", 0),
+                    "chapter_title": result.get("chapter_title"),
+                    "chapter_order": result.get("chapter_order"),
+                    "content": result.get("content", "")[:2000],
+                    "source": result.get("source", "vector")
                 })
 
-            logger.info(f"[search_analysis_fragments_tool] ✅ RAG检索成功: 找到{len(results)}个相关片段")
+            logger.info(f"[search_analysis_fragments_tool] ✅ Hybrid检索成功: 找到{len(results)}个片段")
 
             return json.dumps({
                 "work_id": work_id,
@@ -527,7 +554,7 @@ async def search_analysis_fragments_tool(work_id: Optional[str] = None, query: s
                 await db.rollback()
             except:
                 pass
-            logger.error(f"[search_analysis_fragments_tool] ❌ RAG检索失败: {e}")
+            logger.error(f"[search_analysis_fragments_tool] ❌ Hybrid检索失败: {e}")
             return json.dumps({
                 "error": f"检索失败: {str(e)}",
                 "work_id": work_id
@@ -626,7 +653,7 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
 
             # 3. RAG检索章节上下文
             try:
-                current_order = 999
+                current_order = None  # 默认无限制检索
                 if chapter_id:
                     chapter = await chapter_service.get_chapter_by_id(chapter_id)
                     if chapter:
@@ -636,7 +663,7 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
                 chapter_rag_results = await _retry_on_failure(
                     chapter_vector_service.retrieve_for_writing,
                     work_id=work_id,
-                    current_chapter_order=current_order,
+                    current_chapter_order=current_order if current_order is not None else 10**6,  # 无限制时使用大数
                     query=query,
                     top_k=5,
                     similarity_threshold=0.3,

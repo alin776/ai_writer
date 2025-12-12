@@ -128,34 +128,21 @@ class ChapterVectorService:
         max_chunks: Optional[int] = None
     ) -> int:
         """
-        存储章节内容向量（幂等操作）
-
-        Args:
-            work_id: 作品ID
-            chapter_id: 章节ID
-            chapter_order: 章节顺序
-            chapter_title: 章节标题
-            content: 章节内容
-            chunk_size: 分块大小（默认500字符）
-            max_chunks: 分块上限，防止超大文本占用过多资源
-
-        Returns:
-            int: 存储的向量数量
-
-        Raises:
-            Exception: 存储失败
+        Store chapter content embeddings (idempotent).
+        - Deletes old vectors for the chapter
+        - Splits content, encodes, and batch inserts
         """
         try:
-            logger.info(f"开始向量化章节: {chapter_title} (order={chapter_order})")
+            logger.info(f"Vectorizing chapter: {chapter_title} (order={chapter_order})")
 
-            # 1. 删除该章节的旧向量（幂等性）
+            # 1) delete old vectors (idempotent)
             stmt = sql_delete(NovelChapterVector).where(
                 NovelChapterVector.chapter_id == chapter_id
             )
             await self.db.execute(stmt)
             await self.db.flush()
 
-            # 2. 内容分段
+            # 2) split content
             chunks = self._split_content(
                 content,
                 chunk_size=chunk_size,
@@ -163,22 +150,22 @@ class ChapterVectorService:
             )
 
             if len(chunks) == 0:
-                logger.warning(f"⚠️ 章节内容过短，跳过向量化: {chapter_title}")
+                logger.warning(f"Skip vectorizing (too short): {chapter_title}")
                 await self.db.commit()
                 return 0
 
-            # 3. 批量生成embedding
+            # 3) encode
             model = self._get_model()
             embeddings = model.encode(chunks, normalize_embeddings=True)
 
-            # 4. 批量存储
+            # 4) batch insert
             from uuid import UUID
             work_uuid = UUID(work_id) if isinstance(work_id, str) else work_id
             chapter_uuid = UUID(chapter_id) if isinstance(chapter_id, str) else chapter_id
 
             vectors = []
             for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
-                vector = NovelChapterVector(
+                vectors.append(NovelChapterVector(
                     work_id=work_uuid,
                     chapter_id=chapter_uuid,
                     chapter_order=chapter_order,
@@ -186,79 +173,65 @@ class ChapterVectorService:
                     chunk_index=idx,
                     chunk_text=chunk,
                     embedding=embedding.tolist()
-                )
-                vectors.append(vector)
+                ))
 
             self.db.add_all(vectors)
             await self.db.commit()
 
-            logger.info(f"✅ 章节向量存储完成: {chapter_title} ({len(chunks)}段)")
+            logger.info(f"Stored chapter vectors: {chapter_title} ({len(chunks)} chunks)")
             return len(chunks)
 
         except Exception as e:
-            logger.error(f"❌ 章节向量存储失败: {e}", exc_info=True)
+            logger.error(f"store_chapter_vector failed: {e}", exc_info=True)
             await self.db.rollback()
             raise
-
     async def retrieve_for_writing(
         self,
         work_id: str,
         current_chapter_order: int,
         query: str,
         top_k: int = 5,
-        similarity_threshold: float = 0.3
+        similarity_threshold: float = 0.3,
+        include_current: bool = True,
+        look_ahead: int = 0
     ) -> List[Dict[str, Any]]:
         """
-        检索续写上下文（关键：只检索当前章节之前的章节）
-
-        Args:
-            work_id: 作品ID
-            current_chapter_order: 当前章节顺序
-            query: 查询文本
-            top_k: 返回前K个结果
-            similarity_threshold: 相似度阈值
-
-        Returns:
-            List[Dict]: 相关的段落列表，每项包含：
-                - chapter_title: 章节标题
-                - chapter_order: 章节顺序
-                - chunk_text: 段落文本
-                - similarity: 相似度分数
+        Retrieve context for continuation.
+        Includes current chapter and optional look-ahead window.
         """
         try:
             logger.info(
-                f"RAG检索: work_id={work_id}, "
-                f"current_order={current_chapter_order}, "
-                f"query={query[:50]}..."
+                f"RAG retrieve work_id={work_id}, current_order={current_chapter_order}, query={query[:50]}..."
             )
 
-            # 1. 向量化查询
+            # 1) encode query
             model = self._get_model()
             query_embedding = model.encode([query], normalize_embeddings=True)[0]
 
-            # 2. 获取所有前文章节的向量（🔑 关键：时序过滤）
+            # 2) fetch vectors with window
             from uuid import UUID
             work_uuid = UUID(work_id) if isinstance(work_id, str) else work_id
 
-            stmt = select(NovelChapterVector).where(
-                NovelChapterVector.work_id == work_uuid,
-                NovelChapterVector.chapter_order < current_chapter_order  # 🔑 只检索前文
-            )
+            upper_order = current_chapter_order + (look_ahead or 0)
+            conditions = [NovelChapterVector.work_id == work_uuid]
+            if include_current:
+                conditions.append(NovelChapterVector.chapter_order <= upper_order)
+            else:
+                conditions.append(NovelChapterVector.chapter_order < upper_order)
+
+            stmt = select(NovelChapterVector).where(*conditions)
             result = await self.db.execute(stmt)
             vectors = result.scalars().all()
 
             if len(vectors) == 0:
-                logger.warning(
-                    f"⚠️ 作品 {work_id} 前{current_chapter_order - 1}章暂无向量数据"
-                )
+                logger.warning(f"no vectors for work {work_id} (order<= {upper_order})")
                 return []
 
-            # 3. 计算相似度
+            # 3) similarity
             results = []
             for vector in vectors:
                 embedding = np.array(vector.embedding)
                 similarity = self._cosine_similarity(query_embedding, embedding)
-
                 if similarity >= similarity_threshold:
                     results.append({
                         'chapter_title': vector.chapter_title,
@@ -267,22 +240,17 @@ class ChapterVectorService:
                         'similarity': float(similarity)
                     })
 
-            # 4. 按相似度排序，返回top_k
             results.sort(key=lambda x: x['similarity'], reverse=True)
             results = results[:top_k]
 
             logger.info(
-                f"✅ RAG检索成功: work={work_id}, "
-                f"前{current_chapter_order - 1}章, "
-                f"检索到{len(results)}个相关段落"
+                f"RAG retrieved {len(results)} segments within order<={upper_order}"
             )
-
             return results
 
         except Exception as e:
-            logger.error(f"❌ RAG检索失败: {e}", exc_info=True)
+            logger.error(f"RAG retrieve failed: {e}", exc_info=True)
             return []
-
     async def delete_chapter_vectors(self, chapter_id: str) -> int:
         """
         删除章节的向量数据

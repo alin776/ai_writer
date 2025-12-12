@@ -191,7 +191,7 @@ export default function ActivityStream({
 
             {/* 中间内容 */}
             <div className={styles.activityContent}>
-              <div className={styles.activityDescription}>
+              <div className={`${styles.activityDescription} ${activity.status === 'active' ? styles.pulse : ''}`}>
                 {activity.description}
               </div>
 
