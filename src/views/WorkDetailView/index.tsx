@@ -63,7 +63,6 @@ const WorkDetailView: React.FC = () => {
     const currentPreferences = user.preferences || {
       theme: 'light' as const,
       language: 'zh-CN' as const,
-      fontSize: 'medium' as const,
       autoSave: true,
       autoSaveInterval: 30,
       aiAutoComplete: false,

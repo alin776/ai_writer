@@ -22,10 +22,9 @@ const notificationDefaults: NotificationSettings = {
 const preferenceDefaults: UserPreferences = {
   theme: 'light',
   language: 'zh-CN',
-  fontSize: 'medium',
   autoSave: true,
   autoSaveInterval: 30,
-  aiAutoComplete: false, // 榛樿鍏抽棴锛岄伩鍏嶆剰澶栨秷鑰楃Н鍒?
+  aiAutoComplete: false, // 默认关闭，避免意外消耗积分
 };
 
 /**
@@ -48,7 +47,7 @@ const SettingsView: React.FC = () => {
   const { success: showSuccess, error: showError, info: showInfo, messages, close } = useToast();
   const { applyTheme } = useTheme(user?.preferences?.theme);
 
-  // 涓汉淇℃伅琛ㄥ崟
+  // 个人信息表单
   const [profileForm, setProfileForm] = useState({
     username: user?.username || '',
     email: user?.email || '',
@@ -95,7 +94,7 @@ const SettingsView: React.FC = () => {
       } catch (error: any) {
         console.error('加载会话失败:', error);
         setSessions([]);
-        // 淇濇寔闈欓粯锛岄敊璇彁绀哄凡閫氳繃 useToast 澶勭悊
+        // 保持静默，错误提示已通过 useToast 处理
       } finally {
         setIsSessionsLoading(false);
       }
@@ -214,7 +213,7 @@ const SettingsView: React.FC = () => {
           email: profileForm.email,
           fullName: profileForm.fullName,
           bio: profileForm.bio,
-          // website: profileForm.website, // 鍚庣鏆備笉鏀寔
+          // website: profileForm.website, // 后端暂不支持
         });
         // 更新本地状态
         setUser(updatedUser);
@@ -252,14 +251,14 @@ const SettingsView: React.FC = () => {
         showInfo('请使用下方操作管理安全设置');
       }
     } catch (error: any) {
-      console.error('保存设置澶辫触:', error);
+      console.error('保存设置失败:', error);
       showError(error.message || '保存失败，请稍后重试');
     } finally {
       setIsSaving(false);
     }
   };
 
-  // 鍙栨秷淇敼
+  // 取消修改
   const handleCancel = () => {
     if (activeTab === 'profile') {
       // 重置个人信息表单
@@ -364,7 +363,7 @@ const SettingsView: React.FC = () => {
         confirmPassword: '',
       });
     } catch (error: any) {
-      console.error('修改密码澶辫触:', error);
+      console.error('修改密码失败:', error);
       showError(error?.message || '修改密码失败，请稍后重试');
     } finally {
       setIsChangingPassword(false);
@@ -593,8 +592,8 @@ const SettingsView: React.FC = () => {
       <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">鐧诲綍浼氳瘽</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-400 mt-1">鏌ョ湅骞剁鐞嗘墍鏈夊凡鐧诲綍璁惧</p>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">登录会话</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">查看并管理所有已登录设备</p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="gray-outline" size="sm" onClick={handleRefreshSessions} disabled={isSessionsLoading}>
@@ -726,25 +725,6 @@ const SettingsView: React.FC = () => {
               })}
             </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">字体大小</label>
-            <div className="flex items-center space-x-2">
-              {['small', 'medium', 'large'].map((size) => (
-                <button
-                  key={size}
-                  onClick={() => setPreferences({ ...preferences, fontSize: size as any })}
-                  className={`px-4 py-2 border-2 rounded-lg transition-colors ${
-                    preferences.fontSize === size
-                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-900/30 dark:text-blue-100'
-                      : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-700 dark:border-gray-700 dark:hover:border-gray-500 dark:hover:bg-gray-800 dark:text-gray-200'
-                  }`}
-                >
-                  {size === 'small' ? '小' : size === 'medium' ? '中' : '大'}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 
@@ -862,7 +842,7 @@ const SettingsView: React.FC = () => {
       logout();
       window.location.href = '/';
     } catch (error: any) {
-      console.error('删除账户澶辫触:', error);
+      console.error('删除账户失败:', error);
       showError(error?.message || '删除账户失败，请稍后重试');
     } finally {
       setIsDeletingAccount(false);
@@ -872,7 +852,7 @@ const SettingsView: React.FC = () => {
   return (
     <>
     <div className="space-y-6">
-      {/* 椤甸潰鏍囬 */}
+      {/* 页面标题 */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">设置</h1>
         <p className="mt-2 text-gray-600 dark:text-gray-400">管理您的账户和应用偏好</p>
@@ -904,7 +884,7 @@ const SettingsView: React.FC = () => {
           </div>
         </Card>
 
-        {/* 鍙充晶鍐呭鍖?*/}
+        {/* 右侧内容区 */}
         <Card className="lg:col-span-3 !bg-white dark:!bg-gray-900 shadow-none border-gray-100 dark:border-gray-800">
           <div className="p-6">
             {isInitializing ? (
@@ -932,7 +912,7 @@ const SettingsView: React.FC = () => {
                 </div>
               </div>
             ) : (
-              // 安全设置椤?- 淇濇寔鐩稿悓楂樺害鐨勫簳閮ㄧ暀鐧?
+              // 安全设置椤?- 保持相同高度的底部留白
               <div className="mt-6 pt-6"></div>
             )}
           </div>

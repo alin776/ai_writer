@@ -52,7 +52,6 @@ const defaultNotificationSettings = {
 const defaultPreferences = {
   theme: 'light' as const,
   language: 'zh-CN' as const,
-  fontSize: 'medium' as const,
   autoSave: true,
   autoSaveInterval: 30,
 };
