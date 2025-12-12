@@ -1110,15 +1110,15 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                     {task.status === 'completed' ? (
                       <div className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-slate-500 flex-shrink-0 mt-1.5 transition-all duration-300"></div>
                     ) : task.status === 'running' ? (
-                      <div className="relative flex-shrink-0 mt-1.5 w-3 h-3 flex items-center justify-center">
-                        <div className="h-1 w-1 rounded-full bg-zinc-900 dark:bg-blue-400 relative z-10 animate-pulse"></div>
+                      <div className="relative flex-shrink-0 mt-1.5 w-3 h-3 flex items-center justify-center outline-none">
+                        <div className="h-1 w-1 rounded-full bg-zinc-900 dark:bg-blue-400 relative z-10 animate-pulse outline-none"></div>
                       </div>
                     ) : (
                       <div className="h-1 w-1 rounded-full bg-zinc-200 dark:bg-slate-600 flex-shrink-0 mt-1.5 transition-all duration-300"></div>
                     )}
 
                     <div className="flex-1 min-w-0 flex items-baseline justify-between gap-2">
-                      <p className={`text-[11px] leading-relaxed transition-colors duration-200 ${
+                      <p className={`text-[11px] leading-relaxed transition-colors duration-200 outline-none ${
                         task.status === 'running' ? 'text-zinc-700 dark:text-slate-200 animate-pulse' : 'text-zinc-400 dark:text-slate-500'
                       }`}>
                         {task.description}
@@ -1165,7 +1165,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
             <div className="flex-1">
-              <span className="text-[12px] text-zinc-400 dark:text-slate-400 animate-[pulse_2s_ease-in-out_infinite]">
+              <span className="text-[12px] text-zinc-400 dark:text-slate-400 animate-[pulse_2s_ease-in-out_infinite] outline-none">
                 Thinking...
               </span>
             </div>
