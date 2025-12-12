@@ -9,6 +9,7 @@ import ThinkingIndicator from './ThinkingIndicator';
 import TaskListPanel from './TaskListPanel';
 import ActivityStream from './ActivityStream';
 import { type AgentMode } from './ModeSelector';
+import type { AgentChatRequest } from '@/types/agent';
 
 import type { Tab } from '@/utils/tabStorage';
 
@@ -221,9 +222,10 @@ function TabContent({
     // Agent 模式 = Planning + DeepAgent 反思（可动态调整任务）
     const enableDeepAgent = mode === 'agent';
 
-    const request = {
+    const backendMode: AgentChatRequest['mode'] = enableDeepAgent ? 'react' : 'planning';
+    const request: AgentChatRequest = {
       message,
-      mode,
+      mode: backendMode,
       work_id: workId,
       chapter_id: chapterId,
       context,
@@ -491,4 +493,3 @@ function TabContent({
     </>
   );
 }
-

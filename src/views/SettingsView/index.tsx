@@ -25,7 +25,7 @@ const preferenceDefaults: UserPreferences = {
   fontSize: 'medium',
   autoSave: true,
   autoSaveInterval: 30,
-  aiAutoComplete: false, // 默认关闭，避免意外消耗积分
+  aiAutoComplete: false, // 榛樿鍏抽棴锛岄伩鍏嶆剰澶栨秷鑰楃Н鍒?
 };
 
 /**
@@ -48,13 +48,13 @@ const SettingsView: React.FC = () => {
   const { success: showSuccess, error: showError, info: showInfo, messages, close } = useToast();
   const { applyTheme } = useTheme(user?.preferences?.theme);
 
-  // 个人信息表单
+  // 涓汉淇℃伅琛ㄥ崟
   const [profileForm, setProfileForm] = useState({
     username: user?.username || '',
     email: user?.email || '',
     fullName: user?.fullName || '',
     bio: user?.bio || '',
-    website: '', // 注意：后端暂不支持website字段
+    website: '', // 娉ㄦ剰锛氬悗绔殏涓嶆敮鎸亀ebsite瀛楁
   });
 
   // 通知设置
@@ -95,7 +95,7 @@ const SettingsView: React.FC = () => {
       } catch (error: any) {
         console.error('加载会话失败:', error);
         setSessions([]);
-        // 保持静默，错误提示已通过 useToast 处理
+        // 淇濇寔闈欓粯锛岄敊璇彁绀哄凡閫氳繃 useToast 澶勭悊
       } finally {
         setIsSessionsLoading(false);
       }
@@ -109,7 +109,7 @@ const SettingsView: React.FC = () => {
 
   const handleLogoutSession = async (session: UserSession) => {
     if (session.isCurrent) {
-      showInfo('当前设备无需在此处退出');
+      showInfo('当前设备无需在此处登出');
       return;
     }
 
@@ -134,7 +134,7 @@ const SettingsView: React.FC = () => {
   };
 
   const formatTimestamp = (value?: string) => {
-    if (!value) return '未知时间';
+    if (!value) return '鏈煡鏃堕棿';
     try {
       return new Date(value).toLocaleString();
     } catch {
@@ -214,7 +214,7 @@ const SettingsView: React.FC = () => {
           email: profileForm.email,
           fullName: profileForm.fullName,
           bio: profileForm.bio,
-          // website: profileForm.website, // 后端暂不支持
+          // website: profileForm.website, // 鍚庣鏆備笉鏀寔
         });
         // 更新本地状态
         setUser(updatedUser);
@@ -252,14 +252,14 @@ const SettingsView: React.FC = () => {
         showInfo('请使用下方操作管理安全设置');
       }
     } catch (error: any) {
-      console.error('保存设置失败:', error);
+      console.error('保存设置澶辫触:', error);
       showError(error.message || '保存失败，请稍后重试');
     } finally {
       setIsSaving(false);
     }
   };
 
-  // 取消修改
+  // 鍙栨秷淇敼
   const handleCancel = () => {
     if (activeTab === 'profile') {
       // 重置个人信息表单
@@ -299,7 +299,7 @@ const SettingsView: React.FC = () => {
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      showError('仅支持 JPG、PNG、WebP 格式的图片');
+      showError('仅支持 JPG / PNG / WebP 格式的图片');
       event.target.value = '';
       return;
     }
@@ -364,7 +364,7 @@ const SettingsView: React.FC = () => {
         confirmPassword: '',
       });
     } catch (error: any) {
-      console.error('修改密码失败:', error);
+      console.error('修改密码澶辫触:', error);
       showError(error?.message || '修改密码失败，请稍后重试');
     } finally {
       setIsChangingPassword(false);
@@ -382,36 +382,36 @@ const SettingsView: React.FC = () => {
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">个人信息</h3>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-700 mb-2">用户名</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">用户名</label>
             <Input
               value={profileForm.username}
               onChange={(e) => setProfileForm({ ...profileForm, username: e.target.value })}
-              placeholder="输入用户名"
+              placeholder="请输入用户名"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-700 mb-2">邮箱</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">邮箱</label>
             <Input
               type="email"
               value={profileForm.email}
               onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-              placeholder="输入邮箱地址"
+              placeholder="请输入邮箱地址"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-700 mb-2">真实姓名</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">真实姓名</label>
             <Input
               value={profileForm.fullName}
               onChange={(e) => setProfileForm({ ...profileForm, fullName: e.target.value })}
-              placeholder="输入真实姓名（可选）"
+              placeholder="请输入真实姓名（可选）"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-700 mb-2">个人简介</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">个人简介</label>
             <textarea
               value={profileForm.bio}
               onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white dark:bg-white text-gray-900 dark:text-gray-900 placeholder-gray-400"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
               rows={4}
               placeholder="介绍一下自己..."
             />
@@ -447,7 +447,7 @@ const SettingsView: React.FC = () => {
             >
               {isUploadingAvatar ? '上传中...' : '上传新头像'}
             </Button>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">支持 JPG、PNG、WebP 格式，10MB 以内</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">支持 JPG / PNG / WebP 格式，10MB 内</p>
           </div>
         </div>
       </div>
@@ -460,10 +460,10 @@ const SettingsView: React.FC = () => {
       <div>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">通知渠道</h3>
         <div className="space-y-4">
-          <label className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer bg-white">
+          <label className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer bg-white dark:bg-gray-900 transition-colors">
             <div>
-              <p className="font-medium text-gray-900">邮件通知</p>
-              <p className="text-sm text-gray-600">通过邮件接收通知</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100">邮件通知</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">通过邮箱接收通知</p>
             </div>
             <input
               type="checkbox"
@@ -471,13 +471,13 @@ const SettingsView: React.FC = () => {
               onChange={(e) =>
                 setNotificationSettings({ ...notificationSettings, emailNotifications: e.target.checked })
               }
-              className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              className="w-5 h-5 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-900"
             />
           </label>
-          <label className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer bg-white">
+          <label className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer bg-white dark:bg-gray-900 transition-colors">
             <div>
-              <p className="font-medium text-gray-900">浏览器通知</p>
-              <p className="text-sm text-gray-600">通过浏览器推送通知</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100">浏览器通知</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">通过浏览器推送通知</p>
             </div>
             <input
               type="checkbox"
@@ -485,7 +485,7 @@ const SettingsView: React.FC = () => {
               onChange={(e) =>
                 setNotificationSettings({ ...notificationSettings, browserNotifications: e.target.checked })
               }
-              className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              className="w-5 h-5 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-900"
             />
           </label>
         </div>
@@ -494,52 +494,52 @@ const SettingsView: React.FC = () => {
       <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">通知类型</h3>
         <div className="space-y-4">
-          <label className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer bg-white">
+          <label className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer bg-white dark:bg-gray-900 transition-colors">
             <div>
-              <p className="font-medium text-gray-900">新章节发布</p>
-              <p className="text-sm text-gray-600">关注的作者发布新章节时通知我</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100">新章节发布</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">关注的作者发布新章节时通知我</p>
             </div>
             <input
               type="checkbox"
               checked={notificationSettings.newChapter}
               onChange={(e) => setNotificationSettings({ ...notificationSettings, newChapter: e.target.checked })}
-              className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              className="w-5 h-5 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-900"
             />
           </label>
-          <label className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer bg-white">
+          <label className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer bg-white dark:bg-gray-900 transition-colors">
             <div>
-              <p className="font-medium text-gray-900">评论回复</p>
-              <p className="text-sm text-gray-600">有人回复我的评论时通知我</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100">评论回复</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">有人回复我的评论时通知我</p>
             </div>
             <input
               type="checkbox"
               checked={notificationSettings.comments}
               onChange={(e) => setNotificationSettings({ ...notificationSettings, comments: e.target.checked })}
-              className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              className="w-5 h-5 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-900"
             />
           </label>
-          <label className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer bg-white">
+          <label className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer bg-white dark:bg-gray-900 transition-colors">
             <div>
-              <p className="font-medium text-gray-900">@提及</p>
-              <p className="text-sm text-gray-600">有人@我时通知我</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100">@ 提及</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">有人 @ 我时通知我</p>
             </div>
             <input
               type="checkbox"
               checked={notificationSettings.mentions}
               onChange={(e) => setNotificationSettings({ ...notificationSettings, mentions: e.target.checked })}
-              className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              className="w-5 h-5 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-900"
             />
           </label>
-          <label className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer bg-white">
+          <label className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer bg-white dark:bg-gray-900 transition-colors">
             <div>
-              <p className="font-medium text-gray-900">系统更新</p>
-              <p className="text-sm text-gray-600">系统有重要更新时通知我</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100">系统更新</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">系统有重要更新时通知我</p>
             </div>
             <input
               type="checkbox"
               checked={notificationSettings.systemUpdates}
               onChange={(e) => setNotificationSettings({ ...notificationSettings, systemUpdates: e.target.checked })}
-              className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              className="w-5 h-5 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-900"
             />
           </label>
         </div>
@@ -554,25 +554,25 @@ const SettingsView: React.FC = () => {
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">修改密码</h3>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-700 mb-2">当前密码</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">当前密码</label>
             <Input
               type="password"
               value={securityForm.currentPassword}
               onChange={(e) => setSecurityForm({ ...securityForm, currentPassword: e.target.value })}
-              placeholder="输入当前密码"
+              placeholder="请输入当前密码"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-700 mb-2">新密码</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">新密码</label>
             <Input
               type="password"
               value={securityForm.newPassword}
               onChange={(e) => setSecurityForm({ ...securityForm, newPassword: e.target.value })}
-              placeholder="输入新密码"
+              placeholder="请输入新密码"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-700 mb-2">确认新密码</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">确认新密码</label>
             <Input
               type="password"
               value={securityForm.confirmPassword}
@@ -593,8 +593,8 @@ const SettingsView: React.FC = () => {
       <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">登录会话</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">查看并管理所有已登录设备</p>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">鐧诲綍浼氳瘽</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-400 mt-1">鏌ョ湅骞剁鐞嗘墍鏈夊凡鐧诲綍璁惧</p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="gray-outline" size="sm" onClick={handleRefreshSessions} disabled={isSessionsLoading}>
@@ -623,7 +623,7 @@ const SettingsView: React.FC = () => {
             {sessions.map((session) => (
               <div
                 key={session.id}
-                className="flex items-start justify-between gap-4 p-4 border-2 border-blue-200 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors"
+                className="flex items-start justify-between gap-4 p-4 border-2 border-blue-200 dark:border-blue-900 rounded-lg bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/35 transition-colors"
               >
                 <div className="flex items-start gap-3">
                   <div className="mt-1">
@@ -631,7 +631,7 @@ const SettingsView: React.FC = () => {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-gray-900 dark:text-gray-100">
                         {session.deviceName || '未知设备'}
                       </p>
                       {session.isCurrent && (
@@ -640,22 +640,22 @@ const SettingsView: React.FC = () => {
                         </span>
                       )}
                       {!session.isActive && (
-                        <span className="px-2 py-0.5 text-xs font-medium bg-gray-200 text-gray-600 rounded-full">
-                          已退出
+                        <span className="px-2 py-0.5 text-xs font-medium bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-full">
+                          已登出
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-800 mt-1">
+                    <p className="text-sm text-gray-800 dark:text-gray-200 mt-1">
                       {(session.browser || '未知浏览器')}{session.browserVersion ? ` · ${session.browserVersion}` : ''}
                     </p>
-                    <p className="text-xs text-gray-700 mt-1">
+                    <p className="text-xs text-gray-700 dark:text-gray-400 mt-1">
                       {session.operatingSystem ? `系统: ${session.operatingSystem}` : '系统: 未知'}
                     </p>
-                    <p className="text-xs text-gray-700 mt-1">
+                    <p className="text-xs text-gray-700 dark:text-gray-400 mt-1">
                       {session.ipAddress ? `IP: ${session.ipAddress}` : 'IP: 未知'}
                       {session.location ? ` · 位置: ${session.location}` : ''}
                     </p>
-                    <p className="text-xs text-gray-700 mt-1">
+                    <p className="text-xs text-gray-700 dark:text-gray-400 mt-1">
                       最近活动: {formatTimestamp(session.lastActiveAt)}
                     </p>
                   </div>
@@ -678,13 +678,13 @@ const SettingsView: React.FC = () => {
 
       <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">危险操作</h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">删除账号后将无法恢复，请谨慎操作</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">删除账户后将无法恢复，请谨慎操作</p>
         <Button
           variant="danger"
           onClick={handleDeleteAccount}
           disabled={isDeletingAccount}
         >
-          {isDeletingAccount ? '删除中...' : '删除账号'}
+          {isDeletingAccount ? '删除中...' : '删除账户'}
         </Button>
       </div>
     </div>
@@ -697,7 +697,7 @@ const SettingsView: React.FC = () => {
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">外观</h3>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-700 mb-3">主题</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">主题</label>
             <div className="grid grid-cols-3 gap-3">
               {[
                 { value: 'light', label: '浅色', icon: Sun },
@@ -711,12 +711,16 @@ const SettingsView: React.FC = () => {
                     onClick={() => handleThemeSelect(theme.value as UserPreferences['theme'])}
                     className={`flex flex-col items-center justify-center p-4 border-2 rounded-lg transition-all ${
                       preferences.theme === theme.value
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+                        ? 'border-blue-500 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/30'
+                        : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:hover:border-gray-500 dark:hover:bg-gray-800'
                     }`}
                   >
-                    <Icon className="w-6 h-6 mb-2" />
-                    <span className="text-sm font-medium text-gray-900">{theme.label}</span>
+                    <Icon className={`w-6 h-6 mb-2 ${
+                      preferences.theme === theme.value
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : 'text-gray-500 dark:text-gray-400'
+                    }`} />
+                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{theme.label}</span>
                   </button>
                 );
               })}
@@ -724,7 +728,7 @@ const SettingsView: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-700 mb-3">字体大小</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">字体大小</label>
             <div className="flex items-center space-x-2">
               {['small', 'medium', 'large'].map((size) => (
                 <button
@@ -732,8 +736,8 @@ const SettingsView: React.FC = () => {
                   onClick={() => setPreferences({ ...preferences, fontSize: size as any })}
                   className={`px-4 py-2 border-2 rounded-lg transition-colors ${
                     preferences.fontSize === size
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-700'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-900/30 dark:text-blue-100'
+                      : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-700 dark:border-gray-700 dark:hover:border-gray-500 dark:hover:bg-gray-800 dark:text-gray-200'
                   }`}
                 >
                   {size === 'small' ? '小' : size === 'medium' ? '中' : '大'}
@@ -747,7 +751,7 @@ const SettingsView: React.FC = () => {
       <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">语言和地区</h3>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-700 mb-2">界面语言</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">界面语言</label>
           <select
             value={preferences.language}
             onChange={(e) =>
@@ -756,10 +760,10 @@ const SettingsView: React.FC = () => {
                 language: e.target.value as 'zh-CN' | 'en-US',
               })
             }
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 bg-white text-gray-900 [&>option:checked]:bg-blue-50 [&>option:checked]:text-blue-700"
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-400 focus:border-blue-300 dark:focus:border-blue-400 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 [&>option:checked]:bg-blue-50 [&>option:checked]:text-blue-700 dark:[&>option:checked]:bg-blue-900/40 dark:[&>option:checked]:text-blue-100"
           >
             <option value="zh-CN">简体中文</option>
-            <option value="zh-TW">繁体中文</option>
+            <option value="zh-TW">繁體中文</option>
             <option value="en-US">English</option>
           </select>
         </div>
@@ -768,21 +772,21 @@ const SettingsView: React.FC = () => {
       <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">编辑器</h3>
         <div className="space-y-4">
-          <label className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer bg-white">
+          <label className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer bg-white dark:bg-gray-900 transition-colors">
             <div>
-              <p className="font-medium text-gray-900">自动保存</p>
-              <p className="text-sm text-gray-600">在编辑时自动保存内容</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100">自动保存</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">在编辑时自动保存内容</p>
             </div>
             <input
               type="checkbox"
               checked={preferences.autoSave}
               onChange={(e) => setPreferences({ ...preferences, autoSave: e.target.checked })}
-              className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              className="w-5 h-5 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-900"
             />
           </label>
           {preferences.autoSave && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-700 mb-2">自动保存间隔（秒）</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">自动保存间隔（秒）</label>
               <Input
                 type="number"
                 value={preferences.autoSaveInterval}
@@ -792,17 +796,17 @@ const SettingsView: React.FC = () => {
               />
             </div>
           )}
-          <label className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer bg-white">
+          <label className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer bg-white dark:bg-gray-900 transition-colors">
             <div>
-              <p className="font-medium text-gray-900">AI 自动补全</p>
-              <p className="text-sm text-gray-600">在写作时自动提供 AI 续写建议</p>
-              <p className="text-xs text-orange-500 mt-1">注意：此功能会消耗积分</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100">AI 自动补全</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">在写作时自动提供 AI 补全建议</p>
+              <p className="text-xs text-orange-500 mt-1">注意：此功能可能会消耗额度</p>
             </div>
             <input
               type="checkbox"
               checked={preferences.aiAutoComplete}
               onChange={(e) => setPreferences({ ...preferences, aiAutoComplete: e.target.checked })}
-              className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              className="w-5 h-5 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-900"
             />
           </label>
         </div>
@@ -815,11 +819,11 @@ const SettingsView: React.FC = () => {
     setSessionActionId(logoutTarget.id);
     try {
       await DataService.logoutSession(logoutTarget.id);
-      showSuccess('已退出指定设备');
+      showSuccess('已登出指定设备');
       await loadSessions();
     } catch (error: any) {
-      console.error('退出会话失败:', error);
-      showError(error?.message || '退出失败，请稍后重试');
+      console.error('退出会话失败?', error);
+      showError(error?.message || '登出失败，请稍后重试');
     } finally {
       setSessionActionId(null);
       setLogoutTarget(null);
@@ -831,11 +835,11 @@ const SettingsView: React.FC = () => {
     setIsLoggingOutOthers(true);
     try {
       await DataService.logoutOtherSessions();
-      showSuccess('已退出其他设备');
+      showSuccess('已登出其它设备');
       await loadSessions();
     } catch (error: any) {
-      console.error('退出其他设备失败:', error);
-      showError(error?.message || '退出其他设备失败，请稍后重试');
+      console.error('退出其他设备失败?', error);
+      showError(error?.message || '登出其他设备失败，请稍后重试');
     } finally {
       setIsLoggingOutOthers(false);
     }
@@ -854,12 +858,12 @@ const SettingsView: React.FC = () => {
     setIsDeletingAccount(true);
     try {
       await DataService.deleteAccount(password);
-      showSuccess('账号已删除');
+      showSuccess('账户已删除');
       logout();
       window.location.href = '/';
     } catch (error: any) {
-      console.error('删除账号失败:', error);
-      showError(error?.message || '删除账号失败，请稍后重试');
+      console.error('删除账户澶辫触:', error);
+      showError(error?.message || '删除账户失败，请稍后重试');
     } finally {
       setIsDeletingAccount(false);
     }
@@ -868,15 +872,15 @@ const SettingsView: React.FC = () => {
   return (
     <>
     <div className="space-y-6">
-      {/* 页面标题 */}
+      {/* 椤甸潰鏍囬 */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">设置</h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">管理您的账号和应用偏好</p>
+        <p className="mt-2 text-gray-600 dark:text-gray-400">管理您的账户和应用偏好</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* 左侧标签栏 */}
-        <Card className="lg:col-span-1 !bg-white dark:!bg-white shadow-none border-gray-100">
+        <Card className="lg:col-span-1 !bg-white dark:!bg-gray-900 shadow-none border-gray-100 dark:border-gray-800">
           <div className="p-4">
             <nav className="space-y-1">
               {tabs.map((tab) => {
@@ -887,8 +891,8 @@ const SettingsView: React.FC = () => {
                     onClick={() => setActiveTab(tab.id)}
                     className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                       activeTab === tab.id
-                        ? 'bg-blue-50 text-blue-700'
-                        : 'text-gray-900 hover:bg-gray-100 hover:text-gray-900'
+                        ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-100'
+                        : 'text-gray-900 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-gray-50'
                     }`}
                   >
                     <Icon className="w-5 h-5" />
@@ -900,8 +904,8 @@ const SettingsView: React.FC = () => {
           </div>
         </Card>
 
-        {/* 右侧内容区 */}
-        <Card className="lg:col-span-3 !bg-white dark:!bg-white shadow-none border-gray-100">
+        {/* 鍙充晶鍐呭鍖?*/}
+        <Card className="lg:col-span-3 !bg-white dark:!bg-gray-900 shadow-none border-gray-100 dark:border-gray-800">
           <div className="p-6">
             {isInitializing ? (
             <div className="py-16 text-center text-gray-500 dark:text-gray-400">正在加载设置...</div>
@@ -916,7 +920,7 @@ const SettingsView: React.FC = () => {
 
             {/* 保存按钮区域 - 仅在非安全设置标签页显示 */}
             {activeTab !== 'security' ? (
-              <div className="border-t border-gray-200 mt-6 pt-6">
+              <div className="border-t border-gray-200 dark:border-gray-800 mt-6 pt-6">
                 <div className="flex items-center justify-end space-x-3">
                   <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
                     取消
@@ -928,7 +932,7 @@ const SettingsView: React.FC = () => {
                 </div>
               </div>
             ) : (
-              // 安全设置页 - 保持相同高度的底部留白
+              // 安全设置椤?- 淇濇寔鐩稿悓楂樺害鐨勫簳閮ㄧ暀鐧?
               <div className="mt-6 pt-6"></div>
             )}
           </div>
@@ -939,7 +943,7 @@ const SettingsView: React.FC = () => {
       <ConfirmDialog
         isOpen={!!logoutTarget}
         title="退出该登录设备？"
-        message={`确定要退出「${logoutTarget?.deviceName || logoutTarget?.deviceType || '未知设备'}」吗？退出后需重新登录。`}
+        message={`确定要退出设备【${logoutTarget?.deviceName || logoutTarget?.deviceType || '未知设备'}】吗？退出后需重新登录。`}
         confirmText="确认退出"
         cancelText="取消"
         variant="warning"
@@ -950,7 +954,7 @@ const SettingsView: React.FC = () => {
       <ConfirmDialog
         isOpen={showLogoutOthersConfirm}
         title="退出其他设备？"
-        message="此操作将登出除当前设备外的所有会话，需要重新登录才能使用。是否继续？"
+        message="该操作将退出除当前设备外的所有会话，需要重新登录才能使用。是否继续？"
         confirmText="退出其他设备"
         cancelText="暂不退出"
         variant="warning"
@@ -962,7 +966,7 @@ const SettingsView: React.FC = () => {
         isOpen={showDeleteAccountDialog}
         onClose={() => setShowDeleteAccountDialog(false)}
         onConfirm={confirmDeleteAccount}
-        title="确认删除账号"
+        title="确认删除账户"
         confirmText={isDeletingAccount ? '删除中...' : '确认删除'}
         cancelText="取消"
         fields={[
@@ -983,3 +987,4 @@ const SettingsView: React.FC = () => {
 };
 
 export default SettingsView;
+

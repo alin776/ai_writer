@@ -360,3 +360,215 @@
   color: #9CA3AF;
   margin-bottom: 0.75rem;
 }
+
+/* ==================== 深色模式样式 ==================== */
+
+/* 章节侧边栏 - 深色模式 */
+.dark .chapter-sidebar {
+  background-color: #0f172a;
+  border-right-color: #334155;
+}
+
+.dark .world-sidebar {
+  background-color: #0f172a;
+  border-left-color: #334155;
+}
+
+/* 章节树 - 深色模式 */
+.dark .chapter-tree {
+  background-color: #0f172a;
+}
+
+.dark .chapter-tree-header {
+  border-bottom-color: #334155;
+}
+
+.dark .tree-title {
+  color: #f8fafc;
+}
+
+.dark .add-chapter-btn {
+  color: #94a3b8;
+}
+
+.dark .add-chapter-btn:hover {
+  background: #334155;
+  color: #f8fafc;
+}
+
+/* 章节列表滚动条 - 深色模式 */
+.dark .chapter-list::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+.dark .chapter-list::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.dark .chapter-list::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* 章节项 - 深色模式 */
+.dark .chapter-item {
+  background: transparent;
+}
+
+.dark .chapter-item:hover {
+  background: #1e293b;
+}
+
+.dark .chapter-item.active {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.dark .chapter-item.active .chapter-title {
+  color: #60a5fa;
+}
+
+/* 展开按钮 - 深色模式 */
+.dark .expand-btn {
+  color: #94a3b8;
+}
+
+.dark .expand-btn:hover {
+  color: #f8fafc;
+}
+
+/* 章节信息 - 深色模式 */
+.dark .chapter-title {
+  color: #e2e8f0;
+}
+
+.dark .chapter-meta {
+  color: #94a3b8;
+}
+
+/* 空状态 - 深色模式 */
+.dark .empty-state p {
+  color: #64748b;
+}
+
+.dark .empty-state button {
+  color: #60a5fa;
+}
+
+.dark .empty-state button:hover {
+  color: #93c5fd;
+}
+
+/* 世界观管理 - 深色模式 */
+.dark .world-manager {
+  background-color: #0f172a;
+}
+
+.dark .world-tabs {
+  border-bottom-color: #334155;
+  background: #0f172a;
+}
+
+.dark .world-tab {
+  color: #94a3b8;
+}
+
+.dark .world-tab:hover {
+  color: #e2e8f0;
+}
+
+.dark .world-tab.active {
+  color: #60a5fa;
+  border-bottom-color: #3b82f6;
+}
+
+.dark .world-title {
+  color: #f8fafc;
+}
+
+.dark .add-item-btn {
+  border-color: #475569;
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+.dark .add-item-btn:hover {
+  border-color: #64748b;
+  color: #e2e8f0;
+  background: #334155;
+}
+
+/* 世界观项目 - 深色模式 */
+.dark .world-item {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark .world-item:hover {
+  border-color: #475569;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dark .world-item-name {
+  color: #f8fafc;
+}
+
+.dark .world-item-role {
+  color: #94a3b8;
+}
+
+.dark .world-item-description {
+  color: #cbd5e1;
+}
+
+.dark .world-tag {
+  background: #334155;
+  color: #cbd5e1;
+}
+
+.dark .world-empty-icon {
+  color: #475569;
+}
+
+.dark .world-empty-text {
+  color: #64748b;
+}
+
+/* 章节操作按钮 - 深色模式 */
+.dark .chapter-actions .action-btn {
+  color: #64748b;
+}
+
+.dark .chapter-actions .action-btn:hover {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+}
+
+/* 编辑状态 - 深色模式 */
+.dark .chapter-tree-item .p-3.border-blue-500 {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: #3b82f6;
+}
+
+.dark .chapter-tree-item input[type="text"] {
+  background: #1e293b;
+  border-color: #475569;
+  color: #f8fafc;
+}
+
+.dark .chapter-tree-item input[type="text"]:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.dark .chapter-tree-item .text-gray-500 {
+  color: #64748b;
+}
+
+.dark .chapter-tree-item .text-gray-600 {
+  color: #94a3b8;
+}
+
+/* FileText 图标 - 深色模式 */
+.dark .chapter-item .text-gray-400 {
+  color: #64748b;
+}

@@ -1,11 +1,11 @@
-/**
- * 管理员通知管理页面
+﻿/**
+ * 绠＄悊鍛橀€氱煡绠＄悊椤甸潰
  *
- * 功能:
+ * 鍔熻兘:
  * - 创建和发送通知
- * - 查看所有通知列表
+ * - 鏌ョ湅鎵€鏈夐€氱煡鍒楄〃
  * - 编辑和删除通知
- * - 查看通知统计数据
+ * - 鏌ョ湅通知缁熻鏁版嵁
  */
 
 import React, { useState, useEffect } from 'react';
@@ -36,6 +36,8 @@ import {
   NotificationPriority,
   NotificationCategory,
   NotificationType,
+  TargetUserType,
+  NotificationStatus,
 } from '../types/notification';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -43,16 +45,16 @@ import { zhCN } from 'date-fns/locale';
 const AdminNotificationsView: React.FC = () => {
   const api = new ApiAdapter();
 
-  // 状态管理
+  // 鐘舵€佺鐞?
   const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingNotification, setEditingNotification] = useState<NotificationResponse | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | NotificationStatus>('all');
   const [uploadingCover, setUploadingCover] = useState(false);
 
-  // 表单状态
+  // 琛ㄥ崟鐘舵€?
   const [formData, setFormData] = useState<Partial<NotificationCreate>>({
     title: '',
     content: '',
@@ -61,7 +63,7 @@ const AdminNotificationsView: React.FC = () => {
     priority: NotificationPriority.NORMAL,
     displayType: ['notification'],
     publishType: 'immediate',
-    targetUsers: 'all',
+    targetUsers: TargetUserType.ALL,
     actionButton: undefined,
     coverImageUrl: '',
     bannerColor: '',
@@ -95,7 +97,7 @@ const AdminNotificationsView: React.FC = () => {
     fetchNotifications();
   }, []);
 
-  // 处理表单提交
+  // 澶勭悊琛ㄥ崟鎻愪氦
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -118,7 +120,7 @@ const AdminNotificationsView: React.FC = () => {
       resetForm();
     } catch (error) {
       console.error('保存通知失败:', error);
-      alert('保存失败,请检查表单数据');
+      alert('保存失败，请检查表单数据');
     } finally {
       setLoading(false);
     }
@@ -126,13 +128,13 @@ const AdminNotificationsView: React.FC = () => {
 
   // 删除通知
   const handleDelete = async (id: string) => {
-    if (!confirm('确定要删除这条通知吗?')) return;
+    if (!confirm('确定要删除这条通知吗？')) return;
 
     try {
       await api.delete(`/notifications/admin/notifications/${id}`);
       await fetchNotifications();
     } catch (error) {
-      console.error('删除失败:', error);
+      console.error('鍒犻櫎澶辫触:', error);
     }
   };
 
@@ -142,7 +144,7 @@ const AdminNotificationsView: React.FC = () => {
       await api.post(`/notifications/admin/notifications/${id}/publish`);
       await fetchNotifications();
     } catch (error) {
-      console.error('发布失败:', error);
+      console.error('鍙戝竷澶辫触:', error);
     }
   };
 
@@ -156,7 +158,7 @@ const AdminNotificationsView: React.FC = () => {
       priority: NotificationPriority.NORMAL,
       displayType: ['notification'],
       publishType: 'immediate',
-      targetUsers: 'all',
+      targetUsers: TargetUserType.ALL,
       actionButton: undefined,
       coverImageUrl: '',
       bannerColor: '',
@@ -169,16 +171,16 @@ const AdminNotificationsView: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // 验证文件类型
+    // 楠岃瘉鏂囦欢绫诲瀷
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!allowedTypes.includes(file.type)) {
       alert('仅支持 JPG/PNG/WebP/GIF 图片文件');
       return;
     }
 
-    // 验证文件大小 (10MB)
+    // 楠岃瘉鏂囦欢澶у皬 (10MB)
     if (file.size > 10 * 1024 * 1024) {
-      alert('文件过大，请选择 10MB 以下的图片');
+      alert('鏂囦欢杩囧ぇ锛岃閫夋嫨 10MB 浠ヤ笅鐨勫浘鐗?');
       return;
     }
 
@@ -195,13 +197,13 @@ const AdminNotificationsView: React.FC = () => {
       setFormData(prev => ({ ...prev, coverImageUrl: response.coverUrl }));
     } catch (error) {
       console.error('图片上传失败:', error);
-      alert('图片上传失败，请重试');
+      alert('图片上传失败锛岃閲嶈瘯');
     } finally {
       setUploadingCover(false);
     }
   };
 
-  // 开始编辑
+  // 寮€濮嬬紪杈?
   const handleEdit = (notification: NotificationResponse) => {
     setEditingNotification(notification);
     setFormData({
@@ -223,19 +225,19 @@ const AdminNotificationsView: React.FC = () => {
     setShowCreateModal(true);
   };
 
-  // 筛选通知
+  // 绛涢€夐€氱煡
   const filteredNotifications = notifications.filter((n) => {
     if (searchQuery && !n.title.toLowerCase().includes(searchQuery.toLowerCase())) {
       return false;
     }
-    if (filterStatus === 'published' && n.status !== 'published') return false;
-    if (filterStatus === 'draft' && n.status !== 'draft') return false;
+    if (filterStatus === NotificationStatus.ACTIVE && n.status !== NotificationStatus.ACTIVE) return false;
+    if (filterStatus === NotificationStatus.DRAFT && n.status !== NotificationStatus.DRAFT) return false;
     return true;
   });
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* 页面头部 */}
+      {/* 椤甸潰澶撮儴 */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
@@ -271,12 +273,12 @@ const AdminNotificationsView: React.FC = () => {
                     : 'text-gray-600 dark:text-gray-300'
                 }`}
               >
-                全部
+                鍏ㄩ儴
               </button>
               <button
-                onClick={() => setFilterStatus('published')}
+                onClick={() => setFilterStatus(NotificationStatus.ACTIVE)}
                 className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  filterStatus === 'published'
+                  filterStatus === NotificationStatus.ACTIVE
                     ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
                     : 'text-gray-600 dark:text-gray-300'
                 }`}
@@ -284,9 +286,9 @@ const AdminNotificationsView: React.FC = () => {
                 已发布
               </button>
               <button
-                onClick={() => setFilterStatus('draft')}
+                onClick={() => setFilterStatus(NotificationStatus.DRAFT)}
                 className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  filterStatus === 'draft'
+                  filterStatus === NotificationStatus.DRAFT
                     ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
                     : 'text-gray-600 dark:text-gray-300'
                 }`}
@@ -346,19 +348,25 @@ const AdminNotificationsView: React.FC = () => {
                           }`}
                         >
                           {notification.priority === NotificationPriority.URGENT
-                            ? '紧急'
+                            ? '绱ф€?'
                             : notification.priority === NotificationPriority.IMPORTANT
-                            ? '重要'
-                            : '普通'}
+                            ? '閲嶈'
+                            : '鏅€?'}
                         </span>
                         <span
                           className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${
-                            notification.status === 'published'
+                            notification.status === NotificationStatus.ACTIVE
                               ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                               : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
                           }`}
                         >
-                          {notification.status === 'published' ? '已发布' : '草稿'}
+                          {notification.status === NotificationStatus.ACTIVE
+                            ? '已发布'
+                            : notification.status === NotificationStatus.SCHEDULED
+                            ? '已排期'
+                            : notification.status === NotificationStatus.EXPIRED
+                            ? '已过期'
+                            : '草稿'}
                         </span>
                       </div>
                       {notification.content && (
@@ -368,14 +376,21 @@ const AdminNotificationsView: React.FC = () => {
                       )}
                       <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
                         <span>
-                          目标: {notification.targetUsers === 'all' ? '全部用户' : '自定义'}
+                          鐩爣:{' '}
+                          {notification.targetUsers === TargetUserType.ALL
+                            ? '鍏ㄩ儴鐢ㄦ埛'
+                            : notification.targetUsers === TargetUserType.ACTIVE
+                            ? '娲昏穬鐢ㄦ埛'
+                            : notification.targetUsers === TargetUserType.INACTIVE
+                            ? '涓嶆椿璺冪敤鎴?'
+                            : '鑷畾涔夌敤鎴峰垪琛?'}
                         </span>
                         <span>
                           展示: {notification.displayType.includes('modal') ? '弹窗+' : ''}
                           {notification.displayType.includes('notification') ? '通知' : ''}
                         </span>
                         <span>
-                          创建于{' '}
+                          创建于:{' '}
                           {formatDistanceToNow(new Date(notification.createdAt), {
                             addSuffix: true,
                             locale: zhCN,
@@ -384,13 +399,13 @@ const AdminNotificationsView: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* 操作按钮 */}
+                    {/* 鎿嶄綔鎸夐挳 */}
                     <div className="flex items-center gap-2">
-                      {notification.status === 'draft' && (
+                      {notification.status === NotificationStatus.DRAFT && (
                         <button
                           onClick={() => handlePublish(notification.id)}
                           className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
-                          title="发布"
+                          title="鍙戝竷"
                         >
                           <Send className="w-4 h-4" />
                         </button>
@@ -405,7 +420,7 @@ const AdminNotificationsView: React.FC = () => {
                       <button
                         onClick={() => handleDelete(notification.id)}
                         className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                        title="删除"
+                        title="鍒犻櫎"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -439,10 +454,10 @@ const AdminNotificationsView: React.FC = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {/* 标题 */}
+              {/* 鏍囬 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  标题 *
+                  鏍囬 *
                 </label>
                 <input
                   type="text"
@@ -450,29 +465,29 @@ const AdminNotificationsView: React.FC = () => {
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                  placeholder="输入通知标题"
+                  placeholder="杈撳叆通知鏍囬"
                 />
               </div>
 
-              {/* 内容 */}
+              {/* 鍐呭 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  内容
+                  鍐呭
                 </label>
                 <textarea
                   value={formData.content}
                   onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                   rows={4}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 resize-none"
-                  placeholder="输入通知内容（可选）"
+                  placeholder="杈撳叆通知鍐呭锛堝彲閫夛級"
                 />
               </div>
 
-              {/* 类型和优先级 */}
+              {/* 绫诲瀷鍜屼紭鍏堢骇 */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    类型 *
+                    绫诲瀷 *
                   </label>
                   <select
                     required
@@ -482,18 +497,18 @@ const AdminNotificationsView: React.FC = () => {
                     }
                     className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value={NotificationType.ANNOUNCEMENT}>公告</option>
-                    <option value={NotificationType.FEATURE}>新功能</option>
-                    <option value={NotificationType.EVENT}>活动</option>
-                    <option value={NotificationType.MAINTENANCE}>维护通知</option>
-                    <option value={NotificationType.MILESTONE}>里程碑</option>
-                    <option value={NotificationType.SMART_REMINDER}>智能提醒</option>
+                    <option value={NotificationType.ANNOUNCEMENT}>鍏憡</option>
+                    <option value={NotificationType.FEATURE}>鏂板姛鑳?</option>
+                    <option value={NotificationType.EVENT}>娲诲姩</option>
+                    <option value={NotificationType.MAINTENANCE}>缁存姢通知</option>
+                    <option value={NotificationType.MILESTONE}>閲岀▼纰?</option>
+                    <option value={NotificationType.SMART_REMINDER}>鏅鸿兘鎻愰啋</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    优先级 *
+                    浼樺厛绾?*
                   </label>
                   <select
                     required
@@ -506,17 +521,17 @@ const AdminNotificationsView: React.FC = () => {
                     }
                     className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value={NotificationPriority.NORMAL}>普通</option>
-                    <option value={NotificationPriority.IMPORTANT}>重要</option>
-                    <option value={NotificationPriority.URGENT}>紧急</option>
+                    <option value={NotificationPriority.NORMAL}>鏅€?</option>
+                    <option value={NotificationPriority.IMPORTANT}>閲嶈</option>
+                    <option value={NotificationPriority.URGENT}>绱ф€?</option>
                   </select>
                 </div>
               </div>
 
-              {/* 展示方式 */}
+              {/* 灞曠ず鏂瑰紡 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  展示方式 *
+                  灞曠ず鏂瑰紡 *
                 </label>
                 <div className="space-y-2">
                   <label className="inline-flex items-center">
@@ -532,7 +547,7 @@ const AdminNotificationsView: React.FC = () => {
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                     <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                      通知铃铛
+                      通知閾冮摏
                     </span>
                   </label>
                   <label className="inline-flex items-center ml-4">
@@ -554,20 +569,21 @@ const AdminNotificationsView: React.FC = () => {
                 </div>
               </div>
 
-              {/* 目标用户 */}
+              {/* 鐩爣鐢ㄦ埛 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  目标用户 *
+                  鐩爣鐢ㄦ埛 *
                 </label>
                 <select
                   required
                   value={formData.targetUsers}
-                  onChange={(e) => setFormData({ ...formData, targetUsers: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, targetUsers: e.target.value as TargetUserType })}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="all">全部用户</option>
-                  <option value="active">活跃用户</option>
-                  <option value="inactive">不活跃用户</option>
+                  <option value={TargetUserType.ALL}>鍏ㄩ儴鐢ㄦ埛</option>
+                  <option value={TargetUserType.ACTIVE}>娲昏穬鐢ㄦ埛</option>
+                  <option value={TargetUserType.INACTIVE}>涓嶆椿璺冪敤鎴?</option>
+                  <option value={TargetUserType.CUSTOM}>鑷畾涔夌敤鎴峰垪琛?</option>
                 </select>
               </div>
 
@@ -592,7 +608,7 @@ const AdminNotificationsView: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <img
                         src={formData.coverImageUrl}
-                        alt="封面预览"
+                        alt="灏侀潰棰勮"
                         className="w-16 h-16 object-cover rounded border border-gray-200"
                       />
                       <button
@@ -600,21 +616,21 @@ const AdminNotificationsView: React.FC = () => {
                         onClick={() => setFormData({ ...formData, coverImageUrl: '' })}
                         className="text-red-600 hover:text-red-700 text-sm"
                       >
-                        删除
+                        鍒犻櫎
                       </button>
                     </div>
                   )}
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  支持 JPG/PNG/WebP/GIF，最大 10MB
+                  鏀寔 JPG/PNG/WebP/GIF锛屾渶澶?10MB
                 </p>
               </div>
 
-              {/* 行动按钮 */}
+              {/* 琛屽姩鎸夐挳 */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    按钮文本
+                    鎸夐挳鏂囨湰
                   </label>
                   <input
                     type="text"
@@ -629,12 +645,12 @@ const AdminNotificationsView: React.FC = () => {
                       })
                     }
                     className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                    placeholder="查看详情"
+                    placeholder="鏌ョ湅璇︽儏"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    按钮链接
+                    鎸夐挳閾炬帴
                   </label>
                   <input
                     type="text"
@@ -654,12 +670,12 @@ const AdminNotificationsView: React.FC = () => {
                 </div>
               </div>
 
-              {/* 活动时间（仅活动类型显示） */}
+              {/* 娲诲姩鏃堕棿锛堜粎娲诲姩绫诲瀷鏄剧ず锛?*/}
               {formData.type === NotificationType.EVENT && (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      活动开始时间
+                      娲诲姩寮€濮嬫椂闂?
                     </label>
                     <input
                       type="datetime-local"
@@ -676,7 +692,7 @@ const AdminNotificationsView: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      活动结束时间
+                      娲诲姩缁撴潫鏃堕棿
                     </label>
                     <input
                       type="datetime-local"
@@ -694,23 +710,28 @@ const AdminNotificationsView: React.FC = () => {
                 </div>
               )}
 
-              {/* 发布类型 */}
+              {/* 鍙戝竷绫诲瀷 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  发布方式 *
+                  鍙戝竷鏂瑰紡 *
                 </label>
                 <select
                   required
                   value={formData.publishType}
-                  onChange={(e) => setFormData({ ...formData, publishType: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      publishType: e.target.value as 'immediate' | 'scheduled' | 'draft',
+                    })
+                  }
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="immediate">立即发布</option>
-                  <option value="draft">保存为草稿</option>
+                  <option value="draft">保存为草稿?</option>
                 </select>
               </div>
 
-              {/* 提交按钮 */}
+              {/* 鎻愪氦鎸夐挳 */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <button
                   type="button"
@@ -721,7 +742,7 @@ const AdminNotificationsView: React.FC = () => {
                   }}
                   className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 >
-                  取消
+                  鍙栨秷
                 </button>
                 <button
                   type="submit"

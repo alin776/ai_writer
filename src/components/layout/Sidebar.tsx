@@ -87,16 +87,18 @@ export const Sidebar: React.FC = () => {
         to={item.path}
         className={clsx(
           'group relative flex items-center px-3 py-2 rounded transition-all duration-200',
-          active ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900',
+          active
+            ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:!text-white'
+            : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:!text-white dark:hover:bg-slate-800',
           isCollapsed ? 'justify-center' : 'space-x-3'
         )}
         title={isCollapsed ? tooltip : undefined}
       >
-        {active && <div className="absolute left-0 top-1 bottom-1 w-1 bg-blue-600 rounded-r"></div>}
+        {active && <div className="absolute left-0 top-1 bottom-1 w-1 bg-blue-600 dark:bg-blue-400 rounded-r"></div>}
         <Icon className={clsx('flex-shrink-0', isCollapsed ? 'w-5 h-5' : 'w-4 h-4')} />
         {!isCollapsed && <span className="text-sm font-medium">{item.label}</span>}
         {isCollapsed && (
-          <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
+          <div className="absolute left-full ml-2 px-2 py-1 bg-slate-900 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
             {tooltip}
           </div>
         )}
@@ -107,25 +109,25 @@ export const Sidebar: React.FC = () => {
   return (
     <aside
       className={clsx(
-        'bg-gray-50 border-r border-gray-200 transition-all duration-300 flex flex-col',
+        'bg-gray-50 dark:bg-slate-900 border-r border-gray-200 dark:border-slate-700 transition-all duration-300 flex flex-col',
         isCollapsed ? 'w-20' : 'w-64'
       )}
     >
-      <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
+      <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-slate-700">
         {!isCollapsed ? (
           <>
             <Link to="/works" className="flex items-center space-x-2.5 group min-w-0">
-              <div className="w-7 h-7 bg-gray-900 rounded-sm flex items-center justify-center flex-shrink-0">
+              <div className="w-7 h-7 bg-gray-900 dark:bg-slate-800 rounded-sm flex items-center justify-center flex-shrink-0">
                 <Sparkles className="w-3.5 h-3.5 text-white" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-gray-900 leading-tight">文枢AI</h2>
-                <p className="text-xs text-gray-500 leading-tight">智能创作助手</p>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100 leading-tight">文枢AI</h2>
+                <p className="text-xs text-gray-500 dark:text-slate-400 leading-tight">智能创作助手</p>
               </div>
             </Link>
             <button
               onClick={() => setIsCollapsed(true)}
-              className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-all"
+              className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-800 rounded transition-all"
               title="收起侧边栏"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -133,7 +135,7 @@ export const Sidebar: React.FC = () => {
           </>
         ) : (
           <button onClick={() => setIsCollapsed(false)} className="w-full flex justify-center" title="展开侧边栏">
-            <div className="w-9 h-9 bg-gray-900 rounded-sm flex items-center justify-center hover:bg-gray-800 transition-all">
+            <div className="w-9 h-9 bg-gray-900 dark:bg-slate-800 rounded-sm flex items-center justify-center hover:bg-gray-800 dark:hover:bg-slate-700 transition-all">
               <Sparkles className="w-4 h-4 text-white" />
             </div>
           </button>
@@ -143,7 +145,7 @@ export const Sidebar: React.FC = () => {
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
         <div className="space-y-0.5">
           {!isCollapsed && (
-            <div className="px-3 py-2 text-xs font-medium text-gray-400 uppercase tracking-wider">创作</div>
+            <div className="px-3 py-2 text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">创作</div>
           )}
           {dynamicMainNavItems.map(renderNavItem)}
         </div>
@@ -152,7 +154,7 @@ export const Sidebar: React.FC = () => {
           <button
             onClick={() => setIsServiceExpanded(!isServiceExpanded)}
             className={clsx(
-              'w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-gray-400 uppercase tracking-wider hover:text-gray-600 transition-colors',
+              'w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-slate-300 transition-colors',
               isCollapsed && 'justify-center'
             )}
           >
@@ -165,38 +167,38 @@ export const Sidebar: React.FC = () => {
         {user?.role === 'admin' && (
           <div className="mt-6 space-y-0.5">
             {!isCollapsed && (
-              <div className="px-3 py-2 text-xs font-medium text-gray-400 uppercase tracking-wider">管理</div>
+              <div className="px-3 py-2 text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">管理</div>
             )}
             {adminNavItems.map(renderNavItem)}
           </div>
         )}
 
-        <div className="mt-6 pt-6 border-t border-gray-200 space-y-0.5">
+        <div className="mt-6 pt-6 border-t border-gray-200 dark:border-slate-700 space-y-0.5">
           {bottomNavItems.map(renderNavItem)}
         </div>
       </nav>
 
-      <div className="p-3 border-t border-gray-200">
+      <div className="p-3 border-t border-gray-200 dark:border-slate-700">
         {!isCollapsed ? (
-          <div className="flex items-center space-x-2.5 p-2 hover:bg-gray-100 rounded transition-colors cursor-pointer">
-            <div className="w-8 h-8 bg-gray-900 rounded-full flex items-center justify-center flex-shrink-0">
+          <div className="flex items-center space-x-2.5 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded transition-colors cursor-pointer">
+            <div className="w-8 h-8 bg-gray-900 dark:bg-slate-700 rounded-full flex items-center justify-center flex-shrink-0">
               <span className="text-xs font-medium text-white">
                 {user?.username ? user.username[0].toUpperCase() : 'U'}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-gray-700 truncate leading-tight">
+              <p className="text-xs font-medium text-gray-700 dark:text-slate-200 truncate leading-tight">
                 {user?.username || '用户'}
               </p>
-              <p className="text-xs text-gray-500 leading-tight">
+              <p className="text-xs text-gray-500 dark:text-slate-400 leading-tight">
                 {user?.role === 'admin' ? '管理员' : '创作者'}
               </p>
             </div>
-            <Settings className="w-3.5 h-3.5 text-gray-500 hover:text-gray-700 flex-shrink-0 transition-colors" />
+            <Settings className="w-3.5 h-3.5 text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 flex-shrink-0 transition-colors" />
           </div>
         ) : (
           <div className="flex justify-center">
-            <div className="w-9 h-9 bg-gray-900 rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors cursor-pointer">
+            <div className="w-9 h-9 bg-gray-900 dark:bg-slate-700 rounded-full flex items-center justify-center hover:bg-gray-800 dark:hover:bg-slate-600 transition-colors cursor-pointer">
               <span className="text-xs font-medium text-white">
                 {user?.username ? user.username[0].toUpperCase() : 'U'}
               </span>
@@ -209,3 +211,16 @@ export const Sidebar: React.FC = () => {
 };
 
 export default Sidebar;
+
+
+
+
+
+
+
+
+
+
+
+
+

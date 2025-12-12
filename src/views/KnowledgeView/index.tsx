@@ -228,13 +228,13 @@ const KnowledgeView: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
       <ToastContainer messages={messages} onClose={close} />
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">我的知识库</h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">我的知识库</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               存储参考资料、写作素材和创作灵感，创作时随时调用
             </p>
           </div>
@@ -299,12 +299,12 @@ const KnowledgeView: React.FC = () => {
             {items.map((item) => (
               <div
                 key={item.id}
-                className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
+                className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
                     {getSourceIcon(item)}
-                    <h3 className="font-medium text-gray-900 text-sm truncate">
+                    <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">
                       {item.title}
                     </h3>
                   </div>
@@ -338,7 +338,7 @@ const KnowledgeView: React.FC = () => {
                     {item.tags.slice(0, 3).map((tag) => (
                       <span
                         key={tag}
-                        className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600"
+                        className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
                       >
                         <Tag className="w-2 h-2 mr-1" />
                         {tag}
@@ -353,7 +353,7 @@ const KnowledgeView: React.FC = () => {
                 )}
 
                 {item.extra_data?.vectorization_warning && (
-                  <div className="flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1 text-[11px] mb-3">
+                  <div className="flex items-center gap-1 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-100 dark:border-amber-800 rounded px-2 py-1 text-[11px] mb-3">
                     <AlertTriangle className="w-3 h-3" />
                     <span className="truncate">{item.extra_data.vectorization_warning}</span>
                   </div>

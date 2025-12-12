@@ -26,7 +26,7 @@ export const AdminLayout: React.FC = () => {
    * 管理员布局
    */
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
       {/* 顶部导航栏 */}
       <Header />
 
@@ -36,7 +36,7 @@ export const AdminLayout: React.FC = () => {
         <AdminSidebar />
 
         {/* 内容区域 */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
           <div className="container mx-auto">
             {/* 使用 Outlet 渲染子路由 */}
             <Outlet />

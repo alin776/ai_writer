@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+﻿import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Wallet, TrendingUp, TrendingDown, Gift, ArrowRight } from 'lucide-react';
 import { Card } from '../../components/common';
@@ -24,18 +24,18 @@ const ServiceCreditsView: React.FC = () => {
   }
 
   return (
-    <div className="h-full overflow-auto bg-gray-50">
+    <div className="h-full overflow-auto bg-gray-50 dark:bg-gray-900">
       <div className="max-w-5xl mx-auto p-6 space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">我的积分</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">我的积分</h1>
           <p className="mt-1 text-sm text-gray-500">查看您的积分余额和使用情况</p>
         </div>
 
         <Card padding="lg">
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
-              <Wallet className="w-5 h-5 text-amber-600" />
-              <h2 className="text-lg font-semibold text-gray-900">当前余额</h2>
+              <Wallet className="w-5 h-5 text-amber-600 dark:text-amber-500" />
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">当前余额</h2>
             </div>
 
             <div className="flex items-baseline space-x-2">
@@ -47,7 +47,7 @@ const ServiceCreditsView: React.FC = () => {
 
             <div className="text-sm text-gray-500">
               {balance?.expiresAt ? (
-                <span>过期时间: {new Date(balance.expiresAt).toLocaleDateString()}</span>
+                <span>到期时间: {new Date(balance.expiresAt).toLocaleDateString()}</span>
               ) : (
                 <span>永不过期</span>
               )}
@@ -56,9 +56,10 @@ const ServiceCreditsView: React.FC = () => {
             <div>
               <Link
                 to="/service/obtain"
-                className="inline-flex items-center px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors text-sm font-medium"
+                className="inline-flex items-center px-4 py-2 bg-amber-600 text-white hover:text-white rounded hover:bg-amber-700 transition-colors text-sm font-semibold"
+                style={{ color: 'white' }}
               >
-                <Gift className="w-4 h-4 mr-2" />
+                <Gift className="w-4 h-4 mr-2 text-white" />
                 兑换积分
               </Link>
             </div>
@@ -66,11 +67,11 @@ const ServiceCreditsView: React.FC = () => {
         </Card>
 
         <Card padding="lg">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">积分统计</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">积分统计</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 bg-green-50 rounded-lg">
+            <div className="p-4 bg-green-50 dark:bg-green-900/30 rounded-lg">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">累计充值</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">累计充值</span>
                 <TrendingUp className="w-4 h-4 text-green-600" />
               </div>
               <div className="mt-2 text-2xl font-bold text-green-600">
@@ -78,9 +79,9 @@ const ServiceCreditsView: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-4 bg-red-50 rounded-lg">
+            <div className="p-4 bg-red-50 dark:bg-red-900/30 rounded-lg">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">累计消耗</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">累计消耗</span>
                 <TrendingDown className="w-4 h-4 text-red-600" />
               </div>
               <div className="mt-2 text-2xl font-bold text-red-600">
@@ -88,9 +89,9 @@ const ServiceCreditsView: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-4 bg-blue-50 rounded-lg">
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">累计赠送</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">累计赠送</span>
                 <Gift className="w-4 h-4 text-blue-600" />
               </div>
               <div className="mt-2 text-2xl font-bold text-blue-600">
@@ -102,7 +103,7 @@ const ServiceCreditsView: React.FC = () => {
 
         <Card padding="lg">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">最近交易</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">最近交易</h2>
             <Link
               to="/service/usage"
               className="flex items-center text-sm text-blue-600 hover:text-blue-700"
@@ -121,13 +122,13 @@ const ServiceCreditsView: React.FC = () => {
                 return (
                   <div
                     key={transaction.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                   >
                     <div className="flex items-center space-x-3">
                       <div className={`px-2 py-1 rounded text-xs font-medium ${config.color}`}>
                         {config.icon} {config.label}
                       </div>
-                      <span className="text-sm text-gray-700">{transaction.description}</span>
+                      <span className="text-sm text-gray-700 dark:text-gray-300">{transaction.description}</span>
                     </div>
 
                     <div className="flex items-center space-x-4">

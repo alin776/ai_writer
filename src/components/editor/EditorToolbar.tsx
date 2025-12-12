@@ -60,7 +60,9 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
       disabled={disabled}
       title={title}
       className={`h-7 w-7 p-0 flex items-center justify-center rounded transition-all ${
-        isActive ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
+        isActive
+          ? 'bg-zinc-100 text-zinc-900 dark:bg-slate-700 dark:text-slate-100'
+          : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-700'
       } ${disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}`}
     >
       {children}
@@ -101,7 +103,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
   };
 
   return (
-    <div className="px-3 py-1.5 flex items-center gap-1.5 border-b border-zinc-100 bg-white shadow-sm shadow-zinc-100/50">
+    <div className="px-3 py-1.5 flex items-center gap-1.5 border-b border-zinc-100 bg-white shadow-sm shadow-zinc-100/50 dark:bg-slate-900 dark:border-slate-700 dark:shadow-none">
       {/* AI 自动补全 + 撤销/重做 */}
       <div className="flex items-center gap-0.5">
         <ToolbarButton
@@ -127,7 +129,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         </ToolbarButton>
       </div>
 
-      <div className="w-px h-4 bg-zinc-200" />
+      <div className="w-px h-4 bg-zinc-200 dark:bg-slate-600" />
 
       {/* 标题 */}
       <div className="flex items-center">
@@ -137,8 +139,8 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
           className={`h-7 px-2 text-[11px] rounded transition-all ${
             editor.isActive('heading', { level: 1 })
-              ? 'bg-zinc-100 text-zinc-900'
-              : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
+              ? 'bg-zinc-100 text-zinc-900 dark:bg-slate-700 dark:text-slate-100'
+              : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-700'
           }`}
           title="一级标题"
         >
@@ -150,8 +152,8 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           className={`h-7 px-2 text-[11px] rounded transition-all ${
             editor.isActive('heading', { level: 2 })
-              ? 'bg-zinc-100 text-zinc-900'
-              : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
+              ? 'bg-zinc-100 text-zinc-900 dark:bg-slate-700 dark:text-slate-100'
+              : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-700'
           }`}
           title="二级标题"
         >
@@ -163,8 +165,8 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
           className={`h-7 px-2 text-[11px] rounded transition-all ${
             editor.isActive('heading', { level: 3 })
-              ? 'bg-zinc-100 text-zinc-900'
-              : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
+              ? 'bg-zinc-100 text-zinc-900 dark:bg-slate-700 dark:text-slate-100'
+              : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-700'
           }`}
           title="三级标题"
         >
@@ -172,7 +174,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         </button>
       </div>
 
-      <div className="w-px h-4 bg-zinc-200" />
+      <div className="w-px h-4 bg-zinc-200 dark:bg-slate-600" />
 
       {/* 文本样式 */}
       <div className="flex items-center">
@@ -220,7 +222,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         </ToolbarButton>
       </div>
 
-      <div className="w-px h-4 bg-zinc-200" />
+      <div className="w-px h-4 bg-zinc-200 dark:bg-slate-600" />
 
       {/* 列表 */}
       <div className="flex items-center">
@@ -247,7 +249,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         </ToolbarButton>
       </div>
 
-      <div className="w-px h-4 bg-zinc-200" />
+      <div className="w-px h-4 bg-zinc-200 dark:bg-slate-600" />
 
       {/* 引用和代码块 */}
       <div className="flex items-center">
@@ -273,7 +275,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         </ToolbarButton>
       </div>
 
-      <div className="w-px h-4 bg-zinc-200" />
+      <div className="w-px h-4 bg-zinc-200 dark:bg-slate-600" />
 
       {/* 链接和图片 */}
       <div className="flex items-center">

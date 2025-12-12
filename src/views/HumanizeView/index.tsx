@@ -305,7 +305,7 @@ export const HumanizeView: React.FC = () => {
   // ==================== 渲染 ====================
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* 主工作区 - 三列布局 */}
       <div className="flex-1 overflow-auto">
         <div className="min-h-full pt-4 px-6 pb-6">

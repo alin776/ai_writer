@@ -287,6 +287,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     if (!message.trim()) return;
 
     console.log('[AIPanel] handleSendWithContext 调用:', { message, context });
+    const backendMode: AgentChatRequest['mode'] = mode === 'agent' ? 'react' : 'planning';
 
     // 🔑 固定 payload 结构：将选区信息放入独立的 selection 字段
     // 避免将选中文本混入 prompt/chapter_context 导致被覆盖或结构混乱
@@ -299,9 +300,10 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
     const request: AgentChatRequest = {
       message,
-      mode,
+      mode: backendMode,
       work_id: workId,
       chapter_id: chapterId,
+      enable_reflection: mode === 'agent',
       context: {
         ...context,
         // 🔑 独立的 selection 字段（推荐结构）
@@ -952,7 +954,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   const streamingVisibleContent = hasStreamingAgentMessage ? streamingDisplay : '';
 
   return (
-    <div className="p-3 h-full flex flex-col overflow-hidden">
+    <div className="p-3 h-full flex flex-col overflow-hidden dark:bg-slate-900">
       <div
         ref={messagesContainerRef}
         className="flex-1 min-h-0 mb-3 space-y-2.5 overflow-y-auto overflow-x-hidden custom-scrollbar"
@@ -960,11 +962,11 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         {/* 欢迎消息 */}
         {messages.length === 0 && (
           <div className="flex items-start gap-2">
-            <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
+            <div className="h-6 w-6 rounded-full bg-zinc-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
-            <div className="flex-1 p-2.5 rounded-lg bg-zinc-50/70 border border-zinc-100">
-              <p className="text-[11px] leading-relaxed text-zinc-500">
+            <div className="flex-1 p-2.5 rounded-lg bg-zinc-50/70 border border-zinc-100 dark:bg-slate-800 dark:border-slate-700">
+              <p className="text-[11px] leading-relaxed text-zinc-500 dark:text-slate-400">
                 你好！我是你的写作助手。我可以帮你续写故事情节、优化文字表达、分析人物关系，以及提供创作建议。
               </p>
             </div>
@@ -991,7 +993,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
           return (
             <div key={index} className={`flex items-start gap-2 ${message.role === 'user' ? 'justify-end' : ''}`}>
               {message.role === 'agent' && (
-                <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
+                <div className="h-6 w-6 rounded-full bg-zinc-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                   <Bot className="h-3.5 w-3.5 text-white" />
                 </div>
               )}
@@ -999,12 +1001,12 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
               <div
                 className={`flex-1 max-w-[85%] p-2.5 rounded-lg ${
                   message.role === 'user'
-                    ? 'bg-zinc-800 text-zinc-50 shadow-sm ml-auto'
-                    : 'bg-zinc-50/70 border border-zinc-100'
+                    ? 'bg-zinc-800 text-zinc-50 shadow-sm ml-auto dark:bg-blue-600'
+                    : 'bg-zinc-50/70 border border-zinc-100 dark:bg-slate-800 dark:border-slate-700'
                 }`}
               >
                 {message.role === 'agent' ? (
-                  <div style={{ color: 'rgb(113, 113, 122)' }}>
+                  <div className="text-zinc-500 dark:text-slate-300">
                     <MarkdownContent content={message.content} />
                   </div>
                 ) : (
@@ -1015,14 +1017,14 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
                 {/* Agent步骤展示（可选） */}
                 {message.role === 'agent' && message.agentSteps && message.agentSteps.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-zinc-200/50">
-                    <details className="text-[10px] text-zinc-400">
-                      <summary className="cursor-pointer hover:text-zinc-600">查看执行步骤</summary>
+                  <div className="mt-2 pt-2 border-t border-zinc-200/50 dark:border-slate-600">
+                    <details className="text-[10px] text-zinc-400 dark:text-slate-500">
+                      <summary className="cursor-pointer hover:text-zinc-600 dark:hover:text-slate-300">查看执行步骤</summary>
                       <div className="mt-1 space-y-1">
                         {message.agentSteps.map((step, idx) => (
-                          <div key={idx} className="pl-2 border-l-2 border-zinc-200">
-                            <div className="font-medium">{step.step}</div>
-                            <div className="text-zinc-500">{step.result}</div>
+                          <div key={idx} className="pl-2 border-l-2 border-zinc-200 dark:border-slate-600">
+                            <div className="font-medium dark:text-slate-300">{step.step}</div>
+                            <div className="text-zinc-500 dark:text-slate-400">{step.result}</div>
                           </div>
                         ))}
                       </div>
@@ -1037,7 +1039,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         {/* Agent模式（DeepAgent反思）活动流 - 显示在所有历史消息之后，streaming消息之前 */}
         {mode === 'agent' && activities.length > 0 && (
           <div className="flex items-start gap-2">
-            <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
+            <div className="h-6 w-6 rounded-full bg-zinc-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
             <div className="flex-1 min-w-0">
@@ -1052,15 +1054,15 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         {/* 任务执行进度（todolist）- 显示在所有历史消息之后，streaming消息之前 */}
         {isLoading && tasks.length > 0 && (
           <div className="flex items-start gap-2">
-            <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
+            <div className="h-6 w-6 rounded-full bg-zinc-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
             <div className="flex-1 space-y-3 will-change-contents">
               {/* 标题与进度 */}
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-zinc-400">执行中</span>
-                <div className="flex-1 h-px bg-zinc-200"></div>
-                <span className="text-[10px] text-zinc-300 font-mono">
+                <span className="text-[11px] text-zinc-400 dark:text-slate-500">执行中</span>
+                <div className="flex-1 h-px bg-zinc-200 dark:bg-slate-700"></div>
+                <span className="text-[10px] text-zinc-300 dark:text-slate-500 font-mono">
                   {tasks.filter(t => t.status === 'completed').length}/{tasks.length}
                 </span>
               </div>
@@ -1075,23 +1077,23 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                   >
                     {/* 状态指示器 */}
                     {task.status === 'completed' ? (
-                      <div className="h-1 w-1 rounded-full bg-zinc-300 flex-shrink-0 mt-1.5 transition-all duration-300"></div>
+                      <div className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-slate-500 flex-shrink-0 mt-1.5 transition-all duration-300"></div>
                     ) : task.status === 'running' ? (
                       <div className="relative flex-shrink-0 mt-1.5 w-3 h-3 flex items-center justify-center">
-                        <div className="h-1 w-1 rounded-full bg-zinc-900 relative z-10 animate-pulse"></div>
+                        <div className="h-1 w-1 rounded-full bg-zinc-900 dark:bg-blue-400 relative z-10 animate-pulse"></div>
                       </div>
                     ) : (
-                      <div className="h-1 w-1 rounded-full bg-zinc-200 flex-shrink-0 mt-1.5 transition-all duration-300"></div>
+                      <div className="h-1 w-1 rounded-full bg-zinc-200 dark:bg-slate-600 flex-shrink-0 mt-1.5 transition-all duration-300"></div>
                     )}
 
                     <div className="flex-1 min-w-0 flex items-baseline justify-between gap-2">
                       <p className={`text-[11px] leading-relaxed transition-colors duration-200 ${
-                        task.status === 'running' ? 'text-zinc-700' : 'text-zinc-400'
+                        task.status === 'running' ? 'text-zinc-700 dark:text-slate-200' : 'text-zinc-400 dark:text-slate-500'
                       }`}>
                         {task.description}
                       </p>
                       {task.status === 'completed' && task.elapsed_time !== undefined && (
-                        <span className="text-[10px] text-zinc-300 font-mono flex-shrink-0 animate-[fadeIn_0.3s_ease-in]">
+                        <span className="text-[10px] text-zinc-300 dark:text-slate-500 font-mono flex-shrink-0 animate-[fadeIn_0.3s_ease-in]">
                           {task.elapsed_time.toFixed(1)}s
                         </span>
                       )}
@@ -1101,9 +1103,9 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
               </div>
 
               {/* 进度条 */}
-              <div className="relative h-px bg-zinc-100 overflow-hidden">
+              <div className="relative h-px bg-zinc-100 dark:bg-slate-700 overflow-hidden">
                 <div
-                  className="absolute left-0 top-0 h-full bg-zinc-400 transition-all duration-500 ease-out"
+                  className="absolute left-0 top-0 h-full bg-zinc-400 dark:bg-blue-500 transition-all duration-500 ease-out"
                   style={{ width: `${(tasks.filter(t => t.status === 'completed').length / tasks.length) * 100}%` }}
                 ></div>
               </div>
@@ -1114,11 +1116,11 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         {/* 正在streaming的agent消息 - 显示在todolist之后 */}
         {hasStreamingAgentMessage && streamingVisibleContent && (
           <div className="flex items-start gap-2">
-            <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
+            <div className="h-6 w-6 rounded-full bg-zinc-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
-            <div className="flex-1 max-w-[85%] p-2.5 rounded-lg bg-zinc-50/70 border border-zinc-100">
-              <div style={{ color: 'rgb(113, 113, 122)' }}>
+            <div className="flex-1 max-w-[85%] p-2.5 rounded-lg bg-zinc-50/70 border border-zinc-100 dark:bg-slate-800 dark:border-slate-700">
+              <div className="text-zinc-500 dark:text-slate-300">
                 <MarkdownContent content={streamingVisibleContent} />
               </div>
             </div>
@@ -1128,14 +1130,14 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         {/* 思考状态（无任务时） */}
         {isLoading && tasks.length === 0 && (
           <div className="flex items-start gap-2">
-            <div className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
+            <div className="h-6 w-6 rounded-full bg-zinc-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
-            <div className="flex-1 p-2.5 rounded-lg bg-zinc-50/70 border border-zinc-100">
+            <div className="flex-1 p-2.5 rounded-lg bg-zinc-50/70 border border-zinc-100 dark:bg-slate-800 dark:border-slate-700">
               <div className="flex items-center gap-1.5 h-5">
-                <div className="w-1 h-1 rounded-full bg-zinc-400 animate-[bounce_1.4s_ease-in-out_infinite]"></div>
-                <div className="w-1 h-1 rounded-full bg-zinc-400 animate-[bounce_1.4s_ease-in-out_0.2s_infinite]"></div>
-                <div className="w-1 h-1 rounded-full bg-zinc-400 animate-[bounce_1.4s_ease-in-out_0.4s_infinite]"></div>
+                <div className="w-1 h-1 rounded-full bg-zinc-400 dark:bg-blue-400 animate-[bounce_1.4s_ease-in-out_infinite]"></div>
+                <div className="w-1 h-1 rounded-full bg-zinc-400 dark:bg-blue-400 animate-[bounce_1.4s_ease-in-out_0.2s_infinite]"></div>
+                <div className="w-1 h-1 rounded-full bg-zinc-400 dark:bg-blue-400 animate-[bounce_1.4s_ease-in-out_0.4s_infinite]"></div>
               </div>
             </div>
           </div>
@@ -1147,9 +1149,9 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
             <div className="h-6 w-6 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
-            <div className="flex-1 p-2.5 rounded-lg bg-red-50 border border-red-200">
-              <p className="text-[11px] leading-relaxed text-red-600">
-                ❌ {error}
+            <div className="flex-1 p-2.5 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800">
+              <p className="text-[11px] leading-relaxed text-red-600 dark:text-red-400">
+                {error}
               </p>
             </div>
           </div>
@@ -1167,7 +1169,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
               onClick={() => {
                 setInputValue(action);
               }}
-              className="px-2 py-1 text-[10px] bg-zinc-100 hover:bg-zinc-200 text-zinc-600 rounded transition-colors"
+              className="px-2 py-1 text-[10px] bg-zinc-100 hover:bg-zinc-200 text-zinc-600 rounded transition-colors dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300"
             >
               {action}
             </button>
@@ -1176,21 +1178,21 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       )}
 
       {/* 模式选择 + 输入区（上下分区） */}
-      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-4 py-3 space-y-3 flex-shrink-0">
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-4 py-3 space-y-3 flex-shrink-0 dark:border-slate-700 dark:bg-slate-800">
         <div className="relative">
-          <div className="flex flex-wrap items-start gap-2 w-full min-h-12 px-1 py-2 rounded-xl bg-transparent text-gray-800">
+          <div className="flex flex-wrap items-start gap-2 w-full min-h-12 px-1 py-2 rounded-xl bg-transparent text-gray-800 dark:text-slate-200">
             {/* 胶囊在前，输入在后，保持同一行逻辑 */}
             {selectionContext?.selected_text && (
               <span
-                className="inline-flex items-center gap-2 rounded-xl bg-zinc-50 text-zinc-800 px-3 py-2 text-[11px] border border-zinc-200 shadow-sm"
+                className="inline-flex items-center gap-2 rounded-xl bg-zinc-50 text-zinc-800 px-3 py-2 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
                 style={{ maxWidth: '100%' }}
                 title={selectionContext.selected_text}
               >
-                <Sparkles className="w-3.5 h-3.5 text-zinc-600" />
+                <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
                 <span className="truncate max-w-[240px]">{selectionContext.selected_text}</span>
                 <button
                   type="button"
-                  className="hover:text-zinc-900 transition-colors"
+                  className="hover:text-zinc-900 transition-colors dark:hover:text-slate-100"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={(e) => {
                     e.preventDefault();
@@ -1203,8 +1205,8 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
               </span>
             )}
             {optimizationSelected && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm">
-                <Sparkles className="w-3.5 h-3.5 text-zinc-600" />
+              <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
+                <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
                 optimization
                 <button
                   type="button"
@@ -1223,13 +1225,13 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
             {selectedDocs.map((doc) => (
               <span
                 key={doc.id}
-                className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm"
+                className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
               >
-                <Tag className="w-3.5 h-3.5 text-zinc-600" />
+                <Tag className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
                 {doc.title}
                 <button
                   type="button"
-                  className="hover:text-zinc-900 transition-colors"
+                  className="hover:text-zinc-900 transition-colors dark:hover:text-slate-100"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={(e) => {
                     e.preventDefault();
@@ -1250,7 +1252,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
               onClick={syncAtStateFromRef}
               onFocus={syncAtStateFromRef}
               placeholder="发消息或输入@选择指令..."
-              className="flex-1 min-w-[200px] bg-transparent outline-none border-none text-[12px] placeholder:text-gray-400 resize-none leading-relaxed"
+              className="flex-1 min-w-[200px] bg-transparent outline-none border-none text-[12px] placeholder:text-gray-400 resize-none leading-relaxed dark:text-slate-200 dark:placeholder:text-slate-500"
               disabled={isLoading}
               rows={1}
               wrap="soft"
@@ -1271,7 +1273,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         </div>
 
         {truncatedCount > 0 && (
-          <div className="text-[11px] text-amber-600 px-1">
+          <div className="text-[11px] text-amber-600 px-1 dark:text-amber-400">
             章节内容超过 5000 字，已截断超出的 {truncatedCount} 字发送去痕迹。
           </div>
         )}
@@ -1282,14 +1284,14 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
             onModeChange={setMode}
             disabled={isLoading}
             compact
-            className="bg-white"
+            className="bg-white dark:bg-slate-800"
           />
 
           <div className="flex items-center gap-1.5">
             {isLoading ? (
               <button
                 onClick={handleStop}
-                className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-800 flex items-center justify-center shadow-sm border border-gray-200 transition-colors"
+                className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-800 flex items-center justify-center shadow-sm border border-gray-200 transition-colors dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-200 dark:border-slate-500"
                 aria-label="停止生成"
               >
                 <Square className="w-4 h-4" strokeWidth={2.5} />
@@ -1298,7 +1300,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
               <button
                 onClick={handleSend}
                 disabled={!inputValue.trim()}
-                className="w-10 h-10 rounded-full transition-all flex items-center justify-center bg-gray-900 text-white hover:bg-gray-800 active:scale-95 shadow-sm"
+                className="w-10 h-10 rounded-full transition-all flex items-center justify-center bg-gray-900 text-white hover:bg-gray-800 active:scale-95 shadow-sm dark:bg-blue-600 dark:hover:bg-blue-500"
                 aria-label="发送"
               >
                 <Send className="h-4 w-4" strokeWidth={2.4} />
@@ -1431,7 +1433,6 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     </div>
   );
 }
-
 
 
 
