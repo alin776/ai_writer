@@ -44,6 +44,7 @@ const AuthView: React.FC = () => {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isSendingCode, setIsSendingCode] = useState(false);
   const [successMessage, setSuccessMessage] = useState(registerSuccess?.message || '');
   const loginInFlight = useRef(false);
   const [emailVerificationCountdown, setEmailVerificationCountdown] = useState(0);
@@ -215,7 +216,7 @@ const AuthView: React.FC = () => {
 
     if (emailVerificationCountdown > 0) return;
 
-    setIsLoading(true);
+    setIsSendingCode(true);
     setErrors({});
 
     try {
@@ -241,7 +242,7 @@ const AuthView: React.FC = () => {
       const errorMessage = error?.response?.data?.detail || error?.message || '发送验证码失败';
       setErrors({ email: errorMessage });
     } finally {
-      setIsLoading(false);
+      setIsSendingCode(false);
     }
   };
 
@@ -260,7 +261,7 @@ const AuthView: React.FC = () => {
       return;
     }
 
-    setIsLoading(true);
+    setIsSendingCode(true);
     setErrors({});
 
     try {
@@ -276,7 +277,7 @@ const AuthView: React.FC = () => {
       const errorMessage = error?.response?.data?.detail || error?.message || '验证码错误';
       setErrors({ emailVerificationCode: errorMessage });
     } finally {
-      setIsLoading(false);
+      setIsSendingCode(false);
     }
   };
 
@@ -632,10 +633,10 @@ const AuthView: React.FC = () => {
                       <Button
                         type="button"
                         onClick={handleSendEmailVerification}
-                        disabled={!registerForm.email || emailVerificationCountdown > 0 || isLoading}
+                        disabled={!registerForm.email || emailVerificationCountdown > 0 || isSendingCode}
                         className="h-11 px-6 whitespace-nowrap bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all duration-200"
                       >
-                        {emailVerificationCountdown > 0 ? `${emailVerificationCountdown}秒` : '发送验证码'}
+                        {emailVerificationCountdown > 0 ? `${emailVerificationCountdown}秒` : (isSendingCode ? '发送中...' : '发送验证码')}
                       </Button>
                     ) : (
                       <div className="h-11 px-6 flex items-center bg-green-50 border border-green-200 rounded-md text-green-700 text-sm whitespace-nowrap">
