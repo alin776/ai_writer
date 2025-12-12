@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     """应用配置"""
     
     # 应用配置
-    APP_NAME: str = "NovelAIde"
+    APP_NAME: str = "文枢AI"
     APP_VERSION: str = "1.0.0"
     API_V1_PREFIX: str = "/api/v1"
     DEBUG: bool = False
