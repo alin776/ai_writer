@@ -795,3 +795,33 @@ textarea:focus-visible {
 .scrollbar-hide::-webkit-scrollbar {
   display: none; /* Chrome, Safari and Opera */
 }
+
+/**
+ * 主题切换动画 - View Transitions API
+ * 从按钮位置向外圆形扩散的效果
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  mix-blend-mode: normal;
+}
+
+/* 旧视图在下层，无动画 */
+::view-transition-old(root) {
+  z-index: 1;
+  animation: none;
+}
+
+/* 新视图在上层，圆形扩散动画 */
+::view-transition-new(root) {
+  z-index: 9999;
+  animation: theme-transition-reveal 400ms ease-out;
+}
+
+@keyframes theme-transition-reveal {
+  from {
+    clip-path: circle(0px at var(--theme-toggle-x, 50%) var(--theme-toggle-y, 50%));
+  }
+  to {
+    clip-path: circle(var(--theme-toggle-radius, 100vmax) at var(--theme-toggle-x, 50%) var(--theme-toggle-y, 50%));
+  }
+}

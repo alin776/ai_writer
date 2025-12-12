@@ -22,6 +22,7 @@ import Button from '@/components/common/Button';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
 import { useNotificationStore } from '@/store/notificationStore';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
+import ThemeToggle from '@/components/common/ThemeToggle';
 
 const Header: React.FC = () => {
   const { user, logout } = useAuthStore();
@@ -152,6 +153,9 @@ const Header: React.FC = () => {
               </>
             )}
           </div>
+
+          {/* 主题切换按钮 */}
+          <ThemeToggle />
 
           {/* 分隔线 */}
           <div className="h-4 w-px bg-gray-200 dark:bg-slate-700 mx-1"></div>
