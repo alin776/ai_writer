@@ -573,7 +573,7 @@ const SettingsView: React.FC = () => {
             暂无其他登录设备
           </div>
         ) : (
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 space-y-3 max-h-[400px] overflow-y-auto pr-2">
             {sessions.map((session) => (
               <div
                 key={session.id}
