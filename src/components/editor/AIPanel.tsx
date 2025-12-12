@@ -964,7 +964,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     <div className="p-3 h-full flex flex-col overflow-hidden dark:bg-slate-900">
       <div
         ref={messagesContainerRef}
-        className="flex-1 min-h-0 mb-3 space-y-2.5 overflow-y-auto overflow-x-hidden custom-scrollbar bg-white"
+        className="flex-1 min-h-0 mb-3 space-y-2.5 overflow-y-auto overflow-x-hidden custom-scrollbar bg-white dark:bg-slate-900"
       >
         {/* 欢迎消息 */}
         {messages.length === 0 && (
@@ -1165,11 +1165,9 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
             <div className="flex-1">
-              <div className="flex items-center gap-1.5 h-5">
-                <div className="w-1 h-1 rounded-full bg-zinc-400 dark:bg-blue-400 animate-[bounce_1.4s_ease-in-out_infinite]"></div>
-                <div className="w-1 h-1 rounded-full bg-zinc-400 dark:bg-blue-400 animate-[bounce_1.4s_ease-in-out_0.2s_infinite]"></div>
-                <div className="w-1 h-1 rounded-full bg-zinc-400 dark:bg-blue-400 animate-[bounce_1.4s_ease-in-out_0.4s_infinite]"></div>
-              </div>
+              <span className="text-[12px] text-zinc-400 dark:text-slate-400 animate-[pulse_2s_ease-in-out_infinite]">
+                Thinking...
+              </span>
             </div>
           </div>
         )}
