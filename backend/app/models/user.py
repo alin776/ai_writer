@@ -50,6 +50,7 @@ class User(Base):
         cascade="all, delete-orphan"
     )
     knowledge_items = relationship("KnowledgeItem", back_populates="user", cascade="all, delete-orphan")
+    user_tasks = relationship("UserTask", back_populates="user", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<User {self.username}>"

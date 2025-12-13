@@ -43,6 +43,7 @@ from app.models.notification import (
     NotificationStatus,
     TargetUserType,
 )
+from app.models.user_task import TaskTemplate, UserTask
 
 __all__ = [
     "User",
@@ -108,4 +109,6 @@ __all__ = [
     "NotificationPriority",
     "NotificationStatus",
     "TargetUserType",
+    "TaskTemplate",
+    "UserTask",
 ]

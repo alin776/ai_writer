@@ -1,4 +1,4 @@
-import { Calendar, MapPin, ArrowRight } from 'lucide-react';
+import { Calendar, MapPin, ArrowRight, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ImageWithFallback } from './ImageWithFallback';
 
@@ -42,7 +42,7 @@ export function CompactActivity({ activity }: CompactActivityProps) {
         </div>
         <div className="absolute top-3 right-3">
           <div className="w-7 h-7 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center shadow-sm">
-            <span className="text-xs text-gray-600 dark:text-gray-400">{activity.id}</span>
+            <Sparkles className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
           </div>
         </div>
       </div>

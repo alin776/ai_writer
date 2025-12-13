@@ -24,6 +24,7 @@ from app.api.v1 import (
     admin_credits,
     admin_invitations,
     notifications,
+    user_tasks,
 )
 from app.api.v1.endpoints import books
 from app.api.v1 import export as export_routes
@@ -60,9 +61,10 @@ api_router.include_router(export_routes.router, tags=["export"])
 api_router.include_router(import_routes.router, tags=["import"])
 api_router.include_router(ai_logs.router)
 
-# 积分 / 邀请 / 通知系统路由
+# 积分 / 邀请 / 通知 / 任务系统路由
 api_router.include_router(credits.router, prefix="/credits", tags=["credits"])
 api_router.include_router(invitations.router, prefix="/invitations", tags=["invitations"])
 api_router.include_router(admin_credits.router, prefix="/admin/credits", tags=["admin-credits"])
 api_router.include_router(admin_invitations.router, prefix="/admin/invitations", tags=["admin-invitations"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
+api_router.include_router(user_tasks.router, prefix="/tasks", tags=["tasks"])

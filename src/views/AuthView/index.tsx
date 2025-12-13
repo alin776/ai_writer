@@ -19,11 +19,18 @@ const api = new ApiAdapter();
 const AuthView: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, isAuthenticated } = useAuthStore();
+  const { login, isAuthenticated, hasHydrated } = useAuthStore();
   const useMock = import.meta.env.VITE_USE_MOCK === 'true';
 
   // 获取注册页面传递的状态
   const registerSuccess = location.state as { message?: string; username?: string } | null;
+
+  // 如果用户已登录，自动跳转到作品页面
+  useEffect(() => {
+    if (hasHydrated && isAuthenticated) {
+      navigate('/works', { replace: true });
+    }
+  }, [hasHydrated, isAuthenticated, navigate]);
 
   // 默认 Tab，如果来自注册成功则显示登录
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');

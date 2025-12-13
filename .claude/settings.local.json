@@ -35,7 +35,12 @@
       "Bash(../venv/Scripts/alembic.exe heads:*)",
       "Bash(..venvScriptsalembic.exe heads)",
       "Bash(python -c \"import os; os.system(''taskkill /F /PID 24772'')\")",
-      "Bash(python -c \"import os; os.system(''taskkill /F /PID 39476'')\")"
+      "Bash(python -c \"import os; os.system(''taskkill /F /PID 39476'')\")",
+      "Bash(where:*)",
+      "Bash(venv/Scripts/python.exe -m alembic:*)",
+      "Bash(venv/Scripts/python.exe:*)",
+      "Bash(python:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
