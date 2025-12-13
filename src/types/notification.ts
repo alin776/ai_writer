@@ -90,6 +90,10 @@ export interface NotificationBase {
   publishedAt?: string;
   validFrom?: string;
   validUntil?: string;
+
+  // 活动相关字段（仅当 type 为 EVENT 时使用）
+  activity_type?: string;   // 活动类型：invitation, competition, points 等
+  activity_rules?: any;     // 活动规则，根据 activity_type 不同而不同
 }
 
 /**
@@ -120,6 +124,11 @@ export interface Notification extends NotificationBase {
 }
 
 /**
+ * 通知响应（别名，用于管理后台）
+ */
+export type NotificationResponse = Notification;
+
+/**
  * 创建通知请求
  */
 export interface CreateNotificationRequest {
@@ -145,6 +154,10 @@ export interface CreateNotificationRequest {
 
   allowDismiss?: boolean;
   showOnce?: boolean;
+
+  // 活动相关字段
+  activity_type?: string;
+  activity_rules?: any;
 }
 
 /**
@@ -166,6 +179,10 @@ export interface UpdateNotificationRequest {
   allowDismiss?: boolean;
   showOnce?: boolean;
   status?: NotificationStatus;
+
+  // 活动相关字段
+  activity_type?: string;
+  activity_rules?: any;
 }
 
 /**

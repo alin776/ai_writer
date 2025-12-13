@@ -36,8 +36,12 @@ import { TxtExportService, type TxtExportResult } from '../../services/TxtExport
 import { useGlobalStore } from '../../store/globalStore';
 import { useConfirm } from '../../hooks/useConfirm';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
+import { ActivityModal } from '../../components/notifications/ActivityModal';
+import { getUserNotifications, markNotificationsAsRead } from '../../services/notificationApi';
+import { NotificationType } from '../../types/notification';
 import type { Work, WorkStatus, WorkGenre, WorkSummary } from '../../types';
 import type { ImportOptions, ImportPreviewResponse } from '../../types/export';
+import type { UserNotification } from '../../types/notification';
 
 // 默认封面路径
 const DEFAULT_COVER_IMAGE = '/default-cover.jpg';
@@ -89,10 +93,68 @@ const WorksView: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
+  // 活动/公告弹窗状态
+  const [activityNotification, setActivityNotification] = useState<UserNotification | null>(null);
+  const [showActivityModal, setShowActivityModal] = useState(false);
+
+
   // 加载作品列表
   useEffect(() => {
     loadWorks();
   }, []);
+
+  // 检查并显示活动/公告弹窗（仅在登录后首次进入时）
+  useEffect(() => {
+    checkForActivityNotifications();
+  }, []);
+
+  const checkForActivityNotifications = async () => {
+    try {
+      // 检查本次会话是否已经显示过弹窗
+      const hasShownModal = sessionStorage.getItem('activity_modal_shown');
+
+      // 如果本次会话已经显示过，直接返回
+      if (hasShownModal === 'true') {
+        return;
+      }
+
+      // 获取用户的通知列表
+      const response = await getUserNotifications({
+        page: 1,
+        pageSize: 10
+      });
+
+      // 筛选出需要弹窗显示的通知：
+      // 1. 未读的
+      // 2. 类型是活动或公告
+      // 3. displayType 包含 'modal'
+      const modalNotifications = response.items.filter(n =>
+        !n.isRead &&
+        (n.type === NotificationType.EVENT || n.type === NotificationType.ANNOUNCEMENT) &&
+        n.displayType.includes('modal')
+      );
+
+      // 如果有需要显示的通知，显示第一个
+      if (modalNotifications.length > 0) {
+        const notification = modalNotifications[0];
+        setActivityNotification(notification);
+        setShowActivityModal(true);
+
+        // 标记本次会话已显示弹窗
+        sessionStorage.setItem('activity_modal_shown', 'true');
+
+        // 标记为已读
+        await markNotificationsAsRead({ notificationIds: [notification.id] });
+      }
+    } catch (error) {
+      console.error('检查活动通知失败:', error);
+    }
+  };
+
+  const handleCloseActivityModal = () => {
+    setShowActivityModal(false);
+    setActivityNotification(null);
+  };
 
   const loadWorks = async () => {
     try {
@@ -1180,6 +1242,14 @@ const WorksView: React.FC = () => {
         onConfirm={confirmState.onConfirm}
         onCancel={closeConfirm}
       />
+
+      {/* 活动/公告弹窗 */}
+      {showActivityModal && activityNotification && (
+        <ActivityModal
+          notification={activityNotification}
+          onClose={handleCloseActivityModal}
+        />
+      )}
     </div>
   );
 };
