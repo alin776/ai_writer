@@ -19,7 +19,7 @@ Prompt 缓存模块 - Phase 2.6
 from app.core.cache import cache_review
 
 # Prompt 版本号 - 修改 Prompt 时请更新此版本号
-PROMPT_VERSION = "v2.10.0"  # 2025-12-13: 优化反思机制 - 减少checkpoint标记，放宽重规划判断
+PROMPT_VERSION = "v2.11.0"  # 2025-12-13: 添加checkpoint示例，明确展示如何标记checkpoint: false
 
 
 # ════════════════════════════════════════════════════════════════
@@ -436,7 +436,8 @@ _AGENT_MODE_CHECKPOINT_SECTION = """
 - 需要用户确认才能继续的决策点（极少情况）
 
 ✅ 不需要 checkpoint 的情况（占大多数）：
-- 简单的读取/搜索任务（read_chapter_tool, get_context_tool, search等）- 单步就能完成的任务（分析、摘要、问答）
+- 简单的读取/搜索任务（read_chapter_tool, get_context_tool, search等）
+- 单步就能完成的任务（分析、摘要、问答）
 - 常规的改写/续写任务（smart_rewrite, continue_writing_tool）
 - 已经是最后一个任务
 
@@ -447,6 +448,46 @@ _AGENT_MODE_CHECKPOINT_SECTION = """
 - 6+个任务：最多2个checkpoint（均匀分布）
 
 **记住：checkpoint越少，执行越快，用户体验越好！默认不标记，只在真正需要时才标记。**
+
+## 📝 Agent 模式示例（必须包含 checkpoint 字段）
+
+示例1 - 简单查询（无checkpoint）：
+用户: "叶凡是什么体质？"
+{
+  "thinking": {"step1_output": "描述体质", "step2_material": "搜索相关内容", "step3_process": "总结"},
+  "user_intent": "查询叶凡体质",
+  "tasks": [
+    {"task_id": 1, "description": "搜索叶凡体质", "tool": "search_analysis_fragments_tool",
+     "params": {"query": "叶凡的体质"}, "checkpoint": false},
+    {"task_id": 2, "description": "总结体质特点", "tool": "analyze_text_tool",
+     "params": {"text": "$TASK_1$", "focus": "总结体质特点"}, "checkpoint": false}
+  ]
+}
+
+示例2 - 多章节分析（设1个checkpoint）：
+用户: "分析前5章的情节发展"
+{
+  "thinking": {"step1_output": "分析报告", "step2_material": "5个章节内容", "step3_process": "逐章分析再汇总"},
+  "user_intent": "分析前5章情节",
+  "tasks": [
+    {"task_id": 1, "description": "读取第1章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 1}, "checkpoint": false},
+    {"task_id": 2, "description": "读取第2章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}, "checkpoint": false},
+    {"task_id": 3, "description": "分析前2章", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$\\n$TASK_2.content$", "focus": "分析情节"}, "checkpoint": true},
+    {"task_id": 4, "description": "读取第3-5章", "tool": "read_chapter_tool", "params": {"chapter_id": "..."}, "checkpoint": false},
+    {"task_id": 5, "description": "汇总分析", "tool": "analyze_text_tool", "params": {"text": "$TASK_3$\\n$TASK_4$", "focus": "汇总"}, "checkpoint": false}
+  ]
+}
+
+示例3 - 单任务（无checkpoint）：
+用户: "第3章讲了什么"
+{
+  "thinking": {"step1_output": "概括", "step2_material": "第3章", "step3_process": "读取并概括"},
+  "user_intent": "概括第3章",
+  "tasks": [
+    {"task_id": 1, "description": "获取第3章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 3}, "checkpoint": false},
+    {"task_id": 2, "description": "概括内容", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$", "focus": "概括"}, "checkpoint": false}
+  ]
+}
 
 """
 
