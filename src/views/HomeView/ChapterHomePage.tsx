@@ -142,7 +142,7 @@ export default function ChapterHomePage({ onNavigateToAuth, onNavigateToSubscrip
               ease: "easeInOut"
             }}
           >
-            <BookOpen className="w-8 h-8 text-black" />
+            <img src="/logo-icon.svg" alt="文枢AI" className="w-8 h-8" />
           </motion.div>
           <motion.p
             className="text-white text-sm tracking-widest"
@@ -171,19 +171,23 @@ export default function ChapterHomePage({ onNavigateToAuth, onNavigateToSubscrip
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
               <motion.div
-                className="w-7 h-7 rounded flex items-center justify-center"
+                className="w-12 h-12 rounded-lg flex items-center justify-center"
                 animate={{
                   backgroundColor: isDarkBackground ? '#ffffff' : '#000000',
                 }}
                 transition={{ duration: 0.5 }}
               >
-                <BookOpen
-                  className="w-3.5 h-3.5"
-                  style={{ color: isDarkBackground ? '#000000' : '#ffffff' }}
+                <img
+                  src="/logo-icon.svg"
+                  alt="文枢AI"
+                  className="w-9 h-9"
+                  style={{
+                    filter: isDarkBackground ? 'none' : 'brightness(0) invert(1)'
+                  }}
                 />
               </motion.div>
               <motion.span
-                className="text-xs tracking-wider"
+                className="text-base tracking-wider font-medium"
                 animate={{
                   color: isDarkBackground ? '#ffffff' : '#000000',
                 }}
@@ -208,7 +212,7 @@ export default function ChapterHomePage({ onNavigateToAuth, onNavigateToSubscrip
                       onNavigateToContact();
                     }
                   }}
-                  className="text-xs tracking-wide transition-colors"
+                  className="text-sm tracking-wide transition-colors"
                   animate={{
                     color: isDarkBackground ? '#ffffff' : '#000000',
                   }}
@@ -504,7 +508,7 @@ function Chapter2({ isActive, mouseX, mouseY }: { isActive: boolean; mouseX: any
                   <Target className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg mb-2">灵感枯竭</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">灵感枯竭</h3>
                   <p className="text-sm text-gray-600">AI 帮你打破思维定式，提供多角度创作建议</p>
                 </div>
               </div>
@@ -521,7 +525,7 @@ function Chapter2({ isActive, mouseX, mouseY }: { isActive: boolean; mouseX: any
                   <Shield className="w-6 h-6 text-gray-900" />
                 </div>
                 <div>
-                  <h3 className="text-lg mb-2">细节遗漏</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">细节遗漏</h3>
                   <p className="text-sm text-gray-600">智能管理角色设定和世界观，确保前后一致</p>
                 </div>
               </div>
@@ -538,7 +542,7 @@ function Chapter2({ isActive, mouseX, mouseY }: { isActive: boolean; mouseX: any
                   <Pencil className="w-6 h-6 text-gray-900" />
                 </div>
                 <div>
-                  <h3 className="text-lg mb-2">文字打磨</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">文字打磨</h3>
                   <p className="text-sm text-gray-600">实时纠错和优化建议，让表达更精准</p>
                 </div>
               </div>
@@ -723,7 +727,7 @@ function RippleButton({ onClick, isDark, children }: { onClick: () => void; isDa
   return (
     <motion.button
       onClick={handleClick}
-      className={`relative overflow-hidden h-9 px-5 text-xs border rounded transition-all duration-300 ${
+      className={`relative overflow-hidden h-10 px-6 text-sm font-medium border rounded transition-all duration-300 ${
         isDark
           ? 'border-white text-white hover:bg-white hover:text-black'
           : 'border-black text-black hover:bg-black hover:text-white'

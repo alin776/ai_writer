@@ -415,7 +415,7 @@ const AuthView: React.FC = () => {
           {/* Logo */}
           <div className="flex items-center gap-3 animate-fade-in">
             <div className="w-12 h-12 bg-black/30 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/20 shadow-lg">
-              <img src="/logo.svg" alt="文枢AI" style={{ width: '48px', height: '48px', filter: 'brightness(0) invert(1)' }} />
+              <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '48px', height: '48px', filter: 'brightness(0) invert(1)' }} />
             </div>
             <span className="text-white tracking-wide drop-shadow-lg">文枢AI</span>
           </div>
@@ -468,7 +468,7 @@ const AuthView: React.FC = () => {
           {/* 移动端Logo */}
           <div className="lg:hidden flex items-center gap-3 mb-8">
             <div className="w-12 h-12 bg-gray-900 rounded-xl flex items-center justify-center">
-              <img src="/logo.svg" alt="文枢AI" style={{ width: '48px', height: '48px', filter: 'brightness(0) invert(1)' }} />
+              <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '48px', height: '48px', filter: 'brightness(0) invert(1)' }} />
             </div>
             <span className="text-gray-800 tracking-wide">文枢AI</span>
           </div>
