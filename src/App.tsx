@@ -4,6 +4,7 @@ import { router } from './router';
 import Toast from './components/common/Toast';
 import { useAuthStore } from './store/authStore';
 import { useTheme } from './hooks/useTheme';
+import { useTokenExpiryWarning } from './hooks/useTokenExpiryWarning';
 
 const LoadingFallback: React.FC = () => (
   <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
@@ -21,6 +22,9 @@ const App: React.FC = () => {
   const { user } = useAuthStore();
   const userTheme = user?.preferences?.theme;
   const { applyTheme } = useTheme(userTheme);
+
+  // 启用 token 过期提醒
+  useTokenExpiryWarning();
 
   useEffect(() => {
     if (userTheme) {

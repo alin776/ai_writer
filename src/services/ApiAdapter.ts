@@ -199,13 +199,28 @@ export class ApiAdapter implements IDataAdapter {
         const data: any = (response as any)?.data ?? response;
         const newAccessToken = data?.accessToken || data?.access_token;
         const newRefreshToken = data?.refreshToken || data?.refresh_token || refreshToken;
+        const expiresAt = data?.expiresAt;
+        const refreshExpiresAt = data?.refreshExpiresAt;
 
         if (!newAccessToken) {
           return null;
         }
 
-        setToken(newAccessToken);
-        setRefreshToken(newRefreshToken);
+        // 转换为毫秒时间戳
+        const tokenExpiresAt = expiresAt ? expiresAt * 1000 : null;
+        const refreshTokenExpiresAt = refreshExpiresAt ? refreshExpiresAt * 1000 : null;
+
+        // 通过 login 方法更新完整状态（包含 token 和过期时间）
+        const { user, login } = useAuthStore.getState();
+        if (user) {
+          login(user, newAccessToken, newRefreshToken, tokenExpiresAt, refreshTokenExpiresAt);
+        } else {
+          // 如果 user 为 null（不太可能发生），降级到只更新 token
+          const { setToken, setRefreshToken } = useAuthStore.getState();
+          setToken(newAccessToken);
+          setRefreshToken(newRefreshToken);
+        }
+
         return newAccessToken;
       } catch (error) {
         console.error('[ApiAdapter] Failed to refresh token:', error);
@@ -286,23 +301,8 @@ export class ApiAdapter implements IDataAdapter {
   async post<T>(url: string, data?: any): Promise<T> {
     console.log('[ApiAdapter.post] URL:', url);
     console.log('[ApiAdapter.post] 请求数据:', data);
-    
-    // 特殊处理登录接口，使�?FormData
-    if (url === '/auth/login') {
-      const formData = new URLSearchParams();
-      formData.append('username', data.username);
-      formData.append('password', data.password);
-      
-      // 响应拦截器已经处理了 camelCase 转换
-      const response = await this.axiosInstance.post(url, formData, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      });
-      return (response as any)?.data ?? (response as any as T);
-    }
 
-    // FormData 直接透传，避免键名转换破�?multipart 结构
+    // FormData 直接透传，避免键名转换破坏 multipart 结构
     if (data instanceof FormData) {
       const response = await this.axiosInstance.post(url, data, {
         headers: {
@@ -311,15 +311,15 @@ export class ApiAdapter implements IDataAdapter {
       });
       return (response as any)?.data ?? (response as any as T);
     }
-    
-    // 将请求体�?camelCase 转换�?snake_case
+
+    // 将请求体从 camelCase 转换为 snake_case
     const snakeCaseData = this.convertKeysToSnakeCase(data);
     console.log('[ApiAdapter.post] 转换后的数据 (snake_case):', snakeCaseData);
-    
-    // 响应拦截器已经处理了 camelCase 转换，直接返�?
+
+    // 响应拦截器已经处理了 camelCase 转换，直接返回
     const response = await this.axiosInstance.post(url, snakeCaseData);
     console.log('[ApiAdapter.post] 收到响应 (已转camelCase):', response);
-    
+
     return (response as any)?.data ?? (response as any as T);
   }
 

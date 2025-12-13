@@ -4,14 +4,24 @@ from sqlalchemy.exc import IntegrityError
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
+from datetime import datetime, timedelta
 
 from app.core.database import get_db
 from app.core.security import create_access_token, create_refresh_token
+from app.core.config import settings
 from app.schemas.user import UserCreate, UserResponse, Token, AuthResponse
 from app.services.user_service import UserService
 from app.utils.device_parser import parse_user_agent, get_client_ip
+from app.utils.datetime_utils import get_utc_now
 
 router = APIRouter()
+
+
+class LoginRequest(BaseModel):
+    """登录请求"""
+    username: str
+    password: str
+    remember_me: bool = False  # 记住我选项
 
 
 class RefreshTokenRequest(BaseModel):
@@ -177,7 +187,7 @@ async def register(
 @router.post("/login", response_model=Token)
 async def login(
     request: Request,
-    form_data: OAuth2PasswordRequestForm = Depends(),
+    login_data: LoginRequest,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -185,6 +195,9 @@ async def login(
 
     - **username**: 用户名或邮箱
     - **password**: 密码
+    - **remember_me**: 记住我（可选，默认 false）
+      - true: refreshToken 有效期 30 天
+      - false: refreshToken 有效期 7 天
 
     返回 JWT Token
 
@@ -195,7 +208,7 @@ async def login(
 
     from app.services.login_rate_limit_service import get_login_rate_limit_service
 
-    logger.info(f"[LOGIN] 尝试登录: {form_data.username}")
+    logger.info(f"[LOGIN] 尝试登录: {login_data.username} (记住我: {login_data.remember_me})")
 
     # 获取客户端 IP
     ip_address = get_client_ip(request)
@@ -203,10 +216,10 @@ async def login(
     # 检查是否被限流
     rate_limit_service = await get_login_rate_limit_service()
     allowed, error_msg = await rate_limit_service.check_rate_limit(
-        form_data.username, ip_address
+        login_data.username, ip_address
     )
     if not allowed:
-        logger.warning(f"[LOGIN] 登录被限流: {form_data.username} ({ip_address}) - {error_msg}")
+        logger.warning(f"[LOGIN] 登录被限流: {login_data.username} ({ip_address}) - {error_msg}")
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=error_msg
@@ -215,22 +228,22 @@ async def login(
     user_service = UserService(db)
 
     user = await user_service.authenticate_user(
-        form_data.username,
-        form_data.password
+        login_data.username,
+        login_data.password
     )
 
     if not user:
         # 记录失败尝试
         remaining, locked = await rate_limit_service.record_failed_attempt(
-            form_data.username, ip_address
+            login_data.username, ip_address
         )
         if locked:
-            logger.warning(f"[LOGIN] 账户已被锁定: {form_data.username} ({ip_address})")
+            logger.warning(f"[LOGIN] 账户已被锁定: {login_data.username} ({ip_address})")
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="登录失败次数过多，账户已被锁定15分钟"
             )
-        logger.warning(f"[LOGIN] 登录失败: {form_data.username} - 用户名或密码错误，剩余 {remaining} 次尝试")
+        logger.warning(f"[LOGIN] 登录失败: {login_data.username} - 用户名或密码错误，剩余 {remaining} 次尝试")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"用户名或密码错误，还剩 {remaining} 次尝试机会",
@@ -238,18 +251,26 @@ async def login(
         )
 
     if not user.is_active:
-        logger.warning(f"[LOGIN] 登录失败: {form_data.username} - 账户已禁用")
+        logger.warning(f"[LOGIN] 登录失败: {login_data.username} - 账户已禁用")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive"
         )
 
     # 登录成功，清除失败记录
-    await rate_limit_service.clear_failed_attempts(form_data.username, ip_address)
+    await rate_limit_service.clear_failed_attempts(login_data.username, ip_address)
 
     # 创建访问令牌和刷新令牌
     access_token = create_access_token(data={"sub": str(user.id)})
-    refresh_token = create_refresh_token(data={"sub": str(user.id)})
+
+    # 根据 remember_me 参数设置不同的 refreshToken 有效期
+    refresh_token_days = 30 if login_data.remember_me else 7
+    refresh_token = create_refresh_token(
+        data={"sub": str(user.id)},
+        expires_days=refresh_token_days
+    )
+
+    logger.info(f"[LOGIN] 登录成功: {login_data.username} (refreshToken 有效期: {refresh_token_days}天)")
 
     # 解析设备信息
     user_agent = request.headers.get("user-agent", "")
@@ -276,10 +297,17 @@ async def login(
 
     await db.commit()
 
+    # 计算过期时间戳（Unix 时间戳，秒）
+    now = get_utc_now()
+    token_expires_at = int((now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)).timestamp())
+    refresh_token_expires_at = int((now + timedelta(days=refresh_token_days)).timestamp())
+
     return Token(
         access_token=access_token,
         refresh_token=refresh_token,
-        token_type="bearer"
+        token_type="bearer",
+        expires_at=token_expires_at,
+        refresh_expires_at=refresh_token_expires_at
     )
 
 
@@ -315,11 +343,18 @@ async def refresh_token(
         # 创建新的访问令牌
         access_token = create_access_token(data={"sub": user_id})
         new_refresh_token = create_refresh_token(data={"sub": user_id})
-        
+
+        # 计算过期时间戳
+        now = get_utc_now()
+        token_expires_at = int((now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)).timestamp())
+        refresh_token_expires_at = int((now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)).timestamp())
+
         return Token(
             access_token=access_token,
             refresh_token=new_refresh_token,
-            token_type="bearer"
+            token_type="bearer",
+            expires_at=token_expires_at,
+            refresh_expires_at=refresh_token_expires_at
         )
     except Exception:
         raise HTTPException(

@@ -82,6 +82,7 @@ export interface UserSession {
 export interface LoginCredentials {
   username: string;
   password: string;
+  remember_me?: boolean;  // 记住我选项（可选）
 }
 
 /**
@@ -102,8 +103,10 @@ export interface RegisterData {
  */
 export interface TokenResponse {
   accessToken: string;  // 后端: access_token
-  refreshToken?: string; // 后端: refresh_token
-  tokenType: string;     // 后端: token_type
+  refreshToken: string;  // 后端: refresh_token
+  tokenType: string;  // 后端: token_type
+  expiresAt?: number;  // 后端: expires_at (access token 过期时间戳，秒)
+  refreshExpiresAt?: number;  // 后端: refresh_expires_at (refresh token 过期时间戳，秒)
 }
 
 /**

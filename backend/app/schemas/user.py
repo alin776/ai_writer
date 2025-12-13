@@ -144,6 +144,8 @@ class Token(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+    expires_at: Optional[int] = None  # access token 过期时间戳（秒）
+    refresh_expires_at: Optional[int] = None  # refresh token 过期时间戳（秒）
 
 
 class AuthResponse(BaseModel):

@@ -30,7 +30,8 @@ const AuthView: React.FC = () => {
 
   const [loginForm, setLoginForm] = useState({
     username: registerSuccess?.username || '',
-    password: ''
+    password: '',
+    rememberMe: false
   });
 
   const [registerForm, setRegisterForm] = useState({
@@ -111,7 +112,13 @@ const AuthView: React.FC = () => {
           (tokenResponse as any)?.refreshToken ||
           (tokenResponse as any)?.refresh_token ||
           null;
-        login(user, token, refreshToken);
+        const expiresAt = (tokenResponse as any)?.expiresAt;
+        const refreshExpiresAt = (tokenResponse as any)?.refreshExpiresAt;
+
+        const tokenExpiresAt = expiresAt ? expiresAt * 1000 : null;
+        const refreshTokenExpiresAt = refreshExpiresAt ? refreshExpiresAt * 1000 : null;
+
+        login(user, token, refreshToken, tokenExpiresAt, refreshTokenExpiresAt);
         navigate('/works', { replace: true });
       } catch (error) {
         console.error('[AuthView] Mock 自动登录失败', error);
@@ -300,6 +307,7 @@ const AuthView: React.FC = () => {
       const tokenResponse = await DataService.login({
         username: loginForm.username,
         password: loginForm.password,
+        remember_me: loginForm.rememberMe,
       });
 
       console.log('[AuthView] Token response:', tokenResponse);
@@ -312,19 +320,26 @@ const AuthView: React.FC = () => {
         (tokenResponse as any)?.refreshToken ||
         (tokenResponse as any)?.refresh_token ||
         null;
+      const expiresAt = (tokenResponse as any)?.expiresAt;
+      const refreshExpiresAt = (tokenResponse as any)?.refreshExpiresAt;
+
       if (!accessToken) {
         throw new Error('Missing access token');
       }
 
+      // 转换为毫秒时间戳
+      const tokenExpiresAt = expiresAt ? expiresAt * 1000 : null;
+      const refreshTokenExpiresAt = refreshExpiresAt ? refreshExpiresAt * 1000 : null;
+
       // 登录成功 - authStore 会自动持久化 token
-      login(null as any, accessToken, refreshToken);  // 先存token，再获取用户信息
+      login(null as any, accessToken, refreshToken, tokenExpiresAt, refreshTokenExpiresAt);  // 先存token，再获取用户信息
 
       // 第二步：获取用户信息
       const user = await DataService.getCurrentUser();
       console.log('[AuthView] User info:', user);
 
       // 更新用户信息
-      login(user, accessToken, refreshToken);
+      login(user, accessToken, refreshToken, tokenExpiresAt, refreshTokenExpiresAt);
       navigate('/works');
     } catch (error: any) {
       const errorMessage = error?.response?.data?.detail || error?.message || '登录失败，请检查用户名和密码';
@@ -357,7 +372,7 @@ const AuthView: React.FC = () => {
 
       // 注册成功，切换到登录 Tab 并显示成功消息
       setSuccessMessage('注册成功！请使用您的账号登录。');
-      setLoginForm({ username: registerForm.username, password: '' });
+      setLoginForm({ username: registerForm.username, password: '', rememberMe: false });
       setActiveTab('login');
 
       // 清空注册表单
@@ -550,10 +565,12 @@ const AuthView: React.FC = () => {
                   <input
                     id="remember-me"
                     type="checkbox"
+                    checked={loginForm.rememberMe}
+                    onChange={(e) => setLoginForm({ ...loginForm, rememberMe: e.target.checked })}
                     className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900 cursor-pointer"
                   />
                   <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 cursor-pointer">
-                    记住登录状态
+                    记住登录状态（30天）
                   </label>
                 </div>
 
