@@ -6,6 +6,10 @@
 - 反思触发机制改为基于 AI 标记的 checkpoint 字段
 - 移除了基于关键词的触发条件（不够准确）
 - 保留任务失败时的兜底反思
+
+🔧 2025-12-13: 性能优化
+- 添加 NON_CRITICAL_TOOLS 配置，定义不需要重规划的工具
+- 减少不必要的反思和重规划，降低Token消耗
 """
 
 # 🔧 2025-12-08: 移除了 List 导入（不再需要 REPLAN_KEYWORDS）
@@ -53,3 +57,20 @@ class DeepAgentConfig:
     # 🔧 2025-12-08: 移除 REPLAN_KEYWORDS 硬编码
     # 现在使用标记式输出格式：AI 在反思第一行输出 REPLAN:YES 或 REPLAN:NO
     # 解析逻辑在 reflection.py 的 _parse_reflection_response() 中
+
+    # ════════════════════════════════════════════════════════════════
+    # 🔧 2025-12-13: 非关键工具配置（性能优化）
+    # ════════════════════════════════════════════════════════════════
+    # 这些工具即使反思认为needs_replan=true，也会被执行器跳过重规划
+    # 原因：这些都是输入/分析类工具，完成后通常有后续任务处理输出
+    NON_CRITICAL_TOOLS: set = {
+        # 输入类工具（获取数据）
+        "get_context_tool",              # 获取作品上下文
+        "search_analysis_fragments_tool", # 检索章节片段
+        "read_chapter_tool",             # 读取章节内容
+        "get_chapter_by_order_tool",     # 按序号获取章节
+        # 常规分析类工具（分析结果不完美也可接受）
+        "analyze_text_tool",             # 文本分析
+        # 注：不包含写作类工具（continue_writing_tool, smart_rewrite等）
+        # 因为写作质量可能真的需要重规划
+    }

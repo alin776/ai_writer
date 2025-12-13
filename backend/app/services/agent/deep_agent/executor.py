@@ -163,25 +163,26 @@ class DeepAgentExecutor:
                     acceptance=acceptance,
                 )
 
-            # ? P3-1修复: 前置检索/上下文任务的反思不应触发重规划
-            # 典型场景：简单问答的首个 search 任务被标记 checkpoint，
+            # ? P3-1修复（扩展版）: 多种非关键任务的反思不应触发重规划
+            # 典型场景：简单问答的首个 search/read/analyze 任务被标记 checkpoint，
             # 反思会因为"尚未回答用户"而误判 needs_replan=True，导致过度拆分任务。
             if reflection_result.needs_replan:
-                INPUT_TOOLS = {"get_context_tool", "search_analysis_fragments_tool"}
+                # ✅ 从配置中获取非关键工具列表（集中管理，易维护）
+                NON_CRITICAL_TOOLS = DeepAgentConfig.NON_CRITICAL_TOOLS
                 current_tool = task.get("tool", "")
-                if current_tool in INPUT_TOOLS:
+                if current_tool in NON_CRITICAL_TOOLS:
                     remaining_tasks = tasks[i + 1:]
                     has_future_output = any(
-                        (t.get("tool", "") or "") not in INPUT_TOOLS
+                        (t.get("tool", "") or "") not in NON_CRITICAL_TOOLS
                         for t in remaining_tasks
                     )
-                    # ✅ 改进：初始只有1个搜索任务时，也不重规划（让后续AI整合处理）
-                    is_last_input_task = len(remaining_tasks) == 0
+                    # ✅ 改进：初始只有1个非关键任务时，也不重规划（让后续AI整合处理）
+                    is_last_task = len(remaining_tasks) == 0
 
-                    if has_future_output or is_last_input_task:
-                        skip_reason = "已有后续输出任务" if has_future_output else "单搜索任务交由AI整合"
+                    if has_future_output or is_last_task:
+                        skip_reason = "已有后续输出任务" if has_future_output else "单任务交由AI整合"
                         logger.info(
-                            f"[Reflection] 前置任务不触发重规划（{skip_reason}）"
+                            f"[Reflection] 非关键任务({current_tool})不触发重规划（{skip_reason}）"
                         )
                         reflection_result = ReflectionResult(
                             reflection=f"{reflection_result.reflection} | {skip_reason}，跳过重规划",
