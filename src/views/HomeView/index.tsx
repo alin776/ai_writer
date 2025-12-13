@@ -53,7 +53,7 @@ const HomeView: React.FC = () => {
           {/* Logo - 简约 */}
           <div className={styles.logo} onClick={() => navigate('/')}>
             <div className={styles.logoIcon}>
-              <Sparkles size={14} color="#ffffff" />
+              <img src="/logo.svg" alt="文枢AI" style={{ width: '14px', height: '14px' }} />
             </div>
             <span className={styles.logoText}>文枢AI</span>
           </div>
