@@ -26,8 +26,6 @@ const SettingsView = React.lazy(() => import('../views/SettingsView'));
 const ChangePasswordView = React.lazy(() => import('../views/ChangePasswordView'));
 const ChangeEmailView = React.lazy(() => import('../views/ChangeEmailView'));
 const ForgotPasswordView = React.lazy(() => import('../views/ForgotPasswordView'));
-const TermsView = React.lazy(() => import('../views/TermsView'));
-const PrivacyView = React.lazy(() => import('../views/PrivacyView'));
 const KnowledgeView = React.lazy(() => import('../views/KnowledgeView'));
 const NotificationCenter = React.lazy(() => import('../pages/NotificationCenter'));
 const NotFoundView = React.lazy(() => import('../views/NotFoundView'));
@@ -75,22 +73,6 @@ export const router = createBrowserRouter([
     element: (
       <SuspenseWrapper>
         <ForgotPasswordView />
-      </SuspenseWrapper>
-    ),
-  },
-  {
-    path: '/terms',
-    element: (
-      <SuspenseWrapper>
-        <TermsView />
-      </SuspenseWrapper>
-    ),
-  },
-  {
-    path: '/privacy',
-    element: (
-      <SuspenseWrapper>
-        <PrivacyView />
       </SuspenseWrapper>
     ),
   },

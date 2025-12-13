@@ -712,25 +712,6 @@ const AuthView: React.FC = () => {
                   {errors.invitationCode && <span className="text-sm text-red-500">{errors.invitationCode}</span>}
                 </div>
 
-                <div className="flex items-start pt-2">
-                  <input
-                    id="terms"
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900 mt-0.5 cursor-pointer"
-                    required
-                  />
-                  <label htmlFor="terms" className="ml-2 block text-sm text-gray-700 cursor-pointer">
-                    我已阅读并同意
-                    <Link to="/terms" target="_blank" className="text-gray-900 hover:text-gray-700 mx-1 underline underline-offset-2">
-                      服务条款
-                    </Link>
-                    和
-                    <Link to="/privacy" target="_blank" className="text-gray-900 hover:text-gray-700 mx-1 underline underline-offset-2">
-                      隐私政策
-                    </Link>
-                  </label>
-                </div>
-
                 {/* 提交错误提示 */}
                 {errors.submit && (
                   <div className="text-sm text-red-500 text-center">
