@@ -158,6 +158,7 @@ export interface Work {
   totalWords: number;      // 后端: total_words
   totalChapters: number;   // 后端: total_chapters
   viewCount: number;       // 后端: view_count
+  isPublished: boolean;    // 后端: is_published
   createdAt: string;       // 后端: created_at
   updatedAt: string;       // 后端: updated_at
   publishedAt?: string;    // 后端: published_at

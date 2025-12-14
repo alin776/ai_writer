@@ -16,6 +16,7 @@ import {
   Wand2,
   Bell,
   Trophy,
+  BookMarked,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import clsx from 'clsx';
@@ -33,6 +34,11 @@ const mainNavItems: NavItem[] = [
   { id: 'works', label: '作品管理', icon: BookOpen, path: '/works' },
   { id: 'knowledge', label: '知识库', icon: Library, path: '/knowledge' },
   { id: 'humanize', label: 'AI去痕', icon: Wand2, path: '/humanize' },
+];
+
+const libraryNavItems: NavItem[] = [
+  { id: 'novel-square', label: '小说广场', icon: BookMarked, path: '/library/novel-square' },
+  { id: 'my-bookshelf', label: '我的书架', icon: BookOpen, path: '/library/my-bookshelf' },
 ];
 
 const serviceNavItems: NavItem[] = [
@@ -56,6 +62,7 @@ export const Sidebar: React.FC = () => {
   const location = useLocation();
   const { user } = useAuthStore();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isLibraryExpanded, setIsLibraryExpanded] = useState(true);
   const [isServiceExpanded, setIsServiceExpanded] = useState(true);
 
   const isWorkDetail = location.pathname.startsWith('/works/') && location.pathname !== '/works';
@@ -149,6 +156,20 @@ export const Sidebar: React.FC = () => {
             <div className="px-3 py-2 text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">创作</div>
           )}
           {dynamicMainNavItems.map(renderNavItem)}
+        </div>
+
+        <div className="mt-6 space-y-0.5">
+          <button
+            onClick={() => setIsLibraryExpanded(!isLibraryExpanded)}
+            className={clsx(
+              'w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-gray-900 dark:text-slate-200 uppercase tracking-wider hover:text-gray-700 dark:hover:text-slate-100 transition-colors',
+              isCollapsed && 'justify-center'
+            )}
+          >
+            {!isCollapsed && <span>图书馆</span>}
+            <ChevronDown className={clsx('w-4 h-4 transition-transform', !isLibraryExpanded && '-rotate-90')} />
+          </button>
+          {isLibraryExpanded && libraryNavItems.map(renderNavItem)}
         </div>
 
         <div className="mt-6 space-y-0.5">
