@@ -70,6 +70,7 @@ const ThemeToggle: React.FC<ThemeToggleProps> = ({ className = '' }) => {
       const currentPreferences = user.preferences || {
         theme: 'light',
         language: 'zh-CN',
+        fontSize: 'medium' as const,
         autoSave: true,
         autoSaveInterval: 30,
         aiAutoComplete: false,

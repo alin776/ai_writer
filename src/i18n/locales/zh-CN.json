@@ -74,7 +74,8 @@
       "export": "导出",
       "aiContinue": "AI 续写",
       "search": "搜索",
-      "searchShortcut": "搜索 (Cmd+K)"
+      "searchShortcut": "搜索 (Cmd+K)",
+      "switchLanguage": "切换语言"
     },
     "userMenu": {
       "personalSettings": "个人设置",

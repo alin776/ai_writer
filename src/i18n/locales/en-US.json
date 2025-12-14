@@ -74,7 +74,8 @@
       "export": "Export",
       "aiContinue": "AI Continue",
       "search": "Search",
-      "searchShortcut": "Search (Cmd+K)"
+      "searchShortcut": "Search (Cmd+K)",
+      "switchLanguage": "Switch Language"
     },
     "userMenu": {
       "personalSettings": "Settings",

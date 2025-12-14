@@ -74,7 +74,8 @@
       "export": "匯出",
       "aiContinue": "AI 續寫",
       "search": "搜尋",
-      "searchShortcut": "搜尋 (Cmd+K)"
+      "searchShortcut": "搜尋 (Cmd+K)",
+      "switchLanguage": "切換語言"
     },
     "userMenu": {
       "personalSettings": "個人設定",
