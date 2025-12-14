@@ -24,6 +24,7 @@ from app.schemas.user import (
 )
 from app.services.user_service import UserService
 from app.services.cos_service import get_cos_service
+from app.services.email_verification_service import get_email_verification_service
 from app.core.config import settings
 
 router = APIRouter()
@@ -171,11 +172,7 @@ async def send_email_verification_code(
 
     try:
         email_service = await get_email_verification_service()
-        await email_service.send_verification_code(
-            user_id=str(current_user.id),
-            new_email=payload.new_email,
-            current_email=current_user.email
-        )
+        await email_service.send_verification_code(payload.new_email)
         return SendEmailCodeResponse(detail="验证码已发送到新邮箱")
     except ValueError as exc:
         raise HTTPException(
@@ -200,7 +197,6 @@ async def verify_and_update_email(
         # 验证验证码
         email_service = await get_email_verification_service()
         is_valid = await email_service.verify_code(
-            user_id=str(current_user.id),
             email=payload.new_email,
             code=payload.code
         )

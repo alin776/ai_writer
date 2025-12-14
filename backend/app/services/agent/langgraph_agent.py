@@ -5351,17 +5351,22 @@ chapter_id: {chapter_id}
                     logger.info(f"[_execute_task] analyze_text_tool 的 text 参数为空或含占位符，使用 context 兜底（{len(context)}字符）")
                     text_param = context[:50000]  # 限制长度以符合 max_length=50000
 
-                # 🔧 2025-12-14: 验证并修正 focus 参数
+                # 🔧 2025-12-14: focus 参数支持任意字符串
+                # 模板 analyze_text.yaml 会根据 focus 内容决定输出模式：
+                # - focus="all" 或包含"全面/完整" → 详细模式（完整报告）
+                # - 其他任意字符串 → 简洁模式（200-500字聚焦分析）
                 focus_param = params.get("focus", "all")
-                valid_focus_values = ["all", "grammar", "logic", "style", "structure"]
 
-                if focus_param not in valid_focus_values:
-                    logger.info(f"[_execute_task] analyze_text_tool 的 focus 参数无效: '{focus_param[:50]}...'，使用默认值 'all'")
+                # 只对空值或占位符做兜底，其他情况保留原始 focus
+                if not focus_param or "$TASK_" in str(focus_param):
                     focus_param = "all"
+                    logger.info(f"[_execute_task] analyze_text_tool 的 focus 参数为空/占位符，使用默认值 'all'")
+                else:
+                    logger.info(f"[_execute_task] analyze_text_tool 使用 focus: '{str(focus_param)[:80]}...'")
 
                 tool_params = {
                     "text": text_param,
-                    "focus": focus_param  # ✅ 保证有效值
+                    "focus": focus_param  # ✅ 支持任意 focus 字符串触发简洁模式
                 }
             else:
                 # 未知工具，尝试使用统一接口
