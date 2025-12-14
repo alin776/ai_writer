@@ -488,7 +488,7 @@ const WorksView: React.FC = () => {
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-6 py-4 flex-1" style={{ transform: 'skewX(-2deg)' }}>
               <div style={{ transform: 'skewX(2deg)' }}>
                 <div className="text-gray-400 dark:text-gray-500 mb-1.5" style={{ fontSize: '12px' }}>{t('works.stats.weeklyNew')}</div>
-                <div className="text-3xl text-gray-900 dark:text-gray-100 font-medium">+{weekNewWords.toLocaleString()}</div>
+                <div className="text-3xl text-gray-900 dark:text-gray-100 font-medium">{weekNewWords > 0 ? '+' : ''}{weekNewWords.toLocaleString()}</div>
               </div>
             </div>
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-6 py-4 flex-1" style={{ transform: 'skewX(-2deg)' }}>

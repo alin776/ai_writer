@@ -24,6 +24,8 @@ class ChapterCreate(ChapterBase):
     order: Optional[int] = None
     status: ChapterStatusEnum = ChapterStatusEnum.DRAFT
     is_published: Optional[bool] = None
+    # 编辑事件唯一标识，用于幂等性检查
+    edit_event_id: Optional[str] = Field(None, max_length=64)
 
 
 class ChapterUpdate(BaseModel):
@@ -34,6 +36,8 @@ class ChapterUpdate(BaseModel):
     order: Optional[int] = None
     is_published: Optional[bool] = None
     status: Optional[ChapterStatusEnum] = None
+    # 编辑事件唯一标识，用于幂等性检查
+    edit_event_id: Optional[str] = Field(None, max_length=64)
 
 
 class ChapterResponse(ChapterBase):

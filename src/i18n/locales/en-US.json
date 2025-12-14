@@ -797,5 +797,94 @@
     "unknown": "Unknown error",
     "pageError": "An error occurred",
     "unknownError": "Unknown error. Please try again later."
+  },
+  "workDetail": {
+    "title": "Contents",
+    "sidebar": {
+      "worldview": "Worldview",
+      "summary": "Summary",
+      "ai": "AI"
+    },
+    "chapter": {
+      "titlePlaceholder": "Chapter title",
+      "firstChapter": "Chapter 1",
+      "words": "words"
+    },
+    "error": {
+      "workIdNotExist": "Work ID does not exist",
+      "workNotExist": "Work does not exist",
+      "loadDataFailed": "Failed to load data"
+    },
+    "actions": {
+      "backToWorks": "Back to Works",
+      "editChapterTitle": "Edit chapter title",
+      "deleteChapter": "Delete chapter"
+    },
+    "toast": {
+      "aiAutoCompleteEnabled": "AI auto-complete enabled",
+      "aiAutoCompleteDisabled": "AI auto-complete disabled",
+      "updateSettingsFailed": "Failed to update settings",
+      "switchedToHistorySession": "Switched to history session, continue chatting",
+      "autoCreatedFirstChapter": "Automatically created Chapter 1, start writing!",
+      "createChapterFailed": "Failed to create chapter, please add manually",
+      "autoStartedAnalysis": "Auto-started novel analysis",
+      "chapterTitleEmpty": "Chapter title cannot be empty",
+      "chapterAddSuccess": "Chapter added successfully",
+      "triggeredAnalysisUpdate": "Triggered novel analysis update",
+      "chapterAddFailed": "Failed to add chapter",
+      "chapterTitleUpdated": "Chapter title updated",
+      "chapterTitleUpdateFailed": "Failed to update chapter title",
+      "chapterUpdateSuccess": "Chapter updated successfully",
+      "chapterUpdateFailed": "Failed to update chapter",
+      "autoCreatedNewChapter": "Automatically created new chapter",
+      "chapterDeleteSuccess": "Chapter deleted successfully",
+      "chapterDeleteFailed": "Failed to delete chapter",
+      "chapterOrderUpdateSuccess": "Chapter order updated successfully",
+      "chapterOrderUpdateFailed": "Failed to update chapter order",
+      "saveFailed": "Save failed",
+      "editWorkTodo": "Edit work feature coming soon",
+      "deleteWorkTodo": "Delete work feature coming soon",
+      "characterAddSuccess": "Character added successfully",
+      "characterUpdateSuccess": "Character updated successfully",
+      "characterAddFailed": "Failed to add character",
+      "characterUpdateFailed": "Failed to update character",
+      "characterDeleteSuccess": "Character deleted successfully",
+      "characterDeleteFailed": "Failed to delete character",
+      "locationAddSuccess": "Location added successfully",
+      "locationUpdateSuccess": "Location updated successfully",
+      "locationAddFailed": "Failed to add location",
+      "locationUpdateFailed": "Failed to update location",
+      "locationDeleteSuccess": "Location deleted successfully",
+      "locationDeleteFailed": "Failed to delete location",
+      "settingAddSuccess": "Setting added successfully",
+      "settingUpdateSuccess": "Setting updated successfully",
+      "settingAddFailed": "Failed to add setting",
+      "settingUpdateFailed": "Failed to update setting",
+      "settingDeleteSuccess": "Setting deleted successfully",
+      "settingDeleteFailed": "Failed to delete setting",
+      "guidelinesSaveSuccess": "Work guidelines saved successfully",
+      "guidelinesSaveFailed": "Failed to save work guidelines",
+      "aiGuidelinesSaveSuccess": "AI guidelines saved successfully",
+      "aiGuidelinesSaveFailed": "Failed to save AI guidelines"
+    },
+    "dialog": {
+      "deleteChapter": {
+        "title": "Delete Chapter",
+        "message": "Are you sure you want to delete this chapter? This action cannot be undone.",
+        "confirmMessage": "Are you sure you want to delete chapter \"{{title}}\"? This action cannot be undone."
+      },
+      "deleteCharacter": {
+        "title": "Delete Character",
+        "message": "Are you sure you want to delete character \"{{name}}\"? This action cannot be undone."
+      },
+      "deleteLocation": {
+        "title": "Delete Location",
+        "message": "Are you sure you want to delete location \"{{name}}\"? This action cannot be undone."
+      },
+      "deleteSetting": {
+        "title": "Delete Setting",
+        "message": "Are you sure you want to delete setting \"{{title}}\"? This action cannot be undone."
+      }
+    }
   }
 }

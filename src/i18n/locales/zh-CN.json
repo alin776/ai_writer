@@ -797,5 +797,94 @@
     "unknown": "未知错误",
     "pageError": "页面出现错误",
     "unknownError": "未知错误，请稍后重试。"
+  },
+  "workDetail": {
+    "title": "目录",
+    "sidebar": {
+      "worldview": "世界观",
+      "summary": "概括",
+      "ai": "AI"
+    },
+    "chapter": {
+      "titlePlaceholder": "章节标题",
+      "firstChapter": "第一章",
+      "words": "字"
+    },
+    "error": {
+      "workIdNotExist": "作品 ID 不存在",
+      "workNotExist": "作品不存在",
+      "loadDataFailed": "加载数据失败"
+    },
+    "actions": {
+      "backToWorks": "返回作品列表",
+      "editChapterTitle": "编辑章节名称",
+      "deleteChapter": "删除章节"
+    },
+    "toast": {
+      "aiAutoCompleteEnabled": "AI 自动补全已开启",
+      "aiAutoCompleteDisabled": "AI 自动补全已关闭",
+      "updateSettingsFailed": "更新设置失败",
+      "switchedToHistorySession": "已切换到历史会话，可继续对话",
+      "autoCreatedFirstChapter": "已自动创建第一章，开始创作吧！",
+      "createChapterFailed": "创建章节失败，请手动添加章节",
+      "autoStartedAnalysis": "已自动开始分析小说内容",
+      "chapterTitleEmpty": "章节标题不能为空",
+      "chapterAddSuccess": "章节添加成功",
+      "triggeredAnalysisUpdate": "已触发小说分析更新",
+      "chapterAddFailed": "章节添加失败",
+      "chapterTitleUpdated": "章节名称已更新",
+      "chapterTitleUpdateFailed": "更新章节名称失败",
+      "chapterUpdateSuccess": "章节更新成功",
+      "chapterUpdateFailed": "章节更新失败",
+      "autoCreatedNewChapter": "已自动创建新章节",
+      "chapterDeleteSuccess": "章节删除成功",
+      "chapterDeleteFailed": "章节删除失败",
+      "chapterOrderUpdateSuccess": "章节顺序更新成功",
+      "chapterOrderUpdateFailed": "章节顺序更新失败",
+      "saveFailed": "保存失败",
+      "editWorkTodo": "编辑作品功能待实现",
+      "deleteWorkTodo": "删除作品功能待实现",
+      "characterAddSuccess": "人物添加成功",
+      "characterUpdateSuccess": "人物更新成功",
+      "characterAddFailed": "人物添加失败",
+      "characterUpdateFailed": "人物更新失败",
+      "characterDeleteSuccess": "人物删除成功",
+      "characterDeleteFailed": "人物删除失败",
+      "locationAddSuccess": "地点添加成功",
+      "locationUpdateSuccess": "地点更新成功",
+      "locationAddFailed": "地点添加失败",
+      "locationUpdateFailed": "地点更新失败",
+      "locationDeleteSuccess": "地点删除成功",
+      "locationDeleteFailed": "地点删除失败",
+      "settingAddSuccess": "设定添加成功",
+      "settingUpdateSuccess": "设定更新成功",
+      "settingAddFailed": "设定添加失败",
+      "settingUpdateFailed": "设定更新失败",
+      "settingDeleteSuccess": "设定删除成功",
+      "settingDeleteFailed": "设定删除失败",
+      "guidelinesSaveSuccess": "作品规范保存成功",
+      "guidelinesSaveFailed": "作品规范保存失败",
+      "aiGuidelinesSaveSuccess": "AI创作规范保存成功",
+      "aiGuidelinesSaveFailed": "AI创作规范保存失败"
+    },
+    "dialog": {
+      "deleteChapter": {
+        "title": "删除章节",
+        "message": "确定要删除这个章节吗？此操作无法撤销，章节内容将永久丢失。",
+        "confirmMessage": "确定要删除章节「{{title}}」吗？此操作不可恢复。"
+      },
+      "deleteCharacter": {
+        "title": "删除人物",
+        "message": "确定要删除人物「{{name}}」吗？删除后相关数据将无法恢复。"
+      },
+      "deleteLocation": {
+        "title": "删除地点",
+        "message": "确定要删除地点「{{name}}」吗？删除后相关数据将无法恢复。"
+      },
+      "deleteSetting": {
+        "title": "删除设定",
+        "message": "确定要删除设定「{{title}}」吗？删除后相关数据将无法恢复。"
+      }
+    }
   }
 }

@@ -156,11 +156,13 @@ class ChapterService:
         # 记录增量（新建章节，delta = 总字数）
         try:
             stat_service = ChapterWordStatService(self.db)
-            await stat_service.add_delta(chapter.id, word_count)
+            # 获取 edit_event_id（如果前端传递了）
+            edit_event_id = getattr(chapter_data, 'edit_event_id', None)
+            await stat_service.add_delta(chapter.id, word_count, edit_event_id=edit_event_id)
         except Exception as e:
             logger.warning(f"Failed to record word count delta for chapter {chapter.id}: {e}")
             pass
-        
+
         return chapter
     
     async def update_chapter(self, chapter_id: str, chapter_data: ChapterUpdate) -> Optional[Chapter]:
@@ -232,7 +234,9 @@ class ChapterService:
         try:
             new_word_count = chapter.word_count or 0
             delta = new_word_count - original_word_count
-            await stat_service.add_delta(chapter.id, delta)
+            # 获取 edit_event_id（如果前端传递了）
+            edit_event_id = getattr(chapter_data, 'edit_event_id', None)
+            await stat_service.add_delta(chapter.id, delta, edit_event_id=edit_event_id)
         except Exception as e:
             logger.warning(f"Failed to record word count delta for chapter {chapter.id}: {e}")
             pass
@@ -346,7 +350,9 @@ class ChapterService:
             stat_service = ChapterWordStatService(self.db)
             new_word_count = chapter.word_count or 0
             delta = new_word_count - original_word_count
-            await stat_service.add_delta(chapter.id, delta)
+            # 获取 edit_event_id（如果前端传递了）
+            edit_event_id = getattr(chapter_data, 'edit_event_id', None)
+            await stat_service.add_delta(chapter.id, delta, edit_event_id=edit_event_id)
         except Exception as e:
             logger.warning(f"Failed to record word count delta for chapter {chapter.id}: {e}")
             pass
@@ -406,7 +412,9 @@ class ChapterService:
             stat_service = ChapterWordStatService(self.db)
             new_word_count = chapter.word_count or 0
             delta = new_word_count - original_word_count
-            await stat_service.add_delta(chapter.id, delta)
+            # 为 Agent 编辑生成唯一的事件 ID（基于章节 ID + 版本号）
+            agent_event_id = f"agent:{chapter_id}:v{chapter.version}"
+            await stat_service.add_delta(chapter.id, delta, edit_event_id=agent_event_id)
         except Exception as e:
             logger.warning(f"Failed to record word count delta for chapter {chapter.id}: {e}")
             pass

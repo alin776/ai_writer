@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Edit, Trash2, Plus, BookOpen, BarChart3, BookMarked, Download, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button, Card, Loading } from '../../components/common';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
@@ -46,6 +47,7 @@ import styles from './WorkDetailView.module.css';
 const WorkDetailView: React.FC = () => {
   const { workId } = useParams<{ workId: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { showToast } = useGlobalStore();
   const { user, setUser } = useAuthStore();
   const { confirmState, confirm, closeConfirm } = useConfirm();
@@ -77,10 +79,10 @@ const WorkDetailView: React.FC = () => {
     try {
       setUser({ ...user, preferences: newPreferences });
       await DataService.updatePreferences(newPreferences);
-      showToast('success', newValue ? 'AI 自动补全已开启' : 'AI 自动补全已关闭');
+      showToast('success', newValue ? t('workDetail.toast.aiAutoCompleteEnabled') : t('workDetail.toast.aiAutoCompleteDisabled'));
     } catch (error) {
       setUser({ ...user, preferences: currentPreferences });
-      showToast('error', '更新设置失败');
+      showToast('error', t('workDetail.toast.updateSettingsFailed'));
     }
   }, [user, aiAutoCompleteEnabled, setUser, showToast]);
 
@@ -185,7 +187,7 @@ const WorkDetailView: React.FC = () => {
         messages,
         createdAt: session.updatedAt || nowIso,
         updatedAt: session.updatedAt || nowIso,
-        title: session.title || '历史会话',
+        title: session.title || t('editor.sessionTab.history'),
         workId,
         chapterId: currentChapterId
       };
@@ -202,9 +204,9 @@ const WorkDetailView: React.FC = () => {
       }
 
       // 不覆盖当前标签，打开/切换到一个带历史会话的标签
-      attachSessionTab(sessionId, session.title || '历史会话', conversationId);
+      attachSessionTab(sessionId, session.title || t('editor.sessionTab.history'), conversationId);
       setShowHistoryPanel(false);
-      showToast('info', '已切换到历史会话，可继续对话');
+      showToast('info', t('workDetail.toast.switchedToHistorySession'));
     },
     [activeTabId, attachSessionTab, currentChapterId, showToast, workId]
   );
@@ -268,7 +270,7 @@ const WorkDetailView: React.FC = () => {
   useEffect(() => {
     const loadData = async () => {
       if (!workId) {
-        setError('作品 ID 不存在');
+        setError(t('workDetail.error.workIdNotExist'));
         setIsLoading(false);
         clearLastWork();
         return;
@@ -309,21 +311,22 @@ const WorkDetailView: React.FC = () => {
           try {
             const defaultChapterData = {
               work_id: workId,
-              title: '第一章',
+              title: t('workDetail.chapter.firstChapter'),
               content: '',
               order: 1,
+              edit_event_id: crypto.randomUUID(),
             };
             const defaultChapter = await DataService.createChapter(defaultChapterData);
             setChapters([defaultChapter]);
             setCurrentChapterId(defaultChapter.id);
             setCurrentChapterContent('');
             editorChapterIdRef.current = defaultChapter.id;
-            showToast('info', '已自动创建第一章，开始创作吧！');
+            showToast('info', t('workDetail.toast.autoCreatedFirstChapter'));
           } catch (createError) {
             console.error('Failed to create default chapter:', createError);
             // 创建失败时，显示错误提示但不设置undefined
             // 保持章节列表为空，让用户手动创建
-            showToast('error', '创建章节失败，请手动添加章节');
+            showToast('error', t('workDetail.toast.createChapterFailed'));
             // 不设置currentChapterId为undefined，保持初始状态
           }
         }
@@ -342,7 +345,7 @@ const WorkDetailView: React.FC = () => {
             if (!analysisStatus || analysisStatus.status === 'failed') {
               console.log('[WorkDetailView] 首次打开作品，触发自动分析');
               await DataService.startNovelAnalysis(workId);
-              showToast('info', '已自动开始分析小说内容');
+              showToast('info', t('workDetail.toast.autoStartedAnalysis'));
 
               // 记录已触发，避免重复
               localStorage.setItem(AUTO_ANALYSIS_KEY, 'true');
@@ -355,7 +358,7 @@ const WorkDetailView: React.FC = () => {
           }
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : '加载数据失败';
+        const message = err instanceof Error ? err.message : t('workDetail.error.loadDataFailed');
         setError(message);
         showToast('error', message);
         clearLastWork();
@@ -409,17 +412,21 @@ const WorkDetailView: React.FC = () => {
   const handleSaveNewChapter = useCallback(async () => {
     if (!workId) return;
     if (!newChapterTitle.trim()) {
-      showToast('warning', '章节标题不能为空');
+      showToast('warning', t('workDetail.toast.chapterTitleEmpty'));
       return;
     }
 
     try {
+      // 生成唯一的编辑事件ID（用于幂等性）
+      const editEventId = crypto.randomUUID();
+
       // 只发送后端需要的字段
       const chapterData = {
         work_id: workId,
         title: newChapterTitle.trim(),
         content: '',
         order: chapters.length + 1,
+        edit_event_id: editEventId,
       };
 
       // 调用后端接口，后端会生成 ID
@@ -447,19 +454,19 @@ const WorkDetailView: React.FC = () => {
       setNewChapterTitle('');
       setIsAddingChapter(false);
 
-      showToast('success', '章节添加成功');
+      showToast('success', t('workDetail.toast.chapterAddSuccess'));
 
       // 🔥 新增章节后，自动触发重新分析（后台执行，不阻塞用户）
       try {
         console.log('[WorkDetailView] 新增章节，触发自动分析');
         await DataService.startNovelAnalysis(workId);
-        showToast('info', '已触发小说分析更新');
+        showToast('info', t('workDetail.toast.triggeredAnalysisUpdate'));
       } catch (analysisError) {
         // 分析失败不影响主流程，静默处理
         console.warn('[WorkDetailView] 自动分析触发失败:', analysisError);
       }
     } catch (error) {
-      showToast('error', '章节添加失败');
+      showToast('error', t('workDetail.toast.chapterAddFailed'));
       console.error('Failed to add chapter:', error);
     }
   }, [workId, chapters.length, newChapterTitle, editingChapterId, showToast]);
@@ -486,7 +493,7 @@ const WorkDetailView: React.FC = () => {
   const handleSaveChapterTitle = useCallback(async () => {
     if (!editingChapterId) return;
     if (!editingChapterTitle.trim()) {
-      showToast('warning', '章节标题不能为空');
+      showToast('warning', t('workDetail.toast.chapterTitleEmpty'));
       return;
     }
 
@@ -511,9 +518,9 @@ const WorkDetailView: React.FC = () => {
         prev.map((c) => (c.id === editingChapterId ? updatedChapter : c))
       );
 
-      showToast('success', '章节名称已更新');
+      showToast('success', t('workDetail.toast.chapterTitleUpdated'));
     } catch (error) {
-      showToast('error', '更新章节名称失败');
+      showToast('error', t('workDetail.toast.chapterTitleUpdateFailed'));
       console.error('Failed to rename chapter:', error);
     } finally {
       setEditingChapterId(null);
@@ -535,7 +542,7 @@ const WorkDetailView: React.FC = () => {
   const handleSaveChapter = useCallback(async (chapterData: Partial<Chapter> & { id?: string }) => {
     if (!workId) return;
     if (!chapterData.title?.trim()) {
-      showToast('warning', '章节标题不能为空');
+      showToast('warning', t('workDetail.toast.chapterTitleEmpty'));
       return;
     }
 
@@ -550,6 +557,7 @@ const WorkDetailView: React.FC = () => {
           title: chapterData.title.trim(),
           content: chapterData.content || '',
           order: chapters.length + 1,
+          edit_event_id: crypto.randomUUID(),
         };
 
         const savedChapter = await DataService.createChapter(newChapterData);
@@ -561,7 +569,7 @@ const WorkDetailView: React.FC = () => {
         setCurrentChapterId(savedChapter.id);
         setCurrentChapterContent(savedChapter.content);
 
-        showToast('success', '章节添加成功');
+        showToast('success', t('workDetail.toast.chapterAddSuccess'));
       } else {
         // 编辑章节
         const chapter = chapters.find((c) => c.id === chapterData.id);
@@ -584,13 +592,13 @@ const WorkDetailView: React.FC = () => {
           await DataService.updateChapter(chapterData.id, updatedChapter);
         }
 
-        showToast('success', '章节更新成功');
+        showToast('success', t('workDetail.toast.chapterUpdateSuccess'));
       }
     } catch (error) {
       const message =
         !chapterData.id || chapterData.id.startsWith('temp-')
-          ? '章节添加失败'
-          : '章节更新失败';
+          ? t('workDetail.toast.chapterAddFailed')
+          : t('workDetail.toast.chapterUpdateFailed');
       showToast('error', message);
       console.error('Failed to save chapter:', error);
     }
@@ -625,21 +633,22 @@ const WorkDetailView: React.FC = () => {
         try {
           const defaultChapterData = {
             work_id: workId,
-            title: '第一章',
+            title: t('workDetail.chapter.firstChapter'),
             content: '',
             order: 1,
+            edit_event_id: crypto.randomUUID(),
           };
           const defaultChapter = await DataService.createChapter(defaultChapterData);
           setChapters([defaultChapter]);
           setCurrentChapterId(defaultChapter.id);
           setCurrentChapterContent('');
           editorChapterIdRef.current = defaultChapter.id;
-          showToast('info', '已自动创建新章节');
+          showToast('info', t('workDetail.toast.autoCreatedNewChapter'));
         } catch (createError) {
           console.error('Failed to create default chapter after delete:', createError);
           // 创建失败时，显示错误提示但不设置undefined
           // 保持章节列表为空，让用户手动创建
-          showToast('error', '创建章节失败，请手动添加章节');
+          showToast('error', t('workDetail.toast.createChapterFailed'));
           // 不设置currentChapterId为undefined，保持空状态让编辑器显示提示
         }
       } else if (isCurrentChapter) {
@@ -649,9 +658,9 @@ const WorkDetailView: React.FC = () => {
         editorChapterIdRef.current = remainingChapters[0].id;
       }
 
-      showToast('success', '章节删除成功');
+      showToast('success', t('workDetail.toast.chapterDeleteSuccess'));
     } catch (error) {
-      showToast('error', '章节删除失败');
+      showToast('error', t('workDetail.toast.chapterDeleteFailed'));
       console.error('Failed to delete chapter:', error);
     }
   }, [workId, chapters, currentChapterId, editingChapterId, showToast]);
@@ -664,10 +673,10 @@ const WorkDetailView: React.FC = () => {
     if (!chapter) return;
 
     const confirmed = await confirm({
-      title: '删除章节',
-      message: `确定要删除章节"${chapter.title}"吗？此操作不可恢复。`,
-      confirmText: '删除',
-      cancelText: '取消',
+      title: t('workDetail.dialog.deleteChapter.title'),
+      message: t('workDetail.dialog.deleteChapter.confirmMessage', { title: chapter.title }),
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
       variant: 'danger',
     });
 
@@ -709,9 +718,9 @@ const WorkDetailView: React.FC = () => {
         )
       );
 
-      showToast('success', '章节顺序更新成功');
+      showToast('success', t('workDetail.toast.chapterOrderUpdateSuccess'));
     } catch (error) {
-      showToast('error', '章节顺序更新失败');
+      showToast('error', t('workDetail.toast.chapterOrderUpdateFailed'));
       console.error('Failed to move chapter:', error);
     }
   }, [chapters, showToast]);
@@ -736,10 +745,14 @@ const WorkDetailView: React.FC = () => {
       return;
     }
 
+    // 生成唯一的编辑事件ID（用于幂等性）
+    const editEventId = crypto.randomUUID();
+
     try {
       // 调试日志
       console.log('[WorkDetailView] 保存章节:', {
         chapterId: currentChapterId,
+        editEventId,
         contentPreview: content.substring(0, 50) + '...',
       });
 
@@ -751,9 +764,10 @@ const WorkDetailView: React.FC = () => {
           return prevChapters;
         }
 
-        // 只发送content，让后端自动计算字数
+        // 发送content和edit_event_id，让后端自动计算字数
         const updateData = {
           content,
+          edit_event_id: editEventId,
         };
 
         // 先乐观更新本地状态
@@ -781,7 +795,7 @@ const WorkDetailView: React.FC = () => {
         );
       });
     } catch (error) {
-      showToast('error', '保存失败');
+      showToast('error', t('workDetail.toast.saveFailed'));
       console.error('Failed to save chapter:', error);
     }
   }, [currentChapterId, showToast]);
@@ -790,14 +804,14 @@ const WorkDetailView: React.FC = () => {
    * 处理编辑作品
    */
   const handleEditWork = useCallback(() => {
-    showToast('info', '编辑作品功能待实现');
+    showToast('info', t('workDetail.toast.editWorkTodo'));
   }, [showToast]);
 
   /**
    * 处理删除作品
    */
   const handleDeleteWork = useCallback(() => {
-    showToast('info', '删除作品功能待实现');
+    showToast('info', t('workDetail.toast.deleteWorkTodo'));
   }, [showToast]);
 
   // ==================== 世界观管理处理函数 ====================
@@ -832,7 +846,7 @@ const WorkDetailView: React.FC = () => {
           characters: [...prev.characters, savedCharacter as any],
         }));
 
-        showToast('success', '人物添加成功');
+        showToast('success', t('workDetail.toast.characterAddSuccess'));
       } else {
         // 准备更新数据（只发送可更新的字段）
         const updateData = {
@@ -855,11 +869,11 @@ const WorkDetailView: React.FC = () => {
           ),
         }));
 
-        showToast('success', '人物更新成功');
+        showToast('success', t('workDetail.toast.characterUpdateSuccess'));
       }
     } catch (error) {
       const isNew = character.id?.startsWith('temp-');
-      showToast('error', isNew ? '人物添加失败' : '人物更新失败');
+      showToast('error', isNew ? t('workDetail.toast.characterAddFailed') : t('workDetail.toast.characterUpdateFailed'));
       console.error('Failed to save character:', error);
     }
   }, [workId, showToast]);
@@ -869,10 +883,10 @@ const WorkDetailView: React.FC = () => {
     if (!character) return;
 
     const confirmed = await confirm({
-      title: '删除人物',
-      message: `确定要删除人物"${character.name}"吗？删除后相关数据将无法恢复。`,
-      confirmText: '删除',
-      cancelText: '取消',
+      title: t('workDetail.dialog.deleteCharacter.title'),
+      message: t('workDetail.dialog.deleteCharacter.message', { name: character.name }),
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
       variant: 'danger',
     });
 
@@ -889,9 +903,9 @@ const WorkDetailView: React.FC = () => {
 
       // 从后端删除
       await DataService.deleteCharacter(id);
-      showToast('success', '人物删除成功');
+      showToast('success', t('workDetail.toast.characterDeleteSuccess'));
     } catch (error) {
-      showToast('error', '人物删除失败');
+      showToast('error', t('workDetail.toast.characterDeleteFailed'));
       console.error('Failed to delete character:', error);
     }
   }, [worldData.characters, showToast]);
@@ -926,7 +940,7 @@ const WorkDetailView: React.FC = () => {
           locations: [...prev.locations, savedLocation as any],
         }));
 
-        showToast('success', '地点添加成功');
+        showToast('success', t('workDetail.toast.locationAddSuccess'));
       } else {
         // 准备更新数据（只发送可更新的字段）
         const updateData = {
@@ -949,11 +963,11 @@ const WorkDetailView: React.FC = () => {
           ),
         }));
 
-        showToast('success', '地点更新成功');
+        showToast('success', t('workDetail.toast.locationUpdateSuccess'));
       }
     } catch (error) {
       const isNew = location.id?.startsWith('temp-');
-      showToast('error', isNew ? '地点添加失败' : '地点更新失败');
+      showToast('error', isNew ? t('workDetail.toast.locationAddFailed') : t('workDetail.toast.locationUpdateFailed'));
       console.error('Failed to save location:', error);
     }
   }, [workId, showToast]);
@@ -963,10 +977,10 @@ const WorkDetailView: React.FC = () => {
     if (!location) return;
 
     const confirmed = await confirm({
-      title: '删除地点',
-      message: `确定要删除地点"${location.name}"吗？删除后相关数据将无法恢复。`,
-      confirmText: '删除',
-      cancelText: '取消',
+      title: t('workDetail.dialog.deleteLocation.title'),
+      message: t('workDetail.dialog.deleteLocation.message', { name: location.name }),
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
       variant: 'danger',
     });
 
@@ -983,9 +997,9 @@ const WorkDetailView: React.FC = () => {
 
       // 从后端删除
       await DataService.deleteLocation(id);
-      showToast('success', '地点删除成功');
+      showToast('success', t('workDetail.toast.locationDeleteSuccess'));
     } catch (error) {
-      showToast('error', '地点删除失败');
+      showToast('error', t('workDetail.toast.locationDeleteFailed'));
       console.error('Failed to delete location:', error);
     }
   }, [worldData.locations, showToast]);
@@ -1019,7 +1033,7 @@ const WorkDetailView: React.FC = () => {
           settings: [...prev.settings, savedSetting as any],
         }));
 
-        showToast('success', '设定添加成功');
+        showToast('success', t('workDetail.toast.settingAddSuccess'));
       } else {
         // 准备更新数据（只发送可更新的字段）
         const updateData = {
@@ -1041,11 +1055,11 @@ const WorkDetailView: React.FC = () => {
           ),
         }));
 
-        showToast('success', '设定更新成功');
+        showToast('success', t('workDetail.toast.settingUpdateSuccess'));
       }
     } catch (error) {
       const isNew = setting.id?.startsWith('temp-');
-      showToast('error', isNew ? '设定添加失败' : '设定更新失败');
+      showToast('error', isNew ? t('workDetail.toast.settingAddFailed') : t('workDetail.toast.settingUpdateFailed'));
       console.error('Failed to save setting:', error);
     }
   }, [workId, showToast]);
@@ -1055,10 +1069,10 @@ const WorkDetailView: React.FC = () => {
     if (!setting) return;
 
     const confirmed = await confirm({
-      title: '删除设定',
-      message: `确定要删除设定"${setting.title}"吗？删除后相关数据将无法恢复。`,
-      confirmText: '删除',
-      cancelText: '取消',
+      title: t('workDetail.dialog.deleteSetting.title'),
+      message: t('workDetail.dialog.deleteSetting.message', { title: setting.title }),
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
       variant: 'danger',
     });
 
@@ -1075,9 +1089,9 @@ const WorkDetailView: React.FC = () => {
 
       // 从后端删除
       await DataService.deleteSetting(id);
-      showToast('success', '设定删除成功');
+      showToast('success', t('workDetail.toast.settingDeleteSuccess'));
     } catch (error) {
-      showToast('error', '设定删除失败');
+      showToast('error', t('workDetail.toast.settingDeleteFailed'));
       console.error('Failed to delete setting:', error);
     }
   }, [worldData.settings, showToast]);
@@ -1103,10 +1117,10 @@ const WorkDetailView: React.FC = () => {
       // 保存到后端
       await DataService.saveGuidelines(workId, guidelines);
 
-      showToast('success', '作品规范保存成功');
+      showToast('success', t('workDetail.toast.guidelinesSaveSuccess'));
       console.log('[WorkDetailView] 作品规范已保存:', guidelines);
     } catch (error) {
-      showToast('error', '作品规范保存失败');
+      showToast('error', t('workDetail.toast.guidelinesSaveFailed'));
       console.error('Failed to save guidelines:', error);
     }
   }, [workId, showToast]);
@@ -1130,9 +1144,9 @@ const WorkDetailView: React.FC = () => {
 
       // 保存到后端
       await DataService.saveAIGuidelines(workId, aiGuidelines);
-      showToast('success', 'AI创作规范保存成功');
+      showToast('success', t('workDetail.toast.aiGuidelinesSaveSuccess'));
     } catch (error) {
-      showToast('error', 'AI创作规范保存失败');
+      showToast('error', t('workDetail.toast.aiGuidelinesSaveFailed'));
       console.error('Failed to save AI guidelines:', error);
     }
   }, [workId, showToast]);
@@ -1193,8 +1207,8 @@ const WorkDetailView: React.FC = () => {
     return (
       <div className={styles.errorContainer}>
         <div className={styles.errorContent}>
-          <p className={styles.errorText}>{error || '作品不存在'}</p>
-          <Button onClick={() => navigate('/works')}>返回作品列表</Button>
+          <p className={styles.errorText}>{error || t('workDetail.error.workNotExist')}</p>
+          <Button onClick={() => navigate('/works')}>{t('workDetail.actions.backToWorks')}</Button>
         </div>
       </div>
     );
@@ -1224,7 +1238,7 @@ const WorkDetailView: React.FC = () => {
                 <ChevronRight className="h-6 w-6" />
               </Button>
               <div className="writing-mode-vertical text-[11px] text-zinc-400 dark:text-slate-500 tracking-widest" style={{ writingMode: 'vertical-rl' }}>
-                目录
+                {t('workDetail.title')}
               </div>
             </div>
           ) : (
@@ -1233,7 +1247,7 @@ const WorkDetailView: React.FC = () => {
               {/* 标题区域 */}
               <div className="mb-3 flex-shrink-0">
                 <div className="flex items-center justify-between mb-1">
-                  <h2 className="text-[15px] text-zinc-800 dark:text-slate-100 tracking-tight">目录</h2>
+                  <h2 className="text-[15px] text-zinc-800 dark:text-slate-100 tracking-tight">{t('workDetail.title')}</h2>
                   <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"
@@ -1285,7 +1299,7 @@ const WorkDetailView: React.FC = () => {
                                 handleCancelAddChapter();
                               }
                             }}
-                            placeholder="章节标题"
+                            placeholder={t('workDetail.chapter.titlePlaceholder')}
                             className="h-7 w-full text-[13px] border-0 px-0 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-zinc-400 dark:text-slate-100 dark:placeholder:text-slate-500"
                             style={{ outline: 'none', boxShadow: 'none' }}
                           />
@@ -1298,14 +1312,14 @@ const WorkDetailView: React.FC = () => {
                               onClick={handleCancelAddChapter}
                               className="h-6 px-2 text-[10px] bg-transparent hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 border-0 shadow-none dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                             >
-                              取消
+                              {t('common.cancel')}
                             </Button>
                             <Button
                               size="sm"
                               onClick={handleSaveNewChapter}
                               className="h-6 px-2 text-[10px] bg-zinc-800 hover:bg-zinc-900 text-white border-0 dark:bg-blue-600 dark:hover:bg-blue-500"
                             >
-                              保存
+                              {t('common.save')}
                             </Button>
                           </div>
                         </div>
@@ -1372,7 +1386,7 @@ const WorkDetailView: React.FC = () => {
                                   }}
                                   className="h-6 px-2 text-[10px] bg-transparent hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 border-0 shadow-none dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                                 >
-                                  取消
+                                  {t('common.cancel')}
                                 </Button>
                                 <Button
                                   size="sm"
@@ -1382,7 +1396,7 @@ const WorkDetailView: React.FC = () => {
                                   }}
                                   className="h-6 px-2 text-[10px] bg-zinc-800 hover:bg-zinc-900 text-white border-0 dark:bg-blue-600 dark:hover:bg-blue-500"
                                 >
-                                  保存
+                                  {t('common.save')}
                                 </Button>
                               </div>
                             </div>
@@ -1408,7 +1422,7 @@ const WorkDetailView: React.FC = () => {
                                         ? 'text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-700'
                                         : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:text-slate-500 dark:hover:text-slate-300 dark:hover:bg-slate-700'
                                     }`}
-                                    aria-label="编辑章节名称"
+                                    aria-label={t('workDetail.actions.editChapterTitle')}
                                   >
                                     <svg
                                       xmlns="http://www.w3.org/2000/svg"
@@ -1438,7 +1452,7 @@ const WorkDetailView: React.FC = () => {
                                         ? 'text-zinc-400 hover:text-red-500 hover:bg-red-50/80 dark:text-slate-500 dark:hover:text-red-400 dark:hover:bg-red-900/30'
                                         : 'text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:text-slate-500 dark:hover:text-red-400 dark:hover:bg-red-900/30'
                                     }`}
-                                    aria-label="删除章节"
+                                    aria-label={t('workDetail.actions.deleteChapter')}
                                   >
                                     <svg
                                       xmlns="http://www.w3.org/2000/svg"
@@ -1466,7 +1480,7 @@ const WorkDetailView: React.FC = () => {
                                 <div className={`text-[10px] transition-colors duration-300 ${
                                   chapter.id === currentChapterId ? 'text-zinc-500 dark:text-slate-400' : 'text-zinc-400 dark:text-slate-500'
                                 }`}>
-                                  {chapter.wordCount.toLocaleString()} 字
+                                  {chapter.wordCount.toLocaleString()} {t('workDetail.chapter.words')}
                                 </div>
                                 {/* 进度指示器 */}
                                 <div className={`flex-1 h-1 rounded-full transition-all duration-300 ${
@@ -1505,7 +1519,7 @@ const WorkDetailView: React.FC = () => {
             key={currentChapterId}
             content={currentChapterContent}
             onSave={handleEditorSave}
-            placeholder="开始写作..."
+            placeholder={t('editor.startWriting')}
             autoSave={true}
             autoSaveInterval={3000}
             workId={workId}
@@ -1542,7 +1556,7 @@ const WorkDetailView: React.FC = () => {
                 <ChevronLeft className="h-6 w-6" />
               </Button>
               <div className="writing-mode-vertical text-[11px] text-zinc-400 dark:text-slate-500 tracking-widest" style={{ writingMode: 'vertical-rl' }}>
-                {rightSidebarType === 'worldview' ? '世界观' : rightSidebarType === 'summary' ? '概括' : 'AI'}
+                {rightSidebarType === 'worldview' ? t('workDetail.sidebar.worldview') : rightSidebarType === 'summary' ? t('workDetail.sidebar.summary') : t('workDetail.sidebar.ai')}
               </div>
             </div>
           )}
@@ -1632,14 +1646,14 @@ const WorkDetailView: React.FC = () => {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-[15px] text-zinc-900">删除章节</AlertDialogTitle>
+            <AlertDialogTitle className="text-[15px] text-zinc-900">{t('workDetail.dialog.deleteChapter.title')}</AlertDialogTitle>
             <AlertDialogDescription className="text-[13px] text-zinc-500 leading-relaxed">
-              确定要删除这个章节吗？此操作无法撤销，章节内容将永久丢失。
+              {t('workDetail.dialog.deleteChapter.message')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="text-[12px] h-8 bg-transparent hover:bg-zinc-100 text-zinc-600 hover:text-zinc-900 border-zinc-200">
-              取消
+              {t('common.cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
@@ -1650,7 +1664,7 @@ const WorkDetailView: React.FC = () => {
               }}
               className="text-[12px] h-8 bg-red-500 hover:bg-red-600 text-white"
             >
-              删除
+              {t('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
