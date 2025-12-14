@@ -120,8 +120,8 @@ export const Sidebar: React.FC = () => {
         {!isCollapsed ? (
           <>
             <Link to="/works" className="flex items-center space-x-2.5 group min-w-0">
-              <div className="w-7 h-7 bg-gray-900 dark:bg-slate-800 rounded-sm flex items-center justify-center flex-shrink-0">
-                <Sparkles className="w-3.5 h-3.5 text-white" />
+              <div className="w-10 h-10 bg-gray-900 dark:bg-slate-800 rounded-lg flex items-center justify-center flex-shrink-0">
+                <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '28px', height: '28px', filter: 'brightness(0) invert(1)' }} />
               </div>
               <div className="min-w-0">
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100 leading-tight">{t('app.name')}</h2>
@@ -138,8 +138,8 @@ export const Sidebar: React.FC = () => {
           </>
         ) : (
           <button onClick={() => setIsCollapsed(false)} className="w-full flex justify-center" title={t('sidebar.expand')}>
-            <div className="w-9 h-9 bg-gray-900 dark:bg-slate-800 rounded-sm flex items-center justify-center hover:bg-gray-800 dark:hover:bg-slate-700 transition-all">
-              <Sparkles className="w-4 h-4 text-white" />
+            <div className="w-12 h-12 bg-gray-900 dark:bg-slate-800 rounded-lg flex items-center justify-center hover:bg-gray-800 dark:hover:bg-slate-700 transition-all">
+              <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '32px', height: '32px', filter: 'brightness(0) invert(1)' }} />
             </div>
           </button>
         )}

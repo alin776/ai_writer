@@ -4,12 +4,14 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/authStore';
 import { DataService } from '../../services/DataService';
 import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
 import { Button } from '../../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { ImageWithFallback } from '../../components/common/ImageWithFallback';
-import { BookOpen, Feather, Sparkles, ChevronRight, CheckCircle } from 'lucide-react';
+import { BookOpen, Feather, Sparkles, ChevronRight, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { ApiAdapter } from '@/services/ApiAdapter';
+
+// 创建API实例
+const api = new ApiAdapter();
 
 /**
  * AuthView 组件 - 统一的登录/注册页面
@@ -30,12 +32,14 @@ const AuthView: React.FC = () => {
 
   const [loginForm, setLoginForm] = useState({
     username: registerSuccess?.username || '',
-    password: ''
+    password: '',
+    rememberMe: false
   });
 
   const [registerForm, setRegisterForm] = useState({
     username: '',
     email: '',
+    emailVerificationCode: '',
     password: '',
     confirmPassword: '',
     invitationCode: ''
@@ -43,8 +47,14 @@ const AuthView: React.FC = () => {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isSendingCode, setIsSendingCode] = useState(false);
   const [successMessage, setSuccessMessage] = useState(registerSuccess?.message || '');
   const loginInFlight = useRef(false);
+  const [emailVerificationCountdown, setEmailVerificationCountdown] = useState(0);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // 打字机效果
   const [typewriterText, setTypewriterText] = useState('');
@@ -105,7 +115,13 @@ const AuthView: React.FC = () => {
           (tokenResponse as any)?.refreshToken ||
           (tokenResponse as any)?.refresh_token ||
           null;
-        login(user, token, refreshToken);
+        const expiresAt = (tokenResponse as any)?.expiresAt;
+        const refreshExpiresAt = (tokenResponse as any)?.refreshExpiresAt;
+
+        const tokenExpiresAt = expiresAt ? expiresAt * 1000 : null;
+        const refreshTokenExpiresAt = refreshExpiresAt ? refreshExpiresAt * 1000 : null;
+
+        login(user, token, refreshToken, tokenExpiresAt, refreshTokenExpiresAt);
         navigate('/works', { replace: true });
       } catch (error) {
         console.error('[AuthView] Mock 自动登录失败', error);
@@ -156,6 +172,12 @@ const AuthView: React.FC = () => {
       newErrors.email = t('auth.validation.emailInvalid');
     }
 
+    if (!registerForm.emailVerificationCode) {
+      newErrors.emailVerificationCode = t('auth.validation.emailCodeRequired');
+    } else if (registerForm.emailVerificationCode.length !== 6) {
+      newErrors.emailVerificationCode = t('auth.validation.emailCodeLength');
+    }
+
     if (!registerForm.invitationCode) {
       newErrors.invitationCode = t('auth.validation.invitationCodeRequired');
     } else if (registerForm.invitationCode.length !== 8) {
@@ -189,6 +211,87 @@ const AuthView: React.FC = () => {
   };
 
   /**
+   * 发送邮箱验证码
+   */
+  const handleSendEmailVerification = async () => {
+    // 验证邮箱格式
+    if (!registerForm.email) {
+      setErrors({ ...errors, email: t('auth.validation.emailRequired') });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerForm.email)) {
+      setErrors({ ...errors, email: t('auth.validation.emailInvalid') });
+      return;
+    }
+
+    if (emailVerificationCountdown > 0) return;
+
+    setIsSendingCode(true);
+    setErrors({});
+
+    try {
+      await api.post('/auth/send-email-verification', {
+        email: registerForm.email
+      });
+
+      // 开始倒计时
+      setEmailVerificationCountdown(60);
+      const timer = setInterval(() => {
+        setEmailVerificationCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      setSuccessMessage(t('auth.emailCodeSent'));
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.detail || error?.message || t('auth.emailCodeSendFailed');
+      setErrors({ email: errorMessage });
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
+
+  /**
+   * 验证邮箱验证码
+   */
+  const handleVerifyEmailCode = async (code?: string) => {
+    const verificationCode = (code ?? registerForm.emailVerificationCode).trim();
+    if (!verificationCode) {
+      setErrors({ ...errors, emailVerificationCode: t('auth.validation.emailCodeRequired') });
+      return;
+    }
+
+    if (verificationCode.length !== 6) {
+      setErrors({ ...errors, emailVerificationCode: t('auth.validation.emailCodeLength') });
+      return;
+    }
+
+    setIsSendingCode(true);
+    setErrors({});
+
+    try {
+      await api.post('/auth/verify-email', {
+        email: registerForm.email,
+        code: verificationCode
+      });
+
+      setIsEmailVerified(true);
+      setSuccessMessage(t('auth.emailVerified'));
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.detail || error?.message || t('auth.emailCodeInvalid');
+      setErrors({ emailVerificationCode: errorMessage });
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
+
+  /**
    * 处理登录
    */
   const handleLogin = async (e: React.FormEvent) => {
@@ -198,7 +301,10 @@ const AuthView: React.FC = () => {
     if (isLoading || loginInFlight.current) return;
     loginInFlight.current = true;
 
-    if (!validateLogin()) return;
+    if (!validateLogin()) {
+      loginInFlight.current = false;
+      return;
+    }
 
     setIsLoading(true);
 
@@ -207,6 +313,7 @@ const AuthView: React.FC = () => {
       const tokenResponse = await DataService.login({
         username: loginForm.username,
         password: loginForm.password,
+        remember_me: loginForm.rememberMe,
       });
 
       console.log('[AuthView] Token response:', tokenResponse);
@@ -219,19 +326,26 @@ const AuthView: React.FC = () => {
         (tokenResponse as any)?.refreshToken ||
         (tokenResponse as any)?.refresh_token ||
         null;
+      const expiresAt = (tokenResponse as any)?.expiresAt;
+      const refreshExpiresAt = (tokenResponse as any)?.refreshExpiresAt;
+
       if (!accessToken) {
         throw new Error('Missing access token');
       }
 
+      // 转换为毫秒时间戳
+      const tokenExpiresAt = expiresAt ? expiresAt * 1000 : null;
+      const refreshTokenExpiresAt = refreshExpiresAt ? refreshExpiresAt * 1000 : null;
+
       // 登录成功 - authStore 会自动持久化 token
-      login(null as any, accessToken, refreshToken);  // 先存token，再获取用户信息
+      login(null as any, accessToken, refreshToken, tokenExpiresAt, refreshTokenExpiresAt);  // 先存token，再获取用户信息
 
       // 第二步：获取用户信息
       const user = await DataService.getCurrentUser();
       console.log('[AuthView] User info:', user);
 
       // 更新用户信息
-      login(user, accessToken, refreshToken);
+      login(user, accessToken, refreshToken, tokenExpiresAt, refreshTokenExpiresAt);
       navigate('/works');
     } catch (error: any) {
       const errorMessage = error?.response?.data?.detail || error?.message || t('auth.loginError');
@@ -257,23 +371,27 @@ const AuthView: React.FC = () => {
       await DataService.register({
         username: registerForm.username,
         email: registerForm.email,
+        email_verification_code: registerForm.emailVerificationCode,
         password: registerForm.password,
         invitation_code: registerForm.invitationCode
       });
 
       // 注册成功，切换到登录 Tab 并显示成功消息
       setSuccessMessage(t('auth.registerSuccess'));
-      setLoginForm({ username: registerForm.username, password: '' });
+      setLoginForm({ username: registerForm.username, password: '', rememberMe: false });
       setActiveTab('login');
 
       // 清空注册表单
       setRegisterForm({
         username: '',
         email: '',
+        emailVerificationCode: '',
         password: '',
         confirmPassword: '',
         invitationCode: ''
       });
+      setIsEmailVerified(false);
+      setEmailVerificationCountdown(0);
     } catch (error: any) {
       const errorMessage = error?.response?.data?.detail || error?.message || t('auth.registerError');
       setErrors({ submit: errorMessage });
@@ -318,7 +436,7 @@ const AuthView: React.FC = () => {
           {/* Logo */}
           <div className="flex items-center gap-3 animate-fade-in">
             <div className="w-12 h-12 bg-black/30 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/20 shadow-lg">
-              <BookOpen className="w-6 h-6 text-white drop-shadow-lg" />
+              <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '48px', height: '48px', filter: 'brightness(0) invert(1)' }} />
             </div>
             <span className="text-white tracking-wide drop-shadow-lg">{t('app.name')}</span>
           </div>
@@ -371,7 +489,7 @@ const AuthView: React.FC = () => {
           {/* 移动端Logo */}
           <div className="lg:hidden flex items-center gap-3 mb-8">
             <div className="w-12 h-12 bg-gray-900 rounded-xl flex items-center justify-center">
-              <BookOpen className="w-6 h-6 text-white" />
+              <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '48px', height: '48px', filter: 'brightness(0) invert(1)' }} />
             </div>
             <span className="text-gray-800 tracking-wide">{t('app.name')}</span>
           </div>
@@ -393,10 +511,10 @@ const AuthView: React.FC = () => {
 
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'login' | 'register')} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-8 bg-white shadow-sm border border-gray-200">
-              <TabsTrigger value="login" className="data-[state=active]:bg-gray-900 data-[state=active]:text-white">
+              <TabsTrigger value="login" className="data-[state=active]:!bg-gray-900 data-[state=active]:text-white">
                 {t('auth.login')}
               </TabsTrigger>
-              <TabsTrigger value="register" className="data-[state=active]:bg-gray-900 data-[state=active]:text-white">
+              <TabsTrigger value="register" className="data-[state=active]:!bg-gray-900 data-[state=active]:text-white">
                 {t('auth.register')}
               </TabsTrigger>
             </TabsList>
@@ -405,12 +523,11 @@ const AuthView: React.FC = () => {
             <TabsContent value="login" className="space-y-6">
               <form onSubmit={handleLogin} className="space-y-5">
                 <div className="space-y-2 group">
-                  <Label htmlFor="login-username" className="text-gray-700">{t('auth.username')}</Label>
                   <Input
                     id="login-username"
                     type="text"
                     placeholder={t('auth.usernamePlaceholder')}
-                    className="h-12 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200"
+                    className="h-12 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900"
                     value={loginForm.username}
                     onChange={(e) => {
                       setLoginForm({ ...loginForm, username: e.target.value });
@@ -421,24 +538,32 @@ const AuthView: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="login-password" className="text-gray-700">{t('auth.password')}</Label>
-                    <a href="#" className="text-sm text-gray-700 hover:text-gray-900 transition-colors flex items-center gap-1 group">
+                  <div className="flex items-center justify-end mb-1">
+                    <Link to="/forgot-password" className="text-sm text-gray-700 hover:text-gray-900 transition-colors flex items-center gap-1 group">
                       {t('auth.forgotPassword')}
                       <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-                    </a>
+                    </Link>
                   </div>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    placeholder={t('auth.passwordPlaceholder')}
-                    className="h-12 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200"
-                    value={loginForm.password}
-                    onChange={(e) => {
-                      setLoginForm({ ...loginForm, password: e.target.value });
-                      if (errors.password) setErrors({ ...errors, password: '' });
-                    }}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="login-password"
+                      type={showLoginPassword ? "text" : "password"}
+                      placeholder={t('auth.passwordPlaceholder')}
+                      className="h-12 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
+                      value={loginForm.password}
+                      onChange={(e) => {
+                        setLoginForm({ ...loginForm, password: e.target.value });
+                        if (errors.password) setErrors({ ...errors, password: '' });
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowLoginPassword(!showLoginPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      {showLoginPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                   {errors.password && <span className="text-sm text-red-500">{errors.password}</span>}
                 </div>
 
@@ -446,6 +571,8 @@ const AuthView: React.FC = () => {
                   <input
                     id="remember-me"
                     type="checkbox"
+                    checked={loginForm.rememberMe}
+                    onChange={(e) => setLoginForm({ ...loginForm, rememberMe: e.target.checked })}
                     className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900 cursor-pointer"
                   />
                   <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 cursor-pointer">
@@ -474,12 +601,11 @@ const AuthView: React.FC = () => {
             <TabsContent value="register" className="space-y-4">
               <form onSubmit={handleRegister} className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="register-username" className="text-gray-700">{t('auth.username')}</Label>
                   <Input
                     id="register-username"
                     type="text"
                     placeholder={t('auth.setUsername')}
-                    className="h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200"
+                    className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900"
                     value={registerForm.username}
                     onChange={(e) => {
                       setRegisterForm({ ...registerForm, username: e.target.value });
@@ -490,29 +616,116 @@ const AuthView: React.FC = () => {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="register-email" className="text-gray-700">{t('auth.email')}</Label>
                   <Input
                     id="register-email"
                     type="email"
                     placeholder={t('auth.emailPlaceholder')}
-                    className="h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200"
+                    className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900"
                     value={registerForm.email}
                     onChange={(e) => {
                       setRegisterForm({ ...registerForm, email: e.target.value });
                       if (errors.email) setErrors({ ...errors, email: '' });
+                      setIsEmailVerified(false); // 邮箱改变后重置验证状态
                     }}
                   />
                   {errors.email && <span className="text-sm text-red-500">{errors.email}</span>}
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="register-invitation-code" className="text-gray-700">{t('auth.invitationCode')}</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="register-email-code"
+                      type="text"
+                      placeholder={t('auth.emailCodePlaceholder')}
+                      maxLength={6}
+                      className="h-11 flex-1 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono text-gray-900"
+                      value={registerForm.emailVerificationCode}
+                      onChange={(e) => {
+                        const code = e.target.value.replace(/\D/g, '');
+                        setRegisterForm({ ...registerForm, emailVerificationCode: code });
+                        if (errors.emailVerificationCode) setErrors({ ...errors, emailVerificationCode: '' });
+
+                        // 当输入6位验证码时，自动验证
+                        if (code.length === 6) {
+                          void handleVerifyEmailCode(code);
+                        }
+                      }}
+                      disabled={!registerForm.email || isEmailVerified}
+                    />
+                    {!isEmailVerified ? (
+                      <Button
+                        type="button"
+                        onClick={handleSendEmailVerification}
+                        disabled={!registerForm.email || emailVerificationCountdown > 0 || isSendingCode}
+                        className="h-11 px-6 whitespace-nowrap bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all duration-200"
+                      >
+                        {emailVerificationCountdown > 0 ? `${emailVerificationCountdown}${t('auth.seconds')}` : (isSendingCode ? t('auth.sending') : t('auth.sendCode'))}
+                      </Button>
+                    ) : (
+                      <div className="h-11 px-6 flex items-center bg-green-50 border border-green-200 rounded-md text-green-700 text-sm whitespace-nowrap">
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        {t('auth.verified')}
+                      </div>
+                    )}
+                  </div>
+                  {errors.emailVerificationCode && <span className="text-sm text-red-500">{errors.emailVerificationCode}</span>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="relative">
+                    <Input
+                      id="register-password"
+                      type={showRegisterPassword ? "text" : "password"}
+                      placeholder={t('auth.passwordHint')}
+                      className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
+                      value={registerForm.password}
+                      onChange={(e) => {
+                        setRegisterForm({ ...registerForm, password: e.target.value });
+                        if (errors.password) setErrors({ ...errors, password: '' });
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      {showRegisterPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  {errors.password && <span className="text-sm text-red-500">{errors.password}</span>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="relative">
+                    <Input
+                      id="register-confirm-password"
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder={t('auth.confirmPasswordPlaceholder')}
+                      className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
+                      value={registerForm.confirmPassword}
+                      onChange={(e) => {
+                        setRegisterForm({ ...registerForm, confirmPassword: e.target.value });
+                        if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: '' });
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  {errors.confirmPassword && <span className="text-sm text-red-500">{errors.confirmPassword}</span>}
+                </div>
+
+                <div className="space-y-1.5">
                   <Input
                     id="register-invitation-code"
                     type="text"
                     placeholder={t('auth.invitationCodePlaceholder')}
                     maxLength={8}
-                    className="h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono uppercase"
+                    className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono uppercase text-gray-900"
                     value={registerForm.invitationCode}
                     onChange={(e) => {
                       setRegisterForm({ ...registerForm, invitationCode: e.target.value.toUpperCase() });
@@ -520,57 +733,6 @@ const AuthView: React.FC = () => {
                     }}
                   />
                   {errors.invitationCode && <span className="text-sm text-red-500">{errors.invitationCode}</span>}
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="register-password" className="text-gray-700">{t('auth.password')}</Label>
-                  <Input
-                    id="register-password"
-                    type="password"
-                    placeholder={t('auth.passwordHint')}
-                    className="h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200"
-                    value={registerForm.password}
-                    onChange={(e) => {
-                      setRegisterForm({ ...registerForm, password: e.target.value });
-                      if (errors.password) setErrors({ ...errors, password: '' });
-                    }}
-                  />
-                  {errors.password && <span className="text-sm text-red-500">{errors.password}</span>}
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="register-confirm-password" className="text-gray-700">{t('auth.confirmPassword')}</Label>
-                  <Input
-                    id="register-confirm-password"
-                    type="password"
-                    placeholder={t('auth.confirmPasswordPlaceholder')}
-                    className="h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200"
-                    value={registerForm.confirmPassword}
-                    onChange={(e) => {
-                      setRegisterForm({ ...registerForm, confirmPassword: e.target.value });
-                      if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: '' });
-                    }}
-                  />
-                  {errors.confirmPassword && <span className="text-sm text-red-500">{errors.confirmPassword}</span>}
-                </div>
-
-                <div className="flex items-start pt-2">
-                  <input
-                    id="terms"
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900 mt-0.5 cursor-pointer"
-                    required
-                  />
-                  <label htmlFor="terms" className="ml-2 block text-sm text-gray-700 cursor-pointer">
-                    {t('auth.agreeTerms')}
-                    <a href="#" className="text-gray-900 hover:text-gray-700 mx-1 underline underline-offset-2">
-                      {t('auth.termsOfService')}
-                    </a>
-                    {t('auth.and')}
-                    <a href="#" className="text-gray-900 hover:text-gray-700 mx-1 underline underline-offset-2">
-                      {t('auth.privacyPolicy')}
-                    </a>
-                  </label>
                 </div>
 
                 {/* 提交错误提示 */}

@@ -559,6 +559,110 @@ class StandardToolRegistry:
         """
         return list(self._standard_tools.values())
 
+    # ==================== 2025-12-14: 元数据驱动方法 ====================
+
+    def list_tools_by_category(self, category: str) -> List[StandardTool]:
+        """
+        按分类列出标准化工具（元数据驱动）
+
+        Args:
+            category: 工具分类（如 "writing", "analysis", "memory" 等）
+
+        Returns:
+            该分类下的 StandardTool 列表
+        """
+        return [
+            tool for tool in self._standard_tools.values()
+            if tool.category.value == category
+        ]
+
+    def find_tool_by_description(self, task_description: str) -> Optional[StandardTool]:
+        """
+        根据任务描述智能匹配工具（元数据驱动）
+
+        匹配策略:
+        1. 检测任务类型（续写/分析/获取等）
+        2. 根据 category 选择工具池
+        3. 从工具池中选择最佳匹配
+
+        Args:
+            task_description: 任务描述
+
+        Returns:
+            匹配的 StandardTool，如果无法匹配则返回 None
+        """
+        # 检测任务类别
+        task_category = self._detect_task_category(task_description)
+        if not task_category:
+            return None
+
+        # 获取该类别的工具
+        tools = self.list_tools_by_category(task_category)
+        if not tools:
+            return None
+
+        # 简单策略：返回第一个（未来可以用语义相似度排序）
+        return tools[0]
+
+    def _detect_task_category(self, description: str) -> Optional[str]:
+        """
+        检测任务所属的 category（基于通用规则）
+
+        注意：这里只硬编码"任务类型"（writing/analysis 等），
+        而不是硬编码"具体工具"（continue_writing_tool 等）
+
+        Args:
+            description: 任务描述
+
+        Returns:
+            category 字符串，或 None
+        """
+        desc = description.lower()
+
+        # WRITING 类关键词（通用）
+        if any(kw in desc for kw in ["续写", "创作", "生成", "写", "补充", "修正", "撰写", "编写", "设计", "构思", "规划", "策划", "设定"]):
+            return "writing"
+
+        # ANALYSIS 类关键词（通用）
+        if any(kw in desc for kw in ["分析", "总结", "梳理", "评估", "研究", "归纳", "概括"]):
+            return "analysis"
+
+        # MEMORY 类关键词
+        if any(kw in desc for kw in ["上下文", "背景", "设定", "记忆", "历史"]):
+            return "memory"
+
+        # UTILITY 类关键词
+        if any(kw in desc for kw in ["获取", "读取", "查看", "搜索"]):
+            return "utility"
+
+        return None
+
+    def get_tools_info_for_prompt(self) -> str:
+        """
+        获取工具信息字符串，供 Prompt 使用（动态生成）
+
+        Returns:
+            格式化的工具列表字符串
+        """
+        lines = []
+
+        # 按 category 分组
+        categories = {}
+        for tool in self._standard_tools.values():
+            cat = tool.category.value
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append(tool)
+
+        # 格式化输出
+        for category, tools in categories.items():
+            lines.append(f"**{category.upper()} 类工具**:")
+            for tool in tools[:3]:  # 每个类别最多显示 3 个
+                lines.append(f"  - {tool.name}: {tool.description[:50]}...")
+            lines.append("")
+
+        return "\n".join(lines)
+
     def unregister_standard_tool(self, name: str):
         """
         注销标准化工具

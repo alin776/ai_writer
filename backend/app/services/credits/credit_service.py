@@ -142,7 +142,8 @@ class CreditService:
         amount: Decimal,
         description: str,
         related_id: Optional[UUID] = None,
-        skip_check: bool = False
+        skip_check: bool = False,
+        auto_commit: bool = True  # ✅ 2025-12-14: 支持外层事务控制
     ) -> Optional[CreditTransaction]:
         """
         消费积分（AI调用扣费）
@@ -153,6 +154,7 @@ class CreditService:
             description: 描述
             related_id: 关联的 ai_call_log ID
             skip_check: 跳过检查（管理员豁免）
+            auto_commit: 是否自动提交（默认True）。设为False时由外层控制事务
 
         Returns:
             CreditTransaction: 交易记录（管理员豁免时返回 None）
@@ -208,8 +210,14 @@ class CreditService:
         )
         self.db.add(transaction)
 
-        await self.db.commit()
-        await self.db.refresh(transaction)
+        # ✅ 2025-12-14: 支持外层事务控制
+        if auto_commit:
+            await self.db.commit()
+            await self.db.refresh(transaction)
+        else:
+            # 仅 flush 获取 ID，不提交事务
+            await self.db.flush()
+
         return transaction
 
     async def recharge(

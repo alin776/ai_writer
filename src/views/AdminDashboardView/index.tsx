@@ -13,6 +13,7 @@ import { formatUsdToCny } from '../../utils/currency';
  * - 显示系统统计数据（真实数据）
  * - 显示使用趋势图表
  * - 快速访问管理功能
+ * - 支持深色模式动态切换
  */
 const AdminDashboardView: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -21,8 +22,27 @@ const AdminDashboardView: React.FC = () => {
   const [aiUsageData, setAiUsageData] = useState<any[]>([]);
   const { showToast } = useGlobalStore();
 
+  // 深色模式动态检测
+  const [isDarkMode, setIsDarkMode] = useState(
+    document.documentElement.classList.contains('dark')
+  );
+
   useEffect(() => {
     loadData();
+  }, []);
+
+  // 监听主题切换
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+
+    return () => observer.disconnect();
   }, []);
 
   const loadData = async () => {
@@ -66,7 +86,7 @@ const AdminDashboardView: React.FC = () => {
   if (!statistics) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <p className="text-gray-500">暂无数据</p>
+        <p className="text-gray-500 dark:text-gray-400">暂无数据</p>
       </div>
     );
   }
@@ -82,9 +102,9 @@ const AdminDashboardView: React.FC = () => {
       change: statistics.users?.change || '+0%',
       trend: (statistics.users?.change || '+0%').startsWith('+') ? 'up' as const : 'down' as const,
       icon: Users,
-      bgColor: 'bg-blue-100',
-      iconColor: 'text-blue-600',
-      trendColor: (statistics.users?.change || '+0%').startsWith('+') ? 'text-green-600' : 'text-red-600',
+      bgColor: 'bg-blue-100 dark:bg-blue-900/50',
+      iconColor: 'text-blue-600 dark:text-blue-400',
+      trendColor: (statistics.users?.change || '+0%').startsWith('+') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
     },
     {
       label: '总作品数',
@@ -92,9 +112,9 @@ const AdminDashboardView: React.FC = () => {
       change: statistics.works?.change || '+0%',
       trend: (statistics.works?.change || '+0%').startsWith('+') ? 'up' as const : 'down' as const,
       icon: BookOpen,
-      bgColor: 'bg-blue-100',
-      iconColor: 'text-blue-600',
-      trendColor: (statistics.works?.change || '+0%').startsWith('+') ? 'text-green-600' : 'text-red-600',
+      bgColor: 'bg-blue-100 dark:bg-blue-900/50',
+      iconColor: 'text-blue-600 dark:text-blue-400',
+      trendColor: (statistics.works?.change || '+0%').startsWith('+') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
     },
     {
       label: 'AI 调用次数',
@@ -102,9 +122,9 @@ const AdminDashboardView: React.FC = () => {
       change: aiCalls.change || '+0%',
       trend: (aiCalls.change || '+0%').startsWith('+') ? 'up' as const : 'down' as const,
       icon: Cpu,
-      bgColor: 'bg-blue-100',
-      iconColor: 'text-blue-600',
-      trendColor: (aiCalls.change || '+0%').startsWith('+') ? 'text-green-600' : 'text-red-600',
+      bgColor: 'bg-blue-100 dark:bg-blue-900/50',
+      iconColor: 'text-blue-600 dark:text-blue-400',
+      trendColor: (aiCalls.change || '+0%').startsWith('+') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
     },
     {
       label: '总成本',
@@ -112,9 +132,9 @@ const AdminDashboardView: React.FC = () => {
       change: cost.change || '+0%',
       trend: (cost.change || '+0%').startsWith('+') ? 'up' as const : 'down' as const,
       icon: DollarSign,
-      bgColor: 'bg-blue-100',
-      iconColor: 'text-blue-600',
-      trendColor: (cost.change || '+0%').startsWith('+') ? 'text-red-600' : 'text-green-600',
+      bgColor: 'bg-blue-100 dark:bg-blue-900/50',
+      iconColor: 'text-blue-600 dark:text-blue-400',
+      trendColor: (cost.change || '+0%').startsWith('+') ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400',
     },
   ];
 
@@ -122,8 +142,8 @@ const AdminDashboardView: React.FC = () => {
     <div className="space-y-6">
       {/* 页面标题 */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">数据面板</h1>
-        <p className="mt-2 text-gray-600">系统运营数据总览</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">数据面板</h1>
+        <p className="mt-2 text-gray-600 dark:text-gray-400">系统运营数据总览</p>
       </div>
 
       {/* 统计卡片 */}
@@ -136,12 +156,12 @@ const AdminDashboardView: React.FC = () => {
               <div className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-600">{stat.label}</p>
-                    <p className="mt-2 text-3xl font-bold text-gray-900">{stat.value}</p>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{stat.label}</p>
+                    <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
                     <div className={`mt-2 flex items-center text-sm ${stat.trendColor}`}>
                       <TrendIcon className="w-4 h-4 mr-1" />
                       <span className="font-medium">{stat.change}</span>
-                      <span className="ml-1 text-gray-500">vs 上月</span>
+                      <span className="ml-1 text-gray-500 dark:text-gray-400">vs 上月</span>
                     </div>
                   </div>
                   <div className={`w-12 h-12 ${stat.bgColor} rounded-lg flex items-center justify-center flex-shrink-0`}>
@@ -160,9 +180,9 @@ const AdminDashboardView: React.FC = () => {
         <Card background="blue">
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">增长趋势</h3>
-              <button 
-                className="text-sm text-blue-600 hover:text-blue-700 flex items-center"
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">增长趋势</h3>
+              <button
+                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center"
                 onClick={loadData}
               >
                 刷新
@@ -183,18 +203,26 @@ const AdminDashboardView: React.FC = () => {
                       <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis dataKey="date" stroke="#6B7280" style={{ fontSize: '12px' }} />
-                  <YAxis stroke="#6B7280" style={{ fontSize: '12px' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#374151" : "#E5E7EB"} />
+                  <XAxis dataKey="date" stroke={isDarkMode ? "#9CA3AF" : "#6B7280"} style={{ fontSize: '12px' }} />
+                  <YAxis stroke={isDarkMode ? "#9CA3AF" : "#6B7280"} style={{ fontSize: '12px' }} />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #E5E7EB',
+                      backgroundColor: isDarkMode ? '#1F2937' : '#ffffff',
+                      border: `1px solid ${isDarkMode ? '#374151' : '#E5E7EB'}`,
                       borderRadius: '8px',
                       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      color: isDarkMode ? '#F3F4F6' : '#111827',
+                    }}
+                    labelStyle={{
+                      color: isDarkMode ? '#F3F4F6' : '#111827',
                     }}
                   />
-                  <Legend />
+                  <Legend
+                    wrapperStyle={{
+                      color: isDarkMode ? '#D1D5DB' : '#6B7280',
+                    }}
+                  />
                   <Area
                     type="monotone"
                     dataKey="users"
@@ -216,7 +244,7 @@ const AdminDashboardView: React.FC = () => {
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[300px] text-gray-500">
+              <div className="flex items-center justify-center h-[300px] text-gray-500 dark:text-gray-400">
                 暂无增长数据
               </div>
             )}
@@ -227,9 +255,9 @@ const AdminDashboardView: React.FC = () => {
         <Card background="blue">
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">AI 模型使用</h3>
-              <button 
-                className="text-sm text-blue-600 hover:text-blue-700 flex items-center"
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">AI 模型使用</h3>
+              <button
+                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center"
                 onClick={loadData}
               >
                 刷新
@@ -240,24 +268,32 @@ const AdminDashboardView: React.FC = () => {
             {aiUsageData.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={aiUsageData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis dataKey="model" stroke="#6B7280" style={{ fontSize: '12px' }} />
-                  <YAxis stroke="#6B7280" style={{ fontSize: '12px' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#374151" : "#E5E7EB"} />
+                  <XAxis dataKey="model" stroke={isDarkMode ? "#9CA3AF" : "#6B7280"} style={{ fontSize: '12px' }} />
+                  <YAxis stroke={isDarkMode ? "#9CA3AF" : "#6B7280"} style={{ fontSize: '12px' }} />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #E5E7EB',
+                      backgroundColor: isDarkMode ? '#1F2937' : '#ffffff',
+                      border: `1px solid ${isDarkMode ? '#374151' : '#E5E7EB'}`,
                       borderRadius: '8px',
                       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      color: isDarkMode ? '#F3F4F6' : '#111827',
+                    }}
+                    labelStyle={{
+                      color: isDarkMode ? '#F3F4F6' : '#111827',
                     }}
                   />
-                  <Legend />
+                  <Legend
+                    wrapperStyle={{
+                      color: isDarkMode ? '#D1D5DB' : '#6B7280',
+                    }}
+                  />
                   <Bar dataKey="calls" fill="#8B5CF6" name="调用次数" radius={[8, 8, 0, 0]} />
                   <Bar dataKey="cost" fill="#F59E0B" name="成本 (¥)" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[300px] text-gray-500">
+              <div className="flex items-center justify-center h-[300px] text-gray-500 dark:text-gray-400">
                 暂无 AI 使用数据
               </div>
             )}
@@ -269,8 +305,8 @@ const AdminDashboardView: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card background="blue">
           <div className="p-6">
-            <h4 className="text-sm font-medium text-gray-600 mb-2">总章节数</h4>
-            <p className="text-2xl font-bold text-gray-900">
+            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">总章节数</h4>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">
               {(statistics.chapters?.total || 0).toLocaleString()}
             </p>
           </div>
@@ -278,8 +314,8 @@ const AdminDashboardView: React.FC = () => {
 
         <Card background="blue">
           <div className="p-6">
-            <h4 className="text-sm font-medium text-gray-600 mb-2">总字数</h4>
-            <p className="text-2xl font-bold text-gray-900">
+            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">总字数</h4>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">
               {(statistics.words?.total || 0).toLocaleString()}
             </p>
           </div>
@@ -287,8 +323,8 @@ const AdminDashboardView: React.FC = () => {
 
         <Card background="blue">
           <div className="p-6">
-            <h4 className="text-sm font-medium text-gray-600 mb-2">平均作品字数</h4>
-            <p className="text-2xl font-bold text-gray-900">
+            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">平均作品字数</h4>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">
               {(statistics.works?.total || 0) > 0
                 ? Math.round((statistics.words?.total || 0) / (statistics.works?.total || 1)).toLocaleString()
                 : '0'

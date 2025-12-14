@@ -278,8 +278,8 @@ const AdminCreditsView: React.FC = () => {
       {/* 页面标题 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">积分管理</h1>
-          <p className="mt-2 text-gray-600">管理兑换码和用户积分</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">积分管理</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">管理兑换码和用户积分</p>
         </div>
         <div className="flex gap-3">
           <Button onClick={() => setShowGiftModal(true)} variant="outline" icon={<Gift className="w-4 h-4" />}>
@@ -298,25 +298,11 @@ const AdminCreditsView: React.FC = () => {
             <div className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">积分用户数</p>
-                  <p className="mt-2 text-3xl font-bold text-gray-900">{stats.totalUsers.toLocaleString()}</p>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">积分用户数</p>
+                  <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{stats.totalUsers.toLocaleString()}</p>
                 </div>
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Coins className="w-6 h-6 text-blue-600" />
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          <Card background="blue">
-            <div className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">总余额</p>
-                  <p className="mt-2 text-3xl font-bold text-green-600">{stats.totalBalance.toLocaleString()}</p>
-                </div>
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="w-6 h-6 text-green-600" />
+                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
+                  <Coins className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                 </div>
               </div>
             </div>
@@ -326,11 +312,11 @@ const AdminCreditsView: React.FC = () => {
             <div className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">累计充值</p>
-                  <p className="mt-2 text-3xl font-bold text-purple-600">{stats.totalRecharged.toLocaleString()}</p>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">总余额</p>
+                  <p className="mt-2 text-3xl font-bold text-green-600 dark:text-green-400">{stats.totalBalance.toLocaleString()}</p>
                 </div>
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <DollarSign className="w-6 h-6 text-purple-600" />
+                <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center">
+                  <TrendingUp className="w-6 h-6 text-green-600 dark:text-green-400" />
                 </div>
               </div>
             </div>
@@ -338,22 +324,36 @@ const AdminCreditsView: React.FC = () => {
 
           <Card background="blue">
             <div className="p-6">
-              <p className="text-sm font-medium text-gray-600">累计消费</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">{stats.totalConsumed.toLocaleString()}</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">累计充值</p>
+                  <p className="mt-2 text-3xl font-bold text-purple-600 dark:text-purple-400">{stats.totalRecharged.toLocaleString()}</p>
+                </div>
+                <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/50 rounded-lg flex items-center justify-center">
+                  <DollarSign className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                </div>
+              </div>
             </div>
           </Card>
 
           <Card background="blue">
             <div className="p-6">
-              <p className="text-sm font-medium text-gray-600">累计赠送</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">{stats.totalGifted.toLocaleString()}</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">累计消费</p>
+              <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{stats.totalConsumed.toLocaleString()}</p>
             </div>
           </Card>
 
           <Card background="blue">
             <div className="p-6">
-              <p className="text-sm font-medium text-gray-600">交易总数</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">{stats.totalTransactions.toLocaleString()}</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">累计赠送</p>
+              <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{stats.totalGifted.toLocaleString()}</p>
+            </div>
+          </Card>
+
+          <Card background="blue">
+            <div className="p-6">
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">交易总数</p>
+              <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{stats.totalTransactions.toLocaleString()}</p>
             </div>
           </Card>
         </div>
@@ -368,14 +368,14 @@ const AdminCreditsView: React.FC = () => {
                 placeholder="搜索兑换码或备注..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                icon={<Search className="w-5 h-5 text-gray-400" />}
+                icon={<Search className="w-5 h-5 text-gray-400 dark:text-gray-500" />}
               />
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => setUsedFilter('all')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  usedFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  usedFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
                 全部
@@ -383,7 +383,7 @@ const AdminCreditsView: React.FC = () => {
               <button
                 onClick={() => setUsedFilter('unused')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  usedFilter === 'unused' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  usedFilter === 'unused' ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
                 未使用
@@ -391,21 +391,21 @@ const AdminCreditsView: React.FC = () => {
               <button
                 onClick={() => setUsedFilter('used')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  usedFilter === 'used' ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  usedFilter === 'used' ? 'bg-gray-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
                 已使用
               </button>
               <button
                 onClick={handleCopyAll}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                 title="一键复制当前列表兑换码"
               >
                 复制全部
               </button>
               <button
                 onClick={handleExportCsv}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors flex items-center space-x-1"
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center space-x-1"
                 title="导出当前列表为 CSV"
               >
                 <FileDown className="w-4 h-4" />
@@ -417,79 +417,79 @@ const AdminCreditsView: React.FC = () => {
           {/* 兑换码表格 */}
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">兑换码</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">积分</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">状态</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">使用者</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">使用时间</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">过期时间</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">备注</th>
-                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">操作</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">兑换码</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">积分</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">状态</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">使用者</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">使用时间</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">过期时间</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">备注</th>
+                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">操作</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {codes.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                       {searchQuery || usedFilter !== 'all' ? '没有找到匹配的兑换码' : '暂无兑换码'}
                     </td>
                   </tr>
                 ) : (
                   codes.map((code) => (
-                    <tr key={code.id} className="hover:bg-gray-50">
+                    <tr key={code.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                       <td className="px-4 py-3 text-sm">
                         <div className="flex items-center space-x-2">
-                          <code className="px-2 py-1 bg-gray-100 rounded font-mono text-blue-600">
+                          <code className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded font-mono text-blue-600 dark:text-blue-400">
                             {code.code}
                           </code>
                           <button
                             onClick={() => handleCopy(code.code)}
-                            className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                            className="p-1 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                             title="复制兑换码"
                           >
                             {copiedCode === code.code ? (
-                              <CheckCircle2 className="w-4 h-4 text-green-600" />
+                              <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
                             ) : (
                               <Copy className="w-4 h-4" />
                             )}
                           </button>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{code.credits}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{code.credits}</td>
                       <td className="px-4 py-3 text-sm">
                         {code.isUsed ? (
-                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
                             已使用
                           </span>
                         ) : (
-                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300">
                             未使用
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                         {code.usedBy ? (
                           <code className="text-xs">{code.usedBy.slice(0, 8)}...</code>
                         ) : (
                           '-'
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                         {code.usedAt ? formatDate(code.usedAt) : '-'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                         {code.expiresAt ? formatDate(code.expiresAt) : '无限期'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                         {code.remark || '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-right">
                         <button
                           onClick={() => handleDelete(code.id, code.code)}
                           disabled={deletingId === code.id || code.isUsed}
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           title={code.isUsed ? '已使用的兑换码不能删除' : '删除兑换码'}
                         >
                           <Trash2 className="w-4 h-4" />
@@ -509,10 +509,10 @@ const AdminCreditsView: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <Card background="blue" className="w-full max-w-md mx-4">
             <div className="p-6 space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">批量生成兑换码</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">批量生成兑换码</h3>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   生成数量 (1-100)
                 </label>
                 <Input
@@ -525,7 +525,7 @@ const AdminCreditsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   每个兑换码的积分数
                 </label>
                 <Input
@@ -537,7 +537,7 @@ const AdminCreditsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   有效期 (天，0表示无限期)
                 </label>
                 <Input
@@ -549,7 +549,7 @@ const AdminCreditsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   备注 (可选)
                 </label>
                 <Input
@@ -585,10 +585,10 @@ const AdminCreditsView: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <Card background="blue" className="w-full max-w-md mx-4">
             <div className="p-6 space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">赠送积分</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">赠送积分</h3>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   用户ID
                 </label>
                 <Input
@@ -599,7 +599,7 @@ const AdminCreditsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   积分数量
                 </label>
                 <Input
@@ -611,7 +611,7 @@ const AdminCreditsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   赠送原因
                 </label>
                 <Input

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Settings, User, Bell, Shield, Save, Moon, Sun, Monitor, Smartphone, Tablet, Mail, Lock, ChevronRight } from 'lucide-react';
+import { Settings, User, Bell, Shield, Save, Moon, Sun, Monitor, Smartphone, Tablet, Mail, Lock, ChevronRight, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Card, Button, Input } from '../../components/common';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
@@ -505,8 +505,35 @@ const SettingsView: React.FC = () => {
   );
 
   // 渲染安全设置
-  const renderSecuritySettings = () => (
-    <div className="space-y-6">
+  const renderSecuritySettings = () => {
+    const { refreshTokenExpiresAt } = useAuthStore.getState();
+
+    // 格式化过期时间
+    const formatExpiryDate = (timestamp: number | null) => {
+      if (!timestamp) return '未知';
+      const date = new Date(timestamp);
+      return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    };
+
+    // 计算剩余天数
+    const getDaysLeft = (timestamp: number | null) => {
+      if (!timestamp) return null;
+      const now = Date.now();
+      const timeLeft = timestamp - now;
+      if (timeLeft <= 0) return 0;
+      return Math.ceil(timeLeft / (24 * 60 * 60 * 1000));
+    };
+
+    const daysLeft = getDaysLeft(refreshTokenExpiresAt);
+
+    return (
+      <div className="space-y-6">
       {/* 账户安全 */}
       <div>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{t('settings.security.account.title')}</h3>
@@ -551,6 +578,35 @@ const SettingsView: React.FC = () => {
               <ChevronRight className="w-5 h-5" />
             </div>
           </button>
+
+          {/* 登录有效期 */}
+          <div className="w-full flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800/50">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center justify-center w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                <Clock className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-900 dark:text-gray-100">登录有效期</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {refreshTokenExpiresAt ? (
+                    <>
+                      有效期至 {formatExpiryDate(refreshTokenExpiresAt)}
+                      {daysLeft !== null && daysLeft > 0 && (
+                        <span className={`ml-2 ${daysLeft <= 1 ? 'text-orange-500 font-medium' : ''}`}>
+                          (剩余 {daysLeft} 天)
+                        </span>
+                      )}
+                      {daysLeft === 0 && (
+                        <span className="ml-2 text-orange-500 font-medium">(即将过期)</span>
+                      )}
+                    </>
+                  ) : (
+                    '未知'
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -652,7 +708,8 @@ const SettingsView: React.FC = () => {
         </Button>
       </div>
     </div>
-  );
+    );
+  };
 
   // 渲染偏好设置
   const renderPreferencesSettings = () => (

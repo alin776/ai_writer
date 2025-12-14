@@ -50,6 +50,8 @@ from app.services.agent.tools.editor_tools import (
     smart_insert,
     apply_chapter_edit
 )
+# 🔧 2025-12-14: 导入 registry 用于统一工具调用
+from app.services.agent.tools import registry
 from app.utils.datetime_utils import get_utc_now
 
 # ✅ 拆分模块导入
@@ -167,6 +169,11 @@ class WritingAgentGraph:
 
         # 设置全局 AI Service（供工具使用）
         set_global_ai_service(ai_service)
+
+        # 🔧 2025-12-14: 同时设置 writing_tools 的 AI Service（用于 StandardTool）
+        from app.services.agent.tools import set_ai_service
+        set_ai_service(ai_service)
+        logger.info("[LangGraph] ✅ AI Service 已同时设置到 langgraph_tools 和 writing_tools")
 
         # 初始化上下文管理器（用于chat_stream的长对话管理）
         from app.services.context import ContextManager
@@ -446,6 +453,232 @@ class WritingAgentGraph:
         intent = state.get("intent", "general")
         logger.info(f"[LangGraph] 工具执行完毕，路由回: {intent}_agent")
         return intent
+
+    # ==================== 2025-12-14: 统一工具调用接口 ====================
+
+    async def _call_tool_via_registry(
+        self,
+        tool_name: str,
+        tool_args: dict,
+        state: dict
+    ) -> str:
+        """通过 registry 统一调用工具（StandardTool 优先，@tool 兜底）
+
+        Args:
+            tool_name: 工具名称
+            tool_args: 工具参数
+            state: Agent 状态
+
+        Returns:
+            str: 工具执行结果（字符串格式）
+        """
+        # 工具名称映射（@tool 名称 → StandardTool 名称）
+        TOOL_NAME_MAPPING = {
+            "continue_writing_tool": "continue_writing",
+            "analyze_text_tool": "analyze_text",
+            "smart_rewrite": "smart_rewrite",
+            "smart_continue": "smart_continue",
+            "smart_insert": "smart_insert",
+            "apply_chapter_edit": "apply_chapter_edit",
+            # 章节工具（2025-12-14: 新增）
+            "get_context_tool": "get_context",
+            "read_chapter_tool": "read_chapter",
+            "get_chapter_by_order_tool": "get_chapter_by_order",
+            "search_analysis_fragments_tool": "search_analysis_fragments",
+        }
+
+        # 规范化工具名称
+        normalized_name = TOOL_NAME_MAPPING.get(tool_name, tool_name)
+
+        try:
+            # 准备参数
+            params = self._prepare_tool_params(normalized_name, tool_args, state)
+
+            # 调用 StandardTool
+            result = await registry.call_tool(normalized_name, params)
+
+            # 提取返回值
+            if isinstance(result, dict) and result.get("success"):
+                tool_result = self._extract_tool_result(normalized_name, result)
+                logger.info(f"[StandardTool] {normalized_name} 执行成功")
+                return tool_result
+            else:
+                error_msg = result.get("message", "执行失败") if isinstance(result, dict) else "未知错误"
+                logger.error(f"[StandardTool] {normalized_name} 执行失败: {error_msg}")
+                return json.dumps({"error": "tool_failed", "message": error_msg}, ensure_ascii=False)
+
+        except ValueError as e:
+            # StandardTool 不存在，降级到 @tool
+            logger.warning(f"[StandardTool] '{normalized_name}' 不存在，降级到 @tool: {e}")
+            return await self._fallback_to_legacy_tool(tool_name, tool_args, state)
+
+        except Exception as e:
+            # 其他错误，也尝试降级
+            logger.error(f"[StandardTool] 调用失败: {e}")
+            return await self._fallback_to_legacy_tool(tool_name, tool_args, state)
+
+    def _prepare_tool_params(
+        self,
+        tool_name: str,
+        tool_args: dict,
+        state: dict
+    ) -> dict:
+        """准备工具参数（处理特殊情况）"""
+        params = dict(tool_args)
+        last_user_message = state.get("last_user_message", "")
+
+        # 工具特定的参数处理
+        if tool_name == "continue_writing":
+            params.setdefault("context", last_user_message)
+            params.setdefault("requirements", "")
+            params.setdefault("target_length", 500)
+            params.setdefault("style", "")
+
+        elif tool_name == "analyze_text":
+            params.setdefault("text", last_user_message)
+            params.setdefault("focus", "all")
+
+        elif tool_name == "smart_rewrite":
+            # 编辑器工具：智能改写
+            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            params.setdefault("text_to_rewrite", None)
+            params.setdefault("chapter_content", None)
+            params.setdefault("user_requirement", None)
+            params.setdefault("base_version", None)
+            params.setdefault("user_id", state.get("user_id"))
+
+        elif tool_name == "smart_continue":
+            # 编辑器工具：智能续写
+            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            params.setdefault("user_id", state.get("user_id"))
+
+        elif tool_name == "smart_insert":
+            # 编辑器工具：智能插入
+            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            params.setdefault("chapter_content", None)
+            params.setdefault("context", None)
+            params.setdefault("user_id", state.get("user_id"))
+
+        elif tool_name == "apply_chapter_edit":
+            # 章节编辑工具
+            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            params.setdefault("operation", "append")
+            params.setdefault("position", None)
+            params.setdefault("user_id", state.get("user_id"))
+            params.setdefault("description", None)
+
+        # 章节工具（2025-12-14: 新增）
+        elif tool_name == "get_context":
+            params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("chapter_id", state.get("chapter_id", ""))
+
+        elif tool_name == "read_chapter":
+            params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("chapter_id", state.get("chapter_id", ""))
+
+        elif tool_name == "get_chapter_by_order":
+            params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("chapter_order", 1)
+
+        elif tool_name == "search_analysis_fragments":
+            params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("query", last_user_message)
+            params.setdefault("top_k", 5)
+            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            params.setdefault("include_current", True)
+            params.setdefault("look_ahead", 2)
+
+        return params
+
+    def _extract_tool_result(self, tool_name: str, result: dict) -> str:
+        """从 StandardTool 返回值中提取实际结果"""
+        data = result.get("data", {})
+
+        # 根据不同工具提取不同字段
+        if tool_name == "continue_writing":
+            return data.get("generated_text", "")
+
+        elif tool_name == "analyze_text":
+            return data.get("analysis_report", "")
+
+        elif tool_name in ["smart_rewrite", "smart_continue", "smart_insert", "apply_chapter_edit"]:
+            # 编辑器工具返回完整的 data（包含版本、确认请求等）
+            return json.dumps(data, ensure_ascii=False)
+
+        # 章节工具（2025-12-14: 新增）
+        elif tool_name == "get_context":
+            return data.get("context", "")
+
+        elif tool_name == "read_chapter":
+            return data.get("chapter_info", "")
+
+        elif tool_name == "get_chapter_by_order":
+            return data.get("chapter_info", "")
+
+        elif tool_name == "search_analysis_fragments":
+            return data.get("fragments", "")
+
+        # 默认返回整个 data（JSON 字符串）
+        return json.dumps(data, ensure_ascii=False)
+
+    async def _fallback_to_legacy_tool(
+        self,
+        tool_name: str,
+        tool_args: dict,
+        state: dict
+    ) -> str:
+        """降级到 @tool 版本（向后兼容）"""
+        from app.services.agent.langgraph_tools import (
+            continue_writing_tool,
+            analyze_text_tool,
+        )
+        from app.services.agent.tools.editor_tools import (
+            smart_rewrite,
+            smart_continue,
+            smart_insert,
+            apply_chapter_edit,
+        )
+
+        last_user_message = state.get("last_user_message", "")
+
+        LEGACY_TOOLS = {
+            "continue_writing_tool": continue_writing_tool,
+            "analyze_text_tool": analyze_text_tool,
+            "smart_rewrite": smart_rewrite,
+            "smart_continue": smart_continue,
+            "smart_insert": smart_insert,
+            "apply_chapter_edit": apply_chapter_edit,
+        }
+
+        legacy_tool = LEGACY_TOOLS.get(tool_name)
+        if legacy_tool:
+            logger.info(f"[LegacyTool] 使用 @tool 版本: {tool_name}")
+            try:
+                # 准备参数（与原有逻辑一致）
+                if tool_name == "continue_writing_tool":
+                    params = {
+                        "context": tool_args.get("context", last_user_message),
+                        "requirements": tool_args.get("requirements", "")
+                    }
+                elif tool_name == "analyze_text_tool":
+                    params = {
+                        "text": tool_args.get("text", last_user_message),
+                        "focus": tool_args.get("focus", "all")
+                    }
+                else:
+                    # 编辑器工具直接使用 tool_args
+                    params = tool_args
+
+                return await legacy_tool.ainvoke(params)
+            except Exception as e:
+                logger.error(f"[LegacyTool] 调用失败: {e}")
+                return json.dumps({"error": "legacy_tool_failed", "message": str(e)}, ensure_ascii=False)
+
+        # 工具完全不存在
+        logger.error(f"[ToolCall] 未知工具: {tool_name}")
+        return json.dumps({"error": "unknown_tool", "message": f"未知工具: {tool_name}"}, ensure_ascii=False)
+
+    # ==================== 原有方法继续 ====================
 
     async def _generate_text(
         self,
@@ -1460,32 +1693,102 @@ class WritingAgentGraph:
                                         base_version = resolved
 
                                 logger.info(f"[LangGraph] 🚀 二次调用 smart_rewrite, chapter_id={tool_args.get('chapter_id')}, user_requirement={tool_args.get('user_requirement', '')[:30]}")
-                                second_tool_result = await smart_rewrite.ainvoke({
-                                    "chapter_id": tool_args.get("chapter_id", ""),
-                                    "text_to_rewrite": tool_args.get("text_to_rewrite", ""),
-                                    "user_requirement": tool_args.get("user_requirement", ""),
-                                    "base_version": base_version
-                                })
+                                # 🔧 2025-12-14: 统一使用 registry
+                                try:
+                                    result = await registry.call_tool("smart_rewrite", {
+                                        "chapter_id": tool_args.get("chapter_id", ""),
+                                        "text_to_rewrite": tool_args.get("text_to_rewrite", ""),
+                                        "chapter_content": None,
+                                        "user_requirement": tool_args.get("user_requirement", ""),
+                                        "base_version": base_version,
+                                        "user_id": state.get("user_id")
+                                    })
+                                    if isinstance(result, dict) and result.get("success"):
+                                        second_tool_result = json.dumps(result.get("data", {}), ensure_ascii=False)
+                                    else:
+                                        second_tool_result = json.dumps(result, ensure_ascii=False)
+                                except Exception as e:
+                                    logger.warning(f"[StandardTool] 二次调用 smart_rewrite 失败，降级: {e}")
+                                    second_tool_result = await smart_rewrite.ainvoke({
+                                        "chapter_id": tool_args.get("chapter_id", ""),
+                                        "text_to_rewrite": tool_args.get("text_to_rewrite", ""),
+                                        "chapter_content": None,  # 🔧 补充
+                                        "user_requirement": tool_args.get("user_requirement", ""),
+                                        "base_version": base_version,
+                                        "user_id": state.get("user_id")  # 🔧 补充 user_id
+                                    })
                             elif tool_name == "smart_continue":
                                 logger.info(f"[LangGraph] 🚀 二次调用 smart_continue, chapter_id={tool_args.get('chapter_id')}")
-                                second_tool_result = await smart_continue.ainvoke({
-                                    "chapter_id": tool_args.get("chapter_id", ""),
-                                    "context": tool_args.get("context", "")
-                                })
+                                # 🔧 2025-12-14: 统一使用 registry
+                                try:
+                                    result = await registry.call_tool("smart_continue", {
+                                        "chapter_id": tool_args.get("chapter_id", ""),
+                                        "content": tool_args.get("context", ""),
+                                        "user_id": state.get("user_id")
+                                    })
+                                    if isinstance(result, dict) and result.get("success"):
+                                        second_tool_result = json.dumps(result.get("data", {}), ensure_ascii=False)
+                                    else:
+                                        second_tool_result = json.dumps(result, ensure_ascii=False)
+                                except Exception as e:
+                                    logger.warning(f"[StandardTool] 二次调用 smart_continue 失败，降级: {e}")
+                                    second_tool_result = await smart_continue.ainvoke({
+                                        "chapter_id": tool_args.get("chapter_id", ""),
+                                        "content": tool_args.get("context", ""),  # 🔧 参数名修正
+                                        "user_id": state.get("user_id")
+                                    })
                             elif tool_name == "smart_insert":
                                 logger.info(f"[LangGraph] 🚀 二次调用 smart_insert, chapter_id={tool_args.get('chapter_id')}")
-                                second_tool_result = await smart_insert.ainvoke({
-                                    "chapter_id": tool_args.get("chapter_id", ""),
-                                    "position": tool_args.get("position", "end"),
-                                    "content": tool_args.get("content", "")
-                                })
+                                # 🔧 2025-12-14: 统一使用 registry
+                                try:
+                                    result = await registry.call_tool("smart_insert", {
+                                        "chapter_id": tool_args.get("chapter_id", ""),
+                                        "content": tool_args.get("content", ""),
+                                        "user_intent": tool_args.get("position", "end"),
+                                        "chapter_content": None,
+                                        "context": None,
+                                        "user_id": state.get("user_id")
+                                    })
+                                    if isinstance(result, dict) and result.get("success"):
+                                        second_tool_result = json.dumps(result.get("data", {}), ensure_ascii=False)
+                                    else:
+                                        second_tool_result = json.dumps(result, ensure_ascii=False)
+                                except Exception as e:
+                                    logger.warning(f"[StandardTool] 二次调用 smart_insert 失败，降级: {e}")
+                                    second_tool_result = await smart_insert.ainvoke({
+                                        "chapter_id": tool_args.get("chapter_id", ""),
+                                        "content": tool_args.get("content", ""),
+                                        "user_intent": tool_args.get("position", "end"),  # 🔧 参数名映射
+                                        "chapter_content": None,  # 🔧 补充
+                                        "context": None,  # 🔧 补充
+                                        "user_id": state.get("user_id")  # 🔧 补充 user_id
+                                    })
                             elif tool_name == "apply_chapter_edit":
                                 logger.info(f"[LangGraph] 🚀 二次调用 apply_chapter_edit, chapter_id={tool_args.get('chapter_id')}")
-                                second_tool_result = await apply_chapter_edit.ainvoke({
-                                    "chapter_id": tool_args.get("chapter_id", ""),
-                                    "operation": tool_args.get("operation", "replace"),
-                                    "content": tool_args.get("content", "")
-                                })
+                                # 🔧 2025-12-14: 统一使用 registry
+                                try:
+                                    result = await registry.call_tool("apply_chapter_edit", {
+                                        "chapter_id": tool_args.get("chapter_id", ""),
+                                        "content": tool_args.get("content", ""),
+                                        "operation": tool_args.get("operation", "replace"),
+                                        "position": None,
+                                        "user_id": state.get("user_id"),
+                                        "description": None
+                                    })
+                                    if isinstance(result, dict) and result.get("success"):
+                                        second_tool_result = json.dumps(result.get("data", {}), ensure_ascii=False)
+                                    else:
+                                        second_tool_result = json.dumps(result, ensure_ascii=False)
+                                except Exception as e:
+                                    logger.warning(f"[StandardTool] 二次调用 apply_chapter_edit 失败，降级: {e}")
+                                    second_tool_result = await apply_chapter_edit.ainvoke({
+                                        "chapter_id": tool_args.get("chapter_id", ""),
+                                        "content": tool_args.get("content", ""),
+                                        "operation": tool_args.get("operation", "replace"),
+                                        "position": None,  # 🔧 补充
+                                        "user_id": state.get("user_id"),  # 🔧 补充 user_id
+                                        "description": None  # 🔧 补充
+                                    })
                             else:
                                 logger.warning(f"[LangGraph] 未知的二次工具调用: {tool_name}")
 
@@ -1859,15 +2162,55 @@ class WritingAgentGraph:
             # 调用工具（使用 .ainvoke() 方法，因为 @tool 装饰器返回的是 StructuredTool 对象）
             tool_result = ""
             if tool_name == "continue_writing_tool":
-                tool_result = await continue_writing_tool.ainvoke({
-                    "context": tool_args.get("context", last_user_message),
-                    "requirements": tool_args.get("requirements", "")
-                })
+                # 🔧 2025-12-14: 迁移到 StandardTool 系统
+                try:
+                    result = await registry.call_tool("continue_writing", {
+                        "context": tool_args.get("context", last_user_message),
+                        "requirements": tool_args.get("requirements", ""),
+                        "target_length": tool_args.get("target_length", 500),
+                        "style": tool_args.get("style", "")
+                    })
+
+                    # StandardTool 返回 dict 格式，提取 generated_text
+                    if isinstance(result, dict) and result.get("success"):
+                        tool_result = result.get("data", {}).get("generated_text", "")
+                        logger.info(f"[StandardTool] continue_writing 执行成功，字数: {len(tool_result)}")
+                    else:
+                        error_msg = result.get("message", "执行失败") if isinstance(result, dict) else "未知错误"
+                        tool_result = json.dumps({"error": "tool_failed", "message": error_msg}, ensure_ascii=False)
+                        logger.error(f"[StandardTool] continue_writing 执行失败: {error_msg}")
+
+                except Exception as e:
+                    # 降级到 @tool 版本（兜底）
+                    logger.warning(f"[StandardTool] 调用失败，降级到 @tool 版本: {e}")
+                    tool_result = await continue_writing_tool.ainvoke({
+                        "context": tool_args.get("context", last_user_message),
+                        "requirements": tool_args.get("requirements", "")
+                    })
             elif tool_name == "analyze_text_tool":
-                tool_result = await analyze_text_tool.ainvoke({
-                    "text": tool_args.get("text", last_user_message),
-                    "focus": tool_args.get("focus", "all")
-                })
+                # 🔧 2025-12-14: 迁移到 StandardTool 系统
+                try:
+                    result = await registry.call_tool("analyze_text", {
+                        "text": tool_args.get("text", last_user_message),
+                        "focus": tool_args.get("focus", "all")
+                    })
+
+                    # StandardTool 返回 dict 格式，提取 analysis_report
+                    if isinstance(result, dict) and result.get("success"):
+                        tool_result = result.get("data", {}).get("analysis_report", "")
+                        logger.info(f"[StandardTool] analyze_text 执行成功，结果长度: {len(tool_result)}")
+                    else:
+                        error_msg = result.get("message", "执行失败") if isinstance(result, dict) else "未知错误"
+                        tool_result = json.dumps({"error": "tool_failed", "message": error_msg}, ensure_ascii=False)
+                        logger.error(f"[StandardTool] analyze_text 执行失败: {error_msg}")
+
+                except Exception as e:
+                    # 降级到 @tool 版本（兜底）
+                    logger.warning(f"[StandardTool] 调用失败，降级到 @tool 版本: {e}")
+                    tool_result = await analyze_text_tool.ainvoke({
+                        "text": tool_args.get("text", last_user_message),
+                        "focus": tool_args.get("focus", "all")
+                    })
             elif tool_name == "get_context_tool":
                 # ✅ P0修复：添加参数完整性检查
                 work_id_value = state.get("work_id")
@@ -1879,11 +2222,31 @@ class WritingAgentGraph:
                         "user_prompt": "请先告诉我您要操作哪部作品？"
                     }, ensure_ascii=False)
                 else:
+                    # 🔧 2025-12-14: 统一使用 registry 调用 StandardTool
                     logger.info(f"[LangGraph] 🚀 准备调用 get_context_tool, work_id={work_id_value}, chapter_id={state.get('chapter_id')}")
-                    tool_result = await get_context_tool.ainvoke({
-                        "work_id": work_id_value,
-                        "chapter_id": state.get("chapter_id", "")
-                    })
+                    try:
+                        result = await registry.call_tool("get_context", {
+                            "work_id": work_id_value,
+                            "chapter_id": state.get("chapter_id", "")
+                        })
+
+                        # StandardTool 返回 dict 格式，提取 context
+                        if isinstance(result, dict) and result.get("success"):
+                            tool_result = result.get("data", {}).get("context", "")
+                            logger.info(f"[StandardTool] get_context 执行成功，长度: {len(tool_result)} 字符")
+                        else:
+                            error_msg = result.get("message", "执行失败") if isinstance(result, dict) else "未知错误"
+                            tool_result = json.dumps({"error": "tool_failed", "message": error_msg}, ensure_ascii=False)
+                            logger.error(f"[StandardTool] get_context 执行失败: {error_msg}")
+
+                    except Exception as e:
+                        # 降级到 @tool 版本
+                        logger.warning(f"[StandardTool] get_context 调用失败，降级到 @tool: {e}")
+                        tool_result = await get_context_tool.ainvoke({
+                            "work_id": work_id_value,
+                            "chapter_id": state.get("chapter_id", "")
+                        })
+
                     logger.info(f"[LangGraph] ✅ get_context_tool 返回结果长度: {len(tool_result)} 字符")
                     logger.info(f"[LangGraph] ✅ get_context_tool 返回内容预览: {tool_result[:200]}")
             elif tool_name == "read_chapter_tool":
@@ -1897,10 +2260,29 @@ class WritingAgentGraph:
                         "user_prompt": "请先告诉我您要读取哪部作品的章节？"
                     }, ensure_ascii=False)
                 else:
-                    tool_result = await read_chapter_tool.ainvoke({
-                        "work_id": work_id_value,
-                        "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or ""
-                    })
+                    # 🔧 2025-12-14: 统一使用 registry 调用 StandardTool
+                    try:
+                        result = await registry.call_tool("read_chapter", {
+                            "work_id": work_id_value,
+                            "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or ""
+                        })
+
+                        # StandardTool 返回 dict 格式，提取 chapter_info
+                        if isinstance(result, dict) and result.get("success"):
+                            tool_result = result.get("data", {}).get("chapter_info", "")
+                            logger.info(f"[StandardTool] read_chapter 执行成功")
+                        else:
+                            error_msg = result.get("message", "执行失败") if isinstance(result, dict) else "未知错误"
+                            tool_result = json.dumps({"error": "tool_failed", "message": error_msg}, ensure_ascii=False)
+                            logger.error(f"[StandardTool] read_chapter 执行失败: {error_msg}")
+
+                    except Exception as e:
+                        # 降级到 @tool 版本
+                        logger.warning(f"[StandardTool] read_chapter 调用失败，降级到 @tool: {e}")
+                        tool_result = await read_chapter_tool.ainvoke({
+                            "work_id": work_id_value,
+                            "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or ""
+                        })
             elif tool_name == "get_chapter_by_order_tool":
                 # ✅ P0修复：添加参数完整性检查
                 work_id_value = state.get("work_id")
@@ -1912,11 +2294,31 @@ class WritingAgentGraph:
                         "user_prompt": "请先告诉我您要查看哪部作品的章节？您可以说：\n- 「我想看《作品名》的第X章」\n- 或者先创建一部新作品"
                     }, ensure_ascii=False)
                 else:
+                    # 🔧 2025-12-14: 统一使用 registry 调用 StandardTool
                     logger.info(f"[LangGraph] 🚀 准备调用 get_chapter_by_order_tool, work_id={work_id_value}, chapter_order={tool_args.get('chapter_order')}")
-                    tool_result = await get_chapter_by_order_tool.ainvoke({
-                        "work_id": work_id_value,
-                        "chapter_order": tool_args.get("chapter_order", 1)
-                    })
+                    try:
+                        result = await registry.call_tool("get_chapter_by_order", {
+                            "work_id": work_id_value,
+                            "chapter_order": tool_args.get("chapter_order", 1)
+                        })
+
+                        # StandardTool 返回 dict 格式，提取 chapter_info
+                        if isinstance(result, dict) and result.get("success"):
+                            tool_result = result.get("data", {}).get("chapter_info", "")
+                            logger.info(f"[StandardTool] get_chapter_by_order 执行成功")
+                        else:
+                            error_msg = result.get("message", "执行失败") if isinstance(result, dict) else "未知错误"
+                            tool_result = json.dumps({"error": "tool_failed", "message": error_msg}, ensure_ascii=False)
+                            logger.error(f"[StandardTool] get_chapter_by_order 执行失败: {error_msg}")
+
+                    except Exception as e:
+                        # 降级到 @tool 版本
+                        logger.warning(f"[StandardTool] get_chapter_by_order 调用失败，降级到 @tool: {e}")
+                        tool_result = await get_chapter_by_order_tool.ainvoke({
+                            "work_id": work_id_value,
+                            "chapter_order": tool_args.get("chapter_order", 1)
+                        })
+
                     logger.info(f"[LangGraph] ✅ get_chapter_by_order_tool 返回结果长度: {len(tool_result)} 字符")
             elif tool_name == "search_analysis_fragments_tool":
                 # ✅ P0修复：添加参数完整性检查
@@ -1929,14 +2331,37 @@ class WritingAgentGraph:
                         "user_prompt": "请先告诉我您要搜索哪部作品的分析片段？"
                     }, ensure_ascii=False)
                 else:
-                    tool_result = await search_analysis_fragments_tool.ainvoke({
-                        "work_id": work_id_value,
-                        "query": tool_args.get("query", last_user_message),
-                        "top_k": tool_args.get("top_k", 5),
-                        "chapter_id": state.get("chapter_id", ""),  # ✅ P0修复：传递 chapter_id 支持时序限制
-                        "include_current": tool_args.get("include_current", True),
-                        "look_ahead": tool_args.get("look_ahead", 2),
-                    })
+                    # 🔧 2025-12-14: 统一使用 registry 调用 StandardTool
+                    try:
+                        result = await registry.call_tool("search_analysis_fragments", {
+                            "work_id": work_id_value,
+                            "query": tool_args.get("query", last_user_message),
+                            "top_k": tool_args.get("top_k", 5),
+                            "chapter_id": state.get("chapter_id", ""),  # ✅ P0修复：传递 chapter_id 支持时序限制
+                            "include_current": tool_args.get("include_current", True),
+                            "look_ahead": tool_args.get("look_ahead", 2)
+                        })
+
+                        # StandardTool 返回 dict 格式，提取 fragments
+                        if isinstance(result, dict) and result.get("success"):
+                            tool_result = result.get("data", {}).get("fragments", "")
+                            logger.info(f"[StandardTool] search_analysis_fragments 执行成功")
+                        else:
+                            error_msg = result.get("message", "执行失败") if isinstance(result, dict) else "未知错误"
+                            tool_result = json.dumps({"error": "tool_failed", "message": error_msg}, ensure_ascii=False)
+                            logger.error(f"[StandardTool] search_analysis_fragments 执行失败: {error_msg}")
+
+                    except Exception as e:
+                        # 降级到 @tool 版本
+                        logger.warning(f"[StandardTool] search_analysis_fragments 调用失败，降级到 @tool: {e}")
+                        tool_result = await search_analysis_fragments_tool.ainvoke({
+                            "work_id": work_id_value,
+                            "query": tool_args.get("query", last_user_message),
+                            "top_k": tool_args.get("top_k", 5),
+                            "chapter_id": state.get("chapter_id", ""),  # ✅ P0修复：传递 chapter_id 支持时序限制
+                            "include_current": tool_args.get("include_current", True),
+                            "look_ahead": tool_args.get("look_ahead", 2),
+                        })
             # ✅ 编辑器工具：smart_rewrite（改写章节）
             elif tool_name == "smart_rewrite":
                 # ✅ P0-6修复：使用正确的参数名，包含 user_requirement 和 base_version
@@ -1966,13 +2391,39 @@ class WritingAgentGraph:
                         base_version = resolved_version
 
                 logger.info(f"[LangGraph] 🚀 准备调用 smart_rewrite, chapter_id={tool_args.get('chapter_id')}, text_to_rewrite长度={len(text_to_rewrite)}, user_requirement={user_requirement[:50] if user_requirement else 'None'}")
-                tool_result = await smart_rewrite.ainvoke({
-                    "chapter_id": tool_args.get("chapter_id", ""),
-                    "text_to_rewrite": text_to_rewrite,
-                    "chapter_content": chapter_content,
-                    "user_requirement": user_requirement,
-                    "base_version": base_version
-                })
+
+                # 🔧 2025-12-14: 统一使用 registry 调用 StandardTool
+                try:
+                    result = await registry.call_tool("smart_rewrite", {
+                        "chapter_id": tool_args.get("chapter_id", ""),
+                        "text_to_rewrite": text_to_rewrite,
+                        "chapter_content": chapter_content,
+                        "user_requirement": user_requirement,
+                        "base_version": base_version,
+                        "user_id": state.get("user_id")
+                    })
+
+                    # StandardTool 返回 dict 格式，提取 data
+                    if isinstance(result, dict) and result.get("success"):
+                        tool_result = json.dumps(result.get("data", {}), ensure_ascii=False)
+                        logger.info(f"[StandardTool] smart_rewrite 执行成功")
+                    else:
+                        error_msg = result.get("message", "执行失败") if isinstance(result, dict) else "未知错误"
+                        tool_result = json.dumps({"error": "tool_failed", "message": error_msg}, ensure_ascii=False)
+                        logger.error(f"[StandardTool] smart_rewrite 执行失败: {error_msg}")
+
+                except Exception as e:
+                    # 降级到 @tool 版本
+                    logger.warning(f"[StandardTool] smart_rewrite 调用失败，降级到 @tool: {e}")
+                    tool_result = await smart_rewrite.ainvoke({
+                        "chapter_id": tool_args.get("chapter_id", ""),
+                        "text_to_rewrite": text_to_rewrite,
+                        "chapter_content": chapter_content,
+                        "user_requirement": user_requirement,
+                        "base_version": base_version,
+                        "user_id": state.get("user_id")  # 🔧 补充 user_id
+                    })
+
                 logger.info(f"[LangGraph] ✅ smart_rewrite 返回结果长度: {len(str(tool_result))} 字符")
 
                 # ✅ 版本记忆：保存生成的版本到 context，供后续"在第X版基础上改"使用
@@ -2014,10 +2465,32 @@ class WritingAgentGraph:
                 selected_text = context.get("selected_text", "")
                 selection_position = context.get("selection_position", None)
 
-                tool_result = await smart_continue.ainvoke({
-                    "chapter_id": tool_args.get("chapter_id", ""),
-                    "context": tool_args.get("context", "")
-                })
+                # 🔧 2025-12-14: 统一使用 registry 调用 StandardTool
+                try:
+                    result = await registry.call_tool("smart_continue", {
+                        "chapter_id": tool_args.get("chapter_id", ""),
+                        "content": tool_args.get("context", ""),
+                        "user_id": state.get("user_id")
+                    })
+
+                    # StandardTool 返回 dict 格式，提取 data
+                    if isinstance(result, dict) and result.get("success"):
+                        tool_result = json.dumps(result.get("data", {}), ensure_ascii=False)
+                        logger.info(f"[StandardTool] smart_continue 执行成功")
+                    else:
+                        error_msg = result.get("message", "执行失败") if isinstance(result, dict) else "未知错误"
+                        tool_result = json.dumps({"error": "tool_failed", "message": error_msg}, ensure_ascii=False)
+                        logger.error(f"[StandardTool] smart_continue 执行失败: {error_msg}")
+
+                except Exception as e:
+                    # 降级到 @tool 版本
+                    logger.warning(f"[StandardTool] smart_continue 调用失败，降级到 @tool: {e}")
+                    tool_result = await smart_continue.ainvoke({
+                        "chapter_id": tool_args.get("chapter_id", ""),
+                        "content": tool_args.get("context", ""),  # 🔧 参数名修正：@tool 版本期望 "content"
+                        "user_id": state.get("user_id")
+                    })
+
                 logger.info(f"[LangGraph] ✅ smart_continue 返回结果长度: {len(tool_result)} 字符")
 
                 # 🆕 InlineAI: 添加 editor_action 字段 (type=continue)
@@ -2040,29 +2513,96 @@ class WritingAgentGraph:
             # ✅ 编辑器工具：smart_insert（插入内容）
             elif tool_name == "smart_insert":
                 logger.info(f"[LangGraph] 🚀 准备调用 smart_insert, chapter_id={tool_args.get('chapter_id')}")
-                tool_result = await smart_insert.ainvoke({
-                    "chapter_id": tool_args.get("chapter_id", ""),
-                    "position": tool_args.get("position", "end"),
-                    "content": tool_args.get("content", "")
-                })
+
+                # 🔧 2025-12-14: 统一使用 registry 调用 StandardTool
+                try:
+                    result = await registry.call_tool("smart_insert", {
+                        "chapter_id": tool_args.get("chapter_id", ""),
+                        "content": tool_args.get("content", ""),
+                        "user_intent": tool_args.get("position", "end"),  # position 映射到 user_intent
+                        "chapter_content": None,
+                        "context": None,
+                        "user_id": state.get("user_id")
+                    })
+
+                    # StandardTool 返回 dict 格式，提取 data
+                    if isinstance(result, dict) and result.get("success"):
+                        tool_result = json.dumps(result.get("data", {}), ensure_ascii=False)
+                        logger.info(f"[StandardTool] smart_insert 执行成功")
+                    else:
+                        error_msg = result.get("message", "执行失败") if isinstance(result, dict) else "未知错误"
+                        tool_result = json.dumps({"error": "tool_failed", "message": error_msg}, ensure_ascii=False)
+                        logger.error(f"[StandardTool] smart_insert 执行失败: {error_msg}")
+
+                except Exception as e:
+                    # 降级到 @tool 版本
+                    logger.warning(f"[StandardTool] smart_insert 调用失败，降级到 @tool: {e}")
+                    tool_result = await smart_insert.ainvoke({
+                        "chapter_id": tool_args.get("chapter_id", ""),
+                        "content": tool_args.get("content", ""),
+                        "user_intent": tool_args.get("position", "end"),  # 🔧 参数名映射
+                        "chapter_content": None,  # 🔧 补充
+                        "context": None,  # 🔧 补充
+                        "user_id": state.get("user_id")  # 🔧 补充 user_id
+                    })
+
                 logger.info(f"[LangGraph] ✅ smart_insert 返回结果长度: {len(tool_result)} 字符")
+
             # ✅ 编辑器工具：apply_chapter_edit（应用章节编辑）
             elif tool_name == "apply_chapter_edit":
                 logger.info(f"[LangGraph] 🚀 准备调用 apply_chapter_edit, chapter_id={tool_args.get('chapter_id')}")
-                tool_result = await apply_chapter_edit.ainvoke({
-                    "chapter_id": tool_args.get("chapter_id", ""),
-                    "operation": tool_args.get("operation", "replace"),
-                    "content": tool_args.get("content", "")
-                })
+
+                # 🔧 2025-12-14: 统一使用 registry 调用 StandardTool
+                try:
+                    result = await registry.call_tool("apply_chapter_edit", {
+                        "chapter_id": tool_args.get("chapter_id", ""),
+                        "content": tool_args.get("content", ""),
+                        "operation": tool_args.get("operation", "replace"),
+                        "position": None,
+                        "user_id": state.get("user_id"),
+                        "description": None
+                    })
+
+                    # StandardTool 返回 dict 格式，提取 data
+                    if isinstance(result, dict) and result.get("success"):
+                        tool_result = json.dumps(result.get("data", {}), ensure_ascii=False)
+                        logger.info(f"[StandardTool] apply_chapter_edit 执行成功")
+                    else:
+                        error_msg = result.get("message", "执行失败") if isinstance(result, dict) else "未知错误"
+                        tool_result = json.dumps({"error": "tool_failed", "message": error_msg}, ensure_ascii=False)
+                        logger.error(f"[StandardTool] apply_chapter_edit 执行失败: {error_msg}")
+
+                except Exception as e:
+                    # 降级到 @tool 版本
+                    logger.warning(f"[StandardTool] apply_chapter_edit 调用失败，降级到 @tool: {e}")
+                    tool_result = await apply_chapter_edit.ainvoke({
+                        "chapter_id": tool_args.get("chapter_id", ""),
+                        "content": tool_args.get("content", ""),
+                        "operation": tool_args.get("operation", "replace"),
+                        "position": None,  # 🔧 补充
+                        "user_id": state.get("user_id"),  # 🔧 补充 user_id
+                        "description": None  # 🔧 补充
+                    })
+
                 logger.info(f"[LangGraph] ✅ apply_chapter_edit 返回结果长度: {len(tool_result)} 字符")
             else:
-                # ✅ P1修复：未知工具返回标准JSON错误格式
-                tool_result = json.dumps({
-                    "error": "unknown_tool",
-                    "message": f"未知工具: {tool_name}",
-                    "user_prompt": "抱歉，我在处理您的请求时遇到了问题。能否换个方式描述？"
-                }, ensure_ascii=False)
-                logger.warning(f"[LangGraph] 尝试调用未知工具: {tool_name}")
+                # 🔧 2025-12-14: 使用统一接口调用未明确处理的工具
+                logger.info(f"[LangGraph] 使用统一接口调用工具: {tool_name}")
+                try:
+                    tool_result = await self._call_tool_via_registry(
+                        tool_name=tool_name,
+                        tool_args=tool_args,
+                        state=state
+                    )
+                    logger.info(f"[LangGraph] ✅ 统一接口调用成功: {tool_name}")
+                except Exception as e:
+                    # 统一接口调用失败
+                    logger.error(f"[LangGraph] 统一接口调用失败: {tool_name}, 错误: {e}")
+                    tool_result = json.dumps({
+                        "error": "tool_call_failed",
+                        "message": f"工具调用失败: {str(e)}",
+                        "user_prompt": "抱歉，我在处理您的请求时遇到了问题。能否换个方式描述？"
+                    }, ensure_ascii=False)
 
             # ✅ 创建新消息（不直接修改 state，避免重复）
             ai_decision = AIMessage(content=f"我需要使用 {tool_name} 工具来帮助你。")
@@ -3498,7 +4038,7 @@ chapter_id: {chapter_id}
                     plan_result = await self._generate_text(
                         prompt=plan_prompt,  # ✅ 修复：使用关键字参数
                         temperature=0.3,
-                        max_tokens=1200,  # ✅ 2025-12-07: Chain-of-Thought 需要更多 token（包含 thinking + 复合任务）
+                        max_tokens=2000,  # ✅ 2025-12-14: 增加到2000，防止复杂场景JSON被截断（从1200增加）
                         task_type=TaskType.SIMPLE_QA  # ← Planning阶段用轻量模型快速生成任务列表
                     )
                     plan_text = plan_result.get("text", "").strip()
@@ -3585,8 +4125,14 @@ chapter_id: {chapter_id}
 
                 # === 规划后处理：补充验收与 checkpoint，降低兜底反思频率 ===
                 def _quick_acceptance_from_text(text: str):
+                    """快速提取验收标准
+
+                    🔧 2025-12-13: 致命BUG修复 - 正则表达式从\d{1,3}改为\d{1,5}
+                    原正则只匹配1-3位数字，导致"2000字"被错误匹配为"000字"
+                    """
                     import re
-                    m = re.search(r"(\d{1,3})\s*(个|条|点|段|篇|章节|章|转折点|要点|场景|角色|人物|种|类|组|步|项|处|部分|方面|建议|方案|问题|观点)", text or "")
+                    # 🔧 修复: \d{1,3} → \d{1,5} 支持最大99999的数字
+                    m = re.search(r"(\d{1,5})\s*(个|条|点|段|篇|章节|章|转折点|要点|场景|角色|人物|种|类|组|步|项|处|部分|方面|建议|方案|问题|观点|字)", text or "")
                     if m:
                         return {"expected_count": int(m.group(1)), "requirement": m.group(0)}
                     return None
@@ -4814,7 +5360,10 @@ chapter_id: {chapter_id}
         context: str,
         on_progress: Optional[callable] = None
     ) -> str:
-        """执行单个任务"""
+        """执行单个任务（DeepAgent 模式使用）
+
+        🔧 2025-12-14: 统一使用 registry.call_tool() 调用 StandardTool
+        """
         tool_name = task.get("tool", "auto")
         task_type = task.get("type", "")  # ✅ 新增：检测任务类型
         params = task.get("params", {})
@@ -4825,71 +5374,191 @@ chapter_id: {chapter_id}
         if on_progress:
             await on_progress(task, "正在执行...")
 
-        # 根据工具名称调用对应工具
-        if tool_name == "get_chapter_by_order_tool":
-            result = await get_chapter_by_order_tool.ainvoke({
-                "work_id": work_id,
-                "chapter_order": params.get("chapter_order", 1)
-            })
-        elif tool_name == "get_context_tool":
-            result = await get_context_tool.ainvoke({
-                "work_id": work_id,
-                "chapter_id": chapter_id or ""
-            })
-        elif tool_name == "read_chapter_tool":
-            # 检查是否提供了 chapter_id 参数
-            if "chapter_id" not in params or not params["chapter_id"]:
-                logger.warning(
-                    f"[_execute_task] read_chapter_tool 缺少 chapter_id 参数，"
-                    f"将使用当前章节ID: {chapter_id}。"
-                    f"任务描述: {task.get('description', 'N/A')}"
-                )
+        # 🔧 2025-12-14: 统一使用 registry 调用所有工具
+        try:
+            # 工具名称映射
+            TOOL_NAME_MAPPING = {
+                "continue_writing_tool": "continue_writing",
+                "analyze_text_tool": "analyze_text",
+                "get_context_tool": "get_context",
+                "read_chapter_tool": "read_chapter",
+                "get_chapter_by_order_tool": "get_chapter_by_order",
+                "search_analysis_fragments_tool": "search_analysis_fragments",
+            }
 
-            result = await read_chapter_tool.ainvoke({
-                "work_id": work_id,
-                "chapter_id": params.get("chapter_id") or chapter_id or ""
-            })
-        elif tool_name == "search_analysis_fragments_tool":
-            # 验证work_id参数（必需）
-            if not work_id:
-                logger.warning(
-                    f"[_execute_task] search_analysis_fragments_tool 需要 work_id 参数，"
-                    f"但当前 work_id 为空。任务描述: {task.get('description', 'N/A')}"
-                )
-                result = json.dumps({
-                    "error": "需要指定作品ID才能检索分析片段",
-                    "message": "请在聊天时指定作品ID，或在作品详情页使用此功能",
-                    "tool": "search_analysis_fragments_tool"
-                }, ensure_ascii=False, indent=2)
-            else:
-                result = await search_analysis_fragments_tool.ainvoke({
+            normalized_name = TOOL_NAME_MAPPING.get(tool_name, tool_name)
+
+            # 准备工具参数（DeepAgent 特有逻辑）
+            if tool_name == "get_chapter_by_order_tool":
+                tool_params = {
+                    "work_id": work_id,
+                    "chapter_order": params.get("chapter_order", 1)
+                }
+            elif tool_name == "get_context_tool":
+                tool_params = {
+                    "work_id": work_id,
+                    "chapter_id": chapter_id or ""
+                }
+            elif tool_name == "read_chapter_tool":
+                if "chapter_id" not in params or not params["chapter_id"]:
+                    logger.warning(
+                        f"[_execute_task] read_chapter_tool 缺少 chapter_id 参数，"
+                        f"将使用当前章节ID: {chapter_id}。"
+                        f"任务描述: {task.get('description', 'N/A')}"
+                    )
+                tool_params = {
+                    "work_id": work_id,
+                    "chapter_id": params.get("chapter_id") or chapter_id or ""
+                }
+            elif tool_name == "search_analysis_fragments_tool":
+                if not work_id:
+                    logger.warning(
+                        f"[_execute_task] search_analysis_fragments_tool 需要 work_id 参数，"
+                        f"但当前 work_id 为空。任务描述: {task.get('description', 'N/A')}"
+                    )
+                    return json.dumps({
+                        "error": "需要指定作品ID才能检索分析片段",
+                        "message": "请在聊天时指定作品ID，或在作品详情页使用此功能",
+                        "tool": "search_analysis_fragments_tool"
+                    }, ensure_ascii=False, indent=2)
+                tool_params = {
                     "work_id": work_id,
                     "query": params.get("query", "相关内容"),
                     "top_k": params.get("top_k", 5),
-                    "chapter_id": chapter_id or "",  # ✅ 传递 chapter_id 支持时序限制
+                    "chapter_id": chapter_id or "",
                     "include_current": params.get("include_current", True),
                     "look_ahead": params.get("look_ahead", 2),
-                })
-        elif tool_name == "continue_writing_tool":
-            # 直接调用续写工具
-            result = await continue_writing_tool.ainvoke({
-                "context": params.get("context", context),
-                "requirements": params.get("requirements", "")
-            })
-        elif tool_name == "analyze_text_tool":
-            # ✅ 参数已由ParameterResolver解析，直接使用
-            result = await analyze_text_tool.ainvoke({
-                "text": params.get("text", ""),
-                "focus": params.get("focus", "all")
-            })
-        else:
-            # 自动选择工具
-            result = f"任务 {task['description']} 需要手动处理"
+                }
+            elif tool_name == "continue_writing_tool":
+                tool_params = {
+                    "context": params.get("context", context),
+                    "requirements": params.get("requirements", ""),
+                    "target_length": params.get("target_length", 500),
+                    "style": params.get("style", "")
+                }
+            elif tool_name == "analyze_text_tool":
+                # 🔧 2025-12-14: 防御性编程 - 使用 context 兜底
+                text_param = params.get("text", "").strip()
+
+                # 处理空值和占位符
+                if not text_param or "$TASK_" in text_param:
+                    logger.info(f"[_execute_task] analyze_text_tool 的 text 参数为空或含占位符，使用 context 兜底（{len(context)}字符）")
+                    text_param = context[:50000]  # 限制长度以符合 max_length=50000
+
+                # 🔧 2025-12-14: focus 参数支持任意字符串
+                # 模板 analyze_text.yaml 会根据 focus 内容决定输出模式：
+                # - focus="all" 或包含"全面/完整" → 详细模式（完整报告）
+                # - 其他任意字符串 → 简洁模式（200-500字聚焦分析）
+                focus_param = params.get("focus", "all")
+
+                # 只对空值或占位符做兜底，其他情况保留原始 focus
+                if not focus_param or "$TASK_" in str(focus_param):
+                    focus_param = "all"
+                    logger.info(f"[_execute_task] analyze_text_tool 的 focus 参数为空/占位符，使用默认值 'all'")
+                else:
+                    logger.info(f"[_execute_task] analyze_text_tool 使用 focus: '{str(focus_param)[:80]}...'")
+
+                tool_params = {
+                    "text": text_param,
+                    "focus": focus_param  # ✅ 支持任意 focus 字符串触发简洁模式
+                }
+            else:
+                # 未知工具，尝试使用统一接口
+                logger.info(f"[_execute_task] 使用统一接口调用未知工具: {tool_name}")
+                result = await self._call_tool_via_registry(
+                    tool_name=tool_name,
+                    tool_args=params,
+                    state={"work_id": work_id, "chapter_id": chapter_id, "last_user_message": context}
+                )
+                if on_progress:
+                    await on_progress(task, "完成")
+                return result
+
+            # 调用 StandardTool
+            logger.info(f"[_execute_task] 调用 registry.call_tool({normalized_name})")
+            result_data = await registry.call_tool(normalized_name, tool_params)
+
+            # 提取结果
+            if isinstance(result_data, dict) and result_data.get("success"):
+                result = self._extract_tool_result(normalized_name, result_data)
+                logger.info(f"[StandardTool] {normalized_name} 执行成功（DeepAgent模式）")
+            else:
+                error_msg = result_data.get("message", "执行失败") if isinstance(result_data, dict) else "未知错误"
+                result = json.dumps({"error": "tool_failed", "message": error_msg}, ensure_ascii=False)
+                logger.error(f"[StandardTool] {normalized_name} 执行失败（DeepAgent模式）: {error_msg}")
+
+        except ValueError as e:
+            # 🔧 2025-12-14: 改进错误分类，区分验证错误和工具不存在
+            error_msg = str(e)
+
+            if "validation error" in error_msg.lower():
+                # Pydantic 参数验证失败
+                logger.error(f"[_execute_task] {tool_name} 参数验证失败: {error_msg}")
+                logger.error(f"[_execute_task] 传入的参数: {tool_params}")
+            else:
+                # StandardTool 不存在
+                logger.warning(f"[_execute_task] StandardTool '{tool_name}' 不存在，降级到 @tool: {e}")
+
+            # 无论如何都降级
+            result = await self._fallback_legacy_execute(tool_name, params, work_id, chapter_id, context)
+
+        except Exception as e:
+            # 其他异常，也尝试降级
+            logger.error(f"[_execute_task] StandardTool 调用失败: {tool_name}, 错误: {e}")
+            result = await self._fallback_legacy_execute(tool_name, params, work_id, chapter_id, context)
 
         if on_progress:
             await on_progress(task, "完成")
 
         return result
+
+    async def _fallback_legacy_execute(
+        self,
+        tool_name: str,
+        params: dict,
+        work_id: str,
+        chapter_id: str,
+        context: str
+    ) -> str:
+        """DeepAgent 模式的降级执行（使用 @tool）"""
+        # 根据工具名称调用对应工具
+        if tool_name == "get_chapter_by_order_tool":
+            return await get_chapter_by_order_tool.ainvoke({
+                "work_id": work_id,
+                "chapter_order": params.get("chapter_order", 1)
+            })
+        elif tool_name == "get_context_tool":
+            return await get_context_tool.ainvoke({
+                "work_id": work_id,
+                "chapter_id": chapter_id or ""
+            })
+        elif tool_name == "read_chapter_tool":
+            return await read_chapter_tool.ainvoke({
+                "work_id": work_id,
+                "chapter_id": params.get("chapter_id") or chapter_id or ""
+            })
+        elif tool_name == "search_analysis_fragments_tool":
+            return await search_analysis_fragments_tool.ainvoke({
+                "work_id": work_id,
+                "query": params.get("query", "相关内容"),
+                "top_k": params.get("top_k", 5),
+                "chapter_id": chapter_id or "",
+                "include_current": params.get("include_current", True),
+                "look_ahead": params.get("look_ahead", 2),
+            })
+        elif tool_name == "continue_writing_tool":
+            return await continue_writing_tool.ainvoke({
+                "context": params.get("context", context),
+                "requirements": params.get("requirements", "")
+            })
+        elif tool_name == "analyze_text_tool":
+            return await analyze_text_tool.ainvoke({
+                "text": params.get("text", ""),
+                "focus": params.get("focus", "all")
+            })
+        else:
+            # 自动选择工具
+            return f"任务 {tool_name} 需要手动处理"
 
 
 # ==================== 导出 ====================

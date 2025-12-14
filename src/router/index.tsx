@@ -25,8 +25,10 @@ const AdminNotificationsView = React.lazy(() => import('../views/AdminNotificati
 const SettingsView = React.lazy(() => import('../views/SettingsView'));
 const ChangePasswordView = React.lazy(() => import('../views/ChangePasswordView'));
 const ChangeEmailView = React.lazy(() => import('../views/ChangeEmailView'));
+const ForgotPasswordView = React.lazy(() => import('../views/ForgotPasswordView'));
 const KnowledgeView = React.lazy(() => import('../views/KnowledgeView'));
 const NotificationCenter = React.lazy(() => import('../pages/NotificationCenter'));
+const ActivityDetail = React.lazy(() => import('../pages/ActivityDetail'));
 const NotFoundView = React.lazy(() => import('../views/NotFoundView'));
 
 const LoadingFallback: React.FC = () => (
@@ -64,6 +66,14 @@ export const router = createBrowserRouter([
     element: (
       <SuspenseWrapper>
         <AuthView />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: '/forgot-password',
+    element: (
+      <SuspenseWrapper>
+        <ForgotPasswordView />
       </SuspenseWrapper>
     ),
   },
@@ -197,6 +207,14 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <NotificationCenter />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/activities/:activityId',
+        element: (
+          <SuspenseWrapper>
+            <ActivityDetail />
           </SuspenseWrapper>
         ),
       },

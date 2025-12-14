@@ -57,7 +57,11 @@ from .analysis_tools import (
     # 质量评估工具
     EvaluateQualityInput,
     EvaluateQualityOutput,
-    evaluate_quality_tool
+    evaluate_quality_tool,
+    # 文本分析工具（兼容 @tool 版本）
+    AnalyzeTextInput,
+    AnalyzeTextOutput,
+    analyze_text_tool
 )
 
 # ==================== 工具监控系统 ====================
@@ -88,7 +92,20 @@ from .editor_tools import (
     apply_chapter_edit,
     smart_continue,
     smart_rewrite,
-    smart_insert
+    smart_insert,
+    # StandardTool 版本
+    smart_rewrite_tool,
+    smart_continue_tool,
+    smart_insert_tool,
+    apply_chapter_edit_tool
+)
+
+# ==================== 章节工具（StandardTool版本）====================
+from app.services.agent.langgraph_tools import (
+    get_context_tool_st,
+    read_chapter_tool_st,
+    get_chapter_by_order_tool_st,
+    search_analysis_fragments_tool_st
 )
 
 
@@ -134,6 +151,10 @@ __all__ = [
     "EvaluateQualityInput",
     "EvaluateQualityOutput",
     "evaluate_quality_tool",
+    # 文本分析工具（兼容 @tool 版本）
+    "AnalyzeTextInput",
+    "AnalyzeTextOutput",
+    "analyze_text_tool",
 
     # ==================== 工具监控系统 ====================
     "ToolMonitor",
@@ -157,5 +178,51 @@ __all__ = [
     "smart_continue",
     "smart_rewrite",
     "smart_insert",
+    # StandardTool 版本
+    "smart_rewrite_tool",
+    "smart_continue_tool",
+    "smart_insert_tool",
+    "apply_chapter_edit_tool",
+
+    # ==================== 章节工具（StandardTool版本）====================
+    "get_context_tool_st",
+    "read_chapter_tool_st",
+    "get_chapter_by_order_tool_st",
+    "search_analysis_fragments_tool_st",
 ]
+
+
+# ==================== 2025-12-14: 自动注册 StandardTool 到 registry ====================
+def _register_standard_tools():
+    """注册所有 StandardTool 工具到 registry（模块加载时自动执行）
+
+    这是元数据驱动架构的基础设施，确保：
+    - list_tools_by_category() 能返回正确的工具
+    - find_tool_by_description() 能匹配到工具
+    - get_tools_info_for_prompt() 能生成工具列表
+    """
+    # 写作工具
+    registry.register_standard_tool(continue_writing_tool)
+    registry.register_standard_tool(expand_text_tool)
+
+    # 分析工具
+    registry.register_standard_tool(analyze_content_tool)
+    registry.register_standard_tool(analyze_text_tool)  # 2025-12-14: 新增兼容版本
+    registry.register_standard_tool(evaluate_quality_tool)
+
+    # 编辑器工具（2025-12-14: 新增）
+    registry.register_standard_tool(smart_rewrite_tool)
+    registry.register_standard_tool(smart_continue_tool)
+    registry.register_standard_tool(smart_insert_tool)
+    registry.register_standard_tool(apply_chapter_edit_tool)
+
+    # 章节工具（2025-12-14: 新增）
+    registry.register_standard_tool(get_context_tool_st)
+    registry.register_standard_tool(read_chapter_tool_st)
+    registry.register_standard_tool(get_chapter_by_order_tool_st)
+    registry.register_standard_tool(search_analysis_fragments_tool_st)
+
+
+# 模块加载时自动注册
+_register_standard_tools()
 

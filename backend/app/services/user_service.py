@@ -215,6 +215,31 @@ class UserService:
         user.hashed_password = get_password_hash(new_password)
         await self.db.flush()
 
+    async def update_user_password(self, user_id: str, new_password: str) -> None:
+        """
+        更新用户密码（用于忘记密码场景，不验证当前密码）
+
+        Args:
+            user_id: 用户ID
+            new_password: 新密码
+
+        Raises:
+            ValueError: 用户不存在或密码强度不足
+        """
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            raise ValueError("用户不存在")
+
+        # 验证新密码强度
+        try:
+            validate_password_strength(new_password)
+        except ValueError as e:
+            raise ValueError(str(e))
+
+        user.hashed_password = get_password_hash(new_password)
+        user.updated_at = datetime.now(timezone.utc)
+        await self.db.flush()
+
     async def soft_delete_user(self, user_id: str, password: str) -> None:
         """软删除用户账号"""
         user = await self.get_user_by_id(user_id)

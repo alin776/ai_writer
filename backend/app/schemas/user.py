@@ -87,6 +87,7 @@ class UserCreate(UserBase):
     """创建用户"""
     password: str = Field(..., min_length=8, max_length=20)
     invitation_code: str = Field(..., min_length=8, max_length=8, description="邀请码")
+    email_verification_code: str = Field(..., min_length=6, max_length=6, description="邮箱验证码")
     device_fingerprint: Optional[str] = Field(None, max_length=255, description="设备指纹（用于防刷）")
 
     @field_validator('password')
@@ -143,6 +144,8 @@ class Token(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+    expires_at: Optional[int] = None  # access token 过期时间戳（秒）
+    refresh_expires_at: Optional[int] = None  # refresh token 过期时间戳（秒）
 
 
 class AuthResponse(BaseModel):
@@ -203,3 +206,32 @@ class VerifyAndUpdateEmailRequest(BaseModel):
 class VerifyAndUpdateEmailResponse(BaseModel):
     """验证并更新邮箱响应"""
     detail: str = "邮箱修改成功"
+
+
+# ==================== 忘记密码相关 ====================
+
+class ForgotPasswordRequest(BaseModel):
+    """忘记密码 - 发送验证码请求"""
+    email: EmailStr = Field(..., description="注册邮箱地址")
+
+
+class ForgotPasswordResponse(BaseModel):
+    """忘记密码 - 发送验证码响应"""
+    detail: str = "如果该邮箱已注册，验证码已发送"
+
+
+class ResetPasswordRequest(BaseModel):
+    """重置密码请求"""
+    email: EmailStr = Field(..., description="注册邮箱地址")
+    code: str = Field(..., min_length=6, max_length=6, description="验证码")
+    new_password: str = Field(..., min_length=8, max_length=20, description="新密码")
+
+    @field_validator('new_password')
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        return validate_password_strength(v)
+
+
+class ResetPasswordResponse(BaseModel):
+    """重置密码响应"""
+    detail: str = "密码重置成功，请使用新密码登录"

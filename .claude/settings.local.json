@@ -31,7 +31,11 @@
       "Bash(..venvScriptspython.exe -c \"import os; os.system(''taskkill /F /PID 7120'')\")",
       "Bash(../venv/Scripts/python.exe -c \"import os; os.system(''taskkill /F /PID 7120'')\")",
       "Bash(del \"C:\\Users\\Administrator\\Desktop\\ai-writer\\src\\pages\\NotificationCenter.tsx\")",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(../venv/Scripts/alembic.exe heads:*)",
+      "Bash(..venvScriptsalembic.exe heads)",
+      "Bash(python -c \"import os; os.system(''taskkill /F /PID 24772'')\")",
+      "Bash(python -c \"import os; os.system(''taskkill /F /PID 39476'')\")"
     ],
     "deny": [],
     "ask": []

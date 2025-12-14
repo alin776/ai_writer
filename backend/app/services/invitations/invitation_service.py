@@ -379,6 +379,9 @@ class InvitationService:
         # 更新邀请码统计
         invitation.activated_count += 1
 
+        # 初始化奖励金额
+        reward_amount = Decimal("0")
+
         # 只有单次使用的邀请码才发放奖励（防止批量码刷奖励）
         if invitation.max_uses == 1:
             reward_amount = Decimal(str(settings.INVITATION_REWARD_CREDITS))

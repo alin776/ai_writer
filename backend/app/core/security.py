@@ -54,21 +54,27 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
-def create_refresh_token(data: dict) -> str:
+def create_refresh_token(data: dict, expires_days: Optional[int] = None) -> str:
     """
     创建刷新令牌
-    
+
     Args:
         data: 要编码的数据
-    
+        expires_days: 过期天数（可选，默认使用配置的天数）
+
     Returns:
         JWT token
     """
     to_encode = data.copy()
-    expire = get_utc_now() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+
+    if expires_days:
+        expire = get_utc_now() + timedelta(days=expires_days)
+    else:
+        expire = get_utc_now() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+
     to_encode.update({"exp": expire, "type": "refresh"})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    
+
     return encoded_jwt
 
 

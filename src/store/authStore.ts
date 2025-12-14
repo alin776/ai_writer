@@ -10,6 +10,8 @@ interface AuthState {
   user: User | null;
   token: string | null;
   refreshToken: string | null;
+  tokenExpiresAt: number | null;  // access token 过期时间戳（毫秒）
+  refreshTokenExpiresAt: number | null;  // refresh token 过期时间戳（毫秒）
   isAuthenticated: boolean;
   hasHydrated: boolean;
 
@@ -18,8 +20,17 @@ interface AuthState {
    * 登录
    * @param user 用户信息
    * @param token 认证令牌
+   * @param refreshToken 刷新令牌
+   * @param tokenExpiresAt access token 过期时间戳（毫秒，可选）
+   * @param refreshTokenExpiresAt refresh token 过期时间戳（毫秒，可选）
    */
-  login: (user: User | null, token: string, refreshToken?: string | null) => void;
+  login: (
+    user: User | null,
+    token: string,
+    refreshToken?: string | null,
+    tokenExpiresAt?: number | null,
+    refreshTokenExpiresAt?: number | null
+  ) => void;
 
   /**
    * 登出
@@ -61,25 +72,40 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       refreshToken: null,
+      tokenExpiresAt: null,
+      refreshTokenExpiresAt: null,
       isAuthenticated: false,
       hasHydrated: false,
 
       // 登录方法
-      login: (user: User | null, token: string, refreshToken: string | null = null) => {
+      login: (
+        user: User | null,
+        token: string,
+        refreshToken: string | null = null,
+        tokenExpiresAt: number | null = null,
+        refreshTokenExpiresAt: number | null = null
+      ) => {
         set({
           user,
           token,
           refreshToken,
+          tokenExpiresAt,
+          refreshTokenExpiresAt,
           isAuthenticated: true,
         });
       },
 
       // 登出方法
       logout: () => {
+        // 清除活动弹窗标记，确保下次登录时重新显示
+        sessionStorage.removeItem('activity_modal_shown');
+
         set({
           user: null,
           token: null,
           refreshToken: null,
+          tokenExpiresAt: null,
+          refreshTokenExpiresAt: null,
           isAuthenticated: false,
         });
       },
@@ -110,6 +136,8 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         token: state.token,
         refreshToken: state.refreshToken,
+        tokenExpiresAt: state.tokenExpiresAt,
+        refreshTokenExpiresAt: state.refreshTokenExpiresAt,
         isAuthenticated: state.isAuthenticated,
       }), // 只持久化这些字段
       onRehydrateStorage: () => {

@@ -9,7 +9,7 @@ import json
 import logging
 import asyncio
 import hashlib
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator, Optional, Any
 from datetime import datetime
 from app.core.config import settings
 from app.services.ai.prompts import get_prompts_manager
@@ -879,18 +879,30 @@ class HTTPAIService:
         self,
         usage_info: dict,
         task_type: Optional[TaskType],
-        start_time: datetime
+        start_time: datetime,
+        db: Optional[Any] = None,  # 可选：外层数据库会话（用于事务原子性）
+        auto_commit: bool = True   # 是否自动提交（传入外层db时应设为False）
     ):
         """追踪API调用成本（使用AILogService）
 
-        支持两种模式：
+        支持三种模式：
         1. 实例模式：HTTPAIService初始化时传递了user_id（优先）
         2. 上下文模式：从请求上下文获取user_id（用于全局Agent）
+        3. 外层事务模式：传入db参数，积分扣除与外层业务共享事务（推荐）
 
         Args:
             usage_info: usage统计信息
             task_type: 任务类型
             start_time: 调用开始时间
+            db: 可选的外层数据库会话。如果传入，则使用该会话（不自动提交）
+            auto_commit: 是否自动提交。传入外层db时应设为False，由外层统一提交/回滚
+
+        Returns:
+            ai_call_log: AI调用日志对象（用于关联退款等操作），失败时返回None
+
+        Note:
+            - 如果传入db且auto_commit=False，外层业务失败时可以回滚积分扣除
+            - 如果不传入db，使用独立会话并自动提交（适用于流式响应等场景）
         """
         # ✅ 2025-12-01: 优先使用实例的user_id，如果没有则从请求上下文获取
         user_id = self.user_id or get_request_user_id()
@@ -941,17 +953,45 @@ class HTTPAIService:
                 extra_data={}
             )
 
-            # ✅ 使用独立db会话持久化（解决StreamingResponse会话生命周期问题）
-            async with create_db_session() as db:
-                temp_log_service = AILogService(db)
-                ai_call_log = await temp_log_service.create_log(log_data)
+            # ✅ 2025-12-14: 支持外层事务模式，确保积分扣除的原子性
+            # - 如果传入了外层db，使用该db会话（不自动提交，由外层控制）
+            # - 如果构造时传入了self.db，使用该会话（适用于非流式API）
+            # - 如果都没有，创建独立会话并自动提交（适用于流式响应）
+            from contextlib import asynccontextmanager
 
-                # ==================== 积分扣费 ====================
-                # ✅ Critical修复3: 在事务中扣除用户积分（管理员自动豁免）
-                # 关键改进：
-                # 1. 使用事务确保原子性
-                # 2. 扣费失败时抛出异常而不是仅记录日志
-                # 3. consume方法内部会再次检查余额并加锁，避免竞态条件
+            @asynccontextmanager
+            async def get_db_session():
+                """获取数据库会话：传入参数 > 实例db > 独立创建
+
+                Returns:
+                    tuple: (db_session, should_auto_commit)
+                    - should_auto_commit=False 表示使用外层db，由外层控制事务
+                    - should_auto_commit=True 表示使用独立会话，需要自己提交
+                """
+                # 优先级：传入参数 > 实例db > 独立会话
+                effective_db = db if db is not None else self.db
+
+                if effective_db is not None:
+                    # 使用外层/实例传入的会话（事务由外层控制）
+                    logger.debug("[成本追踪] 使用外层数据库会话（事务原子性模式）")
+                    yield effective_db, False  # 不自动提交，由外层控制
+                else:
+                    # 创建独立会话（适用于流式响应等场景）
+                    logger.debug("[成本追踪] 使用独立数据库会话")
+                    async with create_db_session() as new_db:
+                        yield new_db, True  # 自动提交
+
+            ai_call_log = None  # 返回值，用于关联退款等操作
+
+            async with get_db_session() as (db_session, should_auto_commit):
+                # ✅ 2025-12-14: 传递 auto_commit 参数，控制是否自动提交
+                temp_log_service = AILogService(db_session)
+                ai_call_log = await temp_log_service.create_log(log_data, auto_commit=should_auto_commit)
+
+                # ==================== 积分扣除 ====================
+                # ✅ 2025-12-14: 支持事务原子性
+                # - 使用外层db时，积分扣除与业务逻辑在同一事务中
+                # - 业务失败时，积分扣除也会被回滚
                 try:
                     from app.services.credits.credit_service import CreditService
                     from app.services.credits.credit_utils import calculate_credits_from_cost
@@ -964,48 +1004,50 @@ class HTTPAIService:
 
                     # 查询用户信息（检查是否为管理员）
                     user_stmt = select(User).where(User.id == UUID(user_id))
-                    user_result = await db.execute(user_stmt)
+                    user_result = await db_session.execute(user_stmt)
                     user = user_result.scalar_one_or_none()
 
                     if user:
-                        credit_service = CreditService(db)
+                        credit_service = CreditService(db_session)
 
                         # 计算需要扣除的积分
                         credits_to_deduct = calculate_credits_from_cost(cost_data["total_cost"])
 
                         # 扣除积分（管理员自动豁免）
                         # consume方法内部会检查余额并加锁，确保线程安全
+                        # ✅ 2025-12-14: 传递 auto_commit 参数，与外层事务保持一致
                         transaction = await credit_service.consume(
                             user_id=UUID(user_id),
                             amount=credits_to_deduct,
                             description=f"AI调用: {task_type.value if task_type else 'unknown'}",
                             related_id=ai_call_log.id,
-                            skip_check=user.is_admin  # 管理员豁免
+                            skip_check=user.is_admin,  # 管理员豁免
+                            auto_commit=should_auto_commit  # 由外层事务控制提交
                         )
 
                         if transaction:  # 非管理员才有交易记录
                             logger.info(
-                                f"[积分扣费] 用户 {user_id}: 扣除 {float(credits_to_deduct)} 积分, "
+                                f"[积分扣除] 用户 {user_id}: 扣除 {float(credits_to_deduct)} 积分, "
                                 f"余额: {float(transaction.balance_before)} → {float(transaction.balance_after)}"
                             )
                         else:
-                            logger.info(f"[积分扣费] 管理员 {user_id} 豁免积分扣费")
+                            logger.info(f"[积分扣除] 管理员 {user_id} 豁免积分扣除")
 
                         # 注意：邀请激活逻辑已移至注册阶段（注册即激活模式）
                         # 此处不再需要检查消费激活条件
                         # 参见: auth.py register() 函数中的 force=True 激活逻辑
 
                     else:
-                        logger.warning(f"[积分扣费] 用户 {user_id} 不存在，跳过扣费")
+                        logger.warning(f"[积分扣除] 用户 {user_id} 不存在，跳过扣除")
 
                 except InsufficientCreditsError as e:
-                    # ✅ Critical修复3: 余额不足时抛出HTTPException
+                    # 余额不足时抛出HTTPException
                     logger.error(
-                        f"[积分扣费] 用户 {user_id} 余额不足: "
+                        f"[积分扣除] 用户 {user_id} 余额不足: "
                         f"需要 {float(e.required)} 积分，当前 {float(e.available)} 积分"
                     )
                     # 回滚DB事务
-                    await db.rollback()
+                    await db_session.rollback()
                     # 抛出HTTP异常，中断流式响应
                     from fastapi import HTTPException
                     raise HTTPException(
@@ -1013,8 +1055,8 @@ class HTTPAIService:
                         detail=f"积分余额不足：需要 {float(e.required):.2f} 积分，当前余额 {float(e.available):.2f} 积分。请先充值。"
                     )
                 except CreditsExpiredError as e:
-                    logger.error(f"[积分扣费] 用户 {user_id} 积分已过期: {e.expired_at}")
-                    await db.rollback()
+                    logger.error(f"[积分扣除] 用户 {user_id} 积分已过期: {e.expired_at}")
+                    await db_session.rollback()
                     from fastapi import HTTPException
                     raise HTTPException(
                         status_code=402,
@@ -1022,17 +1064,17 @@ class HTTPAIService:
                     )
                 except ValueError as e:
                     # 积分记录不存在
-                    logger.error(f"[积分扣费] {str(e)}")
-                    await db.rollback()
+                    logger.error(f"[积分扣除] {str(e)}")
+                    await db_session.rollback()
                     from fastapi import HTTPException
                     raise HTTPException(
                         status_code=500,
                         detail="积分系统错误：用户积分记录不存在。"
                     )
                 except Exception as e:
-                    logger.error(f"[积分扣费] 扣费失败: {type(e).__name__}: {str(e)}")
+                    logger.error(f"[积分扣除] 扣除失败: {type(e).__name__}: {str(e)}")
                     # 其他异常不影响日志记录，但记录警告
-                    logger.warning("[积分扣费] 扣费失败，但AI调用日志已记录")
+                    logger.warning("[积分扣除] 扣除失败，但AI调用日志已记录")
                 # ================================================
 
             logger.info(
@@ -1041,6 +1083,8 @@ class HTTPAIService:
                 f"cost=${cost_data['total_cost']:.6f}, "
                 f"time={duration_ms}ms"
             )
+
+            return ai_call_log  # 返回日志对象，用于关联退款等操作
 
         except Exception as e:
             logger.error(f"成本追踪失败: {type(e).__name__}: {str(e)}")

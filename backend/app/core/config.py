@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     """应用配置"""
     
     # 应用配置
-    APP_NAME: str = "NovelAIde"
+    APP_NAME: str = "文枢AI"
     APP_VERSION: str = "1.0.0"
     API_V1_PREFIX: str = "/api/v1"
     DEBUG: bool = False
@@ -247,6 +247,13 @@ class Settings(BaseSettings):
     COS_SCHEME: str = "https"
     COS_PREFIX: Optional[str] = "uploads"
     
+    # SMTP 邮件配置
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_USE_TLS: bool = True
+
     # 日志配置
     LOG_LEVEL: str = "INFO"
     LOG_FILE: str = "./logs/app.log"

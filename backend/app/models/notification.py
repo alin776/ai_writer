@@ -121,6 +121,10 @@ class Notification(Base):
     allow_dismiss = Column(Boolean, default=True, nullable=False)  # 允许用户关闭
     show_once = Column(Boolean, default=False, nullable=False)  # 每个用户只展示一次
 
+    # 活动相关字段（仅当 type 为 EVENT 时使用）
+    activity_type = Column(String(50), nullable=True)  # 活动类型：invitation, competition, points 等
+    activity_rules = Column(JSONB, nullable=True)  # 活动规则，根据 activity_type 不同而不同
+
     # 创建者（仅运营通知有，系统通知为NULL）
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 

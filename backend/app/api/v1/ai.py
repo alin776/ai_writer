@@ -602,6 +602,8 @@ async def ai_summarize(
     except Exception as e:
         error_msg = str(e)
         logger.error(f"[AI剧情概括] 用户 {current_user.username} 请求失败: {error_msg}")
+        # ✅ 2025-12-14: 添加事务回滚，确保积分扣除被回滚
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"生成剧情概括失败: {error_msg}"
@@ -990,6 +992,8 @@ async def evaluate_generated_content(
     except Exception as e:
         error_msg = str(e)
         logger.error(f"[AI评价] 用户 {current_user.username} 评价失败: {error_msg}")
+        # ✅ 2025-12-14: 添加事务回滚，确保积分扣除被回滚
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"评价失败: {error_msg}"

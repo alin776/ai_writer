@@ -752,4 +752,225 @@ __all__ = [
     "get_context_tool",
     # 工具列表
     "LANGGRAPH_TOOLS",
+    # StandardTool 版本（2025-12-14）
+    "get_context_tool_st",
+    "read_chapter_tool_st",
+    "get_chapter_by_order_tool_st",
+    "search_analysis_fragments_tool_st",
 ]
+
+
+# ==================== 2025-12-14: StandardTool 包装版本 ====================
+# 为章节工具创建 StandardTool 包装，以支持元数据驱动和执行监控
+
+from app.services.agent.tools.tool_types import ToolInput, ToolOutput, ToolCategory, StandardTool
+from pydantic import Field
+
+
+# ==================== 1. GetContextTool StandardTool ====================
+
+class GetContextInput(ToolInput):
+    """获取上下文工具输入"""
+    work_id: str = Field(..., description="作品ID")
+    chapter_id: str = Field(default="", description="章节ID（可选）")
+
+
+class GetContextOutput(ToolOutput):
+    """获取上下文工具输出"""
+    pass
+
+
+async def get_context_executor(input_data: GetContextInput) -> GetContextOutput:
+    """获取上下文执行器（包装 @tool 版本）"""
+    try:
+        # 🔧 2025-12-14: @tool 装饰器返回 StructuredTool，需要用 .ainvoke() 调用
+        result_str = await get_context_tool.ainvoke({
+            "work_id": input_data.work_id,
+            "chapter_id": input_data.chapter_id
+        })
+
+        return GetContextOutput(
+            success=True,
+            message="获取上下文成功",
+            data={"context": result_str},
+            metadata={"tool": "get_context"}
+        )
+    except Exception as e:
+        logger.error(f"get_context_executor 失败: {e}")
+        return GetContextOutput(
+            success=False,
+            message=f"获取上下文失败: {str(e)}",
+            data=None,
+            metadata={"error": str(e)}
+        )
+
+
+get_context_tool_st = StandardTool(
+    name="get_context",
+    description="获取作品上下文信息（世界观、人物设定等）",
+    category=ToolCategory.UTILITY,
+    input_schema=GetContextInput,
+    output_schema=GetContextOutput,
+    executor=get_context_executor,
+    tags=["chapter", "context", "memory"],
+    version="1.0.0"
+)
+
+
+# ==================== 2. ReadChapterTool StandardTool ====================
+
+class ReadChapterInput(ToolInput):
+    """读取章节工具输入"""
+    work_id: str = Field(..., description="作品ID")
+    chapter_id: str = Field(default="", description="章节ID（可多个，用逗号分隔）")
+
+
+class ReadChapterOutput(ToolOutput):
+    """读取章节工具输出"""
+    pass
+
+
+async def read_chapter_executor(input_data: ReadChapterInput) -> ReadChapterOutput:
+    """读取章节执行器（包装 @tool 版本）"""
+    try:
+        # 🔧 2025-12-14: @tool 装饰器返回 StructuredTool，需要用 .ainvoke() 调用
+        result_str = await read_chapter_tool.ainvoke({
+            "work_id": input_data.work_id,
+            "chapter_id": input_data.chapter_id
+        })
+
+        return ReadChapterOutput(
+            success=True,
+            message="读取章节成功",
+            data={"chapter_info": result_str},
+            metadata={"tool": "read_chapter"}
+        )
+    except Exception as e:
+        logger.error(f"read_chapter_executor 失败: {e}")
+        return ReadChapterOutput(
+            success=False,
+            message=f"读取章节失败: {str(e)}",
+            data=None,
+            metadata={"error": str(e)}
+        )
+
+
+read_chapter_tool_st = StandardTool(
+    name="read_chapter",
+    description="读取指定章节内容，支持单章或多章（逗号分隔）",
+    category=ToolCategory.UTILITY,
+    input_schema=ReadChapterInput,
+    output_schema=ReadChapterOutput,
+    executor=read_chapter_executor,
+    tags=["chapter", "read"],
+    version="1.0.0"
+)
+
+
+# ==================== 3. GetChapterByOrderTool StandardTool ====================
+
+class GetChapterByOrderInput(ToolInput):
+    """按序号获取章节工具输入"""
+    work_id: str = Field(..., description="作品ID")
+    chapter_order: int = Field(..., description="章节序号", ge=1)
+
+
+class GetChapterByOrderOutput(ToolOutput):
+    """按序号获取章节工具输出"""
+    pass
+
+
+async def get_chapter_by_order_executor(input_data: GetChapterByOrderInput) -> GetChapterByOrderOutput:
+    """按序号获取章节执行器（包装 @tool 版本）"""
+    try:
+        # 🔧 2025-12-14: @tool 装饰器返回 StructuredTool，需要用 .ainvoke() 调用
+        result_str = await get_chapter_by_order_tool.ainvoke({
+            "work_id": input_data.work_id,
+            "chapter_order": input_data.chapter_order
+        })
+
+        return GetChapterByOrderOutput(
+            success=True,
+            message=f"获取第{input_data.chapter_order}章成功",
+            data={"chapter_info": result_str},
+            metadata={"tool": "get_chapter_by_order", "chapter_order": input_data.chapter_order}
+        )
+    except Exception as e:
+        logger.error(f"get_chapter_by_order_executor 失败: {e}")
+        return GetChapterByOrderOutput(
+            success=False,
+            message=f"获取章节失败: {str(e)}",
+            data=None,
+            metadata={"error": str(e)}
+        )
+
+
+get_chapter_by_order_tool_st = StandardTool(
+    name="get_chapter_by_order",
+    description="按章节序号获取章节内容",
+    category=ToolCategory.UTILITY,
+    input_schema=GetChapterByOrderInput,
+    output_schema=GetChapterByOrderOutput,
+    executor=get_chapter_by_order_executor,
+    tags=["chapter", "read", "order"],
+    version="1.0.0"
+)
+
+
+# ==================== 4. SearchAnalysisFragmentsTool StandardTool ====================
+
+class SearchAnalysisFragmentsInput(ToolInput):
+    """检索分析碎片工具输入"""
+    work_id: str = Field(..., description="作品ID")
+    query: str = Field(..., description="查询文本")
+    top_k: int = Field(default=5, description="返回前K个最相关结果", ge=1, le=20)
+    chapter_id: str = Field(default="", description="当前章节ID（可选）")
+    include_current: bool = Field(default=True, description="是否包含当前章")
+    look_ahead: int = Field(default=2, description="允许向后看的章节数", ge=0, le=10)
+
+
+class SearchAnalysisFragmentsOutput(ToolOutput):
+    """检索分析碎片工具输出"""
+    pass
+
+
+async def search_analysis_fragments_executor(input_data: SearchAnalysisFragmentsInput) -> SearchAnalysisFragmentsOutput:
+    """检索分析碎片执行器（包装 @tool 版本）"""
+    try:
+        # 🔧 2025-12-14: @tool 装饰器返回 StructuredTool，需要用 .ainvoke() 调用
+        result_str = await search_analysis_fragments_tool.ainvoke({
+            "work_id": input_data.work_id,
+            "query": input_data.query,
+            "top_k": input_data.top_k,
+            "chapter_id": input_data.chapter_id,
+            "include_current": input_data.include_current,
+            "look_ahead": input_data.look_ahead
+        })
+
+        return SearchAnalysisFragmentsOutput(
+            success=True,
+            message="检索成功",
+            data={"fragments": result_str},
+            metadata={"tool": "search_analysis_fragments", "query": input_data.query}
+        )
+    except Exception as e:
+        logger.error(f"search_analysis_fragments_executor 失败: {e}")
+        return SearchAnalysisFragmentsOutput(
+            success=False,
+            message=f"检索失败: {str(e)}",
+            data=None,
+            metadata={"error": str(e)}
+        )
+
+
+search_analysis_fragments_tool_st = StandardTool(
+    name="search_analysis_fragments",
+    description="混合检索（向量+全文）召回作品相关片段",
+    category=ToolCategory.UTILITY,
+    input_schema=SearchAnalysisFragmentsInput,
+    output_schema=SearchAnalysisFragmentsOutput,
+    executor=search_analysis_fragments_executor,
+    tags=["chapter", "search", "analysis"],
+    version="1.0.0"
+)
+
