@@ -153,6 +153,7 @@ backend/clear_cache.bat
 
 # 临时日志文件
 INFO.md
+Backend.md
 
 # ChromaDB数据文件
 backend/data/
