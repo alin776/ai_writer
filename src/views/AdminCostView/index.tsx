@@ -15,6 +15,25 @@ const AdminCostView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // 深色模式动态检测
+  const [isDarkMode, setIsDarkMode] = useState(
+    document.documentElement.classList.contains('dark')
+  );
+
+  // 监听主题切换
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
   // 加载成本指标数据
   const loadCostMetrics = async () => {
     try {
@@ -40,13 +59,13 @@ const AdminCostView: React.FC = () => {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">成本监控</h1>
-          <p className="mt-2 text-gray-600">查看和分析 AI 使用成本</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">成本监控</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">查看和分析 AI 使用成本</p>
         </div>
         <Card>
           <div className="p-12 text-center">
-            <DollarSign className="w-16 h-16 mx-auto mb-4 text-gray-300 animate-pulse" />
-            <p className="text-gray-500">加载中...</p>
+            <DollarSign className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600 animate-pulse" />
+            <p className="text-gray-500 dark:text-gray-400">加载中...</p>
           </div>
         </Card>
       </div>
@@ -58,14 +77,14 @@ const AdminCostView: React.FC = () => {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">成本监控</h1>
-          <p className="mt-2 text-gray-600">查看和分析 AI 使用成本</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">成本监控</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">查看和分析 AI 使用成本</p>
         </div>
         <Card>
           <div className="p-12 text-center">
-            <AlertCircle className="w-16 h-16 mx-auto mb-4 text-red-400" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">加载失败</h3>
-            <p className="text-gray-500 mb-4">{error || '无法加载成本数据'}</p>
+            <AlertCircle className="w-16 h-16 mx-auto mb-4 text-red-400 dark:text-red-500" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">加载失败</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">{error || '无法加载成本数据'}</p>
             <Button onClick={loadCostMetrics}>重试</Button>
           </div>
         </Card>
@@ -166,12 +185,12 @@ const AdminCostView: React.FC = () => {
       {/* 页面标题和操作栏 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">成本监控</h1>
-          <p className="mt-2 text-gray-600">实时监控 AI 调用成本和使用情况</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">成本监控</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">实时监控 AI 调用成本和使用情况</p>
         </div>
           <div className="flex items-center space-x-3">
             {/* 时间范围选择 */}
-            <div className="flex items-center bg-white border border-gray-300 rounded-lg overflow-hidden">
+            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
               {(['7d', '30d', '90d'] as const).map((range) => (
                 <button
                   key={range}
@@ -179,7 +198,7 @@ const AdminCostView: React.FC = () => {
                 className={`px-4 py-2 text-sm font-medium transition-colors ${
                   timeRange === range
                     ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                 }`}
                 >
                   {range === '7d' ? '最近7天' : range === '30d' ? '最近30天' : '最近90天'}
@@ -206,15 +225,15 @@ const AdminCostView: React.FC = () => {
               <div className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-600">{stat.label}</p>
-                    <p className="mt-2 text-3xl font-bold text-gray-900">{stat.value}</p>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{stat.label}</p>
+                    <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
                     <div className="mt-2 flex items-center text-sm">
-                      <span className="text-green-600 font-medium">{stat.change}</span>
-                      <span className="ml-1 text-gray-500">{stat.description}</span>
+                      <span className="text-green-600 dark:text-green-400 font-medium">{stat.change}</span>
+                      <span className="ml-1 text-gray-500 dark:text-gray-400">{stat.description}</span>
                     </div>
                   </div>
-                  <div className={`w-12 h-12 ${stat.bgColor} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                    <Icon className={`w-6 h-6 ${stat.iconColor}`} />
+                  <div className={`w-12 h-12 ${stat.bgColor} dark:bg-blue-900/50 rounded-lg flex items-center justify-center flex-shrink-0`}>
+                    <Icon className={`w-6 h-6 ${stat.iconColor} dark:text-blue-400`} />
                   </div>
                 </div>
               </div>
@@ -230,29 +249,37 @@ const AdminCostView: React.FC = () => {
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">成本趋势</h3>
-                <p className="text-sm text-gray-600 mt-1">最近7天每日成本变化</p>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">成本趋势</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">最近7天每日成本变化</p>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={costTrendData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                <XAxis dataKey="date" stroke="#6B7280" style={{ fontSize: '12px' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#374151" : "#E5E7EB"} />
+                <XAxis dataKey="date" stroke={isDarkMode ? "#9CA3AF" : "#6B7280"} style={{ fontSize: '12px' }} />
                 <YAxis
-                  stroke="#6B7280"
+                  stroke={isDarkMode ? "#9CA3AF" : "#6B7280"}
                   style={{ fontSize: '12px' }}
                   tickFormatter={(value) => `¥${value.toFixed(4)}`}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #E5E7EB',
+                    backgroundColor: isDarkMode ? '#1F2937' : '#ffffff',
+                    border: `1px solid ${isDarkMode ? '#374151' : '#E5E7EB'}`,
                     borderRadius: '8px',
                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    color: isDarkMode ? '#F3F4F6' : '#111827',
+                  }}
+                  labelStyle={{
+                    color: isDarkMode ? '#F3F4F6' : '#111827',
                   }}
                   formatter={(value: number) => [`¥${value.toFixed(4)}`, '成本']}
                 />
-                <Legend />
+                <Legend
+                  wrapperStyle={{
+                    color: isDarkMode ? '#D1D5DB' : '#6B7280',
+                  }}
+                />
                 <Line
                   type="monotone"
                   dataKey="cost"
@@ -270,7 +297,7 @@ const AdminCostView: React.FC = () => {
         {/* 模型成本分布 */}
         <Card background="blue">
           <div className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">模型成本分布</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">模型成本分布</h3>
             {modelCostData.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
@@ -292,10 +319,14 @@ const AdminCostView: React.FC = () => {
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #E5E7EB',
+                      backgroundColor: isDarkMode ? '#1F2937' : '#ffffff',
+                      border: `1px solid ${isDarkMode ? '#374151' : '#E5E7EB'}`,
                       borderRadius: '8px',
                       boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      color: isDarkMode ? '#F3F4F6' : '#111827',
+                    }}
+                    labelStyle={{
+                      color: isDarkMode ? '#F3F4F6' : '#111827',
                     }}
                     formatter={(value: number) => [`¥${value.toFixed(4)}`, '成本']}
                   />
@@ -306,11 +337,14 @@ const AdminCostView: React.FC = () => {
                       const percent = entry.payload?.percent || 0;
                       return `${value} (${(percent * 100).toFixed(1)}%)`;
                     }}
+                    wrapperStyle={{
+                      color: isDarkMode ? '#D1D5DB' : '#6B7280',
+                    }}
                   />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[300px] text-gray-400">
+              <div className="flex items-center justify-center h-[300px] text-gray-400 dark:text-gray-500">
                 <p>暂无数据</p>
               </div>
             )}
@@ -321,31 +355,31 @@ const AdminCostView: React.FC = () => {
       {/* 模型详细使用情况 */}
       <Card background="blue">
         <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">模型详细使用</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">模型详细使用</h3>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">模型名称</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900">调用次数</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900">总 Token 数</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900">总成本</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900">平均成本</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900">趋势</th>
+                <tr className="border-b border-gray-200 dark:border-gray-700">
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900 dark:text-gray-100">模型名称</th>
+                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900 dark:text-gray-100">调用次数</th>
+                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900 dark:text-gray-100">总 Token 数</th>
+                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900 dark:text-gray-100">总成本</th>
+                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900 dark:text-gray-100">平均成本</th>
+                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900 dark:text-gray-100">趋势</th>
                 </tr>
               </thead>
               <tbody>
                 {modelDetails.map((model, index) => (
-                  <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-4 px-4 text-sm font-medium text-gray-900">{model.name}</td>
-                    <td className="py-4 px-4 text-sm text-right text-gray-700">{model.calls.toLocaleString()}</td>
-                    <td className="py-4 px-4 text-sm text-right text-gray-700">
+                  <tr key={index} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="py-4 px-4 text-sm font-medium text-gray-900 dark:text-gray-100">{model.name}</td>
+                    <td className="py-4 px-4 text-sm text-right text-gray-700 dark:text-gray-300">{model.calls.toLocaleString()}</td>
+                    <td className="py-4 px-4 text-sm text-right text-gray-700 dark:text-gray-300">
                       {model.totalTokens > 0 ? model.totalTokens.toLocaleString() : '-'}
                     </td>
-                    <td className="py-4 px-4 text-sm text-right font-medium text-gray-900">¥{model.cost}</td>
-                    <td className="py-4 px-4 text-sm text-right text-gray-700">¥{model.avgCost}</td>
+                    <td className="py-4 px-4 text-sm text-right font-medium text-gray-900 dark:text-gray-100">¥{model.cost}</td>
+                    <td className="py-4 px-4 text-sm text-right text-gray-700 dark:text-gray-300">¥{model.avgCost}</td>
                     <td className="py-4 px-4 text-sm text-right">
-                      <span className="text-green-600 font-medium">{model.trend}</span>
+                      <span className="text-green-600 dark:text-green-400 font-medium">{model.trend}</span>
                     </td>
                   </tr>
                 ))}
@@ -358,29 +392,29 @@ const AdminCostView: React.FC = () => {
       {/* 用户成本排行 */}
       <Card background="blue">
         <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">用户成本排行 TOP 5</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">用户成本排行 TOP 5</h3>
           <div className="space-y-4">
             {topUsers.map((user, index) => (
               <div key={user.userId} className="flex items-center space-x-4">
                 <div className="flex-shrink-0 w-8 text-center">
-                  <span className="text-lg font-bold text-gray-400">#{index + 1}</span>
+                  <span className="text-lg font-bold text-gray-400 dark:text-gray-500">#{index + 1}</span>
                 </div>
-                <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-blue-600">{(index + 1)}</span>
+                <div className="flex-shrink-0 w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center">
+                  <span className="text-sm font-medium text-blue-600 dark:text-blue-400">{(index + 1)}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-medium text-gray-900 truncate">{user.userId.slice(0, 8)}...</p>
-                    <p className="text-sm font-semibold text-gray-900">¥{user.cost.toFixed(4)}</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{user.userId.slice(0, 8)}...</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">¥{user.cost.toFixed(4)}</p>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <div className="flex-1 bg-gray-200 rounded-full h-2">
+                    <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                       <div
-                        className="bg-blue-600 h-2 rounded-full"
+                        className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full"
                         style={{ width: `${user.percentage}%` }}
                       ></div>
                     </div>
-                    <span className="text-xs text-gray-500">{user.calls} 次</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{user.calls} 次</span>
                   </div>
                 </div>
               </div>

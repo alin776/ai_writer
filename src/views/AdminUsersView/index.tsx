@@ -135,8 +135,8 @@ const AdminUsersView: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">用户管理</h1>
-          <p className="mt-2 text-gray-600">管理系统用户 - 用户可通过注册页面自行注册</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">用户管理</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">管理系统用户 - 用户可通过注册页面自行注册</p>
         </div>
         {/* 添加用户按钮已隐藏 - 用户可以自己注册 */}
       </div>
@@ -147,26 +147,26 @@ const AdminUsersView: React.FC = () => {
             placeholder="搜索用户..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            icon={<Search className="w-5 h-5 text-gray-400" />}
+            icon={<Search className="w-5 h-5 text-gray-400 dark:text-gray-500" />}
           />
 
           {/* 用户表格 */}
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">用户名</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">邮箱</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">角色</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">状态</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">创建时间</th>
-                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">操作</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">用户名</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">邮箱</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">角色</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">状态</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">创建时间</th>
+                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">操作</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                       {searchQuery ? '没有找到匹配的用户' : '暂无用户'}
                     </td>
                   </tr>
@@ -176,20 +176,20 @@ const AdminUsersView: React.FC = () => {
                     const isLoading = actionLoading === user.id;
 
                     return (
-                      <tr key={user.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                      <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
                           {user.username}
                           {isCurrentUser && (
-                            <span className="ml-2 text-xs text-blue-600">(当前用户)</span>
+                            <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">(当前用户)</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{user.email}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{user.email}</td>
                         <td className="px-4 py-3 text-sm">
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
                               user.isAdmin
-                                ? 'bg-purple-100 text-purple-700'
-                                : 'bg-blue-100 text-blue-700'
+                                ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300'
+                                : 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
                             }`}
                           >
                             {user.isAdmin ? '管理员' : '普通用户'}
@@ -199,14 +199,14 @@ const AdminUsersView: React.FC = () => {
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
                               user.isActive
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-red-100 text-red-700'
+                                ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
+                                : 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
                             }`}
                           >
                             {user.isActive ? '正常' : '已封禁'}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
+                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                           {formatDate(user.createdAt)}
                         </td>
                         <td className="px-4 py-3 text-sm text-right">
@@ -217,7 +217,7 @@ const AdminUsersView: React.FC = () => {
                                 <button
                                   onClick={() => handleBanUser(user.id, user.username)}
                                   disabled={isLoading}
-                                  className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                                  className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors disabled:opacity-50"
                                   title="封禁用户"
                                 >
                                   <Ban className="w-4 h-4" />
@@ -226,7 +226,7 @@ const AdminUsersView: React.FC = () => {
                                 <button
                                   onClick={() => handleUnbanUser(user.id, user.username)}
                                   disabled={isLoading}
-                                  className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
+                                  className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded transition-colors disabled:opacity-50"
                                   title="解封用户"
                                 >
                                   <CheckCircle className="w-4 h-4" />
@@ -241,8 +241,8 @@ const AdminUsersView: React.FC = () => {
                                 disabled={isLoading}
                                 className={`p-1.5 rounded transition-colors disabled:opacity-50 ${
                                   user.isAdmin
-                                    ? 'text-orange-600 hover:bg-orange-50'
-                                    : 'text-purple-600 hover:bg-purple-50'
+                                    ? 'text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30'
+                                    : 'text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30'
                                 }`}
                                 title={user.isAdmin ? '移除管理员' : '设为管理员'}
                               >

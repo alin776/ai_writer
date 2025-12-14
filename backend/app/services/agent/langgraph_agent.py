@@ -3497,8 +3497,14 @@ chapter_id: {chapter_id}
 
                 # === 规划后处理：补充验收与 checkpoint，降低兜底反思频率 ===
                 def _quick_acceptance_from_text(text: str):
+                    """快速提取验收标准
+
+                    🔧 2025-12-13: 致命BUG修复 - 正则表达式从\d{1,3}改为\d{1,5}
+                    原正则只匹配1-3位数字，导致"2000字"被错误匹配为"000字"
+                    """
                     import re
-                    m = re.search(r"(\d{1,3})\s*(个|条|点|段|篇|章节|章|转折点|要点|场景|角色|人物|种|类|组|步|项|处|部分|方面|建议|方案|问题|观点)", text or "")
+                    # 🔧 修复: \d{1,3} → \d{1,5} 支持最大99999的数字
+                    m = re.search(r"(\d{1,5})\s*(个|条|点|段|篇|章节|章|转折点|要点|场景|角色|人物|种|类|组|步|项|处|部分|方面|建议|方案|问题|观点|字)", text or "")
                     if m:
                         return {"expected_count": int(m.group(1)), "requirement": m.group(0)}
                     return None

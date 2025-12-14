@@ -266,7 +266,7 @@ async def login(
     # 根据 remember_me 参数设置不同的 refreshToken 有效期
     refresh_token_days = 30 if login_data.remember_me else 7
     refresh_token = create_refresh_token(
-        data={"sub": str(user.id)},
+        data={"sub": str(user.id), "remember_me": login_data.remember_me},
         expires_days=refresh_token_days
     )
 
@@ -339,10 +339,18 @@ async def refresh_token(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token"
             )
-        
+
+        # 从原 refresh token 中读取 remember_me 状态
+        remember_me = payload.get("remember_me", False)
+        refresh_token_days = 30 if remember_me else 7
+
         # 创建新的访问令牌
         access_token = create_access_token(data={"sub": user_id})
-        new_refresh_token = create_refresh_token(data={"sub": user_id})
+        # 创建新的刷新令牌，保持原有的 remember_me 状态
+        new_refresh_token = create_refresh_token(
+            data={"sub": user_id, "remember_me": remember_me},
+            expires_days=refresh_token_days
+        )
 
         # 计算过期时间戳
         now = get_utc_now()

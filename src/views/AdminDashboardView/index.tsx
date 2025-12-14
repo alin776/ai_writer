@@ -13,6 +13,7 @@ import { formatUsdToCny } from '../../utils/currency';
  * - 显示系统统计数据（真实数据）
  * - 显示使用趋势图表
  * - 快速访问管理功能
+ * - 支持深色模式动态切换
  */
 const AdminDashboardView: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -21,8 +22,27 @@ const AdminDashboardView: React.FC = () => {
   const [aiUsageData, setAiUsageData] = useState<any[]>([]);
   const { showToast } = useGlobalStore();
 
+  // 深色模式动态检测
+  const [isDarkMode, setIsDarkMode] = useState(
+    document.documentElement.classList.contains('dark')
+  );
+
   useEffect(() => {
     loadData();
+  }, []);
+
+  // 监听主题切换
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+
+    return () => observer.disconnect();
   }, []);
 
   const loadData = async () => {
@@ -70,9 +90,6 @@ const AdminDashboardView: React.FC = () => {
       </div>
     );
   }
-
-  // 深色模式检测
-  const isDarkMode = document.documentElement.classList.contains('dark');
 
   // 统计数据配置（使用可选链和默认值避免错误）
   const aiCalls = statistics.aiCalls || statistics.ai_calls || { total: 0, change: '+0%' };

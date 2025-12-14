@@ -190,18 +190,33 @@ class DeepAgentExecutor:
                             suggested_tasks=reflection_result.suggested_tasks,
                         )
 
+            # 🔧 2025-12-13: Review修复 - 重新启用短路逻辑
             # 若已满足验收数量但反思仍要求重规划，则短路避免无谓循环
-            # [临时禁用] 用于测试重规划功能是否正常
-            # if acceptance and acceptance.get("expected_count"):
-            #     output_text = result.get("output") or result.get("content") or ""
-            #     if output_text:
-            #         item_count = self._count_items(output_text)
-            #         if item_count >= acceptance.get("expected_count", 0):
-            #             reflection_result = ReflectionResult(
-            #                 reflection=f"{reflection_result.reflection} | 已达到数量要求，跳过重规划",
-            #                 needs_replan=False,
-            #                 suggested_tasks=reflection_result.suggested_tasks,
-            #             )
+            if reflection_result.needs_replan and acceptance and acceptance.get("expected_count"):
+                output_text = result.get("output") or result.get("content") or ""
+                if output_text:
+                    requirement = acceptance.get("requirement", "")
+                    item_count = self._count_items(output_text, requirement)
+                    expected = acceptance.get("expected_count", 0)
+
+                    # 应用容差规则：字数类任务80%即可，列表类任务100%
+                    threshold = expected * 0.8 if "字" in requirement else expected
+
+                    if item_count >= threshold:
+                        logger.info(
+                            f"[ShortCircuit] 已达到要求，跳过重规划: "
+                            f"{item_count} >= {threshold} (expected={expected}, requirement={requirement})"
+                        )
+                        reflection_result = ReflectionResult(
+                            reflection=f"{reflection_result.reflection} | 已达到数量要求，跳过重规划",
+                            needs_replan=False,
+                            suggested_tasks=reflection_result.suggested_tasks,
+                        )
+                    else:
+                        logger.debug(
+                            f"[ShortCircuit] 仍需重规划: "
+                            f"{item_count} < {threshold} (expected={expected}, requirement={requirement})"
+                        )
 
             # 如果需要重规划
             if reflection_result.needs_replan and self._can_replan():
@@ -338,7 +353,10 @@ class DeepAgentExecutor:
         user_intent: str,
         all_tasks: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        """基于当前任务快速生成补写/修复任务"""
+        """基于当前任务快速生成补写/修复任务
+
+        🔧 2025-12-13: P0修复 - 补救任务不触发反思
+        """
         new_task_id = self._get_max_task_id(all_tasks) + 1
         requirement_text = acceptance.get("requirement") or user_intent or "完善输出"
         return {
@@ -346,16 +364,22 @@ class DeepAgentExecutor:
             "description": f"补充/修正上一任务结果，确保满足：{requirement_text}",
             "tool": base_task.get("tool", "auto"),
             "params": base_task.get("params", {}),
-            "checkpoint": True,
+            "checkpoint": False,  # 🔧 P0修复: 补救任务不触发反思
+            "is_remedy": True,    # 🔧 P0修复: 标记为补救任务
             "acceptance": acceptance,
         }
 
     def _infer_acceptance_by_regex(self, task: Dict[str, Any], user_intent: str) -> Optional[Dict[str, Any]]:
-        """【第二层】正则快速提取验收标准（成本=0）"""
+        """【第二层】正则快速提取验收标准（成本=0）
+
+        🔧 2025-12-13: 致命BUG修复 - 正则表达式从\d{1,3}改为\d{1,5}
+        原正则只匹配1-3位数字，导致"2000字"被错误匹配为"000字"
+        """
         text = f"{task.get('description', '')} {user_intent}"[:200]
 
         import re
-        match = re.search(r"(\d{1,3})\s*(个|条|点|段|篇|章节|章|转折点|要点|场景|角色|人物|种|类|组|步|项|处|部分|方面|建议|方案|问题|观点)", text)
+        # 🔧 修复: \d{1,3} → \d{1,5} 支持最大99999的数字
+        match = re.search(r"(\d{1,5})\s*(个|条|点|段|篇|章节|章|转折点|要点|场景|角色|人物|种|类|组|步|项|处|部分|方面|建议|方案|问题|观点|字)", text)
         if match:
             count = int(match.group(1))
             return {
@@ -425,18 +449,29 @@ class DeepAgentExecutor:
         第一层：AI 在 Planning 时主动生成的 task.acceptance
         第二层：正则快速提取（成本=0）
         第三层：LLM 提取（兜底）
+
+        🔧 2025-12-13: Review修复 - 添加日志
         """
+        task_id = task.get("task_id", "?")
+
         # 第一层：Planning 时生成的
         if task.get("acceptance"):
+            logger.debug(f"[Acceptance] 任务{task_id}: 使用Planning生成的验收标准: {task['acceptance']}")
             return task["acceptance"]
 
         # 第二层：正则快速提取
         acceptance = self._infer_acceptance_by_regex(task, user_intent)
         if acceptance:
+            logger.debug(f"[Acceptance] 任务{task_id}: 正则提取验收标准: {acceptance}")
             return acceptance
 
         # 第三层：LLM 兜底
-        return await self._infer_acceptance_by_llm(task, user_intent)
+        acceptance = await self._infer_acceptance_by_llm(task, user_intent)
+        if acceptance:
+            logger.debug(f"[Acceptance] 任务{task_id}: LLM提取验收标准: {acceptance}")
+        else:
+            logger.debug(f"[Acceptance] 任务{task_id}: 未找到验收标准")
+        return acceptance
 
     def _inject_acceptance(self, tasks: List[Dict[str, Any]], user_intent: str) -> List[Dict[str, Any]]:
         """为没有验收标准的任务补充 acceptance 字段（仅正则快速提取）"""
@@ -451,16 +486,58 @@ class DeepAgentExecutor:
             enriched.append(task)
         return enriched
 
-    def _count_items(self, output: str) -> int:
-        """简单计数：按行项目符号/编号推断条目数"""
+    def _count_words_cn(self, output: str) -> int:
+        """统计中文字数（简单版）
+
+        🔧 2025-12-13: P0修复 - 支持中文字数统计
+        移除空白字符后统计字符数（主要针对中文内容）
+        """
+        import re
+        # 移除所有空白字符（空格、换行、制表符等）
+        text = re.sub(r'\s+', '', output)
+        # 统计字符数（中文、英文、数字、标点符号都计入）
+        return len(text)
+
+    def _count_items(self, output: str, requirement: str = "") -> int:
+        """智能计数：根据需求类型统计条目数或字数
+
+        🔧 2025-12-13: P0修复 - 支持字数统计
+        🔧 2025-12-13: Review修复 - 增强边界情况处理
+        - 如果requirement包含"字"，统计字数
+        - 否则统计列表项数量
+
+        Args:
+            output: 要统计的文本
+            requirement: 验收要求描述（如"2000字"、"5个"）
+
+        Returns:
+            int: 统计结果
+        """
+        # 🔧 Review修复: 边界情况检查
+        if not output or not output.strip():
+            logger.debug("[_count_items] 输出为空，返回0")
+            return 0
+
+        # 如果是字数要求，使用字数统计
+        if requirement and "字" in requirement:
+            count = self._count_words_cn(output)
+            logger.debug(f"[_count_items] 字数统计: {count}字 (requirement={requirement})")
+            return count
+
+        # 否则统计列表项（原逻辑）
         lines = [ln.strip() for ln in output.splitlines() if ln.strip()]
         bullets = [ln for ln in lines if ln[:2] in {"- ", "* "} or ln[:3].isdigit() or ln.startswith(("1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.", "0."))]
         if bullets:
+            logger.debug(f"[_count_items] 列表项统计: {len(bullets)}项 (requirement={requirement})")
             return len(bullets)
         # 回退：尝试分号/换行切分后看是否为短句列表
         if len(lines) > 1:
+            logger.debug(f"[_count_items] 行数统计: {len(lines)}行 (requirement={requirement})")
             return len(lines)
-        return 1 if output.strip() else 0
+
+        result = 1 if output.strip() else 0
+        logger.debug(f"[_count_items] 兜底统计: {result} (requirement={requirement})")
+        return result
 
     async def _final_check_and_fix(
         self,
@@ -494,16 +571,30 @@ class DeepAgentExecutor:
             output = res.get("output") or res.get("content") or ""
 
             # 先做硬计数检查，再用 LLM 兜底
+            # 🔧 2025-12-13: P0修复 - 添加容差逻辑
             need_fix = False
             if not output:
                 need_fix = True
             else:
                 expected = acceptance.get("expected_count")
                 if expected:
-                    item_count = self._count_items(output)
-                    if item_count >= expected:
+                    requirement = acceptance.get("requirement", "")
+                    item_count = self._count_items(output, requirement)
+
+                    # 🔧 P0修复: 为字数类任务设置80%容差
+                    # 例如：要求2000字，1600字即算达标
+                    threshold = expected * 0.8 if "字" in requirement else expected
+
+                    if item_count >= threshold:
                         need_fix = False
+                        logger.debug(
+                            f"[FinalCheck] 计数达标: {item_count} >= {threshold} "
+                            f"(expected={expected}, requirement={requirement})"
+                        )
                     else:
+                        logger.debug(
+                            f"[FinalCheck] 计数不足: {item_count} < {threshold}, 调用LLM兜底"
+                        )
                         need_fix = not await self._evaluate_final_output(
                             task_desc=t.get("description", ""),
                             user_intent=user_intent,
@@ -551,7 +642,8 @@ class DeepAgentExecutor:
             "description": f"补充/修正前一任务结果，确保满足：{requirement_text}",
             "tool": failed_task.get("tool", "auto"),
             "params": failed_task.get("params", {}),
-            "checkpoint": True,
+            "checkpoint": False,  # 🔧 P0修复: 补救任务不触发反思
+            "is_remedy": True,    # 🔧 P0修复: 标记为补救任务
             "acceptance": failed_acceptance,
         }
 
@@ -598,6 +690,12 @@ class DeepAgentExecutor:
         expected = acceptance.get("expected_count")
         requirement = acceptance.get("requirement", "")
 
+        # 🔧 2025-12-13: Review修复 - 计算容差阈值
+        # 字数类任务：80%即可通过
+        # 列表类任务：100%要求
+        is_word_count = "字" in requirement
+        threshold = expected * 0.8 if is_word_count else expected
+
         snippet = output[:2000]
         prompt = f"""
 你是写作验收官，判断生成结果是否满足用户明确的数量/要点要求。只输出JSON，不要多余文字。
@@ -607,10 +705,20 @@ class DeepAgentExecutor:
 - 任务描述: {task_desc}
 - 验收要求: 期望数量={expected or '未知'}，关键词={requirement or '未知'}
 
+## ⚠️ 重要容差规则（2025-12-13 Review修复）
+{'- **字数类任务**：达到 80% 即可通过（如要求2000字，1600字即可）' if is_word_count else '- **列表类任务**：需要达到 100%（如要求5个，必须有5个）'}
+- **判断标准**：当前阈值={threshold}（{'80%容差' if is_word_count else '100%要求'}）
+
 ## 待验收内容（截断2000字）
 {snippet}
 
 请输出：{{"pass": true/false, "missing": ["缺什么"], "summary": "一句话概括问题"}}
+
+**判断逻辑**：
+1. 统计实际数量（字数或列表项数）
+2. 与阈值{threshold}比较（而非期望值{expected}）
+3. 达到或超过阈值 → pass=true
+4. 低于阈值 → pass=false
 """
 
         try:

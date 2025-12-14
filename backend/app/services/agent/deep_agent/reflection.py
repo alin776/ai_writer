@@ -141,17 +141,27 @@ def _build_reflection_prompt(
 3. **任务执行失败**：状态为 failed 且无法通过剩余任务补救
 4. **方向完全错误**：理解偏差导致无法回答用户问题
 
+### ⚠️ 字数类任务特别说明（2025-12-13 Review修复）：
+- **容差规则**：对于字数要求（如"2000字"），达到80%（1600字）即可通过
+- **判断标准**：只有明显不足（<60%）才返回 needs_replan=true
+- **示例**：
+  - ✅ 要求2000字，生成了1600字 → needs_replan=false（80%达标）
+  - ✅ 要求2000字，生成了1500字 → needs_replan=false（75%接近）
+  - ❌ 要求2000字，只生成了800字 → needs_replan=true（40%严重不足）
+
 ### 什么时候 needs_replan=false（大多数情况）：
 - ✅ 已经有部分结果，剩余任务能补足（例如：要3个生成了2个，还有续写任务）
 - ✅ 虽不完美但基本满足需求（例如：分析不够深入，但关键点都有）
 - ✅ 只是风格/细节问题（后续任务或最终整合可以优化）
 - ✅ 输入任务完成，输出任务尚未执行（例如：检索完成，分析任务还在后面）
 - ✅ 剩余任务足够完成目标（例如：读取完成，后面有分析任务）
+- ✅ 字数接近要求（80%以上）或有后续补充任务
 
 ### 常见误判提醒：
 - ❌ 错误："还没回答用户问题" → 正确：检查后续任务是否包含回答步骤
 - ❌ 错误："分析不够深入" → 正确：有基本分析即可，不必完美
 - ❌ 错误："少了一些细节" → 正确：足够好就行，后续可以优化
+- ❌ 错误："2000字只写了1500字" → 正确：75%已接近，不算严重不足
 
 ## 输出格式（必须是合法JSON，不要添加其他内容）
 {{"needs_replan": false, "reflection": "简短反思内容（<100字）"}}
@@ -160,10 +170,13 @@ def _build_reflection_prompt(
 {{"needs_replan": false, "reflection": "检索成功，后续分析任务可完成目标。"}}
 {{"needs_replan": false, "reflection": "已生成2个角色，剩余续写任务能补足到3个。"}}
 {{"needs_replan": false, "reflection": "分析基本到位，后续整合即可完成。"}}
+{{"needs_replan": false, "reflection": "已写1600字，达到80%阈值，基本满足需求。"}}
+{{"needs_replan": false, "reflection": "已写1500字（75%），接近目标，不需重规划。"}}
 
 示例（needs_replan=true的严重情况）：
 {{"needs_replan": true, "reflection": "用户要5个章节分析，但只规划了1个，需要补充任务。"}}
 {{"needs_replan": true, "reflection": "章节读取失败，无法进行后续分析，需要重新获取。"}}
+{{"needs_replan": true, "reflection": "要求2000字，只生成了600字（30%），严重不足。"}}
 
 """
 
@@ -247,8 +260,14 @@ def should_reflect(
 
     🔧 2025-12-08: 重构 - 基于 checkpoint 字段判断，让 AI 决定何时反思
     🔧 2025-12-11: 新增 total_tasks, remaining_tasks_count, has_checkpoint 参数
+    🔧 2025-12-13: P0修复 - 跳过补救任务的反思
     """
     config = DeepAgentConfig
+
+    # 0. 🔧 P0修复: 补救任务不触发反思
+    if task.get("is_remedy") is True:
+        logger.debug("补救任务不触发反思，跳过")
+        return False
 
     # 1. 达到上限检查
     if reflection_count >= config.MAX_REFLECTIONS:
