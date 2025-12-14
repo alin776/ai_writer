@@ -1104,12 +1104,16 @@ async def generate_phase2_content(
             
     except json.JSONDecodeError as e:
         logger.error(f"JSON解析失败: {e}, 响应内容: {full_response[:500] if full_response else 'N/A'}")
+        # ✅ 2025-12-14: 添加事务回滚，确保积分扣除被回滚
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"AI生成的内容格式错误: {str(e)}"
         )
     except Exception as e:
         logger.error(f"AI生成失败: {e}")
+        # ✅ 2025-12-14: 添加事务回滚，确保积分扣除被回滚
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"AI生成失败: {str(e)}"
