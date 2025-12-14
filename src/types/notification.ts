@@ -249,4 +249,3 @@ export interface BatchOperationResponse {
 
 // 兼容旧命名
 export type NotificationCreate = CreateNotificationRequest;
-export type NotificationResponse = Notification;

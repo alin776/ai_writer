@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, MapPin, Users, Clock, Trophy, Gift, Award } from 'lucide-react';
 import { ImageWithFallback } from '../components/notifications/ImageWithFallback';
-import type { ActivityDetail as ActivityDetailType, ActivityType, Reward } from '../types/activity';
-import { RewardType, ActivityStatus, ActivityFormat } from '../types/activity';
+import type { ActivityDetail as ActivityDetailType, Reward } from '../types/activity';
+import { RewardType, ActivityStatus, ActivityFormat, ActivityType } from '../types/activity';
 
 export default function ActivityDetail() {
   const { activityId } = useParams<{ activityId: string }>();
@@ -464,15 +464,15 @@ function getMockActivityDetail(activityId?: string): ActivityDetailType {
     description: '邀请好友注册，双方都能获得积分奖励',
     bannerUrl: 'https://images.unsplash.com/photo-1611376299769-0abfd5941d40?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBtaW5pbWFsJTIwYmFubmVyfGVufDF8fHx8MTc2NTUyNzMyMHww&ixlib=rb-4.1.0&q=80&w=1080',
     category: '积分活动',
-    type: 'invitation' as ActivityType,
-    status: 'ongoing',
-    format: 'online',
+    type: ActivityType.INVITATION,
+    status: ActivityStatus.ONGOING,
+    format: ActivityFormat.ONLINE,
     startTime: '2025-12-12T00:00:00Z',
     endTime: '2025-12-20T23:59:59Z',
     registrationDeadline: '2025-12-19T23:59:59Z',
     participantCount: 1234,
     rules: {
-      type: 'invitation' as const,
+      type: ActivityType.INVITATION,
       inviterRewards: [
         {
           type: RewardType.POINTS,

@@ -144,7 +144,7 @@ const WorksView: React.FC = () => {
         sessionStorage.setItem('activity_modal_shown', 'true');
 
         // 标记为已读
-        await markNotificationsAsRead({ notificationIds: [notification.id] });
+        await markNotificationsAsRead([notification.id]);
       }
     } catch (error) {
       console.error('检查活动通知失败:', error);
