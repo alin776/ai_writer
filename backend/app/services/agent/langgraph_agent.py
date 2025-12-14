@@ -3950,7 +3950,7 @@ chapter_id: {chapter_id}
                     plan_result = await self._generate_text(
                         prompt=plan_prompt,  # ✅ 修复：使用关键字参数
                         temperature=0.3,
-                        max_tokens=1200,  # ✅ 2025-12-07: Chain-of-Thought 需要更多 token（包含 thinking + 复合任务）
+                        max_tokens=2000,  # ✅ 2025-12-14: 增加到2000，防止复杂场景JSON被截断（从1200增加）
                         task_type=TaskType.SIMPLE_QA  # ← Planning阶段用轻量模型快速生成任务列表
                     )
                     plan_text = plan_result.get("text", "").strip()

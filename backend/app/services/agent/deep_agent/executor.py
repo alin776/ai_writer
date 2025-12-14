@@ -779,10 +779,10 @@ class DeepAgentExecutor:
         else:
             # 兜底：硬编码基础工具列表
             lines.append("""**WRITING 类工具**:
-  - continue_writing_tool: 根据上下文续写小说内容
+  - continue_writing_tool: 创作新内容（包括大纲、正文、设定等）
 
 **ANALYSIS 类工具**:
-  - analyze_text_tool: 分析、总结、规划文本内容
+  - analyze_text_tool: 分析已有文本内容（不能创作新内容）
 
 **UTILITY 类工具**:
   - get_context_tool: 获取作品上下文信息

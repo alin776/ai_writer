@@ -218,12 +218,12 @@ async def continue_writing_executor(
 # 创建续写工具实例
 continue_writing_tool = StandardTool(
     name="continue_writing",
-    description="根据上下文续写小说内容,支持自定义续写要求和风格",
+    description="创作新的小说内容，包括续写正文、生成大纲、设计角色、规划情节等",
     category=ToolCategory.WRITING,
     input_schema=ContinueWritingInput,
     output_schema=ContinueWritingOutput,
     executor=continue_writing_executor,
-    tags=["writing", "generation", "novel"],
+    tags=["writing", "generation", "novel", "outline", "creation"],
     version="1.0.0"
 )
 

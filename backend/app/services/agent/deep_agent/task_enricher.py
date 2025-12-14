@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 # 工具描述（供 AI 参考）
+# 🔧 2025-12-14: 与 Planning Prompt 保持一致，确保工具选择逻辑统一
 AVAILABLE_TOOLS = """
 可用工具列表：
 
@@ -32,15 +33,17 @@ AVAILABLE_TOOLS = """
    - 适用场景：获取背景、了解设定、查看世界观
 
 3. analyze_text_tool
-   - 用途：分析、总结、规划文本内容
+   - 用途：分析已有文本内容
    - 参数：text (str) - 要分析的文本, focus (str) - 分析焦点
-   - 适用场景：分析内容、总结情节、梳理人物、规划大纲、设计剧情
-   - focus 可选值：all/character/plot/foreshadowing/system/worldview/planning
+   - 适用场景：分析人物、分析情节、概括内容、总结章节、评估质量
+   - ⚠️ 只能分析现有内容，不能创作新内容（如大纲、设定等）
+   - focus 可选值：all/character/plot/foreshadowing/system/worldview
 
 4. continue_writing_tool
-   - 用途：根据上下文续写小说内容
-   - 参数：requirements (str) - 续写要求（可选）
-   - 适用场景：续写、创作、生成、补充内容、写正文、继续写
+   - 用途：创作新内容（包括大纲、正文、设定等）
+   - 参数：requirements (str) - 创作要求, context (str) - 上下文（可选）
+   - 适用场景：续写、创作正文、生成大纲、设计角色、规划情节、构思剧情
+   - ⚠️ "设计"/"规划"/"构思"/"创作"都是创作任务，使用这个工具
 
 注意：工具名称不带 _tool 后缀，如 continue_writing、analyze_text 等。
 """
@@ -56,11 +59,12 @@ class TaskEnricher:
     """
 
     # 关键词兜底规则（当 AI 推断失败时使用）
-    # 优先匹配"分析/规划/大纲"类任务，避免同时含"第X章"时误判为取章节
-    # 2025-12-14: 添加 continue_writing_tool 支持续写类任务
+    # 🔧 2025-12-14: 与工具描述保持一致
+    # 注意：AI推断是主要方式，关键词只是兜底
     FALLBACK_RULES: List[Dict[str, Any]] = [
         {
-            "keywords": ["分析", "梳理", "总结", "概括", "规划", "大纲", "设计", "提取", "归纳"],
+            # 分析类：只包含"分析现有内容"的关键词
+            "keywords": ["分析", "梳理", "总结", "概括", "提取", "归纳", "评估"],
             "tool": "analyze_text_tool",
         },
         {
@@ -72,9 +76,9 @@ class TaskEnricher:
             "tool": "get_chapter_by_order_tool",
         },
         {
-            # 续写/创作类任务 - 必须放在最后，作为写作类任务的兜底
-            # 🔧 2025-12-14: 使用 Planning 约定的工具名称（带 _tool 后缀）
-            "keywords": ["续写", "创作", "生成", "补充", "写正文", "继续写", "撰写", "编写"],
+            # 创作类：包含所有"创作新内容"的关键词（包括规划、设计）
+            # 🔧 2025-12-14: "设计"/"规划"/"构思"都是创作任务
+            "keywords": ["续写", "创作", "生成", "补充", "写正文", "继续写", "撰写", "编写", "设计", "规划", "构思", "策划"],
             "tool": "continue_writing_tool",
         },
     ]

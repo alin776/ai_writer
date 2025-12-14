@@ -19,7 +19,7 @@ Prompt 缓存模块 - Phase 2.6
 from app.core.cache import cache_review
 
 # Prompt 版本号 - 修改 Prompt 时请更新此版本号
-PROMPT_VERSION = "v2.11.0"  # 2025-12-13: 添加checkpoint示例，明确展示如何标记checkpoint: false
+PROMPT_VERSION = "v2.12.0"  # 2025-12-14: 修正工具选择逻辑 - "设计"/"规划"类任务使用 continue_writing_tool 而非 analyze_text_tool
 
 
 # ════════════════════════════════════════════════════════════════
@@ -184,14 +184,15 @@ async def get_planning_static_prompt() -> str:
 问自己：需要对原料做什么处理？
 
 - 直接返回（无处理）→ 只用获取工具
-- 概括/分析/规划 → 获取 + analyze_text_tool
-- 创作/续写内容 → continue_writing_tool
+- 概括/分析现有内容 → 获取 + analyze_text_tool
+- 创作新内容（包括大纲/规划/设定）→ continue_writing_tool
 
 【关键判断】
 
 大纲 vs 正文：
-- 大纲 = 结构化规划（章节标题、主线、伏笔列表）→ analyze_text_tool
-- 正文 = 完整故事叙述（续写内容）→ continue_writing_tool
+- 创作大纲/规划 → continue_writing_tool（大纲是创作，需要从零生成内容！）
+- 续写正文 → continue_writing_tool
+- 分析现有大纲/内容 → analyze_text_tool
 
 概括 vs 原文：
 - 用户想了解内容（"讲了什么"、"是什么故事"、"主要内容"）→ 需要概括
@@ -209,8 +210,9 @@ async def get_planning_static_prompt() -> str:
 """
 
     part2 = """处理原料：
-- analyze_text_tool: 概括、分析、规划大纲 (参数: text, focus)
-  - 适用于：概括内容、分析人物、分析情节、写大纲、规划章节
+- analyze_text_tool: 分析已有文本 (参数: text, focus)
+  - 适用于：概括内容、分析人物、分析情节、评估文本质量
+  - ⚠️ 只能分析现有内容，不能创作新内容（如大纲、设定等）
   - ⚠️ 不要用于：查询标题/序号等元数据（工具已返回这些字段）
 
 文本润色/改写：
@@ -221,9 +223,10 @@ async def get_planning_static_prompt() -> str:
   - style 可选值: professional, creative, concise, elaborate
 
 创作内容：
-- continue_writing_tool: 续写内容
-  - 适用于：续写章节、创作新内容
+- continue_writing_tool: 创作新内容（包括大纲、正文、设定等）
+  - 适用于：续写章节、创作正文、生成大纲、设计角色成长、规划情节
   - params: context（上下文）, requirements（要求）
+  - ⚠️ "设计"/"规划"/"构思"/"创作"都是创作任务，使用这个工具
 
 【选中文本处理规则】⚠️ 重要！
 
@@ -312,15 +315,15 @@ async def get_planning_static_prompt() -> str:
   "thinking": {
     "step1_output": "用户想看到第5-9章的大纲规划（章节标题+主要剧情），不是正文",
     "step2_material": "需要前四章内容作为参考",
-    "step3_process": "分析前文后规划大纲结构"
+    "step3_process": "获取前文后创作大纲结构（大纲是创作！）"
   },
-  "user_intent": "规划第5-9章大纲",
+  "user_intent": "创作第5-9章大纲",
   "tasks": [
     {"task_id": 1, "description": "获取第一章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 1}},
     {"task_id": 2, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}},
     {"task_id": 3, "description": "获取第三章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 3}},
     {"task_id": 4, "description": "获取第四章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 4}},
-    {"task_id": 5, "description": "规划大纲", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$\\n\\n$TASK_2.content$\\n\\n$TASK_3.content$\\n\\n$TASK_4.content$", "focus": "基于前四章的人物、情节、伏笔，为第5-9章设计详细大纲：章节标题、主要剧情、涉及角色、伏笔设置"}}
+    {"task_id": 5, "description": "创作大纲", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.content$\\n\\n$TASK_2.content$\\n\\n$TASK_3.content$\\n\\n$TASK_4.content$", "requirements": "基于前四章的人物、情节、伏笔，为第5-9章设计详细大纲：章节标题、主要剧情、涉及角色、伏笔设置"}}
   ]
 }
 
@@ -343,16 +346,16 @@ async def get_planning_static_prompt() -> str:
   "thinking": {
     "step1_output": "复合任务：1)分析报告 2)大纲规划 3)章节正文",
     "step2_material": "需要前四章内容",
-    "step3_process": "分三阶段：分析→规划大纲→续写正文"
+    "step3_process": "分三阶段：分析现有内容→创作大纲→续写正文"
   },
-  "user_intent": "分析+规划大纲+续写",
+  "user_intent": "分析+创作大纲+续写",
   "tasks": [
     {"task_id": 1, "description": "获取第一章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 1}},
     {"task_id": 2, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}},
     {"task_id": 3, "description": "获取第三章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 3}},
     {"task_id": 4, "description": "获取第四章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 4}},
     {"task_id": 5, "description": "分析前四章", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$\\n\\n$TASK_2.content$\\n\\n$TASK_3.content$\\n\\n$TASK_4.content$", "focus": "分析前四章：主要人物、情节发展、伏笔线索、写作风格"}},
-    {"task_id": 6, "description": "规划第5-9章大纲", "tool": "analyze_text_tool", "params": {"text": "$TASK_5$", "focus": "基于分析结果，为第5-9章设计详细大纲"}},
+    {"task_id": 6, "description": "创作第5-9章大纲", "tool": "continue_writing_tool", "params": {"context": "$TASK_5$", "requirements": "基于分析结果，为第5-9章设计详细大纲"}},
     {"task_id": 7, "description": "续写第五章", "tool": "continue_writing_tool", "params": {"context": "$TASK_4.content$\\n\\n大纲：$TASK_6$", "requirements": "基于大纲续写第五章正文"}}
   ]
 }

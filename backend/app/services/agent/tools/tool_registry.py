@@ -620,7 +620,7 @@ class StandardToolRegistry:
         desc = description.lower()
 
         # WRITING 类关键词（通用）
-        if any(kw in desc for kw in ["续写", "创作", "生成", "写", "补充", "修正", "撰写", "编写"]):
+        if any(kw in desc for kw in ["续写", "创作", "生成", "写", "补充", "修正", "撰写", "编写", "设计", "构思", "规划", "策划", "设定"]):
             return "writing"
 
         # ANALYSIS 类关键词（通用）
