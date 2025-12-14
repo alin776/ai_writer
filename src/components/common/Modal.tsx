@@ -190,7 +190,7 @@ const Modal: React.FC<ModalProps> = ({
       aria-labelledby={title ? 'modal-title' : undefined}
     >
       {/* 遮罩层 */}
-      <div className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" />
+      <div className="fixed inset-0 bg-gray-900/20 transition-opacity" />
 
       {/* 模态框容器 */}
       <div

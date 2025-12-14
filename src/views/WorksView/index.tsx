@@ -30,7 +30,9 @@ import {
   X,
   File,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Globe,
+  Eye as EyeIcon
 } from 'lucide-react';
 import { DataService } from '../../services/DataService';
 import { TxtExportService, type TxtExportResult } from '../../services/TxtExportService';
@@ -46,6 +48,14 @@ import type { UserNotification } from '../../types/notification';
 
 // 默认封面路径
 const DEFAULT_COVER_IMAGE = '/default-cover.jpg';
+
+// 模拟章节数据(用于发布弹窗)
+const mockChaptersForPublish = Array.from({ length: 10 }, (_, i) => ({
+  id: String(i + 1),
+  title: `第${i + 1}章 ${['初入江湖', '剑道传承', '山雨欲来', '危机四伏', '绝地反击', '破而后立', '天降奇缘', '修炼神功', '血战群雄', '成就霸业'][i]}`,
+  wordCount: 2000 + Math.floor(Math.random() * 1000),
+  updateTime: `2024-12-${String(14 - Math.floor(i / 3)).padStart(2, '0')}`
+}));
 
 const WorksView: React.FC = () => {
   const navigate = useNavigate();
@@ -98,6 +108,13 @@ const WorksView: React.FC = () => {
   // 活动/公告弹窗状态
   const [activityNotification, setActivityNotification] = useState<UserNotification | null>(null);
   const [showActivityModal, setShowActivityModal] = useState(false);
+
+  // 发布弹窗状态
+  const [publishingWork, setPublishingWork] = useState<Work | null>(null);
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [selectedChapters, setSelectedChapters] = useState<Set<string>>(new Set());
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [chaptersForPublish, setChaptersForPublish] = useState<any[]>([]);
 
 
   // 加载作品列表
@@ -157,6 +174,106 @@ const WorksView: React.FC = () => {
     setShowActivityModal(false);
     setActivityNotification(null);
   };
+
+  // 打开发布弹窗
+  const openPublishModal = async (work: Work) => {
+    setPublishingWork(work);
+    setShowPublishModal(true);
+
+    try {
+      // 从后端加载该作品的所有章节
+      const chapters = await DataService.getChapters(work.id);
+      setChaptersForPublish(chapters);
+
+      // 如果作品已发布，预选已发布的章节
+      if (work.isPublished) {
+        const publishedChapterIds = chapters
+          .filter((ch: any) => ch.isPublished)
+          .map((ch: any) => ch.id);
+        setSelectedChapters(new Set(publishedChapterIds));
+      } else {
+        setSelectedChapters(new Set());
+      }
+    } catch (error: any) {
+      console.error('加载章节失败:', error);
+      showToast('error', '加载章节失败');
+      setChaptersForPublish([]);
+      setSelectedChapters(new Set());
+    }
+  };
+
+  // 关闭发布弹窗
+  const closePublishModal = () => {
+    setShowPublishModal(false);
+    setPublishingWork(null);
+    setSelectedChapters(new Set());
+  };
+
+  // 切换章节选择
+  const toggleChapter = (chapterId: string) => {
+    const newSelected = new Set(selectedChapters);
+    if (newSelected.has(chapterId)) {
+      newSelected.delete(chapterId);
+    } else {
+      newSelected.add(chapterId);
+    }
+    setSelectedChapters(newSelected);
+  };
+
+  // 全选/取消全选
+  const toggleAllChapters = (chapters: any[]) => {
+    if (selectedChapters.size === chapters.length) {
+      setSelectedChapters(new Set());
+    } else {
+      setSelectedChapters(new Set(chapters.map(c => c.id)));
+    }
+  };
+
+  // 处理发布/更新
+  const handlePublish = async () => {
+    if (!publishingWork) return;
+
+    // 如果没有选中任何章节，说明要取消发布
+    if (selectedChapters.size === 0) {
+      const confirmed = await confirm({
+        title: '取消发布',
+        message: `确定要将《${publishingWork.title}》从小说广场下架吗？`,
+        variant: 'warning',
+      });
+
+      if (!confirmed) return;
+
+      try {
+        setIsPublishing(true);
+        const response = await DataService.unpublishWork(publishingWork.id);
+        showToast('success', response.message);
+        closePublishModal();
+        await loadWorks();
+      } catch (error: any) {
+        console.error('取消发布失败:', error);
+        showToast('error', error?.message || '取消发布失败');
+      } finally {
+        setIsPublishing(false);
+      }
+      return;
+    }
+
+    try {
+      setIsPublishing(true);
+      // 调用后端API发布作品和章节
+      const response = await DataService.publishWork(publishingWork.id, Array.from(selectedChapters));
+
+      showToast('success', response.message);
+      closePublishModal();
+      await loadWorks();
+    } catch (error: any) {
+      console.error('发布失败:', error);
+      showToast('error', error?.message || '发布失败');
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
 
   const loadWorks = async () => {
     try {
@@ -760,6 +877,14 @@ const WorksView: React.FC = () => {
 
                     {/* Actions - 右侧操作按钮 */}
                     <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                      {/* 发布状态指示器 */}
+                      {work.isPublished && (
+                        <div className="flex items-center gap-1 text-green-600 dark:text-green-400 text-xs px-2 py-1 bg-green-50 dark:bg-green-900/30 rounded">
+                          <Globe className="w-3 h-3" />
+                          <span>已发布</span>
+                        </div>
+                      )}
+
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -773,6 +898,17 @@ const WorksView: React.FC = () => {
 
                       {/* Quick Actions - hover时显示 */}
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {/* 发布管理按钮 */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openPublishModal(work);
+                          }}
+                          className="p-2 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
+                          title={work.isPublished ? "管理发布" : "发布到小说广场"}
+                        >
+                          <Globe className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1215,6 +1351,140 @@ const WorksView: React.FC = () => {
                   style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
                 >
                   <span style={{ transform: 'skewX(2deg)' }}>{isExporting ? t('works.export.exporting') : t('works.export.start')}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 发布弹窗 */}
+      {showPublishModal && publishingWork && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closePublishModal}>
+          <div className="bg-white dark:bg-gray-800 w-[600px] max-h-[700px] overflow-y-auto scrollbar-hide" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ transform: 'skewX(2deg)' }} className="p-6">
+              {/* 标题栏 */}
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg text-gray-900 dark:text-gray-100">
+                    {publishingWork.isPublished ? '管理发布章节' : '发布到小说广场'}
+                  </h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {publishingWork.isPublished
+                      ? '勾选要发布的章节，取消全部勾选将下架作品'
+                      : '选择要发布的章节'}
+                  </p>
+                </div>
+                <button onClick={closePublishModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                  <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                </button>
+              </div>
+
+              {/* 作品信息 */}
+              <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
+                <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">{publishingWork.title}</h3>
+                <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400">
+                  <span>共 {publishingWork.totalChapters} 章</span>
+                  <span>{publishingWork.totalWords.toLocaleString()} 字</span>
+                  {publishingWork.genre && <span>{publishingWork.genre}</span>}
+                </div>
+              </div>
+
+              {/* 章节选择说明 */}
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
+                {publishingWork.isPublished ? (
+                  <div className="space-y-1">
+                    <p>• 勾选新章节可以添加到发布列表</p>
+                    <p>• 取消勾选章节将从小说广场移除该章节</p>
+                    <p>• 取消全部勾选将下架整个作品</p>
+                  </div>
+                ) : (
+                  <p>选择要发布到小说广场的章节。读者将只能看到已发布的章节。</p>
+                )}
+              </div>
+
+              {/* 全选按钮 */}
+              <div className="mb-3 flex items-center justify-between">
+                <button
+                  onClick={() => toggleAllChapters(chaptersForPublish)}
+                  className="px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  style={{ transform: 'skewX(-2deg)' }}
+                >
+                  <span style={{ transform: 'skewX(2deg)' }}>
+                    {selectedChapters.size === chaptersForPublish.length ? '取消全选' : '全选'}
+                  </span>
+                </button>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  已选择 {selectedChapters.size} / {chaptersForPublish.length} 章
+                </span>
+              </div>
+
+              {/* 章节列表 */}
+              <div className="space-y-1 mb-4 max-h-[300px] overflow-y-auto border border-gray-200 dark:border-gray-600">
+                {chaptersForPublish.map((chapter) => (
+                  <label
+                    key={chapter.id}
+                    className="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedChapters.has(chapter.id)}
+                      onChange={() => toggleChapter(chapter.id)}
+                      className="w-4 h-4 mr-3"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-900 dark:text-gray-100">{chapter.title}</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{chapter.wordCount || 0} 字</span>
+                      </div>
+                      <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                        {chapter.updatedAt ? new Date(chapter.updatedAt).toLocaleDateString() : ''}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              {/* 底部按钮 */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={closePublishModal}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-900 dark:hover:border-gray-400 transition-colors"
+                  style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
+                  disabled={isPublishing}
+                >
+                  <span style={{ transform: 'skewX(2deg)' }}>取消</span>
+                </button>
+                <button
+                  onClick={handlePublish}
+                  disabled={isPublishing}
+                  className={`flex-1 px-4 py-2.5 transition-colors flex items-center justify-center gap-2 ${
+                    isPublishing
+                      ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                      : selectedChapters.size === 0
+                      ? 'bg-orange-600 text-white hover:bg-orange-700'
+                      : 'bg-green-600 text-white hover:bg-green-700'
+                  }`}
+                  style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
+                >
+                  {isPublishing ? (
+                    <>
+                      <div className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"></div>
+                      <span style={{ transform: 'skewX(2deg)' }}>处理中...</span>
+                    </>
+                  ) : selectedChapters.size === 0 ? (
+                    <>
+                      <EyeIcon className="w-4 h-4" style={{ transform: 'skewX(2deg)' }} />
+                      <span style={{ transform: 'skewX(2deg)' }}>取消发布</span>
+                    </>
+                  ) : (
+                    <>
+                      <Globe className="w-4 h-4" style={{ transform: 'skewX(2deg)' }} />
+                      <span style={{ transform: 'skewX(2deg)' }}>
+                        {publishingWork.isPublished ? '更新发布' : '发布到广场'}
+                      </span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>

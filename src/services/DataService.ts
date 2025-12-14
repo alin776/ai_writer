@@ -332,6 +332,25 @@ class DataServiceClass {
     return response.cover_url;
   }
 
+  /**
+   * 发布作品到小说广场
+   * @param workId 作品ID
+   * @param chapterIds 要发布的章节ID列表
+   * @returns Promise<{ message: string; work_id: string; is_published: boolean }>
+   */
+  async publishWork(workId: string, chapterIds: string[]): Promise<{ message: string; work_id: string; is_published: boolean }> {
+    return this.adapter.post(`/works/${workId}/publish`, { chapter_ids: chapterIds });
+  }
+
+  /**
+   * 取消发布作品
+   * @param workId 作品ID
+   * @returns Promise<{ message: string; work_id: string; is_published: boolean }>
+   */
+  async unpublishWork(workId: string): Promise<{ message: string; work_id: string; is_published: boolean }> {
+    return this.adapter.post(`/works/${workId}/unpublish`, {});
+  }
+
   // ==================== 章节相关 ====================
 
   /**
@@ -1245,6 +1264,224 @@ class DataServiceClass {
    */
   async getUserAIStats(userId: string, days: number = 30): Promise<AICallLogStats> {
     return this.adapter.get(`/ai-logs/admin/user/${userId}/stats?days=${days}`);
+  }
+
+  // ========== 图书馆相关API ==========
+
+  /**
+   * 获取推荐作品列表(用于轮播图)
+   */
+  async getFeaturedNovels(): Promise<any> {
+    return this.adapter.get('/library/featured');
+  }
+
+  /**
+   * 获取小说广场的已发布作品列表
+   */
+  async getPublishedNovels(params?: {
+    skip?: number;
+    limit?: number;
+    genre?: string;
+    search?: string;
+    sortBy?: 'latest' | 'popular' | 'words';
+  }): Promise<any> {
+    const queryParams = new URLSearchParams();
+    if (params?.skip !== undefined) queryParams.append('skip', params.skip.toString());
+    if (params?.limit !== undefined) queryParams.append('limit', params.limit.toString());
+    if (params?.genre) queryParams.append('genre', params.genre);
+    if (params?.search) queryParams.append('search', params.search);
+    if (params?.sortBy) queryParams.append('sort_by', params.sortBy);
+
+    return this.adapter.get(`/library/novels${queryParams.toString() ? `?${queryParams.toString()}` : ''}`);
+  }
+
+  /**
+   * 获取已发布作品的详情
+   */
+  async getPublishedNovelDetail(workId: string): Promise<any> {
+    return this.adapter.get(`/library/novels/${workId}`);
+  }
+
+  /**
+   * 获取已发布章节的内容
+   */
+  async getPublishedChapterContent(workId: string, chapterId: string): Promise<any> {
+    return this.adapter.get(`/library/novels/${workId}/chapters/${chapterId}`);
+  }
+
+  /**
+   * 获取已发布小说的章节列表
+   */
+  async getNovelChapters(workId: string): Promise<any> {
+    return this.adapter.get(`/library/novels/${workId}/chapters`);
+  }
+
+  // ========== 评论相关API ==========
+
+  /**
+   * 获取作品的评论列表
+   */
+  async getWorkComments(workId: string, params?: { skip?: number; limit?: number }): Promise<any> {
+    const queryParams = new URLSearchParams();
+    if (params?.skip !== undefined) queryParams.append('skip', params.skip.toString());
+    if (params?.limit !== undefined) queryParams.append('limit', params.limit.toString());
+
+    return this.adapter.get(`/comments/works/${workId}/comments${queryParams.toString() ? `?${queryParams.toString()}` : ''}`);
+  }
+
+  /**
+   * 发表评论
+   */
+  async createComment(workId: string, data: { content: string; parentId?: string; replyToUserId?: string }): Promise<any> {
+    return this.adapter.post(`/comments/works/${workId}/comments`, {
+      content: data.content,
+      parent_id: data.parentId,
+      reply_to_user_id: data.replyToUserId,
+    });
+  }
+
+  /**
+   * 更新评论
+   */
+  async updateComment(commentId: string, content: string): Promise<any> {
+    return this.adapter.put(`/comments/comments/${commentId}`, { content });
+  }
+
+  /**
+   * 删除评论
+   */
+  async deleteComment(commentId: string): Promise<void> {
+    return this.adapter.delete(`/comments/comments/${commentId}`);
+  }
+
+  /**
+   * 点赞评论
+   */
+  async likeComment(commentId: string): Promise<any> {
+    return this.adapter.post(`/comments/comments/${commentId}/like`, {});
+  }
+
+  /**
+   * 取消点赞评论
+   */
+  async unlikeComment(commentId: string): Promise<any> {
+    return this.adapter.delete(`/comments/comments/${commentId}/like`);
+  }
+
+  // ========== 书架相关API ==========
+
+  /**
+   * 获取我的书架
+   */
+  async getBookshelf(): Promise<any> {
+    return this.adapter.get('/library/bookshelf');
+  }
+
+  /**
+   * 将作品加入书架
+   */
+  async addToBookshelf(workId: string): Promise<any> {
+    return this.adapter.post(`/library/bookshelf/${workId}`, {});
+  }
+
+  /**
+   * 从书架移除作品
+   */
+  async removeFromBookshelf(workId: string): Promise<void> {
+    return this.adapter.delete(`/library/bookshelf/${workId}`);
+  }
+
+  /**
+   * 检查作品是否在书架中
+   */
+  async checkInBookshelf(workId: string): Promise<{ work_id: string; in_bookshelf: boolean }> {
+    return this.adapter.get(`/library/bookshelf/check/${workId}`);
+  }
+
+  /**
+   * 更新阅读进度
+   */
+  async updateReadingProgress(workId: string, chapterId: string, position: number = 0): Promise<any> {
+    return this.adapter.put(`/library/bookshelf/${workId}/progress`, {
+      chapter_id: chapterId,
+      position,
+    });
+  }
+
+  // ========== 评分相关API ==========
+
+  /**
+   * 为作品评分(如果已评分则更新)
+   */
+  async rateWork(workId: string, rating: number): Promise<any> {
+    return this.adapter.post(`/ratings/works/${workId}/rating`, { rating });
+  }
+
+  /**
+   * 获取作品评分统计
+   */
+  async getWorkRatingStats(workId: string): Promise<any> {
+    return this.adapter.get(`/ratings/works/${workId}/rating/stats`);
+  }
+
+  /**
+   * 删除作品评分
+   */
+  async deleteWorkRating(workId: string): Promise<void> {
+    return this.adapter.delete(`/ratings/works/${workId}/rating`);
+  }
+
+  // ========== 举报相关API ==========
+
+  /**
+   * 举报评论
+   */
+  async reportComment(commentId: string, reason: string, description?: string): Promise<any> {
+    return this.adapter.post(`/comments/comments/${commentId}/report`, {
+      reason,
+      description,
+    });
+  }
+
+  // ========== 管理员 - 小说管理API ==========
+
+  /**
+   * 获取所有作品列表（管理员）
+   */
+  async adminGetAllWorks(params?: {
+    skip?: number;
+    limit?: number;
+    search?: string;
+    genre?: string;
+    status?: string;
+    isPublished?: boolean;
+  }): Promise<any> {
+    return this.adapter.get('/admin/works/works', { params });
+  }
+
+  /**
+   * 切换作品发布状态（管理员）
+   */
+  async adminToggleWorkPublish(workId: string, isPublished: boolean): Promise<any> {
+    return this.adapter.put(`/admin/works/works/${workId}/publish`, {
+      is_published: isPublished,
+    });
+  }
+
+  /**
+   * 切换作品推荐状态（管理员）
+   */
+  async adminToggleWorkFeatured(workId: string, isFeatured: boolean): Promise<any> {
+    return this.adapter.put(`/admin/works/works/${workId}/feature`, {
+      is_featured: isFeatured,
+    });
+  }
+
+  /**
+   * 删除作品（管理员）
+   */
+  async adminDeleteWork(workId: string): Promise<void> {
+    return this.adapter.delete(`/admin/works/works/${workId}`);
   }
 }
 

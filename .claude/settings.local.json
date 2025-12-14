@@ -40,7 +40,14 @@
       "Bash(venv/Scripts/python.exe -m alembic:*)",
       "Bash(venv/Scripts/python.exe:*)",
       "Bash(python:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(../venv/Scripts/python.exe -m alembic revision -m \"add_is_published_to_works\")",
+      "Bash(venvScriptspython.exe -m alembic upgrade head)",
+      "Bash(C:UsersAdministratorDesktopai-writerbackendvenvScriptspython.exe -m alembic -c C:UsersAdministratorDesktopai-writerbackendalembic.ini upgrade head)",
+      "Bash(timeout:*)",
+      "Bash(../venv/Scripts/python.exe:*)",
+      "Bash(..venvScriptspython.exe -m alembic upgrade head)",
+      "Bash(..venvScriptspython.exe -m alembic revision -m \"add_favorite_count_to_works\")"
     ],
     "deny": [],
     "ask": []

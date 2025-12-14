@@ -17,6 +17,7 @@ const ServiceUsageView = React.lazy(() => import('../views/ServiceUsageView'));
 const ServiceObtainView = React.lazy(() => import('../views/ServiceObtainView'));
 const AdminDashboardView = React.lazy(() => import('../views/AdminDashboardView'));
 const AdminUsersView = React.lazy(() => import('../views/AdminUsersView'));
+const AdminWorksView = React.lazy(() => import('../views/AdminWorksView'));
 const AdminAIModelsView = React.lazy(() => import('../views/AdminAIModelsView'));
 const AdminCostView = React.lazy(() => import('../views/AdminCostView'));
 const AdminInvitationsView = React.lazy(() => import('../views/AdminInvitationsView'));
@@ -33,6 +34,8 @@ const ActivityDetail = React.lazy(() => import('../pages/ActivityDetail'));
 const SubscriptionView = React.lazy(() => import('../views/SubscriptionView'));
 const ContactView = React.lazy(() => import('../views/ContactView'));
 const TaskRewardsView = React.lazy(() => import('../views/TaskRewardsView'));
+const NovelSquareView = React.lazy(() => import('../views/NovelSquareView'));
+const MyBookshelfView = React.lazy(() => import('../views/MyBookshelfView'));
 const NotFoundView = React.lazy(() => import('../views/NotFoundView'));
 
 const LoadingFallback: React.FC = () => (
@@ -246,6 +249,22 @@ export const router = createBrowserRouter([
           </SuspenseWrapper>
         ),
       },
+      {
+        path: '/library/novel-square',
+        element: (
+          <SuspenseWrapper>
+            <NovelSquareView />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/library/my-bookshelf',
+        element: (
+          <SuspenseWrapper>
+            <MyBookshelfView />
+          </SuspenseWrapper>
+        ),
+      },
     ],
   },
   {
@@ -268,6 +287,14 @@ export const router = createBrowserRouter([
             element: (
               <SuspenseWrapper>
                 <AdminUsersView />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: 'works',
+            element: (
+              <SuspenseWrapper>
+                <AdminWorksView />
               </SuspenseWrapper>
             ),
           },
