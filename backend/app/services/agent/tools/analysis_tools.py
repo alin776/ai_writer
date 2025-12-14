@@ -505,4 +505,128 @@ __all__ = [
     "EvaluateQualityInput",
     "EvaluateQualityOutput",
     "evaluate_quality_tool",
+    # 文本分析工具（兼容 @tool 版本）
+    "AnalyzeTextInput",
+    "AnalyzeTextOutput",
+    "analyze_text_tool",
 ]
+
+
+# ==================== 3. 文本分析工具 (Analyze Text) - 兼容 @tool 版本 ====================
+# 🔧 2025-12-14: 新增 analyze_text_tool，参数与 @tool 版本兼容
+
+class AnalyzeTextInput(ToolInput):
+    """
+    文本分析工具输入（兼容 @tool 版本）
+
+    Attributes:
+        text: 待分析的文本
+        focus: 分析重点（all/grammar/logic/style）
+    """
+
+    text: str = Field(
+        ...,
+        description="待分析的文本",
+        min_length=1,
+        max_length=50000
+    )
+
+    focus: str = Field(
+        default="all",
+        description="分析重点: all(全面), grammar(语法), logic(逻辑), style(风格), structure(结构)",
+        pattern="^(all|grammar|logic|style|structure)$"
+    )
+
+
+class AnalyzeTextOutput(ToolOutput):
+    """
+    文本分析工具输出
+
+    在 ToolOutput.data 中包含:
+    - analysis_report: 分析报告文本
+    """
+    pass
+
+
+async def analyze_text_executor(
+    input_data: AnalyzeTextInput
+) -> AnalyzeTextOutput:
+    """
+    文本分析工具执行器（兼容 @tool 版本）
+
+    Args:
+        input_data: 分析输入参数
+
+    Returns:
+        分析输出结果
+    """
+    try:
+        # 检查占位符
+        if "$TASK_" in input_data.text and "$" in input_data.text[input_data.text.find("$TASK_")+1:]:
+            logger.warning(f"[analyze_text_tool] 检测到未解析的占位符")
+            return AnalyzeTextOutput(
+                success=False,
+                message="文本参数中包含未解析的占位符",
+                data={"analysis_report": f"错误：文本参数中包含未解析的占位符。原始参数: {input_data.text[:200]}"},
+                metadata={"error": "unresolved_placeholder"}
+            )
+
+        # 尝试使用 prompt_manager 渲染模板
+        try:
+            from app.prompts import get_prompt_manager
+            prompt_manager = get_prompt_manager()
+            base_prompt = prompt_manager.render("analyze_text", text=input_data.text, focus=input_data.focus)
+        except Exception as e:
+            logger.warning(f"[analyze_text_tool] 约束提示词系统失败，使用降级方案: {e}")
+            # 降级 prompt
+            base_prompt = f"""请分析以下文本，重点关注：{input_data.focus}
+
+文本：
+{input_data.text}
+
+请提供详细的分析报告："""
+
+        # 调用 AI 生成
+        result = await _generate_text(
+            prompt=base_prompt,
+            temperature=0.3,
+            max_tokens=1500,
+            task_type=TaskType.SUMMARIZATION
+        )
+
+        logger.info(f"[analyze_text_tool] 分析完成，结果长度: {len(result)}")
+
+        return AnalyzeTextOutput(
+            success=True,
+            message="分析完成",
+            data={
+                "analysis_report": result
+            },
+            metadata={
+                "text_length": len(input_data.text),
+                "focus": input_data.focus
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"文本分析工具执行失败: {e}")
+        return AnalyzeTextOutput(
+            success=False,
+            message=f"分析失败: {str(e)}",
+            data=None,
+            metadata={"error": str(e)}
+        )
+
+
+# 创建文本分析工具实例
+analyze_text_tool = StandardTool(
+    name="analyze_text",
+    description="分析文本问题，重点关注语法、逻辑、风格等方面",
+    category=ToolCategory.ANALYSIS,
+    input_schema=AnalyzeTextInput,
+    output_schema=AnalyzeTextOutput,
+    executor=analyze_text_executor,
+    tags=["analysis", "text", "diagnosis"],
+    version="1.0.0"
+)
+

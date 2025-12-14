@@ -13,6 +13,7 @@ from .config import DeepAgentConfig
 from .reflection import think_tool, should_reflect, ReflectionResult
 from .task_enricher import get_task_enricher
 from app.services.agent.model_selector import TaskType
+from app.services.agent.tools import registry  # 2025-12-14: 导入 registry 用于动态获取工具
 
 logger = logging.getLogger(__name__)
 
@@ -761,6 +762,34 @@ class DeepAgentExecutor:
         """是否还能重规划"""
         return self.replan_count < DeepAgentConfig.MAX_REPLANS
 
+    def _get_available_tools_info(self) -> str:
+        """获取可用工具信息（动态从 registry 获取）
+
+        2025-12-14: 新增方法，支持元数据驱动的重规划
+
+        Returns:
+            格式化的工具列表字符串
+        """
+        lines = []
+
+        # 从 registry 获取标准化工具
+        tools_info = registry.get_tools_info_for_prompt()
+        if tools_info:
+            lines.append(tools_info)
+        else:
+            # 兜底：硬编码基础工具列表
+            lines.append("""**WRITING 类工具**:
+  - continue_writing_tool: 根据上下文续写小说内容
+
+**ANALYSIS 类工具**:
+  - analyze_text_tool: 分析、总结、规划文本内容
+
+**UTILITY 类工具**:
+  - get_context_tool: 获取作品上下文信息
+  - get_chapter_by_order_tool: 按章节序号获取章节内容""")
+
+        return "\n".join(lines)
+
     async def _do_replan(
         self,
         reflection: str,
@@ -799,6 +828,9 @@ class DeepAgentExecutor:
                 for t in remaining_tasks
             ]) if remaining_tasks else "  (无)"
 
+            # 2025-12-14: 动态获取可用工具列表
+            tools_info = self._get_available_tools_info()
+
             prompt = f"""基于反思结果，请调整后续任务计划。
 
 ## 用户原始意图
@@ -813,15 +845,19 @@ class DeepAgentExecutor:
 ## 原剩余任务
 {remaining_str}
 
+## 可用工具（从 registry 动态获取）
+{tools_info}
+
 ## 要求
 1. 新任务必须围绕用户原始意图，不要偏离
-2. 可以在开头插入新任务
-3. 可以调整现有任务的描述
-4. 可以删除不必要的任务
-5. 保持任务描述简洁
+2. **必须为每个任务指定 tool 字段**（从上面的工具列表中选择）
+3. 可以在开头插入新任务
+4. 可以调整现有任务的描述
+5. 可以删除不必要的任务
+6. 保持任务描述简洁
 
 ## 输出格式（必须是合法JSON，不要添加其他内容）
-{{"tasks": [{{"description": "任务描述1"}}, {{"description": "任务描述2"}}]}}
+{{"tasks": [{{"description": "任务描述1", "tool": "工具名称"}}, {{"description": "任务描述2", "tool": "工具名称"}}]}}
 """
 
             # 复用 _generate_text 抽象层
@@ -961,6 +997,9 @@ class DeepAgentExecutor:
             if not task.get("description"):
                 logger.warning(f"[DeepAgent重规划] 任务 {i} 缺少 description，跳过")
                 continue
+            # 2025-12-14: 检查 tool 字段（警告但不跳过，交给 TaskEnricher 处理）
+            if not task.get("tool"):
+                logger.debug(f"[DeepAgent重规划] 任务 {i} 缺少 tool 字段，将由 TaskEnricher 补充")
             valid_tasks.append(task)
 
         if not valid_tasks:

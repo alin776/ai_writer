@@ -37,7 +37,12 @@ AVAILABLE_TOOLS = """
    - 适用场景：分析内容、总结情节、梳理人物、规划大纲、设计剧情
    - focus 可选值：all/character/plot/foreshadowing/system/worldview/planning
 
-注意：写作任务（创作正文、续写章节）不在此列表，由专门的写作流程处理。
+4. continue_writing_tool
+   - 用途：根据上下文续写小说内容
+   - 参数：requirements (str) - 续写要求（可选）
+   - 适用场景：续写、创作、生成、补充内容、写正文、继续写
+
+注意：工具名称不带 _tool 后缀，如 continue_writing、analyze_text 等。
 """
 
 
@@ -51,7 +56,8 @@ class TaskEnricher:
     """
 
     # 关键词兜底规则（当 AI 推断失败时使用）
-    # 优先匹配“分析/规划/大纲”类任务，避免同时含“第X章”时误判为取章节
+    # 优先匹配"分析/规划/大纲"类任务，避免同时含"第X章"时误判为取章节
+    # 2025-12-14: 添加 continue_writing_tool 支持续写类任务
     FALLBACK_RULES: List[Dict[str, Any]] = [
         {
             "keywords": ["分析", "梳理", "总结", "概括", "规划", "大纲", "设计", "提取", "归纳"],
@@ -64,6 +70,12 @@ class TaskEnricher:
         {
             "keywords": ["获取第", "读取第", "查看第", "第.*章"],
             "tool": "get_chapter_by_order_tool",
+        },
+        {
+            # 续写/创作类任务 - 必须放在最后，作为写作类任务的兜底
+            # 🔧 2025-12-14: 使用 Planning 约定的工具名称（带 _tool 后缀）
+            "keywords": ["续写", "创作", "生成", "补充", "写正文", "继续写", "撰写", "编写"],
+            "tool": "continue_writing_tool",
         },
     ]
 
@@ -165,8 +177,7 @@ class TaskEnricher:
 请直接返回 JSON 格式（不要其他内容）：
 {{"tool": "工具名", "reason": "简短理由"}}
 
-如果任务是写作/创作类（需要生成正文），返回：
-{{"tool": null, "reason": "写作任务由专门流程处理"}}
+注意：续写/创作类任务请使用 continue_writing_tool。
 """
 
         try:
@@ -203,7 +214,8 @@ class TaskEnricher:
                 result = json.loads(json_str)
 
                 tool = result.get("tool")
-                if tool and tool in ["get_chapter_by_order_tool", "get_context_tool", "analyze_text_tool"]:
+                # 2025-12-14: 添加 continue_writing_tool 到验证列表
+                if tool and tool in ["get_chapter_by_order_tool", "get_context_tool", "analyze_text_tool", "continue_writing_tool"]:
                     return {"tool": tool, "params": {}}
 
             return None
@@ -254,6 +266,11 @@ class TaskEnricher:
                 text = context.get("context_str", "")
 
             return {"text": text, "focus": focus}
+
+        elif tool == "continue_writing_tool":
+            # 2025-12-14: 添加续写工具参数构建
+            # 使用任务描述作为续写要求
+            return {"requirements": description}
 
         return {}
 

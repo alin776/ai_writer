@@ -569,3 +569,261 @@ def register_editor_tools():
 
 # 模块加载时自动注册
 register_editor_tools()
+
+
+# ==================== 2025-12-14: StandardTool 包装版本 ====================
+# 为编辑器工具创建 StandardTool 包装，以支持元数据驱动和执行监控
+
+from .tool_types import ToolInput, ToolOutput, ToolCategory, StandardTool
+from pydantic import Field
+
+
+# ==================== 1. SmartRewrite StandardTool ====================
+
+class SmartRewriteInput(ToolInput):
+    """智能改写工具输入"""
+    chapter_id: str = Field(..., description="章节ID")
+    text_to_rewrite: str = Field(default=None, description="要改写的文本")
+    chapter_content: str = Field(default=None, description="章节完整内容")
+    user_requirement: str = Field(default=None, description="用户的具体要求")
+    base_version: str = Field(default=None, description="基准版本内容")
+    user_id: str = Field(default=None, description="用户ID")
+
+
+class SmartRewriteOutput(ToolOutput):
+    """智能改写工具输出"""
+    pass
+
+
+async def smart_rewrite_executor(input_data: SmartRewriteInput) -> SmartRewriteOutput:
+    """智能改写执行器（包装 @tool 版本）"""
+    try:
+        # 🔧 2025-12-14: @tool 装饰器返回 StructuredTool，需要用 .ainvoke() 调用
+        result_str = await smart_rewrite.ainvoke({
+            "chapter_id": input_data.chapter_id,
+            "text_to_rewrite": input_data.text_to_rewrite,
+            "chapter_content": input_data.chapter_content,
+            "user_requirement": input_data.user_requirement,
+            "base_version": input_data.base_version,
+            "user_id": input_data.user_id
+        })
+
+        # 解析返回的 JSON
+        import json
+        result_data = json.loads(result_str) if isinstance(result_str, str) else result_str
+
+        return SmartRewriteOutput(
+            success=result_data.get("success", True),
+            message=result_data.get("description", "改写完成"),
+            data=result_data,
+            metadata={"tool": "smart_rewrite"}
+        )
+    except Exception as e:
+        logger.error(f"smart_rewrite_executor 失败: {e}")
+        return SmartRewriteOutput(
+            success=False,
+            message=f"改写失败: {str(e)}",
+            data=None,
+            metadata={"error": str(e)}
+        )
+
+
+smart_rewrite_tool = StandardTool(
+    name="smart_rewrite",
+    description="智能改写章节文本，生成3个版本供用户选择",
+    category=ToolCategory.WRITING,
+    input_schema=SmartRewriteInput,
+    output_schema=SmartRewriteOutput,
+    executor=smart_rewrite_executor,
+    tags=["editor", "rewrite", "hitl"],
+    version="1.0.0"
+)
+
+
+# ==================== 2. SmartContinue StandardTool ====================
+
+class SmartContinueInput(ToolInput):
+    """智能续写工具输入"""
+    chapter_id: str = Field(..., description="章节ID")
+    content: str = Field(..., description="续写的内容")
+    user_id: str = Field(default=None, description="用户ID")
+
+
+class SmartContinueOutput(ToolOutput):
+    """智能续写工具输出"""
+    pass
+
+
+async def smart_continue_executor(input_data: SmartContinueInput) -> SmartContinueOutput:
+    """智能续写执行器（包装 @tool 版本）"""
+    try:
+        # 🔧 2025-12-14: @tool 装饰器返回 StructuredTool，需要用 .ainvoke() 调用
+        result_str = await smart_continue.ainvoke({
+            "chapter_id": input_data.chapter_id,
+            "content": input_data.content,
+            "user_id": input_data.user_id
+        })
+
+        result_data = json.loads(result_str) if isinstance(result_str, str) else result_str
+
+        return SmartContinueOutput(
+            success=result_data.get("success", True),
+            message=result_data.get("description", "续写完成"),
+            data=result_data,
+            metadata={"tool": "smart_continue"}
+        )
+    except Exception as e:
+        logger.error(f"smart_continue_executor 失败: {e}")
+        return SmartContinueOutput(
+            success=False,
+            message=f"续写失败: {str(e)}",
+            data=None,
+            metadata={"error": str(e)}
+        )
+
+
+smart_continue_tool = StandardTool(
+    name="smart_continue",
+    description="智能续写章节内容，自动添加到章节末尾",
+    category=ToolCategory.WRITING,
+    input_schema=SmartContinueInput,
+    output_schema=SmartContinueOutput,
+    executor=smart_continue_executor,
+    tags=["editor", "continue", "hitl"],
+    version="1.0.0"
+)
+
+
+# ==================== 3. SmartInsert StandardTool ====================
+
+class SmartInsertInput(ToolInput):
+    """智能插入工具输入"""
+    chapter_id: str = Field(..., description="章节ID")
+    content: str = Field(..., description="要插入的内容")
+    user_intent: str = Field(..., description="用户的意图描述")
+    chapter_content: str = Field(default=None, description="章节完整内容")
+    context: dict = Field(default=None, description="额外上下文")
+    user_id: str = Field(default=None, description="用户ID")
+
+
+class SmartInsertOutput(ToolOutput):
+    """智能插入工具输出"""
+    pass
+
+
+async def smart_insert_executor(input_data: SmartInsertInput) -> SmartInsertOutput:
+    """智能插入执行器（包装 @tool 版本）"""
+    try:
+        # 🔧 2025-12-14: @tool 装饰器返回 StructuredTool，需要用 .ainvoke() 调用
+        result_str = await smart_insert.ainvoke({
+            "chapter_id": input_data.chapter_id,
+            "content": input_data.content,
+            "user_intent": input_data.user_intent,
+            "chapter_content": input_data.chapter_content,
+            "context": input_data.context,
+            "user_id": input_data.user_id
+        })
+
+        result_data = json.loads(result_str) if isinstance(result_str, str) else result_str
+
+        return SmartInsertOutput(
+            success=result_data.get("success", True),
+            message=result_data.get("description", "插入完成"),
+            data=result_data,
+            metadata={"tool": "smart_insert"}
+        )
+    except Exception as e:
+        logger.error(f"smart_insert_executor 失败: {e}")
+        return SmartInsertOutput(
+            success=False,
+            message=f"插入失败: {str(e)}",
+            data=None,
+            metadata={"error": str(e)}
+        )
+
+
+smart_insert_tool = StandardTool(
+    name="smart_insert",
+    description="智能插入内容，根据用户意图自动推断最佳插入位置",
+    category=ToolCategory.WRITING,
+    input_schema=SmartInsertInput,
+    output_schema=SmartInsertOutput,
+    executor=smart_insert_executor,
+    tags=["editor", "insert", "hitl"],
+    version="1.0.0"
+)
+
+
+# ==================== 4. ApplyChapterEdit StandardTool ====================
+
+class ApplyChapterEditInput(ToolInput):
+    """章节编辑应用工具输入"""
+    chapter_id: str = Field(..., description="章节ID")
+    content: str = Field(..., description="编辑内容")
+    operation: str = Field(default="append", description="操作类型：append/replace/insert", pattern="^(append|replace|insert)$")
+    position: int = Field(default=None, description="插入位置（仅 insert 操作）")
+    user_id: str = Field(default=None, description="用户ID")
+    description: str = Field(default=None, description="操作描述")
+
+
+class ApplyChapterEditOutput(ToolOutput):
+    """章节编辑应用工具输出"""
+    pass
+
+
+async def apply_chapter_edit_executor(input_data: ApplyChapterEditInput) -> ApplyChapterEditOutput:
+    """章节编辑应用执行器（包装 @tool 版本）"""
+    try:
+        # 🔧 2025-12-14: @tool 装饰器返回 StructuredTool，需要用 .ainvoke() 调用
+        result_str = await apply_chapter_edit.ainvoke({
+            "chapter_id": input_data.chapter_id,
+            "content": input_data.content,
+            "operation": input_data.operation,
+            "position": input_data.position,
+            "user_id": input_data.user_id,
+            "description": input_data.description
+        })
+
+        result_data = json.loads(result_str) if isinstance(result_str, str) else result_str
+
+        return ApplyChapterEditOutput(
+            success=result_data.get("success", True),
+            message=result_data.get("message", "编辑已应用"),
+            data=result_data,
+            metadata={"tool": "apply_chapter_edit", "operation": input_data.operation}
+        )
+    except Exception as e:
+        logger.error(f"apply_chapter_edit_executor 失败: {e}")
+        return ApplyChapterEditOutput(
+            success=False,
+            message=f"编辑应用失败: {str(e)}",
+            data=None,
+            metadata={"error": str(e)}
+        )
+
+
+apply_chapter_edit_tool = StandardTool(
+    name="apply_chapter_edit",
+    description="对章节内容执行编辑操作（追加、替换、插入），需要用户确认",
+    category=ToolCategory.UTILITY,
+    input_schema=ApplyChapterEditInput,
+    output_schema=ApplyChapterEditOutput,
+    executor=apply_chapter_edit_executor,
+    tags=["editor", "edit", "hitl"],
+    version="1.0.0"
+)
+
+
+# ==================== 导出 StandardTool 版本 ====================
+
+__all__ = [
+    "apply_chapter_edit",
+    "smart_continue",
+    "smart_rewrite",
+    "smart_insert",
+    # StandardTool 版本
+    "smart_rewrite_tool",
+    "smart_continue_tool",
+    "smart_insert_tool",
+    "apply_chapter_edit_tool",
+]
