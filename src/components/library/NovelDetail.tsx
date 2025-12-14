@@ -101,14 +101,14 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
         const [detailRes, commentsRes, bookshelfStatus, ratingStatsRes, currentUser] = await Promise.all([
           DataService.getPublishedNovelDetail(novel.id),
           DataService.getWorkComments(novel.id).catch(() => ({ items: [] })),
-          DataService.checkInBookshelf(novel.id).catch(() => ({ inBookshelf: false })),
+          DataService.checkInBookshelf(novel.id).catch(() => ({ in_bookshelf: false })),
           DataService.getWorkRatingStats(novel.id).catch(() => null),
           DataService.getCurrentUser().catch(() => null),
         ]);
 
         setChapters(detailRes?.chapters || []);
         setComments(commentsRes.items || []);
-        setIsInBookshelf(bookshelfStatus.inBookshelf || false);
+        setIsInBookshelf(bookshelfStatus.in_bookshelf || false);
         setRatingStats(ratingStatsRes);
         setCurrentUserId(currentUser?.id || null);
         if (ratingStatsRes?.userRating) {

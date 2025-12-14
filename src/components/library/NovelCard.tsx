@@ -2,7 +2,7 @@ import { Eye, Heart, Star } from 'lucide-react';
 import { ImageWithFallback } from './ImageWithFallback';
 
 export interface Novel {
-  id: number;
+  id: string;
   title: string;
   author: string;
   category: string;
@@ -12,7 +12,8 @@ export interface Novel {
   likes: number;
   rating: number;
   chapters: number;
-  status: '连载中' | '已完结';
+  status: '连载中' | '已完结' | '其他';
+  isFeatured?: boolean;
 }
 
 interface NovelCardProps {

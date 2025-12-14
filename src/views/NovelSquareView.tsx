@@ -71,7 +71,7 @@ export default function NovelSquareView() {
   // 转换后端数据为前端Novel类型
   const convertToNovel = (work: any): Novel => {
     return {
-      id: work.id,
+      id: String(work.id),
       title: work.title,
       author: work.authorName,
       category: work.genre,
@@ -144,7 +144,7 @@ export default function NovelSquareView() {
   const handleViewDetailById = async (workId: string) => {
     try {
       // 先在已加载的列表中查找
-      const existingNovel = novels.find((n) => n.id === Number(workId));
+      const existingNovel = novels.find((n) => n.id === workId);
       if (existingNovel) {
         setSelectedNovel(existingNovel);
         return;

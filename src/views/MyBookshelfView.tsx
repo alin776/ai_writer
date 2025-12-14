@@ -78,7 +78,7 @@ export default function MyBookshelfView() {
   // 将书架API响应转换为前端数据格式
   const convertToBookshelfItem = (item: any): BookshelfItem => {
     const novel: Novel = {
-      id: item.id,
+      id: String(item.id),
       title: item.title,
       author: item.authorName,
       category: GENRE_REVERSE_MAP[item.genre] || '其他',
@@ -88,7 +88,7 @@ export default function MyBookshelfView() {
       likes: item.favoriteCount || 0,
       rating: item.averageRating || 0,
       chapters: item.publishedChapterCount,
-      status: STATUS_MAP[item.status] || '其他',
+      status: (STATUS_MAP[item.status] || '其他') as '连载中' | '已完结' | '其他',
     };
 
     // 计算阅读进度
@@ -99,7 +99,7 @@ export default function MyBookshelfView() {
     }
 
     return {
-      id: item.id,
+      id: String(item.id),
       novel,
       lastReadChapterOrder: item.lastReadChapterOrder,
       lastReadAt: item.lastReadAt,
