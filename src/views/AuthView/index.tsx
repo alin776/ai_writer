@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/authStore';
 import { DataService } from '../../services/DataService';
 import { Input } from '../../components/ui/input';
@@ -19,6 +20,7 @@ const api = new ApiAdapter();
 const AuthView: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation();
   const { login, isAuthenticated, hasHydrated } = useAuthStore();
   const useMock = import.meta.env.VITE_USE_MOCK === 'true';
 
@@ -63,10 +65,11 @@ const AuthView: React.FC = () => {
 
   // 打字机效果
   const [typewriterText, setTypewriterText] = useState('');
-  const fullText = '开启你的创作之旅';
+  const fullText = t('auth.hero.typewriter');
 
   useEffect(() => {
     let index = 0;
+    setTypewriterText(''); // Reset when language changes
     const timer = setInterval(() => {
       if (index <= fullText.length) {
         setTypewriterText(fullText.slice(0, index));
@@ -77,7 +80,7 @@ const AuthView: React.FC = () => {
     }, 150);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [fullText]);
 
   // 从URL参数读取邀请码
   useEffect(() => {
@@ -145,13 +148,13 @@ const AuthView: React.FC = () => {
     const newErrors: Record<string, string> = {};
 
     if (!loginForm.username) {
-      newErrors.username = '请输入邮箱或用户名';
+      newErrors.username = t('auth.validation.usernameRequired');
     }
 
     if (!loginForm.password) {
-      newErrors.password = '请输入密码';
+      newErrors.password = t('auth.validation.passwordRequired');
     } else if (loginForm.password.length < 6) {
-      newErrors.password = '密码至少需要 6 个字符';
+      newErrors.password = t('auth.validation.passwordMinLength');
     }
 
     setErrors(newErrors);
@@ -165,49 +168,49 @@ const AuthView: React.FC = () => {
     const newErrors: Record<string, string> = {};
 
     if (!registerForm.username) {
-      newErrors.username = '请输入用户名';
+      newErrors.username = t('auth.validation.usernameRequired');
     } else if (registerForm.username.length < 3) {
-      newErrors.username = '用户名至少需要 3 个字符';
+      newErrors.username = t('auth.validation.usernameMinLength');
     }
 
     if (!registerForm.email) {
-      newErrors.email = '请输入邮箱地址';
+      newErrors.email = t('auth.validation.emailRequired');
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerForm.email)) {
-      newErrors.email = '请输入有效的邮箱地址';
+      newErrors.email = t('auth.validation.emailInvalid');
     }
 
     if (!registerForm.emailVerificationCode) {
-      newErrors.emailVerificationCode = '请输入邮箱验证码';
+      newErrors.emailVerificationCode = t('auth.validation.emailCodeRequired');
     } else if (registerForm.emailVerificationCode.length !== 6) {
-      newErrors.emailVerificationCode = '验证码为6位数字';
+      newErrors.emailVerificationCode = t('auth.validation.emailCodeLength');
     }
 
     if (!registerForm.invitationCode) {
-      newErrors.invitationCode = '请输入邀请码';
+      newErrors.invitationCode = t('auth.validation.invitationCodeRequired');
     } else if (registerForm.invitationCode.length !== 8) {
-      newErrors.invitationCode = '邀请码必须是 8 位字符';
+      newErrors.invitationCode = t('auth.validation.invitationCodeLength');
     }
 
     if (!registerForm.password) {
-      newErrors.password = '请输入密码';
+      newErrors.password = t('auth.validation.passwordRequired');
     } else if (registerForm.password.length < 8) {
-      newErrors.password = '密码长度至少为 8 位';
+      newErrors.password = t('auth.validation.passwordMinLength8');
     } else if (registerForm.password.length > 20) {
-      newErrors.password = '密码长度不能超过 20 位';
+      newErrors.password = t('auth.validation.passwordMaxLength');
     } else {
       // 验证密码复杂度
       const hasLetter = /[a-zA-Z]/.test(registerForm.password);
       const hasNumber = /\d/.test(registerForm.password);
       const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(registerForm.password);
       if (!hasLetter || !hasNumber || !hasSpecial) {
-        newErrors.password = '密码必须包含字母、数字、特殊符号三种字符';
+        newErrors.password = t('auth.validation.passwordComplexity');
       }
     }
 
     if (!registerForm.confirmPassword) {
-      newErrors.confirmPassword = '请确认密码';
+      newErrors.confirmPassword = t('auth.validation.confirmPasswordRequired');
     } else if (registerForm.password !== registerForm.confirmPassword) {
-      newErrors.confirmPassword = '两次输入的密码不一致';
+      newErrors.confirmPassword = t('auth.validation.passwordMismatch');
     }
 
     setErrors(newErrors);
@@ -220,11 +223,11 @@ const AuthView: React.FC = () => {
   const handleSendEmailVerification = async () => {
     // 验证邮箱格式
     if (!registerForm.email) {
-      setErrors({ ...errors, email: '请输入邮箱地址' });
+      setErrors({ ...errors, email: t('auth.validation.emailRequired') });
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerForm.email)) {
-      setErrors({ ...errors, email: '请输入有效的邮箱地址' });
+      setErrors({ ...errors, email: t('auth.validation.emailInvalid') });
       return;
     }
 
@@ -250,10 +253,10 @@ const AuthView: React.FC = () => {
         });
       }, 1000);
 
-      setSuccessMessage('验证码已发送到您的邮箱');
+      setSuccessMessage(t('auth.emailCodeSent'));
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.detail || error?.message || '发送验证码失败';
+      const errorMessage = error?.response?.data?.detail || error?.message || t('auth.emailCodeSendFailed');
       setErrors({ email: errorMessage });
     } finally {
       setIsSendingCode(false);
@@ -266,12 +269,12 @@ const AuthView: React.FC = () => {
   const handleVerifyEmailCode = async (code?: string) => {
     const verificationCode = (code ?? registerForm.emailVerificationCode).trim();
     if (!verificationCode) {
-      setErrors({ ...errors, emailVerificationCode: '请输入验证码' });
+      setErrors({ ...errors, emailVerificationCode: t('auth.validation.emailCodeRequired') });
       return;
     }
 
     if (verificationCode.length !== 6) {
-      setErrors({ ...errors, emailVerificationCode: '验证码为6位数字' });
+      setErrors({ ...errors, emailVerificationCode: t('auth.validation.emailCodeLength') });
       return;
     }
 
@@ -285,10 +288,10 @@ const AuthView: React.FC = () => {
       });
 
       setIsEmailVerified(true);
-      setSuccessMessage('邮箱验证成功');
+      setSuccessMessage(t('auth.emailVerified'));
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.detail || error?.message || '验证码错误';
+      const errorMessage = error?.response?.data?.detail || error?.message || t('auth.emailCodeInvalid');
       setErrors({ emailVerificationCode: errorMessage });
     } finally {
       setIsSendingCode(false);
@@ -305,7 +308,10 @@ const AuthView: React.FC = () => {
     if (isLoading || loginInFlight.current) return;
     loginInFlight.current = true;
 
-    if (!validateLogin()) return;
+    if (!validateLogin()) {
+      loginInFlight.current = false;
+      return;
+    }
 
     setIsLoading(true);
 
@@ -349,7 +355,7 @@ const AuthView: React.FC = () => {
       login(user, accessToken, refreshToken, tokenExpiresAt, refreshTokenExpiresAt);
       navigate('/works');
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.detail || error?.message || '登录失败，请检查用户名和密码';
+      const errorMessage = error?.response?.data?.detail || error?.message || t('auth.loginError');
       setErrors({ submit: errorMessage });
     } finally {
       loginInFlight.current = false;
@@ -378,7 +384,7 @@ const AuthView: React.FC = () => {
       });
 
       // 注册成功，切换到登录 Tab 并显示成功消息
-      setSuccessMessage('注册成功！请使用您的账号登录。');
+      setSuccessMessage(t('auth.registerSuccess'));
       setLoginForm({ username: registerForm.username, password: '', rememberMe: false });
       setActiveTab('login');
 
@@ -394,7 +400,7 @@ const AuthView: React.FC = () => {
       setIsEmailVerified(false);
       setEmailVerificationCountdown(0);
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.detail || error?.message || '注册失败，请稍后重试';
+      const errorMessage = error?.response?.data?.detail || error?.message || t('auth.registerError');
       setErrors({ submit: errorMessage });
     } finally {
       setIsLoading(false);
@@ -439,14 +445,14 @@ const AuthView: React.FC = () => {
             <div className="w-12 h-12 bg-black/30 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/20 shadow-lg">
               <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '48px', height: '48px', filter: 'brightness(0) invert(1)' }} />
             </div>
-            <span className="text-white tracking-wide drop-shadow-lg">文枢AI</span>
+            <span className="text-white tracking-wide drop-shadow-lg">{t('app.name')}</span>
           </div>
 
           {/* 中间文字 */}
           <div className="space-y-6 animate-fade-in-up">
             <div className="space-y-4">
               <h2 className="text-white leading-tight drop-shadow-lg text-4xl font-bold">
-                AI辅助小说创作平台
+                {t('auth.hero.title')}
               </h2>
               <div className="h-8 flex items-center">
                 <p className="text-white drop-shadow-lg text-xl">
@@ -461,21 +467,21 @@ const AuthView: React.FC = () => {
                 <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
                   <Sparkles className="w-4 h-4" />
                 </div>
-                <span className="text-sm drop-shadow">AI智能辅助</span>
+                <span className="text-sm drop-shadow">{t('auth.hero.aiAssist')}</span>
               </div>
               <div className="flex items-center gap-2 bg-black/20 backdrop-blur-sm px-3 py-2 rounded-lg">
                 <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
                   <Feather className="w-4 h-4" />
                 </div>
-                <span className="text-sm drop-shadow">自由创作</span>
+                <span className="text-sm drop-shadow">{t('auth.hero.freeCreation')}</span>
               </div>
             </div>
           </div>
 
           {/* 底部引用 */}
           <div className="border-l-2 border-white/40 pl-4 animate-fade-in text-white italic bg-black/30 backdrop-blur-md rounded-lg px-4 py-3 text-[16px] max-w-[85%]">
-            <span className="drop-shadow">"写作是对孤独的一种征服"</span>
-            <span className="block mt-1 not-italic text-sm text-white/80 drop-shadow">— 雨果</span>
+            <span className="drop-shadow">{t('auth.hero.quote')}</span>
+            <span className="block mt-1 not-italic text-sm text-white/80 drop-shadow">{t('auth.hero.quoteAuthor')}</span>
           </div>
         </div>
       </div>
@@ -492,14 +498,14 @@ const AuthView: React.FC = () => {
             <div className="w-12 h-12 bg-gray-900 rounded-xl flex items-center justify-center">
               <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '48px', height: '48px', filter: 'brightness(0) invert(1)' }} />
             </div>
-            <span className="text-gray-800 tracking-wide">文枢AI</span>
+            <span className="text-gray-800 tracking-wide">{t('app.name')}</span>
           </div>
 
           <div className="mb-10">
             <h1 className="text-gray-900 mb-2 text-3xl font-bold">
-              欢迎回来
+              {t('auth.welcome')}
             </h1>
-            <p className="text-gray-600">继续你的创作故事</p>
+            <p className="text-gray-600">{t('auth.welcomeSubtitle')}</p>
           </div>
 
           {/* 注册成功提示 */}
@@ -513,10 +519,10 @@ const AuthView: React.FC = () => {
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'login' | 'register')} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-8 bg-white shadow-sm border border-gray-200">
               <TabsTrigger value="login" className="data-[state=active]:!bg-gray-900 data-[state=active]:text-white">
-                登录
+                {t('auth.login')}
               </TabsTrigger>
               <TabsTrigger value="register" className="data-[state=active]:!bg-gray-900 data-[state=active]:text-white">
-                注册
+                {t('auth.register')}
               </TabsTrigger>
             </TabsList>
 
@@ -527,7 +533,7 @@ const AuthView: React.FC = () => {
                   <Input
                     id="login-username"
                     type="text"
-                    placeholder="请输入邮箱或用户名"
+                    placeholder={t('auth.usernamePlaceholder')}
                     className="h-12 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900"
                     value={loginForm.username}
                     onChange={(e) => {
@@ -541,7 +547,7 @@ const AuthView: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex items-center justify-end mb-1">
                     <Link to="/forgot-password" className="text-sm text-gray-700 hover:text-gray-900 transition-colors flex items-center gap-1 group">
-                      忘记密码
+                      {t('auth.forgotPassword')}
                       <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
                     </Link>
                   </div>
@@ -549,7 +555,7 @@ const AuthView: React.FC = () => {
                     <Input
                       id="login-password"
                       type={showLoginPassword ? "text" : "password"}
-                      placeholder="请输入密码"
+                      placeholder={t('auth.passwordPlaceholder')}
                       className="h-12 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
                       value={loginForm.password}
                       onChange={(e) => {
@@ -577,7 +583,7 @@ const AuthView: React.FC = () => {
                     className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900 cursor-pointer"
                   />
                   <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 cursor-pointer">
-                    记住登录状态（30天）
+                    {t('auth.rememberMe')}
                   </label>
                 </div>
 
@@ -593,7 +599,7 @@ const AuthView: React.FC = () => {
                   disabled={isLoading}
                   className="w-full h-12 bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all duration-200 hover:shadow-xl hover:shadow-gray-900/30 hover:scale-[1.02]"
                 >
-                  {isLoading ? '登录中...' : '登录账户'}
+                  {isLoading ? t('auth.loggingIn') : t('auth.loginButton')}
                 </Button>
               </form>
             </TabsContent>
@@ -605,7 +611,7 @@ const AuthView: React.FC = () => {
                   <Input
                     id="register-username"
                     type="text"
-                    placeholder="设置你的用户名"
+                    placeholder={t('auth.setUsername')}
                     className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900"
                     value={registerForm.username}
                     onChange={(e) => {
@@ -620,7 +626,7 @@ const AuthView: React.FC = () => {
                   <Input
                     id="register-email"
                     type="email"
-                    placeholder="请输入邮箱"
+                    placeholder={t('auth.emailPlaceholder')}
                     className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900"
                     value={registerForm.email}
                     onChange={(e) => {
@@ -637,7 +643,7 @@ const AuthView: React.FC = () => {
                     <Input
                       id="register-email-code"
                       type="text"
-                      placeholder="请输入6位验证码"
+                      placeholder={t('auth.emailCodePlaceholder')}
                       maxLength={6}
                       className="h-11 flex-1 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono text-gray-900"
                       value={registerForm.emailVerificationCode}
@@ -660,12 +666,12 @@ const AuthView: React.FC = () => {
                         disabled={!registerForm.email || emailVerificationCountdown > 0 || isSendingCode}
                         className="h-11 px-6 whitespace-nowrap bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all duration-200"
                       >
-                        {emailVerificationCountdown > 0 ? `${emailVerificationCountdown}秒` : (isSendingCode ? '发送中...' : '发送验证码')}
+                        {emailVerificationCountdown > 0 ? `${emailVerificationCountdown}${t('auth.seconds')}` : (isSendingCode ? t('auth.sending') : t('auth.sendCode'))}
                       </Button>
                     ) : (
                       <div className="h-11 px-6 flex items-center bg-green-50 border border-green-200 rounded-md text-green-700 text-sm whitespace-nowrap">
                         <CheckCircle className="w-4 h-4 mr-2" />
-                        已验证
+                        {t('auth.verified')}
                       </div>
                     )}
                   </div>
@@ -677,7 +683,7 @@ const AuthView: React.FC = () => {
                     <Input
                       id="register-password"
                       type={showRegisterPassword ? "text" : "password"}
-                      placeholder="8-20位，含字母、数字、特殊符号"
+                      placeholder={t('auth.passwordHint')}
                       className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
                       value={registerForm.password}
                       onChange={(e) => {
@@ -701,7 +707,7 @@ const AuthView: React.FC = () => {
                     <Input
                       id="register-confirm-password"
                       type={showConfirmPassword ? "text" : "password"}
-                      placeholder="再次输入密码"
+                      placeholder={t('auth.confirmPasswordPlaceholder')}
                       className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
                       value={registerForm.confirmPassword}
                       onChange={(e) => {
@@ -724,7 +730,7 @@ const AuthView: React.FC = () => {
                   <Input
                     id="register-invitation-code"
                     type="text"
-                    placeholder="请输入8位邀请码"
+                    placeholder={t('auth.invitationCodePlaceholder')}
                     maxLength={8}
                     className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono uppercase text-gray-900"
                     value={registerForm.invitationCode}
@@ -748,7 +754,7 @@ const AuthView: React.FC = () => {
                   disabled={isLoading}
                   className="w-full h-12 bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all duration-200 hover:shadow-xl hover:shadow-gray-900/30 hover:scale-[1.02]"
                 >
-                  {isLoading ? '注册中...' : '创建账户'}
+                  {isLoading ? t('auth.registering') : t('auth.registerButton')}
                 </Button>
               </form>
             </TabsContent>
@@ -756,7 +762,7 @@ const AuthView: React.FC = () => {
 
           <div className="mt-10 text-center">
             <p className="text-sm text-gray-500">
-              © 2025 文枢AI · 让创作更简单
+              {t('auth.footer')}
             </p>
           </div>
         </div>

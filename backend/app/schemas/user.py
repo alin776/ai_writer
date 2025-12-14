@@ -39,7 +39,7 @@ class NotificationSettings(BaseModel):
 class Preferences(BaseModel):
     """用户偏好设置"""
     theme: Literal['light', 'dark', 'auto'] = 'light'
-    language: Literal['zh-CN', 'en-US'] = 'zh-CN'
+    language: Literal['zh-CN', 'zh-TW', 'en-US'] = 'zh-CN'
     font_size: Literal['small', 'medium', 'large'] = 'medium'
     auto_save: bool = True
     auto_save_interval: int = Field(30, ge=5, le=600)

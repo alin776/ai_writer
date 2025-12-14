@@ -12,6 +12,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Plus,
   Upload,
@@ -48,6 +49,7 @@ const DEFAULT_COVER_IMAGE = '/default-cover.jpg';
 
 const WorksView: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { showToast } = useGlobalStore();
   const { confirmState, confirm, closeConfirm } = useConfirm();
 
@@ -165,7 +167,7 @@ const WorksView: React.FC = () => {
       setTotalWorksCount(data.total ?? (data.items ? data.items.length : 0));
     } catch (error) {
       console.error('加载作品失败:', error);
-      showToast('error', '加载作品失败');
+      showToast('error', t('works.messages.loadError'));
     } finally {
       setIsLoading(false);
     }
@@ -173,13 +175,7 @@ const WorksView: React.FC = () => {
 
   // 状态文本映射
   const getStatusText = (status: WorkStatus) => {
-    const map: Record<WorkStatus, string> = {
-      writing: '连载中',
-      completed: '已完结',
-      draft: '草稿',
-      abandoned: '已弃坑'
-    };
-    return map[status] || '草稿';
+    return t(`works.status.${status}`);
   };
 
   // 状态颜色映射
@@ -200,12 +196,12 @@ const WorksView: React.FC = () => {
     const diffMs = now.getTime() - date.getTime();
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-    if (diffDays === 0) return '今天';
-    if (diffDays === 1) return '昨天';
-    if (diffDays < 7) return `${diffDays}天前`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)}周前`;
-    if (diffDays < 365) return `${Math.floor(diffDays / 30)}个月前`;
-    return `${Math.floor(diffDays / 365)}年前`;
+    if (diffDays === 0) return t('works.time.today');
+    if (diffDays === 1) return t('works.time.yesterday');
+    if (diffDays < 7) return t('works.time.daysAgo', { n: diffDays });
+    if (diffDays < 30) return t('works.time.weeksAgo', { n: Math.floor(diffDays / 7) });
+    if (diffDays < 365) return t('works.time.monthsAgo', { n: Math.floor(diffDays / 30) });
+    return t('works.time.yearsAgo', { n: Math.floor(diffDays / 365) });
   };
 
   const cleanupCoverPreview = () => {
@@ -258,18 +254,18 @@ const WorksView: React.FC = () => {
       // 重新加载数据
       await loadWorks();
       closeEditModal();
-      showToast('success', '作品信息已更新');
+      showToast('success', t('works.edit.saveSuccess'));
     } catch (error) {
       console.error('保存失败:', error);
-      showToast('error', '保存失败');
+      showToast('error', t('works.edit.saveError'));
     }
   };
 
   // 删除作品
   const handleDelete = async (id: string, title: string) => {
     const confirmed = await confirm({
-      title: '删除作品',
-      message: `确定要删除《${title}》吗？此操作不可撤销。`,
+      title: t('works.delete.title'),
+      message: t('works.delete.confirm', { title }),
       variant: 'danger',
     });
 
@@ -278,10 +274,10 @@ const WorksView: React.FC = () => {
     try {
       await DataService.deleteWork(id);
       await loadWorks();
-      showToast('success', '作品已删除');
+      showToast('success', t('works.delete.success'));
     } catch (error) {
       console.error('删除失败:', error);
-      showToast('error', '删除失败');
+      showToast('error', t('works.delete.error'));
     }
   };
 
@@ -320,7 +316,7 @@ const WorksView: React.FC = () => {
         const total = exportingWork.totalChapters || 0;
 
         if (Number.isNaN(start) || Number.isNaN(end)) {
-          const message = '请输入有效的章节数字';
+          const message = t('works.export.invalidNumber');
           setExportError(message);
           showToast('error', message);
           setIsExporting(false);
@@ -328,7 +324,7 @@ const WorksView: React.FC = () => {
         }
 
         if (start < 1 || end < 1) {
-          const message = '章节序号需要从 1 开始';
+          const message = t('works.export.minChapter');
           setExportError(message);
           showToast('error', message);
           setIsExporting(false);
@@ -336,7 +332,7 @@ const WorksView: React.FC = () => {
         }
 
         if (start > end) {
-          const message = '开始章节不能大于结束章节';
+          const message = t('works.export.startGreaterThanEnd');
           setExportError(message);
           showToast('error', message);
           setIsExporting(false);
@@ -344,7 +340,7 @@ const WorksView: React.FC = () => {
         }
 
         if (total > 0 && (start > total || end > total)) {
-          const message = `超出作品章节数（共 ${total} 章）`;
+          const message = t('works.export.exceedTotal', { count: total });
           setExportError(message);
           showToast('error', message);
           setIsExporting(false);
@@ -353,26 +349,26 @@ const WorksView: React.FC = () => {
 
         rangeLabel = start === end ? `（第${start}章）` : `（第${start}-${end}章）`;
 
-        showToast('info', '正在导出...');
+        showToast('info', t('common.processing'));
         result = await TxtExportService.export(exportingWork, {
           includeDescription: true,
           chapterRange: { start, end },
         });
       } else {
-        showToast('info', '正在导出...');
+        showToast('info', t('common.processing'));
         result = await TxtExportService.export(exportingWork, { includeDescription: true });
       }
 
       if (result.chapterCount === 0) {
-        showToast('success', `《${exportingWork.title}》导出成功（暂无章节内容）`);
+        showToast('success', t('works.export.successEmpty', { title: exportingWork.title }));
       } else {
-        showToast('success', `《${exportingWork.title}》导出成功，共 ${result.chapterCount} 章${rangeLabel}`);
+        showToast('success', t('works.export.success', { title: exportingWork.title, count: result.chapterCount, range: rangeLabel }));
       }
 
       closeExportModal();
     } catch (error: any) {
       console.error('导出失败:', error);
-      const message = error?.message || '导出失败，请稍后重试';
+      const message = error?.message || t('works.export.error');
       setExportError(message);
       showToast('error', message);
     } finally {
@@ -421,7 +417,7 @@ const WorksView: React.FC = () => {
       setImportPreview(preview);
     } catch (error: any) {
       console.error('预览失败:', error);
-      showToast('error', error?.message || '文件预览失败');
+      showToast('error', error?.message || t('works.import.previewError'));
     } finally {
       setIsPreviewing(false);
     }
@@ -430,7 +426,7 @@ const WorksView: React.FC = () => {
   // 执行导入
   const handleImport = async () => {
     if (!importFile) {
-      showToast('error', '请选择要导入的文件');
+      showToast('error', t('works.import.selectFileError'));
       return;
     }
 
@@ -444,7 +440,7 @@ const WorksView: React.FC = () => {
       };
 
       const result = await DataService.importWork(importFile, options);
-      showToast('success', `导入成功！创建了 ${result.chaptersCreated} 个章节`);
+      showToast('success', t('works.import.success', { count: result.chaptersCreated }));
       closeImportModal();
       await loadWorks(); // 重新加载作品列表
 
@@ -452,7 +448,7 @@ const WorksView: React.FC = () => {
       navigate(`/works/${result.workId}`);
     } catch (error: any) {
       console.error('导入失败:', error);
-      showToast('error', error?.message || '导入失败，请检查文件格式');
+      showToast('error', error?.message || t('works.import.error'));
     } finally {
       setIsImporting(false);
     }
@@ -491,22 +487,15 @@ const WorksView: React.FC = () => {
   const allGenres = ['all', ...Array.from(new Set(works.map(work => work.genre).filter(Boolean)))];
 
   // 类型显示名称映射
-  const genreDisplayName: Record<string, string> = {
-    fantasy: '玄幻',
-    urban: '都市',
-    romance: '言情',
-    scifi: '科幻',
-    wuxia: '武侠',
-    game: '游戏',
-    history: '历史',
-    military: '军事',
-    other: '其他'
+  const getGenreDisplayName = (genre: string) => {
+    if (genre === 'all') return t('works.genre.all');
+    return t(`works.genre.${genre}`, { defaultValue: genre });
   };
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#fafafa] dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-gray-500 dark:text-gray-400">加载中...</div>
+        <div className="text-gray-500 dark:text-gray-400">{t('common.loading')}</div>
       </div>
     );
   }
@@ -521,13 +510,13 @@ const WorksView: React.FC = () => {
             <div className="flex items-center gap-6">
               <div className="relative">
                 <div className="bg-black text-white dark:bg-gray-800 dark:text-gray-100 px-8 py-3.5" style={{ transform: 'skewX(-2deg)' }}>
-                  <h1 className="text-2xl font-medium" style={{ transform: 'skewX(2deg)' }}>我的作品</h1>
+                  <h1 className="text-2xl font-medium" style={{ transform: 'skewX(2deg)' }}>{t('works.title')}</h1>
                 </div>
               </div>
               <div className="flex items-center gap-1" style={{ fontSize: '13px' }}>
-                <span className="text-gray-400 dark:text-gray-500">共</span>
+                <span className="text-gray-400 dark:text-gray-500">{t('works.totalWorks', { count: totalWorksCount }).split(String(totalWorksCount))[0]}</span>
                 <span className="text-gray-900 dark:text-gray-100 font-medium">{totalWorksCount}</span>
-                <span className="text-gray-400 dark:text-gray-500">部作品</span>
+                <span className="text-gray-400 dark:text-gray-500">{t('works.totalWorks', { count: totalWorksCount }).split(String(totalWorksCount))[1] || ''}</span>
               </div>
             </div>
             <div className="flex gap-2">
@@ -537,7 +526,7 @@ const WorksView: React.FC = () => {
                 style={{ transform: 'skewX(-2deg)', fontSize: '13px' }}
               >
                 <Upload className="w-4 h-4" style={{ transform: 'skewX(2deg)' }} />
-                <span style={{ transform: 'skewX(2deg)' }}>导入作品</span>
+                <span style={{ transform: 'skewX(2deg)' }}>{t('works.import.button')}</span>
               </button>
               <button
                 onClick={() => navigate('/works/create')}
@@ -545,7 +534,7 @@ const WorksView: React.FC = () => {
                 style={{ transform: 'skewX(-2deg)', fontSize: '13px' }}
               >
                 <Plus className="w-4 h-4" style={{ transform: 'skewX(2deg)' }} />
-                <span style={{ transform: 'skewX(2deg)' }}>新建作品</span>
+                <span style={{ transform: 'skewX(2deg)' }}>{t('works.create')}</span>
               </button>
             </div>
           </div>
@@ -554,19 +543,19 @@ const WorksView: React.FC = () => {
           <div className="flex gap-4 mb-6">
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-6 py-4 flex-1" style={{ transform: 'skewX(-2deg)' }}>
               <div style={{ transform: 'skewX(2deg)' }}>
-                <div className="text-gray-400 dark:text-gray-500 mb-1.5" style={{ fontSize: '12px' }}>总字数</div>
+                <div className="text-gray-400 dark:text-gray-500 mb-1.5" style={{ fontSize: '12px' }}>{t('works.stats.totalWords')}</div>
                 <div className="text-3xl text-gray-900 dark:text-gray-100 font-medium">{totalWords.toLocaleString()}</div>
               </div>
             </div>
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-6 py-4 flex-1" style={{ transform: 'skewX(-2deg)' }}>
               <div style={{ transform: 'skewX(2deg)' }}>
-                <div className="text-gray-400 dark:text-gray-500 mb-1.5" style={{ fontSize: '12px' }}>本周新增</div>
-                <div className="text-3xl text-gray-900 dark:text-gray-100 font-medium">+{weekNewWords.toLocaleString()}</div>
+                <div className="text-gray-400 dark:text-gray-500 mb-1.5" style={{ fontSize: '12px' }}>{t('works.stats.weeklyNew')}</div>
+                <div className="text-3xl text-gray-900 dark:text-gray-100 font-medium">{weekNewWords > 0 ? '+' : ''}{weekNewWords.toLocaleString()}</div>
               </div>
             </div>
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-6 py-4 flex-1" style={{ transform: 'skewX(-2deg)' }}>
               <div style={{ transform: 'skewX(2deg)' }}>
-                <div className="text-gray-400 dark:text-gray-500 mb-1.5" style={{ fontSize: '12px' }}>连载中</div>
+                <div className="text-gray-400 dark:text-gray-500 mb-1.5" style={{ fontSize: '12px' }}>{t('works.stats.ongoing')}</div>
                 <div className="text-3xl text-gray-900 dark:text-gray-100 font-medium">{writingCount}</div>
               </div>
             </div>
@@ -579,7 +568,7 @@ const WorksView: React.FC = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="搜索作品标题或简介..."
+                placeholder={t('works.search.placeholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors"
@@ -601,7 +590,7 @@ const WorksView: React.FC = () => {
                   style={{ transform: 'skewX(-2deg)', fontSize: '10px' }}
                 >
                   <span style={{ transform: 'skewX(2deg)' }}>
-                    {status === 'all' ? '全部' : getStatusText(status as WorkStatus)}
+                    {status === 'all' ? t('works.status.all') : getStatusText(status as WorkStatus)}
                   </span>
                 </button>
               ))}
@@ -616,7 +605,7 @@ const WorksView: React.FC = () => {
             >
               {allGenres.map(genre => (
                 <option key={genre} value={genre}>
-                  {genre === 'all' ? '全部类型' : genreDisplayName[genre] || genre}
+                  {getGenreDisplayName(genre)}
                 </option>
               ))}
             </select>
@@ -628,9 +617,9 @@ const WorksView: React.FC = () => {
               className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer"
               style={{ transform: 'skewX(-2deg)', fontSize: '10px' }}
             >
-              <option value="date">最近编辑</option>
-              <option value="words">字数排序</option>
-              <option value="title">标题排序</option>
+              <option value="date">{t('works.sort.date')}</option>
+              <option value="words">{t('works.sort.words')}</option>
+              <option value="title">{t('works.sort.title')}</option>
             </select>
           </div>
         </div>
@@ -644,11 +633,11 @@ const WorksView: React.FC = () => {
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-12 text-center" style={{ transform: 'skewX(-2deg)' }}>
               <div style={{ transform: 'skewX(2deg)' }}>
                 <BookOpen className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                <h3 className="text-lg text-gray-900 dark:text-gray-100 mb-2">暂无作品</h3>
+                <h3 className="text-lg text-gray-900 dark:text-gray-100 mb-2">{t('works.empty')}</h3>
                 <p className="text-gray-400 dark:text-gray-500 mb-6" style={{ fontSize: '11px' }}>
                   {searchQuery || selectedStatus !== 'all' || selectedGenre !== 'all'
-                    ? '没有找到匹配的作品，试试调整筛选条件'
-                    : '开始创作你的第一部作品吧'}
+                    ? t('works.emptyFilterDesc')
+                    : t('works.emptyDesc')}
                 </p>
                 {!searchQuery && selectedStatus === 'all' && selectedGenre === 'all' && (
                   <button
@@ -657,7 +646,7 @@ const WorksView: React.FC = () => {
                     style={{ transform: 'skewX(-2deg)', fontSize: '11px' }}
                   >
                     <Plus className="w-4 h-4" style={{ transform: 'skewX(2deg)' }} />
-                    <span style={{ transform: 'skewX(2deg)' }}>新建作品</span>
+                    <span style={{ transform: 'skewX(2deg)' }}>{t('works.create')}</span>
                   </button>
                 )}
               </div>
@@ -713,7 +702,7 @@ const WorksView: React.FC = () => {
                         </span>
                         {work.genre && (
                           <span className="px-2 py-0.5 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300" style={{ fontSize: '11px' }}>
-                            {genreDisplayName[work.genre] || work.genre}
+                            {getGenreDisplayName(work.genre)}
                           </span>
                         )}
                       </div>
@@ -729,9 +718,9 @@ const WorksView: React.FC = () => {
                       {work.totalWords > 0 && (
                         <div className="mb-2">
                           <div className="flex items-center gap-2 mb-0.5">
-                            <span className="text-gray-400 dark:text-gray-500" style={{ fontSize: '10px' }}>创作进度</span>
+                            <span className="text-gray-400 dark:text-gray-500" style={{ fontSize: '10px' }}>{t('works.stats.progress')}</span>
                             <span className="text-gray-500 dark:text-gray-400" style={{ fontSize: '10px' }}>
-                              {work.totalWords.toLocaleString()} / {(100000).toLocaleString()} 字
+                              {work.totalWords.toLocaleString()} / {(100000).toLocaleString()} {t('works.stats.words')}
                             </span>
                           </div>
                           <div className="w-2/3 bg-gray-200 dark:bg-gray-700 h-1 overflow-hidden" style={{ transform: 'skewX(-2deg)' }}>
@@ -754,16 +743,16 @@ const WorksView: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-1.5">
                           <BookOpen className="w-3.5 h-3.5" />
-                          <span>{work.totalChapters} 章节</span>
+                          <span>{work.totalChapters} {t('works.stats.chapters')}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <FileText className="w-3.5 h-3.5" />
-                          <span>{work.totalWords.toLocaleString()} 字</span>
+                          <span>{work.totalWords.toLocaleString()} {t('works.stats.words')}</span>
                         </div>
                         {work.status === 'writing' && (
                           <div className="flex items-center gap-1.5 text-green-600">
                             <TrendingUp className="w-3.5 h-3.5" />
-                            <span>更新中</span>
+                            <span>{t('works.stats.updating')}</span>
                           </div>
                         )}
                       </div>
@@ -779,7 +768,7 @@ const WorksView: React.FC = () => {
                         className="px-4 py-1.5 bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white transition-colors"
                         style={{ transform: 'skewX(-2deg)', fontSize: '13px' }}
                       >
-                        <span style={{ transform: 'skewX(2deg)', display: 'inline-block' }}>查看详情</span>
+                        <span style={{ transform: 'skewX(2deg)', display: 'inline-block' }}>{t('works.viewDetails')}</span>
                       </button>
 
                       {/* Quick Actions - hover时显示 */}
@@ -790,7 +779,7 @@ const WorksView: React.FC = () => {
                             openEditModal(work);
                           }}
                           className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                          title="编辑信息"
+                          title={t('works.editInfo')}
                         >
                           <Edit3 className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
                         </button>
@@ -800,7 +789,7 @@ const WorksView: React.FC = () => {
                             openExportModal(work);
                           }}
                           className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                          title="导出"
+                          title={t('works.export.button')}
                         >
                           <Download className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
                         </button>
@@ -810,7 +799,7 @@ const WorksView: React.FC = () => {
                             handleDelete(work.id, work.title);
                           }}
                           className="p-2 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
-                          title="删除"
+                          title={t('works.delete.button')}
                         >
                           <Trash2 className="w-3.5 h-3.5 text-red-500" />
                         </button>
@@ -831,7 +820,7 @@ const WorksView: React.FC = () => {
             <div style={{ transform: 'skewX(2deg)' }} className="p-6">
               {/* 标题栏 */}
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg text-gray-900 dark:text-gray-100">编辑作品信息</h2>
+                <h2 className="text-lg text-gray-900 dark:text-gray-100">{t('works.edit.title')}</h2>
                 <button onClick={closeEditModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                   <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 </button>
@@ -841,66 +830,66 @@ const WorksView: React.FC = () => {
               <div className="space-y-3">
                 {/* 标题 */}
                 <div>
-                  <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '11px' }}>作品标题</label>
+                  <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '11px' }}>{t('works.edit.workTitle')}</label>
                   <input
                     type="text"
                     value={editFormData.title}
                     onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors"
                     style={{ fontSize: '12px' }}
-                    placeholder="输入作品标题"
+                    placeholder={t('works.edit.workTitlePlaceholder')}
                   />
                 </div>
 
                 {/* 简介 */}
                 <div>
-                  <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '11px' }}>作品简介</label>
+                  <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '11px' }}>{t('works.edit.description')}</label>
                   <textarea
                     value={editFormData.description}
                     onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors resize-none"
                     style={{ fontSize: '12px' }}
                     rows={2}
-                    placeholder="输入作品简介"
+                    placeholder={t('works.edit.descriptionPlaceholder')}
                   />
                 </div>
 
                 {/* 类型和状态 */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '11px' }}>作品类型</label>
+                    <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '11px' }}>{t('works.edit.genre')}</label>
                     <select
                       value={editFormData.genre}
                       onChange={(e) => setEditFormData({ ...editFormData, genre: e.target.value as WorkGenre })}
                       className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer"
                       style={{ fontSize: '12px' }}
                     >
-                      <option value="">选择类型</option>
-                      {Object.entries(genreDisplayName).map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
+                      <option value="">{t('works.genre.selectGenre')}</option>
+                      {['fantasy', 'urban', 'romance', 'scifi', 'wuxia', 'game', 'history', 'military', 'other'].map((genre) => (
+                        <option key={genre} value={genre}>{t(`works.genre.${genre}`)}</option>
                       ))}
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '11px' }}>作品状态</label>
+                    <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '11px' }}>{t('works.edit.status')}</label>
                     <select
                       value={editFormData.status}
                       onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value as WorkStatus })}
                       className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer"
                       style={{ fontSize: '12px' }}
                     >
-                      <option value="draft">草稿</option>
-                      <option value="writing">连载中</option>
-                      <option value="completed">已完结</option>
-                      <option value="abandoned">已弃坑</option>
+                      <option value="draft">{t('works.status.draft')}</option>
+                      <option value="writing">{t('works.status.writing')}</option>
+                      <option value="completed">{t('works.status.completed')}</option>
+                      <option value="abandoned">{t('works.status.abandoned')}</option>
                     </select>
                   </div>
                 </div>
 
                 {/* 封面图片上传 */}
                 <div>
-                  <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '11px' }}>封面图片</label>
+                  <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '11px' }}>{t('works.edit.cover')}</label>
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
@@ -920,7 +909,7 @@ const WorksView: React.FC = () => {
                     <div className="mt-2">
                       <img
                         src={coverPreview || editFormData.coverImage}
-                        alt="封面预览"
+                        alt={t('works.edit.coverPreview')}
                         className="w-full h-32 object-cover border border-gray-200 dark:border-gray-600"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
@@ -938,14 +927,14 @@ const WorksView: React.FC = () => {
                   className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-900 dark:hover:border-gray-400 transition-colors"
                   style={{ transform: 'skewX(-2deg)', fontSize: '11px' }}
                 >
-                  <span style={{ transform: 'skewX(2deg)' }}>取消</span>
+                  <span style={{ transform: 'skewX(2deg)' }}>{t('works.edit.cancel')}</span>
                 </button>
                 <button
                   onClick={saveEdit}
                   className="flex-1 px-4 py-2.5 bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white transition-colors"
                   style={{ transform: 'skewX(-2deg)', fontSize: '11px' }}
                 >
-                  <span style={{ transform: 'skewX(2deg)' }}>保存修改</span>
+                  <span style={{ transform: 'skewX(2deg)' }}>{t('works.edit.save')}</span>
                 </button>
               </div>
             </div>
@@ -960,7 +949,7 @@ const WorksView: React.FC = () => {
             <div style={{ transform: 'skewX(2deg)' }} className="p-6">
               {/* 标题栏 */}
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg text-gray-900 dark:text-gray-100">导入作品</h2>
+                <h2 className="text-lg text-gray-900 dark:text-gray-100">{t('works.import.title')}</h2>
                 <button onClick={closeImportModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                   <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 </button>
@@ -968,7 +957,7 @@ const WorksView: React.FC = () => {
 
               {/* 文件选择区域 */}
               <div className="mb-4">
-                <label className="block text-gray-700 dark:text-gray-300 mb-2" style={{ fontSize: '12px' }}>选择文件</label>
+                <label className="block text-gray-700 dark:text-gray-300 mb-2" style={{ fontSize: '12px' }}>{t('works.import.selectFile')}</label>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -991,8 +980,8 @@ const WorksView: React.FC = () => {
                   ) : (
                     <div>
                       <Upload className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
-                      <p className="text-gray-600 dark:text-gray-400" style={{ fontSize: '13px' }}>点击选择文件或拖拽到此处</p>
-                      <p className="text-gray-400 dark:text-gray-500 mt-1" style={{ fontSize: '11px' }}>支持 .json / .md / .txt 格式</p>
+                      <p className="text-gray-600 dark:text-gray-400" style={{ fontSize: '13px' }}>{t('works.import.dropHint')}</p>
+                      <p className="text-gray-400 dark:text-gray-500 mt-1" style={{ fontSize: '11px' }}>{t('works.import.formatHint')}</p>
                     </div>
                   )}
                 </div>
@@ -1000,47 +989,47 @@ const WorksView: React.FC = () => {
 
               {/* 格式说明 */}
               <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600" style={{ fontSize: '11px' }}>
-                <p className="text-gray-600 dark:text-gray-400 mb-1"><strong>JSON格式</strong>：完整导入（作品+章节+世界观+规范）</p>
-                <p className="text-gray-600 dark:text-gray-400 mb-1"><strong>Markdown格式</strong>：自动识别章节标题（## 或 第X章）</p>
-                <p className="text-gray-600 dark:text-gray-400"><strong>TXT格式</strong>：自动分割章节</p>
+                <p className="text-gray-600 dark:text-gray-400 mb-1"><strong>JSON</strong>：{t('works.import.jsonFormat').replace('JSON格式：', '').replace('JSON: ', '')}</p>
+                <p className="text-gray-600 dark:text-gray-400 mb-1"><strong>Markdown</strong>：{t('works.import.markdownFormat').replace('Markdown格式：', '').replace('Markdown: ', '')}</p>
+                <p className="text-gray-600 dark:text-gray-400"><strong>TXT</strong>：{t('works.import.txtFormat').replace('TXT格式：', '').replace('TXT: ', '')}</p>
               </div>
 
               {/* 预览加载中 */}
               {isPreviewing && (
                 <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-center">
                   <div className="animate-spin w-6 h-6 border-2 border-gray-300 dark:border-gray-500 border-t-gray-900 dark:border-t-gray-100 rounded-full mx-auto mb-2"></div>
-                  <p className="text-gray-600 dark:text-gray-400" style={{ fontSize: '12px' }}>正在解析文件...</p>
+                  <p className="text-gray-600 dark:text-gray-400" style={{ fontSize: '12px' }}>{t('works.import.parsing')}</p>
                 </div>
               )}
 
               {/* 预览结果 */}
               {importPreview && !isPreviewing && (
                 <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
-                  <h3 className="text-gray-900 dark:text-gray-100 font-medium mb-3" style={{ fontSize: '13px' }}>预览信息</h3>
+                  <h3 className="text-gray-900 dark:text-gray-100 font-medium mb-3" style={{ fontSize: '13px' }}>{t('works.import.preview')}</h3>
 
                   <div className="space-y-2" style={{ fontSize: '12px' }}>
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">作品标题</span>
+                      <span className="text-gray-600 dark:text-gray-400">{t('works.import.workTitle')}</span>
                       <span className="text-gray-900 dark:text-gray-100 font-medium">{importPreview.work.title}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">章节数量</span>
-                      <span className="text-gray-900 dark:text-gray-100">{importPreview.work.totalChapters} 章</span>
+                      <span className="text-gray-600 dark:text-gray-400">{t('works.import.chapterCount')}</span>
+                      <span className="text-gray-900 dark:text-gray-100">{importPreview.work.totalChapters} {t('works.stats.chapters')}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">总字数</span>
-                      <span className="text-gray-900 dark:text-gray-100">{importPreview.work.totalWords.toLocaleString()} 字</span>
+                      <span className="text-gray-600 dark:text-gray-400">{t('works.import.totalWords')}</span>
+                      <span className="text-gray-900 dark:text-gray-100">{importPreview.work.totalWords.toLocaleString()} {t('works.stats.words')}</span>
                     </div>
                     {importPreview.charactersCount > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">人物</span>
-                        <span className="text-gray-900 dark:text-gray-100">{importPreview.charactersCount} 个</span>
+                        <span className="text-gray-600 dark:text-gray-400">{t('works.import.characters')}</span>
+                        <span className="text-gray-900 dark:text-gray-100">{importPreview.charactersCount}</span>
                       </div>
                     )}
                     {importPreview.locationsCount > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">地点</span>
-                        <span className="text-gray-900 dark:text-gray-100">{importPreview.locationsCount} 个</span>
+                        <span className="text-gray-600 dark:text-gray-400">{t('works.import.locations')}</span>
+                        <span className="text-gray-900 dark:text-gray-100">{importPreview.locationsCount}</span>
                       </div>
                     )}
                   </div>
@@ -1048,17 +1037,17 @@ const WorksView: React.FC = () => {
                   {/* 章节列表 */}
                   {importPreview.chapters.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                      <p className="text-gray-600 dark:text-gray-400 mb-2" style={{ fontSize: '11px' }}>章节列表（前5章）：</p>
+                      <p className="text-gray-600 dark:text-gray-400 mb-2" style={{ fontSize: '11px' }}>{t('works.import.chapterList')}</p>
                       <div className="space-y-1">
                         {importPreview.chapters.slice(0, 5).map((chapter, idx) => (
                           <div key={idx} className="flex justify-between text-gray-500 dark:text-gray-400" style={{ fontSize: '11px' }}>
                             <span className="truncate flex-1 mr-2">{chapter.title}</span>
-                            <span>{chapter.wordCount.toLocaleString()} 字</span>
+                            <span>{chapter.wordCount.toLocaleString()} {t('works.stats.words')}</span>
                           </div>
                         ))}
                         {importPreview.chapters.length > 5 && (
                           <p className="text-gray-400 dark:text-gray-500" style={{ fontSize: '11px' }}>
-                            ...还有 {importPreview.chapters.length - 5} 章
+                            {t('works.import.moreChapters', { count: importPreview.chapters.length - 5 })}
                           </p>
                         )}
                       </div>
@@ -1087,7 +1076,7 @@ const WorksView: React.FC = () => {
                   style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
                   disabled={isImporting}
                 >
-                  <span style={{ transform: 'skewX(2deg)' }}>取消</span>
+                  <span style={{ transform: 'skewX(2deg)' }}>{t('works.import.cancel')}</span>
                 </button>
                 <button
                   onClick={handleImport}
@@ -1102,12 +1091,12 @@ const WorksView: React.FC = () => {
                   {isImporting ? (
                     <>
                       <div className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"></div>
-                      <span style={{ transform: 'skewX(2deg)' }}>导入中...</span>
+                      <span style={{ transform: 'skewX(2deg)' }}>{t('works.import.importing')}</span>
                     </>
                   ) : (
                     <>
                       <CheckCircle className="w-4 h-4" style={{ transform: 'skewX(2deg)' }} />
-                      <span style={{ transform: 'skewX(2deg)' }}>确认导入</span>
+                      <span style={{ transform: 'skewX(2deg)' }}>{t('works.import.confirm')}</span>
                     </>
                   )}
                 </button>
@@ -1124,8 +1113,8 @@ const WorksView: React.FC = () => {
             <div style={{ transform: 'skewX(2deg)' }} className="p-6 space-y-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg text-gray-900 dark:text-gray-100">导出作品</h2>
-                  <p className="text-[12px] text-gray-500 dark:text-gray-400 mt-1">《{exportingWork.title}》 · 共 {exportingWork.totalChapters} 章</p>
+                  <h2 className="text-lg text-gray-900 dark:text-gray-100">{t('works.export.title')}</h2>
+                  <p className="text-[12px] text-gray-500 dark:text-gray-400 mt-1">《{exportingWork.title}》 · {t('works.export.totalChapters', { count: exportingWork.totalChapters })}</p>
                 </div>
                 <button onClick={closeExportModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                   <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
@@ -1133,7 +1122,7 @@ const WorksView: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="text-[12px] text-gray-700 dark:text-gray-300">导出方式</label>
+                <label className="text-[12px] text-gray-700 dark:text-gray-300">{t('works.export.mode')}</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => setExportMode('full')}
@@ -1145,8 +1134,8 @@ const WorksView: React.FC = () => {
                     style={{ transform: 'skewX(-2deg)' }}
                   >
                     <span style={{ transform: 'skewX(2deg)' }} className="block text-left">
-                      <span className="font-medium">全文导出</span>
-                      <span className="block text-[11px] text-gray-400 dark:text-gray-500">导出所有章节和简介</span>
+                      <span className="font-medium">{t('works.export.fullExport')}</span>
+                      <span className="block text-[11px] text-gray-400 dark:text-gray-500">{t('works.export.fullExportDesc')}</span>
                     </span>
                   </button>
                   <button
@@ -1159,8 +1148,8 @@ const WorksView: React.FC = () => {
                     style={{ transform: 'skewX(-2deg)' }}
                   >
                     <span style={{ transform: 'skewX(2deg)' }} className="block text-left">
-                      <span className="font-medium">批量导出</span>
-                      <span className="block text-[11px] text-gray-400 dark:text-gray-500">按章节范围导出，可单章</span>
+                      <span className="font-medium">{t('works.export.rangeExport')}</span>
+                      <span className="block text-[11px] text-gray-400 dark:text-gray-500">{t('works.export.rangeExportDesc')}</span>
                     </span>
                   </button>
                 </div>
@@ -1169,12 +1158,12 @@ const WorksView: React.FC = () => {
               {exportMode === 'range' && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-[12px] text-gray-500 dark:text-gray-400">
-                    <span>选择导出的章节范围</span>
-                    <span>共 {exportingWork.totalChapters} 章</span>
+                    <span>{t('works.export.selectRange')}</span>
+                    <span>{t('works.export.totalChapters', { count: exportingWork.totalChapters })}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '12px' }}>从第几章</label>
+                      <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '12px' }}>{t('works.export.fromChapter')}</label>
                       <input
                         type="number"
                         min={1}
@@ -1185,7 +1174,7 @@ const WorksView: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '12px' }}>到第几章</label>
+                      <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '12px' }}>{t('works.export.toChapter')}</label>
                       <input
                         type="number"
                         min={1}
@@ -1197,7 +1186,7 @@ const WorksView: React.FC = () => {
                     </div>
                   </div>
                   <p className="text-[11px] text-gray-400 dark:text-gray-500">
-                    例如：从第 2 章到第 5 章；若导出单章，请将开始和结束设置为同一章。
+                    {t('works.export.rangeHint')}
                   </p>
                 </div>
               )}
@@ -1215,7 +1204,7 @@ const WorksView: React.FC = () => {
                   style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
                   disabled={isExporting}
                 >
-                  <span style={{ transform: 'skewX(2deg)' }}>取消</span>
+                  <span style={{ transform: 'skewX(2deg)' }}>{t('works.export.cancel')}</span>
                 </button>
                 <button
                   onClick={handleExport}
@@ -1225,7 +1214,7 @@ const WorksView: React.FC = () => {
                   }`}
                   style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
                 >
-                  <span style={{ transform: 'skewX(2deg)' }}>{isExporting ? '导出中...' : '开始导出'}</span>
+                  <span style={{ transform: 'skewX(2deg)' }}>{isExporting ? t('works.export.exporting') : t('works.export.start')}</span>
                 </button>
               </div>
             </div>

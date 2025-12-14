@@ -3,6 +3,7 @@
  * 选中文本时显示 AI 操作菜单
  */
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BubbleMenu as TiptapBubbleMenu } from '@tiptap/react/menus';
 import { Editor } from '@tiptap/core';
 import { Loader2, Check, X, Pause, MessageSquare } from 'lucide-react';
@@ -19,6 +20,7 @@ interface AIMenuProps {
  * AI 菜单组件
  */
 const AIMenu: React.FC<AIMenuProps> = ({ editor, onOpenInlineAI }) => {
+  const { t } = useTranslation();
   const [isProcessing, setIsProcessing] = useState(false);
   const [aiGeneratedRange, setAiGeneratedRange] = useState<{ from: number; to: number } | null>(null);
   const [originalContent, setOriginalContent] = useState<string>('');
@@ -118,7 +120,7 @@ const AIMenu: React.FC<AIMenuProps> = ({ editor, onOpenInlineAI }) => {
 
       setAiGeneratedRange(null);
       setOriginalContent('');
-      toast.success('已接受 AI 生成的内容');
+      toast.success(t('editor.aiMenu.acceptedContent'));
     }
   };
 
@@ -171,7 +173,7 @@ const AIMenu: React.FC<AIMenuProps> = ({ editor, onOpenInlineAI }) => {
 
       setAiGeneratedRange(null);
       setOriginalContent('');
-      toast.info('已撤销 AI 生成的内容');
+      toast.info(t('editor.aiMenu.rejectedContent'));
     }
   };
 
@@ -183,7 +185,7 @@ const AIMenu: React.FC<AIMenuProps> = ({ editor, onOpenInlineAI }) => {
     cancel();
     setIsProcessing(false);
     // 暂停后保留当前的 aiGeneratedRange，这样用户可以选择同意或撤销
-    toast.info('已暂停 AI 生成', '您可以选择同意或撤销已生成的内容');
+    toast.info(t('editor.aiMenu.paused'), t('editor.aiMenu.pausedDesc'));
   };
 
   /**
@@ -374,7 +376,7 @@ const AIMenu: React.FC<AIMenuProps> = ({ editor, onOpenInlineAI }) => {
           console.log('[AIMenu] 暂停时设置生成范围:', { from: startPosition, to: insertPosition });
         }
       } else {
-        toast.error('AI 续写失败', errorMessage);
+        toast.error(t('editor.aiMenu.continueFailed'), errorMessage);
       }
     } finally {
       setIsProcessing(false);
@@ -390,7 +392,7 @@ const AIMenu: React.FC<AIMenuProps> = ({ editor, onOpenInlineAI }) => {
     try {
       const selectedText = getSelectedText();
       if (!selectedText) {
-        toast.warning('请先选中文本', '请选中要扩写的文本内容');
+        toast.warning(t('editor.aiMenu.selectTextExpand'));
         setIsProcessing(false);
         return;
       }
@@ -411,10 +413,10 @@ const AIMenu: React.FC<AIMenuProps> = ({ editor, onOpenInlineAI }) => {
         .run();
 
       setAiGeneratedRange({ from, to: from + expandedText.length });
-      toast.success('扩写完成');
+      toast.success(t('editor.aiMenu.expandComplete'));
     } catch (error) {
       console.error('AI 扩写失败:', error);
-      toast.error('AI 扩写失败', (error as Error).message);
+      toast.error(t('editor.aiMenu.expandFailed'), (error as Error).message);
     } finally {
       setIsProcessing(false);
     }
@@ -428,7 +430,7 @@ const AIMenu: React.FC<AIMenuProps> = ({ editor, onOpenInlineAI }) => {
     try {
       const selectedText = getSelectedText();
       if (!selectedText) {
-        toast.warning('请先选中文本', '请选中要总结的文本内容');
+        toast.warning(t('editor.aiMenu.selectTextSummarize'));
         setIsProcessing(false);
         return;
       }
@@ -449,10 +451,10 @@ const AIMenu: React.FC<AIMenuProps> = ({ editor, onOpenInlineAI }) => {
         .run();
 
       setAiGeneratedRange({ from, to: from + summarizedText.length });
-      toast.success('总结完成');
+      toast.success(t('editor.aiMenu.summarizeComplete'));
     } catch (error) {
       console.error('AI 总结失败:', error);
-      toast.error('AI 总结失败', (error as Error).message);
+      toast.error(t('editor.aiMenu.summarizeFailed'), (error as Error).message);
     } finally {
       setIsProcessing(false);
     }
@@ -466,7 +468,7 @@ const AIMenu: React.FC<AIMenuProps> = ({ editor, onOpenInlineAI }) => {
     try {
       const selectedText = getSelectedText();
       if (!selectedText) {
-        toast.warning('请先选中文本', '请选中要润色的文本内容');
+        toast.warning(t('editor.aiMenu.selectTextPolish'));
         setIsProcessing(false);
         return;
       }
@@ -487,10 +489,10 @@ const AIMenu: React.FC<AIMenuProps> = ({ editor, onOpenInlineAI }) => {
         .run();
 
       setAiGeneratedRange({ from, to: from + polishedText.length });
-      toast.success('润色完成');
+      toast.success(t('editor.aiMenu.polishComplete'));
     } catch (error) {
       console.error('AI 润色失败:', error);
-      toast.error('AI 润色失败', (error as Error).message);
+      toast.error(t('editor.aiMenu.polishFailed'), (error as Error).message);
     } finally {
       setIsProcessing(false);
     }
@@ -504,7 +506,7 @@ const AIMenu: React.FC<AIMenuProps> = ({ editor, onOpenInlineAI }) => {
     try {
       const selectedText = getSelectedText();
       if (!selectedText) {
-        toast.warning('请先选中文本', '请选中要翻译的文本内容');
+        toast.warning(t('editor.aiMenu.selectTextTranslate'));
         setIsProcessing(false);
         return;
       }
@@ -529,10 +531,10 @@ const AIMenu: React.FC<AIMenuProps> = ({ editor, onOpenInlineAI }) => {
         .run();
 
       setAiGeneratedRange({ from, to: from + translatedText.length });
-      toast.success('翻译完成', `已翻译为${targetLang}`);
+      toast.success(t('editor.aiMenu.translateComplete'), t('editor.aiMenu.translatedTo', { lang: targetLang }));
     } catch (error) {
       console.error('AI 翻译失败:', error);
-      toast.error('AI 翻译失败', (error as Error).message);
+      toast.error(t('editor.aiMenu.translateFailed'), (error as Error).message);
     } finally {
       setIsProcessing(false);
     }
@@ -578,7 +580,7 @@ const AIMenu: React.FC<AIMenuProps> = ({ editor, onOpenInlineAI }) => {
         >
           <button onClick={handleStop} className="ai-action-button stop">
             <Pause className="w-4 h-4" />
-            <span>暂停</span>
+            <span>{t('editor.aiMenu.pause')}</span>
           </button>
         </div>
       )}
@@ -593,11 +595,11 @@ const AIMenu: React.FC<AIMenuProps> = ({ editor, onOpenInlineAI }) => {
         >
           <button onClick={handleAccept} className="ai-action-button accept">
             <Check className="w-4 h-4" />
-            <span>同意</span>
+            <span>{t('editor.aiMenu.accept')}</span>
           </button>
           <button onClick={handleReject} className="ai-action-button reject">
             <X className="w-4 h-4" />
-            <span>撤销</span>
+            <span>{t('editor.aiMenu.reject')}</span>
           </button>
         </div>
       )}
@@ -607,14 +609,14 @@ const AIMenu: React.FC<AIMenuProps> = ({ editor, onOpenInlineAI }) => {
         {isProcessing ? (
           <div className="ai-menu-loading">
             <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="ai-menu-loading-text">AI 处理中...</span>
+            <span className="ai-menu-loading-text">{t('editor.aiMenu.processing')}</span>
           </div>
         ) : (
           onOpenInlineAI && (
             <AIButton
               onClick={onOpenInlineAI}
               icon={<MessageSquare className="w-4 h-4" />}
-              label="Ask AI"
+              label={t('editor.aiMenu.askAI')}
             />
           )
         )}

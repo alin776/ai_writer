@@ -3,6 +3,7 @@
  * 基于 Tiptap 的富文本编辑器
  */
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -88,7 +89,7 @@ type AgentApprovalRequest = {
 const NovelEditor: React.FC<NovelEditorProps> = ({
   content = '',
   onSave,
-  placeholder = '开始写作...',
+  placeholder,
   autoSave = true,
   autoSaveInterval = 3000,
   workId,      // Context-Aware 参数
@@ -98,6 +99,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   onInlineAISend,
   isInlineAILoading = false,
 }) => {
+  const { t } = useTranslation();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [wordCount, setWordCount] = useState(0);
   const toast = useToast();
@@ -173,7 +175,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         transformCopiedText: false,
       }),
       Placeholder.configure({
-        placeholder,
+        placeholder: placeholder || t('editor.startWriting'),
         emptyEditorClass: 'is-editor-empty',
       }),
       CharacterCount,
@@ -444,13 +446,13 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             setConfirmDialog(prev => ({ ...prev, isOpen: false }));
 
             // 显示成功提示
-            toast.success('已应用 AI 编辑');
+            toast.success(t('editor.aiMenu.appliedEdit'));
           },
           onReject: () => {
             // 用户取消，不做任何操作
             console.log('[NovelEditor] 用户取消 Agent 编辑');
             setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-            toast.info('已取消 AI 编辑');
+            toast.info(t('editor.aiMenu.cancelledEdit'));
           }
         });
       }
@@ -460,7 +462,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     const unsubscribeError = editorSyncService.onSyncError((data) => {
       if (data.chapterId === chapterId) {
         console.error('[NovelEditor] 同步失败:', data.error);
-        toast.error('内容同步失败，请稍后重试');
+        toast.error(t('editor.aiMenu.syncFailed'));
       }
     });
 
@@ -604,10 +606,10 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           }
         }
 
-        toast.info('请确认修订内容');
+        toast.info(t('editor.aiPanel.confirmRevision'));
       } catch (error) {
         console.error('[NovelEditor] 应用修订标记失败:', error);
-        toast.error('显示修订失败');
+        toast.error(t('editor.aiMenu.revisionFailed'));
       }
     };
 
@@ -663,7 +665,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             debouncedSave(editor);
           }
 
-          toast.success('已应用 AI 改写');
+          toast.success(t('editor.aiMenu.appliedRewrite'));
           return;
         }
 
@@ -686,14 +688,14 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             debouncedSave(editor);
           }
 
-          toast.success('已应用 AI 改写');
+          toast.success(t('editor.aiMenu.appliedRewrite'));
         } else {
           console.warn('[NovelEditor] 未找到原文本，可能已被修改');
-          toast.warning('原文本已变更，无法自动替换');
+          toast.warning(t('editor.aiMenu.originalChanged'));
         }
       } catch (error) {
         console.error('[NovelEditor] 应用改写失败:', error);
-        toast.error('应用改写失败');
+        toast.error(t('editor.aiMenu.applyFailed'));
       }
     };
 
@@ -748,10 +750,10 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           debouncedSave(editor);
         }
 
-        toast.success('已应用 AI 续写');
+        toast.success(t('editor.aiMenu.appliedContinue'));
       } catch (error) {
         console.error('[NovelEditor] 应用续写失败:', error);
-        toast.error('应用续写失败');
+        toast.error(t('editor.aiMenu.continueFailed2'));
       }
     };
 
@@ -775,7 +777,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
     // 如果没有选中文字，不打开
     if (from === to) {
-      toast.warning('请先选中一些文字');
+      toast.warning(t('editor.aiPanel.selectTextFirst'));
       return;
     }
 
@@ -882,10 +884,10 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       setRevisionBarPosition(null);
       lastRevisionContextRef.current = null;
 
-      toast.success('已采纳修改');
+      toast.success(t('editor.aiPanel.revisionAccepted'));
     } catch (error) {
       console.error('[NovelEditor] 采纳修订失败:', error);
-      toast.error('采纳修改失败');
+      toast.error(t('editor.aiMenu.applyFailed'));
     }
   }, [activeRevision, editor, autoSave, debouncedSave, toast]);
 
@@ -936,10 +938,10 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       setRevisionBarPosition(null);
       lastRevisionContextRef.current = null;
 
-      toast.info('已弃用修改');
+      toast.info(t('editor.aiPanel.revisionDiscarded'));
     } catch (error) {
       console.error('[NovelEditor] 弃用修订失败:', error);
-      toast.error('弃用修改失败');
+      toast.error(t('editor.aiMenu.applyFailed'));
     }
   }, [activeRevision, editor, toast]);
 
@@ -965,7 +967,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         setIsRevisionLoading(false);
       }, 100);
     } else {
-      toast.warning('无法重新生成，请重新选择文字并发送指令');
+      toast.warning(t('editor.aiPanel.cannotRegenerate'));
     }
   }, [activeRevision, editor, handleDiscardRevision, toast]);
 
@@ -1075,7 +1077,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       onInlineAISend(message, finalContext);
     }
 
-    toast.info('已发送到 AI 助手');
+    toast.info(t('editor.aiPanel.sentToAI'));
   }, [editor, inlineAISelectionSnapshot, onInlineAISend, toast, setRightSidebarType]);
 
   // 🆕 更新 handleInlineAISend ref（用于 handleRegenerateRevision 调用）
@@ -1086,7 +1088,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   if (!editor) {
     return (
       <div className="flex items-center justify-center min-h-[500px] dark:bg-slate-900">
-        <div className="text-gray-500 dark:text-slate-400">加载编辑器...</div>
+        <div className="text-gray-500 dark:text-slate-400">{t('editor.loadingEditor')}</div>
       </div>
     );
   }
@@ -1117,11 +1119,11 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         <div className="flex items-center justify-between px-5 py-1.5 bg-zinc-50/40 border-b border-zinc-100 dark:bg-slate-800/50 dark:border-slate-700">
           <div className="flex items-center gap-3 text-[11px] text-zinc-600 dark:text-slate-400">
             <div className="flex items-center gap-1.5">
-              <span>字数:</span>
+              <span>{t('editor.wordCount')}:</span>
               <span className="text-zinc-900 dark:text-slate-200">{wordCount}</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span>字符:</span>
+              <span>{t('editor.characters')}:</span>
               <span className="text-zinc-900 dark:text-slate-200">{countCharactersInHtml(editor.getHTML())}</span>
             </div>
           </div>
@@ -1133,7 +1135,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                <span className="text-[11px]">已保存</span>
+                <span className="text-[11px]">{t('editor.saved')}</span>
               </div>
             )}
             {saveStatus === 'saving' && (
@@ -1146,7 +1148,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   />
                 </svg>
-                <span className="text-[11px]">保存中...</span>
+                <span className="text-[11px]">{t('editor.saving')}</span>
               </div>
             )}
             {saveStatus === 'unsaved' && (
@@ -1159,7 +1161,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
                     d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg>
-                <span className="text-[11px]">未保存</span>
+                <span className="text-[11px]">{t('editor.unsaved')}</span>
               </div>
             )}
           </div>

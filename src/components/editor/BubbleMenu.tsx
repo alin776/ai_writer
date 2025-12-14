@@ -2,6 +2,7 @@
  * 气泡菜单 - 选中文本时显示的浮动工具栏
  */
 import React, { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BubbleMenu as TiptapBubbleMenu } from '@tiptap/react/menus';
 import { Editor } from '@tiptap/core';
 import {
@@ -25,6 +26,8 @@ interface BubbleMenuProps {
  * 气泡菜单组件
  */
 const BubbleMenu: React.FC<BubbleMenuProps> = ({ editor, onOpenInlineAI }) => {
+  const { t } = useTranslation();
+
   if (!editor) {
     return null;
   }
@@ -43,7 +46,7 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ editor, onOpenInlineAI }) => {
    */
   const setLink = () => {
     const previousUrl = editor.getAttributes('link').href;
-    const url = window.prompt('请输入链接地址:', previousUrl);
+    const url = window.prompt(t('editor.toolbar.enterLinkUrl'), previousUrl);
 
     if (url === null) {
       return;
@@ -104,7 +107,7 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ editor, onOpenInlineAI }) => {
         <BubbleButton
           onClick={() => editor.chain().focus().toggleBold().run()}
           isActive={editor.isActive('bold')}
-          title="粗体 (Ctrl+B)"
+          title={`${t('editor.toolbar.bold')} (Ctrl+B)`}
         >
           <Bold className="w-4 h-4" />
         </BubbleButton>
@@ -112,7 +115,7 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ editor, onOpenInlineAI }) => {
         <BubbleButton
           onClick={() => editor.chain().focus().toggleItalic().run()}
           isActive={editor.isActive('italic')}
-          title="斜体 (Ctrl+I)"
+          title={`${t('editor.toolbar.italic')} (Ctrl+I)`}
         >
           <Italic className="w-4 h-4" />
         </BubbleButton>
@@ -120,7 +123,7 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ editor, onOpenInlineAI }) => {
         <BubbleButton
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           isActive={editor.isActive('underline')}
-          title="下划线 (Ctrl+U)"
+          title={`${t('editor.toolbar.underline')} (Ctrl+U)`}
         >
           <UnderlineIcon className="w-4 h-4" />
         </BubbleButton>
@@ -128,7 +131,7 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ editor, onOpenInlineAI }) => {
         <BubbleButton
           onClick={() => editor.chain().focus().toggleStrike().run()}
           isActive={editor.isActive('strike')}
-          title="删除线"
+          title={t('editor.toolbar.strikethrough')}
         >
           <Strikethrough className="w-4 h-4" />
         </BubbleButton>
@@ -142,7 +145,7 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ editor, onOpenInlineAI }) => {
         <BubbleButton
           onClick={() => editor.chain().focus().toggleHighlight().run()}
           isActive={editor.isActive('highlight')}
-          title="高亮"
+          title={t('editor.toolbar.highlight')}
         >
           <Highlighter className="w-4 h-4" />
         </BubbleButton>
@@ -150,7 +153,7 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ editor, onOpenInlineAI }) => {
         <BubbleButton
           onClick={() => editor.chain().focus().toggleCode().run()}
           isActive={editor.isActive('code')}
-          title="行内代码"
+          title={t('editor.toolbar.inlineCode')}
         >
           <Code className="w-4 h-4" />
         </BubbleButton>
@@ -162,11 +165,11 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ editor, onOpenInlineAI }) => {
       {/* 链接 */}
       <div className="bubble-menu-group">
         {editor.isActive('link') ? (
-          <BubbleButton onClick={unsetLink} title="移除链接">
+          <BubbleButton onClick={unsetLink} title={t('editor.toolbar.removeLink')}>
             <Unlink className="w-4 h-4" />
           </BubbleButton>
         ) : (
-          <BubbleButton onClick={setLink} title="插入链接">
+          <BubbleButton onClick={setLink} title={t('editor.toolbar.insertLink')}>
             <LinkIcon className="w-4 h-4" />
           </BubbleButton>
         )}

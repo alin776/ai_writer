@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 
 /**
  * 模态框组件 Props 接口
@@ -101,6 +102,7 @@ const Modal: React.FC<ModalProps> = ({
   showCloseButton = true,
   className = '',
 }) => {
+  const { t } = useTranslation();
   const modalRef = useRef<HTMLDivElement>(null);
 
   /**
@@ -212,7 +214,7 @@ const Modal: React.FC<ModalProps> = ({
                 type="button"
                 onClick={onClose}
                 className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 rounded-lg p-1"
-                aria-label="关闭"
+                aria-label={t('common.close')}
               >
                 <svg
                   className="w-6 h-6"

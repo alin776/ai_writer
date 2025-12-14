@@ -20,10 +20,9 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 async def _calculate_weekly_new_words(db: AsyncSession, author_id: str) -> int:
-    """计算本周新增字数：直接汇总 delta，不再回放全文历史"""
-    week_start = datetime.now(timezone.utc) - timedelta(days=7)
+    """计算本周新增字数：自然周（周一00:00 ~ 周日23:59，中国时区），只计正增量"""
     stat_service = ChapterWordStatService(db)
-    return await stat_service.sum_delta_for_author_since(author_id, week_start)
+    return await stat_service.sum_positive_delta_for_author_this_week(author_id)
 
 
 class CoverUploadResponse(BaseModel):

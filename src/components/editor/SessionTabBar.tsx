@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, Globe2, FileText, MessageSquare, MoreHorizontal, Clock3, PanelRightClose } from 'lucide-react';
 import { useEditorStore, type RightSidebarType } from '../../store/editorStore';
 import type { Tab } from '@/utils/tabStorage';
@@ -28,6 +29,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
   onOpenHistory,
   onCollapseRightPanel,
 }) => {
+  const { t } = useTranslation();
   const { rightSidebarType, toggleRightSidebar, closeRightSidebar } = useEditorStore();
   const [creating, setCreating] = React.useState(false);
   const tabsContainerRef = React.useRef<HTMLDivElement>(null);
@@ -45,9 +47,9 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
   };
 
   const functionButtons = [
-    { type: 'agent' as RightSidebarType, icon: MessageSquare, title: 'AI助手' },
-    { type: 'summary' as RightSidebarType, icon: FileText, title: '概要' },
-    { type: 'worldview' as RightSidebarType, icon: Globe2, title: '世界观' },
+    { type: 'agent' as RightSidebarType, icon: MessageSquare, title: t('editor.sessionTab.aiAssistant') },
+    { type: 'summary' as RightSidebarType, icon: FileText, title: t('editor.sessionTab.summary') },
+    { type: 'worldview' as RightSidebarType, icon: Globe2, title: t('editor.sessionTab.worldview') },
   ];
 
   const handleTabsWheel = (e: React.WheelEvent<HTMLDivElement>) => {
@@ -69,7 +71,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
       >
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId;
-          const title = tab.title?.trim() || '新会话';
+          const title = tab.title?.trim() || t('editor.sessionTab.newSession');
 
           return (
             <button
@@ -91,7 +93,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
                     onCloseTab(tab.id);
                   }}
                   className="ml-1 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 text-xs transition-colors"
-                  title="关闭会话"
+                  title={t('editor.sessionTab.closeSession')}
                 >
                   ×
                 </span>
@@ -100,7 +102,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           );
         })}
 
-        {tabs.length === 0 && <span className="text-sm text-slate-400 dark:text-slate-500 px-2">暂无会话</span>}
+        {tabs.length === 0 && <span className="text-sm text-slate-400 dark:text-slate-500 px-2">{t('editor.sessionTab.noSessions')}</span>}
       </div>
 
       {/* 右侧：功能按钮组 */}
@@ -110,7 +112,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
           onClick={handleCreate}
           disabled={creating}
-          title="新增会话"
+          title={t('editor.sessionTab.addSession')}
         >
           <Plus className="w-4 h-4" />
         </button>
@@ -136,7 +138,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
         <button
           onClick={() => (onOpenHistory ? onOpenHistory() : closeRightSidebar())}
           className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
-          title="历史会话"
+          title={t('editor.sessionTab.history')}
         >
           <Clock3 className="w-4 h-4" />
         </button>
@@ -145,7 +147,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
         <button
           className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
           onClick={() => onCollapseRightPanel?.()}
-          title="收起侧栏"
+          title={t('editor.sessionTab.collapsePanel')}
         >
           <PanelRightClose className="w-4 h-4" />
         </button>

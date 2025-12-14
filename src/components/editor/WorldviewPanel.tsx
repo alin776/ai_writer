@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Users, MapPin, Settings2, Plus, Maximize2 } from 'lucide-react';
@@ -12,6 +13,7 @@ interface WorldviewPanelProps {
 
 export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [worldviewTab, setWorldviewTab] = React.useState<'characters' | 'places' | 'settings'>('characters');
 
   const { characters, locations, settings } = worldData;
@@ -34,7 +36,7 @@ export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
                 : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
             }`}
           >
-            人物
+            {t('worldview.tabs.characters')}
           </button>
           <button
             onClick={() => setWorldviewTab('places')}
@@ -44,7 +46,7 @@ export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
                 : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
             }`}
           >
-            地点
+            {t('worldview.tabs.locations')}
           </button>
           <button
             onClick={() => setWorldviewTab('settings')}
@@ -54,7 +56,7 @@ export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
                 : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
             }`}
           >
-            设定
+            {t('worldview.tabs.settings')}
           </button>
         </div>
         <div className="flex items-center gap-1">
@@ -63,7 +65,7 @@ export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
             size="sm"
             onClick={handleOpenWorldview}
             className="h-6 w-6 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-md transition-all"
-            title="打开世界观管理"
+            title={t('worldview.actions.openWorldview')}
           >
             <Maximize2 className="h-3.5 w-3.5" />
           </Button>
@@ -97,7 +99,7 @@ export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
           ) : (
             <div className="text-center py-12 text-zinc-300">
               <Users className="h-10 w-10 mx-auto mb-3 opacity-30" strokeWidth={1.5} />
-              <p className="text-[11px] mb-4">暂无人物信息</p>
+              <p className="text-[11px] mb-4">{t('worldview.empty.characters')}</p>
             </div>
           )}
         </div>
@@ -129,7 +131,7 @@ export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
           ) : (
             <div className="text-center py-12 text-zinc-300">
               <MapPin className="h-10 w-10 mx-auto mb-3 opacity-30" strokeWidth={1.5} />
-              <p className="text-[11px] mb-4">暂无地点信息</p>
+              <p className="text-[11px] mb-4">{t('worldview.empty.locations')}</p>
             </div>
           )}
         </div>
@@ -161,7 +163,7 @@ export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
           ) : (
             <div className="text-center py-12 text-zinc-300">
               <Settings2 className="h-10 w-10 mx-auto mb-3 opacity-30" strokeWidth={1.5} />
-              <p className="text-[11px] mb-4">暂无世界设定</p>
+              <p className="text-[11px] mb-4">{t('worldview.empty.settings')}</p>
             </div>
           )}
         </div>

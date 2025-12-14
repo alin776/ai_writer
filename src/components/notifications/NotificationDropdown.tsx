@@ -6,7 +6,8 @@
 
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCheck, ExternalLink } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { CheckCheck, ExternalLink, Bell } from 'lucide-react';
 import { useNotificationStore } from '../../store/notificationStore';
 import NotificationItem from './NotificationItem';
 
@@ -16,6 +17,7 @@ interface NotificationDropdownProps {
 
 const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onClose }) => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const {
     notifications,
     unreadCount,
@@ -44,7 +46,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onClose }) 
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            通知
+            {t('notifications.title')}
           </h3>
           {unreadCount > 0 && (
             <span className="px-2 py-0.5 text-xs font-medium text-white bg-red-500 rounded-full">
@@ -59,7 +61,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onClose }) 
             className="flex items-center gap-1 px-2 py-1 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
           >
             <CheckCheck className="w-4 h-4" />
-            全部已读
+            {t('notifications.markAllRead')}
           </button>
         )}
       </div>
@@ -73,7 +75,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onClose }) 
         ) : notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
             <Bell className="w-12 h-12 mb-2 opacity-50" />
-            <p>暂无通知</p>
+            <p>{t('notifications.empty')}</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -95,7 +97,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onClose }) 
             onClick={handleViewAll}
             className="flex items-center justify-center gap-2 w-full px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
           >
-            查看全部通知
+            {t('notifications.viewAll')}
             <ExternalLink className="w-4 h-4" />
           </button>
         </div>
@@ -103,8 +105,5 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onClose }) 
     </div>
   );
 };
-
-// 导入 Bell 图标（用于空状态）
-import { Bell } from 'lucide-react';
 
 export default NotificationDropdown;

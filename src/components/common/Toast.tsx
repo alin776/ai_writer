@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { useGlobalStore, type Toast as ToastType } from '../../store/globalStore';
 import { CheckCircle, XCircle, AlertCircle, Info, X } from 'lucide-react';
 
@@ -22,6 +23,7 @@ interface ToastItemProps {
  * 单个 Toast 项组件
  */
 const ToastItem: React.FC<ToastItemProps> = ({ toast, onClose }) => {
+  const { t } = useTranslation();
   /**
    * 获取 Toast 图标
    */
@@ -102,7 +104,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onClose }) => {
         type="button"
         onClick={() => onClose(toast.id)}
         className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded"
-        aria-label="关闭"
+        aria-label={t('common.close')}
       >
         <X className="w-4 h-4" strokeWidth={2} />
       </button>

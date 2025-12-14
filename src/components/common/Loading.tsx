@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * 加载指示器尺寸类型
@@ -68,6 +69,7 @@ const Loading: React.FC<LoadingProps> = ({
   className = '',
   color = 'blue',
 }) => {
+  const { t } = useTranslation();
   /**
    * 获取加载指示器尺寸样式
    */
@@ -121,7 +123,7 @@ const Loading: React.FC<LoadingProps> = ({
       fill="none"
       viewBox="0 0 24 24"
       role="status"
-      aria-label="加载中"
+      aria-label={t('common.loading')}
     >
       <circle
         className="opacity-25"

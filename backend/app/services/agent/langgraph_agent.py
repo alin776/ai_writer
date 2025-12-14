@@ -764,6 +764,94 @@ class WritingAgentGraph:
                 "error": str(e)
             }
 
+    async def _generate_text_stream(
+        self,
+        prompt: str,
+        on_chunk: callable,
+        temperature: float = 0.7,
+        max_tokens: int = 2000,
+        task_type: Optional[TaskType] = None,
+        buffer_size: int = 1  # ✅ 默认逐字输出
+    ) -> dict:
+        """流式生成文本，带缓冲区平滑输出
+
+        真正的流式输出：每累积 buffer_size 个字符就立即回调，
+        而不是等待完整响应后再发送。
+
+        Args:
+            prompt: 提示词
+            on_chunk: 每个缓冲区满时的回调函数 (async callable)
+            temperature: 温度参数
+            max_tokens: 最大token数
+            task_type: 任务类型（用于模型选择）
+            buffer_size: 缓冲区大小（字符数），默认1个字符（逐字输出）
+
+        Returns:
+            dict: {"text": str, "usage": dict, "partial": bool(可选)}
+        """
+        from app.services.agent.utils.monitoring import increment_counter
+
+        full_text = ""
+        usage = None
+        buffer = ""
+
+        logger.info(f"[_generate_text_stream] 开始流式生成，buffer_size={buffer_size}")
+
+        try:
+            async with asyncio.timeout(TimeoutConfig.LLM_CALL):
+                async for chunk, chunk_usage in self.ai_service._stream_chat(
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    task_type=task_type
+                ):
+                    if chunk:
+                        full_text += chunk
+                        buffer += chunk
+
+                        # 缓冲区满了才发送（平滑显示）
+                        if len(buffer) >= buffer_size:
+                            await on_chunk(buffer)
+                            buffer = ""
+
+                    if chunk_usage:
+                        usage = chunk_usage
+
+                # 发送剩余缓冲区内容
+                if buffer:
+                    await on_chunk(buffer)
+
+                logger.info(f"[_generate_text_stream] 流式生成完成，总长度={len(full_text)}")
+
+        except asyncio.TimeoutError:
+            logger.warning(f"[_generate_text_stream] 超时({TimeoutConfig.LLM_CALL}s)，返回已生成内容")
+            increment_counter("generate_text_stream_error", labels={"error_type": "TimeoutError"})
+
+            # 超时降级：发送剩余缓冲区，返回已生成的部分内容
+            if buffer:
+                await on_chunk(buffer)
+
+            if full_text:
+                return {"text": full_text, "usage": usage or {}, "partial": True}
+            return {"text": "", "usage": {}, "error": "timeout"}
+
+        except Exception as e:
+            logger.error(f"[_generate_text_stream] 流式生成失败: {e}", exc_info=True)
+            increment_counter("generate_text_stream_error", labels={"error_type": type(e).__name__})
+
+            # 异常降级：发送剩余缓冲区，返回已生成的部分内容
+            if buffer:
+                try:
+                    await on_chunk(buffer)
+                except Exception:
+                    pass
+
+            if full_text:
+                return {"text": full_text, "usage": usage or {}, "partial": True, "error": str(e)}
+            return {"text": "", "usage": {}, "error": str(e)}
+
+        return {"text": full_text, "usage": usage or {}}
+
     def _classify_intent_by_rules(self, message: str) -> tuple[str, float]:
         """基于规则的快速意图识别（<1ms）
 
@@ -4845,12 +4933,9 @@ chapter_id: {chapter_id}
                             f"直接返回友好提示，跳过AI整合"
                         )
 
-                        # 模拟流式输出（保持用户体验一致）
+                        # ✅ 方案B修复：直接发送整个内容（比分块发送更快）
                         if on_content:
-                            chunk_size = 20  # 每次发送20个字符
-                            for i in range(0, len(suggested), chunk_size):
-                                chunk = suggested[i:i + chunk_size]
-                                await on_content(chunk)
+                            await on_content(suggested)
 
                         return suggested
             except (json.JSONDecodeError, TypeError, KeyError):
@@ -4882,6 +4967,15 @@ chapter_id: {chapter_id}
             tool_name = task.get("tool", "unknown")  # ✅ 安全访问
             result = task.get("result", "") or ""  # 处理None的情况
 
+            # ✅ 方案B修复：使用@知识库时，走AI整合路径（真流式）
+            # 当有知识库文档时，需要AI基于文档内容生成响应，确保流式输出
+            if knowledge_docs:
+                logger.info(
+                    f"[Response] 检测到知识库文档({len(knowledge_docs)}个)，"
+                    f"使用AI整合（确保流式输出）"
+                )
+                return await self._ai_summarization(task_results, message, on_content, knowledge_docs)
+
             # 创作类任务，且输出充分 → 直接返回
             if tool_name in ["continue_writing_tool"]:
                 if len(result) > 500:
@@ -4890,13 +4984,10 @@ chapter_id: {chapter_id}
                         f"输出{len(result)}字符，直接返回（跳过AI调用）"
                     )
 
-                    # 模拟流式输出（保持用户体验一致）
+                    # ✅ 方案B修复：真流式输出，直接发送整个内容
+                    # 由于内容已经生成完毕，直接一次性发送比分块发送更快
                     if on_content:
-                        # 分块发送，模拟流式输出效果
-                        chunk_size = 50  # 每次发送50个字符
-                        for i in range(0, len(result), chunk_size):
-                            chunk = result[i:i + chunk_size]
-                            await on_content(chunk)
+                        await on_content(result)
 
                     return result
 
@@ -4906,6 +4997,14 @@ chapter_id: {chapter_id}
 
         # 情况3：多个输出任务（约15%）
         else:
+            # ✅ 方案B修复：使用@知识库时，走AI整合路径（真流式）
+            if knowledge_docs:
+                logger.info(
+                    f"[Response] 检测到知识库文档({len(knowledge_docs)}个)，"
+                    f"{len(output_tasks)}个输出任务，使用AI整合（确保流式输出）"
+                )
+                return await self._ai_summarization(task_results, message, on_content, knowledge_docs)
+
             # ✅ 方案B优化：检查是否全是分析/摘要类任务
             analysis_like_tools = {"analyze_text_tool", "summarization", "analyze_content"}
             all_analyze = all(
@@ -4940,13 +5039,9 @@ chapter_id: {chapter_id}
 
             final_content = "\n\n".join(parts)
 
-            # 模拟流式输出（保持用户体验一致）
+            # ✅ 方案B修复：直接发送整个内容（比分块发送更快）
             if on_content:
-                # 分块发送，模拟流式输出效果
-                chunk_size = 50  # 每次发送50个字符
-                for i in range(0, len(final_content), chunk_size):
-                    chunk = final_content[i:i + chunk_size]
-                    await on_content(chunk)
+                await on_content(final_content)
 
             return final_content
 
@@ -5032,12 +5127,9 @@ chapter_id: {chapter_id}
         # 组合响应
         final_response = "\n\n---\n\n".join(response_parts)
 
-        # 模拟流式输出
+        # ✅ 方案B修复：直接发送整个内容（比分块发送更快）
         if on_content and final_response:
-            chunk_size = 50
-            for i in range(0, len(final_response), chunk_size):
-                chunk = final_response[i:i + chunk_size]
-                await on_content(chunk)
+            await on_content(final_response)
 
         return final_response
 
@@ -5126,44 +5218,46 @@ chapter_id: {chapter_id}
 
 请生成最终响应："""
 
-        # ✅ 直接调用 _generate_text，并再加一层超时保护，避免卡死
-        try:
-            async with asyncio.timeout(TimeoutConfig.LLM_CALL):
-                result = await self._generate_text(
-                    prompt=summary_prompt,
-                    max_tokens=2000,
-                    temperature=0.7,
-                    task_type=TaskType.SUMMARIZATION
-                )
-        except asyncio.TimeoutError:
-            logger.warning(f"[Summarization] 超时({TimeoutConfig.LLM_CALL}s)，返回任务结果摘要作为降级")
-            increment_counter("ai_summarization_error", labels={"error_type": "Timeout"})
-            fallback_content = "抱歉，生成摘要超时。以下是任务结果摘要：\n\n"
+        # ✅ 使用流式生成，实现真正的同步流式输出
+        logger.info("[Summarization] 使用流式生成（_generate_text_stream）")
+
+        # 定义流式回调：直接将每个 chunk 传递给 on_content
+        async def stream_callback(chunk: str):
+            if on_content and chunk:
+                await on_content(chunk)
+
+        # 调用流式生成方法（内部已有超时和异常处理）
+        result = await self._generate_text_stream(
+            prompt=summary_prompt,
+            on_chunk=stream_callback,
+            max_tokens=2000,
+            temperature=0.7,
+            task_type=TaskType.SUMMARIZATION,
+            buffer_size=1  # ✅ 逐字输出：每1个字符发送一次
+        )
+
+        # 检查是否有错误
+        if "error" in result and not result.get("partial"):
+            logger.warning(f"[Summarization] _generate_text_stream 失败: {result.get('error')}")
+            increment_counter("ai_summarization_error", labels={"error_type": result.get('error', 'unknown')})
+            # 返回简单的任务结果拼接作为 fallback
+            fallback_content = "抱歉，AI整合失败。以下是任务结果摘要：\n\n"
             for task_result in task_results:
                 fallback_content += f"- 任务{task_result['task_id']}: {task_result.get('description', 'N/A')}\n"
                 if task_result.get('status') == 'completed':
                     result_text = str(task_result.get('result', ''))[:200]
                     fallback_content += f"  结果: {result_text}...\n"
+            # 发送 fallback 内容
+            if on_content:
+                await on_content(fallback_content)
             return fallback_content
 
-        # 检查是否有错误（超时或其他异常）
-        if "error" in result:
-            logger.warning(f"[Summarization] _generate_text 失败: {result.get('error')}")
-            increment_counter("ai_summarization_error", labels={"error_type": result.get('error', 'unknown')})
-            # 返回简单的任务结果拼接作为fallback
-            fallback_content = f"抱歉，AI整合失败。以下是任务结果摘要：\n\n"
-            for task_result in task_results:
-                fallback_content += f"- 任务{task_result['task_id']}: {task_result.get('description', 'N/A')}\n"
-                if task_result.get('status') == 'completed':
-                    result_text = str(task_result.get('result', ''))[:200]
-                    fallback_content += f"  结果: {result_text}...\n"
-            return fallback_content
+        # 如果是部分内容（超时但有内容），记录日志
+        if result.get("partial"):
+            logger.warning(f"[Summarization] 流式生成超时，返回部分内容（{len(result.get('text', ''))}字符）")
 
         final_content = result.get("text", "")
-
-        # 如果有流式回调，发送完整内容
-        if on_content and final_content:
-            await on_content(final_content)
+        # 注意：内容已通过 stream_callback 流式发送，这里不再重复发送
 
         return final_content
 

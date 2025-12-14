@@ -3,6 +3,7 @@
  * 输入 / 触发快速插入命令
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Editor } from '@tiptap/core';
 import {
   Heading1,
@@ -32,8 +33,163 @@ export interface CommandItem {
 }
 
 /**
- * Slash 命令列表
+ * 获取本地化的 Slash 命令列表
  */
+export const getSlashCommands = (t: (key: string) => string): CommandItem[] => [
+  {
+    title: t('editor.slashCommand.paragraph'),
+    description: t('editor.slashCommand.paragraphDesc'),
+    icon: <Type className="w-5 h-5" />,
+    searchTerms: ['p', 'paragraph', 'text', '段落', 'zhengwen'],
+    command: (editor) => {
+      editor.chain().focus().setParagraph().run();
+    },
+  },
+  {
+    title: t('editor.slashCommand.heading1'),
+    description: t('editor.slashCommand.heading1Desc'),
+    icon: <Heading1 className="w-5 h-5" />,
+    searchTerms: ['h1', 'heading1', 'title', '标题', 'yiji'],
+    command: (editor) => {
+      editor.chain().focus().toggleHeading({ level: 1 }).run();
+    },
+  },
+  {
+    title: t('editor.slashCommand.heading2'),
+    description: t('editor.slashCommand.heading2Desc'),
+    icon: <Heading2 className="w-5 h-5" />,
+    searchTerms: ['h2', 'heading2', 'subtitle', '标题', 'erji'],
+    command: (editor) => {
+      editor.chain().focus().toggleHeading({ level: 2 }).run();
+    },
+  },
+  {
+    title: t('editor.slashCommand.heading3'),
+    description: t('editor.slashCommand.heading3Desc'),
+    icon: <Heading3 className="w-5 h-5" />,
+    searchTerms: ['h3', 'heading3', '标题', 'sanji'],
+    command: (editor) => {
+      editor.chain().focus().toggleHeading({ level: 3 }).run();
+    },
+  },
+  {
+    title: t('editor.slashCommand.bulletList'),
+    description: t('editor.slashCommand.bulletListDesc'),
+    icon: <List className="w-5 h-5" />,
+    searchTerms: ['ul', 'bullet', 'list', '列表', 'wuxu'],
+    command: (editor) => {
+      editor.chain().focus().toggleBulletList().run();
+    },
+  },
+  {
+    title: t('editor.slashCommand.orderedList'),
+    description: t('editor.slashCommand.orderedListDesc'),
+    icon: <ListOrdered className="w-5 h-5" />,
+    searchTerms: ['ol', 'number', 'list', '列表', 'youxu'],
+    command: (editor) => {
+      editor.chain().focus().toggleOrderedList().run();
+    },
+  },
+  {
+    title: t('editor.slashCommand.taskList'),
+    description: t('editor.slashCommand.taskListDesc'),
+    icon: <CheckSquare className="w-5 h-5" />,
+    searchTerms: ['todo', 'task', 'checkbox', '任务', 'renwu'],
+    command: (editor) => {
+      editor.chain().focus().toggleTaskList().run();
+    },
+  },
+  {
+    title: t('editor.slashCommand.quote'),
+    description: t('editor.slashCommand.quoteDesc'),
+    icon: <Quote className="w-5 h-5" />,
+    searchTerms: ['quote', 'blockquote', '引用', 'yinyong'],
+    command: (editor) => {
+      editor.chain().focus().toggleBlockquote().run();
+    },
+  },
+  {
+    title: t('editor.slashCommand.codeBlock'),
+    description: t('editor.slashCommand.codeBlockDesc'),
+    icon: <FileCode className="w-5 h-5" />,
+    searchTerms: ['code', 'codeblock', '代码', 'daima'],
+    command: (editor) => {
+      editor.chain().focus().toggleCodeBlock().run();
+    },
+  },
+  {
+    title: t('editor.slashCommand.divider'),
+    description: t('editor.slashCommand.dividerDesc'),
+    icon: <Minus className="w-5 h-5" />,
+    searchTerms: ['hr', 'horizontal', 'line', '分割', 'fenge'],
+    command: (editor) => {
+      editor.chain().focus().setHorizontalRule().run();
+    },
+  },
+  {
+    title: t('editor.slashCommand.image'),
+    description: t('editor.slashCommand.imageDesc'),
+    icon: <Image className="w-5 h-5" />,
+    searchTerms: ['image', 'img', 'photo', '图片', 'tupian'],
+    command: (editor) => {
+      const url = window.prompt(t('editor.toolbar.enterImageUrl'));
+      if (url) {
+        editor.chain().focus().setImage({ src: url }).run();
+      }
+    },
+  },
+  {
+    title: t('editor.slashCommand.aiContinue'),
+    description: t('editor.slashCommand.aiContinueDesc'),
+    icon: <Wand2 className="w-5 h-5" />,
+    searchTerms: ['ai', 'continue', 'write', '续写', 'xuxie', 'ai续写'],
+    command: (editor) => {
+      // 触发 AI 续写
+      const event = new CustomEvent('ai-continue', {
+        detail: { editor },
+      });
+      window.dispatchEvent(event);
+    },
+  },
+  {
+    title: t('editor.slashCommand.aiExpand'),
+    description: t('editor.slashCommand.aiExpandDesc'),
+    icon: <FileText className="w-5 h-5" />,
+    searchTerms: ['ai', 'expand', '扩写', 'kuoxie', 'ai扩写'],
+    command: (editor) => {
+      const event = new CustomEvent('ai-expand', {
+        detail: { editor },
+      });
+      window.dispatchEvent(event);
+    },
+  },
+  {
+    title: t('editor.slashCommand.aiSummarize'),
+    description: t('editor.slashCommand.aiSummarizeDesc'),
+    icon: <Minimize2 className="w-5 h-5" />,
+    searchTerms: ['ai', 'summarize', 'summary', '总结', 'zongjie', 'ai总结'],
+    command: (editor) => {
+      const event = new CustomEvent('ai-summarize', {
+        detail: { editor },
+      });
+      window.dispatchEvent(event);
+    },
+  },
+  {
+    title: t('editor.slashCommand.aiPolish'),
+    description: t('editor.slashCommand.aiPolishDesc'),
+    icon: <Sparkles className="w-5 h-5" />,
+    searchTerms: ['ai', 'polish', 'improve', '润色', 'runse', 'ai润色'],
+    command: (editor) => {
+      const event = new CustomEvent('ai-polish', {
+        detail: { editor },
+      });
+      window.dispatchEvent(event);
+    },
+  },
+];
+
+// 为兼容性保留的静态命令列表（不带翻译，作为后备）
 export const slashCommands: CommandItem[] = [
   {
     title: '正文',
@@ -143,7 +299,6 @@ export const slashCommands: CommandItem[] = [
     icon: <Wand2 className="w-5 h-5" />,
     searchTerms: ['ai', 'continue', 'write', '续写', 'xuxie', 'ai续写'],
     command: (editor) => {
-      // 触发 AI 续写
       const event = new CustomEvent('ai-continue', {
         detail: { editor },
       });
@@ -191,14 +346,15 @@ export const slashCommands: CommandItem[] = [
 /**
  * 过滤命令
  */
-export const filterCommands = (query: string): CommandItem[] => {
+export const filterCommands = (query: string, commands?: CommandItem[]): CommandItem[] => {
   const lowerQuery = query.toLowerCase();
+  const commandList = commands || slashCommands;
 
   if (!lowerQuery) {
-    return slashCommands;
+    return commandList;
   }
 
-  return slashCommands.filter((item) => {
+  return commandList.filter((item) => {
     const titleMatch = item.title.toLowerCase().includes(lowerQuery);
     const descMatch = item.description.toLowerCase().includes(lowerQuery);
     const searchMatch = item.searchTerms?.some((term) =>
@@ -223,10 +379,12 @@ export const SlashCommandsMenu: React.FC<SlashCommandsMenuProps> = ({
   selectedIndex,
   onSelect,
 }) => {
+  const { t } = useTranslation();
+
   if (items.length === 0) {
     return (
       <div className="slash-commands-menu">
-        <div className="px-4 py-3 text-sm text-gray-500">没有找到匹配的命令</div>
+        <div className="px-4 py-3 text-sm text-gray-500">{t('editor.slashCommand.noMatchingCommand')}</div>
       </div>
     );
   }

@@ -3,6 +3,7 @@
  * 实时显示 AI 建议和补全文本
  */
 import React, { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Editor } from '@tiptap/core';
 import { ArrowUp, Sparkles, Loader2 } from 'lucide-react';
 import AICompletionCommands from './AICompletionCommands';
@@ -21,6 +22,7 @@ const AIAutoComplete: React.FC<AIAutoCompleteProps> = ({
   editor,
   onOpenChange,
 }) => {
+  const { t } = useTranslation();
   const [inputValue, setInputValue] = useState('');
   const [completion, setCompletion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -43,22 +45,22 @@ const AIAutoComplete: React.FC<AIAutoCompleteProps> = ({
 
       switch (option) {
         case 'continue':
-          prompt = `继续写作以下内容，给出自然流畅的续写：\n\n${contextText}`;
+          prompt = `${t('editor.aiAutoComplete.promptContinue')}\n\n${contextText}`;
           break;
         case 'improve':
-          prompt = `改进以下文本，使其更加优美流畅：\n\n${contextText}`;
+          prompt = `${t('editor.aiAutoComplete.promptImprove')}\n\n${contextText}`;
           break;
         case 'shorter':
-          prompt = `缩短以下文本，保留关键信息：\n\n${contextText}`;
+          prompt = `${t('editor.aiAutoComplete.promptShorter')}\n\n${contextText}`;
           break;
         case 'longer':
-          prompt = `扩展以下文本，增加更多细节：\n\n${contextText}`;
+          prompt = `${t('editor.aiAutoComplete.promptLonger')}\n\n${contextText}`;
           break;
         case 'fix':
-          prompt = `修正以下文本的语法和拼写错误：\n\n${contextText}`;
+          prompt = `${t('editor.aiAutoComplete.promptFix')}\n\n${contextText}`;
           break;
         case 'custom':
-          prompt = `${customPrompt?.trim() || '请基于上下文继续写作：'}\n\n文本内容：${contextText}`;
+          prompt = `${customPrompt?.trim() || t('editor.aiAutoComplete.promptDefault')}\n\n${t('editor.aiAutoComplete.textContent')}${contextText}`;
           break;
       }
 
@@ -81,8 +83,8 @@ const AIAutoComplete: React.FC<AIAutoCompleteProps> = ({
         }
       );
     } catch (error) {
-      console.error('AI 生成失败:', error);
-      toast.error('AI 生成失败', (error as Error).message);
+      console.error('AI generation failed:', error);
+      toast.error(t('editor.aiAutoComplete.generateFailed'), (error as Error).message);
     } finally {
       setIsLoading(false);
     }
@@ -115,13 +117,15 @@ const AIAutoComplete: React.FC<AIAutoCompleteProps> = ({
   /**
    * 预设命令选项
    */
-const quickOptions: Array<{ label: string; option: AIOption; icon: string }> = [
-  { label: '继续写作', option: 'continue', icon: '\u270d' },
-  { label: '改进文本', option: 'improve', icon: '\u2728' },
-  { label: '缩短内容', option: 'shorter', icon: '\ud83d\udcc9' },
-  { label: '扩展内容', option: 'longer', icon: '\ud83d\udcd6' },
-  { label: '修正错误', option: 'fix', icon: '\ud83d\udee0' },
+const getQuickOptions = (t: (key: string) => string): Array<{ label: string; option: AIOption; icon: string }> => [
+  { label: t('editor.aiAutoComplete.continueWriting'), option: 'continue', icon: '\u270d' },
+  { label: t('editor.aiAutoComplete.improveText'), option: 'improve', icon: '\u2728' },
+  { label: t('editor.aiAutoComplete.shortenContent'), option: 'shorter', icon: '\ud83d\udcc9' },
+  { label: t('editor.aiAutoComplete.expandContent'), option: 'longer', icon: '\ud83d\udcd6' },
+  { label: t('editor.aiAutoComplete.fixErrors'), option: 'fix', icon: '\ud83d\udee0' },
 ];
+
+  const quickOptions = getQuickOptions(t);
 
   const hasCompletion = completion.length > 0;
 
@@ -140,7 +144,7 @@ const quickOptions: Array<{ label: string; option: AIOption; icon: string }> = [
       {isLoading && (
         <div className="ai-autocomplete-loading">
           <Sparkles className="w-4 h-4 text-purple-500" />
-          <span>AI 正在思考...</span>
+          <span>{t('editor.aiAutoComplete.thinking')}</span>
           <Loader2 className="w-4 h-4 animate-spin" />
         </div>
       )}
@@ -158,7 +162,7 @@ const quickOptions: Array<{ label: string; option: AIOption; icon: string }> = [
                 handleSubmit();
               }
             }}
-            placeholder={hasCompletion ? '告诉 AI 接下来要做什么...' : '让 AI 帮你编辑或生成...'}
+            placeholder={hasCompletion ? t('editor.aiAutoComplete.placeholderNext') : t('editor.aiAutoComplete.placeholderFirst')}
             className="ai-autocomplete-input"
             autoFocus
           />

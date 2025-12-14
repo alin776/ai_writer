@@ -3,6 +3,7 @@
  * 使用 ReactFlow 展示角色、地点、设定之间的关系
  */
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ReactFlow,
   Node,
@@ -409,6 +410,7 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
   connectionModeSource,
   onExitConnectionMode,
 }) => {
+  const { t } = useTranslation();
   // 转换数据
   const graphData = useMemo(() => convertToGraphData(worldData, relationships), [worldData, relationships]);
   
@@ -647,11 +649,11 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
         <div className="absolute top-16 left-1/2 transform -translate-x-1/2 z-[60] bg-primary text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-3 backdrop-blur-sm animate-in fade-in duration-200 text-sm">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-            <span className="text-sm font-medium">连线模式</span>
+            <span className="text-sm font-medium">{t('worldview.graph.connectionMode')}</span>
           </div>
           {connectionModeSource && (
             <div className="flex items-center gap-2 px-2.5 py-1 bg-white/20 rounded-md">
-              <span className="text-xs opacity-80">已选中</span>
+              <span className="text-xs opacity-80">{t('worldview.graph.selectedSource')}</span>
               <span className="text-sm font-medium">{connectionModeSource.name}</span>
             </div>
           )}
@@ -662,7 +664,7 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
             className="text-white hover:bg-white/20 ml-2 h-7 text-xs"
           >
             <X className="w-3.5 h-3.5 mr-1" />
-            退出
+            {t('worldview.graph.exit')}
           </Button>
         </div>
       )}
@@ -716,15 +718,15 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
         <Panel position="top-left" className="worldview-stats-panel">
           <div className="stats-item">
             <Users className="w-4 h-4" />
-            <span>{stats.characterCount} 个角色</span>
+            <span>{stats.characterCount} {t('worldview.graph.characters')}</span>
           </div>
           <div className="stats-item">
             <MapPin className="w-4 h-4" />
-            <span>{stats.locationCount} 个地点</span>
+            <span>{stats.locationCount} {t('worldview.graph.locations')}</span>
           </div>
           <div className="stats-item">
             <BookOpen className="w-4 h-4" />
-            <span>{stats.settingCount} 个设定</span>
+            <span>{stats.settingCount} {t('worldview.graph.settings')}</span>
           </div>
         </Panel>
 
@@ -733,11 +735,11 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
           <Panel position="top-right" className="worldview-hint-toast">
             <div className="hint-content">
               <span className="hint-icon">💡</span>
-              <span className="hint-text">拖动节点调整位置，滚轮缩放视图</span>
-              <button 
+              <span className="hint-text">{t('worldview.graph.hint')}</span>
+              <button
                 onClick={() => setShowHint(false)}
                 className="hint-close"
-                aria-label="关闭提示"
+                aria-label={t('worldview.graph.closeHint')}
               >
                 <X className="w-3 h-3" />
               </button>
@@ -751,7 +753,7 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
             <button
               onClick={() => setShowHint(true)}
               className="help-btn"
-              title="显示操作提示"
+              title={t('worldview.graph.showHint')}
             >
               <HelpCircle className="w-4 h-4" />
             </button>

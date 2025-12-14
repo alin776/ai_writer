@@ -198,42 +198,8 @@ class AgentApiService {
     console.log('6. request.context?.instruction_context:', request.context?.instruction_context);
     console.log('==========================================');
 
-    // 将后端返回的内容细粒度拆分为逐字符小块，保证前端能触发逐字流式动画
-    const TYPE_INTERVAL_MS = 15; // 略微加速逐字节奏
-    const contentQueue: string[] = [];
-    let contentTimer: ReturnType<typeof setTimeout> | null = null;
-    const flushContentQueue = () => {
-      if (!contentQueue.length) {
-        contentTimer = null;
-        return;
-      }
-      const piece = contentQueue.shift();
-      if (piece !== undefined) {
-        callbacks.onContent?.(piece);
-      }
-      contentTimer = setTimeout(flushContentQueue, TYPE_INTERVAL_MS);
-    };
-    const enqueueContent = (text: string | undefined | null) => {
-      if (!text) return;
-      for (const ch of text) {
-        contentQueue.push(ch);
-      }
-      if (!contentTimer) {
-        contentTimer = setTimeout(flushContentQueue, TYPE_INTERVAL_MS);
-      }
-    };
-    const flushRemainingContentSync = () => {
-      if (contentTimer) {
-        clearTimeout(contentTimer);
-        contentTimer = null;
-      }
-      while (contentQueue.length) {
-        const piece = contentQueue.shift();
-        if (piece !== undefined) {
-          callbacks.onContent?.(piece);
-        }
-      }
-    };
+    // ✅ 真正的流式输出：直接传递后端返回的内容，不再拆分和模拟
+    // 后端现在会以小块（5字符）的粒度发送内容，前端直接展示即可
 
     try {
       const response = await fetch(url, {
@@ -287,17 +253,16 @@ class AgentApiService {
                   const content = typeof data.data === 'string'
                     ? data.data
                     : data.data?.content || data.data;
-                  enqueueContent(content);
+                  // ✅ 真正的流式：直接传递内容，不再拆分
+                  callbacks.onContent?.(content);
                   break;
                 case 'step':
                   callbacks.onStep?.(data.data);
                   break;
                 case 'done':
-                  flushRemainingContentSync();
                   callbacks.onDone?.(data.metadata, data.suggested_actions);
                   break;
                 case 'error':
-                  flushRemainingContentSync();
                   callbacks.onError?.(data.error);
                   break;
 
@@ -343,17 +308,11 @@ class AgentApiService {
 
       console.error('[AgentApi] Stream error:', error);
 
-      // 如果是主动停止/中断，不再把队列里内容推给 UI，直接静默结束
+      // 如果是主动停止/中断，直接静默结束
       if (!isAbort) {
-        flushRemainingContentSync();
         callbacks.onError?.(error.message || 'Stream connection failed');
       }
       throw error;
-    } finally {
-      // 防止定时器泄漏
-      if (contentTimer) {
-        clearTimeout(contentTimer);
-      }
     }
   }
   async createSession(payload: { title?: string; work_id?: string; chapter_id?: string }): Promise<{ session_id: string; title?: string; conversation_id?: string; created_at?: string }> {

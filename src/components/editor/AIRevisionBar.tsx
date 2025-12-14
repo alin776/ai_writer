@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export interface RevisionData {
   id: string;
@@ -32,6 +33,7 @@ const AIRevisionBar: React.FC<AIRevisionBarProps> = ({
   onAccept,
   isLoading = false
 }) => {
+  const { t } = useTranslation();
   const barRef = useRef<HTMLDivElement>(null);
 
   // 确保操作栏不超出视口
@@ -69,7 +71,7 @@ const AIRevisionBar: React.FC<AIRevisionBarProps> = ({
         onClick={onRegenerate}
         disabled={isLoading}
         className="ai-revision-btn ai-revision-btn-refresh"
-        title="重新生成"
+        title={t('editor.aiRevision.regenerate')}
       >
         {isLoading ? (
           <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
@@ -81,7 +83,7 @@ const AIRevisionBar: React.FC<AIRevisionBarProps> = ({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
         )}
-        <span>刷新</span>
+        <span>{t('editor.aiRevision.refresh')}</span>
       </button>
 
       {/* 弃用按钮 */}
@@ -89,12 +91,12 @@ const AIRevisionBar: React.FC<AIRevisionBarProps> = ({
         onClick={onDiscard}
         disabled={isLoading}
         className="ai-revision-btn ai-revision-btn-discard"
-        title="弃用修改"
+        title={t('editor.aiRevision.discardChange')}
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>
-        <span>弃用</span>
+        <span>{t('editor.aiRevision.discard')}</span>
       </button>
 
       {/* 采纳按钮 */}
@@ -102,12 +104,12 @@ const AIRevisionBar: React.FC<AIRevisionBarProps> = ({
         onClick={onAccept}
         disabled={isLoading}
         className="ai-revision-btn ai-revision-btn-accept"
-        title="采纳修改"
+        title={t('editor.aiRevision.acceptChange')}
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
         </svg>
-        <span>采纳</span>
+        <span>{t('editor.aiRevision.accept')}</span>
       </button>
     </div>
   );

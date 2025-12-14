@@ -208,14 +208,8 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     selected_text_html?: string;
     selection_position?: { from: number; to: number };
   } | null>(null);
-  const [streamingDisplay, setStreamingDisplay] = useState('');
-  const streamingDisplayRef = useRef('');
-  const pendingCharsRef = useRef('');
-  const typingTimerRef = useRef<number | null>(null);
-  const lastStreamingKeyRef = useRef<string | null>(null);
-  const queuedLengthRef = useRef(0);
-  const activeStreamKeyRef = useRef<string | null>(null);
-  const [isStreamRendering, setIsStreamRendering] = useState(false);
+
+  // ✅ 流式输出：后端逐字发送，前端直接显示（无需前端打字机效果）
 
   const copyMessage = useCallback(async (content: string) => {
     try {
@@ -484,125 +478,9 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     if (shouldAutoScrollRef.current) {
       scrollToBottom();
     }
-  }, [messages, tasks, streamingDisplay, scrollToBottom]);
+  }, [messages, tasks, scrollToBottom]);
 
-  // 逐字流式展示 agent 回复（即使后端stream结束也继续把剩余字符打完）
-  useEffect(() => {
-    const lastAgentMessage =
-      messages.length > 0 && messages[messages.length - 1]?.role === 'agent'
-        ? messages[messages.length - 1]
-        : null;
-    const streamingKey = lastAgentMessage ? `${lastAgentMessage.timestamp || messages.length}` : null;
-    const isNewStream = Boolean(isLoading && lastAgentMessage && streamingKey !== activeStreamKeyRef.current);
-
-    if (isNewStream) {
-      activeStreamKeyRef.current = streamingKey;
-      pendingCharsRef.current = '';
-      queuedLengthRef.current = 0;
-      streamingDisplayRef.current = '';
-      setStreamingDisplay('');
-      if (typingTimerRef.current) {
-        window.clearTimeout(typingTimerRef.current);
-        typingTimerRef.current = null;
-      }
-    }
-
-    const target = lastAgentMessage?.content || '';
-    const targetLength = target.length;
-    const hasPendingChars =
-      targetLength > streamingDisplayRef.current.length || pendingCharsRef.current.length > 0;
-
-    const shouldStream =
-      !!lastAgentMessage &&
-      activeStreamKeyRef.current === streamingKey &&
-      (isLoading || hasPendingChars);
-
-    if (!shouldStream) {
-      if (typingTimerRef.current) {
-        window.clearTimeout(typingTimerRef.current);
-        typingTimerRef.current = null;
-      }
-      pendingCharsRef.current = '';
-      queuedLengthRef.current = 0;
-      streamingDisplayRef.current = '';
-      setStreamingDisplay('');
-      lastStreamingKeyRef.current = null;
-      if (!isLoading) {
-        activeStreamKeyRef.current = null;
-      }
-      setIsStreamRendering(false);
-      return;
-    }
-
-    setIsStreamRendering(true);
-
-    if (streamingKey && streamingKey !== lastStreamingKeyRef.current) {
-      pendingCharsRef.current = '';
-      queuedLengthRef.current = 0;
-      streamingDisplayRef.current = '';
-      setStreamingDisplay('');
-      if (typingTimerRef.current) {
-        window.clearTimeout(typingTimerRef.current);
-        typingTimerRef.current = null;
-      }
-    }
-
-    lastStreamingKeyRef.current = streamingKey;
-
-    if (targetLength > queuedLengthRef.current) {
-      pendingCharsRef.current += target.slice(queuedLengthRef.current);
-      queuedLengthRef.current = targetLength;
-    }
-
-    if (!typingTimerRef.current && pendingCharsRef.current.length > 0) {
-      const typeNext = () => {
-        if (!pendingCharsRef.current.length) {
-          typingTimerRef.current = null;
-          const finishedTyping =
-            !isLoading &&
-            activeStreamKeyRef.current === streamingKey &&
-            streamingDisplayRef.current.length >= targetLength;
-          if (finishedTyping) {
-            setIsStreamRendering(false);
-            activeStreamKeyRef.current = null;
-            streamingDisplayRef.current = '';
-            setStreamingDisplay('');
-            queuedLengthRef.current = 0;
-          }
-          return;
-        }
-
-        const pendingLength = pendingCharsRef.current.length;
-        const batchSize = pendingLength > 200 ? 3 : pendingLength > 80 ? 2 : 1;
-        const nextChunk = pendingCharsRef.current.slice(0, batchSize);
-        pendingCharsRef.current = pendingCharsRef.current.slice(batchSize);
-
-        const nextText = streamingDisplayRef.current + nextChunk;
-        streamingDisplayRef.current = nextText;
-        setStreamingDisplay(nextText);
-
-        typingTimerRef.current = window.setTimeout(typeNext, 40);
-      };
-
-      typingTimerRef.current = window.setTimeout(typeNext, 0);
-    }
-
-    if (!isLoading && pendingCharsRef.current.length === 0 && streamingDisplayRef.current.length >= targetLength) {
-      setIsStreamRendering(false);
-      activeStreamKeyRef.current = null;
-      streamingDisplayRef.current = '';
-      setStreamingDisplay('');
-      queuedLengthRef.current = 0;
-    }
-  }, [isLoading, messages]);
-
-  useEffect(() => {
-    return () => {
-      if (typingTimerRef.current) {
-        window.clearTimeout(typingTimerRef.current);
-      }
-    };
-  }, []);
+  // ✅ 流式输出：后端已实现逐字发送，前端直接使用 message.content
 
   const repositionMenu = useCallback(() => {
     const inputEl = inputRef.current;
@@ -957,8 +835,12 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   }, [inputValue, selectedDocs.length, optimizationSelected, adjustInputHeight]);
 
   const lastMessageIsAgent = messages.length > 0 && messages[messages.length - 1]?.role === 'agent';
-  const hasStreamingAgentMessage = isStreamRendering && lastMessageIsAgent;
-  const streamingVisibleContent = hasStreamingAgentMessage ? streamingDisplay : '';
+  // ✅ 流式输出：后端逐字发送，前端直接显示 message.content
+  const hasStreamingAgentMessage = isLoading && lastMessageIsAgent;
+  // ✅ 直接使用最后一条 agent 消息的 content，无需打字机队列
+  const streamingVisibleContent = hasStreamingAgentMessage
+    ? (messages[messages.length - 1]?.content || '')
+    : '';
 
   return (
     <div className="p-3 h-full flex flex-col overflow-hidden dark:bg-slate-900">

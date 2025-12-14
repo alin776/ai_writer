@@ -1,5 +1,6 @@
-﻿import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   BookOpen,
   Settings,
@@ -22,48 +23,48 @@ import clsx from 'clsx';
 
 interface NavItem {
   id: string;
-  label: string;
+  labelKey: string;
   icon: React.ComponentType<{ className?: string }>;
   path: string;
   tooltip?: string;
   roles?: string[];
 }
 
-const mainNavItems: NavItem[] = [
-  { id: 'works', label: '作品管理', icon: BookOpen, path: '/works' },
-  { id: 'knowledge', label: '知识库', icon: Library, path: '/knowledge' },
-  { id: 'humanize', label: 'AI去痕', icon: Wand2, path: '/humanize' },
+const mainNavItemsConfig: NavItem[] = [
+  { id: 'works', labelKey: 'sidebar.nav.works', icon: BookOpen, path: '/works' },
+  { id: 'knowledge', labelKey: 'sidebar.nav.knowledge', icon: Library, path: '/knowledge' },
+  { id: 'humanize', labelKey: 'sidebar.nav.humanize', icon: Wand2, path: '/humanize' },
 ];
 
-const serviceNavItems: NavItem[] = [
-  { id: 'tasks', label: '任务中心', icon: Trophy, path: '/tasks' },
-  { id: 'credits', label: '我的积分', icon: Wallet, path: '/service/credits' },
-  { id: 'usage', label: '使用记录', icon: BarChart3, path: '/service/usage' },
-  { id: 'obtain', label: '获取积分', icon: Gift, path: '/service/obtain' },
+const serviceNavItemsConfig: NavItem[] = [
+  { id: 'tasks', labelKey: 'sidebar.nav.tasks', icon: Trophy, path: '/tasks' },
+  { id: 'credits', labelKey: 'sidebar.nav.credits', icon: Wallet, path: '/service/credits' },
+  { id: 'usage', labelKey: 'sidebar.nav.usage', icon: BarChart3, path: '/service/usage' },
+  { id: 'obtain', labelKey: 'sidebar.nav.obtain', icon: Gift, path: '/service/obtain' },
 ];
 
-// 管理员导航项
-const adminNavItems: NavItem[] = [
-  { id: 'dashboard', label: '数据面板', icon: LayoutDashboard, path: '/admin/dashboard', roles: ['admin'] },
-  { id: 'users', label: '用户管理', icon: Users, path: '/admin/users', roles: ['admin'] },
-  { id: 'ai-models', label: 'AI 模型', icon: Cpu, path: '/admin/ai-models', roles: ['admin'] },
-  { id: 'cost', label: '成本监控', icon: DollarSign, path: '/admin/cost', roles: ['admin'] },
-  { id: 'notifications-admin', label: '通知管理', icon: Bell, path: '/admin/notifications', roles: ['admin'] },
-  { id: 'tasks-admin', label: '任务配置', icon: Trophy, path: '/admin/tasks', roles: ['admin'] },
+const adminNavItemsConfig: NavItem[] = [
+  { id: 'dashboard', labelKey: 'sidebar.nav.dashboard', icon: LayoutDashboard, path: '/admin/dashboard', roles: ['admin'] },
+  { id: 'users', labelKey: 'sidebar.nav.users', icon: Users, path: '/admin/users', roles: ['admin'] },
+  { id: 'ai-models', labelKey: 'sidebar.nav.aiModels', icon: Cpu, path: '/admin/ai-models', roles: ['admin'] },
+  { id: 'cost', labelKey: 'sidebar.nav.cost', icon: DollarSign, path: '/admin/cost', roles: ['admin'] },
+  { id: 'notifications-admin', labelKey: 'sidebar.nav.notificationsAdmin', icon: Bell, path: '/admin/notifications', roles: ['admin'] },
+  { id: 'tasks-admin', labelKey: 'sidebar.nav.tasksAdmin', icon: Trophy, path: '/admin/tasks', roles: ['admin'] },
 ];
 
 export const Sidebar: React.FC = () => {
   const location = useLocation();
   const { user } = useAuthStore();
+  const { t } = useTranslation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isServiceExpanded, setIsServiceExpanded] = useState(true);
 
   const isWorkDetail = location.pathname.startsWith('/works/') && location.pathname !== '/works';
 
-  const dynamicMainNavItems: NavItem[] = useMemo(() => {
-    return mainNavItems.map(item =>
+  const dynamicMainNavItems = useMemo(() => {
+    return mainNavItemsConfig.map(item =>
       item.id === 'works'
-        ? { ...item, label: isWorkDetail ? '作品详情' : '作品管理' }
+        ? { ...item, labelKey: isWorkDetail ? 'sidebar.nav.workDetail' : 'sidebar.nav.works' }
         : item
     );
   }, [isWorkDetail]);
@@ -72,15 +73,16 @@ export const Sidebar: React.FC = () => {
   const hasPermission = (item: NavItem) => !item.roles?.length || item.roles.includes(user?.role || '');
 
   const bottomNavItems: NavItem[] = [
-    { id: 'notifications', label: '通知中心', icon: Bell, path: '/notifications' },
-    { id: 'settings', label: '系统设置', icon: Settings, path: '/settings' },
+    { id: 'notifications', labelKey: 'sidebar.nav.notifications', icon: Bell, path: '/notifications' },
+    { id: 'settings', labelKey: 'sidebar.nav.settings', icon: Settings, path: '/settings' },
   ];
 
   const renderNavItem = (item: NavItem) => {
     if (!hasPermission(item)) return null;
     const Icon = item.icon;
     const active = isActive(item.path);
-    const tooltip = item.tooltip || item.label;
+    const label = t(item.labelKey);
+    const tooltip = item.tooltip || label;
 
     return (
       <Link
@@ -97,7 +99,7 @@ export const Sidebar: React.FC = () => {
       >
         {active && <div className="absolute left-0 top-1 bottom-1 w-1 bg-blue-600 dark:bg-blue-400 rounded-r"></div>}
         <Icon className={clsx('flex-shrink-0', isCollapsed ? 'w-5 h-5' : 'w-4 h-4', 'text-gray-900 dark:text-white')} />
-        {!isCollapsed && <span className="text-sm font-medium">{item.label}</span>}
+        {!isCollapsed && <span className="text-sm font-medium">{label}</span>}
         {isCollapsed && (
           <div className="absolute left-full ml-2 px-2 py-1 bg-slate-900 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
             {tooltip}
@@ -122,20 +124,20 @@ export const Sidebar: React.FC = () => {
                 <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '28px', height: '28px', filter: 'brightness(0) invert(1)' }} />
               </div>
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100 leading-tight">文枢AI</h2>
-                <p className="text-xs text-gray-500 dark:text-slate-400 leading-tight">智能创作助手</p>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100 leading-tight">{t('app.name')}</h2>
+                <p className="text-xs text-gray-500 dark:text-slate-400 leading-tight">{t('app.slogan')}</p>
               </div>
             </Link>
             <button
               onClick={() => setIsCollapsed(true)}
               className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-800 rounded transition-all"
-              title="收起侧边栏"
+              title={t('sidebar.collapse')}
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
           </>
         ) : (
-          <button onClick={() => setIsCollapsed(false)} className="w-full flex justify-center" title="展开侧边栏">
+          <button onClick={() => setIsCollapsed(false)} className="w-full flex justify-center" title={t('sidebar.expand')}>
             <div className="w-12 h-12 bg-gray-900 dark:bg-slate-800 rounded-lg flex items-center justify-center hover:bg-gray-800 dark:hover:bg-slate-700 transition-all">
               <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '32px', height: '32px', filter: 'brightness(0) invert(1)' }} />
             </div>
@@ -146,7 +148,7 @@ export const Sidebar: React.FC = () => {
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
         <div className="space-y-0.5">
           {!isCollapsed && (
-            <div className="px-3 py-2 text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">创作</div>
+            <div className="px-3 py-2 text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">{t('sidebar.sections.create')}</div>
           )}
           {dynamicMainNavItems.map(renderNavItem)}
         </div>
@@ -159,18 +161,18 @@ export const Sidebar: React.FC = () => {
               isCollapsed && 'justify-center'
             )}
           >
-            {!isCollapsed && <span>我的服务</span>}
+            {!isCollapsed && <span>{t('sidebar.sections.myServices')}</span>}
             <ChevronDown className={clsx('w-4 h-4 transition-transform', !isServiceExpanded && '-rotate-90')} />
           </button>
-          {isServiceExpanded && serviceNavItems.map(renderNavItem)}
+          {isServiceExpanded && serviceNavItemsConfig.map(renderNavItem)}
         </div>
 
         {user?.role === 'admin' && (
           <div className="mt-6 space-y-0.5">
             {!isCollapsed && (
-              <div className="px-3 py-2 text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">管理</div>
+              <div className="px-3 py-2 text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">{t('sidebar.sections.admin')}</div>
             )}
-            {adminNavItems.map(renderNavItem)}
+            {adminNavItemsConfig.map(renderNavItem)}
           </div>
         )}
 
@@ -189,10 +191,10 @@ export const Sidebar: React.FC = () => {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-gray-700 dark:text-slate-200 truncate leading-tight">
-                {user?.username || '用户'}
+                {user?.username || t('common.user')}
               </p>
               <p className="text-xs text-gray-500 dark:text-slate-400 leading-tight">
-                {user?.role === 'admin' ? '管理员' : '创作者'}
+                {user?.role === 'admin' ? t('sidebar.roles.admin') : t('sidebar.roles.creator')}
               </p>
             </div>
             <Settings className="w-3.5 h-3.5 text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 flex-shrink-0 transition-colors" />
@@ -212,16 +214,3 @@ export const Sidebar: React.FC = () => {
 };
 
 export default Sidebar;
-
-
-
-
-
-
-
-
-
-
-
-
-

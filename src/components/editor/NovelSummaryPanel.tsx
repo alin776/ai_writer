@@ -3,6 +3,7 @@
  * 提供"小说概括"和"当前章节概括"两个选项
  */
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Loading } from '../common';
 import { DataService } from '@/services/DataService';
 import { BookOpen, FileText, RefreshCw } from 'lucide-react';
@@ -16,11 +17,12 @@ interface NovelSummaryPanelProps {
 
 type TabType = 'novel' | 'chapter';
 
-const NovelSummaryPanel: React.FC<NovelSummaryPanelProps> = ({ 
-  workId, 
+const NovelSummaryPanel: React.FC<NovelSummaryPanelProps> = ({
+  workId,
   currentChapterId,
-  onToast 
+  onToast
 }) => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabType>('novel');
   const [novelSummary, setNovelSummary] = useState<string>('');
   const [chapterSummary, setChapterSummary] = useState<string>('');
@@ -40,15 +42,15 @@ const NovelSummaryPanel: React.FC<NovelSummaryPanelProps> = ({
         const summary = extractSummary(result.macroResults);
         setNovelSummary(summary);
       } else {
-        setNovelSummary('暂无小说概括，请先进行分析');
+        setNovelSummary(t('editor.novelSummary.noSummaryAnalyze'));
       }
     } catch (error: any) {
       const is404 = error?.status === 404 || error?.response?.status === 404;
       if (is404) {
-        setNovelSummary('暂无小说概括，请先进行分析');
+        setNovelSummary(t('editor.novelSummary.noSummaryAnalyze'));
       } else {
-        console.error('加载小说概括失败:', error);
-        onToast('error', '加载小说概括失败');
+        console.error('Failed to load novel summary:', error);
+        onToast('error', t('editor.novelSummary.loadNovelFailed'));
       }
     } finally {
       setIsLoadingNovel(false);
@@ -60,18 +62,18 @@ const NovelSummaryPanel: React.FC<NovelSummaryPanelProps> = ({
    */
   const loadChapterSummary = async () => {
     if (!currentChapterId) {
-      setChapterSummary('请先选择一个章节');
+      setChapterSummary(t('editor.novelSummary.selectChapterFirst'));
       return;
     }
 
     try {
       setIsLoadingChapter(true);
-      
+
       // 获取章节详情
       const chapter = await DataService.getChapter(currentChapterId);
-      
+
       if (!chapter || !chapter.content) {
-        setChapterSummary('章节内容为空');
+        setChapterSummary(t('editor.novelSummary.chapterEmpty'));
         return;
       }
 
@@ -79,9 +81,9 @@ const NovelSummaryPanel: React.FC<NovelSummaryPanelProps> = ({
       const summary = await DataService.summarizeChapter(chapter.content);
       setChapterSummary(summary);
     } catch (error: any) {
-      console.error('加载章节概括失败:', error);
-      setChapterSummary('加载失败，请重试');
-      onToast('error', '加载章节概括失败');
+      console.error('Failed to load chapter summary:', error);
+      setChapterSummary(t('editor.novelSummary.loadFailedRetry'));
+      onToast('error', t('editor.novelSummary.loadChapterFailed'));
     } finally {
       setIsLoadingChapter(false);
     }
@@ -125,14 +127,14 @@ const NovelSummaryPanel: React.FC<NovelSummaryPanelProps> = ({
         return (
           <div className={styles.loadingContainer}>
             <Loading />
-            <p>加载小说概括中...</p>
+            <p>{t('editor.novelSummary.loadingNovelSummary')}</p>
           </div>
         );
       }
 
       return (
         <div className={styles.summaryContent}>
-          {novelSummary || '暂无小说概括'}
+          {novelSummary || t('editor.novelSummary.noNovelSummary')}
         </div>
       );
     }
@@ -142,14 +144,14 @@ const NovelSummaryPanel: React.FC<NovelSummaryPanelProps> = ({
       return (
         <div className={styles.loadingContainer}>
           <Loading />
-          <p>生成章节概括中...</p>
+          <p>{t('editor.novelSummary.generatingChapterSummary')}</p>
         </div>
       );
     }
 
     return (
       <div className={styles.summaryContent}>
-        {chapterSummary || '请先选择一个章节'}
+        {chapterSummary || t('editor.novelSummary.selectChapterFirst')}
       </div>
     );
   };
@@ -163,14 +165,14 @@ const NovelSummaryPanel: React.FC<NovelSummaryPanelProps> = ({
           onClick={() => setActiveTab('novel')}
         >
           <BookOpen size={16} />
-          <span>小说概括</span>
+          <span>{t('editor.novelSummary.novelSummary')}</span>
         </button>
         <button
           className={`${styles.tab} ${activeTab === 'chapter' ? styles.active : ''}`}
           onClick={() => setActiveTab('chapter')}
         >
           <FileText size={16} />
-          <span>当前章节概括</span>
+          <span>{t('editor.novelSummary.currentChapterSummary')}</span>
         </button>
       </div>
 
@@ -183,7 +185,7 @@ const NovelSummaryPanel: React.FC<NovelSummaryPanelProps> = ({
           disabled={isLoadingNovel || isLoadingChapter}
         >
           <RefreshCw size={16} className={isLoadingNovel || isLoadingChapter ? styles.spinning : ''} />
-          <span>刷新</span>
+          <span>{t('editor.novelSummary.refresh')}</span>
         </Button>
       </div>
 
