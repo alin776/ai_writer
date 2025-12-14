@@ -2,24 +2,16 @@
  * 顶部导航栏组件
  */
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  LogOut,
-  User,
   Bell,
   Search,
-  Menu,
-  ChevronDown,
   ArrowLeft,
-  Save,
   MoreHorizontal,
   Clock
 } from 'lucide-react';
-import { useAuthStore } from '@/store/authStore';
-import { DataService } from '@/services/DataService';
 import { useNavigate } from 'react-router-dom';
-import Button from '@/components/common/Button';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
 import { useNotificationStore } from '@/store/notificationStore';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
@@ -29,11 +21,9 @@ import { toLocaleTime } from '@/utils/dateFormat';
 import type { LanguageCode } from '@/i18n';
 
 const Header: React.FC = () => {
-  const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
   const { t, i18n } = useTranslation();
-  const [showUserMenu, setShowUserMenu] = useState(false);
   const [lastSaved] = useState<Date>(new Date());
   const [showSearch, setShowSearch] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -51,12 +41,6 @@ const Header: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-
-  const handleLogout = async () => {
-    await DataService.logout();
-    logout();
-    navigate('/login');
-  };
 
   // 获取当前页面标题
   const getPageTitle = () => {
@@ -164,79 +148,6 @@ const Header: React.FC = () => {
 
           {/* 主题切换按钮 */}
           <ThemeToggle />
-
-          {/* 分隔线 */}
-          <div className="h-4 w-px bg-gray-200 dark:bg-slate-700 mx-1"></div>
-
-          {/* 用户菜单 */}
-          {user && (
-            <div className="relative">
-              <button
-                onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center space-x-2 px-2 py-1 text-gray-900 dark:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-800 rounded transition-colors"
-              >
-                <div className="w-7 h-7 bg-gray-900 dark:bg-slate-700 rounded-full flex items-center justify-center overflow-hidden">
-                  {user.avatar ? (
-                    <img src={user.avatar} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-xs font-medium text-white">
-                      {user.username ? user.username[0].toUpperCase() : 'U'}
-                    </span>
-                  )}
-                </div>
-                <ChevronDown className="w-3 h-3 text-gray-500" />
-              </button>
-
-              {/* 用户下拉菜单 */}
-              {showUserMenu && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setShowUserMenu(false)}
-                  ></div>
-
-                  <div className="absolute right-0 mt-1.5 w-48 bg-white dark:bg-slate-900 rounded border border-gray-200 dark:border-slate-700 py-1 z-50 shadow-sm">
-                    <div className="px-3 py-2 border-b border-gray-100 dark:border-slate-700">
-                      <p className="text-xs font-semibold text-gray-900 dark:text-slate-100">{user.username}</p>
-                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{user.email}</p>
-                    </div>
-
-                    <div className="py-1">
-                      <Link
-                        to="/settings"
-                        className="flex items-center space-x-2 px-3 py-1.5 text-xs text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-slate-100 transition-colors"
-                        onClick={() => setShowUserMenu(false)}
-                      >
-                        <User className="w-3.5 h-3.5" />
-                        <span>{t('header.userMenu.personalSettings')}</span>
-                      </Link>
-
-                      {user.isAdmin && (
-                        <Link
-                          to="/admin/dashboard"
-                          className="flex items-center space-x-2 px-3 py-1.5 text-xs text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-slate-100 transition-colors"
-                          onClick={() => setShowUserMenu(false)}
-                        >
-                          <Menu className="w-3.5 h-3.5" />
-                          <span>{t('header.userMenu.adminPanel')}</span>
-                        </Link>
-                      )}
-                    </div>
-
-                    <div className="pt-1 border-t border-gray-100 dark:border-slate-700">
-                      <button
-                        onClick={handleLogout}
-                        className="flex items-center space-x-2 px-3 py-1.5 text-xs text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-slate-100 transition-colors w-full text-left"
-                      >
-                        <LogOut className="w-3.5 h-3.5" />
-                        <span>{t('header.userMenu.logout')}</span>
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
