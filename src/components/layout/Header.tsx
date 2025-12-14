@@ -159,11 +159,11 @@ const Header: React.FC = () => {
             )}
           </div>
 
-          {/* 主题切换按钮 */}
-          <ThemeToggle />
-
           {/* 语言切换按钮 */}
           <LanguageToggle />
+
+          {/* 主题切换按钮 */}
+          <ThemeToggle />
 
           {/* 分隔线 */}
           <div className="h-4 w-px bg-gray-200 dark:bg-slate-700 mx-1"></div>
