@@ -12,6 +12,7 @@ from app.models.user import User
 from app.schemas.chapter import ChapterCreate, ChapterUpdate, ChapterResponse, ChapterListResponse, ChapterSummaryResponse
 from app.services.chapter_service import ChapterService
 from app.services.work_service import WorkService
+from app.services.task_service import TaskService
 from app.services.ai.http_ai_service import HTTPAIService
 
 logger = logging.getLogger(__name__)
@@ -161,6 +162,12 @@ async def create_chapter(
     # 更新作品统计
     await work_service.update_work_stats(chapter_data.work_id)
 
+    # 如果有内容，触发每日写作任务检查
+    if chapter.content:
+        word_count = len(chapter.content)
+        if word_count > 0:
+            await TaskService.check_daily_writing_task(db, current_user.id, word_count)
+
     # 🔧 2025-12-02: P0修复 - 失效缓存
     _invalidate_chapter_cache(chapter_data.work_id)
 
@@ -206,11 +213,20 @@ async def update_chapter(
             detail="Not authorized to update this chapter"
         )
 
+    # 计算内容变化的字数
+    old_word_count = len(chapter.content) if chapter.content else 0
+    new_word_count = len(chapter_data.content) if chapter_data.content else 0
+    word_count_diff = new_word_count - old_word_count
+
     updated_chapter = await chapter_service.update_chapter(chapter_id, chapter_data)
 
     # 更新作品统计
     work_id = str(chapter.work_id)
     await work_service.update_work_stats(work_id)
+
+    # 如果增加了字数，触发每日写作任务检查
+    if word_count_diff > 0:
+        await TaskService.check_daily_writing_task(db, current_user.id, word_count_diff)
 
     # 🔧 2025-12-02: P0修复 - 失效缓存
     _invalidate_chapter_cache(work_id)

@@ -1,6 +1,6 @@
 ﻿import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Cpu, DollarSign, ArrowLeft, Gift, Coins, Bell } from 'lucide-react';
+import { LayoutDashboard, Users, Cpu, DollarSign, ArrowLeft, Gift, Coins, Bell, Trophy } from 'lucide-react';
 
 const AdminSidebar: React.FC = () => {
   const location = useLocation();
@@ -33,6 +33,12 @@ const AdminSidebar: React.FC = () => {
       icon: Coins,
       label: '积分管理',
       description: '管理兑换码和积分',
+    },
+    {
+      path: '/admin/tasks',
+      icon: Trophy,
+      label: '任务配置',
+      description: '管理任务奖励系统',
     },
     {
       path: '/admin/ai-models',

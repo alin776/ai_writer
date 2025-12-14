@@ -22,6 +22,7 @@ const AdminCostView = React.lazy(() => import('../views/AdminCostView'));
 const AdminInvitationsView = React.lazy(() => import('../views/AdminInvitationsView'));
 const AdminCreditsView = React.lazy(() => import('../views/AdminCreditsView'));
 const AdminNotificationsView = React.lazy(() => import('../views/AdminNotificationsView'));
+const AdminTasksView = React.lazy(() => import('../views/AdminTasksView'));
 const SettingsView = React.lazy(() => import('../views/SettingsView'));
 const ChangePasswordView = React.lazy(() => import('../views/ChangePasswordView'));
 const ChangeEmailView = React.lazy(() => import('../views/ChangeEmailView'));
@@ -29,6 +30,9 @@ const ForgotPasswordView = React.lazy(() => import('../views/ForgotPasswordView'
 const KnowledgeView = React.lazy(() => import('../views/KnowledgeView'));
 const NotificationCenter = React.lazy(() => import('../pages/NotificationCenter'));
 const ActivityDetail = React.lazy(() => import('../pages/ActivityDetail'));
+const SubscriptionView = React.lazy(() => import('../views/SubscriptionView'));
+const ContactView = React.lazy(() => import('../views/ContactView'));
+const TaskRewardsView = React.lazy(() => import('../views/TaskRewardsView'));
 const NotFoundView = React.lazy(() => import('../views/NotFoundView'));
 
 const LoadingFallback: React.FC = () => (
@@ -82,6 +86,22 @@ export const router = createBrowserRouter([
     element: (
       <SuspenseWrapper>
         <AuthView />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: '/subscription',
+    element: (
+      <SuspenseWrapper>
+        <SubscriptionView />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: '/contact',
+    element: (
+      <SuspenseWrapper>
+        <ContactView />
       </SuspenseWrapper>
     ),
   },
@@ -218,6 +238,14 @@ export const router = createBrowserRouter([
           </SuspenseWrapper>
         ),
       },
+      {
+        path: '/tasks',
+        element: (
+          <SuspenseWrapper>
+            <TaskRewardsView />
+          </SuspenseWrapper>
+        ),
+      },
     ],
   },
   {
@@ -284,6 +312,14 @@ export const router = createBrowserRouter([
             element: (
               <SuspenseWrapper>
                 <AdminNotificationsView />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: 'tasks',
+            element: (
+              <SuspenseWrapper>
+                <AdminTasksView />
               </SuspenseWrapper>
             ),
           },

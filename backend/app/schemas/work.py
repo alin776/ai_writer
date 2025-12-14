@@ -35,13 +35,15 @@ class WorkResponse(WorkBase):
     total_words: int
     total_chapters: int
     view_count: int
+    is_published: bool = False
+    is_featured: bool = False
     created_at: datetime
     updated_at: datetime
     published_at: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
-    
+
     @field_serializer('id', 'author_id')
     def serialize_uuid(self, value: UUID, _info) -> str:
         """将 UUID 序列化为字符串"""

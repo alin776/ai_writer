@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Integer, Text, ForeignKey, Enum
+from sqlalchemy import Column, String, DateTime, Integer, Text, ForeignKey, Enum, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -45,11 +45,14 @@ class Work(Base):
     # 分类和状态
     genre = Column(Enum(WorkGenre), nullable=False, default=WorkGenre.OTHER)
     status = Column(Enum(WorkStatus), nullable=False, default=WorkStatus.DRAFT)
-    
+    is_published = Column(Boolean, default=False, nullable=False, comment="是否发布到小说广场")
+    is_featured = Column(Boolean, default=False, nullable=False, index=True, comment="是否为推荐作品(最多5本)")
+
     # 统计信息
     total_words = Column(Integer, default=0, nullable=False)
     total_chapters = Column(Integer, default=0, nullable=False)
     view_count = Column(Integer, default=0, nullable=False)
+    favorite_count = Column(Integer, default=0, nullable=False, comment="收藏数")
     
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

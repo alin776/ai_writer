@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, timedelta, timezone
 import logging
 from pydantic import BaseModel
@@ -29,6 +29,18 @@ async def _calculate_weekly_new_words(db: AsyncSession, author_id: str) -> int:
 class CoverUploadResponse(BaseModel):
     """封面上传响应"""
     cover_url: str
+
+
+class PublishWorkRequest(BaseModel):
+    """发布作品请求"""
+    chapter_ids: List[str]
+
+
+class PublishWorkResponse(BaseModel):
+    """发布作品响应"""
+    message: str
+    work_id: str
+    is_published: bool
 
 
 @router.get("", response_model=WorkListResponse)
@@ -260,3 +272,98 @@ async def upload_work_cover(
     await work_service.update_work(work_id, work_data)
 
     return CoverUploadResponse(cover_url=cover_url)
+
+
+@router.post("/{work_id}/publish", response_model=PublishWorkResponse)
+async def publish_work(
+    work_id: str,
+    request: PublishWorkRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    发布作品到小说广场
+
+    - **work_id**: 作品ID
+    - **chapter_ids**: 要发布的章节ID列表
+    """
+    work_service = WorkService(db)
+
+    # 检查作品是否存在
+    work = await work_service.get_work_by_id(work_id)
+    if not work:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Work not found"
+        )
+
+    # 检查权限
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to publish this work"
+        )
+
+    # 验证章节ID
+    if not request.chapter_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="请至少选择一个章节"
+        )
+
+    # 发布作品
+    updated_work = await work_service.publish_work(work_id, request.chapter_ids)
+    if not updated_work:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="发布失败"
+        )
+
+    return PublishWorkResponse(
+        message=f"《{updated_work.title}》已发布到小说广场",
+        work_id=str(updated_work.id),
+        is_published=True
+    )
+
+
+@router.post("/{work_id}/unpublish", response_model=PublishWorkResponse)
+async def unpublish_work(
+    work_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    取消发布作品
+
+    - **work_id**: 作品ID
+    """
+    work_service = WorkService(db)
+
+    # 检查作品是否存在
+    work = await work_service.get_work_by_id(work_id)
+    if not work:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Work not found"
+        )
+
+    # 检查权限
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to unpublish this work"
+        )
+
+    # 取消发布作品
+    updated_work = await work_service.unpublish_work(work_id)
+    if not updated_work:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="取消发布失败"
+        )
+
+    return PublishWorkResponse(
+        message=f"《{updated_work.title}》已取消发布",
+        work_id=str(updated_work.id),
+        is_published=False
+    )

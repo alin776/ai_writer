@@ -25,6 +25,7 @@ from app.schemas.user import (
 from app.services.user_service import UserService
 from app.services.cos_service import get_cos_service
 from app.services.email_verification_service import get_email_verification_service
+from app.services.task_service import TaskService
 from app.core.config import settings
 
 router = APIRouter()
@@ -46,15 +47,31 @@ async def update_current_user(
 ):
     """更新当前用户信息"""
     user_service = UserService(db)
-    
+
     try:
+        # 检查是否修改了用户名
+        username_changed = user_data.username and user_data.username != current_user.username
+
         user = await user_service.update_user(str(current_user.id), user_data)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
+
+        # 如果修改了用户名，触发任务检查（失败不影响用户名更新）
+        if username_changed:
+            print(f"[Username Update] About to check username task for user {current_user.id}")
+            try:
+                await TaskService.check_username_task(db, current_user.id)
+                print(f"[Username Update] Username task check completed")
+            except Exception as task_error:
+                print(f"[Username Update] Task check failed (non-critical): {task_error}")
+                import traceback
+                traceback.print_exc()
+
         await db.commit()
+        print(f"[Username Update] Transaction committed")
         return user
     except ValueError as e:
         raise HTTPException(
@@ -289,7 +306,19 @@ async def upload_my_avatar(
     user_service = UserService(db)
     try:
         await user_service.update_avatar(str(current_user.id), avatar_url)
+
+        # 触发头像设置任务检查（失败不影响头像上传）
+        print(f"[Avatar Upload] About to check avatar task for user {current_user.id}")
+        try:
+            await TaskService.check_avatar_task(db, current_user.id)
+            print(f"[Avatar Upload] Avatar task check completed")
+        except Exception as task_error:
+            print(f"[Avatar Upload] Task check failed (non-critical): {task_error}")
+            import traceback
+            traceback.print_exc()
+
         await db.commit()
+        print(f"[Avatar Upload] Transaction committed")
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

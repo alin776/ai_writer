@@ -2,6 +2,7 @@ from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
+from datetime import datetime, timezone
 
 from app.models.work import Work
 from app.models.chapter import Chapter
@@ -118,7 +119,7 @@ class WorkService:
         work = await self.get_work_by_id(work_id)
         if not work:
             return
-        
+
         # 统计章节数和总字数
         result = await self.db.execute(
             select(
@@ -127,8 +128,81 @@ class WorkService:
             ).where(Chapter.work_id == work_id)
         )
         chapter_count, total_words = result.one()
-        
+
         work.total_chapters = chapter_count or 0
         work.total_words = total_words or 0
-        
+
         await self.db.commit()
+
+    async def publish_work(self, work_id: str, chapter_ids: List[str]) -> Optional[Work]:
+        """
+        发布作品到小说广场
+
+        Args:
+            work_id: 作品ID
+            chapter_ids: 要发布的章节ID列表
+
+        Returns:
+            更新后的作品对象
+        """
+        work = await self.get_work_by_id(work_id, use_cache=False)
+        if not work:
+            return None
+
+        # 设置作品为已发布
+        work.is_published = True
+        work.published_at = datetime.now(timezone.utc)
+
+        # 更新选中章节的发布状态
+        if chapter_ids:
+            result = await self.db.execute(
+                select(Chapter).where(
+                    Chapter.work_id == work_id,
+                    Chapter.id.in_(chapter_ids)
+                )
+            )
+            chapters = result.scalars().all()
+            for chapter in chapters:
+                chapter.is_published = True
+                chapter.published_at = datetime.now(timezone.utc)
+
+        await self.db.commit()
+        await self.db.refresh(work)
+
+        # 使缓存失效
+        await CacheInvalidator.invalidate_work(work_id)
+
+        return work
+
+    async def unpublish_work(self, work_id: str) -> Optional[Work]:
+        """
+        取消发布作品
+
+        Args:
+            work_id: 作品ID
+
+        Returns:
+            更新后的作品对象
+        """
+        work = await self.get_work_by_id(work_id, use_cache=False)
+        if not work:
+            return None
+
+        # 设置作品为未发布
+        work.is_published = False
+
+        # 同时取消所有章节的发布状态
+        result = await self.db.execute(
+            select(Chapter).where(Chapter.work_id == work_id)
+        )
+        chapters = result.scalars().all()
+        for chapter in chapters:
+            chapter.is_published = False
+
+        await self.db.commit()
+        await self.db.refresh(work)
+
+        # 使缓存失效
+        await CacheInvalidator.invalidate_work(work_id)
+
+        return work

@@ -420,3 +420,109 @@ async def toggle_admin_role(
         message=f"User {'promoted to' if user.is_admin else 'demoted from'} admin successfully",
         user=UserBasicInfo.model_validate(user)
     )
+
+
+# ========== 推荐作品管理 ==========
+
+
+@router.get("/featured-novels")
+async def get_featured_novels_admin(
+    current_user: User = Depends(check_admin_permission),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    获取所有推荐作品（管理员）
+    """
+    result = await db.execute(
+        select(Work).where(Work.is_featured == True).order_by(Work.published_at.desc())
+    )
+    works = result.scalars().all()
+
+    return {
+        "total": len(works),
+        "items": [
+            {
+                "id": str(work.id),
+                "title": work.title,
+                "author_id": str(work.author_id),
+                "is_published": work.is_published,
+                "published_at": work.published_at,
+                "view_count": work.view_count,
+            }
+            for work in works
+        ]
+    }
+
+
+@router.post("/featured-novels/{work_id}")
+async def add_featured_novel(
+    work_id: str,
+    current_user: User = Depends(check_admin_permission),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    将作品设为推荐（最多5本）
+    """
+    # 检查作品是否存在且已发布
+    work_result = await db.execute(
+        select(Work).where(Work.id == work_id, Work.is_published == True)
+    )
+    work = work_result.scalar_one_or_none()
+
+    if not work:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="作品不存在或未发布"
+        )
+
+    # 检查推荐作品数量
+    featured_count_result = await db.execute(
+        select(func.count(Work.id)).where(Work.is_featured == True)
+    )
+    featured_count = featured_count_result.scalar() or 0
+
+    if featured_count >= 5 and not work.is_featured:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="推荐作品已达上限(5本)，请先取消其他作品的推荐"
+        )
+
+    # 设为推荐
+    work.is_featured = True
+    await db.commit()
+
+    return {
+        "message": f"《{work.title}》已设为推荐作品",
+        "work_id": str(work.id)
+    }
+
+
+@router.delete("/featured-novels/{work_id}")
+async def remove_featured_novel(
+    work_id: str,
+    current_user: User = Depends(check_admin_permission),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    取消作品推荐
+    """
+    # 检查作品是否存在
+    work_result = await db.execute(
+        select(Work).where(Work.id == work_id)
+    )
+    work = work_result.scalar_one_or_none()
+
+    if not work:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="作品不存在"
+        )
+
+    # 取消推荐
+    work.is_featured = False
+    await db.commit()
+
+    return {
+        "message": f"《{work.title}》已取消推荐",
+        "work_id": str(work.id)
+    }
