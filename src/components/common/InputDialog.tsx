@@ -1,8 +1,9 @@
-﻿/**
- * InputDialog - 杈撳叆瀵硅瘽妗嗙粍浠?
- * 鐢ㄤ簬鏇夸唬鍘熺敓鐨?prompt锛屾彁渚涙洿涓撲笟鐨勮緭鍏ヤ綋楠?
+/**
+ * InputDialog - 输入对话框组件
+ * 用于替代原生的 prompt，提供更专业的输入体验
  */
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 
 interface InputField {
@@ -31,13 +32,17 @@ const InputDialog: React.FC<InputDialogProps> = ({
   onConfirm,
   title,
   fields,
-  confirmText = '纭畾',
-  cancelText = '鍙栨秷',
+  confirmText,
+  cancelText,
 }) => {
+  const { t } = useTranslation();
+  const actualConfirmText = confirmText || t('common.confirm');
+  const actualCancelText = cancelText || t('common.cancel');
+
   const [values, setValues] = useState<Record<string, string>>({});
   const firstInputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
-  // 鍒濆鍖栬〃鍗曞€?
+  // 初始化表单值
   useEffect(() => {
     if (isOpen) {
       const initialValues: Record<string, string> = {};
@@ -46,7 +51,7 @@ const InputDialog: React.FC<InputDialogProps> = ({
       });
       setValues(initialValues);
 
-      // 鑱氱劍绗竴涓緭鍏ユ
+      // 聚焦第一个输入框
       setTimeout(() => {
         firstInputRef.current?.focus();
       }, 100);
@@ -60,7 +65,7 @@ const InputDialog: React.FC<InputDialogProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 楠岃瘉蹇呭～瀛楁
+    // 验证必填字段
     for (const field of fields) {
       if (field.required && !values[field.name]?.trim()) {
         return;
@@ -81,18 +86,18 @@ const InputDialog: React.FC<InputDialogProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* 閬僵灞?*/}
+      {/* 遮罩层 */}
       <div
         className="absolute inset-0 bg-black/50 dark:bg-black/60 backdrop-blur-sm animate-fadeIn"
         onClick={onClose}
       />
 
-      {/* 瀵硅瘽妗?*/}
+      {/* 对话框 */}
       <div
         className="relative bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg shadow-2xl w-full max-w-md mx-4 animate-scaleIn border border-gray-200 dark:border-gray-700"
         onKeyDown={handleKeyDown}
       >
-        {/* 澶撮儴 */}
+        {/* 头部 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
           <button
@@ -103,7 +108,7 @@ const InputDialog: React.FC<InputDialogProps> = ({
           </button>
         </div>
 
-        {/* 琛ㄥ崟鍐呭 */}
+        {/* 表单内容 */}
         <form onSubmit={handleSubmit} className="px-6 py-4">
           <div className="space-y-4">
             {fields.map((field, index) => (
@@ -137,20 +142,20 @@ const InputDialog: React.FC<InputDialogProps> = ({
             ))}
           </div>
 
-          {/* 搴曢儴鎸夐挳 */}
+          {/* 底部按钮 */}
           <div className="flex justify-end gap-3 mt-6">
             <button
               type="button"
               onClick={onClose}
               className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
-              {cancelText}
+              {actualCancelText}
             </button>
             <button
               type="submit"
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 dark:bg-blue-500 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-400 transition-colors shadow-sm hover:shadow-md"
             >
-              {confirmText}
+              {actualConfirmText}
             </button>
           </div>
         </form>
@@ -160,13 +165,3 @@ const InputDialog: React.FC<InputDialogProps> = ({
 };
 
 export default InputDialog;
-
-
-
-
-
-
-
-
-
-

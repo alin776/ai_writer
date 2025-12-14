@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TimelineNotification } from '../components/notifications/TimelineNotification';
 import { FeaturedActivity } from '../components/notifications/FeaturedActivity';
 import { CompactActivity } from '../components/notifications/CompactActivity';
@@ -20,6 +21,7 @@ interface Activity {
 }
 
 export default function NotificationCenter() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'notifications' | 'activities'>('activities');
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -78,9 +80,9 @@ export default function NotificationCenter() {
   };
 
   const getActivityCategory = (notification: UserNotification): string => {
-    if (notification.title.includes('工作坊')) return '工作坊';
-    if (notification.title.includes('大会')) return '大会';
-    return '活动';
+    if (notification.title.includes('工作坊') || notification.title.toLowerCase().includes('workshop')) return t('notifications.category.workshop');
+    if (notification.title.includes('大会') || notification.title.toLowerCase().includes('conference')) return t('notifications.category.conference');
+    return t('notifications.category.event');
   };
 
   const getDefaultActivityImage = (index: number): string => {
@@ -116,10 +118,10 @@ export default function NotificationCenter() {
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffHours < 1) return '刚刚';
-    if (diffHours < 24) return `${diffHours}小时前`;
-    if (diffDays < 7) return `${diffDays}天前`;
-    return `${Math.floor(diffDays / 7)}周前`;
+    if (diffHours < 1) return t('notifications.time.justNow');
+    if (diffHours < 24) return t('notifications.time.hoursAgo', { n: diffHours });
+    if (diffDays < 7) return t('notifications.time.daysAgo', { n: diffDays });
+    return t('notifications.time.weeksAgo', { n: Math.floor(diffDays / 7) });
   };
 
   const toggleBatchMode = () => {
@@ -171,7 +173,7 @@ export default function NotificationCenter() {
   if (loading) {
     return (
       <div className="bg-white dark:bg-gray-900 min-h-screen flex items-center justify-center">
-        <div className="text-gray-500 dark:text-gray-400">加载中...</div>
+        <div className="text-gray-500 dark:text-gray-400">{t('notifications.loading')}</div>
       </div>
     );
   }
@@ -193,7 +195,7 @@ export default function NotificationCenter() {
                 >
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-4 h-4" />
-                    <span>活动</span>
+                    <span>{t('notifications.activities')}</span>
                   </div>
                   {activeTab === 'activities' && (
                     <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black dark:bg-white" />
@@ -209,7 +211,7 @@ export default function NotificationCenter() {
                 >
                   <div className="flex items-center gap-2">
                     <Bell className="w-4 h-4" />
-                    <span>通知</span>
+                    <span>{t('notifications.title')}</span>
                     {unreadCount > 0 && (
                       <span className="bg-black dark:bg-white text-white dark:text-gray-900 rounded-full w-4 h-4 flex items-center justify-center text-xs">
                         {unreadCount}
@@ -231,14 +233,14 @@ export default function NotificationCenter() {
                         className="px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white border border-gray-200 dark:border-gray-600 rounded-full hover:border-gray-300 dark:hover:border-gray-500 transition-all flex items-center gap-1.5"
                       >
                         <Check className="w-3.5 h-3.5" />
-                        全部已读
+                        {t('notifications.markAllRead')}
                       </button>
                       <button
                         onClick={toggleBatchMode}
                         className="px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 border border-gray-200 dark:border-gray-600 rounded-full hover:border-red-300 dark:hover:border-red-500 transition-all flex items-center gap-1.5"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                        批量删除
+                        {t('notifications.batchDelete')}
                       </button>
                     </>
                   ) : (
@@ -248,11 +250,11 @@ export default function NotificationCenter() {
                         className="px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white border border-gray-200 dark:border-gray-600 rounded-full hover:border-gray-300 dark:hover:border-gray-500 transition-all flex items-center gap-1.5"
                       >
                         <CheckSquare className="w-3.5 h-3.5" />
-                        {selectedIds.length === notifications.length ? '取消全选' : '全选'}
+                        {selectedIds.length === notifications.length ? t('notifications.deselectAll') : t('notifications.selectAll')}
                       </button>
                       {selectedIds.length > 0 && (
                         <span className="text-xs text-gray-500 dark:text-gray-400 px-2">
-                          已选 {selectedIds.length} 条
+                          {t('notifications.selectedCount', { count: selectedIds.length })}
                         </span>
                       )}
                       <button
@@ -261,14 +263,14 @@ export default function NotificationCenter() {
                         className="px-3 py-1.5 text-xs text-white bg-red-600 hover:bg-red-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed rounded-full transition-all flex items-center gap-1.5"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                        删除选中项
+                        {t('notifications.deleteSelected')}
                       </button>
                       <button
                         onClick={toggleBatchMode}
                         className="px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white border border-gray-200 dark:border-gray-600 rounded-full hover:border-gray-300 dark:hover:border-gray-500 transition-all flex items-center gap-1.5"
                       >
                         <X className="w-3.5 h-3.5" />
-                        取消
+                        {t('notifications.cancel')}
                       </button>
                     </>
                   )}
@@ -284,7 +286,7 @@ export default function NotificationCenter() {
                     {notifications.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-12">
                         <Bell className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" />
-                        <p className="text-sm text-gray-500 dark:text-gray-400">暂无通知</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{t('notifications.empty')}</p>
                       </div>
                     ) : (
                       notifications.map((notification, index) => (
@@ -305,7 +307,7 @@ export default function NotificationCenter() {
                   {activities.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12">
                       <Sparkles className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">暂无活动</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{t('notifications.emptyActivities')}</p>
                     </div>
                   ) : (
                     activities.map((activity) =>
@@ -332,24 +334,24 @@ export default function NotificationCenter() {
             <div className="sticky top-8 space-y-6">
               <div className="border-l-4 border-black dark:border-gray-400 pl-4 py-2">
                 <p className="text-sm text-gray-600 dark:text-gray-400 italic mb-1">
-                  "创作的路上，我们从不孤单。"
+                  {t('notifications.sidebar.quote')}
                 </p>
-                <span className="text-xs text-gray-400 dark:text-gray-500">— 创作者社区</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500">{t('notifications.sidebar.quoteAuthor')}</span>
               </div>
 
               <div className="bg-black dark:bg-gray-800 text-white rounded-3xl p-6">
-                <h3 className="text-base font-medium mb-4 text-white">本月数据</h3>
+                <h3 className="text-base font-medium mb-4 text-white">{t('notifications.sidebar.monthlyStats')}</h3>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between pb-3 border-b border-gray-700 dark:border-gray-600">
-                    <span className="text-sm text-gray-300 dark:text-gray-400">未读通知</span>
+                    <span className="text-sm text-gray-300 dark:text-gray-400">{t('notifications.sidebar.unreadNotifications')}</span>
                     <span className="text-xl font-medium">{unreadCount}</span>
                   </div>
                   <div className="flex items-center justify-between pb-3 border-b border-gray-700 dark:border-gray-600">
-                    <span className="text-sm text-gray-300 dark:text-gray-400">即将到来的活动</span>
+                    <span className="text-sm text-gray-300 dark:text-gray-400">{t('notifications.sidebar.upcomingActivities')}</span>
                     <span className="text-xl font-medium">{activities.length}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-300 dark:text-gray-400">参与活动</span>
+                    <span className="text-sm text-gray-300 dark:text-gray-400">{t('notifications.sidebar.participatedActivities')}</span>
                     <span className="text-xl font-medium">{activities.filter(a => a.notification?.isRead).length}</span>
                   </div>
                 </div>
@@ -369,9 +371,9 @@ export default function NotificationCenter() {
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-base font-medium mb-2 text-white">保持创作热情</h3>
+                    <h3 className="text-base font-medium mb-2 text-white">{t('notifications.sidebar.stayInspired')}</h3>
                     <p className="text-sm text-white/80">
-                      每一次通知都是新的灵感，每一场活动都是成长的机会。
+                      {t('notifications.sidebar.stayInspiredDesc')}
                     </p>
                   </div>
                 </div>

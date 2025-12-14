@@ -4,6 +4,7 @@
  * 设计规范：极简主义，清晰层级，遵循 design_system.md
  */
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Sparkles, Info, Plus, Trash2 } from 'lucide-react';
 
 export interface AIContinueConfig {
@@ -39,6 +40,7 @@ const AIContinueDialog: React.FC<AIContinueDialogProps> = ({
   onConfirm,
   editorContent,
 }) => {
+  const { t } = useTranslation();
   const [config, setConfig] = useState<AIContinueConfig>({
     lastChapterContext: '',
     focusCharacter: '',
@@ -112,7 +114,7 @@ const AIContinueDialog: React.FC<AIContinueDialogProps> = ({
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-gray-900" />
-              <h2 className="text-sm font-medium text-gray-900">AI 续写配置</h2>
+              <h2 className="text-sm font-medium text-gray-900">{t('editor.aiContinue.title')}</h2>
             </div>
             <button
               onClick={onClose}
@@ -128,39 +130,39 @@ const AIContinueDialog: React.FC<AIContinueDialogProps> = ({
             <div className="mb-6 p-4 bg-gray-50 rounded-lg flex gap-3">
               <Info className="w-4 h-4 text-gray-600 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-gray-600 leading-relaxed">
-                所有字段均为可选。已自动提取最后 1000 字作为上下文，您只需填写必要的配置即可。
+                {t('editor.aiContinue.allFieldsOptional')}
               </p>
             </div>
 
             {/* 背景与上下文 */}
             <section className="mb-8">
-              <h3 className="text-sm font-medium text-gray-900 mb-4">背景与上下文</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">{t('editor.aiContinue.backgroundContext')}</h3>
 
               <div className="space-y-4">
                 {/* 焦点人物与状态 */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                      焦点人物
+                      {t('editor.aiContinue.focusCharacter')}
                     </label>
                     <input
                       type="text"
                       value={config.focusCharacter}
                       onChange={(e) => handleInputChange('focusCharacter', e.target.value)}
                       className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded focus:border-gray-400 focus:outline-none transition-colors duration-200"
-                      placeholder="例如：张三"
+                      placeholder={t('editor.aiContinue.focusCharacterPlaceholder')}
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                      角色状态
+                      {t('editor.aiContinue.characterStatus')}
                     </label>
                     <input
                       type="text"
                       value={config.characterStatus}
                       onChange={(e) => handleInputChange('characterStatus', e.target.value)}
                       className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded focus:border-gray-400 focus:outline-none transition-colors duration-200"
-                      placeholder="例如：极度疲惫、愤怒"
+                      placeholder={t('editor.aiContinue.characterStatusPlaceholder')}
                     />
                   </div>
                 </div>
@@ -169,26 +171,26 @@ const AIContinueDialog: React.FC<AIContinueDialogProps> = ({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                      核心地点
+                      {t('editor.aiContinue.coreLocation')}
                     </label>
                     <input
                       type="text"
                       value={config.coreLocation}
                       onChange={(e) => handleInputChange('coreLocation', e.target.value)}
                       className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded focus:border-gray-400 focus:outline-none transition-colors duration-200"
-                      placeholder="例如：废弃工厂"
+                      placeholder={t('editor.aiContinue.coreLocationPlaceholder')}
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                      环境状态
+                      {t('editor.aiContinue.environmentStatus')}
                     </label>
                     <input
                       type="text"
                       value={config.environmentStatus}
                       onChange={(e) => handleInputChange('environmentStatus', e.target.value)}
                       className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded focus:border-gray-400 focus:outline-none transition-colors duration-200"
-                      placeholder="例如：暴风雨中"
+                      placeholder={t('editor.aiContinue.environmentStatusPlaceholder')}
                     />
                   </div>
                 </div>
@@ -196,14 +198,14 @@ const AIContinueDialog: React.FC<AIContinueDialogProps> = ({
                 {/* 关键设定限制 */}
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    关键设定限制
+                    {t('editor.aiContinue.settingConstraints')}
                   </label>
                   <textarea
                     value={config.settingConstraints}
                     onChange={(e) => handleInputChange('settingConstraints', e.target.value)}
                     className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded focus:border-gray-400 focus:outline-none transition-colors duration-200 resize-none"
                     rows={2}
-                    placeholder="例如：禁止使用第五级魔法；角色 B 的武器已损坏"
+                    placeholder={t('editor.aiContinue.settingConstraintsPlaceholder')}
                   />
                 </div>
 
@@ -211,26 +213,26 @@ const AIContinueDialog: React.FC<AIContinueDialogProps> = ({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                      文风形容词 <span className="text-gray-400 font-normal">(3个)</span>
+                      {t('editor.aiContinue.styleAdjectives')} <span className="text-gray-400 font-normal">({t('editor.aiContinue.styleAdjectivesHint')})</span>
                     </label>
                     <input
                       type="text"
                       value={config.styleAdjectives}
                       onChange={(e) => handleInputChange('styleAdjectives', e.target.value)}
                       className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded focus:border-gray-400 focus:outline-none transition-colors duration-200"
-                      placeholder="例如：沉稳、冷静、富有画面感"
+                      placeholder={t('editor.aiContinue.styleAdjectivesPlaceholder')}
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                      情绪基调
+                      {t('editor.aiContinue.emotionalTone')}
                     </label>
                     <input
                       type="text"
                       value={config.emotionalTone}
                       onChange={(e) => handleInputChange('emotionalTone', e.target.value)}
                       className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded focus:border-gray-400 focus:outline-none transition-colors duration-200"
-                      placeholder="例如：紧张、绝望、悬疑"
+                      placeholder={t('editor.aiContinue.emotionalTonePlaceholder')}
                     />
                   </div>
                 </div>
@@ -239,29 +241,29 @@ const AIContinueDialog: React.FC<AIContinueDialogProps> = ({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                      叙事视角
+                      {t('editor.aiContinue.narrativePerspective')}
                     </label>
                     <select
                       value={config.narrativePerspective}
                       onChange={(e) => handleInputChange('narrativePerspective', e.target.value)}
                       className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded focus:border-gray-400 focus:outline-none transition-colors duration-200"
                     >
-                      <option value="第一人称">第一人称</option>
-                      <option value="第三人称受限视角">第三人称受限视角</option>
-                      <option value="全知视角">全知视角</option>
+                      <option value="第一人称">{t('editor.aiContinue.firstPerson')}</option>
+                      <option value="第三人称受限视角">{t('editor.aiContinue.thirdPersonLimited')}</option>
+                      <option value="全知视角">{t('editor.aiContinue.omniscient')}</option>
                     </select>
                   </div>
                   {config.narrativePerspective === '第三人称受限视角' && (
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                        焦点角色
+                        {t('editor.aiContinue.perspectiveFocusCharacter')}
                       </label>
                       <input
                         type="text"
                         value={config.perspectiveFocusCharacter}
                         onChange={(e) => handleInputChange('perspectiveFocusCharacter', e.target.value)}
                         className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded focus:border-gray-400 focus:outline-none transition-colors duration-200"
-                        placeholder="受限视角的焦点角色"
+                        placeholder={t('editor.aiContinue.perspectiveFocusCharacterPlaceholder')}
                       />
                     </div>
                   )}
@@ -271,14 +273,14 @@ const AIContinueDialog: React.FC<AIContinueDialogProps> = ({
 
             {/* 精确续写要求 */}
             <section className="mb-6">
-              <h3 className="text-sm font-medium text-gray-900 mb-4">精确续写要求</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">{t('editor.aiContinue.preciseRequirements')}</h3>
 
               <div className="space-y-4">
                 {/* 目标长度与结束方式 */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                      目标长度（字数）
+                      {t('editor.aiContinue.targetLength')}
                     </label>
                     <input
                       type="number"
@@ -291,14 +293,14 @@ const AIContinueDialog: React.FC<AIContinueDialogProps> = ({
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                      结尾形式
+                      {t('editor.aiContinue.endingStyle')}
                     </label>
                     <input
                       type="text"
                       value={config.endingStyle}
                       onChange={(e) => handleInputChange('endingStyle', e.target.value)}
                       className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded focus:border-gray-400 focus:outline-none transition-colors duration-200"
-                      placeholder="例如：一个未解决的疑问"
+                      placeholder={t('editor.aiContinue.endingStylePlaceholder')}
                     />
                   </div>
                 </div>
@@ -307,7 +309,7 @@ const AIContinueDialog: React.FC<AIContinueDialogProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-medium text-gray-700">
-                      关键情节目标 <span className="text-gray-400 font-normal">(可选)</span>
+                      {t('editor.aiContinue.plotPoints')} <span className="text-gray-400 font-normal">({t('editor.aiContinue.plotPointsOptional')})</span>
                     </label>
                     {config.plotPoints.length < 5 && (
                       <button
@@ -315,7 +317,7 @@ const AIContinueDialog: React.FC<AIContinueDialogProps> = ({
                         className="text-xs text-gray-700 hover:text-gray-900 transition-colors duration-200 flex items-center gap-1"
                       >
                         <Plus className="w-3 h-3" />
-                        添加
+                        {t('editor.aiContinue.addPlotPoint')}
                       </button>
                     )}
                   </div>
@@ -327,7 +329,7 @@ const AIContinueDialog: React.FC<AIContinueDialogProps> = ({
                           value={point}
                           onChange={(e) => handleArrayChange('plotPoints', index, e.target.value)}
                           className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded focus:border-gray-400 focus:outline-none transition-colors duration-200"
-                          placeholder={`任务 ${index + 1}：例如：主角必须通过隐蔽通道离开`}
+                          placeholder={t('editor.aiContinue.plotPointPlaceholder', { n: index + 1 })}
                         />
                         {config.plotPoints.length > 1 && (
                           <button
@@ -346,14 +348,14 @@ const AIContinueDialog: React.FC<AIContinueDialogProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-medium text-gray-700">
-                      限制与禁止内容 <span className="text-gray-400 font-normal">(可选)</span>
+                      {t('editor.aiContinue.prohibitedContent')} <span className="text-gray-400 font-normal">({t('editor.aiContinue.plotPointsOptional')})</span>
                     </label>
                     <button
                       onClick={() => addArrayItem('prohibitedContent')}
                       className="text-xs text-gray-700 hover:text-gray-900 transition-colors duration-200 flex items-center gap-1"
                     >
                       <Plus className="w-3 h-3" />
-                      添加
+                      {t('editor.aiContinue.addProhibited')}
                     </button>
                   </div>
                   <div className="space-y-2">
@@ -364,7 +366,7 @@ const AIContinueDialog: React.FC<AIContinueDialogProps> = ({
                           value={item}
                           onChange={(e) => handleArrayChange('prohibitedContent', index, e.target.value)}
                           className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded focus:border-gray-400 focus:outline-none transition-colors duration-200"
-                          placeholder={`禁止 ${index + 1}：例如：禁止提及任何与"时间"相关的词汇`}
+                          placeholder={t('editor.aiContinue.prohibitedPlaceholder', { n: index + 1 })}
                         />
                         {config.prohibitedContent.length > 1 && (
                           <button
@@ -388,14 +390,14 @@ const AIContinueDialog: React.FC<AIContinueDialogProps> = ({
               onClick={onClose}
               className="px-6 py-2.5 text-sm text-gray-700 border border-gray-200 rounded hover:border-gray-300 hover:bg-gray-50 transition-all duration-200"
             >
-              取消
+              {t('editor.aiContinue.cancel')}
             </button>
             <button
               onClick={handleSubmit}
               className="px-6 py-2.5 bg-gray-900 text-white text-sm rounded hover:bg-gray-800 transition-colors duration-200 flex items-center gap-2"
             >
               <Sparkles className="w-4 h-4" />
-              开始续写
+              {t('editor.aiContinue.startContinue')}
             </button>
           </div>
         </div>

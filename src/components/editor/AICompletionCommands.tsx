@@ -3,6 +3,7 @@
  * 显示替换/插入选项
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Editor } from '@tiptap/core';
 import { Check, TextQuote, Trash2 } from 'lucide-react';
 
@@ -17,6 +18,8 @@ const AICompletionCommands: React.FC<AICompletionCommandsProps> = ({
   completion,
   onDiscard,
 }) => {
+  const { t } = useTranslation();
+
   const handleReplace = () => {
     const { from, to } = editor.state.selection;
     editor
@@ -45,7 +48,7 @@ const AICompletionCommands: React.FC<AICompletionCommandsProps> = ({
         type="button"
       >
         <Check className="w-4 h-4" />
-        <span>替换选中内容</span>
+        <span>{t('editor.aiCompletion.replaceSelection')}</span>
       </button>
       <button
         onClick={handleInsert}
@@ -53,7 +56,7 @@ const AICompletionCommands: React.FC<AICompletionCommandsProps> = ({
         type="button"
       >
         <TextQuote className="w-4 h-4" />
-        <span>在下方插入</span>
+        <span>{t('editor.aiCompletion.insertBelow')}</span>
       </button>
       <div className="ai-completion-separator" />
       <button
@@ -62,7 +65,7 @@ const AICompletionCommands: React.FC<AICompletionCommandsProps> = ({
         type="button"
       >
         <Trash2 className="w-4 h-4" />
-        <span>丢弃</span>
+        <span>{t('editor.aiCompletion.discard')}</span>
       </button>
     </div>
   );

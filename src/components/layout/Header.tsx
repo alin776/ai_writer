@@ -3,6 +3,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   LogOut,
   User,
@@ -23,11 +24,15 @@ import { GlobalSearch } from '@/components/search/GlobalSearch';
 import { useNotificationStore } from '@/store/notificationStore';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
 import ThemeToggle from '@/components/common/ThemeToggle';
+import LanguageToggle from '@/components/common/LanguageToggle';
+import { toLocaleTime } from '@/utils/dateFormat';
+import type { LanguageCode } from '@/i18n';
 
 const Header: React.FC = () => {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const { t, i18n } = useTranslation();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [lastSaved] = useState<Date>(new Date());
   const [showSearch, setShowSearch] = useState(false);
@@ -56,15 +61,15 @@ const Header: React.FC = () => {
   // 获取当前页面标题
   const getPageTitle = () => {
     const path = location.pathname;
-    if (path.includes('/works') && path !== '/works') return '作品详情';
-    if (path === '/works') return '我的作品';
-    if (path.includes('/editor')) return '创作中';
-    if (path.includes('/admin/dashboard')) return '数据面板';
-    if (path.includes('/admin/users')) return '用户管理';
-    if (path.includes('/admin/ai-models')) return 'AI 模型';
-    if (path.includes('/admin/cost')) return '成本监控';
-    if (path.includes('/settings')) return '系统设置';
-    return '文枢AI';
+    if (path.includes('/works') && path !== '/works') return t('header.pages.workDetail');
+    if (path === '/works') return t('header.pages.works');
+    if (path.includes('/editor')) return t('header.pages.editor');
+    if (path.includes('/admin/dashboard')) return t('header.pages.dashboard');
+    if (path.includes('/admin/users')) return t('header.pages.users');
+    if (path.includes('/admin/ai-models')) return t('header.pages.aiModels');
+    if (path.includes('/admin/cost')) return t('header.pages.cost');
+    if (path.includes('/settings')) return t('header.pages.settings');
+    return t('app.name');
   };
 
   // 判断是否在编辑器页面
@@ -81,15 +86,15 @@ const Header: React.FC = () => {
               <button
                 onClick={() => navigate('/works')}
                 className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
-                title="返回作品列表"
+                title={t('header.actions.backToWorks')}
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
               <div className="min-w-0">
-                <h1 className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate">当前作品名称</h1>
+                <h1 className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate">{t('header.pages.workDetail')}</h1>
                 <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-slate-400">
                   <Clock className="w-3 h-3" />
-                  <span>{lastSaved.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} 已保存</span>
+                  <span>{toLocaleTime(lastSaved, i18n.language as LanguageCode)} {t('header.actions.saved')}</span>
                 </div>
               </div>
             </>
@@ -105,10 +110,10 @@ const Header: React.FC = () => {
           {isEditorPage && (
             <>
               <button className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 rounded transition-colors">
-                导出
+                {t('header.actions.export')}
               </button>
               <button className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 rounded transition-colors shadow-sm">
-                AI 续写
+                {t('header.actions.aiContinue')}
               </button>
               <button className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 rounded transition-colors">
                 <MoreHorizontal className="w-4 h-4" />
@@ -121,7 +126,7 @@ const Header: React.FC = () => {
           <button
             className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
             onClick={() => setShowSearch(true)}
-            title="搜索 (Cmd+K)"
+            title={t('header.actions.searchShortcut')}
           >
             <Search className="w-4 h-4" />
           </button>
@@ -157,6 +162,9 @@ const Header: React.FC = () => {
           {/* 主题切换按钮 */}
           <ThemeToggle />
 
+          {/* 语言切换按钮 */}
+          <LanguageToggle />
+
           {/* 分隔线 */}
           <div className="h-4 w-px bg-gray-200 dark:bg-slate-700 mx-1"></div>
 
@@ -169,7 +177,7 @@ const Header: React.FC = () => {
               >
                 <div className="w-7 h-7 bg-gray-900 dark:bg-slate-700 rounded-full flex items-center justify-center overflow-hidden">
                   {user.avatar ? (
-                    <img src={user.avatar} alt="用户头像" className="w-full h-full object-cover" />
+                    <img src={user.avatar} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <span className="text-xs font-medium text-white">
                       {user.username ? user.username[0].toUpperCase() : 'U'}
@@ -200,7 +208,7 @@ const Header: React.FC = () => {
                         onClick={() => setShowUserMenu(false)}
                       >
                         <User className="w-3.5 h-3.5" />
-                        <span>个人设置</span>
+                        <span>{t('header.userMenu.personalSettings')}</span>
                       </Link>
 
                       {user.isAdmin && (
@@ -210,7 +218,7 @@ const Header: React.FC = () => {
                           onClick={() => setShowUserMenu(false)}
                         >
                           <Menu className="w-3.5 h-3.5" />
-                          <span>管理后台</span>
+                          <span>{t('header.userMenu.adminPanel')}</span>
                         </Link>
                       )}
                     </div>
@@ -221,7 +229,7 @@ const Header: React.FC = () => {
                         className="flex items-center space-x-2 px-3 py-1.5 text-xs text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-slate-100 transition-colors w-full text-left"
                       >
                         <LogOut className="w-3.5 h-3.5" />
-                        <span>退出登录</span>
+                        <span>{t('header.userMenu.logout')}</span>
                       </button>
                     </div>
                   </div>

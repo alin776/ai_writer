@@ -5,6 +5,7 @@
  */
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Users, MapPin, BookOpen, ExternalLink } from 'lucide-react';
 import { WorldData } from '@/types/novel';
 
@@ -18,6 +19,7 @@ interface WorldviewSidebarProps {
 const WorldviewSidebar: React.FC<WorldviewSidebarProps> = ({ workId, worldData }) => {
   const [activeTab, setActiveTab] = useState<TabType>('characters');
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   // 跳转到世界观管理页面
   const handleOpenWorldview = () => {
@@ -32,7 +34,7 @@ const WorldviewSidebar: React.FC<WorldviewSidebarProps> = ({ workId, worldData }
       return (
         <div className="flex flex-col items-center justify-center py-12 text-gray-400">
           <Users className="w-12 h-12 mb-2" />
-          <p className="text-sm">暂无角色</p>
+          <p className="text-sm">{t('worldview.empty.noCharacters')}</p>
         </div>
       );
     }
@@ -74,7 +76,7 @@ const WorldviewSidebar: React.FC<WorldviewSidebarProps> = ({ workId, worldData }
       return (
         <div className="flex flex-col items-center justify-center py-12 text-gray-400">
           <MapPin className="w-12 h-12 mb-2" />
-          <p className="text-sm">暂无地点</p>
+          <p className="text-sm">{t('worldview.empty.noLocations')}</p>
         </div>
       );
     }
@@ -116,7 +118,7 @@ const WorldviewSidebar: React.FC<WorldviewSidebarProps> = ({ workId, worldData }
       return (
         <div className="flex flex-col items-center justify-center py-12 text-gray-400">
           <BookOpen className="w-12 h-12 mb-2" />
-          <p className="text-sm">暂无设定</p>
+          <p className="text-sm">{t('worldview.empty.noSettings')}</p>
         </div>
       );
     }
@@ -159,7 +161,7 @@ const WorldviewSidebar: React.FC<WorldviewSidebarProps> = ({ workId, worldData }
           className="w-full px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
         >
           <ExternalLink className="w-4 h-4" />
-          打开世界观管理
+          {t('worldview.actions.openWorldview')}
         </button>
       </div>
 
@@ -174,7 +176,7 @@ const WorldviewSidebar: React.FC<WorldviewSidebarProps> = ({ workId, worldData }
           onClick={() => setActiveTab('characters')}
         >
           <Users className="w-4 h-4 inline-block mr-1" />
-          人物
+          {t('worldview.tabs.characters')}
         </button>
         <button
           className={`flex-1 px-3 py-2.5 text-sm font-medium transition-colors ${
@@ -185,7 +187,7 @@ const WorldviewSidebar: React.FC<WorldviewSidebarProps> = ({ workId, worldData }
           onClick={() => setActiveTab('locations')}
         >
           <MapPin className="w-4 h-4 inline-block mr-1" />
-          地点
+          {t('worldview.tabs.locations')}
         </button>
         <button
           className={`flex-1 px-3 py-2.5 text-sm font-medium transition-colors ${
@@ -196,7 +198,7 @@ const WorldviewSidebar: React.FC<WorldviewSidebarProps> = ({ workId, worldData }
           onClick={() => setActiveTab('settings')}
         >
           <BookOpen className="w-4 h-4 inline-block mr-1" />
-          设定
+          {t('worldview.tabs.settings')}
         </button>
       </div>
 
@@ -204,7 +206,7 @@ const WorldviewSidebar: React.FC<WorldviewSidebarProps> = ({ workId, worldData }
       <div className="flex-1 overflow-y-auto p-3">
         {/* 提示信息 */}
         <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
-          💡 点击任意项目可打开世界观管理页面进行编辑
+          💡 {t('worldview.actions.clickToEdit')}
         </div>
 
         {/* 列表 */}

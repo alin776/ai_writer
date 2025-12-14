@@ -6,8 +6,9 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { formatDistanceToNow } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
+import { zhCN, zhTW, enUS } from 'date-fns/locale';
 import {
   Bell,
   AlertCircle,
@@ -29,7 +30,20 @@ interface NotificationItemProps {
 
 const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onClose }) => {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
   const { markAsRead, clickAction } = useNotificationStore();
+
+  // 获取当前语言对应的 date-fns locale
+  const getDateLocale = () => {
+    switch (i18n.language) {
+      case 'zh-TW':
+        return zhTW;
+      case 'en-US':
+        return enUS;
+      default:
+        return zhCN;
+    }
+  };
 
   // 获取通知图标 - 更小更精致
   const getIcon = () => {
@@ -79,15 +93,15 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onClo
       const date = new Date(notification.createdAt);
       // 检查日期是否有效
       if (isNaN(date.getTime())) {
-        return '刚刚';
+        return t('date.justNow');
       }
       return formatDistanceToNow(date, {
         addSuffix: true,
-        locale: zhCN,
+        locale: getDateLocale(),
       });
     } catch (error) {
       console.error('日期格式化错误:', error, notification.createdAt);
-      return '刚刚';
+      return t('date.justNow');
     }
   };
 

@@ -4,6 +4,7 @@
  * 严格遵循详细的 UI/UX 规范：圆角、焦点样式、颜色对比、动态数组管理、平滑动画。
  */
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Sparkles, ChevronDown, Plus, Trash2, Zap, Settings, Loader2 } from 'lucide-react';
 
 // 保持原有的接口定义
@@ -58,6 +59,7 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
     onConfirm,
     editorContent,
 }) => {
+    const { t } = useTranslation();
     const [mode, setMode] = useState<Mode>('quick');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -132,7 +134,7 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
         // 关键情节目标验证（无论模式，只要列表不为空，至少要有一个非空项）
         const hasValidPlotPoint = config.plotPoints.some(p => p.trim());
         if (!hasValidPlotPoint) {
-            newErrors.plotPoints = '必须至少填写一个关键情节目标以驱动续写。';
+            newErrors.plotPoints = t('editor.aiContinue.writingIntentRequired');
         }
 
         setErrors(newErrors);
@@ -164,7 +166,7 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
     };
 
     // 7. 文风标签逻辑
-    const styleTagsOptions = ['紧张', '沉稳', '幽默', '浪漫', '悬疑', '轻松', '严肃', '感性'];
+    const styleTagsKeys = ['tense', 'calm', 'humorous', 'romantic', 'suspense', 'relaxed', 'serious', 'emotional'];
     const MAX_TAGS = 3;
 
     const toggleStyleTag = useCallback((tag: string) => {
@@ -210,7 +212,7 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                 <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-blue-50/50 to-purple-50/30">
                     <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                         <Sparkles className="w-5 h-5 text-blue-600" />
-                        AI 续写设置与指令
+                        {t('editor.aiContinue.settingsTitle')}
                     </h2>
                     <div className="flex items-center gap-3">
                         {/* 模式切换 - 优化的标签组样式 */}
@@ -224,7 +226,7 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                                 }`}
                             >
                                 <Zap className="w-4 h-4" />
-                                快速模式
+                                {t('editor.aiContinue.quickMode')}
                             </button>
                             <button
                                 onClick={() => setMode('professional')}
@@ -235,14 +237,14 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                                 }`}
                             >
                                 <Settings className="w-4 h-4" />
-                                专业模式
+                                {t('editor.aiContinue.professionalMode')}
                             </button>
                         </div>
                         {/* 关闭按钮 - 增强 hover 效果 */}
                         <button
                             onClick={onClose}
                             className="p-1.5 rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-500 transition-all duration-200 transform hover:scale-110"
-                            title="关闭"
+                            title={t('editor.aiContinue.close')}
                         >
                             <X className="w-5 h-5" />
                         </button>
@@ -258,7 +260,7 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                             <div className="group">
                                 <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
                                     <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
-                                    续写意图 <span className="text-red-500">*</span>
+                                    {t('editor.aiContinue.writingIntent')} <span className="text-red-500">*</span>
                                 </label>
                                 <textarea
                                     value={config.plotPoints[0] || ''}
@@ -269,7 +271,7 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                                             : 'border-gray-200 focus:border-blue-500 focus:ring-blue-100 hover:border-gray-300'
                                     }`}
                                     rows={3}
-                                    placeholder="接下来的续写中，AI 应该完成什么核心动作？&#10;例如：主角发现了一个隐藏的密室"
+                                    placeholder={t('editor.aiContinue.writingIntentPlaceholder')}
                                 />
                                 {isQuickModePlotError && (
                                     <p className="mt-2 text-sm text-red-500 flex items-center gap-1 animate-pulse">
@@ -283,7 +285,7 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                             <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50/50 to-purple-50/30 border border-blue-100">
                                 <label className="block text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                                     <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
-                                    目标长度：<span className="font-bold text-blue-600 text-base">{config.targetLength} 字</span>
+                                    {t('editor.aiContinue.targetLengthLabel')}：<span className="font-bold text-blue-600 text-base">{config.targetLength} {t('editor.aiContinue.words')}</span>
                                 </label>
                                 <div className="space-y-3">
                                     <input
@@ -299,7 +301,7 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                                             [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-gradient-to-r [&::-moz-range-thumb]:from-blue-600 [&::-moz-range-thumb]:to-blue-500 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:shadow-lg"
                                     />
                                     <div className="flex items-center justify-between">
-                                        <span className="text-xs font-medium text-gray-600">100 字</span>
+                                        <span className="text-xs font-medium text-gray-600">100 {t('editor.aiContinue.words')}</span>
                                         <input
                                             type="number"
                                             value={config.targetLength}
@@ -308,7 +310,7 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                                             min="100"
                                             max="1000"
                                         />
-                                        <span className="text-xs font-medium text-gray-600">1000 字</span>
+                                        <span className="text-xs font-medium text-gray-600">1000 {t('editor.aiContinue.words')}</span>
                                     </div>
                                 </div>
                             </div>
@@ -317,23 +319,26 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-3 flex items-center gap-1">
                                     <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
-                                    文风微调 <span className="text-xs text-gray-500">(最多选择 {MAX_TAGS} 个)</span>
+                                    {t('editor.aiContinue.styleTuning')} <span className="text-xs text-gray-500">({t('editor.aiContinue.styleTuningHint', { n: MAX_TAGS })})</span>
                                 </label>
                                 <div className="flex flex-wrap gap-2">
-                                    {styleTagsOptions.map((tag) => (
+                                    {styleTagsKeys.map((tagKey) => {
+                                        const tagLabel = t(`editor.aiContinue.styleOptions.${tagKey}`);
+                                        return (
                                         <button
-                                            key={tag}
-                                            onClick={() => toggleStyleTag(tag)}
-                                            disabled={!isStyleTagSelected(tag) && config.styleAdjectives.split('、').filter(t => t.trim()).length >= MAX_TAGS}
+                                            key={tagKey}
+                                            onClick={() => toggleStyleTag(tagLabel)}
+                                            disabled={!isStyleTagSelected(tagLabel) && config.styleAdjectives.split('、').filter(t => t.trim()).length >= MAX_TAGS}
                                             className={`px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 ${
-                                                isStyleTagSelected(tag)
+                                                isStyleTagSelected(tagLabel)
                                                     ? 'bg-indigo-600 text-white shadow-md'
                                                     : 'bg-white text-gray-800 border-2 border-gray-200 hover:border-blue-400 hover:bg-blue-50 shadow-sm'
                                             }`}
                                         >
-                                            {tag}
+                                            {tagLabel}
                                         </button>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
 
@@ -341,20 +346,24 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-3 flex items-center gap-1">
                                     <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
-                                    叙事视角
+                                    {t('editor.aiContinue.narrativePerspective')}
                                 </label>
                                 <div className="grid grid-cols-3 gap-2">
-                                    {['第一人称', '第三人称受限视角', '全知视角'].map((perspective) => (
+                                    {[
+                                        { key: 'firstPerson', value: '第一人称' },
+                                        { key: 'thirdPersonLimited', value: '第三人称受限视角' },
+                                        { key: 'omniscient', value: '全知视角' }
+                                    ].map(({ key, value }) => (
                                         <button
-                                            key={perspective}
-                                            onClick={() => handleInputChange('narrativePerspective', perspective)}
+                                            key={key}
+                                            onClick={() => handleInputChange('narrativePerspective', value)}
                                             className={`px-3 py-3 text-xs rounded-xl border-2 transition-all duration-200 font-semibold transform hover:scale-105 ${
-                                                config.narrativePerspective === perspective
+                                                config.narrativePerspective === value
                                                     ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg'
                                                     : 'bg-white text-gray-800 border-gray-200 hover:border-blue-400 hover:bg-blue-50 shadow-sm'
                                             }`}
                                         >
-                                            {perspective}
+                                            {t(`editor.aiContinue.${key}`)}
                                         </button>
                                     ))}
                                 </div>
@@ -367,9 +376,9 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                             <div className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50/30 rounded-xl border-2 border-blue-200 shadow-sm">
                                 <label className="block text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
                                     <Sparkles className="w-4 h-4 text-blue-600" />
-                                    关键情节目标 <span className="text-red-500">*</span>
+                                    {t('editor.aiContinue.plotPoints')} <span className="text-red-500">*</span>
                                 </label>
-                                <p className="text-xs text-gray-600 mb-4">必填。清晰列出续写中必须完成的剧情任务。</p>
+                                <p className="text-xs text-gray-600 mb-4">{t('editor.aiContinue.plotPointsRequired')}</p>
                                 <div className="space-y-2">
                                     {config.plotPoints.map((point, index) => (
                                         <div key={index} className="flex gap-2 items-start">
@@ -386,7 +395,7 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                                                             ? 'border-red-500 focus:ring-red-500'
                                                             : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
                                                     }`}
-                                                    placeholder="例如：主角必须通过隐蔽通道离开房间"
+                                                    placeholder={t('editor.aiContinue.plotPointPlaceholder', { n: index + 1 })}
                                                 />
                                                 {isProfessionalModePlotError && index === 0 && !point.trim() && (
                                                     <p className="mt-1 text-xs text-red-500">{errors.plotPoints}</p>
@@ -409,76 +418,76 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                                             className="w-full px-4 py-3 text-sm text-blue-600 font-semibold border-2 border-blue-300 border-dashed rounded-xl hover:bg-blue-100 hover:border-blue-400 transition-all duration-200 flex items-center justify-center gap-2 mt-3 transform hover:scale-[1.02]"
                                         >
                                             <Plus className="w-4 h-4" />
-                                            添加新的目标
+                                            {t('editor.aiContinue.addNewTarget')}
                                         </button>
                                     )}
                                 </div>
                             </div>
 
                             {/* 折叠面板 A：核心角色状态与地点 */}
-                            {renderAccordionPanel('character', '核心角色状态与地点', expandedPanels.character, togglePanel, (
+                            {renderAccordionPanel('character', t('editor.aiContinue.characterPanel'), expandedPanels.character, togglePanel, (
                                 <div className="px-4 py-4 border-t border-gray-200 space-y-3">
                                     <div className="grid grid-cols-2 gap-3">
                                         {/* 焦点人物 */}
-                                        <InputGroup label="焦点人物" placeholder="例如：张三" value={config.focusCharacter} onChange={(e) => handleInputChange('focusCharacter', e.target.value)} />
+                                        <InputGroup label={t('editor.aiContinue.focusCharacter')} placeholder={t('editor.aiContinue.focusCharacterPlaceholder')} value={config.focusCharacter} onChange={(e) => handleInputChange('focusCharacter', e.target.value)} />
                                         {/* 当前情绪 */}
-                                        <InputGroup label="当前情绪" placeholder="极度疲惫" value={config.characterStatus} onChange={(e) => handleInputChange('characterStatus', e.target.value)} />
+                                        <InputGroup label={t('editor.aiContinue.currentMood')} placeholder={t('editor.aiContinue.currentMoodPlaceholder')} value={config.characterStatus} onChange={(e) => handleInputChange('characterStatus', e.target.value)} />
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         {/* 核心地点 */}
-                                        <InputGroup label="核心地点" placeholder="废弃工厂" value={config.coreLocation} onChange={(e) => handleInputChange('coreLocation', e.target.value)} />
+                                        <InputGroup label={t('editor.aiContinue.coreLocation')} placeholder={t('editor.aiContinue.coreLocationPlaceholder')} value={config.coreLocation} onChange={(e) => handleInputChange('coreLocation', e.target.value)} />
                                         {/* 环境状态 */}
-                                        <InputGroup label="环境状态" placeholder="暴风雨中" value={config.environmentStatus} onChange={(e) => handleInputChange('environmentStatus', e.target.value)} />
+                                        <InputGroup label={t('editor.aiContinue.environmentStatus')} placeholder={t('editor.aiContinue.environmentStatusPlaceholder')} value={config.environmentStatus} onChange={(e) => handleInputChange('environmentStatus', e.target.value)} />
                                     </div>
                                     {/* 关键设定限制 */}
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-700 mb-1.5">关键设定限制</label>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1.5">{t('editor.aiContinue.settingConstraints')}</label>
                                         <textarea
                                             value={config.settingConstraints}
                                             onChange={(e) => handleInputChange('settingConstraints', e.target.value)}
                                             className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-blue-500 resize-none"
                                             rows={2}
-                                            placeholder="例如：禁止使用第五级魔法"
+                                            placeholder={t('editor.aiContinue.settingConstraintsPlaceholder')}
                                         />
                                     </div>
                                 </div>
                             ))}
 
                             {/* 折叠面板 B：风格、情绪与视角 */}
-                            {renderAccordionPanel('style', '风格、情绪与视角', expandedPanels.style, togglePanel, (
+                            {renderAccordionPanel('style', t('editor.aiContinue.stylePanel'), expandedPanels.style, togglePanel, (
                                 <div className="px-4 py-4 border-t border-gray-200 space-y-3">
                                     {/* 文风形容词 */}
-                                    <InputGroup label="文风形容词 (3个)" placeholder="沉稳、冷静、富有画面感" value={config.styleAdjectives} onChange={(e) => handleInputChange('styleAdjectives', e.target.value)} />
+                                    <InputGroup label={`${t('editor.aiContinue.styleAdjectives')} (${t('editor.aiContinue.styleAdjectivesHint')})`} placeholder={t('editor.aiContinue.styleAdjectivesPlaceholder')} value={config.styleAdjectives} onChange={(e) => handleInputChange('styleAdjectives', e.target.value)} />
                                     {/* 情绪基调 */}
-                                    <InputGroup label="情绪基调" placeholder="紧张、绝望、悬疑" value={config.emotionalTone} onChange={(e) => handleInputChange('emotionalTone', e.target.value)} />
-                                    
+                                    <InputGroup label={t('editor.aiContinue.emotionalTone')} placeholder={t('editor.aiContinue.emotionalTonePlaceholder')} value={config.emotionalTone} onChange={(e) => handleInputChange('emotionalTone', e.target.value)} />
+
                                     {/* 叙事视角 (下拉选择) */}
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-700 mb-1.5">叙事视角</label>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1.5">{t('editor.aiContinue.narrativePerspective')}</label>
                                         <select
                                             value={config.narrativePerspective}
                                             onChange={(e) => handleInputChange('narrativePerspective', e.target.value)}
                                             className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-blue-500"
                                         >
-                                            <option value="第一人称">第一人称</option>
-                                            <option value="第三人称受限视角">第三人称受限视角</option>
-                                            <option value="全知视角">全知视角</option>
+                                            <option value="第一人称">{t('editor.aiContinue.firstPerson')}</option>
+                                            <option value="第三人称受限视角">{t('editor.aiContinue.thirdPersonLimited')}</option>
+                                            <option value="全知视角">{t('editor.aiContinue.omniscient')}</option>
                                         </select>
                                     </div>
                                     {/* 焦点角色（受限视角专属） */}
                                     {config.narrativePerspective === '第三人称受限视角' && (
-                                        <InputGroup label="受限视角焦点角色" placeholder="主角名称" value={config.perspectiveFocusCharacter} onChange={(e) => handleInputChange('perspectiveFocusCharacter', e.target.value)} />
+                                        <InputGroup label={t('editor.aiContinue.perspectiveFocusCharacter')} placeholder={t('editor.aiContinue.perspectiveFocusCharacterPlaceholder')} value={config.perspectiveFocusCharacter} onChange={(e) => handleInputChange('perspectiveFocusCharacter', e.target.value)} />
                                     )}
                                 </div>
                             ))}
 
                             {/* 折叠面板 C：输出控制与限制 */}
-                            {renderAccordionPanel('output', '输出控制与限制', expandedPanels.output, togglePanel, (
+                            {renderAccordionPanel('output', t('editor.aiContinue.outputPanel'), expandedPanels.output, togglePanel, (
                                 <div className="px-4 py-4 border-t border-gray-200 space-y-4">
                                     {/* 目标长度 (专业模式下的精确控制) */}
                                     <div>
                                         <label className="block text-xs font-medium text-gray-700 mb-2">
-                                            目标长度：<span className="font-semibold text-blue-600">{config.targetLength} 字</span>
+                                            {t('editor.aiContinue.targetLengthLabel')}：<span className="font-semibold text-blue-600">{config.targetLength} {t('editor.aiContinue.words')}</span>
                                         </label>
                                         {/* 滑块部分与快速模式保持一致，省略重复代码 */}
                                         <div className="space-y-2">
@@ -489,8 +498,8 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                                                 step="50"
                                                 value={config.targetLength}
                                                 onChange={(e) => handleInputChange('targetLength', parseInt(e.target.value))}
-                                                className="w-full h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer 
-                                                    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 
+                                                className="w-full h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer
+                                                    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
                                                     [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:cursor-pointer
                                                     [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-600 [&::-moz-range-thumb]:cursor-pointer"
                                             />
@@ -503,18 +512,18 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                                                     min="100"
                                                     max="1000"
                                                 />
-                                                <span className="text-sm text-gray-600">字</span>
+                                                <span className="text-sm text-gray-600">{t('editor.aiContinue.words')}</span>
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     {/* 结尾形式 */}
-                                    <InputGroup label="结尾形式" placeholder="一个未解决的疑问" value={config.endingStyle} onChange={(e) => handleInputChange('endingStyle', e.target.value)} />
+                                    <InputGroup label={t('editor.aiContinue.endingStyle')} placeholder={t('editor.aiContinue.endingStylePlaceholder')} value={config.endingStyle} onChange={(e) => handleInputChange('endingStyle', e.target.value)} />
 
                                     {/* 禁止内容 (动态列表，高亮提示) */}
                                     <div>
                                         <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                                            禁止内容 <span className="text-red-600 text-xs font-bold">(绝对限制)</span>
+                                            {t('editor.aiContinue.prohibitedContent')} <span className="text-red-600 text-xs font-bold">({t('editor.aiContinue.absoluteRestriction')})</span>
                                         </label>
                                         <div className="space-y-2">
                                             {config.prohibitedContent.map((item, index) => (
@@ -524,13 +533,13 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                                                         value={item}
                                                         onChange={(e) => handleArrayChange('prohibitedContent', index, e.target.value)}
                                                         className="flex-1 px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-blue-500"
-                                                        placeholder={`禁止提及任何与"时间"相关的词汇`}
+                                                        placeholder={t('editor.aiContinue.prohibitedPlaceholder', { n: index + 1 })}
                                                     />
                                                     {config.prohibitedContent.length > 1 && (
                                                         <button
                                                             onClick={() => removeArrayItem('prohibitedContent', index)}
                                                             className="flex-shrink-0 p-2 text-red-500 hover:bg-red-100 rounded-md transition-colors duration-200"
-                                                            title="删除"
+                                                            title={t('common.delete')}
                                                         >
                                                             <Trash2 className="w-4 h-4" />
                                                         </button>
@@ -542,7 +551,7 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                                                 className="w-full px-3 py-2 text-sm text-blue-600 font-medium border border-blue-300 border-dashed rounded-lg hover:bg-blue-50 transition-colors duration-200 flex items-center justify-center gap-2"
                                             >
                                                 <Plus className="w-4 h-4" />
-                                                添加禁止项
+                                                {t('editor.aiContinue.addProhibited')}
                                             </button>
                                         </div>
                                     </div>
@@ -550,10 +559,10 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                             ))}
                             
                             {/* 折叠面板 D：当前上下文预览 (只读) */}
-                            {renderAccordionPanel('context', '当前上下文预览 (只读)', expandedPanels.context, togglePanel, (
+                            {renderAccordionPanel('context', t('editor.aiContinue.contextPreview'), expandedPanels.context, togglePanel, (
                                 <div className="px-4 py-4 border-t border-gray-200">
                                     <div className="p-3 bg-gray-100 rounded-lg text-xs text-gray-700 leading-relaxed max-h-40 overflow-y-auto font-mono border border-gray-300">
-                                        {config.lastChapterContext || '（暂无内容。将自动提取文章末尾内容。）'}
+                                        {config.lastChapterContext || t('editor.aiContinue.noContextContent')}
                                     </div>
                                 </div>
                             ))}
@@ -568,7 +577,7 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                         disabled={isSubmitting}
                         className="px-6 py-2.5 text-sm font-semibold text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
                     >
-                        取消
+                        {t('editor.aiContinue.cancel')}
                     </button>
                     <button
                         onClick={handleSubmit}
@@ -579,12 +588,12 @@ const AIContinueDrawer: React.FC<AIContinueDrawerProps> = ({
                         {isSubmitting ? (
                             <>
                               <Loader2 className="w-5 h-5 animate-spin text-blue-200" />
-                              <span className="text-gray-100">正在生成...</span>
+                              <span className="text-gray-100">{t('editor.aiContinue.generating')}</span>
                             </>
                           ) : (
                             <>
                               <Sparkles className="w-5 h-5 text-blue-200" />
-                              <span className="text-gray-100">生成续写</span>
+                              <span className="text-gray-100">{t('editor.aiContinue.generate')}</span>
                             </>
                           )}
                     </button>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '../ui/button';
 import { Play, RefreshCw, Download, Loader2 } from 'lucide-react';
 import { DataService } from '../../services/DataService';
@@ -10,6 +11,7 @@ interface SummaryPanelProps {
 }
 
 export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanelProps) {
+  const { t } = useTranslation();
   const [summaryTab, setSummaryTab] = React.useState<'novel' | 'chapter'>('novel');
 
   // 小说概括状态
@@ -33,18 +35,18 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
       // 收集所有章节概括
       const summaries = chapters
         .filter(ch => ch.summary)
-        .map((ch, idx) => `第${idx + 1}章：${ch.summary}`)
+        .map((ch, idx) => `${t('editor.summary.chapterNum', { num: idx + 1 })}${ch.summary}`)
         .join('\n\n');
 
       if (summaries) {
         setNovelSummary(summaries);
       } else {
-        setNovelSummary('暂无章节概括。请先为各个章节生成概括。');
+        setNovelSummary(t('editor.summary.noChapterSummary'));
       }
     } catch (error) {
       console.error('Failed to load novel summary:', error);
-      onToast('error', '加载小说概括失败');
-      setNovelSummary('加载失败');
+      onToast('error', t('editor.summary.loadNovelFailed'));
+      setNovelSummary(t('editor.summary.loadFailed'));
     } finally {
       setIsLoadingNovel(false);
     }
@@ -57,11 +59,11 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
     setIsLoadingChapter(true);
     try {
       const chapter = await DataService.getChapter(currentChapterId);
-      setChapterSummary(chapter.summary || '暂无概括，点击下方按钮生成');
+      setChapterSummary(chapter.summary || t('editor.summary.noSummaryClickGenerate'));
     } catch (error) {
       console.error('Failed to load chapter summary:', error);
-      onToast('error', '加载章节概括失败');
-      setChapterSummary('加载失败');
+      onToast('error', t('editor.summary.loadChapterFailed'));
+      setChapterSummary(t('editor.summary.loadFailed'));
     } finally {
       setIsLoadingChapter(false);
     }
@@ -75,7 +77,7 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
     try {
       const summary = await DataService.generateChapterSummary(currentChapterId, regenerate);
       setChapterSummary(summary);
-      onToast('success', regenerate ? '概括已重新生成' : '概括生成成功');
+      onToast('success', regenerate ? t('editor.summary.regenerateSuccess') : t('editor.summary.generateSuccess'));
 
       // 如果在小说概括标签，也刷新小说概括
       if (summaryTab === 'novel') {
@@ -83,7 +85,7 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
       }
     } catch (error) {
       console.error('Failed to generate chapter summary:', error);
-      onToast('error', '生成概括失败');
+      onToast('error', t('editor.summary.generateFailed'));
     } finally {
       setIsGenerating(false);
     }
@@ -99,23 +101,23 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
       const chaptersWithoutSummary = chapters.filter(ch => !ch.summary);
 
       if (chaptersWithoutSummary.length === 0) {
-        onToast('info', '所有章节都已有概括');
+        onToast('info', t('editor.summary.allChaptersHaveSummary'));
         loadNovelSummary();
         return;
       }
 
-      onToast('info', `开始为 ${chaptersWithoutSummary.length} 个章节生成概括...`);
+      onToast('info', t('editor.summary.startGenerating', { count: chaptersWithoutSummary.length }));
 
       // 批量生成概括
       for (const chapter of chaptersWithoutSummary) {
         await DataService.generateChapterSummary(chapter.id, false);
       }
 
-      onToast('success', '所有章节概括生成完成');
+      onToast('success', t('editor.summary.allChaptersComplete'));
       loadNovelSummary();
     } catch (error) {
       console.error('Failed to get worldview:', error);
-      onToast('error', '获取世界观失败');
+      onToast('error', t('editor.summary.getWorldviewFailed'));
     } finally {
       setIsLoadingNovel(false);
     }
@@ -142,7 +144,7 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
               : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
           }`}
         >
-          小说概括
+          {t('editor.summary.novelSummary')}
         </button>
         <button
           onClick={() => setSummaryTab('chapter')}
@@ -152,7 +154,7 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
               : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
           }`}
         >
-          当前章节
+          {t('editor.summary.currentChapter')}
         </button>
       </div>
 
@@ -168,7 +170,7 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
                 </div>
               ) : (
                 <p className="text-[11px] text-zinc-600 leading-[1.7] whitespace-pre-wrap">
-                  {novelSummary || '暂无小说概括'}
+                  {novelSummary || t('editor.summary.noNovelSummary')}
                 </p>
               )}
             </div>
@@ -186,7 +188,7 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
                 ) : (
                   <Play className="h-3.5 w-3.5 mr-1.5" />
                 )}
-                重新生成
+                {t('editor.summary.regenerate')}
               </Button>
               <div className="flex gap-2">
                 <Button
@@ -197,7 +199,7 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
                   className="flex-1 h-7 text-[11px] text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 transition-all"
                 >
                   <RefreshCw className="h-3 w-3 mr-1" />
-                  刷新
+                  {t('editor.summary.refresh')}
                 </Button>
                 <Button
                   variant="ghost"
@@ -211,7 +213,7 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
                   ) : (
                     <Download className="h-3 w-3 mr-1" />
                   )}
-                  获取世界观
+                  {t('editor.summary.getWorldview')}
                 </Button>
               </div>
             </div>
@@ -229,8 +231,8 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
               ) : (
                 <p className="text-[11px] text-zinc-600 leading-[1.7] whitespace-pre-wrap">
                   {currentChapterId
-                    ? chapterSummary || '暂无概括，点击下方按钮生成'
-                    : '请选择一个章节查看概括'}
+                    ? chapterSummary || t('editor.summary.noSummaryClickGenerate')
+                    : t('editor.summary.selectChapterToView')}
                 </p>
               )}
             </div>
@@ -248,7 +250,7 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
                 ) : (
                   <Play className="h-3.5 w-3.5 mr-1.5" />
                 )}
-                生成概括
+                {t('editor.summary.generateSummary')}
               </Button>
               <Button
                 variant="ghost"
@@ -258,7 +260,7 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
                 className="w-full h-7 text-[11px] text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 transition-all"
               >
                 <RefreshCw className="h-3 w-3 mr-1" />
-                重新生成
+                {t('editor.summary.regenerate')}
               </Button>
             </div>
           </>

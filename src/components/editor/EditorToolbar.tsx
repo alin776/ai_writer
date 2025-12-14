@@ -2,6 +2,7 @@
  * 编辑器工具栏组件
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Editor } from '@tiptap/react';
 import {
   Bold,
@@ -37,6 +38,8 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
   aiAutoCompleteEnabled = false,
   onToggleAIAutoComplete,
 }) => {
+  const { t } = useTranslation();
+
   if (!editor) {
     return null;
   }
@@ -74,7 +77,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
    */
   const setLink = () => {
     const previousUrl = editor.getAttributes('link').href;
-    const url = window.prompt('请输入链接地址:', previousUrl);
+    const url = window.prompt(t('editor.toolbar.enterLinkUrl'), previousUrl);
 
     // 取消
     if (url === null) {
@@ -95,7 +98,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
    * 添加图片
    */
   const addImage = () => {
-    const url = window.prompt('请输入图片地址:');
+    const url = window.prompt(t('editor.toolbar.enterImageUrl'));
 
     if (url) {
       editor.chain().focus().setImage({ src: url }).run();
@@ -109,21 +112,21 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         <ToolbarButton
           onClick={() => onToggleAIAutoComplete?.()}
           isActive={aiAutoCompleteEnabled}
-          title={aiAutoCompleteEnabled ? 'AI 自动补全已开启（点击关闭）' : 'AI 自动补全已关闭（点击开启）'}
+          title={aiAutoCompleteEnabled ? t('editor.toolbar.aiAutoCompleteEnabled') : t('editor.toolbar.aiAutoCompleteDisabled')}
         >
           <Wand2 className="h-3.5 w-3.5" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().undo().run()}
           disabled={!editor.can().undo()}
-          title="撤销 (Ctrl+Z)"
+          title={`${t('editor.toolbar.undo')} (Ctrl+Z)`}
         >
           <Undo className="h-3 w-3" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().redo().run()}
           disabled={!editor.can().redo()}
-          title="重做 (Ctrl+Y)"
+          title={`${t('editor.toolbar.redo')} (Ctrl+Y)`}
         >
           <Redo className="h-3 w-3" />
         </ToolbarButton>
@@ -142,7 +145,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
               ? 'bg-zinc-100 text-zinc-900 dark:bg-slate-700 dark:text-slate-100'
               : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-700'
           }`}
-          title="一级标题"
+          title={t('editor.toolbar.heading1')}
         >
           H1
         </button>
@@ -155,7 +158,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
               ? 'bg-zinc-100 text-zinc-900 dark:bg-slate-700 dark:text-slate-100'
               : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-700'
           }`}
-          title="二级标题"
+          title={t('editor.toolbar.heading2')}
         >
           H2
         </button>
@@ -168,7 +171,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
               ? 'bg-zinc-100 text-zinc-900 dark:bg-slate-700 dark:text-slate-100'
               : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-700'
           }`}
-          title="三级标题"
+          title={t('editor.toolbar.heading3')}
         >
           H3
         </button>
@@ -181,42 +184,42 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBold().run()}
           isActive={editor.isActive('bold')}
-          title="粗体 (Ctrl+B)"
+          title={`${t('editor.toolbar.bold')} (Ctrl+B)`}
         >
           <Bold className="h-3 w-3" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleItalic().run()}
           isActive={editor.isActive('italic')}
-          title="斜体 (Ctrl+I)"
+          title={`${t('editor.toolbar.italic')} (Ctrl+I)`}
         >
           <Italic className="h-3 w-3" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           isActive={editor.isActive('underline')}
-          title="下划线 (Ctrl+U)"
+          title={`${t('editor.toolbar.underline')} (Ctrl+U)`}
         >
           <UnderlineIcon className="h-3 w-3" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleStrike().run()}
           isActive={editor.isActive('strike')}
-          title="删除线"
+          title={t('editor.toolbar.strikethrough')}
         >
           <Strikethrough className="h-3 w-3" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleHighlight().run()}
           isActive={editor.isActive('highlight')}
-          title="高亮"
+          title={t('editor.toolbar.highlight')}
         >
           <Highlighter className="h-3 w-3" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleCode().run()}
           isActive={editor.isActive('code')}
-          title="行内代码"
+          title={t('editor.toolbar.inlineCode')}
         >
           <Code className="h-3 w-3" />
         </ToolbarButton>
@@ -229,21 +232,21 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           isActive={editor.isActive('bulletList')}
-          title="无序列表"
+          title={t('editor.toolbar.bulletList')}
         >
           <List className="h-3 w-3" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           isActive={editor.isActive('orderedList')}
-          title="有序列表"
+          title={t('editor.toolbar.orderedList')}
         >
           <ListOrdered className="h-3 w-3" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleTaskList().run()}
           isActive={editor.isActive('taskList')}
-          title="任务列表"
+          title={t('editor.toolbar.taskList')}
         >
           <CheckSquare className="h-3 w-3" />
         </ToolbarButton>
@@ -256,20 +259,20 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
           isActive={editor.isActive('blockquote')}
-          title="引用"
+          title={t('editor.toolbar.quote')}
         >
           <Quote className="h-3 w-3" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
           isActive={editor.isActive('codeBlock')}
-          title="代码块"
+          title={t('editor.toolbar.codeBlock')}
         >
           <FileCode className="h-3 w-3" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().setHorizontalRule().run()}
-          title="水平分割线"
+          title={t('editor.toolbar.horizontalRule')}
         >
           <Minus className="h-3 w-3" />
         </ToolbarButton>
@@ -282,11 +285,11 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         <ToolbarButton
           onClick={setLink}
           isActive={editor.isActive('link')}
-          title="插入链接"
+          title={t('editor.toolbar.insertLink')}
         >
           <LinkIcon className="h-3 w-3" />
         </ToolbarButton>
-        <ToolbarButton onClick={addImage} title="插入图片">
+        <ToolbarButton onClick={addImage} title={t('editor.toolbar.insertImage')}>
           <ImageIcon className="h-3 w-3" />
         </ToolbarButton>
       </div>

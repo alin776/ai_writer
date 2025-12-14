@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertCircle } from 'lucide-react';
+import i18n from '@/i18n';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -43,10 +44,10 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         <div className="min-h-[200px] bg-white border border-red-100 rounded-lg p-6 flex flex-col space-y-3">
           <div className="flex items-center text-red-600 font-semibold">
             <AlertCircle className="w-5 h-5 mr-2" />
-            <span>页面出现错误</span>
+            <span>{i18n.t('errors.pageError')}</span>
           </div>
           <p className="text-sm text-gray-600">
-            {this.state.error?.message || '未知错误，请稍后重试。'}
+            {this.state.error?.message || i18n.t('errors.unknownError')}
           </p>
           <div className="flex items-center space-x-3">
             <button
@@ -54,14 +55,14 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
               onClick={this.handleRetry}
               className="px-3 py-2 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
             >
-              重试
+              {i18n.t('common.retry')}
             </button>
             <button
               type="button"
               onClick={() => window.location.reload()}
               className="px-3 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              刷新页面
+              {i18n.t('common.refreshPage')}
             </button>
           </div>
         </div>
