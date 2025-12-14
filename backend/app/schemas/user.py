@@ -79,7 +79,7 @@ class AvatarUploadResponse(BaseModel):
 
 class UserBase(BaseModel):
     """用户基础模型"""
-    username: str = Field(..., min_length=3, max_length=50)
+    username: str = Field(..., min_length=2, max_length=50)
     email: EmailStr
 
 
@@ -105,7 +105,7 @@ class UserLogin(BaseModel):
 class UserUpdate(BaseModel):
     """更新用户"""
     email: Optional[EmailStr] = None
-    username: Optional[str] = Field(None, min_length=3, max_length=50)
+    username: Optional[str] = Field(None, min_length=2, max_length=50)
     full_name: Optional[str] = Field(None, max_length=100)
     avatar: Optional[str] = None
     bio: Optional[str] = None
