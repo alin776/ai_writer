@@ -31,16 +31,18 @@ class FastAIService:
     - 文本分类
     """
 
-    def __init__(self, timeout: int = 15):
+    def __init__(self, timeout: int = 15, db=None):
         """初始化快速AI服务
 
         Args:
             timeout: 超时时间(秒)，默认15秒（比标准模型更短）
+            db: 可选的外层数据库会话（用于事务原子性）
         """
         self.api_key = settings.OPENAI_API_KEY
         self.base_url = settings.OPENAI_BASE_URL
         self.model = "gemini-2.5-flash-lite"  # 固定使用快速模型
         self.timeout = timeout
+        self.db = db  # ✅ 2025-12-14: 支持外层事务控制
 
         # 创建HTTP客户端
         self.client = httpx.AsyncClient(
@@ -82,6 +84,8 @@ class FastAIService:
             operation_type: 操作类型
             start_time: 调用开始时间
         """
+        from contextlib import asynccontextmanager
+
         user_id = get_request_user_id()
 
         if not user_id:
@@ -124,10 +128,21 @@ class FastAIService:
                 extra_data={}
             )
 
-            # 使用独立db会话持久化
-            async with create_db_session() as db:
+            # ✅ 2025-12-14: 支持外层事务控制（与HTTPAIService一致）
+            @asynccontextmanager
+            async def get_db_session():
+                """获取数据库会话：优先使用外层会话，否则创建独立会话"""
+                if self.db is not None:
+                    logger.debug("[FastAI成本追踪] 使用外层数据库会话（事务原子性模式）")
+                    yield self.db, False  # 不自动提交
+                else:
+                    logger.debug("[FastAI成本追踪] 使用独立数据库会话")
+                    async with create_db_session() as new_db:
+                        yield new_db, True  # 自动提交
+
+            async with get_db_session() as (db, should_auto_commit):
                 temp_log_service = AILogService(db)
-                ai_call_log = await temp_log_service.create_log(log_data)
+                ai_call_log = await temp_log_service.create_log(log_data, auto_commit=should_auto_commit)
 
                 # ==================== 积分扣费 ====================
                 # ✅ 2025-12-08: 添加积分扣费逻辑（与HTTPAIService一致）
@@ -153,12 +168,14 @@ class FastAIService:
                         credits_to_deduct = calculate_credits_from_cost(cost_data["total_cost"])
 
                         # 扣除积分（管理员自动豁免）
+                        # ✅ 2025-12-14: 传递 auto_commit 参数
                         transaction = await credit_service.consume(
                             user_id=UUID(user_id),
                             amount=credits_to_deduct,
                             description=f"FastAI调用: {operation_type}",
                             related_id=ai_call_log.id,
-                            skip_check=user.is_admin  # 管理员豁免
+                            skip_check=user.is_admin,  # 管理员豁免
+                            auto_commit=should_auto_commit  # ✅ 由外层事务控制提交
                         )
 
                         if transaction:  # 非管理员才有交易记录

@@ -457,8 +457,11 @@ async def humanize_rewrite(
 
     # 4. 初始化HumanizeService
     # 2025-12-01: 传递db和user_id以启用成本追踪
+    # ✅ 2025-12-14: 显式创建FastAIService并传递db，支持事务回滚
+    from app.services.ai.fast_ai_service import FastAIService
     ai_service = HTTPAIService(db=db, user_id=str(current_user.id))
-    humanize_service = HumanizeService(ai_service=ai_service, config=config)
+    fast_ai_service = FastAIService(db=db)  # 传递db支持事务原子性
+    humanize_service = HumanizeService(ai_service=ai_service, fast_ai_service=fast_ai_service, config=config)
 
     # 记录请求开始
     request_start = time.time()
@@ -771,9 +774,12 @@ async def humanize_rewrite_stream(
 
                 # 4. 初始化Service
                 # 2025-12-01: 传递user_id以启用成本追踪
-                # 注意：流式API故意不传递db（避免生命周期问题），_track_api_cost会在内部创建独立db会话
+                # 注意：流式API故意不传递db给HTTPAIService（避免生命周期问题），_track_api_cost会在内部创建独立db会话
+                # ✅ 2025-12-14: 但FastAIService可以传递db，因为检测/验证是非流式调用
+                from app.services.ai.fast_ai_service import FastAIService
                 ai_service = HTTPAIService(user_id=str(current_user.id))
-                humanize_service = HumanizeService(ai_service=ai_service, config=config)
+                fast_ai_service = FastAIService(db=db)  # 传递db支持事务原子性
+                humanize_service = HumanizeService(ai_service=ai_service, fast_ai_service=fast_ai_service, config=config)
 
                 # 4. 检测阶段（可选）
                 detection_result = None

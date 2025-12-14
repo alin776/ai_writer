@@ -147,20 +147,32 @@ class AILogService:
 
     # ==================== 原有方法 ====================
 
-    async def create_log(self, log_data: AICallLogCreate) -> AICallLog:
+    async def create_log(
+        self,
+        log_data: AICallLogCreate,
+        auto_commit: bool = True  # ✅ 2025-12-14: 支持外层事务控制
+    ) -> AICallLog:
         """
         创建AI调用日志
 
         Args:
             log_data: 日志数据
+            auto_commit: 是否自动提交（默认True）。设为False时由外层控制事务
 
         Returns:
             AICallLog: 创建的日志记录
         """
         log = AICallLog(**log_data.model_dump())
         self.db.add(log)
-        await self.db.commit()
-        await self.db.refresh(log)
+
+        # ✅ 2025-12-14: 支持外层事务控制
+        if auto_commit:
+            await self.db.commit()
+            await self.db.refresh(log)
+        else:
+            # 仅 flush 获取 ID，不提交事务
+            await self.db.flush()
+
         return log
 
     async def get_user_logs(

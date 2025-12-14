@@ -387,6 +387,8 @@ async def generate_chapter_summary(
         
     except Exception as e:
         logger.error(f"[章节概括] 生成失败: chapter_id={chapter_id}, error={str(e)}")
+        # ✅ 2025-12-14: 添加事务回滚，确保积分扣除被回滚
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate chapter summary: {str(e)}"
