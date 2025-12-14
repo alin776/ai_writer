@@ -161,10 +161,14 @@ class TaskEnricher:
             )
             return enriched
 
-        # 无法推断
-        logger.warning(f"[TaskEnricher] 无法推断工具: '{description[:50]}...'")
-        enriched["tool"] = "auto"
-        enriched["params"] = {}
+        # 无法推断 - 使用 analyze_text 作为默认工具
+        # 🔧 2025-12-14: 修复 tool:"auto" 无效问题
+        logger.warning(f"[TaskEnricher] 无法推断工具: '{description[:50]}...'，使用默认工具 analyze_text")
+        enriched["tool"] = "analyze_text"
+        enriched["params"] = {
+            "text": description,  # 将任务描述作为分析内容
+            "focus": "根据任务描述进行分析或回答"
+        }
         return enriched
 
     async def _ai_infer_tool(self, description: str, enrich_context: Dict) -> Optional[Dict]:

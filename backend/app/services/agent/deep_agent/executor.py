@@ -360,10 +360,14 @@ class DeepAgentExecutor:
         """
         new_task_id = self._get_max_task_id(all_tasks) + 1
         requirement_text = acceptance.get("requirement") or user_intent or "完善输出"
+        # 🔧 2025-12-14: 修复 tool:"auto" 无效问题，改用 analyze_text 作为默认
+        tool_name = base_task.get("tool", "analyze_text")
+        if tool_name == "auto":
+            tool_name = "analyze_text"
         return {
             "task_id": new_task_id,
             "description": f"补充/修正上一任务结果，确保满足：{requirement_text}",
-            "tool": base_task.get("tool", "auto"),
+            "tool": tool_name,
             "params": base_task.get("params", {}),
             "checkpoint": False,  # 🔧 P0修复: 补救任务不触发反思
             "is_remedy": True,    # 🔧 P0修复: 标记为补救任务
@@ -638,10 +642,14 @@ class DeepAgentExecutor:
 
         new_task_id = self._get_max_task_id(tasks) + 1
         requirement_text = failed_acceptance.get("requirement") or user_intent or "完善输出"
+        # 🔧 2025-12-14: 修复 tool:"auto" 无效问题，改用 analyze_text 作为默认
+        tool_name = failed_task.get("tool", "analyze_text")
+        if tool_name == "auto":
+            tool_name = "analyze_text"
         remedy_task = {
             "task_id": new_task_id,
             "description": f"补充/修正前一任务结果，确保满足：{requirement_text}",
-            "tool": failed_task.get("tool", "auto"),
+            "tool": tool_name,
             "params": failed_task.get("params", {}),
             "checkpoint": False,  # 🔧 P0修复: 补救任务不触发反思
             "is_remedy": True,    # 🔧 P0修复: 标记为补救任务
@@ -851,13 +859,15 @@ class DeepAgentExecutor:
 ## 要求
 1. 新任务必须围绕用户原始意图，不要偏离
 2. **必须为每个任务指定 tool 字段**（从上面的工具列表中选择）
-3. 可以在开头插入新任务
-4. 可以调整现有任务的描述
-5. 可以删除不必要的任务
-6. 保持任务描述简洁
+3. **必须为需要参数的工具指定 params 字段**（如 analyze_text 需要 text 和 focus）
+4. 使用 $TASK_N$ 或 $TASK_N.content$ 引用前一任务的结果
+5. 可以在开头插入新任务
+6. 可以调整现有任务的描述
+7. 可以删除不必要的任务
+8. 保持任务描述简洁
 
 ## 输出格式（必须是合法JSON，不要添加其他内容）
-{{"tasks": [{{"description": "任务描述1", "tool": "工具名称"}}, {{"description": "任务描述2", "tool": "工具名称"}}]}}
+{{"tasks": [{{"description": "读取内容", "tool": "read_chapter", "params": {{"chapter_id": "..."}}}}, {{"description": "分析内容", "tool": "analyze_text", "params": {{"text": "$TASK_1$", "focus": "分析..."}}}}]}}
 """
 
             # 复用 _generate_text 抽象层

@@ -533,8 +533,9 @@ class AnalyzeTextInput(ToolInput):
 
     focus: str = Field(
         default="all",
-        description="分析重点: all(全面), grammar(语法), logic(逻辑), style(风格), structure(结构)",
-        pattern="^(all|grammar|logic|style|structure)$"
+        description="分析重点: 可以是预定义值(all/grammar/logic/style/structure)或任意描述性字符串(如'分析情节发展'、'概括主要内容')。当focus='all'或包含'全面/完整'时输出完整报告，否则输出简洁聚焦分析(200-500字)",
+        min_length=1,
+        max_length=500  # 限制长度，避免过长的 focus 描述
     )
 
 

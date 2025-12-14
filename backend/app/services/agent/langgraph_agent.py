@@ -4016,7 +4016,8 @@ chapter_id: {chapter_id}
                     logger.warning(f"[Planning] 无法解析规划JSON，AI返回: {plan_text[:500]}")
 
                 if not plan_data or "tasks" not in plan_data:
-                    # 默认规划
+                    # 默认规划 - 当 AI 规划失败时的兜底方案
+                    # 🔧 2025-12-14: 修复 tool:"auto" 无效问题，改用 analyze_text_tool
                     plan_data = {
                         "user_intent": "执行用户请求",
                         "tasks": [
@@ -4028,8 +4029,12 @@ chapter_id: {chapter_id}
                             },
                             {
                                 "task_id": 2,
-                                "description": "执行用户请求",
-                                "tool": "auto",
+                                "description": "基于上下文响应用户请求",
+                                "tool": "analyze_text_tool",
+                                "params": {
+                                    "text": "$TASK_1$",
+                                    "focus": "根据用户请求进行分析或回答"
+                                },
                                 "estimated_time": "10秒"
                             }
                         ]
@@ -5248,11 +5253,17 @@ chapter_id: {chapter_id}
                 normalized["requirements"] = "，".join(parts)
                 logger.info(f"[参数标准化] continue_writing_tool.requirements: dict → str")
 
-        # analyze_text_tool 的参数必须是字符串
-        elif tool_name == "analyze_text_tool":
-            if "text" in params and not isinstance(params["text"], str):
-                normalized["text"] = str(params["text"])
-                logger.info(f"[参数标准化] analyze_text_tool.text: {type(params['text']).__name__} → str")
+        # 🔧 2025-12-14: analyze_content → analyze_text 参数转换
+        # analyze_content 使用 content 参数，analyze_text 使用 text 参数
+        elif tool_name in ("analyze_content", "analyze_content_tool", "analyze_text_tool", "analyze_text"):
+            # 如果有 content 但没有 text，转换参数名
+            if "content" in params and "text" not in params:
+                normalized["text"] = params["content"]
+                del normalized["content"]
+                logger.info(f"[参数标准化] {tool_name}.content → text")
+            if "text" in normalized and not isinstance(normalized["text"], str):
+                normalized["text"] = str(normalized["text"])
+                logger.info(f"[参数标准化] {tool_name}.text: {type(params.get('text', params.get('content'))).__name__} → str")
             if "focus" in params and not isinstance(params["focus"], str):
                 normalized["focus"] = str(params["focus"])
 
@@ -5270,7 +5281,10 @@ chapter_id: {chapter_id}
 
         🔧 2025-12-14: 统一使用 registry.call_tool() 调用 StandardTool
         """
-        tool_name = task.get("tool", "auto")
+        tool_name = task.get("tool", "analyze_text")  # 🔧 2025-12-14: 默认改为 analyze_text
+        # 🔧 2025-12-14: 处理 auto 工具名
+        if tool_name == "auto":
+            tool_name = "analyze_text"
         task_type = task.get("type", "")  # ✅ 新增：检测任务类型
         params = task.get("params", {})
 
@@ -5283,9 +5297,12 @@ chapter_id: {chapter_id}
         # 🔧 2025-12-14: 统一使用 registry 调用所有工具
         try:
             # 工具名称映射
+            # 🔧 2025-12-14: 添加 analyze_content → analyze_text 映射，避免 AI 混淆
             TOOL_NAME_MAPPING = {
                 "continue_writing_tool": "continue_writing",
                 "analyze_text_tool": "analyze_text",
+                "analyze_content_tool": "analyze_text",  # 🔧 兼容：统一使用 analyze_text
+                "analyze_content": "analyze_text",       # 🔧 兼容：统一使用 analyze_text
                 "get_context_tool": "get_context",
                 "read_chapter_tool": "read_chapter",
                 "get_chapter_by_order_tool": "get_chapter_by_order",

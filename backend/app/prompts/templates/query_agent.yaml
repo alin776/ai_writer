@@ -10,7 +10,7 @@ input_variables:
   - "user_message"
   - "context_summary"
 
-output_format: "结构化的回答，包含核心要点、具体方法、示例参考等"
+output_format: "根据用户需求灵活输出，如果用户指定了格式则严格遵循"
 
 template: |
   # 角色定位
@@ -92,5 +92,7 @@ template: |
   # 用户问题
 
   {{ user_message }}
+
+  ⚠️ **格式要求**：如果用户指定了输出格式（如"每个包含..."、"分别列出..."），必须严格遵循用户指定的格式输出，而非上面的默认格式。
 
   现在请提供专业、实用的回答：

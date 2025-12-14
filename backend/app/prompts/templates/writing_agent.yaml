@@ -17,7 +17,7 @@ input_variables:
   - "writing_constraints"
   - "examples"
 
-output_format: "网络小说内容，包含情节、人物、对话、场景描写等"
+output_format: "根据用户需求灵活输出：叙事内容、结构化列表、设计方案等"
 
 template: |
   # 角色定位
@@ -176,6 +176,8 @@ template: |
   # 当前任务
 
   用户需求：{{ user_message }}
+
+  ⚠️ **格式要求**：如果用户指定了输出格式（如"每个包含..."、"分别列出..."、"包含原因、过程、结果"），必须严格遵循用户指定的格式输出。
   {% if examples %}
 
   # 参考示例
@@ -187,4 +189,4 @@ template: |
   {% endfor %}
   {% endif %}
 
-  现在请开始创作网络小说内容：
+  现在请根据用户需求完成任务：
