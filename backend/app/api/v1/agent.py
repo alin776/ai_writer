@@ -1089,7 +1089,7 @@ async def agent_chat_stream(
 
                 # ✅ 追踪内容是否已通过流式发送（避免重复发送）
                 content_sent = {'value': False}
-                sent_hashes: set[str] = set()
+                # ✅ 移除 MD5 去重：逐字发送模式下，相同字符也需要正常发送
 
                 # 定义回调函数 - 实时放入队列
                 async def on_plan(plan_data):
@@ -1117,22 +1117,15 @@ async def agent_chat_stream(
                     logger.info(f"[Stream] 任务完成: {task.get('description')} ({elapsed_time:.1f}s)")
 
                 async def on_content(chunk):
-                    """内容生成回调，带去重"""
-                    # 规范化文本以做去重
+                    """内容生成回调 - 逐字发送，无去重"""
+                    # 规范化文本
                     if isinstance(chunk, dict) and "content" in chunk:
                         raw_text = str(chunk.get("content", ""))
                     else:
                         raw_text = "" if chunk is None else str(chunk)
 
-                    # 使用哈希做轻量去重（避免重复推送相同内容）
-                    digest = hashlib.md5(raw_text.encode("utf-8")).hexdigest() if raw_text else None
-                    if digest and digest in sent_hashes:
-                        logger.warning("[Stream] 检测到重复content，已跳过")
-                        return
-                    if digest:
-                        sent_hashes.add(digest)
-
-                    content_sent['value'] = True  # ✅ 标记内容已发送
+                    # ✅ 直接发送，不做去重（逐字模式下相同字符也需要发送）
+                    content_sent['value'] = True  # 标记内容已发送
                     if raw_text:
                         assistant_chunks.append(raw_text)
                     await event_queue.put(('content', chunk))

@@ -355,7 +355,9 @@ class HTTPAIService:
                                     if content is not None and content and not self._should_filter(content):
                                         chunk_count += 1
                                         total_content += content
-                                        yield content, None  # 中间块不返回usage
+                                        # ✅ 真流式输出：AI返回什么立即yield什么，不拆分不延迟
+                                        # 显示节奏由前端控制，后端保持高效传输
+                                        yield content, None
 
                         except json.JSONDecodeError as e:
                             logger.warning(f"JSON 解析错误: {e}, 数据: {data_str[:100]}")

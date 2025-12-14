@@ -93,6 +93,11 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
   const lastUpdateRef = useRef<number>(0);
   const stopRequestedRef = useRef<boolean>(false);
 
+  // ✅ 打字机效果：缓冲队列和定时器
+  const typewriterQueueRef = useRef<string[]>([]);
+  const typewriterTimerRef = useRef<number | null>(null);
+  const TYPEWRITER_SPEED = 10; // 每个字符显示间隔（毫秒），10ms约100字/秒
+
   const persistence = useConversationPersistence({
     sessionId: externalSessionId,
     autoSave: true,
@@ -287,6 +292,13 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       abortControllerRef.current?.abort();
       abortControllerRef.current = abortController;
       lastPersistRef.current = 0;
+
+      // ✅ 清理打字机队列（确保每次新请求时队列干净）
+      if (typewriterTimerRef.current !== null) {
+        clearInterval(typewriterTimerRef.current);
+        typewriterTimerRef.current = null;
+      }
+      typewriterQueueRef.current = [];
 
       const taskStartTimes = new Map<number, number>();
       activityStartTimes.current.clear();
@@ -496,54 +508,104 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
               : {}),
             onContent: (chunk) => {
               if (stopRequestedRef.current) return; // 已请求停止时丢弃后续流内容
-              streamingContent += chunk;
-              const currentSession = sessionManager.getSession(sessionId);
-              const currentMessages = currentSession?.messages || baseMessages;
-              const updated = [...currentMessages];
-              const target = updated[agentMessageIndex];
-              if (target) {
-                const now = Date.now();
-                if (now - lastUpdateRef.current >= 50) {
-                  lastUpdateRef.current = now;
-                  updated[agentMessageIndex] = {
-                    ...target,
-                    content: streamingContent,
-                    agentSteps
-                  };
-                  sessionManager.updateSession(sessionId, { messages: updated });
-                  persistMessagesThrottled(updated, streamConversationId, uiMode);
-                }
+
+              // ✅ 打字机效果：将chunk中的每个字符加入队列
+              for (const char of chunk) {
+                typewriterQueueRef.current.push(char);
+              }
+
+              // 启动打字机定时器（如果未启动）
+              if (typewriterTimerRef.current === null) {
+                const processQueue = () => {
+                  if (stopRequestedRef.current || typewriterQueueRef.current.length === 0) {
+                    if (typewriterTimerRef.current !== null) {
+                      clearInterval(typewriterTimerRef.current);
+                      typewriterTimerRef.current = null;
+                    }
+                    return;
+                  }
+
+                  // 从队列取出一个字符
+                  const char = typewriterQueueRef.current.shift();
+                  if (char) {
+                    streamingContent += char;
+
+                    // 更新UI
+                    const currentSession = sessionManager.getSession(sessionId);
+                    const currentMessages = currentSession?.messages || baseMessages;
+                    const updated = [...currentMessages];
+                    const target = updated[agentMessageIndex];
+                    if (target) {
+                      updated[agentMessageIndex] = {
+                        ...target,
+                        content: streamingContent,
+                        agentSteps
+                      };
+                      sessionManager.updateSession(sessionId, { messages: updated });
+                    }
+                  }
+                };
+
+                typewriterTimerRef.current = window.setInterval(processQueue, TYPEWRITER_SPEED);
               }
             },
             onStep: (step) => {
               agentSteps.push(step);
             },
             onDone: (metadata, actions) => {
-              const currentSession = sessionManager.getSession(sessionId);
-              const currentMessages = currentSession?.messages || baseMessages;
-              const updated = [...currentMessages];
-              const target = updated[agentMessageIndex];
-              if (target) {
-                updated[agentMessageIndex] = {
-                  ...target,
-                  content: streamingContent,
-                  agentSteps,
-                  metadata
-                };
-              }
+              // ✅ 打字机效果：等待队列清空后再完成
+              const finishStream = () => {
+                // 清空队列中剩余的所有字符
+                while (typewriterQueueRef.current.length > 0) {
+                  const char = typewriterQueueRef.current.shift();
+                  if (char) streamingContent += char;
+                }
 
-              sessionManager.updateSession(sessionId, {
-                messages: updated,
-                suggestedActions: actions || [],
-                isLoading: false,
-                progressData: null,
-                activities: (currentSession?.activities || []).map((a) =>
-                  a.status === 'active' ? { ...a, status: 'completed' } : a
-                )
-              });
-              persistMessagesThrottled(updated, streamConversationId, uiMode, true);
-              sessionManager.disconnectSession(sessionId);
-              abortControllerRef.current = null;
+                // 清理定时器
+                if (typewriterTimerRef.current !== null) {
+                  clearInterval(typewriterTimerRef.current);
+                  typewriterTimerRef.current = null;
+                }
+
+                const currentSession = sessionManager.getSession(sessionId);
+                const currentMessages = currentSession?.messages || baseMessages;
+                const updated = [...currentMessages];
+                const target = updated[agentMessageIndex];
+                if (target) {
+                  updated[agentMessageIndex] = {
+                    ...target,
+                    content: streamingContent,
+                    agentSteps,
+                    metadata
+                  };
+                }
+
+                sessionManager.updateSession(sessionId, {
+                  messages: updated,
+                  suggestedActions: actions || [],
+                  isLoading: false,
+                  progressData: null,
+                  activities: (currentSession?.activities || []).map((a) =>
+                    a.status === 'active' ? { ...a, status: 'completed' } : a
+                  )
+                });
+                persistMessagesThrottled(updated, streamConversationId, uiMode, true);
+                sessionManager.disconnectSession(sessionId);
+                abortControllerRef.current = null;
+              };
+
+              // 如果队列为空，直接完成；否则等待队列清空
+              if (typewriterQueueRef.current.length === 0) {
+                finishStream();
+              } else {
+                // 等待打字机效果完成
+                const waitForQueue = setInterval(() => {
+                  if (typewriterQueueRef.current.length === 0) {
+                    clearInterval(waitForQueue);
+                    finishStream();
+                  }
+                }, 50);
+              }
             },
             onError: (errorMsg) => {
               const errorMessage = errorMsg || '未知错误';
@@ -637,6 +699,14 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     activityStartTimes.current.clear();
     abortControllerRef.current = null;
     lastPersistRef.current = 0;
+
+    // ✅ 清理打字机定时器和队列
+    if (typewriterTimerRef.current !== null) {
+      clearInterval(typewriterTimerRef.current);
+      typewriterTimerRef.current = null;
+    }
+    typewriterQueueRef.current = [];
+
     persistence.clearCurrentSession();
     refreshSessionSnapshot();
   }, [persistence, refreshSessionSnapshot, sessionId, sessionManager]);
@@ -648,6 +718,14 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
   const stopStreaming = useCallback(() => {
     stopRequestedRef.current = true;
+
+    // ✅ 清理打字机定时器和队列
+    if (typewriterTimerRef.current !== null) {
+      clearInterval(typewriterTimerRef.current);
+      typewriterTimerRef.current = null;
+    }
+    typewriterQueueRef.current = [];
+
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;

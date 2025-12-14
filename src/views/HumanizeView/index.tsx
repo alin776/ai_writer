@@ -59,13 +59,8 @@ export const HumanizeView: React.FC = () => {
 
   // ==================== 中断控制 ====================
   const abortControllerRef = useRef<AbortController | null>(null);
-  const renderQueueRef = useRef<string[]>([]);
-  const rafRef = useRef<number | null>(null);
-  const lastRenderTimeRef = useRef<number>(0);
-  const doneReceivedRef = useRef<boolean>(false);
-  const renderCompleteRef = useRef<boolean>(false);
+  // ✅ 简化：移除打字机队列，后端已实现逐字发送（15ms/字）
   const toastShownRef = useRef<boolean>(false);
-  const TYPE_INTERVAL_MS = 30; // 控制逐字节奏（毫秒/字）
   const [renderComplete, setRenderComplete] = useState(false);
 
   // ==================== 生命周期 ====================
@@ -93,39 +88,9 @@ export const HumanizeView: React.FC = () => {
     };
   }, [showToast]);
 
-  // Typewriter loop: slowly append characters from render queue
-  useEffect(() => {
-    const step = () => {
-      const now = performance.now();
-      if (
-        renderQueueRef.current.length > 0 &&
-        now - lastRenderTimeRef.current >= TYPE_INTERVAL_MS
-      ) {
-        lastRenderTimeRef.current = now;
-        const nextChar = renderQueueRef.current.shift();
-        if (nextChar !== undefined) setOutputText((prev) => prev + nextChar);
-      }
-      if (doneReceivedRef.current && renderQueueRef.current.length === 0 && !renderCompleteRef.current) {
-        renderCompleteRef.current = true;
-        setRenderComplete(true);
-        doneReceivedRef.current = false;
-      }
-      rafRef.current = requestAnimationFrame(step);
-    };
-
-    rafRef.current = requestAnimationFrame(step);
-
-    return () => {
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-      }
-    };
-  }, []);
+  // ✅ 简化：移除前端打字机循环，后端已实现逐字发送
 
   const resetStreamOutput = (text: string = '') => {
-    renderQueueRef.current = [];
-    doneReceivedRef.current = false;
-    renderCompleteRef.current = false;
     toastShownRef.current = false;
     setRenderComplete(false);
     setOutputText(text);
@@ -222,9 +187,9 @@ export const HumanizeView: React.FC = () => {
         break;
 
       case 'chunk':
-        // 文本片段
+        // ✅ 简化：后端逐字发送，前端直接追加显示
         if (event.content) {
-          renderQueueRef.current.push(...event.content.split(''));
+          setOutputText((prev) => prev + event.content);
         }
         break;
 
@@ -239,9 +204,8 @@ export const HumanizeView: React.FC = () => {
         break;
 
       case 'done':
-        // 处理完成
+        // ✅ 简化：后端逐字发送完成后，直接标记完成
         setCurrentStage('done');
-        doneReceivedRef.current = true;
         if (event.session_id) setSessionId(event.session_id);
         if (event.improvement !== undefined) setImprovement(event.improvement);
         if (event.processing_time !== undefined) setProcessingTime(event.processing_time);
@@ -252,26 +216,15 @@ export const HumanizeView: React.FC = () => {
           setSessionId(null);
           if (!outputText) {
             resetStreamOutput(inputText);
-          } else {
-            renderCompleteRef.current = true;
-            setRenderComplete(true);
           }
-          doneReceivedRef.current = false;
           showToast('info', '文本AI特征较低，未执行改写');
-        } else {
-          if (renderQueueRef.current.length === 0) {
-            renderCompleteRef.current = true;
-            setRenderComplete(true);
-            doneReceivedRef.current = false;
-          }
         }
+        // 直接标记渲染完成（后端已逐字发送完毕）
+        setRenderComplete(true);
         break;
 
       case 'error':
-        // 错误
-        renderQueueRef.current = [];
-        doneReceivedRef.current = false;
-        renderCompleteRef.current = false;
+        // ✅ 简化：错误处理
         setRenderComplete(false);
         setError(event.message || '处理失败');
         setCurrentStage('idle');
