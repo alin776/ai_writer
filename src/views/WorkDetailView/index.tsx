@@ -1223,25 +1223,10 @@ const WorkDetailView: React.FC = () => {
         {/* 左侧章节面板 */}
         <div
           className={`bg-gradient-to-b from-white to-zinc-50/30 dark:from-slate-900 dark:to-slate-900 flex flex-col border-r border-zinc-100/80 dark:border-slate-700 transition-all duration-300 h-full overflow-hidden ${
-            isLeftCollapsed ? 'w-12' : 'w-60'
+            isLeftCollapsed ? 'w-0 border-r-0' : 'w-60'
           }`}
         >
-          {isLeftCollapsed ? (
-            /* 折叠状态 */
-            <div className="flex flex-col items-center py-5 gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsLeftCollapsed(false)}
-                className="h-10 w-10 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
-              >
-                <ChevronRight className="h-6 w-6" />
-              </Button>
-              <div className="writing-mode-vertical text-[11px] text-zinc-400 dark:text-slate-500 tracking-widest" style={{ writingMode: 'vertical-rl' }}>
-                {t('workDetail.title')}
-              </div>
-            </div>
-          ) : (
+          {isLeftCollapsed ? null : (
             /* 展开状态 */
             <div className="px-4 py-3 flex-1 flex flex-col min-h-0">
               {/* 标题区域 */}
@@ -1526,6 +1511,8 @@ const WorkDetailView: React.FC = () => {
             chapterId={currentChapterId || undefined}
             aiAutoCompleteEnabled={aiAutoCompleteEnabled}
             onToggleAIAutoComplete={handleToggleAIAutoComplete}
+            isLeftPanelCollapsed={isLeftCollapsed}
+            onExpandLeftPanel={() => setIsLeftCollapsed(false)}
           />
         </div>
 

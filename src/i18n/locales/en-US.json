@@ -317,6 +317,7 @@
       "draft": "Draft"
     },
     "toolbar": {
+      "expandChapterList": "Expand chapters",
       "aiAutoComplete": "AI Auto-complete",
       "aiAutoCompleteEnabled": "AI Auto-complete enabled (click to disable)",
       "aiAutoCompleteDisabled": "AI Auto-complete disabled (click to enable)",

@@ -53,6 +53,9 @@ interface NovelEditorProps {
   // ===== AI 自动补全开关 =====
   aiAutoCompleteEnabled?: boolean;
   onToggleAIAutoComplete?: () => void;
+  // ===== 左侧面板折叠状态 =====
+  isLeftPanelCollapsed?: boolean;
+  onExpandLeftPanel?: () => void;
   // ===== InlineAI 回调 =====
   onInlineAISend?: (message: string, context: InlineAIContext) => void;
   isInlineAILoading?: boolean;
@@ -96,6 +99,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   chapterId,   // Context-Aware 参数
   aiAutoCompleteEnabled = false, // 默认关闭，避免意外消耗积分
   onToggleAIAutoComplete,
+  isLeftPanelCollapsed = false,
+  onExpandLeftPanel,
   onInlineAISend,
   isInlineAILoading = false,
 }) => {
@@ -1113,6 +1118,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           editor={editor}
           aiAutoCompleteEnabled={aiAutoCompleteEnabled}
           onToggleAIAutoComplete={onToggleAIAutoComplete}
+          isLeftPanelCollapsed={isLeftPanelCollapsed}
+          onExpandLeftPanel={onExpandLeftPanel}
         />
 
         {/* 状态栏 - 极简设计 */}

@@ -317,6 +317,7 @@
       "draft": "草稿"
     },
     "toolbar": {
+      "expandChapterList": "展开目录",
       "aiAutoComplete": "AI 自动补全",
       "aiAutoCompleteEnabled": "AI 自动补全已开启（点击关闭）",
       "aiAutoCompleteDisabled": "AI 自动补全已关闭（点击开启）",

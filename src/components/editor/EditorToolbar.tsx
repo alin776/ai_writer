@@ -25,18 +25,23 @@ import {
   FileCode,
   Minus,
   Wand2,
+  PanelLeftOpen,
 } from 'lucide-react';
 
 interface EditorToolbarProps {
   editor: Editor;
   aiAutoCompleteEnabled?: boolean;
   onToggleAIAutoComplete?: () => void;
+  isLeftPanelCollapsed?: boolean;
+  onExpandLeftPanel?: () => void;
 }
 
 const EditorToolbar: React.FC<EditorToolbarProps> = ({
   editor,
   aiAutoCompleteEnabled = false,
   onToggleAIAutoComplete,
+  isLeftPanelCollapsed = false,
+  onExpandLeftPanel,
 }) => {
   const { t } = useTranslation();
 
@@ -107,8 +112,16 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
 
   return (
     <div className="px-3 py-1.5 flex items-center gap-1.5 border-b border-zinc-100 bg-white shadow-sm shadow-zinc-100/50 dark:bg-slate-900 dark:border-slate-700 dark:shadow-none">
-      {/* AI 自动补全 + 撤销/重做 */}
+      {/* 展开目录按钮（仅当目录收起时显示）+ AI 自动补全 + 撤销/重做 */}
       <div className="flex items-center gap-0.5">
+        {isLeftPanelCollapsed && (
+          <ToolbarButton
+            onClick={() => onExpandLeftPanel?.()}
+            title={t('editor.toolbar.expandChapterList')}
+          >
+            <PanelLeftOpen className="h-3.5 w-3.5" />
+          </ToolbarButton>
+        )}
         <ToolbarButton
           onClick={() => onToggleAIAutoComplete?.()}
           isActive={aiAutoCompleteEnabled}

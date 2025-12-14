@@ -317,6 +317,7 @@
       "draft": "草稿"
     },
     "toolbar": {
+      "expandChapterList": "展開目錄",
       "aiAutoComplete": "AI 自動補全",
       "aiAutoCompleteEnabled": "AI 自動補全已開啟（點擊關閉）",
       "aiAutoCompleteDisabled": "AI 自動補全已關閉（點擊開啟）",
