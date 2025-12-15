@@ -116,3 +116,38 @@
   padding: 1.5rem;
   border-top: 1px solid #f3f4f6;
 }
+
+/* ==================== 暗色模式 ==================== */
+:global(.dark) .overlay {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+:global(.dark) .modal {
+  background-color: #1e293b;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+:global(.dark) .header {
+  border-bottom-color: #334155;
+}
+
+:global(.dark) .title {
+  color: #f8fafc;
+}
+
+:global(.dark) .closeButton {
+  color: #94a3b8;
+}
+
+:global(.dark) .closeButton:hover {
+  color: #f8fafc;
+  background-color: #334155;
+}
+
+:global(.dark) .body {
+  color: #cbd5e1;
+}
+
+:global(.dark) .footer {
+  border-top-color: #334155;
+}

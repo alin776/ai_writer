@@ -445,3 +445,129 @@
     box-shadow: 0 0 16px rgba(59, 130, 246, 1);
   }
 }
+
+/* ==================== 暗色模式 ==================== */
+
+.dark .worldview-graph-container {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+.dark .worldview-node {
+  background: #1e293b;
+  border-color: #475569;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dark .worldview-node:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.dark .character-node {
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, #1e293b 0%, rgba(59, 130, 246, 0.15) 100%);
+}
+
+.dark .character-node:hover {
+  border-color: #60a5fa;
+}
+
+.dark .location-node {
+  border-color: #10b981;
+  background: linear-gradient(135deg, #1e293b 0%, rgba(16, 185, 129, 0.15) 100%);
+}
+
+.dark .location-node:hover {
+  border-color: #34d399;
+}
+
+.dark .setting-node {
+  border-color: #f59e0b;
+  background: linear-gradient(135deg, #1e293b 0%, rgba(245, 158, 11, 0.15) 100%);
+}
+
+.dark .setting-node:hover {
+  border-color: #fbbf24;
+}
+
+.dark .node-icon {
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.dark .node-title {
+  color: #f8fafc;
+}
+
+.dark .node-subtitle {
+  color: #94a3b8;
+}
+
+.dark .worldview-stats-panel {
+  background: #1e293b;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dark .stats-item {
+  color: #cbd5e1;
+}
+
+.dark .stats-item svg {
+  color: #94a3b8;
+}
+
+.dark .help-btn {
+  background: #1e293b;
+  border-color: #475569;
+  color: #94a3b8;
+}
+
+.dark .help-btn:hover {
+  background: #334155;
+  color: #60a5fa;
+  border-color: #3b82f6;
+}
+
+.dark .react-flow__edge-textbg {
+  fill: #1e293b;
+}
+
+.dark .react-flow__edge-text {
+  fill: #cbd5e1;
+}
+
+.dark .react-flow__edge-text tspan {
+  fill: #94a3b8;
+}
+
+.dark .custom-edge-label {
+  background: rgba(30, 41, 59, 0.95);
+  color: #f8fafc;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.dark .custom-edge-label:hover {
+  background: #1e293b;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.dark .react-flow__controls {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dark .react-flow__controls-button {
+  background: #1e293b;
+  border-bottom-color: #334155;
+}
+
+.dark .react-flow__controls-button:hover {
+  background: #334155;
+}
+
+.dark .react-flow__controls-button svg {
+  fill: #cbd5e1;
+}
+
+.dark .worldview-node .react-flow__handle {
+  border-color: #f8fafc;
+  background: #475569;
+}

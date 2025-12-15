@@ -96,3 +96,34 @@
   color: #111827;
   background-color: #f9fafb;
 }
+
+/* ==================== 暗色模式 ==================== */
+:global(.dark) .header {
+  background-color: rgba(15, 23, 42, 0.8);
+  border-bottom-color: #334155;
+}
+
+:global(.dark) .logoIcon {
+  background-color: #f8fafc;
+}
+
+:global(.dark) .logoText {
+  color: #f8fafc;
+}
+
+:global(.dark) .userName {
+  color: #94a3b8;
+}
+
+:global(.dark) .userEmail {
+  color: #64748b;
+}
+
+:global(.dark) .logoutButton {
+  color: #94a3b8;
+}
+
+:global(.dark) .logoutButton:hover {
+  color: #f8fafc;
+  background-color: #1e293b;
+}

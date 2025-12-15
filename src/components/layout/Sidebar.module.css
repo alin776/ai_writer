@@ -100,3 +100,35 @@
     transform: translateX(0);
   }
 }
+
+/* ==================== 暗色模式 ==================== */
+:global(.dark) .sidebar {
+  background-color: #0f172a;
+  border-right-color: #334155;
+}
+
+:global(.dark) .sidebar::-webkit-scrollbar-thumb {
+  background-color: #475569;
+}
+
+:global(.dark) .sidebar::-webkit-scrollbar-thumb:hover {
+  background-color: #64748b;
+}
+
+:global(.dark) .groupTitle {
+  color: #64748b;
+}
+
+:global(.dark) .menuItem {
+  color: #94a3b8;
+}
+
+:global(.dark) .menuItem:hover {
+  color: #f8fafc;
+  background-color: #1e293b;
+}
+
+:global(.dark) .menuItem.active {
+  color: #f8fafc;
+  background-color: #334155;
+}

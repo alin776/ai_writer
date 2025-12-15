@@ -24,6 +24,8 @@ import { NovelReader } from './NovelReader';
 interface NovelDetailProps {
   novel: Novel;
   onBack: () => void;
+  /** 是否从书架进入，如果是则隐藏"加入书架"按钮 */
+  isFromBookshelf?: boolean;
 }
 
 interface Chapter {
@@ -60,7 +62,7 @@ interface RatingStats {
   userRating: number | null;
 }
 
-export function NovelDetail({ novel, onBack }: NovelDetailProps) {
+export function NovelDetail({ novel, onBack, isFromBookshelf = false }: NovelDetailProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set([0]));
   const [userRating, setUserRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
@@ -69,7 +71,8 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentContent, setCommentContent] = useState('');
-  const [isInBookshelf, setIsInBookshelf] = useState(false);
+  // 优先从全局 store 读取缓存的书架状态，避免页面切换时状态丢失
+  const [isInBookshelf, setIsInBookshelf] = useState(() => useWorkNavStore.getState().bookshelfMap[novel.id] || false);
   const [loading, setLoading] = useState(true);
   const [ratingStats, setRatingStats] = useState<RatingStats | null>(null);
   const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
@@ -96,12 +99,16 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
   const { success, error: showError } = useGlobalStore();
 
   // 获取章节记忆功能和阅读状态
-  const { getLastChapter, libraryReadingState, setLibraryReadingState } = useWorkNavStore();
+  const { getLastChapter, libraryReadingState, setLibraryReadingState, setBookshelfStatus } = useWorkNavStore();
+  // 订阅 store 中的书架状态，确保 persist 加载完成后能正确同步
+  const storedBookshelfStatus = useWorkNavStore(state => state.bookshelfMap[novel.id]);
 
   // 防止 StrictMode 双重渲染导致的重复调用
   const hasLoadedRef = useRef<string | null>(null);
   // 防止重复自动进入阅读器
   const hasAutoEnteredReaderRef = useRef(false);
+  // 标记 API 是否已经成功返回书架状态（用于防止 store 同步覆盖 API 结果）
+  const hasBookshelfApiReturnedRef = useRef(false);
 
   // 当 novel prop 变化时，重置状态（防止快速切换小说时的状态残留）
   useEffect(() => {
@@ -111,13 +118,24 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
       setFavoriteCount(novel.likes || 0);
       setChapters([]);
       setComments([]);
-      setIsInBookshelf(false);
+      // 从全局 store 读取新小说的书架状态，而不是简单设为 false
+      setIsInBookshelf(useWorkNavStore.getState().bookshelfMap[novel.id] || false);
       setRatingStats(null);
       setUserRating(0);
       setLoading(true);
       hasLoadedRef.current = null;
+      // 重置 API 返回标记
+      hasBookshelfApiReturnedRef.current = false;
     }
   }, [novel.id]);
+
+  // 当 store 中的书架状态变化时（比如 persist 从 localStorage 加载完成），同步到本地状态
+  // 只有在 API 还未成功返回时才同步，避免覆盖服务器返回的真实状态
+  useEffect(() => {
+    if (!hasBookshelfApiReturnedRef.current && storedBookshelfStatus !== undefined) {
+      setIsInBookshelf(storedBookshelfStatus);
+    }
+  }, [storedBookshelfStatus]);
 
   // 加载作品详情数据
   useEffect(() => {
@@ -136,7 +154,8 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
         const [detailRes, commentsRes, bookshelfStatus, ratingStatsRes, currentUser] = await Promise.all([
           DataService.getPublishedNovelDetail(novel.id),
           DataService.getWorkComments(novel.id).catch(() => ({ items: [] })),
-          DataService.checkInBookshelf(novel.id).catch(() => ({ in_bookshelf: false })),
+          // API 失败时返回 null，保持本地缓存状态
+          DataService.checkInBookshelf(novel.id).catch(() => null),
           DataService.getWorkRatingStats(novel.id).catch(() => null),
           DataService.getCurrentUser().catch(() => null),
         ]);
@@ -168,7 +187,16 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
 
         setChapters(detailRes?.chapters || []);
         setComments(commentsRes.items || []);
-        setIsInBookshelf(bookshelfStatus.in_bookshelf || false);
+        // 处理书架状态：API 成功时以服务器为准，API 失败时保持本地缓存
+        if (bookshelfStatus !== null) {
+          hasBookshelfApiReturnedRef.current = true; // 标记 API 已成功返回
+          // 注意：ApiAdapter 会将 snake_case 转换为 camelCase，所以是 inBookshelf 而不是 in_bookshelf
+          const apiInBookshelf = bookshelfStatus.inBookshelf || false;
+          // API 成功返回时，以服务器状态为准（确保数据同步）
+          setIsInBookshelf(apiInBookshelf);
+          setBookshelfStatus(novel.id, apiInBookshelf);
+        }
+        // 如果 API 失败（bookshelfStatus === null），保持初始化时从 store 读取的本地缓存状态
         setRatingStats(ratingStatsRes);
         setCurrentUserId(currentUser?.id || null);
         if (ratingStatsRes?.userRating) {
@@ -234,12 +262,19 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
       if (isInBookshelf) {
         await DataService.removeFromBookshelf(novel.id);
         setIsInBookshelf(false);
+        // 同步更新全局 store
+        setBookshelfStatus(novel.id, false);
         setFavoriteCount(prev => Math.max(0, prev - 1));
         success('已从书架移除');
       } else {
-        await DataService.addToBookshelf(novel.id);
+        const response = await DataService.addToBookshelf(novel.id);
         setIsInBookshelf(true);
-        setFavoriteCount(prev => prev + 1);
+        // 同步更新全局 store
+        setBookshelfStatus(novel.id, true);
+        // 只有当 already_exists 为 false 时才增加收藏数（避免重复计数）
+        if (!response.alreadyExists) {
+          setFavoriteCount(prev => prev + 1);
+        }
         success('已加入书架');
       }
     } catch (error) {
@@ -425,7 +460,7 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
                 src={novelData.cover}
                 alt={novelData.title}
                 className="w-48 rounded-lg"
-                style={{ height: '256px', objectFit: 'fill' }}
+                style={{ height: '256px', objectFit: 'cover' }}
               />
             </div>
 
@@ -491,17 +526,20 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
                 >
                   开始阅读
                 </button>
-                <button
-                  onClick={handleToggleBookshelf}
-                  className={`px-6 py-3 border text-sm transition-colors flex items-center gap-2 ${
-                    isInBookshelf
-                      ? 'border-red-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'
-                      : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 hover:border-gray-300 dark:hover:border-slate-600 hover:text-black dark:hover:text-white'
-                  }`}
-                >
-                  <Heart className={`w-4 h-4 ${isInBookshelf ? 'fill-red-600' : ''}`} />
-                  {isInBookshelf ? '已加入书架' : '加入书架'}
-                </button>
+                {/* 从书架进入时隐藏"加入书架"按钮 */}
+                {!isFromBookshelf && (
+                  <button
+                    onClick={handleToggleBookshelf}
+                    className={`px-6 py-3 border text-sm transition-colors flex items-center gap-2 ${
+                      isInBookshelf
+                        ? 'border-red-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'
+                        : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 hover:border-gray-300 dark:hover:border-slate-600 hover:text-black dark:hover:text-white'
+                    }`}
+                  >
+                    <Heart className={`w-4 h-4 ${isInBookshelf ? 'fill-red-600' : ''}`} />
+                    {isInBookshelf ? '已加入书架' : '加入书架'}
+                  </button>
+                )}
                 <button className="px-6 py-3 border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 text-sm hover:border-gray-300 dark:hover:border-slate-600 hover:text-black dark:hover:text-white transition-colors flex items-center gap-2">
                   <Share2 className="w-4 h-4" />
                   分享

@@ -111,20 +111,20 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
   };
 
   return (
-    <div className="min-h-screen bg-[#faf8f5] overflow-y-auto">
+    <div className="min-h-screen bg-[#faf8f5] dark:bg-slate-900 overflow-y-auto">
       {/* 背景墨迹渐变 */}
-      <div className="absolute inset-0 opacity-[0.02] pointer-events-none">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-radial from-gray-900 to-transparent blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-radial from-gray-900 to-transparent blur-3xl"></div>
+      <div className="absolute inset-0 opacity-[0.02] dark:opacity-[0.05] pointer-events-none">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-radial from-gray-900 dark:from-gray-100 to-transparent blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-radial from-gray-900 dark:from-gray-100 to-transparent blur-3xl"></div>
       </div>
 
       <div className="relative z-10 max-w-4xl mx-auto px-8 py-12">
         {/* 返回按钮 */}
         <button
           onClick={onBack}
-          className="mb-8 w-10 h-10 rounded-full border-2 border-gray-300 bg-[#faf8f5] flex items-center justify-center hover:border-gray-600 transition-colors group"
+          className="mb-8 w-10 h-10 rounded-full border-2 border-gray-300 dark:border-gray-600 bg-[#faf8f5] dark:bg-slate-800 flex items-center justify-center hover:border-gray-600 dark:hover:border-gray-400 transition-colors group"
         >
-          <ArrowLeft className="w-4 h-4 text-gray-400 group-hover:text-gray-800 transition-colors" />
+          <ArrowLeft className="w-4 h-4 text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200 transition-colors" />
         </button>
 
         {/* 标题区域 */}
@@ -133,9 +133,9 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-12"
         >
-          <h1 className="text-4xl text-gray-800 mb-3 tracking-wide">创建你的作品</h1>
-          <div className="w-24 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent mx-auto mb-4"></div>
-          <p className="text-gray-500">详细描述你的创作世界，让故事更加立体生动</p>
+          <h1 className="text-4xl text-gray-800 dark:text-gray-100 mb-3 tracking-wide">创建你的作品</h1>
+          <div className="w-24 h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent mx-auto mb-4"></div>
+          <p className="text-gray-500 dark:text-gray-400">详细描述你的创作世界，让故事更加立体生动</p>
         </motion.div>
 
         {/* 表单区域 */}
@@ -148,15 +148,15 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
         >
           {/* 基本信息 */}
           <div className="space-y-6">
-            <div className="border-l-2 border-gray-800 pl-4">
-              <h2 className="text-xl text-gray-800 mb-1">基本信息</h2>
+            <div className="border-l-2 border-gray-800 dark:border-gray-200 pl-4">
+              <h2 className="text-xl text-gray-800 dark:text-gray-100 mb-1">基本信息</h2>
             </div>
 
             <div className="space-y-6 pl-6">
               {/* 作品标题 */}
               <div className="space-y-2">
-                <label htmlFor="title" className="block text-gray-700">
-                  作品标题 <span className="text-gray-400">*</span>
+                <label htmlFor="title" className="block text-gray-700 dark:text-gray-300">
+                  作品标题 <span className="text-gray-400 dark:text-gray-500">*</span>
                 </label>
                 <input
                   id="title"
@@ -165,15 +165,15 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                   value={formData.title}
                   onChange={handleChange}
                   placeholder="请输入作品标题"
-                  className={`w-full px-4 py-2 border ${errors.title ? 'border-red-500' : 'border-gray-300'} bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded transition-colors text-gray-900 placeholder:text-gray-400`}
+                  className={`w-full px-4 py-2 border ${errors.title ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500`}
                 />
                 {errors.title && <span className="text-sm text-red-500">{errors.title}</span>}
               </div>
 
               {/* 作品简介 */}
               <div className="space-y-2">
-                <label htmlFor="description" className="block text-gray-700">
-                  作品简介 <span className="text-gray-400">*</span>
+                <label htmlFor="description" className="block text-gray-700 dark:text-gray-300">
+                  作品简介 <span className="text-gray-400 dark:text-gray-500">*</span>
                 </label>
                 <textarea
                   id="description"
@@ -182,7 +182,7 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                   onChange={handleChange}
                   placeholder="简要描述您的作品内容、主题或特色"
                   rows={4}
-                  className={`w-full px-4 py-2 border ${errors.description ? 'border-red-500' : 'border-gray-300'} bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors text-gray-900 placeholder:text-gray-400`}
+                  className={`w-full px-4 py-2 border ${errors.description ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded resize-none transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500`}
                 />
                 {errors.description && <span className="text-sm text-red-500">{errors.description}</span>}
               </div>
@@ -190,27 +190,27 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
           </div>
 
           {/* 分隔线 */}
-          <div className="w-full h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+          <div className="w-full h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent"></div>
 
           {/* 世界观设定 */}
           <div className="space-y-6">
-            <div className="border-l-2 border-gray-800 pl-4">
-              <h2 className="text-xl text-gray-800 mb-1">
-                世界观设定<span className="text-gray-400">（选填）</span>
+            <div className="border-l-2 border-gray-800 dark:border-gray-200 pl-4">
+              <h2 className="text-xl text-gray-800 dark:text-gray-100 mb-1">
+                世界观设定<span className="text-gray-400 dark:text-gray-500">（选填）</span>
               </h2>
-              <p className="text-sm text-gray-400 mt-2">详细的世界观设定能让你的故事更加立体和真实，这些信息可以随时补充和修改</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">详细的世界观设定能让你的故事更加立体和真实，这些信息可以随时补充和修改</p>
             </div>
 
             <div className="space-y-6 pl-6">
               {/* 小说类型 */}
               <div className="space-y-2">
-                <label htmlFor="genre" className="block text-gray-700">小说类型</label>
+                <label htmlFor="genre" className="block text-gray-700 dark:text-gray-300">小说类型</label>
                 <select
                   id="genre"
                   name="genre"
                   value={formData.genre}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded transition-colors text-gray-900"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded transition-colors"
                 >
                   <option value="">请选择类型</option>
                   <option value="xuanhuan">玄幻</option>
@@ -230,7 +230,7 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
               <div className="grid grid-cols-2 gap-6">
                 {/* 背景设定 */}
                 <div className="space-y-2">
-                  <label htmlFor="setting" className="block text-gray-700">背景设定</label>
+                  <label htmlFor="setting" className="block text-gray-700 dark:text-gray-300">背景设定</label>
                   <textarea
                     id="setting"
                     name="setting"
@@ -238,13 +238,13 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                     onChange={handleChange}
                     placeholder="描述故事发生的时代、地点、社会背景等..."
                     rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors text-gray-900 placeholder:text-gray-400"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded resize-none transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   />
                 </div>
 
                 {/* 力量体系 */}
                 <div className="space-y-2">
-                  <label htmlFor="powerSystem" className="block text-gray-700">力量体系</label>
+                  <label htmlFor="powerSystem" className="block text-gray-700 dark:text-gray-300">力量体系</label>
                   <textarea
                     id="powerSystem"
                     name="powerSystem"
@@ -252,13 +252,13 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                     onChange={handleChange}
                     placeholder="如：修仙等级、魔法体系、科技水平等..."
                     rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors text-gray-900 placeholder:text-gray-400"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded resize-none transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   />
                 </div>
 
                 {/* 主角设定 */}
                 <div className="space-y-2">
-                  <label htmlFor="mainCharacter" className="block text-gray-700">主角设定</label>
+                  <label htmlFor="mainCharacter" className="block text-gray-700 dark:text-gray-300">主角设定</label>
                   <textarea
                     id="mainCharacter"
                     name="mainCharacter"
@@ -266,13 +266,13 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                     onChange={handleChange}
                     placeholder="主角的性格、背景、特殊能力、成长轨迹..."
                     rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors text-gray-900 placeholder:text-gray-400"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded resize-none transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   />
                 </div>
 
                 {/* 剧情构思 */}
                 <div className="space-y-2">
-                  <label htmlFor="plotIdea" className="block text-gray-700">剧情构思</label>
+                  <label htmlFor="plotIdea" className="block text-gray-700 dark:text-gray-300">剧情构思</label>
                   <textarea
                     id="plotIdea"
                     name="plotIdea"
@@ -280,13 +280,13 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                     onChange={handleChange}
                     placeholder="主线剧情、重要事件、故事走向、情节发展..."
                     rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors text-gray-900 placeholder:text-gray-400"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded resize-none transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   />
                 </div>
 
                 {/* 世界规则 - 跨两列 */}
                 <div className="space-y-2 col-span-2">
-                  <label htmlFor="worldRules" className="block text-gray-700">世界规则</label>
+                  <label htmlFor="worldRules" className="block text-gray-700 dark:text-gray-300">世界规则</label>
                   <textarea
                     id="worldRules"
                     name="worldRules"
@@ -294,7 +294,7 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                     onChange={handleChange}
                     placeholder="特殊的世界规则、法则、限制、禁忌..."
                     rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors text-gray-900 placeholder:text-gray-400"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded resize-none transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   />
                 </div>
               </div>
@@ -308,7 +308,7 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
               onClick={onBack}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="px-12 py-3 border border-gray-300 text-gray-600 hover:border-gray-600 hover:text-gray-800 transition-all duration-300"
+              className="px-12 py-3 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-600 dark:hover:border-gray-400 hover:text-gray-800 dark:hover:text-gray-100 transition-all duration-300"
             >
               取消
             </motion.button>
@@ -316,7 +316,7 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
               type="submit"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="px-12 py-3 bg-gray-800 text-white hover:bg-gray-900 transition-all duration-300 flex items-center gap-2"
+              className="px-12 py-3 bg-gray-800 dark:bg-gray-200 text-white dark:text-slate-900 hover:bg-gray-900 dark:hover:bg-gray-100 transition-all duration-300 flex items-center gap-2"
             >
               <Save size={18} />
               <span>创建作品</span>

@@ -764,3 +764,225 @@ mark.inline-ai-selection {
 .ai-menu-container {
   animation: slideIn 0.2s ease-out;
 }
+
+/* ==================== 暗色模式 ==================== */
+
+/* Slash 命令菜单 - 暗色模式 */
+.dark .slash-commands-menu {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.4);
+}
+
+.dark .slash-command-item:hover,
+.dark .slash-command-item.selected {
+  background-color: #334155;
+}
+
+.dark .slash-command-item.selected {
+  background-color: rgba(59, 130, 246, 0.2);
+}
+
+.dark .slash-command-icon {
+  background-color: #0f172a;
+  border-color: #475569;
+  color: #94a3b8;
+}
+
+.dark .slash-command-item.selected .slash-command-icon {
+  background-color: rgba(59, 130, 246, 0.2);
+  border-color: #3b82f6;
+  color: #60a5fa;
+}
+
+.dark .slash-command-title {
+  color: #f8fafc;
+}
+
+.dark .slash-command-description {
+  color: #94a3b8;
+}
+
+.dark .slash-commands-menu::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.dark .slash-commands-menu::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* 气泡菜单 - 暗色模式 */
+.dark .bubble-menu-container {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.4);
+}
+
+.dark .bubble-menu-separator {
+  background: #475569;
+}
+
+.dark .bubble-menu-button {
+  color: #94a3b8;
+}
+
+.dark .bubble-menu-button:hover {
+  background: #334155;
+  color: #f8fafc;
+}
+
+.dark .bubble-menu-button.active {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+/* 拖拽手柄 - 暗色模式 */
+.dark .drag-handle {
+  color: #64748b;
+}
+
+.dark .drag-handle:hover {
+  background: #334155;
+  color: #94a3b8;
+}
+
+/* AI 菜单 - 暗色模式 */
+.dark .ai-menu-button {
+  background: #334155;
+  border-color: #475569;
+  color: #f8fafc;
+}
+
+.dark .ai-menu-button svg {
+  color: #60a5fa;
+}
+
+.dark .ai-menu-button:hover:not(:disabled) {
+  background: #475569;
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #60a5fa;
+}
+
+.dark .ai-menu-loading {
+  color: #94a3b8;
+}
+
+/* AI 高亮标记 - 暗色模式 */
+.dark mark.ai-highlight {
+  background-color: rgba(250, 204, 21, 0.3);
+}
+
+@keyframes aiHighlightPulseDark {
+  0%, 100% {
+    background-color: rgba(250, 204, 21, 0.3);
+  }
+  50% {
+    background-color: rgba(250, 204, 21, 0.5);
+  }
+}
+
+.dark mark.ai-highlight {
+  animation: aiHighlightPulseDark 1.5s ease-in-out infinite;
+}
+
+.dark mark.inline-ai-selection {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+/* AI 操作按钮容器 - 暗色模式 */
+.dark .ai-actions-container {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.4);
+}
+
+/* AI 建议 - 暗色模式 */
+.dark .ai-suggestion-tooltip {
+  background: rgba(30, 41, 59, 0.96);
+  border-color: #475569;
+  color: #94a3b8;
+}
+
+.dark .ai-tip-key {
+  color: #f8fafc;
+  background: #0f172a;
+  border-color: #475569;
+}
+
+.dark .ai-tip-text {
+  color: #94a3b8;
+}
+
+.dark .ai-tip-divider {
+  background: #475569;
+}
+
+.dark .ai-suggestion {
+  color: #64748b;
+}
+
+/* AI 自动补全 - 暗色模式 */
+.dark .bubble-menu-container.ai-mode {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark .ai-autocomplete-completion {
+  border-bottom-color: #334155;
+}
+
+.dark .ai-autocomplete-completion-content {
+  color: #cbd5e1;
+}
+
+.dark .ai-autocomplete-loading {
+  color: #94a3b8;
+  border-bottom-color: #334155;
+}
+
+.dark .ai-autocomplete-input-container {
+  border-bottom-color: #334155;
+}
+
+.dark .ai-autocomplete-input {
+  background: #0f172a;
+  border-color: #475569;
+  color: #f8fafc;
+}
+
+.dark .ai-autocomplete-input:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+}
+
+.dark .ai-autocomplete-quick-option:hover {
+  background: #334155;
+}
+
+.dark .ai-autocomplete-quick-option-label {
+  color: #cbd5e1;
+}
+
+.dark .ai-completion-command-item {
+  color: #cbd5e1;
+}
+
+.dark .ai-completion-command-item:hover {
+  background: #334155;
+}
+
+.dark .ai-completion-command-item.discard {
+  color: #f87171;
+}
+
+.dark .ai-completion-command-item.discard:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.dark .ai-completion-separator {
+  background: #334155;
+}
+
+.dark .bubble-menu-button.ai-button:hover {
+  background: rgba(139, 92, 246, 0.15);
+}

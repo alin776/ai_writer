@@ -1379,8 +1379,9 @@ class DataServiceClass {
 
   /**
    * 将作品加入书架
+   * @returns { message, workId, alreadyExists } - alreadyExists 为 true 时表示作品已在书架中
    */
-  async addToBookshelf(workId: string): Promise<any> {
+  async addToBookshelf(workId: string): Promise<{ message: string; workId: string; alreadyExists: boolean }> {
     return this.adapter.post(`/library/bookshelf/${workId}`, {});
   }
 
@@ -1393,8 +1394,9 @@ class DataServiceClass {
 
   /**
    * 检查作品是否在书架中
+   * 注意：ApiAdapter 会自动将 snake_case 转换为 camelCase
    */
-  async checkInBookshelf(workId: string): Promise<{ work_id: string; in_bookshelf: boolean }> {
+  async checkInBookshelf(workId: string): Promise<{ workId: string; inBookshelf: boolean }> {
     return this.adapter.get(`/library/bookshelf/check/${workId}`);
   }
 

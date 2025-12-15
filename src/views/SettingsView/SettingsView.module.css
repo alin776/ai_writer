@@ -298,3 +298,142 @@
     padding: 1.5rem;
   }
 }
+
+/* ==================== 暗色模式 ==================== */
+:global(.dark) .navItem {
+  color: #94a3b8;
+  background: transparent;
+}
+
+:global(.dark) .navItem:hover {
+  background: #1e293b;
+  border-color: #475569;
+}
+
+:global(.dark) .navItem.active {
+  background: #1e293b;
+  border-color: #475569;
+  color: #f8fafc;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+:global(.dark) .title {
+  color: #f8fafc;
+}
+
+:global(.dark) .subtitle {
+  color: #94a3b8;
+}
+
+:global(.dark) .section {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+:global(.dark) .sectionHeader {
+  border-bottom-color: #334155;
+}
+
+:global(.dark) .sectionTitle {
+  color: #f8fafc;
+}
+
+:global(.dark) .sectionDescription {
+  color: #94a3b8;
+}
+
+:global(.dark) .label {
+  color: #cbd5e1;
+}
+
+:global(.dark) .required {
+  color: #94a3b8;
+}
+
+:global(.dark) .input,
+:global(.dark) .textarea,
+:global(.dark) .select {
+  background: #0f172a;
+  border-color: #475569;
+  color: #f8fafc;
+}
+
+:global(.dark) .input:hover,
+:global(.dark) .textarea:hover,
+:global(.dark) .select:hover {
+  border-color: #64748b;
+}
+
+:global(.dark) .input:focus,
+:global(.dark) .textarea:focus,
+:global(.dark) .select:focus {
+  border-color: #94a3b8;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.15);
+}
+
+:global(.dark) .input:disabled,
+:global(.dark) .textarea:disabled,
+:global(.dark) .select:disabled {
+  background: #1e293b;
+  color: #64748b;
+}
+
+:global(.dark) .helpText {
+  color: #94a3b8;
+}
+
+:global(.dark) .buttonGroup {
+  border-top-color: #334155;
+}
+
+:global(.dark) .buttonPrimary {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #f8fafc;
+}
+
+:global(.dark) .buttonPrimary:hover {
+  background: #e2e8f0;
+  border-color: #e2e8f0;
+}
+
+:global(.dark) .buttonPrimary:active {
+  background: #cbd5e1;
+}
+
+:global(.dark) .buttonSecondary {
+  background: transparent;
+  color: #cbd5e1;
+  border-color: #475569;
+}
+
+:global(.dark) .buttonSecondary:hover {
+  background: #1e293b;
+  border-color: #64748b;
+}
+
+:global(.dark) .buttonSecondary:active {
+  background: #334155;
+}
+
+:global(.dark) .buttonDanger {
+  background: transparent;
+  color: #f87171;
+  border-color: #f87171;
+}
+
+:global(.dark) .buttonDanger:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+:global(.dark) .infoBox {
+  background: #0f172a;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+:global(.dark) .divider {
+  background: #334155;
+}
