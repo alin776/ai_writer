@@ -730,41 +730,78 @@ class DeepAgentExecutor:
 4. 低于阈值 → pass=false
 """
 
-        try:
-            response = await asyncio.wait_for(
-                self.agent._generate_text(
-                    prompt=prompt,
-                    temperature=0.1,
-                    max_tokens=200,
-                    task_type=TaskType.SIMPLE_QA,
-                ),
-                timeout=20,
-            )
+        # 2025-12-15: 增加重试机制和详细日志
+        max_retries = 2
+        last_error = None
 
-            text = (response or {}).get("text", "").strip()
-            if not text:
-                return True
-
+        for attempt in range(max_retries):
             try:
-                data = json.loads(text)
-            except json.JSONDecodeError:
-                # 尝试提取第一个 JSON 对象
-                start = text.find("{")
-                end = text.rfind("}") + 1 if "}" in text else -1
-                if start != -1 and end > start:
-                    data = json.loads(text[start:end])
-                else:
-                    return True
+                response = await asyncio.wait_for(
+                    self.agent._generate_text(
+                        prompt=prompt,
+                        temperature=0.1,
+                        max_tokens=200,
+                        task_type=TaskType.SIMPLE_QA,
+                    ),
+                    timeout=20,
+                )
 
-            val = data.get("pass", False)
-            if isinstance(val, bool):
-                return val
-            if isinstance(val, str):
-                return val.strip().lower() in {"true", "yes", "pass", "ok"}
-            return False
-        except Exception as e:
-            logger.warning(f"末尾验收调用失败，忽略校验: {e}")
-            return True
+                text = (response or {}).get("text", "").strip()
+                if not text:
+                    # 2025-12-15: 空响应应该重试，而不是直接通过
+                    logger.warning(f"[验收] 第{attempt+1}次尝试: AI返回空响应，将重试")
+                    last_error = "AI返回空响应"
+                    continue  # 触发重试
+
+                try:
+                    data = json.loads(text)
+                except json.JSONDecodeError:
+                    # 尝试提取第一个 JSON 对象
+                    start = text.find("{")
+                    end = text.rfind("}") + 1 if "}" in text else -1
+                    if start != -1 and end > start:
+                        try:
+                            data = json.loads(text[start:end])
+                        except json.JSONDecodeError:
+                            # 2025-12-15: 提取的子串仍不是有效JSON，触发重试
+                            logger.warning(f"[验收] 第{attempt+1}次尝试: 提取的JSON片段无效，将重试")
+                            last_error = "JSON片段解析失败"
+                            continue  # 触发重试
+                    else:
+                        # 2025-12-15: 无法解析JSON也应该重试
+                        logger.warning(f"[验收] 第{attempt+1}次尝试: 无法解析JSON，将重试")
+                        last_error = "无法解析JSON"
+                        continue  # 触发重试
+
+                val = data.get("pass", False)
+                result = False
+                if isinstance(val, bool):
+                    result = val
+                elif isinstance(val, str):
+                    result = val.strip().lower() in {"true", "yes", "pass", "ok"}
+
+                # 记录验收结果
+                summary = data.get("summary", "")
+                logger.info(f"[验收] 结果: {'通过' if result else '未通过'}, 摘要: {summary}")
+                return result
+
+            except asyncio.TimeoutError:
+                last_error = "超时"
+                logger.warning(f"[验收] 第{attempt+1}次尝试超时")
+            except asyncio.CancelledError:
+                logger.debug("[验收] 任务被取消")
+                return True
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"[验收] 第{attempt+1}次尝试失败: {e}")
+
+            # 如果还有重试机会，等待一小段时间
+            if attempt < max_retries - 1:
+                await asyncio.sleep(1)
+
+        # 所有重试都失败，记录详细信息并视为通过（不阻断流程）
+        logger.warning(f"末尾验收调用失败（{max_retries}次重试），忽略校验: {last_error}")
+        return True
 
     def _can_replan(self) -> bool:
         """是否还能重规划"""

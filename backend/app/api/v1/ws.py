@@ -8,6 +8,7 @@ WebSocket实时推送
 """
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
+from starlette.websockets import WebSocketState  # 2025-12-15: 导入用于安全的连接状态检查
 from celery.result import AsyncResult
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
@@ -239,15 +240,32 @@ async def notifications_stream(websocket: WebSocket, user_id: str):
 
     except WebSocketDisconnect:
         logger.info(f"[WebSocket] 通知连接断开: user_id={user_id}")
+    except asyncio.CancelledError:
+        # 任务被取消（如服务器关闭），静默处理
+        logger.debug(f"[WebSocket] 连接任务被取消: user_id={user_id}")
     except Exception as e:
-        logger.error(f"[WebSocket] 通知推送错误: {e}", exc_info=True)
-        try:
-            await websocket.send_json({
-                "type": "error",
-                "message": f"WebSocket error: {str(e)}"
-            })
-        except:
-            pass
+        # 检查是否是连接已关闭的错误（常见于客户端断开）
+        error_str = str(e).lower()
+        is_connection_closed = any(keyword in error_str for keyword in [
+            "connectionclosed", "connection closed", "no close frame",
+            "incomplete read", "clientdisconnected", "disconnected"
+        ])
+
+        if is_connection_closed:
+            # 连接关闭是正常情况，降级为 DEBUG 日志
+            logger.debug(f"[WebSocket] 连接已关闭: user_id={user_id}, reason={type(e).__name__}")
+        else:
+            # 其他错误才记录为 ERROR
+            logger.error(f"[WebSocket] 通知推送错误: {e}", exc_info=True)
+            try:
+                # 尝试发送错误消息前检查连接状态（使用枚举值比较更安全）
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": f"WebSocket error: {str(e)}"
+                    })
+            except Exception:
+                pass  # 发送失败时静默处理
     finally:
         # 移除连接
         if user_uuid in active_notification_connections:
@@ -255,9 +273,11 @@ async def notifications_stream(websocket: WebSocket, user_id: str):
             if not active_notification_connections[user_uuid]:
                 del active_notification_connections[user_uuid]
         try:
-            await websocket.close()
-        except:
-            pass
+            # 只在连接仍然打开时尝试关闭（使用枚举值比较更安全）
+            if websocket.client_state != WebSocketState.DISCONNECTED:
+                await websocket.close()
+        except Exception:
+            pass  # 关闭失败时静默处理
 
 
 async def broadcast_notification(user_id: UUID, notification_data: dict):
@@ -275,12 +295,16 @@ async def broadcast_notification(user_id: UUID, notification_data: dict):
     disconnected_sockets = []
     for websocket in active_notification_connections[user_id]:
         try:
+            # 2025-12-15: 发送前检查连接状态
+            if websocket.client_state != WebSocketState.CONNECTED:
+                disconnected_sockets.append(websocket)
+                continue
             await websocket.send_json({
                 "type": "notification",
                 "data": notification_data
             })
         except Exception as e:
-            logger.error(f"[WebSocket] 发送通知失败: {e}")
+            logger.debug(f"[WebSocket] 发送通知失败: {e}")  # 降级为debug，避免日志污染
             disconnected_sockets.append(websocket)
 
     # 清理断开的连接
@@ -302,6 +326,10 @@ async def broadcast_unread_count(user_id: UUID, count: int):
     disconnected_sockets = []
     for websocket in active_notification_connections[user_id]:
         try:
+            # 2025-12-15: 发送前检查连接状态
+            if websocket.client_state != WebSocketState.CONNECTED:
+                disconnected_sockets.append(websocket)
+                continue
             await websocket.send_json({
                 "type": "unread_count",
                 "data": {
@@ -309,7 +337,7 @@ async def broadcast_unread_count(user_id: UUID, count: int):
                 }
             })
         except Exception as e:
-            logger.error(f"[WebSocket] 发送未读数量失败: {e}")
+            logger.debug(f"[WebSocket] 发送未读数量失败: {e}")  # 降级为debug
             disconnected_sockets.append(websocket)
 
     # 清理断开的连接

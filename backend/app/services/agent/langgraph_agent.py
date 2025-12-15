@@ -4081,16 +4081,37 @@ chapter_id: {chapter_id}
 {static_prompt}{chapter_planning_hint}"""
 
                 try:
-                    plan_result = await self._generate_text(
-                        prompt=plan_prompt,  # ✅ 修复：使用关键字参数
-                        temperature=0.3,
-                        max_tokens=2000,  # ✅ 2025-12-14: 增加到2000，防止复杂场景JSON被截断（从1200增加）
-                        task_type=TaskType.SIMPLE_QA  # ← Planning阶段用轻量模型快速生成任务列表
-                    )
-                    plan_text = plan_result.get("text", "").strip()
+                    # 2025-12-15: P0修复 - 添加重试机制，解决 AI 响应为空问题
+                    max_planning_retries = 2
+                    plan_text = ""
+                    plan_data = None
 
-                    # 解析规划JSON
-                    plan_data = self._extract_json_from_text(plan_text)
+                    for retry_attempt in range(max_planning_retries):
+                        plan_result = await self._generate_text(
+                            prompt=plan_prompt,  # ✅ 修复：使用关键字参数
+                            temperature=0.3 + (retry_attempt * 0.1),  # 重试时稍微提高温度
+                            max_tokens=2000,  # ✅ 2025-12-14: 增加到2000，防止复杂场景JSON被截断
+                            task_type=TaskType.SIMPLE_QA  # ← Planning阶段用轻量模型快速生成任务列表
+                        )
+                        plan_text = plan_result.get("text", "").strip()
+
+                        # 检查是否有有效内容
+                        if plan_text:
+                            # 解析规划JSON
+                            plan_data = self._extract_json_from_text(plan_text)
+                            if plan_data and plan_data.get("tasks"):
+                                # 成功获取有效规划，退出重试循环
+                                if retry_attempt > 0:
+                                    logger.info(f"[Planning] 第{retry_attempt + 1}次重试成功")
+                                break
+                            else:
+                                logger.warning(f"[Planning] 第{retry_attempt + 1}次尝试: JSON解析失败或无任务")
+                        else:
+                            logger.warning(f"[Planning] 第{retry_attempt + 1}次尝试: AI返回空响应")
+
+                        # 如果还有重试机会，等待一小段时间
+                        if retry_attempt < max_planning_retries - 1:
+                            await asyncio.sleep(1)
 
                     # ✅ 2025-12-07: 记录 thinking 字段用于调试
                     if plan_data and "thinking" in plan_data:

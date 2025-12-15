@@ -564,7 +564,9 @@ const WorksView: React.FC = () => {
       };
 
       const result = await DataService.importWork(importFile, options);
-      showToast('success', t('works.import.success', { count: result.chaptersCreated }));
+      console.log('[导入结果]', result); // 调试日志
+      const chaptersCount = result.chaptersCreated ?? result.chapters_created ?? 0;
+      showToast('success', t('works.import.success', { count: chaptersCount }));
       closeImportModal();
       await loadWorks(); // 重新加载作品列表
 

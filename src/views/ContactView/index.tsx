@@ -101,9 +101,6 @@ const ContactView: React.FC = () => {
             ) : (
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    姓名
-                  </label>
                   <input
                     type="text"
                     name="name"
@@ -116,9 +113,6 @@ const ContactView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    邮箱
-                  </label>
                   <input
                     type="email"
                     name="email"
@@ -126,14 +120,11 @@ const ContactView: React.FC = () => {
                     onChange={handleChange}
                     required
                     className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                    placeholder="your@email.com"
+                    placeholder="请输入您的邮箱"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    主题
-                  </label>
                   <input
                     type="text"
                     name="subject"
@@ -146,9 +137,6 @@ const ContactView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    消息内容
-                  </label>
                   <textarea
                     name="message"
                     value={formData.message}

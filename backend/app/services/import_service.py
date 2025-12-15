@@ -341,11 +341,15 @@ class ImportService:
         work.total_chapters = chapters_created
         work.total_words = total_words  # 使用累计的字数，避免查询数据库
 
+        # 2025-12-15: 先 flush 确保所有章节都获得了数据库生成的 ID
+        await self.db.flush()
+
         # 为导入的章节记录delta（在同一事务中）
         from app.services.chapter_word_stat_service import ChapterWordStatService
         stat_service = ChapterWordStatService(self.db)
         for chapter in created_chapters:
-            if chapter.word_count and chapter.word_count > 0:
+            # 2025-12-15: 增加 chapter.id 的有效性检查
+            if chapter.id and chapter.word_count and chapter.word_count > 0:
                 try:
                     # 使用auto_commit=False，在同一事务中提交
                     await stat_service.add_delta(chapter.id, chapter.word_count, auto_commit=False)
@@ -456,11 +460,15 @@ class ImportService:
         work.total_chapters = (work.total_chapters or 0) + chapters_created
         work.total_words = total_words
 
+        # 2025-12-15: 先 flush 确保所有章节都获得了数据库生成的 ID
+        await self.db.flush()
+
         # 为导入的章节记录delta（在同一事务中）
         from app.services.chapter_word_stat_service import ChapterWordStatService
         stat_service = ChapterWordStatService(self.db)
         for chapter in created_chapters:
-            if chapter.word_count and chapter.word_count > 0:
+            # 2025-12-15: 增加 chapter.id 的有效性检查
+            if chapter.id and chapter.word_count and chapter.word_count > 0:
                 try:
                     await stat_service.add_delta(chapter.id, chapter.word_count, auto_commit=False)
                 except Exception as e:

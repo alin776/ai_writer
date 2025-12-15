@@ -1696,9 +1696,10 @@ async def create_agent_session(
                 if not payload.work_id and chapter.work_id:
                     payload.work_id = str(chapter.work_id)
             else:
-                logger.warning(f"[create_agent_session] chapter_id {payload.chapter_id} 不存在，已忽略")
+                # 2025-12-15: 降级为 DEBUG，因为这通常是前端传参问题（如把 work_id 当作 chapter_id）
+                logger.debug(f"[create_agent_session] chapter_id {payload.chapter_id} 在 chapters 表中未找到，已忽略（可能是前端传参错误）")
         except ValueError:
-            logger.warning(f"[create_agent_session] chapter_id {payload.chapter_id} 格式无效，已忽略")
+            logger.debug(f"[create_agent_session] chapter_id {payload.chapter_id} 格式无效，已忽略")
 
     new_session = AgentSession(
         user_id=current_user.id,
