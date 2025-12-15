@@ -3,13 +3,13 @@
 import React from 'react';
 import Button from '@/components/common/Button';
 import { Wand2, Loader2, AlertCircle } from 'lucide-react';
-import type { HumanizeIntensity } from '@/types/humanize';
+import type { HumanizeIntensity, HumanizeStage } from '@/types/humanize';
 
 interface InputPanelProps {
   inputText: string;
   intensity: HumanizeIntensity;
   isProcessing: boolean;
-  currentStage: string;
+  currentStage: HumanizeStage;
   detectionScore: number | null;
   error: string | null;
   onInputChange: (text: string) => void;

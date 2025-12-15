@@ -21,6 +21,7 @@ import {
   Bell,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { useWorkNavStore } from '../../store/workNavStore';
 import clsx from 'clsx';
 
 interface NavItem {
@@ -55,19 +56,38 @@ const adminNavItemsConfig: NavItem[] = [
 export const Sidebar: React.FC = () => {
   const location = useLocation();
   const { user } = useAuthStore();
+  const { lastWorkPath } = useWorkNavStore();
   const { t } = useTranslation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isServiceExpanded, setIsServiceExpanded] = useState(true);
 
+  // 检测当前是否在作品详情页
   const isWorkDetail = location.pathname.startsWith('/works/') && location.pathname !== '/works';
 
+  // 判断是否应该显示"作品详情"模式：
+  // 1. 当前在作品详情页，或者
+  // 2. 有记住的作品路径（用户曾经访问过作品详情）
+  const shouldShowWorkDetail = isWorkDetail || !!lastWorkPath;
+
   const dynamicMainNavItems = useMemo(() => {
-    return mainNavItemsConfig.map(item =>
-      item.id === 'works'
-        ? { ...item, labelKey: isWorkDetail ? 'sidebar.nav.workDetail' : 'sidebar.nav.works' }
-        : item
-    );
-  }, [isWorkDetail]);
+    return mainNavItemsConfig.map(item => {
+      if (item.id === 'works') {
+        // 如果应该显示作品详情模式
+        if (shouldShowWorkDetail) {
+          // 当前在作品详情页时使用当前路径，否则使用记住的路径
+          const targetPath = isWorkDetail ? location.pathname : (lastWorkPath || '/works');
+          return {
+            ...item,
+            labelKey: 'sidebar.nav.workDetail',
+            path: targetPath
+          };
+        }
+        // 否则显示作品管理
+        return { ...item, labelKey: 'sidebar.nav.works', path: '/works' };
+      }
+      return item;
+    });
+  }, [shouldShowWorkDetail, isWorkDetail, location.pathname, lastWorkPath]);
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(`${path}/`);
   const hasPermission = (item: NavItem) => !item.roles?.length || item.roles.includes(user?.role || '');

@@ -34,6 +34,8 @@ import {
   NotificationPriority,
   NotificationCategory,
   NotificationType,
+  TargetUserType,
+  NotificationStatus,
 } from '../types/notification';
 import {
   ActivityType,
@@ -42,14 +44,17 @@ import {
   type ActivityRules,
   type InvitationRules,
   type CompetitionRules,
+  isInvitationRules,
+  isCompetitionRules,
 } from '../types/activity';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
 // 扩展通知创建接口以包含活动规则
-interface ActivityNotificationCreate extends NotificationCreate {
-  activity_type?: ActivityType | null;
-  activity_rules?: ActivityRules | null;
+interface ActivityNotificationCreate extends Omit<NotificationCreate, 'activityType' | 'displayType'> {
+  displayType: string[];  // 覆盖为必填
+  activityType?: ActivityType | null;
+  activityRules?: ActivityRules | null;
 }
 
 const AdminNotificationsView: React.FC = () => {
@@ -61,7 +66,7 @@ const AdminNotificationsView: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingNotification, setEditingNotification] = useState<NotificationResponse | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'draft'>('all');
   const [uploadingCover, setUploadingCover] = useState(false);
   const [showRewardsConfig, setShowRewardsConfig] = useState(false);
 
@@ -74,12 +79,12 @@ const AdminNotificationsView: React.FC = () => {
     priority: NotificationPriority.NORMAL,
     displayType: ['notification'],
     publishType: 'immediate',
-    targetUsers: 'all',
+    targetUsers: TargetUserType.ALL,
     actionButton: undefined,
     coverImageUrl: '',
     showOnce: false,
-    activity_type: null,
-    activity_rules: null,
+    activityType: null,
+    activityRules: null,
   });
 
   // 加载通知列表
@@ -109,7 +114,7 @@ const AdminNotificationsView: React.FC = () => {
     e.preventDefault();
 
     // 验证展示方式至少选择一种
-    if (formData.displayType.length === 0) {
+    if (!formData.displayType || formData.displayType.length === 0) {
       alert('请至少选择一种展示方式');
       return;
     }
@@ -122,24 +127,24 @@ const AdminNotificationsView: React.FC = () => {
 
       // 如果是活动类型，必须包含活动配置
       if (formData.type === NotificationType.EVENT) {
-        if (!formData.activity_type || !formData.activity_rules) {
+        if (!formData.activityType || !formData.activityRules) {
           alert('活动类型通知必须配置活动信息');
           setLoading(false);
           return;
         }
 
         // 确保活动配置存在且正确
-        submitData.activity_type = formData.activity_type;
-        submitData.activity_rules = formData.activity_rules;
+        submitData.activityType = formData.activityType;
+        submitData.activityRules = formData.activityRules;
 
         console.log('📤 活动配置数据:', {
-          activity_type: submitData.activity_type,
-          activity_rules: submitData.activity_rules
+          activityType: submitData.activityType,
+          activityRules: submitData.activityRules
         });
       } else {
         // 非活动类型，清除活动字段
-        submitData.activity_type = null;
-        submitData.activity_rules = null;
+        submitData.activityType = null;
+        submitData.activityRules = null;
       }
 
       console.log('📤 最终提交数据:', JSON.stringify(submitData, null, 2));
@@ -201,12 +206,12 @@ const AdminNotificationsView: React.FC = () => {
       priority: NotificationPriority.NORMAL,
       displayType: ['notification'],
       publishType: 'immediate',
-      targetUsers: 'all',
+      targetUsers: TargetUserType.ALL,
       actionButton: undefined,
       coverImageUrl: '',
       showOnce: false,
-      activity_type: null,
-      activity_rules: null,
+      activityType: null,
+      activityRules: null,
     });
     setShowRewardsConfig(false);
   };
@@ -253,8 +258,8 @@ const AdminNotificationsView: React.FC = () => {
     console.log('='.repeat(80));
     console.log('通知ID:', notification.id);
     console.log('通知类型:', notification.type);
-    console.log('activity_type:', notification.activity_type);
-    console.log('activity_rules:', notification.activity_rules);
+    console.log('activityType:', notification.activityType);
+    console.log('activityRules:', notification.activityRules);
     console.log('='.repeat(80) + '\n');
 
     setEditingNotification(notification);
@@ -262,15 +267,15 @@ const AdminNotificationsView: React.FC = () => {
     // 检查是否是活动类型
     const isEventType = notification.type === NotificationType.EVENT;
     const hasActivityConfig = isEventType &&
-                              !!notification.activity_type &&
-                              !!notification.activity_rules;
+                              !!notification.activityType &&
+                              !!notification.activityRules;
 
     // 准备活动规则数据
-    let activityRules = notification.activity_rules;
-    if (activityRules && notification.activity_type) {
-      // 确保 activity_rules 包含 type 字段
+    let activityRules = notification.activityRules;
+    if (activityRules && notification.activityType) {
+      // 确保 activityRules 包含 type 字段
       if (!activityRules.type) {
-        activityRules = { ...activityRules, type: notification.activity_type };
+        activityRules = { ...activityRules, type: notification.activityType };
       }
     }
 
@@ -281,7 +286,7 @@ const AdminNotificationsView: React.FC = () => {
       category: notification.category,
       type: notification.type,
       priority: notification.priority,
-      displayType: notification.displayType,
+      displayType: notification.displayType || [],
       publishType: 'immediate',
       targetUsers: notification.targetUsers,
       actionButton: notification.actionButton,
@@ -289,13 +294,13 @@ const AdminNotificationsView: React.FC = () => {
       showOnce: notification.showOnce,
       validFrom: notification.validFrom || undefined,
       validUntil: notification.validUntil || undefined,
-      activity_type: notification.activity_type,
-      activity_rules: activityRules,
+      activityType: notification.activityType as ActivityType | null | undefined,
+      activityRules: activityRules,
     });
 
     console.log('📝 表单数据已设置:', {
-      activity_type: notification.activity_type,
-      activity_rules: activityRules,
+      activityType: notification.activityType,
+      activityRules: activityRules,
       hasActivityConfig
     });
 
@@ -348,7 +353,7 @@ const AdminNotificationsView: React.FC = () => {
     pointsMultiplier: 2,  // 双倍积分
     bonusPoints: 100,     // 额外赠送100积分
     tasks: [{
-      taskId: 'task1',
+      taskName: '每日任务',
       description: '完成每日任务',
       pointsReward: 50
     }]
@@ -376,15 +381,15 @@ const AdminNotificationsView: React.FC = () => {
 
     setFormData(prev => ({
       ...prev,
-      activity_type: type,
-      activity_rules: rules
+      activityType: type,
+      activityRules: rules
     }));
 
     console.log('🎯 切换活动类型:', { type, rules });
   };
 
   // 添加奖励
-  const addReward = (path: 'inviterRewards' | 'inviteeRewards' | string) => {
+  const addReward = (path: 'inviterRewards' | 'inviteeRewards') => {
     const newReward: Reward = {
       type: RewardType.POINTS,
       name: '奖励',
@@ -392,17 +397,16 @@ const AdminNotificationsView: React.FC = () => {
     };
 
     setFormData(prev => {
-      if (!prev.activity_rules) return prev;
+      if (!prev.activityRules) return prev;
 
-      const rules = { ...prev.activity_rules };
-
-      // 只要有 activity_rules 且当前活动类型是邀请活动，就允许添加
-      if (prev.activity_type === ActivityType.INVITATION && (path === 'inviterRewards' || path === 'inviteeRewards')) {
+      // 只要有 activityRules 且当前活动类型是邀请活动，就允许添加
+      if (prev.activityType === ActivityType.INVITATION) {
+        const invitationRules = prev.activityRules as InvitationRules;
         return {
           ...prev,
-          activity_rules: {
-            ...rules,
-            [path]: [...(rules[path as keyof typeof rules] as Reward[]), newReward]
+          activityRules: {
+            ...invitationRules,
+            [path]: [...invitationRules[path], newReward]
           }
         };
       }
@@ -419,17 +423,17 @@ const AdminNotificationsView: React.FC = () => {
     value: any
   ) => {
     setFormData(prev => {
-      // 只检查是否有 activity_rules 和是否是邀请活动类型
-      if (!prev.activity_rules || prev.activity_type !== ActivityType.INVITATION) return prev;
+      // 只检查是否有 activityRules 和是否是邀请活动类型
+      if (!prev.activityRules || prev.activityType !== ActivityType.INVITATION) return prev;
 
-      const rules = { ...prev.activity_rules };
-      const rewards = [...rules[path]];
+      const invitationRules = prev.activityRules as InvitationRules;
+      const rewards = [...invitationRules[path]];
       rewards[index] = { ...rewards[index], [field]: value };
 
       return {
         ...prev,
-        activity_rules: {
-          ...rules,
+        activityRules: {
+          ...invitationRules,
           [path]: rewards
         }
       };
@@ -439,17 +443,17 @@ const AdminNotificationsView: React.FC = () => {
   // 删除奖励
   const removeReward = (path: 'inviterRewards' | 'inviteeRewards', index: number) => {
     setFormData(prev => {
-      // 只检查是否有 activity_rules 和是否是邀请活动类型
-      if (!prev.activity_rules || prev.activity_type !== ActivityType.INVITATION) return prev;
+      // 只检查是否有 activityRules 和是否是邀请活动类型
+      if (!prev.activityRules || prev.activityType !== ActivityType.INVITATION) return prev;
 
-      const rules = { ...prev.activity_rules };
-      const rewards = [...rules[path]];
+      const invitationRules = prev.activityRules as InvitationRules;
+      const rewards = [...invitationRules[path]];
       rewards.splice(index, 1);
 
       return {
         ...prev,
-        activity_rules: {
-          ...rules,
+        activityRules: {
+          ...invitationRules,
           [path]: rewards
         }
       };
@@ -461,8 +465,8 @@ const AdminNotificationsView: React.FC = () => {
     if (searchQuery && !n.title.toLowerCase().includes(searchQuery.toLowerCase())) {
       return false;
     }
-    if (filterStatus === 'published' && n.status !== 'published') return false;
-    if (filterStatus === 'draft' && n.status !== 'draft') return false;
+    if (filterStatus === 'active' && n.status !== NotificationStatus.ACTIVE) return false;
+    if (filterStatus === 'draft' && n.status !== NotificationStatus.DRAFT) return false;
     return true;
   });
 
@@ -494,7 +498,7 @@ const AdminNotificationsView: React.FC = () => {
           {/* 筛选和搜索 */}
           <div className="mt-6 flex items-center gap-3">
             <div className="flex items-center gap-2">
-              {(['all', 'published', 'draft'] as const).map((status) => (
+              {(['all', 'active', 'draft'] as const).map((status) => (
                 <button
                   key={status}
                   onClick={() => setFilterStatus(status)}
@@ -504,7 +508,7 @@ const AdminNotificationsView: React.FC = () => {
                       : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                 >
-                  {status === 'all' ? '全部' : status === 'published' ? '已发布' : '草稿'}
+                  {status === 'all' ? '全部' : status === 'active' ? '已发布' : '草稿'}
                 </button>
               ))}
             </div>
@@ -567,12 +571,12 @@ const AdminNotificationsView: React.FC = () => {
                         </span>
                         <span
                           className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full ${
-                            notification.status === 'published'
+                            notification.status === NotificationStatus.ACTIVE
                               ? 'bg-green-50 dark:bg-green-900/50 text-green-600 dark:text-green-400'
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
                           }`}
                         >
-                          {notification.status === 'published' ? '已发布' : '草稿'}
+                          {notification.status === NotificationStatus.ACTIVE ? '已发布' : '草稿'}
                         </span>
                       </div>
                       {notification.content && (
@@ -595,7 +599,7 @@ const AdminNotificationsView: React.FC = () => {
 
                     {/* 操作按钮 */}
                     <div className="flex items-center gap-2">
-                      {notification.status === 'draft' && (
+                      {notification.status === NotificationStatus.DRAFT && (
                         <button
                           onClick={() => handlePublish(notification.id)}
                           className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -701,8 +705,8 @@ const AdminNotificationsView: React.FC = () => {
                           setShowRewardsConfig(false);
                           setFormData(prev => ({
                             ...prev,
-                            activity_type: null,
-                            activity_rules: null
+                            activityType: null,
+                            activityRules: null
                           }));
                         }
                       }}
@@ -816,7 +820,7 @@ const AdminNotificationsView: React.FC = () => {
                               type="button"
                               onClick={() => handleActivityTypeChange(type)}
                               className={`flex items-center justify-center gap-2 px-4 py-3 text-sm border rounded-xl transition-all ${
-                                formData.activity_type === type
+                                formData.activityType === type
                                   ? 'border-black dark:border-gray-600 bg-black dark:bg-gray-700 text-white dark:text-gray-100'
                                   : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                               }`}
@@ -829,8 +833,8 @@ const AdminNotificationsView: React.FC = () => {
                       </div>
 
                       {/* 邀请活动配置 */}
-                      {formData.activity_type === ActivityType.INVITATION &&
-                        formData.activity_rules && (
+                      {formData.activityType === ActivityType.INVITATION &&
+                        formData.activityRules && (
                           <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl">
                             <h4 className="text-xs font-medium text-black dark:text-white">邀请奖励配置</h4>
 
@@ -847,7 +851,7 @@ const AdminNotificationsView: React.FC = () => {
                                 </button>
                               </div>
                               <div className="space-y-2">
-                                {formData.activity_rules.inviterRewards.map((reward, index) => (
+                                {(formData.activityRules as InvitationRules).inviterRewards.map((reward: Reward, index: number) => (
                                   <div key={index} className="flex items-center gap-2 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                                     <select
                                       value={reward.type}
@@ -899,7 +903,7 @@ const AdminNotificationsView: React.FC = () => {
                                 </button>
                               </div>
                               <div className="space-y-2">
-                                {formData.activity_rules.inviteeRewards.map((reward, index) => (
+                                {(formData.activityRules as InvitationRules).inviteeRewards.map((reward: Reward, index: number) => (
                                   <div key={index} className="flex items-center gap-2 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                                     <select
                                       value={reward.type}
@@ -945,12 +949,12 @@ const AdminNotificationsView: React.FC = () => {
                               </label>
                               <input
                                 type="text"
-                                value={formData.activity_rules.requirementForInvitee || ''}
+                                value={(formData.activityRules as InvitationRules).requirementForInvitee || ''}
                                 onChange={(e) => setFormData(prev => ({
                                   ...prev,
-                                  activity_rules: prev.activity_rules && prev.activity_type === ActivityType.INVITATION
-                                    ? { ...prev.activity_rules, requirementForInvitee: e.target.value }
-                                    : prev.activity_rules
+                                  activityRules: prev.activityRules && prev.activityType === ActivityType.INVITATION
+                                    ? { ...prev.activityRules, requirementForInvitee: e.target.value }
+                                    : prev.activityRules
                                 }))}
                                 className="w-full px-3 py-2 text-xs border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 rounded-lg"
                                 placeholder="例如：完成首次任务"
@@ -960,8 +964,8 @@ const AdminNotificationsView: React.FC = () => {
                         )}
 
                       {/* 比赛活动配置 */}
-                      {formData.activity_type === ActivityType.COMPETITION &&
-                        formData.activity_rules && (
+                      {formData.activityType === ActivityType.COMPETITION &&
+                        formData.activityRules && (
                           <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl">
                             <h4 className="text-xs font-medium text-black dark:text-white">比赛奖励配置</h4>
                             <div>
@@ -970,12 +974,12 @@ const AdminNotificationsView: React.FC = () => {
                               </label>
                               <input
                                 type="text"
-                                value={formData.activity_rules.scoringCriteria}
+                                value={(formData.activityRules as CompetitionRules).scoringCriteria}
                                 onChange={(e) => setFormData(prev => ({
                                   ...prev,
-                                  activity_rules: prev.activity_rules && prev.activity_type === ActivityType.COMPETITION
-                                    ? { ...prev.activity_rules, scoringCriteria: e.target.value }
-                                    : prev.activity_rules
+                                  activityRules: prev.activityRules && prev.activityType === ActivityType.COMPETITION
+                                    ? { ...prev.activityRules, scoringCriteria: e.target.value }
+                                    : prev.activityRules
                                 }))}
                                 className="w-full px-3 py-2 text-xs border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 rounded-lg"
                                 placeholder="例如：作品质量（40%）+ 创新性（30%）"
@@ -1042,11 +1046,12 @@ const AdminNotificationsView: React.FC = () => {
                     <label className="flex items-center gap-2 p-3 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 bg-white dark:bg-gray-900 transition-colors">
                       <input
                         type="checkbox"
-                        checked={formData.displayType.includes('notification')}
+                        checked={formData.displayType?.includes('notification') ?? false}
                         onChange={(e) => {
+                          const currentTypes = formData.displayType || [];
                           const types = e.target.checked
-                            ? [...formData.displayType, 'notification']
-                            : formData.displayType.filter(t => t !== 'notification');
+                            ? [...currentTypes, 'notification']
+                            : currentTypes.filter(t => t !== 'notification');
                           setFormData({ ...formData, displayType: types });
                         }}
                         className="w-4 h-4 text-black dark:text-gray-300 border-gray-300 dark:border-gray-600 rounded focus:ring-black dark:focus:ring-gray-400 dark:bg-gray-900"
@@ -1059,11 +1064,12 @@ const AdminNotificationsView: React.FC = () => {
                     <label className="flex items-center gap-2 p-3 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 bg-white dark:bg-gray-900 transition-colors">
                       <input
                         type="checkbox"
-                        checked={formData.displayType.includes('modal')}
+                        checked={formData.displayType?.includes('modal') ?? false}
                         onChange={(e) => {
+                          const currentTypes = formData.displayType || [];
                           const types = e.target.checked
-                            ? [...formData.displayType, 'modal']
-                            : formData.displayType.filter(t => t !== 'modal');
+                            ? [...currentTypes, 'modal']
+                            : currentTypes.filter(t => t !== 'modal');
                           setFormData({ ...formData, displayType: types });
                         }}
                         className="w-4 h-4 text-black dark:text-gray-300 border-gray-300 dark:border-gray-600 rounded focus:ring-black dark:focus:ring-gray-400 dark:bg-gray-900"
@@ -1074,7 +1080,7 @@ const AdminNotificationsView: React.FC = () => {
                       </div>
                     </label>
                   </div>
-                  {formData.displayType.length === 0 && (
+                  {(!formData.displayType || formData.displayType.length === 0) && (
                     <p className="text-xs text-red-600 dark:text-red-400 mt-1">至少选择一种展示方式</p>
                   )}
                 </div>
@@ -1087,12 +1093,12 @@ const AdminNotificationsView: React.FC = () => {
                   <select
                     required
                     value={formData.targetUsers}
-                    onChange={(e) => setFormData({ ...formData, targetUsers: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, targetUsers: e.target.value as TargetUserType })}
                     className="w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-gray-400"
                   >
-                    <option value="all">全部用户</option>
-                    <option value="active">活跃用户</option>
-                    <option value="inactive">不活跃用户</option>
+                    <option value={TargetUserType.ALL}>全部用户</option>
+                    <option value={TargetUserType.ACTIVE}>活跃用户</option>
+                    <option value={TargetUserType.INACTIVE}>不活跃用户</option>
                   </select>
                 </div>
 
@@ -1104,7 +1110,7 @@ const AdminNotificationsView: React.FC = () => {
                   <select
                     required
                     value={formData.publishType}
-                    onChange={(e) => setFormData({ ...formData, publishType: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, publishType: e.target.value as 'immediate' | 'scheduled' | 'draft' })}
                     className="w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-gray-400"
                   >
                     <option value="immediate">立即发布</option>

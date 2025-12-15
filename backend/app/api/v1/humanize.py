@@ -817,13 +817,20 @@ async def humanize_rewrite_stream(
 
                     yield f"data: {json.dumps({'type': 'progress', 'stage': 'detected', 'score': detection_result.overall_score}, ensure_ascii=False)}\n\n"
 
-                # 5. 改写阶段（流式）
+                # 5. 改写阶段（流式）- 传入检测到的AI痕迹实现针对性改写
                 yield f"data: {json.dumps({'type': 'progress', 'stage': 'rewriting', 'message': '正在人性化改写...'}, ensure_ascii=False)}\n\n"
+
+                # 提取检测到的AI痕迹
+                detected_patterns = None
+                if detection_result and detection_result.detected_patterns:
+                    detected_patterns = detection_result.detected_patterns
+                    logger.info(f"流式改写: 传递 {len(detected_patterns)} 个检测到的AI痕迹")
 
                 async for chunk, usage in humanize_service.humanize_stream(
                     text=request_data.text,
                     intensity=request_data.intensity,
-                    use_nlp_preprocessing=None
+                    use_nlp_preprocessing=None,
+                    detected_patterns=detected_patterns  # ✅ 新增: 传递检测到的AI痕迹
                 ):
                     humanized_chunks.append(chunk)
                     if usage:  # 最后一个chunk包含usage

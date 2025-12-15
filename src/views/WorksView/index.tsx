@@ -35,6 +35,7 @@ import {
 import { DataService } from '../../services/DataService';
 import { TxtExportService, type TxtExportResult } from '../../services/TxtExportService';
 import { useGlobalStore } from '../../store/globalStore';
+import { useWorkNavStore } from '../../store/workNavStore';
 import { useConfirm } from '../../hooks/useConfirm';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { ActivityModal } from '../../components/notifications/ActivityModal';
@@ -51,6 +52,7 @@ const WorksView: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { showToast } = useGlobalStore();
+  const clearLastWork = useWorkNavStore((state) => state.clearLastWork);
   const { confirmState, confirm, closeConfirm } = useConfirm();
 
   // 数据状态
@@ -99,6 +101,11 @@ const WorksView: React.FC = () => {
   const [activityNotification, setActivityNotification] = useState<UserNotification | null>(null);
   const [showActivityModal, setShowActivityModal] = useState(false);
 
+  // 进入作品管理页面时，清除记住的作品详情路径
+  // 这样导航栏的"作品详情"会变回"作品管理"
+  useEffect(() => {
+    clearLastWork();
+  }, [clearLastWork]);
 
   // 加载作品列表
   useEffect(() => {
@@ -133,7 +140,7 @@ const WorksView: React.FC = () => {
       const modalNotifications = response.items.filter(n =>
         !n.isRead &&
         (n.type === NotificationType.EVENT || n.type === NotificationType.ANNOUNCEMENT) &&
-        n.displayType.includes('modal')
+        n.displayType?.includes('modal')
       );
 
       // 如果有需要显示的通知，显示第一个
@@ -146,7 +153,7 @@ const WorksView: React.FC = () => {
         sessionStorage.setItem('activity_modal_shown', 'true');
 
         // 标记为已读
-        await markNotificationsAsRead({ notificationIds: [notification.id] });
+        await markNotificationsAsRead([notification.id]);
       }
     } catch (error) {
       console.error('检查活动通知失败:', error);

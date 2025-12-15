@@ -259,9 +259,10 @@ export interface ApiError {
 // ==================== ActivityStream 活动流 ====================
 
 /**
- * 活动类型
+ * Agent 活动类型（用于 ReAct 模式的实时进度展示）
+ * 注意：与 activity.ts 中的 ActivityType 枚举不同，这是 Agent 专用的活动类型
  */
-export type ActivityType = 'intent_analysis' | 'thinking' | 'tool_execution' | 'generating';
+export type AgentActivityType = 'intent_analysis' | 'thinking' | 'tool_execution' | 'generating';
 
 /**
  * 活动状态
@@ -274,7 +275,7 @@ export type ActivityStatus = 'active' | 'completed' | 'failed';
  */
 export interface ActivityItem {
   id: string;
-  type: ActivityType;
+  type: AgentActivityType;
   description: string;
   timestamp: string;
   status: ActivityStatus;

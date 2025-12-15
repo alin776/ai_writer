@@ -1,6 +1,6 @@
 // src/views/HumanizeView/index.tsx
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { InputPanel } from './components/InputPanel';
 import { OutputPanel } from './components/OutputPanel';
 import { HistoryPanel } from './components/HistoryPanel';
@@ -8,10 +8,12 @@ import HumanizeService from '@/services/HumanizeService';
 import type {
   HumanizeIntensity,
   HumanizeStreamEvent,
+  HumanizeStage,
   UserProfile
 } from '@/types/humanize';
 import { useGlobalStore } from '@/store/globalStore';
 import { useNavigate } from 'react-router-dom';
+import { useTypewriter } from '@/hooks/useTypewriter';
 
 /**
  * HumanizeView - AI去痕主页面
@@ -34,11 +36,8 @@ export const HumanizeView: React.FC = () => {
   const [intensity, setIntensity] = useState<HumanizeIntensity>('medium');
 
   // ==================== 输出状态 ====================
-  const [outputText, setOutputText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentStage, setCurrentStage] = useState<
-    'idle' | 'detecting' | 'detected' | 'rewriting' | 'verifying' | 'done'
-  >('idle');
+  const [currentStage, setCurrentStage] = useState<HumanizeStage>('idle');
 
   // ==================== 检测结果 ====================
   const [detectionScore, setDetectionScore] = useState<number | null>(null);
@@ -59,9 +58,29 @@ export const HumanizeView: React.FC = () => {
 
   // ==================== 中断控制 ====================
   const abortControllerRef = useRef<AbortController | null>(null);
-  // ✅ 简化：移除打字机队列，后端已实现逐字发送（15ms/字）
   const toastShownRef = useRef<boolean>(false);
+  const stopRequestedRef = useRef<boolean>(false); // 防止已停止请求继续处理
+  const requestIdRef = useRef<string | null>(null); // 防止竞态条件
   const [renderComplete, setRenderComplete] = useState(false);
+
+  // ==================== 打字机效果 ====================
+  // 使用 useCallback 稳定 onComplete 回调，避免闭包捕获过时状态
+  const handleTypewriterComplete = useCallback(() => {
+    // 不依赖外部状态，直接设置 renderComplete
+    // currentStage 的检查移到 useEffect 中
+    setRenderComplete(true);
+  }, []);
+
+  const {
+    displayText: outputText,
+    appendChunk,
+    markComplete,
+    reset: resetTypewriter,
+    isTyping,
+  } = useTypewriter({
+    speed: 10, // 10ms/字，与 AI 助手一致
+    onComplete: handleTypewriterComplete
+  });
 
   // ==================== 生命周期 ====================
 
@@ -83,18 +102,20 @@ export const HumanizeView: React.FC = () => {
       }
     };
     loadProfile();
+
     return () => {
+      // 组件卸载时停止处理并清理资源
+      stopRequestedRef.current = true;
       abortControllerRef.current?.abort();
+      resetTypewriter(''); // 清理打字机状态
     };
-  }, [showToast]);
+  }, [showToast, resetTypewriter]);
 
-  // ✅ 简化：移除前端打字机循环，后端已实现逐字发送
-
-  const resetStreamOutput = (text: string = '') => {
+  const resetStreamOutput = useCallback((text: string = '') => {
     toastShownRef.current = false;
     setRenderComplete(false);
-    setOutputText(text);
-  };
+    resetTypewriter(text);
+  }, [resetTypewriter]);
 
   // 渲染完成后再弹成功提示
   useEffect(() => {
@@ -130,6 +151,11 @@ export const HumanizeView: React.FC = () => {
       return;
     }
 
+    // 生成新请求ID，用于防止竞态条件（使用时间戳+随机数确保唯一性）
+    const currentRequestId = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    requestIdRef.current = currentRequestId;
+    stopRequestedRef.current = false;
+
     // 重置状态
     setIsProcessing(true);
     setError(null);
@@ -153,19 +179,27 @@ export const HumanizeView: React.FC = () => {
         intensity,
         'rewrite',
         (event: HumanizeStreamEvent) => {
+          // 过滤已停止或过期的请求事件
+          if (stopRequestedRef.current || requestIdRef.current !== currentRequestId) {
+            return;
+          }
           handleStreamEvent(event);
         },
         abortControllerRef.current.signal
       );
     } catch (err: any) {
       console.error('Rewrite error:', err);
-      if (err?.name === 'AbortError') {
-        resetStreamOutput('');
-        return;
+
+      // 只在是当前请求时才处理错误
+      if (requestIdRef.current === currentRequestId && !stopRequestedRef.current) {
+        if (err?.name === 'AbortError') {
+          resetStreamOutput('');
+          return;
+        }
+        setError(err.message || '处理失败，请稍后重试');
+        setCurrentStage('idle');
+        showToast('error', err.message || '网络错误');
       }
-      setError(err.message || '处理失败，请稍后重试');
-      setCurrentStage('idle');
-      showToast('error', err.message || '网络错误');
     } finally {
       setIsProcessing(false);
     }
@@ -179,7 +213,7 @@ export const HumanizeView: React.FC = () => {
       case 'progress':
         // 进度更新
         if (event.stage) {
-          setCurrentStage(event.stage as any);
+          setCurrentStage(event.stage);
         }
         if (event.score !== undefined) {
           setDetectionScore(event.score);
@@ -187,24 +221,25 @@ export const HumanizeView: React.FC = () => {
         break;
 
       case 'chunk':
-        // ✅ 简化：后端逐字发送，前端直接追加显示
+        // 打字机效果：将 chunk 加入队列，逐字显示
         if (event.content) {
-          setOutputText((prev) => prev + event.content);
+          appendChunk(event.content);
         }
         break;
 
       case 'info':
         // 信息提示（跳过去痕迹）
         if (event.message) {
-          resetStreamOutput(inputText); // 返回原文
+          resetTypewriter(inputText); // 返回原文
           setSkipped(true);
           setCurrentStage('detected');
+          setRenderComplete(true); // 直接标记完成
           showToast('info', event.message);
         }
         break;
 
       case 'done':
-        // ✅ 简化：后端逐字发送完成后，直接标记完成
+        // 标记流式输入完成
         setCurrentStage('done');
         if (event.session_id) setSessionId(event.session_id);
         if (event.improvement !== undefined) setImprovement(event.improvement);
@@ -214,17 +249,19 @@ export const HumanizeView: React.FC = () => {
         if (event.skipped) {
           setSkipped(true);
           setSessionId(null);
-          if (!outputText) {
-            resetStreamOutput(inputText);
-          }
+          // 无条件返回原文，因为跳过就是不改写
+          resetTypewriter(inputText);
           showToast('info', '文本AI特征较低，未执行改写');
+          setRenderComplete(true); // 跳过时直接完成
+        } else {
+          // 通知打字机流式输入已完成，等待队列清空后触发 onComplete
+          markComplete();
         }
-        // 直接标记渲染完成（后端已逐字发送完毕）
-        setRenderComplete(true);
         break;
 
       case 'error':
-        // ✅ 简化：错误处理
+        // 错误时应该 reset 而不是 flush，避免显示不完整内容
+        resetTypewriter('');
         setRenderComplete(false);
         setError(event.message || '处理失败');
         setCurrentStage('idle');
@@ -290,6 +327,7 @@ export const HumanizeView: React.FC = () => {
                 sessionId={sessionId}
                 skipped={skipped}
                 renderComplete={renderComplete}
+                isTyping={isTyping}
                 onFeedback={handleFeedback}
                 isHistoryCollapsed={isHistoryCollapsed}
                 onExpandHistory={() => setIsHistoryCollapsed(false)}

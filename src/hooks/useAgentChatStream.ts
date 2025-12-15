@@ -6,7 +6,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { agentApi } from '@/services/agentApi';
-import type { AgentChatRequest, EnhancedProgressEvent, ProgressData, ActivityItem, ActivityType, ActivityStatus } from '@/types/agent';
+import type { AgentChatRequest, EnhancedProgressEvent, ProgressData, ActivityItem, AgentActivityType, ActivityStatus } from '@/types/agent';
 import { ProgressDataSchema, EnhancedProgressEventSchema } from '@/types/agent';  // ✅ 导入Zod Schema
 
 // 进度详情类型
@@ -120,8 +120,8 @@ export function useAgentChatStream(
   let activityIdCounter = 0;  // 全局计数器
 
   const progressEventToActivity = useCallback((event: ProgressEvent): ActivityItem => {
-    // 将step映射到ActivityType
-    const stepToTypeMap: Record<string, ActivityType> = {
+    // 将step映射到AgentActivityType
+    const stepToTypeMap: Record<string, AgentActivityType> = {
       'intent_analysis': 'intent_analysis',
       'thinking': 'thinking',
       'tool_execution': 'tool_execution',

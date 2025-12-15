@@ -322,6 +322,9 @@ class NotificationService:
                 "display_type": notif.display_type,
                 "action_button": notif.action_button,
                 "banner_color": notif.banner_color,
+                # 活动相关字段
+                "activity_type": notif.activity_type,
+                "activity_rules": notif.activity_rules,
                 "is_read": user_notif.is_read,
                 "read_at": user_notif.read_at,
                 "is_dismissed": user_notif.is_dismissed,

@@ -1031,12 +1031,23 @@ async def agent_chat_stream(
                         }
                         yield f"data: {json.dumps(progress_event, ensure_ascii=False)}\n\n"
 
+                        # ✅ 新增: 先执行检测获取 detected_patterns，实现针对性改写
+                        detected_patterns = None
+                        try:
+                            detection_result, _ = await humanize_service.detect_ai_traces(humanize_text)
+                            if detection_result and detection_result.detected_patterns:
+                                detected_patterns = detection_result.detected_patterns
+                                logger.info(f"[agent_chat_stream] 检测到 {len(detected_patterns)} 个AI痕迹")
+                        except Exception as detect_err:
+                            logger.warning(f"[agent_chat_stream] 检测阶段失败，继续改写: {detect_err}")
+
                         humanized_chunks: List[str] = []
                         rewrite_usage = None
                         async for chunk, usage in humanize_service.humanize_stream(
                             text=humanize_text,
                             intensity=context.get("intensity") or "medium",
-                            use_nlp_preprocessing=None
+                            use_nlp_preprocessing=None,
+                            detected_patterns=detected_patterns  # ✅ 传递检测到的AI痕迹
                         ):
                             if chunk:
                                 humanized_chunks.append(chunk)

@@ -136,7 +136,8 @@ class HumanizeService:
         self,
         text: str,
         intensity: Literal["light", "medium", "strong"] = "medium",
-        use_nlp_preprocessing: bool = None  # None表示使用配置默认值
+        use_nlp_preprocessing: bool = None,  # None表示使用配置默认值
+        detected_patterns: list[str] = None  # 新增: 检测到的AI痕迹列表
     ) -> AsyncGenerator[tuple[str, dict | None], None]:
         """
         阶段2: 流式人性化改写
@@ -145,6 +146,7 @@ class HumanizeService:
             text: 待改写的文本
             intensity: 改写强度 (light/medium/strong)
             use_nlp_preprocessing: 是否启用NLP预处理 (None=使用配置,True=启用,False=禁用)
+            detected_patterns: 检测到的AI痕迹列表 (传入后会针对性改写)
 
         Yields:
             tuple: (改写文本片段, usage统计或None)
@@ -176,10 +178,10 @@ class HumanizeService:
             self.last_nlp_changes = []
         # ===========================
 
-        logger.info(f"开始人性化改写: intensity={intensity}, 文本长度={len(text)}")
+        logger.info(f"开始人性化改写: intensity={intensity}, 文本长度={len(text)}, detected_patterns={len(detected_patterns or [])}个")
 
-        # 构建改写 prompt
-        humanize_prompt = get_humanize_prompt(text, intensity)
+        # 构建改写 prompt (传入检测到的AI痕迹，实现针对性改写)
+        humanize_prompt = get_humanize_prompt(text, intensity, detected_patterns)
 
         messages = [
             {
@@ -353,10 +355,16 @@ class HumanizeService:
                 f"检测到AI特征 (分数={result['detection'].overall_score:.1f} >= {self.config.detection_threshold}),开始去痕迹"
             )
 
-        # 阶段2: 改写
+        # 阶段2: 改写 (传入检测到的AI痕迹)
+        # 从检测结果中提取 detected_patterns
+        detected_patterns = None
+        if result["detection"] and hasattr(result["detection"], "detected_patterns"):
+            detected_patterns = result["detection"].detected_patterns
+            logger.info(f"将 {len(detected_patterns)} 个检测到的AI痕迹传递给改写阶段: {detected_patterns[:5]}{'...' if len(detected_patterns) > 5 else ''}")
+
         humanized_chunks = []
         rewrite_usage = None
-        async for chunk, usage in self.humanize_stream(text, intensity, use_nlp_preprocessing):
+        async for chunk, usage in self.humanize_stream(text, intensity, use_nlp_preprocessing, detected_patterns):
             humanized_chunks.append(chunk)
             if usage:  # 最后一个块会带usage
                 rewrite_usage = usage

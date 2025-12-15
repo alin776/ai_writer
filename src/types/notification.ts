@@ -92,8 +92,8 @@ export interface NotificationBase {
   validUntil?: string;
 
   // 活动相关字段（仅当 type 为 EVENT 时使用）
-  activity_type?: string;   // 活动类型：invitation, competition, points 等
-  activity_rules?: any;     // 活动规则，根据 activity_type 不同而不同
+  activityType?: string;   // 活动类型：invitation, competition, points 等
+  activityRules?: any;     // 活动规则，根据 activityType 不同而不同
 }
 
 /**
@@ -156,8 +156,8 @@ export interface CreateNotificationRequest {
   showOnce?: boolean;
 
   // 活动相关字段
-  activity_type?: string;
-  activity_rules?: any;
+  activityType?: string;
+  activityRules?: any;
 }
 
 /**
@@ -181,8 +181,8 @@ export interface UpdateNotificationRequest {
   status?: NotificationStatus;
 
   // 活动相关字段
-  activity_type?: string;
-  activity_rules?: any;
+  activityType?: string;
+  activityRules?: any;
 }
 
 /**
