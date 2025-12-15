@@ -67,6 +67,7 @@ class HumanizeService:
             tuple: (AIDetectionResult检测结果, usage统计字典)
         """
         start_time = time.time()
+        print(f"[AI Detection] Starting detection, text length: {len(text)}")
         logger.info(f"开始检测AI痕迹 (使用快速模型: {self.fast_ai_service.model}),文本长度: {len(text)}")
 
         # 构建检测 prompt
@@ -78,6 +79,12 @@ class HumanizeService:
                 text=text,
                 prompt=detection_prompt  # ← 修复: 改为prompt参数
             )
+
+            # DEBUG: Print to console
+            print(f"[AI Detection DEBUG] Raw response length: {len(full_response)}")
+            print(f"[AI Detection DEBUG] Raw response: {full_response[:500]}...")
+            logger.info(f"[AI Detection DEBUG] Raw response length: {len(full_response)}")
+            logger.info(f"[AI Detection DEBUG] Raw response: {full_response[:500]}...")
 
             # 解析 JSON 响应 (使用健壮的解析工具)
             fallback_data = {
@@ -101,6 +108,12 @@ class HumanizeService:
                 log_prefix="AI痕迹检测"
             )
 
+            # DEBUG: Print parsed result
+            print(f"[AI Detection DEBUG] Parsed score: {result_data.get('overall_score', 'N/A')}")
+            print(f"[AI Detection DEBUG] detected_patterns: {result_data.get('detected_patterns', [])[:5]}")
+            logger.info(f"[AI Detection DEBUG] Parsed score: {result_data.get('overall_score', 'N/A')}")
+            logger.info(f"[AI Detection DEBUG] detected_patterns: {result_data.get('detected_patterns', [])[:5]}")
+
             # 构建 Pydantic 模型
             detection_result = AIDetectionResult(**result_data)
 
@@ -115,6 +128,7 @@ class HumanizeService:
             return detection_result, usage
 
         except Exception as e:
+            print(f"[AI Detection ERROR] Detection failed: {e}")
             logger.error(f"快速AI检测失败: {e}")
             # 返回默认值,假设需要去痕迹
             return AIDetectionResult(

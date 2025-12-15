@@ -31,11 +31,11 @@ class FastAIService:
     - 文本分类
     """
 
-    def __init__(self, timeout: int = 15, db=None):
+    def __init__(self, timeout: int = 60, db=None):
         """初始化快速AI服务
 
         Args:
-            timeout: 超时时间(秒)，默认15秒（比标准模型更短）
+            timeout: 超时时间(秒)，默认60秒（gemini-2.5-flash-lite响应较慢）
             db: 可选的外层数据库会话（用于事务原子性）
         """
         self.api_key = settings.OPENAI_API_KEY
@@ -60,9 +60,9 @@ class FastAIService:
             http2=False,
         )
 
+        print(f"[FastAI] Init OK - Model: {self.model}, Timeout: {timeout}s")
         logger.info(
-            f"Fast AI Service 初始化成功，Model: {self.model}, "
-            f"Timeout: {timeout}s (专用于检测/验证)"
+            f"[FastAI] Init OK - Model: {self.model}, Timeout: {timeout}s"
         )
 
     async def close(self):

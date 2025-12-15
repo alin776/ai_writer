@@ -6,9 +6,12 @@ from contextlib import asynccontextmanager
 import logging
 import traceback
 import os
+import sys
 
-# 强制使用 UTF-8 日志编码，避免控制台编码问题
-os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+# 修复 Windows 控制台 UTF-8 编码问题（解决 emoji 输出导致的 UnicodeEncodeError）
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 from app.core.config import settings
 from app.core.database import init_db, close_db
@@ -18,7 +21,6 @@ from app.api.middleware import TraceMiddleware, MonitoringMiddleware
 from app.tasks import start_scheduler, stop_scheduler
 
 # 配置日志
-import os
 from logging.handlers import RotatingFileHandler
 
 # 确保logs目录存在

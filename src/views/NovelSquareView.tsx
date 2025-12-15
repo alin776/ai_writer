@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, BookOpen, Loader2 } from 'lucide-react';
 import { NovelCard, Novel } from '../components/library/NovelCard';
 import { FeaturedCarousel } from '../components/library/FeaturedCarousel';
 import { NovelDetail } from '../components/library/NovelDetail';
 import { DataService } from '../services/DataService';
 import { useToast } from '../hooks/useToast';
+import { useWorkNavStore } from '../store/workNavStore';
 
 // 类型映射
 const GENRE_MAP: Record<string, string> = {
@@ -51,6 +52,12 @@ export default function NovelSquareView() {
   const [hasMore, setHasMore] = useState(true);
 
   const { showToast } = useToast();
+
+  // 获取图书馆阅读状态
+  const { libraryReadingState, setLibraryReadingState, clearLibraryReadingState } = useWorkNavStore();
+
+  // 用于防止重复恢复状态
+  const hasRestoredRef = useRef(false);
 
   // 根据类型生成默认封面
   const getDefaultCover = (genre: string): string => {
@@ -123,6 +130,35 @@ export default function NovelSquareView() {
     loadNovels(true);
   }, [selectedCategory, selectedSort]);
 
+  // 恢复上次查看的小说状态（从左侧导航返回时）
+  useEffect(() => {
+    if (hasRestoredRef.current || !libraryReadingState) {
+      return;
+    }
+
+    const restoreState = async () => {
+      hasRestoredRef.current = true;
+      const { novelId } = libraryReadingState;
+
+      // 创建临时 Novel 对象，NovelDetail 会负责加载完整数据
+      setSelectedNovel({
+        id: novelId,
+        title: '加载中...',
+        author: '',
+        category: '其他',
+        description: '',
+        cover: '',
+        views: 0,
+        likes: 0,
+        rating: 0,
+        chapters: 0,
+        status: '其他' as const,
+      });
+    };
+
+    restoreState();
+  }, [libraryReadingState]);
+
   // 搜索防抖
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -142,26 +178,42 @@ export default function NovelSquareView() {
 
   // 处理轮播图点击详情
   const handleViewDetailById = async (workId: string) => {
-    try {
-      // 先在已加载的列表中查找
-      const existingNovel = novels.find((n) => n.id === workId);
-      if (existingNovel) {
-        setSelectedNovel(existingNovel);
-        return;
-      }
-
-      // 如果不在列表中，从API加载详情
-      const response = await DataService.getPublishedNovelDetail(workId);
-      const novel = convertToNovel(response);
-      setSelectedNovel(novel);
-    } catch (error) {
-      console.error('加载小说详情失败:', error);
-      showToast('error', '加载小说详情失败');
+    // 先在已加载的列表中查找
+    const existingNovel = novels.find((n) => n.id === workId);
+    if (existingNovel) {
+      setSelectedNovel(existingNovel);
+      return;
     }
+
+    // 如果不在列表中，创建一个临时的 Novel 对象
+    // NovelDetail 组件会负责加载完整的数据（包括增加浏览量）
+    // 这样避免了重复调用 API 导致浏览量增加两次
+    setSelectedNovel({
+      id: workId,
+      title: '加载中...',
+      author: '',
+      category: '其他',
+      description: '',
+      cover: '',
+      views: 0,
+      likes: 0,
+      rating: 0,
+      chapters: 0,
+      status: '其他' as const,
+    });
   };
 
   if (selectedNovel) {
-    return <NovelDetail novel={selectedNovel} onBack={() => setSelectedNovel(null)} />;
+    return (
+      <NovelDetail
+        novel={selectedNovel}
+        onBack={() => {
+          setSelectedNovel(null);
+          // 用户主动返回时清除阅读状态
+          clearLibraryReadingState();
+        }}
+      />
+    );
   }
 
   return (
