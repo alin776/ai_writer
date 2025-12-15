@@ -55,7 +55,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
   const hasResult = !!outputText && renderComplete && !skipped;
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm min-h-[520px] max-h-[520px]">
+    <div className="h-full w-full flex flex-col bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
       {/* 标题栏 */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">改写结果</h3>

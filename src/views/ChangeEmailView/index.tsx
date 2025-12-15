@@ -143,24 +143,27 @@ const ChangeEmailView: React.FC = () => {
 
   return (
     <>
-      <div className="space-y-6">
-        {/* 返回按钮 */}
-        <button
-          onClick={handleBack}
-          className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>返回设置</span>
-        </button>
+      <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
+        {/* 固定页眉 */}
+        <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-6">
+          {/* 返回按钮 */}
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>返回设置</span>
+          </button>
 
-        {/* 页面标题 */}
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">修改邮箱</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">更新您的邮箱地址</p>
+          {/* 页面标题 */}
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">修改邮箱</h1>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">更新您的邮箱地址</p>
         </div>
 
-        {/* 邮箱修改表单 */}
-        <Card className="!bg-white dark:!bg-gray-900 shadow-none border-gray-100 dark:border-gray-800">
+        {/* 内容区 - 可滚动 */}
+        <div className="flex-1 overflow-auto p-6">
+          {/* 邮箱修改表单 */}
+          <Card className="!bg-white dark:!bg-gray-900 shadow-none border-gray-100 dark:border-gray-800">
           <div className="p-6 space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">邮箱设置</h3>
@@ -267,6 +270,7 @@ const ChangeEmailView: React.FC = () => {
             </div>
           </div>
         </Card>
+        </div>
       </div>
 
       {/* Toast 通知容器 */}

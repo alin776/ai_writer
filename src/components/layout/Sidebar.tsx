@@ -174,7 +174,7 @@ export const Sidebar: React.FC = () => {
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
         <div className="space-y-0.5">
           {!isCollapsed && (
-            <div className="px-3 py-2 text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">创作</div>
+            <div className="px-3 py-2 text-xs font-medium text-gray-900 dark:text-slate-200 uppercase tracking-wider">创作</div>
           )}
           {dynamicMainNavItems.map(renderNavItem)}
         </div>
@@ -289,7 +289,25 @@ export const Sidebar: React.FC = () => {
               onMouseLeave={() => setIsQRCodeOpen(false)}
               onClick={(e) => e.stopPropagation()}
             >
-              <Settings className="w-3.5 h-3.5 text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 flex-shrink-0 transition-colors cursor-pointer" />
+              {/* 星球图标 */}
+                <svg
+                  className="w-6 h-6 text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 flex-shrink-0 transition-colors cursor-pointer"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  {/* 星球主体 */}
+                  <circle cx="12" cy="12" r="5" />
+                  {/* 轨道环 */}
+                  <ellipse cx="12" cy="12" rx="11" ry="4" transform="rotate(-20 12 12)" />
+                  {/* 小卫星/星星装饰 */}
+                  <circle cx="19" cy="8" r="1" fill="currentColor" stroke="none" />
+                  <circle cx="6" cy="5" r="0.5" fill="currentColor" stroke="none" />
+                  <circle cx="18" cy="17" r="0.5" fill="currentColor" stroke="none" />
+                </svg>
               {/* 二维码弹出框 */}
               {isQRCodeOpen && (
                 <div className="fixed bottom-24 left-72 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-slate-700 p-4 z-[100]">

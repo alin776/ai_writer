@@ -32,16 +32,16 @@ export const HumanizeHistoryView: React.FC = () => {
       <div className="flex items-center justify-between mb-4">
         <button
           onClick={() => navigate('/humanize')}
-          className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+          className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200"
         >
           <ArrowLeft className="w-4 h-4" />
           返回 AI去痕
         </button>
-        <h1 className="text-xl font-semibold text-gray-900">历史记录</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100">历史记录</h1>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-48 text-gray-500">
+        <div className="flex items-center justify-center h-48 text-gray-500 dark:text-slate-400">
           <Loader2 className="w-5 h-5 animate-spin mr-2" />
           加载中...
         </div>
@@ -50,32 +50,32 @@ export const HumanizeHistoryView: React.FC = () => {
           {history.items.map((session: HumanizeSession) => (
             <div
               key={session.id}
-              className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm flex justify-between items-center cursor-pointer hover:border-blue-200"
+              className="p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-sm flex justify-between items-center cursor-pointer hover:border-blue-200 dark:hover:border-blue-700"
               onClick={() => navigate(`/humanize/history/${session.id}`)}
             >
               <div>
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700">
+                <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
+                  <span className="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
                     {session.intensity === 'light' ? '轻度' : session.intensity === 'medium' ? '中度' : '强度'}
                   </span>
-                  <span className="text-gray-500">{formatRelativeTime(session.created_at)}</span>
+                  <span className="text-gray-500 dark:text-slate-400">{formatRelativeTime(session.created_at)}</span>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-gray-600 mt-1">
+                <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-slate-400 mt-1">
                   <TrendingDown className="w-3 h-3" />
                   改进 {session.improvement.toFixed(0)} 分
                 </div>
                 {session.detail?.original_preview && (
-                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                  <p className="text-xs text-gray-500 dark:text-slate-500 mt-1 line-clamp-2">
                     {session.detail.original_preview}
                   </p>
                 )}
               </div>
-              <span className="text-sm text-blue-600">查看详情</span>
+              <span className="text-sm text-blue-600 dark:text-blue-400">查看详情</span>
             </div>
           ))}
         </div>
       ) : (
-        <div className="h-48 flex items-center justify-center text-gray-400">暂无历史记录</div>
+        <div className="h-48 flex items-center justify-center text-gray-400 dark:text-slate-500">暂无历史记录</div>
       )}
     </div>
   );

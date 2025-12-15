@@ -250,6 +250,10 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: '/library',
+        element: <Navigate to="/library/novel-square" replace />,
+      },
+      {
         path: '/library/novel-square',
         element: (
           <SuspenseWrapper>

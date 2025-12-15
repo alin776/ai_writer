@@ -49,50 +49,50 @@ export const HumanizeSessionDetail: React.FC = () => {
       <div className="flex items-center justify-between">
         <button
           onClick={() => navigate('/humanize/history')}
-          className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+          className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200"
         >
           <ArrowLeft className="w-4 h-4" />
           返回历史列表
         </button>
-        <h1 className="text-xl font-semibold text-gray-900">历史详情</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100">历史详情</h1>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-48 text-gray-500">
+        <div className="flex items-center justify-center h-48 text-gray-500 dark:text-slate-400">
           <Loader2 className="w-5 h-5 animate-spin mr-2" />
           加载中...
         </div>
       ) : error ? (
-        <div className="text-red-600 text-sm">{error}</div>
+        <div className="text-red-600 dark:text-red-400 text-sm">{error}</div>
       ) : session ? (
         <div className="space-y-4">
-          <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm flex items-center gap-3">
-            <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-sm">
+          <div className="p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-sm flex items-center gap-3">
+            <span className="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-sm">
               {session.intensity === 'light' ? '轻度' : session.intensity === 'medium' ? '中度' : '强度'}
             </span>
-            <div className="text-sm text-gray-600 flex items-center gap-2">
+            <div className="text-sm text-gray-600 dark:text-slate-400 flex items-center gap-2">
               <TrendingDown className="w-4 h-4" />
               改进 {session.improvement.toFixed(0)} 分
             </div>
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-gray-500 dark:text-slate-500">
               {formatRelativeTime(session.created_at)} · {formatFullDate(session.created_at)}
             </div>
           </div>
 
           {(session.detail?.original_preview || session.detail?.original_full) && (
-            <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm space-y-2">
+            <div className="p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-sm space-y-2">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-gray-800">原文片段</h2>
+                <h2 className="text-sm font-semibold text-gray-800 dark:text-slate-200">原文片段</h2>
                 <div className="flex items-center gap-2 text-xs">
                   <button
                     onClick={() => setIsOriginalExpanded((v) => !v)}
-                    className="text-blue-600 hover:text-blue-700"
+                    className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                   >
                     {isOriginalExpanded ? '收起' : '展开'}
                   </button>
                   <button
                     onClick={() => handleCopy(session.detail?.original_full || session.detail?.original_preview || '')}
-                    className="flex items-center gap-1 text-gray-600 hover:text-gray-900"
+                    className="flex items-center gap-1 text-gray-600 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200"
                   >
                     <Copy className="w-4 h-4" />
                     复制
@@ -100,7 +100,7 @@ export const HumanizeSessionDetail: React.FC = () => {
                 </div>
               </div>
               <p
-                className={`text-sm text-gray-700 whitespace-pre-wrap ${
+                className={`text-sm text-gray-700 dark:text-slate-300 whitespace-pre-wrap ${
                   isOriginalExpanded ? '' : 'line-clamp-5'
                 }`}
               >
@@ -110,19 +110,19 @@ export const HumanizeSessionDetail: React.FC = () => {
           )}
 
           {(session.detail?.humanized_preview || session.detail?.humanized_full) && (
-            <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm space-y-2">
+            <div className="p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-sm space-y-2">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-gray-800">改写后片段</h2>
+                <h2 className="text-sm font-semibold text-gray-800 dark:text-slate-200">改写后片段</h2>
                 <div className="flex items-center gap-2 text-xs">
                   <button
                     onClick={() => setIsHumanizedExpanded((v) => !v)}
-                    className="text-blue-600 hover:text-blue-700"
+                    className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                   >
                     {isHumanizedExpanded ? '收起' : '展开'}
                   </button>
                   <button
                     onClick={() => handleCopy(session.detail?.humanized_full || session.detail?.humanized_preview || '')}
-                    className="flex items-center gap-1 text-gray-600 hover:text-gray-900"
+                    className="flex items-center gap-1 text-gray-600 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200"
                   >
                     <Copy className="w-4 h-4" />
                     复制
@@ -130,7 +130,7 @@ export const HumanizeSessionDetail: React.FC = () => {
                 </div>
               </div>
               <p
-                className={`text-sm text-gray-700 whitespace-pre-wrap ${
+                className={`text-sm text-gray-700 dark:text-slate-300 whitespace-pre-wrap ${
                   isHumanizedExpanded ? '' : 'line-clamp-5'
                 }`}
               >
@@ -139,10 +139,10 @@ export const HumanizeSessionDetail: React.FC = () => {
             </div>
           )}
 
-          {copyMessage && <div className="text-xs text-green-600">{copyMessage}</div>}
+          {copyMessage && <div className="text-xs text-green-600 dark:text-green-400">{copyMessage}</div>}
         </div>
       ) : (
-        <div className="text-sm text-gray-500">未找到该会话</div>
+        <div className="text-sm text-gray-500 dark:text-slate-400">未找到该会话</div>
       )}
     </div>
   );

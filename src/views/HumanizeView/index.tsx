@@ -258,56 +258,54 @@ export const HumanizeView: React.FC = () => {
   // ==================== 渲染 ====================
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
-      {/* 主工作区 - 三列布局 */}
-      <div className="flex-1 overflow-auto">
-        <div className="min-h-full pt-4 px-6 pb-6">
-          <div className="grid grid-cols-12 gap-6 auto-rows-min">
-            {/* 左列：输入面板 (40%) */}
-            <div className={isHistoryCollapsed ? 'col-span-6 h-full' : 'col-span-5 h-full'}>
-              <InputPanel
-                inputText={inputText}
-                intensity={intensity}
-                isProcessing={isProcessing}
-                currentStage={currentStage}
-                detectionScore={detectionScore}
-                error={error}
-                onInputChange={setInputText}
-                onIntensityChange={setIntensity}
-                onRewrite={handleRewrite}
-              />
-            </div>
-
-            {/* 中列：输出面板 (40%) */}
-            <div className={isHistoryCollapsed ? 'col-span-6 h-full' : 'col-span-5 h-full'}>
-              <OutputPanel
-                outputText={outputText}
-                isProcessing={isProcessing}
-                currentStage={currentStage}
-                improvement={improvement}
-                processingTime={processingTime}
-                tokensUsed={tokensUsed}
-                sessionId={sessionId}
-                skipped={skipped}
-                renderComplete={renderComplete}
-                onFeedback={handleFeedback}
-                isHistoryCollapsed={isHistoryCollapsed}
-                onExpandHistory={() => setIsHistoryCollapsed(false)}
-              />
-            </div>
-
-            {/* 右列：历史面板 (20%) */}
-            {!isHistoryCollapsed && (
-              <div className="col-span-2 h-full">
-                <HistoryPanel
-                  refreshKey={historyRefreshKey}
-                  onOpenFullHistory={() => navigate('/humanize/history')}
-                  onSelectSession={(id) => navigate(`/humanize/history/${id}`)}
-                  onCollapse={() => setIsHistoryCollapsed(true)}
-                />
-              </div>
-            )}
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
+      {/* 主工作区 - 响应式布局 */}
+      <div className="flex-1 flex flex-col min-h-0 p-4 lg:p-6">
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 min-h-0">
+          {/* 左列：输入面板 */}
+          <div className={isHistoryCollapsed ? 'lg:col-span-6 min-h-0 flex' : 'lg:col-span-5 min-h-0 flex'}>
+            <InputPanel
+              inputText={inputText}
+              intensity={intensity}
+              isProcessing={isProcessing}
+              currentStage={currentStage}
+              detectionScore={detectionScore}
+              error={error}
+              onInputChange={setInputText}
+              onIntensityChange={setIntensity}
+              onRewrite={handleRewrite}
+            />
           </div>
+
+          {/* 中列：输出面板 */}
+          <div className={isHistoryCollapsed ? 'lg:col-span-6 min-h-0 flex' : 'lg:col-span-5 min-h-0 flex'}>
+            <OutputPanel
+              outputText={outputText}
+              isProcessing={isProcessing}
+              currentStage={currentStage}
+              improvement={improvement}
+              processingTime={processingTime}
+              tokensUsed={tokensUsed}
+              sessionId={sessionId}
+              skipped={skipped}
+              renderComplete={renderComplete}
+              onFeedback={handleFeedback}
+              isHistoryCollapsed={isHistoryCollapsed}
+              onExpandHistory={() => setIsHistoryCollapsed(false)}
+            />
+          </div>
+
+          {/* 右列：历史面板 - 小屏时隐藏 */}
+          {!isHistoryCollapsed && (
+            <div className="hidden lg:flex lg:col-span-2 min-h-0">
+              <HistoryPanel
+                refreshKey={historyRefreshKey}
+                onOpenFullHistory={() => navigate('/humanize/history')}
+                onSelectSession={(id) => navigate(`/humanize/history/${id}`)}
+                onCollapse={() => setIsHistoryCollapsed(true)}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

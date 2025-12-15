@@ -165,86 +165,91 @@ export default function NovelSquareView() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
-      <FeaturedCarousel onViewDetail={handleViewDetailById} />
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-slate-900 overflow-hidden">
+      {/* 固定页眉区域 */}
+      <div className="flex-shrink-0">
+        <FeaturedCarousel onViewDetail={handleViewDetailById} />
 
-      <div className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700">
-        <div className="max-w-6xl mx-auto px-6 py-4">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500" />
-              <input
-                type="text"
-                placeholder="搜索作品或作者..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-gray-400 dark:focus:border-slate-600 transition-colors"
-              />
+        <div className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700">
+          <div className="max-w-6xl mx-auto px-6 py-4">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="搜索作品或作者..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-gray-400 dark:focus:border-slate-600 transition-colors"
+                />
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedCategory('全部');
+                  setSelectedStatus('全部');
+                  setSelectedSort('最新');
+                  setSearchQuery('');
+                }}
+                className="px-4 py-2 bg-black dark:bg-slate-700 text-white text-sm hover:bg-gray-800 dark:hover:bg-slate-600 transition-colors"
+              >
+                重置
+              </button>
             </div>
-            <button
-              onClick={() => {
-                setSelectedCategory('全部');
-                setSelectedStatus('全部');
-                setSelectedSort('最新');
-                setSearchQuery('');
-              }}
-              className="px-4 py-2 bg-black dark:bg-slate-700 text-white text-sm hover:bg-gray-800 dark:hover:bg-slate-600 transition-colors"
-            >
-              重置
-            </button>
-          </div>
 
-          <div className="flex items-center gap-2">
-            {categories.map((category) => (
-              <button
-                key={category}
-                onClick={() => setSelectedCategory(category)}
-                className={`px-3 py-1 text-sm transition-colors ${
-                  selectedCategory === category
-                    ? 'bg-black dark:bg-slate-700 text-white'
-                    : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700'
-                }`}
-              >
-                {category}
-              </button>
-            ))}
-          </div>
+            <div className="flex items-center gap-2">
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(category)}
+                  className={`px-3 py-1 text-sm transition-colors ${
+                    selectedCategory === category
+                      ? 'bg-black dark:bg-slate-700 text-white'
+                      : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700'
+                  }`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
 
-          <div className="flex items-center gap-2 mt-4">
-            {statusFilters.map((status) => (
-              <button
-                key={status}
-                onClick={() => setSelectedStatus(status)}
-                className={`px-3 py-1 text-sm transition-colors ${
-                  selectedStatus === status
-                    ? 'bg-black dark:bg-slate-700 text-white'
-                    : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700'
-                }`}
-              >
-                {status}
-              </button>
-            ))}
-          </div>
+            <div className="flex items-center gap-2 mt-4">
+              {statusFilters.map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setSelectedStatus(status)}
+                  className={`px-3 py-1 text-sm transition-colors ${
+                    selectedStatus === status
+                      ? 'bg-black dark:bg-slate-700 text-white'
+                      : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700'
+                  }`}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
 
-          <div className="flex items-center gap-2 mt-4">
-            {sortOptions.map((sort) => (
-              <button
-                key={sort}
-                onClick={() => setSelectedSort(sort)}
-                className={`px-3 py-1 text-sm transition-colors ${
-                  selectedSort === sort
-                    ? 'bg-black dark:bg-slate-700 text-white'
-                    : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700'
-                }`}
-              >
-                {sort}
-              </button>
-            ))}
+            <div className="flex items-center gap-2 mt-4">
+              {sortOptions.map((sort) => (
+                <button
+                  key={sort}
+                  onClick={() => setSelectedSort(sort)}
+                  className={`px-3 py-1 text-sm transition-colors ${
+                    selectedSort === sort
+                      ? 'bg-black dark:bg-slate-700 text-white'
+                      : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700'
+                  }`}
+                >
+                  {sort}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
-      <main className="max-w-6xl mx-auto px-6 py-6">
+      {/* 可滚动内容区 */}
+      <main className="flex-1 overflow-auto">
+        <div className="max-w-6xl mx-auto px-6 py-6">
         {loading && novels.length === 0 ? (
           <div className="flex justify-center items-center py-20">
             <Loader2 className="w-8 h-8 text-gray-400 dark:text-slate-500 animate-spin" />
@@ -285,6 +290,7 @@ export default function NovelSquareView() {
             <p className="text-gray-500 dark:text-slate-400">暂无符合条件的小说</p>
           </div>
         )}
+        </div>
       </main>
     </div>
   );

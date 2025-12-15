@@ -177,8 +177,9 @@ export default function MyBookshelfView() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
-      <div className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700">
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-slate-900 overflow-hidden">
+      {/* 固定页眉 */}
+      <div className="flex-shrink-0 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700">
         <div className="max-w-6xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -245,7 +246,9 @@ export default function MyBookshelfView() {
         </div>
       </div>
 
-      <main className="max-w-6xl mx-auto px-6 py-6">
+      {/* 可滚动内容区 */}
+      <main className="flex-1 overflow-auto">
+        <div className="max-w-6xl mx-auto px-6 py-6">
         {loading ? (
           <div className="text-center py-20">
             <div className="inline-block w-8 h-8 border-4 border-gray-300 dark:border-slate-600 border-t-black dark:border-t-white rounded-full animate-spin"></div>
@@ -297,6 +300,7 @@ export default function MyBookshelfView() {
             )}
           </div>
         )}
+        </div>
       </main>
     </div>
   );

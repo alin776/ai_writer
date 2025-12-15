@@ -179,16 +179,16 @@ export default function NotificationCenter() {
 
   if (loading) {
     return (
-      <div className="bg-white dark:bg-gray-900 min-h-screen flex items-center justify-center">
+      <div className="h-full bg-white dark:bg-gray-900 flex items-center justify-center">
         <div className="text-gray-500 dark:text-gray-400">{t('notifications.loading')}</div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 h-[calc(100vh-120px)]">
+    <div className="h-full flex flex-col bg-white dark:bg-gray-900 overflow-hidden">
+      <div className="flex-1 max-w-7xl mx-auto px-8 py-8 w-full overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 h-full">
           <div className="lg:col-span-3 flex flex-col overflow-hidden">
             <div className="flex justify-between items-center gap-8 mb-8 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
               <div className="flex gap-8">

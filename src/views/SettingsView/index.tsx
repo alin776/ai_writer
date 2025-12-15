@@ -870,42 +870,46 @@ const SettingsView: React.FC = () => {
 
   return (
     <>
-    <div className="space-y-6">
-      {/* 页面标题 */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{t('settings.title')}</h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">{t('settings.subtitle')}</p>
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
+      {/* 固定页眉 */}
+      <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t("settings.title")}</h1>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("settings.subtitle")}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* 左侧标签栏 */}
-        <Card className="lg:col-span-1 !bg-white dark:!bg-gray-900 shadow-none border-gray-100 dark:border-gray-800">
-          <div className="p-4">
-            <nav className="space-y-1">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                      activeTab === tab.id
-                        ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-100'
-                        : 'text-gray-900 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-gray-50'
-                    }`}
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span className="font-medium">{t(tab.labelKey)}</span>
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-        </Card>
+      {/* 内容区 - 左侧固定，右侧滚动 */}
+      <div className="flex-1 min-h-0 flex overflow-hidden p-6 gap-6">
+        {/* 左侧标签栏 - 固定 */}
+        <div className="flex-shrink-0 w-64">
+          <Card className="!bg-white dark:!bg-gray-900 shadow-none border-gray-100 dark:border-gray-800 sticky top-6">
+            <div className="p-4">
+              <nav className="space-y-1">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                        activeTab === tab.id
+                          ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-100'
+                          : 'text-gray-900 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-gray-50'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5" />
+                      <span className="font-medium">{t(tab.labelKey)}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+          </Card>
+        </div>
 
-        {/* 右侧内容区 */}
-        <Card className="lg:col-span-3 !bg-white dark:!bg-gray-900 shadow-none border-gray-100 dark:border-gray-800">
-          <div className="p-6">
+        {/* 右侧内容区 - 可滚动 */}
+        <div className="flex-1 min-h-0 min-w-0 overflow-auto">
+          <Card className="!bg-white dark:!bg-gray-900 shadow-none border-gray-100 dark:border-gray-800">
+            <div className="p-6">
             {isInitializing ? (
             <div className="py-16 text-center text-gray-500 dark:text-gray-400">{t('settings.messages.loadingSettings')}</div>
             ) : (
@@ -934,8 +938,9 @@ const SettingsView: React.FC = () => {
               // 安全设置页 - 保持相同高度的底部留白
               <div className="mt-6 pt-6"></div>
             )}
-          </div>
-        </Card>
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
 
@@ -986,4 +991,3 @@ const SettingsView: React.FC = () => {
 };
 
 export default SettingsView;
-
