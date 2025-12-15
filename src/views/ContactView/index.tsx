@@ -3,7 +3,8 @@
  */
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Mail, MessageSquare, Send, MapPin, Phone } from 'lucide-react';
+import { ArrowLeft, Mail, MessageSquare, Send } from 'lucide-react';
+import { sendContactMessage } from '@/api/contact';
 
 const ContactView: React.FC = () => {
   const navigate = useNavigate();
@@ -15,22 +16,33 @@ const ContactView: React.FC = () => {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
 
-    // TODO: 实现提交逻辑
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      const response = await sendContactMessage(formData);
 
-    setIsSubmitting(false);
-    setSubmitted(true);
+      if (response.success) {
+        setSubmitted(true);
 
-    // 3秒后重置表单
-    setTimeout(() => {
-      setSubmitted(false);
-      setFormData({ name: '', email: '', subject: '', message: '' });
-    }, 3000);
+        // 3秒后重置表单
+        setTimeout(() => {
+          setSubmitted(false);
+          setFormData({ name: '', email: '', subject: '', message: '' });
+        }, 3000);
+      } else {
+        setError(response.detail || '发送失败，请稍后重试');
+      }
+    } catch (err: any) {
+      console.error('发送联系消息失败:', err);
+      setError(err.response?.data?.detail || err.message || '发送失败，请稍后重试或直接发送邮件联系我们');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -148,6 +160,13 @@ const ContactView: React.FC = () => {
                   />
                 </div>
 
+                {/* 错误提示 */}
+                {error && (
+                  <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl p-4 text-red-600 dark:text-red-400 text-sm">
+                    {error}
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -185,7 +204,7 @@ const ContactView: React.FC = () => {
                       邮箱
                     </h3>
                     <p className="text-gray-600 dark:text-gray-400">
-                      support@aiwriter.com
+                      2072855200@qq.com
                     </p>
                   </div>
                 </div>
@@ -204,33 +223,6 @@ const ContactView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <Phone className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
-                      电话
-                    </h3>
-                    <p className="text-gray-600 dark:text-gray-400">
-                      400-123-4567
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <MapPin className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
-                      地址
-                    </h3>
-                    <p className="text-gray-600 dark:text-gray-400">
-                      北京市朝阳区xxx大厦xxx室
-                    </p>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -240,14 +232,56 @@ const ContactView: React.FC = () => {
                 关注我们的社交媒体，获取最新资讯和写作技巧
               </p>
               <div className="flex gap-4">
-                <button className="w-12 h-12 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center transition-all backdrop-blur-sm">
-                  <span className="text-xl">微</span>
-                </button>
-                <button className="w-12 h-12 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center transition-all backdrop-blur-sm">
-                  <span className="text-xl">Q</span>
-                </button>
-                <button className="w-12 h-12 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center transition-all backdrop-blur-sm">
-                  <span className="text-xl">B</span>
+                {/* 微信 - 绿色背景，悬停显示二维码 */}
+                <div className="relative group">
+                  <button className="w-12 h-12 bg-green-500 hover:bg-green-600 rounded-xl flex items-center justify-center transition-all">
+                    <svg className="w-7 h-7" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 01.213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 00.167-.054l1.903-1.114a.864.864 0 01.717-.098 10.16 10.16 0 002.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178A1.17 1.17 0 014.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178 1.17 1.17 0 01-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 01.598.082l1.584.926a.272.272 0 00.14.045c.134 0 .24-.11.24-.245 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 01-.023-.156.49.49 0 01.201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.837-6.656-6.088V8.89c-.135-.01-.269-.03-.407-.032zm-2.53 3.274c.535 0 .969.44.969.982a.976.976 0 01-.969.983.976.976 0 01-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 01-.969.983.976.976 0 01-.969-.983c0-.542.434-.982.969-.982z"/>
+                    </svg>
+                  </button>
+                  {/* 悬停显示的二维码 */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
+                    <div className="bg-white rounded-xl p-5 shadow-2xl">
+                      <img
+                        src="/images/qrcode/wechat.png"
+                        alt="微信二维码"
+                        className="w-64 h-64 object-contain"
+                      />
+                      <p className="text-center text-gray-600 text-base mt-3 whitespace-nowrap">扫码添加微信</p>
+                    </div>
+                    {/* 小三角箭头 */}
+                    <div className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-white"></div>
+                  </div>
+                </div>
+                {/* QQ - 蓝色背景，悬停显示二维码 */}
+                <div className="relative group">
+                  <button className="w-12 h-12 bg-blue-500 hover:bg-blue-600 rounded-xl flex items-center justify-center transition-all">
+                    <svg className="w-7 h-7" viewBox="0 0 1024 1024" fill="currentColor">
+                      <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm210.5 612.4c-11.5 1.4-44.9-52.7-44.9-52.7 0 31.3-16.2 72.2-51.1 101.8 16.9 5.2 54.9 19.2 45.9 34.4-7.3 12.3-125.6 7.9-160.4 4-34.8 3.9-153.1 8.3-160.4-4-9-15.2 28.9-29.2 45.8-34.4-34.9-29.5-51.1-70.4-51.1-101.8 0 0-33.4 54.1-44.9 52.7-5.4-.7-12.4-29.6 9.4-99.7 10.3-33 22-60.5 40.2-105.8-3.1-116.9 45.3-215 160.4-215 113.9 0 162.5 98.1 160.4 215 18.1 45.2 29.9 72.8 40.2 105.8 21.7 70.1 14.6 99.1 9.3 99.7z"/>
+                    </svg>
+                  </button>
+                  {/* 悬停显示的二维码 */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
+                    <div className="bg-white rounded-xl p-5 shadow-2xl">
+                      <img
+                        src="/images/qrcode/qq.jpg"
+                        alt="QQ二维码"
+                        className="w-64 h-64 object-contain"
+                      />
+                      <p className="text-center text-gray-600 text-base mt-3 whitespace-nowrap">扫码加入QQ群</p>
+                    </div>
+                    {/* 小三角箭头 */}
+                    <div className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-white"></div>
+                  </div>
+                </div>
+                {/* B站 - 粉红色背景 */}
+                <button
+                  onClick={() => window.open('https://space.bilibili.com/3546898017291150?spm_id_from=333.337.0.0', '_blank')}
+                  className="w-12 h-12 bg-pink-500 hover:bg-pink-600 rounded-xl flex items-center justify-center transition-all"
+                >
+                  <svg className="w-7 h-7" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.813 4.653h.854c1.51.054 2.769.578 3.773 1.574 1.004.995 1.524 2.249 1.56 3.76v7.36c-.036 1.51-.556 2.769-1.56 3.773s-2.262 1.524-3.773 1.56H5.333c-1.51-.036-2.769-.556-3.773-1.56S.036 18.858 0 17.347v-7.36c.036-1.511.556-2.765 1.56-3.76 1.004-.996 2.262-1.52 3.773-1.574h.774l-1.174-1.12a1.234 1.234 0 01-.373-.906c0-.356.124-.659.373-.907l.027-.027c.267-.249.573-.373.92-.373.347 0 .653.124.92.373L9.653 4.44c.071.071.134.142.187.213h4.267a.836.836 0 01.16-.213l2.853-2.747c.267-.249.573-.373.92-.373.347 0 .662.151.929.4.267.249.391.551.391.907 0 .355-.124.657-.373.906zM5.333 7.24c-.746.018-1.373.276-1.88.773-.506.498-.769 1.13-.787 1.894v7.52c.018.764.281 1.395.787 1.893.507.498 1.134.756 1.88.773h13.334c.746-.017 1.373-.275 1.88-.773.506-.498.769-1.129.787-1.893v-7.52c-.018-.764-.281-1.396-.787-1.894-.507-.497-1.134-.755-1.88-.773zM8 11.107c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c.017-.391.15-.711.4-.96.249-.249.56-.373.933-.373zm8 0c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c.017-.391.15-.711.4-.96.249-.249.56-.373.933-.373z"/>
+                  </svg>
                 </button>
               </div>
             </div>

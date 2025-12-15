@@ -91,13 +91,20 @@ export const Sidebar: React.FC = () => {
   // 检测当前是否在作品详情页
   const isWorkDetail = location.pathname.startsWith('/works/') && location.pathname !== '/works';
 
+  // 判断是否应该显示"作品详情"：当前在作品详情页 或 有最近访问的作品记录且不在作品管理列表页
+  const shouldShowWorkDetail = isWorkDetail || (lastWorkPath && location.pathname !== '/works');
+
   const dynamicMainNavItems: NavItem[] = useMemo(() => {
     return mainNavItems.map(item =>
       item.id === 'works'
-        ? { ...item, label: isWorkDetail ? '作品详情' : '作品管理' }
+        ? {
+            ...item,
+            label: shouldShowWorkDetail ? '作品详情' : '作品管理',
+            path: shouldShowWorkDetail && lastWorkPath ? lastWorkPath : '/works'
+          }
         : item
     );
-  }, [isWorkDetail]);
+  }, [shouldShowWorkDetail, lastWorkPath]);
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(`${path}/`);
   const hasPermission = (item: NavItem) => !item.roles?.length || item.roles.includes(user?.role || '');

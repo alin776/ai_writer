@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, BookOpen, Trash2, Clock } from 'lucide-react';
 import { NovelCard, Novel } from '../components/library/NovelCard';
 import { NovelDetail } from '../components/library/NovelDetail';
 import { DataService } from '../services/DataService';
+import { useWorkNavStore } from '../store/workNavStore';
 
 // 类型映射:中文类型 -> 英文枚举
 const GENRE_MAP: { [key: string]: string } = {
@@ -58,6 +59,12 @@ export default function MyBookshelfView() {
   const [selectedSort, setSelectedSort] = useState('最近阅读');
   const [bookshelfItems, setBookshelfItems] = useState<BookshelfItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // 获取图书馆阅读状态
+  const { libraryReadingState, clearLibraryReadingState } = useWorkNavStore();
+
+  // 用于防止重复恢复状态
+  const hasRestoredRef = useRef(false);
 
   // 根据类型生成默认封面
   const getDefaultCover = (genre: string): string => {
@@ -128,6 +135,42 @@ export default function MyBookshelfView() {
     loadBookshelf();
   }, []);
 
+  // 恢复上次查看的小说状态（从左侧导航返回时）
+  useEffect(() => {
+    if (hasRestoredRef.current || !libraryReadingState || loading) {
+      return;
+    }
+
+    const restoreState = () => {
+      hasRestoredRef.current = true;
+      const { novelId } = libraryReadingState;
+
+      // 先在已加载的书架中查找
+      const existingItem = bookshelfItems.find((item) => item.novel.id === novelId);
+      if (existingItem) {
+        setSelectedNovel(existingItem.novel);
+        return;
+      }
+
+      // 如果不在书架中，创建临时 Novel 对象
+      setSelectedNovel({
+        id: novelId,
+        title: '加载中...',
+        author: '',
+        category: '其他',
+        description: '',
+        cover: '',
+        views: 0,
+        likes: 0,
+        rating: 0,
+        chapters: 0,
+        status: '其他' as const,
+      });
+    };
+
+    restoreState();
+  }, [libraryReadingState, loading, bookshelfItems]);
+
   // 筛选和排序逻辑
   const filteredAndSortedItems = bookshelfItems
     .filter((item) => {
@@ -173,7 +216,16 @@ export default function MyBookshelfView() {
   };
 
   if (selectedNovel) {
-    return <NovelDetail novel={selectedNovel} onBack={() => setSelectedNovel(null)} />;
+    return (
+      <NovelDetail
+        novel={selectedNovel}
+        onBack={() => {
+          setSelectedNovel(null);
+          // 用户主动返回时清除阅读状态
+          clearLibraryReadingState();
+        }}
+      />
+    );
   }
 
   return (

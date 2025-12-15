@@ -14,10 +14,11 @@ import {
 } from 'lucide-react';
 import { Novel } from './NovelCard';
 import { ImageWithFallback } from './ImageWithFallback';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { DataService } from '../../services/DataService';
 import Modal from '../common/Modal';
 import { useGlobalStore } from '../../store/globalStore';
+import { useWorkNavStore } from '../../store/workNavStore';
 import { NovelReader } from './NovelReader';
 
 interface NovelDetailProps {
@@ -75,6 +76,9 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [favoriteCount, setFavoriteCount] = useState(novel.likes || 0);
 
+  // 存储从 API 加载的完整小说数据
+  const [novelData, setNovelData] = useState<Novel>(novel);
+
   // 确认删除对话框
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
@@ -91,11 +95,42 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
   // Toast
   const { success, error: showError } = useGlobalStore();
 
+  // 获取章节记忆功能和阅读状态
+  const { getLastChapter, libraryReadingState, setLibraryReadingState } = useWorkNavStore();
+
+  // 防止 StrictMode 双重渲染导致的重复调用
+  const hasLoadedRef = useRef<string | null>(null);
+  // 防止重复自动进入阅读器
+  const hasAutoEnteredReaderRef = useRef(false);
+
+  // 当 novel prop 变化时，重置状态（防止快速切换小说时的状态残留）
+  useEffect(() => {
+    // 如果是新的小说，重置所有状态
+    if (hasLoadedRef.current !== null && hasLoadedRef.current !== novel.id) {
+      setNovelData(novel);
+      setFavoriteCount(novel.likes || 0);
+      setChapters([]);
+      setComments([]);
+      setIsInBookshelf(false);
+      setRatingStats(null);
+      setUserRating(0);
+      setLoading(true);
+      hasLoadedRef.current = null;
+    }
+  }, [novel.id]);
+
   // 加载作品详情数据
   useEffect(() => {
+    // 如果已经加载过当前小说的数据，则跳过
+    if (hasLoadedRef.current === novel.id) {
+      return;
+    }
+
     const loadData = async () => {
       try {
         setLoading(true);
+        // 标记为已加载
+        hasLoadedRef.current = novel.id;
 
         // 并行加载作品详情(含章节)、评论、书架状态、评分统计和当前用户信息
         const [detailRes, commentsRes, bookshelfStatus, ratingStatsRes, currentUser] = await Promise.all([
@@ -105,6 +140,31 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
           DataService.getWorkRatingStats(novel.id).catch(() => null),
           DataService.getCurrentUser().catch(() => null),
         ]);
+
+        // 更新小说数据（用于从轮播图等地方传入临时对象的情况）
+        if (detailRes) {
+          const genreMap: { [key: string]: string } = {
+            fantasy: '玄幻', urban: '都市', romance: '言情', scifi: '科幻',
+            wuxia: '武侠', game: '游戏', history: '历史', military: '军事', other: '其他',
+          };
+          const statusMap: { [key: string]: string } = {
+            writing: '连载中', completed: '已完结', draft: '草稿', abandoned: '已弃坑',
+          };
+          setNovelData({
+            id: detailRes.id,
+            title: detailRes.title,
+            author: detailRes.authorName,
+            category: genreMap[detailRes.genre] || detailRes.genre,
+            description: detailRes.description || '暂无简介',
+            cover: detailRes.coverImage || novel.cover,
+            views: detailRes.viewCount,
+            likes: detailRes.favoriteCount || 0,
+            rating: detailRes.averageRating || 0,
+            chapters: detailRes.publishedChapterCount,
+            status: (statusMap[detailRes.status] || '其他') as '连载中' | '已完结' | '其他',
+          });
+          setFavoriteCount(detailRes.favoriteCount || 0);
+        }
 
         setChapters(detailRes?.chapters || []);
         setComments(commentsRes.items || []);
@@ -116,6 +176,8 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
         }
       } catch (error) {
         console.error('加载作品详情失败:', error);
+        // 加载失败时重置标记，允许重试
+        hasLoadedRef.current = null;
       } finally {
         setLoading(false);
       }
@@ -123,6 +185,28 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
 
     loadData();
   }, [novel.id]);
+
+  // 自动进入阅读器（当从导航返回时恢复阅读状态）
+  useEffect(() => {
+    // 条件：数据已加载、有章节、未自动进入过、store 中记录了该小说正在阅读
+    if (
+      !loading &&
+      chapters.length > 0 &&
+      !hasAutoEnteredReaderRef.current &&
+      libraryReadingState?.novelId === novel.id &&
+      libraryReadingState?.isReading
+    ) {
+      hasAutoEnteredReaderRef.current = true;
+      // 获取上次阅读的章节
+      const lastChapterId = getLastChapter(novel.id);
+      const targetChapterId = lastChapterId && chapters.some(c => c.id === lastChapterId)
+        ? lastChapterId
+        : chapters[0].id;
+      // 自动进入阅读器
+      setSelectedChapterId(targetChapterId);
+      setShowReader(true);
+    }
+  }, [loading, chapters, libraryReadingState, novel.id, getLastChapter]);
 
   // 章节分组（每10章一组）
   const chapterGroups = chapters.reduce((groups: Chapter[][], chapter) => {
@@ -281,6 +365,8 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
   const handleStartReading = (chapterId?: string) => {
     setSelectedChapterId(chapterId);
     setShowReader(true);
+    // 保存阅读状态到 store，用于导航离开后返回时恢复
+    setLibraryReadingState(novel.id, true);
   };
 
   // 格式化时间
@@ -304,7 +390,12 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
       <NovelReader
         workId={novel.id}
         chapterId={selectedChapterId}
-        onBack={() => setShowReader(false)}
+        onBack={() => {
+          setShowReader(false);
+          // 从阅读器返回时，更新状态为不在阅读中（但保持小说选中状态）
+          setLibraryReadingState(novel.id, false);
+        }}
+        initialChapters={chapters}
       />
     );
   }
@@ -321,7 +412,7 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
               书籍广场
             </button>
             <span className="text-gray-400 dark:text-slate-600">/</span>
-            <span className="text-black dark:text-white">{novel.title}</span>
+            <span className="text-black dark:text-white">{novelData.title}</span>
           </div>
         </div>
       </header>
@@ -331,8 +422,8 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
           <div className="flex gap-8">
             <div className="flex-shrink-0">
               <ImageWithFallback
-                src={novel.cover}
-                alt={novel.title}
+                src={novelData.cover}
+                alt={novelData.title}
                 className="w-48 rounded-lg"
                 style={{ height: '256px', objectFit: 'fill' }}
               />
@@ -340,11 +431,11 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
 
             <div className="flex-1">
               <div className="mb-4">
-                <h1 className="mb-3 text-gray-900 dark:text-white">{novel.title}</h1>
+                <h1 className="mb-3 text-gray-900 dark:text-white">{novelData.title}</h1>
                 <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-slate-400 mb-4">
-                  <span>作者：{novel.author}</span>
-                  <span className="px-2 py-1 bg-gray-100 dark:bg-slate-800 text-xs">{novel.category}</span>
-                  <span className="px-2 py-1 bg-black dark:bg-slate-700 text-white text-xs">{novel.status}</span>
+                  <span>作者：{novelData.author}</span>
+                  <span className="px-2 py-1 bg-gray-100 dark:bg-slate-800 text-xs">{novelData.category}</span>
+                  <span className="px-2 py-1 bg-black dark:bg-slate-700 text-white text-xs">{novelData.status}</span>
                 </div>
               </div>
 
@@ -360,7 +451,7 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
                   <Eye className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                   <span className="text-gray-600 dark:text-slate-400">阅读</span>
                   <span className="text-black dark:text-white">
-                    {novel.views > 10000 ? `${(novel.views / 10000).toFixed(1)}万` : novel.views}
+                    {novelData.views > 10000 ? `${(novelData.views / 10000).toFixed(1)}万` : novelData.views}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
@@ -379,14 +470,19 @@ export function NovelDetail({ novel, onBack }: NovelDetailProps) {
 
               <div className="mb-6">
                 <h3 className="text-sm mb-3 text-gray-900 dark:text-white">作品简介</h3>
-                <p className="text-sm text-gray-600 dark:text-slate-400 leading-relaxed">{novel.description}</p>
+                <p className="text-sm text-gray-600 dark:text-slate-400 leading-relaxed">{novelData.description}</p>
               </div>
 
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => {
                     if (chapters.length > 0) {
-                      handleStartReading(chapters[0].id);
+                      // 优先使用上次阅读的章节，如果没有则从第一章开始
+                      const lastChapterId = getLastChapter(novel.id);
+                      const targetChapterId = lastChapterId && chapters.some(c => c.id === lastChapterId)
+                        ? lastChapterId
+                        : chapters[0].id;
+                      handleStartReading(targetChapterId);
                     } else {
                       showError('暂无可阅读章节');
                     }

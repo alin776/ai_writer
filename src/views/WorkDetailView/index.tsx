@@ -54,6 +54,9 @@ const WorkDetailView: React.FC = () => {
   const { rightSidebarType, setRightSidebarType } = useEditorStore();
   const setLastWork = useWorkNavStore((state) => state.setLastWork);
   const clearLastWork = useWorkNavStore((state) => state.clearLastWork);
+  // 获取章节记忆功能
+  const setLastChapter = useWorkNavStore((state) => state.setLastChapter);
+  const getLastChapter = useWorkNavStore((state) => state.getLastChapter);
 
   // AI 自动补全开关
   const aiAutoCompleteEnabled = user?.preferences?.aiAutoComplete ?? false;
@@ -301,11 +304,25 @@ const WorkDetailView: React.FC = () => {
         setChapters(chaptersData);
         setWorldData(worldDataFromServer as any);
 
-        // 如果有章节，默认选中第一个；否则自动创建默认章节
+        // 如果有章节，优先使用上次编辑的章节，否则默认选中第一个
         if (chaptersData.length > 0) {
-          setCurrentChapterId(chaptersData[0].id);
-          setCurrentChapterContent(chaptersData[0].content);
-          editorChapterIdRef.current = chaptersData[0].id; // 更新 ref
+          // 检查是否有保存的上次编辑章节
+          const lastChapterId = getLastChapter(workId);
+          const lastChapter = lastChapterId ? chaptersData.find((c: Chapter) => c.id === lastChapterId) : null;
+
+          if (lastChapter) {
+            // 恢复到上次编辑的章节
+            setCurrentChapterId(lastChapter.id);
+            setCurrentChapterContent(lastChapter.content);
+            editorChapterIdRef.current = lastChapter.id;
+            console.log('[WorkDetailView] 恢复到上次编辑的章节:', lastChapter.title);
+          } else {
+            // 默认选中第一个章节，并保存到 store
+            setCurrentChapterId(chaptersData[0].id);
+            setCurrentChapterContent(chaptersData[0].content);
+            editorChapterIdRef.current = chaptersData[0].id;
+            setLastChapter(workId, chaptersData[0].id);
+          }
         } else {
           // 方案B：自动创建默认章节
           try {
@@ -321,6 +338,8 @@ const WorkDetailView: React.FC = () => {
             setCurrentChapterId(defaultChapter.id);
             setCurrentChapterContent('');
             editorChapterIdRef.current = defaultChapter.id;
+            // 保存默认章节ID到 store
+            setLastChapter(workId, defaultChapter.id);
             showToast('info', t('workDetail.toast.autoCreatedFirstChapter'));
           } catch (createError) {
             console.error('Failed to create default chapter:', createError);
@@ -389,6 +408,11 @@ const WorkDetailView: React.FC = () => {
       setCurrentChapterContent(chapter.content);
       editorChapterIdRef.current = chapterId; // 更新 ref
 
+      // 保存当前章节ID到 store，用于下次返回时恢复
+      if (workId) {
+        setLastChapter(workId, chapterId);
+      }
+
       // 调试日志
       console.log('[WorkDetailView] 切换章节:', {
         chapterId,
@@ -396,7 +420,7 @@ const WorkDetailView: React.FC = () => {
         contentLength: chapter.content?.length || 0,
       });
     }
-  }, [chapters, editingChapterId]);
+  }, [chapters, editingChapterId, workId, setLastChapter]);
 
   /**
    * 处理添加章节
@@ -448,6 +472,8 @@ const WorkDetailView: React.FC = () => {
         setCurrentChapterId(savedChapter.id);
         setCurrentChapterContent('');
         editorChapterIdRef.current = savedChapter.id; // 更新 ref
+        // 保存新章节ID到 store
+        setLastChapter(workId, savedChapter.id);
       }, 0);
 
       // 清空输入框并关闭
@@ -469,7 +495,7 @@ const WorkDetailView: React.FC = () => {
       showToast('error', t('workDetail.toast.chapterAddFailed'));
       console.error('Failed to add chapter:', error);
     }
-  }, [workId, chapters.length, newChapterTitle, editingChapterId, showToast]);
+  }, [workId, chapters.length, newChapterTitle, editingChapterId, showToast, setLastChapter]);
 
   /**
    * 取消添加章节
@@ -643,6 +669,8 @@ const WorkDetailView: React.FC = () => {
           setCurrentChapterId(defaultChapter.id);
           setCurrentChapterContent('');
           editorChapterIdRef.current = defaultChapter.id;
+          // 保存新章节ID到 store
+          setLastChapter(workId, defaultChapter.id);
           showToast('info', t('workDetail.toast.autoCreatedNewChapter'));
         } catch (createError) {
           console.error('Failed to create default chapter after delete:', createError);
@@ -656,6 +684,8 @@ const WorkDetailView: React.FC = () => {
         setCurrentChapterId(remainingChapters[0].id);
         setCurrentChapterContent(remainingChapters[0].content);
         editorChapterIdRef.current = remainingChapters[0].id;
+        // 保存新章节ID到 store
+        setLastChapter(workId, remainingChapters[0].id);
       }
 
       showToast('success', t('workDetail.toast.chapterDeleteSuccess'));
@@ -663,7 +693,7 @@ const WorkDetailView: React.FC = () => {
       showToast('error', t('workDetail.toast.chapterDeleteFailed'));
       console.error('Failed to delete chapter:', error);
     }
-  }, [workId, chapters, currentChapterId, editingChapterId, showToast]);
+  }, [workId, chapters, currentChapterId, editingChapterId, showToast, setLastChapter]);
 
   /**
    * 处理删除章节（带确认对话框）

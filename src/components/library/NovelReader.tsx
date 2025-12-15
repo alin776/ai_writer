@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   ArrowLeft,
   ChevronLeft,
@@ -11,11 +11,13 @@ import {
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
 import { useTheme } from '../../hooks/useTheme';
+import { useWorkNavStore } from '../../store/workNavStore';
 
 interface NovelReaderProps {
   workId: string;
   chapterId?: string;
   onBack: () => void;
+  initialChapters?: ChapterListItem[];  // 从 NovelDetail 传入的章节列表，避免重复调用 API
 }
 
 interface Chapter {
@@ -36,10 +38,11 @@ interface ChapterListItem {
   publishedAt: string;
 }
 
-export function NovelReader({ workId, chapterId, onBack }: NovelReaderProps) {
+export function NovelReader({ workId, chapterId, onBack, initialChapters }: NovelReaderProps) {
   const { error: showError } = useGlobalStore();
   const { effectiveTheme } = useTheme();
   const isDarkMode = effectiveTheme === 'dark';
+  const { setLastChapter } = useWorkNavStore();
 
   const [currentChapter, setCurrentChapter] = useState<Chapter | null>(null);
   const [chapters, setChapters] = useState<ChapterListItem[]>([]);
@@ -65,28 +68,65 @@ export function NovelReader({ workId, chapterId, onBack }: NovelReaderProps) {
   const backgroundColor = isDarkMode ? currentTheme.darkBg : currentTheme.bg;
   const textColor = isDarkMode ? currentTheme.darkText : currentTheme.text;
 
+  // 防止 StrictMode 双重渲染导致的重复调用
+  const hasLoadedChaptersRef = useRef<string | null>(null);
+  const loadedChapterIdRef = useRef<string | null>(null);
+  // 防止章节快速切换时重复加载
+  const loadingChapterRef = useRef<string | null>(null);
+
   // 加载章节列表
   useEffect(() => {
+    // 如果传入了初始章节列表，直接使用，不调用 API（避免重复增加浏览量）
+    if (initialChapters && initialChapters.length > 0) {
+      setChapters(initialChapters);
+      hasLoadedChaptersRef.current = workId;
+      return;
+    }
+
+    // 如果 workId 变化了，需要重置标记
+    if (hasLoadedChaptersRef.current && hasLoadedChaptersRef.current !== workId) {
+      hasLoadedChaptersRef.current = null;
+    }
+
+    // 如果已经加载过当前作品的章节列表，则跳过
+    if (hasLoadedChaptersRef.current === workId) {
+      return;
+    }
+
     const loadChapters = async () => {
       try {
+        // 标记为已加载
+        hasLoadedChaptersRef.current = workId;
         const response = await DataService.getPublishedNovelDetail(workId);
         setChapters(response?.chapters || []);
       } catch (error) {
         console.error('加载章节列表失败:', error);
         showError('加载章节列表失败');
+        // 加载失败时重置标记，允许重试
+        hasLoadedChaptersRef.current = null;
       }
     };
     loadChapters();
-  }, [workId]);
+  }, [workId, initialChapters]);
 
   // 加载章节内容
   const loadChapter = async (targetChapterId: string) => {
+    // 防止重复加载同一章节（用户快速点击翻页时）
+    if (loadingChapterRef.current === targetChapterId) {
+      return;
+    }
+
     try {
+      loadingChapterRef.current = targetChapterId;
       setLoading(true);
       const chapterData = await DataService.getPublishedChapterContent(workId, targetChapterId);
       setCurrentChapter(chapterData);
+      loadedChapterIdRef.current = targetChapterId;
 
-      // 保存阅读进度
+      // 保存章节ID到本地存储，用于返回时恢复阅读位置
+      setLastChapter(workId, targetChapterId);
+
+      // 保存阅读进度到后端
       await DataService.updateReadingProgress(workId, targetChapterId, 0).catch(() => {
         // 静默失败，不影响阅读体验
       });
@@ -95,6 +135,7 @@ export function NovelReader({ workId, chapterId, onBack }: NovelReaderProps) {
       showError('加载章节失败');
     } finally {
       setLoading(false);
+      loadingChapterRef.current = null;
     }
   };
 
@@ -102,7 +143,9 @@ export function NovelReader({ workId, chapterId, onBack }: NovelReaderProps) {
   useEffect(() => {
     if (chapters.length > 0) {
       const targetId = chapterId || chapters[0]?.id;
-      if (targetId) {
+      // 防止重复加载同一章节
+      if (targetId && loadedChapterIdRef.current !== targetId) {
+        loadedChapterIdRef.current = targetId;
         loadChapter(targetId);
       }
     }

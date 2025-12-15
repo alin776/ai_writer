@@ -441,12 +441,12 @@ const AuthView: React.FC = () => {
         {/* 左侧内容 */}
         <div className="absolute inset-0 flex flex-col justify-between p-12 z-10">
           {/* Logo */}
-          <div className="flex items-center gap-3 animate-fade-in">
+          <Link to="/" className="flex items-center gap-3 animate-fade-in hover:opacity-80 transition-opacity">
             <div className="w-12 h-12 bg-black/30 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/20 shadow-lg">
               <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '48px', height: '48px', filter: 'brightness(0) invert(1)' }} />
             </div>
             <span className="text-white tracking-wide drop-shadow-lg">{t('app.name')}</span>
-          </div>
+          </Link>
 
           {/* 中间文字 */}
           <div className="space-y-6 animate-fade-in-up">
@@ -494,12 +494,12 @@ const AuthView: React.FC = () => {
 
         <div className="w-full max-w-md relative z-10 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
           {/* 移动端Logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-8">
+          <Link to="/" className="lg:hidden flex items-center gap-3 mb-8 hover:opacity-80 transition-opacity">
             <div className="w-12 h-12 bg-gray-900 rounded-xl flex items-center justify-center">
               <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '48px', height: '48px', filter: 'brightness(0) invert(1)' }} />
             </div>
             <span className="text-gray-800 tracking-wide">{t('app.name')}</span>
-          </div>
+          </Link>
 
           <div className="mb-10">
             <h1 className="text-gray-900 mb-2 text-3xl font-bold">
