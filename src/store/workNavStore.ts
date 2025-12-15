@@ -14,6 +14,8 @@ interface WorkNavState {
   lastChapterMap: Record<string, string>;
   // 图书馆当前查看的小说状态（用于导航离开后返回时恢复）
   libraryReadingState: LibraryReadingState | null;
+  // 存储用户书架状态 { workId: boolean } - 用于持久化红心状态
+  bookshelfMap: Record<string, boolean>;
   setLastWork: (workId: string, title?: string | null) => void;
   clearLastWork: () => void;
   // 保存某个作品的最后阅读章节
@@ -26,6 +28,12 @@ interface WorkNavState {
   setLibraryReadingState: (novelId: string, isReading: boolean) => void;
   // 清除图书馆阅读状态
   clearLibraryReadingState: () => void;
+  // 设置书架状态（加入/移出书架）
+  setBookshelfStatus: (workId: string, inBookshelf: boolean) => void;
+  // 获取书架状态
+  getBookshelfStatus: (workId: string) => boolean;
+  // 清除书架状态（用于从书架移除时）
+  removeFromBookshelfMap: (workId: string) => void;
 }
 
 /**
@@ -41,6 +49,7 @@ export const useWorkNavStore = create<WorkNavState>()(
       lastWorkPath: null,
       lastChapterMap: {},
       libraryReadingState: null,
+      bookshelfMap: {},
       setLastWork: (workId, title = null) => {
         set({
           lastWorkId: workId,
@@ -80,13 +89,32 @@ export const useWorkNavStore = create<WorkNavState>()(
       clearLibraryReadingState: () => {
         set({ libraryReadingState: null });
       },
+      setBookshelfStatus: (workId, inBookshelf) => {
+        set((state) => ({
+          bookshelfMap: {
+            ...state.bookshelfMap,
+            [workId]: inBookshelf,
+          },
+        }));
+      },
+      getBookshelfStatus: (workId) => {
+        return get().bookshelfMap[workId] || false;
+      },
+      removeFromBookshelfMap: (workId) => {
+        set((state) => {
+          const newMap = { ...state.bookshelfMap };
+          delete newMap[workId];
+          return { bookshelfMap: newMap };
+        });
+      },
     }),
     {
       name: 'work-nav-storage', // localStorage 的 key
       partialize: (state) => ({
-        // 持久化章节记录和图书馆阅读状态
+        // 持久化章节记录、图书馆阅读状态和书架状态
         lastChapterMap: state.lastChapterMap,
         libraryReadingState: state.libraryReadingState,
+        bookshelfMap: state.bookshelfMap,
       }),
     }
   )

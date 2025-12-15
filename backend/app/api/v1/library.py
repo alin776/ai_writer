@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -404,16 +404,21 @@ class UpdateReadingProgressRequest(BaseModel):
     position: int = 0
 
 
-@router.post("/bookshelf/{work_id}", response_model=dict, status_code=status.HTTP_201_CREATED)
+@router.post("/bookshelf/{work_id}", response_model=dict)
 async def add_to_bookshelf(
     work_id: str,
+    response: Response,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    将作品加入书架
+    将作品加入书架（幂等操作）
 
     - **work_id**: 作品ID
+
+    注意: 该接口设计为幂等操作
+    - 新加入书架时返回 201 Created
+    - 已在书架中时返回 200 OK
     """
     # 验证作品是否存在且已发布
     work_result = await db.execute(
@@ -437,10 +442,13 @@ async def add_to_bookshelf(
     existing = bookshelf_result.scalar_one_or_none()
 
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="该作品已在书架中"
-        )
+        # 幂等设计：已在书架中时返回 200 OK
+        response.status_code = status.HTTP_200_OK
+        return {
+            "message": "已在书架中",
+            "work_id": str(work_id),
+            "already_exists": True
+        }
 
     # 添加到书架
     bookshelf_item = Bookshelf(
@@ -455,9 +463,12 @@ async def add_to_bookshelf(
 
     await db.commit()
 
+    # 新创建时返回 201 Created
+    response.status_code = status.HTTP_201_CREATED
     return {
         "message": "已加入书架",
-        "work_id": str(work_id)
+        "work_id": str(work_id),
+        "already_exists": False
     }
 
 

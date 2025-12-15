@@ -60,8 +60,8 @@ export default function MyBookshelfView() {
   const [bookshelfItems, setBookshelfItems] = useState<BookshelfItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 获取图书馆阅读状态
-  const { libraryReadingState, clearLibraryReadingState } = useWorkNavStore();
+  // 获取图书馆阅读状态和书架状态管理
+  const { libraryReadingState, clearLibraryReadingState, setBookshelfStatus } = useWorkNavStore();
 
   // 用于防止重复恢复状态
   const hasRestoredRef = useRef(false);
@@ -200,6 +200,8 @@ export default function MyBookshelfView() {
     try {
       await DataService.removeFromBookshelf(workId);
       setBookshelfItems(bookshelfItems.filter((item) => item.novel.id !== workId));
+      // 同步更新全局 store，确保红心状态在其他页面也更新
+      setBookshelfStatus(workId, false);
     } catch (error) {
       console.error('Failed to remove from bookshelf:', error);
       alert('移出书架失败，请重试');
@@ -224,6 +226,7 @@ export default function MyBookshelfView() {
           // 用户主动返回时清除阅读状态
           clearLibraryReadingState();
         }}
+        isFromBookshelf={true}
       />
     );
   }
