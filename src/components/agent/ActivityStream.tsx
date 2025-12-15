@@ -11,7 +11,7 @@
  */
 
 import { Brain, Wrench, Sparkles, CheckCircle, Loader2, Clock } from 'lucide-react';
-import type { ActivityItem, ActivityType, ActivityStatus, ProgressData } from '@/types/agent';  // ✅ 从类型文件导入
+import type { ActivityItem, AgentActivityType, ActivityStatus, ProgressData } from '@/types/agent';  // ✅ 从类型文件导入
 import ProgressBar from './ProgressBar';  // ✅ 导入ProgressBar
 import styles from './ActivityStream.module.css';
 
@@ -24,7 +24,7 @@ interface ActivityStreamProps {
 /**
  * 获取活动图标
  */
-const getActivityIcon = (type: ActivityType, status: ActivityStatus) => {
+const getActivityIcon = (type: AgentActivityType, status: ActivityStatus) => {
   const iconClass = status === 'active' ? styles.iconActive : styles.iconCompleted;
 
   switch (type) {
@@ -44,8 +44,8 @@ const getActivityIcon = (type: ActivityType, status: ActivityStatus) => {
 /**
  * 获取活动类型的中文名称
  */
-const getActivityTypeName = (type: ActivityType): string => {
-  const typeNames = {
+const getActivityTypeName = (type: AgentActivityType): string => {
+  const typeNames: Record<AgentActivityType, string> = {
     intent_analysis: '意图分析',
     thinking: '思考中',
     tool_execution: '工具调用',

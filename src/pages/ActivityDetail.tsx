@@ -44,8 +44,8 @@ export default function ActivityDetail() {
         notificationId: notification.id,
         title: notification.title,
         type: notification.type,
-        activity_type: (notification as any).activity_type,
-        activity_rules: (notification as any).activity_rules,
+        activityType: (notification as any).activityType,
+        activityRules: (notification as any).activityRules,
         fullNotification: notification  // 打印完整通知对象
       });
 
@@ -365,22 +365,22 @@ export default function ActivityDetail() {
 
 // 将通知数据转换为活动详情格式
 function convertNotificationToActivity(notification: any): ActivityDetailType {
-  // 优先使用 notification.activity_type，如果不存在则使用默认值
-  const activity_type = notification.activity_type || 'invitation';
-  const activity_rules = notification.activity_rules;
+  // 优先使用 notification.activityType，如果不存在则使用默认值
+  const activityType = notification.activityType || 'invitation';
+  const activityRules = notification.activityRules;
 
   console.log('🔄 转换通知数据:', {
-    hasActivityType: !!notification.activity_type,
-    activity_type,
-    hasActivityRules: !!notification.activity_rules,
-    rulesType: activity_rules?.type
+    hasActivityType: !!notification.activityType,
+    activityType,
+    hasActivityRules: !!notification.activityRules,
+    rulesType: activityRules?.type
   });
 
   // 如果没有活动规则，根据活动类型创建默认规则
-  const defaultRules = activity_rules || {
-    type: activity_type,
+  const defaultRules = activityRules || {
+    type: activityType,
     // 根据不同类型设置默认值
-    ...(activity_type === 'invitation' && {
+    ...(activityType === 'invitation' && {
       inviterRewards: [],
       inviteeRewards: [],
       requirementForInvitee: ''
@@ -393,8 +393,8 @@ function convertNotificationToActivity(notification: any): ActivityDetailType {
     subtitle: notification.content ? notification.content.split('\n\n')[0] : '',
     description: notification.content || '',
     bannerUrl: notification.coverImageUrl || 'https://images.unsplash.com/photo-1611376299769-0abfd5941d40?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBtaW5pbWFsJTIwYmFubmVyfGVufDF8fHx8MTc2NTUyNzMyMHww&ixlib=rb-4.1.0&q=80&w=1080',
-    category: getActivityCategoryFromType(activity_type),
-    type: activity_type as ActivityType,
+    category: getActivityCategoryFromType(activityType),
+    type: activityType as ActivityType,
     status: ActivityStatus.ONGOING,
     format: ActivityFormat.ONLINE,
     startTime: notification.validFrom || notification.createdAt,
@@ -402,7 +402,7 @@ function convertNotificationToActivity(notification: any): ActivityDetailType {
     registrationDeadline: notification.validUntil,
     participantCount: 0,
     rules: defaultRules as any,
-    participationSteps: getDefaultParticipationSteps(activity_type),
+    participationSteps: getDefaultParticipationSteps(activityType),
     notice: [
       '每个账号仅可参与一次，请勿重复注册',
       '请确保遵守活动规则，如发现作弊行为，平台有权取消参与资格',
@@ -416,8 +416,8 @@ function convertNotificationToActivity(notification: any): ActivityDetailType {
 }
 
 // 根据活动类型获取分类名称
-function getActivityCategoryFromType(activity_type: string): string {
-  switch (activity_type) {
+function getActivityCategoryFromType(activityType: string): string {
+  switch (activityType) {
     case 'invitation': return '邀请活动';
     case 'competition': return '比赛活动';
     case 'points': return '积分活动';
@@ -429,8 +429,8 @@ function getActivityCategoryFromType(activity_type: string): string {
 }
 
 // 获取默认的参与步骤
-function getDefaultParticipationSteps(activity_type: string) {
-  switch (activity_type) {
+function getDefaultParticipationSteps(activityType: string) {
+  switch (activityType) {
     case 'invitation':
       return [
         { step: 1, title: '注册并登录账号', description: '使用手机号或邮箱完成账号注册' },

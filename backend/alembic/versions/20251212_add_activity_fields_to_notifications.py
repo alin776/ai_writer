@@ -1,7 +1,7 @@
 """add activity fields to notifications
 
 Revision ID: add_activity_fields
-Revises: d996600d54be
+Revises: 20251214_1000
 Create Date: 2025-12-12 10:00:00.000000
 
 """
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = 'add_activity_fields'
-down_revision = 'd996600d54be'
+down_revision = '20251214_1000'
 branch_labels = None
 depends_on = None
 

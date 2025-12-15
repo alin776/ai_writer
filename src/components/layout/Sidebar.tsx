@@ -20,6 +20,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { useWorkNavStore } from '../../store/workNavStore';
 import clsx from 'clsx';
 
 interface NavItem {
@@ -63,6 +64,7 @@ export const Sidebar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const { lastWorkPath } = useWorkNavStore();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isLibraryExpanded, setIsLibraryExpanded] = useState(true);
   const [isServiceExpanded, setIsServiceExpanded] = useState(true);
@@ -86,6 +88,7 @@ export const Sidebar: React.FC = () => {
     navigate('/login');
   };
 
+  // 检测当前是否在作品详情页
   const isWorkDetail = location.pathname.startsWith('/works/') && location.pathname !== '/works';
 
   const dynamicMainNavItems: NavItem[] = useMemo(() => {

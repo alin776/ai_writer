@@ -1,13 +1,17 @@
 // src/views/HumanizeView/components/OutputPanel.tsx
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import Button from '@/components/common/Button';
 import { Check, X, Copy, Sparkles, History } from 'lucide-react';
+import type { HumanizeStage } from '@/types/humanize';
 
 interface OutputPanelProps {
   outputText: string;
   isProcessing: boolean;
-  currentStage: string;
+  currentStage: HumanizeStage;
   improvement: number | null;
   processingTime: number | null;
   tokensUsed: number | null;
@@ -15,8 +19,9 @@ interface OutputPanelProps {
   skipped?: boolean;
   onFeedback: (accepted: boolean) => void;
   renderComplete?: boolean;
-  isHistoryCollapsed?: boolean; // 新增
-  onExpandHistory?: () => void; // 新增
+  isTyping?: boolean; // 打字机是否正在输出
+  isHistoryCollapsed?: boolean;
+  onExpandHistory?: () => void;
 }
 
 export const OutputPanel: React.FC<OutputPanelProps> = ({
@@ -30,10 +35,32 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
   skipped,
   onFeedback,
   renderComplete,
+  isTyping,
   isHistoryCollapsed,
   onExpandHistory,
 }) => {
   const outputRef = useRef<HTMLDivElement>(null);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // 监听深色模式变化
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    };
+
+    // 初始检查
+    checkDarkMode();
+
+    // 监听 class 变化
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -47,6 +74,8 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
     if (!outputText) return;
     try {
       await navigator.clipboard.writeText(outputText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000); // 2秒后恢复
     } catch (err) {
       console.error('Failed to copy:', err);
     }
@@ -63,10 +92,14 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
           {outputText && (
             <button
               onClick={handleCopy}
-              className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-              title="复制"
+              className={`p-1.5 rounded transition-colors ${
+                copied
+                  ? 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+              title={copied ? '已复制' : '复制'}
             >
-              <Copy className="w-4 h-4" />
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
             </button>
           )}
           {isHistoryCollapsed && onExpandHistory && (
@@ -87,11 +120,47 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
         {outputText ? (
           <div
             ref={outputRef}
-            className="flex-1 overflow-y-auto text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap bg-gray-50 dark:bg-gray-700 rounded-md p-3 border border-gray-200 dark:border-gray-600"
+            className="flex-1 overflow-y-auto text-sm text-gray-700 dark:text-gray-300 leading-relaxed bg-gray-50 dark:bg-gray-700 rounded-md p-3 border border-gray-200 dark:border-gray-600"
           >
-            {outputText}
-            {isProcessing && currentStage === 'rewriting' && (
-              <span className="inline-block w-0.5 h-4 bg-blue-600 dark:bg-blue-400 animate-pulse ml-0.5" />
+            {/* Markdown 渲染 */}
+            <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-pre:my-2 prose-code:text-blue-600 dark:prose-code:text-blue-400 prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none">
+              <ReactMarkdown
+                components={{
+                  // 代码块高亮 - 根据深浅色模式切换样式
+                  code({ className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || '');
+                    const isInline = !match;
+                    return !isInline && match ? (
+                      <SyntaxHighlighter
+                        style={isDarkMode ? oneDark : oneLight}
+                        language={match[1]}
+                        PreTag="div"
+                        customStyle={{
+                          margin: '0.5rem 0',
+                          borderRadius: '0.375rem',
+                          fontSize: '0.8125rem',
+                        }}
+                      >
+                        {String(children).replace(/\n$/, '')}
+                      </SyntaxHighlighter>
+                    ) : (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    );
+                  },
+                  // 段落 - 使用正常换行，避免过多空白
+                  p({ children }) {
+                    return <p className="whitespace-normal break-words">{children}</p>;
+                  },
+                }}
+              >
+                {outputText}
+              </ReactMarkdown>
+            </div>
+            {/* 打字机光标 */}
+            {(isTyping || (isProcessing && currentStage === 'rewriting')) && (
+              <span className="inline-block w-0.5 h-4 bg-blue-600 dark:bg-blue-400 animate-pulse ml-0.5 align-middle" />
             )}
           </div>
         ) : (

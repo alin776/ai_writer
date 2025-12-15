@@ -51,7 +51,7 @@ export const useNotificationWebSocket = () => {
       // 过滤出需要弹窗的通知
       const modalNotifications = newNotifications.filter(
         (notif) =>
-          notif.displayType.includes('modal') &&
+          notif.displayType?.includes('modal') &&
           !notif.isDismissed &&
           (notif.priority === NotificationPriority.URGENT ||
             notif.priority === NotificationPriority.IMPORTANT)

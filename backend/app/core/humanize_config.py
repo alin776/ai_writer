@@ -33,8 +33,8 @@ class HumanizeConfig:
     rewrite_temperature: Dict[str, float] = field(
         default_factory=lambda: {
             "light": 0.5,  # 轻度改写:保守一些
-            "medium": 0.7,  # 中度改写:平衡
-            "strong": 0.9,  # 强度改写:更多变化
+            "medium": 0.8,  # 中度改写:提高创造性，增强去痕迹效果
+            "strong": 1.0,  # 强度改写:最大变化，彻底改写风格
         }
     )
     verification_temperature: float = 0.3  # 验证温度 (低温度保证稳定)

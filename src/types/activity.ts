@@ -291,3 +291,47 @@ export interface UserActivityParticipation {
   earnedRewards: Reward[];         // 已获得的奖励
   status: 'active' | 'completed' | 'expired';
 }
+
+// ==================== 类型守卫函数 ====================
+
+/**
+ * 检查活动规则是否为邀请活动规则
+ */
+export function isInvitationRules(rules: ActivityRules | null | undefined): rules is InvitationRules {
+  return rules?.type === ActivityType.INVITATION;
+}
+
+/**
+ * 检查活动规则是否为比赛活动规则
+ */
+export function isCompetitionRules(rules: ActivityRules | null | undefined): rules is CompetitionRules {
+  return rules?.type === ActivityType.COMPETITION;
+}
+
+/**
+ * 检查活动规则是否为积分活动规则
+ */
+export function isPointsRules(rules: ActivityRules | null | undefined): rules is PointsRules {
+  return rules?.type === ActivityType.POINTS;
+}
+
+/**
+ * 检查活动规则是否为任务活动规则
+ */
+export function isMissionRules(rules: ActivityRules | null | undefined): rules is MissionRules {
+  return rules?.type === ActivityType.MISSION;
+}
+
+/**
+ * 检查活动规则是否为抽奖活动规则
+ */
+export function isLotteryRules(rules: ActivityRules | null | undefined): rules is LotteryRules {
+  return rules?.type === ActivityType.LOTTERY;
+}
+
+/**
+ * 检查活动规则是否为签到活动规则
+ */
+export function isCheckinRules(rules: ActivityRules | null | undefined): rules is CheckinRules {
+  return rules?.type === ActivityType.CHECKIN;
+}

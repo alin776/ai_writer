@@ -195,6 +195,16 @@ export interface HumanizeStatsResponse {
 // ==================== SSE流式事件 ====================
 
 /**
+ * AI去痕处理阶段
+ */
+export type HumanizeStage = 'idle' | 'detecting' | 'detected' | 'rewriting' | 'verifying' | 'done';
+
+/**
+ * 流式事件中的进度阶段（不包含 idle 和 done）
+ */
+export type HumanizeProgressStage = 'detecting' | 'detected' | 'rewriting' | 'verifying';
+
+/**
  * 流式事件类型
  */
 export interface HumanizeStreamEvent {
@@ -205,7 +215,7 @@ export interface HumanizeStreamEvent {
   content?: string;
 
   /** 当前阶段 (type=progress时) */
-  stage?: 'detecting' | 'detected' | 'rewriting' | 'verifying';
+  stage?: HumanizeProgressStage;
 
   /** 提示信息 (type=progress/info/error时) */
   message?: string;
