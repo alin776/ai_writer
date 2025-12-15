@@ -16,7 +16,6 @@ import { GlobalSearch } from '@/components/search/GlobalSearch';
 import { useNotificationStore } from '@/store/notificationStore';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
 import ThemeToggle from '@/components/common/ThemeToggle';
-import LanguageToggle from '@/components/common/LanguageToggle';
 import { toLocaleTime } from '@/utils/dateFormat';
 import type { LanguageCode } from '@/i18n';
 
@@ -142,9 +141,6 @@ const Header: React.FC = () => {
               </>
             )}
           </div>
-
-          {/* 语言切换按钮 */}
-          <LanguageToggle />
 
           {/* 主题切换按钮 */}
           <ThemeToggle />
