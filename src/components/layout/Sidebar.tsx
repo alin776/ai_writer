@@ -325,7 +325,7 @@ export const Sidebar: React.FC = () => {
                   <div className="text-center">
                     <div className="rounded-lg overflow-hidden w-52 h-52 bg-white flex items-center justify-center">
                       <img
-                        src="/images/qrcode/qqqun.jpg"
+                        src="/images/qrcode/qq.jpg"
                         alt="内测群二维码"
                         className="max-w-full max-h-full object-contain"
                       />
