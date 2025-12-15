@@ -100,3 +100,11 @@ async def redeem_code(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+    except Exception as e:
+        # 捕获所有其他异常，记录并返回友好错误
+        import logging
+        logging.error(f"兑换码兑换失败: {type(e).__name__}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"兑换失败: {str(e)}"
+        )

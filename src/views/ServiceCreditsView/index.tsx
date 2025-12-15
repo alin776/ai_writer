@@ -1,9 +1,9 @@
-﻿import React, { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Wallet, TrendingUp, TrendingDown, Gift, ArrowRight } from 'lucide-react';
 import { Card } from '../../components/common';
 import { useCreditsStore } from '../../store/creditsStore';
-import { TRANSACTION_TYPE_CONFIG } from '../../types/credits';
+import { TRANSACTION_TYPE_CONFIG, formatTransactionDescription } from '../../types/credits';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
@@ -128,7 +128,7 @@ const ServiceCreditsView: React.FC = () => {
                       <div className={`px-2 py-1 rounded text-xs font-medium ${config.color}`}>
                         {config.icon} {config.label}
                       </div>
-                      <span className="text-sm text-gray-700 dark:text-gray-300">{transaction.description}</span>
+                      <span className="text-sm text-gray-700 dark:text-gray-300">{formatTransactionDescription(transaction.description)}</span>
                     </div>
 
                     <div className="flex items-center space-x-4">

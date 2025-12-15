@@ -372,8 +372,10 @@ class HTTPAIService:
 
                 # Week 7: 追踪成本
                 # ✅ 2025-12-01: 移除ai_log_service检查（现在使用独立db session）
+                # ✅ 2025-12-15: 保存追踪结果用于空响应退款
+                cost_tracking_result = None
                 if self.enable_cost_tracking and usage_info:
-                    await self._track_api_cost(
+                    cost_tracking_result = await self._track_api_cost(
                         usage_info=usage_info,
                         task_type=task_type,
                         start_time=start_time
@@ -395,9 +397,52 @@ class HTTPAIService:
                 else:
                     logger.warning("流式响应未返回usage信息")
 
-                # 如果没有接收到任何内容，记录警告
+                # ==================== 空响应自动退款 ====================
+                # ✅ 2025-12-15: 如果 AI 响应为空但已扣费，自动退还积分
                 if chunk_count == 0:
                     logger.error(f"警告: AI 响应为空！未接收到任何内容块。")
+
+                    # 检查是否有扣费记录且非管理员
+                    if (cost_tracking_result
+                        and cost_tracking_result.get("credits_deducted")
+                        and not cost_tracking_result.get("is_admin")):
+
+                        try:
+                            from app.core.database import create_db_session
+                            from app.services.credits.credit_service import CreditService
+                            from uuid import UUID
+
+                            credits_to_refund = cost_tracking_result["credits_deducted"]
+                            refund_user_id = cost_tracking_result["user_id"]
+                            ai_call_log = cost_tracking_result.get("ai_call_log")
+
+                            async with create_db_session() as db:
+                                credit_service = CreditService(db)
+
+                                # 执行退款
+                                refund_transaction = await credit_service.refund(
+                                    user_id=UUID(refund_user_id),
+                                    amount=credits_to_refund,
+                                    description="AI响应为空，自动退还积分",
+                                    related_id=ai_call_log.id if ai_call_log else None
+                                )
+
+                                logger.info(
+                                    f"[自动退款] 用户 {refund_user_id}: 退还 {float(credits_to_refund)} 积分, "
+                                    f"原因: AI响应为空, "
+                                    f"余额: {float(refund_transaction.balance_before)} → {float(refund_transaction.balance_after)}"
+                                )
+
+                        except Exception as refund_error:
+                            # ⚠️ 退款失败时记录完整信息，便于手动补偿
+                            logger.error(
+                                f"[自动退款] 退款失败! "
+                                f"用户={refund_user_id}, "
+                                f"金额={float(credits_to_refund)}, "
+                                f"ai_call_log_id={ai_call_log.id if ai_call_log else 'None'}, "
+                                f"错误={type(refund_error).__name__}: {str(refund_error)}"
+                            )
+                # ======================================================
 
         except httpx.HTTPError as e:
             # 🔧 监控：记录HTTP错误
@@ -882,7 +927,7 @@ class HTTPAIService:
         start_time: datetime,
         db: Optional[Any] = None,  # 可选：外层数据库会话（用于事务原子性）
         auto_commit: bool = True   # 是否自动提交（传入外层db时应设为False）
-    ):
+    ) -> Optional[dict]:
         """追踪API调用成本（使用AILogService）
 
         支持三种模式：
@@ -898,7 +943,11 @@ class HTTPAIService:
             auto_commit: 是否自动提交。传入外层db时应设为False，由外层统一提交/回滚
 
         Returns:
-            ai_call_log: AI调用日志对象（用于关联退款等操作），失败时返回None
+            dict: 包含追踪结果的字典，包括：
+                - ai_call_log: AI调用日志对象（用于关联退款等操作）
+                - credits_deducted: 扣除的积分数量（用于退款计算）
+                - user_id: 用户ID（用于退款操作）
+            失败时返回None
 
         Note:
             - 如果传入db且auto_commit=False，外层业务失败时可以回滚积分扣除
@@ -982,6 +1031,8 @@ class HTTPAIService:
                         yield new_db, True  # 自动提交
 
             ai_call_log = None  # 返回值，用于关联退款等操作
+            credits_deducted = None  # 记录实际扣除的积分（用于退款）
+            is_admin_user = False  # 记录是否为管理员（管理员不需要退款）
 
             async with get_db_session() as (db_session, should_auto_commit):
                 # ✅ 2025-12-14: 传递 auto_commit 参数，控制是否自动提交
@@ -1008,6 +1059,7 @@ class HTTPAIService:
                     user = user_result.scalar_one_or_none()
 
                     if user:
+                        is_admin_user = user.is_admin
                         credit_service = CreditService(db_session)
 
                         # 计算需要扣除的积分
@@ -1026,6 +1078,7 @@ class HTTPAIService:
                         )
 
                         if transaction:  # 非管理员才有交易记录
+                            credits_deducted = credits_to_deduct  # 记录扣除金额（用于退款）
                             logger.info(
                                 f"[积分扣除] 用户 {user_id}: 扣除 {float(credits_to_deduct)} 积分, "
                                 f"余额: {float(transaction.balance_before)} → {float(transaction.balance_after)}"
@@ -1084,11 +1137,18 @@ class HTTPAIService:
                 f"time={duration_ms}ms"
             )
 
-            return ai_call_log  # 返回日志对象，用于关联退款等操作
+            # ✅ 2025-12-15: 返回包含追踪结果的字典（用于空响应退款）
+            return {
+                "ai_call_log": ai_call_log,
+                "credits_deducted": credits_deducted,
+                "user_id": user_id,
+                "is_admin": is_admin_user
+            }
 
         except Exception as e:
             logger.error(f"成本追踪失败: {type(e).__name__}: {str(e)}")
             # 成本追踪失败不应影响主流程
+            return None
 
     async def call_ai(
         self,
@@ -1167,15 +1227,62 @@ class HTTPAIService:
                 content = data['choices'][0]['message']['content']
 
                 # Week 7: 追踪成本 (如果API返回了usage信息)
+                # ✅ 2025-12-15: 保存追踪结果用于空响应退款
+                cost_tracking_result = None
                 if self.enable_cost_tracking and 'usage' in data:
-                    await self._track_api_cost(
+                    cost_tracking_result = await self._track_api_cost(
                         usage_info=data['usage'],
                         task_type=task_type,
                         start_time=start_time
                     )
 
+                # ✅ 2025-12-15: 空响应自动退款
+                if not content or len(content.strip()) == 0:
+                    logger.error(f"警告: AI 非流式响应为空！")
+
+                    # 检查是否有扣费记录且非管理员
+                    if (cost_tracking_result
+                        and cost_tracking_result.get("credits_deducted")
+                        and not cost_tracking_result.get("is_admin")):
+
+                        try:
+                            from app.core.database import create_db_session
+                            from app.services.credits.credit_service import CreditService
+                            from uuid import UUID
+
+                            credits_to_refund = cost_tracking_result["credits_deducted"]
+                            refund_user_id = cost_tracking_result["user_id"]
+                            ai_call_log = cost_tracking_result.get("ai_call_log")
+
+                            async with create_db_session() as db:
+                                credit_service = CreditService(db)
+
+                                # 执行退款
+                                refund_transaction = await credit_service.refund(
+                                    user_id=UUID(refund_user_id),
+                                    amount=credits_to_refund,
+                                    description="AI响应为空，自动退还积分",
+                                    related_id=ai_call_log.id if ai_call_log else None
+                                )
+
+                                logger.info(
+                                    f"[自动退款] 用户 {refund_user_id}: 退还 {float(credits_to_refund)} 积分, "
+                                    f"原因: AI非流式响应为空, "
+                                    f"余额: {float(refund_transaction.balance_before)} → {float(refund_transaction.balance_after)}"
+                                )
+
+                        except Exception as refund_error:
+                            # ⚠️ 退款失败时记录完整信息，便于手动补偿
+                            logger.error(
+                                f"[自动退款] 退款失败! "
+                                f"用户={refund_user_id}, "
+                                f"金额={float(credits_to_refund)}, "
+                                f"ai_call_log_id={ai_call_log.id if ai_call_log else 'None'}, "
+                                f"错误={type(refund_error).__name__}: {str(refund_error)}"
+                            )
+
                 logger.info(
-                    f"AI响应成功, 长度={len(content)}, "
+                    f"AI响应成功, 长度={len(content) if content else 0}, "
                     f"尝试次数={attempt + 1}"
                 )
                 return content

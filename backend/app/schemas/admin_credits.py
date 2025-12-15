@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Optional, List
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, EmailStr
 
 
 # ============ 兑换码管理 ============
@@ -58,7 +58,7 @@ class AdminRedeemCodeListResponse(BaseModel):
 
 class AdminGiftCreditsRequest(BaseModel):
     """管理端赠送积分请求"""
-    user_id: str = Field(..., description="用户ID")
+    user_email: EmailStr = Field(..., description="用户邮箱")
     amount: float = Field(..., gt=0, description="赠送数量")
     description: str = Field(..., min_length=1, max_length=255, description="赠送原因")
 

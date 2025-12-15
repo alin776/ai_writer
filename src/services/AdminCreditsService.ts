@@ -75,8 +75,8 @@ export interface GenerateCodesResponse {
  * 赠送积分请求
  */
 export interface GiftCreditsRequest {
-  /** 用户ID */
-  user_id: string;
+  /** 用户邮箱 */
+  user_email: string;
   /** 积分数 */
   amount: number;
   /** 描述信息 */

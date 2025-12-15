@@ -142,30 +142,57 @@ class RedeemCodeService:
         if redeem_code.is_used:
             raise RedeemCodeUsedError(
                 redeem_code.used_at,
-                redeem_code.used_by
+                str(redeem_code.used_by) if redeem_code.used_by else "未知用户"
             )
 
         if redeem_code.expires_at and redeem_code.expires_at < get_utc_now():
             raise RedeemCodeExpiredError(redeem_code.expires_at)
 
-        # 充值积分
-        balance_info = await self.credit_service.get_balance(user_id)
-        balance_before = Decimal(str(balance_info["balance"]))
+        # 获取用户积分记录（加锁，不commit，保持事务）
+        from app.models.user_credits import UserCredits
+        credits_stmt = select(UserCredits).where(
+            UserCredits.user_id == user_id
+        ).with_for_update()
+        credits_result = await self.db.execute(credits_stmt)
+        credits = credits_result.scalar_one_or_none()
 
-        await self.credit_service.recharge(
+        if not credits:
+            # 新用户，创建积分记录（不commit）
+            credits = await self.credit_service.get_or_create_credits(user_id, commit=False)
+
+        balance_before = credits.balance
+
+        # 增加余额
+        credits.balance += redeem_code.credits
+        credits.total_recharged += redeem_code.credits
+        balance_after = credits.balance
+
+        # 延长过期时间（如果配置了有效期）
+        if settings.CREDITS_EXPIRE_DAYS > 0:
+            new_expires = get_utc_now() + timedelta(days=settings.CREDITS_EXPIRE_DAYS)
+            if not credits.expires_at or new_expires > credits.expires_at:
+                credits.expires_at = new_expires
+
+        # 创建交易记录
+        from app.models.credit_transaction import CreditTransaction
+        transaction = CreditTransaction(
             user_id=user_id,
+            type="recharge",
             amount=redeem_code.credits,
-            description=f"兑换码充值: {code}",
+            balance_before=balance_before,
+            balance_after=balance_after,
+            description=f"兑换码充值: {code.upper()}",
+            related_type="redeem_code",
             related_id=redeem_code.id
         )
-
-        balance_after = balance_before + redeem_code.credits
+        self.db.add(transaction)
 
         # 更新兑换码状态
         redeem_code.is_used = True
         redeem_code.used_by = user_id
         redeem_code.used_at = get_utc_now()
 
+        # 统一提交事务（确保原子性）
         await self.db.commit()
 
         return {

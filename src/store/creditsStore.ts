@@ -82,7 +82,9 @@ export const useCreditsStore = create<CreditsState>((set, get) => ({
       set({ isLoading: false });
       return result;
     } catch (error: any) {
-      set({ error: error?.message || '兑换失败', isLoading: false });
+      // 后端返回 { detail: "错误信息" }
+      const errorMsg = error?.detail || error?.message || '兑换失败';
+      set({ error: errorMsg, isLoading: false });
       throw error;
     }
   },

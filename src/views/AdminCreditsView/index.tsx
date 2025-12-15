@@ -56,7 +56,7 @@ const AdminCreditsView: React.FC = () => {
 
   // 赠送积分表单
   const [giftForm, setGiftForm] = useState({
-    userId: '',
+    userEmail: '',
     credits: 100,
     reason: '',
   });
@@ -150,8 +150,8 @@ const AdminCreditsView: React.FC = () => {
    * 赠送积分
    */
   const handleGift = async () => {
-    if (!giftForm.userId.trim()) {
-      showToast('error', '请输入用户ID');
+    if (!giftForm.userEmail.trim()) {
+      showToast('error', '请输入用户邮箱');
       return;
     }
 
@@ -168,13 +168,13 @@ const AdminCreditsView: React.FC = () => {
     try {
       setGifting(true);
       await AdminCreditsService.giftCredits({
-        user_id: giftForm.userId.trim(),
+        user_email: giftForm.userEmail.trim(),
         amount: giftForm.credits,
         description: giftForm.reason.trim(),
       });
       showToast('success', '积分赠送成功');
       setShowGiftModal(false);
-      setGiftForm({ userId: '', credits: 100, reason: '' });
+      setGiftForm({ userEmail: '', credits: 100, reason: '' });
       loadData();
     } catch (err) {
       const message = err instanceof Error ? err.message : '赠送积分失败';
@@ -589,12 +589,12 @@ const AdminCreditsView: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  用户ID
+                  用户邮箱
                 </label>
                 <Input
-                  placeholder="请输入用户ID"
-                  value={giftForm.userId}
-                  onChange={(e) => setGiftForm({ ...giftForm, userId: e.target.value })}
+                  placeholder="请输入用户邮箱"
+                  value={giftForm.userEmail}
+                  onChange={(e) => setGiftForm({ ...giftForm, userEmail: e.target.value })}
                 />
               </div>
 
@@ -627,7 +627,7 @@ const AdminCreditsView: React.FC = () => {
                   className="flex-1"
                   onClick={() => {
                     setShowGiftModal(false);
-                    setGiftForm({ userId: '', credits: 100, reason: '' });
+                    setGiftForm({ userEmail: '', credits: 100, reason: '' });
                   }}
                   disabled={gifting}
                 >

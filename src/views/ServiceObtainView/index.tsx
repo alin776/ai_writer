@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Card, Button, Input } from '../../components/common';
 import { useCreditsStore } from '../../store/creditsStore';
 import { useInvitationsStore } from '../../store/invitationsStore';
+import { useGlobalStore } from '../../store/globalStore';
 import { Gift, Users, Award, Clock, Copy, ChevronDown, ChevronUp } from 'lucide-react';
-import { useToast } from '../../hooks/useToast';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
@@ -19,7 +19,7 @@ const ServiceObtainView: React.FC = () => {
 
   const { redeem } = useCreditsStore();
   const { stats, myCodes, isLoading, fetchStats, fetchMyCodes, generateCode } = useInvitationsStore();
-  const toast = useToast();
+  const { showToast } = useGlobalStore();
 
   useEffect(() => {
     fetchStats();
@@ -28,17 +28,18 @@ const ServiceObtainView: React.FC = () => {
 
   const handleRedeem = async () => {
     if (redeemCode.length !== 12) {
-      toast.error('兑换码必须是12位字符');
+      showToast('error', '兑换码必须是12位字符');
       return;
     }
 
     setIsRedeeming(true);
     try {
       const result = await redeem(redeemCode);
-      toast.success(`兑换成功！获得 ${result.credits.toFixed(2)} 积分`);
+      showToast('success', `兑换成功！获得 ${result.credits.toFixed(2)} 积分`);
       setRedeemCode('');
     } catch (error: any) {
-      toast.error(error?.message || '兑换失败');
+      // 后端返回 { detail: "错误信息" }
+      showToast('error', error?.detail || error?.message || '兑换失败');
     } finally {
       setIsRedeeming(false);
     }
@@ -48,9 +49,9 @@ const ServiceObtainView: React.FC = () => {
     try {
       const inviteLink = `${window.location.origin}/auth?invitation_code=${code}`;
       await navigator.clipboard.writeText(inviteLink);
-      toast.success('邀请链接已复制到剪贴板');
+      showToast('success', '邀请链接已复制到剪贴板');
     } catch (error) {
-      toast.error('复制失败，请手动复制');
+      showToast('error', '复制失败，请手动复制');
     }
   };
 
@@ -68,12 +69,12 @@ const ServiceObtainView: React.FC = () => {
     setIsGenerating(true);
     try {
       await generateCode(generateParams.maxUses, generateParams.expiresDays);
-      toast.success('邀请码生成成功！');
+      showToast('success', '邀请码生成成功！');
       setShowGenerateDialog(false);
       fetchMyCodes();
       fetchStats();
     } catch (error: any) {
-      toast.error(error?.message || '生成失败');
+      showToast('error', error?.detail || error?.message || '生成失败');
     } finally {
       setIsGenerating(false);
     }

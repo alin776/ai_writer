@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Button } from '../../components/common';
 import { useCreditsStore } from '../../store/creditsStore';
-import { TRANSACTION_TYPE_CONFIG, TransactionType } from '../../types/credits';
+import { TRANSACTION_TYPE_CONFIG, TransactionType, formatTransactionDescription } from '../../types/credits';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -117,7 +117,7 @@ const ServiceUsageView: React.FC = () => {
                               </span>
                             </td>
                             <td className="px-4 py-4">
-                              <span className="text-sm text-gray-700 dark:text-gray-300">{transaction.description}</span>
+                              <span className="text-sm text-gray-700 dark:text-gray-300">{formatTransactionDescription(transaction.description)}</span>
                             </td>
                             <td className="px-4 py-4 whitespace-nowrap">
                               <span className="text-sm text-gray-600 dark:text-gray-400">

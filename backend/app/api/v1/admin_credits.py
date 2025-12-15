@@ -106,6 +106,48 @@ async def list_redeem_codes(
     return result
 
 
+@router.delete("/codes/{code_id}")
+async def delete_redeem_code(
+    code_id: str,
+    current_user: User = Depends(check_admin_permission),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    删除兑换码（管理员）
+
+    - **code_id**: 兑换码ID
+
+    注意：已使用的兑换码不能删除
+    """
+    from app.models.redeem_code import RedeemCode
+
+    # 查询兑换码
+    stmt = select(RedeemCode).where(RedeemCode.id == UUID(code_id))
+    result = await db.execute(stmt)
+    redeem_code = result.scalar_one_or_none()
+
+    if not redeem_code:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="兑换码不存在"
+        )
+
+    if redeem_code.is_used:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="已使用的兑换码不能删除"
+        )
+
+    # 删除兑换码
+    await db.delete(redeem_code)
+    await db.commit()
+
+    return {
+        "success": True,
+        "message": "兑换码已删除"
+    }
+
+
 @router.post("/gift", response_model=AdminGiftCreditsResponse)
 async def gift_credits(
     request: AdminGiftCreditsRequest,
@@ -115,7 +157,7 @@ async def gift_credits(
     """
     赠送积分（管理员）
 
-    - **user_id**: 用户ID
+    - **user_email**: 用户邮箱
     - **amount**: 赠送数量
     - **description**: 赠送原因
 
@@ -123,20 +165,20 @@ async def gift_credits(
     """
     credit_service = CreditService(db)
 
-    # 验证用户是否存在
-    user_stmt = select(User).where(User.id == UUID(request.user_id))
+    # 通过邮箱查找用户
+    user_stmt = select(User).where(User.email == request.user_email)
     user_result = await db.execute(user_stmt)
     user = user_result.scalar_one_or_none()
 
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            detail="用户不存在"
         )
 
     # 赠送积分
     transaction = await credit_service.gift(
-        user_id=UUID(request.user_id),
+        user_id=user.id,
         amount=Decimal(str(request.amount)),
         description=request.description,
         related_type="admin_gift"

@@ -19,6 +19,15 @@ from app.services.agent.model_selector import TaskType
 logger = logging.getLogger(__name__)
 
 
+# ==================== 自定义异常 ====================
+
+class InsufficientCreditsError(Exception):
+    """积分不足异常"""
+    def __init__(self, message: str = "积分余额不足，请先充值后再使用此功能。"):
+        self.message = message
+        super().__init__(self.message)
+
+
 # ==================== 全局 AI Service ====================
 
 # 全局 HTTPAIService 实例(需要在初始化时设置)
@@ -87,8 +96,14 @@ async def _generate_text(
         return generated_text.strip()
 
     except Exception as e:
-        logger.error(f"文本生成失败: {e}")
-        return f"错误: 文本生成失败 - {str(e)}"
+        error_str = str(e)
+        logger.error(f"文本生成失败: {error_str}")
+
+        # 检测积分不足错误，抛出特定异常
+        if "积分" in error_str and ("不足" in error_str or "余额" in error_str):
+            raise InsufficientCreditsError("积分余额不足，请先充值后再使用此功能。")
+
+        return f"错误: 文本生成失败 - {error_str}"
 
 
 # ==================== 1. 续写工具 (Continue Writing) ====================
@@ -205,6 +220,14 @@ async def continue_writing_executor(
             }
         )
 
+    except InsufficientCreditsError as e:
+        logger.warning(f"续写工具积分不足: {e}")
+        return ContinueWritingOutput(
+            success=False,
+            message=e.message,
+            data={"generated_text": e.message},
+            metadata={"error": "insufficient_credits"}
+        )
     except Exception as e:
         logger.error(f"续写工具执行失败: {e}")
         return ContinueWritingOutput(
@@ -369,6 +392,14 @@ async def expand_text_executor(
             }
         )
 
+    except InsufficientCreditsError as e:
+        logger.warning(f"扩写工具积分不足: {e}")
+        return ExpandTextOutput(
+            success=False,
+            message=e.message,
+            data={"expanded_text": e.message},
+            metadata={"error": "insufficient_credits"}
+        )
     except Exception as e:
         logger.error(f"扩写工具执行失败: {e}")
         return ExpandTextOutput(
@@ -397,6 +428,8 @@ expand_text_tool = StandardTool(
 __all__ = [
     # AI Service
     "set_ai_service",
+    # 异常
+    "InsufficientCreditsError",
     # 输入输出模型
     "ContinueWritingInput",
     "ContinueWritingOutput",

@@ -18,9 +18,16 @@
   width: 92%;
   max-width: 780px;
   max-height: 86vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   box-shadow: 0 15px 45px rgba(15, 23, 42, 0.18);
   animation: slideUp 0.22s ease-out;
+}
+
+.import-dialog-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .import-dialog-header {

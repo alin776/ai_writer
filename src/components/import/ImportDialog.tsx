@@ -150,6 +150,8 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
           </button>
         </div>
 
+        {/* 可滚动的内容区域 */}
+        <div className="import-dialog-body">
         {/* 文件上传区域 */}
         <div className="form-section">
           <h3>选择文件</h3>
@@ -390,6 +392,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
             {error}
           </div>
         )}
+        </div>
 
         {/* 操作按钮 */}
         <div className="import-dialog-footer">
