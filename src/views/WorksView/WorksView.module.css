@@ -282,3 +282,118 @@
     width: 100%;
   }
 }
+
+/* ==================== 暗色模式 ==================== */
+:global(.dark) .page {
+  background-color: #0f172a;
+}
+
+:global(.dark) .title {
+  color: #f8fafc;
+}
+
+:global(.dark) .subtitle {
+  color: #94a3b8;
+}
+
+:global(.dark) .card {
+  background-color: #1e293b;
+  border-color: #334155;
+}
+
+:global(.dark) .card:hover {
+  border-color: #475569;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+:global(.dark) .cardTitle {
+  color: #f8fafc;
+}
+
+:global(.dark) .cardDescription {
+  color: #94a3b8;
+}
+
+:global(.dark) .cardMeta {
+  color: #64748b;
+}
+
+:global(.dark) .button {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+:global(.dark) .button:hover {
+  background-color: #e2e8f0;
+}
+
+:global(.dark) .button:active {
+  background-color: #cbd5e1;
+}
+
+:global(.dark) .buttonSecondary {
+  background-color: #1e293b;
+  color: #f8fafc;
+  border-color: #334155;
+}
+
+:global(.dark) .buttonSecondary:hover {
+  border-color: #475569;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+:global(.dark) .buttonSecondary:active {
+  background-color: #334155;
+}
+
+:global(.dark) .emptyIcon {
+  color: #475569;
+}
+
+:global(.dark) .emptyTitle {
+  color: #f8fafc;
+}
+
+:global(.dark) .emptyDescription {
+  color: #94a3b8;
+}
+
+:global(.dark) .loading {
+  color: #94a3b8;
+}
+
+:global(.dark) .cardActions {
+  border-top-color: #334155;
+}
+
+:global(.dark) .cardButton {
+  background-color: #1e293b;
+  color: #f8fafc;
+  border-color: #334155;
+}
+
+:global(.dark) .cardButton:hover {
+  border-color: #475569;
+  background-color: #334155;
+}
+
+:global(.dark) .cardButtonDanger {
+  background-color: transparent;
+  color: #f87171;
+  border-color: #f87171;
+}
+
+:global(.dark) .cardButtonDanger:hover {
+  background-color: #ef4444;
+  color: #ffffff;
+}
+
+:global(.dark) .badge {
+  background-color: #334155;
+  color: #94a3b8;
+}
+
+:global(.dark) .badgePrimary {
+  background-color: #f8fafc;
+  color: #0f172a;
+}

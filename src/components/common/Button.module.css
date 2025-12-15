@@ -128,3 +128,52 @@
   align-items: center;
   justify-content: center;
 }
+
+/* ==================== 暗色模式 ==================== */
+:global(.dark) .primary {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+:global(.dark) .primary:hover:not(:disabled) {
+  background-color: #e2e8f0;
+}
+
+:global(.dark) .secondary {
+  background-color: transparent;
+  color: #cbd5e1;
+  border-color: #475569;
+}
+
+:global(.dark) .secondary:hover:not(:disabled) {
+  border-color: #64748b;
+  background-color: #1e293b;
+}
+
+:global(.dark) .ghost {
+  background-color: transparent;
+  color: #cbd5e1;
+}
+
+:global(.dark) .ghost:hover:not(:disabled) {
+  color: #f8fafc;
+  background-color: #1e293b;
+}
+
+:global(.dark) .danger {
+  background-color: #ef4444;
+  color: #ffffff;
+}
+
+:global(.dark) .danger:hover:not(:disabled) {
+  background-color: #dc2626;
+}
+
+:global(.dark) .link {
+  background-color: transparent;
+  color: #94a3b8;
+}
+
+:global(.dark) .link:hover:not(:disabled) {
+  color: #f8fafc;
+}

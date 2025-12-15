@@ -78,3 +78,45 @@
   font-size: 0.75rem;
   color: #dc2626;
 }
+
+/* ==================== 暗色模式 ==================== */
+:global(.dark) .label {
+  color: #cbd5e1;
+}
+
+:global(.dark) .input {
+  color: #f8fafc;
+  background-color: #0f172a;
+  border-color: #475569;
+}
+
+:global(.dark) .input::placeholder {
+  color: #64748b;
+}
+
+:global(.dark) .input:focus {
+  border-color: #94a3b8;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.15);
+}
+
+:global(.dark) .input:disabled {
+  background-color: #1e293b;
+  color: #64748b;
+}
+
+:global(.dark) .iconWrapper {
+  color: #94a3b8;
+}
+
+:global(.dark) .error {
+  border-color: #ef4444;
+}
+
+:global(.dark) .error:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+:global(.dark) .errorMessage {
+  color: #f87171;
+}

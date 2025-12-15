@@ -462,26 +462,26 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
   };
 
   return (
-    <div className="h-screen bg-[#faf9f6] flex flex-col">
+    <div className="h-screen bg-[#faf9f6] dark:bg-slate-900 flex flex-col">
       {/* 顶部标题栏 */}
-      <div className="border-b border-gray-200/50 bg-white/30 backdrop-blur-sm">
+      <div className="border-b border-gray-200/50 dark:border-gray-700/50 bg-white/30 dark:bg-slate-800/30 backdrop-blur-sm">
         <div className="max-w-[1600px] mx-auto px-12 py-6 flex items-center justify-between">
           <button
             onClick={onBack}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>返回</span>
           </button>
 
           <div className="flex items-center gap-4">
-            <Sparkles className="w-5 h-5 text-gray-700" />
-            <h1 className="text-gray-800 tracking-wider">AI 创作助手</h1>
+            <Sparkles className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+            <h1 className="text-gray-800 dark:text-gray-100 tracking-wider">AI 创作助手</h1>
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500">世界观完成度</span>
-            <div className="bg-gray-800 text-white border-0 px-3 py-1 rounded text-sm">
+            <span className="text-sm text-gray-500 dark:text-gray-400">世界观完成度</span>
+            <div className="bg-gray-800 dark:bg-gray-200 text-white dark:text-slate-900 border-0 px-3 py-1 rounded text-sm">
               {calculateCompletion()}%
             </div>
           </div>
@@ -507,8 +507,8 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
                     <div
                       className={`max-w-[75%] px-4 py-3 rounded-lg whitespace-pre-wrap ${
                         message.role === 'user'
-                          ? 'bg-gray-800 text-white shadow-sm'
-                          : 'bg-white text-gray-700 border border-gray-200 shadow-sm'
+                          ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-slate-900 shadow-sm'
+                          : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 shadow-sm'
                       }`}
                       style={{ fontSize: '0.75rem', lineHeight: '1.5' }}
                     >
@@ -522,21 +522,21 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
                     animate={{ opacity: 1 }}
                     className="flex justify-start"
                   >
-                    <div className="bg-white text-gray-700 border border-gray-200 px-5 py-4 rounded-lg shadow-sm">
+                    <div className="bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 px-5 py-4 rounded-lg shadow-sm">
                       <div className="flex items-center gap-2">
                         <div className="flex gap-1">
                           <motion.div
-                            className="w-2 h-2 bg-gray-400 rounded-full"
+                            className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"
                             animate={{ opacity: [0.3, 1, 0.3] }}
                             transition={{ duration: 1.5, repeat: Infinity, delay: 0 }}
                           />
                           <motion.div
-                            className="w-2 h-2 bg-gray-400 rounded-full"
+                            className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"
                             animate={{ opacity: [0.3, 1, 0.3] }}
                             transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }}
                           />
                           <motion.div
-                            className="w-2 h-2 bg-gray-400 rounded-full"
+                            className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"
                             animate={{ opacity: [0.3, 1, 0.3] }}
                             transition={{ duration: 1.5, repeat: Infinity, delay: 0.4 }}
                           />
@@ -551,7 +551,7 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
             </div>
 
             {/* 输入区或最终表单 */}
-            <div className="mt-6 pt-6 border-t border-gray-200/50">
+            <div className="mt-6 pt-6 border-t border-gray-200/50 dark:border-gray-700/50">
               {!showFinalForm ? (
                 <div className="flex gap-3">
                   <textarea
@@ -559,14 +559,14 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="输入您的回答..."
-                    className="flex-1 resize-none bg-white border border-gray-300 rounded px-3 py-2 outline-none focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 shadow-sm"
+                    className="flex-1 resize-none bg-white dark:bg-slate-800 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 outline-none focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 shadow-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                     rows={3}
                     disabled={isGenerating}
                   />
                   <button
                     onClick={handleSend}
                     disabled={!inputValue.trim() || isGenerating}
-                    className="bg-gray-800 hover:bg-gray-900 text-white px-6 rounded shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="bg-gray-800 dark:bg-gray-200 hover:bg-gray-900 dark:hover:bg-gray-100 text-white dark:text-slate-900 px-6 rounded shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <Send className="w-4 h-4" />
                   </button>
@@ -574,11 +574,11 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
               ) : (
                 <div className="space-y-4">
                   <div className="text-center mb-6">
-                    <h3 className="text-gray-800 tracking-wide">完善作品信息</h3>
-                    <div className="w-12 h-px bg-gray-300 mx-auto mt-3"></div>
+                    <h3 className="text-gray-800 dark:text-gray-100 tracking-wide">完善作品信息</h3>
+                    <div className="w-12 h-px bg-gray-300 dark:bg-gray-600 mx-auto mt-3"></div>
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-600 mb-2">
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">
                       作品标题 <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -586,12 +586,12 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
                       value={finalData.title}
                       onChange={handleFinalChange}
                       placeholder="请输入作品标题"
-                      className={`w-full bg-white border ${errors.title ? 'border-red-500' : 'border-gray-300'} rounded px-3 py-2 outline-none focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 shadow-sm`}
+                      className={`w-full bg-white dark:bg-slate-800 border ${errors.title ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded px-3 py-2 outline-none focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 shadow-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500`}
                     />
                     {errors.title && <span className="text-sm text-red-500">{errors.title}</span>}
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-600 mb-2">
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">
                       作品简介 <span className="text-red-500">*</span>
                     </label>
                     <textarea
@@ -599,14 +599,14 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
                       value={finalData.description}
                       onChange={handleFinalChange}
                       placeholder="请输入作品简介"
-                      className={`w-full bg-white border ${errors.description ? 'border-red-500' : 'border-gray-300'} rounded px-3 py-2 outline-none focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 shadow-sm resize-none`}
+                      className={`w-full bg-white dark:bg-slate-800 border ${errors.description ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded px-3 py-2 outline-none focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 shadow-sm resize-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500`}
                       rows={4}
                     />
                     {errors.description && <span className="text-sm text-red-500">{errors.description}</span>}
                   </div>
                   <button
                     onClick={handleFinish}
-                    className="w-full bg-gray-800 hover:bg-gray-900 text-white py-2 rounded shadow-sm transition-colors"
+                    className="w-full bg-gray-800 dark:bg-gray-200 hover:bg-gray-900 dark:hover:bg-gray-100 text-white dark:text-slate-900 py-2 rounded shadow-sm transition-colors"
                   >
                     完成创建
                   </button>
@@ -618,11 +618,11 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
 
         {/* 中间分隔线 - 水墨竹影装饰 */}
         <div className="relative w-px">
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-gray-300 to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-gray-300 dark:via-gray-600 to-transparent"></div>
           {/* 竹节装饰点 */}
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-400 rounded-full"></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-400 rounded-full"></div>
-          <div className="absolute top-3/4 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-400 rounded-full"></div>
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
+          <div className="absolute top-3/4 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
         </div>
 
         {/* 右侧世界观区 - 50% 宽度，时间轴式 */}
@@ -631,14 +631,14 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
             {/* 时间轴容器 */}
             <div className="relative pl-8">
               {/* 时间轴竖线 */}
-              <div className="absolute left-4 top-0 bottom-0 w-px bg-gradient-to-b from-gray-300 via-gray-400 to-gray-300"></div>
+              <div className="absolute left-4 top-0 bottom-0 w-px bg-gradient-to-b from-gray-300 dark:from-gray-600 via-gray-400 dark:via-gray-500 to-gray-300 dark:to-gray-600"></div>
 
               {/* 第一部分：创作规范 */}
               <div className="mb-12">
                 <div className="flex items-center gap-3 mb-8 -ml-8">
-                  <div className="w-8 h-px bg-gray-300"></div>
-                  <h3 className="text-sm text-gray-500 tracking-wider">创作规范</h3>
-                  <div className="flex-1 h-px bg-gray-300"></div>
+                  <div className="w-8 h-px bg-gray-300 dark:bg-gray-600"></div>
+                  <h3 className="text-sm text-gray-500 dark:text-gray-400 tracking-wider">创作规范</h3>
+                  <div className="flex-1 h-px bg-gray-300 dark:bg-gray-600"></div>
                 </div>
 
                 <div className="space-y-5">
@@ -659,29 +659,29 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
                               animate={{ scale: 1 }}
                               className="absolute inset-0 -m-1.5"
                             >
-                              <div className="w-full h-full bg-gray-900/5 rounded-full blur-sm"></div>
+                              <div className="w-full h-full bg-gray-900/5 dark:bg-gray-100/10 rounded-full blur-sm"></div>
                             </motion.div>
-                            <div className="relative w-2.5 h-2.5 bg-gray-800 rounded-full border-2 border-[#faf9f6]"></div>
+                            <div className="relative w-2.5 h-2.5 bg-gray-800 dark:bg-gray-200 rounded-full border-2 border-[#faf9f6] dark:border-slate-900"></div>
                           </>
                         ) : isModulePartial(module) ? (
-                          <div className="w-2.5 h-2.5 bg-gray-400 rounded-full border-2 border-[#faf9f6]"></div>
+                          <div className="w-2.5 h-2.5 bg-gray-400 dark:bg-gray-500 rounded-full border-2 border-[#faf9f6] dark:border-slate-900"></div>
                         ) : (
-                          <div className="w-2.5 h-2.5 bg-white rounded-full border-2 border-gray-300"></div>
+                          <div className="w-2.5 h-2.5 bg-white dark:bg-slate-800 rounded-full border-2 border-gray-300 dark:border-gray-600"></div>
                         )}
                       </div>
 
                       {/* 模块卡片 */}
-                      <div className="bg-white border border-gray-200 rounded-lg p-3.5 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3.5 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between mb-2.5">
-                          <h4 className="text-sm text-gray-800 tracking-wide">{module.name}</h4>
+                          <h4 className="text-sm text-gray-800 dark:text-gray-100 tracking-wide">{module.name}</h4>
                           <button
                             onClick={() => setEditingModuleId(editingModuleId === module.id ? null : module.id)}
-                            className="p-1 hover:bg-gray-100 rounded transition-colors"
+                            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                           >
                             {editingModuleId === module.id ? (
-                              <X className="w-2.5 h-2.5" />
+                              <X className="w-2.5 h-2.5 text-gray-600 dark:text-gray-400" />
                             ) : (
-                              <Pencil className="w-2.5 h-2.5" />
+                              <Pencil className="w-2.5 h-2.5 text-gray-600 dark:text-gray-400" />
                             )}
                           </button>
                         </div>
@@ -694,11 +694,11 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
                               <div key={field.id} className="space-y-1">
                                 <div className="flex items-center gap-1.5 text-xs">
                                   {field.completed ? (
-                                    <CheckCircle2 className="w-3 h-3 text-green-600 flex-shrink-0" />
+                                    <CheckCircle2 className="w-3 h-3 text-green-600 dark:text-green-400 flex-shrink-0" />
                                   ) : (
-                                    <Circle className="w-3 h-3 text-gray-300 flex-shrink-0" />
+                                    <Circle className="w-3 h-3 text-gray-300 dark:text-gray-600 flex-shrink-0" />
                                   )}
-                                  <span className="text-gray-600">
+                                  <span className="text-gray-600 dark:text-gray-400">
                                     {field.label}
                                     {field.required && <span className="text-red-500 ml-1">*</span>}
                                   </span>
@@ -715,11 +715,11 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
                                       setWorldviewData(newData);
                                     }}
                                     placeholder={`请输入${field.label}`}
-                                    className="w-full text-xs bg-[#faf9f6] border border-gray-300 rounded px-2 py-1 outline-none focus:border-gray-600"
+                                    className="w-full text-xs bg-[#faf9f6] dark:bg-slate-900 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 outline-none focus:border-gray-600 dark:focus:border-gray-400 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                                     rows={1}
                                   />
                                 ) : (
-                                  <p className="text-xs text-gray-500 pl-4 leading-relaxed">{field.value}</p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 pl-4 leading-relaxed">{field.value}</p>
                                 )}
                               </div>
                             );
@@ -734,9 +734,9 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
               {/* 第二部分：核心设定 */}
               <div>
                 <div className="flex items-center gap-3 mb-8 -ml-8">
-                  <div className="w-8 h-px bg-gray-300"></div>
-                  <h3 className="text-sm text-gray-500 tracking-wider">核心设定（AI生成）</h3>
-                  <div className="flex-1 h-px bg-gray-300"></div>
+                  <div className="w-8 h-px bg-gray-300 dark:bg-gray-600"></div>
+                  <h3 className="text-sm text-gray-500 dark:text-gray-400 tracking-wider">核心设定（AI生成）</h3>
+                  <div className="flex-1 h-px bg-gray-300 dark:bg-gray-600"></div>
                 </div>
 
                 <div className="space-y-8">
@@ -761,29 +761,29 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
                                 animate={{ scale: 1 }}
                                 className="absolute inset-0 -m-2"
                               >
-                                <div className="w-full h-full bg-gray-900/5 rounded-full blur-sm"></div>
+                                <div className="w-full h-full bg-gray-900/5 dark:bg-gray-100/10 rounded-full blur-sm"></div>
                               </motion.div>
-                              <div className="relative w-3 h-3 bg-gray-800 rounded-full border-2 border-[#faf9f6]"></div>
+                              <div className="relative w-3 h-3 bg-gray-800 dark:bg-gray-200 rounded-full border-2 border-[#faf9f6] dark:border-slate-900"></div>
                             </>
                           ) : isModulePartial(module) ? (
-                            <div className="w-3 h-3 bg-gray-400 rounded-full border-2 border-[#faf9f6]"></div>
+                            <div className="w-3 h-3 bg-gray-400 dark:bg-gray-500 rounded-full border-2 border-[#faf9f6] dark:border-slate-900"></div>
                           ) : (
-                            <div className="w-3 h-3 bg-white rounded-full border-2 border-gray-300"></div>
+                            <div className="w-3 h-3 bg-white dark:bg-slate-800 rounded-full border-2 border-gray-300 dark:border-gray-600"></div>
                           )}
                         </div>
 
                         {/* 模块卡片 */}
-                        <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow">
                           <div className="flex items-center justify-between mb-4">
-                            <h4 className="text-gray-800 tracking-wide">{module.name}</h4>
+                            <h4 className="text-gray-800 dark:text-gray-100 tracking-wide">{module.name}</h4>
                             <button
                               onClick={() => setEditingModuleId(editingModuleId === module.id ? null : module.id)}
-                              className="p-1 hover:bg-gray-100 rounded transition-colors"
+                              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                             >
                               {editingModuleId === module.id ? (
-                                <X className="w-3 h-3" />
+                                <X className="w-3 h-3 text-gray-600 dark:text-gray-400" />
                               ) : (
-                                <Pencil className="w-3 h-3" />
+                                <Pencil className="w-3 h-3 text-gray-600 dark:text-gray-400" />
                               )}
                             </button>
                           </div>
@@ -796,11 +796,11 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
                                 <div key={field.id} className="space-y-1.5">
                                   <div className="flex items-center gap-2 text-sm">
                                     {field.completed ? (
-                                      <CheckCircle2 className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />
                                     ) : (
-                                      <Circle className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
+                                      <Circle className="w-3.5 h-3.5 text-gray-300 dark:text-gray-600 flex-shrink-0" />
                                     )}
-                                    <span className="text-gray-600">{field.label}</span>
+                                    <span className="text-gray-600 dark:text-gray-400">{field.label}</span>
                                   </div>
                                   {editingModuleId === module.id ? (
                                     <textarea
@@ -814,11 +814,11 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
                                         setWorldviewData(newData);
                                       }}
                                       placeholder={`请输入${field.label}`}
-                                      className="w-full text-sm bg-[#faf9f6] border border-gray-300 rounded px-2 py-1 outline-none focus:border-gray-600"
+                                      className="w-full text-sm bg-[#faf9f6] dark:bg-slate-900 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 outline-none focus:border-gray-600 dark:focus:border-gray-400 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                                       rows={1}
                                     />
                                   ) : (
-                                    <p className="text-sm text-gray-500 pl-5 leading-relaxed">{field.value}</p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 pl-5 leading-relaxed">{field.value}</p>
                                   )}
                                 </div>
                               );

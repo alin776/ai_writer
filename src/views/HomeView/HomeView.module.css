@@ -442,3 +442,160 @@
 .footerCopyright {
   color: #9ca3af;
 }
+
+/* ==================== 暗色模式 ==================== */
+:global(.dark) .page {
+  background-color: #0f172a;
+}
+
+:global(.dark) .header {
+  border-bottom-color: #334155;
+  background-color: rgba(15, 23, 42, 0.8);
+}
+
+:global(.dark) .logoIcon {
+  background-color: #f8fafc;
+}
+
+:global(.dark) .logoText {
+  color: #f8fafc;
+}
+
+:global(.dark) .navLink {
+  color: #94a3b8;
+}
+
+:global(.dark) .navLink:hover {
+  color: #f8fafc;
+}
+
+:global(.dark) .loginButton {
+  color: #cbd5e1;
+}
+
+:global(.dark) .loginButton:hover {
+  color: #f8fafc;
+}
+
+:global(.dark) .registerButton {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+:global(.dark) .registerButton:hover {
+  background-color: #e2e8f0;
+}
+
+:global(.dark) .badge {
+  color: #94a3b8;
+}
+
+:global(.dark) .title {
+  color: #f8fafc;
+}
+
+:global(.dark) .subtitle {
+  color: #94a3b8;
+}
+
+:global(.dark) .primaryButton {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+:global(.dark) .primaryButton:hover {
+  background-color: #e2e8f0;
+}
+
+:global(.dark) .secondaryButton {
+  color: #cbd5e1;
+  border-color: #475569;
+}
+
+:global(.dark) .secondaryButton:hover {
+  border-color: #64748b;
+  background-color: #1e293b;
+}
+
+:global(.dark) .features {
+  background-color: rgba(30, 41, 59, 0.5);
+}
+
+:global(.dark) .sectionTitle {
+  color: #f8fafc;
+}
+
+:global(.dark) .sectionSubtitle {
+  color: #94a3b8;
+}
+
+:global(.dark) .featureCard {
+  background-color: #1e293b;
+  border-color: #334155;
+}
+
+:global(.dark) .featureCard:hover {
+  border-color: #475569;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+:global(.dark) .featureIcon {
+  background-color: #334155;
+  color: #94a3b8;
+}
+
+:global(.dark) .featureCard:hover .featureIcon {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+:global(.dark) .featureTitle {
+  color: #f8fafc;
+}
+
+:global(.dark) .featureDescription {
+  color: #94a3b8;
+}
+
+:global(.dark) .ctaSection {
+  background-color: #f8fafc;
+}
+
+:global(.dark) .ctaSectionTitle {
+  color: #0f172a;
+}
+
+:global(.dark) .ctaSectionSubtitle {
+  color: #4b5563;
+}
+
+:global(.dark) .ctaPrimaryButton {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+
+:global(.dark) .ctaPrimaryButton:hover {
+  background-color: #1e293b;
+}
+
+:global(.dark) .ctaSecondaryButton {
+  color: #374151;
+  border-color: #d1d5db;
+}
+
+:global(.dark) .ctaSecondaryButton:hover {
+  border-color: #9ca3af;
+  background-color: #f3f4f6;
+}
+
+:global(.dark) .footer {
+  border-top-color: #334155;
+}
+
+:global(.dark) .footerContainer {
+  color: #64748b;
+}
+
+:global(.dark) .footerCopyright {
+  color: #64748b;
+}

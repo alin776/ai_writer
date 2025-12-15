@@ -55,7 +55,7 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
   };
 
   return (
-    <div className="h-screen bg-[#faf8f5] flex relative overflow-hidden">
+    <div className="h-screen bg-[#faf8f5] dark:bg-slate-900 flex relative overflow-hidden">
       {/* SVG 滤镜定义 - 创建不规则墨滴效果 */}
       <svg className="absolute w-0 h-0">
         <defs>
@@ -104,28 +104,28 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
       </svg>
 
       {/* 背景墨迹渐变 */}
-      <div className="absolute inset-0 opacity-[0.02]">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-radial from-gray-900 to-transparent blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-radial from-gray-900 to-transparent blur-3xl"></div>
+      <div className="absolute inset-0 opacity-[0.02] dark:opacity-[0.05]">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-radial from-gray-900 dark:from-gray-100 to-transparent blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-radial from-gray-900 dark:from-gray-100 to-transparent blur-3xl"></div>
       </div>
 
       <div className="w-full relative z-10 h-full overflow-y-auto overflow-x-hidden">
         {/* 返回按钮 - 卷轴轴头样式 */}
         <button
           onClick={onBack}
-          className="absolute left-8 top-8 w-10 h-10 rounded-full border-2 border-gray-300 bg-[#faf8f5] flex items-center justify-center hover:border-gray-600 transition-colors group"
+          className="absolute left-8 top-8 w-10 h-10 rounded-full border-2 border-gray-300 dark:border-gray-600 bg-[#faf8f5] dark:bg-slate-800 flex items-center justify-center hover:border-gray-600 dark:hover:border-gray-400 transition-colors group"
         >
-          <ArrowLeft className="w-4 h-4 text-gray-400 group-hover:text-gray-800 transition-colors" />
+          <ArrowLeft className="w-4 h-4 text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200 transition-colors" />
         </button>
 
         {/* 标题 - 书法式排版 */}
         <div className="text-center mb-12 pt-12">
           <div className="inline-block relative">
-            <h1 className="text-5xl text-gray-800 tracking-[0.5em] mb-4" style={{ fontFamily: "'HYShangWeiShouShuW', 'Ma Shan Zheng', cursive" }}>
+            <h1 className="text-5xl text-gray-800 dark:text-gray-100 tracking-[0.5em] mb-4" style={{ fontFamily: "'HYShangWeiShouShuW', 'Ma Shan Zheng', cursive" }}>
               开始创作
             </h1>
             {/* 墨迹装饰 */}
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-32 h-px bg-gradient-to-r from-transparent via-gray-400 to-transparent"></div>
+            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-32 h-px bg-gradient-to-r from-transparent via-gray-400 dark:via-gray-500 to-transparent"></div>
           </div>
         </div>
 
@@ -139,7 +139,7 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
                 ? ''
                 : selectedMode === 'ai'
                 ? 'opacity-40'
-                : 'hover:bg-white/20'
+                : 'hover:bg-white/20 dark:hover:bg-white/5'
             }`}
             whileHover={{ scale: selectedMode ? 1 : 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -168,7 +168,7 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
                   <div key={drop.id} className="absolute inset-0 pointer-events-none">
                     {/* 外层 - 最淡的晕染 */}
                     <motion.div
-                      className="absolute rounded-full bg-gray-900/5"
+                      className="absolute rounded-full bg-gray-900/5 dark:bg-gray-100/5"
                       style={{
                         left: drop.x,
                         top: drop.y,
@@ -185,7 +185,7 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
                     />
                     {/* 中层 */}
                     <motion.div
-                      className="absolute rounded-full bg-gray-900/8"
+                      className="absolute rounded-full bg-gray-900/8 dark:bg-gray-100/8"
                       style={{
                         left: drop.x,
                         top: drop.y,
@@ -202,7 +202,7 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
                     />
                     {/* 核心 - 最浓 */}
                     <motion.div
-                      className="absolute rounded-full bg-gray-900/12"
+                      className="absolute rounded-full bg-gray-900/12 dark:bg-gray-100/12"
                       style={{
                         left: drop.x,
                         top: drop.y,
@@ -229,23 +229,23 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
             >
               {/* 图标 */}
               <div className="flex justify-center">
-                <BookOpen className="w-12 h-12 text-gray-700 stroke-[1.5]" />
+                <BookOpen className="w-12 h-12 text-gray-700 dark:text-gray-300 stroke-[1.5]" />
               </div>
 
               {/* 标题 */}
               <div className="text-center">
-                <h2 className="text-2xl text-gray-800 mb-3 tracking-wide">已有清晰思路</h2>
-                <div className="w-12 h-px bg-gray-300 mx-auto"></div>
+                <h2 className="text-2xl text-gray-800 dark:text-gray-100 mb-3 tracking-wide">已有清晰思路</h2>
+                <div className="w-12 h-px bg-gray-300 dark:bg-gray-600 mx-auto"></div>
               </div>
 
               {/* 描述 - 竖排诗意 */}
-              <div className="text-center space-y-2 text-gray-600">
+              <div className="text-center space-y-2 text-gray-600 dark:text-gray-400">
                 <p className="leading-loose">胸有成竹</p>
                 <p className="leading-loose">一气呵成</p>
               </div>
 
               {/* 特点 */}
-              <div className="flex justify-center gap-6 text-sm text-gray-400">
+              <div className="flex justify-center gap-6 text-sm text-gray-400 dark:text-gray-500">
                 <span>快速</span>
                 <span>·</span>
                 <span>自主</span>
@@ -257,15 +257,15 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="absolute top-4 right-4 w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center"
+                className="absolute top-4 right-4 w-6 h-6 rounded-full bg-gray-800 dark:bg-gray-200 flex items-center justify-center"
               >
-                <div className="w-2 h-2 bg-white rounded-full"></div>
+                <div className="w-2 h-2 bg-white dark:bg-slate-800 rounded-full"></div>
               </motion.div>
             )}
           </motion.button>
 
           {/* 中间分隔线 */}
-          <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-gray-300 to-transparent"></div>
+          <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-gray-300 dark:via-gray-600 to-transparent"></div>
 
           {/* 右侧：AI 协作 */}
           <motion.button
@@ -275,7 +275,7 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
                 ? ''
                 : selectedMode === 'manual'
                 ? 'opacity-40'
-                : 'hover:bg-white/20'
+                : 'hover:bg-white/20 dark:hover:bg-white/5'
             }`}
             whileHover={{ scale: selectedMode ? 1 : 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -304,7 +304,7 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
                   <div key={drop.id} className="absolute inset-0 pointer-events-none">
                     {/* 外层 - 最淡的晕染 */}
                     <motion.div
-                      className="absolute rounded-full bg-gray-900/5"
+                      className="absolute rounded-full bg-gray-900/5 dark:bg-gray-100/5"
                       style={{
                         left: drop.x,
                         top: drop.y,
@@ -321,7 +321,7 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
                     />
                     {/* 中层 */}
                     <motion.div
-                      className="absolute rounded-full bg-gray-900/8"
+                      className="absolute rounded-full bg-gray-900/8 dark:bg-gray-100/8"
                       style={{
                         left: drop.x,
                         top: drop.y,
@@ -338,7 +338,7 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
                     />
                     {/* 核心 - 最浓 */}
                     <motion.div
-                      className="absolute rounded-full bg-gray-900/12"
+                      className="absolute rounded-full bg-gray-900/12 dark:bg-gray-100/12"
                       style={{
                         left: drop.x,
                         top: drop.y,
@@ -365,23 +365,23 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
             >
               {/* 图标 */}
               <div className="flex justify-center">
-                <Sparkles className="w-12 h-12 text-gray-700 stroke-[1.5]" />
+                <Sparkles className="w-12 h-12 text-gray-700 dark:text-gray-300 stroke-[1.5]" />
               </div>
 
               {/* 标题 */}
               <div className="text-center">
-                <h2 className="text-2xl text-gray-800 mb-3 tracking-wide">需要AI协作构建</h2>
-                <div className="w-12 h-px bg-gray-300 mx-auto"></div>
+                <h2 className="text-2xl text-gray-800 dark:text-gray-100 mb-3 tracking-wide">需要AI协作构建</h2>
+                <div className="w-12 h-px bg-gray-300 dark:bg-gray-600 mx-auto"></div>
               </div>
 
               {/* 描述 - 竖排诗意 */}
-              <div className="text-center space-y-2 text-gray-600">
+              <div className="text-center space-y-2 text-gray-600 dark:text-gray-400">
                 <p className="leading-loose">抽丝剥茧</p>
                 <p className="leading-loose">渐入佳境</p>
               </div>
 
               {/* 特点 */}
-              <div className="flex justify-center gap-6 text-sm text-gray-400">
+              <div className="flex justify-center gap-6 text-sm text-gray-400 dark:text-gray-500">
                 <span>引导</span>
                 <span>·</span>
                 <span>灵活</span>
@@ -393,9 +393,9 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="absolute top-4 right-4 w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center"
+                className="absolute top-4 right-4 w-6 h-6 rounded-full bg-gray-800 dark:bg-gray-200 flex items-center justify-center"
               >
-                <div className="w-2 h-2 bg-white rounded-full"></div>
+                <div className="w-2 h-2 bg-white dark:bg-slate-800 rounded-full"></div>
               </motion.div>
             )}
           </motion.button>
@@ -413,20 +413,20 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
               initial={{ y: -20 }}
               animate={{ y: 0 }}
               transition={{ delay: 0.2, duration: 0.5 }}
-              className="py-6 border-t border-gray-200"
+              className="py-6 border-t border-gray-200 dark:border-gray-700"
             >
               {/* 详细说明 */}
               <div className="max-w-2xl mx-auto text-center space-y-4">
-                <div className="space-y-4 text-gray-600 leading-loose">
+                <div className="space-y-4 text-gray-600 dark:text-gray-400 leading-loose">
                   {selectedMode === 'manual' ? (
                     <>
                       <p>直接进入创作界面，快速记录您的灵感与构思</p>
-                      <p className="text-sm text-gray-400">适合已有完整故事框架的创作者</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500">适合已有完整故事框架的创作者</p>
                     </>
                   ) : (
                     <>
                       <p>通过AI的引导式提问，逐步完善您的创作思路</p>
-                      <p className="text-sm text-gray-400">适合需要梳理想法的创作者</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500">适合需要梳理想法的创作者</p>
                     </>
                   )}
                 </div>
@@ -436,7 +436,7 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
                   onClick={handleConfirm}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-16 py-4 border-2 border-gray-800 text-gray-800 hover:bg-gray-800 hover:text-white transition-all duration-300"
+                  className="px-16 py-4 border-2 border-gray-800 dark:border-gray-200 text-gray-800 dark:text-gray-200 hover:bg-gray-800 hover:text-white dark:hover:bg-gray-200 dark:hover:text-slate-900 transition-all duration-300"
                 >
                   进入创作
                 </motion.button>

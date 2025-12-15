@@ -58,3 +58,34 @@
   padding-top: 1rem;
   border-top: 1px solid #f3f4f6;
 }
+
+/* ==================== 暗色模式 ==================== */
+:global(.dark) .card {
+  background-color: #1e293b;
+  border-color: #334155;
+}
+
+:global(.dark) .card:hover {
+  border-color: #475569;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+:global(.dark) .header {
+  border-bottom-color: #334155;
+}
+
+:global(.dark) .title {
+  color: #f8fafc;
+}
+
+:global(.dark) .description {
+  color: #94a3b8;
+}
+
+:global(.dark) .content {
+  color: #cbd5e1;
+}
+
+:global(.dark) .footer {
+  border-top-color: #334155;
+}
