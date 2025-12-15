@@ -276,8 +276,8 @@ class Settings(BaseSettings):
     # 美元兑积分比例（基于混合使用模型：1 USD = 12,400 积分）
     CREDITS_PER_DOLLAR: int = 12400
 
-    # 新用户赠送积分（混合写50,000字）
-    NEW_USER_GIFT_CREDITS: float = 5000.00
+    # 新用户赠送积分（混合写500,000字）
+    NEW_USER_GIFT_CREDITS: float = 50000.00
 
     # 积分有效期（天），0 表示永久
     CREDITS_EXPIRE_DAYS: int = 0
@@ -287,8 +287,8 @@ class Settings(BaseSettings):
 
     # ==================== 邀请系统配置 ====================
 
-    # 邀请奖励积分（混合写10,000字）
-    INVITATION_REWARD_CREDITS: float = 1000.00
+    # 邀请奖励积分（混合写500,000字）
+    INVITATION_REWARD_CREDITS: float = 50000.00
 
     # 邀请码限制
     INVITATION_MAX_USES_PER_CODE: int = 3  # 每个邀请码最多使用次数（默认3次）

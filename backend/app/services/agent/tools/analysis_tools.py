@@ -13,7 +13,7 @@ import logging
 from pydantic import Field
 
 from .tool_types import ToolInput, ToolOutput, ToolCategory, StandardTool
-from .writing_tools import _ensure_ai_service, _generate_text
+from .writing_tools import _ensure_ai_service, _generate_text, InsufficientCreditsError
 from app.services.agent.model_selector import TaskType
 
 logger = logging.getLogger(__name__)
@@ -222,6 +222,14 @@ async def analyze_content_executor(
             }
         )
 
+    except InsufficientCreditsError as e:
+        logger.warning(f"内容分析工具积分不足: {e}")
+        return AnalyzeContentOutput(
+            success=False,
+            message=e.message,
+            data={"analysis": e.message, "summary": e.message},
+            metadata={"error": "insufficient_credits"}
+        )
     except Exception as e:
         logger.error(f"内容分析工具执行失败: {e}")
         return AnalyzeContentOutput(
@@ -262,8 +270,12 @@ class EvaluateQualityInput(ToolInput):
         ...,
         description="待评估的文本内容",
         min_length=10,
-        max_length=20000
+        max_length=20000,
+        alias="text"  # 支持 AI 传递 "text" 参数
     )
+
+    class Config:
+        populate_by_name = True  # 允许同时使用 content 和 text
 
     context: str = Field(
         default="novel",
@@ -471,6 +483,14 @@ async def evaluate_quality_executor(
             }
         )
 
+    except InsufficientCreditsError as e:
+        logger.warning(f"质量评估工具积分不足: {e}")
+        return EvaluateQualityOutput(
+            success=False,
+            message=e.message,
+            data={"feedback": e.message},
+            metadata={"error": "insufficient_credits"}
+        )
     except Exception as e:
         logger.error(f"质量评估工具执行失败: {e}")
         return EvaluateQualityOutput(
@@ -587,13 +607,52 @@ async def analyze_text_executor(
 
 请提供详细的分析报告："""
 
-        # 调用 AI 生成
-        result = await _generate_text(
-            prompt=base_prompt,
-            temperature=0.3,
-            max_tokens=1500,
-            task_type=TaskType.SUMMARIZATION
-        )
+        # 🔧 2025-12-15: 增强的重试/降级机制
+        # 通过切换 task_type 来影响模型选择：
+        # - SUMMARIZATION (MEDIUM) -> 使用标准模型
+        # - SIMPLE_QA (SIMPLE) -> 使用更快/更轻量的模型
+        fallback_configs = [
+            {"temperature": 0.3, "task_type": TaskType.SUMMARIZATION},
+            {"temperature": 0.5, "task_type": TaskType.SUMMARIZATION},
+            {"temperature": 0.7, "task_type": TaskType.SIMPLE_QA},  # 降级到更快的模型
+        ]
+
+        result = None
+        last_error = None
+
+        for attempt, config in enumerate(fallback_configs):
+            try:
+                logger.info(f"[analyze_text_tool] 尝试第 {attempt + 1} 次调用，config={config}")
+                result = await _generate_text(
+                    prompt=base_prompt,
+                    temperature=config["temperature"],
+                    max_tokens=1500,
+                    task_type=config["task_type"]
+                )
+
+                # 检查是否为空响应或错误
+                if result and not result.startswith("错误:") and not result.startswith("错误：") and len(result) > 20:
+                    logger.info(f"[analyze_text_tool] 第 {attempt + 1} 次调用成功")
+                    break
+                else:
+                    last_error = f"空响应或错误: {result[:100] if result else 'None'}"
+                    logger.warning(f"[analyze_text_tool] 第 {attempt + 1} 次调用返回空/错误: {last_error}")
+                    result = None
+
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"[analyze_text_tool] 第 {attempt + 1} 次调用异常: {e}")
+                continue
+
+        # 如果所有尝试都失败
+        if not result or result.startswith("错误:") or result.startswith("错误："):
+            logger.error(f"[analyze_text_tool] 所有重试均失败: {last_error}")
+            return AnalyzeTextOutput(
+                success=False,
+                message="AI 生成内容为空，请稍后重试",
+                data={"analysis_report": "分析失败：AI 服务暂时无法响应，请稍后重试。"},
+                metadata={"error": "empty_ai_response", "retry_attempted": True, "attempts": len(fallback_configs)}
+            )
 
         logger.info(f"[analyze_text_tool] 分析完成，结果长度: {len(result)}")
 
@@ -609,6 +668,14 @@ async def analyze_text_executor(
             }
         )
 
+    except InsufficientCreditsError as e:
+        logger.warning(f"文本分析工具积分不足: {e}")
+        return AnalyzeTextOutput(
+            success=False,
+            message=e.message,
+            data={"analysis_report": e.message},
+            metadata={"error": "insufficient_credits"}
+        )
     except Exception as e:
         logger.error(f"文本分析工具执行失败: {e}")
         return AnalyzeTextOutput(

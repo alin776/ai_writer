@@ -485,6 +485,9 @@ class WritingAgentGraph:
             "read_chapter_tool": "read_chapter",
             "get_chapter_by_order_tool": "get_chapter_by_order",
             "search_analysis_fragments_tool": "search_analysis_fragments",
+            # 分析工具（2025-12-15: 新增 evaluate_quality 别名支持）
+            "evaluate_quality_tool": "evaluate_quality",
+            "analyze_content_tool": "analyze_content",
         }
 
         # 规范化工具名称
@@ -588,6 +591,23 @@ class WritingAgentGraph:
             params.setdefault("include_current", True)
             params.setdefault("look_ahead", 2)
 
+        # 🔧 2025-12-15: 新增 evaluate_quality 参数处理
+        elif tool_name == "evaluate_quality":
+            # 参数别名映射：text -> content（兼容规划器生成的参数）
+            if "text" in params and "content" not in params:
+                params["content"] = params.pop("text")
+            params.setdefault("content", last_user_message)
+            params.setdefault("context", "novel")
+            params.setdefault("criteria", ["readability", "creativity", "coherence", "engagement"])
+            params.setdefault("reference", "")
+
+        # 🔧 2025-12-15: 新增 analyze_content 参数处理
+        elif tool_name == "analyze_content":
+            params.setdefault("content", last_user_message)
+            params.setdefault("aspects", ["grammar", "logic", "style", "structure"])
+            params.setdefault("depth", "normal")
+            params.setdefault("context", "")
+
         return params
 
     def _extract_tool_result(self, tool_name: str, result: dict) -> str:
@@ -617,6 +637,18 @@ class WritingAgentGraph:
 
         elif tool_name == "search_analysis_fragments":
             return data.get("fragments", "")
+
+        # 🔧 2025-12-15: 新增分析工具结果提取
+        elif tool_name == "evaluate_quality":
+            # 返回格式化的评估报告
+            feedback = data.get("feedback", "")
+            overall_score = data.get("overall_score", 0)
+            grade = data.get("grade", "B")
+            return f"评分: {overall_score}/100 (等级: {grade})\n\n{feedback}"
+
+        elif tool_name == "analyze_content":
+            # 返回分析报告
+            return data.get("analysis", data.get("summary", ""))
 
         # 默认返回整个 data（JSON 字符串）
         return json.dumps(data, ensure_ascii=False)
@@ -753,15 +785,24 @@ class WritingAgentGraph:
             }
 
         except Exception as e:
+            error_str = str(e)
             # 其他异常处理
-            logger.error(f"[_generate_text] HTTPAIService LLM调用失败: {e}", exc_info=True)
+            logger.error(f"[_generate_text] HTTPAIService LLM调用失败: {error_str}", exc_info=True)
             increment_counter("generate_text_error", labels={"error_type": type(e).__name__})
+
+            # 检测积分不足错误，返回友好提示
+            if "积分" in error_str and ("不足" in error_str or "余额" in error_str):
+                return {
+                    "text": "积分余额不足，请先充值后再使用此功能。",
+                    "usage": {},
+                    "error": "insufficient_credits"
+                }
 
             # 返回错误结果
             return {
-                "text": f"抱歉，AI服务调用失败：{str(e)}",
+                "text": f"抱歉，AI服务调用失败：{error_str}",
                 "usage": {},
-                "error": str(e)
+                "error": error_str
             }
 
     async def _generate_text_stream(
@@ -836,8 +877,13 @@ class WritingAgentGraph:
             return {"text": "", "usage": {}, "error": "timeout"}
 
         except Exception as e:
-            logger.error(f"[_generate_text_stream] 流式生成失败: {e}", exc_info=True)
+            error_str = str(e)
+            logger.error(f"[_generate_text_stream] 流式生成失败: {error_str}", exc_info=True)
             increment_counter("generate_text_stream_error", labels={"error_type": type(e).__name__})
+
+            # 检测积分不足错误，直接返回错误（不降级）
+            if "积分" in error_str and ("不足" in error_str or "余额" in error_str):
+                return {"text": "", "usage": {}, "error": error_str}
 
             # 异常降级：发送剩余缓冲区，返回已生成的部分内容
             if buffer:
@@ -847,8 +893,8 @@ class WritingAgentGraph:
                     pass
 
             if full_text:
-                return {"text": full_text, "usage": usage or {}, "partial": True, "error": str(e)}
-            return {"text": "", "usage": {}, "error": str(e)}
+                return {"text": full_text, "usage": usage or {}, "partial": True, "error": error_str}
+            return {"text": "", "usage": {}, "error": error_str}
 
         return {"text": full_text, "usage": usage or {}}
 
@@ -4911,8 +4957,8 @@ chapter_id: {chapter_id}
         Returns:
             最终响应内容
         """
-        # ✅ 优先检查：是否有缺失前置条件的情况
-        # 如果有工具返回了 missing_prerequisite 状态，直接返回友好提示
+        # ✅ 优先检查：是否有缺失前置条件或积分不足的情况
+        # 如果有工具返回了特殊状态，直接返回友好提示，跳过AI整合
         for result in task_results:
             try:
                 result_str = result.get('result', '')
@@ -4938,6 +4984,22 @@ chapter_id: {chapter_id}
                             await on_content(suggested)
 
                         return suggested
+
+                # ✅ 检查是否为积分不足错误（tool_failed + 积分相关消息）
+                if result_json.get('error') == 'tool_failed':
+                    error_msg = result_json.get('message', '')
+                    if "积分" in error_msg and ("不足" in error_msg or "余额" in error_msg):
+                        friendly_msg = "积分余额不足，请先充值后再使用此功能。"
+                        logger.info(
+                            f"[Response] 检测到积分不足错误，"
+                            f"直接返回友好提示，跳过AI整合"
+                        )
+
+                        if on_content:
+                            await on_content(friendly_msg)
+
+                        return friendly_msg
+
             except (json.JSONDecodeError, TypeError, KeyError):
                 # 不是JSON或格式不对，继续下一个
                 continue
@@ -5238,8 +5300,17 @@ chapter_id: {chapter_id}
 
         # 检查是否有错误
         if "error" in result and not result.get("partial"):
-            logger.warning(f"[Summarization] _generate_text_stream 失败: {result.get('error')}")
-            increment_counter("ai_summarization_error", labels={"error_type": result.get('error', 'unknown')})
+            error_msg = result.get('error', '')
+            logger.warning(f"[Summarization] _generate_text_stream 失败: {error_msg}")
+            increment_counter("ai_summarization_error", labels={"error_type": error_msg[:50] if error_msg else 'unknown'})
+
+            # 检测积分不足错误，显示友好提示
+            if "积分" in error_msg and ("不足" in error_msg or "余额" in error_msg):
+                fallback_content = "积分余额不足，请先充值后再使用此功能。"
+                if on_content:
+                    await on_content(fallback_content)
+                return fallback_content
+
             # 返回简单的任务结果拼接作为 fallback
             fallback_content = "抱歉，AI整合失败。以下是任务结果摘要：\n\n"
             for task_result in task_results:

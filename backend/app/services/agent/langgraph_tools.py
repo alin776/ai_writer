@@ -81,6 +81,105 @@ def validate_uuid(value: str, field_name: str = "ID") -> Optional[str]:
     return None
 
 
+def is_chapter_order(value: str) -> bool:
+    """检查值是否为章节序号（纯数字）
+
+    Args:
+        value: 要检查的值
+
+    Returns:
+        如果是纯数字返回 True
+    """
+    if not value:
+        return False
+    return value.isdigit() and 1 <= int(value) <= 9999
+
+
+async def resolve_chapter_id(
+    work_id: str,
+    chapter_ref: str,
+    db_session=None
+) -> tuple[str, Optional[str]]:
+    """智能解析章节引用（支持 UUID 或序号）
+
+    🔧 2025-12-15: 新增支持章节序号自动转 UUID
+
+    Args:
+        work_id: 作品 ID
+        chapter_ref: 章节引用（可以是 UUID 或章节序号）
+        db_session: 可选的数据库会话
+
+    Returns:
+        (chapter_id, error_json): 成功返回 (chapter_uuid, None)，失败返回 (None, error_json)
+    """
+    if not chapter_ref:
+        return None, None
+
+    # 如果是有效的 UUID，直接返回
+    if UUID_PATTERN.match(chapter_ref):
+        return chapter_ref, None
+
+    # 如果是章节序号，查询数据库获取 UUID
+    if is_chapter_order(chapter_ref):
+        chapter_order = int(chapter_ref)
+
+        # 如果没有提供 db_session，创建一个新的
+        if db_session is None:
+            async with AsyncSessionLocal() as db:
+                return await _query_chapter_by_order(db, work_id, chapter_order)
+        else:
+            return await _query_chapter_by_order(db_session, work_id, chapter_order)
+
+    # 既不是 UUID 也不是序号，返回错误
+    return None, json.dumps({
+        "error": "无效的章节引用格式",
+        "provided_value": chapter_ref,
+        "message": "章节引用必须是 UUID 格式或章节序号（1-9999）",
+        "example_uuid": "627feba4-2097-4f28-a3f3-7641d10f7f40",
+        "example_order": "1"
+    }, ensure_ascii=False, indent=2)
+
+
+async def _query_chapter_by_order(db, work_id: str, chapter_order: int) -> tuple[str, Optional[str]]:
+    """根据章节序号查询章节 UUID"""
+    try:
+        from app.models.work import Work
+        from sqlalchemy.orm import selectinload
+        from sqlalchemy import select
+
+        result = await db.execute(
+            select(Work)
+            .options(selectinload(Work.chapters))
+            .where(Work.id == work_id)
+        )
+        work = result.scalar_one_or_none()
+
+        if not work:
+            return None, json.dumps({
+                "error": "作品不存在",
+                "work_id": work_id
+            }, ensure_ascii=False, indent=2)
+
+        for chapter in work.chapters:
+            if chapter.order == chapter_order:
+                logger.info(f"[resolve_chapter_id] 序号 {chapter_order} -> UUID {chapter.id}")
+                return str(chapter.id), None
+
+        return None, json.dumps({
+            "error": f"未找到第{chapter_order}章",
+            "work_id": work_id,
+            "total_chapters": len(work.chapters)
+        }, ensure_ascii=False, indent=2)
+
+    except Exception as e:
+        logger.error(f"[resolve_chapter_id] 查询失败: {e}")
+        return None, json.dumps({
+            "error": f"查询章节失败: {str(e)}",
+            "work_id": work_id,
+            "chapter_order": chapter_order
+        }, ensure_ascii=False, indent=2)
+
+
 # ==================== 辅助函数 ====================
 
 async def _retry_on_failure(func, *args, max_retries=3, **kwargs):
@@ -147,11 +246,17 @@ async def _generate_text_helper(
             await asyncio.sleep(2 ** retry_count)
 
         except Exception as e:
+            error_str = str(e)
+            # 检测积分不足错误，直接返回友好提示（不重试）
+            if "积分" in error_str and ("不足" in error_str or "余额" in error_str):
+                logger.warning(f"[_generate_text_helper] 积分不足: {error_str}")
+                return "积分余额不足，请先充值后再使用此功能。"
+
             retry_count += 1
             logger.error(f"[_generate_text_helper] 生成失败 (尝试 {retry_count}/{max_retries}): {e}")
 
             if retry_count >= max_retries:
-                return f"错误：AI服务调用失败，已重试{max_retries}次。错误信息：{str(e)}"
+                return f"错误：AI服务调用失败，已重试{max_retries}次。错误信息：{error_str}"
 
             await asyncio.sleep(2 ** retry_count)
 
@@ -248,10 +353,12 @@ async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "")
 
     Args:
         work_id: 作品ID（UUID格式）
-        chapter_id: 章节ID（UUID格式）或多个章节ID（用逗号分隔，如 "id1,id2,id3"）
+        chapter_id: 章节ID（UUID格式或章节序号）或多个章节引用（用逗号分隔，如 "id1,id2,id3" 或 "1,2,3"）
 
     Returns:
         章节信息JSON（单章节）或章节列表JSON（多章节）
+
+    🔧 2025-12-15: 支持章节序号自动转 UUID
     """
     if not work_id:
         return json.dumps({
@@ -272,13 +379,16 @@ async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "")
         return uuid_error
 
     # 🆕 支持多章节ID（逗号分隔）
-    chapter_ids = [cid.strip() for cid in chapter_id.split(",") if cid.strip()]
+    chapter_refs = [cid.strip() for cid in chapter_id.split(",") if cid.strip()]
 
-    # 验证所有章节ID格式
-    for cid in chapter_ids:
-        uuid_error = validate_uuid(cid, "章节ID")
-        if uuid_error:
-            return uuid_error
+    # 🔧 2025-12-15: 智能解析章节引用（支持 UUID 或序号）
+    chapter_ids = []
+    for ref in chapter_refs:
+        resolved_id, resolve_error = await resolve_chapter_id(work_id, ref)
+        if resolve_error:
+            return resolve_error
+        if resolved_id:
+            chapter_ids.append(resolved_id)
 
     async with AsyncSessionLocal() as db:
         try:
@@ -740,6 +850,8 @@ __all__ = [
     "get_global_ai_service",
     # 辅助函数
     "validate_uuid",
+    "is_chapter_order",
+    "resolve_chapter_id",
     "_retry_on_failure",
     "_generate_text_helper",
     # 写作工具

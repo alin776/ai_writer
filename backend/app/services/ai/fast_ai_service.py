@@ -31,11 +31,11 @@ class FastAIService:
     - 文本分类
     """
 
-    def __init__(self, timeout: int = 15, db=None):
+    def __init__(self, timeout: int = 30, db=None):
         """初始化快速AI服务
 
         Args:
-            timeout: 超时时间(秒)，默认15秒（比标准模型更短）
+            timeout: 超时时间(秒)，默认30秒（🔧 2025-12-15: 从15秒提高到30秒）
             db: 可选的外层数据库会话（用于事务原子性）
         """
         self.api_key = settings.OPENAI_API_KEY
@@ -43,6 +43,7 @@ class FastAIService:
         self.model = "gemini-2.5-flash-lite"  # 固定使用快速模型
         self.timeout = timeout
         self.db = db  # ✅ 2025-12-14: 支持外层事务控制
+        self.max_retries = 2  # 🔧 2025-12-15: 新增重试次数
 
         # 创建HTTP客户端
         self.client = httpx.AsyncClient(
@@ -54,7 +55,7 @@ class FastAIService:
             },
             timeout=httpx.Timeout(
                 timeout,
-                connect=5.0  # 连接超时5秒
+                connect=10.0  # 🔧 2025-12-15: 连接超时从5秒提高到10秒
             ),
             follow_redirects=True,
             http2=False,
@@ -62,7 +63,7 @@ class FastAIService:
 
         logger.info(
             f"Fast AI Service 初始化成功，Model: {self.model}, "
-            f"Timeout: {timeout}s (专用于检测/验证)"
+            f"Timeout: {timeout}s, MaxRetries: {self.max_retries} (专用于检测/验证)"
         )
 
     async def close(self):
@@ -315,56 +316,79 @@ class FastAIService:
         # ✅ 记录开始时间（用于成本追踪）
         start_time = get_utc_now()
 
-        try:
-            response = await self.client.post(url, json=payload, headers=headers)
+        # 🔧 2025-12-15: 添加重试机制
+        last_error = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                response = await self.client.post(url, json=payload, headers=headers)
 
-            if response.status_code != 200:
-                error_text = response.text[:500]
-                logger.error(f"快速AI API错误: {response.status_code}, {error_text}")
-                raise Exception(f"API错误: {response.status_code}")
+                if response.status_code != 200:
+                    error_text = response.text[:500]
+                    logger.error(f"快速AI API错误 (尝试 {attempt + 1}): {response.status_code}, {error_text}")
+                    last_error = Exception(f"API错误: {response.status_code}")
+                    if attempt < self.max_retries:
+                        continue
+                    raise last_error
 
-            data = response.json()
-            content = data["choices"][0]["message"]["content"]
+                data = response.json()
+                content = data["choices"][0]["message"]["content"]
 
-            # 统计token使用情况
-            usage = data.get("usage", {})
-            prompt_tokens = usage.get("prompt_tokens", 0)
-            completion_tokens = usage.get("completion_tokens", 0)
-            total_tokens = usage.get("total_tokens", 0)
+                # 统计token使用情况
+                usage = data.get("usage", {})
+                prompt_tokens = usage.get("prompt_tokens", 0)
+                completion_tokens = usage.get("completion_tokens", 0)
+                total_tokens = usage.get("total_tokens", 0)
 
-            logger.info(
-                f"快速AI响应成功: tokens={total_tokens} "
-                f"(prompt={prompt_tokens}, completion={completion_tokens})"
-            )
+                logger.info(
+                    f"快速AI响应成功: tokens={total_tokens} "
+                    f"(prompt={prompt_tokens}, completion={completion_tokens})"
+                )
 
-            # 返回内容和usage统计
-            usage_stats = {
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": total_tokens
-            }
+                # 返回内容和usage统计
+                usage_stats = {
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": total_tokens
+                }
 
-            # ✅ 追踪成本
-            await self._track_cost(
-                usage=usage_stats,
-                operation_type=operation_type,
-                start_time=start_time
-            )
+                # ✅ 追踪成本
+                await self._track_cost(
+                    usage=usage_stats,
+                    operation_type=operation_type,
+                    start_time=start_time
+                )
 
-            return content, usage_stats
+                return content, usage_stats
 
-        except httpx.TimeoutException:
-            logger.error(f"快速AI调用超时 (>{self.timeout}秒)")
-            raise Exception(f"API超时 (>{self.timeout}秒)")
-        except httpx.RequestError as e:
-            logger.error(f"快速AI网络错误: {e}")
-            raise Exception(f"网络错误: {e}")
-        except KeyError as e:
-            logger.error(f"快速AI响应格式错误: {e}")
-            raise Exception(f"响应格式错误: {e}")
-        except Exception as e:
-            logger.error(f"快速AI调用失败: {type(e).__name__}: {e}")
-            raise
+            except httpx.TimeoutException:
+                logger.warning(f"快速AI调用超时 (尝试 {attempt + 1}/{self.max_retries + 1}, >{self.timeout}秒)")
+                last_error = Exception(f"API超时 (>{self.timeout}秒)")
+                if attempt < self.max_retries:
+                    # 🔧 2025-12-15: 超时后等待一小段时间再重试
+                    import asyncio
+                    await asyncio.sleep(1)
+                    continue
+            except httpx.RequestError as e:
+                logger.warning(f"快速AI网络错误 (尝试 {attempt + 1}): {e}")
+                last_error = Exception(f"网络错误: {e}")
+                if attempt < self.max_retries:
+                    import asyncio
+                    await asyncio.sleep(1)
+                    continue
+            except KeyError as e:
+                logger.error(f"快速AI响应格式错误: {e}")
+                raise Exception(f"响应格式错误: {e}")
+            except Exception as e:
+                if "积分余额不足" in str(e):
+                    raise
+                logger.error(f"快速AI调用失败: {type(e).__name__}: {e}")
+                last_error = e
+                if attempt < self.max_retries:
+                    continue
+
+        # 所有重试都失败
+        logger.error(f"快速AI调用最终失败 (共 {self.max_retries + 1} 次尝试): {last_error}")
+        raise last_error
 
     async def stream_chat_completion(
         self,
