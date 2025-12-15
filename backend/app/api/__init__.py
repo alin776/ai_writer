@@ -29,6 +29,7 @@ from app.api.v1 import (
     library,
     comments,
     ratings,
+    contact,
 )
 from app.api.v1.endpoints import books
 from app.api.v1 import export as export_routes
@@ -76,3 +77,4 @@ api_router.include_router(user_tasks.router, prefix="/tasks", tags=["tasks"])
 api_router.include_router(library.router, prefix="/library", tags=["library"])
 api_router.include_router(comments.router, prefix="/comments", tags=["comments"])
 api_router.include_router(ratings.router, prefix="/ratings", tags=["ratings"])
+api_router.include_router(contact.router, prefix="/contact", tags=["contact"])
