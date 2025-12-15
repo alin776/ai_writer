@@ -165,7 +165,7 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                   value={formData.title}
                   onChange={handleChange}
                   placeholder="请输入作品标题"
-                  className={`w-full px-4 py-2 border ${errors.title ? 'border-red-500' : 'border-gray-300'} bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded transition-colors`}
+                  className={`w-full px-4 py-2 border ${errors.title ? 'border-red-500' : 'border-gray-300'} bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded transition-colors text-gray-900 placeholder:text-gray-400`}
                 />
                 {errors.title && <span className="text-sm text-red-500">{errors.title}</span>}
               </div>
@@ -182,7 +182,7 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                   onChange={handleChange}
                   placeholder="简要描述您的作品内容、主题或特色"
                   rows={4}
-                  className={`w-full px-4 py-2 border ${errors.description ? 'border-red-500' : 'border-gray-300'} bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors`}
+                  className={`w-full px-4 py-2 border ${errors.description ? 'border-red-500' : 'border-gray-300'} bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors text-gray-900 placeholder:text-gray-400`}
                 />
                 {errors.description && <span className="text-sm text-red-500">{errors.description}</span>}
               </div>
@@ -210,7 +210,7 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                   name="genre"
                   value={formData.genre}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded transition-colors"
+                  className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded transition-colors text-gray-900"
                 >
                   <option value="">请选择类型</option>
                   <option value="xuanhuan">玄幻</option>
@@ -238,7 +238,7 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                     onChange={handleChange}
                     placeholder="描述故事发生的时代、地点、社会背景等..."
                     rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors"
+                    className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors text-gray-900 placeholder:text-gray-400"
                   />
                 </div>
 
@@ -252,7 +252,7 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                     onChange={handleChange}
                     placeholder="如：修仙等级、魔法体系、科技水平等..."
                     rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors"
+                    className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors text-gray-900 placeholder:text-gray-400"
                   />
                 </div>
 
@@ -266,7 +266,7 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                     onChange={handleChange}
                     placeholder="主角的性格、背景、特殊能力、成长轨迹..."
                     rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors"
+                    className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors text-gray-900 placeholder:text-gray-400"
                   />
                 </div>
 
@@ -280,7 +280,7 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                     onChange={handleChange}
                     placeholder="主线剧情、重要事件、故事走向、情节发展..."
                     rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors"
+                    className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors text-gray-900 placeholder:text-gray-400"
                   />
                 </div>
 
@@ -294,7 +294,7 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                     onChange={handleChange}
                     placeholder="特殊的世界规则、法则、限制、禁忌..."
                     rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors"
+                    className="w-full px-4 py-2 border border-gray-300 bg-white/50 focus:border-gray-600 focus:ring-1 focus:ring-gray-600/20 outline-none rounded resize-none transition-colors text-gray-900 placeholder:text-gray-400"
                   />
                 </div>
               </div>
