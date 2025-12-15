@@ -262,19 +262,19 @@ export default function HistoryPanel({
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/30 dark:bg-black/50 z-40" onClick={onClose} />
 
       <div
-        className={`fixed top-16 right-6 w-[360px] sm:w-[420px] max-h-[70vh] bg-white border border-gray-200 rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden ${className}`}
+        className={`fixed top-16 right-6 w-[360px] sm:w-[420px] max-h-[70vh] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden ${className}`}
       >
-        <div className="px-4 py-3 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900">历史会话</h3>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">历史会话</h3>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 text-xl leading-none"
+              className="text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 text-xl leading-none"
               aria-label="关闭历史会话"
             >
               ×
@@ -282,20 +282,20 @@ export default function HistoryPanel({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-white">
+        <div className="flex-1 overflow-y-auto bg-white dark:bg-slate-800">
           {isLoading && (
-            <div className="flex flex-col items-center justify-center h-full text-sm text-gray-500">
-              <div className="h-5 w-5 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mb-3" />
+            <div className="flex flex-col items-center justify-center h-full text-sm text-gray-500 dark:text-slate-400">
+              <div className="h-5 w-5 border-2 border-gray-300 dark:border-slate-600 border-t-blue-500 dark:border-t-blue-400 rounded-full animate-spin mb-3" />
               <p>加载中...</p>
             </div>
           )}
 
           {error && (
             <div className="px-4 py-8 text-center">
-              <p className="text-sm text-red-500 mb-3">{error}</p>
+              <p className="text-sm text-red-500 dark:text-red-400 mb-3">{error}</p>
               <button
                 onClick={loadHistorySessions}
-                className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+                className="px-3 py-1.5 bg-blue-600 dark:bg-blue-500 text-white text-xs rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
               >
                 重试
               </button>
@@ -303,10 +303,10 @@ export default function HistoryPanel({
           )}
 
           {!isLoading && !error && sessions.length === 0 && (
-            <div className="px-4 py-10 text-center text-gray-500 text-sm">
+            <div className="px-4 py-10 text-center text-gray-500 dark:text-slate-400 text-sm">
               <div className="text-3xl mb-2">🗂️</div>
-              <p className="font-medium text-gray-700">暂无历史会话</p>
-              <p className="text-xs mt-1 text-gray-500">近期会话会出现在这里</p>
+              <p className="font-medium text-gray-700 dark:text-slate-300">暂无历史会话</p>
+              <p className="text-xs mt-1 text-gray-500 dark:text-slate-500">近期会话会出现在这里</p>
             </div>
           )}
 
@@ -316,7 +316,7 @@ export default function HistoryPanel({
                 <div
                   key={session.sessionId || session.conversationId || session.title}
                   onClick={() => handleRestore(session)}
-                  className="rounded-lg border border-gray-100 bg-white hover:bg-gray-50 shadow-sm hover:shadow-md transition-all px-3 py-2 cursor-pointer group"
+                  className="rounded-lg border border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-700/50 hover:bg-gray-50 dark:hover:bg-slate-700 shadow-sm hover:shadow-md transition-all px-3 py-2 cursor-pointer group"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
@@ -338,12 +338,12 @@ export default function HistoryPanel({
                             }
                           }}
                           onBlur={() => commitEditing(session)}
-                          className="w-full text-sm font-medium text-gray-900 bg-white border border-blue-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-full text-sm font-medium text-gray-900 dark:text-white bg-white dark:bg-slate-600 border border-blue-200 dark:border-blue-500 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                       ) : (
-                        <h4 className="text-sm font-medium text-gray-900 truncate">{session.title}</h4>
+                        <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">{session.title}</h4>
                       )}
-                      <p className="text-[11px] text-gray-500 mt-0.5">{formatTime(session.updatedAt)}</p>
+                      <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">{formatTime(session.updatedAt)}</p>
                     </div>
                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
@@ -351,7 +351,7 @@ export default function HistoryPanel({
                           e.stopPropagation();
                           handleRename(session);
                         }}
-                        className="p-1 rounded-md hover:bg-gray-100 text-gray-500"
+                        className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-slate-600 text-gray-500 dark:text-slate-400"
                         aria-label="重命名会话"
                       >
                         <Pencil className="w-4 h-4" />
@@ -361,7 +361,7 @@ export default function HistoryPanel({
                           e.stopPropagation();
                           handleDelete(session);
                         }}
-                        className="p-1 rounded-md hover:bg-gray-100 text-gray-500"
+                        className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-slate-600 text-gray-500 dark:text-slate-400"
                         aria-label="删除会话"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -370,7 +370,7 @@ export default function HistoryPanel({
                   </div>
 
                   {session.lastMessagePreview && (
-                    <p className="text-[12px] text-gray-600 line-clamp-2 mt-1 leading-relaxed">
+                    <p className="text-[12px] text-gray-600 dark:text-slate-300 line-clamp-2 mt-1 leading-relaxed">
                       {session.lastMessagePreview}
                     </p>
                   )}
@@ -380,8 +380,8 @@ export default function HistoryPanel({
           )}
         </div>
 
-        <div className="px-4 py-3 border-t border-gray-200 bg-white">
-          <p className="text-[11px] text-gray-500 text-center">历史会话存储 30 天</p>
+        <div className="px-4 py-3 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+          <p className="text-[11px] text-gray-500 dark:text-slate-500 text-center">历史会话存储 30 天</p>
         </div>
       </div>
     </>
