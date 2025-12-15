@@ -274,6 +274,29 @@ const ContactView: React.FC = () => {
                     <div className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-white"></div>
                   </div>
                 </div>
+                {/* 小红书 - 悬停显示二维码 */}
+                <div className="relative group">
+                  <button className="w-12 h-12 rounded-xl flex items-center justify-center transition-all overflow-hidden">
+                    <img
+                      src="/images/qrcode/xhsLogo.png"
+                      alt="小红书"
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                  {/* 悬停显示的二维码 */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
+                    <div className="bg-white rounded-xl p-5 shadow-2xl">
+                      <img
+                        src="/images/qrcode/xiaohongshu.png"
+                        alt="小红书二维码"
+                        className="w-64 h-64 object-contain"
+                      />
+                      <p className="text-center text-gray-600 text-base mt-3 whitespace-nowrap">扫码关注小红书</p>
+                    </div>
+                    {/* 小三角箭头 */}
+                    <div className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-white"></div>
+                  </div>
+                </div>
                 {/* B站 - 粉红色背景 */}
                 <button
                   onClick={() => window.open('https://space.bilibili.com/3546898017291150?spm_id_from=333.337.0.0', '_blank')}
