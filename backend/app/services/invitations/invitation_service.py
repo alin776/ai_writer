@@ -382,8 +382,13 @@ class InvitationService:
         # 初始化奖励金额
         reward_amount = Decimal("0")
 
-        # 只有单次使用的邀请码才发放奖励（防止批量码刷奖励）
-        if invitation.max_uses == 1:
+        # 查询邀请码创建者，判断是否是管理员
+        creator_stmt = select(User).where(User.id == invitation.user_id)
+        creator_result = await self.db.execute(creator_stmt)
+        creator = creator_result.scalar_one()
+
+        # 只有普通用户创建的邀请码才发放奖励（管理员不需要积分回馈）
+        if not creator.is_admin:
             reward_amount = Decimal(str(settings.INVITATION_REWARD_CREDITS))
             invitation.total_rewards += reward_amount
 
