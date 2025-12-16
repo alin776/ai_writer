@@ -230,6 +230,20 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
   }, [messages]);
 
   /**
+   * 监听世界观完成度 - 当达到100%时自动显示最终表单
+   * 修复：用户通过右侧编辑功能绕过对话流程时，也能显示完成按钮
+   */
+  useEffect(() => {
+    const allFields = worldviewData.flatMap(module => module.fields);
+    const completedFields = allFields.filter(field => field.completed);
+    const completion = Math.round((completedFields.length / allFields.length) * 100);
+
+    if (completion === 100 && !showFinalForm && !isGenerating) {
+      setShowFinalForm(true);
+    }
+  }, [worldviewData, showFinalForm, isGenerating]);
+
+  /**
    * 添加助手消息
    */
   const addAssistantMessage = (content: string) => {

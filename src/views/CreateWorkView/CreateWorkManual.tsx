@@ -21,9 +21,17 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
     title: '',
     description: '',
     genre: '',
-    setting: '',
-    powerSystem: '',
-    mainCharacter: '',
+    // 世界观简介
+    worldIntro: '',
+    // 主要地点（逗号分隔）
+    mainLocations: '',
+    // 力量体系
+    powerSystemName: '',
+    powerSystemDesc: '',
+    // 主角设定
+    protagonistName: '',
+    protagonistDesc: '',
+    // 剧情与规则
     plotIdea: '',
     worldRules: '',
   });
@@ -92,17 +100,19 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
     const worldViewData: WorldViewData = {
       // 小说类型
       primaryGenre: formData.genre,
-      // 世界观/背景描述
-      worldIntro: formData.setting,
+      // 世界观简介
+      worldIntro: formData.worldIntro,
+      // 世界规则
       worldRules: formData.worldRules,
-      // 场景/地点：复用背景输入按分隔符拆解
-      mainLocations: formData.setting,
+      // 主要地点（逗号分隔）
+      mainLocations: formData.mainLocations,
       // 力量体系
-      powerSystemName: formData.powerSystem,
-      // 主角信息（简单复用为姓名/身份/性格）
-      protagonistName: formData.mainCharacter,
-      protagonistIdentity: formData.mainCharacter,
-      protagonistTraits: formData.mainCharacter,
+      powerSystemName: formData.powerSystemName,
+      powerLevels: formData.powerSystemDesc,  // 用描述填充等级划分字段
+      // 主角信息
+      protagonistName: formData.protagonistName,
+      protagonistIdentity: formData.protagonistDesc,
+      protagonistTraits: formData.protagonistDesc,
       // 剧情构思
       conflictDesign: formData.plotIdea,
     };
@@ -226,66 +236,38 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                 </select>
               </div>
 
+              {/* 世界观简介 - 跨两列 */}
+              <div className="space-y-2">
+                <label htmlFor="worldIntro" className="block text-gray-700 dark:text-gray-300">世界观简介</label>
+                <textarea
+                  id="worldIntro"
+                  name="worldIntro"
+                  value={formData.worldIntro}
+                  onChange={handleChange}
+                  placeholder="描述故事发生的时代、社会背景、世界观设定..."
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded resize-none transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                />
+              </div>
+
               {/* 两列布局的字段 */}
               <div className="grid grid-cols-2 gap-6">
-                {/* 背景设定 */}
+                {/* 主要地点 */}
                 <div className="space-y-2">
-                  <label htmlFor="setting" className="block text-gray-700 dark:text-gray-300">背景设定</label>
+                  <label htmlFor="mainLocations" className="block text-gray-700 dark:text-gray-300">主要地点</label>
                   <textarea
-                    id="setting"
-                    name="setting"
-                    value={formData.setting}
+                    id="mainLocations"
+                    name="mainLocations"
+                    value={formData.mainLocations}
                     onChange={handleChange}
-                    placeholder="描述故事发生的时代、地点、社会背景等..."
-                    rows={4}
+                    placeholder="用逗号分隔，如：天元城、魔法学院、暗影森林..."
+                    rows={3}
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded resize-none transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   />
                 </div>
 
-                {/* 力量体系 */}
+                {/* 世界规则 */}
                 <div className="space-y-2">
-                  <label htmlFor="powerSystem" className="block text-gray-700 dark:text-gray-300">力量体系</label>
-                  <textarea
-                    id="powerSystem"
-                    name="powerSystem"
-                    value={formData.powerSystem}
-                    onChange={handleChange}
-                    placeholder="如：修仙等级、魔法体系、科技水平等..."
-                    rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded resize-none transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500"
-                  />
-                </div>
-
-                {/* 主角设定 */}
-                <div className="space-y-2">
-                  <label htmlFor="mainCharacter" className="block text-gray-700 dark:text-gray-300">主角设定</label>
-                  <textarea
-                    id="mainCharacter"
-                    name="mainCharacter"
-                    value={formData.mainCharacter}
-                    onChange={handleChange}
-                    placeholder="主角的性格、背景、特殊能力、成长轨迹..."
-                    rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded resize-none transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500"
-                  />
-                </div>
-
-                {/* 剧情构思 */}
-                <div className="space-y-2">
-                  <label htmlFor="plotIdea" className="block text-gray-700 dark:text-gray-300">剧情构思</label>
-                  <textarea
-                    id="plotIdea"
-                    name="plotIdea"
-                    value={formData.plotIdea}
-                    onChange={handleChange}
-                    placeholder="主线剧情、重要事件、故事走向、情节发展..."
-                    rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded resize-none transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500"
-                  />
-                </div>
-
-                {/* 世界规则 - 跨两列 */}
-                <div className="space-y-2 col-span-2">
                   <label htmlFor="worldRules" className="block text-gray-700 dark:text-gray-300">世界规则</label>
                   <textarea
                     id="worldRules"
@@ -293,7 +275,77 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                     value={formData.worldRules}
                     onChange={handleChange}
                     placeholder="特殊的世界规则、法则、限制、禁忌..."
-                    rows={4}
+                    rows={3}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded resize-none transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                  />
+                </div>
+
+                {/* 力量体系名称 */}
+                <div className="space-y-2">
+                  <label htmlFor="powerSystemName" className="block text-gray-700 dark:text-gray-300">力量体系名称</label>
+                  <input
+                    id="powerSystemName"
+                    name="powerSystemName"
+                    type="text"
+                    value={formData.powerSystemName}
+                    onChange={handleChange}
+                    placeholder="如：修仙、魔法、斗气..."
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                  />
+                </div>
+
+                {/* 力量体系描述 */}
+                <div className="space-y-2">
+                  <label htmlFor="powerSystemDesc" className="block text-gray-700 dark:text-gray-300">力量体系描述</label>
+                  <input
+                    id="powerSystemDesc"
+                    name="powerSystemDesc"
+                    type="text"
+                    value={formData.powerSystemDesc}
+                    onChange={handleChange}
+                    placeholder="等级划分、修炼方式、代价限制..."
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                  />
+                </div>
+
+                {/* 主角名字 */}
+                <div className="space-y-2">
+                  <label htmlFor="protagonistName" className="block text-gray-700 dark:text-gray-300">主角名字</label>
+                  <input
+                    id="protagonistName"
+                    name="protagonistName"
+                    type="text"
+                    value={formData.protagonistName}
+                    onChange={handleChange}
+                    placeholder="主角的名字"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                  />
+                </div>
+
+                {/* 主角描述 */}
+                <div className="space-y-2">
+                  <label htmlFor="protagonistDesc" className="block text-gray-700 dark:text-gray-300">主角描述</label>
+                  <input
+                    id="protagonistDesc"
+                    name="protagonistDesc"
+                    type="text"
+                    value={formData.protagonistDesc}
+                    onChange={handleChange}
+                    placeholder="性格、背景、特殊能力..."
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                  />
+                </div>
+
+                {/* 剧情构思 - 跨两列 */}
+                <div className="space-y-2 col-span-2">
+                  <label htmlFor="plotIdea" className="block text-gray-700 dark:text-gray-300">剧情构思</label>
+                  <textarea
+                    id="plotIdea"
+                    name="plotIdea"
+                    value={formData.plotIdea}
+                    onChange={handleChange}
+                    placeholder="主线剧情、重要事件、故事走向、情节发展..."
+                    rows={3}
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded resize-none transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   />
                 </div>

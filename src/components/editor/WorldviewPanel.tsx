@@ -32,8 +32,8 @@ export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
             onClick={() => setWorldviewTab('characters')}
             className={`px-2.5 py-1 rounded-md text-[11px] transition-all duration-200 ${
               worldviewTab === 'characters'
-                ? 'bg-zinc-900 text-white'
-                : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
+                ? 'bg-zinc-900 text-white dark:bg-slate-200 dark:text-slate-900'
+                : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100'
             }`}
           >
             {t('worldview.tabs.characters')}
@@ -42,8 +42,8 @@ export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
             onClick={() => setWorldviewTab('places')}
             className={`px-2.5 py-1 rounded-md text-[11px] transition-all duration-200 ${
               worldviewTab === 'places'
-                ? 'bg-zinc-900 text-white'
-                : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
+                ? 'bg-zinc-900 text-white dark:bg-slate-200 dark:text-slate-900'
+                : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100'
             }`}
           >
             {t('worldview.tabs.locations')}
@@ -52,8 +52,8 @@ export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
             onClick={() => setWorldviewTab('settings')}
             className={`px-2.5 py-1 rounded-md text-[11px] transition-all duration-200 ${
               worldviewTab === 'settings'
-                ? 'bg-zinc-900 text-white'
-                : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
+                ? 'bg-zinc-900 text-white dark:bg-slate-200 dark:text-slate-900'
+                : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100'
             }`}
           >
             {t('worldview.tabs.settings')}
@@ -64,7 +64,7 @@ export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
             variant="ghost"
             size="sm"
             onClick={handleOpenWorldview}
-            className="h-6 w-6 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-md transition-all"
+            className="h-6 w-6 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-700 rounded-md transition-all"
             title={t('worldview.actions.openWorldview')}
           >
             <Maximize2 className="h-3.5 w-3.5" />
@@ -79,19 +79,19 @@ export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
             characters.map((char) => (
               <div
                 key={char.id}
-                className="group p-2.5 rounded-lg border border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50/50 hover:shadow-sm transition-all duration-200 cursor-pointer"
+                className="group p-2.5 rounded-lg border border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50/50 hover:shadow-sm dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800/50 transition-all duration-200 cursor-pointer"
               >
                 <div className="flex items-start justify-between mb-1.5">
-                  <div className="text-[13px] text-zinc-900">{char.name}</div>
+                  <div className="text-[13px] text-zinc-900 dark:text-slate-100">{char.name}</div>
                   <div className="flex items-center gap-1">
                     {char.role && (
-                      <div className="text-[10px] text-zinc-400 bg-zinc-100/70 px-1.5 py-0.5 rounded">
+                      <div className="text-[10px] text-zinc-400 bg-zinc-100/70 dark:text-slate-400 dark:bg-slate-700/70 px-1.5 py-0.5 rounded">
                         {char.role}
                       </div>
                     )}
                   </div>
                 </div>
-                <div className="text-[11px] text-zinc-500 leading-relaxed line-clamp-2">
+                <div className="text-[11px] text-zinc-500 dark:text-slate-400 leading-relaxed line-clamp-2">
                   {char.description}
                 </div>
               </div>
@@ -111,19 +111,19 @@ export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
             locations.map((location) => (
               <div
                 key={location.id}
-                className="group p-2.5 rounded-lg border border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50/50 hover:shadow-sm transition-all duration-200 cursor-pointer"
+                className="group p-2.5 rounded-lg border border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50/50 hover:shadow-sm dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800/50 transition-all duration-200 cursor-pointer"
               >
                 <div className="flex items-start justify-between mb-1.5">
-                  <div className="text-[13px] text-zinc-900">{location.name}</div>
+                  <div className="text-[13px] text-zinc-900 dark:text-slate-100">{location.name}</div>
                   <div className="flex items-center gap-1">
                     {location.type && (
-                      <div className="text-[10px] text-zinc-400 bg-zinc-100/70 px-1.5 py-0.5 rounded">
+                      <div className="text-[10px] text-zinc-400 bg-zinc-100/70 dark:text-slate-400 dark:bg-slate-700/70 px-1.5 py-0.5 rounded">
                         {location.type}
                       </div>
                     )}
                   </div>
                 </div>
-                <div className="text-[11px] text-zinc-500 leading-relaxed line-clamp-2">
+                <div className="text-[11px] text-zinc-500 dark:text-slate-400 leading-relaxed line-clamp-2">
                   {location.description}
                 </div>
               </div>
@@ -143,19 +143,19 @@ export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
             settings.map((setting) => (
               <div
                 key={setting.id}
-                className="group p-2.5 rounded-lg border border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50/50 hover:shadow-sm transition-all duration-200 cursor-pointer"
+                className="group p-2.5 rounded-lg border border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50/50 hover:shadow-sm dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800/50 transition-all duration-200 cursor-pointer"
               >
                 <div className="flex items-start justify-between mb-1.5">
-                  <div className="text-[13px] text-zinc-900">{setting.title}</div>
+                  <div className="text-[13px] text-zinc-900 dark:text-slate-100">{setting.title}</div>
                   <div className="flex items-center gap-1">
                     {setting.category && (
-                      <div className="text-[10px] text-zinc-400 bg-zinc-100/70 px-1.5 py-0.5 rounded">
+                      <div className="text-[10px] text-zinc-400 bg-zinc-100/70 dark:text-slate-400 dark:bg-slate-700/70 px-1.5 py-0.5 rounded">
                         {setting.category}
                       </div>
                     )}
                   </div>
                 </div>
-                <div className="text-[11px] text-zinc-500 leading-relaxed line-clamp-2">
+                <div className="text-[11px] text-zinc-500 dark:text-slate-400 leading-relaxed line-clamp-2">
                   {setting.content}
                 </div>
               </div>
