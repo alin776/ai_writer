@@ -368,31 +368,28 @@ const WorkDetailView: React.FC = () => {
           }
         }
 
-        // 🔥 首次打开作品时，自动检查并触发分析
+        // 🔥 首次打开作品时，自动检查并触发分析（异步执行，不阻塞 UI）
         // 使用 localStorage 记录已触发过的作品，避免重复触发
         const AUTO_ANALYSIS_KEY = `auto-analysis-triggered-${workId}`;
         const hasTriggered = localStorage.getItem(AUTO_ANALYSIS_KEY);
 
         if (!hasTriggered && chaptersData.length > 0) {
-          try {
-            // 检查是否已有分析结果
-            const analysisStatus = await DataService.getAnalysisStatus(workId);
-
-            // 如果没有分析结果或分析失败，则触发分析
-            if (!analysisStatus || analysisStatus.status === 'failed') {
-              console.log('[WorkDetailView] 首次打开作品，触发自动分析');
-              await DataService.startNovelAnalysis(workId);
-              showToast('info', t('workDetail.toast.autoStartedAnalysis'));
-
-              // 记录已触发，避免重复
-              localStorage.setItem(AUTO_ANALYSIS_KEY, 'true');
-            } else {
-              console.log('[WorkDetailView] 作品已有分析结果，跳过自动分析');
+          // 异步执行分析，不阻塞页面加载
+          (async () => {
+            try {
+              const analysisStatus = await DataService.getAnalysisStatus(workId);
+              if (!analysisStatus || analysisStatus.status === 'failed') {
+                console.log('[WorkDetailView] 首次打开作品，触发自动分析');
+                await DataService.startNovelAnalysis(workId);
+                showToast('info', t('workDetail.toast.autoStartedAnalysis'));
+                localStorage.setItem(AUTO_ANALYSIS_KEY, 'true');
+              } else {
+                console.log('[WorkDetailView] 作品已有分析结果，跳过自动分析');
+              }
+            } catch (analysisError) {
+              console.warn('[WorkDetailView] 自动分析检查失败:', analysisError);
             }
-          } catch (analysisError) {
-            // 分析失败不影响主流程，静默处理
-            console.warn('[WorkDetailView] 自动分析检查失败:', analysisError);
-          }
+          })();
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : t('workDetail.error.loadDataFailed');
