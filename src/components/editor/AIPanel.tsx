@@ -965,7 +965,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         )}
 
         {/* 任务执行进度（todolist）- 显示在所有历史消息之后，streaming消息之前 */}
-        {isLoading && tasks.length > 0 && (
+        {isLoading && tasks.length > 0 && !streamingVisibleContent && (
           <div className="flex items-start gap-2 mt-8">
             <div className="h-6 w-6 rounded-full bg-zinc-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />
@@ -1041,7 +1041,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         )}
 
         {/* 思考状态（无任务时） */}
-        {isLoading && tasks.length === 0 && (
+        {isLoading && tasks.length === 0 && !streamingVisibleContent && (
           <div className="flex items-start gap-2 mt-8">
             <div className="h-6 w-6 rounded-full bg-zinc-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
               <Bot className="h-3.5 w-3.5 text-white" />
