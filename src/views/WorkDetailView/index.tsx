@@ -300,14 +300,23 @@ const WorkDetailView: React.FC = () => {
         const preloadedData = (location.state as any)?.preloadedData;
         let workData, chaptersData, worldDataFromServer;
 
-        if (preloadedData?.work && preloadedData?.chapters) {
+        // 验证预加载数据的有效性
+        const isPreloadedDataValid = preloadedData?.work?.id &&
+                                     Array.isArray(preloadedData?.chapters) &&
+                                     preloadedData?.worldData;
+
+        if (isPreloadedDataValid) {
           // 使用预加载数据，无需再次请求
           console.log('[WorkDetailView] 使用预加载数据');
           workData = preloadedData.work;
           chaptersData = preloadedData.chapters;
           worldDataFromServer = preloadedData.worldData;
-          // 清除 location state，避免刷新时再次使用旧数据
-          window.history.replaceState({}, document.title);
+          // 清除 preloadedData，保留其他 state 数据
+          const currentState = window.history.state || {};
+          window.history.replaceState(
+            { ...currentState, preloadedData: undefined },
+            ''
+          );
         } else {
           // 正常从服务器获取数据
           [workData, chaptersData, worldDataFromServer] = await Promise.all([
@@ -378,14 +387,17 @@ const WorkDetailView: React.FC = () => {
           (async () => {
             try {
               const analysisStatus = await DataService.getAnalysisStatus(workId);
-              if (!analysisStatus || analysisStatus.status === 'failed') {
+              // 只有在没有分析结果或分析失败时才触发，跳过 processing/pending/success 状态
+              const skipStatuses = ['success', 'processing', 'pending'];
+              if (!analysisStatus || !skipStatuses.includes(analysisStatus.status)) {
                 console.log('[WorkDetailView] 首次打开作品，触发自动分析');
                 await DataService.startNovelAnalysis(workId);
                 showToast('info', t('workDetail.toast.autoStartedAnalysis'));
-                localStorage.setItem(AUTO_ANALYSIS_KEY, 'true');
               } else {
-                console.log('[WorkDetailView] 作品已有分析结果，跳过自动分析');
+                console.log('[WorkDetailView] 作品已有分析结果或正在分析，跳过');
               }
+              // 无论是否触发分析，都标记为已处理
+              localStorage.setItem(AUTO_ANALYSIS_KEY, 'true');
             } catch (analysisError) {
               console.warn('[WorkDetailView] 自动分析检查失败:', analysisError);
             }
