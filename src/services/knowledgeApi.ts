@@ -119,6 +119,8 @@ class KnowledgeApiService {
 
   /**
    * 获取知识列表
+   * @param params 查询参数
+   * @param signal 可选的 AbortSignal，用于取消请求
    */
   async getList(params?: {
     search?: string;
@@ -128,7 +130,7 @@ class KnowledgeApiService {
     limit?: number;
     skip?: number;
     category?: string;
-  }): Promise<KnowledgeListResponse> {
+  }, signal?: AbortSignal): Promise<KnowledgeListResponse> {
     const page = params?.page ?? 1;
     const pageSize = params?.pageSize ?? params?.limit ?? 20;
     const skip = params?.skip ?? (page - 1) * pageSize;
@@ -141,7 +143,8 @@ class KnowledgeApiService {
         tags: params?.tags?.length ? params.tags.join(',') : undefined,
         skip,
         limit,
-      }
+      },
+      signal,
     });
     return response.data;
   }

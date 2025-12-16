@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Plus,
   Search,
@@ -35,6 +35,8 @@ import FilePicker from '@/components/common/FilePicker';
 import { knowledgeApi, type KnowledgeItem as ApiKnowledgeItem } from '@/services/knowledgeApi';
 import { ToastContainer } from '@/components/ui/Toast';
 import { useToast } from '@/hooks/useToast';
+import { useKnowledgeStore } from '@/store/knowledgeStore';
+import { useDebounce } from 'use-debounce';
 
 
 type SourceType = 'manual' | 'book_analysis' | 'ai_generated' | 'imported' | 'text' | 'file' | 'url';
@@ -56,11 +58,28 @@ type KnowledgeItem = ApiKnowledgeItem & {
   source_type?: SourceType;
 };
 
+const PAGE_SIZE = 20;
+
 const KnowledgeView: React.FC = () => {
-  const [items, setItems] = useState<KnowledgeItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  // 使用 store 获取缓存的数据
+  const { items: cachedItems, setItems: setCachedItems, shouldRefetch } = useKnowledgeStore();
+
+  const [items, setItems] = useState<KnowledgeItem[]>(cachedItems);
+  const [loading, setLoading] = useState(cachedItems.length === 0);
   const [searchQuery, setSearchQuery] = useState('');
   const [tagFilter, setTagFilter] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [debouncedSearchQuery] = useDebounce(searchQuery.trim(), 300);
+  const [debouncedTagFilter] = useDebounce(tagFilter.trim(), 300);
+
+  // AbortController ref，用于取消正在进行的请求
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+  const requestIdRef = useRef(0);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
@@ -76,26 +95,136 @@ const KnowledgeView: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const { warning: showWarning, success: showSuccess, messages, close } = useToast();
 
-  const loadItems = useCallback(async () => {
-    try {
-      setLoading(true);
-      const tagList = tagFilter.split(',').map((t) => t.trim()).filter(Boolean);
-      const data = await knowledgeApi.getList({
-        search: searchQuery || undefined,
-        tags: tagList.length > 0 ? tagList : undefined,
-        limit: 50,
-      });
-      setItems(data.items || []);
-    } catch (error) {
-      console.error('Failed to load knowledge items:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [searchQuery, tagFilter]);
+  const loadItems = useCallback(
+    async ({
+      forceRefresh = false,
+      page: targetPage = 1,
+      append = false,
+    }: { forceRefresh?: boolean; page?: number; append?: boolean } = {}) => {
+      const normalizedSearch = debouncedSearchQuery;
+      const normalizedTags = debouncedTagFilter;
+
+      // 如果不强制刷新且缓存有效，直接使用缓存
+      if (!append && !forceRefresh && !shouldRefetch(normalizedSearch, normalizedTags)) {
+        setItems(cachedItems);
+        setLoading(false);
+        setRefreshing(false);
+        setHasMore(cachedItems.length >= PAGE_SIZE);
+        setPage(1);
+        return;
+      }
+
+      // 取消之前的请求
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      // 创建新的 AbortController
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      const requestId = ++requestIdRef.current;
+
+      try {
+        if (append) {
+          setLoadingMore(true);
+        } else if (cachedItems.length === 0) {
+          setLoading(true);
+        } else {
+          setRefreshing(true);
+        }
+        const tagList = normalizedTags.split(',').map((t) => t.trim()).filter(Boolean);
+        const data = await knowledgeApi.getList(
+          {
+            search: normalizedSearch || undefined,
+            tags: tagList.length > 0 ? tagList : undefined,
+            limit: PAGE_SIZE,
+            skip: (targetPage - 1) * PAGE_SIZE,
+          },
+          controller.signal
+        );
+
+        // 检查请求是否被取消或过期
+        if (controller.signal.aborted || !mountedRef.current || requestId !== requestIdRef.current) return;
+
+        const newItems = data.items || [];
+        const total = data.total;
+        let computedHasMore = false;
+
+        setItems((prev) => {
+          if (append) {
+            const existingIds = new Set(prev.map((i) => i.id));
+            const merged = [...prev];
+            newItems.forEach((item) => {
+              if (!existingIds.has(item.id)) {
+                merged.push(item);
+              }
+            });
+            computedHasMore = total !== undefined ? merged.length < total : newItems.length === PAGE_SIZE;
+            return merged;
+          }
+
+          computedHasMore = total !== undefined ? newItems.length < total : newItems.length === PAGE_SIZE;
+          return newItems;
+        });
+
+        if (!append) {
+          setCachedItems(newItems, normalizedSearch, normalizedTags);
+        }
+
+        setHasMore(computedHasMore);
+        setPage(targetPage);
+      } catch (error: any) {
+        // 忽略取消的请求错误
+        if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') {
+          return;
+        }
+        console.error('Failed to load knowledge items:', error);
+      } finally {
+        // 只有当请求没有被取消时才设置 loading 为 false
+        if (!controller.signal.aborted && mountedRef.current && requestId === requestIdRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+          setLoadingMore(false);
+        }
+      }
+    },
+    [debouncedSearchQuery, debouncedTagFilter, shouldRefetch, cachedItems, setCachedItems]
+  );
 
   useEffect(() => {
-    loadItems();
-  }, [loadItems]);
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    setPage(1);
+    setHasMore(true);
+    loadItems({ page: 1 });
+  }, [debouncedSearchQuery, debouncedTagFilter, loadItems]);
+
+  // 监听滚动到底部，自动加载更多
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasMore || loading || refreshing || loadingMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && hasMore && !loading && !refreshing && !loadingMore) {
+          loadItems({ forceRefresh: true, page: page + 1, append: true });
+        }
+      },
+      { root: null, rootMargin: '200px' }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, loading, refreshing, loadingMore, page, loadItems]);
 
   const resetForm = () => {
     setFormTitle('');
@@ -119,7 +248,7 @@ const KnowledgeView: React.FC = () => {
       });
       setShowAddDialog(false);
       resetForm();
-      loadItems();
+      loadItems({ forceRefresh: true, page: 1 });
     } catch (error) {
       console.error('Failed to add knowledge:', error);
     } finally {
@@ -139,7 +268,7 @@ const KnowledgeView: React.FC = () => {
       });
       setShowUploadDialog(false);
       resetForm();
-      loadItems();
+      loadItems({ forceRefresh: true, page: 1 });
       if (created?.extra_data?.vectorization_warning) {
         showWarning('向量化提示', created.extra_data.vectorization_warning);
       } else {
@@ -165,7 +294,7 @@ const KnowledgeView: React.FC = () => {
       });
       setShowEditDialog(false);
       resetForm();
-      loadItems();
+      loadItems({ forceRefresh: true, page: 1 });
     } catch (error) {
       console.error('Failed to update knowledge:', error);
     } finally {
@@ -181,7 +310,7 @@ const KnowledgeView: React.FC = () => {
       await knowledgeApi.delete(currentItem.id);
       setShowDeleteDialog(false);
       setCurrentItem(null);
-      loadItems();
+      loadItems({ forceRefresh: true, page: 1 });
     } catch (error) {
       console.error('Failed to delete knowledge:', error);
     } finally {
@@ -277,9 +406,10 @@ const KnowledgeView: React.FC = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={loadItems}
+            onClick={() => loadItems({ forceRefresh: true, page: 1 })}
+            disabled={loading || refreshing}
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-blue-600' : ''}`} />
           </Button>
         </div>
       </div>
@@ -297,82 +427,97 @@ const KnowledgeView: React.FC = () => {
             <p className="text-xs mt-1">点击上方按钮创建你的第一个知识</p>
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    {getSourceIcon(item)}
-                    <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">
-                      {item.title}
-                    </h3>
+          <>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {items.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      {getSourceIcon(item)}
+                      <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">
+                        {item.title}
+                      </h3>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                          <MoreVertical className="w-3 h-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openEditDialog(item)}>
+                          <Edit2 className="w-3 h-3 mr-2" />
+                          编辑
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openDeleteDialog(item)}>
+                          <Trash2 className="w-3 h-3 mr-2 text-red-500" />
+                          <span className="text-red-500">删除</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                        <MoreVertical className="w-3 h-3" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openEditDialog(item)}>
-                        <Edit2 className="w-3 h-3 mr-2" />
-                        编辑
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => openDeleteDialog(item)}>
-                        <Trash2 className="w-3 h-3 mr-2 text-red-500" />
-                        <span className="text-red-500">删除</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
 
-                {item.content && (
-                  <p className="text-xs text-gray-500 line-clamp-2 mb-3">
-                    {item.content}
-                  </p>
-                )}
+                  {item.content && (
+                    <p className="text-xs text-gray-500 line-clamp-2 mb-3">
+                      {item.content.slice(0, 300)}
+                    </p>
+                  )}
 
-                {item.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mb-3">
-                    {item.tags.slice(0, 3).map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
-                      >
-                        <Tag className="w-2 h-2 mr-1" />
-                        {tag}
-                      </span>
-                    ))}
-                    {item.tags.length > 3 && (
-                      <span className="text-xs text-gray-400">
-                        +{item.tags.length - 3}
-                      </span>
+                  {item.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {item.tags.slice(0, 3).map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                        >
+                          <Tag className="w-2 h-2 mr-1" />
+                          {tag}
+                        </span>
+                      ))}
+                      {item.tags.length > 3 && (
+                        <span className="text-xs text-gray-400">
+                          +{item.tags.length - 3}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {item.extra_data?.vectorization_warning && (
+                    <div className="flex items-center gap-1 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-100 dark:border-amber-800 rounded px-2 py-1 text-[11px] mb-3">
+                      <AlertTriangle className="w-3 h-3" />
+                      <span className="truncate">{item.extra_data.vectorization_warning}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between text-xs text-gray-400">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      {formatDate(item.created_at)}
+                    </div>
+                    {item.chunk_count && (
+                      <span>{item.chunk_count} 个片段</span>
                     )}
                   </div>
-                )}
-
-                {item.extra_data?.vectorization_warning && (
-                  <div className="flex items-center gap-1 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-100 dark:border-amber-800 rounded px-2 py-1 text-[11px] mb-3">
-                    <AlertTriangle className="w-3 h-3" />
-                    <span className="truncate">{item.extra_data.vectorization_warning}</span>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between text-xs text-gray-400">
-                  <div className="flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    {formatDate(item.created_at)}
-                  </div>
-                  {item.chunk_count && (
-                    <span>{item.chunk_count} 个片段</span>
-                  )}
                 </div>
+              ))}
+            </div>
+
+            {loadingMore && (
+              <div className="flex items-center justify-center py-4 text-sm text-gray-500">
+                <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2" />
+                正在加载更多...
               </div>
-            ))}
-          </div>
+            )}
+            {!hasMore && items.length > 0 && (
+              <div className="flex items-center justify-center py-3 text-xs text-gray-400">
+                已经到底了
+              </div>
+            )}
+            <div ref={sentinelRef} className="h-4" />
+          </>
         )}
       </div>
 
