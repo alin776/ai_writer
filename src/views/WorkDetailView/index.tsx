@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Edit, Trash2, Plus, BookOpen, BarChart3, BookMarked, Download, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button, Card, Loading } from '../../components/common';
@@ -47,6 +47,7 @@ import styles from './WorkDetailView.module.css';
 const WorkDetailView: React.FC = () => {
   const { workId } = useParams<{ workId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
   const { showToast } = useGlobalStore();
   const { user, setUser } = useAuthStore();
@@ -294,11 +295,28 @@ const WorkDetailView: React.FC = () => {
           guidelines: undefined,
           aiGuidelines: undefined,
         });
-        const [workData, chaptersData, worldDataFromServer] = await Promise.all([
-          DataService.getWork(workId),
-          DataService.getChapters(workId),
-          DataService.getWorldData(workId),
-        ]);
+
+        // 检查是否有预加载数据（从导入页面跳转时携带）
+        const preloadedData = (location.state as any)?.preloadedData;
+        let workData, chaptersData, worldDataFromServer;
+
+        if (preloadedData?.work && preloadedData?.chapters) {
+          // 使用预加载数据，无需再次请求
+          console.log('[WorkDetailView] 使用预加载数据');
+          workData = preloadedData.work;
+          chaptersData = preloadedData.chapters;
+          worldDataFromServer = preloadedData.worldData;
+          // 清除 location state，避免刷新时再次使用旧数据
+          window.history.replaceState({}, document.title);
+        } else {
+          // 正常从服务器获取数据
+          [workData, chaptersData, worldDataFromServer] = await Promise.all([
+            DataService.getWork(workId),
+            DataService.getChapters(workId),
+            DataService.getWorldData(workId),
+          ]);
+        }
+
         setLastWork(workId, workData?.title);
         setWork(workData);
         setChapters(chaptersData);

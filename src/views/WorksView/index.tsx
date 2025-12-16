@@ -564,14 +564,32 @@ const WorksView: React.FC = () => {
       };
 
       const result = await DataService.importWork(importFile, options);
-      console.log('[导入结果]', result); // 调试日志
+      console.log('[导入结果]', result);
       const chaptersCount = result.chaptersCreated ?? 0;
+      const workId = result.workId;
+
+      // 预加载作品详情页需要的数据，避免跳转后再等待
+      console.log('[导入] 预加载作品数据...');
+      const [workData, chaptersData, worldData] = await Promise.all([
+        DataService.getWork(workId),
+        DataService.getChapters(workId),
+        DataService.getWorldData(workId),
+      ]);
+
       showToast('success', t('works.import.success', { count: chaptersCount }));
       closeImportModal();
-      await loadWorks(); // 重新加载作品列表
+      loadWorks(); // 后台刷新作品列表，不阻塞跳转
 
-      // 导入成功后跳转到作品详情页
-      navigate(`/works/${result.workId}`);
+      // 携带预加载数据跳转，作品详情页可直接使用
+      navigate(`/works/${workId}`, {
+        state: {
+          preloadedData: {
+            work: workData,
+            chapters: chaptersData,
+            worldData: worldData,
+          }
+        }
+      });
     } catch (error: any) {
       console.error('导入失败:', error);
       showToast('error', error?.message || t('works.import.error'));
