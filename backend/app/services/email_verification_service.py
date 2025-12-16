@@ -190,10 +190,19 @@ class EmailVerificationService:
         msg.attach(MIMEText(html, 'html', 'utf-8'))
 
         try:
-            with smtplib.SMTP(smtp_host, smtp_port) as server:
-                server.starttls()
-                server.login(smtp_user, smtp_password)
-                server.send_message(msg)
+            # 根据端口选择连接方式：465用SSL，其他用STARTTLS
+            if smtp_port == 465:
+                server = smtplib.SMTP_SSL(smtp_host, smtp_port)
+                try:
+                    server.login(smtp_user, smtp_password)
+                    server.send_message(msg)
+                finally:
+                    server.quit()
+            else:
+                with smtplib.SMTP(smtp_host, smtp_port) as server:
+                    server.starttls()
+                    server.login(smtp_user, smtp_password)
+                    server.send_message(msg)
         except Exception as e:
             logger.error(f"SMTP 发送失败: {e}")
             raise
