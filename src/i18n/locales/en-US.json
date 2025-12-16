@@ -558,7 +558,7 @@
       "discard": "Discard"
     },
     "summary": {
-      "chapterNum": "Chapter {{num}}: ",
+      "chapterNum": "Chapter {num}: ",
       "noChapterSummary": "No chapter summaries yet. Please generate summaries for chapters first.",
       "loadNovelFailed": "Failed to load novel summary",
       "loadFailed": "Failed to load",
@@ -568,7 +568,7 @@
       "generateSuccess": "Summary generated successfully",
       "generateFailed": "Failed to generate summary",
       "allChaptersHaveSummary": "All chapters already have summaries",
-      "startGenerating": "Starting to generate summaries for {{count}} chapters...",
+      "startGenerating": "Starting to generate summaries for {count} chapters...",
       "allChaptersComplete": "All chapter summaries generated",
       "getWorldviewFailed": "Failed to get worldview",
       "novelSummary": "Novel Summary",
@@ -631,7 +631,7 @@
     "empty": "No works yet",
     "emptyDesc": "Start creating your first work",
     "emptyFilterDesc": "No matching works found. Try adjusting your filters",
-    "totalWorks": "{{count}} works in total",
+    "totalWorks": "{count} works in total",
     "viewDetails": "View Details",
     "editInfo": "Edit Info",
     "stats": {
@@ -885,19 +885,19 @@
       "deleteChapter": {
         "title": "Delete Chapter",
         "message": "Are you sure you want to delete this chapter? This action cannot be undone.",
-        "confirmMessage": "Are you sure you want to delete chapter \"{{title}}\"? This action cannot be undone."
+        "confirmMessage": "Are you sure you want to delete chapter \"{title}\"? This action cannot be undone."
       },
       "deleteCharacter": {
         "title": "Delete Character",
-        "message": "Are you sure you want to delete character \"{{name}}\"? This action cannot be undone."
+        "message": "Are you sure you want to delete character \"{name}\"? This action cannot be undone."
       },
       "deleteLocation": {
         "title": "Delete Location",
-        "message": "Are you sure you want to delete location \"{{name}}\"? This action cannot be undone."
+        "message": "Are you sure you want to delete location \"{name}\"? This action cannot be undone."
       },
       "deleteSetting": {
         "title": "Delete Setting",
-        "message": "Are you sure you want to delete setting \"{{title}}\"? This action cannot be undone."
+        "message": "Are you sure you want to delete setting \"{title}\"? This action cannot be undone."
       }
     }
   }
