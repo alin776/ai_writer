@@ -553,9 +553,11 @@ class ImportService:
             if match1 or match2 or match3:
                 # 保存上一章节
                 if current_chapter:
+                    raw_content = '\n'.join(current_content).strip()
+                    html_content = self._convert_text_to_html(raw_content)
                     chapters.append({
                         'title': current_chapter,
-                        'content': '\n'.join(current_content).strip()
+                        'content': html_content
                     })
                 
                 # 开始新章节
@@ -568,9 +570,30 @@ class ImportService:
         
         # 保存最后一章
         if current_chapter and current_content:
+            raw_content = '\n'.join(current_content).strip()
+            html_content = self._convert_text_to_html(raw_content)
             chapters.append({
                 'title': current_chapter,
-                'content': '\n'.join(current_content).strip()
+                'content': html_content
             })
-        
+
         return chapters
+
+    def _convert_text_to_html(self, text: str) -> str:
+        """将纯文本转换为HTML段落格式
+
+        中文小说格式：每个非空行都是一个独立段落
+        """
+        if not text or not text.strip():
+            return ""
+
+        # 将每个非空行转换为 <p> 标签
+        lines = text.split('\n')
+        html_paragraphs = []
+
+        for line in lines:
+            stripped_line = line.strip()
+            if stripped_line:  # 只处理非空行
+                html_paragraphs.append(f'<p>{stripped_line}</p>')
+
+        return ''.join(html_paragraphs)
