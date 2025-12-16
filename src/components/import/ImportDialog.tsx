@@ -65,7 +65,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
       setPreview(previewData);
     } catch (err: any) {
       console.error('预览失败:', err);
-      setError(err.message || '预览失败，请检查文件格式或编码（推荐 UTF-8）');
+      setError(err.detail || err.message || '预览失败，请检查文件格式');
       setPreview(null);
     } finally {
       setPreviewing(false);
@@ -130,7 +130,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
       onClose();
     } catch (err: any) {
       console.error('导入失败:', err);
-      setError(err.message || '导入失败，请稍后重试');
+      setError(err.detail || err.message || '导入失败，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -222,7 +222,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
             onChange={handleFileChange}
             accept=".json,.md,.markdown,.txt"
             placeholder="点击选择文件或拖拽到此处"
-            description="支持 JSON、Markdown、TXT（TXT/MD 最大 10MB，需 UTF-8 编码）"
+            description="支持 JSON、Markdown、TXT（TXT/MD 最大 10MB，支持 UTF-8/GBK 编码）"
             note={importMode === 'existing' ? '追加模式仅支持 Markdown/TXT' : undefined}
             disabled={previewing || loading}
           />

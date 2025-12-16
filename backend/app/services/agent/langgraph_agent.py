@@ -5277,10 +5277,9 @@ chapter_id: {chapter_id}
         )
 
         logger.info(
-            f"[Summarization] 上下文压缩: "
+            f"[Summarization] 上下文处理: "
             f"原始={len(all_context)}字符, "
-            f"压缩后={len(compressed_context)}字符, "
-            f"压缩率={(100 - len(compressed_context) * 100 // len(all_context)) if len(all_context) > 0 else 0}%"
+            f"处理后={len(compressed_context)}字符"
         )
 
         # ✅ P0修复: 将知识库文档注入到总结prompt中

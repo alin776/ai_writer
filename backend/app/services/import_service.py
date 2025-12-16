@@ -153,10 +153,7 @@ class ImportService:
         format: str
     ) -> ImportPreviewResponse:
         """预览文本/Markdown格式"""
-        try:
-            text = content.decode('utf-8')
-        except UnicodeDecodeError:
-            raise ValueError("仅支持 UTF-8 编码，请转换后重试")
+        text = self._smart_decode(content)
         
         # 提取标题（第一行或第一个#标题）
         title = self._extract_title(text)
@@ -396,10 +393,7 @@ class ImportService:
         """导入文本/Markdown格式"""
         logger.info(f"用户 {user_id} 开始导入文本数据")
 
-        try:
-            text = content.decode('utf-8')
-        except UnicodeDecodeError:
-            raise ValueError("仅支持 UTF-8 编码，请转换后重试")
+        text = self._smart_decode(content)
         
         # 提取标题
         title = self._extract_title(text)
@@ -500,6 +494,16 @@ class ImportService:
             ),
             vectorize_jobs
         )
+
+    def _smart_decode(self, content: bytes) -> str:
+        """智能解码，支持 UTF-8、GBK、GB18030 等常见中文编码"""
+        encodings = ['utf-8', 'gbk', 'gb18030']
+        for encoding in encodings:
+            try:
+                return content.decode(encoding)
+            except (UnicodeDecodeError, LookupError):
+                continue
+        raise ValueError("无法识别文件编码，请将文件转换为 UTF-8 编码后重试")
 
     def _calculate_word_count(self, content: str) -> int:
         """统一的字数计算逻辑"""
