@@ -18,6 +18,7 @@ interface NovelReaderProps {
   chapterId?: string;
   onBack: () => void;
   initialChapters?: ChapterListItem[];  // 从 NovelDetail 传入的章节列表，避免重复调用 API
+  novelTitle?: string;  // 小说名称，显示在顶部导航栏
 }
 
 interface Chapter {
@@ -38,7 +39,7 @@ interface ChapterListItem {
   publishedAt: string;
 }
 
-export function NovelReader({ workId, chapterId, onBack, initialChapters }: NovelReaderProps) {
+export function NovelReader({ workId, chapterId, onBack, initialChapters, novelTitle }: NovelReaderProps) {
   const { error: showError } = useGlobalStore();
   const { effectiveTheme } = useTheme();
   const isDarkMode = effectiveTheme === 'dark';
@@ -202,10 +203,10 @@ export function NovelReader({ workId, chapterId, onBack, initialChapters }: Nove
 
           <div className="flex-1 mx-4 text-center">
             <h1 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-              {currentChapter?.title || '加载中...'}
+              {novelTitle || '小说阅读'}
             </h1>
             <p className="text-xs text-gray-500 dark:text-slate-400">
-              {currentIndex >= 0 ? `${currentIndex + 1}/${chapters.length}` : ''}
+              {currentIndex >= 0 ? `第${currentIndex + 1}章 / 共${chapters.length}章` : '加载中...'}
             </p>
           </div>
 
@@ -282,34 +283,48 @@ export function NovelReader({ workId, chapterId, onBack, initialChapters }: Nove
 
             {/* 字体大小 */}
             <div className="mb-6">
-              <label className="text-sm text-gray-700 dark:text-slate-300 mb-2 block">
-                字体大小: {fontSize}px
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm text-gray-700 dark:text-slate-300">
+                  字体大小
+                </label>
+                <span className="text-sm text-gray-900 dark:text-white font-medium">{fontSize}px</span>
+              </div>
               <input
                 type="range"
-                min="14"
-                max="28"
-                step="2"
+                min={14}
+                max={28}
+                step={2}
                 value={fontSize}
                 onChange={(e) => setFontSize(Number(e.target.value))}
-                className="w-full"
+                className="w-full h-2 bg-gray-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
+              <div className="flex justify-between text-xs text-gray-500 dark:text-slate-400 mt-1">
+                <span>14px</span>
+                <span>28px</span>
+              </div>
             </div>
 
             {/* 行高 */}
             <div className="mb-6">
-              <label className="text-sm text-gray-700 dark:text-slate-300 mb-2 block">
-                行高: {lineHeight}
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm text-gray-700 dark:text-slate-300">
+                  行高
+                </label>
+                <span className="text-sm text-gray-900 dark:text-white font-medium">{lineHeight}</span>
+              </div>
               <input
                 type="range"
-                min="1.2"
-                max="2.5"
-                step="0.1"
+                min={1.2}
+                max={2.5}
+                step={0.1}
                 value={lineHeight}
                 onChange={(e) => setLineHeight(Number(e.target.value))}
-                className="w-full"
+                className="w-full h-2 bg-gray-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
+              <div className="flex justify-between text-xs text-gray-500 dark:text-slate-400 mt-1">
+                <span>1.2</span>
+                <span>2.5</span>
+              </div>
             </div>
 
             {/* 主题 */}
@@ -371,17 +386,19 @@ export function NovelReader({ workId, chapterId, onBack, initialChapters }: Nove
             </div>
 
             {/* 章节内容 */}
-            <div
-              className="prose prose-lg max-w-none mb-12"
-              style={{
-                fontSize: `${fontSize}px`,
-                lineHeight: lineHeight,
-                color: textColor,
-              }}
-            >
+            <div className="max-w-none mb-12">
               <style>
                 {`
-                  .chapter-content p {
+                  .chapter-content {
+                    font-size: ${fontSize}px;
+                    line-height: ${lineHeight};
+                    color: ${textColor};
+                  }
+                  .chapter-content p,
+                  .chapter-content div,
+                  .chapter-content span {
+                    font-size: ${fontSize}px;
+                    line-height: ${lineHeight};
                     margin-bottom: 1.5em;
                     text-indent: 2em;
                     text-align: justify;
@@ -397,34 +414,26 @@ export function NovelReader({ workId, chapterId, onBack, initialChapters }: Nove
               />
             </div>
 
-            {/* 底部翻页按钮 */}
-            <div className="flex items-center justify-between gap-4 py-8 border-t border-gray-200 dark:border-slate-700">
+                        {/* 底部翻页按钮 */}
+            <div className="flex items-center justify-center gap-6 py-8 border-t border-gray-200 dark:border-slate-700">
               <button
                 onClick={handlePrevChapter}
                 disabled={!hasPrev}
-                className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-slate-700"
+                className="p-3 bg-white dark:bg-slate-800 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-slate-700"
                 style={{ color: textColor }}
+                title="上一章"
               >
-                <ChevronLeft className="w-5 h-5" />
-                <span>上一章</span>
-              </button>
-
-              <button
-                onClick={() => setShowChapterList(true)}
-                className="px-6 py-3 bg-white dark:bg-slate-800 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
-                style={{ color: textColor }}
-              >
-                目录
+                <ChevronLeft className="w-6 h-6" />
               </button>
 
               <button
                 onClick={handleNextChapter}
                 disabled={!hasNext}
-                className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-slate-700"
+                className="p-3 bg-white dark:bg-slate-800 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-slate-700"
                 style={{ color: textColor }}
+                title="下一章"
               >
-                <span>下一章</span>
-                <ChevronRight className="w-5 h-5" />
+                <ChevronRight className="w-6 h-6" />
               </button>
             </div>
           </>

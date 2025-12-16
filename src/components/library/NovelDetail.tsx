@@ -444,6 +444,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
           setCurrentReadingState(novel.id, false);
         }}
         initialChapters={chapters}
+        novelTitle={novelData?.title}
       />
     );
   }
