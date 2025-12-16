@@ -1,5 +1,5 @@
-﻿"""
-鐭ヨ瘑搴揂PI璺敱
+"""
+知识库API路由
 """
 import json
 import io
@@ -36,16 +36,16 @@ async def create_knowledge_item(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    鍒涘缓鐭ヨ瘑鏉＄洰
+    创建知识条目
 
-    - **title**: 鏍囬
-    - **content**: 鍐呭
-    - **category**: 鍒嗙被
-    - **tags**: 鏍囩鍒楄〃
-    - **source_type**: 鏉ユ簮绫诲瀷
-    - **source_reference**: 鏉ユ簮璇存槑
-    - **work_id**: 鍏宠仈浣滃搧ID锛堝彲閫夛級
-    - **chapter_id**: 鍏宠仈绔犺妭ID锛堝彲閫夛級
+    - **title**: 标题
+    - **content**: 内容
+    - **category**: 分类
+    - **tags**: 标签列表
+    - **source_type**: 来源类型
+    - **source_reference**: 来源说明
+    - **work_id**: 关联作品ID（可选）
+    - **chapter_id**: 关联章节ID（可选）
     """
     service = KnowledgeService(db)
     item = await service.create_item(
@@ -57,23 +57,23 @@ async def create_knowledge_item(
 
 @router.get("", response_model=KnowledgeItemListResponse)
 async def get_knowledge_items(
-    skip: int = Query(0, ge=0, description="璺宠繃鏁伴噺"),
-    limit: int = Query(20, ge=1, le=100, description="姣忛〉澶у皬"),
-    category: Optional[KnowledgeCategory] = Query(None, description="鍒嗙被杩囨护"),
-    tags: Optional[str] = Query(None, description="鏍囩杩囨护(閫楀彿鍒嗛殧)"),
-    work_id: Optional[str] = Query(None, description="浣滃搧ID杩囨护"),
+    skip: int = Query(0, ge=0, description="跳过数量"),
+    limit: int = Query(20, ge=1, le=100, description="每页大小"),
+    category: Optional[KnowledgeCategory] = Query(None, description="分类过滤"),
+    tags: Optional[str] = Query(None, description="标签过滤(逗号分隔)"),
+    work_id: Optional[str] = Query(None, description="作品ID过滤"),
     search: Optional[str] = Query(None, description="Search keyword"),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    鑾峰彇鐭ヨ瘑鏉＄洰鍒楄〃
+    获取知识条目列表
 
-    鏀寔鍒嗙被銆佹爣绛俱€佷綔鍝併€佸叧閿瘝杩囨护鍜屽垎椤?
+    支持分类、标签、作品、关键词过滤和分页
     """
     service = KnowledgeService(db)
 
-    # 瑙ｆ瀽鏍囩
+    # 解析标签
     tag_list = None
     if tags:
         tag_list = [t.strip() for t in tags.split(",") if t.strip()]
@@ -103,7 +103,7 @@ async def get_knowledge_tags(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """鑾峰彇褰撳墠鐢ㄦ埛鐨勬爣绛惧垪琛紙鍘婚噸锛?"""
+    """获取当前用户的标签列表（去重）"""
     stmt = (
         select(func.distinct(func.unnest(KnowledgeItem.tags)))
         .where(KnowledgeItem.user_id == current_user.id)
@@ -118,7 +118,7 @@ async def get_knowledge_titles(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """鑾峰彇褰撳墠鐢ㄦ埛鐨勭煡璇嗗簱鏂囨。鍒楄〃锛坕d + title锛夛紝鐢ㄤ簬@寮曠敤閫夋嫨"""
+    """获取当前用户的知识库文档列表（id + title），用于@引用选择"""
     stmt = (
         select(KnowledgeItem.id, KnowledgeItem.title)
         .where(KnowledgeItem.user_id == current_user.id)
@@ -135,7 +135,7 @@ async def get_knowledge_item(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """鑾峰彇鐭ヨ瘑鏉＄洰璇︽儏"""
+    """获取知识条目详情"""
     service = KnowledgeService(db)
     item = await service.get_item(
         item_id=item_id,
@@ -159,7 +159,7 @@ async def update_knowledge_item(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """鏇存柊鐭ヨ瘑鏉＄洰"""
+    """更新知识条目"""
     service = KnowledgeService(db)
     item = await service.update_item(
         item_id=item_id,
@@ -182,7 +182,7 @@ async def delete_knowledge_item(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """鍒犻櫎鐭ヨ瘑鏉＄洰"""
+    """删除知识条目"""
     service = KnowledgeService(db)
     success = await service.delete_item(
         item_id=item_id,
@@ -203,9 +203,9 @@ async def search_knowledge(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    璇箟鎼滅储鐭ヨ瘑搴?
+    语义搜索知识库
 
-    浣跨敤RAG鍚戦噺妫€绱㈡妧鏈紝鏍规嵁璇箟鐩镐技搴︽悳绱㈢浉鍏崇煡璇嗘潯鐩?
+    使用RAG向量检索技术，根据语义相似度搜索相关知识条目
     """
     service = KnowledgeService(db)
 
@@ -218,7 +218,7 @@ async def search_knowledge(
         top_k=request.top_k
     )
 
-    # 杞崲涓哄搷搴旀牸寮?
+    # 转换为响应格式
     search_results = [
         KnowledgeSearchResult(
             item=result['item'],
@@ -235,34 +235,33 @@ async def search_knowledge(
     )
 
 
-
-
 @router.post("/upload", response_model=KnowledgeItemResponse, status_code=status.HTTP_201_CREATED)
 async def upload_knowledge_item(
-    file: UploadFile = File(..., description="鐭ヨ瘑搴撴枃浠讹紝鏀寔 txt/markdown/pdf/docx锛堣嚜鍔ㄦ彁鍙栨枃鏈級"),
+    file: UploadFile = File(..., description="知识库文件，支持 txt/markdown/pdf/docx（自动提取文本）"),
     title: str = Form(...),
     category: KnowledgeCategory = Form(...),
-    tags: Optional[str] = Form(None, description="鏍囩锛岄€楀彿鍒嗛殧鎴?JSON 鏁扮粍"),
-    source_reference: Optional[str] = Form(None, description="鏉ユ簮璇存槑"),
+    tags: Optional[str] = Form(None, description="标签，逗号分隔或JSON数组"),
+    source_reference: Optional[str] = Form(None, description="来源说明"),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    涓婁紶鏂囦欢骞跺垱寤虹煡璇嗘潯鐩紙璇诲彇鏂囨湰鍐呭瀛樺偍锛?
+    上传文件并创建知识条目（读取文本内容存储）
     """
     try:
         content_bytes = await file.read()
 
         if len(content_bytes) == 0:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="鏂囦欢涓虹┖")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="文件为空")
         if len(content_bytes) > MAX_UPLOAD_SIZE:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="鏂囦欢杩囧ぇ锛岄檺鍒?5MB")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="文件过大，限制5MB")
 
         content_text = _extract_text_from_upload(file, content_bytes)
-        if not content_text.strip():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="鏈彁鍙栧埌鏈夋晥鏂囨湰鍐呭")
 
-        # 瑙ｆ瀽鏍囩
+        if not content_text.strip():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="未提取到有效文本内容")
+
+        # 解析标签
         tag_list: List[str] = []
         if tags:
             try:
@@ -300,23 +299,27 @@ async def upload_knowledge_item(
 
 def _extract_text_from_upload(file: UploadFile, content_bytes: bytes) -> str:
     """
-    鏍规嵁鏂囦欢绫诲瀷鎻愬彇鏂囨湰鍐呭
-    鏀寔 txt/markdown/pdf/docx锛岄粯璁ゅ皾璇?UTF-8 瑙ｇ爜
+    根据文件类型提取文本内容
+    支持 txt/markdown/pdf/docx，自动检测编码
     """
     filename = file.filename or ""
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
     if ext in ["txt", "md", "markdown", ""]:
-        try:
-            return content_bytes.decode("utf-8")
-        except UnicodeDecodeError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="浠呮敮鎸?UTF-8 鏂囨湰鏂囦欢")
+        # 尝试多种编码
+        encodings = ["utf-8", "gbk", "gb2312", "gb18030", "utf-16", "big5"]
+        for encoding in encodings:
+            try:
+                return content_bytes.decode(encoding)
+            except (UnicodeDecodeError, LookupError):
+                continue
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无法识别文件编码，请转换为UTF-8后重试")
 
     if ext == "pdf":
         try:
             import pdfplumber
         except ImportError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="鏈嶅姟鍣ㄦ湭瀹夎 pdfplumber锛屾殏涓嶆敮鎸?PDF 涓婁紶")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="服务器未安装 pdfplumber，暂不支持 PDF 上传")
         with pdfplumber.open(io.BytesIO(content_bytes)) as pdf:
             texts = [page.extract_text() or "" for page in pdf.pages]
         return "\n".join(t for t in texts if t)
@@ -325,19 +328,22 @@ def _extract_text_from_upload(file: UploadFile, content_bytes: bytes) -> str:
         try:
             from docx import Document
         except ImportError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="鏈嶅姟鍣ㄦ湭瀹夎 python-docx锛屾殏涓嶆敮鎸?DOCX 涓婁紶")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="服务器未安装 python-docx，暂不支持 DOCX 上传")
         doc = Document(io.BytesIO(content_bytes))
         paragraphs = [p.text for p in doc.paragraphs if p.text]
         return "\n".join(paragraphs)
 
-    # 榛樿灏濊瘯 UTF-8 瑙ｇ爜
-    try:
-        return content_bytes.decode("utf-8")
-    except UnicodeDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported file type or encoding"
-        )
+    # 默认尝试多种编码
+    encodings = ["utf-8", "gbk", "gb2312", "gb18030", "utf-16", "big5"]
+    for encoding in encodings:
+        try:
+            return content_bytes.decode(encoding)
+        except (UnicodeDecodeError, LookupError):
+            continue
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Unsupported file type or encoding"
+    )
 
 
 @router.post("/{item_id}/reference", status_code=status.HTTP_200_OK)
@@ -347,9 +353,9 @@ async def increment_reference_count(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    澧炲姞寮曠敤娆℃暟
+    增加引用次数
 
-    褰撶敤鎴峰湪缂栬緫鍣ㄤ腑寮曠敤璇ョ煡璇嗘潯鐩椂璋冪敤
+    当用户在编辑器中引用该知识条目时调用
     """
     service = KnowledgeService(db)
     success = await service.increment_reference_count(

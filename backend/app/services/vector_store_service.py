@@ -594,7 +594,7 @@ class VectorStoreService:
         text: str,
         chunk_size: int = 800,
         overlap: int = 200,
-        max_chunks: int = 200
+        max_chunks: int = 500
     ) -> Tuple[List[str], Dict[str, Any]]:
         """
         按字符长度切分长文本，带简单重叠，并对块数量做上限防护，
