@@ -44,20 +44,43 @@ export default function NovelSquareView() {
   const {
     novelSquareBrowseState,
     setNovelSquareBrowseState,
+    clearNovelSquareBrowseState,
     novelSquareReadingState,
-    clearNovelSquareReadingState
+    clearNovelSquareReadingState,
+    hasHydrated,
   } = useWorkNavStore();
 
-  // 从持久化状态初始化，如果没有则使用默认值
-  const [selectedCategory, setSelectedCategory] = useState(novelSquareBrowseState?.category || '全部');
-  const [searchQuery, setSearchQuery] = useState(novelSquareBrowseState?.searchQuery || '');
+  // 直接从 store 获取初始状态（同步，避免 useEffect 延迟）
+  const getInitialState = () => {
+    const state = useWorkNavStore.getState();
+    return state.novelSquareBrowseState;
+  };
+
+  // 使用函数初始化，确保获取最新的 store 状态
+  const [selectedCategory, setSelectedCategory] = useState(() => {
+    const saved = getInitialState();
+    return saved?.category || '全部';
+  });
+  const [searchQuery, setSearchQuery] = useState(() => {
+    const saved = getInitialState();
+    return saved?.searchQuery || '';
+  });
   const [selectedNovel, setSelectedNovel] = useState<Novel | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState(novelSquareBrowseState?.status || '全部');
-  const [selectedSort, setSelectedSort] = useState(novelSquareBrowseState?.sort || '最新');
+  const [selectedStatus, setSelectedStatus] = useState(() => {
+    const saved = getInitialState();
+    return saved?.status || '全部';
+  });
+  const [selectedSort, setSelectedSort] = useState(() => {
+    const saved = getInitialState();
+    return saved?.sort || '最新';
+  });
 
   const [novels, setNovels] = useState<Novel[]>([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(novelSquareBrowseState?.page || 1);
+  const [page, setPage] = useState(() => {
+    const saved = getInitialState();
+    return saved?.page || 1;
+  });
   const [hasMore, setHasMore] = useState(true);
 
   const { showToast } = useToast();
@@ -66,6 +89,18 @@ export default function NovelSquareView() {
   const hasRestoredRef = useRef(false);
   // 用于标记是否已初始化加载
   const hasInitializedRef = useRef(false);
+
+  // 用于在组件卸载时保存状态（ref 保存最新值，避免闭包问题）
+  const browseStateRef = useRef({
+    page: getInitialState()?.page || 1,
+    category: getInitialState()?.category || '全部',
+    status: getInitialState()?.status || '全部',
+    sort: getInitialState()?.sort || '最新',
+    searchQuery: getInitialState()?.searchQuery || '',
+  });
+
+  // 用于跟踪是否在详情页（避免清理函数中的闭包问题）
+  const isInDetailRef = useRef(false);
 
   // 根据类型生成默认封面
   const getDefaultCover = (genre: string): string => {
@@ -100,6 +135,89 @@ export default function NovelSquareView() {
       isFeatured: work.isFeatured,
     };
   };
+
+  // 同步更新 browseStateRef，确保组件卸载时能获取最新值
+  useEffect(() => {
+    browseStateRef.current = {
+      page,
+      category: selectedCategory,
+      status: selectedStatus,
+      sort: selectedSort,
+      searchQuery,
+    };
+  }, [page, selectedCategory, selectedStatus, selectedSort, searchQuery]);
+
+  // 同步更新 isInDetailRef
+  useEffect(() => {
+    isInDetailRef.current = selectedNovel !== null;
+  }, [selectedNovel]);
+
+  // 组件卸载时保存浏览状态（当用户通过侧边栏导航离开时）
+  useEffect(() => {
+    return () => {
+      console.log('[NovelSquare] 组件卸载，isInDetail:', isInDetailRef.current, '当前状态:', JSON.stringify(browseStateRef.current));
+      // 只在列表页面（非详情页）卸载时保存状态
+      if (!isInDetailRef.current) {
+        console.log('[NovelSquare] 保存浏览状态:', JSON.stringify(browseStateRef.current));
+        setNovelSquareBrowseState(browseStateRef.current);
+      }
+    };
+  }, [setNovelSquareBrowseState]);
+
+  // 初始化加载数据
+  useEffect(() => {
+    // 等待 hydration 完成
+    if (!hasHydrated) {
+      console.log('[NovelSquare] 等待 hydration...');
+      return;
+    }
+
+    // 防止重复加载
+    if (hasInitializedRef.current) {
+      return;
+    }
+    hasInitializedRef.current = true;
+
+    // 获取初始状态（可能从 localStorage 恢复的）
+    const initialState = getInitialState();
+    console.log('[NovelSquare] 初始化加载，保存的状态:', JSON.stringify(initialState));
+    console.log('[NovelSquare] 当前 UI 状态:', JSON.stringify({ selectedCategory, selectedStatus, selectedSort, searchQuery, page }));
+
+    // 加载数据
+    const loadInitialData = async () => {
+      try {
+        setLoading(true);
+        const targetPage = initialState?.page || 1;
+        const totalToLoad = targetPage > 1 ? targetPage * 20 : 20;
+        const category = initialState?.category || '全部';
+        const search = initialState?.searchQuery?.trim() || undefined;
+        const sort = initialState?.sort || '最新';
+
+        console.log('[NovelSquare] 加载数据，参数:', { targetPage, category, search, sort });
+
+        const response = await DataService.getPublishedNovels({
+          skip: 0,
+          limit: totalToLoad,
+          genre: GENRE_MAP[category],
+          search: search,
+          sortBy: SORT_MAP[sort],
+        });
+
+        const newNovels = response.items.map(convertToNovel);
+        setNovels(newNovels);
+        setHasMore(newNovels.length === totalToLoad);
+
+        console.log('[NovelSquare] 数据加载完成，共', newNovels.length, '条');
+      } catch (error: any) {
+        console.error('加载小说列表失败:', error);
+        showToast('error', '加载失败，请稍后重试');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadInitialData();
+  }, [hasHydrated]);
 
   // 加载小说列表（支持加载到指定页数）
   const loadNovels = async (reset = false, targetPage?: number) => {
@@ -148,19 +266,6 @@ export default function NovelSquareView() {
     });
   };
 
-  // 初始加载（恢复持久化状态或默认加载）
-  useEffect(() => {
-    if (hasInitializedRef.current) return;
-    hasInitializedRef.current = true;
-
-    // 如果有持久化的浏览状态，加载到对应页
-    if (novelSquareBrowseState && novelSquareBrowseState.page > 1) {
-      loadNovels(true, novelSquareBrowseState.page);
-    } else {
-      loadNovels(true);
-    }
-  }, []);
-
   // 筛选条件变化时重新加载
   useEffect(() => {
     // 跳过初始化时的加载
@@ -192,7 +297,7 @@ export default function NovelSquareView() {
         author: '',
         category: '其他',
         description: '',
-        cover: '',
+        cover: getDefaultCover('other'),
         views: 0,
         likes: 0,
         rating: 0,
@@ -203,6 +308,13 @@ export default function NovelSquareView() {
 
     restoreState();
   }, [novelSquareReadingState, novels]);
+
+  // 当阅读状态被清除时，重置恢复标记以允许后续恢复
+  useEffect(() => {
+    if (!novelSquareReadingState) {
+      hasRestoredRef.current = false;
+    }
+  }, [novelSquareReadingState]);
 
   // 搜索防抖
   useEffect(() => {
@@ -244,7 +356,7 @@ export default function NovelSquareView() {
       author: '',
       category: '其他',
       description: '',
-      cover: '',
+      cover: getDefaultCover('other'),
       views: 0,
       likes: 0,
       rating: 0,
@@ -259,6 +371,15 @@ export default function NovelSquareView() {
     saveBrowseState();
     setSelectedNovel(novel);
   };
+
+  // 等待 hydration 完成
+  if (!hasHydrated) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-slate-900">
+        <Loader2 className="w-8 h-8 text-gray-400 dark:text-slate-500 animate-spin" />
+      </div>
+    );
+  }
 
   if (selectedNovel) {
     return (
@@ -300,6 +421,8 @@ export default function NovelSquareView() {
                   setSelectedSort('最新');
                   setSearchQuery('');
                   setPage(1);
+                  // 清除持久化的浏览状态
+                  clearNovelSquareBrowseState();
                 }}
                 className="px-4 py-2 bg-black dark:bg-slate-700 text-white text-sm hover:bg-gray-800 dark:hover:bg-slate-600 transition-colors"
               >
@@ -379,6 +502,14 @@ export default function NovelSquareView() {
                   onClick={() => {
                     const newPage = page + 1;
                     setPage(newPage);
+                    // 保存新的分页状态（使用新页码而非当前状态中的页码）
+                    setNovelSquareBrowseState({
+                      page: newPage,
+                      category: selectedCategory,
+                      status: selectedStatus,
+                      sort: selectedSort,
+                      searchQuery,
+                    });
                     loadNovels(false);
                   }}
                   disabled={loading}

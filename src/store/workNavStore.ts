@@ -16,6 +16,29 @@ interface NovelSquareBrowseState {
   searchQuery: string;
 }
 
+// 验证浏览状态是否有效
+const isValidBrowseState = (state: any): state is NovelSquareBrowseState => {
+  if (!state || typeof state !== 'object') return false;
+  return (
+    typeof state.page === 'number' &&
+    state.page >= 1 &&
+    typeof state.category === 'string' &&
+    typeof state.status === 'string' &&
+    typeof state.sort === 'string' &&
+    typeof state.searchQuery === 'string'
+  );
+};
+
+// 验证阅读状态是否有效
+const isValidReadingState = (state: any): state is ReadingState => {
+  if (!state || typeof state !== 'object') return false;
+  return (
+    typeof state.novelId === 'string' &&
+    state.novelId.length > 0 &&
+    typeof state.isReading === 'boolean'
+  );
+};
+
 interface WorkNavState {
   lastWorkId: string | null;
   lastWorkTitle: string | null;
@@ -30,6 +53,8 @@ interface WorkNavState {
   novelSquareBrowseState: NovelSquareBrowseState | null;
   // 存储用户书架状态 { workId: boolean } - 用于持久化红心状态
   bookshelfMap: Record<string, boolean>;
+  // 标记持久化是否完成（用于等待 hydration）
+  hasHydrated: boolean;
   setLastWork: (workId: string, title?: string | null) => void;
   clearLastWork: () => void;
   // 保存某个作品的最后阅读章节
@@ -56,6 +81,8 @@ interface WorkNavState {
   getBookshelfStatus: (workId: string) => boolean;
   // 清除书架状态（用于从书架移除时）
   removeFromBookshelfMap: (workId: string) => void;
+  // 设置持久化完成标记
+  setHasHydrated: (value: boolean) => void;
 }
 
 /**
@@ -74,6 +101,7 @@ export const useWorkNavStore = create<WorkNavState>()(
       bookshelfReadingState: null,
       novelSquareBrowseState: null,
       bookshelfMap: {},
+      hasHydrated: false,
       setLastWork: (workId, title = null) => {
         set({
           lastWorkId: workId,
@@ -122,6 +150,7 @@ export const useWorkNavStore = create<WorkNavState>()(
         set({ bookshelfReadingState: null });
       },
       setNovelSquareBrowseState: (browseState) => {
+        console.log('[workNavStore] 保存浏览状态:', JSON.stringify(browseState));
         set({ novelSquareBrowseState: browseState });
       },
       clearNovelSquareBrowseState: () => {
@@ -145,6 +174,9 @@ export const useWorkNavStore = create<WorkNavState>()(
           return { bookshelfMap: newMap };
         });
       },
+      setHasHydrated: (value) => {
+        set({ hasHydrated: value });
+      },
     }),
     {
       name: 'work-nav-storage', // localStorage 的 key
@@ -156,6 +188,49 @@ export const useWorkNavStore = create<WorkNavState>()(
         novelSquareBrowseState: state.novelSquareBrowseState,
         bookshelfMap: state.bookshelfMap,
       }),
+      // 合并时验证数据有效性，避免损坏的数据导致问题
+      merge: (persistedState: any, currentState) => {
+        const merged = { ...currentState };
+
+        if (persistedState && typeof persistedState === 'object') {
+          // 验证并合并章节记录
+          if (persistedState.lastChapterMap && typeof persistedState.lastChapterMap === 'object') {
+            merged.lastChapterMap = persistedState.lastChapterMap;
+          }
+
+          // 验证并合并阅读状态
+          if (isValidReadingState(persistedState.novelSquareReadingState)) {
+            merged.novelSquareReadingState = persistedState.novelSquareReadingState;
+          }
+          if (isValidReadingState(persistedState.bookshelfReadingState)) {
+            merged.bookshelfReadingState = persistedState.bookshelfReadingState;
+          }
+
+          // 验证并合并浏览状态
+          if (isValidBrowseState(persistedState.novelSquareBrowseState)) {
+            merged.novelSquareBrowseState = persistedState.novelSquareBrowseState;
+          }
+
+          // 验证并合并书架状态
+          if (persistedState.bookshelfMap && typeof persistedState.bookshelfMap === 'object') {
+            merged.bookshelfMap = persistedState.bookshelfMap;
+          }
+        }
+
+        return merged as WorkNavState;
+      },
+      // rehydration 完成后设置标记
+      onRehydrateStorage: () => {
+        console.log('[workNavStore] 开始 rehydration...');
+        return (state, error) => {
+          if (error) {
+            console.error('[workNavStore] rehydration 失败:', error);
+          } else {
+            console.log('[workNavStore] rehydration 完成，novelSquareBrowseState:', JSON.stringify(state?.novelSquareBrowseState));
+          }
+          state?.setHasHydrated?.(true);
+        };
+      },
     }
   )
 );

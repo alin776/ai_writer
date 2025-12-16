@@ -159,7 +159,7 @@ export default function MyBookshelfView() {
         author: '',
         category: '其他',
         description: '',
-        cover: '',
+        cover: getDefaultCover('other'),
         views: 0,
         likes: 0,
         rating: 0,
@@ -170,6 +170,13 @@ export default function MyBookshelfView() {
 
     restoreState();
   }, [bookshelfReadingState, loading, bookshelfItems]);
+
+  // 当阅读状态被清除时，重置恢复标记以允许后续恢复
+  useEffect(() => {
+    if (!bookshelfReadingState) {
+      hasRestoredRef.current = false;
+    }
+  }, [bookshelfReadingState]);
 
   // 筛选和排序逻辑
   const filteredAndSortedItems = bookshelfItems
