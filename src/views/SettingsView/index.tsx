@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Settings, User, Bell, Shield, Save, Moon, Sun, Monitor, Smartphone, Tablet, Mail, Lock, ChevronRight, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Card, Button, Input } from '../../components/common';
+import { Card, Button, Input, ImageCropper } from '../../components/common';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import InputDialog from '../../components/common/InputDialog';
 import { ToastContainer } from '../../components/ui/Toast';
@@ -54,6 +54,8 @@ const SettingsView: React.FC = () => {
   const [isInitializing, setIsInitializing] = useState(true);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isCropperOpen, setIsCropperOpen] = useState(false);
+  const [selectedImageSrc, setSelectedImageSrc] = useState<string>('');
   const { success: showSuccess, error: showError, info: showInfo, messages, close } = useToast();
   const { applyTheme } = useTheme(user?.preferences?.theme);
 
@@ -315,8 +317,27 @@ const SettingsView: React.FC = () => {
       return;
     }
 
+    // Read file and open cropper
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSelectedImageSrc(reader.result as string);
+      setIsCropperOpen(true);
+    };
+    reader.readAsDataURL(file);
+
+    // Clear input for re-selection of the same file
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleCropSave = async (croppedBlob: Blob) => {
+    setIsCropperOpen(false);
     setIsUploadingAvatar(true);
+
     try {
+      // Convert blob to File for upload
+      const file = new File([croppedBlob], 'avatar.png', { type: 'image/png' });
       const avatarUrl = await DataService.uploadAvatar(file);
       if (user) {
         setUser({
@@ -333,10 +354,13 @@ const SettingsView: React.FC = () => {
       showError(error?.message || t('settings.messages.avatarError'));
     } finally {
       setIsUploadingAvatar(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      setSelectedImageSrc('');
     }
+  };
+
+  const handleCropperClose = () => {
+    setIsCropperOpen(false);
+    setSelectedImageSrc('');
   };
 
   const handleDeleteAccount = async () => {
@@ -982,6 +1006,16 @@ const SettingsView: React.FC = () => {
             type: 'password',
           },
         ]}
+      />
+
+      {/* 头像裁剪器 */}
+      <ImageCropper
+        isOpen={isCropperOpen}
+        imageSrc={selectedImageSrc}
+        onClose={handleCropperClose}
+        onSave={handleCropSave}
+        aspect={1}
+        cropShape="round"
       />
 
       {/* Toast 通知容器 */}

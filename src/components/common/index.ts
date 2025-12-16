@@ -28,3 +28,6 @@ export type { CardProps, CardHeaderProps, CardContentProps, CardFooterProps } fr
 
 export { default as ConfirmDialog } from './ConfirmDialog';
 export { default as ErrorBoundary } from './ErrorBoundary';
+
+export { default as ImageCropper } from './ImageCropper';
+export type { ImageCropperProps } from './ImageCropper';
