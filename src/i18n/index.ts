@@ -38,6 +38,8 @@ i18n
 
     interpolation: {
       escapeValue: false,
+      prefix: '{',
+      suffix: '}',
     },
 
     react: {
