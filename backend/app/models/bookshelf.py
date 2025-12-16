@@ -26,7 +26,7 @@ class Bookshelf(Base):
 
     # 关联关系
     user = relationship("User", backref="bookshelf_items")
-    work = relationship("Work", backref="bookshelf_items")
+    work = relationship("Work", back_populates="bookshelf_items")
     last_read_chapter = relationship("Chapter", foreign_keys=[last_read_chapter_id])
 
     def __repr__(self):

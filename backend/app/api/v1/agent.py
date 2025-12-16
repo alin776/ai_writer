@@ -992,7 +992,8 @@ async def agent_chat_stream(
 
                 # ✨ 优先处理 @optimization: 直接走去痕迹流程
                 if context.get("use_optimization"):
-                    humanize_text = context.get("current_content") or context.get("text") or ""
+                    # 优先使用选中文本，其次使用整章内容
+                    humanize_text = context.get("selected_text") or context.get("current_content") or context.get("text") or ""
 
                     if not humanize_text and request.chapter_id:
                         chapter_stmt = select(Chapter).where(Chapter.id == request.chapter_id)

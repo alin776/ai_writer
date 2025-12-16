@@ -71,6 +71,7 @@ class Work(Base):
     analysis_vectors = relationship("NovelAnalysisVector", back_populates="work", cascade="all, delete-orphan")
     chapter_vectors = relationship("NovelChapterVector", back_populates="work", cascade="all, delete-orphan")
     knowledge_items = relationship("KnowledgeItem", back_populates="work", cascade="all, delete-orphan")
-    
+    bookshelf_items = relationship("Bookshelf", back_populates="work", cascade="all, delete-orphan", passive_deletes=True)
+
     def __repr__(self):
         return f"<Work {self.title}>"

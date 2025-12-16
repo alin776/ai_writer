@@ -5538,8 +5538,24 @@ chapter_id: {chapter_id}
                     "look_ahead": params.get("look_ahead", 2),
                 }
             elif tool_name == "continue_writing_tool":
+                # ✅ 2025-12-17: 优先使用选中文本作为续写上下文
+                context_param = params.get("context", "").strip()
+                if not context_param or "$TASK_" in context_param:
+                    selected_text_extracted = None
+                    if "用户选中的文本：" in context:
+                        match = re.search(r'用户选中的文本：\n---\n(.*?)\n---', context, re.DOTALL)
+                        if match:
+                            selected_text_extracted = match.group(1).strip()
+
+                    # 使用较低阈值(5字符)，避免忽略有效的短文本如"优化这句"
+                    if selected_text_extracted and len(selected_text_extracted) >= 5:
+                        logger.info(f"[_execute_task] continue_writing_tool 优先使用选中文本（{len(selected_text_extracted)}字符）")
+                        context_param = selected_text_extracted
+                    else:
+                        context_param = context
+
                 tool_params = {
-                    "context": params.get("context", context),
+                    "context": context_param,
                     "requirements": params.get("requirements", ""),
                     "target_length": params.get("target_length", 500),
                     "style": params.get("style", "")
@@ -5548,10 +5564,22 @@ chapter_id: {chapter_id}
                 # 🔧 2025-12-14: 防御性编程 - 使用 context 兜底
                 text_param = params.get("text", "").strip()
 
-                # 处理空值和占位符
+                # 处理空值和占位符 - 优先使用选中文本
                 if not text_param or "$TASK_" in text_param:
-                    logger.info(f"[_execute_task] analyze_text_tool 的 text 参数为空或含占位符，使用 context 兜底（{len(context)}字符）")
-                    text_param = context[:50000]  # 限制长度以符合 max_length=50000
+                    # ✅ 2025-12-17: 优先从 context 提取选中文本，避免使用被任务结果污染的整个 context
+                    selected_text_extracted = None
+                    if "用户选中的文本：" in context:
+                        match = re.search(r'用户选中的文本：\n---\n(.*?)\n---', context, re.DOTALL)
+                        if match:
+                            selected_text_extracted = match.group(1).strip()
+
+                    # 使用较低阈值(5字符)，避免忽略有效的短文本如"优化这句"
+                    if selected_text_extracted and len(selected_text_extracted) >= 5:
+                        logger.info(f"[_execute_task] analyze_text_tool 优先使用选中文本（{len(selected_text_extracted)}字符）")
+                        text_param = selected_text_extracted
+                    else:
+                        logger.info(f"[_execute_task] analyze_text_tool 的 text 参数为空或含占位符，使用 context 兜底（{len(context)}字符）")
+                        text_param = context[:50000]  # 限制长度以符合 max_length=50000
 
                 # 🔧 2025-12-14: focus 参数支持任意字符串
                 # 模板 analyze_text.yaml 会根据 focus 内容决定输出模式：

@@ -1,0 +1,123 @@
+# ============================================
+# 文枢AI 生产环境 Docker Compose
+# ============================================
+
+version: '3.8'
+
+services:
+  # ==================== 数据库 ====================
+  postgres:
+    image: postgres:15-alpine
+    container_name: wenshu_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-novelaide}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-novelaide_password}
+      POSTGRES_DB: ${DB_NAME:-novelaide}
+      TZ: Asia/Shanghai
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - wenshu_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U novelaide"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== 缓存 ====================
+  redis:
+    image: redis:7-alpine
+    container_name: wenshu_redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - wenshu_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== 后端API ====================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: wenshu_backend
+    restart: always
+    env_file:
+      - ./backend/.env.prod
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-novelaide}:${DB_PASSWORD:-novelaide_password}@postgres:5432/${DB_NAME:-novelaide}
+      - REDIS_URL=redis://redis:6379/0
+      - ENABLE_SCHEDULER=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - wenshu_network
+    volumes:
+      - backend_logs:/app/logs
+      - backend_uploads:/app/uploads
+
+  # ==================== 定时任务 ====================
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: wenshu_scheduler
+    restart: always
+    command: ["python", "-m", "app.tasks.scheduler_runner"]
+    env_file:
+      - ./backend/.env.prod
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-novelaide}:${DB_PASSWORD:-novelaide_password}@postgres:5432/${DB_NAME:-novelaide}
+      - REDIS_URL=redis://redis:6379/0
+      - ENABLE_SCHEDULER=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - wenshu_network
+    volumes:
+      - backend_logs:/app/logs
+
+  # ==================== 前端 + Nginx ====================
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""
+    container_name: wenshu_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - wenshu_network
+
+# ==================== 数据卷 ====================
+volumes:
+  postgres_data:
+    name: wenshu_postgres_data
+  redis_data:
+    name: wenshu_redis_data
+  backend_logs:
+    name: wenshu_backend_logs
+  backend_uploads:
+    name: wenshu_backend_uploads
+
+# ==================== 网络 ====================
+networks:
+  wenshu_network:
+    name: wenshu_network
+    driver: bridge
