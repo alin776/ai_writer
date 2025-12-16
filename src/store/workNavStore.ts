@@ -1,9 +1,19 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-interface LibraryReadingState {
+// 阅读状态（用于从阅读器返回时恢复）
+interface ReadingState {
   novelId: string;
   isReading: boolean;  // 是否在阅读器中
+}
+
+// 小说广场浏览状态（用于保持分页和筛选）
+interface NovelSquareBrowseState {
+  page: number;
+  category: string;
+  status: string;
+  sort: string;
+  searchQuery: string;
 }
 
 interface WorkNavState {
@@ -12,8 +22,12 @@ interface WorkNavState {
   lastWorkPath: string | null;
   // 存储每个作品的最后阅读章节ID { workId: chapterId }
   lastChapterMap: Record<string, string>;
-  // 图书馆当前查看的小说状态（用于导航离开后返回时恢复）
-  libraryReadingState: LibraryReadingState | null;
+  // 小说广场的阅读状态（独立）
+  novelSquareReadingState: ReadingState | null;
+  // 我的书架的阅读状态（独立）
+  bookshelfReadingState: ReadingState | null;
+  // 小说广场的浏览状态（页码、筛选等）
+  novelSquareBrowseState: NovelSquareBrowseState | null;
   // 存储用户书架状态 { workId: boolean } - 用于持久化红心状态
   bookshelfMap: Record<string, boolean>;
   setLastWork: (workId: string, title?: string | null) => void;
@@ -24,10 +38,18 @@ interface WorkNavState {
   getLastChapter: (workId: string) => string | null;
   // 清除某个作品的阅读记录
   clearLastChapter: (workId: string) => void;
-  // 设置图书馆阅读状态
-  setLibraryReadingState: (novelId: string, isReading: boolean) => void;
-  // 清除图书馆阅读状态
-  clearLibraryReadingState: () => void;
+  // 设置小说广场阅读状态
+  setNovelSquareReadingState: (novelId: string, isReading: boolean) => void;
+  // 清除小说广场阅读状态
+  clearNovelSquareReadingState: () => void;
+  // 设置书架阅读状态
+  setBookshelfReadingState: (novelId: string, isReading: boolean) => void;
+  // 清除书架阅读状态
+  clearBookshelfReadingState: () => void;
+  // 设置小说广场浏览状态
+  setNovelSquareBrowseState: (state: NovelSquareBrowseState) => void;
+  // 清除小说广场浏览状态
+  clearNovelSquareBrowseState: () => void;
   // 设置书架状态（加入/移出书架）
   setBookshelfStatus: (workId: string, inBookshelf: boolean) => void;
   // 获取书架状态
@@ -39,7 +61,7 @@ interface WorkNavState {
 /**
  * 保存最近访问的作品详情，用于侧边栏动态导航。
  * 同时保存每个作品的最后阅读章节，用于返回时恢复阅读位置。
- * 保存图书馆当前查看的小说状态，用于导航离开后返回时恢复。
+ * 小说广场和我的书架的阅读状态独立管理。
  */
 export const useWorkNavStore = create<WorkNavState>()(
   persist(
@@ -48,7 +70,9 @@ export const useWorkNavStore = create<WorkNavState>()(
       lastWorkTitle: null,
       lastWorkPath: null,
       lastChapterMap: {},
-      libraryReadingState: null,
+      novelSquareReadingState: null,
+      bookshelfReadingState: null,
+      novelSquareBrowseState: null,
       bookshelfMap: {},
       setLastWork: (workId, title = null) => {
         set({
@@ -81,13 +105,27 @@ export const useWorkNavStore = create<WorkNavState>()(
           return { lastChapterMap: newMap };
         });
       },
-      setLibraryReadingState: (novelId, isReading) => {
+      setNovelSquareReadingState: (novelId, isReading) => {
         set({
-          libraryReadingState: { novelId, isReading },
+          novelSquareReadingState: { novelId, isReading },
         });
       },
-      clearLibraryReadingState: () => {
-        set({ libraryReadingState: null });
+      clearNovelSquareReadingState: () => {
+        set({ novelSquareReadingState: null });
+      },
+      setBookshelfReadingState: (novelId, isReading) => {
+        set({
+          bookshelfReadingState: { novelId, isReading },
+        });
+      },
+      clearBookshelfReadingState: () => {
+        set({ bookshelfReadingState: null });
+      },
+      setNovelSquareBrowseState: (browseState) => {
+        set({ novelSquareBrowseState: browseState });
+      },
+      clearNovelSquareBrowseState: () => {
+        set({ novelSquareBrowseState: null });
       },
       setBookshelfStatus: (workId, inBookshelf) => {
         set((state) => ({
@@ -111,9 +149,11 @@ export const useWorkNavStore = create<WorkNavState>()(
     {
       name: 'work-nav-storage', // localStorage 的 key
       partialize: (state) => ({
-        // 持久化章节记录、图书馆阅读状态和书架状态
+        // 持久化章节记录、阅读状态、浏览状态和书架状态
         lastChapterMap: state.lastChapterMap,
-        libraryReadingState: state.libraryReadingState,
+        novelSquareReadingState: state.novelSquareReadingState,
+        bookshelfReadingState: state.bookshelfReadingState,
+        novelSquareBrowseState: state.novelSquareBrowseState,
         bookshelfMap: state.bookshelfMap,
       }),
     }

@@ -114,6 +114,7 @@ export const Sidebar: React.FC = () => {
     { id: 'settings', label: '系统设置', icon: Settings, path: '/settings' },
   ];
 
+  // 导航项渲染函数
   const renderNavItem = (item: NavItem) => {
     if (!hasPermission(item)) return null;
     const Icon = item.icon;

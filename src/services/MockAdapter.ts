@@ -437,6 +437,7 @@ export class MockAdapter implements IDataAdapter {
         coverImage: workData.cover_image,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        isPublished: false,
       };
       mockWorks.push(newWork as Work);
       return newWork as T;

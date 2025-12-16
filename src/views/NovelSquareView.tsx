@@ -40,24 +40,32 @@ const statusFilters = ['全部', '连载中', '已完结'];
 const sortOptions = ['最新', '最热', '字数最多'];
 
 export default function NovelSquareView() {
-  const [selectedCategory, setSelectedCategory] = useState('全部');
-  const [searchQuery, setSearchQuery] = useState('');
+  // 获取持久化的浏览状态
+  const {
+    novelSquareBrowseState,
+    setNovelSquareBrowseState,
+    novelSquareReadingState,
+    clearNovelSquareReadingState
+  } = useWorkNavStore();
+
+  // 从持久化状态初始化，如果没有则使用默认值
+  const [selectedCategory, setSelectedCategory] = useState(novelSquareBrowseState?.category || '全部');
+  const [searchQuery, setSearchQuery] = useState(novelSquareBrowseState?.searchQuery || '');
   const [selectedNovel, setSelectedNovel] = useState<Novel | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState('全部');
-  const [selectedSort, setSelectedSort] = useState('最新');
+  const [selectedStatus, setSelectedStatus] = useState(novelSquareBrowseState?.status || '全部');
+  const [selectedSort, setSelectedSort] = useState(novelSquareBrowseState?.sort || '最新');
 
   const [novels, setNovels] = useState<Novel[]>([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(novelSquareBrowseState?.page || 1);
   const [hasMore, setHasMore] = useState(true);
 
   const { showToast } = useToast();
 
-  // 获取图书馆阅读状态
-  const { libraryReadingState, setLibraryReadingState, clearLibraryReadingState } = useWorkNavStore();
-
   // 用于防止重复恢复状态
   const hasRestoredRef = useRef(false);
+  // 用于标记是否已初始化加载
+  const hasInitializedRef = useRef(false);
 
   // 根据类型生成默认封面
   const getDefaultCover = (genre: string): string => {
@@ -93,15 +101,19 @@ export default function NovelSquareView() {
     };
   };
 
-  // 加载小说列表
-  const loadNovels = async (reset = false) => {
+  // 加载小说列表（支持加载到指定页数）
+  const loadNovels = async (reset = false, targetPage?: number) => {
     try {
       setLoading(true);
-      const currentPage = reset ? 1 : page;
+      const loadPage = targetPage || (reset ? 1 : page);
+
+      // 如果需要加载到指定页，需要加载从第1页到目标页的所有数据
+      const totalToLoad = reset && targetPage && targetPage > 1 ? targetPage * 20 : 20;
+      const skipAmount = reset ? 0 : (loadPage - 1) * 20;
 
       const response = await DataService.getPublishedNovels({
-        skip: (currentPage - 1) * 20,
-        limit: 20,
+        skip: skipAmount,
+        limit: totalToLoad,
         genre: GENRE_MAP[selectedCategory],
         search: searchQuery.trim() || undefined,
         sortBy: SORT_MAP[selectedSort],
@@ -111,12 +123,12 @@ export default function NovelSquareView() {
 
       if (reset) {
         setNovels(newNovels);
-        setPage(1);
+        setPage(targetPage || 1);
       } else {
         setNovels([...novels, ...newNovels]);
       }
 
-      setHasMore(newNovels.length === 20);
+      setHasMore(newNovels.length === totalToLoad);
     } catch (error: any) {
       console.error('加载小说列表失败:', error);
       showToast('error', '加载失败，请稍后重试');
@@ -125,20 +137,53 @@ export default function NovelSquareView() {
     }
   };
 
-  // 初始加载
+  // 保存浏览状态
+  const saveBrowseState = () => {
+    setNovelSquareBrowseState({
+      page,
+      category: selectedCategory,
+      status: selectedStatus,
+      sort: selectedSort,
+      searchQuery,
+    });
+  };
+
+  // 初始加载（恢复持久化状态或默认加载）
   useEffect(() => {
+    if (hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
+
+    // 如果有持久化的浏览状态，加载到对应页
+    if (novelSquareBrowseState && novelSquareBrowseState.page > 1) {
+      loadNovels(true, novelSquareBrowseState.page);
+    } else {
+      loadNovels(true);
+    }
+  }, []);
+
+  // 筛选条件变化时重新加载
+  useEffect(() => {
+    // 跳过初始化时的加载
+    if (!hasInitializedRef.current) return;
     loadNovels(true);
   }, [selectedCategory, selectedSort]);
 
-  // 恢复上次查看的小说状态（从左侧导航返回时）
+  // 恢复阅读状态（仅在从阅读器返回详情页时）
   useEffect(() => {
-    if (hasRestoredRef.current || !libraryReadingState) {
+    if (hasRestoredRef.current || !novelSquareReadingState) {
       return;
     }
 
     const restoreState = async () => {
       hasRestoredRef.current = true;
-      const { novelId } = libraryReadingState;
+      const { novelId } = novelSquareReadingState;
+
+      // 先在已加载的列表中查找
+      const existingNovel = novels.find((n) => n.id === novelId);
+      if (existingNovel) {
+        setSelectedNovel(existingNovel);
+        return;
+      }
 
       // 创建临时 Novel 对象，NovelDetail 会负责加载完整数据
       setSelectedNovel({
@@ -157,10 +202,12 @@ export default function NovelSquareView() {
     };
 
     restoreState();
-  }, [libraryReadingState]);
+  }, [novelSquareReadingState, novels]);
 
   // 搜索防抖
   useEffect(() => {
+    if (!hasInitializedRef.current) return;
+
     const timer = setTimeout(() => {
       if (searchQuery !== '') {
         loadNovels(true);
@@ -178,6 +225,9 @@ export default function NovelSquareView() {
 
   // 处理轮播图点击详情
   const handleViewDetailById = async (workId: string) => {
+    // 保存当前浏览状态
+    saveBrowseState();
+
     // 先在已加载的列表中查找
     const existingNovel = novels.find((n) => n.id === workId);
     if (existingNovel) {
@@ -203,6 +253,13 @@ export default function NovelSquareView() {
     });
   };
 
+  // 点击小说卡片查看详情
+  const handleViewNovelDetail = (novel: Novel) => {
+    // 保存当前浏览状态
+    saveBrowseState();
+    setSelectedNovel(novel);
+  };
+
   if (selectedNovel) {
     return (
       <NovelDetail
@@ -210,8 +267,9 @@ export default function NovelSquareView() {
         onBack={() => {
           setSelectedNovel(null);
           // 用户主动返回时清除阅读状态
-          clearLibraryReadingState();
+          clearNovelSquareReadingState();
         }}
+        source="novel-square"
       />
     );
   }
@@ -241,6 +299,7 @@ export default function NovelSquareView() {
                   setSelectedStatus('全部');
                   setSelectedSort('最新');
                   setSearchQuery('');
+                  setPage(1);
                 }}
                 className="px-4 py-2 bg-black dark:bg-slate-700 text-white text-sm hover:bg-gray-800 dark:hover:bg-slate-600 transition-colors"
               >
@@ -310,7 +369,7 @@ export default function NovelSquareView() {
           <>
             <div className="grid grid-cols-6 gap-4">
               {filteredNovels.map((novel) => (
-                <NovelCard key={novel.id} novel={novel} onViewDetail={() => setSelectedNovel(novel)} />
+                <NovelCard key={novel.id} novel={novel} onViewDetail={() => handleViewNovelDetail(novel)} />
               ))}
             </div>
 
@@ -318,7 +377,8 @@ export default function NovelSquareView() {
               <div className="flex justify-center mt-8">
                 <button
                   onClick={() => {
-                    setPage(page + 1);
+                    const newPage = page + 1;
+                    setPage(newPage);
                     loadNovels(false);
                   }}
                   disabled={loading}

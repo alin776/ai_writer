@@ -60,8 +60,8 @@ export default function MyBookshelfView() {
   const [bookshelfItems, setBookshelfItems] = useState<BookshelfItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 获取图书馆阅读状态和书架状态管理
-  const { libraryReadingState, clearLibraryReadingState, setBookshelfStatus } = useWorkNavStore();
+  // 获取书架阅读状态和书架状态管理（独立于小说广场）
+  const { bookshelfReadingState, clearBookshelfReadingState, setBookshelfStatus } = useWorkNavStore();
 
   // 用于防止重复恢复状态
   const hasRestoredRef = useRef(false);
@@ -135,15 +135,15 @@ export default function MyBookshelfView() {
     loadBookshelf();
   }, []);
 
-  // 恢复上次查看的小说状态（从左侧导航返回时）
+  // 恢复上次查看的小说状态（仅在从阅读器返回详情页时）
   useEffect(() => {
-    if (hasRestoredRef.current || !libraryReadingState || loading) {
+    if (hasRestoredRef.current || !bookshelfReadingState || loading) {
       return;
     }
 
     const restoreState = () => {
       hasRestoredRef.current = true;
-      const { novelId } = libraryReadingState;
+      const { novelId } = bookshelfReadingState;
 
       // 先在已加载的书架中查找
       const existingItem = bookshelfItems.find((item) => item.novel.id === novelId);
@@ -169,7 +169,7 @@ export default function MyBookshelfView() {
     };
 
     restoreState();
-  }, [libraryReadingState, loading, bookshelfItems]);
+  }, [bookshelfReadingState, loading, bookshelfItems]);
 
   // 筛选和排序逻辑
   const filteredAndSortedItems = bookshelfItems
@@ -224,9 +224,10 @@ export default function MyBookshelfView() {
         onBack={() => {
           setSelectedNovel(null);
           // 用户主动返回时清除阅读状态
-          clearLibraryReadingState();
+          clearBookshelfReadingState();
         }}
         isFromBookshelf={true}
+        source="bookshelf"
       />
     );
   }

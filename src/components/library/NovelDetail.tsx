@@ -26,6 +26,8 @@ interface NovelDetailProps {
   onBack: () => void;
   /** 是否从书架进入，如果是则隐藏"加入书架"按钮 */
   isFromBookshelf?: boolean;
+  /** 来源：小说广场或书架，用于独立管理阅读状态 */
+  source?: 'novel-square' | 'bookshelf';
 }
 
 interface Chapter {
@@ -62,7 +64,7 @@ interface RatingStats {
   userRating: number | null;
 }
 
-export function NovelDetail({ novel, onBack, isFromBookshelf = false }: NovelDetailProps) {
+export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = 'novel-square' }: NovelDetailProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set([0]));
   const [userRating, setUserRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
@@ -98,8 +100,19 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false }: NovelDet
   // Toast
   const { success, error: showError } = useGlobalStore();
 
-  // 获取章节记忆功能和阅读状态
-  const { getLastChapter, libraryReadingState, setLibraryReadingState, setBookshelfStatus } = useWorkNavStore();
+  // 获取章节记忆功能和阅读状态（根据来源使用不同的状态）
+  const {
+    getLastChapter,
+    novelSquareReadingState,
+    setNovelSquareReadingState,
+    bookshelfReadingState,
+    setBookshelfReadingState,
+    setBookshelfStatus
+  } = useWorkNavStore();
+
+  // 根据来源获取对应的阅读状态
+  const currentReadingState = source === 'bookshelf' ? bookshelfReadingState : novelSquareReadingState;
+  const setCurrentReadingState = source === 'bookshelf' ? setBookshelfReadingState : setNovelSquareReadingState;
   // 订阅 store 中的书架状态，确保 persist 加载完成后能正确同步
   const storedBookshelfStatus = useWorkNavStore(state => state.bookshelfMap[novel.id]);
 
@@ -221,8 +234,8 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false }: NovelDet
       !loading &&
       chapters.length > 0 &&
       !hasAutoEnteredReaderRef.current &&
-      libraryReadingState?.novelId === novel.id &&
-      libraryReadingState?.isReading
+      currentReadingState?.novelId === novel.id &&
+      currentReadingState?.isReading
     ) {
       hasAutoEnteredReaderRef.current = true;
       // 获取上次阅读的章节
@@ -234,7 +247,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false }: NovelDet
       setSelectedChapterId(targetChapterId);
       setShowReader(true);
     }
-  }, [loading, chapters, libraryReadingState, novel.id, getLastChapter]);
+  }, [loading, chapters, currentReadingState, novel.id, getLastChapter]);
 
   // 章节分组（每10章一组）
   const chapterGroups = chapters.reduce((groups: Chapter[][], chapter) => {
@@ -401,7 +414,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false }: NovelDet
     setSelectedChapterId(chapterId);
     setShowReader(true);
     // 保存阅读状态到 store，用于导航离开后返回时恢复
-    setLibraryReadingState(novel.id, true);
+    setCurrentReadingState(novel.id, true);
   };
 
   // 格式化时间
@@ -428,7 +441,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false }: NovelDet
         onBack={() => {
           setShowReader(false);
           // 从阅读器返回时，更新状态为不在阅读中（但保持小说选中状态）
-          setLibraryReadingState(novel.id, false);
+          setCurrentReadingState(novel.id, false);
         }}
         initialChapters={chapters}
       />
@@ -444,7 +457,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false }: NovelDet
               onClick={onBack}
               className="text-gray-600 dark:text-slate-400 hover:text-black dark:hover:text-white transition-colors"
             >
-              书籍广场
+              {source === 'bookshelf' ? '我的书架' : '小说广场'}
             </button>
             <span className="text-gray-400 dark:text-slate-600">/</span>
             <span className="text-black dark:text-white">{novelData.title}</span>
