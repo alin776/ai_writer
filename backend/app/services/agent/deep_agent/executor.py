@@ -562,11 +562,19 @@ class DeepAgentExecutor:
             return tasks, results
 
         # 依次检查所有带 acceptance 的任务，找到第一个不满足的进行补救
+        # 🔧 2025-12-16: 跳过输入类任务，它们只是获取数据，不应被字数验收
         failed_task = None
         failed_result = None
         failed_acceptance = None
 
         for t in tasks:
+            # 🔧 2025-12-16: 跳过输入类任务（NON_CRITICAL_TOOLS中的工具）
+            # 这些工具只是获取数据，不产出内容，不应该被验收检查
+            tool_name = t.get("tool", "")
+            if tool_name in DeepAgentConfig.NON_CRITICAL_TOOLS:
+                logger.debug(f"[FinalCheck] 跳过输入类任务: {tool_name}")
+                continue
+
             # 使用三层策略获取验收标准
             acceptance = await self._get_acceptance(t, user_intent)
             if not acceptance:
@@ -657,6 +665,15 @@ class DeepAgentExecutor:
         }
 
         tasks.append(remedy_task)
+
+        # 🔧 2025-12-16: 通知前端任务列表已更新（之前缺失导致前端看不到补救任务）
+        if self.on_plan:
+            await self._safe_callback(self.on_plan, {
+                "tasks": [self._format_task(t, j) for j, t in enumerate(tasks, 1)],
+                "is_update": True,
+                "new_task_ids": [new_task_id],
+                "reason": f"末尾验收未通过: {requirement_text[:50]}",
+            })
 
         # 执行补救任务（不再进入反思循环，避免无限迭代）
         if self.on_task_start:
