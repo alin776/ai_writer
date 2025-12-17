@@ -72,6 +72,7 @@ class Work(Base):
     chapter_vectors = relationship("NovelChapterVector", back_populates="work", cascade="all, delete-orphan")
     knowledge_items = relationship("KnowledgeItem", back_populates="work", cascade="all, delete-orphan")
     bookshelf_items = relationship("Bookshelf", back_populates="work", cascade="all, delete-orphan", passive_deletes=True)
+    entity_relationships = relationship("EntityRelationship", back_populates="work", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Work {self.title}>"

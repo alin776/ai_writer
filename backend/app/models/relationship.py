@@ -61,5 +61,5 @@ class EntityRelationship(Base):
         CheckConstraint("strength BETWEEN 1 AND 10", name='valid_strength'),
     )
     
-    # 关系（可选，用于ORM查询）
-    work = relationship("Work", backref="relationships")
+    # 关系（用于ORM级联删除）
+    work = relationship("Work", back_populates="entity_relationships")
