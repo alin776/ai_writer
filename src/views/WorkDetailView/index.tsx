@@ -52,7 +52,7 @@ const WorkDetailView: React.FC = () => {
   const { showToast } = useGlobalStore();
   const { user, setUser } = useAuthStore();
   const { confirmState, confirm, closeConfirm } = useConfirm();
-  const { rightSidebarType, setRightSidebarType } = useEditorStore();
+  const { rightSidebarType, setRightSidebarType, sidebarCollapsed } = useEditorStore();
   const setLastWork = useWorkNavStore((state) => state.setLastWork);
   const clearLastWork = useWorkNavStore((state) => state.clearLastWork);
   // 获取章节记忆功能
@@ -234,7 +234,7 @@ const WorkDetailView: React.FC = () => {
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
 
   const DEFAULT_RIGHT_PANEL_WIDTH = 288; // 默认 288px (w-72)
-  const COLLAPSED_RIGHT_PANEL_WIDTH = 48; // collapsed width
+  const COLLAPSED_RIGHT_PANEL_WIDTH = 0; // collapsed width - 完全隐藏
 
   // 右侧面板宽度
   const [rightPanelWidth, setRightPanelWidth] = useState(() => {
@@ -1619,6 +1619,8 @@ const WorkDetailView: React.FC = () => {
             onToggleAIAutoComplete={handleToggleAIAutoComplete}
             isLeftPanelCollapsed={isLeftCollapsed}
             onExpandLeftPanel={() => setIsLeftCollapsed(false)}
+            isRightPanelCollapsed={isRightCollapsed}
+            onExpandRightPanel={() => setIsRightCollapsed(false)}
           />
         </div>
 
@@ -1635,22 +1637,6 @@ const WorkDetailView: React.FC = () => {
               style={{ marginLeft: '-2px' }}
             >
               <div className="absolute inset-y-0 -left-1 -right-1" />
-            </div>
-          )}
-          {isRightCollapsed && (
-            /* 折叠状态 */
-            <div className="absolute inset-0 z-20 flex flex-col items-center py-5 gap-4 bg-white dark:bg-slate-900">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsRightCollapsed(false)}
-                className="h-10 w-10 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-50 hover:shadow-sm rounded-lg transition-all dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
-              >
-                <ChevronLeft className="h-6 w-6" />
-              </Button>
-              <div className="writing-mode-vertical text-[11px] text-zinc-400 dark:text-slate-500 tracking-widest" style={{ writingMode: 'vertical-rl' }}>
-                {rightSidebarType === 'worldview' ? t('workDetail.sidebar.worldview') : rightSidebarType === 'summary' ? t('workDetail.sidebar.summary') : t('workDetail.sidebar.ai')}
-              </div>
             </div>
           )}
 

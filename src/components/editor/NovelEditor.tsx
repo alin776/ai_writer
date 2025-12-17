@@ -56,6 +56,9 @@ interface NovelEditorProps {
   // ===== 左侧面板折叠状态 =====
   isLeftPanelCollapsed?: boolean;
   onExpandLeftPanel?: () => void;
+  // ===== 右侧面板折叠状态 =====
+  isRightPanelCollapsed?: boolean;
+  onExpandRightPanel?: () => void;
   // ===== InlineAI 回调 =====
   onInlineAISend?: (message: string, context: InlineAIContext) => void;
   isInlineAILoading?: boolean;
@@ -101,6 +104,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   onToggleAIAutoComplete,
   isLeftPanelCollapsed = false,
   onExpandLeftPanel,
+  isRightPanelCollapsed = false,
+  onExpandRightPanel,
   onInlineAISend,
   isInlineAILoading = false,
 }) => {
@@ -1120,6 +1125,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           onToggleAIAutoComplete={onToggleAIAutoComplete}
           isLeftPanelCollapsed={isLeftPanelCollapsed}
           onExpandLeftPanel={onExpandLeftPanel}
+          isRightPanelCollapsed={isRightPanelCollapsed}
+          onExpandRightPanel={onExpandRightPanel}
         />
 
         {/* 状态栏 - 极简设计 */}

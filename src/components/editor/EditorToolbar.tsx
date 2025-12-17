@@ -26,6 +26,7 @@ import {
   Minus,
   Wand2,
   PanelLeftOpen,
+  PanelRightOpen,
 } from 'lucide-react';
 
 interface EditorToolbarProps {
@@ -34,6 +35,8 @@ interface EditorToolbarProps {
   onToggleAIAutoComplete?: () => void;
   isLeftPanelCollapsed?: boolean;
   onExpandLeftPanel?: () => void;
+  isRightPanelCollapsed?: boolean;
+  onExpandRightPanel?: () => void;
 }
 
 const EditorToolbar: React.FC<EditorToolbarProps> = ({
@@ -42,6 +45,8 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onToggleAIAutoComplete,
   isLeftPanelCollapsed = false,
   onExpandLeftPanel,
+  isRightPanelCollapsed = false,
+  onExpandRightPanel,
 }) => {
   const { t } = useTranslation();
 
@@ -306,6 +311,19 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
           <ImageIcon className="h-3 w-3" />
         </ToolbarButton>
       </div>
+
+      {/* 右侧展开按钮（仅当右侧面板收起时显示） */}
+      {isRightPanelCollapsed && (
+        <>
+          <div className="flex-1" />
+          <ToolbarButton
+            onClick={() => onExpandRightPanel?.()}
+            title={t('editor.toolbar.expandRightPanel')}
+          >
+            <PanelRightOpen className="h-3.5 w-3.5" />
+          </ToolbarButton>
+        </>
+      )}
     </div>
   );
 };

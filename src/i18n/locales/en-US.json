@@ -318,6 +318,7 @@
     },
     "toolbar": {
       "expandChapterList": "Expand chapters",
+      "expandRightPanel": "Expand right panel",
       "aiAutoComplete": "AI Auto-complete",
       "aiAutoCompleteEnabled": "AI Auto-complete enabled (click to disable)",
       "aiAutoCompleteDisabled": "AI Auto-complete disabled (click to enable)",
