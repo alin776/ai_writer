@@ -52,7 +52,7 @@ const WorkDetailView: React.FC = () => {
   const { showToast } = useGlobalStore();
   const { user, setUser } = useAuthStore();
   const { confirmState, confirm, closeConfirm } = useConfirm();
-  const { rightSidebarType, setRightSidebarType, sidebarCollapsed } = useEditorStore();
+  const { rightSidebarType, setRightSidebarType } = useEditorStore();
   const setLastWork = useWorkNavStore((state) => state.setLastWork);
   const clearLastWork = useWorkNavStore((state) => state.clearLastWork);
   // 获取章节记忆功能
