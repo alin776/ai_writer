@@ -396,7 +396,7 @@ export default function NovelSquareView() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-50 dark:bg-slate-900 overflow-hidden">
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-slate-900">
       {/* 固定页眉区域 */}
       <div className="flex-shrink-0">
         <FeaturedCarousel onViewDetail={handleViewDetailById} />

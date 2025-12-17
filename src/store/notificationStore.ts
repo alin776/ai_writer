@@ -185,7 +185,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.hostname}:8000/api/v1/ws/notifications/${userId}`;
+      const wsUrl = `${protocol}//${window.location.host}/api/v1/ws/notifications/${userId}`;
 
       const newWs = new WebSocket(wsUrl);
 
