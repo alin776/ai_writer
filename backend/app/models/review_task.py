@@ -95,7 +95,7 @@ class ReviewTask(Base):
 
     # 关联关系
     review_session = relationship("ReviewSession", back_populates="tasks")
-    chapter = relationship("Chapter", backref="review_tasks")
+    chapter = relationship("Chapter", back_populates="review_tasks")
     user = relationship("User", backref="review_tasks")
 
     def __repr__(self):

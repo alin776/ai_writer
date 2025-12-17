@@ -58,6 +58,7 @@ class Chapter(Base):
     knowledge_items = relationship("KnowledgeItem", back_populates="chapter", cascade="all, delete-orphan")
     versions = relationship("ChapterVersion", back_populates="chapter", cascade="all, delete-orphan")
     histories = relationship("ChapterHistory", back_populates="chapter", cascade="all, delete-orphan")
+    review_tasks = relationship("ReviewTask", back_populates="chapter", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Chapter {self.title} status={self.status}>"
