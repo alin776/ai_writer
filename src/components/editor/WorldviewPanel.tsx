@@ -9,12 +9,44 @@ import type { WorldData, Character, Location, Setting } from '../../types/novel'
 interface WorldviewPanelProps {
   workId: string;
   worldData: WorldData;
+  initialTab?: 'characters' | 'places' | 'settings';
+  targetItemId?: string;
+  onTargetItemScrolled?: () => void;
 }
 
-export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
+export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, onTargetItemScrolled }: WorldviewPanelProps) {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const [worldviewTab, setWorldviewTab] = React.useState<'characters' | 'places' | 'settings'>('characters');
+  const [worldviewTab, setWorldviewTab] = React.useState<'characters' | 'places' | 'settings'>(initialTab || 'characters');
+  const [highlightedItemId, setHighlightedItemId] = React.useState<string | undefined>(undefined);
+
+  // 当 initialTab 变化时更新当前 tab
+  React.useEffect(() => {
+    if (initialTab) {
+      setWorldviewTab(initialTab);
+    }
+  }, [initialTab]);
+
+  // 滚动到目标项并高亮
+  React.useEffect(() => {
+    if (targetItemId) {
+      // 延迟执行，确保 DOM 已渲染
+      const timer = setTimeout(() => {
+        const element = document.getElementById(`worldview-item-${targetItemId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          setHighlightedItemId(targetItemId);
+          // 3秒后移除高亮
+          setTimeout(() => {
+            setHighlightedItemId(undefined);
+          }, 3000);
+        }
+        // 通知父组件滚动完成
+        onTargetItemScrolled?.();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [targetItemId, onTargetItemScrolled]);
 
   const { characters, locations, settings } = worldData;
 
@@ -79,7 +111,12 @@ export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
             characters.map((char) => (
               <div
                 key={char.id}
-                className="group p-2.5 rounded-lg border border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50/50 hover:shadow-sm dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800/50 transition-all duration-200 cursor-pointer"
+                id={`worldview-item-${char.id}`}
+                className={`group p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+                  highlightedItemId === char.id
+                    ? 'border-blue-400 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/30 ring-2 ring-blue-400/50'
+                    : 'border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50/50 hover:shadow-sm dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800/50'
+                }`}
               >
                 <div className="flex items-start justify-between mb-1.5">
                   <div className="text-[13px] text-zinc-900 dark:text-slate-100">{char.name}</div>
@@ -111,7 +148,12 @@ export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
             locations.map((location) => (
               <div
                 key={location.id}
-                className="group p-2.5 rounded-lg border border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50/50 hover:shadow-sm dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800/50 transition-all duration-200 cursor-pointer"
+                id={`worldview-item-${location.id}`}
+                className={`group p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+                  highlightedItemId === location.id
+                    ? 'border-blue-400 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/30 ring-2 ring-blue-400/50'
+                    : 'border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50/50 hover:shadow-sm dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800/50'
+                }`}
               >
                 <div className="flex items-start justify-between mb-1.5">
                   <div className="text-[13px] text-zinc-900 dark:text-slate-100">{location.name}</div>
@@ -143,7 +185,12 @@ export function WorldviewPanel({ workId, worldData }: WorldviewPanelProps) {
             settings.map((setting) => (
               <div
                 key={setting.id}
-                className="group p-2.5 rounded-lg border border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50/50 hover:shadow-sm dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800/50 transition-all duration-200 cursor-pointer"
+                id={`worldview-item-${setting.id}`}
+                className={`group p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+                  highlightedItemId === setting.id
+                    ? 'border-blue-400 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/30 ring-2 ring-blue-400/50'
+                    : 'border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50/50 hover:shadow-sm dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800/50'
+                }`}
               >
                 <div className="flex items-start justify-between mb-1.5">
                   <div className="text-[13px] text-zinc-900 dark:text-slate-100">{setting.title}</div>

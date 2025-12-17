@@ -101,14 +101,40 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ isOpen, onClose }) =
         navigate(`/works/${data.id}`);
         break;
       case 'chapter':
-        // 只用chapterId跳转，EditorView会根据chapterId加载对应的作品
-        navigate(`/editor/${data.id}`);
+        // 跳转到作品详情页，并定位到指定章节
+        navigate(`/works/${data.workId}`, {
+          state: { targetChapterId: data.id }
+        });
         break;
       case 'character':
+        // 跳转到作品详情页，打开世界观面板并定位到角色
+        navigate(`/works/${data.workId}`, {
+          state: {
+            openWorldview: true,
+            worldviewTab: 'characters',
+            targetItemId: data.id
+          }
+        });
+        break;
       case 'location':
+        // 跳转到作品详情页，打开世界观面板并定位到地点
+        navigate(`/works/${data.workId}`, {
+          state: {
+            openWorldview: true,
+            worldviewTab: 'locations',
+            targetItemId: data.id
+          }
+        });
+        break;
       case 'setting':
-        // 跳转到作品详情页，将来可以定位到具体项
-        navigate(`/works/${data.workId}`);
+        // 跳转到作品详情页，打开世界观面板并定位到设定
+        navigate(`/works/${data.workId}`, {
+          state: {
+            openWorldview: true,
+            worldviewTab: 'settings',
+            targetItemId: data.id
+          }
+        });
         break;
     }
 

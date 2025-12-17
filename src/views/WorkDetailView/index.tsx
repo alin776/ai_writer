@@ -109,6 +109,10 @@ const WorkDetailView: React.FC = () => {
     guidelines: undefined,
     aiGuidelines: undefined,
   });
+  // 世界观面板初始 tab（用于搜索导航定位）
+  const [worldviewInitialTab, setWorldviewInitialTab] = useState<'characters' | 'places' | 'settings' | undefined>(undefined);
+  // 世界观面板目标项 ID（用于搜索导航滚动定位）
+  const [worldviewTargetItemId, setWorldviewTargetItemId] = useState<string | undefined>(undefined);
   const {
     tabs,
     activeTabId,
@@ -331,27 +335,72 @@ const WorkDetailView: React.FC = () => {
         setChapters(chaptersData);
         setWorldData(worldDataFromServer as any);
 
-        // 如果有章节，优先使用上次编辑的章节，否则默认选中第一个
-        if (chaptersData.length > 0) {
-          // 检查是否有保存的上次编辑章节
-          const lastChapterId = getLastChapter(workId);
-          const lastChapter = lastChapterId ? chaptersData.find((c: Chapter) => c.id === lastChapterId) : null;
+        // 处理搜索导航的定位参数
+        const searchNavState = location.state as {
+          targetChapterId?: string;
+          openWorldview?: boolean;
+          worldviewTab?: 'characters' | 'locations' | 'settings';
+          targetItemId?: string;
+        } | null;
 
-          if (lastChapter) {
-            // 恢复到上次编辑的章节
-            setCurrentChapterId(lastChapter.id);
-            setCurrentChapterContent(lastChapter.content);
-            editorChapterIdRef.current = lastChapter.id;
-            console.log('[WorkDetailView] 恢复到上次编辑的章节:', lastChapter.title);
-          } else {
-            // 默认选中第一个章节，并保存到 store
-            setCurrentChapterId(chaptersData[0].id);
-            setCurrentChapterContent(chaptersData[0].content);
-            editorChapterIdRef.current = chaptersData[0].id;
-            setLastChapter(workId, chaptersData[0].id);
+        // 如果有章节，处理章节选择逻辑
+        if (chaptersData.length > 0) {
+          let targetChapter = null;
+
+          // 优先级1：搜索导航指定的章节
+          if (searchNavState?.targetChapterId) {
+            targetChapter = chaptersData.find((c: Chapter) => c.id === searchNavState.targetChapterId);
+            if (targetChapter) {
+              console.log('[WorkDetailView] 从搜索导航定位到章节:', targetChapter.title);
+            }
           }
-        } else {
-          // 方案B：自动创建默认章节
+
+          // 优先级2：上次编辑的章节
+          if (!targetChapter) {
+            const lastChapterId = getLastChapter(workId);
+            targetChapter = lastChapterId ? chaptersData.find((c: Chapter) => c.id === lastChapterId) : null;
+            if (targetChapter) {
+              console.log('[WorkDetailView] 恢复到上次编辑的章节:', targetChapter.title);
+            }
+          }
+
+          // 优先级3：默认第一个章节
+          if (!targetChapter) {
+            targetChapter = chaptersData[0];
+          }
+
+          setCurrentChapterId(targetChapter.id);
+          setCurrentChapterContent(targetChapter.content);
+          editorChapterIdRef.current = targetChapter.id;
+          setLastChapter(workId, targetChapter.id);
+        }
+
+        // 处理世界观面板定位（角色/地点/设定搜索）
+        if (searchNavState?.openWorldview) {
+          // 打开世界观面板
+          setRightSidebarType('worldview');
+          // 设置初始 tab（注意：搜索用 'locations'，面板用 'places'）
+          const tabMap: Record<string, 'characters' | 'places' | 'settings'> = {
+            'characters': 'characters',
+            'locations': 'places',
+            'settings': 'settings'
+          };
+          const mappedTab = searchNavState.worldviewTab ? tabMap[searchNavState.worldviewTab] : 'characters';
+          setWorldviewInitialTab(mappedTab);
+          // 设置目标项 ID（用于滚动定位）
+          if (searchNavState.targetItemId) {
+            setWorldviewTargetItemId(searchNavState.targetItemId);
+          }
+          console.log('[WorkDetailView] 从搜索导航打开世界观面板:', mappedTab, searchNavState.targetItemId);
+        }
+
+        // 清除 location.state 中的搜索导航参数，避免刷新时重复执行
+        if (searchNavState?.targetChapterId || searchNavState?.openWorldview) {
+          window.history.replaceState({}, '');
+        }
+
+        // 如果没有章节，自动创建默认章节
+        if (chaptersData.length === 0) {
           try {
             const defaultChapterData = {
               work_id: workId,
@@ -1625,6 +1674,9 @@ const WorkDetailView: React.FC = () => {
                 <WorldviewPanel
                   workId={workId!}
                   worldData={worldData}
+                  initialTab={worldviewInitialTab}
+                  targetItemId={worldviewTargetItemId}
+                  onTargetItemScrolled={() => setWorldviewTargetItemId(undefined)}
                 />
               ) : rightSidebarType === 'summary' ? (
                 <SummaryPanel

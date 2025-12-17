@@ -96,6 +96,7 @@ async def global_search(
                     Work.description.ilike(search_pattern)
                 )
             )
+            .order_by(Work.updated_at.desc())
             .limit(limit)
         )
         
@@ -133,6 +134,7 @@ async def global_search(
                     Chapter.content.ilike(search_pattern)
                 )
             )
+            .order_by(Chapter.updated_at.desc())
             .limit(limit)
         )
         
@@ -169,6 +171,7 @@ async def global_search(
                     Character.description.ilike(search_pattern)
                 )
             )
+            .order_by(Character.updated_at.desc())
             .limit(limit)
         )
         
@@ -204,6 +207,7 @@ async def global_search(
                     Location.description.ilike(search_pattern)
                 )
             )
+            .order_by(Location.updated_at.desc())
             .limit(limit)
         )
         
@@ -239,6 +243,7 @@ async def global_search(
                     Setting.content.ilike(search_pattern)
                 )
             )
+            .order_by(Setting.updated_at.desc())
             .limit(limit)
         )
         
