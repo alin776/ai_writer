@@ -25,7 +25,7 @@ class WorkRating(Base):
 
     # 关联关系
     user = relationship("User", backref="work_ratings")
-    work = relationship("Work", backref="work_ratings")
+    work = relationship("Work", back_populates="work_ratings")
 
     # 唯一约束:每个用户对每部作品只能评分一次
     __table_args__ = (

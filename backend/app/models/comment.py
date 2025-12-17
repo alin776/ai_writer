@@ -45,7 +45,7 @@ class Comment(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # 关联关系
-    work = relationship("Work", backref="comments")
+    work = relationship("Work", back_populates="comments")
     user = relationship("User", foreign_keys=[user_id], backref="comments")
     reply_to_user = relationship("User", foreign_keys=[reply_to_user_id])
     parent = relationship("Comment", remote_side=[id], backref="replies")
