@@ -24,7 +24,7 @@ interface NovelCardProps {
 export function NovelCard({ novel, onViewDetail }: NovelCardProps) {
   return (
     <div
-      className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600 transition-all duration-200 cursor-pointer overflow-hidden flex flex-col"
+      className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600 transition-all duration-200 cursor-pointer overflow-hidden flex flex-col h-[360px]"
       onClick={onViewDetail}
     >
       <div className="relative">

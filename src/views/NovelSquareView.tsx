@@ -396,9 +396,9 @@ export default function NovelSquareView() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-50 dark:bg-slate-900">
-      {/* 固定页眉区域 */}
-      <div className="flex-shrink-0">
+    <div className="h-full overflow-auto bg-gray-50 dark:bg-slate-900">
+      {/* 轮播图和筛选区域 */}
+      <div>
         <FeaturedCarousel onViewDetail={handleViewDetailById} />
 
         <div className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700">
@@ -481,8 +481,8 @@ export default function NovelSquareView() {
         </div>
       </div>
 
-      {/* 可滚动内容区 */}
-      <main className="flex-1 overflow-auto">
+      {/* 内容区 */}
+      <main>
         <div className="max-w-6xl mx-auto px-6 py-6">
         {loading && novels.length === 0 ? (
           <div className="flex justify-center items-center py-20">
