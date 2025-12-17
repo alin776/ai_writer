@@ -93,7 +93,7 @@ const KnowledgeView: React.FC = () => {
   const [formCategory, setFormCategory] = useState<KnowledgeCategory>('technique');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const { warning: showWarning, success: showSuccess, messages, close } = useToast();
+  const { warning: showWarning, success: showSuccess, error: showError, messages, close } = useToast();
 
   const loadItems = useCallback(
     async ({
@@ -249,8 +249,14 @@ const KnowledgeView: React.FC = () => {
       setShowAddDialog(false);
       resetForm();
       loadItems({ forceRefresh: true, page: 1 });
-    } catch (error) {
+      showSuccess('添加成功', '知识条目已创建并向量化');
+    } catch (error: any) {
       console.error('Failed to add knowledge:', error);
+      const errorMessage = error?.response?.data?.detail
+        || error?.detail
+        || error?.message
+        || '添加知识失败，请稍后重试';
+      showError('添加失败', errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -274,8 +280,14 @@ const KnowledgeView: React.FC = () => {
       } else {
         showSuccess('上传成功', '知识条目已创建并向量化');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to upload file:', error);
+      // 解析错误信息，支持多种后端错误格式
+      const errorMessage = error?.response?.data?.detail
+        || error?.detail
+        || error?.message
+        || '文件上传失败，请稍后重试';
+      showError('上传失败', errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -295,8 +307,14 @@ const KnowledgeView: React.FC = () => {
       setShowEditDialog(false);
       resetForm();
       loadItems({ forceRefresh: true, page: 1 });
-    } catch (error) {
+      showSuccess('更新成功', '知识条目已更新');
+    } catch (error: any) {
       console.error('Failed to update knowledge:', error);
+      const errorMessage = error?.response?.data?.detail
+        || error?.detail
+        || error?.message
+        || '更新知识失败，请稍后重试';
+      showError('更新失败', errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -311,8 +329,14 @@ const KnowledgeView: React.FC = () => {
       setShowDeleteDialog(false);
       setCurrentItem(null);
       loadItems({ forceRefresh: true, page: 1 });
-    } catch (error) {
+      showSuccess('删除成功', '知识条目已删除');
+    } catch (error: any) {
       console.error('Failed to delete knowledge:', error);
+      const errorMessage = error?.response?.data?.detail
+        || error?.detail
+        || error?.message
+        || '删除知识失败，请稍后重试';
+      showError('删除失败', errorMessage);
     } finally {
       setSubmitting(false);
     }

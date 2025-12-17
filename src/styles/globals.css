@@ -705,6 +705,19 @@ select option {
   scrollbar-color: rgba(161, 161, 170, 0.3) transparent;
 }
 
+/* 自定义滚动条样式 - 暗色模式 */
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.6);
+}
+
+.dark .custom-scrollbar {
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+}
+
 /* 涟漪扩散动画 - 颜色由深到浅 */
 @keyframes ripple {
   0% {

@@ -4,17 +4,33 @@
 
 使用方式：
 ```python
-from app.services.agent.timeout_config import TimeoutConfig
+from app.services.agent.timeout_config import TimeoutConfig, async_timeout
 
 # 获取 Multi-Agent 总超时
 timeout = TimeoutConfig.MULTI_AGENT_TOTAL
 
 # 获取某阶段超时
 outline_timeout = TimeoutConfig.get_stage_timeout("outline")
+
+# 使用超时上下文管理器（兼容 Python 3.10+）
+async with async_timeout(TimeoutConfig.LLM_CALL):
+    await some_async_operation()
 ```
 """
 
+import sys
 from typing import Dict
+
+# ==================== 兼容性超时导入 ====================
+# asyncio.timeout 是 Python 3.11+ 新增的特性
+# 对于 Python 3.10，使用 async-timeout 包作为替代
+if sys.version_info >= (3, 11):
+    from asyncio import timeout as async_timeout
+else:
+    from async_timeout import timeout as async_timeout
+
+# 导出 async_timeout 供其他模块使用
+__all__ = ["TimeoutConfig", "async_timeout"]
 
 
 class TimeoutConfig:

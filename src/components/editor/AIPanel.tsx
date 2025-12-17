@@ -4,6 +4,7 @@ import { Button } from '../ui/button';
 import { Bot, Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronLeft, Tag, X, Copy } from 'lucide-react';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import { useEditorStore } from '../../store/editorStore';
+import { useChatDraftStore } from '../../store/chatDraftStore';
 import type { AgentChatRequest } from '../../types/agent';
 import type { AgentMode } from '../agent/ModeSelector';
 import ModeSelector from '../agent/ModeSelector';
@@ -178,6 +179,9 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   // 获取当前章节内容，便于 @optimization 直接调用去痕迹接口
   const { currentChapter } = useEditorStore();
 
+  // 获取草稿 store 方法，用于会话切换时保存/恢复输入状态
+  const { saveDraft, getDraft, clearDraft } = useChatDraftStore();
+
   const [inputValue, setInputValue] = useState('');
   const [mode, setMode] = useState<AgentMode>('plan'); // ✅ Agent执行模式：plan(固定规划) | agent(DeepAgent反思)
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -208,6 +212,39 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     selected_text_html?: string;
     selection_position?: { from: number; to: number };
   } | null>(null);
+
+  // 组件挂载时恢复草稿
+  useEffect(() => {
+    if (sessionId) {
+      const draft = getDraft(sessionId);
+      if (draft) {
+        setInputValue(draft.inputValue);
+        setSelectedDocs(draft.selectedDocs);
+        setOptimizationSelected(draft.optimizationSelected);
+        setSelectionContext(draft.selectionContext);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 只在挂载时执行一次
+
+  // 实时保存草稿：每次输入变化时自动保存
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const hasContent = inputValue.trim() || selectedDocs.length > 0 || optimizationSelected || selectionContext;
+
+    if (hasContent) {
+      saveDraft(sessionId, {
+        inputValue,
+        selectedDocs,
+        optimizationSelected,
+        selectionContext,
+      });
+    } else {
+      // 如果没有内容，清除草稿
+      clearDraft(sessionId);
+    }
+  }, [sessionId, inputValue, selectedDocs, optimizationSelected, selectionContext, saveDraft, clearDraft]);
 
   // ✅ 流式输出：后端逐字发送，前端直接显示（无需前端打字机效果）
 
@@ -747,6 +784,11 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     setSelectedDocs([]);
     setOptimizationSelected(false);
     setSelectionContext(null);
+
+    // 发送成功后清除该会话的草稿
+    if (sessionId) {
+      clearDraft(sessionId);
+    }
 
     // 用户发送消息时，标记应该自动滚动
     shouldAutoScrollRef.current = true;

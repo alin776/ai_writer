@@ -46,6 +46,8 @@ const SettingsView: React.FC = () => {
   const { t, i18n } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const bioTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // 标记表单是否已从 user 数据初始化，避免后续 user 更新时覆盖用户编辑
+  const formInitializedRef = useRef(false);
 
   // 支持从修改密码页面返回时恢复到安全设置标签
   const initialTab = (location.state as { activeTab?: SettingTab })?.activeTab || 'profile';
@@ -149,12 +151,11 @@ const SettingsView: React.FC = () => {
     }
   };
 
+  // 只在页面首次加载时从服务器数据初始化表单（在 loadSettings 中处理）
+  // 后续的 user 更新（如头像上传）不会触发表单重置
   useEffect(() => {
+    // 仅初始化通知设置和偏好设置（这些不是用户正在编辑的表单字段）
     if (user) {
-      setProfileForm({
-        username: user.username || '',
-        bio: user.bio || '',
-      });
       if (user.notificationSettings) {
         setNotificationSettings({
           ...notificationDefaults,
@@ -188,6 +189,11 @@ const SettingsView: React.FC = () => {
           DataService.getPreferences(),
         ]);
         setUser(userResponse);
+        // 只在页面首次加载时初始化 profileForm，避免后续 user 更新时覆盖用户正在编辑的内容
+        setProfileForm({
+          username: userResponse?.username || '',
+          bio: userResponse?.bio || '',
+        });
         setNotificationSettings({
           ...notificationDefaults,
           ...notificationResponse,

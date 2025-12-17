@@ -66,20 +66,12 @@ export default function MyBookshelfView() {
   // 用于防止重复恢复状态
   const hasRestoredRef = useRef(false);
 
-  // 根据类型生成默认封面
-  const getDefaultCover = (genre: string): string => {
-    const coverMap: Record<string, string> = {
-      fantasy: 'https://images.unsplash.com/photo-1618681679873-c81d7a65f0e2?w=400&q=80', // 玄幻 - 魔法城堡
-      urban: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=400&q=80', // 都市 - 城市夜景
-      romance: 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=400&q=80', // 言情 - 浪漫场景
-      scifi: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400&q=80', // 科幻 - 太空星球
-      wuxia: 'https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=400&q=80', // 武侠 - 中国山水
-      game: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=400&q=80', // 游戏 - 游戏场景
-      history: 'https://images.unsplash.com/photo-1533613220915-609f661a6fe1?w=400&q=80', // 历史 - 古建筑
-      military: 'https://images.unsplash.com/photo-1569098293970-f305919c7f9e?w=400&q=80', // 军事 - 军事题材
-      other: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400&q=80', // 其他 - 书籍
-    };
-    return coverMap[genre] || coverMap.other;
+  // 默认封面图片 - 使用本地图片确保国内可访问
+  const DEFAULT_COVER_IMAGE = '/default-cover.jpg';
+
+  // 获取默认封面
+  const getDefaultCover = (): string => {
+    return DEFAULT_COVER_IMAGE;
   };
 
   // 将书架API响应转换为前端数据格式
@@ -90,7 +82,7 @@ export default function MyBookshelfView() {
       author: item.authorName,
       category: GENRE_REVERSE_MAP[item.genre] || '其他',
       description: item.description || '暂无简介',
-      cover: item.coverImage || getDefaultCover(item.genre),
+      cover: item.coverImage || getDefaultCover(),
       views: item.viewCount,
       likes: item.favoriteCount || 0,
       rating: item.averageRating || 0,
@@ -159,7 +151,7 @@ export default function MyBookshelfView() {
         author: '',
         category: '其他',
         description: '',
-        cover: getDefaultCover('other'),
+        cover: getDefaultCover(),
         views: 0,
         likes: 0,
         rating: 0,

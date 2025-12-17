@@ -23,7 +23,7 @@ from langchain_core.tools import tool
 
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.agent.model_selector import TaskType
-from app.services.agent.timeout_config import TimeoutConfig
+from app.services.agent.timeout_config import TimeoutConfig, async_timeout
 from app.core.database import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
@@ -220,7 +220,7 @@ async def _generate_text_helper(
 
     while retry_count < max_retries:
         try:
-            async with asyncio.timeout(TimeoutConfig.LLM_CALL):
+            async with async_timeout(TimeoutConfig.LLM_CALL):
                 async for chunk, _ in ai_service._stream_chat(
                     messages=messages,
                     max_tokens=max_tokens,

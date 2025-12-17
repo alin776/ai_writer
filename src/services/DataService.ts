@@ -328,8 +328,8 @@ class DataServiceClass {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await this.adapter.post<{ cover_url: string }>(`/works/${workId}/cover`, formData);
-    return response.cover_url;
+    const response = await this.adapter.post<{ coverUrl: string }>(`/works/${workId}/cover`, formData);
+    return response.coverUrl;
   }
 
   /**

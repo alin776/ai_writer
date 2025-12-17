@@ -42,7 +42,7 @@ from app.services.agent.progress_tracker import ProgressTracker
 from app.services.agent.node_metadata import get_node_info
 # DeepAgent 反思系统
 from app.services.agent.deep_agent import DeepAgentExecutor
-from app.services.agent.timeout_config import TimeoutConfig
+from app.services.agent.timeout_config import TimeoutConfig, async_timeout
 from app.services.context.context_config import ContextConfig
 from app.services.agent.tools.editor_tools import (
     smart_continue,
@@ -741,7 +741,7 @@ class WritingAgentGraph:
 
         # ✅ P0-1: 添加超时保护（使用统一配置）
         try:
-            async with asyncio.timeout(TimeoutConfig.LLM_CALL):
+            async with async_timeout(TimeoutConfig.LLM_CALL):
                 # 使用HTTPAIService
                 # ✅ 构建消息列表
                 if messages is not None:
@@ -839,7 +839,7 @@ class WritingAgentGraph:
         logger.info(f"[_generate_text_stream] 开始流式生成，buffer_size={buffer_size}")
 
         try:
-            async with asyncio.timeout(TimeoutConfig.LLM_CALL):
+            async with async_timeout(TimeoutConfig.LLM_CALL):
                 async for chunk, chunk_usage in self.ai_service._stream_chat(
                     messages=[{"role": "user", "content": prompt}],
                     max_tokens=max_tokens,
@@ -3199,7 +3199,7 @@ class WritingAgentGraph:
             event_count = 0
 
             # ✅ 添加超时保护（使用统一配置）
-            async with asyncio.timeout(TimeoutConfig.LANGGRAPH_STREAM):
+            async with async_timeout(TimeoutConfig.LANGGRAPH_STREAM):
                 async for event in self.graph.astream_events(initial_state, config, version="v2"):
                     event_count += 1
 
@@ -3911,7 +3911,7 @@ class WritingAgentGraph:
             )
 
             # 设置总体超时（使用统一配置）
-            async with asyncio.timeout(TimeoutConfig.TASK_EXECUTION):
+            async with async_timeout(TimeoutConfig.TASK_EXECUTION):
                 # ========== 加载对话历史（使用 ContextManager 压缩） ==========
                 conversation_history = ""
                 context_bundle = None  # 保存上下文包，用于后续更新
@@ -4246,7 +4246,7 @@ chapter_id: {chapter_id}
                 # 使用新的并行执行方法
                 # ✅ 为任务执行添加超时保护（使用统一配置）
                 try:
-                    async with asyncio.timeout(TimeoutConfig.TASK_EXECUTION):
+                    async with async_timeout(TimeoutConfig.TASK_EXECUTION):
                         # ════════════════════════════════════════════
                         # DeepAgent 反思模式分支
                         # ════════════════════════════════════════════

@@ -133,15 +133,15 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
   }, [summaryTab, currentChapterId]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-white dark:bg-slate-900">
       {/* 子标签 - 简约设计 */}
-      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-zinc-100">
+      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-zinc-100 dark:border-zinc-700 bg-zinc-50 dark:bg-slate-800">
         <button
           onClick={() => setSummaryTab('novel')}
           className={`px-2.5 py-1 rounded-md text-[11px] transition-all duration-200 ${
             summaryTab === 'novel'
-              ? 'bg-zinc-900 text-white'
-              : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
+              ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+              : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100'
           }`}
         >
           {t('editor.summary.novelSummary')}
@@ -150,8 +150,8 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
           onClick={() => setSummaryTab('chapter')}
           className={`px-2.5 py-1 rounded-md text-[11px] transition-all duration-200 ${
             summaryTab === 'chapter'
-              ? 'bg-zinc-900 text-white'
-              : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
+              ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+              : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100'
           }`}
         >
           {t('editor.summary.currentChapter')}
@@ -159,17 +159,17 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
       </div>
 
       {/* 内容区域 */}
-      <div className="flex-1 flex flex-col p-3 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 flex flex-col p-3 overflow-y-auto custom-scrollbar bg-white dark:bg-slate-900">
         {summaryTab === 'novel' && (
           <>
             {/* 概括内容 */}
-            <div className="flex-1 p-3 rounded-lg bg-zinc-50/70 border border-zinc-100 mb-2.5 overflow-y-auto custom-scrollbar">
+            <div className="flex-1 p-3 rounded-lg bg-zinc-50/70 border border-zinc-100 mb-2.5 overflow-y-auto custom-scrollbar dark:bg-zinc-800/70 dark:border-zinc-700">
               {isLoadingNovel ? (
                 <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
+                  <Loader2 className="h-5 w-5 animate-spin text-zinc-400 dark:text-zinc-500" />
                 </div>
               ) : (
-                <p className="text-[11px] text-zinc-600 leading-[1.7] whitespace-pre-wrap">
+                <p className="text-[11px] text-zinc-600 leading-[1.7] whitespace-pre-wrap dark:text-zinc-300">
                   {novelSummary || t('editor.summary.noNovelSummary')}
                 </p>
               )}
@@ -181,7 +181,7 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
                 size="sm"
                 onClick={() => loadNovelSummary()}
                 disabled={isLoadingNovel}
-                className="w-full h-8 text-[11px] bg-zinc-100 hover:bg-zinc-200 text-zinc-700 transition-all border border-zinc-200"
+                className="w-full h-8 text-[11px] bg-zinc-100 hover:bg-zinc-200 text-zinc-700 transition-all border border-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-300 dark:border-zinc-600"
               >
                 {isLoadingNovel ? (
                   <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
@@ -196,7 +196,7 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
                   size="sm"
                   onClick={() => loadNovelSummary()}
                   disabled={isLoadingNovel}
-                  className="flex-1 h-7 text-[11px] text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 transition-all"
+                  className="flex-1 h-7 text-[11px] text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 transition-all dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800"
                 >
                   <RefreshCw className="h-3 w-3 mr-1" />
                   {t('editor.summary.refresh')}
@@ -206,7 +206,7 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
                   size="sm"
                   onClick={handleGetWorldview}
                   disabled={isLoadingNovel}
-                  className="flex-1 h-7 text-[11px] text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 transition-all"
+                  className="flex-1 h-7 text-[11px] text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 transition-all dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800"
                 >
                   {isLoadingNovel ? (
                     <Loader2 className="h-3 w-3 mr-1 animate-spin" />
@@ -223,13 +223,13 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
         {summaryTab === 'chapter' && (
           <>
             {/* 概括内容 */}
-            <div className="flex-1 p-3 rounded-lg bg-zinc-50/70 border border-zinc-100 mb-2.5 overflow-y-auto custom-scrollbar">
+            <div className="flex-1 p-3 rounded-lg bg-zinc-50/70 border border-zinc-100 mb-2.5 overflow-y-auto custom-scrollbar dark:bg-zinc-800/70 dark:border-zinc-700">
               {isLoadingChapter ? (
                 <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
+                  <Loader2 className="h-5 w-5 animate-spin text-zinc-400 dark:text-zinc-500" />
                 </div>
               ) : (
-                <p className="text-[11px] text-zinc-600 leading-[1.7] whitespace-pre-wrap">
+                <p className="text-[11px] text-zinc-600 leading-[1.7] whitespace-pre-wrap dark:text-zinc-300">
                   {currentChapterId
                     ? chapterSummary || t('editor.summary.noSummaryClickGenerate')
                     : t('editor.summary.selectChapterToView')}
@@ -243,7 +243,7 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
                 size="sm"
                 onClick={() => generateChapterSummary(false)}
                 disabled={!currentChapterId || isGenerating || isLoadingChapter}
-                className="w-full h-8 text-[11px] bg-zinc-100 hover:bg-zinc-200 text-zinc-700 transition-all border border-zinc-200"
+                className="w-full h-8 text-[11px] bg-zinc-100 hover:bg-zinc-200 text-zinc-700 transition-all border border-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-300 dark:border-zinc-600"
               >
                 {isGenerating ? (
                   <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
@@ -257,7 +257,7 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
                 size="sm"
                 onClick={() => generateChapterSummary(true)}
                 disabled={!currentChapterId || isGenerating || isLoadingChapter || !chapterSummary}
-                className="w-full h-7 text-[11px] text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 transition-all"
+                className="w-full h-7 text-[11px] text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 transition-all dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800"
               >
                 <RefreshCw className="h-3 w-3 mr-1" />
                 {t('editor.summary.regenerate')}
