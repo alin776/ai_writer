@@ -9,6 +9,7 @@ import logging
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formataddr
 from typing import Optional
 from redis.asyncio import Redis
 from app.core.config import settings
@@ -155,6 +156,8 @@ class EmailVerificationService:
         smtp_port = getattr(settings, 'SMTP_PORT', 587)
         smtp_user = getattr(settings, 'SMTP_USER', None)
         smtp_password = getattr(settings, 'SMTP_PASSWORD', None)
+        smtp_from = getattr(settings, 'SMTP_FROM', None) or smtp_user  # 优先使用自定义发件人
+        smtp_from_name = getattr(settings, 'SMTP_FROM_NAME', None) or settings.APP_NAME  # 发件人名称
 
         if not all([smtp_host, smtp_user, smtp_password]):
             logger.warning("SMTP 未配置，跳过邮件发送")
@@ -162,7 +165,8 @@ class EmailVerificationService:
 
         msg = MIMEMultipart('alternative')
         msg['Subject'] = f'【{settings.APP_NAME}】邮箱验证码'
-        msg['From'] = smtp_user
+        # 使用 formataddr 格式化带名称的发件人
+        msg['From'] = formataddr((smtp_from_name, smtp_user))
         msg['To'] = to_email
 
         html = f"""

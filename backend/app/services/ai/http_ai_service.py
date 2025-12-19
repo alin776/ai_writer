@@ -237,6 +237,7 @@ class HTTPAIService:
 
         # ==================== 模型选择逻辑 ====================
         # 根据task_type智能选择模型
+        # ✅ 2025-12-18: 增强日志，清晰追踪模型选择过程
         if self.model_selector and task_type:
             try:
                 # 使用ModelSelector智能选择
@@ -247,17 +248,30 @@ class HTTPAIService:
                 )
                 model = selection.model.model_id
                 logger.info(
-                    f"[ModelSelector] 任务={task_type.value}, "
-                    f"模型={model}, 原因={selection.reason}"
+                    f"[ModelSelector] ✅ 智能选择成功: "
+                    f"task_type={task_type.value}, "
+                    f"complexity={selection.complexity.value}, "
+                    f"selected_model={model}, "
+                    f"default_model={self.model}, "
+                    f"reason={selection.reason}"
                 )
             except Exception as e:
-                logger.warning(f"[ModelSelector] 选择失败: {e}, 使用默认模型")
+                logger.warning(
+                    f"[ModelSelector] ⚠️ 选择失败，回退到默认模型: "
+                    f"error={e}, default_model={self.model}"
+                )
                 model = self.model
         else:
             # 使用默认模型
             model = self.model
-            if task_type and not self.model_selector:
-                logger.debug(f"[ModelSelector] 未启用，使用默认模型: {model}")
+            if not self.model_selector:
+                logger.warning(
+                    f"[ModelSelector] ⚠️ 未启用(model_selector=None)，使用默认模型: {model}"
+                )
+            elif not task_type:
+                logger.warning(
+                    f"[ModelSelector] ⚠️ 未传递task_type，使用默认模型: {model}"
+                )
         # ======================================================
 
         url = f"{self.base_url}/chat/completions"
@@ -373,12 +387,14 @@ class HTTPAIService:
                 # Week 7: 追踪成本
                 # ✅ 2025-12-01: 移除ai_log_service检查（现在使用独立db session）
                 # ✅ 2025-12-15: 保存追踪结果用于空响应退款
+                # ✅ 2025-12-18: 传递实际使用的模型（ModelSelector选择的）
                 cost_tracking_result = None
                 if self.enable_cost_tracking and usage_info:
                     cost_tracking_result = await self._track_api_cost(
                         usage_info=usage_info,
                         task_type=task_type,
-                        start_time=start_time
+                        start_time=start_time,
+                        actual_model=model  # ✅ 传递 ModelSelector 动态选择的模型
                     )
 
                 # 🔧 监控：记录Token使用
@@ -925,6 +941,7 @@ class HTTPAIService:
         usage_info: dict,
         task_type: Optional[TaskType],
         start_time: datetime,
+        actual_model: Optional[str] = None,  # ✅ 2025-12-18: 实际使用的模型（ModelSelector选择的）
         db: Optional[Any] = None,  # 可选：外层数据库会话（用于事务原子性）
         auto_commit: bool = True   # 是否自动提交（传入外层db时应设为False）
     ) -> Optional[dict]:
@@ -939,6 +956,7 @@ class HTTPAIService:
             usage_info: usage统计信息
             task_type: 任务类型
             start_time: 调用开始时间
+            actual_model: 实际使用的模型名称（由ModelSelector动态选择，如不传则使用self.model）
             db: 可选的外层数据库会话。如果传入，则使用该会话（不自动提交）
             auto_commit: 是否自动提交。传入外层db时应设为False，由外层统一提交/回滚
 
@@ -972,13 +990,17 @@ class HTTPAIService:
             source = "实例" if self.user_id else "上下文"
             logger.info(f"[成本追踪] user_id来源: {source}, user_id={user_id}")
 
+            # ✅ 2025-12-18: 使用实际调用的模型（ModelSelector选择的），而不是默认模型
+            model_to_track = actual_model or self.model
+            logger.info(f"[成本追踪] 记录模型: {model_to_track} (actual_model={actual_model}, self.model={self.model})")
+
             # 提取token使用情况
             prompt_tokens = usage_info.get('prompt_tokens', 0)
             completion_tokens = usage_info.get('completion_tokens', 0)
 
             # 使用CostCalculator计算成本（统一的定价源）
             cost_data = CostCalculator.calculate_cost(
-                model_name=self.model,
+                model_name=model_to_track,  # ✅ 使用实际模型计算成本
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens
             )
@@ -989,7 +1011,7 @@ class HTTPAIService:
             # 创建日志记录
             log_data = AICallLogCreate(
                 user_id=UUID(user_id),
-                model_name=self.model,
+                model_name=model_to_track,  # ✅ 使用实际模型记录日志
                 operation_type=task_type.value if task_type else "unknown",
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
@@ -1179,12 +1201,42 @@ class HTTPAIService:
             "Content-Type": "application/json"
         }
 
+        # ✅ 2025-12-18: 非流式调用也应使用 ModelSelector 智能选择模型
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        if self.model_selector and task_type:
+            try:
+                selection = self.model_selector.select_model(
+                    task_type=task_type,
+                    input_tokens=len(str(messages)) // 4,
+                    output_tokens=max_tokens
+                )
+                model = selection.model.model_id
+                logger.info(
+                    f"[ModelSelector] ✅ 非流式调用智能选择: "
+                    f"task_type={task_type.value}, "
+                    f"selected_model={model}, "
+                    f"default_model={self.model}"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"[ModelSelector] ⚠️ 非流式调用选择失败: error={e}, "
+                    f"使用默认模型={self.model}"
+                )
+                model = self.model
+        else:
+            model = self.model
+            if not self.model_selector:
+                logger.warning(f"[ModelSelector] ⚠️ 非流式调用未启用，使用默认模型: {model}")
+            elif not task_type:
+                logger.warning(f"[ModelSelector] ⚠️ 非流式调用未传递task_type，使用默认模型: {model}")
+
         payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
+            "model": model,  # ✅ 使用动态选择的模型
+            "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
             "stream": False  # 非流式
@@ -1228,12 +1280,14 @@ class HTTPAIService:
 
                 # Week 7: 追踪成本 (如果API返回了usage信息)
                 # ✅ 2025-12-15: 保存追踪结果用于空响应退款
+                # ✅ 2025-12-18: 传递实际使用的模型（ModelSelector选择的）
                 cost_tracking_result = None
                 if self.enable_cost_tracking and 'usage' in data:
                     cost_tracking_result = await self._track_api_cost(
                         usage_info=data['usage'],
                         task_type=task_type,
-                        start_time=start_time
+                        start_time=start_time,
+                        actual_model=model  # ✅ 传递 ModelSelector 动态选择的模型
                     )
 
                 # ✅ 2025-12-15: 空响应自动退款

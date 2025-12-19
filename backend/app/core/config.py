@@ -252,6 +252,8 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM: Optional[str] = None  # 自定义发件人地址（如域名邮箱别名）
+    SMTP_FROM_NAME: Optional[str] = None  # 发件人显示名称（如"文枢AI"）
     SMTP_USE_TLS: bool = True
 
     # 日志配置

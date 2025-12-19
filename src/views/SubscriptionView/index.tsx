@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Clock, Bell } from 'lucide-react';
+import { ArrowLeft, Sparkles, Clock } from 'lucide-react';
 
 const SubscriptionView: React.FC = () => {
   const navigate = useNavigate();
@@ -81,27 +81,6 @@ const SubscriptionView: React.FC = () => {
             <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
               享受会员专属功能和优先支持服务
             </p>
-          </div>
-        </div>
-
-        {/* Notify Me Card */}
-        <div className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl p-8 text-white max-w-2xl mx-auto">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Bell className="w-6 h-6" />
-            <h3 className="text-xl font-bold">第一时间获取通知</h3>
-          </div>
-          <p className="text-white/90 mb-6 text-center">
-            订阅服务上线时，我们将通过站内消息和邮件通知您
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto">
-            <input
-              type="email"
-              placeholder="输入您的邮箱"
-              className="flex-1 px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
-            />
-            <button className="px-6 py-3 bg-white text-blue-600 font-medium rounded-xl hover:bg-white/90 transition-all">
-              订阅更新
-            </button>
           </div>
         </div>
       </div>

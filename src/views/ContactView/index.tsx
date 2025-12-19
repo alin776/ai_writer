@@ -192,7 +192,7 @@ const ContactView: React.FC = () => {
                       邮箱
                     </h3>
                     <p className="text-gray-600 dark:text-gray-400">
-                      2072855200@qq.com
+                      contact@wenshuai.online
                     </p>
                   </div>
                 </div>

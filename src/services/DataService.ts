@@ -1458,7 +1458,7 @@ class DataServiceClass {
     status?: string;
     isPublished?: boolean;
   }): Promise<any> {
-    return this.adapter.get('/admin/works/works', { params });
+    return this.adapter.get('/admin/works/works', params);
   }
 
   /**
