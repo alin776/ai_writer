@@ -36,7 +36,8 @@ export const AuthLayout: React.FC = () => {
                           location.pathname.startsWith('/knowledge') ||
                           location.pathname.startsWith('/library') ||
                           location.pathname.startsWith('/notifications') ||
-                          location.pathname.startsWith('/settings');
+                          location.pathname.startsWith('/settings') ||
+                          location.pathname.startsWith('/channels');
 
   /**
    * 检查认证状态

@@ -13,8 +13,11 @@ from app.models.work import Work, WorkGenre
 from app.models.chapter import Chapter
 from app.models.bookshelf import Bookshelf
 from app.models.rating import WorkRating
+from app.models.channel import Channel, ChannelType, ChannelStatus
+from app.models.channel_member import ChannelMember, MemberRole
 from app.schemas.work import WorkResponse
 from pydantic import BaseModel
+import uuid
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -460,6 +463,45 @@ async def add_to_bookshelf(
 
     # 增加作品的收藏数
     work.favorite_count += 1
+
+    # 检查是否需要自动创建作品频道
+    # 当收藏数达到 20 且尚未创建频道时，自动创建
+    if work.favorite_count == 20:
+        # 检查是否已有频道
+        existing_channel_result = await db.execute(
+            select(Channel).where(
+                Channel.work_id == work.id,
+                Channel.type == ChannelType.WORK
+            )
+        )
+        existing_channel = existing_channel_result.scalar_one_or_none()
+
+        if not existing_channel:
+            # 创建作品频道
+            channel = Channel(
+                id=uuid.uuid4(),
+                name=f"《{work.title}》书友圈",
+                description=f"《{work.title}》的读者交流频道",
+                type=ChannelType.WORK,
+                status=ChannelStatus.ACTIVE,
+                work_id=work.id,
+                creator_id=work.author_id,  # 作者作为创建者
+                is_permanent=False,  # 作品频道默认非永久
+                is_pinned=False,
+            )
+            db.add(channel)
+
+            # 作者自动成为频道管理员
+            author_member = ChannelMember(
+                id=uuid.uuid4(),
+                channel_id=channel.id,
+                user_id=work.author_id,
+                role=MemberRole.ADMIN
+            )
+            db.add(author_member)
+            channel.member_count = 1
+
+            logger.info(f"Auto-created work channel for work {work.id} ({work.title}) at 20 favorites")
 
     await db.commit()
 

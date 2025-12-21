@@ -60,6 +60,19 @@ from app.schemas.admin_credits import (
     AdminGiftCreditsResponse,
     AdminCreditsStatsResponse,
 )
+from app.schemas.channel import (
+    ChannelCreate,
+    ChannelUpdate,
+    ChannelResponse,
+    ChannelListResponse,
+    ChannelMemberCreate,
+    ChannelMemberUpdate,
+    ChannelMemberResponse,
+    ChannelMessageCreate,
+    ChannelMessageUpdate,
+    ChannelMessageResponse,
+    ChannelMessageListResponse,
+)
 
 __all__ = [
     # User
@@ -116,4 +129,16 @@ __all__ = [
     "AdminGiftCreditsRequest",
     "AdminGiftCreditsResponse",
     "AdminCreditsStatsResponse",
+    # Channel
+    "ChannelCreate",
+    "ChannelUpdate",
+    "ChannelResponse",
+    "ChannelListResponse",
+    "ChannelMemberCreate",
+    "ChannelMemberUpdate",
+    "ChannelMemberResponse",
+    "ChannelMessageCreate",
+    "ChannelMessageUpdate",
+    "ChannelMessageResponse",
+    "ChannelMessageListResponse",
 ]

@@ -1,0 +1,358 @@
+import { useState, useEffect } from 'react';
+import { Hash, Lock, Users, Sparkles, MessageCircle, BookOpen, Coffee, FlaskConical, ChevronDown, ChevronRight, Bell, Plus, X, Search, AtSign } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
+import { channelApi, UnreadSummary } from '@/services/channelApi';
+
+export interface Channel {
+  id: string;
+  name: string;
+  type: 'official' | 'fangroup' | 'work';
+  status?: 'active' | 'warning' | 'locked';
+  creatorId?: string;
+  unreadCount?: number;
+  warningDays?: number;
+  bookTitle?: string;
+  author?: string;
+  collectCount?: number;
+  isPermanent?: boolean;
+  isPinned?: boolean;
+  description?: string;
+}
+
+interface ChannelListProps {
+  channels: Channel[];
+  activeChannelId: string;
+  onChannelSelect: (channelId: string) => void;
+  onJoinChannel?: (channelId: string) => void;
+  availableChannels?: Channel[];
+  onCreateFangroup?: () => void;
+}
+
+export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoinChannel, availableChannels, onCreateFangroup }: ChannelListProps) {
+  const [expandedSections, setExpandedSections] = useState({
+    official: true,
+    fangroup: true,
+    work: true,
+  });
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [unreadData, setUnreadData] = useState<Map<string, { unreadCount: number; mentionCount: number }>>(new Map());
+
+  // 获取未读数据
+  useEffect(() => {
+    const fetchUnreadData = async () => {
+      try {
+        const summary = await channelApi.getUnreadSummary();
+        const map = new Map();
+        summary.channels.forEach(ch => {
+          map.set(ch.channelId, {
+            unreadCount: ch.unreadCount,
+            mentionCount: ch.mentionCount
+          });
+        });
+        setUnreadData(map);
+      } catch (error) {
+        console.error('获取未读数据失败:', error);
+      }
+    };
+
+    fetchUnreadData();
+    // 每30秒刷新一次未读数据
+    const interval = setInterval(fetchUnreadData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
+
+  const getChannelIcon = (channel: Channel) => {
+    if (channel.type === 'official') {
+      if (channel.name.includes('公共酒馆')) return MessageCircle;
+      if (channel.name.includes('作者酒馆')) return BookOpen;
+      if (channel.name.includes('读者茶馆')) return Coffee;
+      if (channel.name.includes('官方实验室')) return FlaskConical;
+      return Hash;
+    }
+
+    if (channel.type === 'fangroup') return Users;
+
+    if (channel.status === 'locked') return Lock;
+    return Hash;
+  };
+
+  const officialChannels = channels.filter(c => c.type === 'official');
+  const fangroupChannels = channels.filter(c => c.type === 'fangroup');
+  const workChannels = channels.filter(c => c.type === 'work');
+
+  const ChannelItem = ({ channel }: { channel: Channel }) => {
+    const Icon = getChannelIcon(channel);
+    const isActive = channel.id === activeChannelId;
+    const channelUnreadData = unreadData.get(channel.id);
+
+    return (
+      <button
+        onClick={() => onChannelSelect(channel.id)}
+        className={cn(
+          "w-full flex items-center gap-2 px-2 py-2 rounded transition-colors group",
+          isActive ? "bg-black text-white dark:bg-zinc-800" : "hover:bg-gray-50 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-300"
+        )}
+      >
+        <Icon className="w-5 h-5 shrink-0 opacity-60" />
+        <span className="flex-1 text-left truncate text-sm">{channel.name}</span>
+
+        {/* @提醒标识 - 优先级最高 */}
+        {channelUnreadData && channelUnreadData.mentionCount > 0 && (
+          <div className="flex items-center gap-1 bg-red-500 text-white rounded-full px-2 py-0.5">
+            <AtSign className="w-3 h-3" />
+            <span className="text-xs">{channelUnreadData.mentionCount}</span>
+          </div>
+        )}
+
+        {/* 未读消息数 */}
+        {channelUnreadData && channelUnreadData.unreadCount > 0 && channelUnreadData.mentionCount === 0 && (
+          <span className={cn(
+            "text-xs rounded-full h-5 min-w-5 px-1.5 flex items-center justify-center",
+            isActive ? "bg-white text-black" : "bg-black text-white dark:bg-zinc-600 dark:text-white"
+          )}>
+            {channelUnreadData.unreadCount > 99 ? '99+' : channelUnreadData.unreadCount}
+          </span>
+        )}
+
+        {channel.status === 'warning' && (
+          <div className="flex items-center gap-0.5">
+            <Bell className="w-4 h-4 text-red-500" />
+            <span className="text-xs text-red-500">{channel.warningDays}d</span>
+          </div>
+        )}
+
+        {channel.status === 'locked' && (
+          <span className="text-xs text-gray-400 dark:text-gray-500">已折叠</span>
+        )}
+
+        {channel.isPermanent && (
+          <Sparkles className="w-4 h-4 text-amber-400" />
+        )}
+      </button>
+    );
+  };
+
+  const SectionHeader = ({
+    title,
+    section,
+    count
+  }: {
+    title: string;
+    section: keyof typeof expandedSections;
+    count: number;
+  }) => {
+    const isExpanded = expandedSections[section];
+
+    return (
+      <button
+        onClick={() => toggleSection(section)}
+        className="w-full flex items-center gap-1.5 px-2 py-2 hover:bg-gray-50 rounded transition-colors group"
+      >
+        {isExpanded ? (
+          <ChevronDown className="w-4 h-4 shrink-0 text-gray-400" />
+        ) : (
+          <ChevronRight className="w-4 h-4 shrink-0 text-gray-400" />
+        )}
+        <span className="flex-1 text-left text-gray-500 text-sm uppercase tracking-wide">{title}</span>
+        <span className="text-xs text-gray-400">{count}</span>
+      </button>
+    );
+  };
+
+  const handleJoinChannel = (channelId: string) => {
+    if (onJoinChannel) {
+      onJoinChannel(channelId);
+      setShowJoinModal(false);
+      setSearchQuery('');
+    }
+  };
+
+  const filteredAvailableChannels = (availableChannels || []).filter(channel =>
+    channel.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    channel.bookTitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    channel.author?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  return (
+    <div className="w-56 border-r border-gray-100 bg-white flex flex-col h-full">
+      <div style={{ padding: '12px', borderBottom: '1px solid #f3f4f6' }} className="flex items-center justify-between">
+        <h2 className="text-base font-medium">频道</h2>
+        {onJoinChannel && availableChannels && availableChannels.length > 0 && (
+          <button
+            onClick={() => setShowJoinModal(true)}
+            className="p-1 hover:bg-gray-50 rounded transition-colors"
+            title="加入频道"
+          >
+            <Plus className="w-4 h-4 text-gray-500" />
+          </button>
+        )}
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="p-2 space-y-0.5">
+          {/* 官方频道 */}
+          <SectionHeader title="官方" section="official" count={officialChannels.length} />
+          {expandedSections.official && (
+            <div className="space-y-0.5 ml-1 mb-2">
+              {officialChannels.map(channel => (
+                <ChannelItem key={channel.id} channel={channel} />
+              ))}
+            </div>
+          )}
+
+          {/* 粉丝群 */}
+          <SectionHeader title="私域" section="fangroup" count={fangroupChannels.length} />
+          {expandedSections.fangroup && (
+            <div className="space-y-0.5 ml-1 mb-2">
+              {onCreateFangroup && (
+                <button
+                  onClick={onCreateFangroup}
+                  className="w-full flex items-center gap-2 px-2 py-2 rounded transition-colors hover:bg-blue-50 text-blue-600 group"
+                >
+                  <Plus className="w-4 h-4 shrink-0" />
+                  <span className="flex-1 text-left text-sm">创建粉丝群</span>
+                </button>
+              )}
+              {fangroupChannels.map(channel => (
+                <ChannelItem key={channel.id} channel={channel} />
+              ))}
+            </div>
+          )}
+
+          {/* 作品频道 */}
+          <SectionHeader title="作品" section="work" count={workChannels.length} />
+          {expandedSections.work && (
+            <div className="space-y-0.5 ml-1 mb-2">
+              {workChannels.map(channel => (
+                <ChannelItem key={channel.id} channel={channel} />
+              ))}
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+
+      {/* 加入频道弹窗 */}
+      {showJoinModal && (
+        <>
+          {/* 遮罩层 */}
+          <div
+            className="fixed inset-0 bg-black/40 z-50"
+            onClick={() => {
+              setShowJoinModal(false);
+              setSearchQuery('');
+            }}
+          />
+
+          {/* 弹窗 */}
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] max-h-[600px] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+            {/* 头部 */}
+            <div style={{ padding: '12px', borderBottom: '1px solid #f3f4f6' }} className="flex items-center justify-between">
+              <h3 className="text-sm">发现频道</h3>
+              <button
+                onClick={() => {
+                  setShowJoinModal(false);
+                  setSearchQuery('');
+                }}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            </div>
+
+            {/* 搜索框 */}
+            <div className="p-3 border-b border-gray-100">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="搜索频道、作品或作者..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-xs border border-gray-200 rounded focus:outline-none focus:border-gray-300"
+                />
+              </div>
+            </div>
+
+            {/* 频道列表 */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {filteredAvailableChannels.length === 0 ? (
+                <div className="text-center py-8 text-xs text-gray-400">
+                  {searchQuery ? '未找到匹配的频道' : '暂无可加入的频道'}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredAvailableChannels.map(channel => {
+                    const Icon = getChannelIcon(channel);
+                    return (
+                      <div
+                        key={channel.id}
+                        className="flex items-start gap-3 p-3 border border-gray-100 rounded-lg hover:border-gray-200 transition-colors"
+                      >
+                        {/* 频道图标/封面 */}
+                        <div className="w-12 h-12 bg-gray-100 rounded flex items-center justify-center flex-shrink-0">
+                          {channel.type === 'work' ? (
+                            <span className="text-xs text-gray-400">封面</span>
+                          ) : (
+                            <Icon className="w-5 h-5 text-gray-400" />
+                          )}
+                        </div>
+
+                        {/* 频道信息 */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="text-xs truncate">
+                              {channel.type === 'work' && channel.bookTitle
+                                ? `《${channel.bookTitle}》`
+                                : channel.name}
+                            </h4>
+                            {channel.isPermanent && (
+                              <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">永久</span>
+                            )}
+                          </div>
+
+                          {channel.type === 'work' && (
+                            <div className="text-[10px] text-gray-500 space-y-0.5">
+                              <p>作者：{channel.author || '佚名'}</p>
+                              <p>收藏：{channel.collectCount || 0}</p>
+                            </div>
+                          )}
+
+                          {channel.type === 'fangroup' && channel.description && (
+                            <p className="text-[10px] text-gray-500 line-clamp-2">{channel.description}</p>
+                          )}
+
+                          {channel.status === 'locked' && (
+                            <p className="text-[10px] text-red-500 mt-1">频道已折叠</p>
+                          )}
+                        </div>
+
+                        {/* 加入按钮 */}
+                        <button
+                          onClick={() => handleJoinChannel(channel.id)}
+                          disabled={channel.status === 'locked'}
+                          className="px-3 py-1.5 text-xs bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {channel.status === 'locked' ? '已折叠' : '加入'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

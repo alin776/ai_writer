@@ -44,6 +44,11 @@ from app.models.notification import (
     TargetUserType,
 )
 from app.models.user_task import TaskTemplate, UserTask
+from app.models.channel import Channel, ChannelType, ChannelStatus
+from app.models.channel_member import ChannelMember, MemberRole
+from app.models.channel_message import ChannelMessage, MessageType
+from app.models.message_report import MessageReport
+from app.models.channel_read_state import ChannelReadState
 
 __all__ = [
     "User",
@@ -111,4 +116,13 @@ __all__ = [
     "TargetUserType",
     "TaskTemplate",
     "UserTask",
+    "Channel",
+    "ChannelType",
+    "ChannelStatus",
+    "ChannelMember",
+    "MemberRole",
+    "ChannelMessage",
+    "MessageType",
+    "MessageReport",
+    "ChannelReadState",
 ]

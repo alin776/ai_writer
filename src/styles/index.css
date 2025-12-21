@@ -1,1 +1,16 @@
 @import 'tailwindcss';
+
+/* 消息高亮动画 */
+@keyframes highlight-pulse {
+  0%, 100% {
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+  50% {
+    background-color: rgba(59, 130, 246, 0.3);
+  }
+}
+
+.highlight-message {
+  animation: highlight-pulse 2s ease-in-out;
+  border-radius: 0.5rem;
+}

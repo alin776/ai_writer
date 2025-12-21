@@ -18,6 +18,7 @@ import {
   Trophy,
   BookMarked,
   LogOut,
+  MessageCircle,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useWorkNavStore } from '../../store/workNavStore';
@@ -36,6 +37,7 @@ const mainNavItems: NavItem[] = [
   { id: 'works', label: '作品管理', icon: BookOpen, path: '/works' },
   { id: 'knowledge', label: '知识库', icon: Library, path: '/knowledge' },
   { id: 'humanize', label: 'AI去痕', icon: Wand2, path: '/humanize' },
+  { id: 'channels', label: '频道', icon: MessageCircle, path: '/channels' },
 ];
 
 const libraryNavItems: NavItem[] = [

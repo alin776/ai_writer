@@ -47,7 +47,16 @@
       "Bash(timeout:*)",
       "Bash(../venv/Scripts/python.exe:*)",
       "Bash(..venvScriptspython.exe -m alembic upgrade head)",
-      "Bash(..venvScriptspython.exe -m alembic revision -m \"add_favorite_count_to_works\")"
+      "Bash(..venvScriptspython.exe -m alembic revision -m \"add_favorite_count_to_works\")",
+      "Bash(del \"C:\\Users\\Administrator\\Desktop\\ai-writer\\src\\views\\ChannelsView\\components\\ChatArea.tsx.tmp\")",
+      "Bash(ls:*)",
+      "Bash(..venvScriptspython.exe:*)",
+      "Bash(C:UsersAdministratorDesktopai-writervenvScriptspython.exe -c \"import sys; sys.path.insert(0, ''C:/Users/Administrator/Desktop/ai-writer/backend''); from app.api.v1 import channels; print(''Channels router loaded''); print(''Routes:''); [print(f''  {r.methods} {r.path}'') for r in channels.router.routes]\")",
+      "Bash(for pid in 32796 91260 40748)",
+      "Bash(do taskkill //F //PID $pid)",
+      "Bash(done)",
+      "Bash(start //B venv\\Scripts\\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload)",
+      "Bash(venvScriptspython.exe -m alembic revision -m \"add_channel_read_states_and_mentions\")"
     ],
     "deny": [],
     "ask": []

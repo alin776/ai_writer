@@ -51,6 +51,9 @@ class User(Base):
     )
     knowledge_items = relationship("KnowledgeItem", back_populates="user", cascade="all, delete-orphan")
     user_tasks = relationship("UserTask", back_populates="user", cascade="all, delete-orphan")
+    created_channels = relationship("Channel", foreign_keys="Channel.creator_id", back_populates="creator", cascade="all, delete-orphan")
+    channel_memberships = relationship("ChannelMember", back_populates="user", cascade="all, delete-orphan")
+    channel_messages = relationship("ChannelMessage", back_populates="user", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<User {self.username}>"

@@ -24,6 +24,7 @@ const AdminInvitationsView = React.lazy(() => import('../views/AdminInvitationsV
 const AdminCreditsView = React.lazy(() => import('../views/AdminCreditsView'));
 const AdminNotificationsView = React.lazy(() => import('../views/AdminNotificationsView'));
 const AdminTasksView = React.lazy(() => import('../views/AdminTasksView'));
+const AdminChannelsView = React.lazy(() => import('../views/AdminChannelsView'));
 const SettingsView = React.lazy(() => import('../views/SettingsView'));
 const ChangePasswordView = React.lazy(() => import('../views/ChangePasswordView'));
 const ChangeEmailView = React.lazy(() => import('../views/ChangeEmailView'));
@@ -36,6 +37,7 @@ const ContactView = React.lazy(() => import('../views/ContactView'));
 const TaskRewardsView = React.lazy(() => import('../views/TaskRewardsView'));
 const NovelSquareView = React.lazy(() => import('../views/NovelSquareView'));
 const MyBookshelfView = React.lazy(() => import('../views/MyBookshelfView'));
+const ChannelsView = React.lazy(() => import('../views/ChannelsView'));
 const NotFoundView = React.lazy(() => import('../views/NotFoundView'));
 
 const LoadingFallback: React.FC = () => (
@@ -269,6 +271,14 @@ export const router = createBrowserRouter([
           </SuspenseWrapper>
         ),
       },
+      {
+        path: '/channels',
+        element: (
+          <SuspenseWrapper>
+            <ChannelsView />
+          </SuspenseWrapper>
+        ),
+      },
     ],
   },
   {
@@ -299,6 +309,14 @@ export const router = createBrowserRouter([
             element: (
               <SuspenseWrapper>
                 <AdminWorksView />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: 'channels',
+            element: (
+              <SuspenseWrapper>
+                <AdminChannelsView />
               </SuspenseWrapper>
             ),
           },

@@ -74,7 +74,7 @@ async def lifespan(app: FastAPI):
     # await redis_client.init()  # TODO: Redis 暂时禁用
     scheduler_started = False
     if ENABLE_SCHEDULER:
-        await start_scheduler()  # 启动定时任务
+        start_scheduler()  # 启动定时任务（同步函数）
         scheduler_started = True
     else:
         logger.info("[STARTUP] 跳过启动定时任务调度器（ENABLE_SCHEDULER=false）")
@@ -117,7 +117,7 @@ async def lifespan(app: FastAPI):
     # 关闭时执行
     logger.info("[SHUTDOWN] 应用关闭中...")
     if scheduler_started:
-        await stop_scheduler()  # 停止定时任务
+        stop_scheduler()  # 停止定时任务（同步函数）
     await close_db()
     # await redis_client.close()  # TODO: Redis 暂时禁用
     logger.info("[SHUTDOWN] 应用已关闭")

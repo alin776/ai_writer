@@ -1,6 +1,6 @@
 ﻿import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Cpu, DollarSign, ArrowLeft, Gift, Coins, Bell, Trophy, Book } from 'lucide-react';
+import { LayoutDashboard, Users, Cpu, DollarSign, ArrowLeft, Gift, Coins, Bell, Trophy, Book, MessageSquare } from 'lucide-react';
 
 const AdminSidebar: React.FC = () => {
   const location = useLocation();
@@ -27,6 +27,12 @@ const AdminSidebar: React.FC = () => {
       icon: Book,
       label: '小说管理',
       description: '管理所有小说',
+    },
+    {
+      path: '/admin/channels',
+      icon: MessageSquare,
+      label: '频道管理',
+      description: '管理所有频道',
     },
     {
       path: '/admin/invitations',

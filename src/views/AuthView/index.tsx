@@ -7,7 +7,7 @@ import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { ImageWithFallback } from '../../components/common/ImageWithFallback';
-import { BookOpen, Feather, Sparkles, ChevronRight, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { BookOpen, Feather, Sparkles, ChevronRight, CheckCircle, Eye, EyeOff, HelpCircle } from 'lucide-react';
 import { ApiAdapter } from '@/services/ApiAdapter';
 
 // 创建API实例
@@ -62,6 +62,7 @@ const AuthView: React.FC = () => {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showInvitationHelp, setShowInvitationHelp] = useState(false);
 
   // 打字机效果
   const [typewriterText, setTypewriterText] = useState('');
@@ -726,19 +727,53 @@ const AuthView: React.FC = () => {
                   {errors.confirmPassword && <span className="text-sm text-red-500">{errors.confirmPassword}</span>}
                 </div>
 
-                <div className="space-y-1.5">
-                  <Input
-                    id="register-invitation-code"
-                    type="text"
-                    placeholder={t('auth.invitationCodePlaceholder')}
-                    maxLength={8}
-                    className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono uppercase text-gray-900"
-                    value={registerForm.invitationCode}
-                    onChange={(e) => {
-                      setRegisterForm({ ...registerForm, invitationCode: e.target.value.toUpperCase() });
-                      if (errors.invitationCode) setErrors({ ...errors, invitationCode: '' });
-                    }}
-                  />
+                <div className="space-y-1.5 relative">
+                  <div className="relative">
+                    <Input
+                      id="register-invitation-code"
+                      type="text"
+                      placeholder={t('auth.invitationCodePlaceholder')}
+                      maxLength={8}
+                      className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono uppercase text-gray-900 pr-10"
+                      value={registerForm.invitationCode}
+                      onChange={(e) => {
+                        setRegisterForm({ ...registerForm, invitationCode: e.target.value.toUpperCase() });
+                        if (errors.invitationCode) setErrors({ ...errors, invitationCode: '' });
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowInvitationHelp(true);
+                        setTimeout(() => setShowInvitationHelp(false), 5000);
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <HelpCircle className="w-5 h-5" />
+                    </button>
+
+                    {/* 悬浮提示 */}
+                    {showInvitationHelp && (
+                      <div className="absolute -top-16 left-0 right-0 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg z-10 animate-fade-in text-sm">
+                        <p>
+                          加入官方Q群：
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText('938637725');
+                              setSuccessMessage('群号已复制');
+                              setTimeout(() => setSuccessMessage(''), 2000);
+                            }}
+                            className="font-semibold underline hover:text-blue-300 transition-colors ml-1"
+                          >
+                            938637725
+                          </button>
+                          {' '}免费获取
+                        </p>
+                        <div className="absolute -bottom-1 left-6 w-2 h-2 bg-gray-900 rotate-45"></div>
+                      </div>
+                    )}
+                  </div>
                   {errors.invitationCode && <span className="text-sm text-red-500">{errors.invitationCode}</span>}
                 </div>
 
