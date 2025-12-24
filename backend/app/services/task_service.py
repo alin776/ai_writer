@@ -283,3 +283,10 @@ class TaskService:
         print(f"[TaskService] Checking daily writing task for user {user_id}, word_count: {word_count}")
         result = await TaskService.update_task_progress(db, user_id, "daily_write_1000", word_count)
         print(f"[TaskService] Daily writing task result: {result}")
+
+    @staticmethod
+    async def check_channel_message_task(db: AsyncSession, user_id: UUID) -> None:
+        """检查每日频道发言任务"""
+        print(f"[TaskService] Checking channel message task for user {user_id}")
+        result = await TaskService.update_task_progress(db, user_id, "daily_channel_messages", 1)
+        print(f"[TaskService] Channel message task result: {result}")

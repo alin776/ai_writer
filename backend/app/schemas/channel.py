@@ -47,6 +47,7 @@ class ChannelResponse(ChannelBase):
     work_id: Optional[UUID]
     is_permanent: bool
     is_pinned: bool
+    trial_end_at: Optional[datetime]
     member_count: int
     message_count: int
     last_message_at: Optional[datetime]
@@ -59,6 +60,13 @@ class ChannelResponse(ChannelBase):
     book_title: Optional[str] = None
     author: Optional[str] = None
     collect_count: Optional[int] = None
+
+    # 当前用户在该频道中的角色
+    current_user_role: Optional[MemberRole] = None
+
+    # 进入要求
+    join_requirement: Optional[str] = None
+    can_access: bool = True  # 用户是否满足进入要求
 
     class Config:
         from_attributes = True
@@ -95,6 +103,7 @@ class ChannelMemberResponse(ChannelMemberBase):
     user_id: UUID
     role: MemberRole
     is_muted: bool
+    muted_until: Optional[datetime] = None
     is_banned: bool
     joined_at: datetime
     last_read_at: Optional[datetime]
@@ -144,7 +153,8 @@ class ChannelMessageResponse(ChannelMessageBase):
     # 用户信息
     user_name: Optional[str] = None
     user_avatar: Optional[str] = None
-    user_title: Optional[str] = None
+    user_honor: Optional[str] = None  # 用户全局称号
+    user_title: Optional[str] = None  # 频道内自定义称号
     user_title_color: Optional[str] = None
 
     class Config:

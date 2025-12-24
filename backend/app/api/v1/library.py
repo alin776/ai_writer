@@ -708,3 +708,76 @@ async def check_in_bookshelf(
         "work_id": str(work_id),
         "in_bookshelf": in_bookshelf
     }
+
+
+# ==================== 小说举报 API ====================
+
+from app.models.work_report import WorkReport, WorkReportReason, WorkReportStatus
+from app.schemas.work_report import WorkReportCreate, WorkReportResponse
+
+
+@router.post("/works/{work_id}/report", response_model=WorkReportResponse, status_code=status.HTTP_201_CREATED)
+async def report_work(
+    work_id: str,
+    report_data: WorkReportCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    举报小说
+
+    - **work_id**: 作品ID
+    - **reason**: 举报原因 (spam, porn, illegal, plagiarism, false, other)
+    - **description**: 详细描述(可选)
+    """
+    # 验证作品是否存在
+    work_result = await db.execute(
+        select(Work).where(Work.id == work_id)
+    )
+    work = work_result.scalar_one_or_none()
+
+    if not work:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="作品不存在"
+        )
+
+    # 不能举报自己的作品
+    if work.author_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="不能举报自己的作品"
+        )
+
+    # 检查是否已经举报过（数据库有唯一约束，一个用户只能举报一次）
+    existing_report_result = await db.execute(
+        select(WorkReport).where(
+            WorkReport.work_id == work_id,
+            WorkReport.reporter_id == current_user.id
+        )
+    )
+    existing_report = existing_report_result.scalar_one_or_none()
+
+    if existing_report:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="您已经举报过该作品"
+        )
+
+    # 创建举报记录
+    report = WorkReport(
+        id=uuid.uuid4(),
+        work_id=work_id,
+        reporter_id=current_user.id,
+        reason=report_data.reason,
+        description=report_data.description,
+        status=WorkReportStatus.PENDING
+    )
+
+    db.add(report)
+    await db.commit()
+    await db.refresh(report)
+
+    logger.info(f"用户 {current_user.username} 举报了作品 {work.title}，原因: {report_data.reason}")
+
+    return report

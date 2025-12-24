@@ -21,6 +21,7 @@ class User(Base):
     full_name = Column(String(100), nullable=True)
     avatar = Column(String(500), nullable=True)
     bio = Column(Text, nullable=True)
+    honor = Column(String(50), nullable=True)  # 用户称号
     notification_settings = Column(
         JSONB,
         nullable=False,

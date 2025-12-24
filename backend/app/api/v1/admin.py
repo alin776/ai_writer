@@ -16,7 +16,7 @@ from app.models.user import User
 from app.models.work import Work
 from app.models.chapter import Chapter
 from app.models.ai_call_log import AICallLog
-from app.schemas.admin import UsersGrowthParams, RecentActivitiesParams, UserActionResponse, UserBasicInfo
+from app.schemas.admin import UsersGrowthParams, RecentActivitiesParams, UserActionResponse, UserBasicInfo, UpdateUserHonorRequest
 from app.utils.datetime_utils import get_utc_now
 
 router = APIRouter()
@@ -525,4 +525,199 @@ async def remove_featured_novel(
     return {
         "message": f"《{work.title}》已取消推荐",
         "work_id": str(work.id)
+    }
+
+
+# ========== 用户称号管理 ==========
+
+
+@router.patch("/users/{user_id}/honor", response_model=UserActionResponse)
+async def update_user_honor(
+    user_id: UUID,
+    request: UpdateUserHonorRequest,
+    current_user: User = Depends(check_admin_permission),
+    db: AsyncSession = Depends(get_db)
+) -> UserActionResponse:
+    """
+    更新用户称号
+
+    Args:
+        user_id: 用户ID
+        request: 包含新称号的请求体
+
+    Returns:
+        操作成功的消息和用户信息
+    """
+    # 查询用户
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # 更新称号
+    old_honor = user.honor
+    user.honor = request.honor
+    await db.commit()
+    await db.refresh(user)
+
+    if request.honor:
+        message = f"用户 {user.username} 的称号已更新为「{request.honor}」"
+    else:
+        message = f"用户 {user.username} 的称号已清除"
+
+    return UserActionResponse(
+        message=message,
+        user=UserBasicInfo.model_validate(user)
+    )
+
+
+# ========== 频道管理 ==========
+
+
+@router.get("/channels")
+async def get_all_channels(
+    skip: int = 0,
+    limit: int = 100,
+    channel_type: Optional[str] = None,
+    channel_status: Optional[str] = None,
+    search: Optional[str] = None,
+    current_user: User = Depends(check_admin_permission),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    获取所有频道列表（管理员专用）
+
+    Args:
+        skip: 分页偏移
+        limit: 分页大小
+        channel_type: 频道类型筛选 (official/fangroup/work)
+        channel_status: 频道状态筛选 (active/warning/locked)
+        search: 搜索关键词
+
+    Returns:
+        频道列表和总数
+    """
+    from app.models.channel import Channel, ChannelType, ChannelStatus
+    from sqlalchemy.orm import selectinload
+
+    # 构建查询
+    query = select(Channel).options(
+        selectinload(Channel.work)
+    )
+
+    # 类型筛选
+    if channel_type:
+        query = query.where(Channel.type == channel_type)
+
+    # 状态筛选
+    if channel_status:
+        query = query.where(Channel.status == channel_status)
+
+    # 搜索
+    if search:
+        query = query.where(Channel.name.ilike(f"%{search}%"))
+
+    # 排序：按创建时间倒序
+    query = query.order_by(Channel.created_at.desc())
+
+    # 获取总数
+    count_query = select(func.count()).select_from(query.subquery())
+    total = await db.scalar(count_query) or 0
+
+    # 分页
+    query = query.offset(skip).limit(limit)
+
+    result = await db.execute(query)
+    channels = result.scalars().all()
+
+    # 构建响应
+    channel_list = []
+    for channel in channels:
+        channel_data = {
+            "id": str(channel.id),
+            "name": channel.name,
+            "description": channel.description,
+            "type": channel.type,
+            "status": channel.status,
+            "creator_id": str(channel.creator_id) if channel.creator_id else None,
+            "work_id": str(channel.work_id) if channel.work_id else None,
+            "member_count": channel.member_count or 0,
+            "message_count": channel.message_count or 0,
+            "is_permanent": channel.is_permanent,
+            "warning_days": channel.warning_days,
+            "created_at": channel.created_at.isoformat() if channel.created_at else None,
+            "updated_at": channel.updated_at.isoformat() if channel.updated_at else None,
+            "locked_at": channel.locked_at.isoformat() if channel.locked_at else None,
+        }
+
+        # 如果是作品频道，添加作品信息
+        if channel.type == "work" and channel.work:
+            channel_data["book_title"] = channel.work.title
+
+        channel_list.append(channel_data)
+
+    return {
+        "total": total,
+        "channels": channel_list
+    }
+
+
+@router.patch("/channels/{channel_id}/status")
+async def update_channel_status(
+    channel_id: UUID,
+    new_status: str,
+    current_user: User = Depends(check_admin_permission),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    更新频道状态（管理员专用）
+
+    Args:
+        channel_id: 频道ID
+        new_status: 新状态 (active/warning/locked)
+
+    Returns:
+        更新后的频道信息
+    """
+    from app.models.channel import Channel, ChannelStatus
+
+    # 验证状态值
+    valid_statuses = ["active", "warning", "locked"]
+    if new_status not in valid_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"无效的状态值，必须是: {', '.join(valid_statuses)}"
+        )
+
+    # 查询频道
+    channel = await db.get(Channel, channel_id)
+    if not channel:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="频道不存在"
+        )
+
+    old_status = channel.status
+    channel.status = new_status
+
+    # 如果是锁定，记录锁定时间
+    if new_status == "locked":
+        channel.locked_at = get_utc_now()
+    elif old_status == "locked" and new_status != "locked":
+        # 解锁时清除锁定时间
+        channel.locked_at = None
+
+    await db.commit()
+    await db.refresh(channel)
+
+    return {
+        "message": f"频道状态已从 {old_status} 更新为 {new_status}",
+        "channel": {
+            "id": str(channel.id),
+            "name": channel.name,
+            "status": channel.status,
+            "locked_at": channel.locked_at.isoformat() if channel.locked_at else None
+        }
     }

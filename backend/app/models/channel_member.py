@@ -29,6 +29,7 @@ class ChannelMember(Base):
     # 成员信息
     role = Column(Enum('owner', 'admin', 'member', name='memberrole'), nullable=False, default='member')
     is_muted = Column(Boolean, default=False, nullable=False, comment="是否禁言")
+    muted_until = Column(DateTime(timezone=True), nullable=True, comment="禁言到期时间")
     is_banned = Column(Boolean, default=False, nullable=False, comment="是否被封禁")
 
     # 用户称号（可选，显示在消息旁边）

@@ -22,6 +22,7 @@ class NotificationType(str, enum.Enum):
     SMART_REMINDER = "smart_reminder"  # 智能提醒
     MILESTONE = "milestone"  # 里程碑达成
     INACTIVITY_ALERT = "inactivity_alert"  # 灵感保鲜提醒
+    WARNING = "warning"  # 警告通知（举报处理）
 
     # 运营通知类型
     EVENT = "event"  # 活动

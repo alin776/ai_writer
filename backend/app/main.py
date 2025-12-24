@@ -71,6 +71,16 @@ async def lifespan(app: FastAPI):
     logger.info("[STARTUP] 应用启动中...")
 
     await init_db()
+
+    # 初始化官方频道
+    try:
+        from init_official_channels_sql import init_channels
+        logger.info("[STARTUP] 开始检查并初始化官方频道...")
+        await init_channels()
+        logger.info("[STARTUP] ✅ 官方频道检查完成")
+    except Exception as e:
+        logger.warning(f"[STARTUP] ⚠️ 官方频道初始化失败: {e}")
+
     # await redis_client.init()  # TODO: Redis 暂时禁用
     scheduler_started = False
     if ENABLE_SCHEDULER:

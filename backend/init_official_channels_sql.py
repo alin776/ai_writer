@@ -1,5 +1,6 @@
 """
 直接使用SQL初始化官方频道脚本
+检查并创建缺失的官方频道
 """
 import asyncio
 import sys
@@ -12,52 +13,92 @@ from sqlalchemy import text
 from app.core.database import async_session_maker
 
 
-official_channels_sql = """
-INSERT INTO channels (id, name, description, type, status, is_permanent, is_pinned, member_count, message_count, created_at, updated_at)
-VALUES
-    ('{id1}', '公共酒馆', '所有读者和作者交流的地方，欢迎大家畅所欲言！', 'official', 'active', true, false, 0, 0, NOW(), NOW()),
-    ('{id2}', '作者酒馆', '作者专属交流空间，分享创作经验和心得', 'official', 'active', true, false, 0, 0, NOW(), NOW()),
-    ('{id3}', '读者茶馆', '读者们的聚集地，推荐好书、交流阅读感受', 'official', 'active', true, false, 0, 0, NOW(), NOW()),
-    ('{id4}', '官方实验室', '新功能试用、问题反馈、建议征集', 'official', 'active', true, false, 0, 0, NOW(), NOW())
-ON CONFLICT DO NOTHING;
-"""
+# 官方频道定义
+OFFICIAL_CHANNELS = [
+    {
+        'name': '公共酒馆',
+        'description': '所有读者和作者交流的地方，欢迎大家畅所欲言！'
+    },
+    {
+        'name': '作者酒馆',
+        'description': '作者专属交流空间，分享创作经验和心得'
+    },
+    {
+        'name': '读者茶馆',
+        'description': '读者们的聚集地，推荐好书、交流阅读感受'
+    },
+    {
+        'name': '官方实验室',
+        'description': '新功能试用、问题反馈、建议征集'
+    }
+]
 
 
 async def init_channels():
-    """初始化官方频道"""
+    """初始化官方频道 - 检查并创建缺失的频道"""
     async with async_session_maker() as session:
-        # 检查是否已经存在官方频道
-        result = await session.execute(text("SELECT COUNT(*) FROM channels WHERE type = 'official'"))
-        count = result.scalar()
+        print("检查官方频道...")
 
-        if count > 0:
-            print(f"已存在 {count} 个官方频道，跳过初始化")
+        # 获取现有的官方频道名称
+        result = await session.execute(
+            text("SELECT name FROM channels WHERE type = 'official'")
+        )
+        existing_names = {row[0] for row in result.fetchall()}
+
+        print(f"现有官方频道: {existing_names if existing_names else '无'}")
+
+        # 检查哪些频道需要创建
+        channels_to_create = []
+        for channel in OFFICIAL_CHANNELS:
+            if channel['name'] not in existing_names:
+                channels_to_create.append(channel)
+
+        if not channels_to_create:
+            print("\n✓ 所有官方频道都已存在，无需创建")
             # 显示现有频道
-            result = await session.execute(text("SELECT id, name FROM channels WHERE type = 'official'"))
+            result = await session.execute(
+                text("SELECT id, name FROM channels WHERE type = 'official' ORDER BY created_at")
+            )
             channels = result.fetchall()
-            print("现有频道:")
+            print("\n现有官方频道列表:")
             for channel_id, name in channels:
                 print(f"  - {name} (ID: {channel_id})")
             return
 
-        # 创建官方频道
-        print("正在创建官方频道...")
-        ids = [uuid.uuid4() for _ in range(4)]
-        sql = official_channels_sql.format(
-            id1=ids[0],
-            id2=ids[1],
-            id3=ids[2],
-            id4=ids[3]
-        )
+        # 创建缺失的官方频道
+        print(f"\n需要创建 {len(channels_to_create)} 个频道:")
+        for channel in channels_to_create:
+            print(f"  - {channel['name']}")
 
-        await session.execute(text(sql))
+        print("\n正在创建...")
+        created_count = 0
+
+        for channel in channels_to_create:
+            channel_id = uuid.uuid4()
+            sql = text("""
+                INSERT INTO channels
+                (id, name, description, type, status, is_permanent, is_pinned, member_count, message_count, created_at, updated_at)
+                VALUES
+                (:id, :name, :description, 'official', 'active', true, false, 0, 0, NOW(), NOW())
+            """)
+
+            await session.execute(sql, {
+                'id': channel_id,
+                'name': channel['name'],
+                'description': channel['description']
+            })
+            created_count += 1
+            print(f"  ✓ 创建 '{channel['name']}' (ID: {channel_id})")
+
         await session.commit()
-        print(f"\n成功创建 4 个官方频道!")
+        print(f"\n成功创建 {created_count} 个官方频道!")
 
-        # 验证
-        result = await session.execute(text("SELECT id, name FROM channels WHERE type = 'official'"))
+        # 显示所有官方频道
+        result = await session.execute(
+            text("SELECT id, name FROM channels WHERE type = 'official' ORDER BY created_at")
+        )
         channels = result.fetchall()
-        print("\n创建的频道列表:")
+        print("\n当前所有官方频道:")
         for channel_id, name in channels:
             print(f"  - {name} (ID: {channel_id})")
 

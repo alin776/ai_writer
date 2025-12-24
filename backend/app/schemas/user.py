@@ -109,6 +109,7 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = Field(None, max_length=100)
     avatar: Optional[str] = None
     bio: Optional[str] = None
+    honor: Optional[str] = Field(None, max_length=50)  # 用户称号
     notification_settings: Optional[NotificationSettings] = None
     preferences: Optional[Preferences] = None
 
@@ -121,6 +122,7 @@ class UserResponse(UserBase):
     full_name: Optional[str] = None
     avatar: Optional[str] = None
     bio: Optional[str] = None
+    honor: Optional[str] = None  # 用户称号
     notification_settings: NotificationSettings = Field(default_factory=NotificationSettings)
     preferences: Preferences = Field(default_factory=Preferences)
     is_active: bool

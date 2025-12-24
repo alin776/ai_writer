@@ -80,7 +80,7 @@ async def cleanup_old_humanize_details(days: int = 30):
 scheduler = AsyncIOScheduler()
 
 
-async def start_scheduler():
+def start_scheduler():
     """
     启动定时任务调度器
     """
@@ -103,7 +103,7 @@ async def start_scheduler():
     logger.info("定时任务调度器已启动")
 
 
-async def stop_scheduler():
+def stop_scheduler():
     """
     停止定时任务调度器
     """

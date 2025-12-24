@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 from typing import Optional, List
@@ -34,6 +34,39 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+async def check_channel_access(channel: Channel, user: User, db: AsyncSession) -> bool:
+    """
+    检查用户是否满足频道进入要求
+
+    Returns:
+        bool: True 表示可以访问，False 表示不满足要求
+    """
+    if not channel.join_requirement:
+        return True
+
+    try:
+        import json
+        requirement = json.loads(channel.join_requirement)
+        req_type = requirement.get('type')
+
+        if req_type == 'published_works':
+            # 检查用户是否有已发布的作品
+            min_count = requirement.get('min_count', 1)
+            result = await db.execute(
+                select(func.count(Work.id)).where(
+                    Work.author_id == user.id,
+                    Work.is_published == True
+                )
+            )
+            published_count = result.scalar() or 0
+            return published_count >= min_count
+
+        return True
+    except:
+        # 如果解析失败，默认允许访问
+        return True
+
+
 def build_channel_response(channel: Channel, work: Optional[Work] = None) -> dict:
     """构建频道响应数据"""
     data = {
@@ -47,6 +80,7 @@ def build_channel_response(channel: Channel, work: Optional[Work] = None) -> dic
         "work_id": channel.work_id,
         "is_permanent": channel.is_permanent,
         "is_pinned": channel.is_pinned,
+        "trial_end_at": channel.trial_end_at,
         "member_count": channel.member_count,
         "message_count": channel.message_count,
         "last_message_at": channel.last_message_at,
@@ -54,6 +88,7 @@ def build_channel_response(channel: Channel, work: Optional[Work] = None) -> dic
         "created_at": channel.created_at,
         "updated_at": channel.updated_at,
         "locked_at": channel.locked_at,
+        "join_requirement": channel.join_requirement,
     }
 
     # 如果是作品频道，添加作品信息
@@ -139,26 +174,31 @@ async def create_fangroup(
     创建粉丝群频道（私域）
     创作者手动创建，拥有公告、@全体成员权限
     """
+    logger.info(f"[创建粉丝群] 用户 {current_user.username} 开始创建粉丝群: {data.name}")
+
     # 创建频道
     channel = Channel(
         id=uuid.uuid4(),
         name=data.name,
         description=data.description,
         cover_image=data.cover_image,
-        type='fangroup',  # 使用字符串值
-        status='active',  # 使用字符串值
+        type='fangroup',
+        status='active',
         creator_id=current_user.id,
-        is_permanent=True,  # 粉丝群默认永久
+        is_permanent=False,
         is_pinned=False,
     )
+
     db.add(channel)
 
-    # 创建者自动成为频道所有者
+    # 创建者自动成为频道所有者，并获得"群主"称号
     owner_member = ChannelMember(
         id=uuid.uuid4(),
         channel_id=channel.id,
         user_id=current_user.id,
-        role='owner'  # 使用字符串值
+        role='owner',
+        custom_title='群主',
+        title_color='#FF6B6B'
     )
     db.add(owner_member)
 
@@ -168,7 +208,10 @@ async def create_fangroup(
     await db.commit()
     await db.refresh(channel)
 
-    return ChannelResponse(**build_channel_response(channel))
+    response_data = build_channel_response(channel)
+    logger.info(f"[创建粉丝群] 响应数据 - is_permanent={response_data.get('is_permanent')}")
+
+    return ChannelResponse(**response_data)
 
 
 @router.get("/my-channels", response_model=ChannelListResponse)
@@ -178,32 +221,86 @@ async def get_my_channels(
 ):
     """
     获取当前用户加入的所有频道
+    包括：官方频道（所有人自动可见）+ 用户主动加入的频道
     """
-    # 查询用户加入的频道
-    query = (
+    # 1. 获取所有官方频道（所有人都可以看到）
+    # 按照固定顺序排序：公共酒馆 -> 作者酒馆 -> 读者茶馆 -> 官方实验室
+    official_channels_query = (
+        select(Channel)
+        .where(Channel.type == "official")
+        .options(selectinload(Channel.work).selectinload(Work.author))
+        .order_by(
+            case(
+                (Channel.name == '公共酒馆', 1),
+                (Channel.name == '作者酒馆', 2),
+                (Channel.name == '读者茶馆', 3),
+                (Channel.name == '官方实验室', 4),
+                else_=99
+            )
+        )
+    )
+    official_result = await db.execute(official_channels_query)
+    official_channels = official_result.scalars().all()
+
+    # 2. 查询用户主动加入的非官方频道
+    user_channels_query = (
         select(Channel)
         .join(ChannelMember, Channel.id == ChannelMember.channel_id)
         .where(
             ChannelMember.user_id == current_user.id,
-            ChannelMember.is_banned == False
+            ChannelMember.is_banned == False,
+            Channel.type != "official"  # 排除官方频道，避免重复
         )
         .options(
             selectinload(Channel.work).selectinload(Work.author)
         )
-        .order_by(
-            Channel.is_pinned.desc(),
-            Channel.type.asc(),
-            Channel.created_at.desc()
+    )
+    user_result = await db.execute(user_channels_query)
+    user_channels = user_result.scalars().all()
+
+    # 3. 合并并排序所有频道
+    all_channels = list(official_channels) + list(user_channels)
+    all_channels.sort(
+        key=lambda c: (
+            not c.is_pinned,  # 置顶的在前
+            c.type != "official",  # 官方频道在前
+            c.type != "fangroup",  # 粉丝群其次
+            c.type != "work",  # 作品频道最后
+            -c.created_at.timestamp() if c.created_at else 0  # 同类型按创建时间倒序
         )
     )
 
-    result = await db.execute(query)
-    channels = result.scalars().all()
+    # 查询当前用户在所有频道中的成员关系
+    channel_ids = [c.id for c in all_channels]
+    if channel_ids:  # 只有在有频道时才查询
+        members_query = select(ChannelMember).where(
+            ChannelMember.channel_id.in_(channel_ids),
+            ChannelMember.user_id == current_user.id,
+            ChannelMember.is_banned == False
+        )
+        members_result = await db.execute(members_query)
+        members = {m.channel_id: m for m in members_result.scalars().all()}
+    else:
+        members = {}
 
     # 构建响应
     channel_responses = []
-    for channel in channels:
+    for channel in all_channels:
         channel_data = build_channel_response(channel, channel.work)
+        # 添加当前用户在该频道中的角色
+        member = members.get(channel.id)
+        if member:
+            channel_data['current_user_role'] = member.role
+        elif channel.type == 'official':
+            # 官方频道默认为member角色（如果用户是管理员，会在自动加入时设置为owner）
+            channel_data['current_user_role'] = 'owner' if current_user.is_admin else 'member'
+        else:
+            channel_data['current_user_role'] = None
+
+        # 检查用户是否满足进入要求
+        can_access = await check_channel_access(channel, current_user, db)
+        channel_data['can_access'] = can_access
+
         channel_responses.append(ChannelResponse(**channel_data))
 
     return ChannelListResponse(
@@ -310,11 +407,13 @@ async def join_channel(
         )
 
     # 创建成员记录
+    # 如果是官方频道且用户是管理员，则设置为owner角色
+    member_role = 'owner' if (channel.type == 'official' and current_user.is_admin) else 'member'
     member = ChannelMember(
         id=uuid.uuid4(),
         channel_id=data.channel_id,
         user_id=current_user.id,
-        role='member'  # 使用字符串值
+        role=member_role
     )
     db.add(member)
 
@@ -452,6 +551,10 @@ async def get_channel_members(
                 "username": member.user.username if member.user else "已删除用户",
                 "avatar": member.user.avatar if member.user else None,
                 "role": member.role,
+                "custom_title": member.custom_title,
+                "title_color": member.title_color,
+                "is_muted": member.is_muted,
+                "muted_until": member.muted_until.isoformat() if member.muted_until else None,
                 "joined_at": member.joined_at,
             }
             for member in members
@@ -609,6 +712,105 @@ async def get_channel_messages(
             deleted_at=msg.deleted_at,
             user_name=msg.user.username if msg.user else "已删除用户",
             user_avatar=msg.user.avatar if msg.user else None,
+            user_honor=msg.user.honor if msg.user else None,
+            user_title=member.custom_title if member else None,
+            user_title_color=member.title_color if member else None
+        ))
+
+    has_more = skip + limit < total
+
+    return ChannelMessageListResponse(
+        messages=message_responses,
+        total=total,
+        has_more=has_more
+    )
+
+
+@router.get("/{channel_id}/announcements", response_model=ChannelMessageListResponse)
+async def get_channel_announcements(
+    channel_id: UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    获取频道公告列表
+    """
+    # 检查是否是频道成员
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    if not member_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="未加入该频道"
+        )
+
+    # 查询公告消息（只查询公告类型的消息）
+    query = (
+        select(ChannelMessage)
+        .where(
+            ChannelMessage.channel_id == channel_id,
+            ChannelMessage.is_deleted == False,
+            ChannelMessage.type == MessageType.ANNOUNCEMENT
+        )
+        .options(
+            selectinload(ChannelMessage.user)
+        )
+        .order_by(ChannelMessage.created_at.desc())  # 最新的公告在前
+    )
+
+    # 获取总数
+    count_query = select(func.count(ChannelMessage.id)).where(
+        ChannelMessage.channel_id == channel_id,
+        ChannelMessage.is_deleted == False,
+        ChannelMessage.type == MessageType.ANNOUNCEMENT
+    )
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    # 分页查询
+    result = await db.execute(query.offset(skip).limit(limit))
+    messages = result.scalars().all()
+
+    # 获取成员信息（用于显示用户称号）
+    member_dict = {}
+    if messages:
+        user_ids = list(set(msg.user_id for msg in messages if msg.user_id))
+        if user_ids:
+            members_result = await db.execute(
+                select(ChannelMember).where(
+                    ChannelMember.channel_id == channel_id,
+                    ChannelMember.user_id.in_(user_ids)
+                )
+            )
+            for member in members_result.scalars():
+                member_dict[member.user_id] = member
+
+    # 构建响应
+    message_responses = []
+    for msg in messages:
+        member = member_dict.get(msg.user_id)
+        message_responses.append(ChannelMessageResponse(
+            id=msg.id,
+            channel_id=msg.channel_id,
+            user_id=msg.user_id,
+            content=msg.content,
+            type=msg.type,
+            is_pinned=msg.is_pinned,
+            is_deleted=msg.is_deleted,
+            reply_to_id=msg.reply_to_id,
+            reaction_count=msg.reaction_count,
+            created_at=msg.created_at,
+            updated_at=msg.updated_at,
+            deleted_at=msg.deleted_at,
+            user_name=msg.user.username if msg.user else "已删除用户",
+            user_avatar=msg.user.avatar if msg.user else None,
+            user_honor=msg.user.honor if msg.user else None,
             user_title=member.custom_title if member else None,
             user_title_color=member.title_color if member else None
         ))
@@ -633,7 +835,21 @@ async def send_message(
 ):
     """
     发送频道消息
+    官方频道：自动创建成员记录（如果不存在）
+    其他频道：需要先加入
     """
+    # 获取频道信息
+    channel_result = await db.execute(
+        select(Channel).where(Channel.id == channel_id)
+    )
+    channel = channel_result.scalar_one_or_none()
+
+    if not channel:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="频道不存在"
+        )
+
     # 检查频道成员身份
     member_result = await db.execute(
         select(ChannelMember)
@@ -641,36 +857,66 @@ async def send_message(
             ChannelMember.channel_id == channel_id,
             ChannelMember.user_id == current_user.id
         )
-        .options(selectinload(ChannelMember.channel))
     )
     member = member_result.scalar_one_or_none()
 
+    # 如果不是成员
     if not member:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="未加入该频道"
-        )
+        # 官方频道：自动加入
+        if channel.type == "official":
+            # 如果用户是管理员，则设置为owner角色
+            member_role = "owner" if current_user.is_admin else "member"
+            member = ChannelMember(
+                id=uuid.uuid4(),
+                channel_id=channel_id,
+                user_id=current_user.id,
+                role=member_role,
+                joined_at=func.now()
+            )
+            db.add(member)
+            await db.flush()  # 确保member有ID
+
+            # 更新频道成员数
+            channel.member_count += 1
+        else:
+            # 非官方频道：必须先加入
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="未加入该频道"
+            )
 
     # 检查是否被禁言
+    from datetime import datetime, timezone
     if member.is_muted:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="您已被禁言"
-        )
+        # 检查禁言是否已过期
+        if member.muted_until and datetime.now(timezone.utc) >= member.muted_until:
+            # 自动解除禁言
+            member.is_muted = False
+            member.muted_until = None
+            await db.commit()
+        else:
+            # 仍在禁言期间
+            mute_info = ""
+            if member.muted_until:
+                mute_info = f"，禁言至 {member.muted_until.strftime('%Y-%m-%d %H:%M:%S')} UTC"
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"您已被禁言{mute_info}"
+            )
 
     # 检查频道状态
-    if member.channel.status == "locked":
+    if channel.status == "locked":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="频道已折叠，无法发送消息"
         )
 
-    # 只有粉丝群创建者可以发送公告
+    # 只有粉丝群和官方频道的创建者可以发送公告
     if message_type == "announcement":
-        if member.channel.type != 'fangroup' or member.role != 'owner':
+        if (channel.type not in ['fangroup', 'official']) or member.role != 'owner':
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="只有粉丝群创建者可以发送公告"
+                detail="只有频道创建者可以发送公告"
             )
 
     # 如果是回复消息，检查被回复的消息是否存在
@@ -708,6 +954,10 @@ async def send_message(
     mentioned_usernames = await extract_mentions(content, db)
     await update_unread_counts(db, channel_id, message.id, current_user.id, mentioned_usernames)
 
+    # 更新每日频道发言任务进度
+    from app.services.task_service import TaskService
+    await TaskService.check_channel_message_task(db, current_user.id)
+
     await db.commit()
     await db.refresh(message)
 
@@ -726,6 +976,7 @@ async def send_message(
         deleted_at=message.deleted_at,
         user_name=current_user.username,
         user_avatar=current_user.avatar,
+        user_honor=current_user.honor,
         user_title=member.custom_title,
         user_title_color=member.title_color
     )
@@ -1229,8 +1480,24 @@ async def recall_message(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    撤回消息（发送后5分钟内可撤回）
+    撤回消息
+    - 普通用户：只能撤回自己发送后5分钟内的消息
+    - 创建者：可以撤回所有人的消息，无时间限制
     """
+    # 获取频道信息,检查是否为创建者
+    channel_result = await db.execute(
+        select(Channel).where(Channel.id == channel_id)
+    )
+    channel = channel_result.scalar_one_or_none()
+
+    if not channel:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="频道不存在"
+        )
+
+    is_creator = channel.creator_id == current_user.id
+
     # 获取消息
     message_result = await db.execute(
         select(ChannelMessage).where(
@@ -1246,13 +1513,6 @@ async def recall_message(
             detail="消息不存在"
         )
 
-    # 检查是否是消息发送者
-    if message.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="只能撤回自己的消息"
-        )
-
     # 检查是否已经被删除
     if message.is_deleted:
         raise HTTPException(
@@ -1260,21 +1520,30 @@ async def recall_message(
             detail="消息已被删除"
         )
 
-    # 检查是否超过5分钟
-    from datetime import datetime, timedelta, timezone
-    time_limit = timedelta(minutes=5)
-    now = datetime.now(timezone.utc)
+    # 如果不是创建者,进行普通用户的权限检查
+    if not is_creator:
+        # 检查是否是消息发送者
+        if message.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="只能撤回自己的消息"
+            )
 
-    if message.created_at.tzinfo is None:
-        created_at = message.created_at.replace(tzinfo=timezone.utc)
-    else:
-        created_at = message.created_at
+        # 检查是否超过5分钟
+        from datetime import datetime, timedelta, timezone
+        time_limit = timedelta(minutes=5)
+        now = datetime.now(timezone.utc)
 
-    if now - created_at > time_limit:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="超过撤回时限（5分钟）"
-        )
+        if message.created_at.tzinfo is None:
+            created_at = message.created_at.replace(tzinfo=timezone.utc)
+        else:
+            created_at = message.created_at
+
+        if now - created_at > time_limit:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="超过撤回时限（5分钟）"
+            )
 
     # 标记为已删除
     message.is_deleted = True
@@ -1485,13 +1754,13 @@ async def mute_member(
     # 设置禁言
     from datetime import datetime, timedelta, timezone
     target_member.is_muted = True
-    target_member.mute_until = datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
+    target_member.muted_until = datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
 
     await db.commit()
 
     return {
         "message": "成员已被禁言",
-        "mute_until": target_member.mute_until
+        "muteUntil": target_member.muted_until.isoformat() if target_member.muted_until else None
     }
 
 
@@ -1537,9 +1806,113 @@ async def unmute_member(
 
     # 取消禁言
     target_member.is_muted = False
-    target_member.mute_until = None
+    target_member.muted_until = None
 
     await db.commit()
 
     return {"message": "已取消禁言"}
+
+
+@router.patch("/{channel_id}/members/{user_id}/title")
+async def update_member_title(
+    channel_id: UUID,
+    user_id: UUID,
+    title_data: dict,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    修改成员称号（仅创建者）
+
+    参数:
+    - custom_title: 自定义称号（可选，最多50字符，null表示清除）
+    - title_color: 称号颜色（可选，hex格式如#FF6B6B）
+    """
+    # 检查操作者权限
+    operator_member = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    operator = operator_member.scalar_one_or_none()
+
+    if not operator or operator.role != 'owner':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="只有创建者可以修改成员称号"
+        )
+
+    # 获取目标成员
+    target_member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == user_id
+        )
+    )
+    target_member = target_member_result.scalar_one_or_none()
+
+    if not target_member:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="成员不存在"
+        )
+
+    # 更新称号信息
+    if 'custom_title' in title_data:
+        custom_title = title_data['custom_title']
+        if custom_title is not None and len(custom_title) > 50:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="称号长度不能超过50个字符"
+            )
+        target_member.custom_title = custom_title
+
+    if 'title_color' in title_data:
+        target_member.title_color = title_data['title_color']
+
+    await db.commit()
+    await db.refresh(target_member)
+
+    return {
+        "message": "称号已更新",
+        "custom_title": target_member.custom_title,
+        "title_color": target_member.title_color
+    }
+
+
+@router.post("/fix-fangroup-permanent")
+async def fix_fangroup_permanent(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    临时修复端点：将所有粉丝群设置为非永久状态
+    仅管理员可用
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="需要管理员权限"
+        )
+
+    # 更新所有粉丝群
+    result = await db.execute(
+        select(Channel).where(Channel.type == 'fangroup')
+    )
+    fangroups = result.scalars().all()
+
+    count = 0
+    for channel in fangroups:
+        if channel.is_permanent:
+            channel.is_permanent = False
+            count += 1
+
+    await db.commit()
+
+    return {
+        "message": f"成功修复 {count} 个粉丝群",
+        "total_fangroups": len(fangroups),
+        "updated": count
+    }
 

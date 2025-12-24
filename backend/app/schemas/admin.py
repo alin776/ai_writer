@@ -55,3 +55,10 @@ class UserActionResponse(BaseModel):
     """
     message: str
     user: UserBasicInfo
+
+
+class UpdateUserHonorRequest(BaseModel):
+    """
+    更新用户称号请求
+    """
+    honor: Optional[str] = Field(None, max_length=50, description="用户称号，留空则清除称号")

@@ -14,6 +14,7 @@ from app.services.chapter_service import ChapterService
 from app.services.work_service import WorkService
 from app.services.task_service import TaskService
 from app.services.ai.http_ai_service import HTTPAIService
+from app.services.chapter_comment_service import cleanup_invalid_comments, delete_all_chapter_comments
 
 logger = logging.getLogger(__name__)
 
@@ -213,12 +214,30 @@ async def update_chapter(
             detail="Not authorized to update this chapter"
         )
 
+    # 保存旧内容用于评论清理
+    old_content = chapter.content
+
     # 计算内容变化的字数
     old_word_count = len(chapter.content) if chapter.content else 0
     new_word_count = len(chapter_data.content) if chapter_data.content else 0
     word_count_diff = new_word_count - old_word_count
 
     updated_chapter = await chapter_service.update_chapter(chapter_id, chapter_data)
+
+    # 🆕 2025-12-24: 清理因内容变化而失效的章节评论
+    if chapter_data.content and chapter_data.content != old_content:
+        try:
+            from uuid import UUID as UUIDType
+            deleted_comments = await cleanup_invalid_comments(
+                db,
+                UUIDType(chapter_id),
+                chapter_data.content,
+                old_content
+            )
+            if deleted_comments > 0:
+                logger.info(f"[Chapters] 章节 {chapter_id} 更新后清理了 {deleted_comments} 条失效评论")
+        except Exception as e:
+            logger.error(f"[Chapters] 清理失效评论失败: {e}")
 
     # 更新作品统计
     work_id = str(chapter.work_id)
@@ -272,6 +291,16 @@ async def delete_chapter(
         )
     
     work_id = str(chapter.work_id)
+
+    # 🆕 2025-12-24: 删除章节的所有评论
+    try:
+        from uuid import UUID as UUIDType
+        deleted_comments = await delete_all_chapter_comments(db, UUIDType(chapter_id))
+        if deleted_comments > 0:
+            logger.info(f"[Chapters] 章节 {chapter_id} 删除，清理了 {deleted_comments} 条评论")
+    except Exception as e:
+        logger.error(f"[Chapters] 清理章节评论失败: {e}")
+
     await chapter_service.delete_chapter(chapter_id)
 
     # 更新作品统计

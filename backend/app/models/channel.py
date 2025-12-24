@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Integer, Text, ForeignKey, Enum, Boolean
+from sqlalchemy import Column, String, DateTime, Integer, Text, ForeignKey, Enum, Boolean, false
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -45,8 +45,9 @@ class Channel(Base):
     work_id = Column(UUID(as_uuid=True), ForeignKey("works.id"), nullable=True, index=True)
 
     # 频道属性
-    is_permanent = Column(Boolean, default=False, nullable=False, comment="是否永久频道")
-    is_pinned = Column(Boolean, default=False, nullable=False, comment="是否置顶")
+    is_permanent = Column(Boolean, default=False, server_default=false(), nullable=False, comment="是否永久频道")
+    is_pinned = Column(Boolean, default=False, server_default=false(), nullable=False, comment="是否置顶")
+    trial_end_at = Column(DateTime(timezone=True), nullable=True, comment="测试期结束时间")
 
     # 统计信息
     member_count = Column(Integer, default=0, nullable=False, comment="成员数量")
@@ -55,6 +56,9 @@ class Channel(Base):
     # 活跃度追踪（用于作品频道自动折叠）
     last_message_at = Column(DateTime(timezone=True), nullable=True, comment="最后消息时间")
     warning_days = Column(Integer, nullable=True, comment="警告剩余天数")
+
+    # 进入要求配置
+    join_requirement = Column(Text, nullable=True, comment="进入要求配置(JSON)")
 
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

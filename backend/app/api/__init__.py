@@ -24,6 +24,7 @@ from app.api.v1 import (
     admin_credits,
     admin_invitations,
     admin_works,
+    admin_reports,
     notifications,
     user_tasks,
     library,
@@ -31,6 +32,7 @@ from app.api.v1 import (
     ratings,
     contact,
     channels,
+    chapter_comments,
 )
 from app.api.v1.endpoints import books
 from app.api.v1 import export as export_routes
@@ -73,6 +75,7 @@ api_router.include_router(invitations.router, prefix="/invitations", tags=["invi
 api_router.include_router(admin_credits.router, prefix="/admin/credits", tags=["admin-credits"])
 api_router.include_router(admin_invitations.router, prefix="/admin/invitations", tags=["admin-invitations"])
 api_router.include_router(admin_works.router, prefix="/admin/works", tags=["admin-works"])
+api_router.include_router(admin_reports.router, prefix="/admin/reports", tags=["admin-reports"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(user_tasks.router, prefix="/tasks", tags=["tasks"])
 api_router.include_router(library.router, prefix="/library", tags=["library"])
@@ -80,3 +83,4 @@ api_router.include_router(comments.router, prefix="/comments", tags=["comments"]
 api_router.include_router(ratings.router, prefix="/ratings", tags=["ratings"])
 api_router.include_router(contact.router, prefix="/contact", tags=["contact"])
 api_router.include_router(channels.router, prefix="/channels", tags=["channels"])
+api_router.include_router(chapter_comments.router, tags=["chapter-comments"])
