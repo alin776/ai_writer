@@ -1,7 +1,7 @@
 ﻿/**
  * 编辑器工具栏组件
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Editor } from '@tiptap/react';
 import {
@@ -27,7 +27,11 @@ import {
   Wand2,
   PanelLeftOpen,
   PanelRightOpen,
+  Replace,
+  Sparkles,
 } from 'lucide-react';
+import FindReplaceDialog from './FindReplaceDialog';
+import SmartFormatDialog from './SmartFormatDialog';
 
 interface EditorToolbarProps {
   editor: Editor;
@@ -49,6 +53,8 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onExpandRightPanel,
 }) => {
   const { t } = useTranslation();
+  const [showFindReplace, setShowFindReplace] = useState(false);
+  const [showSmartFormat, setShowSmartFormat] = useState(false);
 
   if (!editor) {
     return null;
@@ -311,6 +317,38 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
           <ImageIcon className="h-3 w-3" />
         </ToolbarButton>
       </div>
+
+      <div className="w-px h-4 bg-zinc-200 dark:bg-slate-600" />
+
+      {/* 全文替换和智能排版 */}
+      <div className="flex items-center">
+        <ToolbarButton
+          onClick={() => setShowFindReplace(true)}
+          title="全文替换 (Ctrl+H)"
+        >
+          <Replace className="h-3 w-3" />
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => setShowSmartFormat(true)}
+          title="智能排版"
+        >
+          <Sparkles className="h-3 w-3" />
+        </ToolbarButton>
+      </div>
+
+      {/* 全文替换对话框 */}
+      <FindReplaceDialog
+        editor={editor}
+        isOpen={showFindReplace}
+        onClose={() => setShowFindReplace(false)}
+      />
+
+      {/* 智能排版对话框 */}
+      <SmartFormatDialog
+        editor={editor}
+        isOpen={showSmartFormat}
+        onClose={() => setShowSmartFormat(false)}
+      />
 
       {/* 右侧展开按钮（仅当右侧面板收起时显示） */}
       {isRightPanelCollapsed && (
