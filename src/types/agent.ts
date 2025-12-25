@@ -219,6 +219,7 @@ export interface Message {
   agentSteps?: AgentStep[];
   metadata?: AgentMetadata;
   timestamp: string;
+  flowItems?: FlowItem[];  // v5.1: 执行轨迹绑定到消息
 }
 
 export interface ChatInputProps {

@@ -17,6 +17,7 @@ from .base_action import BaseAction, ActionResult, ActionStatus
 from .action_registry import register_action
 from app.services.agent.prompts import PhaseCharacteristics, NovelPhase
 from app.services.agent.prompt_library import get_content_prompt
+from app.services.agent.prompts.format_guidelines import get_format_guidelines
 
 logger = logging.getLogger(__name__)
 
@@ -481,7 +482,9 @@ class WritingAction(BaseAction):
 
 根据用户需求，决定调用合适的工具。"""
 
-        return base_prompt + tools_instruction
+        # 添加格式指导
+        format_guidelines = get_format_guidelines(lite=True)
+        return f"{base_prompt}{tools_instruction}\n\n{format_guidelines}"
 
 
 # 导出

@@ -884,7 +884,9 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   // ✅ 获取最后一条 agent 消息的内容（用于 Agent 响应块）
   // 条件：正在 streaming 或 有执行轨迹时，都需要显示最后一条消息内容
   const lastAgentContent = lastMessageIsAgent ? (messages[messages.length - 1]?.content || '') : '';
-  const shouldShowAgentContent = (hasStreamingAgentMessage || flowItems.length > 0) && lastAgentContent;
+  // v5.1: 从当前消息获取 flowItems
+  const lastAgentFlowItems = lastMessageIsAgent ? ((messages[messages.length - 1] as any)?.flowItems || []) : [];
+  const shouldShowAgentContent = (hasStreamingAgentMessage || lastAgentFlowItems.length > 0) && lastAgentContent;
 
   return (
     <div className="p-3 h-full flex flex-col overflow-hidden dark:bg-slate-900">
@@ -915,9 +917,9 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
           // 判断是否是最后一条消息
           const isLastMessage = index === messages.length - 1;
-          // 判断这条消息是否应该在 Agent 响应块中渲染（而不是在历史消息中）
-          // 条件：最后一条 agent 消息 + (正在streaming 或 有执行轨迹)
-          const shouldRenderInAgentBlock = isLastMessage && message.role === 'agent' && (hasStreamingAgentMessage || flowItems.length > 0);
+          // v5.1: 只有正在流式传输的最后一条 agent 消息才在底部 Agent 响应块中渲染
+          // 历史消息（包括它的 flowItems）在这里渲染
+          const shouldRenderInAgentBlock = isLastMessage && message.role === 'agent' && hasStreamingAgentMessage;
 
           // 如果应该在 Agent 响应块中渲染，先不在这里渲染
           if (shouldRenderInAgentBlock) {
@@ -925,6 +927,9 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
           }
 
           const isUser = message.role === 'user';
+          // v5.1: 获取当前消息的 flowItems
+          const messageFlowItems = (message as any).flowItems || [];
+
           return (
             <div key={index} className={`flex items-start gap-2 ${isUser ? 'justify-end' : ''}`}>
               {!isUser && (
@@ -947,6 +952,10 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                     </p>
                   ) : (
                     <div className="text-zinc-500 dark:text-slate-300">
+                      {/* v5.1: 显示该消息的执行轨迹 */}
+                      {messageFlowItems.length > 0 && (
+                        <ExecutionFlow items={messageFlowItems} />
+                      )}
                       <MarkdownContent content={message.content} />
                     </div>
                   )}
@@ -996,11 +1005,15 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
         {/* Agent 响应块 - 单一头像，包含执行轨迹、任务进度、流式内容 */}
         {(() => {
+          // v5.1: 从当前流式消息中获取 flowItems
+          const lastMessage = messages[messages.length - 1];
+          const currentFlowItems = (lastMessage?.role === 'agent' ? (lastMessage as any).flowItems : []) || [];
+
           // 判断是否有 Agent 响应内容需要显示
           const hasActivityStream = mode === 'agent' && activities.length > 0;
-          const hasExecutionFlow = flowItems.length > 0;
+          const hasExecutionFlow = currentFlowItems.length > 0;
           const hasTaskProgress = isLoading && tasks.length > 0 && !lastAgentContent;
-          const hasThinking = isLoading && tasks.length === 0 && !lastAgentContent && flowItems.length === 0;
+          const hasThinking = isLoading && tasks.length === 0 && !lastAgentContent && currentFlowItems.length === 0;
 
           const hasAgentResponse = hasActivityStream || hasExecutionFlow || hasTaskProgress || hasThinking || shouldShowAgentContent;
 
@@ -1024,9 +1037,9 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                   </div>
                 )}
 
-                {/* 2. ExecutionFlow（执行轨迹可视化） */}
+                {/* 2. ExecutionFlow（执行轨迹可视化）- v5.1: 使用当前消息的 flowItems */}
                 {hasExecutionFlow && (
-                  <ExecutionFlow items={flowItems} />
+                  <ExecutionFlow items={currentFlowItems} />
                 )}
 
                 {/* 3. 任务执行进度（todolist） */}

@@ -70,10 +70,10 @@ export function ToolCard({ icon, title, description, status }: ToolCardProps) {
   };
 
   return (
-    <div className={`flex gap-2.5 p-2.5 rounded-[10px] border my-2.5 ${cardStyles[status]}`}>
+    <div className={`flex gap-2.5 p-2.5 rounded-[10px] border my-2.5 transition-all duration-300 ease-out ${cardStyles[status]}`}>
       {/* 工具图标 - 28px 圆形，固定背景色 */}
       <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 bg-indigo-50 dark:bg-slate-700">
-        <IconComponent size={14} className={iconColorStyles[status]} />
+        <IconComponent size={14} className={`transition-colors duration-300 ${iconColorStyles[status]}`} />
       </div>
 
       {/* 内容区域 */}
@@ -95,8 +95,8 @@ export function ToolCard({ icon, title, description, status }: ToolCardProps) {
         </div>
       </div>
 
-      {/* 状态指示器 */}
-      <div className="flex items-center justify-center w-5 flex-shrink-0">
+      {/* 状态指示器 - 带过渡动画 */}
+      <div className="flex items-center justify-center w-5 flex-shrink-0 transition-opacity duration-300">
         {status === 'running' && (
           <Loader2 size={14} className="text-blue-500 animate-spin" />
         )}

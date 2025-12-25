@@ -18,6 +18,7 @@ from app.services.agent.model_selector import TaskType
 from app.services.agent.prompt_cache import get_tool_decision_static_prompt
 from app.services.agent.utils.tool_helpers import normalize_tool_params
 from app.services.agent.core import MessageCleaner
+from app.services.agent.prompts.format_guidelines import get_format_guidelines
 
 if TYPE_CHECKING:
     from app.services.agent.langgraph_agent import AgentState
@@ -316,10 +317,13 @@ class AgentExecutor:
 
         response_messages.extend(history_messages)
 
-        # 3. 添加当前的任务指令（包含工具结果）
+        # 3. 添加当前的任务指令（包含工具结果）+ 格式指导
+        format_guidelines = get_format_guidelines(lite=True)
+        enhanced_instruction = f"{task_instruction}\n\n{format_guidelines}"
+
         response_messages.append({
             "role": "user",
-            "content": task_instruction
+            "content": enhanced_instruction
         })
 
         return response_messages
