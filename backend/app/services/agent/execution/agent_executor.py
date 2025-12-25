@@ -248,7 +248,7 @@ class AgentExecutor:
 
         # 构建包含历史消息的完整对话上下文
         response_messages = self._build_response_messages(
-            messages, system_prompt, task_instruction
+            messages, system_prompt, task_instruction, agent_type
         )
 
         logger.info(f"[AgentExecutor] 🧠 工具响应阶段：传递 {len(response_messages)} 条消息给AI（包含历史对话）")
@@ -287,7 +287,8 @@ class AgentExecutor:
         self,
         messages: list,
         system_prompt: str,
-        task_instruction: str
+        task_instruction: str,
+        agent_type: str = "general"
     ) -> list:
         """构建响应阶段的消息列表"""
         response_messages = []
@@ -318,7 +319,9 @@ class AgentExecutor:
         response_messages.extend(history_messages)
 
         # 3. 添加当前的任务指令（包含工具结果）+ 格式指导
-        format_guidelines = get_format_guidelines(lite=True)
+        # 对于 analysis/stuck 等需要丰富格式的场景，使用完整版
+        use_lite = agent_type not in ["analysis", "stuck", "planning"]
+        format_guidelines = get_format_guidelines(lite=use_lite)
         enhanced_instruction = f"{task_instruction}\n\n{format_guidelines}"
 
         response_messages.append({

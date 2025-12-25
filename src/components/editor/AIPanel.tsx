@@ -15,6 +15,7 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';  // ✅ 支持 GFM 表格
 import { knowledgeApi } from '@/services/knowledgeApi';
 
 interface AIPanelProps {
@@ -31,6 +32,7 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
   return (
     <div className="text-[14px] leading-relaxed markdown-content">
       <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
         components={{
           // 代码块

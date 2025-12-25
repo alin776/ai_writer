@@ -81,6 +81,7 @@
     "reactflow": "^11.11.4",
     "recharts": "^2.15.4",
     "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.3.1",
     "tippy.js": "^6.3.7",
     "tiptap-extension-global-drag-handle": "^0.1.18",
