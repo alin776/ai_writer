@@ -919,9 +919,12 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
           // 判断是否是最后一条消息
           const isLastMessage = index === messages.length - 1;
-          // v5.1: 只有正在流式传输的最后一条 agent 消息才在底部 Agent 响应块中渲染
-          // 历史消息（包括它的 flowItems）在这里渲染
-          const shouldRenderInAgentBlock = isLastMessage && message.role === 'agent' && hasStreamingAgentMessage;
+          // v5.1: 获取当前消息的 flowItems
+          const messageFlowItems = (message as any).flowItems || [];
+          // v5.1 修复: 最后一条 agent 消息如果正在流式传输或有执行轨迹，在 Agent 响应块中渲染
+          // 这样可以避免同一消息在两处重复渲染
+          const shouldRenderInAgentBlock = isLastMessage && message.role === 'agent' &&
+            (hasStreamingAgentMessage || messageFlowItems.length > 0);
 
           // 如果应该在 Agent 响应块中渲染，先不在这里渲染
           if (shouldRenderInAgentBlock) {
@@ -929,8 +932,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
           }
 
           const isUser = message.role === 'user';
-          // v5.1: 获取当前消息的 flowItems
-          const messageFlowItems = (message as any).flowItems || [];
+          // messageFlowItems 已在上面定义
 
           return (
             <div key={index} className={`flex items-start gap-2 ${isUser ? 'justify-end' : ''}`}>

@@ -207,9 +207,9 @@ export default function AdminChannelsView() {
                               {channel.description}
                             </div>
                           )}
-                          {channel.type === 'work' && channel.book_title && (
+                          {channel.type === 'work' && channel.bookTitle && (
                             <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                              作品：{channel.book_title}
+                              作品：{channel.bookTitle}
                             </div>
                           )}
                         </div>
@@ -225,9 +225,9 @@ export default function AdminChannelsView() {
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${STATUS_COLOR_MAP[channel.status]}`}>
                           {STATUS_MAP[channel.status]}
                         </span>
-                        {channel.status === 'warning' && channel.warning_days && (
+                        {channel.status === 'warning' && channel.warningDays && (
                           <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {channel.warning_days}天
+                            {channel.warningDays}天
                           </span>
                         )}
                       </div>
@@ -235,19 +235,19 @@ export default function AdminChannelsView() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm text-gray-900 dark:text-gray-100">
                         <Users className="w-4 h-4 mr-1 text-gray-400" />
-                        {channel.member_count}
+                        {channel.memberCount}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm text-gray-900 dark:text-gray-100">
                         <MessageCircle className="w-4 h-4 mr-1 text-gray-400" />
-                        {channel.message_count}
+                        {channel.messageCount}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       <div className="flex items-center">
                         <Calendar className="w-4 h-4 mr-1" />
-                        {formatDate(channel.created_at)}
+                        {formatDate(channel.createdAt)}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
