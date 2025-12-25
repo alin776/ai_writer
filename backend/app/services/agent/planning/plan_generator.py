@@ -351,7 +351,7 @@ chapter_id: {chapter_id}
 
     def _post_process_plan(self, plan_data: Dict[str, Any], message: str) -> Dict[str, Any]:
         """
-        规划后处理：补充验收标准与 checkpoint
+        规划后处理：补充验收标准与 checkpoint，并进行验证和自动修复
 
         Args:
             plan_data: 规划数据
@@ -373,7 +373,227 @@ chapter_id: {chapter_id}
                 t["checkpoint"] = (idx == 0)
 
         plan_data["tasks"] = tasks
+
+        # 🔧 2025-12-25: 新增规划验证和自动修复
+        plan_data = self._validate_and_fix_plan(plan_data, message)
+
         return plan_data
+
+    def _validate_and_fix_plan(self, plan_data: Dict[str, Any], message: str) -> Dict[str, Any]:
+        """
+        验证规划并自动修复问题
+
+        检查项：
+        1. 人物查询是否先搜索
+        2. 多章节请求的任务完整性
+
+        Args:
+            plan_data: 规划数据
+            message: 用户消息
+
+        Returns:
+            修复后的规划数据
+        """
+        tasks = plan_data.get("tasks", [])
+        if not tasks:
+            return plan_data
+
+        # 验证1: 人物查询必须先搜索
+        tasks = self._validate_search_before_read(tasks, message)
+
+        # 验证2: 检查多章节批量读取格式（现在工具支持范围格式）
+        tasks = self._optimize_multi_chapter_tasks(tasks, message)
+
+        plan_data["tasks"] = tasks
+        return plan_data
+
+    def _validate_search_before_read(self, tasks: List[Dict], message: str) -> List[Dict]:
+        """
+        验证人物/地点查询必须先搜索
+
+        规则：
+        - 用户提到人物名（如"赵穆"）但未指定章节 → 第一个任务必须是 search_analysis_fragments_tool
+        - 如果违反规则，自动在最前面插入搜索任务
+
+        Args:
+            tasks: 任务列表
+            message: 用户消息
+
+        Returns:
+            修复后的任务列表
+        """
+        # 检测是否包含人物名（中文名字通常是2-4个汉字）
+        # 常见模式：帮我改写XX的描写、XX的人物描写、关于XX的...
+        character_patterns = [
+            r"(?:帮我|请|把|将)?[\u4e00-\u9fa5]{2,4}(?:的)?(?:人物|角色)?(?:描写|描述|形象|性格|特点)",
+            r"(?:关于|有关)[\u4e00-\u9fa5]{2,4}(?:的|出现)",
+            r"[\u4e00-\u9fa5]{2,4}(?:出现在哪|在哪里|在哪章)",
+        ]
+
+        has_character_query = False
+        for pattern in character_patterns:
+            if re.search(pattern, message):
+                has_character_query = True
+                break
+
+        if not has_character_query:
+            return tasks
+
+        # 检查是否已经有章节ID指定（如果有就不需要搜索）
+        if re.search(r"第\s*\d+\s*章", message):
+            return tasks
+
+        # 检查第一个任务是否是搜索
+        first_task = tasks[0] if tasks else None
+        if first_task and first_task.get("tool") == "search_analysis_fragments_tool":
+            return tasks
+
+        # 提取人物名
+        character_name = None
+        name_match = re.search(r"([\u4e00-\u9fa5]{2,4})(?:的)?(?:人物|角色)?(?:描写|描述|形象)", message)
+        if name_match:
+            character_name = name_match.group(1)
+
+        if not character_name:
+            return tasks
+
+        # 插入搜索任务
+        logger.info(f"[PlanValidator] 检测到人物查询'{character_name}'但未指定章节，自动插入搜索任务")
+
+        search_task = {
+            "task_id": 0,  # 临时ID，后面会重新编号
+            "description": f"搜索'{character_name}'出现位置",
+            "tool": "search_analysis_fragments_tool",
+            "params": {"query": character_name},
+            "checkpoint": False
+        }
+
+        # 重新编号所有任务
+        new_tasks = [search_task]
+        for i, task in enumerate(tasks):
+            task["task_id"] = i + 2  # 从2开始
+            new_tasks.append(task)
+        new_tasks[0]["task_id"] = 1
+
+        return new_tasks
+
+    def _optimize_multi_chapter_tasks(self, tasks: List[Dict], message: str) -> List[Dict]:
+        """
+        优化多章节读取任务
+
+        检测连续的多个 get_chapter_by_order_tool 任务，合并成一个批量读取任务
+
+        Args:
+            tasks: 任务列表
+            message: 用户消息
+
+        Returns:
+            优化后的任务列表
+        """
+        # 找到连续的 get_chapter_by_order_tool 任务
+        chapter_tasks = []
+        other_tasks = []
+        chapter_indices = []
+
+        for i, task in enumerate(tasks):
+            if task.get("tool") == "get_chapter_by_order_tool":
+                params = task.get("params", {})
+                chapter_order = params.get("chapter_order")
+                if chapter_order is not None:
+                    # 检查是否已经是批量格式
+                    if isinstance(chapter_order, str) and ("-" in str(chapter_order) or "," in str(chapter_order)):
+                        other_tasks.append(task)
+                    else:
+                        try:
+                            order = int(chapter_order)
+                            chapter_tasks.append((i, order, task))
+                            chapter_indices.append(i)
+                        except (ValueError, TypeError):
+                            other_tasks.append(task)
+                else:
+                    other_tasks.append(task)
+            else:
+                other_tasks.append(task)
+
+        # 如果只有0-1个章节任务，不需要优化
+        if len(chapter_tasks) <= 1:
+            return tasks
+
+        # 检查是否是连续的章节序号
+        orders = sorted([t[1] for t in chapter_tasks])
+        is_continuous = all(orders[i+1] - orders[i] == 1 for i in range(len(orders) - 1))
+
+        if not is_continuous or len(orders) < 2:
+            return tasks
+
+        # 合并成一个批量读取任务
+        start_order = orders[0]
+        end_order = orders[-1]
+
+        logger.info(f"[PlanOptimizer] 合并 {len(orders)} 个章节读取任务为批量读取: {start_order}-{end_order}")
+
+        merged_task = {
+            "task_id": 1,
+            "description": f"批量读取第{start_order}-{end_order}章",
+            "tool": "get_chapter_by_order_tool",
+            "params": {"chapter_order": f"{start_order}-{end_order}"},
+            "checkpoint": False
+        }
+
+        # 重建任务列表
+        new_tasks = [merged_task]
+        task_id = 2
+        for task in other_tasks:
+            task["task_id"] = task_id
+            # 更新参数中的任务引用（$TASK_N$ 格式）
+            self._update_task_references(task, chapter_indices, len(orders))
+            new_tasks.append(task)
+            task_id += 1
+
+        return new_tasks
+
+    def _update_task_references(self, task: Dict, old_indices: List[int], merged_count: int):
+        """
+        更新任务参数中的任务引用
+
+        当多个任务被合并后，需要更新后续任务中的 $TASK_N$ 引用
+
+        Args:
+            task: 任务
+            old_indices: 被合并的任务索引列表
+            merged_count: 被合并的任务数量
+
+        🔧 2025-12-25: 同时处理 $TASK_N$ 和 $TASK_N.content$ 两种格式
+        """
+        params = task.get("params", {})
+        if not params:
+            return
+
+        params_str = json.dumps(params, ensure_ascii=False)
+
+        # 替换 $TASK_N.content$ 和 $TASK_N$ 为 $TASK_1.chapters$
+        # 例如：$TASK_1.content$\n$TASK_2.content$... → $TASK_1.chapters$
+        for old_idx in sorted(old_indices, reverse=True):
+            # 处理 $TASK_N.content$ 格式
+            old_ref_content = f"$TASK_{old_idx + 1}.content$"
+            # 处理 $TASK_N$ 格式（完整输出）
+            old_ref_full = f"$TASK_{old_idx + 1}$"
+
+            # 只需要替换第一个，其余的会被删除
+            if old_idx == old_indices[0]:
+                params_str = params_str.replace(old_ref_content, "$TASK_1.chapters$")
+                params_str = params_str.replace(old_ref_full, "$TASK_1.chapters$")
+            else:
+                # 删除后续的引用（连接符也删除）
+                for old_ref in [old_ref_content, old_ref_full]:
+                    params_str = params_str.replace(f"\\n\\n{old_ref}", "")
+                    params_str = params_str.replace(f"\\n{old_ref}", "")
+                    params_str = params_str.replace(old_ref, "")
+
+        try:
+            task["params"] = json.loads(params_str)
+        except json.JSONDecodeError:
+            pass  # 保持原样
 
     @staticmethod
     def _quick_acceptance_from_text(text: str) -> Optional[Dict[str, Any]]:

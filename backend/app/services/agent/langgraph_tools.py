@@ -475,22 +475,110 @@ async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "")
                 pass
 
 
+def _parse_chapter_orders(chapter_order: str) -> list[int]:
+    """解析章节序号参数，支持三种格式
+
+    Args:
+        chapter_order: 章节序号，支持以下格式：
+            - 单个: "1" 或 1
+            - 多个: "1,2,3,4,5"
+            - 范围: "1-5"（读取第1到第5章）
+
+    Returns:
+        章节序号列表，如 [1, 2, 3, 4, 5]
+    """
+    # 处理整数输入（向后兼容）
+    if isinstance(chapter_order, int):
+        return [chapter_order]
+
+    chapter_order = str(chapter_order).strip()
+
+    # 格式1: 范围 "1-5"
+    if "-" in chapter_order and "," not in chapter_order:
+        parts = chapter_order.split("-")
+        if len(parts) == 2:
+            try:
+                start = int(parts[0].strip())
+                end = int(parts[1].strip())
+                if start <= end:
+                    return list(range(start, end + 1))
+            except ValueError:
+                pass
+
+    # 格式2: 多个 "1,2,3,4,5"
+    if "," in chapter_order:
+        orders = []
+        for part in chapter_order.split(","):
+            try:
+                orders.append(int(part.strip()))
+            except ValueError:
+                continue
+        return sorted(set(orders))  # 去重并排序
+
+    # 格式3: 单个 "1"
+    try:
+        return [int(chapter_order)]
+    except ValueError:
+        return [1]  # 默认返回第1章
+
+
+def _get_content_limit_for_batch(chapter_count: int) -> int:
+    """根据批量读取的章节数量，动态计算每章的内容限制
+
+    🔧 2025-12-25: 智能压缩策略，避免大量章节导致内容过长
+
+    策略:
+    - 1-5 章: 完整内容 (5000 字/章)
+    - 6-15 章: 精简内容 (2000 字/章)
+    - 16-30 章: 摘要模式 (1000 字/章)
+    - 31-50 章: 极简摘要 (500 字/章)
+    - 51+ 章: 标题+开头 (300 字/章)
+
+    目标: 无论多少章，总内容控制在 50,000 字符以内
+
+    Args:
+        chapter_count: 批量读取的章节总数
+
+    Returns:
+        每章内容的字符限制
+    """
+    if chapter_count <= 5:
+        return 5000  # 5 × 5000 = 25,000
+    elif chapter_count <= 15:
+        return 2000  # 15 × 2000 = 30,000
+    elif chapter_count <= 30:
+        return 1000  # 30 × 1000 = 30,000
+    elif chapter_count <= 50:
+        return 500   # 50 × 500 = 25,000
+    else:
+        return 300   # 100 × 300 = 30,000
+
+
 @tool
-async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order: int = 1) -> str:
-    """通过章节序号获取章节ID和内容
+async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order: str = "1") -> str:
+    """通过章节序号获取章节内容（支持批量读取）
 
     Args:
         work_id: 作品ID（UUID格式）
-        chapter_order: 章节序号（第1章=1）
+        chapter_order: 章节序号，支持三种格式：
+                      - 单个: "1"
+                      - 多个: "1,2,3,4,5"
+                      - 范围: "1-5"（读取第1到第5章）
 
     Returns:
-        章节信息JSON
+        章节信息JSON（单章节）或章节列表JSON（多章节）
+
+    🔧 2025-12-25: 优化支持多章节批量读取，减少规划任务数
     """
+    # 解析章节序号
+    orders = _parse_chapter_orders(chapter_order)
+
     if not work_id:
+        order_desc = f"第{orders[0]}章" if len(orders) == 1 else f"第{orders[0]}-{orders[-1]}章"
         return json.dumps({
             "status": "missing_prerequisite",
             "missing": "work_id",
-            "message": f"需要指定作品ID才能查询第{chapter_order}章"
+            "message": f"需要指定作品ID才能查询{order_desc}"
         }, ensure_ascii=False, indent=2)
 
     uuid_error = validate_uuid(work_id, "作品ID")
@@ -516,15 +604,49 @@ async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order
                     "work_id": work_id
                 }, ensure_ascii=False, indent=2)
 
-            target_chapter = None
-            for chapter in work.chapters:
-                if chapter.order == chapter_order:
-                    target_chapter = chapter
-                    break
+            # 构建章节序号到章节的映射
+            chapter_map = {ch.order: ch for ch in work.chapters}
+
+            # 🆕 多章节处理
+            if len(orders) > 1:
+                chapters_info = []
+                for order in orders:
+                    chapter = chapter_map.get(order)
+                    if chapter:
+                        clean_content = text_cleaner.html_to_clean_text(
+                            chapter.content if chapter.content else "",
+                            preserve_structure=True,
+                            max_length=5000
+                        )
+                        chapters_info.append({
+                            "chapter_id": str(chapter.id),
+                            "title": chapter.title,
+                            "order": chapter.order,
+                            "content": clean_content,
+                            "content_length": len(clean_content),
+                            "word_count": chapter.word_count,
+                            "status": chapter.status.value if hasattr(chapter, 'status') else "unknown"
+                        })
+                    else:
+                        chapters_info.append({
+                            "order": order,
+                            "error": f"未找到第{order}章"
+                        })
+
+                logger.info(f"[get_chapter_by_order_tool] ✅ 批量读取成功: 共 {len(chapters_info)} 章")
+                return json.dumps({
+                    "type": "multi_chapter",
+                    "count": len(chapters_info),
+                    "chapters": chapters_info
+                }, ensure_ascii=False, indent=2)
+
+            # 单章节处理（保持原有逻辑）
+            target_order = orders[0]
+            target_chapter = chapter_map.get(target_order)
 
             if not target_chapter:
                 return json.dumps({
-                    "error": f"未找到第{chapter_order}章",
+                    "error": f"未找到第{target_order}章",
                     "work_id": work_id,
                     "total_chapters": len(work.chapters)
                 }, ensure_ascii=False, indent=2)
@@ -545,7 +667,7 @@ async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order
                 "status": target_chapter.status.value if hasattr(target_chapter, 'status') else "unknown"
             }
 
-            logger.info(f"[get_chapter_by_order_tool] ✅ 找到第{chapter_order}章: {target_chapter.title}")
+            logger.info(f"[get_chapter_by_order_tool] ✅ 找到第{target_order}章: {target_chapter.title}")
             return json.dumps(chapter_info, ensure_ascii=False, indent=2)
 
         except Exception as e:
@@ -982,9 +1104,12 @@ read_chapter_tool_st = StandardTool(
 # ==================== 3. GetChapterByOrderTool StandardTool ====================
 
 class GetChapterByOrderInput(ToolInput):
-    """按序号获取章节工具输入"""
+    """按序号获取章节工具输入
+
+    🔧 2025-12-25: 更新 chapter_order 为 str 类型，支持批量格式
+    """
     work_id: str = Field(..., description="作品ID")
-    chapter_order: int = Field(..., description="章节序号", ge=1)
+    chapter_order: str = Field(default="1", description="章节序号，支持: 单个'1', 多个'1,2,3', 范围'1-5'")
 
 
 class GetChapterByOrderOutput(ToolOutput):
@@ -993,7 +1118,10 @@ class GetChapterByOrderOutput(ToolOutput):
 
 
 async def get_chapter_by_order_executor(input_data: GetChapterByOrderInput) -> GetChapterByOrderOutput:
-    """按序号获取章节执行器（包装 @tool 版本）"""
+    """按序号获取章节执行器（包装 @tool 版本）
+
+    🔧 2025-12-25: 支持批量读取格式
+    """
     try:
         # 🔧 2025-12-14: @tool 装饰器返回 StructuredTool，需要用 .ainvoke() 调用
         result_str = await get_chapter_by_order_tool.ainvoke({
@@ -1003,7 +1131,7 @@ async def get_chapter_by_order_executor(input_data: GetChapterByOrderInput) -> G
 
         return GetChapterByOrderOutput(
             success=True,
-            message=f"获取第{input_data.chapter_order}章成功",
+            message=f"获取章节成功: {input_data.chapter_order}",
             data={"chapter_info": result_str},
             metadata={"tool": "get_chapter_by_order", "chapter_order": input_data.chapter_order}
         )
@@ -1019,13 +1147,13 @@ async def get_chapter_by_order_executor(input_data: GetChapterByOrderInput) -> G
 
 get_chapter_by_order_tool_st = StandardTool(
     name="get_chapter_by_order",
-    description="按章节序号获取章节内容",
+    description="按章节序号获取章节内容（支持批量：'1-5' 或 '1,2,3'）",
     category=ToolCategory.UTILITY,
     input_schema=GetChapterByOrderInput,
     output_schema=GetChapterByOrderOutput,
     executor=get_chapter_by_order_executor,
-    tags=["chapter", "read", "order"],
-    version="1.0.0"
+    tags=["chapter", "read", "order", "batch"],
+    version="2.0.0"  # 🔧 2025-12-25: 升级版本号，支持批量读取
 )
 
 
