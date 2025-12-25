@@ -59,7 +59,10 @@
       "Bash(venvScriptspython.exe -m alembic revision -m \"add_channel_read_states_and_mentions\")",
       "Bash(ping:*)",
       "Bash(C:/Users/Administrator/Desktop/ai-writer/venv/Scripts/python.exe -m alembic:*)",
-      "Bash(C:/Users/Administrator/Desktop/ai-writer/venv/Scripts/alembic.exe heads:*)"
+      "Bash(C:/Users/Administrator/Desktop/ai-writer/venv/Scripts/alembic.exe heads:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git stash:*)"
     ],
     "deny": [],
     "ask": []
