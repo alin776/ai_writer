@@ -92,7 +92,7 @@ from app.services.agent.handlers import (
     handle_stuck,
     handle_general
 )
-from app.services.agent.execution import ToolExecutor, ParallelExecutor, TaskRunner
+from app.services.agent.execution import ToolExecutor, ParallelExecutor, TaskRunner, AgentExecutor
 from app.services.agent.stream import EventParser, StreamEventHandler
 from app.services.agent.planning import ResponseBuilder, classify_tasks, PlanGenerator, QuickPathHandler
 # ✅ 2025-12-23: Phase 2 解耦 - 导入 core 模块
@@ -282,6 +282,12 @@ class WritingAgentGraph:
         self.secondary_tool_handler = SecondaryToolHandler(
             generate_text_func=self._generate_text
         )
+        # ✅ 2025-12-25: 初始化 AgentExecutor（HTTPAIService 执行引擎）
+        self.agent_executor = AgentExecutor(
+            secondary_tool_handler=self.secondary_tool_handler,
+            tool_dispatcher=self.tool_dispatcher,
+            generate_text_func=self._generate_text
+        )
         # ✅ Phase 4.4: 初始化 TaskRunner（单任务执行）
         self.task_runner = TaskRunner(
             call_tool_via_registry_func=self._call_tool_via_registry,
@@ -289,7 +295,7 @@ class WritingAgentGraph:
         )
         # ✅ Phase 4.3: 延迟设置 ResponseBuilder 的流式生成函数
         self.response_builder.set_stream_generator(self._generate_text_stream)
-        logger.info("[LangGraph] ✅ 解耦模块已初始化 (IntentClassifier, ToolExecutor, EventParser, ResponseBuilder, ToolDispatcher, ParallelExecutor, PlanGenerator, QuickPathHandler, StreamEventHandler, SecondaryToolHandler, TaskRunner)")
+        logger.info("[LangGraph] ✅ 解耦模块已初始化 (IntentClassifier, ToolExecutor, EventParser, ResponseBuilder, ToolDispatcher, ParallelExecutor, PlanGenerator, QuickPathHandler, StreamEventHandler, SecondaryToolHandler, TaskRunner, AgentExecutor)")
 
         # 构建图
         self.graph = self._build_graph()
@@ -713,6 +719,56 @@ class WritingAgentGraph:
 
         return {"text": full_text, "usage": usage or {}}
 
+    # ==================== Thread ID 构建（公共方法）====================
+
+    def _build_thread_id(
+        self,
+        user_id: Optional[str],
+        work_id: Optional[str],
+        conversation_id: Optional[str],
+        log_prefix: str = "LangGraph"
+    ) -> str:
+        """构建隔离的 thread_id（三层隔离：user_id > work_id > conversation_id）
+
+        Args:
+            user_id: 用户ID
+            work_id: 作品ID
+            conversation_id: 会话ID
+            log_prefix: 日志前缀
+
+        Returns:
+            str: 构建好的 thread_id
+        """
+        import hashlib as _hashlib
+
+        user_prefix = f"{user_id}:" if user_id else ""
+
+        if work_id and conversation_id:
+            thread_id = f"{user_prefix}{work_id}:{conversation_id}"
+        elif work_id:
+            thread_id = f"{user_prefix}{work_id}:default"
+        elif conversation_id:
+            thread_id = f"{user_prefix}{conversation_id}"
+        else:
+            thread_id = f"{user_prefix}anonymous:{uuid.uuid4()}" if not user_prefix else f"{user_prefix}default"
+
+        # P2防护：thread_id长度验证
+        max_thread_id_length = ContextConfig.MAX_THREAD_ID_LENGTH
+        if len(thread_id) > max_thread_id_length:
+            logger.warning(
+                f"[{log_prefix}] thread_id过长({len(thread_id)}字符), 使用哈希缩短"
+            )
+            hash_suffix = _hashlib.sha1(thread_id.encode("utf-8")).hexdigest()[:10]
+            prefix_budget = max_thread_id_length - len(hash_suffix) - 1
+            thread_id = f"{thread_id[:prefix_budget]}:{hash_suffix}"
+
+        logger.info(
+            f"[{log_prefix}] 使用隔离的thread_id: {thread_id} "
+            f"(user_id={user_id}, work_id={work_id}, conversation_id={conversation_id})"
+        )
+
+        return thread_id
+
     # ==================== 意图分类（委托到 IntentClassifier）====================
 
     def _classify_intent_by_rules(self, message: str) -> tuple[str, float]:
@@ -1103,416 +1159,20 @@ class WritingAgentGraph:
     async def _handle_with_httpai(self, state: AgentState, agent_type: str, system_prompt: str, recursion_depth: int = 0) -> AgentState:
         """HTTPAIService 模式 - 手动工具调用（绕过 Cloudflare）
 
+        ✅ 2025-12-25: 重构为委托模式，核心逻辑移至 AgentExecutor
+
         Args:
             state: Agent状态
             agent_type: Agent类型
             system_prompt: 系统提示词
-            recursion_depth: 递归深度（默认0）✅ P0-3修复
+            recursion_depth: 递归深度（默认0）
         """
-        # ✅ P0-3修复：检查递归深度，防止无限递归
-        MAX_RECURSION_DEPTH = 5  # 最多允许5层递归（原始调用 + 4次工具调用）
-        if recursion_depth > MAX_RECURSION_DEPTH:
-            logger.error(
-                f"[LangGraph] ❌ 递归深度超限: {recursion_depth} > {MAX_RECURSION_DEPTH}，"
-                f"可能存在工具循环调用，强制终止"
-            )
-            return {
-                "messages": [AIMessage(content="抱歉，处理您的请求时遇到了问题（递归深度超限），请简化您的需求后重试。")],
-                "final_response": "递归深度超限，已强制终止",
-                "agent_steps": [{
-                    "step": f"{agent_type}_recursion_limit",
-                    "result": f"递归深度{recursion_depth}超过限制{MAX_RECURSION_DEPTH}"
-                }]
-            }
-
-        messages = state["messages"]
-
-        # 检查是否已经有工具结果（第二次进入）
-        if messages and isinstance(messages[-1], ToolMessage):
-            logger.info(f"[LangGraph] {agent_type} - 处理工具执行结果 (HTTPAIService)")
-
-            # 获取用户原始请求（第一条HumanMessage）
-            user_message = ""
-            for msg in messages:
-                if isinstance(msg, HumanMessage):
-                    user_message = msg.content
-                    break
-
-            # 使用 HTTPAIService 基于工具结果生成最终响应
-            tool_result = messages[-1].content
-
-            logger.info(f"[LangGraph] 🔍 工具返回内容长度: {len(tool_result)} 字符")
-            logger.info(f"[LangGraph] 🔍 工具返回内容预览:\n{tool_result[:500]}")
-
-            # ✅ Phase 4.1: 使用 SecondaryToolHandler 处理二次工具调用
-            # 场景：用户说"修改第2章"，AI先调get_chapter_by_order_tool获取chapter_id，
-            # 然后应该调用smart_rewrite进行实际修改
-            already_did_second_call = state.get("_second_tool_called", False)
-            needs_second_tool = self.secondary_tool_handler.needs_secondary_tool_call(
-                user_message, agent_type, already_did_second_call
-            )
-
-            if needs_second_tool:
-                logger.info(f"[LangGraph] 🔄 检测到编辑意图，尝试二次工具调用")
-
-                # 提取 chapter_id
-                chapter_id_from_tool = self.secondary_tool_handler.extract_chapter_id_from_tool_result(tool_result)
-
-                if chapter_id_from_tool:
-                    # 更新state中的chapter_id
-                    state["chapter_id"] = chapter_id_from_tool
-
-                    # 执行二次工具调用
-                    second_result = await self.secondary_tool_handler.handle_secondary_tool_call(
-                        user_message=user_message,
-                        tool_result=tool_result,
-                        chapter_id=chapter_id_from_tool,
-                        system_prompt=system_prompt,
-                        state=state
-                    )
-
-                    if second_result:
-                        tool_name = second_result["tool_name"]
-                        second_tool_result = second_result["tool_result"]
-
-                        logger.info(f"[LangGraph] ✅ 二次工具调用成功，返回结果长度: {len(second_tool_result)} 字符")
-
-                        # 创建工具消息并添加到消息历史
-                        ai_msg = AIMessage(content=f"我需要使用 {tool_name} 工具来帮助你。")
-                        tool_msg = ToolMessage(content=second_tool_result, tool_call_id="manual_call_2")
-
-                        # 更新state
-                        updated_state = state.copy()
-                        updated_state["messages"] = state["messages"] + [ai_msg, tool_msg]
-                        updated_state["agent_steps"] = state.get("agent_steps", []) + [{
-                            "step": f"{agent_type}_second_tool_call",
-                            "result": f"二次调用编辑器工具: {tool_name}",
-                            "tool_result_length": len(second_tool_result)
-                        }]
-                        updated_state["_second_tool_called"] = True
-
-                        # 递归处理
-                        logger.info(f"[LangGraph] 🔄 继续处理第二次工具结果 (depth={recursion_depth + 1})")
-                        return await self._handle_with_httpai(
-                            updated_state,
-                            agent_type,
-                            system_prompt,
-                            recursion_depth=recursion_depth + 1
-                        )
-                else:
-                    logger.info(f"[LangGraph] ⚠️ 未能从工具结果中提取chapter_id，继续正常流程")
-
-            # ✅ Phase 4.1: 使用 SecondaryToolHandler 构建任务指令
-            is_read_request, is_write_request = self.secondary_tool_handler.get_user_intent(user_message)
-            task_instruction = self.secondary_tool_handler.build_task_instruction(
-                user_message=user_message,
-                tool_result=tool_result,
-                agent_type=agent_type
-            )
-
-            # ✅ 记忆修复：构建包含历史消息的完整对话上下文
-            response_messages = []
-
-            # 1. 添加系统提示
-            response_messages.append({
-                "role": "system",
-                "content": system_prompt
-            })
-
-            # 2. 添加历史对话消息（排除工具调用相关消息）
-            # ✅ 优化：限制历史消息数量，避免 token 无限增长
-            MAX_HISTORY_MESSAGES = 20  # 最多保留最近10轮对话（20条消息）
-
-            history_messages = []
-            for msg in messages[:-1]:  # 排除最后一条 ToolMessage
-                if isinstance(msg, HumanMessage):
-                    history_messages.append({"role": "user", "content": msg.content})
-                elif isinstance(msg, AIMessage):
-                    # 跳过工具调用相关的AI消息
-                    if not msg.content.startswith("我需要使用"):
-                        history_messages.append({"role": "assistant", "content": msg.content})
-                # SystemMessage 和 ToolMessage 不添加到历史
-
-            # ✅ 如果历史消息过多，只保留最近的 N 条
-            if len(history_messages) > MAX_HISTORY_MESSAGES:
-                history_messages = history_messages[-MAX_HISTORY_MESSAGES:]
-                logger.info(f"[LangGraph] ⚠️ 工具响应阶段：历史消息过多，截断为最近 {MAX_HISTORY_MESSAGES} 条")
-
-            # 添加到响应消息列表
-            response_messages.extend(history_messages)
-
-            # 3. 添加当前的任务指令（包含工具结果）
-            response_messages.append({
-                "role": "user",
-                "content": task_instruction
-            })
-
-            logger.info(f"[LangGraph] 🧠 工具响应阶段：传递 {len(response_messages)} 条消息给AI（包含历史对话）")
-
-            # 根据 agent_type 和用户意图智能选择 task_type
-            if agent_type == "writing":
-                # 写作场景：根据用户意图区分
-                if is_read_request and not is_write_request:
-                    selected_task_type = TaskType.SUMMARIZATION  # 展示数据
-                else:
-                    selected_task_type = TaskType.CONTENT_CREATION  # 续写创作
-            elif agent_type == "stuck":
-                selected_task_type = TaskType.SIMPLE_QA  # 提供建议
-            elif agent_type == "planning":
-                selected_task_type = TaskType.STORY_PLANNING  # 规划方案
-            elif agent_type == "analysis":
-                # 分析场景：根据复杂度区分
-                if is_read_request and not is_write_request:
-                    selected_task_type = TaskType.SUMMARIZATION  # 展示数据
-                else:
-                    selected_task_type = TaskType.DEEP_ANALYSIS  # 深度分析
-            else:
-                # 其他场景：默认摘要
-                selected_task_type = TaskType.SUMMARIZATION
-
-            logger.info(f"[LangGraph] {agent_type} 最终响应使用模型: task_type={selected_task_type.value}")
-
-            # ✅ 使用 _generate_text 传递完整历史
-            result = await self._generate_text(
-                messages=response_messages,  # ✅ 传递包含历史的消息列表
-                max_tokens=1500,
-                temperature=0.7,
-                task_type=selected_task_type  # 智能选择的task_type
-            )
-            final_text = result.get("text", "")
-
-            response = AIMessage(content=final_text)
-            # ✅ 只返回新消息，避免 operator.add 重复添加
-            return {
-                "messages": [response],
-                "final_response": final_text,
-                "agent_steps": [{
-                    "step": f"{agent_type}_final_response",
-                    "result": "基于工具结果生成最终响应 (HTTPAIService)"
-                }]
-            }
-
-        # 第一次进入：使用 HTTPAIService 决定是否需要工具
-        last_user_message = messages[-1].content
-
-        # ✅ P0修复：改进AI决策Prompt，明确当前上下文
-        current_work_id = state.get("work_id")
-        current_chapter_id = state.get("chapter_id")
-
-        # ✅ P2修复：显示实际的ID值（安全截断）
-        def _format_id(value: Optional[str], max_len: int = 20) -> str:
-            """格式化ID值，安全截断过长ID"""
-            if not value:
-                return "未设置"
-            if len(value) <= max_len:
-                return f"{value}"
-            return f"{value[:max_len]}..."
-
-        context_info = f"""
-当前上下文：
-- 作品ID (work_id): {_format_id(current_work_id)}
-- 章节ID (chapter_id): {_format_id(current_chapter_id)}
-"""
-
-        # Version memory: add previous versions to context if available
-        last_versions = state.get("context", {}).get("last_rewrite_versions", {})
-        if last_versions:
-            version_info = "\n[Previous rewrite versions (use when user says 'based on version X')]"
-            if last_versions.get("version_a"):
-                version_info += f"\n- Version A: {last_versions['version_a'][:100]}..."
-            if last_versions.get("version_b"):
-                version_info += f"\n- Version B: {last_versions['version_b'][:100]}..."
-            if last_versions.get("version_c"):
-                version_info += f"\n- Version C: {last_versions['version_c'][:100]}..."
-            context_info += version_info
-            logger.info(f"[LangGraph] Added version memory to context")
-
-        # ✅ Phase 2.6: 使用缓存的静态 Prompt（节省构建时间和 Token）
-        static_prompt = await get_tool_decision_static_prompt()
-
-        # 🆕 Phase 2.7: 动态添加章节上下文提示（如果存在 chapter_id）
-        chapter_context_hint = ""
-        if state.get("chapter_id"):
-            work_id = state.get("work_id", "未知")
-            chapter_id = state.get("chapter_id")
-            chapter_context_hint = f"""
-
-⚠️ 【章节上下文提示】：
-- 当前用户在章节聊天面板中（work_id={work_id}, chapter_id={chapter_id}）
-- 如果用户要求修改/润色/分析本章内容，**必须先调用 read_chapter_tool(work_id="{work_id}", chapter_id="{chapter_id}")** 读取章节原文
-- 正确流程：read_chapter_tool → 理解上下文 → smart_rewrite 或其他工具
-"""
-
-        # ✅ 记忆修复：构建包含历史消息的完整对话上下文
-        chat_messages = []
-
-        # 1. 添加系统提示作为第一条消息
-        chat_messages.append({
-            "role": "system",
-            "content": f"""{system_prompt}
-
-{context_info}
-
-{static_prompt}{chapter_context_hint}"""
-        })
-
-        # 2. 添加历史对话消息（保留上下文）
-        # ✅ 优化：限制历史消息数量，避免 token 无限增长
-        MAX_HISTORY_MESSAGES = 10  # 最多保留最近5轮对话（10条消息）
-
-        history_messages = []
-        for msg in messages:
-            if isinstance(msg, HumanMessage):
-                history_messages.append({"role": "user", "content": msg.content})
-            elif isinstance(msg, AIMessage):
-                # 跳过工具调用相关的AI消息（避免混淆）
-                if not msg.content.startswith("我需要使用"):
-                    history_messages.append({"role": "assistant", "content": msg.content})
-            # SystemMessage 和 ToolMessage 不添加到历史（已在系统提示中或不需要）
-
-        # ✅ 如果历史消息过多，只保留最近的 N 条
-        if len(history_messages) > MAX_HISTORY_MESSAGES:
-            history_messages = history_messages[-MAX_HISTORY_MESSAGES:]
-            logger.info(f"[LangGraph] ⚠️ 历史消息过多，截断为最近 {MAX_HISTORY_MESSAGES} 条")
-
-        # 添加到聊天消息列表
-        chat_messages.extend(history_messages)
-
-        logger.info(f"[LangGraph] 🧠 记忆修复：传递 {len(chat_messages)} 条消息给AI（包含历史对话）")
-
-        # ✅ 使用 _generate_text 调用HTTPAIService
-        result = await self._generate_text(
-            messages=chat_messages,  # ✅ 传递完整消息历史
-            max_tokens=200,  # ✅ Phase 2.5: 优化从500→200 (JSON响应通常<100 tokens)
-            temperature=0.3,
-            task_type=TaskType.SIMPLE_QA  # 工具决策任务
+        return await self.agent_executor.execute(
+            state=state,
+            agent_type=agent_type,
+            system_prompt=system_prompt,
+            recursion_depth=recursion_depth
         )
-        decision_text = result.get("text", "")
-
-        # 解析决策
-        import json
-        import re
-
-        logger.info(f"[LangGraph] AI 决策原文: {decision_text}")
-
-        # 方法 1: 尝试直接解析整个文本（如果 AI 只返回 JSON）
-        decision = None
-        try:
-            decision = json.loads(decision_text.strip())
-            logger.info(f"[LangGraph] 方法1成功: 直接解析整个文本")
-        except:
-            pass
-
-        # 方法 2: 使用正则提取 JSON（支持嵌套，贪婪匹配）
-        if not decision:
-            # 匹配 { ... } 包括嵌套的 JSON
-            json_matches = re.finditer(r'\{(?:[^{}]|(?:\{[^}]*\}))*\}', decision_text)
-            for match in json_matches:
-                try:
-                    candidate = json.loads(match.group())
-                    # 验证是否包含必需字段
-                    if "need_tools" in candidate:
-                        decision = candidate
-                        logger.info(f"[LangGraph] 方法2成功: 正则提取 JSON")
-                        break
-                except:
-                    continue
-
-        # 方法 3: 如果都失败，使用AI的原始回答
-        if not decision:
-            logger.warning(f"[LangGraph] 无法解析JSON决策，使用原始回答，原文前200字符: {decision_text[:200]}")
-            decision = {
-                "need_tools": False,
-                "direct_response": decision_text.strip()  # ✅ 使用AI的原始回答，而不是默认错误消息
-            }
-
-        logger.info(f"[LangGraph] 最终决策: {decision}")
-
-        logger.info(f"[LangGraph] {agent_type} 决策 (HTTPAIService): {decision.get('need_tools', False)}")
-
-        if decision.get("need_tools", False):
-            # 需要工具：手动调用
-            tool_name = decision.get("tool_name", "continue_writing_tool")
-            tool_args = decision.get("tool_args", {})
-
-            # 标准化参数格式
-            tool_args = normalize_tool_params(tool_name, tool_args)
-
-            # ✅ Phase 3.1 解耦：使用 ToolDispatcher 统一分发工具调用
-            tool_result = await self.tool_dispatcher.dispatch_tool(
-                tool_name=tool_name,
-                tool_args=tool_args,
-                state=state,
-                last_user_message=last_user_message
-            )
-
-            # ✅ 创建新消息（不直接修改 state，避免重复）
-            ai_decision = AIMessage(content=f"我需要使用 {tool_name} 工具来帮助你。")
-            tool_message = ToolMessage(content=tool_result, tool_call_id="manual_call")
-
-            new_step = {
-                "step": f"{agent_type}_tool_call",
-                "result": f"调用工具 (HTTPAIService): {tool_name}",
-                "tool_result_length": len(tool_result)
-            }
-
-            # ✅ 创建更新后的 state（不修改原 state）
-            updated_state = state.copy()
-            updated_state["messages"] = state["messages"] + [ai_decision, tool_message]
-            updated_state["agent_steps"] = state["agent_steps"] + [new_step]
-
-            # ✅ P0修复：检查工具是否返回错误，如果是错误则直接返回友好提示
-            try:
-                tool_result_obj = json.loads(tool_result)
-                error_type = tool_result_obj.get("error")
-                if error_type in ["missing_work_id", "unknown_tool"]:
-                    logger.info(f"[LangGraph] 🎯 检测到工具错误({error_type})，直接返回友好提示")
-                    direct_response = tool_result_obj.get("user_prompt", "请先告诉我您要操作哪部作品？")
-                    return {
-                        "messages": [AIMessage(content=direct_response)],
-                        "final_response": direct_response,
-                        "agent_steps": [{
-                            "step": f"{agent_type}_{error_type}",
-                            "result": f"检测到错误: {error_type}"
-                        }]
-                    }
-            except json.JSONDecodeError:
-                # 正常的工具返回结果，继续处理
-                pass
-            except Exception as e:
-                logger.warning(f"[LangGraph] 解析工具结果异常: {e}")
-                # 继续处理，不返回错误
-
-            # ✅ Phase 2 解耦：使用 MessageCleaner 智能清理累积的消息
-            current_messages = updated_state["messages"]
-            updated_state["messages"] = MessageCleaner.clean_messages(current_messages)
-
-            # ✅ P0-3修复：递归处理工具结果，传递递归深度
-            logger.debug(f"[LangGraph] 递归处理工具结果，当前深度={recursion_depth}")
-            result = await self._handle_with_httpai(updated_state, agent_type, system_prompt, recursion_depth + 1)
-
-            # ✅ 返回所有新增的消息（工具调用消息 + 递归结果）
-            # 注意：updated_state是局部变量，不会影响外部state
-            # 所以需要在返回时包含ai_decision和tool_message
-            return {
-                "messages": [ai_decision, tool_message] + result.get("messages", []),
-                "final_response": result.get("final_response"),
-                "agent_steps": [new_step] + result.get("agent_steps", [])
-            }
-
-        else:
-            # 不需要工具：直接响应
-            direct_response = decision.get("direct_response", "抱歉，我无法处理您的请求。")
-            response = AIMessage(content=direct_response)
-            # ✅ 只返回新消息，避免 operator.add 重复添加
-            return {
-                "messages": [response],
-                "final_response": direct_response,
-                "agent_steps": [{
-                    "step": f"{agent_type}_direct_response",
-                    "result": "直接响应用户 (HTTPAIService)"
-                }]
-            }
 
     # ==================== 场景处理（委托到 handlers 模块）====================
 
@@ -1657,33 +1317,8 @@ class WritingAgentGraph:
             "final_response": None
         }
 
-        # ✅ P0-3修复：构建隔离的thread_id（包含user_id和work_id）
-        # 三层隔离：user_id > work_id > conversation_id，避免跨用户/跨作品污染
-        user_prefix = f"{user_id}:" if user_id else ""
-
-        if work_id and conversation_id:
-            thread_id = f"{user_prefix}{work_id}:{conversation_id}"
-        elif work_id:
-            thread_id = f"{user_prefix}{work_id}:default"
-        elif conversation_id:
-            thread_id = f"{user_prefix}{conversation_id}"
-        else:
-            # 兜底：无user_id时使用随机UUID，确保不会全局共享
-            thread_id = f"{user_prefix}anonymous:{uuid.uuid4()}" if not user_prefix else f"{user_prefix}default"
-
-        # ✅ P2防护：thread_id长度验证
-        max_thread_id_length = ContextConfig.MAX_THREAD_ID_LENGTH
-        if len(thread_id) > max_thread_id_length:
-            import hashlib as _hashlib
-            logger.warning(
-                f"[LangGraph] thread_id过长({len(thread_id)}字符), "
-                f"使用哈希缩短"
-            )
-            hash_suffix = _hashlib.sha1(thread_id.encode("utf-8")).hexdigest()[:10]
-            prefix_budget = max_thread_id_length - len(hash_suffix) - 1
-            thread_id = f"{thread_id[:prefix_budget]}:{hash_suffix}"
-
-        logger.info(f"[LangGraph] 使用隔离的thread_id: {thread_id} (user_id={user_id}, work_id={work_id}, conversation_id={conversation_id})")
+        # ✅ P0-3修复：构建隔离的thread_id - 委托到公共方法
+        thread_id = self._build_thread_id(user_id, work_id, conversation_id, "LangGraph")
 
         # 配置
         config = {
@@ -1910,19 +1545,6 @@ class WritingAgentGraph:
         """从文本提取JSON - 委托到 EventParser"""
         return EventParser.extract_json_from_text(text)
 
-    def _extract_task_dependencies(self, params: Dict[str, Any]) -> set:
-        """从参数中提取依赖的任务 ID"""
-        import re
-        deps = set()
-        try:
-            params_str = json.dumps(params, ensure_ascii=False)
-            matches = re.findall(r'\$task_(\d+)_result', params_str)
-            for m in matches:
-                deps.add(int(m))
-        except Exception as e:
-            logger.warning(f"[依赖提取] 解析参数失败: {e}")
-        return deps
-
     async def chat_with_planning(
         self,
         message: str,
@@ -1966,37 +1588,8 @@ class WritingAgentGraph:
             from app.services.agent.utils.monitoring import increment_counter, record_timer
             start_time = time.time()
 
-            # ✅ P0修复：构建隔离的thread_id（包含user_id和work_id）
-            # 三层隔离：user_id > work_id > conversation_id，避免跨用户/跨作品污染
-            user_prefix = f"{user_id}:" if user_id else ""
-
-            if work_id and conversation_id:
-                isolated_thread_id = f"{user_prefix}{work_id}:{conversation_id}"
-            elif work_id:
-                isolated_thread_id = f"{user_prefix}{work_id}:default"
-            elif conversation_id:
-                isolated_thread_id = f"{user_prefix}{conversation_id}"
-            else:
-                # 兜底：无user_id时使用随机UUID，确保不会全局共享
-                import uuid as uuid_module
-                isolated_thread_id = f"{user_prefix}anonymous:{uuid_module.uuid4()}" if not user_prefix else f"{user_prefix}default"
-
-            # ✅ P2防护：thread_id长度验证
-            max_thread_id_length = ContextConfig.MAX_THREAD_ID_LENGTH
-            if len(isolated_thread_id) > max_thread_id_length:
-                import hashlib as _hashlib
-                logger.warning(
-                    f"[Planning] thread_id过长({len(isolated_thread_id)}字符), "
-                    f"使用哈希缩短"
-                )
-                hash_suffix = _hashlib.sha1(isolated_thread_id.encode("utf-8")).hexdigest()[:10]
-                prefix_budget = max_thread_id_length - len(hash_suffix) - 1
-                isolated_thread_id = f"{isolated_thread_id[:prefix_budget]}:{hash_suffix}"
-
-            logger.info(
-                f"[Planning] 使用隔离的thread_id: {isolated_thread_id} "
-                f"(user_id={user_id}, work_id={work_id}, conversation_id={conversation_id})"
-            )
+            # ✅ P0修复：构建隔离的thread_id - 委托到公共方法
+            isolated_thread_id = self._build_thread_id(user_id, work_id, conversation_id, "Planning")
 
             # 设置总体超时（使用统一配置）
             async with async_timeout(TimeoutConfig.TASK_EXECUTION):
