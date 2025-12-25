@@ -26,6 +26,7 @@ import { useWorkNavStore } from '../../store/workNavStore';
 import clsx from 'clsx';
 import { channelApi } from '../../services/channelApi';
 import { useNotificationStore } from '../../store/notificationStore';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 interface NavItem {
   id: string;
@@ -348,15 +349,12 @@ export const Sidebar: React.FC = () => {
             onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
             className="flex items-center space-x-2.5 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded transition-colors cursor-pointer"
           >
-            <div className="w-8 h-8 bg-gray-900 dark:bg-slate-700 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
-              {user?.avatar ? (
-                <img src={user.avatar} alt={user.username} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-xs font-medium text-white">
-                  {user?.username ? user.username[0].toUpperCase() : 'U'}
-                </span>
-              )}
-            </div>
+            <Avatar className="w-8 h-8 shrink-0">
+              <AvatarImage src={user?.avatar} alt={user?.username} />
+              <AvatarFallback className="text-xs bg-gradient-to-br from-blue-400 to-purple-500 text-white">
+                {user?.username ? user.username[0].toUpperCase() : 'U'}
+              </AvatarFallback>
+            </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-gray-700 dark:text-slate-200 truncate leading-tight">
                 {user?.username || '用户'}
@@ -412,18 +410,15 @@ export const Sidebar: React.FC = () => {
           </div>
         ) : (
           <div className="flex justify-center">
-            <div
+            <Avatar
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-              className="w-9 h-9 bg-gray-900 dark:bg-slate-700 rounded-full flex items-center justify-center hover:bg-gray-800 dark:hover:bg-slate-600 transition-colors cursor-pointer overflow-hidden"
+              className="w-9 h-9 cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
             >
-              {user?.avatar ? (
-                <img src={user.avatar} alt={user.username} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-xs font-medium text-white">
-                  {user?.username ? user.username[0].toUpperCase() : 'U'}
-                </span>
-              )}
-            </div>
+              <AvatarImage src={user?.avatar} alt={user?.username} />
+              <AvatarFallback className="text-xs bg-gradient-to-br from-blue-400 to-purple-500 text-white">
+                {user?.username ? user.username[0].toUpperCase() : 'U'}
+              </AvatarFallback>
+            </Avatar>
           </div>
         )}
       </div>

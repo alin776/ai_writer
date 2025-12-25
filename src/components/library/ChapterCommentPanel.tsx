@@ -14,11 +14,13 @@ import {
   ChevronDown,
   ChevronUp,
   Trash2,
+  Smile,
 } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { chapterCommentApi, ChapterComment, CommentLocationStats, ReportReason } from '../../services/chapterCommentApi';
 import { useAuthStore } from '../../store/authStore';
 import { useGlobalStore } from '../../store/globalStore';
-import { formatDistanceToNow } from 'date-fns';
+import { format, differenceInHours, differenceInMinutes, differenceInDays } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
 interface ChapterCommentPanelProps {
@@ -32,6 +34,12 @@ interface ChapterCommentPanelProps {
     quotedText?: string;  // 被引用的原文
   };
   onStatsUpdate?: (stats: CommentLocationStats) => void;
+  // 主题相关 props，用于与阅读界面风格融合
+  themeColors?: {
+    backgroundColor: string;
+    textColor: string;
+    isDarkMode: boolean;
+  };
 }
 
 export function ChapterCommentPanel({
@@ -40,7 +48,9 @@ export function ChapterCommentPanel({
   onClose,
   filter = { type: 'all' },
   onStatsUpdate,
+  themeColors,
 }: ChapterCommentPanelProps) {
+  const { backgroundColor = '#faf8f3', textColor = '#333333', isDarkMode = false } = themeColors || {};
   const { user } = useAuthStore();
   const { success, error: showError } = useGlobalStore();
 
@@ -54,9 +64,58 @@ export function ChapterCommentPanel({
   const [reportReason, setReportReason] = useState<ReportReason | ''>('');
   const [reportDescription, setReportDescription] = useState('');
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // 常用 emoji 列表
+  const commonEmojis = [
+    '😀', '😂', '🤣', '😊', '😍', '🥰', '😘', '😋',
+    '🤔', '😅', '😎', '🥳', '😭', '😤', '😱', '🤯',
+    '👍', '👎', '👏', '🙏', '💪', '❤️', '🔥', '⭐',
+    '💯', '✨', '🎉', '💔', '😈', '👀', '🤝', '💖',
+  ];
+
+  // 格式化时间显示
+  const formatCommentTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMinutes = differenceInMinutes(now, date);
+    const diffHours = differenceInHours(now, date);
+    const diffDays = differenceInDays(now, date);
+
+    if (diffMinutes < 1) {
+      return '刚刚';
+    } else if (diffMinutes < 60) {
+      return `${diffMinutes}分钟前`;
+    } else if (diffHours < 24) {
+      return `${diffHours}小时前`;
+    } else if (diffDays < 7) {
+      return `${diffDays}天前`;
+    } else {
+      return format(date, 'MM-dd HH:mm', { locale: zhCN });
+    }
+  };
+
+  // 插入 emoji
+  const insertEmoji = (emoji: string) => {
+    const textarea = inputRef.current;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newValue = newComment.slice(0, start) + emoji + newComment.slice(end);
+      setNewComment(newValue);
+      // 设置光标位置
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + emoji.length, start + emoji.length);
+      }, 0);
+    } else {
+      setNewComment(prev => prev + emoji);
+    }
+    setShowEmojiPicker(false);
+  };
 
   // 加载评论
   const loadComments = useCallback(async () => {
@@ -67,7 +126,7 @@ export function ChapterCommentPanel({
       const response = await chapterCommentApi.getComments(chapterId, {
         page: 1,
         pageSize: 100,
-        locationType: filter.type === 'all' ? undefined : filter.type,
+        locationType: filter.type === 'all' ? 'chapter' : filter.type,
         paragraphIndex: filter.paragraphIndex,
         sentenceIndex: filter.sentenceIndex,
       });
@@ -220,76 +279,84 @@ export function ChapterCommentPanel({
     return `第 ${(filter.paragraphIndex ?? 0) + 1} 段第 ${(filter.sentenceIndex ?? 0) + 1} 句评论`;
   };
 
-  // 渲染单条评论
-  const renderComment = (comment: ChapterComment, isReply = false) => {
+  // 渲染单条评论（带主题）
+  const renderCommentWithTheme = (comment: ChapterComment, isReply = false) => {
     const isOwner = user?.id === comment.user?.id;
 
     return (
       <div
         key={comment.id}
-        className={`${isReply ? 'ml-6 mt-2' : 'py-2.5 border-b border-gray-100 dark:border-slate-700'}`}
+        className={`${isReply ? 'ml-8 mt-3' : 'py-3'}`}
+        style={{
+          borderBottom: isReply ? 'none' : `1px solid ${isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`,
+        }}
       >
-        <div className="flex items-start gap-2">
+        <div className="flex items-start gap-3">
           {/* 头像 */}
-          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
-            {comment.user?.avatar ? (
-              <img src={comment.user.avatar} alt="" className="w-full h-full rounded-full object-cover" />
-            ) : (
-              comment.user?.username?.charAt(0).toUpperCase() || '?'
-            )}
-          </div>
+          <Avatar className="w-8 h-8 shrink-0">
+            <AvatarImage src={comment.user?.avatar} />
+            <AvatarFallback className="text-xs bg-gradient-to-br from-blue-400 to-purple-500 text-white">
+              {comment.user?.username?.charAt(0).toUpperCase() || '?'}
+            </AvatarFallback>
+          </Avatar>
 
           <div className="flex-1 min-w-0">
-            {/* 用户名和时间 */}
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <span className="text-xs font-medium text-gray-900 dark:text-white">
+            {/* 用户名 */}
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-sm font-medium" style={{ color: textColor }}>
                 {comment.user?.username || '匿名用户'}
               </span>
               {comment.replyToUser && (
                 <>
-                  <span className="text-[10px] text-gray-400">回复</span>
-                  <span className="text-xs text-blue-600 dark:text-blue-400">
-                    @{comment.replyToUser.username}
+                  <span className="text-xs opacity-50" style={{ color: textColor }}>回复</span>
+                  <span className="text-xs text-blue-500">
+                    {comment.replyToUser.username}
                   </span>
                 </>
               )}
-              <span className="text-[10px] text-gray-400 dark:text-slate-500">
-                {formatDistanceToNow(new Date(comment.createdAt), { locale: zhCN, addSuffix: true })}
-              </span>
             </div>
 
             {/* 引用文本 */}
             {comment.quotedText && (
-              <div className="mb-1.5 px-2 py-1 bg-gray-50 dark:bg-slate-800/50 border-l-2 border-blue-400 text-xs text-gray-600 dark:text-slate-400 italic">
-                "{comment.quotedText}"
+              <div
+                className="mb-2 text-xs"
+                style={{
+                  color: textColor,
+                  opacity: 0.7,
+                }}
+              >
+                "{comment.quotedText.length > 30 ? comment.quotedText.slice(0, 30) + '...' : comment.quotedText}"
               </div>
             )}
 
             {/* 评论内容 */}
-            <p className="text-xs text-gray-700 dark:text-slate-300 whitespace-pre-wrap break-words leading-relaxed">
+            <p
+              className="text-sm whitespace-pre-wrap break-words leading-relaxed"
+              style={{ color: textColor }}
+            >
               {comment.content}
             </p>
 
             {/* 操作栏 */}
-            <div className="flex items-center gap-3 mt-1.5">
+            <div className="flex items-center gap-4 mt-2">
               <button
                 onClick={() => handleLike(comment)}
-                className={`flex items-center gap-0.5 text-[10px] transition-colors ${
-                  comment.isLiked
-                    ? 'text-blue-600 dark:text-blue-400'
-                    : 'text-gray-400 hover:text-gray-600 dark:hover:text-slate-300'
+                className={`flex items-center gap-1 text-xs transition-colors ${
+                  comment.isLiked ? 'text-blue-500' : ''
                 }`}
+                style={{ color: comment.isLiked ? undefined : textColor, opacity: comment.isLiked ? 1 : 0.5 }}
               >
-                <ThumbsUp className="w-3 h-3" />
+                <ThumbsUp className="w-3.5 h-3.5" />
                 <span>{comment.likeCount || ''}</span>
               </button>
 
               {!isReply && (
                 <button
                   onClick={() => startReply(comment)}
-                  className="flex items-center gap-0.5 text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+                  className="flex items-center gap-1 text-xs transition-colors hover:text-blue-500"
+                  style={{ color: textColor, opacity: 0.5 }}
                 >
-                  <Reply className="w-3 h-3" />
+                  <Reply className="w-3.5 h-3.5" />
                   <span>回复</span>
                 </button>
               )}
@@ -297,24 +364,32 @@ export function ChapterCommentPanel({
               <div className="relative">
                 <button
                   onClick={() => setActiveMenu(activeMenu === comment.id ? null : comment.id)}
-                  className="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+                  className="p-1 transition-colors hover:bg-black/10 dark:hover:bg-white/10 rounded"
+                  style={{ color: textColor, opacity: 0.5 }}
                 >
-                  <MoreHorizontal className="w-3 h-3" />
+                  <MoreHorizontal className="w-3.5 h-3.5" />
                 </button>
 
                 {activeMenu === comment.id && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setActiveMenu(null)} />
-                    <div className="absolute left-0 top-full mt-1 z-20 bg-white dark:bg-slate-800 rounded shadow-lg border border-gray-200 dark:border-slate-700 py-0.5 min-w-[80px]">
+                    <div
+                      className="absolute left-0 top-full mt-1 z-20 rounded-lg shadow-lg py-1 min-w-[100px]"
+                      style={{
+                        backgroundColor: isDarkMode ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.95)',
+                        backdropFilter: 'blur(8px)',
+                        border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+                      }}
+                    >
                       {isOwner && (
                         <button
                           onClick={() => {
                             handleDelete(comment.id);
                             setActiveMenu(null);
                           }}
-                          className="w-full flex items-center gap-1.5 px-2 py-1 text-xs text-red-600 hover:bg-gray-100 dark:hover:bg-slate-700"
+                          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-500 hover:bg-red-500/10"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-3.5 h-3.5" />
                           删除
                         </button>
                       )}
@@ -323,15 +398,21 @@ export function ChapterCommentPanel({
                           setShowReportDialog(comment.id);
                           setActiveMenu(null);
                         }}
-                        className="w-full flex items-center gap-1.5 px-2 py-1 text-xs text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700"
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors"
+                        style={{ color: textColor }}
                       >
-                        <Flag className="w-3 h-3" />
+                        <Flag className="w-3.5 h-3.5" />
                         举报
                       </button>
                     </div>
                   </>
                 )}
               </div>
+
+              {/* 时间显示在最右侧 */}
+              <span className="text-xs opacity-40 ml-auto" style={{ color: textColor }}>
+                {formatCommentTime(comment.createdAt)}
+              </span>
             </div>
 
             {/* 回复列表 */}
@@ -339,24 +420,24 @@ export function ChapterCommentPanel({
               <div className="mt-2">
                 <button
                   onClick={() => toggleReplies(comment.id)}
-                  className="flex items-center gap-0.5 text-[10px] text-blue-600 dark:text-blue-400 hover:underline"
+                  className="flex items-center gap-1 text-xs text-blue-500 hover:underline"
                 >
                   {expandedReplies.has(comment.id) ? (
                     <>
-                      <ChevronUp className="w-2.5 h-2.5" />
+                      <ChevronUp className="w-3 h-3" />
                       收起 {comment.replyCount} 条回复
                     </>
                   ) : (
                     <>
-                      <ChevronDown className="w-2.5 h-2.5" />
+                      <ChevronDown className="w-3 h-3" />
                       查看 {comment.replyCount} 条回复
                     </>
                   )}
                 </button>
 
                 {expandedReplies.has(comment.id) && comment.replies && (
-                  <div className="mt-1.5">
-                    {comment.replies.map(reply => renderComment(reply, true))}
+                  <div className="mt-2">
+                    {comment.replies.map(reply => renderCommentWithTheme(reply, true))}
                   </div>
                 )}
               </div>
@@ -370,110 +451,189 @@ export function ChapterCommentPanel({
   if (!isOpen) return null;
 
   return (
-    <>
-      {/* 遮罩层 */}
+    <div
+      ref={panelRef}
+      className="h-full flex flex-col border-l transition-colors"
+      style={{
+        borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+        backgroundColor: isDarkMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.85)',
+        backdropFilter: 'blur(12px)',
+      }}
+    >
+      {/* 头部 */}
       <div
-        className="fixed inset-0 top-[52px] z-20 bg-black/30 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      {/* 评论面板 */}
-      <div
-        ref={panelRef}
-        className="fixed top-[52px] right-0 bottom-0 w-80 z-30 bg-white dark:bg-slate-900 shadow-2xl flex flex-col border-l border-gray-200 dark:border-slate-700"
+        className="flex-shrink-0 px-4 py-3 border-b"
+        style={{
+          borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+          backgroundColor: isDarkMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.5)',
+        }}
       >
-        {/* 头部 */}
-        <div className="flex-shrink-0 px-3 py-2 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-bold text-gray-900 dark:text-white flex items-center gap-1.5 truncate flex-1 mr-2">
-              <MessageCircle className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
-              <span className="truncate">{getFilterTitle()}</span>
-              <span className="text-[10px] font-normal text-gray-500 flex-shrink-0">({comments.length})</span>
-            </h2>
-            <button
-              onClick={onClose}
-              className="p-0.5 text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors flex-shrink-0"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* 评论列表 */}
-        <div className="flex-1 overflow-y-auto px-3">
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-            </div>
-          ) : comments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-gray-400 dark:text-slate-500">
-              <MessageCircle className="w-8 h-8 mb-2 opacity-50" />
-              <p className="text-xs">暂无评论</p>
-              <p className="text-[10px] mt-0.5">成为第一个评论的人吧</p>
-            </div>
-          ) : (
-            <div className="py-1">
-              {comments.map(comment => renderComment(comment))}
-            </div>
-          )}
-        </div>
-
-        {/* 发表评论区 */}
-        <div className="flex-shrink-0 px-3 py-2 border-t border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
-          {replyingTo && (
-            <div className="flex items-center justify-between mb-1.5 px-2 py-1 bg-blue-50 dark:bg-blue-900/20 rounded">
-              <span className="text-[10px] text-blue-600 dark:text-blue-400">
-                回复 @{replyingTo.user?.username}
-              </span>
-              <button
-                onClick={() => setReplyingTo(null)}
-                className="text-blue-600 dark:text-blue-400 hover:text-blue-800"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          )}
-
-          <div className="flex items-end gap-1.5">
-            <textarea
-              ref={inputRef}
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder={user ? '发表评论...' : '请先登录'}
-              disabled={!user}
-              className="flex-1 px-2 py-1.5 text-xs bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded resize-none focus:outline-none focus:border-blue-400 dark:focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              rows={2}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                  handleSubmit();
-                }
+        <div className="flex items-center justify-between">
+          <h2
+            className="text-sm font-bold flex items-center gap-2 truncate flex-1 mr-2"
+            style={{ color: textColor }}
+          >
+            <span className="truncate">{getFilterTitle()}</span>
+            <span
+              className="text-xs font-normal px-1.5 py-0.5 rounded-full flex-shrink-0"
+              style={{
+                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+                opacity: 0.7,
               }}
-            />
-            <button
-              onClick={handleSubmit}
-              disabled={!newComment.trim() || submitting || !user}
-              className="px-2.5 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {submitting ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Send className="w-3.5 h-3.5" />
-              )}
-            </button>
-          </div>
-          <p className="text-[10px] text-gray-400 dark:text-slate-500 mt-1">
-            Ctrl + Enter 发送
-          </p>
+              {comments.length}
+            </span>
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-full transition-colors hover:bg-black/10 dark:hover:bg-white/10 flex-shrink-0"
+            style={{ color: textColor }}
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
+      {/* 评论列表 */}
+      <div className="flex-1 overflow-y-auto px-4">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+          </div>
+        ) : comments.length === 0 ? (
+          <div
+            className="flex flex-col items-center justify-center py-12 opacity-60"
+            style={{ color: textColor }}
+          >
+            <MessageCircle className="w-10 h-10 mb-3 opacity-50" />
+            <p className="text-sm">暂无评论</p>
+            <p className="text-xs mt-1 opacity-70">成为第一个评论的人吧</p>
+          </div>
+        ) : (
+          <div className="py-2">
+            {comments.map(comment => renderCommentWithTheme(comment))}
+          </div>
+        )}
+      </div>
+
+      {/* 发表评论区 */}
+      <div
+        className="flex-shrink-0 px-4 py-3 border-t"
+        style={{
+          borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+          backgroundColor: isDarkMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.5)',
+        }}
+      >
+        {replyingTo && (
+          <div
+            className="flex items-center justify-between mb-2 px-2.5 py-1.5 rounded-lg"
+            style={{
+              backgroundColor: isDarkMode ? 'rgba(59,130,246,0.2)' : 'rgba(59,130,246,0.1)',
+            }}
+          >
+            <span className="text-xs text-blue-500">
+              回复 @{replyingTo.user?.username}
+            </span>
+            <button
+              onClick={() => setReplyingTo(null)}
+              className="text-blue-500 hover:text-blue-600"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2">
+          <textarea
+            ref={inputRef}
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            placeholder={user ? '发表评论...' : '请先登录'}
+            disabled={!user}
+            className="w-full px-3 py-2 text-sm rounded-lg border resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            style={{
+              backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+              borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+              color: textColor,
+            }}
+            rows={2}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                handleSubmit();
+              }
+            }}
+          />
+          <div className="flex items-center justify-between">
+            {/* Emoji 选择器 */}
+            <div className="relative">
+              <button
+                onClick={() => user && setShowEmojiPicker(!showEmojiPicker)}
+                disabled={!user}
+                className="p-1.5 rounded-lg transition-colors hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ color: textColor, opacity: 0.6 }}
+                title="插入表情"
+              >
+                <Smile className="w-5 h-5" />
+              </button>
+              {showEmojiPicker && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowEmojiPicker(false)} />
+                  <div
+                    className="absolute bottom-full left-0 mb-2 p-2 rounded-lg shadow-lg z-20 w-64"
+                    style={{
+                      backgroundColor: isDarkMode ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.95)',
+                      backdropFilter: 'blur(8px)',
+                      border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+                    }}
+                  >
+                    <div className="grid grid-cols-8 gap-1">
+                      {commonEmojis.map((emoji) => (
+                        <button
+                          key={emoji}
+                          onClick={() => insertEmoji(emoji)}
+                          className="w-7 h-7 flex items-center justify-center text-lg hover:bg-black/10 dark:hover:bg-white/10 rounded transition-colors"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs opacity-40" style={{ color: textColor }}>
+                Ctrl+Enter 发送
+              </span>
+              <button
+                onClick={handleSubmit}
+                disabled={!newComment.trim() || submitting || !user}
+                className="px-3 py-1.5 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {submitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  '发送'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
       {/* 举报对话框 */}
       {showReportDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full max-w-xs mx-4 p-4">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3">举报评论</h3>
+          <div
+            className="rounded-2xl shadow-2xl w-full max-w-xs mx-4 p-5"
+            style={{
+              backgroundColor: isDarkMode ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.95)',
+              backdropFilter: 'blur(12px)',
+            }}
+          >
+            <h3 className="text-sm font-bold mb-4" style={{ color: textColor }}>举报评论</h3>
 
-            <div className="space-y-2 mb-3">
+            <div className="space-y-2 mb-4">
               {[
                 { value: 'spam', label: '垃圾内容' },
                 { value: 'abuse', label: '辱骂攻击' },
@@ -484,7 +644,13 @@ export function ChapterCommentPanel({
               ].map(option => (
                 <label
                   key={option.value}
-                  className="flex items-center gap-2 p-2 border border-gray-200 dark:border-slate-700 rounded cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800"
+                  className="flex items-center gap-2 p-2.5 rounded-lg cursor-pointer transition-colors"
+                  style={{
+                    backgroundColor: reportReason === option.value
+                      ? (isDarkMode ? 'rgba(59,130,246,0.2)' : 'rgba(59,130,246,0.1)')
+                      : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'),
+                    border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
+                  }}
                 >
                   <input
                     type="radio"
@@ -492,9 +658,9 @@ export function ChapterCommentPanel({
                     value={option.value}
                     checked={reportReason === option.value}
                     onChange={(e) => setReportReason(e.target.value as ReportReason)}
-                    className="text-blue-600 w-3 h-3"
+                    className="text-blue-500 w-3.5 h-3.5 accent-blue-500"
                   />
-                  <span className="text-xs text-gray-700 dark:text-slate-300">{option.label}</span>
+                  <span className="text-xs" style={{ color: textColor }}>{option.label}</span>
                 </label>
               ))}
             </div>
@@ -503,7 +669,12 @@ export function ChapterCommentPanel({
               value={reportDescription}
               onChange={(e) => setReportDescription(e.target.value)}
               placeholder="详细描述（可选）"
-              className="w-full px-2 py-1.5 text-xs bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded resize-none focus:outline-none focus:border-blue-400 mb-3"
+              className="w-full px-3 py-2 text-xs rounded-lg border resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/50 mb-4"
+              style={{
+                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                color: textColor,
+              }}
               rows={2}
             />
 
@@ -514,13 +685,17 @@ export function ChapterCommentPanel({
                   setReportReason('');
                   setReportDescription('');
                 }}
-                className="flex-1 px-3 py-1.5 text-xs border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 rounded hover:bg-gray-50 dark:hover:bg-slate-800"
+                className="flex-1 px-3 py-2 text-xs rounded-lg transition-colors"
+                style={{
+                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                  color: textColor,
+                }}
               >
                 取消
               </button>
               <button
                 onClick={() => handleReport(showReportDialog)}
-                className="flex-1 px-3 py-1.5 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                className="flex-1 px-3 py-2 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
               >
                 提交举报
               </button>
@@ -528,7 +703,7 @@ export function ChapterCommentPanel({
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
