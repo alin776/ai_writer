@@ -398,6 +398,10 @@ async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "")
 
             # 🆕 多章节处理
             if len(chapter_ids) > 1:
+                # 🔧 2025-12-25: 智能压缩 - 与 get_chapter_by_order_tool 保持一致
+                content_limit = _get_content_limit_for_batch(len(chapter_ids))
+                is_compressed = content_limit < 5000
+
                 chapters_info = []
                 for cid in chapter_ids:
                     chapter = await _retry_on_failure(
@@ -411,7 +415,7 @@ async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "")
                             "chapter_id": str(chapter.id),
                             "title": chapter.title,
                             "order": chapter.order,
-                            "content": chapter.content[:5000] if chapter.content else "",
+                            "content": chapter.content[:content_limit] if chapter.content else "",
                             "content_length": len(chapter.content) if chapter.content else 0,
                             "word_count": chapter.word_count,
                             "status": chapter.status.value if hasattr(chapter, 'status') else "unknown"
@@ -422,12 +426,18 @@ async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "")
                             "error": f"未找到章节 {cid}"
                         })
 
-                logger.info(f"[read_chapter_tool] ✅ 读取多章节成功: 共 {len(chapters_info)} 章")
-                return json.dumps({
+                compression_note = f"（已压缩，每章限制{content_limit}字）" if is_compressed else ""
+                logger.info(f"[read_chapter_tool] ✅ 读取多章节成功: 共 {len(chapters_info)} 章{compression_note}")
+
+                result = {
                     "type": "multi_chapter",
                     "count": len(chapters_info),
                     "chapters": chapters_info
-                }, ensure_ascii=False, indent=2)
+                }
+                if is_compressed:
+                    result["compression_note"] = f"由于章节数量较多（{len(chapter_ids)}章），每章内容已压缩至{content_limit}字以内"
+
+                return json.dumps(result, ensure_ascii=False, indent=2)
 
             # 单章节处理（保持原有逻辑）
             else:
@@ -609,6 +619,10 @@ async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order
 
             # 🆕 多章节处理
             if len(orders) > 1:
+                # 🔧 2025-12-25: 智能压缩 - 根据章节数量动态调整每章内容限制
+                content_limit = _get_content_limit_for_batch(len(orders))
+                is_compressed = content_limit < 5000
+
                 chapters_info = []
                 for order in orders:
                     chapter = chapter_map.get(order)
@@ -616,7 +630,7 @@ async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order
                         clean_content = text_cleaner.html_to_clean_text(
                             chapter.content if chapter.content else "",
                             preserve_structure=True,
-                            max_length=5000
+                            max_length=content_limit
                         )
                         chapters_info.append({
                             "chapter_id": str(chapter.id),
@@ -633,12 +647,19 @@ async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order
                             "error": f"未找到第{order}章"
                         })
 
-                logger.info(f"[get_chapter_by_order_tool] ✅ 批量读取成功: 共 {len(chapters_info)} 章")
-                return json.dumps({
+                compression_note = f"（已压缩，每章限制{content_limit}字）" if is_compressed else ""
+                logger.info(f"[get_chapter_by_order_tool] ✅ 批量读取成功: 共 {len(chapters_info)} 章{compression_note}")
+
+                result = {
                     "type": "multi_chapter",
                     "count": len(chapters_info),
                     "chapters": chapters_info
-                }, ensure_ascii=False, indent=2)
+                }
+                # 如果启用了压缩，添加提示信息
+                if is_compressed:
+                    result["compression_note"] = f"由于章节数量较多（{len(orders)}章），每章内容已压缩至{content_limit}字以内"
+
+                return json.dumps(result, ensure_ascii=False, indent=2)
 
             # 单章节处理（保持原有逻辑）
             target_order = orders[0]
