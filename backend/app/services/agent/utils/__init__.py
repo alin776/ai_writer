@@ -59,6 +59,11 @@ from .context_builder import (
     _build_knowledge_system_messages
 )
 
+from .tool_helpers import (
+    resolve_version_reference,
+    normalize_tool_params
+)
+
 __all__ = [
     # 错误处理
     "ErrorHandler",
@@ -105,4 +110,8 @@ __all__ = [
     "_compress_task_result",
     "_build_summarization_context",
     "_build_knowledge_system_messages",
+
+    # 工具辅助
+    "resolve_version_reference",
+    "normalize_tool_params",
 ]

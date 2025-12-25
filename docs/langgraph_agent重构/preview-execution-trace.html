@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>执行轨迹可视化 - UI 预览</title>
+    <style>
+        :root {
+            /* Slate 色系 - 与项目一致 */
+            --slate-50: #f8fafc;
+            --slate-100: #f1f5f9;
+            --slate-200: #e2e8f0;
+            --slate-300: #cbd5e1;
+            --slate-400: #94a3b8;
+            --slate-500: #64748b;
+            --slate-600: #475569;
+            --slate-700: #334155;
+            --slate-800: #1e293b;
+            --slate-900: #0f172a;
+            --slate-950: #020617;
+
+            /* 功能色 */
+            --blue-500: #3b82f6;
+            --blue-600: #2563eb;
+            --blue-50: #eff6ff;
+            --blue-100: #dbeafe;
+            --blue-200: #bfdbfe;
+
+            --emerald-500: #10b981;
+            --emerald-50: #ecfdf5;
+            --emerald-100: #d1fae5;
+
+            --violet-500: #8b5cf6;
+            --violet-100: #ede9fe;
+            --violet-800: #5b21b6;
+
+            --sky-100: #e0f2fe;
+            --sky-700: #0369a1;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+            background: var(--slate-100);
+            min-height: 100vh;
+            padding: 24px;
+        }
+
+        .container {
+            max-width: 480px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--slate-800);
+            margin-bottom: 4px;
+        }
+
+        .header p {
+            font-size: 13px;
+            color: var(--slate-500);
+        }
+
+        /* 面板容器 */
+        .panel {
+            background: #fff;
+            border: 1px solid var(--slate-200);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        /* 执行轨迹区域 */
+        .execution-flow {
+            padding: 16px;
+            max-height: 480px;
+            overflow-y: auto;
+        }
+
+        /* AI 说明文字 */
+        .text-block {
+            font-size: 13px;
+            color: var(--slate-600);
+            line-height: 1.6;
+            margin: 10px 0;
+        }
+
+        /* 工具卡片 - 复用 ActivityStream 样式 */
+        .tool-card {
+            display: flex;
+            gap: 10px;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid var(--slate-200);
+            background: var(--slate-50);
+            margin: 10px 0;
+        }
+
+        .tool-card.active {
+            border-color: var(--blue-200);
+            background: var(--blue-50);
+        }
+
+        .tool-card.done {
+            border-color: var(--emerald-100);
+            background: var(--emerald-50);
+        }
+
+        .tool-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 999px;
+            background: #eef2ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .tool-icon svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .tool-icon.active svg {
+            color: var(--blue-600);
+        }
+
+        .tool-icon.done svg {
+            color: var(--emerald-500);
+        }
+
+        .tool-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .tool-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--slate-800);
+        }
+
+        .tool-meta {
+            display: flex;
+            gap: 6px;
+            margin-top: 4px;
+        }
+
+        .tool-tag {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 999px;
+            font-weight: 500;
+        }
+
+        .tool-tag.type {
+            background: var(--sky-100);
+            color: var(--sky-700);
+        }
+
+        .tool-tag.name {
+            background: var(--violet-100);
+            color: var(--violet-800);
+        }
+
+        .tool-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+        }
+
+        .tool-status svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .tool-status .check {
+            color: var(--emerald-500);
+        }
+
+        .tool-status .spinner {
+            color: var(--blue-500);
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 内容块 - 与现有 AIPanel 一致，纯文本无边框 */
+        .content-block {
+            margin: 12px 0;
+        }
+
+        .content-text {
+            font-size: 13px;
+            color: var(--slate-500);
+            line-height: 1.7;
+        }
+
+        .typing-cursor::after {
+            content: '|';
+            animation: blink 1s infinite;
+            color: var(--slate-400);
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* 任务列表 - 复用现有 AIPanel 样式 */
+        .task-list {
+            border-top: 1px solid var(--slate-200);
+            padding: 12px 16px;
+            background: var(--slate-50);
+        }
+
+        .task-list-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .task-list-header span {
+            font-size: 11px;
+            color: var(--slate-400);
+        }
+
+        .task-list-header .divider {
+            flex: 1;
+            height: 1px;
+            background: var(--slate-200);
+        }
+
+        .task-list-header .progress {
+            font-size: 10px;
+            color: var(--slate-400);
+            font-family: ui-monospace, monospace;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 11px;
+            padding: 4px 0;
+        }
+
+        /* 小圆点指示器 - 与现有实现一致 */
+        .task-dot {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            margin-top: 5px;
+            transition: all 0.3s;
+        }
+
+        .task-dot.done {
+            background: var(--slate-300);
+        }
+
+        .task-dot.running {
+            width: 4px;
+            height: 4px;
+            background: var(--slate-900);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .task-dot.pending {
+            background: var(--slate-200);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .task-content {
+            flex: 1;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .task-item.done .task-text {
+            color: var(--slate-400);
+        }
+
+        .task-item.running .task-text {
+            color: var(--slate-700);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .task-item.pending .task-text {
+            color: var(--slate-400);
+        }
+
+        .task-time {
+            font-size: 10px;
+            color: var(--slate-300);
+            font-family: ui-monospace, monospace;
+            flex-shrink: 0;
+        }
+
+        /* 进度条 */
+        .progress-bar {
+            height: 1px;
+            background: var(--slate-100);
+            margin-top: 12px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--slate-400);
+            transition: width 0.5s ease-out;
+        }
+
+        /* 说明 */
+        .note {
+            margin-top: 20px;
+            padding: 14px;
+            background: #fff;
+            border: 1px solid var(--slate-200);
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--slate-600);
+        }
+
+        .note h3 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--slate-800);
+            margin-bottom: 8px;
+        }
+
+        .note ul {
+            margin-left: 16px;
+        }
+
+        .note li {
+            margin: 4px 0;
+        }
+
+        .note code {
+            background: var(--slate-100);
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+
+        /* 深色模式 */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: var(--slate-950);
+            }
+
+            .header h1 { color: var(--slate-100); }
+            .header p { color: var(--slate-400); }
+
+            .panel {
+                background: var(--slate-900);
+                border-color: var(--slate-700);
+            }
+
+            .text-block { color: var(--slate-300); }
+
+            .tool-card {
+                background: var(--slate-800);
+                border-color: var(--slate-700);
+            }
+
+            .tool-card.active {
+                background: rgba(59, 130, 246, 0.1);
+                border-color: rgba(59, 130, 246, 0.3);
+            }
+
+            .tool-card.done {
+                background: rgba(16, 185, 129, 0.1);
+                border-color: rgba(16, 185, 129, 0.3);
+            }
+
+            .tool-icon { background: var(--slate-700); }
+            .tool-title { color: var(--slate-200); }
+
+            .content-text { color: var(--slate-300); }
+
+            .task-list {
+                background: var(--slate-900);
+                border-color: var(--slate-700);
+            }
+
+            .task-list-header .divider {
+                background: var(--slate-700);
+            }
+
+            .task-list-header span,
+            .task-list-header .progress {
+                color: var(--slate-500);
+            }
+
+            .task-dot.done {
+                background: var(--slate-500);
+            }
+
+            .task-dot.running {
+                background: var(--blue-400);
+            }
+
+            .task-dot.pending {
+                background: var(--slate-600);
+            }
+
+            .task-item.done .task-text {
+                color: var(--slate-500);
+            }
+
+            .task-item.running .task-text {
+                color: var(--slate-200);
+            }
+
+            .task-time {
+                color: var(--slate-500);
+            }
+
+            .progress-bar {
+                background: var(--slate-700);
+            }
+
+            .progress-bar-fill {
+                background: var(--blue-500);
+            }
+
+            .note {
+                background: var(--slate-900);
+                border-color: var(--slate-700);
+            }
+
+            .note h3 { color: var(--slate-200); }
+            .note { color: var(--slate-400); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>执行轨迹可视化</h1>
+            <p>复用 ActivityStream 样式 · Lucide 图标 · 任务列表复用现有实现</p>
+        </div>
+
+        <div class="panel">
+            <!-- 执行轨迹区域 -->
+            <div class="execution-flow">
+                <!-- AI 说明 -->
+                <p class="text-block">我先读取第3章的内容，了解当前的剧情进展：</p>
+
+                <!-- 工具卡片 1 - 已完成 -->
+                <div class="tool-card done">
+                    <div class="tool-icon done">
+                        <!-- FileText icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <line x1="10" y1="9" x2="8" y2="9"/>
+                        </svg>
+                    </div>
+                    <div class="tool-content">
+                        <div class="tool-title">读取章节</div>
+                        <div class="tool-meta">
+                            <span class="tool-tag type">工具调用</span>
+                            <span class="tool-tag name">第3章</span>
+                        </div>
+                    </div>
+                    <div class="tool-status">
+                        <!-- Check icon -->
+                        <svg class="check" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- AI 说明 -->
+                <p class="text-block">好的，接下来让我检索一下相关的角色设定：</p>
+
+                <!-- 工具卡片 2 - 已完成 -->
+                <div class="tool-card done">
+                    <div class="tool-icon done">
+                        <!-- Search icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                    </div>
+                    <div class="tool-content">
+                        <div class="tool-title">检索设定</div>
+                        <div class="tool-meta">
+                            <span class="tool-tag type">工具调用</span>
+                            <span class="tool-tag name">主角性格</span>
+                        </div>
+                    </div>
+                    <div class="tool-status">
+                        <svg class="check" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- AI 说明 -->
+                <p class="text-block">现在我将为您续写后续内容：</p>
+
+                <!-- 工具卡片 3 - 执行中 -->
+                <div class="tool-card active">
+                    <div class="tool-icon active">
+                        <!-- PenTool icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+                            <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+                            <path d="M2 2l7.586 7.586"/>
+                            <circle cx="11" cy="11" r="2"/>
+                        </svg>
+                    </div>
+                    <div class="tool-content">
+                        <div class="tool-title">续写内容</div>
+                        <div class="tool-meta">
+                            <span class="tool-tag type">工具调用</span>
+                            <span class="tool-tag name">约500字</span>
+                        </div>
+                    </div>
+                    <div class="tool-status">
+                        <!-- Loader2 icon -->
+                        <svg class="spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- 内容块 - 纯文本，无边框 -->
+                <div class="content-block">
+                    <div class="content-text">
+                        <span class="typing-cursor">林风深吸一口气，眼中闪过一丝决然。面对眼前这个修为远超自己的敌人，他没有丝毫退缩之意。剑气纵横，寒芒四射</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 任务列表 - 复用现有 AIPanel 样式 -->
+            <div class="task-list">
+                <div class="task-list-header">
+                    <span>执行中</span>
+                    <div class="divider"></div>
+                    <span class="progress">2/3</span>
+                </div>
+
+                <div class="task-item done">
+                    <div class="task-dot done"></div>
+                    <div class="task-content">
+                        <span class="task-text">读取第3章内容</span>
+                        <span class="task-time">1.2s</span>
+                    </div>
+                </div>
+
+                <div class="task-item done">
+                    <div class="task-dot done"></div>
+                    <div class="task-content">
+                        <span class="task-text">检索角色设定</span>
+                        <span class="task-time">0.8s</span>
+                    </div>
+                </div>
+
+                <div class="task-item running">
+                    <div class="task-dot running"></div>
+                    <div class="task-content">
+                        <span class="task-text">续写战斗场景</span>
+                    </div>
+                </div>
+
+                <!-- 进度条 -->
+                <div class="progress-bar">
+                    <div class="progress-bar-fill" style="width: 66.6%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 说明 -->
+        <div class="note">
+            <h3>设计特点</h3>
+            <ul>
+                <li><strong>执行轨迹</strong>：复用 ActivityStream 样式（28px 圆形图标、10px 圆角）</li>
+                <li><strong>工具卡片</strong>：Lucide 图标（FileText, Search, PenTool 等）</li>
+                <li><strong>内容输出</strong>：纯文本，与现有 AIPanel 一致（无边框无背景）</li>
+                <li><strong>任务列表</strong>：<em>复用现有 AIPanel.tsx:1010-1069 实现</em></li>
+                <li><strong>样式特征</strong>：小圆点指示器 + 进度条 + 耗时显示</li>
+                <li><strong>状态颜色</strong>：Slate 色系，深色模式自动适配</li>
+            </ul>
+        </div>
+
+        <div class="note" style="margin-top: 12px;">
+            <h3>图标映射</h3>
+            <ul>
+                <li><code>FileText</code> → 读取章节</li>
+                <li><code>Search</code> → 检索设定</li>
+                <li><code>PenTool</code> → 续写内容</li>
+                <li><code>Edit3</code> → 智能改写</li>
+                <li><code>BarChart2</code> → 分析文本</li>
+                <li><code>Wrench</code> → 默认工具</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

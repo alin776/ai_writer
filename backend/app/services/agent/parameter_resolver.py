@@ -242,11 +242,15 @@ class ParameterResolver:
         task_id = int(match.group(1))
         field_path = match.group(2)  # 可能为None
 
-        # 检测循环依赖
+        # 检测自引用（AI 规划错误）
+        # 2025-12-24: 改为警告并清理，而非抛出异常，避免中断执行流程
         if current_task_id and task_id == current_task_id:
-            error_msg = f"检测到循环依赖: 任务{current_task_id}依赖自己"
-            logger.error(f"[ParameterResolver] {error_msg}")
-            raise ParameterResolverError(error_msg)
+            logger.warning(
+                f"[ParameterResolver] 检测到自引用占位符: 任务{current_task_id}引用自己 "
+                f"(可能是AI规划错误)，清理占位符"
+            )
+            # 返回空字符串，让 TaskRunner 的兜底逻辑处理
+            return ""
 
         # 检查任务是否已执行
         if task_id not in self.task_results:

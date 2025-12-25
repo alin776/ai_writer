@@ -47,22 +47,22 @@ export function ReportMessageDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
         {/* 标题栏 */}
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="text-base font-medium">举报消息</h3>
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-base font-medium dark:text-gray-100">举报消息</h3>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded transition-colors"
+            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4 dark:text-gray-400" />
           </button>
         </div>
 
         {/* 内容 */}
         <div className="p-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               举报原因
             </label>
             <div className="space-y-2">
@@ -76,32 +76,32 @@ export function ReportMessageDialog({
                     onChange={(e) => setReason(e.target.value as typeof reason)}
                     className="w-4 h-4"
                   />
-                  <span className="text-sm">{r.label}</span>
+                  <span className="text-sm dark:text-gray-200">{r.label}</span>
                 </label>
               ))}
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               详细描述（选填）
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="请描述具体问题..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               rows={4}
             />
           </div>
         </div>
 
         {/* 按钮 */}
-        <div className="flex items-center justify-end gap-2 p-4 border-t bg-gray-50">
+        <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
           <button
             onClick={onClose}
             disabled={submitting}
-            className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
           >
             取消
           </button>

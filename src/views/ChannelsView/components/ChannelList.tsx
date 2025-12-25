@@ -156,15 +156,15 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
     return (
       <button
         onClick={() => toggleSection(section)}
-        className="w-full flex items-center gap-1.5 px-2 py-2 hover:bg-gray-50 rounded transition-colors group"
+        className="w-full flex items-center gap-1.5 px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded transition-colors group"
       >
         {isExpanded ? (
-          <ChevronDown className="w-4 h-4 shrink-0 text-gray-400" />
+          <ChevronDown className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
         ) : (
-          <ChevronRight className="w-4 h-4 shrink-0 text-gray-400" />
+          <ChevronRight className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
         )}
-        <span className="flex-1 text-left text-gray-500 text-sm uppercase tracking-wide">{title}</span>
-        <span className="text-xs text-gray-400">{count}</span>
+        <span className="flex-1 text-left text-gray-500 dark:text-gray-400 text-sm uppercase tracking-wide">{title}</span>
+        <span className="text-xs text-gray-400 dark:text-gray-500">{count}</span>
       </button>
     );
   };
@@ -184,16 +184,16 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
   );
 
   return (
-    <div className="w-56 border-r border-gray-100 bg-white flex flex-col h-full">
-      <div style={{ padding: '12px', borderBottom: '1px solid #f3f4f6' }} className="flex items-center justify-between">
-        <h2 className="text-base font-medium">频道</h2>
+    <div className="w-56 border-r border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 flex flex-col h-full">
+      <div className="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-700">
+        <h2 className="text-base font-medium dark:text-gray-100">频道</h2>
         {onJoinChannel && availableChannels && availableChannels.length > 0 && (
           <button
             onClick={() => setShowJoinModal(true)}
-            className="p-1 hover:bg-gray-50 rounded transition-colors"
+            className="p-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded transition-colors"
             title="加入频道"
           >
-            <Plus className="w-4 h-4 text-gray-500" />
+            <Plus className="w-4 h-4 text-gray-500 dark:text-gray-400" />
           </button>
         )}
       </div>
@@ -217,7 +217,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
               {onCreateFangroup && (
                 <button
                   onClick={onCreateFangroup}
-                  className="w-full flex items-center gap-2 px-2 py-2 rounded transition-colors hover:bg-blue-50 text-blue-600 group"
+                  className="w-full flex items-center gap-2 px-2 py-2 rounded transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 group"
                 >
                   <Plus className="w-4 h-4 shrink-0" />
                   <span className="flex-1 text-left text-sm">创建粉丝群</span>
@@ -254,31 +254,31 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
           />
 
           {/* 弹窗 */}
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] max-h-[600px] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] max-h-[600px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl z-50 flex flex-col">
             {/* 头部 */}
-            <div style={{ padding: '12px', borderBottom: '1px solid #f3f4f6' }} className="flex items-center justify-between">
-              <h3 className="text-sm">发现频道</h3>
+            <div className="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-700">
+              <h3 className="text-sm dark:text-gray-100">发现频道</h3>
               <button
                 onClick={() => {
                   setShowJoinModal(false);
                   setSearchQuery('');
                 }}
-                className="p-1 hover:bg-gray-100 rounded"
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
               >
-                <X className="w-4 h-4 text-gray-400" />
+                <X className="w-4 h-4 text-gray-400 dark:text-gray-500" />
               </button>
             </div>
 
             {/* 搜索框 */}
-            <div className="p-3 border-b border-gray-100">
+            <div className="p-3 border-b border-gray-100 dark:border-gray-700">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
                 <input
                   type="text"
                   placeholder="搜索频道、作品或作者..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-xs border border-gray-200 rounded focus:outline-none focus:border-gray-300"
+                  className="w-full pl-9 pr-3 py-2 text-xs border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-gray-300 dark:focus:border-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 />
               </div>
             </div>
@@ -286,7 +286,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
             {/* 频道列表 */}
             <div className="flex-1 overflow-y-auto p-4">
               {filteredAvailableChannels.length === 0 ? (
-                <div className="text-center py-8 text-xs text-gray-400">
+                <div className="text-center py-8 text-xs text-gray-400 dark:text-gray-500">
                   {searchQuery ? '未找到匹配的频道' : '暂无可加入的频道'}
                 </div>
               ) : (
@@ -296,43 +296,43 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                     return (
                       <div
                         key={channel.id}
-                        className="flex items-start gap-3 p-3 border border-gray-100 rounded-lg hover:border-gray-200 transition-colors"
+                        className="flex items-start gap-3 p-3 border border-gray-100 dark:border-gray-700 rounded-lg hover:border-gray-200 dark:hover:border-gray-600 transition-colors"
                       >
                         {/* 频道图标/封面 */}
-                        <div className="w-12 h-12 bg-gray-100 rounded flex items-center justify-center flex-shrink-0">
+                        <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center flex-shrink-0">
                           {channel.type === 'work' ? (
-                            <span className="text-xs text-gray-400">封面</span>
+                            <span className="text-xs text-gray-400 dark:text-gray-500">封面</span>
                           ) : (
-                            <Icon className="w-5 h-5 text-gray-400" />
+                            <Icon className="w-5 h-5 text-gray-400 dark:text-gray-500" />
                           )}
                         </div>
 
                         {/* 频道信息 */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <h4 className="text-xs truncate">
+                            <h4 className="text-xs truncate dark:text-gray-100">
                               {channel.type === 'work' && channel.bookTitle
                                 ? `《${channel.bookTitle}》`
                                 : channel.name}
                             </h4>
                             {channel.isPermanent && (
-                              <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">永久</span>
+                              <span className="text-[10px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">永久</span>
                             )}
                           </div>
 
                           {channel.type === 'work' && (
-                            <div className="text-[10px] text-gray-500 space-y-0.5">
+                            <div className="text-[10px] text-gray-500 dark:text-gray-400 space-y-0.5">
                               <p>作者：{channel.author || '佚名'}</p>
                               <p>收藏：{channel.collectCount || 0}</p>
                             </div>
                           )}
 
                           {channel.type === 'fangroup' && channel.description && (
-                            <p className="text-[10px] text-gray-500 line-clamp-2">{channel.description}</p>
+                            <p className="text-[10px] text-gray-500 dark:text-gray-400 line-clamp-2">{channel.description}</p>
                           )}
 
                           {channel.status === 'locked' && (
-                            <p className="text-[10px] text-red-500 mt-1">频道已折叠</p>
+                            <p className="text-[10px] text-red-500 dark:text-red-400 mt-1">频道已折叠</p>
                           )}
                         </div>
 
@@ -340,7 +340,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                         <button
                           onClick={() => handleJoinChannel(channel.id)}
                           disabled={channel.status === 'locked'}
-                          className="px-3 py-1.5 text-xs bg-black text-white rounded hover:bg-gray-800 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+                          className="px-3 py-1.5 text-xs bg-black dark:bg-white text-white dark:text-black rounded hover:bg-gray-800 dark:hover:bg-gray-200 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
                         >
                           {channel.status === 'locked' ? '已折叠' : '加入'}
                         </button>
