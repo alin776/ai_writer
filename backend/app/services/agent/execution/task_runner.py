@@ -178,7 +178,7 @@ class TaskRunner:
         if tool_name == "get_chapter_by_order_tool":
             return {
                 "work_id": work_id,
-                "chapter_order": params.get("chapter_order", 1)
+                "chapter_order": str(params.get("chapter_order", "1"))  # 确保字符串类型
             }
 
         elif tool_name == "get_context_tool":
@@ -313,7 +313,7 @@ class TaskRunner:
         if tool_name == "get_chapter_by_order_tool":
             return await get_chapter_by_order_tool.ainvoke({
                 "work_id": work_id,
-                "chapter_order": params.get("chapter_order", 1)
+                "chapter_order": str(params.get("chapter_order", "1"))  # 确保字符串类型
             })
         elif tool_name == "get_context_tool":
             return await get_context_tool.ainvoke({

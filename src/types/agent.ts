@@ -398,3 +398,61 @@ export const EnhancedProgressEventSchema = z.object({
   elapsed: z.number().nonnegative().optional()
 });
 
+// ==================== ExecutionFlow 执行轨迹 (v5.0) ====================
+
+/**
+ * 执行轨迹项类型
+ */
+export type FlowItemType = 'text' | 'tool' | 'content';
+
+/**
+ * AI 说明文字数据
+ */
+export interface TextFlowData {
+  content: string;
+}
+
+/**
+ * 工具卡片数据
+ */
+export interface ToolFlowData {
+  taskId: number;
+  icon: string;           // Lucide 图标名
+  title: string;          // 工具标题
+  description: string;    // 工具描述
+  status: 'running' | 'done' | 'error';
+}
+
+/**
+ * 流式内容数据
+ */
+export interface ContentFlowData {
+  content: string;
+}
+
+/**
+ * 执行轨迹项
+ */
+export interface FlowItem {
+  id: string;
+  type: FlowItemType;
+  data: TextFlowData | ToolFlowData | ContentFlowData;
+  timestamp: string;
+}
+
+/**
+ * 增强版任务开始事件（后端 v5.0 发送）
+ */
+export interface EnhancedTaskStartEvent {
+  task_id: number;
+  description: string;
+  tool?: string;
+  params?: Record<string, any>;
+  // v5.0 增强字段
+  explanation?: string;      // AI 说明文字
+  icon?: string;             // Lucide 图标名
+  tool_title?: string;       // 工具标题
+  tool_description?: string; // 工具描述
+}
+
+

@@ -4,7 +4,7 @@ import { agentApi } from '@/services/agentApi';
 import { useConversationPersistence } from './useConversationPersistence';
 import { getGlobalSessionManager } from '@/contexts/SessionContext';
 import type { SessionState } from './SessionStateManager';
-import type { AgentChatRequest, AgentChatResponse, ActivityItem, ProgressData } from '@/types/agent';
+import type { AgentChatRequest, AgentChatResponse, ActivityItem, ProgressData, FlowItem, ToolFlowData } from '@/types/agent';
 
 interface Message {
   role: 'user' | 'agent';
@@ -67,6 +67,7 @@ interface UseAgentChatReturn {
   currentTaskId: number | null;
   activities: ActivityItem[];
   progressData: ProgressData | null;
+  flowItems: FlowItem[];  // v5.0: 执行轨迹项
   sendMessage: (request: AgentChatRequest) => Promise<AgentChatResponse | null>;
   sendMessageStream: (request: AgentChatRequest) => Promise<void>;
   clearMessages: () => void;
@@ -342,7 +343,11 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
             },
             onStart: (convId) => {
               streamConversationId = convId;
-              sessionManager.updateSession(sessionId, { conversationId: convId });
+              // v5.0: 清空执行轨迹
+              sessionManager.updateSession(sessionId, {
+                conversationId: convId,
+                flowItems: []
+              });
             },
             ...(backendMode === 'planning'
               ? {
@@ -378,11 +383,41 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   },
                   onTaskStart: (task: any) => {
                     taskStartTimes.set(task.task_id, Date.now());
+
+                    // v5.0: 添加执行轨迹项
+                    const currentFlowItems = sessionManager.getSession(sessionId)?.flowItems || [];
+                    const newFlowItems: FlowItem[] = [...currentFlowItems];
+
+                    // 添加 AI 说明文字
+                    if (task.explanation) {
+                      newFlowItems.push({
+                        id: `text_${task.task_id}_${Date.now()}`,
+                        type: 'text',
+                        data: { content: task.explanation },
+                        timestamp: new Date().toISOString()
+                      });
+                    }
+
+                    // 添加工具卡片
+                    newFlowItems.push({
+                      id: `tool_${task.task_id}`,
+                      type: 'tool',
+                      data: {
+                        taskId: task.task_id,
+                        icon: task.icon || 'Wrench',
+                        title: task.tool_title || '工具调用',
+                        description: task.tool_description || '',
+                        status: 'running'
+                      } as ToolFlowData,
+                      timestamp: new Date().toISOString()
+                    });
+
                     sessionManager.updateSession(sessionId, {
                       currentTaskId: task.task_id,
                       tasks: (sessionManager.getSession(sessionId)?.tasks || []).map((t) =>
                         t.task_id === task.task_id ? { ...t, status: 'running' } : t
-                      )
+                      ),
+                      flowItems: newFlowItems
                     });
                   },
                   onTaskDone: (taskDone: any) => {
@@ -391,13 +426,27 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     if (startTime && elapsedTime === 0) {
                       elapsedTime = (Date.now() - startTime) / 1000;
                     }
+
+                    // v5.0: 更新工具卡片状态为 done
+                    const currentFlowItems = sessionManager.getSession(sessionId)?.flowItems || [];
+                    const updatedFlowItems = currentFlowItems.map(item => {
+                      if (item.type === 'tool' && (item.data as ToolFlowData).taskId === taskDone.task_id) {
+                        return {
+                          ...item,
+                          data: { ...(item.data as ToolFlowData), status: 'done' as const }
+                        };
+                      }
+                      return item;
+                    });
+
                     sessionManager.updateSession(sessionId, {
                       tasks: (sessionManager.getSession(sessionId)?.tasks || []).map((t) =>
                         t.task_id === taskDone.task_id
                           ? { ...t, status: 'completed', elapsed_time: elapsedTime, progress_status: undefined }
                           : t
                       ),
-                      currentTaskId: null
+                      currentTaskId: null,
+                      flowItems: updatedFlowItems
                     });
                     taskStartTimes.delete(taskDone.task_id);
                   },
@@ -694,7 +743,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       conversationId: undefined,
       activities: [],
       progressData: null,
-      pendingApproval: null
+      pendingApproval: null,
+      flowItems: []  // v5.0: 清空执行轨迹
     });
     activityStartTimes.current.clear();
     abortControllerRef.current = null;
@@ -900,6 +950,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     currentTaskId: sessionState.currentTaskId,
     activities: (sessionState.activities || []) as ActivityItem[],
     progressData: sessionState.progressData,
+    flowItems: (sessionState.flowItems || []) as FlowItem[],  // v5.0: 执行轨迹项
     sendMessage,
     sendMessageStream,
     clearMessages,
