@@ -9,6 +9,7 @@ import {
   leaveChannel,
   getChannelMessages,
   sendMessage as apiSendMessage,
+  channelApi,
   type Channel as ApiChannel,
   type ChannelMessage
 } from '@/services/channelApi';
@@ -29,6 +30,9 @@ const convertApiChannelToChannel = (apiChannel: ApiChannel): Channel => {
     collectCount: apiChannel.collectCount,
     isPermanent: apiChannel.isPermanent,
     warningDays: apiChannel.warningDays,
+    currentUserRole: apiChannel.currentUserRole,
+    joinRequirement: apiChannel.joinRequirement,
+    canAccess: apiChannel.canAccess,
   };
 };
 
@@ -39,6 +43,7 @@ const convertApiMessageToMessage = (apiMessage: ChannelMessage): Message => {
     userId: apiMessage.userId || '',
     userName: apiMessage.userName || '已删除用户',
     userAvatar: apiMessage.userAvatar,
+    userHonor: apiMessage.userHonor,
     userTitle: apiMessage.userTitle,
     userTitleColor: apiMessage.userTitleColor,
     content: apiMessage.content,
@@ -62,7 +67,7 @@ const ChannelsView: React.FC = () => {
   const currentUser = {
     id: user?.id || 'current-user',
     name: user?.username || '我',
-    isCreator: activeChannel?.creatorId === user?.id,
+    isCreator: activeChannel?.currentUserRole === 'owner',
   };
 
   // 加载用户频道
@@ -109,6 +114,11 @@ const ChannelsView: React.FC = () => {
   useEffect(() => {
     if (!activeChannelId) return;
 
+    // 立即标记频道为已读（用户点击频道即表示开始阅读）
+    channelApi.markChannelAsRead(activeChannelId).catch(err => {
+      console.error('标记已读失败:', err);
+    });
+
     const loadMessages = async () => {
       try {
         const response = await getChannelMessages(activeChannelId, { skip: 0, limit: 50 });
@@ -149,10 +159,13 @@ const ChannelsView: React.FC = () => {
       }
     };
 
-    // 如果该频道消息未加载过，则加载
-    if (!channelMessages[activeChannelId]) {
-      loadMessages();
-    }
+    // 每次切换频道或重新进入时都重新加载消息
+    loadMessages();
+
+    // 定时刷新消息（每30秒）
+    const interval = setInterval(loadMessages, 30000);
+
+    return () => clearInterval(interval);
   }, [activeChannelId]);
 
   const handleSendMessage = async (content: string, type: 'normal' | 'announcement' = 'normal', replyToId?: string) => {
@@ -263,16 +276,16 @@ const ChannelsView: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center bg-background">
+      <div className="h-full flex items-center justify-center bg-white dark:bg-zinc-900">
         <div className="text-center">
-          <div className="text-base text-muted-foreground">加载中...</div>
+          <div className="text-base text-gray-500 dark:text-gray-400">加载中...</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex bg-background overflow-hidden" style={{ padding: 0 }}>
+    <div className="h-full flex bg-white dark:bg-zinc-900 overflow-hidden" style={{ padding: 0 }}>
       {/* 频道列表 */}
       <ChannelList
         channels={userChannels}
@@ -298,7 +311,7 @@ const ChannelsView: React.FC = () => {
       {!activeChannel && !loading && (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <div className="text-base text-muted-foreground">请选择一个频道</div>
+            <div className="text-base text-gray-500 dark:text-gray-400">请选择一个频道</div>
           </div>
         </div>
       )}

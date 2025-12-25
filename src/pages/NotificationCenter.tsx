@@ -7,6 +7,7 @@ import { Bell, Sparkles, Check, Trash2, X, CheckSquare } from 'lucide-react';
 import { ImageWithFallback } from '../components/notifications/ImageWithFallback';
 import { getUserNotifications, markNotificationsAsRead, dismissNotification } from '../services/notificationApi';
 import { NotificationType, type UserNotification } from '../types/notification';
+import { useNotificationStore } from '../store/notificationStore';
 
 interface Activity {
   id: string;  // 修改为 string 以匹配通知ID类型
@@ -30,6 +31,7 @@ export default function NotificationCenter() {
   const [batchDeleteMode, setBatchDeleteMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
+  const { fetchUnreadCount } = useNotificationStore();
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
   // 从后端加载通知和活动
@@ -172,6 +174,21 @@ export default function NotificationCenter() {
     try {
       await markNotificationsAsRead();
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      // 同步更新侧边栏的未读数量
+      fetchUnreadCount();
+    } catch (error) {
+      console.error('标记已读失败:', error);
+    }
+  };
+
+  const markSingleAsRead = async (notificationId: string) => {
+    try {
+      await markNotificationsAsRead([notificationId]);
+      setNotifications(prev => prev.map(n =>
+        n.id === notificationId ? { ...n, isRead: true } : n
+      ));
+      // 同步更新侧边栏的未读数量
+      fetchUnreadCount();
     } catch (error) {
       console.error('标记已读失败:', error);
     }
@@ -304,6 +321,7 @@ export default function NotificationCenter() {
                           batchDeleteMode={batchDeleteMode}
                           isSelected={selectedIds.includes(notification.id)}
                           onToggleSelect={() => toggleSelection(notification.id)}
+                          onMarkAsRead={() => markSingleAsRead(notification.id)}
                         />
                       ))
                     )}

@@ -19,10 +19,13 @@ import {
   BookMarked,
   LogOut,
   MessageCircle,
+  AtSign,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useWorkNavStore } from '../../store/workNavStore';
 import clsx from 'clsx';
+import { channelApi } from '../../services/channelApi';
+import { useNotificationStore } from '../../store/notificationStore';
 
 interface NavItem {
   id: string;
@@ -37,6 +40,9 @@ const mainNavItems: NavItem[] = [
   { id: 'works', label: '作品管理', icon: BookOpen, path: '/works' },
   { id: 'knowledge', label: '知识库', icon: Library, path: '/knowledge' },
   { id: 'humanize', label: 'AI去痕', icon: Wand2, path: '/humanize' },
+];
+
+const channelNavItems: NavItem[] = [
   { id: 'channels', label: '频道', icon: MessageCircle, path: '/channels' },
 ];
 
@@ -72,6 +78,8 @@ export const Sidebar: React.FC = () => {
   const [isServiceExpanded, setIsServiceExpanded] = useState(true);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isQRCodeOpen, setIsQRCodeOpen] = useState(false);
+  const [totalMentionCount, setTotalMentionCount] = useState(0);
+  const { unreadCount: unreadNotificationCount, fetchUnreadCount } = useNotificationStore();
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // 点击外部关闭菜单
@@ -84,6 +92,32 @@ export const Sidebar: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // 获取频道未读 @ 提醒总数
+  useEffect(() => {
+    const fetchMentionCount = async () => {
+      try {
+        const summary = await channelApi.getUnreadSummary();
+        const totalMentions = summary.channels.reduce((acc, ch) => acc + ch.mentionCount, 0);
+        setTotalMentionCount(totalMentions);
+      } catch (error) {
+        console.error('获取未读 @ 提醒失败:', error);
+      }
+    };
+
+    fetchMentionCount();
+    // 每3秒刷新一次（加快刷新频率以便及时更新）
+    const interval = setInterval(fetchMentionCount, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 获取未读通知数量
+  useEffect(() => {
+    fetchUnreadCount();
+    // 每30秒刷新一次
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [fetchUnreadCount]);
 
   const handleLogout = () => {
     logout();
@@ -122,6 +156,8 @@ export const Sidebar: React.FC = () => {
     const Icon = item.icon;
     const active = isActive(item.path);
     const tooltip = item.tooltip || item.label;
+    const showMentionBadge = item.id === 'channels' && totalMentionCount > 0;
+    const showNotificationBadge = item.id === 'notifications' && unreadNotificationCount > 0;
 
     return (
       <Link
@@ -138,10 +174,37 @@ export const Sidebar: React.FC = () => {
       >
         {active && <div className="absolute left-0 top-1 bottom-1 w-1 bg-blue-600 dark:bg-blue-400 rounded-r"></div>}
         <Icon className={clsx('flex-shrink-0', isCollapsed ? 'w-5 h-5' : 'w-4 h-4', 'text-gray-900 dark:text-white')} />
-        {!isCollapsed && <span className="text-sm font-medium">{item.label}</span>}
+        {!isCollapsed && (
+          <>
+            <span className="text-sm font-medium flex-1">{item.label}</span>
+            {showMentionBadge && (
+              <div className="flex items-center gap-1 bg-red-500 text-white rounded-full px-2 py-0.5 flex-shrink-0">
+                <AtSign className="w-3 h-3" />
+                <span className="text-xs">{totalMentionCount > 99 ? '99+' : totalMentionCount}</span>
+              </div>
+            )}
+            {showNotificationBadge && (
+              <div className="flex items-center gap-1 bg-red-500 text-white rounded-full px-2 py-0.5 flex-shrink-0">
+                <span className="text-xs">{unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}</span>
+              </div>
+            )}
+          </>
+        )}
         {isCollapsed && (
           <div className="absolute left-full ml-2 px-2 py-1 bg-slate-900 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
             {tooltip}
+            {showMentionBadge && ` (${totalMentionCount > 99 ? '99+' : totalMentionCount})`}
+            {showNotificationBadge && ` (${unreadNotificationCount > 99 ? '99+' : unreadNotificationCount})`}
+          </div>
+        )}
+        {isCollapsed && showMentionBadge && (
+          <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+            <span className="text-[10px] text-white font-medium">{totalMentionCount > 9 ? '9+' : totalMentionCount}</span>
+          </div>
+        )}
+        {isCollapsed && showNotificationBadge && (
+          <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+            <span className="text-[10px] text-white font-medium">{unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}</span>
           </div>
         )}
       </Link>
@@ -190,6 +253,13 @@ export const Sidebar: React.FC = () => {
             <div className="px-3 py-2 text-xs font-medium text-gray-900 dark:text-slate-200 uppercase tracking-wider">创作</div>
           )}
           {dynamicMainNavItems.map(renderNavItem)}
+        </div>
+
+        <div className="mt-6 space-y-0.5">
+          {!isCollapsed && (
+            <div className="px-3 py-2 text-xs font-medium text-gray-900 dark:text-slate-200 uppercase tracking-wider">社区</div>
+          )}
+          {channelNavItems.map(renderNavItem)}
         </div>
 
         <div className="mt-6 space-y-0.5">

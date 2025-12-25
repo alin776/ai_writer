@@ -30,6 +30,11 @@ export interface Channel {
   bookTitle?: string;
   author?: string;
   collectCount?: number;
+  // 当前用户在该频道中的角色
+  currentUserRole?: 'owner' | 'admin' | 'member';
+  // 进入要求
+  joinRequirement?: string | null;
+  canAccess?: boolean;
 }
 
 export interface ChannelListResponse {
@@ -43,6 +48,10 @@ export interface ChannelMember {
   username: string;
   avatar?: string;
   role: 'owner' | 'admin' | 'member';
+  customTitle?: string | null;  // 频道内自定义称号
+  titleColor?: string | null;   // 称号颜色
+  isMuted: boolean;             // 是否被禁言
+  mutedUntil?: string | null;   // 禁言到期时间
   joinedAt: string;
 }
 
@@ -67,7 +76,8 @@ export interface ChannelMessage {
   // 用户信息
   userName?: string;
   userAvatar?: string;
-  userTitle?: string;
+  userHonor?: string;  // 用户全局称号
+  userTitle?: string;  // 频道内自定义称号
   userTitleColor?: string;
 }
 
@@ -134,6 +144,28 @@ export const kickMember = async (channelId: string, userId: string): Promise<{ m
   return data;
 };
 
+/**
+ * 禁言成员（仅创建者可操作）
+ */
+export const muteMember = async (
+  channelId: string,
+  userId: string,
+  durationMinutes: number
+): Promise<{ message: string; muteUntil: string }> => {
+  const data = await api.post<{ message: string; muteUntil: string }>(
+    `/channels/${channelId}/members/${userId}/mute?duration_minutes=${durationMinutes}`
+  );
+  return data;
+};
+
+/**
+ * 解除禁言（仅创建者可操作）
+ */
+export const unmuteMember = async (channelId: string, userId: string): Promise<{ message: string }> => {
+  const data = await api.post<{ message: string }>(`/channels/${channelId}/members/${userId}/unmute`);
+  return data;
+};
+
 // ==================== 消息 API ====================
 
 /**
@@ -148,6 +180,23 @@ export const getChannelMessages = async (
 ): Promise<ChannelMessageListResponse> => {
   const data = await api.get<ChannelMessageListResponse>(
     `/channels/${channelId}/messages`,
+    { params }
+  );
+  return data;
+};
+
+/**
+ * 获取频道公告列表
+ */
+export const getChannelAnnouncements = async (
+  channelId: string,
+  params: {
+    skip?: number;
+    limit?: number;
+  }
+): Promise<ChannelMessageListResponse> => {
+  const data = await api.get<ChannelMessageListResponse>(
+    `/channels/${channelId}/announcements`,
     { params }
   );
   return data;
@@ -304,17 +353,6 @@ export interface AnnouncementListResponse {
 }
 
 /**
- * 获取频道所有公告
- */
-export const getChannelAnnouncements = async (
-  channelId: string,
-  skip: number = 0,
-  limit: number = 20
-): Promise<AnnouncementListResponse> => {
-  return await api.get(`/channels/${channelId}/announcements?skip=${skip}&limit=${limit}`);
-};
-
-/**
  * 获取最新公告
  */
 export const getLatestAnnouncement = async (
@@ -389,28 +427,18 @@ export const updateChannelSettings = async (
 };
 
 // ==================== 成员权限管理 API ====================
-
 /**
- * 禁言成员
+ * 修改成员称号
  */
-export const muteMember = async (
+export const updateMemberTitle = async (
   channelId: string,
   userId: string,
-  durationMinutes: number
-): Promise<{ message: string; muteUntil: string }> => {
-  return await api.post(
-    `/channels/${channelId}/members/${userId}/mute?duration_minutes=${durationMinutes}`
-  );
-};
-
-/**
- * 取消禁言
- */
-export const unmuteMember = async (
-  channelId: string,
-  userId: string
-): Promise<{ message: string }> => {
-  return await api.post(`/channels/${channelId}/members/${userId}/unmute`);
+  titleData: {
+    customTitle?: string | null;
+    titleColor?: string;
+  }
+): Promise<{ message: string; customTitle: string | null; titleColor: string | null }> => {
+  return await api.patch(`/channels/${channelId}/members/${userId}/title`, titleData);
 };
 
 // 导出一个包含所有 API 函数的对象
@@ -453,4 +481,5 @@ export const channelApi = {
   // 成员权限
   muteMember,
   unmuteMember,
+  updateMemberTitle,
 };

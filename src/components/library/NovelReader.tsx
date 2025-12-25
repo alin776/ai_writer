@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ArrowLeft,
   ChevronLeft,
@@ -9,11 +9,17 @@ import {
   Loader2,
   Search,
   X,
+  MessageCircle,
 } from 'lucide-react';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
 import { useTheme } from '../../hooks/useTheme';
 import { useWorkNavStore } from '../../store/workNavStore';
+import { useContentParser, ParsedParagraph } from '../../hooks/useContentParser';
+import { CommentBadge } from './CommentBadge';
+import { ReaderContextMenu } from './ReaderContextMenu';
+import { ChapterCommentPanel } from './ChapterCommentPanel';
+import { chapterCommentApi, CommentLocationStats } from '../../services/chapterCommentApi';
 
 interface NovelReaderProps {
   workId: string;
@@ -58,6 +64,33 @@ export function NovelReader({ workId, chapterId, onBack, initialChapters, novelT
   const [fontSize, setFontSize] = useState(18);
   const [lineHeight, setLineHeight] = useState(1.8);
 
+  // 评论相关状态
+  const [showCommentPanel, setShowCommentPanel] = useState(false);
+  const [commentStats, setCommentStats] = useState<CommentLocationStats | null>(null);
+  const [commentFilter, setCommentFilter] = useState<{
+    type: 'all' | 'paragraph' | 'sentence';
+    paragraphIndex?: number;
+    sentenceIndex?: number;
+    quotedText?: string;
+  }>({ type: 'all' });
+
+  // 右键菜单状态
+  const [contextMenu, setContextMenu] = useState<{
+    show: boolean;
+    x: number;
+    y: number;
+    paragraphIndex: number;
+    sentenceIndex?: number;
+    selectedText: string;
+    quotedText: string;
+  } | null>(null);
+
+  // 高亮句子状态
+  const [highlightedSentence, setHighlightedSentence] = useState<{
+    paragraphIndex: number;
+    sentenceIndex: number;
+  } | null>(null);
+
   // 预设主题
   const themes = [
     { name: '护眼', bg: '#faf8f3', text: '#333333', darkBg: '#2a2a2a', darkText: '#d4d4d4' },
@@ -71,6 +104,22 @@ export function NovelReader({ workId, chapterId, onBack, initialChapters, novelT
   const currentTheme = themes[selectedThemeIndex];
   const backgroundColor = isDarkMode ? currentTheme.darkBg : currentTheme.bg;
   const textColor = isDarkMode ? currentTheme.darkText : currentTheme.text;
+
+  // 解析章节内容为结构化段落和句子
+  const { paragraphs: parsedParagraphs } = useContentParser(
+    currentChapter?.content || '',
+    commentStats
+  );
+
+  // 加载评论统计
+  const loadCommentStats = useCallback(async (chapterId: string) => {
+    try {
+      const stats = await chapterCommentApi.getStats(chapterId);
+      setCommentStats(stats);
+    } catch (err) {
+      console.error('加载评论统计失败:', err);
+    }
+  }, []);
 
   // 防止 StrictMode 双重渲染导致的重复调用
   const hasLoadedChaptersRef = useRef<string | null>(null);
@@ -134,6 +183,9 @@ export function NovelReader({ workId, chapterId, onBack, initialChapters, novelT
       await DataService.updateReadingProgress(workId, targetChapterId, 0).catch(() => {
         // 静默失败，不影响阅读体验
       });
+
+      // 加载评论统计
+      loadCommentStats(targetChapterId);
     } catch (error) {
       console.error('加载章节失败:', error);
       showError('加载章节失败');
@@ -187,6 +239,168 @@ export function NovelReader({ workId, chapterId, onBack, initialChapters, novelT
     setSelectedThemeIndex(index);
   };
 
+  // 右键菜单处理
+  const handleContextMenu = (
+    e: React.MouseEvent,
+    paragraphIndex: number,
+    sentenceIndex?: number,
+    sentenceText?: string
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const selection = window.getSelection();
+    const selectedText = selection?.toString().trim() || '';
+
+    // 高亮当前句子
+    if (sentenceIndex !== undefined) {
+      setHighlightedSentence({ paragraphIndex, sentenceIndex });
+    }
+
+    setContextMenu({
+      show: true,
+      x: e.clientX,
+      y: e.clientY,
+      paragraphIndex,
+      sentenceIndex,
+      selectedText,
+      quotedText: sentenceText || '',
+    });
+  };
+
+  // 关闭右键菜单
+  const closeContextMenu = () => {
+    setContextMenu(null);
+    setHighlightedSentence(null);
+  };
+
+  // 复制文本
+  const handleCopy = () => {
+    if (contextMenu?.selectedText) {
+      navigator.clipboard.writeText(contextMenu.selectedText);
+    }
+  };
+
+  // 评论句子
+  const handleCommentSentence = () => {
+    if (contextMenu && contextMenu.sentenceIndex !== undefined) {
+      setCommentFilter({
+        type: 'sentence',
+        paragraphIndex: contextMenu.paragraphIndex,
+        sentenceIndex: contextMenu.sentenceIndex,
+        quotedText: contextMenu.quotedText,
+      });
+      setShowCommentPanel(true);
+    }
+  };
+
+  // 评论段落
+  const handleCommentParagraph = () => {
+    if (contextMenu) {
+      // 获取段落文本
+      const paragraph = parsedParagraphs[contextMenu.paragraphIndex];
+      const paragraphText = paragraph?.sentences.map(s => s.text).join('') || '';
+      setCommentFilter({
+        type: 'paragraph',
+        paragraphIndex: contextMenu.paragraphIndex,
+        quotedText: paragraphText,
+      });
+      setShowCommentPanel(true);
+    }
+  };
+
+  // 点击评论标记
+  const handleBadgeClick = (paragraphIndex: number, sentenceIndex?: number, quotedText?: string) => {
+    if (sentenceIndex !== undefined) {
+      setCommentFilter({
+        type: 'sentence',
+        paragraphIndex,
+        sentenceIndex,
+        quotedText,
+      });
+    } else {
+      // 获取段落文本
+      const paragraph = parsedParagraphs[paragraphIndex];
+      const paragraphText = paragraph?.sentences.map(s => s.text).join('') || '';
+      setCommentFilter({
+        type: 'paragraph',
+        paragraphIndex,
+        quotedText: paragraphText,
+      });
+    }
+    setShowCommentPanel(true);
+  };
+
+  // 打开全部评论
+  const openAllComments = () => {
+    setCommentFilter({ type: 'all' });
+    setShowCommentPanel(true);
+  };
+
+  // 更新评论统计
+  const handleStatsUpdate = (stats: CommentLocationStats) => {
+    setCommentStats(stats);
+  };
+
+  // 渲染段落内容
+  const renderParagraphContent = (paragraph: ParsedParagraph) => {
+    // 获取段落评论数
+    const paragraphCommentCount = commentStats?.paragraphs[String(paragraph.index)] || 0;
+
+    return (
+      <div
+        key={paragraph.index}
+        data-paragraph-index={paragraph.index}
+        className="relative group"
+        style={{
+          marginBottom: '1.5em',
+          textIndent: '2em',
+          textAlign: 'justify',
+        }}
+        onContextMenu={(e) => handleContextMenu(e, paragraph.index)}
+      >
+        {paragraph.sentences.map((sentence, sIndex) => {
+          const isHighlighted =
+            highlightedSentence?.paragraphIndex === paragraph.index &&
+            highlightedSentence?.sentenceIndex === sIndex;
+
+          // 获取句子评论数
+          const sentenceKey = `${paragraph.index}-${sIndex}`;
+          const sentenceCommentCount = commentStats?.sentences[sentenceKey] || 0;
+
+          return (
+            <span
+              key={sIndex}
+              data-paragraph-index={paragraph.index}
+              data-sentence-index={sIndex}
+              className={`${isHighlighted ? 'bg-yellow-200 dark:bg-yellow-800/50' : ''}`}
+              onContextMenu={(e) => handleContextMenu(e, paragraph.index, sIndex, sentence.text)}
+            >
+              {sentence.text}
+              {sentenceCommentCount > 0 && (
+                <CommentBadge
+                  count={sentenceCommentCount}
+                  size="sm"
+                  onClick={() => handleBadgeClick(paragraph.index, sIndex, sentence.text)}
+                />
+              )}
+            </span>
+          );
+        })}
+
+        {/* 段落末尾的评论标记（仅段落级别的评论） */}
+        {paragraphCommentCount > 0 && (
+          <CommentBadge
+            count={paragraphCommentCount}
+            size="md"
+            className="absolute -right-2 -top-4"
+            onClick={() => handleBadgeClick(paragraph.index)}
+          />
+        )}
+      </div>
+    );
+  };
+
   const currentIndex = currentChapter ? chapters.findIndex((c) => c.id === currentChapter.id) : -1;
   const hasPrev = currentIndex > 0;
   const hasNext = currentIndex < chapters.length - 1;
@@ -214,6 +428,18 @@ export function NovelReader({ workId, chapterId, onBack, initialChapters, novelT
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={openAllComments}
+              className="p-2 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors relative"
+              title="章节评论"
+            >
+              <MessageCircle className="w-5 h-5" />
+              {commentStats && commentStats.total > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-blue-500 text-white text-[10px] font-medium rounded-full flex items-center justify-center">
+                  {commentStats.total > 99 ? '99+' : commentStats.total}
+                </span>
+              )}
+            </button>
             <button
               onClick={() => setShowChapterList(!showChapterList)}
               className="p-2 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors"
@@ -470,32 +696,27 @@ export function NovelReader({ workId, chapterId, onBack, initialChapters, novelT
             </div>
 
             {/* 章节内容 */}
-            <div className="max-w-none mb-12">
-              <style>
-                {`
-                  .chapter-content {
-                    font-size: ${fontSize}px;
-                    line-height: ${lineHeight};
-                    color: ${textColor};
-                  }
-                  .chapter-content p,
-                  .chapter-content div,
-                  .chapter-content span {
-                    font-size: ${fontSize}px;
-                    line-height: ${lineHeight};
-                    margin-bottom: 1.5em;
-                    text-indent: 2em;
-                    text-align: justify;
-                  }
-                  .chapter-content p:first-child {
-                    margin-top: 0;
-                  }
-                `}
-              </style>
-              <div
-                className="chapter-content"
-                dangerouslySetInnerHTML={{ __html: currentChapter.content }}
-              />
+            <div
+              className="max-w-none mb-12 chapter-content"
+              style={{
+                fontSize: `${fontSize}px`,
+                lineHeight: lineHeight,
+                color: textColor,
+              }}
+              onContextMenu={(e) => {
+                // 如果不是点击在段落或句子上，阻止默认菜单
+                const target = e.target as HTMLElement;
+                if (!target.dataset.paragraphIndex) {
+                  e.preventDefault();
+                }
+              }}
+            >
+              {parsedParagraphs.length > 0 ? (
+                parsedParagraphs.map(paragraph => renderParagraphContent(paragraph))
+              ) : (
+                // 如果解析失败，回退到原始渲染
+                <div dangerouslySetInnerHTML={{ __html: currentChapter.content }} />
+              )}
             </div>
 
                         {/* 底部翻页按钮 */}
@@ -527,6 +748,32 @@ export function NovelReader({ workId, chapterId, onBack, initialChapters, novelT
           </div>
         )}
       </div>
+
+      {/* 右键菜单 */}
+      {contextMenu?.show && (
+        <ReaderContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          selectedText={contextMenu.selectedText}
+          paragraphIndex={contextMenu.paragraphIndex}
+          sentenceIndex={contextMenu.sentenceIndex}
+          onClose={closeContextMenu}
+          onCopy={handleCopy}
+          onCommentSentence={handleCommentSentence}
+          onCommentParagraph={handleCommentParagraph}
+        />
+      )}
+
+      {/* 评论面板 */}
+      {currentChapter && (
+        <ChapterCommentPanel
+          chapterId={currentChapter.id}
+          isOpen={showCommentPanel}
+          onClose={() => setShowCommentPanel(false)}
+          filter={commentFilter}
+          onStatsUpdate={handleStatsUpdate}
+        />
+      )}
     </div>
   );
 }

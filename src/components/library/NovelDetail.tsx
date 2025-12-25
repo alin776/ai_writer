@@ -92,6 +92,8 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reportDescription, setReportDescription] = useState('');
+  // 区分举报类型：'comment' 或 'work'
+  const [reportType, setReportType] = useState<'comment' | 'work'>('comment');
 
   // 阅读器状态
   const [showReader, setShowReader] = useState(false);
@@ -186,6 +188,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
             id: detailRes.id,
             title: detailRes.title,
             author: detailRes.authorName,
+            authorId: detailRes.authorId,  // 保存作者ID，用于判断是否是自己的作品
             category: genreMap[detailRes.genre] || detailRes.genre,
             description: detailRes.description || '暂无简介',
             cover: detailRes.coverImage || novel.cover,
@@ -350,9 +353,18 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
     }
   };
 
-  // 打开举报对话框
+  // 打开评论举报对话框
   const handleReportComment = (commentId: string) => {
     setReportingCommentId(commentId);
+    setReportType('comment');
+    setShowReportModal(true);
+    setReportReason('');
+    setReportDescription('');
+  };
+
+  // 打开作品举报对话框
+  const handleReportWork = () => {
+    setReportType('work');
     setShowReportModal(true);
     setReportReason('');
     setReportDescription('');
@@ -366,7 +378,11 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
     }
 
     try {
-      await DataService.reportComment(reportingCommentId!, reportReason, reportDescription || undefined);
+      if (reportType === 'comment') {
+        await DataService.reportComment(reportingCommentId!, reportReason, reportDescription || undefined);
+      } else {
+        await DataService.reportWork(novel.id, reportReason, reportDescription || undefined);
+      }
       success('举报成功，我们会尽快处理');
       setShowReportModal(false);
       setReportingCommentId(null);
@@ -374,11 +390,19 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
       setReportDescription('');
     } catch (error: any) {
       console.error('举报失败:', error);
-      if (error?.response?.data?.detail) {
-        showError(error.response.data.detail);
-      } else {
-        showError('举报失败，请重试');
-      }
+      console.error('举报失败 - error.response:', error?.response);
+      console.error('举报失败 - error.response?.data:', error?.response?.data);
+      console.error('举报失败 - error.response?.data?.detail:', error?.response?.data?.detail);
+      // 尝试从多种可能的位置获取错误消息
+      // Axios 错误结构: error.response.data.detail
+      // 或者后端可能直接返回 error.detail
+      const errorMessage = error?.response?.data?.detail
+        || error?.response?.data?.message
+        || error?.data?.detail
+        || error?.detail
+        || error?.message
+        || '举报失败，请重试';
+      showError(errorMessage);
     }
   };
 
@@ -558,6 +582,16 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
                   <Share2 className="w-4 h-4" />
                   分享
                 </button>
+                {/* 不是自己的作品才显示举报按钮 */}
+                {novelData.authorId !== currentUserId && (
+                  <button
+                    onClick={handleReportWork}
+                    className="px-6 py-3 border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 text-sm hover:border-red-300 dark:hover:border-red-500 hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center gap-2"
+                  >
+                    <Flag className="w-4 h-4" />
+                    举报
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -815,7 +849,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
       <Modal
         isOpen={showReportModal}
         onClose={() => setShowReportModal(false)}
-        title="举报评论"
+        title={reportType === 'work' ? '举报作品' : '举报评论'}
         size="md"
         footer={
           <>
@@ -845,12 +879,25 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
               className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">请选择举报原因</option>
-              <option value="spam">垃圾信息</option>
-              <option value="abuse">辱骂内容</option>
-              <option value="porn">色情内容</option>
-              <option value="illegal">违法内容</option>
-              <option value="false">虚假信息</option>
-              <option value="other">其他</option>
+              {reportType === 'work' ? (
+                <>
+                  <option value="plagiarism">抄袭侵权</option>
+                  <option value="porn">色情低俗</option>
+                  <option value="spam">垃圾广告</option>
+                  <option value="illegal">违法违规</option>
+                  <option value="false">虚假信息</option>
+                  <option value="other">其他</option>
+                </>
+              ) : (
+                <>
+                  <option value="spam">垃圾信息</option>
+                  <option value="abuse">辱骂内容</option>
+                  <option value="porn">色情内容</option>
+                  <option value="illegal">违法内容</option>
+                  <option value="false">虚假信息</option>
+                  <option value="other">其他</option>
+                </>
+              )}
             </select>
           </div>
           <div>
@@ -862,7 +909,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
               onChange={(e) => setReportDescription(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               rows={4}
-              placeholder="请详细描述举报原因..."
+              placeholder={reportType === 'work' ? '请详细描述该作品的问题...' : '请详细描述举报原因...'}
             />
           </div>
         </div>

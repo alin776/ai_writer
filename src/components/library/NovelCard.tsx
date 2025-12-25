@@ -5,6 +5,7 @@ export interface Novel {
   id: string;
   title: string;
   author: string;
+  authorId?: string;  // 作者ID，用于判断是否是自己的作品
   category: string;
   description: string;
   cover: string;

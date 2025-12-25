@@ -46,16 +46,16 @@ export function ReportMessageDialog({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
+    <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-md">
         {/* 标题栏 */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-base font-medium dark:text-gray-100">举报消息</h3>
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-zinc-800">
+          <h3 className="text-base font-medium text-gray-900 dark:text-gray-100">举报消息</h3>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+            className="p-1 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded transition-colors"
           >
-            <X className="w-4 h-4 dark:text-gray-400" />
+            <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
           </button>
         </div>
 
@@ -74,9 +74,9 @@ export function ReportMessageDialog({
                     value={r.value}
                     checked={reason === r.value}
                     onChange={(e) => setReason(e.target.value as typeof reason)}
-                    className="w-4 h-4"
+                    className="w-4 h-4 text-blue-600 dark:text-blue-500"
                   />
-                  <span className="text-sm dark:text-gray-200">{r.label}</span>
+                  <span className="text-sm text-gray-900 dark:text-gray-100">{r.label}</span>
                 </label>
               ))}
             </div>
@@ -90,25 +90,25 @@ export function ReportMessageDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="请描述具体问题..."
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600"
               rows={4}
             />
           </div>
         </div>
 
         {/* 按钮 */}
-        <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+        <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-800/50">
           <button
             onClick={onClose}
             disabled={submitting}
-            className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded transition-colors disabled:opacity-50"
           >
             取消
           </button>
           <button
             onClick={handleSubmit}
             disabled={submitting}
-            className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm bg-red-600 dark:bg-red-700 text-white rounded hover:bg-red-700 dark:hover:bg-red-800 transition-colors disabled:opacity-50"
           >
             {submitting ? '提交中...' : '提交举报'}
           </button>

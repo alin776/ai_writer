@@ -762,6 +762,51 @@ class DataServiceClass {
     return this.adapter.patch(`/admin/users/${id}/toggle-admin`);
   }
 
+  /**
+   * 更新用户称号（管理员）
+   * @param id 用户ID
+   * @param honor 新称号（空字符串或 null 清除称号）
+   * @returns Promise<{ message: string }>
+   */
+  async updateUserHonor(id: string, honor: string | null): Promise<{ message: string }> {
+    return this.adapter.patch(`/admin/users/${id}/honor`, { honor });
+  }
+
+  // ==================== 管理员频道管理 ====================
+
+  /**
+   * 获取所有频道列表（管理员）
+   * @param params 查询参数
+   * @returns Promise<{ total: number; channels: Channel[] }>
+   */
+  async getAdminChannels(params?: {
+    skip?: number;
+    limit?: number;
+    channel_type?: string;
+    channel_status?: string;
+    search?: string;
+  }): Promise<{ total: number; channels: any[] }> {
+    const queryParams = new URLSearchParams();
+    if (params?.skip) queryParams.append('skip', params.skip.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.channel_type) queryParams.append('channel_type', params.channel_type);
+    if (params?.channel_status) queryParams.append('channel_status', params.channel_status);
+    if (params?.search) queryParams.append('search', params.search);
+
+    const queryString = queryParams.toString();
+    return this.adapter.get(`/admin/channels${queryString ? `?${queryString}` : ''}`);
+  }
+
+  /**
+   * 更新频道状态（管理员）
+   * @param channelId 频道ID
+   * @param status 新状态 (active/warning/locked)
+   * @returns Promise<{ message: string; channel: any }>
+   */
+  async updateChannelStatus(channelId: string, status: string): Promise<{ message: string; channel: any }> {
+    return this.adapter.patch(`/admin/channels/${channelId}/status?new_status=${status}`);
+  }
+
   // ==================== AI 模型管理 ====================
 
   /**
@@ -1445,6 +1490,16 @@ class DataServiceClass {
     });
   }
 
+  /**
+   * 举报作品
+   */
+  async reportWork(workId: string, reason: string, description?: string): Promise<any> {
+    return this.adapter.post(`/library/works/${workId}/report`, {
+      reason,
+      description,
+    });
+  }
+
   // ========== 管理员 - 小说管理API ==========
 
   /**
@@ -1484,6 +1539,57 @@ class DataServiceClass {
    */
   async adminDeleteWork(workId: string): Promise<void> {
     return this.adapter.delete(`/admin/works/works/${workId}`);
+  }
+
+  // ==================== 举报管理 API ====================
+
+  /**
+   * 获取举报统计概览
+   */
+  async getReportsSummary(): Promise<any> {
+    return this.adapter.get('/admin/reports/summary');
+  }
+
+  /**
+   * 获取消息举报列表
+   */
+  async getMessageReports(status?: string): Promise<any> {
+    return this.adapter.get('/admin/reports/messages', status ? { status } : undefined);
+  }
+
+  /**
+   * 获取评论举报列表
+   */
+  async getCommentReports(isProcessed?: boolean): Promise<any> {
+    return this.adapter.get('/admin/reports/comments', isProcessed !== undefined ? { is_processed: isProcessed } : undefined);
+  }
+
+  /**
+   * 获取小说举报列表
+   */
+  async getWorkReports(status?: string): Promise<any> {
+    return this.adapter.get('/admin/reports/works', status ? { status } : undefined);
+  }
+
+  /**
+   * 处理消息举报
+   */
+  async processMessageReport(reportId: string, action: string, adminNote?: string): Promise<any> {
+    return this.adapter.patch(`/admin/reports/messages/${reportId}`, { action, admin_note: adminNote });
+  }
+
+  /**
+   * 处理评论举报
+   */
+  async processCommentReport(reportId: string, action: string, adminNote?: string): Promise<any> {
+    return this.adapter.patch(`/admin/reports/comments/${reportId}`, { action, admin_note: adminNote });
+  }
+
+  /**
+   * 处理小说举报
+   */
+  async processWorkReport(reportId: string, action: string, adminNote?: string): Promise<any> {
+    return this.adapter.patch(`/admin/reports/works/${reportId}`, { action, admin_note: adminNote });
   }
 }
 

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search } from 'lucide-react';
+import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import type { Channel } from './ChannelList';
 import { MemberManagementDialog } from './MemberManagementDialog';
 import { ReportMessageDialog } from './ReportMessageDialog';
+import { AnnouncementListDialog } from './AnnouncementListDialog';
 import { getChannelMembers, type ChannelMember, channelApi, UnreadInfo } from '@/services/channelApi';
 
 export interface Message {
@@ -16,7 +17,8 @@ export interface Message {
   userId: string;
   userName: string;
   userAvatar?: string;
-  userTitle?: string; // 用户称号
+  userHonor?: string; // 用户全局称号
+  userTitle?: string; // 频道内自定义称号
   userTitleColor?: string; // 称号颜色
   content: string;
   timestamp: Date;
@@ -49,12 +51,14 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
   const [emojiPickerPosition, setEmojiPickerPosition] = useState({ x: 0, y: 0 });
   const [showSidebar, setShowSidebar] = useState(false);
   const [showMemberDialog, setShowMemberDialog] = useState(false);
+  const [showAnnouncementList, setShowAnnouncementList] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [reportingMessageId, setReportingMessageId] = useState<string>('');
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [showMentionMenu, setShowMentionMenu] = useState(false);
   const [mentionMenuPosition, setMentionMenuPosition] = useState({ x: 0, y: 0 });
   const [members, setMembers] = useState<ChannelMember[]>([]);
+  const [currentMember, setCurrentMember] = useState<ChannelMember | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     show: boolean;
     x: number;
@@ -124,16 +128,22 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
 
   // 加载成员列表
   useEffect(() => {
+    // 切换频道时立即清空当前成员状态，防止使用上一个频道的禁言状态
+    setCurrentMember(null);
+
     const loadMembers = async () => {
       try {
         const response = await getChannelMembers(channel.id);
         setMembers(response.members);
+        // 找到当前用户的成员信息
+        const current = response.members.find(m => m.userId === currentUser.id);
+        setCurrentMember(current || null);
       } catch (error) {
         console.error('加载成员列表失败:', error);
       }
     };
     loadMembers();
-  }, [channel.id]);
+  }, [channel.id, currentUser.id]);
 
   // 获取最新公告
   useEffect(() => {
@@ -378,24 +388,60 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
   };
 
   const statusInfo = getChannelStatusInfo();
-  const canSendAnnouncement = currentUser.isCreator && channel.type === 'fangroup';
+  const canSendAnnouncement = currentUser.isCreator && (channel.type === 'fangroup' || channel.type === 'official');
+
+  // 解析进入要求
+  const getRequirementMessage = () => {
+    if (!channel.joinRequirement) return null;
+    try {
+      const requirement = JSON.parse(channel.joinRequirement);
+      return requirement.message || '不满足进入要求';
+    } catch {
+      return null;
+    }
+  };
+
+  const requirementMessage = getRequirementMessage();
+  const canAccess = channel.canAccess !== false; // 默认为 true
+
+  // 计算禁言剩余时间
+  const getMuteTimeRemaining = () => {
+    if (!currentMember?.isMuted || !currentMember?.mutedUntil) return null;
+
+    const now = new Date();
+    const muteEnd = new Date(currentMember.mutedUntil);
+    const diff = muteEnd.getTime() - now.getTime();
+
+    if (diff <= 0) return null; // 禁言已过期
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (days > 0) return `${days}天${hours}小时`;
+    if (hours > 0) return `${hours}小时${minutes}分钟`;
+    return `${minutes}分钟`;
+  };
+
+  const muteTimeRemaining = getMuteTimeRemaining();
+  const isMuted = currentMember?.isMuted && muteTimeRemaining !== null;
 
   return (
     <div
-      className="flex-1 flex flex-col bg-white dark:bg-gray-900 h-full"
+      className="flex-1 flex flex-col bg-white dark:bg-zinc-900 h-full"
       onContextMenu={(e) => {
         // 阻止默认右键菜单，只允许自定义右键菜单
         e.preventDefault();
       }}
     >
       {/* 频道头部 */}
-      <div className="p-3 border-b border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900">
+      <div className="p-3 border-b border-gray-100 dark:border-zinc-800 bg-white dark:bg-zinc-900">
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-medium dark:text-gray-100">{channel.name}</h3>
+              <h3 className="text-base font-medium text-gray-900 dark:text-gray-100">{channel.name}</h3>
               {channel.isPermanent && (
-                <span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-1 rounded">永久</span>
+                <span className="text-xs text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-950 px-2 py-1 rounded">永久</span>
               )}
               {channel.type === 'work' && channel.bookTitle && (
                 <span className="text-sm text-gray-400 dark:text-gray-500">《{channel.bookTitle}》</span>
@@ -408,14 +454,14 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
           <div className="flex items-center gap-1">
             <button
               onClick={() => setShowSearchDialog(true)}
-              className="p-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded"
+              className="p-1 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded"
               title="搜索消息"
             >
               <Search className="w-4 h-4 text-gray-400 dark:text-gray-500" />
             </button>
             <button
               onClick={() => setShowSidebar(true)}
-              className="p-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded"
+              className="p-1 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded"
             >
               <MoreVertical className="w-4 h-4 text-gray-400 dark:text-gray-500" />
             </button>
@@ -426,11 +472,24 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
         {statusInfo.show && (
           <div className={cn(
             "mt-2 px-3 py-2 rounded text-sm",
-            statusInfo.variant === 'destructive' && "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-800",
-            statusInfo.variant === 'default' && "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-100 dark:border-amber-800",
-            statusInfo.variant === 'secondary' && "bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-100 dark:border-gray-700"
+            statusInfo.variant === 'destructive' && "bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900",
+            statusInfo.variant === 'default' && "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border border-amber-100 dark:border-amber-900",
+            statusInfo.variant === 'secondary' && "bg-gray-50 dark:bg-zinc-800 text-gray-600 dark:text-gray-400 border border-gray-100 dark:border-zinc-700"
           )}>
             {statusInfo.text}
+          </div>
+        )}
+
+        {/* 进入要求提示 */}
+        {!canAccess && requirementMessage && (
+          <div className="mt-2 px-3 py-2 rounded text-sm bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 border border-blue-100 dark:border-blue-900">
+            <div className="flex items-start gap-2">
+              <Lock className="w-4 h-4 mt-0.5 shrink-0" />
+              <div>
+                <div className="font-medium mb-1">频道访问受限</div>
+                <div>{requirementMessage}</div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -438,15 +497,15 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
         {latestAnnouncement && (
           <div
             onClick={() => jumpToMessage(latestAnnouncement.id)}
-            className="mt-2 px-3 py-2 rounded bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors"
+            className="mt-2 px-3 py-2 rounded bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900 transition-colors"
           >
             <div className="flex items-start gap-2">
-              <Megaphone className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+              <Megaphone className="w-4 h-4 text-amber-600 dark:text-amber-500 mt-0.5 shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-medium text-amber-900 dark:text-amber-300">最新公告</span>
+                  <span className="text-xs font-medium text-amber-900 dark:text-amber-200">最新公告</span>
                   {latestAnnouncement.timestamp && !isNaN(latestAnnouncement.timestamp.getTime()) && (
-                    <span className="text-xs text-amber-600 dark:text-amber-400">
+                    <span className="text-xs text-amber-600 dark:text-amber-500">
                       {latestAnnouncement.timestamp.toLocaleString('zh-CN', {
                         month: '2-digit',
                         day: '2-digit',
@@ -456,7 +515,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-amber-900 dark:text-amber-300 line-clamp-2">
+                <p className="text-sm text-amber-900 dark:text-amber-200 line-clamp-2">
                   {latestAnnouncement.content}
                 </p>
               </div>
@@ -468,7 +527,14 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
       {/* 消息列表 */}
       <ScrollArea className="flex-1" style={{ padding: '12px' }} ref={scrollRef}>
         <div className="space-y-3">
-          {messages.map((message) => {
+          {!canAccess ? (
+            <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500">
+              <div className="text-center">
+                <Lock className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p className="text-sm">需要满足进入要求才能查看聊天记录</p>
+              </div>
+            </div>
+          ) : messages.map((message) => {
             const isOwnMessage = message.userId === currentUser.id;
             const isAnnouncement = message.type === 'announcement';
             const isMention = message.type === 'mention';
@@ -495,12 +561,12 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                 className={cn(
                   "group flex gap-2.5 mb-4 transition-colors",
                   isOwnMessage ? "flex-row-reverse" : "flex-row",
-                  isAnnouncement && "bg-amber-50/60 px-3 py-2 mx-0 rounded"
+                  isAnnouncement && "bg-amber-50/60 dark:bg-amber-950/30 px-3 py-2 mx-0 rounded"
                 )}
               >
                 <Avatar className="w-8 h-8 shrink-0">
                   <AvatarImage src={message.userAvatar} />
-                  <AvatarFallback className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                  <AvatarFallback className="text-xs bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400">
                     {message.userName[0]}
                   </AvatarFallback>
                 </Avatar>
@@ -535,7 +601,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                     </span>
 
                     {isAnnouncement && (
-                      <span className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 rounded flex items-center gap-1">
+                      <span className="text-xs text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900 px-2 py-0.5 rounded flex items-center gap-1">
                         <Megaphone className="w-3 h-3" />
                         公告
                       </span>
@@ -546,10 +612,10 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                   <div className={cn(
                     "rounded-lg inline-block overflow-hidden",
                     isOwnMessage
-                      ? "bg-black dark:bg-gray-700 text-white"
-                      : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700",
-                    isMention && !isOwnMessage && "bg-blue-50/80 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700",
-                    isAnnouncement && "bg-amber-100 dark:bg-amber-900/50 border-amber-200 dark:border-amber-700 text-amber-900 dark:text-amber-200"
+                      ? "bg-black dark:bg-zinc-800 text-white dark:text-gray-100"
+                      : "bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700",
+                    isMention && !isOwnMessage && "bg-blue-50/80 dark:bg-blue-950/50 border-blue-200 dark:border-blue-900",
+                    isAnnouncement && "bg-amber-100 dark:bg-amber-900 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200"
                   )}>
                     {/* 回复信息 */}
                     {message.replyTo && (
@@ -557,8 +623,8 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                         <div className={cn(
                           "text-xs px-3 py-2",
                           isOwnMessage
-                            ? "bg-gray-800 dark:bg-gray-600 text-gray-300"
-                            : "bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                            ? "bg-gray-800 dark:bg-zinc-900 text-gray-300 dark:text-gray-400"
+                            : "bg-gray-50 dark:bg-zinc-900 text-gray-600 dark:text-gray-400"
                         )}>
                           <div className="truncate">
                             <span className="font-medium">{message.replyTo.userName}</span>
@@ -568,7 +634,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                         {/* 分隔线 */}
                         <div className={cn(
                           "h-px",
-                          isOwnMessage ? "bg-gray-700 dark:bg-gray-500" : "bg-gray-200 dark:bg-gray-600"
+                          isOwnMessage ? "bg-gray-700 dark:bg-zinc-700" : "bg-gray-200 dark:bg-zinc-700"
                         )} />
                       </>
                     )}
@@ -576,7 +642,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                     {/* 消息内容 */}
                     <div className={cn(
                       "text-sm leading-relaxed px-3 py-2.5",
-                      isOwnMessage ? "text-white" : "text-gray-700 dark:text-gray-200",
+                      isOwnMessage ? "text-white dark:text-gray-100" : "text-gray-700 dark:text-gray-300",
                       isAnnouncement && "text-amber-900 dark:text-amber-200"
                     )}>
                       {message.content}
@@ -633,14 +699,14 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
       </ScrollArea>
 
       {/* 输入区域 */}
-      <div className="p-3 border-t border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900">
+      <div className="p-3 border-t border-gray-100 dark:border-zinc-800 bg-white dark:bg-zinc-900">
         <div className="space-y-2">
           <div className="flex gap-1">
             <button
               ref={mentionButtonRef}
               onClick={toggleMentionMenu}
               disabled={channel.status === 'locked'}
-              className="p-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 rounded text-gray-500 dark:text-gray-400 disabled:opacity-30"
+              className="p-1.5 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded text-gray-500 dark:text-gray-400 disabled:opacity-30"
             >
               <AtSign className="w-4 h-4" />
             </button>
@@ -648,7 +714,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
             <button
               ref={emojiButtonRef}
               onClick={toggleEmojiPicker}
-              className="p-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 rounded text-gray-500 dark:text-gray-400"
+              className="p-1.5 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded text-gray-500 dark:text-gray-400"
             >
               <Smile className="w-4 h-4" />
             </button>
@@ -657,7 +723,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
               <button
                 onClick={() => handleSend('announcement')}
                 disabled={!messageInput.trim() || channel.status === 'locked'}
-                className="text-xs px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded text-gray-600 dark:text-gray-400 disabled:opacity-30"
+                className="text-xs px-2 py-1 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded text-gray-600 dark:text-gray-400 disabled:opacity-30"
               >
                 发布公告
               </button>
@@ -666,7 +732,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
 
           {/* 回复预览 */}
           {replyingTo && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/30 border-l-2 border-blue-500 dark:border-blue-400">
+            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-950 border-l-2 border-blue-500 dark:border-blue-600">
               <Reply className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
@@ -678,7 +744,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
               </div>
               <button
                 onClick={() => setReplyingTo(null)}
-                className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800 rounded text-blue-600 dark:text-blue-400"
+                className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900 rounded text-blue-600 dark:text-blue-400"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -692,20 +758,24 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
               onChange={(e) => setMessageInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
-                channel.status === 'locked'
-                  ? '频道已折叠'
-                  : replyingTo
-                    ? `回复 ${replyingTo.userName}...`
-                    : '输入消息...'
+                isMuted
+                  ? `您已被禁言，剩余 ${muteTimeRemaining}`
+                  : !canAccess
+                    ? '需要满足进入要求才能发送消息'
+                    : channel.status === 'locked'
+                      ? '频道已折叠'
+                      : replyingTo
+                        ? `回复 ${replyingTo.userName}...`
+                        : '输入消息...'
               }
-              className="flex-1 min-h-[60px] resize-none text-xs border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 focus:border-gray-300 dark:focus:border-gray-500"
-              disabled={channel.status === 'locked'}
+              className="flex-1 min-h-[60px] resize-none text-xs border-gray-200 dark:border-zinc-700 focus:border-gray-300 dark:focus:border-zinc-600 dark:bg-zinc-800 dark:text-gray-100 dark:placeholder:text-gray-500"
+              disabled={isMuted || !canAccess || channel.status === 'locked'}
             />
 
             <button
               onClick={() => handleSend()}
-              disabled={!messageInput.trim() || channel.status === 'locked'}
-              className="self-end px-3 py-2 bg-black dark:bg-white text-white dark:text-black rounded hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
+              disabled={isMuted || !canAccess || !messageInput.trim() || channel.status === 'locked'}
+              className="self-end px-3 py-2 bg-black dark:bg-zinc-700 text-white rounded hover:bg-gray-800 dark:hover:bg-zinc-600 disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <Send className="w-3.5 h-3.5" />
             </button>
@@ -723,13 +793,13 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
           />
           {/* 表情窗口 */}
           <div
-            className="fixed bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl emoji-picker z-50 w-80"
+            className="fixed bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-lg shadow-xl emoji-picker z-50 w-80"
             style={{
               left: `${emojiPickerPosition.x}px`,
               top: `${emojiPickerPosition.y}px`
             }}
           >
-            <div className="p-3 border-b border-gray-100 dark:border-gray-700">
+            <div className="p-3 border-b border-gray-100 dark:border-zinc-800">
               <h4 className="text-xs text-gray-600 dark:text-gray-400">常用表情</h4>
             </div>
             <div className="grid grid-cols-8 gap-1 p-3 max-h-64 overflow-y-auto">
@@ -737,7 +807,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                 <button
                   key={index}
                   onClick={() => insertEmoji(emoji)}
-                  className="text-2xl p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors"
+                  className="text-2xl p-2 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded transition-colors"
                   title={emoji}
                 >
                   {emoji}
@@ -758,14 +828,14 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
           />
           {/* 成员菜单 */}
           <div
-            className="fixed bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl mention-menu z-50 w-64"
+            className="fixed bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-lg shadow-xl mention-menu z-50 w-64"
             style={{
               left: `${mentionMenuPosition.x}px`,
               top: `${mentionMenuPosition.y}px`,
               transform: 'translateY(-100%)'
             }}
           >
-            <div className="p-2 border-b border-gray-100 dark:border-gray-700">
+            <div className="p-2 border-b border-gray-100 dark:border-zinc-800">
               <h4 className="text-xs text-gray-600 dark:text-gray-400 px-2">选择要 @ 的成员</h4>
             </div>
             <div className="max-h-64 overflow-y-auto">
@@ -775,12 +845,12 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                   insertMention('全体成员');
                   setShowMentionMenu(false);
                 }}
-                className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 dark:text-gray-200"
+                className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-zinc-800 flex items-center gap-2"
               >
                 <div className="w-6 h-6 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-xs">
                   全
                 </div>
-                <span className="font-medium">全体成员</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">全体成员</span>
               </button>
 
               {/* 成员列表 */}
@@ -791,7 +861,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                     insertMention(member.username);
                     setShowMentionMenu(false);
                   }}
-                  className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 dark:text-gray-200"
+                  className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-zinc-800 flex items-center gap-2"
                 >
                   <Avatar className="w-6 h-6 shrink-0">
                     <AvatarImage src={member.avatar} />
@@ -799,9 +869,9 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                       {member.username[0]?.toUpperCase() || 'U'}
                     </AvatarFallback>
                   </Avatar>
-                  <span>{member.username}</span>
+                  <span className="text-gray-900 dark:text-gray-100">{member.username}</span>
                   {member.role === 'owner' && (
-                    <span className="text-xs text-yellow-600">👑</span>
+                    <span className="text-xs text-yellow-600 dark:text-yellow-500">👑</span>
                   )}
                 </button>
               ))}
@@ -818,7 +888,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
             onClick={() => setContextMenu(null)}
           />
           <div
-            className="fixed bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 py-1 min-w-[140px]"
+            className="fixed bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-lg shadow-xl z-50 py-1 min-w-[140px]"
             style={{
               left: `${contextMenu.x}px`,
               top: `${contextMenu.y}px`
@@ -827,31 +897,29 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
             {(() => {
               const message = messages.find(m => m.id === contextMenu.messageId);
               const isOwnMessage = message?.userId === currentUser.id;
+              const isCreator = currentUser.isCreator || false;
 
-              // 计算时间差
+              // 计算撤回权限
               let canRecall = false;
-              if (message?.timestamp) {
+
+              // 创建者可以撤回所有人的消息,无视时间限制
+              if (isCreator) {
+                canRecall = true;
+              }
+              // 普通用户只能撤回自己5分钟内的消息
+              else if (message?.timestamp && isOwnMessage) {
                 const messageTime = message.timestamp instanceof Date
                   ? message.timestamp.getTime()
                   : new Date(message.timestamp).getTime();
                 const now = Date.now();
                 const timeDiff = now - messageTime;
-                canRecall = isOwnMessage && timeDiff < 5 * 60 * 1000 && timeDiff >= 0; // 5分钟内
-
-                // 调试信息
-                console.log('撤回检查:', {
-                  messageTime: new Date(messageTime).toLocaleString(),
-                  now: new Date(now).toLocaleString(),
-                  timeDiff: Math.floor(timeDiff / 1000) + '秒',
-                  canRecall,
-                  isOwnMessage
-                });
+                canRecall = timeDiff < 5 * 60 * 1000 && timeDiff >= 0; // 5分钟内
               }
 
               return (
                 <>
                   <button
-                    className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 dark:text-gray-200"
+                    className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-zinc-800 flex items-center gap-2 text-gray-900 dark:text-gray-100"
                     onClick={() => {
                       if (message) {
                         setReplyingTo(message);
@@ -866,7 +934,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
 
                   {canRecall && (
                     <button
-                      className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400"
+                      className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-zinc-800 flex items-center gap-2 text-orange-600 dark:text-orange-500"
                       onClick={() => {
                         if (window.confirm('确定要撤回这条消息吗？')) {
                           handleRecallMessage(contextMenu.messageId);
@@ -881,7 +949,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
 
                   {!isOwnMessage && (
                     <button
-                      className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400"
+                      className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-zinc-800 flex items-center gap-2 text-red-600 dark:text-red-500"
                       onClick={() => {
                         setReportingMessageId(contextMenu.messageId);
                         setShowReportDialog(true);
@@ -904,29 +972,29 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
         <>
           {/* 遮罩层 */}
           <div
-            className="fixed inset-0 bg-black/20 z-40"
+            className="fixed inset-0 bg-black/20 dark:bg-black/40 z-40"
             onClick={() => setShowSidebar(false)}
           />
 
           {/* 侧边栏 */}
-          <div className="fixed right-0 top-0 bottom-0 w-80 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 z-50 flex flex-col shadow-2xl">
+          <div className="fixed right-0 top-0 bottom-0 w-80 bg-white dark:bg-zinc-900 border-l border-gray-200 dark:border-zinc-800 z-50 flex flex-col shadow-2xl">
             {/* 关闭按钮 */}
             <button
               onClick={() => setShowSidebar(false)}
-              className="absolute top-3 right-3 p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+              className="absolute top-3 right-3 p-1 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded"
             >
               <X className="w-4 h-4 text-gray-400 dark:text-gray-500" />
             </button>
 
             {/* 作品信息 */}
             {channel.type === 'work' && (
-              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+              <div className="p-4 border-b border-gray-100 dark:border-zinc-800">
                 <div className="flex gap-3">
-                  <div className="w-16 h-22 bg-gray-100 dark:bg-gray-800 rounded flex-shrink-0 flex items-center justify-center">
+                  <div className="w-16 h-22 bg-gray-100 dark:bg-zinc-800 rounded flex-shrink-0 flex items-center justify-center">
                     <span className="text-xs text-gray-400 dark:text-gray-500">封面</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-sm mb-1 truncate dark:text-gray-100">{channel.bookTitle || channel.name}</h3>
+                    <h3 className="text-sm mb-1 truncate text-gray-900 dark:text-gray-100">{channel.bookTitle || channel.name}</h3>
                     <p className="text-xs text-gray-500 dark:text-gray-400">作者:{channel.author || '佚名'}</p>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">收藏 {channel.collectCount || 0}</p>
                   </div>
@@ -936,8 +1004,8 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
 
             {/* 频道信息 */}
             {channel.type !== 'work' && (
-              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                <h3 className="text-sm mb-2 dark:text-gray-100">{channel.name}</h3>
+              <div className="p-4 border-b border-gray-100 dark:border-zinc-800">
+                <h3 className="text-sm mb-2 text-gray-900 dark:text-gray-100">{channel.name}</h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400">{channel.description || '暂无描述'}</p>
               </div>
             )}
@@ -947,19 +1015,30 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
               <div className="p-4">
                 <h4 className="text-xs text-gray-500 dark:text-gray-400 mb-3">频道管理</h4>
                 <div className="space-y-1">
-                  {/* 粉丝群 - 创作者专属 */}
-                  {currentUser.isCreator && channel.type === 'fangroup' && (
+                  {/* 公告列表 - 所有人都可以查看 */}
+                  {(channel.type === 'fangroup' || channel.type === 'official') && (
+                    <button
+                      onClick={() => setShowAnnouncementList(true)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-zinc-800 rounded text-gray-900 dark:text-gray-100"
+                    >
+                      <Megaphone className="w-3.5 h-3.5" />
+                      公告列表
+                    </button>
+                  )}
+
+                  {/* 粉丝群和官方频道 - 创作者专属 */}
+                  {currentUser.isCreator && (channel.type === 'fangroup' || channel.type === 'official') && (
                     <>
                       <button
                         onClick={() => setShowMemberDialog(true)}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-800 rounded dark:text-gray-200"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-zinc-800 rounded text-gray-900 dark:text-gray-100"
                       >
                         <Users className="w-3.5 h-3.5" />
                         管理成员
                       </button>
                       <button
                         onClick={onLeaveChannel}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 dark:hover:bg-red-950 rounded text-red-600 dark:text-red-500"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         解散频道
@@ -971,7 +1050,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                   {!currentUser.isCreator && channel.type === 'fangroup' && (
                     <button
                       onClick={onLeaveChannel}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 dark:hover:bg-red-950 rounded text-red-600 dark:text-red-500"
                     >
                       <X className="w-3.5 h-3.5" />
                       退出频道
@@ -982,7 +1061,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                   {channel.type === 'work' && (
                     <button
                       onClick={onLeaveChannel}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 dark:hover:bg-red-950 rounded text-red-600 dark:text-red-500"
                     >
                       <X className="w-3.5 h-3.5" />
                       退出频道
@@ -1010,6 +1089,15 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
         isCreator={currentUser.isCreator || false}
       />
 
+      {/* 公告列表对话框 */}
+      {showAnnouncementList && (
+        <AnnouncementListDialog
+          channelId={channel.id}
+          channelName={channel.name}
+          onClose={() => setShowAnnouncementList(false)}
+        />
+      )}
+
       {/* 举报对话框 */}
       <ReportMessageDialog
         isOpen={showReportDialog}
@@ -1026,7 +1114,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
         <>
           {/* 遮罩层 */}
           <div
-            className="fixed inset-0 bg-black/40 z-50"
+            className="fixed inset-0 bg-black/40 dark:bg-black/60 z-50"
             onClick={() => {
               setShowSearchDialog(false);
               setSearchKeyword('');
@@ -1035,24 +1123,24 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
           />
 
           {/* 搜索弹窗 */}
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] max-h-[700px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl z-50 flex flex-col">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] max-h-[700px] bg-white dark:bg-zinc-900 rounded-lg shadow-2xl z-50 flex flex-col">
             {/* 头部 */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-base font-medium dark:text-gray-100">搜索消息</h3>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-zinc-800">
+              <h3 className="text-base font-medium text-gray-900 dark:text-gray-100">搜索消息</h3>
               <button
                 onClick={() => {
                   setShowSearchDialog(false);
                   setSearchKeyword('');
                   setSearchResults([]);
                 }}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                className="p-1 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded"
               >
                 <X className="w-4 h-4 text-gray-400 dark:text-gray-500" />
               </button>
             </div>
 
             {/* 搜索框 */}
-            <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+            <div className="p-4 border-b border-gray-100 dark:border-zinc-800">
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
@@ -1066,14 +1154,14 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                         handleSearch();
                       }
                     }}
-                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-gray-400 dark:focus:border-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-zinc-700 rounded focus:outline-none focus:border-gray-400 dark:focus:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
                     autoFocus
                   />
                 </div>
                 <button
                   onClick={handleSearch}
                   disabled={!searchKeyword.trim() || isSearching}
-                  className="px-4 py-2 text-sm bg-black dark:bg-white text-white dark:text-black rounded hover:bg-gray-800 dark:hover:bg-gray-200 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
+                  className="px-4 py-2 text-sm bg-black dark:bg-zinc-700 text-white rounded hover:bg-gray-800 dark:hover:bg-zinc-600 disabled:bg-gray-300 dark:disabled:bg-zinc-800 disabled:cursor-not-allowed transition-colors"
                 >
                   {isSearching ? '搜索中...' : '搜索'}
                 </button>
@@ -1105,18 +1193,18 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                         setSearchKeyword('');
                         setSearchResults([]);
                       }}
-                      className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                      className="p-3 border border-gray-200 dark:border-zinc-700 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
                     >
                       <div className="flex items-start gap-2 mb-2">
                         <Avatar className="w-6 h-6">
                           <AvatarImage src={message.userAvatar} />
-                          <AvatarFallback className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                          <AvatarFallback className="text-xs bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400">
                             {message.userName[0]}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium dark:text-gray-100">{message.userName}</span>
+                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{message.userName}</span>
                             {message.userTitle && (
                               <span
                                 className="text-xs px-1.5 py-0.5 rounded"

@@ -56,7 +56,10 @@
       "Bash(do taskkill //F //PID $pid)",
       "Bash(done)",
       "Bash(start //B venv\\Scripts\\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload)",
-      "Bash(venvScriptspython.exe -m alembic revision -m \"add_channel_read_states_and_mentions\")"
+      "Bash(venvScriptspython.exe -m alembic revision -m \"add_channel_read_states_and_mentions\")",
+      "Bash(ping:*)",
+      "Bash(C:/Users/Administrator/Desktop/ai-writer/venv/Scripts/python.exe -m alembic:*)",
+      "Bash(C:/Users/Administrator/Desktop/ai-writer/venv/Scripts/alembic.exe heads:*)"
     ],
     "deny": [],
     "ask": []
