@@ -13,6 +13,7 @@ import logging
 
 from .base_action import BaseAction, ActionResult, ActionStatus
 from .action_registry import register_action
+from app.services.agent.prompts.format_guidelines import get_format_guidelines
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,7 @@ class AnalysisAction(BaseAction):
         Returns:
             str: 系统Prompt
         """
-        return f"""你是专业的文本分析Agent。
+        base_prompt = f"""你是专业的文本分析Agent。
 
 【核心能力】
 - 文本质量分析（语言表达、修辞手法、文字功底）
@@ -173,6 +174,10 @@ class AnalysisAction(BaseAction):
   ❌ 错误：直接给出"你的眼睛是深邃的星辰"等通用润色，完全不考虑章节内容
 
 帮助用户分析文本质量、逻辑、风格等。根据需要调用工具。"""
+
+        # 添加格式指导
+        format_guidelines = get_format_guidelines(lite=True)
+        return f"{base_prompt}\n\n{format_guidelines}"
 
 
 # 导出

@@ -13,6 +13,7 @@ import logging
 
 from .base_action import BaseAction, ActionResult, ActionStatus
 from .action_registry import register_action
+from app.services.agent.prompts.format_guidelines import get_format_guidelines
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,7 @@ class StuckAction(BaseAction):
         Returns:
             str: 系统Prompt
         """
-        return f"""你是专业的写作指导Agent，擅长帮助作者突破创作瓶颈。
+        base_prompt = f"""你是专业的写作指导Agent，擅长帮助作者突破创作瓶颈。
 
 【核心能力】
 - 诊断卡文原因（情节、角色、节奏、逻辑）
@@ -170,6 +171,10 @@ class StuckAction(BaseAction):
 - 给予鼓励和信心
 
 帮助卡文的用户突破瓶颈，提供多个创作方向建议。根据需要调用工具。"""
+
+        # 添加格式指导
+        format_guidelines = get_format_guidelines(lite=True)
+        return f"{base_prompt}\n\n{format_guidelines}"
 
 
 # 导出

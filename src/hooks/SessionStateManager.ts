@@ -9,7 +9,7 @@
  * - 后台会话自动保存到localStorage
  */
 
-import type { Message, ActivityItem, ProgressData } from '@/types/agent';
+import type { Message, ActivityItem, ProgressData, FlowItem } from '@/types/agent';
 
 // 任务接口
 interface Task {
@@ -29,6 +29,7 @@ export interface SessionState {
   messages: Message[];
   activities: ActivityItem[];
   tasks: Task[];
+  flowItems: FlowItem[];  // v5.0: 执行轨迹项
   progressData: ProgressData | null;
   isLoading: boolean;
   error: string | null;
@@ -71,6 +72,7 @@ export class SessionStateManager {
       messages: initialData?.messages || [],
       activities: initialData?.activities || [],
       tasks: initialData?.tasks || [],
+      flowItems: initialData?.flowItems || [],  // v5.0: 执行轨迹项
       progressData: initialData?.progressData || null,
       isLoading: false,
       error: null,

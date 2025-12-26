@@ -14,6 +14,7 @@ from langchain_core.messages import AIMessage
 
 from .base_action import BaseAction, ActionResult, ActionStatus
 from .action_registry import register_action
+from app.services.agent.prompts.format_guidelines import get_format_guidelines
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +123,7 @@ class GeneralChatAction(BaseAction):
         Returns:
             str: 系统Prompt
         """
-        return """你是强大的AI写作助手，可以**直接修改编辑器内容**，也可以提供建议和分析。
+        base_prompt = """你是强大的AI写作助手，可以**直接修改编辑器内容**，也可以提供建议和分析。
 
 【核心规则 - 必须遵守】
 1. 当用户要求"修改"、"改写"、"续写"章节内容时，**必须调用编辑器工具**，不要只是分析或给建议
@@ -156,6 +157,10 @@ class GeneralChatAction(BaseAction):
 - 工具调用前会自动征求用户确认，所以放心使用
 - 不要害怕调用工具，这是你的核心能力
 - 保持简洁，不要啰嗦"""
+
+        # 添加格式指导
+        format_guidelines = get_format_guidelines(lite=True)
+        return f"{base_prompt}\n\n{format_guidelines}"
 
 
 # 导出

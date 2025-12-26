@@ -9,11 +9,13 @@ import type { AgentChatRequest } from '../../types/agent';
 import type { AgentMode } from '../agent/ModeSelector';
 import ModeSelector from '../agent/ModeSelector';
 import ActivityStream from '../agent/ActivityStream';  // ✅ 导入ActivityStream
+import { ExecutionFlow } from '../agent/ExecutionFlow';  // ✅ v5.0: 执行轨迹可视化
 import AgentEditConfirmDialog from '../agent/AgentEditConfirmDialog';  // ✅ 导入确认对话框
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';  // ✅ 支持 GFM 表格
 import { knowledgeApi } from '@/services/knowledgeApi';
 
 interface AIPanelProps {
@@ -30,6 +32,7 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
   return (
     <div className="text-[14px] leading-relaxed markdown-content">
       <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
         components={{
           // 代码块
@@ -170,6 +173,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     tasks,
     currentTaskId,
     activities,
+    flowItems,  // v5.0: 执行轨迹项
     sendMessageStream,
     stopStreaming,
     pendingApproval,
@@ -879,10 +883,12 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   const lastMessageIsAgent = messages.length > 0 && messages[messages.length - 1]?.role === 'agent';
   // ✅ 流式输出：后端逐字发送，前端直接显示 message.content
   const hasStreamingAgentMessage = isLoading && lastMessageIsAgent;
-  // ✅ 直接使用最后一条 agent 消息的 content，无需打字机队列
-  const streamingVisibleContent = hasStreamingAgentMessage
-    ? (messages[messages.length - 1]?.content || '')
-    : '';
+  // ✅ 获取最后一条 agent 消息的内容（用于 Agent 响应块）
+  // 条件：正在 streaming 或 有执行轨迹时，都需要显示最后一条消息内容
+  const lastAgentContent = lastMessageIsAgent ? (messages[messages.length - 1]?.content || '') : '';
+  // v5.1: 从当前消息获取 flowItems
+  const lastAgentFlowItems = lastMessageIsAgent ? ((messages[messages.length - 1] as any)?.flowItems || []) : [];
+  const shouldShowAgentContent = (hasStreamingAgentMessage || lastAgentFlowItems.length > 0) && lastAgentContent;
 
   return (
     <div className="p-3 h-full flex flex-col overflow-hidden dark:bg-slate-900">
@@ -913,15 +919,21 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
           // 判断是否是最后一条消息
           const isLastMessage = index === messages.length - 1;
-          // 判断这条消息是否是正在streaming的agent消息
-          const isStreamingMessage = isLastMessage && message.role === 'agent' && hasStreamingAgentMessage;
+          // v5.1: 获取当前消息的 flowItems
+          const messageFlowItems = (message as any).flowItems || [];
+          // v5.1 修复: 最后一条 agent 消息如果正在流式传输或有执行轨迹，在 Agent 响应块中渲染
+          // 这样可以避免同一消息在两处重复渲染
+          const shouldRenderInAgentBlock = isLastMessage && message.role === 'agent' &&
+            (hasStreamingAgentMessage || messageFlowItems.length > 0);
 
-          // 如果是正在streaming的消息，先不渲染它，等渲染完todolist后再渲染
-          if (isStreamingMessage) {
+          // 如果应该在 Agent 响应块中渲染，先不在这里渲染
+          if (shouldRenderInAgentBlock) {
             return null;
           }
 
           const isUser = message.role === 'user';
+          // messageFlowItems 已在上面定义
+
           return (
             <div key={index} className={`flex items-start gap-2 ${isUser ? 'justify-end' : ''}`}>
               {!isUser && (
@@ -944,6 +956,10 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                     </p>
                   ) : (
                     <div className="text-zinc-500 dark:text-slate-300">
+                      {/* v5.1: 显示该消息的执行轨迹 */}
+                      {messageFlowItems.length > 0 && (
+                        <ExecutionFlow items={messageFlowItems} />
+                      )}
                       <MarkdownContent content={message.content} />
                     </div>
                   )}
@@ -991,110 +1007,121 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
           );
         })}
 
-        {/* Agent模式（DeepAgent反思）活动流 - 显示在所有历史消息之后，streaming消息之前 */}
-        {mode === 'agent' && activities.length > 0 && (
-          <div className="flex items-start gap-2">
-            <div className="h-6 w-6 rounded-full bg-zinc-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-              <Bot className="h-3.5 w-3.5 text-white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <ActivityStream
-                key={`activities-${activities.length}`}
-                activities={activities}
-              />
-            </div>
-          </div>
-        )}
+        {/* Agent 响应块 - 单一头像，包含执行轨迹、任务进度、流式内容 */}
+        {(() => {
+          // v5.1: 从当前流式消息中获取 flowItems
+          const lastMessage = messages[messages.length - 1];
+          const currentFlowItems = (lastMessage?.role === 'agent' ? (lastMessage as any).flowItems : []) || [];
 
-        {/* 任务执行进度（todolist）- 显示在所有历史消息之后，streaming消息之前 */}
-        {isLoading && tasks.length > 0 && !streamingVisibleContent && (
-          <div className="flex items-start gap-2 mt-8">
-            <div className="h-6 w-6 rounded-full bg-zinc-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-              <Bot className="h-3.5 w-3.5 text-white" />
-            </div>
-            <div className="flex-1 space-y-3 will-change-contents">
-              {/* 标题与进度 */}
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-zinc-400 dark:text-slate-500">执行中</span>
-                <div className="flex-1 h-px bg-zinc-200 dark:bg-slate-700"></div>
-                <span className="text-[10px] text-zinc-300 dark:text-slate-500 font-mono">
-                  {tasks.filter(t => t.status === 'completed').length}/{tasks.length}
-                </span>
+          // 判断是否有 Agent 响应内容需要显示
+          const hasActivityStream = mode === 'agent' && activities.length > 0;
+          const hasExecutionFlow = currentFlowItems.length > 0;
+          const hasTaskProgress = isLoading && tasks.length > 0 && !lastAgentContent;
+          const hasThinking = isLoading && tasks.length === 0 && !lastAgentContent && currentFlowItems.length === 0;
+
+          const hasAgentResponse = hasActivityStream || hasExecutionFlow || hasTaskProgress || hasThinking || shouldShowAgentContent;
+
+          if (!hasAgentResponse) return null;
+
+          return (
+            <div className="flex items-start gap-2 mt-4">
+              {/* 单一 Bot 头像 */}
+              <div className="h-6 w-6 rounded-full bg-zinc-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                <Bot className="h-3.5 w-3.5 text-white" />
               </div>
 
-              {/* 步骤列表 */}
-              <div className="space-y-2">
-                {tasks.map((task) => (
-                  <div
-                    key={task.task_id}
-                    className="flex items-start gap-2.5 transition-opacity duration-200 ease-in-out"
-                    style={{ opacity: 1 }}
-                  >
-                    {/* 状态指示器 */}
-                    {task.status === 'completed' ? (
-                      <div className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-slate-500 flex-shrink-0 mt-1.5 transition-all duration-300"></div>
-                    ) : task.status === 'running' ? (
-                      <div className="relative flex-shrink-0 mt-1.5 w-3 h-3 flex items-center justify-center outline-none">
-                        <div className="h-1 w-1 rounded-full bg-zinc-900 dark:bg-blue-400 relative z-10 animate-pulse outline-none"></div>
-                      </div>
-                    ) : (
-                      <div className="h-1 w-1 rounded-full bg-zinc-200 dark:bg-slate-600 flex-shrink-0 mt-1.5 transition-all duration-300"></div>
-                    )}
+              <div className="flex-1 space-y-4">
+                {/* 1. ActivityStream（Agent模式活动流） */}
+                {hasActivityStream && (
+                  <div className="min-w-0">
+                    <ActivityStream
+                      key={`activities-${activities.length}`}
+                      activities={activities}
+                    />
+                  </div>
+                )}
 
-                    <div className="flex-1 min-w-0 flex items-baseline justify-between gap-2">
-                      <p className={`text-[11px] leading-relaxed transition-colors duration-200 outline-none ${
-                        task.status === 'running' ? 'text-zinc-700 dark:text-slate-200 animate-pulse' : 'text-zinc-400 dark:text-slate-500'
-                      }`}>
-                        {task.description}
-                      </p>
-                      {task.status === 'completed' && task.elapsed_time !== undefined && (
-                        <span className="text-[10px] text-zinc-300 dark:text-slate-500 font-mono flex-shrink-0 animate-[fadeIn_0.3s_ease-in]">
-                          {task.elapsed_time.toFixed(1)}s
-                        </span>
-                      )}
+                {/* 2. ExecutionFlow（执行轨迹可视化）- v5.1: 使用当前消息的 flowItems */}
+                {hasExecutionFlow && (
+                  <ExecutionFlow items={currentFlowItems} />
+                )}
+
+                {/* 3. 任务执行进度（todolist） */}
+                {hasTaskProgress && (
+                  <div className="space-y-3 will-change-contents">
+                    {/* 标题与进度 */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-zinc-400 dark:text-slate-500">执行中</span>
+                      <div className="flex-1 h-px bg-zinc-200 dark:bg-slate-700"></div>
+                      <span className="text-[10px] text-zinc-300 dark:text-slate-500 font-mono">
+                        {tasks.filter(t => t.status === 'completed').length}/{tasks.length}
+                      </span>
+                    </div>
+
+                    {/* 步骤列表 */}
+                    <div className="space-y-2">
+                      {tasks.map((task) => (
+                        <div
+                          key={task.task_id}
+                          className="flex items-start gap-2.5 transition-opacity duration-200 ease-in-out"
+                          style={{ opacity: 1 }}
+                        >
+                          {/* 状态指示器 */}
+                          {task.status === 'completed' ? (
+                            <div className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-slate-500 flex-shrink-0 mt-1.5 transition-all duration-300"></div>
+                          ) : task.status === 'running' ? (
+                            <div className="relative flex-shrink-0 mt-1.5 w-3 h-3 flex items-center justify-center outline-none">
+                              <div className="h-1 w-1 rounded-full bg-zinc-900 dark:bg-blue-400 relative z-10 animate-pulse outline-none"></div>
+                            </div>
+                          ) : (
+                            <div className="h-1 w-1 rounded-full bg-zinc-200 dark:bg-slate-600 flex-shrink-0 mt-1.5 transition-all duration-300"></div>
+                          )}
+
+                          <div className="flex-1 min-w-0 flex items-baseline justify-between gap-2">
+                            <p className={`text-[11px] leading-relaxed transition-colors duration-200 outline-none ${
+                              task.status === 'running' ? 'text-zinc-700 dark:text-slate-200 animate-pulse' : 'text-zinc-400 dark:text-slate-500'
+                            }`}>
+                              {task.description}
+                            </p>
+                            {task.status === 'completed' && task.elapsed_time !== undefined && (
+                              <span className="text-[10px] text-zinc-300 dark:text-slate-500 font-mono flex-shrink-0 animate-[fadeIn_0.3s_ease-in]">
+                                {task.elapsed_time.toFixed(1)}s
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* 进度条 */}
+                    <div className="relative h-px bg-zinc-100 dark:bg-slate-700 overflow-hidden">
+                      <div
+                        className="absolute left-0 top-0 h-full bg-zinc-400 dark:bg-blue-500 transition-all duration-500 ease-out"
+                        style={{ width: `${(tasks.filter(t => t.status === 'completed').length / tasks.length) * 100}%` }}
+                      ></div>
                     </div>
                   </div>
-                ))}
-              </div>
+                )}
 
-              {/* 进度条 */}
-              <div className="relative h-px bg-zinc-100 dark:bg-slate-700 overflow-hidden">
-                <div
-                  className="absolute left-0 top-0 h-full bg-zinc-400 dark:bg-blue-500 transition-all duration-500 ease-out"
-                  style={{ width: `${(tasks.filter(t => t.status === 'completed').length / tasks.length) * 100}%` }}
-                ></div>
-              </div>
-            </div>
-          </div>
-        )}
+                {/* 4. Thinking 状态 */}
+                {hasThinking && (
+                  <span className="text-[12px] text-zinc-400 dark:text-slate-400 animate-[pulse_2s_ease-in-out_infinite] outline-none">
+                    Thinking...
+                  </span>
+                )}
 
-        {/* 正在streaming的agent消息 - 显示在todolist之后 */}
-        {hasStreamingAgentMessage && streamingVisibleContent && (
-          <div className="flex items-start gap-2">
-            <div className="h-6 w-6 rounded-full bg-zinc-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-4">
-              <Bot className="h-3.5 w-3.5 text-white" />
-            </div>
-            <div className="flex-1 max-w-[95%] mt-8">
-              <div className="text-zinc-500 dark:text-slate-300">
-                <MarkdownContent content={streamingVisibleContent} />
+                {/* 5. Agent 输出内容（流式或已完成） */}
+                {shouldShowAgentContent && (
+                  <div className="max-w-[95%]">
+                    <div className="text-zinc-500 dark:text-slate-300">
+                      <MarkdownContent content={lastAgentContent} />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        )}
-
-        {/* 思考状态（无任务时） */}
-        {isLoading && tasks.length === 0 && !streamingVisibleContent && (
-          <div className="flex items-start gap-2 mt-8">
-            <div className="h-6 w-6 rounded-full bg-zinc-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-              <Bot className="h-3.5 w-3.5 text-white" />
-            </div>
-            <div className="flex-1">
-              <span className="text-[12px] text-zinc-400 dark:text-slate-400 animate-[pulse_2s_ease-in-out_infinite] outline-none">
-                Thinking...
-              </span>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* 错误提示 */}
         {error && (

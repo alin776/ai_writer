@@ -4,7 +4,7 @@ import { agentApi } from '@/services/agentApi';
 import { useConversationPersistence } from './useConversationPersistence';
 import { getGlobalSessionManager } from '@/contexts/SessionContext';
 import type { SessionState } from './SessionStateManager';
-import type { AgentChatRequest, AgentChatResponse, ActivityItem, ProgressData } from '@/types/agent';
+import type { AgentChatRequest, AgentChatResponse, ActivityItem, ProgressData, FlowItem, ToolFlowData } from '@/types/agent';
 
 interface Message {
   role: 'user' | 'agent';
@@ -12,6 +12,7 @@ interface Message {
   agentSteps?: any[];
   metadata?: any;
   timestamp: string;
+  flowItems?: FlowItem[];  // v5.1: 执行轨迹绑定到消息
 }
 
 interface Task {
@@ -67,6 +68,7 @@ interface UseAgentChatReturn {
   currentTaskId: number | null;
   activities: ActivityItem[];
   progressData: ProgressData | null;
+  flowItems: FlowItem[];  // v5.0: 执行轨迹项
   sendMessage: (request: AgentChatRequest) => Promise<AgentChatResponse | null>;
   sendMessageStream: (request: AgentChatRequest) => Promise<void>;
   clearMessages: () => void;
@@ -97,6 +99,9 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
   const typewriterQueueRef = useRef<string[]>([]);
   const typewriterTimerRef = useRef<number | null>(null);
   const TYPEWRITER_SPEED = 10; // 每个字符显示间隔（毫秒），10ms约100字/秒
+
+  // ✅ 最小显示时间：跟踪 pending 的 setTimeout，以便清理
+  const pendingTaskTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
 
   const persistence = useConversationPersistence({
     sessionId: externalSessionId,
@@ -281,7 +286,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           role: 'agent',
           content: '',
           agentSteps: [],
-          timestamp: now
+          timestamp: now,
+          flowItems: []  // v5.1: 执行轨迹绑定到消息
         }
       ];
       const agentMessageIndex = baseMessages.length - 1;
@@ -299,6 +305,10 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         typewriterTimerRef.current = null;
       }
       typewriterQueueRef.current = [];
+
+      // ✅ 清理上一次请求的 pending 任务定时器
+      pendingTaskTimersRef.current.forEach((timerId) => clearTimeout(timerId));
+      pendingTaskTimersRef.current.clear();
 
       const taskStartTimes = new Map<number, number>();
       activityStartTimes.current.clear();
@@ -342,7 +352,10 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
             },
             onStart: (convId) => {
               streamConversationId = convId;
-              sessionManager.updateSession(sessionId, { conversationId: convId });
+              // v5.1: flowItems 现在绑定到消息，不再全局清空
+              sessionManager.updateSession(sessionId, {
+                conversationId: convId
+              });
             },
             ...(backendMode === 'planning'
               ? {
@@ -378,11 +391,53 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   },
                   onTaskStart: (task: any) => {
                     taskStartTimes.set(task.task_id, Date.now());
+
+                    // v5.1: 执行轨迹绑定到当前 Agent 消息
+                    const currentSession = sessionManager.getSession(sessionId);
+                    const currentMessages = currentSession?.messages || baseMessages;
+                    const targetMessage = currentMessages[agentMessageIndex] as Message;
+                    const currentFlowItems = targetMessage?.flowItems || [];
+                    const newFlowItems: FlowItem[] = [...currentFlowItems];
+
+                    // 添加 AI 说明文字
+                    if (task.explanation) {
+                      newFlowItems.push({
+                        id: `text_${task.task_id}_${Date.now()}`,
+                        type: 'text',
+                        data: { content: task.explanation },
+                        timestamp: new Date().toISOString()
+                      });
+                    }
+
+                    // 添加工具卡片
+                    newFlowItems.push({
+                      id: `tool_${task.task_id}`,
+                      type: 'tool',
+                      data: {
+                        taskId: task.task_id,
+                        icon: task.icon || 'Wrench',
+                        title: task.tool_title || '工具调用',
+                        description: task.tool_description || '',
+                        status: 'running'
+                      } as ToolFlowData,
+                      timestamp: new Date().toISOString()
+                    });
+
+                    // 更新消息的 flowItems
+                    const updated = [...currentMessages];
+                    if (updated[agentMessageIndex]) {
+                      updated[agentMessageIndex] = {
+                        ...updated[agentMessageIndex],
+                        flowItems: newFlowItems
+                      };
+                    }
+
                     sessionManager.updateSession(sessionId, {
                       currentTaskId: task.task_id,
                       tasks: (sessionManager.getSession(sessionId)?.tasks || []).map((t) =>
                         t.task_id === task.task_id ? { ...t, status: 'running' } : t
-                      )
+                      ),
+                      messages: updated
                     });
                   },
                   onTaskDone: (taskDone: any) => {
@@ -391,15 +446,66 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     if (startTime && elapsedTime === 0) {
                       elapsedTime = (Date.now() - startTime) / 1000;
                     }
-                    sessionManager.updateSession(sessionId, {
-                      tasks: (sessionManager.getSession(sessionId)?.tasks || []).map((t) =>
-                        t.task_id === taskDone.task_id
-                          ? { ...t, status: 'completed', elapsed_time: elapsedTime, progress_status: undefined }
-                          : t
-                      ),
-                      currentTaskId: null
-                    });
-                    taskStartTimes.delete(taskDone.task_id);
+
+                    // ✅ 最小显示时间：确保工具卡片至少显示 800ms，提升 UX
+                    const MIN_DISPLAY_TIME = 800;
+                    const displayedTime = startTime ? Date.now() - startTime : MIN_DISPLAY_TIME;
+                    const taskId = taskDone.task_id;
+
+                    const updateTaskStatus = () => {
+                      // 清理 timer 引用
+                      pendingTaskTimersRef.current.delete(taskId);
+
+                      // ✅ 安全检查：如果用户已停止流，不再更新状态
+                      if (stopRequestedRef.current) {
+                        taskStartTimes.delete(taskId);
+                        return;
+                      }
+
+                      // v5.1: 更新消息的 flowItems 中工具卡片状态为 done
+                      const currentSession = sessionManager.getSession(sessionId);
+                      const currentMessages = currentSession?.messages || baseMessages;
+                      const targetMessage = currentMessages[agentMessageIndex] as Message;
+                      const currentFlowItems = targetMessage?.flowItems || [];
+                      const updatedFlowItems = currentFlowItems.map(item => {
+                        if (item.type === 'tool' && (item.data as ToolFlowData).taskId === taskId) {
+                          return {
+                            ...item,
+                            data: { ...(item.data as ToolFlowData), status: 'done' as const }
+                          };
+                        }
+                        return item;
+                      });
+
+                      // 更新消息的 flowItems
+                      const updated = [...currentMessages];
+                      if (updated[agentMessageIndex]) {
+                        updated[agentMessageIndex] = {
+                          ...updated[agentMessageIndex],
+                          flowItems: updatedFlowItems
+                        };
+                      }
+
+                      sessionManager.updateSession(sessionId, {
+                        tasks: (sessionManager.getSession(sessionId)?.tasks || []).map((t) =>
+                          t.task_id === taskId
+                            ? { ...t, status: 'completed', elapsed_time: elapsedTime, progress_status: undefined }
+                            : t
+                        ),
+                        // ✅ 只有当 currentTaskId 是当前任务时才置空，避免影响后续任务
+                        currentTaskId: sessionManager.getSession(sessionId)?.currentTaskId === taskId ? null : sessionManager.getSession(sessionId)?.currentTaskId,
+                        messages: updated
+                      });
+                      taskStartTimes.delete(taskId);
+                    };
+
+                    // 如果显示时间不足最小值，延迟更新以提供更好的视觉反馈
+                    if (displayedTime < MIN_DISPLAY_TIME) {
+                      const timerId = setTimeout(updateTaskStatus, MIN_DISPLAY_TIME - displayedTime);
+                      pendingTaskTimersRef.current.set(taskId, timerId);
+                    } else {
+                      updateTaskStatus();
+                    }
                   },
                   onTaskProgress: (progress: any) => {
                     // 更新任务的进度状态（用于 Multi-Agent 内部进度）
@@ -567,8 +673,32 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   typewriterTimerRef.current = null;
                 }
 
+                // v5.1: 获取当前消息的 flowItems
                 const currentSession = sessionManager.getSession(sessionId);
                 const currentMessages = currentSession?.messages || baseMessages;
+                const targetMessage = currentMessages[agentMessageIndex] as Message;
+                let currentFlowItems = targetMessage?.flowItems || [];
+
+                // ✅ 流结束时：立即完成所有 pending 的任务卡片（避免 running 状态残留）
+                if (pendingTaskTimersRef.current.size > 0) {
+                  const pendingTaskIds = Array.from(pendingTaskTimersRef.current.keys());
+
+                  // 清理所有 timers
+                  pendingTaskTimersRef.current.forEach((timerId) => clearTimeout(timerId));
+                  pendingTaskTimersRef.current.clear();
+
+                  // 更新所有 pending 任务的状态为 done
+                  currentFlowItems = currentFlowItems.map(item => {
+                    if (item.type === 'tool' && pendingTaskIds.includes((item.data as ToolFlowData).taskId)) {
+                      return {
+                        ...item,
+                        data: { ...(item.data as ToolFlowData), status: 'done' as const }
+                      };
+                    }
+                    return item;
+                  });
+                }
+
                 const updated = [...currentMessages];
                 const target = updated[agentMessageIndex];
                 if (target) {
@@ -576,7 +706,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     ...target,
                     content: streamingContent,
                     agentSteps,
-                    metadata
+                    metadata,
+                    flowItems: currentFlowItems  // v5.1: 保存 flowItems 到消息
                   };
                 }
 
@@ -617,12 +748,15 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                 errorMessage.toLowerCase().includes('abort') ||
                 errorMessage.toLowerCase().includes('cancel');
               if (updated[agentMessageIndex]) {
+                // v5.1: 保留 flowItems
+                const existingFlowItems = (updated[agentMessageIndex] as Message).flowItems || [];
                 updated[agentMessageIndex] = {
                   role: 'agent',
                   content: isAbort
                     ? '对话已停止。'
                     : '抱歉，遇到了问题：' + errorMessage + '\\n\\n请稍后重试，或联系管理员。',
-                  timestamp: new Date().toISOString()
+                  timestamp: new Date().toISOString(),
+                  flowItems: existingFlowItems  // v5.1: 保留执行轨迹
                 };
               } else if (isAbort) {
                 // fallback: push a single stop message if placeholder missing
@@ -694,7 +828,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       conversationId: undefined,
       activities: [],
       progressData: null,
-      pendingApproval: null
+      pendingApproval: null,
+      flowItems: []  // v5.0: 清空执行轨迹
     });
     activityStartTimes.current.clear();
     abortControllerRef.current = null;
@@ -706,6 +841,10 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       typewriterTimerRef.current = null;
     }
     typewriterQueueRef.current = [];
+
+    // ✅ 清理所有 pending 的任务完成定时器
+    pendingTaskTimersRef.current.forEach((timerId) => clearTimeout(timerId));
+    pendingTaskTimersRef.current.clear();
 
     persistence.clearCurrentSession();
     refreshSessionSnapshot();
@@ -725,6 +864,10 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       typewriterTimerRef.current = null;
     }
     typewriterQueueRef.current = [];
+
+    // ✅ 清理所有 pending 的任务完成定时器
+    pendingTaskTimersRef.current.forEach((timerId) => clearTimeout(timerId));
+    pendingTaskTimersRef.current.clear();
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -900,6 +1043,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     currentTaskId: sessionState.currentTaskId,
     activities: (sessionState.activities || []) as ActivityItem[],
     progressData: sessionState.progressData,
+    flowItems: (sessionState.flowItems || []) as FlowItem[],  // v5.0: 执行轨迹项
     sendMessage,
     sendMessageStream,
     clearMessages,

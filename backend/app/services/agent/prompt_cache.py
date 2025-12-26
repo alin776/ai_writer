@@ -42,11 +42,14 @@ def _get_retrieval_tools_section() -> str:
     - 用户给出具体文字片段但不知道在哪章: "微光如露落雪在哪"
     - 搜索包含某关键词的内容: "哪里提到了XX"、"找一下XX相关的内容"
     - 查找人物/地点/设定相关描述: "赵穆出现在哪"、"关于源顺镖局的描述"
+    - ⚠️ 用户提到人物名但未指定章节: "帮我改写赵穆的描写" → 先搜索赵穆出现位置
 
-⚠️ 【检索规则】
+⚠️ 【检索规则 - 强制执行】
 - 用户提到具体文字/关键词但不知位置 → 必须先调用 search_analysis_fragments_tool
 - 用户问"XX在哪"/"哪里提到XX" → 必须先调用 search_analysis_fragments_tool
+- ⚠️ 用户提到人物名（如"赵穆"）但未说在哪章 → 必须先调用 search_analysis_fragments_tool 定位
 - **禁止不检索就直接回答"没有找到"或"不存在"！必须先检索确认！**
+- **禁止直接读取"当前章节"然后说"XX未出现"！必须先检索确认XX在哪些章节！**
 """
 
 
@@ -204,8 +207,13 @@ async def get_planning_static_prompt() -> str:
 【可用工具】
 
 获取原料：
-- get_chapter_by_order_tool: 按序号获取章节 (参数: chapter_order)
+- get_chapter_by_order_tool: 按序号获取章节（支持批量！）
+  参数: chapter_order，支持三种格式：
+    - 单个: "1"
+    - 多个: "1,2,3,4,5"
+    - 范围: "1-5"（一次性读取第1到第5章）
   ⚠️ 返回数据已包含: {title, order, content, word_count} → 标题/序号等元数据无需再分析！
+  ⚠️ 需要读取多章时，用范围格式 "1-5" 一次读取，避免生成多个读取任务！
 - get_context_tool: 获取作品上下文
 """
 
@@ -319,11 +327,8 @@ async def get_planning_static_prompt() -> str:
   },
   "user_intent": "创作第5-9章大纲",
   "tasks": [
-    {"task_id": 1, "description": "获取第一章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 1}},
-    {"task_id": 2, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}},
-    {"task_id": 3, "description": "获取第三章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 3}},
-    {"task_id": 4, "description": "获取第四章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 4}},
-    {"task_id": 5, "description": "创作大纲", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.content$\\n\\n$TASK_2.content$\\n\\n$TASK_3.content$\\n\\n$TASK_4.content$", "requirements": "基于前四章的人物、情节、伏笔，为第5-9章设计详细大纲：章节标题、主要剧情、涉及角色、伏笔设置"}}
+    {"task_id": 1, "description": "批量获取前四章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": "1-4"}},
+    {"task_id": 2, "description": "创作大纲", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.chapters$", "requirements": "基于前四章的人物、情节、伏笔，为第5-9章设计详细大纲：章节标题、主要剧情、涉及角色、伏笔设置"}}
   ]
 }
 
@@ -350,13 +355,10 @@ async def get_planning_static_prompt() -> str:
   },
   "user_intent": "分析+创作大纲+续写",
   "tasks": [
-    {"task_id": 1, "description": "获取第一章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 1}},
-    {"task_id": 2, "description": "获取第二章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}},
-    {"task_id": 3, "description": "获取第三章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 3}},
-    {"task_id": 4, "description": "获取第四章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 4}},
-    {"task_id": 5, "description": "分析前四章", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$\\n\\n$TASK_2.content$\\n\\n$TASK_3.content$\\n\\n$TASK_4.content$", "focus": "分析前四章：主要人物、情节发展、伏笔线索、写作风格"}},
-    {"task_id": 6, "description": "创作第5-9章大纲", "tool": "continue_writing_tool", "params": {"context": "$TASK_5$", "requirements": "基于分析结果，为第5-9章设计详细大纲"}},
-    {"task_id": 7, "description": "续写第五章", "tool": "continue_writing_tool", "params": {"context": "$TASK_4.content$\\n\\n大纲：$TASK_6$", "requirements": "基于大纲续写第五章正文"}}
+    {"task_id": 1, "description": "批量获取前四章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": "1-4"}},
+    {"task_id": 2, "description": "分析前四章", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.chapters$", "focus": "分析前四章：主要人物、情节发展、伏笔线索、写作风格"}},
+    {"task_id": 3, "description": "创作第5-9章大纲", "tool": "continue_writing_tool", "params": {"context": "$TASK_2$", "requirements": "基于分析结果，为第5-9章设计详细大纲"}},
+    {"task_id": 4, "description": "续写第五章", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.chapters[3].content$\\n\\n大纲：$TASK_3$", "requirements": "基于大纲续写第五章正文"}}
   ]
 }
 
@@ -467,17 +469,14 @@ _AGENT_MODE_CHECKPOINT_SECTION = """
   ]
 }
 
-示例2 - 多章节分析（设1个checkpoint）：
+示例2 - 多章节分析（使用批量读取）：
 用户: "分析前5章的情节发展"
 {
-  "thinking": {"step1_output": "分析报告", "step2_material": "5个章节内容", "step3_process": "逐章分析再汇总"},
+  "thinking": {"step1_output": "分析报告", "step2_material": "5个章节内容", "step3_process": "批量读取后汇总分析"},
   "user_intent": "分析前5章情节",
   "tasks": [
-    {"task_id": 1, "description": "读取第1章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 1}, "checkpoint": false},
-    {"task_id": 2, "description": "读取第2章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}, "checkpoint": false},
-    {"task_id": 3, "description": "分析前2章", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$\\n$TASK_2.content$", "focus": "分析情节"}, "checkpoint": true},
-    {"task_id": 4, "description": "读取第3-5章", "tool": "read_chapter_tool", "params": {"chapter_id": "..."}, "checkpoint": false},
-    {"task_id": 5, "description": "汇总分析", "tool": "analyze_text_tool", "params": {"text": "$TASK_3$\\n$TASK_4$", "focus": "汇总"}, "checkpoint": false}
+    {"task_id": 1, "description": "批量读取前5章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": "1-5"}, "checkpoint": false},
+    {"task_id": 2, "description": "汇总分析情节发展", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.chapters$", "focus": "分析前5章的情节发展、人物成长、伏笔设置"}, "checkpoint": false}
   ]
 }
 

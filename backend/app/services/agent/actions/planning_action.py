@@ -13,6 +13,7 @@ import logging
 
 from .base_action import BaseAction, ActionResult, ActionStatus
 from .action_registry import register_action
+from app.services.agent.prompts.format_guidelines import get_format_guidelines
 
 logger = logging.getLogger(__name__)
 
@@ -311,7 +312,9 @@ class PlanningAction(BaseAction):
 记住：**不知道章节号 = 禁止直接改 = 先定位！**
 """
 
-        return core_instruction
+        # 添加格式指导
+        format_guidelines = get_format_guidelines(lite=True)
+        return f"{core_instruction}\n\n{format_guidelines}"
 
 
 # 导出

@@ -117,13 +117,15 @@ class ContinueWritingInput(ToolInput):
         requirements: 续写要求(可选)
         target_length: 目标长度,单位:字符(可选)
         style: 写作风格(可选)
+
+    🔧 2025-12-25: 增加 context 的 max_length 到 50000，支持多章节批量读取场景
     """
 
     context: str = Field(
         ...,
         description="已有的文本上下文,用于续写",
         min_length=10,
-        max_length=10000
+        max_length=50000  # 🔧 2025-12-25: 从 10000 增加到 50000，支持多章节场景
     )
 
     requirements: str = Field(

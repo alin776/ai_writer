@@ -58,7 +58,41 @@ class EventParser:
         }
     }
 
-    # 工具显示名称
+    # 工具显示配置（Lucide 图标名 + 标题）
+    TOOL_DISPLAY_CONFIG = {
+        # ========== 章节读取类 ==========
+        "get_chapter_by_order_tool": {"icon": "FileText", "title": "读取章节"},
+        "read_chapter_tool": {"icon": "FileText", "title": "读取章节"},
+        "get_context_tool": {"icon": "BookOpen", "title": "获取上下文"},
+        # ========== 检索类 ==========
+        "search_analysis_fragments_tool": {"icon": "Search", "title": "检索设定"},
+        "search_memory_tool": {"icon": "Search", "title": "搜索记忆"},
+        "search_knowledge_advanced": {"icon": "Search", "title": "高级知识检索"},
+        # ========== 写作类 ==========
+        "continue_writing_tool": {"icon": "PenTool", "title": "继续创作"},
+        "smart_continue": {"icon": "ArrowRight", "title": "智能续写"},
+        "expand_text": {"icon": "Maximize2", "title": "扩写内容"},
+        # ========== 编辑类 ==========
+        "smart_rewrite": {"icon": "Edit3", "title": "智能改写"},
+        "smart_insert": {"icon": "Plus", "title": "智能插入"},
+        "apply_chapter_edit": {"icon": "Check", "title": "应用修改"},
+        "deai_rewrite": {"icon": "RefreshCw", "title": "去AI改写"},
+        # ========== 分析类 ==========
+        "analyze_text_tool": {"icon": "BarChart2", "title": "分析文本"},
+        "analyze_content": {"icon": "FileSearch", "title": "内容分析"},
+        "book_analysis": {"icon": "BarChart2", "title": "书籍分析"},
+        "novel_review": {"icon": "MessageSquare", "title": "小说评审"},
+        "ai_evaluation": {"icon": "Sparkles", "title": "AI评估"},
+        "evaluate_quality": {"icon": "Star", "title": "质量评估"},
+        # ========== 管理类 ==========
+        "add_todo_tool": {"icon": "ListTodo", "title": "添加待办"},
+        "get_work_details_tool": {"icon": "BookOpen", "title": "获取作品信息"},
+        "update_work_metadata_tool": {"icon": "Save", "title": "更新元数据"},
+        # ========== 默认 ==========
+        "_default": {"icon": "Wrench", "title": "工具调用"}
+    }
+
+    # 保留旧映射供兼容
     TOOL_DISPLAY_NAMES = {
         "get_chapter_by_order_tool": "读取章节",
         "continue_writing_tool": "继续创作",
@@ -76,6 +110,97 @@ class EventParser:
             cached_tool_calls: 缓存的工具调用参数
         """
         self._cached_tool_calls = cached_tool_calls or {}
+
+    def format_tool_display(self, tool_call: dict) -> dict:
+        """格式化工具调用为前端显示格式
+
+        Args:
+            tool_call: 包含 name 和 args 的工具调用信息
+
+        Returns:
+            前端可直接渲染的工具显示事件
+        """
+        tool_name = tool_call.get("name", "unknown")
+        args = tool_call.get("args", {})
+
+        config = self.TOOL_DISPLAY_CONFIG.get(
+            tool_name,
+            self.TOOL_DISPLAY_CONFIG["_default"]
+        )
+
+        description = self._build_tool_description(tool_name, args)
+
+        return {
+            "type": "tool",
+            "data": {
+                "tool_name": tool_name,
+                "icon": config["icon"],
+                "title": config["title"],
+                "description": description,
+                "status": "running"
+            }
+        }
+
+    def _build_tool_description(self, tool_name: str, args: dict) -> str:
+        """根据工具类型构建描述"""
+        # 章节读取类
+        if tool_name in ["read_chapter_tool", "get_chapter_by_order_tool"]:
+            chapter = args.get("chapter_order") or args.get("chapter_id", "")
+            if chapter:
+                return f"第{chapter}章"
+            return ""
+        # 检索类
+        elif tool_name == "search_analysis_fragments_tool":
+            query = args.get("query", "")
+            return query[:30] if query else "检索中..."
+        elif tool_name == "search_memory_tool":
+            query = args.get("query", "")
+            return query[:30] if query else "搜索中..."
+        elif tool_name == "search_knowledge_advanced":
+            query = args.get("query", "")
+            return query[:30] if query else "检索中..."
+        # 写作类
+        elif tool_name == "continue_writing_tool":
+            words = args.get("target_words") or args.get("word_count", 500)
+            return f"目标{words}字"
+        elif tool_name == "smart_continue":
+            words = args.get("target_words", 500)
+            return f"约{words}字"
+        elif tool_name == "expand_text":
+            return "扩写中..."
+        # 编辑类
+        elif tool_name == "smart_rewrite":
+            style = args.get("style", "润色优化")
+            return style[:20]
+        elif tool_name == "smart_insert":
+            return "插入中..."
+        elif tool_name == "apply_chapter_edit":
+            return "保存中..."
+        elif tool_name == "deai_rewrite":
+            return "改写中..."
+        # 分析类
+        elif tool_name == "analyze_text_tool":
+            focus = args.get("focus", "综合分析")
+            return focus[:20]
+        elif tool_name in ["analyze_content", "book_analysis"]:
+            return "分析中..."
+        elif tool_name == "novel_review":
+            return "评审中..."
+        elif tool_name == "ai_evaluation":
+            return "评估中..."
+        elif tool_name == "evaluate_quality":
+            return "评估中..."
+        # 管理类
+        elif tool_name == "get_context_tool":
+            return "加载上下文..."
+        elif tool_name == "add_todo_tool":
+            return "添加中..."
+        elif tool_name == "get_work_details_tool":
+            return "获取中..."
+        elif tool_name == "update_work_metadata_tool":
+            return "更新中..."
+        return ""
+
 
     def parse_node_event(
         self,

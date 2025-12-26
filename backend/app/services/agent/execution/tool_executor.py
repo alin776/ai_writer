@@ -150,7 +150,7 @@ class ToolExecutor:
 
         elif tool_name == "get_chapter_by_order":
             params.setdefault("work_id", state.get("work_id", ""))
-            params.setdefault("chapter_order", 1)
+            params.setdefault("chapter_order", "1")  # 字符串类型
 
         elif tool_name == "search_analysis_fragments":
             params.setdefault("work_id", state.get("work_id", ""))

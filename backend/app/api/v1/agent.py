@@ -42,6 +42,135 @@ import redis
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+# ════════════════════════════════════════════════════════════════
+# 执行轨迹可视化 - 辅助函数 (v5.0)
+# ════════════════════════════════════════════════════════════════
+
+# 工具图标映射（Lucide 图标名）
+TOOL_ICONS = {
+    "get_chapter_by_order_tool": "FileText",
+    "read_chapter_tool": "FileText",
+    "get_context_tool": "BookOpen",
+    "search_analysis_fragments_tool": "Search",
+    "search_memory_tool": "Search",
+    "search_knowledge_advanced": "Search",
+    "continue_writing_tool": "PenTool",
+    "smart_continue": "PenTool",
+    "expand_text": "Plus",
+    "smart_rewrite": "Edit3",
+    "smart_insert": "Plus",
+    "apply_chapter_edit": "Check",
+    "deai_rewrite": "RefreshCw",
+    "analyze_text_tool": "BarChart2",
+    "analyze_content": "FileSearch",
+    "book_analysis": "BarChart2",
+    "novel_review": "MessageSquare",
+    "ai_evaluation": "Sparkles",
+    "evaluate_quality": "Star",
+    "add_todo_tool": "ListTodo",
+    "get_work_details_tool": "BookOpen",
+    "update_work_metadata_tool": "Save",
+    "_default": "Wrench"
+}
+
+# 工具标题映射
+TOOL_TITLES = {
+    "get_chapter_by_order_tool": "读取章节",
+    "read_chapter_tool": "读取章节",
+    "get_context_tool": "获取上下文",
+    "search_analysis_fragments_tool": "检索设定",
+    "search_memory_tool": "搜索记忆",
+    "search_knowledge_advanced": "高级检索",
+    "continue_writing_tool": "续写内容",
+    "smart_continue": "智能续写",
+    "expand_text": "扩写内容",
+    "smart_rewrite": "智能改写",
+    "smart_insert": "智能插入",
+    "apply_chapter_edit": "应用修改",
+    "deai_rewrite": "去AI改写",
+    "analyze_text_tool": "分析文本",
+    "analyze_content": "内容分析",
+    "book_analysis": "书籍分析",
+    "novel_review": "小说评审",
+    "ai_evaluation": "AI评估",
+    "evaluate_quality": "质量评估",
+    "add_todo_tool": "添加待办",
+    "get_work_details_tool": "获取作品信息",
+    "update_work_metadata_tool": "更新元数据",
+    "_default": "工具调用"
+}
+
+
+def get_tool_icon(tool_name: str) -> str:
+    """获取工具图标名（Lucide）"""
+    return TOOL_ICONS.get(tool_name, TOOL_ICONS["_default"])
+
+
+def get_tool_title(tool_name: str) -> str:
+    """获取工具标题"""
+    return TOOL_TITLES.get(tool_name, TOOL_TITLES["_default"])
+
+
+def build_tool_description(task: dict) -> str:
+    """构建工具调用的简短描述"""
+    tool = task.get("tool", "")
+    params = task.get("params", {})
+
+    if tool == "get_chapter_by_order_tool":
+        # 只有 get_chapter_by_order_tool 才有 chapter_order
+        chapter = params.get("chapter_order", "")
+        return f"第{chapter}章" if chapter else ""
+
+    if tool == "read_chapter_tool":
+        # read_chapter_tool 只有 chapter_id (UUID)，不应显示 UUID
+        # 尝试从 chapter_title 获取可读名称，否则返回空
+        title = params.get("chapter_title", "")
+        return title[:20] if title else ""
+
+    if tool == "search_analysis_fragments_tool":
+        query = params.get("query", "")
+        return query[:20] if query else "检索中..."
+
+    if tool == "continue_writing_tool":
+        words = params.get("target_words", 500)
+        return f"约{words}字"
+
+    if tool == "analyze_text_tool":
+        focus = params.get("focus", "")
+        return focus[:15] if focus else "分析中..."
+
+    if tool == "smart_rewrite":
+        return params.get("style", "润色优化")[:15]
+
+    return ""
+
+
+def generate_explanation(task_index: int, task: dict) -> str:
+    """生成任务说明（AI 视角的自然语言）"""
+    desc = task.get("description", "")
+    tool = task.get("tool", "")
+
+    # 根据任务位置选择前缀
+    if task_index == 0:
+        prefix = "我先"
+    elif task_index == 1:
+        prefix = "接下来"
+    else:
+        prefix = "然后"
+
+    # 工具特定后缀
+    if "read" in tool or "get_chapter" in tool:
+        suffix = "，了解当前内容："
+    elif "search" in tool:
+        suffix = "："
+    else:
+        suffix = "："
+
+    return f"{prefix}{desc}{suffix}"
+
+
+# ════════════════════════════════════════════════════════════════
+
 # 创建同步Redis连接池（全局复用，避免每次请求都建立新连接）
 _redis_pool = None
 SESSION_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60  # 30 天缓存 TTL，用于热数据
@@ -1102,17 +1231,38 @@ async def agent_chat_stream(
                 # ✅ 追踪内容是否已通过流式发送（避免重复发送）
                 content_sent = {'value': False}
                 # ✅ 移除 MD5 去重：逐字发送模式下，相同字符也需要正常发送
+                # ✅ v5.0: 保存 plan_data 用于计算任务索引
+                plan_data_ref = {'tasks': []}
 
                 # 定义回调函数 - 实时放入队列
                 async def on_plan(plan_data):
                     """Handle plan event."""
+                    # 保存任务列表用于后续计算索引
+                    plan_data_ref['tasks'] = plan_data.get('tasks', [])
                     await event_queue.put(('plan', plan_data))
                     logger.info(f"[Stream] Plan tasks: {len(plan_data.get('tasks', []))} items")
 
                 async def on_task_start(task):
-                    """Handle task start event."""
-                    await event_queue.put(('task_start', task))
-                    logger.info(f"[Stream] Task started: {task.get('description')}")
+                    """Handle task start event - 增强版 (v5.0)"""
+                    # 计算任务索引
+                    task_id = task.get('task_id')
+                    task_index = next(
+                        (i for i, t in enumerate(plan_data_ref['tasks'])
+                         if t.get('task_id') == task_id),
+                        0
+                    )
+
+                    # 增强事件数据
+                    enhanced_task = {
+                        **task,
+                        'explanation': generate_explanation(task_index, task),
+                        'icon': get_tool_icon(task.get('tool', '')),
+                        'tool_title': get_tool_title(task.get('tool', '')),
+                        'tool_description': build_tool_description(task)
+                    }
+
+                    await event_queue.put(('task_start', enhanced_task))
+                    logger.info(f"[Stream] Task started: {task.get('description')} (icon={enhanced_task['icon']})")
 
                 async def on_task_progress(task, status):
                     """任务进度回调"""

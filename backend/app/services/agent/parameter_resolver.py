@@ -52,8 +52,9 @@ class ParameterResolver:
 
     # 占位符正则模式
     # 匹配: $TASK_1$ 或 $TASK_1.content$ 或 $TASK_1.chapter_info.title$
+    # 🔧 2025-12-25: 扩展支持数组索引格式 $TASK_1.chapters[3].content$
     PLACEHOLDER_PATTERN = re.compile(
-        r'\$TASK_(\d+)(?:\.([a-zA-Z_][a-zA-Z0-9_.]*)?)?\$'
+        r'\$TASK_(\d+)(?:\.([a-zA-Z_][a-zA-Z0-9_.\[\]]*))?\$'
     )
 
     # 兼容旧格式占位符（逐步废弃）
@@ -292,10 +293,11 @@ class ParameterResolver:
         从JSON字符串中提取字段
 
         支持嵌套字段: "content" 或 "chapter_info.title"
+        🔧 2025-12-25: 扩展支持数组索引: "chapters[3].content"
 
         Args:
             json_string: JSON格式的字符串
-            field_path: 字段路径，如 "content" 或 "chapter_info.title"
+            field_path: 字段路径，如 "content"、"chapter_info.title" 或 "chapters[3].content"
             task_id: 任务ID（用于日志）
 
         Returns:
@@ -305,14 +307,25 @@ class ParameterResolver:
             # 尝试解析JSON
             data = json.loads(json_string)
 
-            # 按点分割字段路径
-            fields = field_path.split('.')
+            # 解析字段路径，支持数组索引
+            # 例如: "chapters[3].content" -> ["chapters", 3, "content"]
+            tokens = self._parse_field_path(field_path)
 
             # 逐层访问
             value = data
-            for field in fields:
-                if isinstance(value, dict) and field in value:
-                    value = value[field]
+            for token in tokens:
+                if isinstance(token, int):
+                    # 数组索引访问
+                    if isinstance(value, list) and 0 <= token < len(value):
+                        value = value[token]
+                    else:
+                        logger.debug(
+                            f"[ParameterResolver] 任务{task_id}的结果中"
+                            f"数组索引 [{token}] 无效, 使用完整输出"
+                        )
+                        return json_string
+                elif isinstance(value, dict) and token in value:
+                    value = value[token]
                 else:
                     # 🔧 P3修复: 字段不存在是正常降级行为，改为 debug 级别
                     # 因为很多工具（如 analyze_text_tool）返回纯文本，不是 JSON
@@ -343,6 +356,33 @@ class ParameterResolver:
                 f"无法提取字段 '{field_path}', 使用完整输出"
             )
             return json_string
+
+    def _parse_field_path(self, field_path: str) -> list:
+        """
+        解析字段路径为访问令牌列表
+
+        🔧 2025-12-25: 新增方法，支持数组索引解析
+
+        Args:
+            field_path: 字段路径，如 "chapters[3].content"
+
+        Returns:
+            访问令牌列表，如 ["chapters", 3, "content"]
+        """
+        tokens = []
+        # 匹配字段名或数组索引
+        # 例如: "chapters[3].content" -> ["chapters", "[3]", "content"]
+        pattern = re.compile(r'([a-zA-Z_][a-zA-Z0-9_]*)|\[(\d+)\]')
+
+        for match in pattern.finditer(field_path):
+            if match.group(1):
+                # 字段名
+                tokens.append(match.group(1))
+            elif match.group(2):
+                # 数组索引
+                tokens.append(int(match.group(2)))
+
+        return tokens
 
     def _resolve_legacy_placeholder(
         self,
