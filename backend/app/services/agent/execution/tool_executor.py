@@ -108,7 +108,8 @@ class ToolExecutor:
         if tool_name == "continue_writing":
             params.setdefault("context", last_user_message)
             params.setdefault("requirements", "")
-            params.setdefault("target_length", 500)
+            # 🔧 默认值从 500 改为 2000，更符合实际续写需求
+            params.setdefault("target_length", 2000)
             params.setdefault("style", "")
 
         elif tool_name == "analyze_text":

@@ -124,23 +124,23 @@ def build_tool_description(task: dict) -> str:
     if tool == "read_chapter_tool":
         # read_chapter_tool 只有 chapter_id (UUID)，不应显示 UUID
         # 尝试从 chapter_title 获取可读名称，否则返回空
-        title = params.get("chapter_title", "")
-        return title[:20] if title else ""
+        return params.get("chapter_title", "")
 
     if tool == "search_analysis_fragments_tool":
-        query = params.get("query", "")
-        return query[:20] if query else "检索中..."
+        return params.get("query", "") or "检索中..."
 
     if tool == "continue_writing_tool":
-        words = params.get("target_words", 500)
+        # 🔧 统一参数名：优先使用 target_words，兼容 target_length
+        words = params.get("target_words") or params.get("target_length") or 2000
         return f"约{words}字"
 
     if tool == "analyze_text_tool":
         focus = params.get("focus", "")
-        return focus[:15] if focus else "分析中..."
+        return focus if focus else "分析中..."
 
     if tool == "smart_rewrite":
-        return params.get("style", "润色优化")[:15]
+        style = params.get("style", "润色优化")
+        return style
 
     return ""
 

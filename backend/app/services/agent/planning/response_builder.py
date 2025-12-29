@@ -15,6 +15,7 @@ import logging
 
 from app.services.agent.utils.context_builder import _build_summarization_context
 from app.services.agent.model_selector import TaskType
+from app.services.agent.prompts.format_guidelines import get_format_guidelines
 
 logger = logging.getLogger(__name__)
 
@@ -336,6 +337,9 @@ class ResponseBuilder:
             f"处理后={len(compressed_context)}字符"
         )
 
+        # 获取格式指导
+        format_guidelines = get_format_guidelines(lite=True)
+
         # 构建总结 prompt
         summary_prompt = f"""基于以下任务执行结果，生成最终的响应给用户。
 {knowledge_section}
@@ -351,6 +355,8 @@ class ResponseBuilder:
 4. 如果是分析/规划，给出详细说明
 5. 如果用户询问事实性问题（如标题、内容等），直接引用工具返回的数据
 6. 如果用户引用了知识库文档，优先基于文档内容回答
+
+{format_guidelines}
 
 请生成最终响应："""
 
