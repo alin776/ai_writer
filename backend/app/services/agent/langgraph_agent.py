@@ -1662,70 +1662,10 @@ class WritingAgentGraph:
                             logger.warning(f"[Planning] 快速路径保存对话失败: {e}")
                         return quick_result
 
-                # ========== 🆕 AI 意图分类（复用 IntentClassifier）==========
-                # 在规划前判断：如果是普通对话，直接响应，不进入规划流程
-                from app.services.agent.model_selector import TaskType
-
-                intent, confidence = await self.intent_classifier.classify_by_ai(message)
-                logger.info(f"[Planning] AI意图分类: {intent} (置信度: {confidence:.2f})")
-
-                if intent == "general" and confidence >= 0.85:
-                    logger.info(f"[Planning] 识别为普通对话，跳过规划流程，直接响应")
-
-                    # 构建简洁的系统提示
-                    general_system_prompt = """你是AI写作助手。请友好、简洁地回答用户的问题。
-如果用户问你是谁，介绍自己是AI写作助手，可以帮助用户进行小说创作、内容分析等。
-如果用户表示感谢，礼貌回应即可。
-保持回复简洁，不要过度解释。"""
-
-                    # 直接调用 LLM 生成响应（复用 handle_general 的逻辑）
-                    result = await self._generate_text(
-                        messages=[
-                            {"role": "system", "content": general_system_prompt},
-                            {"role": "user", "content": message}
-                        ],
-                        max_tokens=500,
-                        temperature=0.7,
-                        task_type=TaskType.SIMPLE_QA  # 使用轻量模型
-                    )
-
-                    response_text = result.get("text", "您好！我是AI写作助手，有什么可以帮您的？")
-
-                    # 通过回调发送内容
-                    if on_content:
-                        await on_content({"content": response_text})
-
-                    # 保存对话到 ContextManager
-                    try:
-                        await self.context_manager.update_context(
-                            session_id=isolated_thread_id,
-                            new_messages=[
-                                {"role": "user", "content": message},
-                                {"role": "assistant", "content": response_text}
-                            ],
-                            context=context_bundle.get("context") if context_bundle else None,
-                            work_id=work_id
-                        )
-                        logger.info(f"[Planning] General对话已保存到 ContextManager")
-                    except Exception as e:
-                        logger.warning(f"[Planning] General对话保存失败: {e}")
-
-                    return {
-                        "response": response_text,
-                        "conversation_id": conversation_id or "default",
-                        "agent_steps": [{
-                            "step": "general_direct_response",
-                            "result": f"AI意图分类: {intent} (置信度: {confidence:.2f})，直接响应"
-                        }],
-                        "suggested_actions": [],
-                        "metadata": {
-                            "intent": intent,
-                            "confidence": confidence,
-                            "path": "general_fast_path"
-                        }
-                    }
-
                 # ========== 阶段1: 规划（Planning） - 委托到 PlanGenerator ==========
+                # 🔧 2025-12-29: 删除了冗余的意图分类快速路径
+                # 原因：规划 Prompt 已有 direct_answer 逻辑，无需额外的意图分类层
+                # 所有请求统一走规划流程，由 Prompt 自己判断是否需要工具
                 planning_start = time.time()
 
                 try:

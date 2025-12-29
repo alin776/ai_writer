@@ -181,7 +181,7 @@ class EventParser:
         # 分析类
         elif tool_name == "analyze_text_tool":
             focus = args.get("focus", "综合分析")
-            return focus[:20]
+            return focus
         elif tool_name in ["analyze_content", "book_analysis"]:
             return "分析中..."
         elif tool_name == "novel_review":

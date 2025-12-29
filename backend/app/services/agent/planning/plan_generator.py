@@ -84,11 +84,12 @@ class PlanGenerator:
 
         try:
             for retry_attempt in range(self.MAX_PLANNING_RETRIES):
+                # 🔧 2025-12-29: 规划任务需要理解对话上下文，使用 STORY_PLANNING 选择更强模型
                 plan_result = await self.agent._generate_text(
                     prompt=plan_prompt,
                     temperature=0.3 + (retry_attempt * 0.1),
                     max_tokens=2000,
-                    task_type=TaskType.SIMPLE_QA
+                    task_type=TaskType.STORY_PLANNING
                 )
                 plan_text = plan_result.get("text", "").strip()
 
@@ -318,7 +319,8 @@ chapter_id: {chapter_id}
   1. 任务1: 调用 read_chapter_tool(work_id="{work_id}", chapter_id="{chapter_id}") 读取章节完整内容
   2. 任务2: 调用 analyze_text_tool 分析原文中该句话的场景、情绪、角色状态
   3. 任务3: 基于分析结果，给出符合场景的多个修改建议（用 analyze_text_tool 输出）
-- ✅ 正确示例：read_chapter_tool → analyze_text_tool(focus="分析'微光如露落雪'在原文中的场景和情绪，给出符合语境的改写建议")
+- ✅ 正确示例：read_chapter_tool → analyze_text_tool(focus="场景情绪分析")
+- ⚠️ focus 参数必须简洁（15字以内）
 """
 
     def _handle_planning_error(self, e: Exception) -> Optional[Dict[str, Any]]:

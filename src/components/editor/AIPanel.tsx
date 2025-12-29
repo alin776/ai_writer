@@ -1,7 +1,7 @@
 ﻿import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/button';
-import { Bot, Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronLeft, Tag, X, Copy } from 'lucide-react';
+import { Bot, Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronLeft, Tag, X, Copy, Check } from 'lucide-react';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import { useEditorStore } from '../../store/editorStore';
 import { useChatDraftStore } from '../../store/chatDraftStore';
@@ -217,6 +217,9 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     selection_position?: { from: number; to: number };
   } | null>(null);
 
+  // 复制成功状态（显示 ✓）
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+
   // 组件挂载时恢复草稿
   useEffect(() => {
     if (sessionId) {
@@ -252,9 +255,12 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
   // ✅ 流式输出：后端逐字发送，前端直接显示（无需前端打字机效果）
 
-  const copyMessage = useCallback(async (content: string) => {
+  const copyMessage = useCallback(async (content: string, messageId: string) => {
     try {
       await navigator.clipboard.writeText(content || '');
+      setCopiedMessageId(messageId);
+      // 2秒后恢复
+      setTimeout(() => setCopiedMessageId(null), 2000);
     } catch (err) {
       console.error('Copy failed:', err);
     }
@@ -984,22 +990,30 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                   {/* 用户消息复制按钮 - 悬停显示 */}
                   {isUser && (
                     <button
-                      onClick={() => copyMessage(message.content)}
+                      onClick={() => copyMessage(message.content, `msg-${index}`)}
                       className="absolute -bottom-1 -right-1 translate-y-full opacity-0 group-hover:opacity-100 inline-flex items-center justify-center w-6 h-6 text-zinc-400 hover:text-zinc-600 dark:hover:text-slate-300 transition-all"
                       aria-label="复制消息"
                     >
-                      <Copy className="w-3.5 h-3.5" />
+                      {copiedMessageId === `msg-${index}` ? (
+                        <Check className="w-3.5 h-3.5 text-green-500" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
                     </button>
                   )}
                 </div>
 
                 {isUser ? null : (
                   <button
-                    onClick={() => copyMessage(message.content)}
+                    onClick={() => copyMessage(message.content, `msg-${index}`)}
                     className="inline-flex self-start items-center justify-center w-8 h-8 text-zinc-500 hover:text-zinc-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
                     aria-label="复制AI内容"
                   >
-                    <Copy className="w-4 h-4" />
+                    {copiedMessageId === `msg-${index}` ? (
+                      <Check className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
                   </button>
                 )}
               </div>
