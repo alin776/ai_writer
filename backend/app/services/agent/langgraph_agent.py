@@ -1662,6 +1662,69 @@ class WritingAgentGraph:
                             logger.warning(f"[Planning] 快速路径保存对话失败: {e}")
                         return quick_result
 
+                # ========== 🆕 AI 意图分类（复用 IntentClassifier）==========
+                # 在规划前判断：如果是普通对话，直接响应，不进入规划流程
+                from app.services.agent.model_selector import TaskType
+
+                intent, confidence = await self.intent_classifier.classify_by_ai(message)
+                logger.info(f"[Planning] AI意图分类: {intent} (置信度: {confidence:.2f})")
+
+                if intent == "general" and confidence >= 0.85:
+                    logger.info(f"[Planning] 识别为普通对话，跳过规划流程，直接响应")
+
+                    # 构建简洁的系统提示
+                    general_system_prompt = """你是AI写作助手。请友好、简洁地回答用户的问题。
+如果用户问你是谁，介绍自己是AI写作助手，可以帮助用户进行小说创作、内容分析等。
+如果用户表示感谢，礼貌回应即可。
+保持回复简洁，不要过度解释。"""
+
+                    # 直接调用 LLM 生成响应（复用 handle_general 的逻辑）
+                    result = await self._generate_text(
+                        messages=[
+                            {"role": "system", "content": general_system_prompt},
+                            {"role": "user", "content": message}
+                        ],
+                        max_tokens=500,
+                        temperature=0.7,
+                        task_type=TaskType.SIMPLE_QA  # 使用轻量模型
+                    )
+
+                    response_text = result.get("text", "您好！我是AI写作助手，有什么可以帮您的？")
+
+                    # 通过回调发送内容
+                    if on_content:
+                        await on_content({"content": response_text})
+
+                    # 保存对话到 ContextManager
+                    try:
+                        await self.context_manager.update_context(
+                            session_id=isolated_thread_id,
+                            new_messages=[
+                                {"role": "user", "content": message},
+                                {"role": "assistant", "content": response_text}
+                            ],
+                            context=context_bundle.get("context") if context_bundle else None,
+                            work_id=work_id
+                        )
+                        logger.info(f"[Planning] General对话已保存到 ContextManager")
+                    except Exception as e:
+                        logger.warning(f"[Planning] General对话保存失败: {e}")
+
+                    return {
+                        "response": response_text,
+                        "conversation_id": conversation_id or "default",
+                        "agent_steps": [{
+                            "step": "general_direct_response",
+                            "result": f"AI意图分类: {intent} (置信度: {confidence:.2f})，直接响应"
+                        }],
+                        "suggested_actions": [],
+                        "metadata": {
+                            "intent": intent,
+                            "confidence": confidence,
+                            "path": "general_fast_path"
+                        }
+                    }
+
                 # ========== 阶段1: 规划（Planning） - 委托到 PlanGenerator ==========
                 planning_start = time.time()
 
@@ -1692,6 +1755,64 @@ class WritingAgentGraph:
                 # 回调：发送规划
                 if on_plan:
                     await on_plan(plan_data)
+
+                # ========== 🆕 直接回答模式：检查 direct_answer ==========
+                raw_direct_answer = plan_data.get("direct_answer")
+                tasks = plan_data.get("tasks", [])
+
+                # 🔧 严格空值检查：排除空字符串和空白字符串
+                has_valid_direct_answer = (
+                    raw_direct_answer is not None
+                    and isinstance(raw_direct_answer, str)
+                    and raw_direct_answer.strip()
+                )
+                has_tasks = tasks and len(tasks) > 0
+
+                # 🔧 协议违反警告：AI 同时返回 direct_answer 和 tasks
+                if has_valid_direct_answer and has_tasks:
+                    logger.warning(
+                        f"[Planning-Alert] AI 违反协议：同时返回 direct_answer({len(raw_direct_answer)}字) "
+                        f"和 {len(tasks)} 个 tasks，将执行 tasks 而忽略 direct_answer"
+                    )
+
+                # 只有当有 direct_answer 且没有 tasks 时才直接返回
+                if has_valid_direct_answer and not has_tasks:
+                    direct_answer = raw_direct_answer.strip()
+                    logger.info(f"[Planning] 检测到 direct_answer({len(direct_answer)}字)，直接返回答案，跳过任务执行")
+
+                    # 通过回调发送内容
+                    if on_content:
+                        await on_content({"content": direct_answer})
+
+                    # 保存对话到 ContextManager
+                    try:
+                        await self.context_manager.update_context(
+                            session_id=isolated_thread_id,
+                            new_messages=[
+                                {"role": "user", "content": message},
+                                {"role": "assistant", "content": direct_answer}
+                            ],
+                            context=context_bundle.get("context") if context_bundle else None,
+                            work_id=work_id
+                        )
+                        logger.info(f"[Planning] direct_answer 对话已保存到 ContextManager")
+                    except Exception as e:
+                        logger.warning(f"[Planning] direct_answer 对话保存失败: {e}")
+
+                    return {
+                        "response": direct_answer,
+                        "conversation_id": conversation_id or "default",
+                        "agent_steps": [{
+                            "step": "direct_answer",
+                            "result": f"规划阶段直接回答（无需工具）",
+                            "user_intent": plan_data.get("user_intent", "")
+                        }],
+                        "suggested_actions": [],
+                        "metadata": {
+                            "path": "planning_direct_answer",
+                            "planning_duration": planning_duration
+                        }
+                    }
 
                 # ========== 阶段2: 执行（Execution）- 智能并行执行 ==========
                 # ✅ P1-7: 添加Execution阶段监控

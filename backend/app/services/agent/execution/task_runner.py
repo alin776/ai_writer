@@ -221,10 +221,12 @@ class TaskRunner:
 
         elif tool_name == "continue_writing_tool":
             context_param = self._extract_context_param(params, context)
+            # 🔧 统一参数名：优先使用 target_words，兼容 target_length
+            target_words = params.get("target_words") or params.get("target_length") or 2000
             return {
                 "context": context_param,
                 "requirements": params.get("requirements", ""),
-                "target_length": params.get("target_length", 500),
+                "target_length": target_words,  # 工具定义使用 target_length
                 "style": params.get("style", "")
             }
 

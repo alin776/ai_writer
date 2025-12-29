@@ -94,12 +94,25 @@ class PlanGenerator:
 
                 if plan_text:
                     plan_data = self.agent._extract_json_from_text(plan_text)
-                    if plan_data and plan_data.get("tasks"):
-                        if retry_attempt > 0:
-                            logger.info(f"[Planning] 第{retry_attempt + 1}次重试成功")
-                        break
+                    # 🆕 支持 direct_answer：如果 AI 决定直接回答，tasks 可以为空
+                    if plan_data:
+                        # 🔧 严格空值检查：排除空字符串和空白字符串
+                        raw_direct_answer = plan_data.get("direct_answer")
+                        has_direct_answer = (
+                            raw_direct_answer is not None
+                            and isinstance(raw_direct_answer, str)
+                            and raw_direct_answer.strip()
+                        )
+                        has_tasks = plan_data.get("tasks") and len(plan_data.get("tasks", [])) > 0
+                        if has_direct_answer or has_tasks:
+                            if retry_attempt > 0:
+                                logger.info(f"[Planning] 第{retry_attempt + 1}次重试成功")
+                            # 🆕 日志：记录是直接回答还是任务规划
+                            if has_direct_answer and not has_tasks:
+                                logger.info(f"[Planning] AI 决定直接回答，跳过任务执行")
+                            break
                     else:
-                        logger.warning(f"[Planning] 第{retry_attempt + 1}次尝试: JSON解析失败或无任务")
+                        logger.warning(f"[Planning] 第{retry_attempt + 1}次尝试: JSON解析失败")
                 else:
                     logger.warning(f"[Planning] 第{retry_attempt + 1}次尝试: AI返回空响应")
 
@@ -126,11 +139,37 @@ class PlanGenerator:
         if not plan_data:
             logger.warning(f"[Planning] 无法解析规划JSON，AI返回: {plan_text[:500]}")
 
-        if not plan_data or "tasks" not in plan_data:
+        # 🆕 支持 direct_answer：有直接回答时不需要创建默认规划
+        # 🔧 严格空值检查
+        if not plan_data:
             plan_data = self._create_default_plan()
+        else:
+            raw_direct_answer = plan_data.get("direct_answer")
+            has_valid_direct_answer = (
+                raw_direct_answer is not None
+                and isinstance(raw_direct_answer, str)
+                and raw_direct_answer.strip()
+            )
+            has_tasks = plan_data.get("tasks") and len(plan_data.get("tasks", [])) > 0
 
-        # 规划后处理
-        plan_data = self._post_process_plan(plan_data, message)
+            if not has_valid_direct_answer and not has_tasks:
+                # 没有有效的 direct_answer 也没有 tasks，创建默认规划
+                plan_data = self._create_default_plan()
+
+        # 🆕 如果是直接回答模式，确保 tasks 为空列表
+        raw_direct_answer = plan_data.get("direct_answer")
+        has_valid_direct_answer = (
+            raw_direct_answer is not None
+            and isinstance(raw_direct_answer, str)
+            and raw_direct_answer.strip()
+        )
+        if has_valid_direct_answer:
+            if not plan_data.get("tasks"):
+                plan_data["tasks"] = []
+            logger.info(f"[Planning] 直接回答模式，答案长度: {len(raw_direct_answer)}")
+        else:
+            # 规划后处理（只对有任务的规划进行）
+            plan_data = self._post_process_plan(plan_data, message)
 
         increment_counter("planning_phase_completed")
         logger.info(f"[Planning] 规划生成成功，共{len(plan_data['tasks'])}个任务")

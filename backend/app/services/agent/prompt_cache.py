@@ -19,7 +19,7 @@ Prompt 缓存模块 - Phase 2.6
 from app.core.cache import cache_review
 
 # Prompt 版本号 - 修改 Prompt 时请更新此版本号
-PROMPT_VERSION = "v2.12.0"  # 2025-12-14: 修正工具选择逻辑 - "设计"/"规划"类任务使用 continue_writing_tool 而非 analyze_text_tool
+PROMPT_VERSION = "v2.15.0"  # 2025-12-29: 增加 target_words 参数指导，支持动态字数
 
 
 # ════════════════════════════════════════════════════════════════
@@ -68,7 +68,23 @@ async def get_tool_decision_static_prompt() -> str:
     """
     retrieval_tools = _get_retrieval_tools_section()
 
-    return f"""判断是否需要工具。可用工具:
+    return f"""⚠️ 核心原则：先判断是否需要操作具体内容，不需要就直接回答
+
+【第一步：判断是否需要工具】
+
+✅ 不需要工具，直接回答的情况（优先判断）：
+- 问候、寒暄（你好、在吗、谢谢、再见）
+- 关于 AI 的问题（你是谁、你能做什么、介绍一下你自己）
+- 知识问答（什么是XX、为什么XX、如何XX）
+- 闲聊、聊天、表达感受
+- 用户没有明确要求操作章节/文本内容
+- 任何不确定的情况 → 选择直接回答
+
+❌ 需要工具的情况（必须同时满足）：
+- 用户明确要求操作具体的章节内容（修改、续写、插入、改写、润色）
+- 或者用户要搜索/查找具体的文本片段、人物、情节
+
+【第二步：如果需要工具，选择合适的工具】
 
 【编辑器工具 - 修改内容时优先使用】
 - smart_rewrite: 改写/修改章节内容
@@ -83,62 +99,47 @@ async def get_tool_decision_static_prompt() -> str:
 {retrieval_tools}
 ⚠️ **重要变更**：polish_text_tool 已移除
 - 所有润色/修改请求必须提供 chapter_id，使用基于章节上下文的工具
-- 如果涉及多个章节，read_chapter_tool 支持传递多个 chapter_id（用逗号分隔，如 "id1,id2,id3"）
+- 如果涉及多个章节，read_chapter_tool 支持传递多个 chapter_id（用逗号分隔）
 
-⚠️ 【关键规则】用户提到具体文字但未说章节时：
-- 用户只给了句子（如"微光如露落雪太书面化"），但没说是第几章
-- → **必须先调用 search_analysis_fragments_tool 搜索这句话，找到它在第几章**
-- → 示例：{{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "微光如露落雪"}}}}
-- → **禁止直接给出修改建议！必须先定位！**
+【工具使用规则】
 
-⚠️ 【搜索兜底规则】：
-- 如果用户提供的文字**过于简短**（少于3个字）或是**通用描述**（如"这一章"、"这段话"、"这里"）
-- → **不要调用搜索工具**，直接返回：
-  {{"need_tools": false, "direct_response": "请问您指的是哪一章？或者能否提供更多原文片段帮助我定位？"}}
-- 示例：
-  "这段话太平淡" → {{"need_tools": false, "direct_response": "请问您指的是哪一章的哪段话？..."}}
-  "这里改改" → {{"need_tools": false, "direct_response": "请问您指的是哪一章？..."}}
-
-⚠️ smart_rewrite 参数提取规则：
-1. user_requirement（用户要求）：
-   - "加强情感描写" → user_requirement="加强情感描写"
-   - "更简洁一些" → user_requirement="更简洁"
-   - "太平淡了" → user_requirement="更有画面感"
-   - "更有张力" → user_requirement="更有张力"
-
-2. base_version（基准版本）- 用户要在某版本基础上改时：
-   - "在第一版基础上改" → base_version="第一版" 或 "版本A" 或 "1"
-   - "在第二版基础上改" → base_version="第二版" 或 "版本B" 或 "2"
-   - "在第三版基础上改" → base_version="第三版" 或 "版本C" 或 "3"
-   注意：系统会智能识别各种版本表达方式，无需使用特定格式
-
-3. 用户直接给出最终版本时（不要再生成）：
-   - 用户说"就按这个改"/"直接用这个"并给出内容 → 用apply_chapter_edit直接应用
-
-⚠️ 重要规则：
-1. 用户提到具体文字但未说章节 → **先用 search_analysis_fragments_tool 定位**
+1. 用户提到具体文字但未说章节 → 先用 search_analysis_fragments_tool 定位
 2. 用户说"修改第X章"、"改写第X章" → 使用 smart_rewrite（已知章节）
 3. 用户说"续写"、"继续写" → 使用 smart_continue
 4. 用户说"插入" → 使用 smart_insert
-5. 简单问候/寒暄（如"你好"、"在吗"、"谢谢"）→ 不需要工具，直接回复
-6. 必须严格返回JSON格式！
 
-返回JSON:
-- 需要: {{"need_tools": true, "tool_name": "工具名", "tool_args": {{}}}}
-- 缺参数: {{"need_tools": false, "direct_response": "请提供..."}}
-- 直接答: {{"need_tools": false, "direct_response": "..."}}
-- 问候: {{"need_tools": false, "direct_response": "您好！我是AI写作助手，可以帮您修改、续写章节内容。请问有什么可以帮您的？"}}
+⚠️ 【搜索兜底规则】：
+- 如果用户提供的文字**过于简短**（少于3个字）或是**通用描述**（如"这一章"、"这段话"）
+- → **不要调用搜索工具**，直接返回询问更多信息
 
-示例:
-"你好" → {{"need_tools": false, "direct_response": "您好！我是AI写作助手..."}}
+【返回格式】必须严格返回JSON：
+
+不需要工具时：
+{{"need_tools": false, "direct_response": "你的回答内容"}}
+
+需要工具时：
+{{"need_tools": true, "tool_name": "工具名", "tool_args": {{参数}}}}
+
+【示例 - 不需要工具的情况】
+
+"你好" → {{"need_tools": false, "direct_response": "..."}}
+"你是谁" → {{"need_tools": false, "direct_response": "..."}}
+"你能做什么" → {{"need_tools": false, "direct_response": "..."}}
+"谢谢" → {{"need_tools": false, "direct_response": "..."}}
+"写作有什么技巧" → {{"need_tools": false, "direct_response": "..."}}
+"这段话太平淡" → {{"need_tools": false, "direct_response": "请问您指的是哪一章？..."}}
+
+注意：direct_response 的内容由你根据问题自由生成，不要复制示例。
+
+【示例 - 需要工具的情况】
+
 "微光如露落雪太书面化" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "微光如露落雪"}}}}
-"白光退去太平淡" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "白光退去"}}}}
 "修改第三章，白光退去太平淡" → {{"need_tools": true, "tool_name": "smart_rewrite", "tool_args": {{"chapter_id": "xxx", "text_to_rewrite": "白光退去...", "user_requirement": "更有画面感"}}}}
+"续写第五章" → {{"need_tools": true, "tool_name": "smart_continue", "tool_args": {{"chapter_id": "xxx"}}}}
 "有没有叫赵穆的人物" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "赵穆"}}}}
-"哪个章节讲到了浑圆桩" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "浑圆桩"}}}}
 "段融是谁" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "段融"}}}}
 
-⚠️ 请严格返回JSON格式，不要直接回答问题:"""
+⚠️ 如果不确定用户是否需要工具，选择直接回答。请严格返回JSON格式:"""
 
 
 @cache_review(expire=3600, key_prefix=f"prompt:planning:{PROMPT_VERSION}")
@@ -162,6 +163,27 @@ async def get_planning_static_prompt() -> str:
     # 使用字符串拼接而非 f-string，避免转义大量 JSON 大括号
     part1 = """你是一个任务规划助手。请使用【三步思维链】来理解用户意图并生成任务。
 
+【核心原则】⚠️ 最重要！
+
+在生成任何任务之前，先问自己：**这个问题需要调用工具吗？**
+
+✅ **不需要工具，直接回答**的情况：
+- 知识问答（"怎么写好对话"、"什么是伏笔"）
+- 闲聊/问候（"你好"、"谢谢"、"你是谁"）
+- 写作技巧咨询（"如何塑造人物"、"怎样写好开头"）
+
+✅ **需要调用工具**的情况（明确提到作品内容）：
+- "获取第三章" → 需要 get_chapter_by_order_tool
+- "续写第五章" → 需要 continue_writing_tool
+- "分析一下主角的人设" → 需要 search + analyze
+- "修改第三章的XX" → 需要 read + analyze
+- "帮我写XX" → 需要 continue_writing_tool
+
+⚠️ **判断原则**：
+- 只有**完全确定**不需要操作作品内容时才使用 direct_answer
+- 如果用户提到"章节"、"续写"、"修改"、"改写"、"帮我写" → 一定需要工具
+- 如果不确定 → 生成工具任务，不要擅自直接回答
+
 【三步思维链】- 生成任务前必须完成
 
 ## Step 1: 输出形式分析（最重要！）
@@ -169,6 +191,7 @@ async def get_planning_static_prompt() -> str:
 问自己：用户期望看到什么样的输出？
 
 可能的输出形式：
+- **知识/建议**（用户在问问题，直接回答即可）← 不需要工具！
 - 原文内容（直接返回，不加工）
 - 概括/摘要（需要阅读后总结提炼）
 - 分析报告（需要深度分析某个维度）
@@ -179,6 +202,7 @@ async def get_planning_static_prompt() -> str:
 
 问自己：生成这个输出需要什么原料？
 
+- **不需要原料**（纯知识问答）→ 直接回答！
 - 需要哪些章节的内容？
 - 需要人设/大纲等元数据吗？
 
@@ -186,6 +210,7 @@ async def get_planning_static_prompt() -> str:
 
 问自己：需要对原料做什么处理？
 
+- **直接回答**（知识问答，不需要操作作品）→ 使用 direct_answer 字段
 - 直接返回（无处理）→ 只用获取工具
 - 概括/分析现有内容 → 获取 + analyze_text_tool
 - 创作新内容（包括大纲/规划/设定）→ continue_writing_tool
@@ -233,7 +258,8 @@ async def get_planning_static_prompt() -> str:
 创作内容：
 - continue_writing_tool: 创作新内容（包括大纲、正文、设定等）
   - 适用于：续写章节、创作正文、生成大纲、设计角色成长、规划情节
-  - params: context（上下文）, requirements（要求）
+  - params: context（上下文）, requirements（要求）, target_words（目标字数，可选）
+  - target_words 建议值：大纲 1000-2000，正文 2000-4000
   - ⚠️ "设计"/"规划"/"构思"/"创作"都是创作任务，使用这个工具
 
 【选中文本处理规则】⚠️ 重要！
@@ -253,15 +279,54 @@ async def get_planning_static_prompt() -> str:
 {
   "thinking": {
     "step1_output": "用户期望的输出形式",
-    "step2_material": "需要的原料",
-    "step3_process": "处理方式"
+    "step2_material": "需要的原料（如果是知识问答，填'不需要'）",
+    "step3_process": "处理方式（如果是知识问答，填'直接回答'）"
   },
   "user_intent": "一句话描述",
+  "direct_answer": "如果是知识问答/闲聊，在这里直接回答，tasks 为空数组",
   "response_hint": "可选，元数据查询时指定返回字段：title/word_count/title_and_word_count/content",
   "tasks": [...]
 }
 
-【示例】
+【直接回答示例】⚠️ 不需要工具的情况
+
+用户: "怎样写好人物对话？"
+{
+  "thinking": {
+    "step1_output": "用户在问写作技巧，期望得到建议和方法",
+    "step2_material": "不需要，这是知识问答",
+    "step3_process": "直接回答写作技巧"
+  },
+  "user_intent": "咨询人物对话写作技巧",
+  "direct_answer": "写好人物对话的几个关键技巧：\\n\\n1. **符合人设**：每个角色说话方式应该不同，反映其性格、背景、教育程度\\n2. **推动剧情**：对话不是闲聊，要传递信息或推动故事发展\\n3. **留白与潜台词**：不要把所有意思都说出来，让读者去体会\\n4. **节奏控制**：长短句交替，紧张时用短句，舒缓时可以稍长\\n5. **避免说教**：不要让角色像在念课文，要自然",
+  "tasks": []
+}
+
+用户: "你是谁？"
+{
+  "thinking": {
+    "step1_output": "用户在问我的身份，是简单问答",
+    "step2_material": "不需要",
+    "step3_process": "直接回答"
+  },
+  "user_intent": "询问身份",
+  "direct_answer": "我是 AI 写作助手，可以帮助你进行小说创作、内容分析、大纲规划等。有什么可以帮你的？",
+  "tasks": []
+}
+
+用户: "谢谢你的帮助"
+{
+  "thinking": {
+    "step1_output": "用户在表示感谢，是礼貌性回应",
+    "step2_material": "不需要",
+    "step3_process": "直接回答"
+  },
+  "user_intent": "表示感谢",
+  "direct_answer": "不客气！如果还有其他需要帮助的地方，随时告诉我。",
+  "tasks": []
+}
+
+【需要工具的示例】
 
 用户: "第三章讲了什么"
 {
@@ -328,7 +393,7 @@ async def get_planning_static_prompt() -> str:
   "user_intent": "创作第5-9章大纲",
   "tasks": [
     {"task_id": 1, "description": "批量获取前四章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": "1-4"}},
-    {"task_id": 2, "description": "创作大纲", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.chapters$", "requirements": "基于前四章的人物、情节、伏笔，为第5-9章设计详细大纲：章节标题、主要剧情、涉及角色、伏笔设置"}}
+    {"task_id": 2, "description": "创作大纲", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.chapters$", "requirements": "基于前四章的人物、情节、伏笔，为第5-9章设计详细大纲：章节标题、主要剧情、涉及角色、伏笔设置", "target_words": 1500}}
   ]
 }
 
@@ -342,7 +407,7 @@ async def get_planning_static_prompt() -> str:
   "user_intent": "续写第五章正文",
   "tasks": [
     {"task_id": 1, "description": "获取第四章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 4}},
-    {"task_id": 2, "description": "续写第五章", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.content$", "requirements": "承接上一章内容续写第五章"}}
+    {"task_id": 2, "description": "续写第五章", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.content$", "requirements": "承接上一章内容续写第五章", "target_words": 3000}}
   ]
 }
 
@@ -357,8 +422,8 @@ async def get_planning_static_prompt() -> str:
   "tasks": [
     {"task_id": 1, "description": "批量获取前四章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": "1-4"}},
     {"task_id": 2, "description": "分析前四章", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.chapters$", "focus": "分析前四章：主要人物、情节发展、伏笔线索、写作风格"}},
-    {"task_id": 3, "description": "创作第5-9章大纲", "tool": "continue_writing_tool", "params": {"context": "$TASK_2$", "requirements": "基于分析结果，为第5-9章设计详细大纲"}},
-    {"task_id": 4, "description": "续写第五章", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.chapters[3].content$\\n\\n大纲：$TASK_3$", "requirements": "基于大纲续写第五章正文"}}
+    {"task_id": 3, "description": "创作第5-9章大纲", "tool": "continue_writing_tool", "params": {"context": "$TASK_2$", "requirements": "基于分析结果，为第5-9章设计详细大纲", "target_words": 1500}},
+    {"task_id": 4, "description": "续写第五章", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.chapters[3].content$\\n\\n大纲：$TASK_3$", "requirements": "基于大纲续写第五章正文", "target_words": 3000}}
   ]
 }
 
@@ -540,9 +605,15 @@ async def get_complexity_decision_prompt() -> str:
 ## 复杂度判断
 问自己：这个请求需要复杂处理吗？
 
-判断为 simple（可直接执行）的条件：
+判断为 simple + direct_answer（直接回答，不需要工具）的条件：
+- 问候、寒暄（你好、在吗、谢谢）
+- 关于 AI 的问题（你是谁、你能做什么、介绍一下你自己）
+- 知识问答、闲聊、表达感受
+- 用户没有明确要求操作章节/文本内容
+- 任何不确定的情况 → 选择直接回答
+
+判断为 simple + tool（单个工具调用）的条件：
 - 只需要 1 个工具调用（如获取标题、字数）
-- 或者可以直接回答（如问候、简单问答）
 - 没有依赖关系
 - 没有多步骤
 
@@ -554,15 +625,14 @@ async def get_complexity_decision_prompt() -> str:
 - 需要概括/总结内容
 
 ## 执行方案
-如果是 simple，给出具体方案：
+
+直接回答时（优先考虑）：
+- direct_answer: 答案内容
 
 工具调用时：
 - tool_name: 工具名称
 - tool_args: 参数
 - response_hint: 返回字段提示（title/content/word_count）
-
-直接回答时：
-- direct_answer: 答案内容
 
 【可用工具速查】
 
@@ -572,6 +642,15 @@ async def get_complexity_decision_prompt() -> str:
 
 注意：概括/总结内容需要分析处理，应判定为 complex
 
+【示例】
+
+"你好" → {{"complexity": "simple", "reason": "问候", "action": {{"direct_answer": "..."}}}}
+"你是谁" → {{"complexity": "simple", "reason": "关于AI的问题", "action": {{"direct_answer": "..."}}}}
+"第三章标题是什么" → {{"complexity": "simple", "reason": "单个工具调用", "action": {{"tool_name": "get_chapter_by_order_tool", "tool_args": {{"chapter_order": 3}}, "response_hint": "title"}}}}
+"分析前五章" → {{"complexity": "complex", "reason": "需要读取多章并分析", "action": {{}}}}
+
+注意：direct_answer 的内容由你根据问题自由生成。
+
 【输出格式】
 
 ```json
@@ -579,17 +658,17 @@ async def get_complexity_decision_prompt() -> str:
   "complexity": "simple|complex",
   "reason": "判断依据（简短）",
   "action": {{
+    // simple + answer:
+    "direct_answer": "直接回答内容"
+
     // simple + tool:
     "tool_name": "工具名",
     "tool_args": {{}},
     "response_hint": "title|content|word_count"
-
-    // simple + answer:
-    "direct_answer": "直接回答内容"
 
     // complex: 留空 {{}}
   }}
 }}
 ```
 
-请分析并返回 JSON:"""
+⚠️ 如果不确定，选择直接回答。请分析并返回 JSON:"""
