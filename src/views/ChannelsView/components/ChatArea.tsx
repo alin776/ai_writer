@@ -1,7 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -180,6 +179,38 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
       handleSend();
     }
   };
+
+  // 自动调整 textarea 高度
+  const adjustTextareaHeight = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+
+    if (!el.value || el.value.trim() === '') {
+      el.style.height = '40px';
+      el.style.overflowY = 'hidden';
+      return;
+    }
+
+    el.style.height = '40px'; // 重置
+    const maxH = 200;
+    const contentHeight = el.scrollHeight;
+    const nextHeight = Math.min(contentHeight, maxH);
+    el.style.height = `${Math.max(nextHeight, 40)}px`;
+    el.style.overflowY = contentHeight > maxH ? 'auto' : 'hidden';
+  }, []);
+
+  // 输入内容变化时调整高度
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setMessageInput(e.target.value);
+    adjustTextareaHeight();
+  };
+
+  // 发送后重置高度
+  useEffect(() => {
+    if (!messageInput) {
+      adjustTextareaHeight();
+    }
+  }, [messageInput, adjustTextareaHeight]);
 
   const insertMention = (username?: string) => {
     const textarea = textareaRef.current;
@@ -575,7 +606,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
 
                     {/* 消息内容 */}
                     <div className={cn(
-                      "text-sm leading-relaxed px-3 py-2.5",
+                      "text-sm leading-relaxed px-3 py-2.5 whitespace-pre-wrap break-words",
                       isOwnMessage ? "text-white" : "text-gray-700 dark:text-gray-200",
                       isAnnouncement && "text-amber-900 dark:text-amber-200"
                     )}>
@@ -633,82 +664,99 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
       </ScrollArea>
 
       {/* 输入区域 */}
-      <div className="p-3 border-t border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900">
-        <div className="space-y-2">
-          <div className="flex gap-1">
+      <div className="p-3 bg-white dark:bg-gray-900">
+        {/* 回复预览 */}
+        {replyingTo && (
+          <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-blue-50 dark:bg-blue-900/30 border-l-2 border-blue-500 dark:border-blue-400 rounded-lg">
+            <Reply className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                回复 {replyingTo.userName}
+              </div>
+              <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                {replyingTo.content}
+              </div>
+            </div>
             <button
-              ref={mentionButtonRef}
-              onClick={toggleMentionMenu}
-              disabled={channel.status === 'locked'}
-              className="p-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 rounded text-gray-500 dark:text-gray-400 disabled:opacity-30"
+              onClick={() => setReplyingTo(null)}
+              className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800 rounded text-blue-600 dark:text-blue-400"
             >
-              <AtSign className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
+          </div>
+        )}
 
-            <button
-              ref={emojiButtonRef}
-              onClick={toggleEmojiPicker}
-              className="p-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 rounded text-gray-500 dark:text-gray-400"
-            >
-              <Smile className="w-4 h-4" />
-            </button>
+        {/* 主输入容器 - AIPanel 风格 */}
+        <div className="rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm px-4 py-3 space-y-3">
+          {/* 输入框 */}
+          <textarea
+            ref={textareaRef}
+            value={messageInput}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              channel.status === 'locked'
+                ? '频道已折叠'
+                : replyingTo
+                  ? `回复 ${replyingTo.userName}...`
+                  : '输入消息...'
+            }
+            className="min-h-[40px] bg-transparent outline-none border-none text-[13px] placeholder:text-gray-400 dark:placeholder:text-slate-500 resize-none leading-relaxed dark:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={channel.status === 'locked'}
+            rows={1}
+            style={{
+              width: '100%',
+              display: 'block',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              overflowWrap: 'break-word',
+              overflowY: 'hidden',
+              overflowX: 'hidden',
+            }}
+          />
 
-            {canSendAnnouncement && (
+          {/* 底部工具栏 */}
+          <div className="flex items-center justify-between">
+            {/* 左侧按钮组 */}
+            <div className="flex items-center gap-1">
               <button
-                onClick={() => handleSend('announcement')}
-                disabled={!messageInput.trim() || channel.status === 'locked'}
-                className="text-xs px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded text-gray-600 dark:text-gray-400 disabled:opacity-30"
+                ref={mentionButtonRef}
+                onClick={toggleMentionMenu}
+                disabled={channel.status === 'locked'}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg text-gray-500 dark:text-slate-400 disabled:opacity-30 transition-colors"
               >
-                发布公告
+                <AtSign className="w-4 h-4" />
+              </button>
+
+              <button
+                ref={emojiButtonRef}
+                onClick={toggleEmojiPicker}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg text-gray-500 dark:text-slate-400 transition-colors"
+              >
+                <Smile className="w-4 h-4" />
+              </button>
+
+              {canSendAnnouncement && (
+                <button
+                  onClick={() => handleSend('announcement')}
+                  disabled={!messageInput.trim() || channel.status === 'locked'}
+                  className="text-xs px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg text-gray-600 dark:text-slate-400 disabled:opacity-30 transition-colors"
+                >
+                  发布公告
+                </button>
+              )}
+            </div>
+
+            {/* 右侧发送按钮 */}
+            {messageInput.trim() && (
+              <button
+                onClick={() => handleSend()}
+                disabled={!messageInput.trim() || channel.status === 'locked'}
+                className="w-10 h-10 rounded-full bg-gray-900 dark:bg-blue-600 text-white flex items-center justify-center hover:bg-gray-800 dark:hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95 shadow-sm"
+              >
+                <Send className="w-4 h-4" />
               </button>
             )}
-          </div>
-
-          {/* 回复预览 */}
-          {replyingTo && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/30 border-l-2 border-blue-500 dark:border-blue-400">
-              <Reply className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                  回复 {replyingTo.userName}
-                </div>
-                <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
-                  {replyingTo.content}
-                </div>
-              </div>
-              <button
-                onClick={() => setReplyingTo(null)}
-                className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800 rounded text-blue-600 dark:text-blue-400"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            <Textarea
-              ref={textareaRef}
-              value={messageInput}
-              onChange={(e) => setMessageInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                channel.status === 'locked'
-                  ? '频道已折叠'
-                  : replyingTo
-                    ? `回复 ${replyingTo.userName}...`
-                    : '输入消息...'
-              }
-              className="flex-1 min-h-[60px] resize-none text-xs border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 focus:border-gray-300 dark:focus:border-gray-500"
-              disabled={channel.status === 'locked'}
-            />
-
-            <button
-              onClick={() => handleSend()}
-              disabled={!messageInput.trim() || channel.status === 'locked'}
-              className="self-end px-3 py-2 bg-black dark:bg-white text-white dark:text-black rounded hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <Send className="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
       </div>
@@ -1139,7 +1187,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                           </div>
                         </div>
                       </div>
-                      <p className="text-sm text-gray-700 dark:text-gray-300 pl-8">{message.content}</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 pl-8 whitespace-pre-wrap break-words">{message.content}</p>
                     </div>
                   ))}
                 </div>
