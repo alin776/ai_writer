@@ -70,6 +70,9 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [showMentionMenu, setShowMentionMenu] = useState(false);
   const [mentionMenuPosition, setMentionMenuPosition] = useState({ x: 0, y: 0 });
+  const [mentionFilter, setMentionFilter] = useState(''); // @ 后面的过滤词
+  const [mentionStartIndex, setMentionStartIndex] = useState(-1); // @ 符号的位置
+  const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0); // 键盘选中的索引
   const [members, setMembers] = useState<ChannelMember[]>([]);
   const [contextMenu, setContextMenu] = useState<{
     show: boolean;
@@ -202,7 +205,72 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
     }
   };
 
+  // 计算过滤后的成员列表（用于键盘导航）
+  const getFilteredMentionList = useCallback(() => {
+    const list: { type: 'all' | 'member'; username: string; member?: ChannelMember }[] = [];
+
+    // @全体成员选项（只有管理员和群主可以使用）
+    if ((currentUser.role === 'owner' || currentUser.role === 'admin') &&
+        (!mentionFilter || '全体成员'.includes(mentionFilter))) {
+      list.push({ type: 'all', username: '全体成员' });
+    }
+
+    // 过滤成员（排除自己）
+    members
+      .filter(member => member.userId !== currentUser.id) // 排除当前用户
+      .filter(member => !mentionFilter || member.username.toLowerCase().includes(mentionFilter.toLowerCase()))
+      .forEach(member => {
+        list.push({ type: 'member', username: member.username, member });
+      });
+
+    return list;
+  }, [members, mentionFilter, currentUser.role, currentUser.id]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // @ 菜单打开时处理上下键和 Enter
+    if (showMentionMenu) {
+      const filteredList = getFilteredMentionList();
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionSelectedIndex(prev =>
+          prev < filteredList.length - 1 ? prev + 1 : 0
+        );
+        return;
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionSelectedIndex(prev =>
+          prev > 0 ? prev - 1 : filteredList.length - 1
+        );
+        return;
+      }
+
+      if (e.key === 'Enter' && filteredList.length > 0) {
+        e.preventDefault();
+        const selected = filteredList[mentionSelectedIndex];
+        if (selected) {
+          insertMention(selected.username);
+          setShowMentionMenu(false);
+          setMentionFilter('');
+          setMentionStartIndex(-1);
+          setMentionSelectedIndex(0);
+        }
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowMentionMenu(false);
+        setMentionFilter('');
+        setMentionStartIndex(-1);
+        setMentionSelectedIndex(0);
+        return;
+      }
+    }
+
+    // 正常的 Enter 发送消息
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -230,11 +298,49 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
 
   // 输入内容变化时调整高度
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setMessageInput(e.target.value);
+    const newValue = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    setMessageInput(newValue);
     adjustTextareaHeight();
+
     // 发送正在输入事件
-    if (e.target.value.trim()) {
+    if (newValue.trim()) {
       sendTyping();
+    }
+
+    // 检测 @ 符号触发成员选择
+    const textBeforeCursor = newValue.substring(0, cursorPos);
+    const atMatch = textBeforeCursor.match(/@([^\s@]*)$/);
+
+    if (atMatch) {
+      const atIndex = textBeforeCursor.lastIndexOf('@');
+      const filter = atMatch[1] || '';
+
+      // 过滤词变化时重置选中索引
+      if (filter !== mentionFilter) {
+        setMentionSelectedIndex(0);
+      }
+
+      setMentionStartIndex(atIndex);
+      setMentionFilter(filter);
+
+      // 计算菜单位置（在输入框上方）
+      if (textareaRef.current) {
+        const rect = textareaRef.current.getBoundingClientRect();
+        setMentionMenuPosition({
+          x: rect.left,
+          y: rect.top - 10
+        });
+      }
+      setShowMentionMenu(true);
+    } else {
+      // 没有 @ 或者 @ 后面有空格，关闭菜单
+      if (showMentionMenu) {
+        setShowMentionMenu(false);
+        setMentionFilter('');
+        setMentionStartIndex(-1);
+        setMentionSelectedIndex(0);
+      }
     }
   };
 
@@ -247,7 +353,28 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
 
   const insertMention = (username?: string) => {
     const textarea = textareaRef.current;
-    if (textarea) {
+    if (!textarea) return;
+
+    // 如果是从输入框触发的（mentionStartIndex >= 0），替换 @xxx 部分
+    if (mentionStartIndex >= 0) {
+      const textBefore = messageInput.substring(0, mentionStartIndex);
+      const cursorPos = textarea.selectionStart;
+      const textAfter = messageInput.substring(cursorPos);
+      const mentionText = username ? `@${username} ` : '@';
+      setMessageInput(textBefore + mentionText + textAfter);
+
+      // 重置状态
+      setMentionStartIndex(-1);
+      setMentionFilter('');
+      setMentionSelectedIndex(0);
+
+      setTimeout(() => {
+        const newPos = textBefore.length + mentionText.length;
+        textarea.setSelectionRange(newPos, newPos);
+        textarea.focus();
+      }, 0);
+    } else {
+      // 从按钮触发的，在光标位置插入
       const cursorPos = textarea.selectionStart;
       const textBefore = messageInput.substring(0, cursorPos);
       const textAfter = messageInput.substring(cursorPos);
@@ -269,6 +396,15 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
         x: buttonRect.left,
         y: buttonRect.top - 10
       });
+      // 从按钮触发时，重置过滤词和起始位置
+      setMentionFilter('');
+      setMentionStartIndex(-1);
+      setMentionSelectedIndex(0);
+    } else {
+      // 关闭时重置
+      setMentionFilter('');
+      setMentionStartIndex(-1);
+      setMentionSelectedIndex(0);
     }
     setShowMentionMenu(!showMentionMenu);
   };
@@ -316,6 +452,9 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
           !mentionButtonRef.current.contains(event.target as Node) &&
           !(event.target as Element).closest('.mention-menu')) {
         setShowMentionMenu(false);
+        setMentionFilter('');
+        setMentionStartIndex(-1);
+        setMentionSelectedIndex(0);
       }
     };
 
@@ -846,66 +985,89 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
       )}
 
       {/* @ 成员选择菜单 */}
-      {showMentionMenu && (
-        <>
-          {/* 遮罩层 */}
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setShowMentionMenu(false)}
-          />
-          {/* 成员菜单 */}
-          <div
-            className="fixed bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl mention-menu z-50 w-64"
-            style={{
-              left: `${mentionMenuPosition.x}px`,
-              top: `${mentionMenuPosition.y}px`,
-              transform: 'translateY(-100%)'
-            }}
-          >
-            <div className="p-2 border-b border-gray-100 dark:border-gray-700">
-              <h4 className="text-xs text-gray-600 dark:text-gray-400 px-2">选择要 @ 的成员</h4>
-            </div>
-            <div className="max-h-64 overflow-y-auto">
-              {/* @全体成员选项 */}
-              <button
-                onClick={() => {
-                  insertMention('全体成员');
-                  setShowMentionMenu(false);
-                }}
-                className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 dark:text-gray-200"
-              >
-                <div className="w-6 h-6 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-xs">
-                  全
-                </div>
-                <span className="font-medium">全体成员</span>
-              </button>
+      {showMentionMenu && (() => {
+        const filteredList = getFilteredMentionList();
+        return (
+          <>
+            {/* 遮罩层 */}
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => {
+                setShowMentionMenu(false);
+                setMentionFilter('');
+                setMentionStartIndex(-1);
+                setMentionSelectedIndex(0);
+              }}
+            />
+            {/* 成员菜单 */}
+            <div
+              className="fixed bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl mention-menu z-50 w-64"
+              style={{
+                left: `${mentionMenuPosition.x}px`,
+                top: `${mentionMenuPosition.y}px`,
+                transform: 'translateY(-100%)'
+              }}
+            >
+              <div className="p-2 border-b border-gray-100 dark:border-gray-700">
+                <h4 className="text-xs text-gray-600 dark:text-gray-400 px-2">
+                  选择要 @ 的成员
+                  {mentionFilter && <span className="ml-1 text-blue-500">"{mentionFilter}"</span>}
+                  <span className="ml-2 text-gray-400">(↑↓选择 Enter确认)</span>
+                </h4>
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {filteredList.map((item, index) => (
+                  <button
+                    key={item.type === 'all' ? 'all' : item.member?.id}
+                    onClick={() => {
+                      insertMention(item.username);
+                      setShowMentionMenu(false);
+                      setMentionFilter('');
+                      setMentionStartIndex(-1);
+                      setMentionSelectedIndex(0);
+                    }}
+                    className={cn(
+                      "w-full px-3 py-2 text-xs text-left flex items-center gap-2 dark:text-gray-200 transition-colors",
+                      index === mentionSelectedIndex
+                        ? "bg-blue-50 dark:bg-blue-900/30"
+                        : "hover:bg-gray-50 dark:hover:bg-gray-700"
+                    )}
+                  >
+                    {item.type === 'all' ? (
+                      <>
+                        <div className="w-6 h-6 bg-blue-500 rounded flex items-center justify-center">
+                          <Users className="w-4 h-4 text-white" />
+                        </div>
+                        <span className="font-medium">全体成员</span>
+                      </>
+                    ) : (
+                      <>
+                        <Avatar className="w-6 h-6 shrink-0">
+                          <AvatarImage src={item.member?.avatar} />
+                          <AvatarFallback className="text-xs bg-gray-800 dark:bg-gray-600 text-white dark:text-gray-300">
+                            {item.username[0]?.toUpperCase() || 'U'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span>{item.username}</span>
+                        {item.member?.role === 'owner' && (
+                          <span className="text-xs text-yellow-600">👑</span>
+                        )}
+                      </>
+                    )}
+                  </button>
+                ))}
 
-              {/* 成员列表 */}
-              {members.map((member) => (
-                <button
-                  key={member.id}
-                  onClick={() => {
-                    insertMention(member.username);
-                    setShowMentionMenu(false);
-                  }}
-                  className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 dark:text-gray-200"
-                >
-                  <Avatar className="w-6 h-6 shrink-0">
-                    <AvatarImage src={member.avatar} />
-                    <AvatarFallback className="text-xs bg-gradient-to-br from-blue-400 to-purple-500 text-white">
-                      {member.username[0]?.toUpperCase() || 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span>{member.username}</span>
-                  {member.role === 'owner' && (
-                    <span className="text-xs text-yellow-600">👑</span>
-                  )}
-                </button>
-              ))}
+                {/* 无匹配结果提示 */}
+                {filteredList.length === 0 && (
+                  <div className="px-3 py-4 text-xs text-gray-400 dark:text-gray-500 text-center">
+                    未找到匹配的成员
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </>
-      )}
+          </>
+        );
+      })()}
 
       {/* 右键消息菜单 */}
       {contextMenu && contextMenu.show && (
