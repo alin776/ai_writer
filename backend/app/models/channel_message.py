@@ -42,6 +42,9 @@ class ChannelMessage(Base):
     # 引用消息（回复功能）
     reply_to_id = Column(UUID(as_uuid=True), ForeignKey("channel_messages.id", ondelete="SET NULL"), nullable=True)
 
+    # 转发消息
+    forwarded_from_id = Column(UUID(as_uuid=True), ForeignKey("channel_messages.id", ondelete="SET NULL"), nullable=True, comment="转发来源消息ID")
+
     # 统计信息
     reaction_count = Column(Integer, default=0, nullable=False, comment="反应数量")
 
@@ -55,9 +58,12 @@ class ChannelMessage(Base):
     channel = relationship("Channel", back_populates="messages")
     user = relationship("User", back_populates="channel_messages", foreign_keys=[user_id])
     pinned_by_user = relationship("User", foreign_keys=[pinned_by])
-    reply_to = relationship("ChannelMessage", remote_side=[id], backref="replies")
+    reply_to = relationship("ChannelMessage", remote_side=[id], backref="replies", foreign_keys=[reply_to_id])
+    forwarded_from = relationship("ChannelMessage", remote_side=[id], foreign_keys=[forwarded_from_id])
     reports = relationship("MessageReport", back_populates="message", cascade="all, delete-orphan")
     reactions = relationship("MessageReaction", back_populates="message", cascade="all, delete-orphan")
+    attachments = relationship("MessageAttachment", back_populates="message", cascade="all, delete-orphan")
+    bookmarks = relationship("MessageBookmark", back_populates="message", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<ChannelMessage id={self.id} channel_id={self.channel_id}>"

@@ -60,6 +60,9 @@ class Channel(Base):
     # 进入要求配置
     join_requirement = Column(Text, nullable=True, comment="进入要求配置(JSON)")
 
+    # 慢速模式
+    slowmode_interval = Column(Integer, nullable=True, comment="慢速模式间隔(秒)，null表示关闭")
+
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -70,6 +73,10 @@ class Channel(Base):
     work = relationship("Work", back_populates="channel")
     members = relationship("ChannelMember", back_populates="channel", cascade="all, delete-orphan")
     messages = relationship("ChannelMessage", back_populates="channel", cascade="all, delete-orphan", order_by="ChannelMessage.created_at")
+    attachments = relationship("MessageAttachment", back_populates="channel", cascade="all, delete-orphan")
+    invites = relationship("ChannelInvite", back_populates="channel", cascade="all, delete-orphan")
+    bookmarks = relationship("MessageBookmark", back_populates="channel", cascade="all, delete-orphan")
+    notification_settings = relationship("ChannelNotificationSetting", back_populates="channel", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Channel {self.name} ({self.type})>"

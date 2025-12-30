@@ -10,10 +10,12 @@ import {
   leaveChannel,
   getChannelMessages,
   sendMessage as apiSendMessage,
+  sendMessageWithAttachments as apiSendMessageWithAttachments,
   getChannelMembers,
   type Channel as ApiChannel,
   type ChannelMessage,
-  type ReactionSummary
+  type ReactionSummary,
+  type MessageAttachment
 } from '@/services/channelApi';
 import { useToast } from '@/hooks/useToast';
 import { useAuthStore } from '@/store/authStore';
@@ -38,6 +40,16 @@ const convertApiChannelToChannel = (apiChannel: ApiChannel): Channel => {
 
 // 转换 API ChannelMessage 到组件 Message 格式
 const convertApiMessageToMessage = (apiMessage: ChannelMessage): Message => {
+  // 转换附件数据（ApiAdapter 已经转换为 camelCase）
+  const attachments: MessageAttachment[] = apiMessage.attachments?.map((att: any) => ({
+    id: att.id,
+    fileName: att.fileName,
+    fileType: att.fileType,
+    fileSize: att.fileSize,
+    fileUrl: att.fileUrl,
+    thumbnailUrl: att.thumbnailUrl,
+  })) || [];
+
   return {
     id: apiMessage.id,
     userId: apiMessage.userId || '',
@@ -51,6 +63,7 @@ const convertApiMessageToMessage = (apiMessage: ChannelMessage): Message => {
     isPinned: apiMessage.isPinned || false,
     isEdited: apiMessage.isEdited || false,
     editedAt: apiMessage.editedAt ? new Date(apiMessage.editedAt) : undefined,
+    attachments: attachments.length > 0 ? attachments : undefined,
   };
 };
 
@@ -270,8 +283,85 @@ const ChannelsView: React.FC = () => {
     }
   };
 
+  // 发送带附件的消息
+  const handleSendMessageWithAttachments = async (
+    content: string,
+    attachmentIds: string[],
+    type: 'normal' | 'announcement' = 'normal',
+    replyToId?: string
+  ) => {
+    if (!activeChannelId) return;
+
+    try {
+      const response = await apiSendMessageWithAttachments(
+        activeChannelId,
+        content,
+        attachmentIds,
+        type,
+        replyToId
+      );
+      console.log('[DEBUG] sendMessageWithAttachments response:', response);
+
+      // 转换附件数据（ApiAdapter 已经转换为 camelCase）
+      const attachments: MessageAttachment[] = response.attachments?.map((att: any) => ({
+        id: att.id,
+        fileName: att.fileName,
+        fileType: att.fileType,
+        fileSize: att.fileSize,
+        fileUrl: att.fileUrl,
+        thumbnailUrl: att.thumbnailUrl,
+      })) || [];
+
+      const newMessage: Message = {
+        id: response.id,
+        userId: response.userId || '',
+        userName: response.userName || '未知用户',
+        userAvatar: response.userAvatar,
+        userTitle: response.userTitle,
+        userTitleColor: response.userTitleColor,
+        content: response.content,
+        timestamp: new Date(response.createdAt),
+        type: response.type as 'normal' | 'announcement' | 'mention',
+        isPinned: response.isPinned || false,
+        isEdited: false,
+        attachments,
+      };
+
+      // 如果是回复消息，添加回复信息
+      if (response.replyToId) {
+        const currentMessages = channelMessages[activeChannelId] || [];
+        const replyToMsg = currentMessages.find(m => m.id === response.replyToId);
+        if (replyToMsg) {
+          newMessage.replyTo = {
+            id: replyToMsg.id,
+            userName: replyToMsg.userName,
+            content: replyToMsg.content,
+          };
+        }
+      }
+
+      setChannelMessages(prev => ({
+        ...prev,
+        [activeChannelId]: [...(prev[activeChannelId] || []), newMessage],
+      }));
+    } catch (error) {
+      console.error('发送消息失败:', error);
+      showToast('error', '发送消息失败');
+    }
+  };
+
   // WebSocket 收到新消息
   const handleNewMessage = useCallback((wsMessage: WsChannelMessage) => {
+    // 转换附件数据（WebSocket 现在统一使用 camelCase）
+    const attachments: MessageAttachment[] = wsMessage.attachments?.map((att) => ({
+      id: att.id,
+      fileName: att.fileName,
+      fileType: att.fileType,
+      fileSize: att.fileSize,
+      fileUrl: att.fileUrl,
+      thumbnailUrl: att.thumbnailUrl,
+    })) || [];
+
     // 转换为组件格式
     const newMessage: Message = {
       id: wsMessage.id,
@@ -285,6 +375,7 @@ const ChannelsView: React.FC = () => {
       type: wsMessage.type as 'normal' | 'announcement' | 'mention',
       isPinned: wsMessage.is_pinned,
       isEdited: false,
+      attachments: attachments.length > 0 ? attachments : undefined,
     };
 
     // 使用函数式更新，避免依赖 channelMessages
@@ -517,6 +608,7 @@ const ChannelsView: React.FC = () => {
             messages={messages}
             currentUser={currentUser}
             onSendMessage={handleSendMessage}
+            onSendMessageWithAttachments={handleSendMessageWithAttachments}
             onLeaveChannel={handleLeaveChannel}
             onNewMessage={handleNewMessage}
             onMessageDelete={handleMessageDelete}

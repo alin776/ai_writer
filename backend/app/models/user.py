@@ -56,6 +56,10 @@ class User(Base):
     channel_memberships = relationship("ChannelMember", back_populates="user", cascade="all, delete-orphan")
     channel_messages = relationship("ChannelMessage", foreign_keys="ChannelMessage.user_id", back_populates="user", cascade="all, delete-orphan")
     message_reactions = relationship("MessageReaction", back_populates="user", cascade="all, delete-orphan")
+    message_attachments = relationship("MessageAttachment", back_populates="user", cascade="all, delete-orphan")
+    channel_invites = relationship("ChannelInvite", back_populates="creator", cascade="all, delete-orphan")
+    message_bookmarks = relationship("MessageBookmark", back_populates="user", cascade="all, delete-orphan")
+    channel_notification_settings = relationship("ChannelNotificationSetting", back_populates="user", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<User {self.username}>"

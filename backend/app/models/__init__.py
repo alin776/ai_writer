@@ -49,6 +49,10 @@ from app.models.channel_member import ChannelMember, MemberRole
 from app.models.channel_message import ChannelMessage, MessageType
 from app.models.message_report import MessageReport
 from app.models.message_reaction import MessageReaction
+from app.models.message_attachment import MessageAttachment
+from app.models.channel_invite import ChannelInvite
+from app.models.message_bookmark import MessageBookmark
+from app.models.channel_notification_setting import ChannelNotificationSetting
 from app.models.channel_read_state import ChannelReadState
 from app.models.work_report import WorkReport, WorkReportReason, WorkReportStatus
 from app.models.chapter_comment import (
@@ -134,6 +138,10 @@ __all__ = [
     "MessageType",
     "MessageReport",
     "MessageReaction",
+    "MessageAttachment",
+    "ChannelInvite",
+    "MessageBookmark",
+    "ChannelNotificationSetting",
     "ChannelReadState",
     "WorkReport",
     "WorkReportReason",

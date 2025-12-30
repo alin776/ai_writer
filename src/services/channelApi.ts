@@ -30,6 +30,8 @@ export interface Channel {
   bookTitle?: string;
   author?: string;
   collectCount?: number;
+  // 慢速模式
+  slowmodeInterval?: number;
 }
 
 export interface ChannelListResponse {
@@ -61,6 +63,7 @@ export interface ChannelMessage {
   isDeleted: boolean;
   isEdited: boolean;
   replyToId?: string;
+  forwardedFromId?: string;  // 转发来源消息ID
   reactionCount: number;
   createdAt: string;
   updatedAt: string;
@@ -71,6 +74,8 @@ export interface ChannelMessage {
   userAvatar?: string;
   userTitle?: string;
   userTitleColor?: string;
+  // 附件
+  attachments?: MessageAttachment[];
 }
 
 export interface ChannelMessageListResponse {
@@ -473,6 +478,32 @@ export interface PinnedMessagesListResponse {
   total: number;
 }
 
+// ==================== 附件类型 ====================
+
+export interface MessageAttachment {
+  id: string;
+  fileName: string;
+  fileType?: string;
+  fileSize: number;
+  fileUrl: string;
+  thumbnailUrl?: string;
+  createdAt?: string;
+}
+
+export interface AttachmentUploadResponse {
+  id: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  fileUrl: string;
+  thumbnailUrl?: string;
+}
+
+// 扩展 ChannelMessage 类型以包含附件
+export interface ChannelMessageWithAttachments extends ChannelMessage {
+  attachments?: MessageAttachment[];
+}
+
 /**
  * 添加消息反应
  */
@@ -553,6 +584,101 @@ export const getPinnedMessages = async (
   return await api.get(`/channels/${channelId}/pinned-messages`);
 };
 
+// ==================== 附件上传 API ====================
+
+/**
+ * 上传附件文件
+ */
+export const uploadAttachment = async (
+  channelId: string,
+  file: File
+): Promise<AttachmentUploadResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return await api.post(`/channels/${channelId}/upload`, formData);
+};
+
+/**
+ * 发送带附件的消息
+ */
+export const sendMessageWithAttachments = async (
+  channelId: string,
+  content: string,
+  attachmentIds: string[],
+  messageType: 'normal' | 'announcement' = 'normal',
+  replyToId?: string
+): Promise<ChannelMessageWithAttachments> => {
+  const params = new URLSearchParams();
+  if (content) params.append('content', content);
+  params.append('message_type', messageType);
+  if (replyToId) params.append('reply_to_id', replyToId);
+  attachmentIds.forEach(id => params.append('attachment_ids', id));
+
+  return await api.post(`/channels/${channelId}/messages-with-attachments?${params.toString()}`);
+};
+
+/**
+ * 获取消息的附件列表
+ */
+export const getMessageAttachments = async (
+  channelId: string,
+  messageId: string
+): Promise<{ attachments: MessageAttachment[] }> => {
+  return await api.get(`/channels/${channelId}/messages/${messageId}/attachments`);
+};
+
+// ==================== 消息转发 API ====================
+
+export interface ForwardMessageRequest {
+  target_channel_ids: string[];
+  add_comment?: string;
+}
+
+export interface ForwardMessageResponse {
+  forwarded_count: number;
+  failed_channels: string[];
+  messages: {
+    channel_id: string;
+    channel_name: string;
+    message_id: string;
+  }[];
+}
+
+export interface ForwardInfo {
+  is_forwarded: boolean;
+  original_deleted?: boolean;
+  original?: {
+    message_id: string;
+    channel_id: string;
+    channel_name: string;
+    user_name: string;
+    content: string;
+    created_at: string;
+  };
+}
+
+/**
+ * 转发消息到其他频道
+ */
+export const forwardMessage = async (
+  channelId: string,
+  messageId: string,
+  request: ForwardMessageRequest
+): Promise<ForwardMessageResponse> => {
+  return await api.post(`/channels/${channelId}/messages/${messageId}/forward`, request);
+};
+
+/**
+ * 获取转发消息的原始信息
+ */
+export const getForwardInfo = async (
+  channelId: string,
+  messageId: string
+): Promise<ForwardInfo> => {
+  return await api.get(`/channels/${channelId}/messages/${messageId}/forward-info`);
+};
+
 // 导出一个包含所有 API 函数的对象
 export const channelApi = {
   // 频道管理
@@ -605,4 +731,13 @@ export const channelApi = {
   pinMessage,
   unpinMessage,
   getPinnedMessages,
+
+  // 附件上传
+  uploadAttachment,
+  sendMessageWithAttachments,
+  getMessageAttachments,
+
+  // 消息转发
+  forwardMessage,
+  getForwardInfo,
 };

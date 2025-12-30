@@ -303,10 +303,11 @@ export class ApiAdapter implements IDataAdapter {
     console.log('[ApiAdapter.post] 请求数据:', data);
 
     // FormData 直接透传，避免键名转换破坏 multipart 结构
+    // 注意：不要手动设置 Content-Type，让浏览器自动设置（包含 boundary）
     if (data instanceof FormData) {
       const response = await this.axiosInstance.post(url, data, {
         headers: {
-          'Content-Type': 'multipart/form-data',
+          'Content-Type': undefined,  // 让浏览器自动设置
         },
       });
       return (response as any)?.data ?? (response as any as T);

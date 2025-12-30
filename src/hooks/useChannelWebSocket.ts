@@ -16,6 +16,7 @@ export interface ChannelMessage {
   type: string;
   is_pinned: boolean;
   reply_to_id: string | null;
+  forwarded_from_id?: string | null;  // 转发来源消息ID
   reaction_count: number;
   created_at: string;
   user_name: string;
@@ -23,6 +24,14 @@ export interface ChannelMessage {
   user_honor: string | null;
   user_title: string | null;
   user_title_color: string | null;
+  attachments?: {  // 附件列表（使用 camelCase）
+    id: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+    fileUrl: string;
+    thumbnailUrl?: string;
+  }[];
 }
 
 export interface TypingUser {

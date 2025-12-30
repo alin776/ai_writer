@@ -68,6 +68,9 @@ class ChannelResponse(ChannelBase):
     join_requirement: Optional[str] = None
     can_access: bool = True  # 用户是否满足进入要求
 
+    # 慢速模式
+    slowmode_interval: Optional[int] = None  # 慢速模式间隔(秒)
+
     class Config:
         from_attributes = True
 
@@ -151,6 +154,7 @@ class ChannelMessageResponse(ChannelMessageBase):
     is_deleted: bool
     is_edited: bool = False
     reply_to_id: Optional[UUID]
+    forwarded_from_id: Optional[UUID] = None  # 转发来源消息ID
     reaction_count: int
     created_at: datetime
     updated_at: datetime
@@ -163,6 +167,9 @@ class ChannelMessageResponse(ChannelMessageBase):
     user_honor: Optional[str] = None  # 用户全局称号
     user_title: Optional[str] = None  # 频道内自定义称号
     user_title_color: Optional[str] = None
+
+    # 附件列表
+    attachments: List["AttachmentResponse"] = []
 
     class Config:
         from_attributes = True
@@ -237,3 +244,59 @@ class PinnedMessagesListResponse(BaseModel):
     """置顶消息列表响应"""
     messages: List[PinnedMessageResponse]
     total: int
+
+
+# ========== Message Attachment Schemas ==========
+
+class AttachmentResponse(BaseModel):
+    """附件响应"""
+    id: UUID
+    file_name: str
+    file_type: str
+    file_size: int
+    file_url: str
+    thumbnail_url: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AttachmentUploadResponse(BaseModel):
+    """附件上传响应"""
+    id: UUID
+    file_name: str
+    file_type: str
+    file_size: int
+    file_url: str
+    thumbnail_url: Optional[str] = None
+
+
+class MessageWithAttachmentsResponse(ChannelMessageResponse):
+    """带附件的消息响应"""
+    attachments: List[AttachmentResponse] = []
+
+
+# ========== Message Forward Schemas ==========
+
+class ForwardMessageRequest(BaseModel):
+    """转发消息请求"""
+    target_channel_ids: List[UUID] = Field(..., min_length=1, max_length=10, description="目标频道ID列表")
+    add_comment: Optional[str] = Field(None, max_length=500, description="转发时附加的评论")
+
+
+class ForwardedMessageInfo(BaseModel):
+    """转发来源信息"""
+    original_message_id: UUID
+    original_channel_id: UUID
+    original_channel_name: str
+    original_user_name: str
+    original_content: str
+    original_created_at: datetime
+
+
+class ForwardMessageResponse(BaseModel):
+    """转发消息响应"""
+    forwarded_count: int
+    failed_channels: List[UUID] = []
+    messages: List[dict] = []

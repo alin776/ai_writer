@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin } from 'lucide-react';
+import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -8,11 +8,13 @@ import { cn } from '@/lib/utils';
 import type { Channel } from './ChannelList';
 import { MemberManagementDialog } from './MemberManagementDialog';
 import { ReportMessageDialog } from './ReportMessageDialog';
-import { getChannelMembers, type ChannelMember, channelApi, UnreadInfo, type ReactionSummary } from '@/services/channelApi';
+import { getChannelMembers, type ChannelMember, channelApi, UnreadInfo, type ReactionSummary, type MessageAttachment } from '@/services/channelApi';
 import { useChannelWebSocket, type ChannelMessage, type ReactionEvent } from '@/hooks/useChannelWebSocket';
 import { TypingIndicator } from './TypingIndicator';
 import { MessageReactions } from './MessageReactions';
 import EmojiPicker from './EmojiPicker';
+import { FileUploader, FilePreview } from './FileUploader';
+import MessageAttachments from './MessageAttachments';
 import type { MessageEditEvent } from '@/hooks/useChannelWebSocket';
 
 export interface Message {
@@ -34,6 +36,7 @@ export interface Message {
     content: string;
   };
   reactions?: ReactionSummary[];
+  attachments?: MessageAttachment[]; // 新增附件字段
 }
 
 interface ChatAreaProps {
@@ -47,6 +50,7 @@ interface ChatAreaProps {
     role?: 'owner' | 'admin' | 'member';
   };
   onSendMessage: (content: string, type?: 'normal' | 'announcement', replyToId?: string) => void;
+  onSendMessageWithAttachments?: (content: string, attachmentIds: string[], type?: 'normal' | 'announcement', replyToId?: string) => void;
   onMentionAll?: () => void;
   onLeaveChannel?: () => void;
   onNewMessage?: (message: ChannelMessage) => void;
@@ -59,7 +63,7 @@ interface ChatAreaProps {
   scrollToMessageId?: string | null;
 }
 
-export function ChatArea({ channel, messages, currentUser, onSendMessage, onMentionAll, onLeaveChannel, onNewMessage, onMessageDelete, onMessageEdit, onReactionAdd, onReactionRemove, onReactionsChange, onPinChange, scrollToMessageId }: ChatAreaProps) {
+export function ChatArea({ channel, messages, currentUser, onSendMessage, onSendMessageWithAttachments, onMentionAll, onLeaveChannel, onNewMessage, onMessageDelete, onMessageEdit, onReactionAdd, onReactionRemove, onReactionsChange, onPinChange, scrollToMessageId }: ChatAreaProps) {
   const [messageInput, setMessageInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiPickerPosition, setEmojiPickerPosition] = useState({ x: 0, y: 0 });
@@ -90,6 +94,15 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
   const [isSearching, setIsSearching] = useState(false);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [editContent, setEditContent] = useState('');
+  // 附件上传状态
+  const [uploadedFiles, setUploadedFiles] = useState<{
+    id: string;
+    fileName: string;
+    fileType?: string;
+    fileSize: number;
+    fileUrl: string;
+    thumbnailUrl?: string;
+  }[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -198,11 +211,22 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
   }, [channel.id, messages]); // 当消息更新时也重新获取
 
   const handleSend = (type: 'normal' | 'announcement' = 'normal') => {
-    if (messageInput.trim()) {
+    const hasContent = messageInput.trim();
+    const hasAttachments = uploadedFiles.length > 0;
+
+    if (!hasContent && !hasAttachments) return;
+
+    // 如果有附件，使用带附件的发送方法
+    if (hasAttachments && onSendMessageWithAttachments) {
+      const attachmentIds = uploadedFiles.map(f => f.id);
+      onSendMessageWithAttachments(messageInput, attachmentIds, type, replyingTo?.id);
+      setUploadedFiles([]); // 清空附件
+    } else if (hasContent) {
       onSendMessage(messageInput, type, replyingTo?.id);
-      setMessageInput('');
-      setReplyingTo(null);  // 清除回复状态
     }
+
+    setMessageInput('');
+    setReplyingTo(null);  // 清除回复状态
   };
 
   // 计算过滤后的成员列表（用于键盘导航）
@@ -792,14 +816,26 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                       </>
                     )}
 
-                    {/* 消息内容 */}
-                    <div className={cn(
-                      "text-sm leading-relaxed px-3 py-2.5 whitespace-pre-wrap break-words",
-                      isOwnMessage ? "text-white" : "text-gray-700 dark:text-gray-200",
-                      isAnnouncement && "text-amber-900 dark:text-amber-200"
-                    )}>
-                      {message.content}
-                    </div>
+                    {/* 消息内容（纯附件消息时不显示） */}
+                    {message.content && (
+                      <div className={cn(
+                        "text-sm leading-relaxed px-3 py-2.5 whitespace-pre-wrap break-words",
+                        isOwnMessage ? "text-white" : "text-gray-700 dark:text-gray-200",
+                        isAnnouncement && "text-amber-900 dark:text-amber-200"
+                      )}>
+                        {message.content}
+                      </div>
+                    )}
+
+                    {/* 消息附件 */}
+                    {message.attachments && message.attachments.length > 0 && (
+                      <div className={cn(
+                        "px-3 w-fit",
+                        message.content ? "pb-2" : "py-2"  // 纯附件消息时增加上下内边距
+                      )}>
+                        <MessageAttachments attachments={message.attachments} />
+                      </div>
+                    )}
                   </div>
 
                   {/* 消息反应 */}
@@ -887,6 +923,12 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
 
         {/* 主输入容器 - AIPanel 风格 */}
         <div className="rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm px-4 py-3 space-y-3">
+          {/* 已上传文件预览 - 在输入框上方 */}
+          <FilePreview
+            files={uploadedFiles}
+            onRemove={(fileId) => setUploadedFiles(prev => prev.filter(f => f.id !== fileId))}
+          />
+
           {/* 输入框 */}
           <textarea
             ref={textareaRef}
@@ -935,10 +977,19 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                 <Smile className="w-4 h-4" />
               </button>
 
+              {/* 文件上传按钮 */}
+              <FileUploader
+                channelId={channel.id}
+                uploadedFiles={uploadedFiles}
+                onFilesUploaded={(files) => setUploadedFiles(prev => [...prev, ...files])}
+                disabled={channel.status === 'locked'}
+                maxFiles={5}
+              />
+
               {canSendAnnouncement && (
                 <button
                   onClick={() => handleSend('announcement')}
-                  disabled={!messageInput.trim() || channel.status === 'locked'}
+                  disabled={(!messageInput.trim() && uploadedFiles.length === 0) || channel.status === 'locked'}
                   className="text-xs px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg text-gray-600 dark:text-slate-400 disabled:opacity-30 transition-colors"
                 >
                   发布公告
@@ -947,10 +998,10 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
             </div>
 
             {/* 右侧发送按钮 */}
-            {messageInput.trim() && (
+            {(messageInput.trim() || uploadedFiles.length > 0) && (
               <button
                 onClick={() => handleSend()}
-                disabled={!messageInput.trim() || channel.status === 'locked'}
+                disabled={(!messageInput.trim() && uploadedFiles.length === 0) || channel.status === 'locked'}
                 className="w-10 h-10 rounded-full bg-gray-900 dark:bg-blue-600 text-white flex items-center justify-center hover:bg-gray-800 dark:hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95 shadow-sm"
               >
                 <Send className="w-4 h-4" />

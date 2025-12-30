@@ -663,7 +663,8 @@ async def get_channel_messages(
             ChannelMessage.is_deleted == False
         )
         .options(
-            selectinload(ChannelMessage.user)
+            selectinload(ChannelMessage.user),
+            selectinload(ChannelMessage.attachments)
         )
         .order_by(ChannelMessage.created_at.asc())
     )
@@ -698,6 +699,19 @@ async def get_channel_messages(
     message_responses = []
     for msg in messages:
         member = member_dict.get(msg.user_id)
+        # 构建附件列表
+        attachments_data = [
+            {
+                "id": att.id,
+                "file_name": att.file_name,
+                "file_type": att.file_type,
+                "file_size": att.file_size,
+                "file_url": att.file_url,
+                "thumbnail_url": att.thumbnail_url,
+                "created_at": att.created_at
+            }
+            for att in (msg.attachments or [])
+        ]
         message_responses.append(ChannelMessageResponse(
             id=msg.id,
             channel_id=msg.channel_id,
@@ -706,16 +720,20 @@ async def get_channel_messages(
             type=msg.type,
             is_pinned=msg.is_pinned,
             is_deleted=msg.is_deleted,
+            is_edited=msg.is_edited,
             reply_to_id=msg.reply_to_id,
+            forwarded_from_id=msg.forwarded_from_id,
             reaction_count=msg.reaction_count,
             created_at=msg.created_at,
             updated_at=msg.updated_at,
             deleted_at=msg.deleted_at,
+            edited_at=msg.edited_at,
             user_name=msg.user.username if msg.user else "已删除用户",
             user_avatar=msg.user.avatar if msg.user else None,
             user_honor=msg.user.honor if msg.user else None,
             user_title=member.custom_title if member else None,
-            user_title_color=member.title_color if member else None
+            user_title_color=member.title_color if member else None,
+            attachments=attachments_data
         ))
 
     has_more = skip + limit < total
@@ -760,7 +778,8 @@ async def get_channel_announcements(
             ChannelMessage.type == MessageType.ANNOUNCEMENT
         )
         .options(
-            selectinload(ChannelMessage.user)
+            selectinload(ChannelMessage.user),
+            selectinload(ChannelMessage.attachments)
         )
         .order_by(ChannelMessage.created_at.desc())  # 最新的公告在前
     )
@@ -796,6 +815,19 @@ async def get_channel_announcements(
     message_responses = []
     for msg in messages:
         member = member_dict.get(msg.user_id)
+        # 构建附件列表
+        attachments_data = [
+            {
+                "id": att.id,
+                "file_name": att.file_name,
+                "file_type": att.file_type,
+                "file_size": att.file_size,
+                "file_url": att.file_url,
+                "thumbnail_url": att.thumbnail_url,
+                "created_at": att.created_at
+            }
+            for att in (msg.attachments or [])
+        ]
         message_responses.append(ChannelMessageResponse(
             id=msg.id,
             channel_id=msg.channel_id,
@@ -804,16 +836,20 @@ async def get_channel_announcements(
             type=msg.type,
             is_pinned=msg.is_pinned,
             is_deleted=msg.is_deleted,
+            is_edited=msg.is_edited,
             reply_to_id=msg.reply_to_id,
+            forwarded_from_id=msg.forwarded_from_id,
             reaction_count=msg.reaction_count,
             created_at=msg.created_at,
             updated_at=msg.updated_at,
             deleted_at=msg.deleted_at,
+            edited_at=msg.edited_at,
             user_name=msg.user.username if msg.user else "已删除用户",
             user_avatar=msg.user.avatar if msg.user else None,
             user_honor=msg.user.honor if msg.user else None,
             user_title=member.custom_title if member else None,
-            user_title_color=member.title_color if member else None
+            user_title_color=member.title_color if member else None,
+            attachments=attachments_data
         ))
 
     has_more = skip + limit < total
@@ -912,6 +948,33 @@ async def send_message(
             detail="频道已折叠，无法发送消息"
         )
 
+    # 检查慢速模式
+    if channel.slowmode_interval and channel.slowmode_interval > 0:
+        # 管理员和群主不受慢速模式限制
+        if member.role not in ['owner', 'admin']:
+            # 获取用户最后一条消息的时间
+            last_msg_result = await db.execute(
+                select(ChannelMessage.created_at)
+                .where(
+                    ChannelMessage.channel_id == channel_id,
+                    ChannelMessage.user_id == current_user.id,
+                    ChannelMessage.is_deleted == False
+                )
+                .order_by(ChannelMessage.created_at.desc())
+                .limit(1)
+            )
+            last_msg_time = last_msg_result.scalar_one_or_none()
+
+            if last_msg_time:
+                from datetime import datetime, timezone, timedelta
+                time_since_last = datetime.now(timezone.utc) - last_msg_time
+                if time_since_last.total_seconds() < channel.slowmode_interval:
+                    remaining = channel.slowmode_interval - int(time_since_last.total_seconds())
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail=f"慢速模式已启用，请等待 {remaining} 秒后再发送消息"
+                    )
+
     # 只有粉丝群和官方频道的创建者可以发送公告
     if message_type == "announcement":
         if (channel.type not in ['fangroup', 'official']) or member.role != 'owner':
@@ -972,13 +1035,15 @@ async def send_message(
         "type": message.type,
         "is_pinned": message.is_pinned,
         "reply_to_id": str(message.reply_to_id) if message.reply_to_id else None,
+        "forwarded_from_id": None,
         "reaction_count": message.reaction_count,
         "created_at": message.created_at.isoformat(),
         "user_name": current_user.username,
         "user_avatar": current_user.avatar,
         "user_honor": current_user.honor,
         "user_title": member.custom_title,
-        "user_title_color": member.title_color
+        "user_title_color": member.title_color,
+        "attachments": []
     }, exclude_user=current_user.id)
 
     return ChannelMessageResponse(
@@ -1382,7 +1447,10 @@ async def get_channel_announcements(
             ChannelMessage.type == "announcement",
             ChannelMessage.is_deleted == False
         )
-        .options(selectinload(ChannelMessage.user))
+        .options(
+            selectinload(ChannelMessage.user),
+            selectinload(ChannelMessage.attachments)
+        )
         .order_by(ChannelMessage.created_at.desc())
         .offset(skip)
         .limit(limit)
@@ -2612,4 +2680,1185 @@ async def get_pinned_messages(
         messages=pinned_messages,
         total=len(pinned_messages)
     )
+
+
+# ===== 文件/图片上传相关 API =====
+
+from fastapi import UploadFile, File
+from app.models.message_attachment import MessageAttachment
+from app.schemas.channel import AttachmentResponse, AttachmentUploadResponse
+from app.services.cos_service import get_cos_service
+
+# 允许的文件类型
+ALLOWED_FILE_TYPES = [
+    # 图片
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp',
+    # 文档
+    'application/pdf', 'text/plain',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    # 压缩包
+    'application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed',
+    # 视频
+    'video/mp4', 'video/webm',
+    # 音频
+    'audio/mpeg', 'audio/wav', 'audio/ogg',
+]
+
+# 最大文件大小 (10MB)
+MAX_FILE_SIZE = 10 * 1024 * 1024
+
+
+@router.post("/{channel_id}/upload", response_model=AttachmentUploadResponse)
+async def upload_attachment(
+    channel_id: UUID,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    上传文件/图片附件
+    - 支持图片、文档、压缩包等格式
+    - 最大文件大小 10MB
+    - 返回附件信息，可用于发送消息时关联
+    """
+    # 检查是否是频道成员
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    member = member_result.scalar_one_or_none()
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="未加入该频道"
+        )
+
+    # 检查是否被禁言
+    from datetime import datetime, timezone
+    if member.is_muted:
+        if member.muted_until and datetime.now(timezone.utc) >= member.muted_until:
+            member.is_muted = False
+            member.muted_until = None
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="您已被禁言，无法上传文件"
+            )
+
+    # 检查文件类型
+    content_type = file.content_type or 'application/octet-stream'
+    if content_type not in ALLOWED_FILE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"不支持的文件类型: {content_type}"
+        )
+
+    # 读取文件内容
+    content = await file.read()
+
+    # 检查文件大小
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"文件大小超过限制（最大 10MB）"
+        )
+
+    # 上传到 COS
+    try:
+        cos_service = get_cos_service()
+        file_url = await cos_service.upload_channel_attachment(
+            channel_id=str(channel_id),
+            filename=file.filename,
+            content=content,
+            content_type=content_type
+        )
+    except Exception as e:
+        logger.error(f"上传文件失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="文件上传失败，请稍后重试"
+        )
+
+    # 创建附件记录（暂不关联消息，发送消息时再关联）
+    attachment = MessageAttachment(
+        id=uuid.uuid4(),
+        channel_id=channel_id,
+        user_id=current_user.id,
+        message_id=None,  # 发送消息时再关联
+        file_name=file.filename or "unnamed",
+        file_type=content_type,
+        file_size=len(content),
+        file_url=file_url,
+        thumbnail_url=file_url if content_type.startswith('image/') else None
+    )
+    db.add(attachment)
+    await db.commit()
+    await db.refresh(attachment)
+
+    return AttachmentUploadResponse(
+        id=attachment.id,
+        file_name=attachment.file_name,
+        file_type=attachment.file_type,
+        file_size=attachment.file_size,
+        file_url=attachment.file_url,
+        thumbnail_url=attachment.thumbnail_url
+    )
+
+
+@router.post("/{channel_id}/messages-with-attachments")
+async def send_message_with_attachments(
+    channel_id: UUID,
+    content: str = Query("", description="消息内容，可为空（纯附件消息）"),
+    message_type: MessageType = Query("normal"),
+    reply_to_id: Optional[UUID] = Query(None, description="回复的消息ID"),
+    attachment_ids: List[UUID] = Query(default=[], description="附件ID列表"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    发送带附件的消息
+    - content 可为空（纯附件消息）
+    - attachment_ids 为预先上传的附件ID列表
+    """
+    # 检查内容和附件至少有一个
+    if not content.strip() and not attachment_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="消息内容和附件不能同时为空"
+        )
+
+    # 获取频道信息
+    channel_result = await db.execute(
+        select(Channel).where(Channel.id == channel_id)
+    )
+    channel = channel_result.scalar_one_or_none()
+
+    if not channel:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="频道不存在"
+        )
+
+    # 检查频道成员身份
+    member_result = await db.execute(
+        select(ChannelMember)
+        .where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    member = member_result.scalar_one_or_none()
+
+    if not member:
+        if channel.type == "official":
+            member_role = "owner" if current_user.is_admin else "member"
+            member = ChannelMember(
+                id=uuid.uuid4(),
+                channel_id=channel_id,
+                user_id=current_user.id,
+                role=member_role,
+                joined_at=func.now()
+            )
+            db.add(member)
+            await db.flush()
+            channel.member_count += 1
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="未加入该频道"
+            )
+
+    # 检查是否被禁言
+    from datetime import datetime, timezone
+    if member.is_muted:
+        if member.muted_until and datetime.now(timezone.utc) >= member.muted_until:
+            member.is_muted = False
+            member.muted_until = None
+            await db.commit()
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="您已被禁言"
+            )
+
+    # 检查频道状态
+    if channel.status == "locked":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="频道已折叠，无法发送消息"
+        )
+
+    # 检查慢速模式
+    if channel.slowmode_interval and channel.slowmode_interval > 0:
+        # 管理员和群主不受慢速模式限制
+        if member.role not in ['owner', 'admin']:
+            # 获取用户最后一条消息的时间
+            last_msg_result = await db.execute(
+                select(ChannelMessage.created_at)
+                .where(
+                    ChannelMessage.channel_id == channel_id,
+                    ChannelMessage.user_id == current_user.id,
+                    ChannelMessage.is_deleted == False
+                )
+                .order_by(ChannelMessage.created_at.desc())
+                .limit(1)
+            )
+            last_msg_time = last_msg_result.scalar_one_or_none()
+
+            if last_msg_time:
+                from datetime import timedelta
+                time_since_last = datetime.now(timezone.utc) - last_msg_time
+                if time_since_last.total_seconds() < channel.slowmode_interval:
+                    remaining = channel.slowmode_interval - int(time_since_last.total_seconds())
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail=f"慢速模式已启用，请等待 {remaining} 秒后再发送消息"
+                    )
+
+    # 验证附件
+    attachments = []
+    if attachment_ids:
+        attachments_result = await db.execute(
+            select(MessageAttachment).where(
+                MessageAttachment.id.in_(attachment_ids),
+                MessageAttachment.channel_id == channel_id,
+                MessageAttachment.user_id == current_user.id,
+                MessageAttachment.message_id == None  # 只能关联未被使用的附件
+            )
+        )
+        attachments = attachments_result.scalars().all()
+
+        if len(attachments) != len(attachment_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="部分附件不存在或已被使用"
+            )
+
+    # 如果是回复消息，检查被回复的消息是否存在
+    if reply_to_id:
+        reply_msg_result = await db.execute(
+            select(ChannelMessage).where(
+                ChannelMessage.id == reply_to_id,
+                ChannelMessage.channel_id == channel_id
+            )
+        )
+        if not reply_msg_result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="被回复的消息不存在"
+            )
+
+    # 创建消息（允许纯附件消息，内容为空）
+    message_content = content.strip()
+    message = ChannelMessage(
+        id=uuid.uuid4(),
+        channel_id=channel_id,
+        user_id=current_user.id,
+        content=message_content,
+        type=message_type,
+        reply_to_id=reply_to_id
+    )
+    db.add(message)
+    await db.flush()
+
+    # 关联附件到消息
+    for attachment in attachments:
+        attachment.message_id = message.id
+
+    # 更新频道消息数和最后消息时间
+    channel.message_count += 1
+    channel.last_message_at = func.now()
+
+    # 提取 @ 的用户名并更新未读计数
+    mentioned_usernames = await extract_mentions(message_content, db)
+    await update_unread_counts(db, channel_id, message.id, current_user.id, mentioned_usernames)
+
+    await db.commit()
+    await db.refresh(message)
+
+    # WebSocket 广播新消息（包含附件信息，统一使用 camelCase）
+    from app.api.v1.ws import broadcast_channel_message
+    attachments_data = [
+        {
+            "id": str(att.id),
+            "fileName": att.file_name,
+            "fileType": att.file_type,
+            "fileSize": att.file_size,
+            "fileUrl": att.file_url,
+            "thumbnailUrl": att.thumbnail_url
+        }
+        for att in attachments
+    ]
+
+    await broadcast_channel_message(channel_id, {
+        "id": str(message.id),
+        "channel_id": str(message.channel_id),
+        "user_id": str(message.user_id),
+        "content": message.content,
+        "type": message.type,
+        "is_pinned": message.is_pinned,
+        "reply_to_id": str(message.reply_to_id) if message.reply_to_id else None,
+        "forwarded_from_id": None,
+        "reaction_count": message.reaction_count,
+        "created_at": message.created_at.isoformat(),
+        "user_name": current_user.username,
+        "user_avatar": current_user.avatar,
+        "user_honor": current_user.honor,
+        "user_title": member.custom_title,
+        "user_title_color": member.title_color,
+        "attachments": attachments_data
+    }, exclude_user=current_user.id)
+
+    # 返回时 attachments 也使用 camelCase（ApiAdapter 会转换外层但不转换数组内对象）
+    attachments_response = [
+        {
+            "id": str(att.id),
+            "fileName": att.file_name,
+            "fileType": att.file_type,
+            "fileSize": att.file_size,
+            "fileUrl": att.file_url,
+            "thumbnailUrl": att.thumbnail_url
+        }
+        for att in attachments
+    ]
+
+    return {
+        "id": str(message.id),
+        "channelId": str(message.channel_id),
+        "userId": str(message.user_id),
+        "userName": current_user.username,
+        "userAvatar": current_user.avatar,
+        "userTitle": member.custom_title,
+        "userTitleColor": member.title_color,
+        "content": message.content,
+        "type": message.type,
+        "isPinned": message.is_pinned,
+        "replyToId": str(message.reply_to_id) if message.reply_to_id else None,
+        "reactionCount": message.reaction_count,
+        "createdAt": message.created_at.isoformat(),
+        "attachments": attachments_response
+    }
+
+
+@router.get("/{channel_id}/messages/{message_id}/attachments")
+async def get_message_attachments(
+    channel_id: UUID,
+    message_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取消息的附件列表"""
+    # 检查是否是频道成员
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    if not member_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="未加入该频道"
+        )
+
+    # 获取附件
+    attachments_result = await db.execute(
+        select(MessageAttachment).where(
+            MessageAttachment.message_id == message_id
+        ).order_by(MessageAttachment.created_at)
+    )
+    attachments = attachments_result.scalars().all()
+
+    return {
+        "attachments": [
+            {
+                "id": str(att.id),
+                "file_name": att.file_name,
+                "file_type": att.file_type,
+                "file_size": att.file_size,
+                "file_url": att.file_url,
+                "thumbnail_url": att.thumbnail_url,
+                "created_at": att.created_at.isoformat()
+            }
+            for att in attachments
+        ]
+    }
+
+
+# ===== 消息转发相关 API =====
+
+from app.schemas.channel import ForwardMessageRequest, ForwardMessageResponse
+
+
+@router.post("/{channel_id}/messages/{message_id}/forward", response_model=ForwardMessageResponse)
+async def forward_message(
+    channel_id: UUID,
+    message_id: UUID,
+    request: ForwardMessageRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    转发消息到其他频道
+    - 最多可同时转发到 10 个频道
+    - 需要是源频道成员
+    - 需要是目标频道成员
+    """
+    # 检查源频道成员身份
+    source_member = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    if not source_member.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您不是该频道成员"
+        )
+
+    # 获取原始消息
+    original_msg_result = await db.execute(
+        select(ChannelMessage)
+        .options(selectinload(ChannelMessage.user))
+        .options(selectinload(ChannelMessage.channel))
+        .options(selectinload(ChannelMessage.attachments))
+        .where(
+            ChannelMessage.id == message_id,
+            ChannelMessage.channel_id == channel_id,
+            ChannelMessage.is_deleted == False
+        )
+    )
+    original_msg = original_msg_result.scalar_one_or_none()
+
+    if not original_msg:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="消息不存在或已删除"
+        )
+
+    # 检查目标频道成员身份
+    target_members_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id.in_(request.target_channel_ids),
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    target_members = target_members_result.scalars().all()
+    valid_channel_ids = {m.channel_id for m in target_members}
+
+    # 获取目标频道信息
+    target_channels_result = await db.execute(
+        select(Channel).where(
+            Channel.id.in_(valid_channel_ids),
+            Channel.status != 'locked'
+        )
+    )
+    target_channels = target_channels_result.scalars().all()
+    valid_channel_ids = {c.id for c in target_channels}
+
+    failed_channels = [cid for cid in request.target_channel_ids if cid not in valid_channel_ids]
+    forwarded_messages = []
+
+    # 构建转发消息内容
+    forward_content = f"[转发消息]\n来自: {original_msg.channel.name}\n发送者: {original_msg.user.username if original_msg.user else '已删除用户'}\n---\n{original_msg.content}"
+    if request.add_comment:
+        forward_content = f"{request.add_comment}\n\n{forward_content}"
+
+    # 逐个频道转发
+    for target_channel in target_channels:
+        try:
+            # 创建转发消息
+            new_message = ChannelMessage(
+                id=uuid.uuid4(),
+                channel_id=target_channel.id,
+                user_id=current_user.id,
+                content=forward_content,
+                type="normal",
+                forwarded_from_id=original_msg.id
+            )
+            db.add(new_message)
+            await db.flush()
+
+            # 更新频道统计
+            target_channel.message_count += 1
+            target_channel.last_message_at = func.now()
+
+            forwarded_messages.append({
+                "channel_id": str(target_channel.id),
+                "channel_name": target_channel.name,
+                "message_id": str(new_message.id)
+            })
+
+            # WebSocket 广播
+            from app.api.v1.ws import broadcast_channel_message
+            await broadcast_channel_message(target_channel.id, {
+                "id": str(new_message.id),
+                "channel_id": str(new_message.channel_id),
+                "user_id": str(current_user.id),
+                "content": new_message.content,
+                "type": new_message.type,
+                "is_pinned": False,
+                "reply_to_id": None,
+                "forwarded_from_id": str(original_msg.id),
+                "reaction_count": 0,
+                "created_at": new_message.created_at.isoformat() if new_message.created_at else None,
+                "user_name": current_user.username,
+                "user_avatar": current_user.avatar,
+                "user_honor": current_user.honor if hasattr(current_user, 'honor') else None,
+                "user_title": None,
+                "user_title_color": None,
+                "attachments": []
+            }, exclude_user=current_user.id)
+
+        except Exception as e:
+            logger.error(f"转发到频道 {target_channel.id} 失败: {e}")
+            failed_channels.append(target_channel.id)
+
+    await db.commit()
+
+    return ForwardMessageResponse(
+        forwarded_count=len(forwarded_messages),
+        failed_channels=failed_channels,
+        messages=forwarded_messages
+    )
+
+
+@router.get("/{channel_id}/messages/{message_id}/forward-info")
+async def get_forward_info(
+    channel_id: UUID,
+    message_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取转发消息的原始信息"""
+    # 检查频道成员身份
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    if not member_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您不是该频道成员"
+        )
+
+    # 获取消息
+    msg_result = await db.execute(
+        select(ChannelMessage)
+        .options(selectinload(ChannelMessage.forwarded_from))
+        .where(
+            ChannelMessage.id == message_id,
+            ChannelMessage.channel_id == channel_id
+        )
+    )
+    message = msg_result.scalar_one_or_none()
+
+    if not message:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="消息不存在"
+        )
+
+    if not message.forwarded_from_id:
+        return {"is_forwarded": False, "original": None}
+
+    # 获取原始消息信息
+    original = message.forwarded_from
+    if not original:
+        return {"is_forwarded": True, "original": None, "original_deleted": True}
+
+    # 获取原始频道和用户信息
+    original_channel_result = await db.execute(
+        select(Channel).where(Channel.id == original.channel_id)
+    )
+    original_channel = original_channel_result.scalar_one_or_none()
+
+    original_user_result = await db.execute(
+        select(User).where(User.id == original.user_id)
+    )
+    original_user = original_user_result.scalar_one_or_none()
+
+    return {
+        "is_forwarded": True,
+        "original": {
+            "message_id": str(original.id),
+            "channel_id": str(original.channel_id),
+            "channel_name": original_channel.name if original_channel else "已删除频道",
+            "user_name": original_user.username if original_user else "已删除用户",
+            "content": original.content,
+            "created_at": original.created_at.isoformat()
+        }
+    }
+
+
+# ===== 频道邀请链接 API =====
+
+from app.models.channel_invite import ChannelInvite
+from datetime import timedelta
+
+
+@router.post("/{channel_id}/invites")
+async def create_invite(
+    channel_id: UUID,
+    max_uses: Optional[int] = Query(None, ge=1, le=1000),
+    expires_hours: Optional[int] = Query(None, ge=1, le=168),  # 最长7天
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """创建频道邀请链接"""
+    # 检查是否是管理员或群主
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    member = member_result.scalar_one_or_none()
+    if not member or member.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="只有管理员可以创建邀请链接")
+
+    from datetime import datetime, timezone
+    expires_at = None
+    if expires_hours:
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=expires_hours)
+
+    invite = ChannelInvite(
+        channel_id=channel_id,
+        creator_id=current_user.id,
+        max_uses=max_uses,
+        expires_at=expires_at
+    )
+    db.add(invite)
+    await db.commit()
+    await db.refresh(invite)
+
+    return {
+        "id": str(invite.id),
+        "code": invite.code,
+        "max_uses": invite.max_uses,
+        "use_count": invite.use_count,
+        "expires_at": invite.expires_at.isoformat() if invite.expires_at else None,
+        "invite_url": f"/invite/{invite.code}"
+    }
+
+
+@router.get("/{channel_id}/invites")
+async def list_invites(
+    channel_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取频道邀请链接列表"""
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    member = member_result.scalar_one_or_none()
+    if not member or member.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="只有管理员可以查看邀请链接")
+
+    invites_result = await db.execute(
+        select(ChannelInvite)
+        .options(selectinload(ChannelInvite.creator))
+        .where(ChannelInvite.channel_id == channel_id, ChannelInvite.is_active == True)
+        .order_by(ChannelInvite.created_at.desc())
+    )
+    invites = invites_result.scalars().all()
+
+    return {
+        "invites": [
+            {
+                "id": str(inv.id),
+                "code": inv.code,
+                "creator_name": inv.creator.username if inv.creator else None,
+                "max_uses": inv.max_uses,
+                "use_count": inv.use_count,
+                "expires_at": inv.expires_at.isoformat() if inv.expires_at else None,
+                "is_valid": inv.is_valid,
+                "created_at": inv.created_at.isoformat()
+            }
+            for inv in invites
+        ]
+    }
+
+
+@router.post("/join-by-invite/{invite_code}")
+async def join_by_invite(
+    invite_code: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """通过邀请链接加入频道"""
+    invite_result = await db.execute(
+        select(ChannelInvite)
+        .options(selectinload(ChannelInvite.channel))
+        .where(ChannelInvite.code == invite_code, ChannelInvite.is_active == True)
+    )
+    invite = invite_result.scalar_one_or_none()
+
+    if not invite:
+        raise HTTPException(status_code=404, detail="邀请链接不存在或已失效")
+
+    if not invite.is_valid:
+        raise HTTPException(status_code=400, detail="邀请链接已过期或已达到使用上限")
+
+    # 检查频道状态
+    if invite.channel.status == "locked":
+        raise HTTPException(status_code=400, detail="频道已折叠，无法加入")
+
+    # 检查是否已是成员
+    existing = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == invite.channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    if existing.scalar_one_or_none():
+        return {"message": "您已是该频道成员", "channel_id": str(invite.channel_id)}
+
+    # 加入频道
+    member = ChannelMember(
+        channel_id=invite.channel_id,
+        user_id=current_user.id,
+        role="member"
+    )
+    db.add(member)
+    invite.use_count += 1
+    invite.channel.member_count += 1
+
+    await db.commit()
+
+    return {
+        "message": "成功加入频道",
+        "channel_id": str(invite.channel_id),
+        "channel_name": invite.channel.name
+    }
+
+
+# ===== 已读回执 API =====
+
+@router.get("/{channel_id}/messages/{message_id}/readers")
+async def get_message_readers(
+    channel_id: UUID,
+    message_id: UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取已读消息的用户列表"""
+    # 检查成员身份
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    if not member_result.scalar_one_or_none():
+        raise HTTPException(status_code=403, detail="您不是该频道成员")
+
+    # 获取消息时间
+    msg_result = await db.execute(
+        select(ChannelMessage).where(ChannelMessage.id == message_id)
+    )
+    message = msg_result.scalar_one_or_none()
+    if not message:
+        raise HTTPException(status_code=404, detail="消息不存在")
+
+    # 获取已读用户（last_read_at >= message.created_at 的用户）
+    from app.models.channel_read_state import ChannelReadState
+    readers_result = await db.execute(
+        select(ChannelReadState, User)
+        .join(User, ChannelReadState.user_id == User.id)
+        .where(
+            ChannelReadState.channel_id == channel_id,
+            ChannelReadState.last_read_at >= message.created_at
+        )
+        .offset(skip)
+        .limit(limit)
+    )
+    readers = readers_result.all()
+
+    count_result = await db.execute(
+        select(func.count(ChannelReadState.id)).where(
+            ChannelReadState.channel_id == channel_id,
+            ChannelReadState.last_read_at >= message.created_at
+        )
+    )
+    total = count_result.scalar() or 0
+
+    return {
+        "readers": [
+            {
+                "user_id": str(user.id),
+                "username": user.username,
+                "avatar": user.avatar,
+                "read_at": state.last_read_at.isoformat()
+            }
+            for state, user in readers
+        ],
+        "total": total
+    }
+
+
+# ===== 消息书签 API =====
+
+from app.models.message_bookmark import MessageBookmark
+
+
+@router.post("/{channel_id}/messages/{message_id}/bookmark")
+async def add_bookmark(
+    channel_id: UUID,
+    message_id: UUID,
+    note: Optional[str] = Query(None, max_length=500),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """收藏消息"""
+    # 检查成员身份
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    if not member_result.scalar_one_or_none():
+        raise HTTPException(status_code=403, detail="您不是该频道成员")
+
+    # 检查消息是否存在
+    msg_result = await db.execute(
+        select(ChannelMessage).where(
+            ChannelMessage.id == message_id,
+            ChannelMessage.channel_id == channel_id
+        )
+    )
+    if not msg_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="消息不存在")
+
+    # 检查是否已收藏
+    existing = await db.execute(
+        select(MessageBookmark).where(
+            MessageBookmark.user_id == current_user.id,
+            MessageBookmark.message_id == message_id
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="已收藏该消息")
+
+    bookmark = MessageBookmark(
+        user_id=current_user.id,
+        message_id=message_id,
+        channel_id=channel_id,
+        note=note
+    )
+    db.add(bookmark)
+    await db.commit()
+
+    return {"message": "收藏成功", "bookmark_id": str(bookmark.id)}
+
+
+@router.delete("/{channel_id}/messages/{message_id}/bookmark")
+async def remove_bookmark(
+    channel_id: UUID,
+    message_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """取消收藏"""
+    result = await db.execute(
+        select(MessageBookmark).where(
+            MessageBookmark.user_id == current_user.id,
+            MessageBookmark.message_id == message_id
+        )
+    )
+    bookmark = result.scalar_one_or_none()
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="未收藏该消息")
+
+    await db.delete(bookmark)
+    await db.commit()
+
+    return {"message": "已取消收藏"}
+
+
+@router.get("/my-bookmarks")
+async def get_my_bookmarks(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取我的书签列表"""
+    bookmarks_result = await db.execute(
+        select(MessageBookmark)
+        .options(
+            selectinload(MessageBookmark.message),
+            selectinload(MessageBookmark.channel)
+        )
+        .where(MessageBookmark.user_id == current_user.id)
+        .order_by(MessageBookmark.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    bookmarks = bookmarks_result.scalars().all()
+
+    count_result = await db.execute(
+        select(func.count(MessageBookmark.id)).where(MessageBookmark.user_id == current_user.id)
+    )
+    total = count_result.scalar() or 0
+
+    return {
+        "bookmarks": [
+            {
+                "id": str(bm.id),
+                "message_id": str(bm.message_id),
+                "channel_id": str(bm.channel_id),
+                "channel_name": bm.channel.name if bm.channel else None,
+                "content": bm.message.content if bm.message else "[已删除]",
+                "note": bm.note,
+                "created_at": bm.created_at.isoformat()
+            }
+            for bm in bookmarks
+        ],
+        "total": total
+    }
+
+
+# ===== 慢速模式 API =====
+
+@router.put("/{channel_id}/slowmode")
+async def set_slowmode(
+    channel_id: UUID,
+    interval: Optional[int] = Query(None, ge=0, le=3600, description="慢速模式间隔(秒)，0或null表示关闭"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """设置频道慢速模式"""
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    member = member_result.scalar_one_or_none()
+    if not member or member.role not in ['owner', 'admin']:
+        raise HTTPException(status_code=403, detail="只有管理员可以设置慢速模式")
+
+    channel_result = await db.execute(select(Channel).where(Channel.id == channel_id))
+    channel = channel_result.scalar_one_or_none()
+    if not channel:
+        raise HTTPException(status_code=404, detail="频道不存在")
+
+    channel.slowmode_interval = interval if interval and interval > 0 else None
+    await db.commit()
+
+    return {
+        "message": "慢速模式设置成功",
+        "slowmode_interval": channel.slowmode_interval
+    }
+
+
+# ===== 自定义通知 API =====
+
+from app.models.channel_notification_setting import ChannelNotificationSetting
+
+
+@router.get("/{channel_id}/notification-settings")
+async def get_notification_settings(
+    channel_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取频道通知设置"""
+    result = await db.execute(
+        select(ChannelNotificationSetting).where(
+            ChannelNotificationSetting.channel_id == channel_id,
+            ChannelNotificationSetting.user_id == current_user.id
+        )
+    )
+    setting = result.scalar_one_or_none()
+
+    if not setting:
+        return {
+            "is_muted": False,
+            "mute_until": None,
+            "notify_mentions": True,
+            "notify_announcements": True
+        }
+
+    return {
+        "is_muted": setting.is_muted,
+        "mute_until": setting.mute_until.isoformat() if setting.mute_until else None,
+        "notify_mentions": setting.notify_mentions,
+        "notify_announcements": setting.notify_announcements
+    }
+
+
+@router.put("/{channel_id}/notification-settings")
+async def update_notification_settings(
+    channel_id: UUID,
+    is_muted: Optional[bool] = Query(None),
+    mute_hours: Optional[int] = Query(None, ge=1, le=8760),  # 最长1年
+    notify_mentions: Optional[bool] = Query(None),
+    notify_announcements: Optional[bool] = Query(None),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """更新频道通知设置"""
+    result = await db.execute(
+        select(ChannelNotificationSetting).where(
+            ChannelNotificationSetting.channel_id == channel_id,
+            ChannelNotificationSetting.user_id == current_user.id
+        )
+    )
+    setting = result.scalar_one_or_none()
+
+    if not setting:
+        setting = ChannelNotificationSetting(
+            channel_id=channel_id,
+            user_id=current_user.id
+        )
+        db.add(setting)
+
+    if is_muted is not None:
+        setting.is_muted = is_muted
+        if is_muted and mute_hours:
+            from datetime import datetime, timezone
+            setting.mute_until = datetime.now(timezone.utc) + timedelta(hours=mute_hours)
+        elif not is_muted:
+            setting.mute_until = None
+
+    if notify_mentions is not None:
+        setting.notify_mentions = notify_mentions
+    if notify_announcements is not None:
+        setting.notify_announcements = notify_announcements
+
+    await db.commit()
+    await db.refresh(setting)
+
+    return {
+        "message": "设置已更新",
+        "is_muted": setting.is_muted,
+        "mute_until": setting.mute_until.isoformat() if setting.mute_until else None,
+        "notify_mentions": setting.notify_mentions,
+        "notify_announcements": setting.notify_announcements
+    }
+
+
+# ===== GIF/贴纸搜索 API =====
+
+import httpx
+
+
+@router.get("/gif/search")
+async def search_gif(
+    query: str = Query(..., min_length=1, max_length=100),
+    limit: int = Query(20, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_active_user)
+):
+    """搜索 GIF（使用 Giphy API）"""
+    # 这里使用 Giphy API，需要配置 API KEY
+    from app.core.config import settings
+    giphy_api_key = getattr(settings, 'GIPHY_API_KEY', None)
+
+    if not giphy_api_key:
+        # 返回模拟数据或提示未配置
+        return {
+            "gifs": [],
+            "total": 0,
+            "message": "GIF 服务未配置"
+        }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://api.giphy.com/v1/gifs/search",
+                params={
+                    "api_key": giphy_api_key,
+                    "q": query,
+                    "limit": limit,
+                    "offset": offset,
+                    "rating": "g",
+                    "lang": "zh"
+                },
+                timeout=10.0
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            return {
+                "gifs": [
+                    {
+                        "id": gif["id"],
+                        "title": gif.get("title", ""),
+                        "url": gif["images"]["fixed_height"]["url"],
+                        "preview_url": gif["images"]["fixed_height_small"]["url"],
+                        "width": int(gif["images"]["fixed_height"]["width"]),
+                        "height": int(gif["images"]["fixed_height"]["height"])
+                    }
+                    for gif in data.get("data", [])
+                ],
+                "total": data.get("pagination", {}).get("total_count", 0)
+            }
+    except Exception as e:
+        logger.error(f"GIF 搜索失败: {e}")
+        return {"gifs": [], "total": 0, "error": "搜索失败"}
+
+
+@router.get("/gif/trending")
+async def trending_gif(
+    limit: int = Query(20, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_active_user)
+):
+    """获取热门 GIF"""
+    from app.core.config import settings
+    giphy_api_key = getattr(settings, 'GIPHY_API_KEY', None)
+
+    if not giphy_api_key:
+        return {"gifs": [], "total": 0, "message": "GIF 服务未配置"}
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://api.giphy.com/v1/gifs/trending",
+                params={
+                    "api_key": giphy_api_key,
+                    "limit": limit,
+                    "offset": offset,
+                    "rating": "g"
+                },
+                timeout=10.0
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            return {
+                "gifs": [
+                    {
+                        "id": gif["id"],
+                        "title": gif.get("title", ""),
+                        "url": gif["images"]["fixed_height"]["url"],
+                        "preview_url": gif["images"]["fixed_height_small"]["url"],
+                        "width": int(gif["images"]["fixed_height"]["width"]),
+                        "height": int(gif["images"]["fixed_height"]["height"])
+                    }
+                    for gif in data.get("data", [])
+                ],
+                "total": data.get("pagination", {}).get("total_count", 0)
+            }
+    except Exception as e:
+        logger.error(f"获取热门 GIF 失败: {e}")
+        return {"gifs": [], "total": 0, "error": "获取失败"}
 
