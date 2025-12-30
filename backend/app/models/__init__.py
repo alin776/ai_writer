@@ -48,6 +48,7 @@ from app.models.channel import Channel, ChannelType, ChannelStatus
 from app.models.channel_member import ChannelMember, MemberRole
 from app.models.channel_message import ChannelMessage, MessageType
 from app.models.message_report import MessageReport
+from app.models.message_reaction import MessageReaction
 from app.models.channel_read_state import ChannelReadState
 from app.models.work_report import WorkReport, WorkReportReason, WorkReportStatus
 from app.models.chapter_comment import (
@@ -132,6 +133,7 @@ __all__ = [
     "ChannelMessage",
     "MessageType",
     "MessageReport",
+    "MessageReaction",
     "ChannelReadState",
     "WorkReport",
     "WorkReportReason",

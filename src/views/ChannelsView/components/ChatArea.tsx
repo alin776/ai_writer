@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search } from 'lucide-react';
+import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -8,7 +8,12 @@ import { cn } from '@/lib/utils';
 import type { Channel } from './ChannelList';
 import { MemberManagementDialog } from './MemberManagementDialog';
 import { ReportMessageDialog } from './ReportMessageDialog';
-import { getChannelMembers, type ChannelMember, channelApi, UnreadInfo } from '@/services/channelApi';
+import { getChannelMembers, type ChannelMember, channelApi, UnreadInfo, type ReactionSummary } from '@/services/channelApi';
+import { useChannelWebSocket, type ChannelMessage, type ReactionEvent } from '@/hooks/useChannelWebSocket';
+import { TypingIndicator } from './TypingIndicator';
+import { MessageReactions } from './MessageReactions';
+import EmojiPicker from './EmojiPicker';
+import type { MessageEditEvent } from '@/hooks/useChannelWebSocket';
 
 export interface Message {
   id: string;
@@ -21,11 +26,14 @@ export interface Message {
   timestamp: Date;
   type?: 'normal' | 'announcement' | 'mention';
   isPinned?: boolean;
+  isEdited?: boolean;
+  editedAt?: Date;
   replyTo?: {
     id: string;
     userName: string;
     content: string;
   };
+  reactions?: ReactionSummary[];
 }
 
 interface ChatAreaProps {
@@ -36,13 +44,22 @@ interface ChatAreaProps {
     name: string;
     avatar?: string;
     isCreator?: boolean;
+    role?: 'owner' | 'admin' | 'member';
   };
   onSendMessage: (content: string, type?: 'normal' | 'announcement', replyToId?: string) => void;
   onMentionAll?: () => void;
   onLeaveChannel?: () => void;
+  onNewMessage?: (message: ChannelMessage) => void;
+  onMessageDelete?: (messageId: string) => void;
+  onMessageEdit?: (event: MessageEditEvent) => void;
+  onReactionAdd?: (event: ReactionEvent) => void;
+  onReactionRemove?: (event: ReactionEvent) => void;
+  onReactionsChange?: (messageId: string, reactions: ReactionSummary[]) => void;
+  onPinChange?: () => void;
+  scrollToMessageId?: string | null;
 }
 
-export function ChatArea({ channel, messages, currentUser, onSendMessage, onMentionAll, onLeaveChannel }: ChatAreaProps) {
+export function ChatArea({ channel, messages, currentUser, onSendMessage, onMentionAll, onLeaveChannel, onNewMessage, onMessageDelete, onMessageEdit, onReactionAdd, onReactionRemove, onReactionsChange, onPinChange, scrollToMessageId }: ChatAreaProps) {
   const [messageInput, setMessageInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiPickerPosition, setEmojiPickerPosition] = useState({ x: 0, y: 0 });
@@ -68,12 +85,24 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchResults, setSearchResults] = useState<Message[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [editContent, setEditContent] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const mentionButtonRef = useRef<HTMLButtonElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // WebSocket 实时消息
+  const { isConnected, typingUsers, onlineUsers, sendTyping } = useChannelWebSocket({
+    channelId: channel.id,
+    onMessage: onNewMessage,
+    onMessageDelete: onMessageDelete,
+    onMessageEdit: onMessageEdit,
+    onReactionAdd: onReactionAdd,
+    onReactionRemove: onReactionRemove
+  });
 
   // 获取未读信息
   useEffect(() => {
@@ -203,6 +232,10 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessageInput(e.target.value);
     adjustTextareaHeight();
+    // 发送正在输入事件
+    if (e.target.value.trim()) {
+      sendTyping();
+    }
   };
 
   // 发送后重置高度
@@ -260,33 +293,14 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
   const toggleEmojiPicker = () => {
     if (!showEmojiPicker && emojiButtonRef.current) {
       const buttonRect = emojiButtonRef.current.getBoundingClientRect();
-      // 表情窗口宽度 320px，高度约 300px
-      // 让窗口显示在按钮正上方，居中对齐
+      // 表情窗口宽度 320px，高度约 340px
       setEmojiPickerPosition({
-        x: buttonRect.left + buttonRect.width / 2 - 160, // 160 = 320/2
-        y: buttonRect.top - 310 // 310 = 表情窗口高度 + 10px间距
+        x: buttonRect.left + buttonRect.width / 2 - 160,
+        y: buttonRect.top - 350
       });
     }
     setShowEmojiPicker(!showEmojiPicker);
   };
-
-  // 常用表情列表
-  const emojis = [
-    '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂',
-    '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩',
-    '😘', '😗', '😚', '😙', '😋', '😛', '😜', '🤪',
-    '😝', '🤗', '🤭', '🤔', '🤨', '😐', '😑', '😶',
-    '😏', '😒', '🙄', '😬', '🤥', '😌', '😔', '😪',
-    '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧',
-    '🥵', '🥶', '😱', '😨', '😰', '😥', '😢', '😭',
-    '😤', '😠', '😡', '🤬', '😈', '👿', '💀', '☠️',
-    '👍', '👎', '👏', '🙌', '👌', '✌️', '🤞', '🤟',
-    '🤘', '🤙', '👈', '👉', '👆', '👇', '☝️', '✋',
-    '🤚', '🖐️', '🖖', '👋', '🤝', '💪', '🙏', '✍️',
-    '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍',
-    '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘',
-    '💝', '💟', '⭐', '🌟', '✨', '💫', '🔥', '💯'
-  ];
 
   // 点击外部关闭表情选择器和 @ 菜单
   useEffect(() => {
@@ -345,6 +359,14 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
     }
   };
 
+  // 外部触发跳转（从置顶消息栏点击）
+  useEffect(() => {
+    if (scrollToMessageId) {
+      // 延迟一点确保消息已渲染
+      setTimeout(() => jumpToMessage(scrollToMessageId), 100);
+    }
+  }, [scrollToMessageId]);
+
   // 跳转到未读消息
   const jumpToUnread = () => {
     if (unreadInfo?.firstUnreadMessageId) {
@@ -377,6 +399,20 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
       window.location.reload(); // 简单实现，实际应该通过回调更新
     } catch (error: any) {
       alert(error.response?.data?.detail || '撤回失败');
+    }
+  };
+
+  // 编辑消息
+  const handleEditMessage = async () => {
+    if (!editingMessage || !editContent.trim()) return;
+
+    try {
+      await channelApi.editMessage(channel.id, editingMessage.id, editContent.trim());
+      setEditingMessage(null);
+      setEditContent('');
+      // WebSocket 会广播更新，无需手动刷新
+    } catch (error: any) {
+      alert(error.response?.data?.detail || '编辑失败');
     }
   };
 
@@ -565,6 +601,15 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                       })}
                     </span>
 
+                    {message.isEdited && (
+                      <span
+                        className="text-xs text-gray-400 dark:text-gray-500 italic cursor-default"
+                        title={message.editedAt ? `编辑于 ${message.editedAt.toLocaleString('zh-CN')}` : '已编辑'}
+                      >
+                        (已编辑)
+                      </span>
+                    )}
+
                     {isAnnouncement && (
                       <span className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 rounded flex items-center gap-1">
                         <Megaphone className="w-3 h-3" />
@@ -575,26 +620,30 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
 
                   {/* 消息气泡（包含回复和内容） */}
                   <div className={cn(
-                    "rounded-lg inline-block overflow-hidden",
+                    "rounded-lg inline-block overflow-hidden max-w-full",
                     isOwnMessage
                       ? "bg-black dark:bg-gray-700 text-white"
                       : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700",
                     isMention && !isOwnMessage && "bg-blue-50/80 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700",
                     isAnnouncement && "bg-amber-100 dark:bg-amber-900/50 border-amber-200 dark:border-amber-700 text-amber-900 dark:text-amber-200"
                   )}>
-                    {/* 回复信息 */}
+                    {/* 回复信息 - 点击跳转到原消息 */}
                     {message.replyTo && (
                       <>
-                        <div className={cn(
-                          "text-xs px-3 py-2",
-                          isOwnMessage
-                            ? "bg-gray-800 dark:bg-gray-600 text-gray-300"
-                            : "bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
-                        )}>
-                          <div className="truncate">
+                        <div
+                          onClick={() => jumpToMessage(message.replyTo!.id)}
+                          className={cn(
+                            "text-xs px-3 py-2 cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1 max-w-xs sm:max-w-sm md:max-w-md",
+                            isOwnMessage
+                              ? "bg-gray-800 dark:bg-gray-600 text-gray-300"
+                              : "bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                          )}
+                        >
+                          <div className="flex-1 min-w-0 truncate">
                             <span className="font-medium">{message.replyTo.userName}</span>
                             <span className="opacity-75">：{message.replyTo.content}</span>
                           </div>
+                          <span className="text-gray-400 dark:text-gray-500 flex-shrink-0">›</span>
                         </div>
                         {/* 分隔线 */}
                         <div className={cn(
@@ -613,6 +662,14 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                       {message.content}
                     </div>
                   </div>
+
+                  {/* 消息反应 */}
+                  <MessageReactions
+                    channelId={channel.id}
+                    messageId={message.id}
+                    reactions={message.reactions || []}
+                    onReactionsChange={(reactions) => onReactionsChange?.(message.id, reactions)}
+                  />
                 </div>
               </div>
             );
@@ -662,6 +719,9 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
           )}
         </div>
       </ScrollArea>
+
+      {/* 正在输入指示器 */}
+      <TypingIndicator typingUsers={typingUsers} />
 
       {/* 输入区域 */}
       <div className="p-3 bg-white dark:bg-gray-900">
@@ -771,27 +831,16 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
           />
           {/* 表情窗口 */}
           <div
-            className="fixed bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl emoji-picker z-50 w-80"
+            className="fixed emoji-picker z-50"
             style={{
               left: `${emojiPickerPosition.x}px`,
               top: `${emojiPickerPosition.y}px`
             }}
           >
-            <div className="p-3 border-b border-gray-100 dark:border-gray-700">
-              <h4 className="text-xs text-gray-600 dark:text-gray-400">常用表情</h4>
-            </div>
-            <div className="grid grid-cols-8 gap-1 p-3 max-h-64 overflow-y-auto">
-              {emojis.map((emoji, index) => (
-                <button
-                  key={index}
-                  onClick={() => insertEmoji(emoji)}
-                  className="text-2xl p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors"
-                  title={emoji}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
+            <EmojiPicker
+              onSelect={insertEmoji}
+              onClose={() => setShowEmojiPicker(false)}
+            />
           </div>
         </>
       )}
@@ -875,9 +924,11 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
             {(() => {
               const message = messages.find(m => m.id === contextMenu.messageId);
               const isOwnMessage = message?.userId === currentUser.id;
+              const canPin = currentUser.role === 'owner' || currentUser.role === 'admin';
 
               // 计算时间差
               let canRecall = false;
+              let canEdit = false;
               if (message?.timestamp) {
                 const messageTime = message.timestamp instanceof Date
                   ? message.timestamp.getTime()
@@ -885,13 +936,15 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                 const now = Date.now();
                 const timeDiff = now - messageTime;
                 canRecall = isOwnMessage && timeDiff < 5 * 60 * 1000 && timeDiff >= 0; // 5分钟内
+                canEdit = isOwnMessage && timeDiff < 10 * 60 * 1000 && timeDiff >= 0; // 10分钟内
 
                 // 调试信息
-                console.log('撤回检查:', {
+                console.log('撤回/编辑检查:', {
                   messageTime: new Date(messageTime).toLocaleString(),
                   now: new Date(now).toLocaleString(),
                   timeDiff: Math.floor(timeDiff / 1000) + '秒',
                   canRecall,
+                  canEdit,
                   isOwnMessage
                 });
               }
@@ -911,6 +964,44 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
                     <Reply className="w-3.5 h-3.5" />
                     回复
                   </button>
+
+                  {canEdit && (
+                    <button
+                      className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400"
+                      onClick={() => {
+                        if (message) {
+                          setEditingMessage(message);
+                          setEditContent(message.content);
+                        }
+                        setContextMenu(null);
+                      }}
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      编辑
+                    </button>
+                  )}
+
+                  {canPin && message && (
+                    <button
+                      className={`w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 ${message.isPinned ? 'text-orange-600 dark:text-orange-400' : 'text-amber-600 dark:text-amber-400'}`}
+                      onClick={async () => {
+                        try {
+                          if (message.isPinned) {
+                            await channelApi.unpinMessage(channel.id, message.id);
+                          } else {
+                            await channelApi.pinMessage(channel.id, message.id);
+                          }
+                          onPinChange?.();
+                        } catch (error: any) {
+                          alert(error.response?.data?.detail || (message.isPinned ? '取消置顶失败' : '置顶失败'));
+                        }
+                        setContextMenu(null);
+                      }}
+                    >
+                      <Pin className="w-3.5 h-3.5" />
+                      {message.isPinned ? '取消置顶' : '置顶'}
+                    </button>
+                  )}
 
                   {canRecall && (
                     <button
@@ -1068,6 +1159,62 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onMent
         channelId={channel.id}
         messageId={reportingMessageId}
       />
+
+      {/* 编辑对话框 */}
+      {editingMessage && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
+            {/* 标题栏 */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-base font-medium dark:text-gray-100">编辑消息</h3>
+              <button
+                onClick={() => {
+                  setEditingMessage(null);
+                  setEditContent('');
+                }}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              >
+                <X className="w-4 h-4 dark:text-gray-400" />
+              </button>
+            </div>
+
+            {/* 编辑内容 */}
+            <div className="p-4 space-y-4">
+              <textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                placeholder="编辑消息内容..."
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                rows={4}
+                autoFocus
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                提示：只能在发送后10分钟内编辑消息
+              </p>
+            </div>
+
+            {/* 底部按钮 */}
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+              <button
+                onClick={() => {
+                  setEditingMessage(null);
+                  setEditContent('');
+                }}
+                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleEditMessage}
+                disabled={!editContent.trim() || editContent.trim() === editingMessage.content}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                保存修改
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 搜索对话框 */}
       {showSearchDialog && (

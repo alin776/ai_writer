@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ChannelList, type Channel } from './components/ChannelList';
 import { ChatArea, type Message } from './components/ChatArea';
 import { CreateFangroupDialog } from './components/CreateFangroupDialog';
+import PinnedMessagesBar from './components/PinnedMessagesBar';
 import {
   getMyChannels,
   getAvailableChannels,
@@ -9,11 +10,14 @@ import {
   leaveChannel,
   getChannelMessages,
   sendMessage as apiSendMessage,
+  getChannelMembers,
   type Channel as ApiChannel,
-  type ChannelMessage
+  type ChannelMessage,
+  type ReactionSummary
 } from '@/services/channelApi';
 import { useToast } from '@/hooks/useToast';
 import { useAuthStore } from '@/store/authStore';
+import type { ChannelMessage as WsChannelMessage, ReactionEvent } from '@/hooks/useChannelWebSocket';
 
 // 转换 API Channel 到组件 Channel 格式
 const convertApiChannelToChannel = (apiChannel: ApiChannel): Channel => {
@@ -44,6 +48,9 @@ const convertApiMessageToMessage = (apiMessage: ChannelMessage): Message => {
     content: apiMessage.content,
     timestamp: new Date(apiMessage.createdAt),
     type: apiMessage.type,
+    isPinned: apiMessage.isPinned || false,
+    isEdited: apiMessage.isEdited || false,
+    editedAt: apiMessage.editedAt ? new Date(apiMessage.editedAt) : undefined,
   };
 };
 
@@ -56,6 +63,9 @@ const ChannelsView: React.FC = () => {
   const [availableChannels, setAvailableChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [userRole, setUserRole] = useState<'owner' | 'admin' | 'member'>('member');
+  const [pinRefreshTrigger, setPinRefreshTrigger] = useState(0);
+  const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null);
 
   const activeChannel = userChannels.find(c => c.id === activeChannelId);
 
@@ -63,7 +73,79 @@ const ChannelsView: React.FC = () => {
     id: user?.id || 'current-user',
     name: user?.username || '我',
     isCreator: activeChannel?.creatorId === user?.id,
+    role: userRole,
   };
+
+  // 加载用户在当前频道的角色
+  useEffect(() => {
+    const loadUserRole = async () => {
+      if (!activeChannelId || !user?.id) {
+        setUserRole('member');
+        return;
+      }
+
+      try {
+        const response = await getChannelMembers(activeChannelId);
+        const currentMember = response.members.find(m => m.userId === user.id);
+        if (currentMember) {
+          setUserRole(currentMember.role as 'owner' | 'admin' | 'member');
+        } else {
+          setUserRole('member');
+        }
+      } catch (error) {
+        console.error('加载用户角色失败:', error);
+        setUserRole('member');
+      }
+    };
+
+    loadUserRole();
+  }, [activeChannelId, user?.id]);
+
+  // 置顶变化回调
+  const handlePinChange = useCallback(() => {
+    setPinRefreshTrigger(prev => prev + 1);
+    // 刷新消息列表以更新置顶状态
+    if (activeChannelId) {
+      const loadMessages = async () => {
+        try {
+          const response = await getChannelMessages(activeChannelId, { skip: 0, limit: 50 });
+          const messages = response.messages.map(convertApiMessageToMessage);
+          const messagesWithReply = messages.map(msg => {
+            const apiMsg = response.messages.find(m => m.id === msg.id);
+            if (apiMsg?.replyToId) {
+              const replyToMsg = messages.find(m => m.id === apiMsg.replyToId);
+              if (replyToMsg) {
+                return {
+                  ...msg,
+                  isPinned: apiMsg.isPinned,
+                  replyTo: {
+                    id: replyToMsg.id,
+                    userName: replyToMsg.userName,
+                    content: replyToMsg.content,
+                  },
+                };
+              }
+            }
+            return { ...msg, isPinned: apiMsg?.isPinned };
+          });
+          setChannelMessages(prev => ({
+            ...prev,
+            [activeChannelId]: messagesWithReply,
+          }));
+        } catch (error) {
+          console.error('刷新消息失败:', error);
+        }
+      };
+      loadMessages();
+    }
+  }, [activeChannelId]);
+
+  // 点击置顶消息跳转
+  const handlePinnedMessageClick = useCallback((messageId: string) => {
+    // 使用一个新的值来触发跳转，即使是同一个消息也能重新触发
+    setScrollToMessageId(null);
+    setTimeout(() => setScrollToMessageId(messageId), 0);
+  }, []);
 
   // 加载用户频道
   useEffect(() => {
@@ -188,6 +270,141 @@ const ChannelsView: React.FC = () => {
     }
   };
 
+  // WebSocket 收到新消息
+  const handleNewMessage = useCallback((wsMessage: WsChannelMessage) => {
+    // 转换为组件格式
+    const newMessage: Message = {
+      id: wsMessage.id,
+      userId: wsMessage.user_id,
+      userName: wsMessage.user_name,
+      userAvatar: wsMessage.user_avatar || undefined,
+      userTitle: wsMessage.user_title || undefined,
+      userTitleColor: wsMessage.user_title_color || undefined,
+      content: wsMessage.content,
+      timestamp: new Date(wsMessage.created_at),
+      type: wsMessage.type as 'normal' | 'announcement' | 'mention',
+      isPinned: wsMessage.is_pinned,
+      isEdited: false,
+    };
+
+    // 使用函数式更新，避免依赖 channelMessages
+    setChannelMessages(prev => {
+      // 处理回复
+      if (wsMessage.reply_to_id) {
+        const currentMessages = prev[wsMessage.channel_id] || [];
+        const replyToMsg = currentMessages.find(m => m.id === wsMessage.reply_to_id);
+        if (replyToMsg) {
+          newMessage.replyTo = {
+            id: replyToMsg.id,
+            userName: replyToMsg.userName,
+            content: replyToMsg.content,
+          };
+        }
+      }
+
+      return {
+        ...prev,
+        [wsMessage.channel_id]: [...(prev[wsMessage.channel_id] || []), newMessage],
+      };
+    });
+  }, []); // 移除 channelMessages 依赖
+
+  // WebSocket 收到消息删除
+  const handleMessageDelete = useCallback((messageId: string) => {
+    if (!activeChannelId) return;
+
+    setChannelMessages(prev => ({
+      ...prev,
+      [activeChannelId]: (prev[activeChannelId] || []).filter(m => m.id !== messageId),
+    }));
+  }, [activeChannelId]);
+
+  // WebSocket 收到消息编辑
+  const handleMessageEdit = useCallback((event: { channel_id: string; message_id: string; content: string; edited_at: string; is_edited: boolean }) => {
+    setChannelMessages(prev => ({
+      ...prev,
+      [event.channel_id]: (prev[event.channel_id] || []).map(msg => {
+        if (msg.id === event.message_id) {
+          return {
+            ...msg,
+            content: event.content,
+            isEdited: event.is_edited,
+            editedAt: event.edited_at ? new Date(event.edited_at) : undefined,
+          };
+        }
+        return msg;
+      }),
+    }));
+  }, []);
+
+  // WebSocket 收到反应添加
+  const handleReactionAdd = useCallback((event: ReactionEvent) => {
+    setChannelMessages(prev => {
+      const channelMsgs = prev[activeChannelId] || [];
+      return {
+        ...prev,
+        [activeChannelId]: channelMsgs.map(msg => {
+          if (msg.id === event.message_id) {
+            const reactions = msg.reactions || [];
+            const existingIndex = reactions.findIndex(r => r.emoji === event.emoji);
+            let newReactions: ReactionSummary[];
+            if (existingIndex >= 0) {
+              newReactions = reactions.map((r, i) => {
+                if (i === existingIndex) {
+                  return { ...r, count: r.count + 1 };
+                }
+                return r;
+              });
+            } else {
+              newReactions = [...reactions, { emoji: event.emoji, count: 1, hasReacted: false }];
+            }
+            return { ...msg, reactions: newReactions };
+          }
+          return msg;
+        }),
+      };
+    });
+  }, [activeChannelId]);
+
+  // WebSocket 收到反应移除
+  const handleReactionRemove = useCallback((event: ReactionEvent) => {
+    setChannelMessages(prev => {
+      const channelMsgs = prev[activeChannelId] || [];
+      return {
+        ...prev,
+        [activeChannelId]: channelMsgs.map(msg => {
+          if (msg.id === event.message_id) {
+            const reactions = (msg.reactions || [])
+              .map(r => {
+                if (r.emoji === event.emoji) {
+                  return { ...r, count: r.count - 1 };
+                }
+                return r;
+              })
+              .filter(r => r.count > 0);
+            return { ...msg, reactions };
+          }
+          return msg;
+        }),
+      };
+    });
+  }, [activeChannelId]);
+
+  // 本地反应状态变化（用户自己添加/移除反应）
+  const handleReactionsChange = useCallback((messageId: string, reactions: ReactionSummary[]) => {
+    if (!activeChannelId) return;
+
+    setChannelMessages(prev => ({
+      ...prev,
+      [activeChannelId]: (prev[activeChannelId] || []).map(msg => {
+        if (msg.id === messageId) {
+          return { ...msg, reactions };
+        }
+        return msg;
+      }),
+    }));
+  }, [activeChannelId]);
+
   const handleJoinChannel = async (channelId: string) => {
     try {
       await joinChannel(channelId);
@@ -285,13 +502,32 @@ const ChannelsView: React.FC = () => {
 
       {/* 聊天区域 */}
       {activeChannel && (
-        <ChatArea
-          channel={activeChannel}
-          messages={messages}
-          currentUser={currentUser}
-          onSendMessage={handleSendMessage}
-          onLeaveChannel={handleLeaveChannel}
-        />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* 置顶消息栏 */}
+          <PinnedMessagesBar
+            channelId={activeChannel.id}
+            isAdmin={userRole === 'owner' || userRole === 'admin'}
+            refreshTrigger={pinRefreshTrigger}
+            onMessageClick={handlePinnedMessageClick}
+          />
+
+          {/* 聊天主体 */}
+          <ChatArea
+            channel={activeChannel}
+            messages={messages}
+            currentUser={currentUser}
+            onSendMessage={handleSendMessage}
+            onLeaveChannel={handleLeaveChannel}
+            onNewMessage={handleNewMessage}
+            onMessageDelete={handleMessageDelete}
+            onMessageEdit={handleMessageEdit}
+            onReactionAdd={handleReactionAdd}
+            onReactionRemove={handleReactionRemove}
+            onReactionsChange={handleReactionsChange}
+            onPinChange={handlePinChange}
+            scrollToMessageId={scrollToMessageId}
+          />
+        </div>
       )}
 
       {/* 无频道提示 */}

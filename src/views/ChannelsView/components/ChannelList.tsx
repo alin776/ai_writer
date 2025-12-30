@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Hash, Lock, Users, Sparkles, MessageCircle, BookOpen, Coffee, FlaskConical, ChevronDown, ChevronRight, Bell, Plus, X, Search, AtSign } from 'lucide-react';
+import { Hash, Lock, Users, MessageCircle, BookOpen, Coffee, FlaskConical, ChevronDown, ChevronRight, Bell, Plus, X, Search, AtSign } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -133,10 +133,6 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
 
         {channel.status === 'locked' && (
           <span className="text-xs text-gray-400 dark:text-gray-500">已折叠</span>
-        )}
-
-        {channel.isPermanent && (
-          <Sparkles className="w-4 h-4 text-amber-400" />
         )}
       </button>
     );

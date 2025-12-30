@@ -136,6 +136,11 @@ class ChannelMessageUpdate(BaseModel):
     is_pinned: Optional[bool] = None
 
 
+class MessageEditRequest(BaseModel):
+    """编辑消息请求Schema"""
+    content: str = Field(..., min_length=1, max_length=5000)
+
+
 class ChannelMessageResponse(ChannelMessageBase):
     """频道消息响应Schema"""
     id: UUID
@@ -144,11 +149,13 @@ class ChannelMessageResponse(ChannelMessageBase):
     type: MessageType
     is_pinned: bool
     is_deleted: bool
+    is_edited: bool = False
     reply_to_id: Optional[UUID]
     reaction_count: int
     created_at: datetime
     updated_at: datetime
     deleted_at: Optional[datetime]
+    edited_at: Optional[datetime] = None
 
     # 用户信息
     user_name: Optional[str] = None
@@ -166,3 +173,67 @@ class ChannelMessageListResponse(BaseModel):
     messages: List[ChannelMessageResponse]
     total: int
     has_more: bool
+
+
+# ========== Message Reaction Schemas ==========
+
+class ReactionCreate(BaseModel):
+    """添加反应Schema"""
+    emoji: str = Field(..., min_length=1, max_length=50)
+
+
+class ReactionUserResponse(BaseModel):
+    """反应用户信息"""
+    user_id: UUID
+    username: str
+    avatar: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReactionSummary(BaseModel):
+    """反应汇总（用于消息列表）"""
+    emoji: str
+    count: int
+    has_reacted: bool = False  # 当前用户是否已反应
+
+
+class ReactionDetailResponse(BaseModel):
+    """反应详情响应（用于查看具体用户）"""
+    emoji: str
+    count: int
+    users: List[ReactionUserResponse]
+
+
+class MessageReactionsResponse(BaseModel):
+    """消息的所有反应汇总"""
+    message_id: UUID
+    reactions: List[ReactionSummary]
+    total_count: int
+
+
+# ========== Message Pin Schemas ==========
+
+class PinnedMessageResponse(BaseModel):
+    """置顶消息响应"""
+    id: UUID
+    channel_id: UUID
+    content: str
+    user_id: Optional[UUID]
+    user_name: Optional[str] = None
+    user_avatar: Optional[str] = None
+    is_pinned: bool = True
+    pinned_at: Optional[datetime] = None
+    pinned_by: Optional[UUID] = None
+    pinned_by_name: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PinnedMessagesListResponse(BaseModel):
+    """置顶消息列表响应"""
+    messages: List[PinnedMessageResponse]
+    total: int

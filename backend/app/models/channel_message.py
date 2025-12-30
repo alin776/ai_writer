@@ -33,6 +33,11 @@ class ChannelMessage(Base):
     # 消息属性
     is_pinned = Column(Boolean, default=False, nullable=False, comment="是否置顶")
     is_deleted = Column(Boolean, default=False, nullable=False, comment="是否已删除")
+    is_edited = Column(Boolean, default=False, nullable=False, comment="是否已编辑")
+
+    # 置顶元数据
+    pinned_at = Column(DateTime(timezone=True), nullable=True, comment="置顶时间")
+    pinned_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, comment="置顶操作人")
 
     # 引用消息（回复功能）
     reply_to_id = Column(UUID(as_uuid=True), ForeignKey("channel_messages.id", ondelete="SET NULL"), nullable=True)
@@ -44,12 +49,15 @@ class ChannelMessage(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
+    edited_at = Column(DateTime(timezone=True), nullable=True, comment="编辑时间")
 
     # 关联关系
     channel = relationship("Channel", back_populates="messages")
-    user = relationship("User", back_populates="channel_messages")
+    user = relationship("User", back_populates="channel_messages", foreign_keys=[user_id])
+    pinned_by_user = relationship("User", foreign_keys=[pinned_by])
     reply_to = relationship("ChannelMessage", remote_side=[id], backref="replies")
     reports = relationship("MessageReport", back_populates="message", cascade="all, delete-orphan")
+    reactions = relationship("MessageReaction", back_populates="message", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<ChannelMessage id={self.id} channel_id={self.channel_id}>"

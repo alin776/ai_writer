@@ -28,6 +28,7 @@ from app.schemas.channel import (
     ChannelMessageUpdate,
     ChannelMessageResponse,
     ChannelMessageListResponse,
+    MessageEditRequest,
 )
 
 router = APIRouter()
@@ -961,6 +962,25 @@ async def send_message(
     await db.commit()
     await db.refresh(message)
 
+    # WebSocket 广播新消息
+    from app.api.v1.ws import broadcast_channel_message
+    await broadcast_channel_message(channel_id, {
+        "id": str(message.id),
+        "channel_id": str(message.channel_id),
+        "user_id": str(message.user_id),
+        "content": message.content,
+        "type": message.type,
+        "is_pinned": message.is_pinned,
+        "reply_to_id": str(message.reply_to_id) if message.reply_to_id else None,
+        "reaction_count": message.reaction_count,
+        "created_at": message.created_at.isoformat(),
+        "user_name": current_user.username,
+        "user_avatar": current_user.avatar,
+        "user_honor": current_user.honor,
+        "user_title": member.custom_title,
+        "user_title_color": member.title_color
+    }, exclude_user=current_user.id)
+
     return ChannelMessageResponse(
         id=message.id,
         channel_id=message.channel_id,
@@ -1552,7 +1572,134 @@ async def recall_message(
 
     await db.commit()
 
+    # WebSocket 广播消息撤回
+    from app.api.v1.ws import broadcast_message_delete
+    await broadcast_message_delete(channel_id, str(message_id))
+
     return {"message": "消息已撤回"}
+
+
+@router.patch("/{channel_id}/messages/{message_id}")
+async def edit_message(
+    channel_id: UUID,
+    message_id: UUID,
+    request: MessageEditRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    编辑消息
+    - 只能编辑自己发送的消息
+    - 只能在发送后10分钟内编辑
+    - 编辑后会标记为"已编辑"
+    """
+    from datetime import datetime, timedelta, timezone
+
+    content = request.content
+
+    # 获取频道信息
+    channel_result = await db.execute(
+        select(Channel).where(Channel.id == channel_id)
+    )
+    channel = channel_result.scalar_one_or_none()
+
+    if not channel:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="频道不存在"
+        )
+
+    # 获取消息
+    message_result = await db.execute(
+        select(ChannelMessage).where(
+            ChannelMessage.id == message_id,
+            ChannelMessage.channel_id == channel_id
+        )
+    )
+    message = message_result.scalar_one_or_none()
+
+    if not message:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="消息不存在"
+        )
+
+    # 检查是否已经被删除
+    if message.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="消息已被删除，无法编辑"
+        )
+
+    # 检查是否是消息发送者
+    if message.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="只能编辑自己的消息"
+        )
+
+    # 检查是否超过10分钟
+    time_limit = timedelta(minutes=10)
+    now = datetime.now(timezone.utc)
+
+    if message.created_at.tzinfo is None:
+        created_at = message.created_at.replace(tzinfo=timezone.utc)
+    else:
+        created_at = message.created_at
+
+    if now - created_at > time_limit:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="超过编辑时限（10分钟）"
+        )
+
+    # 更新消息内容
+    message.content = content
+    message.is_edited = True
+    message.edited_at = datetime.now(timezone.utc)
+
+    await db.commit()
+    await db.refresh(message)
+
+    # 获取成员信息用于返回
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    member = member_result.scalar_one_or_none()
+
+    # WebSocket 广播消息编辑
+    from app.api.v1.ws import broadcast_message_edit
+    await broadcast_message_edit(
+        channel_id,
+        str(message_id),
+        content,
+        str(current_user.id),
+        current_user.username,
+        message.edited_at.isoformat() if message.edited_at else None
+    )
+
+    return {
+        "id": str(message.id),
+        "channelId": str(message.channel_id),
+        "userId": str(message.user_id) if message.user_id else None,
+        "userName": current_user.username,
+        "userAvatar": current_user.avatar,
+        "userTitle": member.custom_title if member else None,
+        "userTitleColor": member.title_color if member else None,
+        "content": message.content,
+        "type": message.type,
+        "isPinned": message.is_pinned,
+        "isDeleted": message.is_deleted,
+        "isEdited": message.is_edited,
+        "replyToId": str(message.reply_to_id) if message.reply_to_id else None,
+        "reactionCount": message.reaction_count,
+        "createdAt": message.created_at.isoformat(),
+        "updatedAt": message.updated_at.isoformat(),
+        "editedAt": message.edited_at.isoformat() if message.edited_at else None
+    }
 
 
 # ===== 搜索功能 API =====
@@ -1915,4 +2062,554 @@ async def fix_fangroup_permanent(
         "total_fangroups": len(fangroups),
         "updated": count
     }
+
+
+# ===== 消息反应（Emoji Reactions）相关 API =====
+
+from app.models.message_reaction import MessageReaction
+from app.schemas.channel import (
+    ReactionCreate,
+    ReactionSummary,
+    ReactionDetailResponse,
+    ReactionUserResponse,
+    MessageReactionsResponse,
+)
+
+
+@router.post("/{channel_id}/messages/{message_id}/reactions")
+async def add_reaction(
+    channel_id: UUID,
+    message_id: UUID,
+    data: ReactionCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    添加消息反应（Emoji）
+    """
+    # 检查是否是频道成员
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    member = member_result.scalar_one_or_none()
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="未加入该频道"
+        )
+
+    # 检查消息是否存在且未删除
+    message_result = await db.execute(
+        select(ChannelMessage).where(
+            ChannelMessage.id == message_id,
+            ChannelMessage.channel_id == channel_id
+        )
+    )
+    message = message_result.scalar_one_or_none()
+    if not message:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="消息不存在"
+        )
+    if message.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="消息已被删除"
+        )
+
+    # 检查用户对该消息的不同 emoji 反应数量（限制20个）
+    existing_count_result = await db.execute(
+        select(func.count(MessageReaction.id)).where(
+            MessageReaction.message_id == message_id,
+            MessageReaction.user_id == current_user.id
+        )
+    )
+    existing_count = existing_count_result.scalar() or 0
+    if existing_count >= 20:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="每条消息最多可添加20个不同的反应"
+        )
+
+    # 检查是否已存在相同反应
+    existing_reaction = await db.execute(
+        select(MessageReaction).where(
+            MessageReaction.message_id == message_id,
+            MessageReaction.user_id == current_user.id,
+            MessageReaction.emoji == data.emoji
+        )
+    )
+    if existing_reaction.scalar_one_or_none():
+        return {"message": "已添加该反应", "action": "exists"}
+
+    # 创建反应
+    reaction = MessageReaction(
+        id=uuid.uuid4(),
+        message_id=message_id,
+        user_id=current_user.id,
+        emoji=data.emoji
+    )
+    db.add(reaction)
+
+    # 更新消息的 reaction_count
+    message.reaction_count += 1
+
+    await db.commit()
+
+    # WebSocket 广播反应添加
+    from app.api.v1.ws import broadcast_channel_event
+    await broadcast_channel_event(channel_id, {
+        "type": "REACTION_ADD",
+        "payload": {
+            "message_id": str(message_id),
+            "emoji": data.emoji,
+            "user_id": str(current_user.id),
+            "username": current_user.username
+        }
+    })
+
+    return {"message": "反应已添加", "action": "added"}
+
+
+@router.delete("/{channel_id}/messages/{message_id}/reactions/{emoji}")
+async def remove_reaction(
+    channel_id: UUID,
+    message_id: UUID,
+    emoji: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    移除消息反应（只能移除自己的）
+    """
+    # 检查是否是频道成员
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    if not member_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="未加入该频道"
+        )
+
+    # 查找反应
+    reaction_result = await db.execute(
+        select(MessageReaction).where(
+            MessageReaction.message_id == message_id,
+            MessageReaction.user_id == current_user.id,
+            MessageReaction.emoji == emoji
+        )
+    )
+    reaction = reaction_result.scalar_one_or_none()
+
+    if not reaction:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="反应不存在"
+        )
+
+    # 删除反应
+    await db.delete(reaction)
+
+    # 更新消息的 reaction_count
+    message_result = await db.execute(
+        select(ChannelMessage).where(ChannelMessage.id == message_id)
+    )
+    message = message_result.scalar_one_or_none()
+    if message and message.reaction_count > 0:
+        message.reaction_count -= 1
+
+    await db.commit()
+
+    # WebSocket 广播反应移除
+    from app.api.v1.ws import broadcast_channel_event
+    await broadcast_channel_event(channel_id, {
+        "type": "REACTION_REMOVE",
+        "payload": {
+            "message_id": str(message_id),
+            "emoji": emoji,
+            "user_id": str(current_user.id)
+        }
+    })
+
+    return {"message": "反应已移除"}
+
+
+@router.get("/{channel_id}/messages/{message_id}/reactions", response_model=MessageReactionsResponse)
+async def get_message_reactions(
+    channel_id: UUID,
+    message_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    获取消息的所有反应汇总
+    """
+    # 检查是否是频道成员
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    if not member_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="未加入该频道"
+        )
+
+    # 检查消息是否存在
+    message_result = await db.execute(
+        select(ChannelMessage).where(
+            ChannelMessage.id == message_id,
+            ChannelMessage.channel_id == channel_id
+        )
+    )
+    if not message_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="消息不存在"
+        )
+
+    # 按 emoji 分组统计
+    reactions_result = await db.execute(
+        select(
+            MessageReaction.emoji,
+            func.count(MessageReaction.id).label('count')
+        )
+        .where(MessageReaction.message_id == message_id)
+        .group_by(MessageReaction.emoji)
+        .order_by(func.count(MessageReaction.id).desc())
+    )
+    reaction_stats = reactions_result.all()
+
+    # 获取当前用户的反应
+    user_reactions_result = await db.execute(
+        select(MessageReaction.emoji).where(
+            MessageReaction.message_id == message_id,
+            MessageReaction.user_id == current_user.id
+        )
+    )
+    user_emojis = set(row[0] for row in user_reactions_result.all())
+
+    # 构建响应
+    reactions = []
+    total_count = 0
+    for emoji, count in reaction_stats:
+        reactions.append(ReactionSummary(
+            emoji=emoji,
+            count=count,
+            has_reacted=(emoji in user_emojis)
+        ))
+        total_count += count
+
+    return MessageReactionsResponse(
+        message_id=message_id,
+        reactions=reactions,
+        total_count=total_count
+    )
+
+
+@router.get("/{channel_id}/messages/{message_id}/reactions/{emoji}/users")
+async def get_reaction_users(
+    channel_id: UUID,
+    message_id: UUID,
+    emoji: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    获取指定 emoji 反应的用户列表（点击 emoji 时调用）
+    """
+    # 检查是否是频道成员
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    if not member_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="未加入该频道"
+        )
+
+    # 查询该 emoji 的所有反应
+    reactions_result = await db.execute(
+        select(MessageReaction)
+        .where(
+            MessageReaction.message_id == message_id,
+            MessageReaction.emoji == emoji
+        )
+        .options(selectinload(MessageReaction.user))
+        .order_by(MessageReaction.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    reactions = reactions_result.scalars().all()
+
+    # 获取总数
+    total_result = await db.execute(
+        select(func.count(MessageReaction.id)).where(
+            MessageReaction.message_id == message_id,
+            MessageReaction.emoji == emoji
+        )
+    )
+    total = total_result.scalar() or 0
+
+    # 构建用户列表
+    users = []
+    for reaction in reactions:
+        if reaction.user:
+            users.append(ReactionUserResponse(
+                user_id=reaction.user.id,
+                username=reaction.user.username,
+                avatar=reaction.user.avatar
+            ))
+
+    return ReactionDetailResponse(
+        emoji=emoji,
+        count=total,
+        users=users
+    )
+
+
+# ===== 消息置顶相关 API =====
+
+from app.schemas.channel import PinnedMessageResponse, PinnedMessagesListResponse
+
+
+@router.post("/{channel_id}/messages/{message_id}/pin")
+async def pin_message(
+    channel_id: UUID,
+    message_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    置顶消息（仅 owner/admin 可操作）
+    最多置顶 50 条消息
+    """
+    # 检查操作者权限
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    member = member_result.scalar_one_or_none()
+
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="未加入该频道"
+        )
+
+    if member.role not in ['owner', 'admin']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="只有频道管理员可以置顶消息"
+        )
+
+    # 检查消息是否存在且未删除
+    message_result = await db.execute(
+        select(ChannelMessage).where(
+            ChannelMessage.id == message_id,
+            ChannelMessage.channel_id == channel_id
+        )
+    )
+    message = message_result.scalar_one_or_none()
+
+    if not message:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="消息不存在"
+        )
+
+    if message.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无法置顶已删除的消息"
+        )
+
+    if message.is_pinned:
+        return {"message": "消息已经是置顶状态", "action": "already_pinned"}
+
+    # 检查置顶数量限制
+    pinned_count_result = await db.execute(
+        select(func.count(ChannelMessage.id)).where(
+            ChannelMessage.channel_id == channel_id,
+            ChannelMessage.is_pinned == True,
+            ChannelMessage.is_deleted == False
+        )
+    )
+    pinned_count = pinned_count_result.scalar() or 0
+
+    if pinned_count >= 50:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="频道置顶消息已达上限（50条）"
+        )
+
+    # 置顶消息
+    from datetime import datetime, timezone
+    message.is_pinned = True
+    message.pinned_at = datetime.now(timezone.utc)
+    message.pinned_by = current_user.id
+
+    await db.commit()
+
+    # WebSocket 广播置顶事件
+    from app.api.v1.ws import broadcast_channel_event
+    await broadcast_channel_event(channel_id, {
+        "type": "MESSAGE_PIN",
+        "payload": {
+            "message_id": str(message_id),
+            "pinned_by": str(current_user.id),
+            "pinned_by_name": current_user.username,
+            "pinned_at": message.pinned_at.isoformat() if message.pinned_at else None
+        }
+    })
+
+    return {"message": "消息已置顶", "action": "pinned"}
+
+
+@router.delete("/{channel_id}/messages/{message_id}/pin")
+async def unpin_message(
+    channel_id: UUID,
+    message_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    取消置顶消息（仅 owner/admin 可操作）
+    """
+    # 检查操作者权限
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    member = member_result.scalar_one_or_none()
+
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="未加入该频道"
+        )
+
+    if member.role not in ['owner', 'admin']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="只有频道管理员可以取消置顶"
+        )
+
+    # 检查消息是否存在
+    message_result = await db.execute(
+        select(ChannelMessage).where(
+            ChannelMessage.id == message_id,
+            ChannelMessage.channel_id == channel_id
+        )
+    )
+    message = message_result.scalar_one_or_none()
+
+    if not message:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="消息不存在"
+        )
+
+    if not message.is_pinned:
+        return {"message": "消息未被置顶", "action": "not_pinned"}
+
+    # 取消置顶
+    message.is_pinned = False
+    message.pinned_at = None
+    message.pinned_by = None
+
+    await db.commit()
+
+    # WebSocket 广播取消置顶事件
+    from app.api.v1.ws import broadcast_channel_event
+    await broadcast_channel_event(channel_id, {
+        "type": "MESSAGE_UNPIN",
+        "payload": {
+            "message_id": str(message_id),
+            "unpinned_by": str(current_user.id)
+        }
+    })
+
+    return {"message": "已取消置顶", "action": "unpinned"}
+
+
+@router.get("/{channel_id}/pinned-messages", response_model=PinnedMessagesListResponse)
+async def get_pinned_messages(
+    channel_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    获取频道的所有置顶消息
+    按置顶时间倒序排列（最新置顶的在前）
+    """
+    # 检查是否是频道成员
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    if not member_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="未加入该频道"
+        )
+
+    # 获取所有置顶消息
+    pinned_result = await db.execute(
+        select(ChannelMessage)
+        .where(
+            ChannelMessage.channel_id == channel_id,
+            ChannelMessage.is_pinned == True,
+            ChannelMessage.is_deleted == False
+        )
+        .options(
+            selectinload(ChannelMessage.user),
+            selectinload(ChannelMessage.pinned_by_user)
+        )
+        .order_by(ChannelMessage.pinned_at.desc())
+        .limit(50)
+    )
+    messages = pinned_result.scalars().all()
+
+    # 构建响应
+    pinned_messages = []
+    for msg in messages:
+        pinned_messages.append(PinnedMessageResponse(
+            id=msg.id,
+            channel_id=msg.channel_id,
+            content=msg.content,
+            user_id=msg.user_id,
+            user_name=msg.user.username if msg.user else "已删除用户",
+            user_avatar=msg.user.avatar if msg.user else None,
+            is_pinned=msg.is_pinned,
+            pinned_at=msg.pinned_at,
+            pinned_by=msg.pinned_by,
+            pinned_by_name=msg.pinned_by_user.username if msg.pinned_by_user else None,
+            created_at=msg.created_at
+        ))
+
+    return PinnedMessagesListResponse(
+        messages=pinned_messages,
+        total=len(pinned_messages)
+    )
 

@@ -1,99 +1,109 @@
-> "D:\Java\ai_writer\Backend.md" 这是后台的运行日志？没有达到预期对吧，继续来了这个问题
-
-● Read(Backend.md)
-  ⎿  Read 705 lines
-
-● 现在我看懂问题了！
-
-  ---
-  🔍 日志分析 - 问题根因
-
-  | Prompt           | 日志显示                                    | 结果    |
-  |------------------|---------------------------------------------|---------|
-  | "在吗？"         | [QuickPath-Planning] 命中快速路径: greeting | ✅ 正确 |
-  | "你是谁？"       | 进入规划流程 → continue_writing_tool        | ❌ 错误 |
-  | "介绍一下你自己" | 进入规划流程 → continue_writing_tool        | ❌ 错误 |
-  | "你能做什么？"   | 进入规划流程 → continue_writing_tool        | ❌ 错误 |
-  | 其他...          | 进入规划流程 → 调用工具                     | ❌ 错误 |
-
-  ---
-  🎯 真正的问题
-
-  我们改的 prompt 根本没有被使用！
-
-  从日志看：
-  - 所有请求都走的是 Mode: planning
-  - Planning 模式有自己的快速路径：quick_path.py
-  - 快速路径只识别了 greeting，其他都进入规划流程
-
-  用户问 "你是谁？"
-          ↓
-  Mode: planning
-          ↓
-  QuickPath 检查 → 不是 greeting
-          ↓
-  进入规划流程 → 生成任务 → 调用 continue_writing_tool
-          ↓
-  ❌ 错误调用工具
+✅ 执行计划文档已创建完成！
 
 ---
+## 文档结构
 
-## ✅ 一劳永逸的解决方案（2025-12-29）
+tasks/
+├── todo.md                          # 主入口 + 快速清单
+└── channel-optimization/            # 详细计划目录
+    ├── 00-总体规划.md               # 项目概述、技术选型
+    ├── 01-Phase1-实时通信.md        # WebSocket、正在输入、在线状态
+    ├── 02-Phase2-交互增强.md        # 消息反应、编辑、文件上传
+    ├── 03-Phase3-功能完善.md        # 置顶、表情增强、已读回执
+    └── 04-Phase4-高级功能.md        # 语音/视频通话
 
-### 问题本质
-关键词规则永远会有遗漏，需要让 PlanGenerator 本身能够判断"不需要工具，直接回答"。
+---
+## Review 历史
 
-### 解决方案：规划 Prompt 增加 `direct_answer` 字段
+### 第一次 Review
+- 发现 WebSocket 框架已存在
+- 发现 is_pinned, reaction_count 字段已存在
 
-```
-用户请求
-    ↓
-PlanGenerator 规划
-    ↓
-AI 判断：需要工具吗？
-    ├─ 知识问答/闲聊 → direct_answer 填答案，tasks 为空 ✅
-    └─ 需要操作作品 → tasks 填任务
-    ↓
-chat_with_planning 检查 direct_answer
-    ├─ 有 direct_answer → 直接返回，跳过执行 ✅
-    └─ 无 direct_answer → 执行任务
-```
+### 第二次深度 Review
+- 修复 Phase 3 "添加 is_pinned" 错误（字段已存在）
+- 添加 COS 服务复用说明
+- 添加 channel_read_states 表复用说明
 
-### 修改文件
+### 第三次深度 Review ⭐
 
-1. **`backend/app/services/agent/prompt_cache.py`**
-   - 增加【核心原则】：先判断是否需要工具
-   - 输出格式增加 `direct_answer` 字段
-   - 增加直接回答示例（"怎样写好人物对话？"、"你是谁？"、"谢谢"）
+**发现的重大遗漏：**
 
-2. **`backend/app/services/agent/planning/plan_generator.py`**
-   - 支持解析 `direct_answer` 字段
-   - 有 direct_answer 时不创建默认规划
+| 遗漏项 | 严重性 | 状态 |
+|-------|-------|------|
+| 前端类型定义未同步更新 | **高** | ✅ 已修复 |
+| 后端 Schema 更新遗漏 | **高** | ✅ 已修复 |
+| 前端 API 方法签名不完整 | 中 | ✅ 已修复 |
+| getReactions API 遗漏 | 中 | ✅ 已修复 |
 
-3. **`backend/app/services/agent/langgraph_agent.py`**
-   - 规划完成后检查 `direct_answer`
-   - 有 direct_answer 直接返回，跳过任务执行
+**新增内容：**
+- todo.md 添加"前端同步更新清单"章节
+- 各 Phase 文档补充 Schema 和类型更新步骤
+- 补充完整的前端 API 方法签名
 
-### 为什么这是一劳永逸的方案？
+---
+## 最终验证清单
 
-1. **不依赖关键词规则** - AI 在规划时自己判断
-2. **不依赖意图分类置信度** - 即使意图分类失败，规划阶段仍可兜底
-3. **多层防护**：
-   - Layer 1: QuickPathHandler（规则匹配）
-   - Layer 2: IntentClassifier（AI 意图分类）
-   - Layer 3: PlanGenerator（规划时判断）← 新增兜底
+- [x] **验证是否引入新问题** - 无
+- [x] **检查是否真正解决原问题** - 是
+- [x] **检查修改完整性** - 前后端同步更新已补充
+- [x] **验证逻辑一致性** - 各文档保持一致
+- [x] **检查数据库迁移完整性** - 已覆盖所有字段
 
-### 预期效果
+---
+## 现有基础设施汇总
 
-| 输入 | 处理流程 | 结果 |
-|------|----------|------|
-| "怎样写好人物对话？" | 规划 → direct_answer | 直接回答技巧，不调用工具 ✅ |
-| "你是谁？" | 规划 → direct_answer | 直接回答身份，不调用工具 ✅ |
-| "谢谢你的帮助" | 规划 → direct_answer | 直接回应，不调用工具 ✅ |
-| "续写第五章" | 规划 → tasks | 调用 continue_writing_tool ✅ |
-| "分析主角人设" | 规划 → tasks | 调用 search + analyze ✅ |
+### 后端
+| 功能 | 位置 | 可复用 |
+|-----|------|--------|
+| WebSocket 框架 | `ws.py` | ⭐⭐⭐⭐⭐ |
+| 连接管理器 | `active_notification_connections` | ⭐⭐⭐⭐⭐ |
+| 广播函数 | `broadcast_notification()` | ⭐⭐⭐⭐⭐ |
+| COS 服务 | `cos_service.py` | ⭐⭐⭐⭐⭐ |
+| Redis | `core/redis.py` | ⭐⭐⭐⭐⭐ |
+| is_pinned | `ChannelMessage` | ⭐⭐⭐⭐⭐ |
+| reaction_count | `ChannelMessage` | ⭐⭐⭐⭐ |
+| channel_read_states | 完整表 | ⭐⭐⭐⭐⭐ |
 
-### 成本对比
-| 场景 | 修复前 | 修复后 |
-|------|--------|--------|
-| "怎样写好人物对话？" | ~60 积分 (规划+续写工具) | ~10 积分 (规划直接回答) |
+### 前端
+| 功能 | 位置 | 说明 |
+|-----|------|------|
+| useNotificationWebSocket | hooks | 可复用模式 |
+| 基础表情选择器 | ChatArea 内嵌 | 需提取 |
+
+---
+## 最终工作量
+
+| 阶段 | 原计划 | 实际 | 减少 |
+|-----|-------|------|------|
+| Phase 1 | 17项 | 10项 | **40%** |
+| Phase 2 | 22项 | 18项 | **18%** |
+| Phase 3 | 14项 | 12项 | **14%** |
+| Phase 4 | 12项 | 12项 | 0% |
+| **总计** | 65项 | 52项 | **20%** |
+
+> 注：第三次 Review 后，因补充了前端同步步骤，实际工作量略有增加，但仍比原计划少 20%
+
+---
+## 计划概要
+
+| 阶段    | 核心功能                                 | 任务数 |
+|---------|------------------------------------------|--------|
+| Phase 1 | WebSocket 扩展 + 正在输入 + 在线状态     | 10 项  |
+| Phase 2 | 消息反应 + 消息编辑 + 文件上传           | 18 项  |
+| Phase 3 | 消息置顶完善 + 表情增强 + 已读回执       | 12 项  |
+| Phase 4 | 语音/视频通话（可选）                    | 12 项  |
+
+---
+## 每个文档包含
+
+- ✅ 现有基础设施说明（明确标注已有/待添加）
+- ✅ 细粒度任务清单（已有项目标记为 [x]）
+- ✅ **后端 Schema 更新步骤**（第三次 Review 新增）
+- ✅ **前端类型定义更新步骤**（第三次 Review 新增）
+- ✅ **完整的前端 API 方法签名**（第三次 Review 新增）
+- ✅ 复用说明（指明复用哪个现有组件）
+- ✅ API 设计（端点 + 请求/响应）
+- ✅ 前端组件设计
+- ✅ 详细实现步骤
+- ✅ 测试计划
+- ✅ 回滚方案

@@ -59,11 +59,13 @@ export interface ChannelMessage {
   type: 'normal' | 'announcement' | 'mention';
   isPinned: boolean;
   isDeleted: boolean;
+  isEdited: boolean;
   replyToId?: string;
   reactionCount: number;
   createdAt: string;
   updatedAt: string;
   deletedAt?: string;
+  editedAt?: string;
   // 用户信息
   userName?: string;
   userAvatar?: string;
@@ -335,6 +337,17 @@ export const recallMessage = async (
   return await api.delete(`/channels/${channelId}/messages/${messageId}/recall`);
 };
 
+/**
+ * 编辑消息
+ */
+export const editMessage = async (
+  channelId: string,
+  messageId: string,
+  content: string
+): Promise<ChannelMessage> => {
+  return await api.patch(`/channels/${channelId}/messages/${messageId}`, { content });
+};
+
 // ==================== 搜索功能 API ====================
 
 export interface SearchResult {
@@ -413,6 +426,133 @@ export const unmuteMember = async (
   return await api.post(`/channels/${channelId}/members/${userId}/unmute`);
 };
 
+// ==================== 消息反应（Emoji Reactions）API ====================
+
+export interface ReactionSummary {
+  emoji: string;
+  count: number;
+  hasReacted: boolean;
+}
+
+export interface MessageReactionsResponse {
+  messageId: string;
+  reactions: ReactionSummary[];
+  totalCount: number;
+}
+
+export interface ReactionUser {
+  userId: string;
+  username: string;
+  avatar: string | null;
+}
+
+export interface ReactionDetailResponse {
+  emoji: string;
+  count: number;
+  users: ReactionUser[];
+}
+
+// ==================== 置顶消息类型 ====================
+
+export interface PinnedMessage {
+  id: string;
+  channelId: string;
+  content: string;
+  userId?: string;
+  userName?: string;
+  userAvatar?: string;
+  isPinned: boolean;
+  pinnedAt?: string;
+  pinnedBy?: string;
+  pinnedByName?: string;
+  createdAt: string;
+}
+
+export interface PinnedMessagesListResponse {
+  messages: PinnedMessage[];
+  total: number;
+}
+
+/**
+ * 添加消息反应
+ */
+export const addReaction = async (
+  channelId: string,
+  messageId: string,
+  emoji: string
+): Promise<{ message: string; action: string }> => {
+  return await api.post(`/channels/${channelId}/messages/${messageId}/reactions`, {
+    emoji
+  });
+};
+
+/**
+ * 移除消息反应
+ */
+export const removeReaction = async (
+  channelId: string,
+  messageId: string,
+  emoji: string
+): Promise<{ message: string }> => {
+  return await api.delete(`/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`);
+};
+
+/**
+ * 获取消息的所有反应汇总
+ */
+export const getMessageReactions = async (
+  channelId: string,
+  messageId: string
+): Promise<MessageReactionsResponse> => {
+  return await api.get(`/channels/${channelId}/messages/${messageId}/reactions`);
+};
+
+/**
+ * 获取指定 emoji 反应的用户列表
+ */
+export const getReactionUsers = async (
+  channelId: string,
+  messageId: string,
+  emoji: string,
+  skip: number = 0,
+  limit: number = 20
+): Promise<ReactionDetailResponse> => {
+  return await api.get(
+    `/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/users?skip=${skip}&limit=${limit}`
+  );
+};
+
+// ==================== 置顶消息 API ====================
+
+/**
+ * 置顶消息
+ */
+export const pinMessage = async (
+  channelId: string,
+  messageId: string
+): Promise<{ message: string; action: string }> => {
+  return await api.post(`/channels/${channelId}/messages/${messageId}/pin`);
+};
+
+/**
+ * 取消置顶消息
+ */
+export const unpinMessage = async (
+  channelId: string,
+  messageId: string
+): Promise<{ message: string; action: string }> => {
+  return await api.delete(`/channels/${channelId}/messages/${messageId}/pin`);
+};
+
+/**
+ * 获取频道的所有置顶消息
+ */
+export const getPinnedMessages = async (
+  channelId: string
+): Promise<PinnedMessagesListResponse> => {
+  return await api.get(`/channels/${channelId}/pinned-messages`);
+};
+
 // 导出一个包含所有 API 函数的对象
 export const channelApi = {
   // 频道管理
@@ -441,8 +581,9 @@ export const channelApi = {
   getChannelAnnouncements,
   getLatestAnnouncement,
 
-  // 消息撤回
+  // 消息撤回/编辑
   recallMessage,
+  editMessage,
 
   // 搜索功能
   searchMessages,
@@ -453,4 +594,15 @@ export const channelApi = {
   // 成员权限
   muteMember,
   unmuteMember,
+
+  // 消息反应
+  addReaction,
+  removeReaction,
+  getMessageReactions,
+  getReactionUsers,
+
+  // 消息置顶
+  pinMessage,
+  unpinMessage,
+  getPinnedMessages,
 };

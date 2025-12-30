@@ -5,21 +5,26 @@ WebSocket实时推送
 - 推送评审任务进度
 - 推送AI生成状态
 - 推送用户通知
+- 频道实时消息推送
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
-from starlette.websockets import WebSocketState  # 2025-12-15: 导入用于安全的连接状态检查
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from starlette.websockets import WebSocketState
 from celery.result import AsyncResult
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 import asyncio
 import json
 import logging
 from uuid import UUID
-from typing import Dict, Set
+from typing import Dict, Set, Optional
+from jose import JWTError, jwt
 
-from app.core.database import get_db
+from app.core.database import AsyncSessionLocal
+from app.core.config import settings
 from app.services.notification_service import NotificationService
 from app.schemas.notification import UserNotificationResponse
+from app.models.channel_member import ChannelMember
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +32,51 @@ router = APIRouter()
 
 # 存储活跃的通知WebSocket连接 {user_id: Set[WebSocket]}
 active_notification_connections: Dict[UUID, Set[WebSocket]] = {}
+
+# 频道WebSocket连接存储 {channel_id: {user_id: WebSocket}}
+active_channel_connections: Dict[UUID, Dict[UUID, WebSocket]] = {}
+
+# 用户->频道反向映射 {user_id: Set[channel_id]}
+user_channel_map: Dict[UUID, Set[UUID]] = {}
+
+
+# ============ JWT Token 验证 (WebSocket专用) ============
+
+async def verify_ws_token(token: str) -> Optional[UUID]:
+    """
+    验证WebSocket连接的JWT Token
+
+    Returns:
+        user_id 或 None（验证失败）
+    """
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id: str = payload.get("sub")
+        token_type: str = payload.get("type")
+        if user_id is None or token_type != "access":
+            return None
+        return UUID(user_id)
+    except (JWTError, ValueError):
+        return None
+
+
+async def check_channel_member(channel_id: UUID, user_id: UUID) -> Optional[ChannelMember]:
+    """
+    检查用户是否为频道成员
+
+    Returns:
+        ChannelMember 或 None
+    """
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(ChannelMember).where(
+                ChannelMember.channel_id == channel_id,
+                ChannelMember.user_id == user_id
+            )
+        )
+        return result.scalar_one_or_none()
 
 
 @router.websocket("/ws/review/{task_id}")
@@ -343,4 +393,175 @@ async def broadcast_unread_count(user_id: UUID, count: int):
     # 清理断开的连接
     for ws in disconnected_sockets:
         active_notification_connections[user_id].discard(ws)
+
+
+# ============ 频道 WebSocket ============
+
+@router.websocket("/ws/channels/{channel_id}")
+async def channel_stream(websocket: WebSocket, channel_id: str, token: str = Query(...)):
+    """
+    频道实时消息推送
+
+    消息类型:
+    - MESSAGE_NEW: 新消息
+    - MESSAGE_DELETE: 消息撤回
+    - TYPING: 正在输入
+    - PRESENCE: 在线状态
+    """
+    # 1. 验证 JWT Token
+    user_id = await verify_ws_token(token)
+    if not user_id:
+        await websocket.close(code=4001, reason="Invalid token")
+        return
+
+    # 2. 验证频道ID格式
+    try:
+        channel_uuid = UUID(channel_id)
+    except ValueError:
+        await websocket.close(code=4002, reason="Invalid channel_id")
+        return
+
+    # 3. 验证用户是否为频道成员
+    member = await check_channel_member(channel_uuid, user_id)
+    if not member:
+        await websocket.close(code=4003, reason="Not a channel member")
+        return
+
+    # 4. 检查是否被封禁
+    if member.is_banned:
+        await websocket.close(code=4004, reason="User is banned")
+        return
+
+    # 5. 接受连接
+    await websocket.accept()
+    logger.info(f"[Channel WS] 连接建立: channel={channel_id}, user={user_id}")
+
+    # 6. 注册连接
+    if channel_uuid not in active_channel_connections:
+        active_channel_connections[channel_uuid] = {}
+    active_channel_connections[channel_uuid][user_id] = websocket
+
+    if user_id not in user_channel_map:
+        user_channel_map[user_id] = set()
+    user_channel_map[user_id].add(channel_uuid)
+
+    # 7. 广播用户上线
+    await broadcast_channel_event(channel_uuid, {
+        "type": "PRESENCE",
+        "payload": {"user_id": str(user_id), "status": "online"}
+    }, exclude_user=user_id)
+
+    # 8. 发送当前在线用户列表给新连接的用户
+    online_users = get_channel_online_users(channel_uuid)
+    await websocket.send_json({
+        "type": "ONLINE_USERS",
+        "payload": {"users": online_users}
+    })
+
+    try:
+        while True:
+            try:
+                message = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                data = json.loads(message)
+                msg_type = data.get("type")
+
+                if msg_type == "ping":
+                    await websocket.send_json({"type": "pong"})
+                elif msg_type == "TYPING" and not member.is_muted:
+                    await broadcast_channel_event(channel_uuid, {
+                        "type": "TYPING",
+                        "payload": {"user_id": str(user_id), "username": data.get("username", "")}
+                    }, exclude_user=user_id)
+
+            except asyncio.TimeoutError:
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    await websocket.send_json({"type": "heartbeat"})
+
+    except WebSocketDisconnect:
+        logger.info(f"[Channel WS] 连接断开: channel={channel_id}, user={user_id}")
+    except asyncio.CancelledError:
+        pass
+    except Exception as e:
+        if "closed" not in str(e).lower():
+            logger.error(f"[Channel WS] 错误: {e}")
+    finally:
+        # 清理连接
+        if channel_uuid in active_channel_connections:
+            active_channel_connections[channel_uuid].pop(user_id, None)
+            if not active_channel_connections[channel_uuid]:
+                del active_channel_connections[channel_uuid]
+        if user_id in user_channel_map:
+            user_channel_map[user_id].discard(channel_uuid)
+            if not user_channel_map[user_id]:
+                del user_channel_map[user_id]
+
+        # 广播用户离线
+        await broadcast_channel_event(channel_uuid, {
+            "type": "PRESENCE",
+            "payload": {"user_id": str(user_id), "status": "offline"}
+        })
+        try:
+            if websocket.client_state != WebSocketState.DISCONNECTED:
+                await websocket.close()
+        except:
+            pass
+
+
+async def broadcast_channel_event(channel_id: UUID, event_data: dict, exclude_user: UUID = None):
+    """向频道内所有用户广播事件"""
+    if channel_id not in active_channel_connections:
+        return
+    disconnected = []
+    for uid, ws in active_channel_connections[channel_id].items():
+        if exclude_user and uid == exclude_user:
+            continue
+        try:
+            if ws.client_state == WebSocketState.CONNECTED:
+                await ws.send_json(event_data)
+            else:
+                disconnected.append(uid)
+        except:
+            disconnected.append(uid)
+    for uid in disconnected:
+        active_channel_connections[channel_id].pop(uid, None)
+
+
+async def broadcast_channel_message(channel_id: UUID, message_data: dict, exclude_user: UUID = None):
+    """广播新消息到频道"""
+    await broadcast_channel_event(channel_id, {"type": "MESSAGE_NEW", "payload": message_data}, exclude_user)
+
+
+async def broadcast_message_delete(channel_id: UUID, message_id: str):
+    """广播消息撤回事件"""
+    await broadcast_channel_event(channel_id, {"type": "MESSAGE_DELETE", "payload": {"message_id": message_id}})
+
+
+async def broadcast_message_edit(
+    channel_id: UUID,
+    message_id: str,
+    content: str,
+    user_id: str,
+    user_name: str,
+    edited_at: str = None
+):
+    """广播消息编辑事件"""
+    await broadcast_channel_event(channel_id, {
+        "type": "MESSAGE_EDIT",
+        "payload": {
+            "channel_id": str(channel_id),
+            "message_id": message_id,
+            "content": content,
+            "user_id": user_id,
+            "user_name": user_name,
+            "edited_at": edited_at,
+            "is_edited": True
+        }
+    })
+
+
+def get_channel_online_users(channel_id: UUID) -> list:
+    """获取频道在线用户列表"""
+    if channel_id not in active_channel_connections:
+        return []
+    return [str(uid) for uid in active_channel_connections[channel_id].keys()]
 
