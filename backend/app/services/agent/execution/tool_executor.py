@@ -31,6 +31,8 @@ TOOL_NAME_MAPPING = {
     "read_chapter_tool": "read_chapter",
     "get_chapter_by_order_tool": "get_chapter_by_order",
     "search_analysis_fragments_tool": "search_analysis_fragments",
+    # 世界观工具
+    "get_worldview_summary": "get_worldview_summary",
     # 分析工具
     "evaluate_quality_tool": "evaluate_quality",
     "analyze_content_tool": "analyze_content",
@@ -161,6 +163,9 @@ class ToolExecutor:
             params.setdefault("include_current", True)
             params.setdefault("look_ahead", 2)
 
+        elif tool_name == "get_worldview_summary":
+            params.setdefault("work_id", state.get("work_id", ""))
+
         elif tool_name == "evaluate_quality":
             if "text" in params and "content" not in params:
                 params["content"] = params.pop("text")
@@ -202,6 +207,10 @@ class ToolExecutor:
         elif tool_name == "search_analysis_fragments":
             return data.get("fragments", "")
 
+        elif tool_name == "get_worldview_summary":
+            # 返回 JSON 字符串格式的世界观摘要
+            return json.dumps(data, ensure_ascii=False)
+
         elif tool_name == "evaluate_quality":
             feedback = data.get("feedback", "")
             overall_score = data.get("overall_score", 0)
@@ -223,6 +232,7 @@ class ToolExecutor:
         from app.services.agent.langgraph_tools import (
             continue_writing_tool,
             analyze_text_tool,
+            get_worldview_summary,
         )
         from app.services.agent.tools.editor_tools import (
             smart_rewrite,
@@ -240,6 +250,7 @@ class ToolExecutor:
             "smart_continue": smart_continue,
             "smart_insert": smart_insert,
             "apply_chapter_edit": apply_chapter_edit,
+            "get_worldview_summary": get_worldview_summary,
         }
 
         legacy_tool = LEGACY_TOOLS.get(tool_name)
@@ -255,6 +266,10 @@ class ToolExecutor:
                     params = {
                         "text": tool_args.get("text", last_user_message),
                         "focus": tool_args.get("focus", "all")
+                    }
+                elif tool_name == "get_worldview_summary":
+                    params = {
+                        "work_id": tool_args.get("work_id", state.get("work_id", ""))
                     }
                 else:
                     params = tool_args

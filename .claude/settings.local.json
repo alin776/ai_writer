@@ -62,7 +62,9 @@
       "Bash(C:/Users/Administrator/Desktop/ai-writer/venv/Scripts/alembic.exe heads:*)",
       "Bash(git checkout:*)",
       "Bash(git add:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(start:*)",
+      "Bash(copy CreateWorkWithAI.tsx CreateWorkWithAI.tsx.backup)"
     ],
     "deny": [],
     "ask": []

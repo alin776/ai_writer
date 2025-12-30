@@ -1100,21 +1100,83 @@ async def delete_ai_guidelines(
 
 
 @router.post("/ai-guidelines/generate", response_model=AIGuidelinesGenerateResponse)
-async def generate_phase2_content(
+async def generate_ai_guidelines(
     request: AIGuidelinesGenerateRequest,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    AI生成阶段二内容
-    基于阶段一的15个用户输入，智能生成阶段二的17个核心设定字段
+    AI生成世界观内容
+
+    支持两种模式：
+    1. 🆕 方案C：基于story_concept（故事梗概）生成完整31个字段
+    2. 旧版本：基于15个创作规范字段生成17个核心设定字段
     """
     user_id = str(current_user.id)
     from app.services.ai.http_ai_service import HTTPAIService
     import json
-    
-    # 构建prompt用于AI生成（优化版：生成更详细、更实用的世界观内容）
-    prompt = f"""你是一名资深商业IP总策划师和专业小说架构师。现在需要根据用户提供的创作规范，生成**详细且可执行**的小说核心设定。
+
+    # 🆕 判断使用哪种模式
+    if request.story_concept:
+        # ========== 方案C：基于故事梗概一键生成完整31字段 ==========
+        logger.info(f"[AI Guidelines] 方案C：基于故事梗概生成完整设定")
+        prompt = f"""你是一名资深小说策划师。用户提供了一个故事梗概，你需要基于这个梗概，生成**完整且详细**的22个小说创作设定字段。
+
+【用户的故事梗概】
+{request.story_concept}
+
+【生成要求】
+请以JSON格式返回完整的22个字段：
+
+{{
+  // === 核心创作规范（5个字段）===
+  "target_audience": "目标读者画像（年龄、性别、阅读偏好，50字左右）",
+  "high_concept": "高概念卖点，一句话总结核心吸引力",
+  "dominant_emotion": "主导情感体验（如：逆袭的爽感、被理解的慰藉、探索的惊奇等）",
+  "writing_style": "文字风格（如：冷峻简洁、华丽诗性、幽默诙谐、平实感人等）",
+  "chapter_length": "平均章节字数（如：2000-3000字）",
+
+  // === 小说类型（3个字段）===
+  "primary_genre": "一级类型（玄幻/都市/仙侠/科幻/悬疑/言情等）",
+  "secondary_tags": "二级标签，用顿号分隔（如：系统流、无敌流、种田文，至少3个）",
+  "creative_tone": "创作基调（整体氛围和情感色彩，50字左右）",
+
+  // === 世界背景（3个字段）===
+  "world_intro": "核心世界观（200-300字）。包括：①与现实/常规的核心差异 ②基本运行法则 ③普通人生活状态 ④独特吸引点",
+  "main_locations": "主要场景（每个50-80字）。格式：【场景名】类型 | 特色 | 氛围，至少3个，换行分隔",
+  "world_rules": "世界核心规则（150-200字）。包括：①社会阶层格局 ②资源获取方式 ③普通人上升路径 ④禁忌底线",
+
+  // === 力量体系（3个字段）===
+  "power_system_name": "力量体系名称（有独特性，避免通用名）",
+  "power_levels": "等级划分。格式：等级名 | 实力 | 能力 | 地位，6-9个等级，换行分隔",
+  "power_cost": "力量代价与限制（100-150字）。包括：①获取代价 ②使用限制 ③副作用风险 ④天花板",
+
+  // === 主角设定（4个字段）===
+  "protagonist_name": "主角姓名（符合世界观，有寓意更好）",
+  "protagonist_identity": "主角身份背景（150-200字）。包括：①出身 ②开局处境 ③与世界观关系 ④特殊之处",
+  "protagonist_traits": "主角性格（100-150字）。包括：①3个核心标签 ②形成原因 ③优点 ④缺陷 ⑤标志性行为",
+  "protagonist_goal": "主角目标层次（100字）。包括：①表层目标 ②深层目标 ③终极目标",
+
+  // === 剧情构思（4个字段）===
+  "conflict_design": "核心冲突（150-200字）。包括：①vs自我 ②vs他人 ③vs世界 ④升级节点",
+  "act_one": "第一幕（150-200字）。包括：①开篇钩子 ②日常被打破 ③引出冲突 ④转折点",
+  "act_two": "第二幕（200-250字）。包括：①尝试挫折 ②成长阶段 ③配角引入 ④中点转折 ⑤最低谷",
+  "act_three": "第三幕（150-200字）。包括：①最终觉悟 ②决战设计 ③结局类型 ④核心表达"
+}}
+
+【重要提醒】
+1. 所有字段都要**具体详细**，避免泛泛而谈
+2. 内容要有**独特性和辨识度**，基于故事梗概深度推演
+3. 各字段要**相互呼应**，形成完整体系
+4. 返回严格的JSON格式，不要有任何解释文字
+5. 所有22个字段都必须填写，不能为空"""
+
+        max_tokens = 6000  # 方案C需要更多token
+
+    else:
+        # ========== 旧版本：基于15个字段生成17个字段 ==========
+        logger.info(f"[AI Guidelines] 旧版本：基于创作规范生成核心设定")
+        prompt = f"""你是一名资深商业IP总策划师和专业小说架构师。现在需要根据用户提供的创作规范，生成**详细且可执行**的小说核心设定。
 
 【用户提供的创作规范】
 
@@ -1143,93 +1205,69 @@ async def generate_phase2_content(
 - 内容禁忌：{request.content_taboos or '未指定'}
 
 【生成要求】
-
-请生成**详细、具体、有独特性**的设定内容。避免泛泛而谈，每个字段都要有实际的创作指导价值。
-
-请以JSON格式返回：
+请以JSON格式返回17个核心设定字段：
 
 {{
-  "primary_genre": "一级类型（玄幻/都市/仙侠/科幻/悬疑/言情等）",
-
-  "secondary_tags": "二级标签，用顿号分隔（如：系统流、无敌流、种田文、甜宠等，至少3个标签）",
-
-  "creative_tone": "创作基调，描述整体氛围和情感色彩（如：热血燃向、轻松搞笑、暗黑压抑、温馨治愈等，50字左右说明）",
-
-  "world_intro": "核心世界观（200-300字）。要求：①这个世界与现实/常规设定的核心差异是什么？②世界的基本运行法则？③普通人的生活状态？④这个世界最吸引人的独特之处？",
-
-  "main_locations": "主要场景设定（每个场景50-80字）。格式：【场景名】类型 | 特色描述 | 氛围关键词。至少设计3个核心场景，用换行分隔",
-
-  "world_rules": "世界核心规则（150-200字）。包括：①社会运行规则（阶层/势力格局）②资源/机遇获取方式 ③普通人如何上升 ④世界的禁忌和底线",
-
-  "power_system_name": "力量体系名称（要有独特性，避免直接用修仙、斗气等通用名）",
-
-  "power_levels": "等级划分详细表。格式：等级名 | 实力描述 | 典型能力 | 社会地位。至少设计6-9个等级，用换行分隔。要体现等级间的差距感",
-
-  "power_cost": "力量代价与限制（100-150字）。包括：①修炼/获取力量需要付出什么？②使用力量有什么限制？③力量的副作用或风险？④体系的天花板和瓶颈？",
-
-  "protagonist_name": "主角姓名（符合世界观设定，有寓意更好）",
-
-  "protagonist_identity": "主角身份与背景（150-200字）。包括：①出身（家庭/地位）②开局处境（为什么是现在开始讲这个故事）③与世界观的关系（为什么他是主角）④身上的秘密或特殊之处",
-
-  "protagonist_traits": "主角性格特点（100-150字）。要求立体：①3个核心性格标签 ②性格形成原因 ③性格优点（推动剧情）④性格缺陷（制造冲突）⑤口头禅或标志性行为",
-
-  "protagonist_goal": "主角目标层次（100字）。包括：①表层目标（开局追求的）②深层目标（真正渴望的）③终极目标（故事结束时）",
-
-  "conflict_design": "核心冲突设计（150-200字）。包括：①主角vs自我（内心矛盾）②主角vs他人（人际冲突）③主角vs世界（与规则/势力的对抗）④冲突升级的关键节点",
-
-  "act_one": "第一幕：开局与建置（150-200字）。包括：①开篇钩子（第一章如何抓住读者）②主角的日常被打破 ③引出核心冲突 ④第一幕结束的转折点（推入第二幕的事件）",
-
-  "act_two": "第二幕：冲突与发展（200-250字）。包括：①主角的尝试与挫折 ②能力/认知的成长阶段 ③关键配角的引入时机 ④中点转折（改变策略/认知升级）⑤最低谷时刻（进入第三幕前）",
-
-  "act_three": "第三幕：高潮与结局（150-200字）。包括：①主角的最终觉悟/转变 ②决战的设计思路 ③结局类型（圆满/开放/悲剧/成长型）④故事的核心表达（读完后读者应该感受到什么）"
+  "primary_genre": "一级类型",
+  "secondary_tags": "二级标签",
+  "creative_tone": "创作基调",
+  "world_intro": "核心世界观",
+  "main_locations": "主要场景",
+  "world_rules": "世界规则",
+  "power_system_name": "力量体系名称",
+  "power_levels": "等级划分",
+  "power_cost": "力量代价",
+  "protagonist_name": "主角姓名",
+  "protagonist_identity": "主角身份",
+  "protagonist_traits": "主角性格",
+  "protagonist_goal": "主角目标",
+  "conflict_design": "冲突设计",
+  "act_one": "第一幕",
+  "act_two": "第二幕",
+  "act_three": "第三幕"
 }}
 
 【重要提醒】
-1. 内容要有**独特性和辨识度**，避免套路化描述
-2. 每个字段都要**具体可执行**，能直接指导后续创作
-3. 各字段之间要**相互呼应**，形成完整的世界观体系
-4. 返回严格的JSON格式，不要有任何解释文字"""
-    
+返回严格的JSON格式，不要有任何解释文字"""
+
+        max_tokens = 4000
+
     # 调用AI服务生成内容
     full_response = ""
     try:
-        # 2025-12-01: 传递db和user_id以启用成本追踪
         ai_service = HTTPAIService(db=db, user_id=user_id)
-        
-        # 收集AI流式响应（增加token限制以支持更详细的内容生成）
-        async for chunk in ai_service._stream_chat(
+
+        async for chunk, usage in ai_service._stream_chat(
             messages=[
-                {"role": "system", "content": "你是一名资深商业IP总策划师和专业小说架构师。请根据用户提供的信息，生成详细、具体、有独特性的小说核心设定。必须以严格的JSON格式返回，不要有任何解释文字。"},
+                {"role": "system", "content": "你是一名资深商业IP总策划师和专业小说架构师。请根据用户提供的信息，生成详细、具体、有独特性的小说设定。必须以严格的JSON格式返回，不要有任何解释文字。"},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=4000,  # 增加到4000以支持更详细的内容
-            temperature=0.8,  # 稍微提高创意度
+            max_tokens=max_tokens,
+            temperature=0.8,
             task_type=TaskType.CONTENT_CREATION
         ):
             full_response += chunk
-        
+
         logger.info(f"AI生成的原始响应: {full_response[:500]}...")
-        
-        # 尝试提取JSON
-        # 查找JSON代码块
+
+        # 提取JSON
         json_start = full_response.find('{')
         json_end = full_response.rfind('}') + 1
-        
+
         if json_start >= 0 and json_end > json_start:
             json_str = full_response[json_start:json_end]
             generated_data = json.loads(json_str)
-            
+
             # 构建响应
             response = AIGuidelinesGenerateResponse(**generated_data)
-            logger.info(f"AI生成成功，生成的类型: {response.primary_genre}")
+            logger.info(f"AI生成成功，主类型: {response.primary_genre}, 主角: {response.protagonist_name}")
             return response
         else:
             logger.error(f"无法从AI响应中提取JSON: {full_response[:200]}")
             raise ValueError("AI返回的内容不是有效的JSON格式")
-            
+
     except json.JSONDecodeError as e:
         logger.error(f"JSON解析失败: {e}, 响应内容: {full_response[:500] if full_response else 'N/A'}")
-        # ✅ 2025-12-14: 添加事务回滚，确保积分扣除被回滚
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1237,7 +1275,6 @@ async def generate_phase2_content(
         )
     except Exception as e:
         logger.error(f"AI生成失败: {e}")
-        # ✅ 2025-12-14: 添加事务回滚，确保积分扣除被回滚
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

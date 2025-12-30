@@ -466,8 +466,8 @@ class WritingAgentGraph:
                 }
             )
 
-        # 各Agent节点添加条件边：判断是否需要调用工具
-        for agent_node in ["writing_agent", "planning_agent", "analysis_agent", "stuck_agent"]:
+        # ✅ 2025-12-30: 所有Agent节点（包括general_chat）都支持工具调用
+        for agent_node in ["writing_agent", "planning_agent", "analysis_agent", "stuck_agent", "general_chat"]:
             workflow.add_conditional_edges(
                 agent_node,
                 self._should_continue,
@@ -485,12 +485,10 @@ class WritingAgentGraph:
                 "writing": "writing_agent",
                 "planning": "planning_agent",
                 "analysis": "analysis_agent",
-                "stuck": "stuck_agent"
+                "stuck": "stuck_agent",
+                "general": "general_chat"  # ✅ 2025-12-30: general 也可以返回处理工具结果
             }
         )
-
-        # 一般对话直接结束
-        workflow.add_edge("general_chat", END)
 
         # 编译图
         return workflow.compile(checkpointer=self.checkpointer)
@@ -1672,61 +1670,12 @@ class WritingAgentGraph:
                 intent, confidence = await self.intent_classifier.classify_by_ai(message)
                 logger.info(f"[Planning] AI意图分类: {intent} (置信度: {confidence:.2f})")
 
+                # ✅ 2025-12-30: 移除 general 快速路径，统一走 LangGraph 工具调用流程
+                # 原因：快速路径跳过工具决策，导致无法查询世界观、读取章节等
+                # 现在所有意图（包括 general）都通过 LangGraph 处理，支持工具调用
                 if intent == "general" and confidence >= 0.85:
-                    logger.info(f"[Planning] 识别为普通对话，跳过规划流程，直接响应")
-
-                    # 构建简洁的系统提示
-                    general_system_prompt = """你是AI写作助手。请友好、简洁地回答用户的问题。
-如果用户问你是谁，介绍自己是AI写作助手，可以帮助用户进行小说创作、内容分析等。
-如果用户表示感谢，礼貌回应即可。
-保持回复简洁，不要过度解释。"""
-
-                    # 直接调用 LLM 生成响应（复用 handle_general 的逻辑）
-                    result = await self._generate_text(
-                        messages=[
-                            {"role": "system", "content": general_system_prompt},
-                            {"role": "user", "content": message}
-                        ],
-                        max_tokens=500,
-                        temperature=0.7,
-                        task_type=TaskType.SIMPLE_QA  # 使用轻量模型
-                    )
-
-                    response_text = result.get("text", "您好！我是AI写作助手，有什么可以帮您的？")
-
-                    # 通过回调发送内容
-                    if on_content:
-                        await on_content({"content": response_text})
-
-                    # 保存对话到 ContextManager
-                    try:
-                        await self.context_manager.update_context(
-                            session_id=isolated_thread_id,
-                            new_messages=[
-                                {"role": "user", "content": message},
-                                {"role": "assistant", "content": response_text}
-                            ],
-                            context=context_bundle.get("context") if context_bundle else None,
-                            work_id=work_id
-                        )
-                        logger.info(f"[Planning] General对话已保存到 ContextManager")
-                    except Exception as e:
-                        logger.warning(f"[Planning] General对话保存失败: {e}")
-
-                    return {
-                        "response": response_text,
-                        "conversation_id": conversation_id or "default",
-                        "agent_steps": [{
-                            "step": "general_direct_response",
-                            "result": f"AI意图分类: {intent} (置信度: {confidence:.2f})，直接响应"
-                        }],
-                        "suggested_actions": [],
-                        "metadata": {
-                            "intent": intent,
-                            "confidence": confidence,
-                            "path": "general_fast_path"
-                        }
-                    }
+                    logger.info(f"[Planning] 识别为 general 意图，但仍走 LangGraph 流程（支持工具调用）")
+                    # 不再直接响应，继续执行下面的规划流程
 
                 # ========== 阶段1: 规划（Planning） - 委托到 PlanGenerator ==========
                 planning_start = time.time()
@@ -1962,7 +1911,8 @@ class WritingAgentGraph:
                     message=message,
                     on_content=on_content,
                     response_hint=plan_data.get("response_hint"),
-                    knowledge_docs=knowledge_docs_for_response  # ✅ P0修复: 传递知识库文档
+                    knowledge_docs=knowledge_docs_for_response,  # ✅ P0修复: 传递知识库文档
+                    direct_answer=plan_data.get("direct_answer")  # ✅ 分阶段执行：传递 direct_answer
                 )
 
                 # ========== 保存对话到 ContextManager ==========
@@ -2073,7 +2023,8 @@ class WritingAgentGraph:
         message: str,
         on_content: Optional[callable] = None,
         response_hint: Optional[str] = None,
-        knowledge_docs: Optional[List[Dict]] = None  # ✅ P0修复: 添加知识库文档参数
+        knowledge_docs: Optional[List[Dict]] = None,  # ✅ P0修复: 添加知识库文档参数
+        direct_answer: Optional[str] = None  # ✅ 分阶段执行：传递 direct_answer
     ) -> str:
         """智能构建最终响应
 
@@ -2156,6 +2107,13 @@ class WritingAgentGraph:
 
         # 情况1：没有输出任务（极少见）
         if len(output_tasks) == 0:
+            # ✅ 分阶段执行：如果有 direct_answer，说明是创作请求的第一阶段
+            # 调用AI整合，基于获取的信息（如世界观）生成询问
+            if direct_answer:
+                logger.info("[Response] 分阶段执行第一阶段，基于任务结果生成询问")
+                # 使用AI整合，会基于世界观内容生成针对性的询问
+                return await self._ai_summarization(task_results, message, on_content, knowledge_docs)
+
             logger.warning("[Response] 没有明确输出任务，使用AI整合")
             return await self._ai_summarization(task_results, message, on_content, knowledge_docs)
 

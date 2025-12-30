@@ -122,9 +122,12 @@ class AIGuidelinesPrompt(BaseModel):
 # ========== AI生成请求Schema ==========
 
 class AIGuidelinesGenerateRequest(BaseModel):
-    """AI生成阶段二内容的请求"""
-    
-    # 阶段一的15个字段（用户输入）
+    """AI生成内容的请求"""
+
+    # 🆕 方案C：支持基于故事梗概快速生成
+    story_concept: Optional[str] = None  # 故事梗概（一句话描述）
+
+    # 原有的阶段一15个字段（兼容旧版本，可选）
     business_goal: Optional[str] = None
     target_audience: Optional[str] = None
     commercial_benchmark: Optional[str] = None
@@ -142,9 +145,26 @@ class AIGuidelinesGenerateRequest(BaseModel):
 
 
 class AIGuidelinesGenerateResponse(BaseModel):
-    """AI生成阶段二内容的响应"""
-    
-    # 阶段二生成的17个字段
+    """AI生成内容的响应（完整31个字段）"""
+
+    # 🆕 方案C：返回完整31个字段
+    # 阶段一：创作规范（15个字段）
+    business_goal: Optional[str] = None
+    target_audience: Optional[str] = None
+    commercial_benchmark: Optional[str] = None
+    high_concept: Optional[str] = None
+    core_paradox: Optional[str] = None
+    dominant_emotion: Optional[str] = None
+    core_ip_symbols: Optional[str] = None
+    protagonist_arc: Optional[str] = None
+    core_conflict: Optional[str] = None
+    narrative_rhythm: Optional[str] = None
+    writing_style: Optional[str] = None
+    style_notes: Optional[str] = None
+    chapter_length: Optional[str] = None
+    content_taboos: Optional[str] = None
+
+    # 阶段二：核心设定（17个字段）
     primary_genre: Optional[str] = None
     secondary_tags: Optional[str] = None
     creative_tone: Optional[str] = None

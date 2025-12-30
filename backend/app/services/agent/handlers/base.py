@@ -187,19 +187,22 @@ async def handle_stuck(agent, state: "AgentState") -> "AgentState":
 
 
 async def handle_general(agent, state: "AgentState") -> "AgentState":
-    """处理一般对话 - 直接对话模式（不走工具决策）
+    """处理一般对话 - 支持工具调用的智能对话模式
 
-    ✅ 修复：general意图直接生成响应，跳过工具决策流程
-    这样"你好"等简单问候就不会被误判为需要续写工具
+    ✅ 新版本：general意图也支持工具调用（如查询世界观、读取章节等）
 
     流程：
     1. 使用GeneralChatAction.prepare()准备参数
-    2. 直接调用_generate_text生成响应（不经过工具决策）
+    2. 调用_handle_agent_with_tools统一处理（支持工具调用）
+
+    改进说明：
+    - 之前版本完全跳过工具决策，导致无法查询世界观等信息
+    - 新版本与其他场景一致，都通过_handle_agent_with_tools处理
+    - 保留了general特有的prompt设置
     """
     from app.services.agent.actions import GeneralChatAction
-    from app.services.agent.model_selector import TaskType
 
-    logger.info("[LangGraph] 处理一般对话（直接对话模式，跳过工具决策）")
+    logger.info("[LangGraph] 处理一般对话（新架构，支持工具调用）")
 
     # 1. 使用Action准备参数（业务逻辑）
     general_action = GeneralChatAction()
@@ -218,49 +221,11 @@ async def handle_general(agent, state: "AgentState") -> "AgentState":
             }]
         }
 
-    # 3. ✅ 直接生成响应，不走工具决策流程
-    messages = state["messages"]
-    user_message = messages[-1].content if messages else ""
+    logger.info(f"[LangGraph] General准备完成，agent_type={prep_result.metadata.get('agent_type', 'general')}")
 
-    # 构建对话消息（包含历史）
-    chat_messages = [{
-        "role": "system",
-        "content": prep_result.system_prompt
-    }]
-
-    # 添加历史消息（最多保留10条）
-    history_count = 0
-    for msg in messages[:-1]:  # 排除当前消息
-        if isinstance(msg, HumanMessage):
-            chat_messages.append({"role": "user", "content": msg.content})
-            history_count += 1
-        elif isinstance(msg, AIMessage) and msg.content:
-            chat_messages.append({"role": "assistant", "content": msg.content})
-            history_count += 1
-        if history_count >= 10:
-            break
-
-    # 添加当前用户消息
-    chat_messages.append({"role": "user", "content": user_message})
-
-    logger.info(f"[LangGraph] General直接对话: {len(chat_messages)}条消息")
-
-    # 直接调用LLM生成响应
-    result = await agent._generate_text(
-        messages=chat_messages,
-        max_tokens=500,  # 闲聊不需要太长
-        temperature=0.7,
-        task_type=TaskType.SIMPLE_QA  # 使用轻量模型
+    # 3. ✅ 统一使用框架调用LLM（支持工具调用，触发监控）
+    return await agent._handle_agent_with_tools(
+        state,
+        agent_type=prep_result.metadata.get("agent_type", "general"),
+        system_prompt=prep_result.system_prompt
     )
-
-    response_text = result.get("text", "您好！有什么可以帮您的？")
-
-    response = AIMessage(content=response_text)
-    return {
-        "messages": [response],
-        "final_response": response_text,
-        "agent_steps": [{
-            "step": "general_direct_response",
-            "result": "直接对话响应（跳过工具决策）"
-        }]
-    }

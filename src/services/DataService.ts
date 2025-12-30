@@ -1592,6 +1592,19 @@ class DataServiceClass {
     return this.adapter.patch(`/admin/reports/works/${reportId}`, { action, admin_note: adminNote });
   }
 
+  // ==================== AI生成世界观 ====================
+
+  /**
+   * 🆕 方案C：基于故事梗概生成完整世界观设定（22个字段）
+   * @param request 包含story_concept的请求对象
+   * @returns Promise<any> 返回生成的22个字段
+   */
+  async generateAIGuidelines(request: { storyConcept: string }): Promise<any> {
+    return this.adapter.post('/worldview/ai-guidelines/generate', {
+      story_concept: request.storyConcept
+    });
+  }
+
   // ==================== 世界观同步相关 ====================
 
   /**
