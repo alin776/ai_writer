@@ -61,9 +61,10 @@ interface ChatAreaProps {
   onReactionsChange?: (messageId: string, reactions: ReactionSummary[]) => void;
   onPinChange?: () => void;
   scrollToMessageId?: string | null;
+  pinnedMessagesBar?: React.ReactNode;
 }
 
-export function ChatArea({ channel, messages, currentUser, onSendMessage, onSendMessageWithAttachments, onMentionAll, onLeaveChannel, onNewMessage, onMessageDelete, onMessageEdit, onReactionAdd, onReactionRemove, onReactionsChange, onPinChange, scrollToMessageId }: ChatAreaProps) {
+export function ChatArea({ channel, messages, currentUser, onSendMessage, onSendMessageWithAttachments, onMentionAll, onLeaveChannel, onNewMessage, onMessageDelete, onMessageEdit, onReactionAdd, onReactionRemove, onReactionsChange, onPinChange, scrollToMessageId, pinnedMessagesBar }: ChatAreaProps) {
   const [messageInput, setMessageInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiPickerPosition, setEmojiPickerPosition] = useState({ x: 0, y: 0 });
@@ -694,6 +695,9 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
           </div>
         )}
       </div>
+
+      {/* 置顶消息栏 */}
+      {pinnedMessagesBar}
 
       {/* 消息列表 */}
       <ScrollArea className="flex-1" style={{ padding: '12px' }} ref={scrollRef}>

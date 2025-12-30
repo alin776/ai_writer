@@ -594,14 +594,6 @@ const ChannelsView: React.FC = () => {
       {/* 聊天区域 */}
       {activeChannel && (
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* 置顶消息栏 */}
-          <PinnedMessagesBar
-            channelId={activeChannel.id}
-            isAdmin={userRole === 'owner' || userRole === 'admin'}
-            refreshTrigger={pinRefreshTrigger}
-            onMessageClick={handlePinnedMessageClick}
-          />
-
           {/* 聊天主体 */}
           <ChatArea
             channel={activeChannel}
@@ -618,6 +610,14 @@ const ChannelsView: React.FC = () => {
             onReactionsChange={handleReactionsChange}
             onPinChange={handlePinChange}
             scrollToMessageId={scrollToMessageId}
+            pinnedMessagesBar={
+              <PinnedMessagesBar
+                channelId={activeChannel.id}
+                isAdmin={userRole === 'owner' || userRole === 'admin'}
+                refreshTrigger={pinRefreshTrigger}
+                onMessageClick={handlePinnedMessageClick}
+              />
+            }
           />
         </div>
       )}

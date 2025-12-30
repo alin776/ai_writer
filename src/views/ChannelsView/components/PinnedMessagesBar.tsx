@@ -18,6 +18,7 @@ const PinnedMessagesBar: React.FC<PinnedMessagesBarProps> = ({
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false); // 普通用户隐藏状态
 
   // 加载置顶消息
   const loadPinnedMessages = async () => {
@@ -27,6 +28,10 @@ const PinnedMessagesBar: React.FC<PinnedMessagesBarProps> = ({
       setLoading(true);
       const response = await getPinnedMessages(channelId);
       setPinnedMessages(response.messages || []);
+      // 有新的置顶消息时，重新显示
+      if (response.messages && response.messages.length > 0) {
+        setIsDismissed(false);
+      }
     } catch (error) {
       console.error('加载置顶消息失败:', error);
     } finally {
@@ -38,7 +43,12 @@ const PinnedMessagesBar: React.FC<PinnedMessagesBarProps> = ({
     loadPinnedMessages();
   }, [channelId, refreshTrigger]);
 
-  // 取消置顶
+  // 切换频道时重置隐藏状态
+  useEffect(() => {
+    setIsDismissed(false);
+  }, [channelId]);
+
+  // 取消置顶（管理员）
   const handleUnpin = async (e: React.MouseEvent, messageId: string) => {
     e.stopPropagation();
     try {
@@ -49,8 +59,15 @@ const PinnedMessagesBar: React.FC<PinnedMessagesBarProps> = ({
     }
   };
 
-  // 没有置顶消息时不显示
-  if (pinnedMessages.length === 0) {
+  // 隐藏置顶消息栏（普通用户）
+  const handleDismiss = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDismissed(true);
+    setIsExpanded(false);
+  };
+
+  // 没有置顶消息或已被普通用户隐藏时不显示
+  if (pinnedMessages.length === 0 || isDismissed) {
     return null;
   }
 
@@ -80,6 +97,17 @@ const PinnedMessagesBar: React.FC<PinnedMessagesBarProps> = ({
             {latestPinned.content}
           </p>
         </div>
+
+        {/* 普通用户的关闭按钮（只是隐藏） */}
+        {!isAdmin && (
+          <button
+            className="p-1.5 rounded hover:bg-amber-200 dark:hover:bg-amber-800 text-amber-600 dark:text-amber-400 transition-colors flex-shrink-0"
+            onClick={handleDismiss}
+            title="关闭"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
 
         <ChevronDown
           className={`w-4 h-4 text-amber-600 dark:text-amber-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
@@ -114,6 +142,7 @@ const PinnedMessagesBar: React.FC<PinnedMessagesBarProps> = ({
                 )}
               </div>
 
+              {/* 管理员的取消置顶按钮 */}
               {isAdmin && (
                 <button
                   className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 dark:text-red-400 transition-colors flex-shrink-0"
