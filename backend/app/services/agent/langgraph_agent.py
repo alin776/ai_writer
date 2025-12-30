@@ -71,11 +71,13 @@ from app.services.agent.langgraph_tools import (
     get_chapter_by_order_tool,
     get_context_tool,
     search_analysis_fragments_tool,
+    get_worldview_summary,
 )
 from app.services.agent.utils.context_builder import (
     _compress_task_result,
     _build_summarization_context,
     _build_knowledge_system_messages,
+    _build_worldview_system_messages,
 )
 # ✅ Phase 2.4: 导入工具辅助函数
 from app.services.agent.utils.tool_helpers import (
@@ -1305,9 +1307,10 @@ class WritingAgentGraph:
 
         # 构建初始状态（不预设intent,由LangGraph的intent_classifier节点识别）
         knowledge_messages = _build_knowledge_system_messages(context)
+        worldview_messages = _build_worldview_system_messages(context)  # 世界观系统消息
 
         initial_state = {
-            "messages": knowledge_messages + history_messages + [HumanMessage(content=message)],  # 知识上下文 + 历史消息 + 当前消息
+            "messages": worldview_messages + knowledge_messages + history_messages + [HumanMessage(content=message)],  # 世界观 + 知识上下文 + 历史消息 + 当前消息
             "work_id": work_id,
             "chapter_id": chapter_id,
             "intent": None,  # ✅ 优化：由LangGraph的intent_classifier节点自动识别

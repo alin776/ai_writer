@@ -41,7 +41,7 @@ import type {
   CostMetrics,
 } from '@/types';
 import type { SearchResponse } from '@/types/search';
-import type { WorldData, Setting, Character, Location } from '@/types/novel';
+import type { WorldData, Setting, Character, Location, WorldviewChanges, ApplyChangesResult } from '@/types/novel';
 import type {
   ExportOptions,
   ExportResponse,
@@ -1590,6 +1590,70 @@ class DataServiceClass {
    */
   async processWorkReport(reportId: string, action: string, adminNote?: string): Promise<any> {
     return this.adapter.patch(`/admin/reports/works/${reportId}`, { action, admin_note: adminNote });
+  }
+
+  // ==================== 世界观同步相关 ====================
+
+  /**
+   * 从单个章节提取世界观变化（方案A）
+   * @param workId 作品ID
+   * @param chapterId 章节ID
+   * @param chapterContent 章节内容（可选，不传则从数据库读取）
+   * @returns Promise<WorldviewChanges>
+   */
+  async extractWorldviewChanges(
+    workId: string,
+    chapterId: string,
+    chapterContent?: string
+  ): Promise<WorldviewChanges> {
+    return this.adapter.post(`/worldview/works/${workId}/worldview/extract-changes`, {
+      chapter_id: chapterId,
+      chapter_content: chapterContent
+    });
+  }
+
+  /**
+   * 批量扫描章节提取世界观变化（方案C）
+   * @param workId 作品ID
+   * @param startChapter 起始章节号
+   * @param endChapter 结束章节号（可选）
+   * @param limit 最多扫描章节数
+   * @returns Promise<WorldviewChanges>
+   */
+  async scanWorldviewChanges(
+    workId: string,
+    startChapter: number = 1,
+    endChapter?: number,
+    limit: number = 10
+  ): Promise<WorldviewChanges> {
+    return this.adapter.post(`/worldview/works/${workId}/worldview/scan-changes`, {
+      start_chapter: startChapter,
+      end_chapter: endChapter,
+      limit
+    });
+  }
+
+  /**
+   * 应用世界观变化到卡片
+   * @param workId 作品ID
+   * @param changes 变化数据
+   * @param selectedItems 选择性应用的项目
+   * @returns Promise<ApplyChangesResult>
+   */
+  async applyWorldviewChanges(
+    workId: string,
+    changes: WorldviewChanges,
+    selectedItems?: {
+      new_characters?: string[];
+      new_locations?: string[];
+      new_settings?: string[];
+      relationship_changes?: string[];
+    }
+  ): Promise<ApplyChangesResult> {
+    return this.adapter.post(`/worldview/works/${workId}/worldview/apply-changes`, {
+      changes,
+      selected_items: selectedItems
+    });
   }
 }
 

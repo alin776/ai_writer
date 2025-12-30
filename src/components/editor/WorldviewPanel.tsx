@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
-import { Users, MapPin, Settings2, Plus, Maximize2 } from 'lucide-react';
-import type { WorldData, Character, Location, Setting } from '../../types/novel';
+import { Users, MapPin, Settings2, Plus, Maximize2, RefreshCw } from 'lucide-react';
+import type { WorldData, Character, Location, Setting, WorldviewChanges } from '../../types/novel';
+import { WorldviewSyncDialog } from '../worldview/WorldviewSyncDialog';
+import { DataService } from '@/services/DataService';
+import { useToast } from '@/hooks/useToast';
 
 interface WorldviewPanelProps {
   workId: string;
@@ -12,13 +15,23 @@ interface WorldviewPanelProps {
   initialTab?: 'characters' | 'places' | 'settings';
   targetItemId?: string;
   onTargetItemScrolled?: () => void;
+  onWorldDataUpdate?: () => void;  // 世界观数据更新后的回调
 }
 
-export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, onTargetItemScrolled }: WorldviewPanelProps) {
+export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, onTargetItemScrolled, onWorldDataUpdate }: WorldviewPanelProps) {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { success: showSuccess, error: showError } = useToast();
   const [worldviewTab, setWorldviewTab] = React.useState<'characters' | 'places' | 'settings'>(initialTab || 'characters');
   const [highlightedItemId, setHighlightedItemId] = React.useState<string | undefined>(undefined);
+
+  // 世界观同步相关状态
+  const [syncDialogOpen, setSyncDialogOpen] = React.useState(false);
+  const [syncChanges, setSyncChanges] = React.useState<WorldviewChanges | null>(null);
+  const [syncLoading, setSyncLoading] = React.useState(false);
+  const [syncApplying, setSyncApplying] = React.useState(false);
+  const [syncError, setSyncError] = React.useState<string | null>(null);
+  const [syncMode, setSyncMode] = React.useState<'extract' | 'scan'>('scan');
 
   // 当 initialTab 变化时更新当前 tab
   React.useEffect(() => {
@@ -53,6 +66,74 @@ export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, on
   // 打开世界观管理页面
   const handleOpenWorldview = () => {
     navigate(`/worldview/${workId}`);
+  };
+
+  // 打开世界观同步对话框（批量扫描模式）
+  const handleOpenSyncDialog = async () => {
+    setSyncMode('scan');
+    setSyncDialogOpen(true);
+    setSyncLoading(true);
+    setSyncError(null);
+    setSyncChanges(null);
+
+    try {
+      const changes = await DataService.scanWorldviewChanges(workId, 1, undefined, 20);
+      setSyncChanges(changes);
+    } catch (err: any) {
+      console.error('扫描世界观变化失败:', err);
+      setSyncError(err.message || '扫描失败，请稍后重试');
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  // 应用世界观变化
+  const handleApplyChanges = async (selectedItems: {
+    newCharacters: string[];
+    newLocations: string[];
+    newSettings: string[];
+    relationshipChanges: string[];
+  }) => {
+    if (!syncChanges) return;
+
+    setSyncApplying(true);
+    try {
+      const result = await DataService.applyWorldviewChanges(workId, syncChanges, {
+        new_characters: selectedItems.newCharacters,
+        new_locations: selectedItems.newLocations,
+        new_settings: selectedItems.newSettings,
+        relationship_changes: selectedItems.relationshipChanges,
+      });
+
+      // 显示成功提示
+      const totalCreated = result.charactersCreated + result.locationsCreated + result.settingsCreated + (result.relationshipsCreated || 0);
+      const parts = [`人物: ${result.charactersCreated}`, `地点: ${result.locationsCreated}`, `设定: ${result.settingsCreated}`];
+      if (result.relationshipsCreated) {
+        parts.push(`关系: ${result.relationshipsCreated}`);
+      }
+      showSuccess(
+        `成功同步 ${totalCreated} 个世界观卡片`,
+        parts.join(', ')
+      );
+
+      // 关闭对话框
+      setSyncDialogOpen(false);
+
+      // 通知父组件刷新世界观数据
+      onWorldDataUpdate?.();
+    } catch (err: any) {
+      console.error('应用世界观变化失败:', err);
+      showError('应用失败', err.message || '请稍后重试');
+    } finally {
+      setSyncApplying(false);
+    }
+  };
+
+  // 关闭同步对话框
+  const handleCloseSyncDialog = () => {
+    setSyncDialogOpen(false);
+    setSyncChanges(null);
+    setSyncError(null);
   };
 
   return (
@@ -92,6 +173,15 @@ export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, on
           </button>
         </div>
         <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleOpenSyncDialog}
+            className="h-6 w-6 p-0 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 rounded-md transition-all"
+            title="从章节同步世界观"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -215,6 +305,18 @@ export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, on
           )}
         </div>
       )}
+
+      {/* 世界观同步对话框 */}
+      <WorldviewSyncDialog
+        isOpen={syncDialogOpen}
+        onClose={handleCloseSyncDialog}
+        changes={syncChanges}
+        isLoading={syncLoading}
+        isApplying={syncApplying}
+        error={syncError}
+        onApply={handleApplyChanges}
+        mode={syncMode}
+      />
     </div>
   );
 }

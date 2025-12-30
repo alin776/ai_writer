@@ -187,3 +187,88 @@ class WorldDataResponse(BaseModel):
     settings: List[SettingResponse]
     guidelines: Optional[WorkGuidelinesResponse] = None
     ai_guidelines: Optional[Any] = None  # AIGuidelinesResponse
+
+
+# ==================== 世界观同步相关 Schema ====================
+
+class NewCharacterItem(BaseModel):
+    """新增人物项"""
+    name: str
+    role: Optional[str] = "配角"
+    description: Optional[str] = ""
+    first_appearance: Optional[str] = None
+    importance: Optional[str] = "中"
+    tags: Optional[List[str]] = None
+
+
+class UpdatedCharacterItem(BaseModel):
+    """更新人物项"""
+    name: str
+    changes: str
+
+
+class NewLocationItem(BaseModel):
+    """新增地点项"""
+    name: str
+    type: Optional[str] = "场景"
+    description: Optional[str] = ""
+    importance: Optional[str] = "中"
+    tags: Optional[List[str]] = None
+
+
+class NewSettingItem(BaseModel):
+    """新增设定项"""
+    title: str
+    category: Optional[str] = "剧情设定"
+    content: Optional[str] = ""
+    tags: Optional[List[str]] = None
+
+
+class RelationshipChangeItem(BaseModel):
+    """人物关系变化项"""
+    from_character: str = Field(..., alias="from")
+    to_character: str = Field(..., alias="to")
+    old_relation: Optional[str] = None
+    new_relation: str
+    reason: Optional[str] = None
+
+    class Config:
+        populate_by_name = True
+
+
+class WorldviewChangesResponse(BaseModel):
+    """世界观变化响应"""
+    new_characters: List[NewCharacterItem] = []
+    updated_characters: List[UpdatedCharacterItem] = []
+    new_locations: List[NewLocationItem] = []
+    new_settings: List[NewSettingItem] = []
+    relationship_changes: List[RelationshipChangeItem] = []
+    scanned_chapters: Optional[int] = None  # 批量扫描时返回
+
+
+class ExtractChangesRequest(BaseModel):
+    """从单章提取变化的请求"""
+    chapter_id: str
+    chapter_content: Optional[str] = None  # 可选，如果不传则从数据库读取
+
+
+class ScanChangesRequest(BaseModel):
+    """批量扫描章节的请求"""
+    start_chapter: int = 1
+    end_chapter: Optional[int] = None
+    limit: int = 10
+
+
+class ApplyChangesRequest(BaseModel):
+    """应用变化的请求"""
+    changes: WorldviewChangesResponse
+    selected_items: Optional[dict] = None  # 选择性应用
+
+
+class ApplyChangesResponse(BaseModel):
+    """应用变化的响应"""
+    characters_created: int = 0
+    characters_updated: int = 0
+    locations_created: int = 0
+    settings_created: int = 0
+    relationships_created: int = 0

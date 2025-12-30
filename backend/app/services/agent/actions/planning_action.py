@@ -169,6 +169,11 @@ class PlanningAction(BaseAction):
 - 固定参数: `work_id="{work_id}", chapter_id="{chapter_id}"`
 - 用途：每次处理修改/润色/分析请求时的第一步
 
+**get_worldview_summary** - 查询世界观信息
+- 参数: `work_id="{work_id}"`
+- 用途：当用户询问"世界观里有什么"、"有哪些角色/地点/设定"时调用
+- ⚠️ 必须立即调用，不要问用户想了解什么
+
 **search_analysis_fragments_tool** - 搜索旧设定/其他章节
 - 用途：查询本章之外的信息（如角色设定、世界观）
 - 参数: `query="关键词", work_id="{work_id}"`
@@ -262,12 +267,17 @@ class PlanningAction(BaseAction):
    - 必填参数: `chapter_number=X`
    - ⚠️ 如果你不知道 chapter_number，不要瞎填！回到第一步执行"定位"流程！
 
-2. **search_analysis_fragments_tool** - 搜索内容/设定
+2. **get_worldview_summary** - 查询世界观信息
+   - 参数: `work_id={work_id}`
+   - 用途：当用户询问"世界观里有什么"、"有哪些角色/地点/设定"时调用
+   - ⚠️ 必须立即调用，不要问用户想了解什么
+
+3. **search_analysis_fragments_tool** - 搜索内容/设定
    - 用途1：当你不知道某句话在哪一章时，用这个搜关键词
    - 用途2：查询旧设定、旧角色
    - 示例: `query="微光如露落雪", work_id={work_id}`
 
-3. **get_context_tool** - 获取作品大纲/简介
+4. **get_context_tool** - 获取作品大纲/简介
    - 规划任务开始时使用
    - 参数: `work_id={work_id}`
 

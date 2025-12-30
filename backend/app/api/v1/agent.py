@@ -33,6 +33,7 @@ from app.services.ai.http_ai_service import HTTPAIService
 from app.services.ai.humanize_service import HumanizeService
 from app.services.agent.langgraph_agent import WritingAgentGraph
 from app.services.knowledge_service import KnowledgeService
+from app.services.worldview_service import WorldviewService
 from app.core.config import settings
 from app.core.humanize_config import get_config
 # ✅ 2025-12-01: 支持Agent成本追踪（通过请求上下文传递user_id）
@@ -1118,6 +1119,85 @@ async def agent_chat_stream(
                 if knowledge_docs:
                     context["knowledge_docs"] = knowledge_docs
                     logger.info(f"[agent_chat_stream] Injected {len(knowledge_docs)} knowledge docs into context")
+
+                # ════════════════════════════════════════════════════════════════
+                # 世界观数据自动注入（方案C第一阶段：自动注入世界观摘要）
+                # ════════════════════════════════════════════════════════════════
+                if request.work_id:
+                    try:
+                        worldview_service = WorldviewService(db)
+                        worldview_data: Dict[str, Any] = {}
+
+                        # 获取人物列表
+                        characters = await worldview_service.get_characters_by_work(str(request.work_id))
+                        if characters:
+                            worldview_data["characters"] = [
+                                {
+                                    "name": c.name,
+                                    "role": c.role or "未指定",
+                                    "description": c.description[:500] if c.description else "",  # 摘要限制500字
+                                    "tags": c.tags or [],
+                                    "relationships": c.relationships or []
+                                }
+                                for c in characters
+                            ]
+
+                        # 获取地点列表
+                        locations = await worldview_service.get_locations_by_work(str(request.work_id))
+                        if locations:
+                            worldview_data["locations"] = [
+                                {
+                                    "name": l.name,
+                                    "type": l.type or "未指定",
+                                    "description": l.description[:300] if l.description else "",  # 摘要限制300字
+                                    "tags": l.tags or []
+                                }
+                                for l in locations
+                            ]
+
+                        # 获取设定列表
+                        settings_list = await worldview_service.get_settings_by_work(str(request.work_id))
+                        if settings_list:
+                            worldview_data["settings"] = [
+                                {
+                                    "title": s.title,
+                                    "category": s.category or "通用设定",
+                                    "content": s.content[:500] if s.content else "",  # 摘要限制500字
+                                    "tags": s.tags or []
+                                }
+                                for s in settings_list
+                            ]
+
+                        # 获取作品规范
+                        guidelines = await worldview_service.get_guidelines_by_work(str(request.work_id))
+                        if guidelines:
+                            worldview_data["guidelines"] = {
+                                "outline": guidelines.outline or "",  # 大纲流程
+                                "style": guidelines.style or "",  # 整体风格
+                                "tone": guidelines.tone or "",  # 语言风格
+                                "words_per_chapter": guidelines.words_per_chapter,  # 每章字数
+                                "power_system": guidelines.power_system or "",  # 力量体系
+                                "world_rules": guidelines.world_rules or "",  # 世界规则
+                                "target_audience": guidelines.target_audience or "",  # 目标读者
+                                "main_theme": guidelines.main_theme or "",  # 主题
+                                "plot_direction": guidelines.plot_direction or "",  # 剧情走向
+                                "notes": guidelines.notes or ""  # 备注
+                            }
+
+                        # 注入到上下文
+                        if worldview_data:
+                            context["worldview_data"] = worldview_data
+                            char_count = len(worldview_data.get("characters", []))
+                            loc_count = len(worldview_data.get("locations", []))
+                            setting_count = len(worldview_data.get("settings", []))
+                            has_guidelines = "guidelines" in worldview_data
+                            logger.info(
+                                f"[agent_chat_stream] 📚 世界观数据已注入: "
+                                f"人物={char_count}, 地点={loc_count}, 设定={setting_count}, "
+                                f"规范={'有' if has_guidelines else '无'}"
+                            )
+                    except Exception as worldview_err:
+                        logger.warning(f"[agent_chat_stream] 世界观数据加载失败: {worldview_err}")
 
                 # ✨ 优先处理 @optimization: 直接走去痕迹流程
                 if context.get("use_optimization"):
