@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Hash, Lock, Users, MessageCircle, BookOpen, Coffee, FlaskConical, ChevronDown, ChevronRight, ChevronLeft, Bell, Plus, X, Search, AtSign } from 'lucide-react';
+import { Hash, Lock, Users, MessageCircle, BookOpen, Coffee, FlaskConical, ChevronDown, ChevronRight, ChevronLeft, Bell, Plus, X, Search, AtSign, Edit2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { channelApi, UnreadSummary } from '@/services/channelApi';
+import { EditFangroupDialog } from './EditFangroupDialog';
 
 export interface Channel {
   id: string;
@@ -19,6 +20,7 @@ export interface Channel {
   isPermanent?: boolean;
   isPinned?: boolean;
   description?: string;
+  coverImage?: string;
 }
 
 interface ChannelListProps {
@@ -30,9 +32,11 @@ interface ChannelListProps {
   onCreateFangroup?: () => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  currentUserId?: string;  // 当前用户ID，用于判断是否为粉丝群创建者
+  onChannelUpdate?: () => void;  // 频道信息更新回调
 }
 
-export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoinChannel, availableChannels, onCreateFangroup, isCollapsed = false, onToggleCollapse }: ChannelListProps) {
+export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoinChannel, availableChannels, onCreateFangroup, isCollapsed = false, onToggleCollapse, currentUserId, onChannelUpdate }: ChannelListProps) {
   const [expandedSections, setExpandedSections] = useState({
     official: true,
     fangroup: true,
@@ -41,6 +45,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [unreadData, setUnreadData] = useState<Map<string, { unreadCount: number; mentionCount: number }>>(new Map());
+  const [editingChannel, setEditingChannel] = useState<Channel | null>(null);  // 正在编辑的频道
 
   // 获取未读数据
   useEffect(() => {
@@ -105,6 +110,15 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
     const Icon = getChannelIcon(channel);
     const isActive = channel.id === activeChannelId;
     const channelUnreadData = unreadData.get(channel.id);
+    const isCreator = channel.type === 'fangroup' && channel.creatorId === currentUserId;
+
+    // 点击头像编辑（仅粉丝群创建者）
+    const handleAvatarClick = (e: React.MouseEvent) => {
+      if (isCreator) {
+        e.stopPropagation();  // 阻止选中频道
+        setEditingChannel(channel);
+      }
+    };
 
     return (
       <button
@@ -114,7 +128,38 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
           isActive ? "bg-black text-white dark:bg-zinc-800" : "hover:bg-gray-50 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-300"
         )}
       >
-        <Icon className="shrink-0 opacity-60 w-5 h-5" />
+        {/* 频道图标/头像 - 粉丝群创建者可点击编辑 */}
+        {isCreator ? (
+          <div
+            onClick={handleAvatarClick}
+            className="relative shrink-0 cursor-pointer group/avatar"
+            title="点击编辑粉丝群"
+          >
+            {channel.coverImage ? (
+              <img
+                src={channel.coverImage}
+                alt={channel.name}
+                className="w-5 h-5 rounded-full object-cover group-hover/avatar:ring-2 group-hover/avatar:ring-blue-500 transition-all"
+              />
+            ) : (
+              <div className="w-5 h-5 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center group-hover/avatar:ring-2 group-hover/avatar:ring-blue-500 transition-all">
+                <Users className="w-3 h-3 text-gray-500 dark:text-gray-400" />
+              </div>
+            )}
+            {/* 编辑图标遮罩 */}
+            <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center">
+              <Edit2 className="w-2.5 h-2.5 text-white" />
+            </div>
+          </div>
+        ) : channel.coverImage ? (
+          <img
+            src={channel.coverImage}
+            alt={channel.name}
+            className="shrink-0 w-5 h-5 rounded-full object-cover"
+          />
+        ) : (
+          <Icon className="shrink-0 opacity-60 w-5 h-5" />
+        )}
         <span className="flex-1 text-left truncate text-sm">{channel.name}</span>
 
         {/* @提醒标识 - 优先级最高 */}
@@ -314,8 +359,14 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                         className="flex items-start gap-3 p-3 border border-gray-100 dark:border-gray-700 rounded-lg hover:border-gray-200 dark:hover:border-gray-600 transition-colors"
                       >
                         {/* 频道图标/封面 */}
-                        <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center flex-shrink-0">
-                          {channel.type === 'work' ? (
+                        <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+                          {channel.coverImage ? (
+                            <img
+                              src={channel.coverImage}
+                              alt={channel.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : channel.type === 'work' ? (
                             <span className="text-xs text-gray-400 dark:text-gray-500">封面</span>
                           ) : (
                             <Icon className="w-5 h-5 text-gray-400 dark:text-gray-500" />
@@ -367,6 +418,19 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
             </div>
           </div>
         </>
+      )}
+
+      {/* 编辑粉丝群对话框 */}
+      {editingChannel && (
+        <EditFangroupDialog
+          isOpen={!!editingChannel}
+          onClose={() => setEditingChannel(null)}
+          onSuccess={() => {
+            setEditingChannel(null);
+            onChannelUpdate?.();
+          }}
+          channel={editingChannel}
+        />
       )}
     </div>
   );

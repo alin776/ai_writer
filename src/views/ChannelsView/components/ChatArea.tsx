@@ -944,6 +944,12 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
             const isOwnMessage = message.userId === currentUser.id;
             const isAnnouncement = message.type === 'announcement';
             const isMention = message.type === 'mention';
+            // 检测是否是纯贴图消息
+            const isStickerOnly = message.content && /^!\[sticker\]\(.+\)$/.test(message.content);
+            // 检测是否是纯附件消息（没有文字，只有附件）- 不需要边框和背景
+            const isMediaOnly = !message.content && message.attachments && message.attachments.length > 0;
+            // 不需要边框的情况：纯贴图 或 纯附件
+            const noBorder = isStickerOnly || isMediaOnly;
 
             return (
               <div
@@ -1029,18 +1035,24 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   {/* 消息气泡（包含回复和内容） */}
                   <div className={cn(
                     "rounded-lg inline-block overflow-hidden max-w-full",
-                    isOwnMessage
-                      ? "bg-black dark:bg-gray-700 text-white"
-                      : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700",
-                    isMention && !isOwnMessage && "bg-blue-50/80 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700",
-                    isAnnouncement && "bg-amber-100 dark:bg-amber-900/50 border-amber-200 dark:border-amber-700 text-amber-900 dark:text-amber-200"
+                    // 纯贴图/纯附件消息不需要背景和边框
+                    noBorder ? "" : (
+                      isOwnMessage
+                        ? "bg-black dark:bg-gray-700 text-white"
+                        : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                    ),
+                    !noBorder && isMention && !isOwnMessage && "bg-blue-50/80 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700",
+                    !noBorder && isAnnouncement && "bg-amber-100 dark:bg-amber-900/50 border-amber-200 dark:border-amber-700 text-amber-900 dark:text-amber-200"
                   )}>
                     {/* 消息内容（纯附件消息时不显示） */}
                     {message.content && (
                       <div className={cn(
-                        "text-sm leading-relaxed px-3 py-2.5 whitespace-pre-wrap break-words",
-                        isOwnMessage ? "text-white" : "text-gray-700 dark:text-gray-200",
-                        isAnnouncement && "text-amber-900 dark:text-amber-200"
+                        "text-sm leading-relaxed whitespace-pre-wrap break-words",
+                        // 纯贴图消息不需要内边距
+                        isStickerOnly ? "" : "px-3 py-2.5",
+                        !noBorder && isOwnMessage && "text-white",
+                        !noBorder && !isOwnMessage && "text-gray-700 dark:text-gray-200",
+                        !noBorder && isAnnouncement && "text-amber-900 dark:text-amber-200"
                       )}>
                         {renderMessageContent(message.content, isOwnMessage)}
                       </div>
@@ -1049,8 +1061,10 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                     {/* 消息附件 */}
                     {message.attachments && message.attachments.length > 0 && (
                       <div className={cn(
-                        "px-3 w-fit",
-                        message.content ? "pb-2" : "py-2"  // 纯附件消息时增加上下内边距
+                        "w-fit",
+                        // 纯附件消息不需要内边距，有文字时才需要
+                        isMediaOnly ? "" : "px-3",
+                        message.content ? "pb-2" : (isMediaOnly ? "" : "py-2")
                       )}>
                         <MessageAttachments attachments={message.attachments} />
                       </div>

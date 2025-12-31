@@ -181,6 +181,42 @@ class CosService:
 
         return self._build_public_url(key)
 
+    async def upload_channel_cover(
+        self,
+        filename: Optional[str],
+        content: bytes,
+        content_type: Optional[str]
+    ) -> str:
+        """上传频道封面至 COS 并返回访问 URL"""
+        ext = ""
+        if filename:
+            _, ext = os.path.splitext(filename)
+            ext = ext.lower()
+
+        if not ext and content_type:
+            guessed = mimetypes.guess_extension(content_type)
+            if guessed:
+                ext = guessed
+
+        if not ext:
+            ext = ".png"
+
+        # 使用 channels/covers 路径存储频道封面
+        key = f"channels/covers/{uuid4().hex}{ext}"
+        if self.prefix:
+            key = f"{self.prefix}/{key}"
+
+        # 上传到 COS
+        await asyncio.to_thread(
+            self.client.put_object,
+            Bucket=self.bucket,
+            Key=key,
+            Body=content,
+            ContentType=content_type or "application/octet-stream",
+        )
+
+        return self._build_public_url(key)
+
 
 @lru_cache(maxsize=1)
 def get_cos_service() -> CosService:

@@ -273,6 +273,11 @@ class AttachmentUploadResponse(BaseModel):
     thumbnail_url: Optional[str] = None
 
 
+class CoverUploadResponse(BaseModel):
+    """频道封面上传响应"""
+    cover_url: str
+
+
 class MessageWithAttachmentsResponse(ChannelMessageResponse):
     """带附件的消息响应"""
     attachments: List[AttachmentResponse] = []

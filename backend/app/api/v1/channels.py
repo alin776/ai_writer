@@ -30,6 +30,7 @@ from app.schemas.channel import (
     ChannelMessageResponse,
     ChannelMessageListResponse,
     MessageEditRequest,
+    CoverUploadResponse,
 )
 
 router = APIRouter()
@@ -164,6 +165,56 @@ async def update_unread_counts(
             read_state.mention_count += 1
 
     await db.flush()
+
+
+# ===== 频道封面上传 =====
+from fastapi import UploadFile, File as FastAPIFile
+from app.services.cos_service import get_cos_service as get_cos_service_for_cover
+
+@router.post("/upload-cover", response_model=CoverUploadResponse)
+async def upload_channel_cover(
+    file: UploadFile = FastAPIFile(...),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    上传频道封面图片
+    返回图片 URL，在创建频道时使用
+    """
+    # 验证文件类型
+    allowed_types = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="仅支持 JPG、PNG、WebP、GIF 格式的图片"
+        )
+
+    # 读取文件内容
+    content = await file.read()
+
+    # 验证文件大小 (最大 5MB)
+    max_size = 5 * 1024 * 1024
+    if len(content) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="图片大小不能超过 5MB"
+        )
+
+    # 上传到 COS
+    try:
+        cos_service = get_cos_service_for_cover()
+        cover_url = await cos_service.upload_channel_cover(
+            filename=file.filename,
+            content=content,
+            content_type=file.content_type
+        )
+    except Exception as e:
+        logger.error(f"上传频道封面失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="上传失败，请稍后重试"
+        )
+
+    return CoverUploadResponse(cover_url=cover_url)
 
 
 @router.post("/create-fangroup", response_model=ChannelResponse)

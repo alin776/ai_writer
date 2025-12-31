@@ -36,6 +36,7 @@ const convertApiChannelToChannel = (apiChannel: ApiChannel): Channel => {
     collectCount: apiChannel.collectCount,
     isPermanent: apiChannel.isPermanent,
     warningDays: apiChannel.warningDays,
+    coverImage: apiChannel.coverImage,
   };
 };
 
@@ -168,7 +169,9 @@ const ChannelsView: React.FC = () => {
       try {
         setLoading(true);
         const response = await getMyChannels();
+        console.log('[ChannelsView] 获取频道列表响应:', response);
         const channels = response.channels.map(convertApiChannelToChannel);
+        console.log('[ChannelsView] 转换后的频道列表:', channels.map(c => ({ id: c.id, name: c.name, coverImage: c.coverImage })));
         setUserChannels(channels);
 
         // 设置默认选中第一个频道
@@ -547,7 +550,9 @@ const ChannelsView: React.FC = () => {
     // 重新加载频道列表
     try {
       const response = await getMyChannels();
+      console.log('[ChannelsView] 创建成功后重新获取频道列表:', response);
       const channels = response.channels.map(convertApiChannelToChannel);
+      console.log('[ChannelsView] 创建成功后转换的频道:', channels.map(c => ({ id: c.id, name: c.name, type: c.type, coverImage: c.coverImage })));
       setUserChannels(channels);
 
       // 选中新创建的频道（假设是列表第一个粉丝群）
@@ -626,6 +631,8 @@ const ChannelsView: React.FC = () => {
           onCreateFangroup={() => setShowCreateDialog(true)}
           isCollapsed={false}
           onToggleCollapse={() => setIsChannelListCollapsed(true)}
+          currentUserId={user?.id}
+          onChannelUpdate={handleCreateSuccess}
         />
       </div>
 

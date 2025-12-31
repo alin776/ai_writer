@@ -210,6 +210,21 @@ export const reportMessage = async (
 // ==================== 粉丝群管理 API ====================
 
 /**
+ * 上传频道封面
+ */
+export const uploadChannelCover = async (file: File): Promise<{ coverUrl: string }> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const result = await api.post<{ coverUrl: string }>('/channels/upload-cover', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return result;
+};
+
+/**
  * 创建粉丝群
  */
 export const createFangroup = async (data: {
@@ -698,6 +713,7 @@ export const channelApi = {
   getAvailableChannels,
   joinChannel,
   createFangroup,
+  uploadChannelCover,
   leaveChannel,
 
   // 成员管理
