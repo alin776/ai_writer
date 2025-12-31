@@ -144,6 +144,44 @@ class CosService:
         return self._build_public_url(key)
 
 
+    async def upload_sticker(
+        self,
+        user_id: str,
+        filename: Optional[str],
+        content: bytes,
+        content_type: Optional[str]
+    ) -> str:
+        """上传贴图至 COS 并返回访问 URL"""
+        ext = ""
+        if filename:
+            _, ext = os.path.splitext(filename)
+            ext = ext.lower()
+
+        if not ext and content_type:
+            guessed = mimetypes.guess_extension(content_type)
+            if guessed:
+                ext = guessed
+
+        if not ext:
+            ext = ".png"
+
+        # 使用 stickers/{user_id} 路径存储贴图
+        key = f"stickers/{user_id}/{uuid4().hex}{ext}"
+        if self.prefix:
+            key = f"{self.prefix}/{key}"
+
+        # 上传到 COS
+        await asyncio.to_thread(
+            self.client.put_object,
+            Bucket=self.bucket,
+            Key=key,
+            Body=content,
+            ContentType=content_type or "application/octet-stream",
+        )
+
+        return self._build_public_url(key)
+
+
 @lru_cache(maxsize=1)
 def get_cos_service() -> CosService:
     """获取 COS 服务单例"""

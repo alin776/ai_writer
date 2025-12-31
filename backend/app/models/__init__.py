@@ -62,6 +62,7 @@ from app.models.chapter_comment import (
     CommentLocationType,
     ChapterCommentReportReason,
 )
+from app.models.user_sticker import UserSticker, UserFavoriteSticker, StickerSource
 
 __all__ = [
     "User",
@@ -151,4 +152,7 @@ __all__ = [
     "ChapterCommentReport",
     "CommentLocationType",
     "ChapterCommentReportReason",
+    "UserSticker",
+    "UserFavoriteSticker",
+    "StickerSource",
 ]

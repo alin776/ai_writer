@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload } from 'lucide-react';
+import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -18,6 +18,9 @@ import { FileUploader, FilePreview, ALLOWED_TYPES, formatFileSize } from './File
 import MessageAttachments from './MessageAttachments';
 import { ChatSearchPage } from './ChatSearchPage';
 import type { MessageEditEvent } from '@/hooks/useChannelWebSocket';
+import { addFavoriteSticker } from '@/services/stickerApi';
+import { useToast } from '@/hooks/useToast';
+import { ToastContainer } from '@/components/ui/Toast';
 
 export interface Message {
   id: string;
@@ -124,7 +127,8 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const mentionButtonRef = useRef<HTMLButtonElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const { error: showError, warning: showWarning } = useGlobalStore();
+  const { error: showError, warning: showWarning, success: showSuccess } = useGlobalStore();
+  const { messages: toastMessages, success: toastSuccess, error: toastError, close: closeToast } = useToast();
 
   // WebSocket 实时消息
   const { isConnected, typingUsers, onlineUsers, sendTyping } = useChannelWebSocket({
@@ -589,13 +593,24 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     setShowEmojiPicker(false);
   };
 
+  // 处理贴图选择 - 发送贴图消息
+  const handleStickerSelect = (stickerUrl: string) => {
+    // 发送贴图作为图片消息
+    const stickerMessage = `![sticker](${stickerUrl})`;
+    if (onSendMessage) {
+      onSendMessage(stickerMessage, 'normal', replyingTo?.id);
+      setReplyingTo(null);
+    }
+    setShowEmojiPicker(false);
+  };
+
   const toggleEmojiPicker = () => {
     if (!showEmojiPicker && emojiButtonRef.current) {
       const buttonRect = emojiButtonRef.current.getBoundingClientRect();
-      // 表情窗口宽度 320px，高度约 340px
+      // 表情窗口宽度 320px，高度 384px
       setEmojiPickerPosition({
         x: buttonRect.left + buttonRect.width / 2 - 160,
-        y: buttonRect.top - 350
+        y: buttonRect.top - 400
       });
     }
     setShowEmojiPicker(!showEmojiPicker);
@@ -604,6 +619,12 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   // 点击外部关闭表情选择器和 @ 菜单
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // 排除裁剪器对话框的点击（Portal 渲染到 body）
+      const target = event.target as Element;
+      if (target.closest('[role="dialog"]')) {
+        return;
+      }
+
       if (showEmojiPicker &&
           emojiButtonRef.current &&
           !emojiButtonRef.current.contains(event.target as Node) &&
@@ -650,33 +671,64 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     return { show: false };
   };
 
-  // 渲染消息内容，高亮 @用户名
+  // 渲染消息内容，支持 @用户名 高亮和贴图图片
   const renderMessageContent = (content: string, isOwnMessage: boolean) => {
-    // 匹配 @用户名 或 @全体成员
-    const mentionRegex = /@([^\s@]+)/g;
+    // 先检查是否是纯贴图消息 ![sticker](url)
+    const stickerOnlyMatch = content.match(/^!\[sticker\]\((.+)\)$/);
+    if (stickerOnlyMatch) {
+      return (
+        <img
+          src={stickerOnlyMatch[1]}
+          alt="sticker"
+          className="max-w-[200px] max-h-[200px] rounded"
+          loading="lazy"
+        />
+      );
+    }
+
+    // 处理混合内容：图片 + 文本 + @提及
+    // 合并正则匹配
+    const combinedRegex = /!\[([^\]]*)\]\(([^)]+)\)|@([^\s@]+)/g;
     const parts: (string | React.ReactNode)[] = [];
     let lastIndex = 0;
     let match;
+    let keyIndex = 0;
 
-    while ((match = mentionRegex.exec(content)) !== null) {
-      // 添加 @ 之前的普通文本
+    while ((match = combinedRegex.exec(content)) !== null) {
+      // 添加匹配之前的普通文本
       if (match.index > lastIndex) {
         parts.push(content.slice(lastIndex, match.index));
       }
-      // 添加高亮的 @用户名
-      parts.push(
-        <span
-          key={match.index}
-          className={cn(
-            "px-1 py-0.5 rounded font-medium",
-            isOwnMessage
-              ? "bg-amber-400/30 text-amber-100"
-              : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
-          )}
-        >
-          {match[0]}
-        </span>
-      );
+
+      if (match[0].startsWith('![')) {
+        // 图片匹配
+        const alt = match[1] || 'image';
+        const url = match[2];
+        parts.push(
+          <img
+            key={`img-${keyIndex++}`}
+            src={url}
+            alt={alt}
+            className="inline-block max-w-[150px] max-h-[150px] rounded align-middle"
+            loading="lazy"
+          />
+        );
+      } else {
+        // @提及匹配
+        parts.push(
+          <span
+            key={`mention-${keyIndex++}`}
+            className={cn(
+              "px-1 py-0.5 rounded font-medium",
+              isOwnMessage
+                ? "bg-amber-400/30 text-amber-100"
+                : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
+            )}
+          >
+            {match[0]}
+          </span>
+        );
+      }
       lastIndex = match.index + match[0].length;
     }
 
@@ -1227,6 +1279,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
           >
             <EmojiPicker
               onSelect={insertEmoji}
+              onSelectSticker={handleStickerSelect}
               onClose={() => setShowEmojiPicker(false)}
             />
           </div>
@@ -1337,6 +1390,11 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
               const isOwnMessage = message?.userId === currentUser.id;
               const canPin = currentUser.role === 'owner' || currentUser.role === 'admin';
 
+              // 检查消息是否包含图片/贴图
+              const imageMatch = message?.content?.match(/!\[.*?\]\((.+?)\)/);
+              const hasImage = !!imageMatch;
+              const imageUrl = imageMatch?.[1];
+
               // 计算时间差
               let canRecall = false;
               let canEdit = false;
@@ -1360,8 +1418,35 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                 });
               }
 
+              // 添加到表情的处理函数
+              const handleAddToSticker = async () => {
+                if (!imageUrl) return;
+                try {
+                  await addFavoriteSticker({
+                    stickerUrl: imageUrl,
+                    previewUrl: imageUrl,
+                    source: 'tenor'
+                  });
+                  toastSuccess('添加成功', '已添加到表情收藏');
+                } catch (e: any) {
+                  toastError('添加失败', e.response?.data?.detail || '请稍后重试');
+                }
+                setContextMenu(null);
+              };
+
               return (
                 <>
+                  {/* 添加到表情 - 最上方 */}
+                  {hasImage && (
+                    <button
+                      className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-amber-600 dark:text-amber-400"
+                      onClick={handleAddToSticker}
+                    >
+                      <Star className="w-3.5 h-3.5" />
+                      添加到表情
+                    </button>
+                  )}
+
                   <button
                     className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 dark:text-gray-200"
                     onClick={() => {
@@ -1766,6 +1851,9 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
           jumpToMessage(msgId);
         }}
       />
+
+      {/* Toast 通知容器 */}
+      <ToastContainer messages={toastMessages} onClose={closeToast} />
     </div>
   );
 }

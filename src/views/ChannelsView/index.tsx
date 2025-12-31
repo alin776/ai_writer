@@ -352,6 +352,21 @@ const ChannelsView: React.FC = () => {
 
   // WebSocket 收到新消息
   const handleNewMessage = useCallback((wsMessage: WsChannelMessage) => {
+    console.log('[DEBUG] WebSocket 收到新消息:', {
+      messageId: wsMessage.id,
+      channelId: wsMessage.channel_id,
+      userId: wsMessage.user_id,
+      content: wsMessage.content?.substring(0, 50),
+      currentUserId: user?.id
+    });
+
+    // 跳过自己发送的消息（已经在 handleSendMessage 中本地添加了）
+    // 注意：后端已经通过 exclude_user 排除了发送者，所以这个检查是备用的
+    if (wsMessage.user_id === user?.id) {
+      console.log('[DEBUG] 跳过自己发送的消息:', wsMessage.id);
+      return;
+    }
+
     // 转换附件数据（WebSocket 现在统一使用 camelCase）
     const attachments: MessageAttachment[] = wsMessage.attachments?.map((att) => ({
       id: att.id,
@@ -380,10 +395,16 @@ const ChannelsView: React.FC = () => {
 
     // 使用函数式更新，避免依赖 channelMessages
     setChannelMessages(prev => {
+      // 检查是否已存在（防止重复）
+      const existingMessages = prev[wsMessage.channel_id] || [];
+      if (existingMessages.some(m => m.id === wsMessage.id)) {
+        console.log('[DEBUG] 消息已存在，跳过:', wsMessage.id);
+        return prev;
+      }
+
       // 处理回复
       if (wsMessage.reply_to_id) {
-        const currentMessages = prev[wsMessage.channel_id] || [];
-        const replyToMsg = currentMessages.find(m => m.id === wsMessage.reply_to_id);
+        const replyToMsg = existingMessages.find(m => m.id === wsMessage.reply_to_id);
         if (replyToMsg) {
           newMessage.replyTo = {
             id: replyToMsg.id,
@@ -393,12 +414,18 @@ const ChannelsView: React.FC = () => {
         }
       }
 
+      console.log('[DEBUG] 添加新消息到频道:', {
+        channelId: wsMessage.channel_id,
+        messageId: wsMessage.id,
+        existingCount: existingMessages.length
+      });
+
       return {
         ...prev,
-        [wsMessage.channel_id]: [...(prev[wsMessage.channel_id] || []), newMessage],
+        [wsMessage.channel_id]: [...existingMessages, newMessage],
       };
     });
-  }, []); // 移除 channelMessages 依赖
+  }, [user?.id]); // 添加 user?.id 依赖
 
   // WebSocket 收到消息删除
   const handleMessageDelete = useCallback((messageId: string) => {
