@@ -682,7 +682,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         <img
           src={stickerOnlyMatch[1]}
           alt="sticker"
-          className="max-w-[200px] max-h-[200px] rounded"
+          className="max-w-[100px] max-h-[100px] rounded"
           loading="lazy"
         />
       );
@@ -690,7 +690,8 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
 
     // 处理混合内容：图片 + 文本 + @提及
     // 合并正则匹配
-    const combinedRegex = /!\[([^\]]*)\]\(([^)]+)\)|@([^\s@]+)/g;
+    // 注意：用户名可能包含@（如邮箱），所以匹配到空格为止，而不是在@处停止
+    const combinedRegex = /!\[([^\]]*)\]\(([^)]+)\)|@([^\s]+)/g;
     const parts: (string | React.ReactNode)[] = [];
     let lastIndex = 0;
     let match;
@@ -711,7 +712,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
             key={`img-${keyIndex++}`}
             src={url}
             alt={alt}
-            className="inline-block max-w-[150px] max-h-[150px] rounded align-middle"
+            className="inline-block max-w-[100px] max-h-[100px] rounded align-middle"
             loading="lazy"
           />
         );
