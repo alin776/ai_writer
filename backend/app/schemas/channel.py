@@ -306,3 +306,54 @@ class ForwardMessageResponse(BaseModel):
     forwarded_count: int
     failed_channels: List[UUID] = []
     messages: List[dict] = []
+
+
+# ========== Join Request Schemas ==========
+
+class JoinRequestCreate(BaseModel):
+    """申请加入频道"""
+    channel_id: UUID
+    message: Optional[str] = Field(None, max_length=200, description="申请留言")
+
+
+class JoinRequestResponse(BaseModel):
+    """加入申请响应"""
+    id: UUID
+    channel_id: UUID
+    user_id: UUID
+    message: Optional[str] = None
+    status: str
+    reviewed_by: Optional[UUID] = None
+    reviewed_at: Optional[datetime] = None
+    reject_reason: Optional[str] = None
+    created_at: datetime
+
+    # 用户信息
+    user_name: Optional[str] = None
+    user_avatar: Optional[str] = None
+
+    # 审核人信息
+    reviewer_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class JoinRequestListResponse(BaseModel):
+    """加入申请列表响应"""
+    requests: List[JoinRequestResponse]
+    total: int
+
+
+class JoinRequestReview(BaseModel):
+    """审核申请"""
+    action: str = Field(..., pattern="^(approve|reject)$", description="approve 或 reject")
+    reject_reason: Optional[str] = Field(None, max_length=200, description="拒绝原因")
+
+
+class JoinChannelResponse(BaseModel):
+    """加入频道响应（可能是直接加入或创建申请）"""
+    status: str  # "joined" 或 "pending"
+    message: str
+    member: Optional[ChannelMemberResponse] = None  # 直接加入时返回
+    request_id: Optional[UUID] = None  # 创建申请时返回

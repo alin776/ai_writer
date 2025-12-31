@@ -63,6 +63,7 @@ from app.models.chapter_comment import (
     ChapterCommentReportReason,
 )
 from app.models.user_sticker import UserSticker, UserFavoriteSticker, StickerSource
+from app.models.channel_join_request import ChannelJoinRequest, JoinRequestStatus
 
 __all__ = [
     "User",
@@ -155,4 +156,6 @@ __all__ = [
     "UserSticker",
     "UserFavoriteSticker",
     "StickerSource",
+    "ChannelJoinRequest",
+    "JoinRequestStatus",
 ]

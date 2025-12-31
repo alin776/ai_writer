@@ -1611,9 +1611,9 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
               <div className="p-4">
                 <h4 className="text-xs text-gray-500 dark:text-gray-400 mb-3">频道管理</h4>
                 <div className="space-y-1">
-                  {/* 管理成员按钮 - owner/admin 可见（官方频道和粉丝群） */}
+                  {/* 管理成员按钮 - owner/admin 可见（官方频道、粉丝群、作品频道） */}
                   {(currentUser.role === 'owner' || currentUser.role === 'admin') &&
-                   (channel.type === 'official' || channel.type === 'fangroup') && (
+                   (channel.type === 'official' || channel.type === 'fangroup' || channel.type === 'work') && (
                     <button
                       onClick={() => setShowMemberDialog(true)}
                       className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-800 rounded dark:text-gray-200"
@@ -1673,6 +1673,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         onClose={() => setShowMemberDialog(false)}
         channelId={channel.id}
         channelName={channel.name}
+        channelType={channel.type}
         currentUserId={currentUser.id}
         isCreator={currentUser.isCreator || false}
         userRole={currentUser.role || 'member'}

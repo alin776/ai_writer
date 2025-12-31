@@ -109,10 +109,20 @@ export const getAvailableChannels = async (params: {
 
 /**
  * 加入频道
+ * - 官方频道：直接加入，返回 status: "joined"
+ * - 其他频道：创建申请，返回 status: "pending"
  */
-export const joinChannel = async (channelId: string): Promise<ChannelMember> => {
-  const data = await api.post<ChannelMember>('/channels/join', {
-    channel_id: channelId
+export interface JoinChannelResponse {
+  status: 'joined' | 'pending';
+  message: string;
+  member?: ChannelMember;
+  request_id?: string;
+}
+
+export const joinChannel = async (channelId: string, joinMessage?: string): Promise<JoinChannelResponse> => {
+  const data = await api.post<JoinChannelResponse>('/channels/join', {
+    channel_id: channelId,
+    message: joinMessage
   });
   return data;
 };
@@ -708,6 +718,80 @@ export const getForwardInfo = async (
   return await api.get(`/channels/${channelId}/messages/${messageId}/forward-info`);
 };
 
+// ==================== 加入申请管理 API ====================
+
+export interface JoinRequest {
+  id: string;
+  channelId: string;
+  userId: string;
+  message?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewedBy?: string;
+  reviewedAt?: string;
+  rejectReason?: string;
+  createdAt: string;
+  userName?: string;
+  userAvatar?: string;
+  reviewerName?: string;
+}
+
+export interface JoinRequestListResponse {
+  requests: JoinRequest[];
+  total: number;
+}
+
+/**
+ * 获取频道的加入申请列表（管理员）
+ */
+export const getJoinRequests = async (
+  channelId: string,
+  options?: {
+    status?: 'pending' | 'approved' | 'rejected';
+    page?: number;
+    pageSize?: number;
+  }
+): Promise<JoinRequestListResponse> => {
+  const params = new URLSearchParams();
+  if (options?.status) params.append('status_filter', options.status);
+  if (options?.page) params.append('page', options.page.toString());
+  if (options?.pageSize) params.append('page_size', options.pageSize.toString());
+
+  return await api.get(`/channels/${channelId}/join-requests?${params.toString()}`);
+};
+
+/**
+ * 审核加入申请
+ */
+export const reviewJoinRequest = async (
+  channelId: string,
+  requestId: string,
+  action: 'approve' | 'reject',
+  rejectReason?: string
+): Promise<{ message: string; status: string }> => {
+  return await api.post(`/channels/${channelId}/join-requests/${requestId}/review`, {
+    action,
+    reject_reason: rejectReason
+  });
+};
+
+/**
+ * 获取我的加入申请列表
+ */
+export const getMyJoinRequests = async (
+  options?: {
+    status?: 'pending' | 'approved' | 'rejected';
+    page?: number;
+    pageSize?: number;
+  }
+): Promise<JoinRequestListResponse> => {
+  const params = new URLSearchParams();
+  if (options?.status) params.append('status_filter', options.status);
+  if (options?.page) params.append('page', options.page.toString());
+  if (options?.pageSize) params.append('page_size', options.pageSize.toString());
+
+  return await api.get(`/channels/my-join-requests?${params.toString()}`);
+};
+
 // 导出一个包含所有 API 函数的对象
 export const channelApi = {
   // 频道管理
@@ -770,4 +854,9 @@ export const channelApi = {
   // 消息转发
   forwardMessage,
   getForwardInfo,
+
+  // 加入申请管理
+  getJoinRequests,
+  reviewJoinRequest,
+  getMyJoinRequests,
 };

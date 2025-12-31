@@ -76,6 +76,7 @@ const ChannelsView: React.FC = () => {
   const [channelMessages, setChannelMessages] = useState<{ [key: string]: Message[] }>({});
   const [userChannels, setUserChannels] = useState<Channel[]>([]);
   const [availableChannels, setAvailableChannels] = useState<Channel[]>([]);
+  const [pendingChannelIds, setPendingChannelIds] = useState<Set<string>>(new Set());  // 已申请待审核的频道
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [userRole, setUserRole] = useState<'owner' | 'admin' | 'member'>('member');
@@ -530,19 +531,28 @@ const ChannelsView: React.FC = () => {
 
   const handleJoinChannel = async (channelId: string) => {
     try {
-      await joinChannel(channelId);
+      const result = await joinChannel(channelId);
 
-      // 从可加入列表移除
-      const channelToJoin = availableChannels.find(c => c.id === channelId);
-      if (channelToJoin) {
-        setUserChannels(prev => [...prev, channelToJoin]);
-        setAvailableChannels(prev => prev.filter(c => c.id !== channelId));
-        setActiveChannelId(channelId);
+      if (result.status === 'joined') {
+        // 官方频道：直接加入成功
+        const channelToJoin = availableChannels.find(c => c.id === channelId);
+        if (channelToJoin) {
+          setUserChannels(prev => [...prev, channelToJoin]);
+          setAvailableChannels(prev => prev.filter(c => c.id !== channelId));
+          setActiveChannelId(channelId);
+        }
         showToast('success', '成功加入频道');
+      } else {
+        // 非官方频道：申请已提交，等待审核
+        // 标记为已申请状态
+        setPendingChannelIds(prev => new Set(prev).add(channelId));
+        showToast('success', result.message || '申请已提交，请等待管理员审核');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('加入频道失败:', error);
-      showToast('error', '加入频道失败');
+      // 显示具体的错误信息
+      const errorMsg = error?.response?.data?.detail || '加入频道失败';
+      showToast('error', errorMsg);
     }
   };
 
@@ -628,6 +638,7 @@ const ChannelsView: React.FC = () => {
           onChannelSelect={setActiveChannelId}
           onJoinChannel={handleJoinChannel}
           availableChannels={availableChannels}
+          pendingChannelIds={pendingChannelIds}
           onCreateFangroup={() => setShowCreateDialog(true)}
           isCollapsed={false}
           onToggleCollapse={() => setIsChannelListCollapsed(true)}

@@ -17,6 +17,7 @@ from app.models.channel_member import ChannelMember, MemberRole
 from app.models.channel_message import ChannelMessage, MessageType
 from app.models.message_report import MessageReport
 from app.models.channel_read_state import ChannelReadState
+from app.models.channel_join_request import ChannelJoinRequest
 from app.schemas.channel import (
     ChannelCreate,
     FangroupCreate,
@@ -31,6 +32,11 @@ from app.schemas.channel import (
     ChannelMessageListResponse,
     MessageEditRequest,
     CoverUploadResponse,
+    JoinRequestCreate,
+    JoinRequestResponse,
+    JoinRequestListResponse,
+    JoinRequestReview,
+    JoinChannelResponse,
 )
 
 router = APIRouter()
@@ -430,14 +436,16 @@ async def get_available_channels(
     )
 
 
-@router.post("/join", response_model=ChannelMemberResponse)
+@router.post("/join", response_model=JoinChannelResponse)
 async def join_channel(
-    data: ChannelMemberCreate,
+    data: JoinRequestCreate,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
     加入频道
+    - 官方频道：直接加入
+    - 其他频道（私域/作品）：创建加入申请，等待审核
     """
     # 检查频道是否存在
     channel_result = await db.execute(
@@ -465,43 +473,328 @@ async def join_channel(
             ChannelMember.user_id == current_user.id
         )
     )
-    if existing_member.scalar_one_or_none():
+    member = existing_member.scalar_one_or_none()
+    if member:
+        if member.is_banned:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="您已被移出该频道，无法重新加入"
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="已经是频道成员"
         )
 
-    # 创建成员记录
-    # 如果是官方频道且用户是管理员，则设置为owner角色
-    member_role = 'owner' if (channel.type == 'official' and current_user.is_admin) else 'member'
-    member = ChannelMember(
+    # 官方频道：直接加入
+    if channel.type == 'official':
+        member_role = 'owner' if current_user.is_admin else 'member'
+        member = ChannelMember(
+            id=uuid.uuid4(),
+            channel_id=data.channel_id,
+            user_id=current_user.id,
+            role=member_role
+        )
+        db.add(member)
+        channel.member_count += 1
+        await db.commit()
+        await db.refresh(member)
+
+        return JoinChannelResponse(
+            status="joined",
+            message="已成功加入频道",
+            member=ChannelMemberResponse(
+                id=member.id,
+                channel_id=member.channel_id,
+                user_id=member.user_id,
+                role=member.role,
+                is_muted=member.is_muted,
+                is_banned=member.is_banned,
+                custom_title=member.custom_title,
+                title_color=member.title_color,
+                joined_at=member.joined_at,
+                last_read_at=member.last_read_at,
+                user_name=current_user.username,
+                user_avatar=current_user.avatar
+            )
+        )
+
+    # 非官方频道：创建加入申请
+    # 检查是否已有待审核的申请
+    existing_request = await db.execute(
+        select(ChannelJoinRequest).where(
+            ChannelJoinRequest.channel_id == data.channel_id,
+            ChannelJoinRequest.user_id == current_user.id,
+            ChannelJoinRequest.status == 'pending'
+        )
+    )
+    if existing_request.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="您已有待审核的加入申请"
+        )
+
+    # 创建申请
+    join_request = ChannelJoinRequest(
         id=uuid.uuid4(),
         channel_id=data.channel_id,
         user_id=current_user.id,
-        role=member_role
+        message=data.message,
+        status='pending'
     )
-    db.add(member)
-
-    # 更新频道成员数
-    channel.member_count += 1
-
+    db.add(join_request)
     await db.commit()
-    await db.refresh(member)
+    await db.refresh(join_request)
 
-    return ChannelMemberResponse(
-        id=member.id,
-        channel_id=member.channel_id,
-        user_id=member.user_id,
-        role=member.role,
-        is_muted=member.is_muted,
-        is_banned=member.is_banned,
-        custom_title=member.custom_title,
-        title_color=member.title_color,
-        joined_at=member.joined_at,
-        last_read_at=member.last_read_at,
-        user_name=current_user.username,
-        user_avatar=current_user.avatar
+    return JoinChannelResponse(
+        status="pending",
+        message="申请已提交，请等待管理员审核",
+        request_id=join_request.id
     )
+
+
+@router.get("/my-join-requests", response_model=JoinRequestListResponse)
+async def get_my_join_requests(
+    status_filter: Optional[str] = Query(None, description="过滤状态: pending, approved, rejected"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    获取我的加入申请列表
+    """
+    query = select(ChannelJoinRequest).where(
+        ChannelJoinRequest.user_id == current_user.id
+    )
+
+    if status_filter:
+        query = query.where(ChannelJoinRequest.status == status_filter)
+
+    query = query.order_by(ChannelJoinRequest.created_at.desc())
+
+    # 获取总数
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    # 分页
+    query = query.offset((page - 1) * page_size).limit(page_size)
+    result = await db.execute(query)
+    requests = result.scalars().all()
+
+    response_requests = []
+    for req in requests:
+        response_requests.append(JoinRequestResponse(
+            id=req.id,
+            channel_id=req.channel_id,
+            user_id=req.user_id,
+            message=req.message,
+            status=req.status,
+            reviewed_by=req.reviewed_by,
+            reviewed_at=req.reviewed_at,
+            reject_reason=req.reject_reason,
+            created_at=req.created_at,
+            user_name=current_user.username,
+            user_avatar=current_user.avatar
+        ))
+
+    return JoinRequestListResponse(requests=response_requests, total=total)
+
+
+@router.get("/{channel_id}/join-requests", response_model=JoinRequestListResponse)
+async def get_join_requests(
+    channel_id: UUID,
+    status_filter: Optional[str] = Query(None, description="过滤状态: pending, approved, rejected"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    获取频道加入申请列表（管理员/owner）
+    """
+    # 检查权限
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    member = member_result.scalar_one_or_none()
+
+    if not member or member.role not in ['owner', 'admin']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="只有管理员可以查看加入申请"
+        )
+
+    # 构建查询
+    query = select(ChannelJoinRequest).where(
+        ChannelJoinRequest.channel_id == channel_id
+    )
+
+    if status_filter:
+        query = query.where(ChannelJoinRequest.status == status_filter)
+
+    # 排序：待审核优先，然后按时间倒序
+    query = query.order_by(
+        case(
+            (ChannelJoinRequest.status == 'pending', 0),
+            else_=1
+        ),
+        ChannelJoinRequest.created_at.desc()
+    )
+
+    # 获取总数
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    # 分页
+    query = query.offset((page - 1) * page_size).limit(page_size)
+    result = await db.execute(query)
+    requests = result.scalars().all()
+
+    # 获取用户信息
+    user_ids = [r.user_id for r in requests]
+    reviewer_ids = [r.reviewed_by for r in requests if r.reviewed_by]
+    all_user_ids = list(set(user_ids + reviewer_ids))
+
+    users_map = {}
+    if all_user_ids:
+        users_result = await db.execute(
+            select(User).where(User.id.in_(all_user_ids))
+        )
+        for user in users_result.scalars().all():
+            users_map[user.id] = user
+
+    # 构建响应
+    response_requests = []
+    for req in requests:
+        user = users_map.get(req.user_id)
+        reviewer = users_map.get(req.reviewed_by) if req.reviewed_by else None
+        response_requests.append(JoinRequestResponse(
+            id=req.id,
+            channel_id=req.channel_id,
+            user_id=req.user_id,
+            message=req.message,
+            status=req.status,
+            reviewed_by=req.reviewed_by,
+            reviewed_at=req.reviewed_at,
+            reject_reason=req.reject_reason,
+            created_at=req.created_at,
+            user_name=user.username if user else None,
+            user_avatar=user.avatar if user else None,
+            reviewer_name=reviewer.username if reviewer else None
+        ))
+
+    return JoinRequestListResponse(requests=response_requests, total=total)
+
+
+@router.post("/{channel_id}/join-requests/{request_id}/review")
+async def review_join_request(
+    channel_id: UUID,
+    request_id: UUID,
+    data: JoinRequestReview,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    审核加入申请
+    """
+    from datetime import datetime, timezone
+
+    # 检查权限
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    member = member_result.scalar_one_or_none()
+
+    if not member or member.role not in ['owner', 'admin']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="只有管理员可以审核申请"
+        )
+
+    # 获取申请
+    request_result = await db.execute(
+        select(ChannelJoinRequest).where(
+            ChannelJoinRequest.id == request_id,
+            ChannelJoinRequest.channel_id == channel_id
+        )
+    )
+    join_request = request_result.scalar_one_or_none()
+
+    if not join_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="申请不存在"
+        )
+
+    if join_request.status != 'pending':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="该申请已被处理"
+        )
+
+    # 获取频道
+    channel_result = await db.execute(
+        select(Channel).where(Channel.id == channel_id)
+    )
+    channel = channel_result.scalar_one_or_none()
+
+    # 处理申请
+    if data.action == 'approve':
+        # 检查申请人是否已经是成员或被封禁
+        existing_member = await db.execute(
+            select(ChannelMember).where(
+                ChannelMember.channel_id == channel_id,
+                ChannelMember.user_id == join_request.user_id
+            )
+        )
+        existing = existing_member.scalar_one_or_none()
+
+        if existing:
+            if existing.is_banned:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="该用户已被封禁，无法通过申请"
+                )
+            # 已经是成员，直接标记申请为通过
+            join_request.status = 'approved'
+            join_request.reviewed_by = current_user.id
+            join_request.reviewed_at = datetime.now(timezone.utc)
+            await db.commit()
+            return {"message": "用户已是成员，申请已标记为通过", "status": "approved"}
+
+        # 通过申请：创建成员记录
+        new_member = ChannelMember(
+            id=uuid.uuid4(),
+            channel_id=channel_id,
+            user_id=join_request.user_id,
+            role='member'
+        )
+        db.add(new_member)
+        channel.member_count += 1
+
+        join_request.status = 'approved'
+        join_request.reviewed_by = current_user.id
+        join_request.reviewed_at = datetime.now(timezone.utc)
+
+        await db.commit()
+        return {"message": "已通过申请", "status": "approved"}
+
+    else:  # reject
+        join_request.status = 'rejected'
+        join_request.reviewed_by = current_user.id
+        join_request.reviewed_at = datetime.now(timezone.utc)
+        join_request.reject_reason = data.reject_reason
+
+        await db.commit()
+        return {"message": "已拒绝申请", "status": "rejected"}
 
 
 @router.delete("/{channel_id}/leave")

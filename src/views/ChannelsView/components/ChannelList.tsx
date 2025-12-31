@@ -27,8 +27,9 @@ interface ChannelListProps {
   channels: Channel[];
   activeChannelId: string;
   onChannelSelect: (channelId: string) => void;
-  onJoinChannel?: (channelId: string) => void;
+  onJoinChannel?: (channelId: string) => Promise<void> | void;
   availableChannels?: Channel[];
+  pendingChannelIds?: Set<string>;  // 已申请待审核的频道ID
   onCreateFangroup?: () => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
@@ -36,7 +37,7 @@ interface ChannelListProps {
   onChannelUpdate?: () => void;  // 频道信息更新回调
 }
 
-export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoinChannel, availableChannels, onCreateFangroup, isCollapsed = false, onToggleCollapse, currentUserId, onChannelUpdate }: ChannelListProps) {
+export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoinChannel, availableChannels, pendingChannelIds, onCreateFangroup, isCollapsed = false, onToggleCollapse, currentUserId, onChannelUpdate }: ChannelListProps) {
   const [expandedSections, setExpandedSections] = useState({
     official: true,
     fangroup: true,
@@ -222,11 +223,15 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
     );
   };
 
-  const handleJoinChannel = (channelId: string) => {
+  const handleJoinChannel = async (channelId: string) => {
     if (onJoinChannel) {
-      onJoinChannel(channelId);
-      setShowJoinModal(false);
-      setSearchQuery('');
+      await onJoinChannel(channelId);
+      // 官方频道直接加入后关闭弹窗，非官方频道（申请）保持弹窗打开显示"已申请"状态
+      const channel = availableChannels?.find(c => c.id === channelId);
+      if (channel?.type === 'official') {
+        setShowJoinModal(false);
+        setSearchQuery('');
+      }
     }
   };
 
@@ -405,10 +410,23 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                         {/* 加入按钮 */}
                         <button
                           onClick={() => handleJoinChannel(channel.id)}
-                          disabled={channel.status === 'locked'}
-                          className="px-3 py-1.5 text-xs bg-black dark:bg-white text-white dark:text-black rounded hover:bg-gray-800 dark:hover:bg-gray-200 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
+                          disabled={channel.status === 'locked' || pendingChannelIds?.has(channel.id)}
+                          className={cn(
+                            "px-3 py-1.5 text-xs rounded transition-colors",
+                            pendingChannelIds?.has(channel.id)
+                              ? "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-default"
+                              : channel.status === 'locked'
+                                ? "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                                : "bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200"
+                          )}
                         >
-                          {channel.status === 'locked' ? '已折叠' : '加入'}
+                          {channel.status === 'locked'
+                            ? '已折叠'
+                            : pendingChannelIds?.has(channel.id)
+                              ? '已申请'
+                              : channel.type === 'official'
+                                ? '加入'
+                                : '申请'}
                         </button>
                       </div>
                     );

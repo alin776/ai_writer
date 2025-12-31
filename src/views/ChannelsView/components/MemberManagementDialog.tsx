@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, Crown, UserX, VolumeX, Volume2 } from 'lucide-react';
-import { getChannelMembers, kickMember, muteMember, unmuteMember, type ChannelMember } from '@/services/channelApi';
+import { X, Crown, UserX, VolumeX, Volume2, Check, XCircle, Clock, Users, UserPlus } from 'lucide-react';
+import { getChannelMembers, kickMember, muteMember, unmuteMember, getJoinRequests, reviewJoinRequest, type ChannelMember, type JoinRequest } from '@/services/channelApi';
 import { useToast } from '@/hooks/useToast';
 import { Avatar } from '@/components/ui/avatar';
 
@@ -9,6 +9,7 @@ interface MemberManagementDialogProps {
   onClose: () => void;
   channelId: string;
   channelName: string;
+  channelType: 'official' | 'fangroup' | 'work';
   currentUserId: string;
   isCreator: boolean;
   userRole: 'owner' | 'admin' | 'member';
@@ -19,20 +20,33 @@ export function MemberManagementDialog({
   onClose,
   channelId,
   channelName,
+  channelType,
   currentUserId,
   isCreator,
   userRole,
 }: MemberManagementDialogProps) {
   const { showToast } = useToast();
+  const [activeTab, setActiveTab] = useState<'members' | 'requests'>('members');
   const [members, setMembers] = useState<ChannelMember[]>([]);
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [loading, setLoading] = useState(false);
+  const [requestsLoading, setRequestsLoading] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const [muteTarget, setMuteTarget] = useState<{ userId: string; username: string } | null>(null);
   const [muteDuration, setMuteDuration] = useState(10); // 默认10分钟
   const [kickTarget, setKickTarget] = useState<{ userId: string; username: string } | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<{ requestId: string; username: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+
+  // 非官方频道显示审核 Tab
+  const showRequestsTab = channelType !== 'official' && (userRole === 'owner' || userRole === 'admin');
 
   useEffect(() => {
     if (isOpen) {
       loadMembers();
+      if (showRequestsTab) {
+        loadJoinRequests();
+      }
     }
   }, [isOpen, channelId]);
 
@@ -46,6 +60,51 @@ export function MemberManagementDialog({
       showToast('error', '加载成员列表失败');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadJoinRequests = async () => {
+    try {
+      setRequestsLoading(true);
+      const response = await getJoinRequests(channelId, { status: 'pending' });
+      setJoinRequests(response.requests);
+      setPendingCount(response.total);
+    } catch (error) {
+      console.error('加载申请列表失败:', error);
+    } finally {
+      setRequestsLoading(false);
+    }
+  };
+
+  const handleApprove = async (requestId: string, username: string) => {
+    try {
+      await reviewJoinRequest(channelId, requestId, 'approve');
+      showToast('success', `已通过 ${username} 的加入申请`);
+      // 从列表中移除
+      setJoinRequests(prev => prev.filter(r => r.id !== requestId));
+      setPendingCount(prev => prev - 1);
+      // 重新加载成员列表
+      loadMembers();
+    } catch (error) {
+      console.error('审核失败:', error);
+      showToast('error', '审核失败');
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectTarget) return;
+
+    try {
+      await reviewJoinRequest(channelId, rejectTarget.requestId, 'reject', rejectReason);
+      showToast('success', `已拒绝 ${rejectTarget.username} 的加入申请`);
+      // 从列表中移除
+      setJoinRequests(prev => prev.filter(r => r.id !== rejectTarget.requestId));
+      setPendingCount(prev => prev - 1);
+      setRejectTarget(null);
+      setRejectReason('');
+    } catch (error) {
+      console.error('审核失败:', error);
+      showToast('error', '审核失败');
     }
   };
 
@@ -140,8 +199,43 @@ export function MemberManagementDialog({
           </button>
         </div>
 
-        {/* 成员列表 */}
-        <div className="flex-1 overflow-y-auto p-4">
+        {/* Tab 切换 */}
+        {showRequestsTab && (
+          <div className="flex border-b border-gray-200 dark:border-gray-700">
+            <button
+              onClick={() => setActiveTab('members')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm transition-colors ${
+                activeTab === 'members'
+                  ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              成员列表
+            </button>
+            <button
+              onClick={() => setActiveTab('requests')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm transition-colors ${
+                activeTab === 'requests'
+                  ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              <UserPlus className="w-4 h-4" />
+              加入审核
+              {pendingCount > 0 && (
+                <span className="px-1.5 py-0.5 text-xs bg-red-500 text-white rounded-full">
+                  {pendingCount}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* 成员列表 Tab */}
+        {activeTab === 'members' && (
+          <>
+            <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
             <div className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
               加载中...
@@ -222,14 +316,93 @@ export function MemberManagementDialog({
               ))}
             </div>
           )}
-        </div>
+            </div>
 
-        {/* 底部统计 */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-          <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-            共 {members.length} 名成员
-          </p>
-        </div>
+            {/* 底部统计 */}
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+              <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                共 {members.length} 名成员
+              </p>
+            </div>
+          </>
+        )}
+
+        {/* 加入审核 Tab */}
+        {activeTab === 'requests' && showRequestsTab && (
+          <>
+            <div className="flex-1 overflow-y-auto p-4">
+              {requestsLoading ? (
+                <div className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
+                  加载中...
+                </div>
+              ) : joinRequests.length === 0 ? (
+                <div className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
+                  暂无待审核的申请
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {joinRequests.map((request) => (
+                    <div
+                      key={request.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                    >
+                      <div className="flex items-center gap-2 flex-1">
+                        <Avatar className="w-8 h-8">
+                          {request.userAvatar ? (
+                            <img src={request.userAvatar} alt={request.userName || ''} />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs">
+                              {request.userName?.[0]?.toUpperCase() || 'U'}
+                            </div>
+                          )}
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate dark:text-gray-100">
+                            {request.userName || '未知用户'}
+                          </div>
+                          {request.message && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                              留言：{request.message}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                            <Clock className="w-3 h-3" />
+                            {new Date(request.createdAt).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 操作按钮 */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleApprove(request.id, request.userName || '用户')}
+                          className="p-1.5 hover:bg-green-100 dark:hover:bg-green-900/30 rounded text-green-600 dark:text-green-400 transition-colors"
+                          title="通过"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setRejectTarget({ requestId: request.id, username: request.userName || '用户' })}
+                          className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400 transition-colors"
+                          title="拒绝"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 底部统计 */}
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+              <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                {pendingCount} 个待审核申请
+              </p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* 禁言时长选择弹窗 */}
@@ -296,6 +469,44 @@ export function MemberManagementDialog({
                 className="flex-1 px-3 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
               >
                 确认踢出
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 拒绝原因弹窗 */}
+      {rejectTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 w-72">
+            <h4 className="text-sm font-medium dark:text-gray-100 mb-3">
+              拒绝申请
+            </h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              拒绝 <span className="font-medium text-gray-900 dark:text-gray-100">{rejectTarget.username}</span> 的加入申请
+            </p>
+            <div className="mb-4">
+              <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">拒绝原因（可选）</label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="请输入拒绝原因..."
+                className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none"
+                rows={2}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setRejectTarget(null); setRejectReason(''); }}
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleReject}
+                className="flex-1 px-3 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                确认拒绝
               </button>
             </div>
           </div>
