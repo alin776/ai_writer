@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select, func, and_, or_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.exc import IntegrityError
 from typing import Optional, List
 from uuid import UUID
 import logging
@@ -642,6 +643,18 @@ async def get_channel_messages(
     """
     获取频道消息列表
     """
+    # 获取频道信息
+    channel_result = await db.execute(
+        select(Channel).where(Channel.id == channel_id)
+    )
+    channel = channel_result.scalar_one_or_none()
+
+    if not channel:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="频道不存在"
+        )
+
     # 检查是否是频道成员
     member_result = await db.execute(
         select(ChannelMember).where(
@@ -649,11 +662,45 @@ async def get_channel_messages(
             ChannelMember.user_id == current_user.id
         )
     )
-    if not member_result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="未加入该频道"
-        )
+    member = member_result.scalar_one_or_none()
+
+    # 如果不是成员
+    if not member:
+        # 官方频道：自动加入
+        if channel.type == "official":
+            member_role = "owner" if current_user.is_admin else "member"
+            try:
+                member = ChannelMember(
+                    id=uuid.uuid4(),
+                    channel_id=channel_id,
+                    user_id=current_user.id,
+                    role=member_role,
+                    joined_at=func.now()
+                )
+                db.add(member)
+                channel.member_count += 1
+                await db.flush()
+            except IntegrityError:
+                # 竞态条件：其他请求已创建成员记录，回滚后重新查询
+                await db.rollback()
+                member_result = await db.execute(
+                    select(ChannelMember).where(
+                        ChannelMember.channel_id == channel_id,
+                        ChannelMember.user_id == current_user.id
+                    )
+                )
+                member = member_result.scalar_one_or_none()
+                if not member:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="加入频道失败"
+                    )
+        else:
+            # 非官方频道：必须先加入
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="未加入该频道"
+            )
 
     # 查询消息
     query = (

@@ -58,11 +58,20 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
       }
     };
 
+    // 首次加载立即获取
     fetchUnreadData();
+
+    // 当切换频道时，延迟刷新（等待 ChatArea 标记已读完成）
+    const refreshTimer = setTimeout(fetchUnreadData, 800);
+
     // 每30秒刷新一次未读数据
     const interval = setInterval(fetchUnreadData, 30000);
-    return () => clearInterval(interval);
-  }, []);
+
+    return () => {
+      clearTimeout(refreshTimer);
+      clearInterval(interval);
+    };
+  }, [activeChannelId]); // 当切换频道时也刷新未读数据
 
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections(prev => ({

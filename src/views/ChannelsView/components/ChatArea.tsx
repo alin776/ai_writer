@@ -5,15 +5,16 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useGlobalStore } from '@/store/globalStore';
 import type { Channel } from './ChannelList';
 import { MemberManagementDialog } from './MemberManagementDialog';
 import { ReportMessageDialog } from './ReportMessageDialog';
-import { getChannelMembers, type ChannelMember, channelApi, UnreadInfo, type ReactionSummary, type MessageAttachment } from '@/services/channelApi';
+import { getChannelMembers, type ChannelMember, channelApi, UnreadInfo, type ReactionSummary, type MessageAttachment, uploadAttachment } from '@/services/channelApi';
 import { useChannelWebSocket, type ChannelMessage, type ReactionEvent } from '@/hooks/useChannelWebSocket';
 import { TypingIndicator } from './TypingIndicator';
 import { MessageReactions } from './MessageReactions';
 import EmojiPicker from './EmojiPicker';
-import { FileUploader, FilePreview } from './FileUploader';
+import { FileUploader, FilePreview, ALLOWED_TYPES, formatFileSize } from './FileUploader';
 import MessageAttachments from './MessageAttachments';
 import type { MessageEditEvent } from '@/hooks/useChannelWebSocket';
 
@@ -95,6 +96,17 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   const [isSearching, setIsSearching] = useState(false);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [editContent, setEditContent] = useState('');
+  // 公告编辑状态
+  const [showAnnouncementDialog, setShowAnnouncementDialog] = useState(false);
+  const [announcementContent, setAnnouncementContent] = useState('');
+  const [announcementFiles, setAnnouncementFiles] = useState<{
+    id: string;
+    fileName: string;
+    fileType?: string;
+    fileSize: number;
+    fileUrl: string;
+    thumbnailUrl?: string;
+  }[]>([]);
   // 附件上传状态
   const [uploadedFiles, setUploadedFiles] = useState<{
     id: string;
@@ -110,6 +122,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const mentionButtonRef = useRef<HTMLButtonElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const { error: showError, warning: showWarning } = useGlobalStore();
 
   // WebSocket 实时消息
   const { isConnected, typingUsers, onlineUsers, sendTyping } = useChannelWebSocket({
@@ -180,6 +193,15 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     loadMembers();
   }, [channel.id]);
 
+  // 用户进入频道时自动标记为已读
+  useEffect(() => {
+    // 延迟一点让消息加载完成，然后标记已读
+    const timer = setTimeout(() => {
+      channelApi.markChannelAsRead(channel.id);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [channel.id]);
+
   // 获取最新公告
   useEffect(() => {
     const fetchLatestAnnouncement = async () => {
@@ -228,6 +250,27 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
 
     setMessageInput('');
     setReplyingTo(null);  // 清除回复状态
+  };
+
+  // 发送公告（从公告编辑对话框）
+  const handleSendAnnouncement = () => {
+    const hasContent = announcementContent.trim();
+    const hasAttachments = announcementFiles.length > 0;
+
+    if (!hasContent && !hasAttachments) return;
+
+    // 如果有附件，使用带附件的发送方法
+    if (hasAttachments && onSendMessageWithAttachments) {
+      const attachmentIds = announcementFiles.map(f => f.id);
+      onSendMessageWithAttachments(announcementContent, attachmentIds, 'announcement');
+    } else if (hasContent) {
+      onSendMessage(announcementContent, 'announcement');
+    }
+
+    // 清空并关闭对话框
+    setAnnouncementContent('');
+    setAnnouncementFiles([]);
+    setShowAnnouncementDialog(false);
   };
 
   // 计算过滤后的成员列表（用于键盘导航）
@@ -365,6 +408,63 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         setMentionFilter('');
         setMentionStartIndex(-1);
         setMentionSelectedIndex(0);
+      }
+    }
+  };
+
+  // 处理粘贴事件 - 支持粘贴图片和文件
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = e.clipboardData?.files;
+    if (!files || files.length === 0) return;
+
+    // 检查是否有文件被粘贴
+    const fileArray = Array.from(files);
+    const validFiles = fileArray.filter(file => ALLOWED_TYPES.includes(file.type));
+
+    if (validFiles.length === 0) {
+      // 如果粘贴的不是支持的文件类型，让默认的文本粘贴行为继续
+      return;
+    }
+
+    // 阻止默认粘贴行为（因为我们要处理文件）
+    e.preventDefault();
+
+    // 检查文件数量限制
+    const maxFiles = 5;
+    const maxFileSize = 10 * 1024 * 1024; // 10MB
+    const remainingSlots = maxFiles - uploadedFiles.length;
+
+    if (remainingSlots <= 0) {
+      showWarning(`最多只能上传 ${maxFiles} 个文件`);
+      return;
+    }
+
+    const filesToUpload = validFiles.slice(0, remainingSlots);
+    if (validFiles.length > remainingSlots) {
+      showWarning(`最多只能上传 ${maxFiles} 个文件，已自动截取前 ${remainingSlots} 个`);
+    }
+
+    // 上传文件
+    for (const file of filesToUpload) {
+      // 验证文件大小
+      if (file.size > maxFileSize) {
+        showError(`文件 ${file.name} 大小超过限制（最大 ${formatFileSize(maxFileSize)}）`);
+        continue;
+      }
+
+      try {
+        const response = await uploadAttachment(channel.id, file);
+        const uploadedFile = {
+          id: response.id,
+          fileName: response.fileName || file.name,
+          fileType: response.fileType || file.type,
+          fileSize: response.fileSize || file.size,
+          fileUrl: response.fileUrl || '',
+          thumbnailUrl: response.thumbnailUrl,
+        };
+        setUploadedFiles(prev => [...prev, uploadedFile]);
+      } catch (err) {
+        showError(`上传失败: ${file.name}`);
       }
     }
   };
@@ -512,6 +612,44 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     return { show: false };
   };
 
+  // 渲染消息内容，高亮 @用户名
+  const renderMessageContent = (content: string, isOwnMessage: boolean) => {
+    // 匹配 @用户名 或 @全体成员
+    const mentionRegex = /@([^\s@]+)/g;
+    const parts: (string | JSX.Element)[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = mentionRegex.exec(content)) !== null) {
+      // 添加 @ 之前的普通文本
+      if (match.index > lastIndex) {
+        parts.push(content.slice(lastIndex, match.index));
+      }
+      // 添加高亮的 @用户名
+      parts.push(
+        <span
+          key={match.index}
+          className={cn(
+            "px-1 py-0.5 rounded font-medium",
+            isOwnMessage
+              ? "bg-amber-400/30 text-amber-100"
+              : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
+          )}
+        >
+          {match[0]}
+        </span>
+      );
+      lastIndex = match.index + match[0].length;
+    }
+
+    // 添加剩余的普通文本
+    if (lastIndex < content.length) {
+      parts.push(content.slice(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : content;
+  };
+
   // 跳转到指定消息
   const jumpToMessage = (messageId: string) => {
     const element = messageRefs.current.get(messageId);
@@ -520,6 +658,10 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
       // 高亮效果
       element.classList.add('highlight-message');
       setTimeout(() => element.classList.remove('highlight-message'), 2000);
+    } else {
+      // 消息不在当前加载的列表中
+      console.warn('[ChatArea] 消息不在当前列表中:', messageId);
+      showWarning('该消息不在当前页面，请向上滚动加载更多消息');
     }
   };
 
@@ -542,8 +684,15 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
 
   // 跳转到@提醒
   const jumpToMention = () => {
+    console.log('[ChatArea] jumpToMention called, unreadInfo:', unreadInfo);
     if (unreadInfo?.latestMentionMessageId) {
+      console.log('[ChatArea] Jumping to mention message:', unreadInfo.latestMentionMessageId);
       jumpToMessage(unreadInfo.latestMentionMessageId);
+      // 跳转后清除本地 mentionCount，让按钮消失
+      setUnreadInfo(prev => prev ? { ...prev, mentionCount: 0 } : null);
+    } else {
+      console.warn('[ChatArea] No latestMentionMessageId found');
+      showWarning('未找到@消息');
     }
   };
 
@@ -609,7 +758,10 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   };
 
   const statusInfo = getChannelStatusInfo();
-  const canSendAnnouncement = currentUser.isCreator && channel.type === 'fangroup';
+  // 发布公告权限：粉丝群创建者 或 官方频道的群主/管理员
+  const canSendAnnouncement =
+    (currentUser.isCreator && channel.type === 'fangroup') ||
+    (channel.type === 'official' && (currentUser.role === 'owner' || currentUser.role === 'admin'));
 
   return (
     <div
@@ -743,47 +895,50 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   "flex flex-col max-w-[70%]",
                   isOwnMessage ? "items-end" : "items-start"
                 )}>
-                  <div className={cn(
-                    "flex items-baseline gap-2 mb-1.5 flex-wrap",
-                    isOwnMessage ? "flex-row-reverse" : "flex-row"
-                  )}>
-                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{message.userName}</span>
+                  {/* 自己的消息不显示顶部信息栏（用户名、时间等） */}
+                  {!isOwnMessage && (
+                    <div className={cn(
+                      "flex items-baseline gap-2 mb-1.5 flex-wrap",
+                      "flex-row"
+                    )}>
+                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{message.userName}</span>
 
-                    {message.userTitle && (
-                      <span
-                        className="text-xs px-2 py-0.5 rounded"
-                        style={{
-                          color: message.userTitleColor || '#78716c',
-                          backgroundColor: message.userTitleColor ? `${message.userTitleColor}15` : '#fafaf9'
-                        }}
-                      >
-                        {message.userTitle}
+                      {message.userTitle && (
+                        <span
+                          className="text-xs px-2 py-0.5 rounded"
+                          style={{
+                            color: message.userTitleColor || '#78716c',
+                            backgroundColor: message.userTitleColor ? `${message.userTitleColor}15` : '#fafaf9'
+                          }}
+                        >
+                          {message.userTitle}
+                        </span>
+                      )}
+
+                      <span className="text-xs text-gray-400 dark:text-gray-500">
+                        {message.timestamp.toLocaleTimeString('zh-CN', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
                       </span>
-                    )}
 
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                      {message.timestamp.toLocaleTimeString('zh-CN', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </span>
+                      {message.isEdited && (
+                        <span
+                          className="text-xs text-gray-400 dark:text-gray-500 italic cursor-default"
+                          title={message.editedAt ? `编辑于 ${message.editedAt.toLocaleString('zh-CN')}` : '已编辑'}
+                        >
+                          (已编辑)
+                        </span>
+                      )}
 
-                    {message.isEdited && (
-                      <span
-                        className="text-xs text-gray-400 dark:text-gray-500 italic cursor-default"
-                        title={message.editedAt ? `编辑于 ${message.editedAt.toLocaleString('zh-CN')}` : '已编辑'}
-                      >
-                        (已编辑)
-                      </span>
-                    )}
-
-                    {isAnnouncement && (
-                      <span className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 rounded flex items-center gap-1">
-                        <Megaphone className="w-3 h-3" />
-                        公告
-                      </span>
-                    )}
-                  </div>
+                      {isAnnouncement && (
+                        <span className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 rounded flex items-center gap-1">
+                          <Megaphone className="w-3 h-3" />
+                          公告
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   {/* 消息气泡（包含回复和内容） */}
                   <div className={cn(
@@ -827,7 +982,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                         isOwnMessage ? "text-white" : "text-gray-700 dark:text-gray-200",
                         isAnnouncement && "text-amber-900 dark:text-amber-200"
                       )}>
-                        {message.content}
+                        {renderMessageContent(message.content, isOwnMessage)}
                       </div>
                     )}
 
@@ -858,7 +1013,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         </div>
 
         {/* 浮动跳转按钮 */}
-        <div className="fixed bottom-24 right-8 flex flex-col gap-2 z-10">
+        <div className="fixed bottom-44 right-8 flex flex-col gap-2 z-10">
           {/* 跳转到@提醒 */}
           {unreadInfo && unreadInfo.mentionCount > 0 && (
             <button
@@ -939,6 +1094,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
             value={messageInput}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={
               channel.status === 'locked'
                 ? '频道已折叠'
@@ -992,11 +1148,12 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
 
               {canSendAnnouncement && (
                 <button
-                  onClick={() => handleSend('announcement')}
-                  disabled={(!messageInput.trim() && uploadedFiles.length === 0) || channel.status === 'locked'}
-                  className="text-xs px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg text-gray-600 dark:text-slate-400 disabled:opacity-30 transition-colors"
+                  onClick={() => setShowAnnouncementDialog(true)}
+                  disabled={channel.status === 'locked'}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg text-amber-600 dark:text-amber-400 disabled:opacity-30 transition-colors"
+                  title="发布公告"
                 >
-                  发布公告
+                  <Megaphone className="w-4 h-4" />
                 </button>
               )}
             </div>
@@ -1427,6 +1584,88 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                 className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
                 保存修改
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 公告编辑对话框 */}
+      {showAnnouncementDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md mx-4">
+            {/* 标题栏 */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                <h3 className="text-base font-medium dark:text-gray-100">发布公告</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowAnnouncementDialog(false);
+                  setAnnouncementContent('');
+                  setAnnouncementFiles([]);
+                }}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              >
+                <X className="w-4 h-4 dark:text-gray-400" />
+              </button>
+            </div>
+
+            {/* 公告内容 */}
+            <div className="p-4 space-y-4">
+              <textarea
+                value={announcementContent}
+                onChange={(e) => setAnnouncementContent(e.target.value)}
+                placeholder="输入公告内容..."
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                rows={4}
+                autoFocus
+              />
+
+              {/* 已上传文件预览 */}
+              <FilePreview
+                files={announcementFiles}
+                onRemove={(fileId) => setAnnouncementFiles(prev => prev.filter(f => f.id !== fileId))}
+              />
+
+              {/* 文件上传 */}
+              <div className="flex items-center gap-2">
+                <FileUploader
+                  channelId={channel.id}
+                  uploadedFiles={announcementFiles}
+                  onFilesUploaded={(files) => setAnnouncementFiles(prev => [...prev, ...files])}
+                  maxFiles={5}
+                />
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  可添加附件（最多5个）
+                </span>
+              </div>
+
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                公告将发送给所有频道成员
+              </p>
+            </div>
+
+            {/* 底部按钮 */}
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-b-lg">
+              <button
+                onClick={() => {
+                  setShowAnnouncementDialog(false);
+                  setAnnouncementContent('');
+                  setAnnouncementFiles([]);
+                }}
+                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSendAnnouncement}
+                disabled={!announcementContent.trim() && announcementFiles.length === 0}
+                className="px-4 py-2 text-sm bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+              >
+                <Megaphone className="w-4 h-4" />
+                发布公告
               </button>
             </div>
           </div>

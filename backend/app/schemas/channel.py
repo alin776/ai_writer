@@ -149,6 +149,7 @@ class ChannelMessageResponse(ChannelMessageBase):
     id: UUID
     channel_id: UUID
     user_id: Optional[UUID]
+    content: str = ""  # 覆盖父类定义，允许空字符串（纯附件消息）
     type: MessageType
     is_pinned: bool
     is_deleted: bool

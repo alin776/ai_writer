@@ -13,6 +13,7 @@ from starlette.websockets import WebSocketState
 from celery.result import AsyncResult
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 import asyncio
 import json
 import logging
@@ -25,6 +26,9 @@ from app.core.config import settings
 from app.services.notification_service import NotificationService
 from app.schemas.notification import UserNotificationResponse
 from app.models.channel_member import ChannelMember
+from app.models.channel import Channel
+from app.models.user import User
+import uuid as uuid_module
 
 logger = logging.getLogger(__name__)
 
@@ -65,18 +69,64 @@ async def verify_ws_token(token: str) -> Optional[UUID]:
 async def check_channel_member(channel_id: UUID, user_id: UUID) -> Optional[ChannelMember]:
     """
     检查用户是否为频道成员
+    对于官方频道，如果用户没有成员记录会自动创建
 
     Returns:
         ChannelMember 或 None
     """
     async with AsyncSessionLocal() as db:
+        # 检查是否已是成员
         result = await db.execute(
             select(ChannelMember).where(
                 ChannelMember.channel_id == channel_id,
                 ChannelMember.user_id == user_id
             )
         )
-        return result.scalar_one_or_none()
+        member = result.scalar_one_or_none()
+
+        if member:
+            return member
+
+        # 检查是否是官方频道
+        channel_result = await db.execute(
+            select(Channel).where(Channel.id == channel_id)
+        )
+        channel = channel_result.scalar_one_or_none()
+
+        if channel and channel.type == "official":
+            # 获取用户信息判断角色
+            user_result = await db.execute(
+                select(User).where(User.id == user_id)
+            )
+            user = user_result.scalar_one_or_none()
+
+            member_role = "owner" if user and user.is_admin else "member"
+
+            try:
+                # 自动创建成员记录
+                member = ChannelMember(
+                    id=uuid_module.uuid4(),
+                    channel_id=channel_id,
+                    user_id=user_id,
+                    role=member_role
+                )
+                db.add(member)
+                channel.member_count += 1
+                await db.commit()
+                await db.refresh(member)
+                return member
+            except IntegrityError:
+                # 竞态条件：其他请求已创建成员记录，回滚后重新查询
+                await db.rollback()
+                result = await db.execute(
+                    select(ChannelMember).where(
+                        ChannelMember.channel_id == channel_id,
+                        ChannelMember.user_id == user_id
+                    )
+                )
+                return result.scalar_one_or_none()
+
+        return None
 
 
 @router.websocket("/ws/review/{task_id}")

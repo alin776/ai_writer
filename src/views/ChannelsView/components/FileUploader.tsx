@@ -29,7 +29,7 @@ interface FileUploaderProps {
 }
 
 // 允许的文件类型
-const ALLOWED_TYPES = [
+export const ALLOWED_TYPES = [
   // 图片
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp',
   // 文档

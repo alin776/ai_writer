@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useWorkNavStore } from '../../store/workNavStore';
+import { channelApi } from '@/services/channelApi';
 import clsx from 'clsx';
 
 interface NavItem {
@@ -72,7 +73,34 @@ export const Sidebar: React.FC = () => {
   const [isServiceExpanded, setIsServiceExpanded] = useState(true);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isQRCodeOpen, setIsQRCodeOpen] = useState(false);
+  const [hasChannelMention, setHasChannelMention] = useState(false); // 频道是否有@提醒
+  const [channelUnreadCount, setChannelUnreadCount] = useState(0); // 频道未读消息总数
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // 获取频道未读状态
+  useEffect(() => {
+    const fetchChannelUnread = async () => {
+      try {
+        const summary = await channelApi.getUnreadSummary();
+        // 检查是否有任何频道有@提醒
+        const hasMention = summary.channels.some(ch => ch.mentionCount > 0);
+        setHasChannelMention(hasMention);
+        // 计算未读消息总数
+        const totalUnread = summary.channels.reduce((sum, ch) => sum + ch.unreadCount, 0);
+        setChannelUnreadCount(totalUnread);
+      } catch (error) {
+        // 未登录或接口错误时忽略
+      }
+    };
+
+    // 只有登录用户才获取
+    if (user) {
+      fetchChannelUnread();
+      // 每30秒刷新一次
+      const interval = setInterval(fetchChannelUnread, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user, location.pathname]); // 路径变化时也刷新（可能标记了已读）
 
   // 点击外部关闭菜单
   useEffect(() => {
@@ -122,6 +150,9 @@ export const Sidebar: React.FC = () => {
     const Icon = item.icon;
     const active = isActive(item.path);
     const tooltip = item.tooltip || item.label;
+    const isChannelItem = item.id === 'channels';
+    const showMentionDot = isChannelItem && hasChannelMention;
+    const showUnreadBadge = isChannelItem && !hasChannelMention && channelUnreadCount > 0;
 
     return (
       <Link
@@ -137,8 +168,24 @@ export const Sidebar: React.FC = () => {
         title={isCollapsed ? tooltip : undefined}
       >
         {active && <div className="absolute left-0 top-1 bottom-1 w-1 bg-blue-600 dark:bg-blue-400 rounded-r"></div>}
-        <Icon className={clsx('flex-shrink-0', isCollapsed ? 'w-5 h-5' : 'w-4 h-4', 'text-gray-900 dark:text-white')} />
-        {!isCollapsed && <span className="text-sm font-medium">{item.label}</span>}
+        <div className="relative flex-shrink-0">
+          <Icon className={clsx(isCollapsed ? 'w-5 h-5' : 'w-4 h-4', 'text-gray-900 dark:text-white')} />
+          {/* 频道@提醒红点 - 优先级最高 */}
+          {showMentionDot && (
+            <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+          )}
+        </div>
+        {!isCollapsed && (
+          <>
+            <span className="text-sm font-medium flex-1">{item.label}</span>
+            {/* 频道未读消息数量徽章 */}
+            {showUnreadBadge && (
+              <span className="text-xs bg-gray-900 dark:bg-zinc-600 text-white rounded-full h-5 min-w-5 px-1.5 flex items-center justify-center">
+                {channelUnreadCount > 99 ? '99+' : channelUnreadCount}
+              </span>
+            )}
+          </>
+        )}
         {isCollapsed && (
           <div className="absolute left-full ml-2 px-2 py-1 bg-slate-900 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
             {tooltip}
