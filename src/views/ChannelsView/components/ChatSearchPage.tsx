@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, X, FileText, Check, Loader2 } from 'lucide-react';
+import { Search, X, FileText, Check, Loader2, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import * as channelApi from '@/services/channelApi';
@@ -546,9 +546,7 @@ function ResultItem({
 
         {/* 消息内容 */}
         {message.content && (
-          <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
-            <HighlightText text={message.content} keyword={keyword} />
-          </p>
+          <MessageContent content={message.content} keyword={keyword} />
         )}
 
         {/* 文件附件 */}
@@ -601,8 +599,82 @@ function HighlightText({ text, keyword }: { text: string; keyword?: string }) {
   );
 }
 
+// MessageContent 组件 - 处理表情包和普通文本
+function MessageContent({ content, keyword }: { content: string; keyword?: string }) {
+  // 检查是否是纯表情包消息 ![sticker](url)
+  const stickerMatch = content.match(/^!\[sticker\]\((.+)\)$/);
+  if (stickerMatch) {
+    return (
+      <div className="mb-1">
+        <img
+          src={stickerMatch[1]}
+          alt="sticker"
+          className="max-w-[120px] max-h-[120px] rounded object-contain"
+          loading="lazy"
+        />
+      </div>
+    );
+  }
+
+  // 检查是否包含图片 ![alt](url)
+  const imageMatch = content.match(/^!\[([^\]]*)\]\((.+)\)$/);
+  if (imageMatch) {
+    return (
+      <div className="mb-1">
+        <img
+          src={imageMatch[2]}
+          alt={imageMatch[1] || 'image'}
+          className="max-w-[150px] max-h-[120px] rounded object-cover"
+          loading="lazy"
+        />
+      </div>
+    );
+  }
+
+  // 普通文本内容
+  return (
+    <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
+      <HighlightText text={content} keyword={keyword} />
+    </p>
+  );
+}
+
 function escapeRegex(str: string) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// DateInput 组件 - 自定义日期输入，支持中文占位符
+function DateInput({ value, onChange, placeholder }: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  // 格式化显示
+  const displayValue = value ? format(new Date(value), 'yyyy/MM/dd') : placeholder;
+
+  return (
+    <div className="flex-1 min-w-0 relative">
+      {/* 显示层 */}
+      <div
+        className={cn(
+          "flex items-center justify-between px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded",
+          "bg-white dark:bg-gray-700",
+          value ? "text-gray-900 dark:text-gray-100" : "text-gray-400 dark:text-gray-500"
+        )}
+      >
+        <span>{displayValue}</span>
+        <Calendar className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+      </div>
+      {/* 透明原生日期选择器 - 绝对定位覆盖 */}
+      <input
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+        style={{ colorScheme: 'dark' }}
+      />
+    </div>
+  );
 }
 
 // DatePickerPopover 组件
@@ -655,19 +727,9 @@ function DatePickerPopover({
 
         {/* 日期输入 */}
         <div className="flex items-center gap-2">
-          <input
-            type="date"
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-            className="flex-1 min-w-0 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-          />
+          <DateInput value={start} onChange={setStart} placeholder="年/月/日" />
           <span className="text-gray-400 dark:text-gray-500 flex-shrink-0">至</span>
-          <input
-            type="date"
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-            className="flex-1 min-w-0 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-          />
+          <DateInput value={end} onChange={setEnd} placeholder="年/月/日" />
         </div>
 
         {/* 操作按钮 */}

@@ -60,6 +60,8 @@ class User(Base):
     channel_invites = relationship("ChannelInvite", back_populates="creator", cascade="all, delete-orphan")
     message_bookmarks = relationship("MessageBookmark", back_populates="user", cascade="all, delete-orphan")
     channel_notification_settings = relationship("ChannelNotificationSetting", back_populates="user", cascade="all, delete-orphan")
-    
+    stickers = relationship("UserSticker", back_populates="user", cascade="all, delete-orphan")
+    favorite_stickers = relationship("UserFavoriteSticker", back_populates="user", cascade="all, delete-orphan")
+
     def __repr__(self):
         return f"<User {self.username}>"

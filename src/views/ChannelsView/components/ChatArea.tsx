@@ -1610,27 +1610,30 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
               <div className="p-4">
                 <h4 className="text-xs text-gray-500 dark:text-gray-400 mb-3">频道管理</h4>
                 <div className="space-y-1">
-                  {/* 粉丝群 - 创作者专属 */}
-                  {currentUser.isCreator && channel.type === 'fangroup' && (
-                    <>
-                      <button
-                        onClick={() => setShowMemberDialog(true)}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-800 rounded dark:text-gray-200"
-                      >
-                        <Users className="w-3.5 h-3.5" />
-                        管理成员
-                      </button>
-                      <button
-                        onClick={onLeaveChannel}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        解散频道
-                      </button>
-                    </>
+                  {/* 管理成员按钮 - owner/admin 可见（官方频道和粉丝群） */}
+                  {(currentUser.role === 'owner' || currentUser.role === 'admin') &&
+                   (channel.type === 'official' || channel.type === 'fangroup') && (
+                    <button
+                      onClick={() => setShowMemberDialog(true)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-800 rounded dark:text-gray-200"
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      管理成员
+                    </button>
                   )}
 
-                  {/* 粉丝群 - 普通成员 */}
+                  {/* 粉丝群 - 创作者专属：解散频道 */}
+                  {currentUser.isCreator && channel.type === 'fangroup' && (
+                    <button
+                      onClick={onLeaveChannel}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      解散频道
+                    </button>
+                  )}
+
+                  {/* 粉丝群 - 非创建者：退出频道 */}
                   {!currentUser.isCreator && channel.type === 'fangroup' && (
                     <button
                       onClick={onLeaveChannel}
@@ -1671,6 +1674,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         channelName={channel.name}
         currentUserId={currentUser.id}
         isCreator={currentUser.isCreator || false}
+        userRole={currentUser.role || 'member'}
       />
 
       {/* 举报对话框 */}

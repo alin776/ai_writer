@@ -46,6 +46,8 @@ export interface ChannelMember {
   avatar?: string;
   role: 'owner' | 'admin' | 'member';
   joinedAt: string;
+  isMuted?: boolean;
+  mutedUntil?: string;
 }
 
 export interface ChannelMemberListResponse {

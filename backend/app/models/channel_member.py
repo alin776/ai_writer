@@ -31,6 +31,7 @@ class ChannelMember(Base):
     is_muted = Column(Boolean, default=False, nullable=False, comment="是否禁言")
     muted_until = Column(DateTime(timezone=True), nullable=True, comment="禁言到期时间")
     is_banned = Column(Boolean, default=False, nullable=False, comment="是否被封禁")
+    banned_at = Column(DateTime(timezone=True), nullable=True, comment="封禁时间")
 
     # 用户称号（可选，显示在消息旁边）
     custom_title = Column(String(50), nullable=True, comment="自定义称号")

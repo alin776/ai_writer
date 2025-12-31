@@ -122,12 +122,13 @@ async def update_unread_counts(
     mentioned_usernames: List[str]
 ):
     """更新频道成员的未读消息数和@提醒数"""
-    # 获取所有频道成员（除了发送者）
+    # 获取所有频道成员（除了发送者和被封禁的用户）
     members_result = await db.execute(
         select(ChannelMember)
         .where(
             ChannelMember.channel_id == channel_id,
-            ChannelMember.user_id != sender_id
+            ChannelMember.user_id != sender_id,
+            ChannelMember.is_banned == False  # 过滤被封禁用户
         )
         .options(selectinload(ChannelMember.user))
     )
@@ -323,13 +324,13 @@ async def get_my_channels(
         )
     )
 
-    # 查询当前用户在所有频道中的成员关系
+    # 查询当前用户在所有频道中的成员关系（包含被封禁状态，用于判断）
     channel_ids = [c.id for c in all_channels]
     if channel_ids:  # 只有在有频道时才查询
         members_query = select(ChannelMember).where(
             ChannelMember.channel_id.in_(channel_ids),
-            ChannelMember.user_id == current_user.id,
-            ChannelMember.is_banned == False
+            ChannelMember.user_id == current_user.id
+            # 不过滤 is_banned，需要知道封禁状态
         )
         members_result = await db.execute(members_query)
         members = {m.channel_id: m for m in members_result.scalars().all()}
@@ -339,20 +340,31 @@ async def get_my_channels(
     # 构建响应
     channel_responses = []
     for channel in all_channels:
+        member = members.get(channel.id)
+
+        # 被封禁的非官方频道不显示在列表中
+        if member and member.is_banned and channel.type != 'official':
+            continue
+
         channel_data = build_channel_response(channel, channel.work)
         # 添加当前用户在该频道中的角色
-        member = members.get(channel.id)
         if member:
-            channel_data['current_user_role'] = member.role
+            if member.is_banned:
+                # 被封禁用户：角色为 None，标记无法访问
+                channel_data['current_user_role'] = None
+                channel_data['can_access'] = False
+            else:
+                channel_data['current_user_role'] = member.role
+                # 检查用户是否满足进入要求
+                can_access = await check_channel_access(channel, current_user, db)
+                channel_data['can_access'] = can_access
         elif channel.type == 'official':
             # 官方频道默认为member角色（如果用户是管理员，会在自动加入时设置为owner）
             channel_data['current_user_role'] = 'owner' if current_user.is_admin else 'member'
+            channel_data['can_access'] = True
         else:
             channel_data['current_user_role'] = None
-
-        # 检查用户是否满足进入要求
-        can_access = await check_channel_access(channel, current_user, db)
-        channel_data['can_access'] = can_access
+            channel_data['can_access'] = False
 
         channel_responses.append(ChannelResponse(**channel_data))
 
@@ -523,6 +535,13 @@ async def leave_channel(
             detail="未加入该频道"
         )
 
+    # 被封禁用户不能主动退出
+    if member.is_banned:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="您已被封禁，无法退出频道"
+        )
+
     channel = member.channel
 
     # 不能退出官方频道
@@ -587,10 +606,13 @@ async def get_channel_members(
             detail="您不是该频道的成员"
         )
 
-    # 获取所有成员
+    # 获取所有成员（排除被封禁的）
     result = await db.execute(
         select(ChannelMember)
-        .where(ChannelMember.channel_id == channel_id)
+        .where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.is_banned == False  # 过滤被封禁用户
+        )
         .options(selectinload(ChannelMember.user))
         .order_by(ChannelMember.joined_at)
     )
@@ -624,9 +646,11 @@ async def kick_member(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    踢出频道成员（仅创建者可操作）
+    踢出频道成员（owner 和 admin 可操作）
+    - owner 可以踢出 admin 和 member
+    - admin 只能踢出 member
     """
-    # 检查当前用户是否是频道创建者
+    # 检查当前用户权限
     current_member_result = await db.execute(
         select(ChannelMember)
         .where(
@@ -643,10 +667,10 @@ async def kick_member(
             detail="您不是该频道的成员"
         )
 
-    if current_member.role != 'owner':
+    if current_member.role not in ['owner', 'admin']:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="只有频道创建者可以踢出成员"
+            detail="只有管理员可以踢出成员"
         )
 
     # 不能踢出自己
@@ -671,12 +695,32 @@ async def kick_member(
             detail="该用户不是频道成员"
         )
 
-    # 删除成员
-    await db.delete(target_member)
+    # 不能踢出 owner
+    if target_member.role == 'owner':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="不能踢出频道创建者"
+        )
 
-    # 更新频道成员数
+    # admin 不能踢出其他 admin
+    if current_member.role == 'admin' and target_member.role == 'admin':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="管理员不能踢出其他管理员"
+        )
+
     channel = current_member.channel
-    channel.member_count -= 1
+
+    # 官方频道：设置封禁标记而不是删除（防止用户自动重新加入）
+    if channel.type == "official":
+        from datetime import datetime, timezone
+        target_member.is_banned = True
+        target_member.banned_at = datetime.now(timezone.utc)  # 记录封禁时间
+        target_member.role = "member"  # 降级为普通成员
+    else:
+        # 其他频道：删除成员记录
+        await db.delete(target_member)
+        channel.member_count -= 1
 
     await db.commit()
 
@@ -719,39 +763,55 @@ async def get_channel_messages(
     if not member:
         # 官方频道：自动加入
         if channel.type == "official":
-            member_role = "owner" if current_user.is_admin else "member"
-            try:
-                member = ChannelMember(
-                    id=uuid.uuid4(),
-                    channel_id=channel_id,
-                    user_id=current_user.id,
-                    role=member_role,
-                    joined_at=func.now()
+            # 先检查是否存在被封禁的记录（防止"复活"）
+            banned_check = await db.execute(
+                select(ChannelMember).where(
+                    ChannelMember.channel_id == channel_id,
+                    ChannelMember.user_id == current_user.id,
+                    ChannelMember.is_banned == True
                 )
-                db.add(member)
-                channel.member_count += 1
-                await db.flush()
-            except IntegrityError:
-                # 竞态条件：其他请求已创建成员记录，回滚后重新查询
-                await db.rollback()
-                member_result = await db.execute(
-                    select(ChannelMember).where(
-                        ChannelMember.channel_id == channel_id,
-                        ChannelMember.user_id == current_user.id
+            )
+            banned_member = banned_check.scalar_one_or_none()
+            if banned_member:
+                # 被封禁用户不能自动加入，但可以查看封禁前的消息
+                member = banned_member
+            else:
+                member_role = "owner" if current_user.is_admin else "member"
+                try:
+                    member = ChannelMember(
+                        id=uuid.uuid4(),
+                        channel_id=channel_id,
+                        user_id=current_user.id,
+                        role=member_role,
+                        joined_at=func.now()
                     )
-                )
-                member = member_result.scalar_one_or_none()
-                if not member:
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail="加入频道失败"
+                    db.add(member)
+                    channel.member_count += 1
+                    await db.flush()
+                except IntegrityError:
+                    # 竞态条件：其他请求已创建成员记录，回滚后重新查询
+                    await db.rollback()
+                    member_result = await db.execute(
+                        select(ChannelMember).where(
+                            ChannelMember.channel_id == channel_id,
+                            ChannelMember.user_id == current_user.id
+                        )
                     )
+                    member = member_result.scalar_one_or_none()
+                    if not member:
+                        raise HTTPException(
+                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="加入频道失败"
+                        )
+                    # 如果是被封禁的用户，后面会限制消息可见范围
         else:
             # 非官方频道：必须先加入
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="未加入该频道"
             )
+
+    # 注意：被封禁用户仍可查看消息，但只能看到封禁前的消息（下面的查询会限制）
 
     # 查询消息
     query = (
@@ -767,127 +827,20 @@ async def get_channel_messages(
         .order_by(ChannelMessage.created_at.asc())
     )
 
+    # 如果用户被封禁，只能看到封禁前的消息
+    banned_at_filter = None
+    if member.is_banned and member.banned_at:
+        banned_at_filter = member.banned_at
+        query = query.where(ChannelMessage.created_at <= member.banned_at)
+
     # 获取总数
     count_query = select(func.count(ChannelMessage.id)).where(
         ChannelMessage.channel_id == channel_id,
         ChannelMessage.is_deleted == False
     )
-    count_result = await db.execute(count_query)
-    total = count_result.scalar() or 0
-
-    # 分页查询
-    result = await db.execute(query.offset(skip).limit(limit))
-    messages = result.scalars().all()
-
-    # 获取成员信息（用于显示用户称号）
-    member_dict = {}
-    if messages:
-        user_ids = list(set(msg.user_id for msg in messages if msg.user_id))
-        if user_ids:
-            members_result = await db.execute(
-                select(ChannelMember).where(
-                    ChannelMember.channel_id == channel_id,
-                    ChannelMember.user_id.in_(user_ids)
-                )
-            )
-            for member in members_result.scalars():
-                member_dict[member.user_id] = member
-
-    # 构建响应
-    message_responses = []
-    for msg in messages:
-        member = member_dict.get(msg.user_id)
-        # 构建附件列表
-        attachments_data = [
-            {
-                "id": att.id,
-                "file_name": att.file_name,
-                "file_type": att.file_type,
-                "file_size": att.file_size,
-                "file_url": att.file_url,
-                "thumbnail_url": att.thumbnail_url,
-                "created_at": att.created_at
-            }
-            for att in (msg.attachments or [])
-        ]
-        message_responses.append(ChannelMessageResponse(
-            id=msg.id,
-            channel_id=msg.channel_id,
-            user_id=msg.user_id,
-            content=msg.content,
-            type=msg.type,
-            is_pinned=msg.is_pinned,
-            is_deleted=msg.is_deleted,
-            is_edited=msg.is_edited,
-            reply_to_id=msg.reply_to_id,
-            forwarded_from_id=msg.forwarded_from_id,
-            reaction_count=msg.reaction_count,
-            created_at=msg.created_at,
-            updated_at=msg.updated_at,
-            deleted_at=msg.deleted_at,
-            edited_at=msg.edited_at,
-            user_name=msg.user.username if msg.user else "已删除用户",
-            user_avatar=msg.user.avatar if msg.user else None,
-            user_honor=msg.user.honor if msg.user else None,
-            user_title=member.custom_title if member else None,
-            user_title_color=member.title_color if member else None,
-            attachments=attachments_data
-        ))
-
-    has_more = skip + limit < total
-
-    return ChannelMessageListResponse(
-        messages=message_responses,
-        total=total,
-        has_more=has_more
-    )
-
-
-@router.get("/{channel_id}/announcements", response_model=ChannelMessageListResponse)
-async def get_channel_announcements(
-    channel_id: UUID,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    获取频道公告列表
-    """
-    # 检查是否是频道成员
-    member_result = await db.execute(
-        select(ChannelMember).where(
-            ChannelMember.channel_id == channel_id,
-            ChannelMember.user_id == current_user.id
-        )
-    )
-    if not member_result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="未加入该频道"
-        )
-
-    # 查询公告消息（只查询公告类型的消息）
-    query = (
-        select(ChannelMessage)
-        .where(
-            ChannelMessage.channel_id == channel_id,
-            ChannelMessage.is_deleted == False,
-            ChannelMessage.type == MessageType.ANNOUNCEMENT
-        )
-        .options(
-            selectinload(ChannelMessage.user),
-            selectinload(ChannelMessage.attachments)
-        )
-        .order_by(ChannelMessage.created_at.desc())  # 最新的公告在前
-    )
-
-    # 获取总数
-    count_query = select(func.count(ChannelMessage.id)).where(
-        ChannelMessage.channel_id == channel_id,
-        ChannelMessage.is_deleted == False,
-        ChannelMessage.type == MessageType.ANNOUNCEMENT
-    )
+    # 封禁用户的总数也要限制
+    if banned_at_filter:
+        count_query = count_query.where(ChannelMessage.created_at <= banned_at_filter)
     count_result = await db.execute(count_query)
     total = count_result.scalar() or 0
 
@@ -999,6 +952,20 @@ async def send_message(
     if not member:
         # 官方频道：自动加入
         if channel.type == "official":
+            # 先检查是否存在被封禁的记录（防止"复活"）
+            banned_check = await db.execute(
+                select(ChannelMember).where(
+                    ChannelMember.channel_id == channel_id,
+                    ChannelMember.user_id == current_user.id,
+                    ChannelMember.is_banned == True
+                )
+            )
+            if banned_check.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="您已被移出该频道，无法发送消息"
+                )
+
             # 如果用户是管理员，则设置为owner角色
             member_role = "owner" if current_user.is_admin else "member"
             member = ChannelMember(
@@ -1019,6 +986,13 @@ async def send_message(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="未加入该频道"
             )
+
+    # 检查是否被封禁（官方频道踢出后的用户）
+    if member.is_banned:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您已被移出该频道，无法发送消息"
+        )
 
     # 检查是否被禁言
     from datetime import datetime, timezone
@@ -1184,10 +1158,18 @@ async def report_message(
             ChannelMember.user_id == current_user.id
         )
     )
-    if not member_check.scalar_one_or_none():
+    member = member_check.scalar_one_or_none()
+    if not member:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="您不是该频道的成员"
+        )
+
+    # 检查是否被封禁
+    if member.is_banned:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您已被移出该频道"
         )
 
     # 检查消息是否存在
@@ -1342,10 +1324,18 @@ async def mark_channel_as_read(
             ChannelMember.user_id == current_user.id
         )
     )
-    if not member_check.scalar_one_or_none():
+    member = member_check.scalar_one_or_none()
+    if not member:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="未加入该频道"
+        )
+
+    # 检查是否被封禁
+    if member.is_banned:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您已被移出该频道"
         )
 
     # 获取或创建已读状态记录
@@ -1525,26 +1515,34 @@ async def get_channel_announcements(
     获取频道的所有公告列表
     """
     # 检查是否是频道成员
-    member_check = await db.execute(
+    member_result = await db.execute(
         select(ChannelMember).where(
             ChannelMember.channel_id == channel_id,
             ChannelMember.user_id == current_user.id
         )
     )
-    if not member_check.scalar_one_or_none():
+    member = member_result.scalar_one_or_none()
+    if not member:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="未加入该频道"
         )
 
+    # 构建查询条件
+    conditions = [
+        ChannelMessage.channel_id == channel_id,
+        ChannelMessage.type == "announcement",
+        ChannelMessage.is_deleted == False
+    ]
+
+    # 如果用户被封禁，只能看到封禁前的公告
+    if member.is_banned and member.banned_at:
+        conditions.append(ChannelMessage.created_at <= member.banned_at)
+
     # 获取所有公告消息
     announcements_result = await db.execute(
         select(ChannelMessage)
-        .where(
-            ChannelMessage.channel_id == channel_id,
-            ChannelMessage.type == "announcement",
-            ChannelMessage.is_deleted == False
-        )
+        .where(*conditions)
         .options(
             selectinload(ChannelMessage.user),
             selectinload(ChannelMessage.attachments)
@@ -1557,11 +1555,7 @@ async def get_channel_announcements(
 
     # 获取总数
     total_result = await db.execute(
-        select(func.count(ChannelMessage.id)).where(
-            ChannelMessage.channel_id == channel_id,
-            ChannelMessage.type == "announcement",
-            ChannelMessage.is_deleted == False
-        )
+        select(func.count(ChannelMessage.id)).where(*conditions)
     )
     total = total_result.scalar()
 
@@ -1605,26 +1599,34 @@ async def get_latest_announcement(
     获取频道最新的一条公告（用于顶部悬浮显示）
     """
     # 检查是否是频道成员
-    member_check = await db.execute(
+    member_result = await db.execute(
         select(ChannelMember).where(
             ChannelMember.channel_id == channel_id,
             ChannelMember.user_id == current_user.id
         )
     )
-    if not member_check.scalar_one_or_none():
+    member = member_result.scalar_one_or_none()
+    if not member:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="未加入该频道"
         )
 
+    # 构建查询条件
+    conditions = [
+        ChannelMessage.channel_id == channel_id,
+        ChannelMessage.type == "announcement",
+        ChannelMessage.is_deleted == False
+    ]
+
+    # 如果用户被封禁，只能看到封禁前的公告
+    if member.is_banned and member.banned_at:
+        conditions.append(ChannelMessage.created_at <= member.banned_at)
+
     # 获取最新公告
     latest_result = await db.execute(
         select(ChannelMessage)
-        .where(
-            ChannelMessage.channel_id == channel_id,
-            ChannelMessage.type == "announcement",
-            ChannelMessage.is_deleted == False
-        )
+        .where(*conditions)
         .options(selectinload(ChannelMessage.user))
         .order_by(ChannelMessage.created_at.desc())
         .limit(1)
@@ -1693,6 +1695,13 @@ async def recall_message(
     )
     member = member_result.scalar_one_or_none()
     is_admin = member and member.role in ['owner', 'admin']
+
+    # 检查是否被封禁
+    if member and member.is_banned:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您已被移出该频道，无法撤回消息"
+        )
 
     # 获取消息
     message_result = await db.execute(
@@ -1814,6 +1823,21 @@ async def edit_message(
             detail="只能编辑自己的消息"
         )
 
+    # 检查是否被封禁
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    member = member_result.scalar_one_or_none()
+
+    if member and member.is_banned:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您已被移出该频道，无法编辑消息"
+        )
+
     # 检查是否超过10分钟
     time_limit = timedelta(minutes=10)
     now = datetime.now(timezone.utc)
@@ -1836,15 +1860,6 @@ async def edit_message(
 
     await db.commit()
     await db.refresh(message)
-
-    # 获取成员信息用于返回
-    member_result = await db.execute(
-        select(ChannelMember).where(
-            ChannelMember.channel_id == channel_id,
-            ChannelMember.user_id == current_user.id
-        )
-    )
-    member = member_result.scalar_one_or_none()
 
     # WebSocket 广播消息编辑
     from app.api.v1.ws import broadcast_message_edit
@@ -1903,13 +1918,14 @@ async def search_messages(
     content_type: image_video(图片和视频) | file(文件) | link(链接)
     """
     # 检查是否是频道成员
-    member_check = await db.execute(
+    member_result = await db.execute(
         select(ChannelMember).where(
             ChannelMember.channel_id == channel_id,
             ChannelMember.user_id == current_user.id
         )
     )
-    if not member_check.scalar_one_or_none():
+    member = member_result.scalar_one_or_none()
+    if not member:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="未加入该频道"
@@ -1934,6 +1950,10 @@ async def search_messages(
         ChannelMessage.channel_id == channel_id,
         ChannelMessage.is_deleted == False,
     ]
+
+    # 如果用户被封禁，只能搜索封禁前的消息
+    if member.is_banned and member.banned_at:
+        conditions.append(ChannelMessage.created_at <= member.banned_at)
 
     # 关键词筛选
     if keyword:
@@ -2161,7 +2181,9 @@ async def mute_member(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    禁言成员（仅创建者）
+    禁言成员（owner 和 admin 可操作）
+    - owner 可以禁言 admin 和 member
+    - admin 只能禁言 member
     """
     # 检查操作者权限
     operator_member = await db.execute(
@@ -2172,10 +2194,10 @@ async def mute_member(
     )
     operator = operator_member.scalar_one_or_none()
 
-    if not operator or operator.role != 'owner':
+    if not operator or operator.role not in ['owner', 'admin']:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="只有创建者可以禁言成员"
+            detail="只有管理员可以禁言成员"
         )
 
     # 获取目标成员
@@ -2200,6 +2222,13 @@ async def mute_member(
             detail="不能禁言创建者"
         )
 
+    # admin 不能禁言其他 admin
+    if operator.role == 'admin' and target_member.role == 'admin':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="管理员不能禁言其他管理员"
+        )
+
     # 设置禁言
     from datetime import datetime, timedelta, timezone
     target_member.is_muted = True
@@ -2221,7 +2250,7 @@ async def unmute_member(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    取消禁言（仅创建者）
+    取消禁言（owner 和 admin 可操作）
     """
     # 检查操作者权限
     operator_member = await db.execute(
@@ -2232,10 +2261,10 @@ async def unmute_member(
     )
     operator = operator_member.scalar_one_or_none()
 
-    if not operator or operator.role != 'owner':
+    if not operator or operator.role not in ['owner', 'admin']:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="只有创建者可以取消禁言"
+            detail="只有管理员可以取消禁言"
         )
 
     # 获取目标成员
@@ -2403,6 +2432,13 @@ async def add_reaction(
             detail="未加入该频道"
         )
 
+    # 检查是否被封禁
+    if member.is_banned:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您已被移出该频道，无法操作"
+        )
+
     # 检查消息是否存在且未删除
     message_result = await db.execute(
         select(ChannelMessage).where(
@@ -2494,10 +2530,18 @@ async def remove_reaction(
             ChannelMember.user_id == current_user.id
         )
     )
-    if not member_result.scalar_one_or_none():
+    member = member_result.scalar_one_or_none()
+    if not member:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="未加入该频道"
+        )
+
+    # 检查是否被封禁
+    if member.is_banned:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您已被移出该频道，无法操作"
         )
 
     # 查找反应
@@ -2721,6 +2765,13 @@ async def pin_message(
             detail="只有频道管理员可以置顶消息"
         )
 
+    # 检查是否被封禁
+    if member.is_banned:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您已被移出该频道，无法操作"
+        )
+
     # 检查消息是否存在且未删除
     message_result = await db.execute(
         select(ChannelMessage).where(
@@ -2815,6 +2866,13 @@ async def unpin_message(
             detail="只有频道管理员可以取消置顶"
         )
 
+    # 检查是否被封禁
+    if member.is_banned:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您已被移出该频道，无法操作"
+        )
+
     # 检查消息是否存在
     message_result = await db.execute(
         select(ChannelMessage).where(
@@ -2870,20 +2928,28 @@ async def get_pinned_messages(
             ChannelMember.user_id == current_user.id
         )
     )
-    if not member_result.scalar_one_or_none():
+    member = member_result.scalar_one_or_none()
+    if not member:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="未加入该频道"
         )
 
+    # 构建查询条件
+    conditions = [
+        ChannelMessage.channel_id == channel_id,
+        ChannelMessage.is_pinned == True,
+        ChannelMessage.is_deleted == False
+    ]
+
+    # 如果用户被封禁，只能看到封禁前的置顶消息
+    if member.is_banned and member.banned_at:
+        conditions.append(ChannelMessage.created_at <= member.banned_at)
+
     # 获取所有置顶消息
     pinned_result = await db.execute(
         select(ChannelMessage)
-        .where(
-            ChannelMessage.channel_id == channel_id,
-            ChannelMessage.is_pinned == True,
-            ChannelMessage.is_deleted == False
-        )
+        .where(*conditions)
         .options(
             selectinload(ChannelMessage.user),
             selectinload(ChannelMessage.pinned_by_user)
@@ -2970,6 +3036,13 @@ async def upload_attachment(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="未加入该频道"
+        )
+
+    # 检查是否被封禁
+    if member.is_banned:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您已被移出该频道，无法上传文件"
         )
 
     # 检查是否被禁言
@@ -3090,6 +3163,20 @@ async def send_message_with_attachments(
 
     if not member:
         if channel.type == "official":
+            # 先检查是否存在被封禁的记录（防止"复活"）
+            banned_check = await db.execute(
+                select(ChannelMember).where(
+                    ChannelMember.channel_id == channel_id,
+                    ChannelMember.user_id == current_user.id,
+                    ChannelMember.is_banned == True
+                )
+            )
+            if banned_check.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="您已被移出该频道，无法发送消息"
+                )
+
             member_role = "owner" if current_user.is_admin else "member"
             member = ChannelMember(
                 id=uuid.uuid4(),
@@ -3106,6 +3193,13 @@ async def send_message_with_attachments(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="未加入该频道"
             )
+
+    # 检查是否被封禁（官方频道踢出后的用户）
+    if member.is_banned:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您已被移出该频道，无法发送消息"
+        )
 
     # 检查是否被禁言
     from datetime import datetime, timezone
@@ -3344,16 +3438,24 @@ async def forward_message(
     - 需要是目标频道成员
     """
     # 检查源频道成员身份
-    source_member = await db.execute(
+    source_member_result = await db.execute(
         select(ChannelMember).where(
             ChannelMember.channel_id == channel_id,
             ChannelMember.user_id == current_user.id
         )
     )
-    if not source_member.scalar_one_or_none():
+    source_member = source_member_result.scalar_one_or_none()
+    if not source_member:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="您不是该频道成员"
+        )
+
+    # 检查是否被封禁
+    if source_member.is_banned:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您已被移出该频道，无法转发消息"
         )
 
     # 获取原始消息
@@ -3657,7 +3759,14 @@ async def join_by_invite(
             ChannelMember.user_id == current_user.id
         )
     )
-    if existing.scalar_one_or_none():
+    existing_member = existing.scalar_one_or_none()
+    if existing_member:
+        # 如果用户被封禁，拒绝重新加入
+        if existing_member.is_banned:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="您已被该频道踢出，无法重新加入"
+            )
         return {"message": "您已是该频道成员", "channel_id": str(invite.channel_id)}
 
     # 加入频道
@@ -3766,8 +3875,13 @@ async def add_bookmark(
             ChannelMember.user_id == current_user.id
         )
     )
-    if not member_result.scalar_one_or_none():
+    member = member_result.scalar_one_or_none()
+    if not member:
         raise HTTPException(status_code=403, detail="您不是该频道成员")
+
+    # 检查是否被封禁
+    if member.is_banned:
+        raise HTTPException(status_code=403, detail="您已被移出该频道")
 
     # 检查消息是否存在
     msg_result = await db.execute(
@@ -3809,6 +3923,17 @@ async def remove_bookmark(
     db: AsyncSession = Depends(get_db)
 ):
     """取消收藏"""
+    # 检查成员身份和封禁状态
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    member = member_result.scalar_one_or_none()
+    if member and member.is_banned:
+        raise HTTPException(status_code=403, detail="您已被移出该频道")
+
     result = await db.execute(
         select(MessageBookmark).where(
             MessageBookmark.user_id == current_user.id,

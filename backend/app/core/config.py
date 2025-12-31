@@ -250,6 +250,9 @@ class Settings(BaseSettings):
     # Giphy GIF 搜索配置
     GIPHY_API_KEY: Optional[str] = None  # Giphy API Key，用于 GIF 搜索功能
 
+    # Tenor 贴图搜索配置
+    TENOR_API_KEY: Optional[str] = None  # Tenor API Key，用于贴图搜索功能
+
     # SMTP 邮件配置
     SMTP_HOST: Optional[str] = None
     SMTP_PORT: int = 587

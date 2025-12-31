@@ -70,6 +70,7 @@ async def check_channel_member(channel_id: UUID, user_id: UUID) -> Optional[Chan
     """
     检查用户是否为频道成员
     对于官方频道，如果用户没有成员记录会自动创建
+    被封禁的用户返回 None
 
     Returns:
         ChannelMember 或 None
@@ -85,6 +86,9 @@ async def check_channel_member(channel_id: UUID, user_id: UUID) -> Optional[Chan
         member = result.scalar_one_or_none()
 
         if member:
+            # 检查是否被封禁
+            if member.is_banned:
+                return None  # 被封禁用户拒绝访问
             return member
 
         # 检查是否是官方频道
@@ -94,6 +98,17 @@ async def check_channel_member(channel_id: UUID, user_id: UUID) -> Optional[Chan
         channel = channel_result.scalar_one_or_none()
 
         if channel and channel.type == "official":
+            # 先检查是否存在被封禁的记录（防止"复活"）
+            banned_check = await db.execute(
+                select(ChannelMember).where(
+                    ChannelMember.channel_id == channel_id,
+                    ChannelMember.user_id == user_id,
+                    ChannelMember.is_banned == True
+                )
+            )
+            if banned_check.scalar_one_or_none():
+                return None  # 被封禁用户拒绝访问
+
             # 获取用户信息判断角色
             user_result = await db.execute(
                 select(User).where(User.id == user_id)
@@ -124,7 +139,11 @@ async def check_channel_member(channel_id: UUID, user_id: UUID) -> Optional[Chan
                         ChannelMember.user_id == user_id
                     )
                 )
-                return result.scalar_one_or_none()
+                member = result.scalar_one_or_none()
+                # 再次检查是否被封禁
+                if member and member.is_banned:
+                    return None
+                return member
 
         return None
 
@@ -471,22 +490,17 @@ async def channel_stream(websocket: WebSocket, channel_id: str, token: str = Que
         await websocket.close(code=4002, reason="Invalid channel_id")
         return
 
-    # 3. 验证用户是否为频道成员
+    # 3. 验证用户是否为频道成员（check_channel_member 已处理封禁用户，返回 None）
     member = await check_channel_member(channel_uuid, user_id)
     if not member:
-        await websocket.close(code=4003, reason="Not a channel member")
+        await websocket.close(code=4003, reason="Not a channel member or banned")
         return
 
-    # 4. 检查是否被封禁
-    if member.is_banned:
-        await websocket.close(code=4004, reason="User is banned")
-        return
-
-    # 5. 接受连接
+    # 4. 接受连接
     await websocket.accept()
     logger.info(f"[Channel WS] 连接建立: channel={channel_id}, user={user_id}")
 
-    # 6. 注册连接
+    # 5. 注册连接
     if channel_uuid not in active_channel_connections:
         active_channel_connections[channel_uuid] = {}
     active_channel_connections[channel_uuid][user_id] = websocket
@@ -495,13 +509,13 @@ async def channel_stream(websocket: WebSocket, channel_id: str, token: str = Que
         user_channel_map[user_id] = set()
     user_channel_map[user_id].add(channel_uuid)
 
-    # 7. 广播用户上线
+    # 6. 广播用户上线
     await broadcast_channel_event(channel_uuid, {
         "type": "PRESENCE",
         "payload": {"user_id": str(user_id), "status": "online"}
     }, exclude_user=user_id)
 
-    # 8. 发送当前在线用户列表给新连接的用户
+    # 7. 发送当前在线用户列表给新连接的用户
     online_users = get_channel_online_users(channel_uuid)
     await websocket.send_json({
         "type": "ONLINE_USERS",
@@ -517,7 +531,7 @@ async def channel_stream(websocket: WebSocket, channel_id: str, token: str = Que
 
                 if msg_type == "ping":
                     await websocket.send_json({"type": "pong"})
-                elif msg_type == "TYPING" and not member.is_muted:
+                elif msg_type == "TYPING" and not member.is_muted and not member.is_banned:
                     await broadcast_channel_event(channel_uuid, {
                         "type": "TYPING",
                         "payload": {"user_id": str(user_id), "username": data.get("username", "")}
@@ -560,18 +574,31 @@ async def channel_stream(websocket: WebSocket, channel_id: str, token: str = Que
 async def broadcast_channel_event(channel_id: UUID, event_data: dict, exclude_user: UUID = None):
     """向频道内所有用户广播事件"""
     if channel_id not in active_channel_connections:
+        logger.warning(f"[Channel WS] 广播失败: 频道 {channel_id} 无活跃连接")
         return
+
+    connected_users = list(active_channel_connections[channel_id].keys())
+    logger.info(f"[Channel WS] 广播消息到频道 {channel_id}, 在线用户: {len(connected_users)}, 排除用户: {exclude_user}")
+
     disconnected = []
+    sent_count = 0
     for uid, ws in active_channel_connections[channel_id].items():
         if exclude_user and uid == exclude_user:
+            logger.debug(f"[Channel WS] 跳过发送者: {uid}")
             continue
         try:
             if ws.client_state == WebSocketState.CONNECTED:
                 await ws.send_json(event_data)
+                sent_count += 1
+                logger.debug(f"[Channel WS] 消息已发送给用户: {uid}")
             else:
                 disconnected.append(uid)
-        except:
+        except Exception as e:
+            logger.error(f"[Channel WS] 发送消息给 {uid} 失败: {e}")
             disconnected.append(uid)
+
+    logger.info(f"[Channel WS] 广播完成, 成功发送: {sent_count}, 断开连接: {len(disconnected)}")
+
     for uid in disconnected:
         active_channel_connections[channel_id].pop(uid, None)
 
