@@ -1832,7 +1832,12 @@ async def edit_message(
 @router.get("/{channel_id}/search")
 async def search_messages(
     channel_id: UUID,
-    keyword: str = Query(..., min_length=1, description="搜索关键词"),
+    keyword: Optional[str] = Query(None, min_length=1, description="搜索关键词"),
+    content_type: Optional[str] = Query(
+        None,
+        regex="^(image_video|file|link)$",
+        description="内容类型: image_video/file/link"
+    ),
     user_id: Optional[UUID] = Query(None, description="筛选发送者"),
     start_date: Optional[str] = Query(None, description="起始日期 YYYY-MM-DD"),
     end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
@@ -1843,7 +1848,8 @@ async def search_messages(
 ):
     """
     搜索频道内的消息
-    支持按关键词、发送者、日期范围筛选
+    支持按关键词、内容类型、发送者、日期范围筛选
+    content_type: image_video(图片和视频) | file(文件) | link(链接)
     """
     # 检查是否是频道成员
     member_check = await db.execute(
@@ -1858,12 +1864,29 @@ async def search_messages(
             detail="未加入该频道"
         )
 
-    # 构建查询条件
+    # 参数验证：keyword 和 content_type 至少需要一个
+    if not keyword and not content_type:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="keyword 或 content_type 至少需要一个"
+        )
+
+    # 日期范围验证
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="起始日期不能晚于结束日期"
+        )
+
+    # 构建基础查询条件
     conditions = [
         ChannelMessage.channel_id == channel_id,
         ChannelMessage.is_deleted == False,
-        ChannelMessage.content.contains(keyword)
     ]
+
+    # 关键词筛选
+    if keyword:
+        conditions.append(ChannelMessage.content.contains(keyword))
 
     if user_id:
         conditions.append(ChannelMessage.user_id == user_id)
@@ -1878,21 +1901,112 @@ async def search_messages(
         end_dt = datetime.fromisoformat(end_date) + timedelta(days=1)
         conditions.append(ChannelMessage.created_at < end_dt)
 
+    # URL正则匹配模式
+    URL_PATTERN = r'https?://[^\s<>"{}|\\^`\[\]]+'
+
+    # 构建查询
+    if content_type == "image_video":
+        # 图片和视频筛选：JOIN附件表
+        query = (
+            select(ChannelMessage)
+            .join(MessageAttachment, MessageAttachment.message_id == ChannelMessage.id)
+            .where(and_(*conditions))
+            .where(
+                or_(
+                    MessageAttachment.file_type.like("image/%"),
+                    MessageAttachment.file_type.like("video/%")
+                )
+            )
+            .options(
+                selectinload(ChannelMessage.user),
+                selectinload(ChannelMessage.attachments)
+            )
+            .distinct()
+            .order_by(ChannelMessage.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        # 总数查询
+        count_query = (
+            select(func.count(func.distinct(ChannelMessage.id)))
+            .select_from(ChannelMessage)
+            .join(MessageAttachment, MessageAttachment.message_id == ChannelMessage.id)
+            .where(and_(*conditions))
+            .where(
+                or_(
+                    MessageAttachment.file_type.like("image/%"),
+                    MessageAttachment.file_type.like("video/%")
+                )
+            )
+        )
+    elif content_type == "file":
+        # 文件筛选：排除图片/视频/音频
+        query = (
+            select(ChannelMessage)
+            .join(MessageAttachment, MessageAttachment.message_id == ChannelMessage.id)
+            .where(and_(*conditions))
+            .where(
+                ~MessageAttachment.file_type.like("image/%"),
+                ~MessageAttachment.file_type.like("video/%"),
+                ~MessageAttachment.file_type.like("audio/%")
+            )
+            .options(
+                selectinload(ChannelMessage.user),
+                selectinload(ChannelMessage.attachments)
+            )
+            .distinct()
+            .order_by(ChannelMessage.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        # 总数查询
+        count_query = (
+            select(func.count(func.distinct(ChannelMessage.id)))
+            .select_from(ChannelMessage)
+            .join(MessageAttachment, MessageAttachment.message_id == ChannelMessage.id)
+            .where(and_(*conditions))
+            .where(
+                ~MessageAttachment.file_type.like("image/%"),
+                ~MessageAttachment.file_type.like("video/%"),
+                ~MessageAttachment.file_type.like("audio/%")
+            )
+        )
+    elif content_type == "link":
+        # 链接筛选：正则匹配URL
+        conditions.append(ChannelMessage.content.op('~')(URL_PATTERN))
+        query = (
+            select(ChannelMessage)
+            .where(and_(*conditions))
+            .options(
+                selectinload(ChannelMessage.user),
+                selectinload(ChannelMessage.attachments)
+            )
+            .order_by(ChannelMessage.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        count_query = select(func.count(ChannelMessage.id)).where(and_(*conditions))
+    else:
+        # 普通关键词搜索
+        query = (
+            select(ChannelMessage)
+            .where(and_(*conditions))
+            .options(
+                selectinload(ChannelMessage.user),
+                selectinload(ChannelMessage.attachments)
+            )
+            .order_by(ChannelMessage.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        count_query = select(func.count(ChannelMessage.id)).where(and_(*conditions))
+
     # 执行搜索
-    search_result = await db.execute(
-        select(ChannelMessage)
-        .where(and_(*conditions))
-        .options(selectinload(ChannelMessage.user))
-        .order_by(ChannelMessage.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-    )
+    search_result = await db.execute(query)
     messages = search_result.scalars().all()
 
     # 获取总数
-    total_result = await db.execute(
-        select(func.count(ChannelMessage.id)).where(and_(*conditions))
-    )
+    total_result = await db.execute(count_query)
     total = total_result.scalar()
 
     # 构建响应
@@ -1915,7 +2029,19 @@ async def search_messages(
             "user_name": msg.user.username if msg.user else "已删除用户",
             "user_avatar": msg.user.avatar if msg.user else None,
             "user_title": member.custom_title if member else None,
-            "user_title_color": member.title_color if member else None
+            "user_title_color": member.title_color if member else None,
+            # 添加附件信息
+            "attachments": [
+                {
+                    "id": str(att.id),
+                    "fileName": att.file_name,
+                    "fileType": att.file_type,
+                    "fileSize": att.file_size,
+                    "fileUrl": att.file_url,
+                    "thumbnailUrl": att.thumbnail_url
+                }
+                for att in msg.attachments
+            ] if msg.attachments else []
         })
 
     return {

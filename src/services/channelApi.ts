@@ -358,16 +358,26 @@ export const editMessage = async (
 export interface SearchResult {
   messages: ChannelMessage[];
   total: number;
-  hasMore: boolean;
+  has_more: boolean;
 }
 
 /**
  * 搜索频道消息
+ * @param channelId 频道ID
+ * @param options 搜索选项
+ * @param options.keyword 搜索关键词（与contentType至少需要一个）
+ * @param options.contentType 内容类型：image_video | file | link
+ * @param options.userId 筛选发送者
+ * @param options.startDate 起始日期 YYYY-MM-DD
+ * @param options.endDate 结束日期 YYYY-MM-DD
+ * @param options.skip 分页偏移
+ * @param options.limit 每页数量
  */
 export const searchMessages = async (
   channelId: string,
-  keyword: string,
   options?: {
+    keyword?: string;
+    contentType?: 'image_video' | 'file' | 'link';
     userId?: string;
     startDate?: string;
     endDate?: string;
@@ -375,7 +385,9 @@ export const searchMessages = async (
     limit?: number;
   }
 ): Promise<SearchResult> => {
-  const params = new URLSearchParams({ keyword });
+  const params = new URLSearchParams();
+  if (options?.keyword) params.append('keyword', options.keyword);
+  if (options?.contentType) params.append('content_type', options.contentType);
   if (options?.userId) params.append('user_id', options.userId);
   if (options?.startDate) params.append('start_date', options.startDate);
   if (options?.endDate) params.append('end_date', options.endDate);

@@ -16,6 +16,7 @@ import { MessageReactions } from './MessageReactions';
 import EmojiPicker from './EmojiPicker';
 import { FileUploader, FilePreview, ALLOWED_TYPES, formatFileSize } from './FileUploader';
 import MessageAttachments from './MessageAttachments';
+import { ChatSearchPage } from './ChatSearchPage';
 import type { MessageEditEvent } from '@/hooks/useChannelWebSocket';
 
 export interface Message {
@@ -90,10 +91,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [newMessageCount, setNewMessageCount] = useState(0);
   const [latestAnnouncement, setLatestAnnouncement] = useState<Message | null>(null);
-  const [showSearchDialog, setShowSearchDialog] = useState(false);
-  const [searchKeyword, setSearchKeyword] = useState('');
-  const [searchResults, setSearchResults] = useState<Message[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchPage, setShowSearchPage] = useState(false);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [editContent, setEditContent] = useState('');
   // 公告编辑状态
@@ -769,34 +767,6 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     }
   };
 
-  // 搜索消息
-  const handleSearch = async () => {
-    if (!searchKeyword.trim()) return;
-
-    setIsSearching(true);
-    try {
-      const result = await channelApi.searchMessages(channel.id, searchKeyword, {});
-      // 转换搜索结果为 Message 格式
-      const formattedMessages: Message[] = result.messages.map((msg: any) => ({
-        id: msg.id,
-        userId: msg.userId,
-        userName: msg.userName,
-        userAvatar: msg.userAvatar,
-        userTitle: msg.userTitle,
-        userTitleColor: msg.userTitleColor,
-        content: msg.content,
-        timestamp: new Date(msg.createdAt),
-        type: msg.messageType === 'announcement' ? 'announcement' : 'normal'
-      }));
-      setSearchResults(formattedMessages);
-    } catch (error) {
-      console.error('搜索失败:', error);
-      alert('搜索失败');
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
   const statusInfo = getChannelStatusInfo();
   // 发布公告权限：粉丝群创建者 或 官方频道的群主/管理员
   const canSendAnnouncement =
@@ -829,13 +799,6 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
             )}
           </div>
           <div className="flex items-center gap-1">
-            <button
-              onClick={() => setShowSearchDialog(true)}
-              className="p-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded"
-              title="搜索消息"
-            >
-              <Search className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-            </button>
             <button
               onClick={() => setShowSidebar(true)}
               className="p-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded"
@@ -1210,6 +1173,15 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                 disabled={channel.status === 'locked'}
                 maxFiles={5}
               />
+
+              {/* 搜索聊天记录按钮 */}
+              <button
+                onClick={() => setShowSearchPage(true)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg text-gray-500 dark:text-slate-400 transition-colors"
+                title="搜索聊天记录"
+              >
+                <Search className="w-4 h-4" />
+              </button>
 
               {canSendAnnouncement && (
                 <button
@@ -1737,134 +1709,6 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         </div>
       )}
 
-      {/* 搜索对话框 */}
-      {showSearchDialog && (
-        <>
-          {/* 遮罩层 */}
-          <div
-            className="fixed inset-0 bg-black/40 z-50"
-            onClick={() => {
-              setShowSearchDialog(false);
-              setSearchKeyword('');
-              setSearchResults([]);
-            }}
-          />
-
-          {/* 搜索弹窗 */}
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] max-h-[700px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl z-50 flex flex-col">
-            {/* 头部 */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-base font-medium dark:text-gray-100">搜索消息</h3>
-              <button
-                onClick={() => {
-                  setShowSearchDialog(false);
-                  setSearchKeyword('');
-                  setSearchResults([]);
-                }}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-              >
-                <X className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-              </button>
-            </div>
-
-            {/* 搜索框 */}
-            <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
-                  <input
-                    type="text"
-                    placeholder="输入关键词搜索..."
-                    value={searchKeyword}
-                    onChange={(e) => setSearchKeyword(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleSearch();
-                      }
-                    }}
-                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-gray-400 dark:focus:border-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                    autoFocus
-                  />
-                </div>
-                <button
-                  onClick={handleSearch}
-                  disabled={!searchKeyword.trim() || isSearching}
-                  className="px-4 py-2 text-sm bg-black dark:bg-white text-white dark:text-black rounded hover:bg-gray-800 dark:hover:bg-gray-200 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
-                >
-                  {isSearching ? '搜索中...' : '搜索'}
-                </button>
-              </div>
-            </div>
-
-            {/* 搜索结果 */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {searchResults.length === 0 && !isSearching && searchKeyword && (
-                <div className="text-center py-12 text-sm text-gray-400 dark:text-gray-500">
-                  未找到匹配的消息
-                </div>
-              )}
-
-              {searchResults.length === 0 && !searchKeyword && (
-                <div className="text-center py-12 text-sm text-gray-400 dark:text-gray-500">
-                  输入关键词开始搜索
-                </div>
-              )}
-
-              {searchResults.length > 0 && (
-                <div className="space-y-3">
-                  {searchResults.map((message) => (
-                    <div
-                      key={message.id}
-                      onClick={() => {
-                        jumpToMessage(message.id);
-                        setShowSearchDialog(false);
-                        setSearchKeyword('');
-                        setSearchResults([]);
-                      }}
-                      className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-start gap-2 mb-2">
-                        <Avatar className="w-6 h-6">
-                          <AvatarImage src={message.userAvatar} />
-                          <AvatarFallback className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                            {message.userName[0]}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium dark:text-gray-100">{message.userName}</span>
-                            {message.userTitle && (
-                              <span
-                                className="text-xs px-1.5 py-0.5 rounded"
-                                style={{
-                                  color: message.userTitleColor || '#78716c',
-                                  backgroundColor: message.userTitleColor ? `${message.userTitleColor}15` : '#fafaf9'
-                                }}
-                              >
-                                {message.userTitle}
-                              </span>
-                            )}
-                            <span className="text-xs text-gray-400 dark:text-gray-500">
-                              {message.timestamp.toLocaleString('zh-CN', {
-                                month: '2-digit',
-                                day: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-700 dark:text-gray-300 pl-8 whitespace-pre-wrap break-words">{message.content}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
-
       {/* 删除公告确认对话框 */}
       {showDeleteAnnouncementDialog && (
         <div
@@ -1911,6 +1755,17 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
           </div>
         </div>
       )}
+
+      {/* 聊天记录搜索页面 */}
+      <ChatSearchPage
+        channel={channel}
+        isOpen={showSearchPage}
+        onClose={() => setShowSearchPage(false)}
+        onMessageClick={(msgId) => {
+          setShowSearchPage(false);
+          jumpToMessage(msgId);
+        }}
+      />
     </div>
   );
 }
