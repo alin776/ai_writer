@@ -116,6 +116,10 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     fileUrl: string;
     thumbnailUrl?: string;
   }[]>([]);
+  // 公告删除确认对话框状态
+  const [showDeleteAnnouncementDialog, setShowDeleteAnnouncementDialog] = useState(false);
+  // 用户隐藏的公告ID（localStorage）
+  const [hiddenAnnouncementId, setHiddenAnnouncementId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -232,6 +236,42 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
 
     fetchLatestAnnouncement();
   }, [channel.id, messages]); // 当消息更新时也重新获取
+
+  // 从 localStorage 加载用户隐藏的公告ID
+  useEffect(() => {
+    const storedHiddenId = localStorage.getItem(`hidden_announcement_${channel.id}`);
+    setHiddenAnnouncementId(storedHiddenId);
+  }, [channel.id]);
+
+  // 处理公告关闭按钮点击
+  const handleAnnouncementClose = () => {
+    const isAdmin = currentUser.role === 'owner' || currentUser.role === 'admin';
+
+    if (isAdmin) {
+      // 管理员：显示确认对话框
+      setShowDeleteAnnouncementDialog(true);
+    } else {
+      // 普通用户：直接隐藏公告（存储到localStorage）
+      if (latestAnnouncement) {
+        localStorage.setItem(`hidden_announcement_${channel.id}`, latestAnnouncement.id);
+        setHiddenAnnouncementId(latestAnnouncement.id);
+      }
+    }
+  };
+
+  // 管理员确认删除公告
+  const handleConfirmDeleteAnnouncement = async () => {
+    if (!latestAnnouncement) return;
+
+    try {
+      await channelApi.recallMessage(channel.id, latestAnnouncement.id);
+      setLatestAnnouncement(null);
+      setShowDeleteAnnouncementDialog(false);
+    } catch (error) {
+      console.error('删除公告失败:', error);
+      showError('删除公告失败');
+    }
+  };
 
   const handleSend = (type: 'normal' | 'announcement' = 'normal') => {
     const hasContent = messageInput.trim();
@@ -616,7 +656,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   const renderMessageContent = (content: string, isOwnMessage: boolean) => {
     // 匹配 @用户名 或 @全体成员
     const mentionRegex = /@([^\s@]+)/g;
-    const parts: (string | JSX.Element)[] = [];
+    const parts: (string | React.ReactNode)[] = [];
     let lastIndex = 0;
     let match;
 
@@ -765,7 +805,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
 
   return (
     <div
-      className="flex-1 flex flex-col bg-white dark:bg-gray-900 h-full"
+      className="flex-1 flex flex-col bg-white dark:bg-gray-900 h-full relative"
       onContextMenu={(e) => {
         // 阻止默认右键菜单，只允许自定义右键菜单
         e.preventDefault();
@@ -817,33 +857,50 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
           </div>
         )}
 
-        {/* 最新公告栏 */}
-        {latestAnnouncement && (
+        {/* 最新公告栏 - 紧凑单行样式 */}
+        {latestAnnouncement && hiddenAnnouncementId !== latestAnnouncement.id && (
           <div
-            onClick={() => jumpToMessage(latestAnnouncement.id)}
-            className="mt-2 px-3 py-2 rounded bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors"
+            className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors"
+            onClick={() => {
+              jumpToMessage(latestAnnouncement.id);
+              // 普通用户点击跳转后自动隐藏公告栏
+              if (currentUser.role !== 'owner' && currentUser.role !== 'admin') {
+                localStorage.setItem(`hidden_announcement_${channel.id}`, latestAnnouncement.id);
+                setHiddenAnnouncementId(latestAnnouncement.id);
+              }
+            }}
           >
-            <div className="flex items-start gap-2">
-              <Megaphone className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-medium text-amber-900 dark:text-amber-300">最新公告</span>
-                  {latestAnnouncement.timestamp && !isNaN(latestAnnouncement.timestamp.getTime()) && (
-                    <span className="text-xs text-amber-600 dark:text-amber-400">
-                      {latestAnnouncement.timestamp.toLocaleString('zh-CN', {
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm text-amber-900 dark:text-amber-300 line-clamp-2">
-                  {latestAnnouncement.content}
-                </p>
-              </div>
-            </div>
+            <Megaphone className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span className="text-xs font-medium text-amber-700 dark:text-amber-300 shrink-0">最新公告</span>
+            <span className="text-xs text-amber-600 dark:text-amber-400 shrink-0">
+              {latestAnnouncement.timestamp && !isNaN(latestAnnouncement.timestamp.getTime()) &&
+                latestAnnouncement.timestamp.toLocaleString('zh-CN', {
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })
+              }
+            </span>
+            <p className="flex-1 text-sm text-amber-900 dark:text-amber-300 truncate min-w-0">
+              {latestAnnouncement.content}
+            </p>
+            {/* 关闭按钮 - 管理员红色（删除），普通用户琥珀色（隐藏） */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAnnouncementClose();
+              }}
+              className={cn(
+                "p-1.5 rounded transition-colors flex-shrink-0",
+                currentUser.role === 'owner' || currentUser.role === 'admin'
+                  ? "hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 dark:text-red-400"
+                  : "hover:bg-amber-200 dark:hover:bg-amber-800 text-amber-600 dark:text-amber-400"
+              )}
+              title={currentUser.role === 'owner' || currentUser.role === 'admin' ? '删除公告' : '关闭'}
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
       </div>
@@ -949,32 +1006,6 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                     isMention && !isOwnMessage && "bg-blue-50/80 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700",
                     isAnnouncement && "bg-amber-100 dark:bg-amber-900/50 border-amber-200 dark:border-amber-700 text-amber-900 dark:text-amber-200"
                   )}>
-                    {/* 回复信息 - 点击跳转到原消息 */}
-                    {message.replyTo && (
-                      <>
-                        <div
-                          onClick={() => jumpToMessage(message.replyTo!.id)}
-                          className={cn(
-                            "text-xs px-3 py-2 cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1 max-w-xs sm:max-w-sm md:max-w-md",
-                            isOwnMessage
-                              ? "bg-gray-800 dark:bg-gray-600 text-gray-300"
-                              : "bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
-                          )}
-                        >
-                          <div className="flex-1 min-w-0 truncate">
-                            <span className="font-medium">{message.replyTo.userName}</span>
-                            <span className="opacity-75">：{message.replyTo.content}</span>
-                          </div>
-                          <span className="text-gray-400 dark:text-gray-500 flex-shrink-0">›</span>
-                        </div>
-                        {/* 分隔线 */}
-                        <div className={cn(
-                          "h-px",
-                          isOwnMessage ? "bg-gray-700 dark:bg-gray-500" : "bg-gray-200 dark:bg-gray-600"
-                        )} />
-                      </>
-                    )}
-
                     {/* 消息内容（纯附件消息时不显示） */}
                     {message.content && (
                       <div className={cn(
@@ -996,6 +1027,40 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                       </div>
                     )}
                   </div>
+
+                  {/* 回复引用 - 显示在消息下方 */}
+                  {message.replyTo && (
+                    <div
+                      className={cn(
+                        "group/reply flex items-center gap-2 mt-1.5 text-xs max-w-full",
+                        isOwnMessage ? "flex-row-reverse" : "flex-row"
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md cursor-pointer transition-all",
+                          "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
+                          "hover:bg-gray-200 dark:hover:bg-gray-700"
+                        )}
+                        onClick={() => jumpToMessage(message.replyTo!.id)}
+                      >
+                        <Reply className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate max-w-[200px]">
+                          <span className="font-medium text-gray-600 dark:text-gray-300">{message.replyTo.userName}</span>
+                          <span className="mx-1">:</span>
+                          <span className="opacity-75">{message.replyTo.content}</span>
+                        </span>
+                      </div>
+                      {/* 定位到原文位置按钮 */}
+                      <button
+                        onClick={() => jumpToMessage(message.replyTo!.id)}
+                        className="opacity-0 group-hover/reply:opacity-100 p-1 rounded transition-all duration-200 hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-600 dark:hover:text-green-400 text-gray-400"
+                        title="定位到原文位置"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5 rotate-180" />
+                      </button>
+                    </div>
+                  )}
 
                   {/* 消息反应 */}
                   <MessageReactions
@@ -1417,12 +1482,12 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         <>
           {/* 遮罩层 */}
           <div
-            className="fixed inset-0 bg-black/20 z-40"
+            className="absolute inset-0 bg-black/20 z-40"
             onClick={() => setShowSidebar(false)}
           />
 
           {/* 侧边栏 */}
-          <div className="fixed right-0 top-0 bottom-0 w-80 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 z-50 flex flex-col shadow-2xl">
+          <div className="absolute right-0 top-0 bottom-0 w-80 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 z-50 flex flex-col shadow-2xl">
             {/* 关闭按钮 */}
             <button
               onClick={() => setShowSidebar(false)}
@@ -1798,6 +1863,53 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
             </div>
           </div>
         </>
+      )}
+
+      {/* 删除公告确认对话框 */}
+      {showDeleteAnnouncementDialog && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setShowDeleteAnnouncementDialog(false)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 头部 */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-base font-medium dark:text-gray-100">删除公告</h3>
+              <button
+                onClick={() => setShowDeleteAnnouncementDialog(false)}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              >
+                <X className="w-4 h-4 dark:text-gray-400" />
+              </button>
+            </div>
+
+            {/* 内容 */}
+            <div className="p-4">
+              <p className="text-sm text-gray-700 dark:text-gray-300 text-center">
+                确定删除此公告？删除后所有人都无法看到。
+              </p>
+            </div>
+
+            {/* 底部按钮 */}
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-b-lg">
+              <button
+                onClick={() => setShowDeleteAnnouncementDialog(false)}
+                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleConfirmDeleteAnnouncement}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

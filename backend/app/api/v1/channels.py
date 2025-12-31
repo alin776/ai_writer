@@ -1617,7 +1617,7 @@ async def recall_message(
     """
     撤回消息
     - 普通用户：只能撤回自己发送后5分钟内的消息
-    - 创建者：可以撤回所有人的消息，无时间限制
+    - 创建者/管理员：可以撤回所有人的消息，无时间限制
     """
     # 获取频道信息,检查是否为创建者
     channel_result = await db.execute(
@@ -1632,6 +1632,16 @@ async def recall_message(
         )
 
     is_creator = channel.creator_id == current_user.id
+
+    # 检查是否是管理员
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    member = member_result.scalar_one_or_none()
+    is_admin = member and member.role in ['owner', 'admin']
 
     # 获取消息
     message_result = await db.execute(
@@ -1655,8 +1665,8 @@ async def recall_message(
             detail="消息已被删除"
         )
 
-    # 如果不是创建者,进行普通用户的权限检查
-    if not is_creator:
+    # 如果不是创建者或管理员,进行普通用户的权限检查
+    if not is_creator and not is_admin:
         # 检查是否是消息发送者
         if message.user_id != current_user.id:
             raise HTTPException(
