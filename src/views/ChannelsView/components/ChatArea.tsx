@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star } from 'lucide-react';
+import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -67,9 +67,11 @@ interface ChatAreaProps {
   onPinChange?: () => void;
   scrollToMessageId?: string | null;
   pinnedMessagesBar?: React.ReactNode;
+  isChannelListCollapsed?: boolean;
+  onToggleChannelList?: () => void;
 }
 
-export function ChatArea({ channel, messages, currentUser, onSendMessage, onSendMessageWithAttachments, onMentionAll, onLeaveChannel, onNewMessage, onMessageDelete, onMessageEdit, onReactionAdd, onReactionRemove, onReactionsChange, onPinChange, scrollToMessageId, pinnedMessagesBar }: ChatAreaProps) {
+export function ChatArea({ channel, messages, currentUser, onSendMessage, onSendMessageWithAttachments, onMentionAll, onLeaveChannel, onNewMessage, onMessageDelete, onMessageEdit, onReactionAdd, onReactionRemove, onReactionsChange, onPinChange, scrollToMessageId, pinnedMessagesBar, isChannelListCollapsed, onToggleChannelList }: ChatAreaProps) {
   const [messageInput, setMessageInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiPickerPosition, setEmojiPickerPosition] = useState({ x: 0, y: 0 });
@@ -838,6 +840,18 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
+              {/* 展开/收缩图标 */}
+              <button
+                onClick={onToggleChannelList}
+                className="p-1 -ml-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+                title={isChannelListCollapsed ? "展开频道列表" : "收起频道列表"}
+              >
+                {isChannelListCollapsed ? (
+                  <PanelLeft className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
+                ) : (
+                  <PanelLeftClose className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
+                )}
+              </button>
               <h3 className="text-base font-medium dark:text-gray-100">{channel.name}</h3>
               {channel.isPermanent && (
                 <span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-1 rounded">永久</span>

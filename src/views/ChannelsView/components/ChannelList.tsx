@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Hash, Lock, Users, MessageCircle, BookOpen, Coffee, FlaskConical, ChevronDown, ChevronRight, Bell, Plus, X, Search, AtSign } from 'lucide-react';
+import { Hash, Lock, Users, MessageCircle, BookOpen, Coffee, FlaskConical, ChevronDown, ChevronRight, ChevronLeft, Bell, Plus, X, Search, AtSign } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -28,9 +28,11 @@ interface ChannelListProps {
   onJoinChannel?: (channelId: string) => void;
   availableChannels?: Channel[];
   onCreateFangroup?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
-export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoinChannel, availableChannels, onCreateFangroup }: ChannelListProps) {
+export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoinChannel, availableChannels, onCreateFangroup, isCollapsed = false, onToggleCollapse }: ChannelListProps) {
   const [expandedSections, setExpandedSections] = useState({
     official: true,
     fangroup: true,
@@ -108,11 +110,11 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
       <button
         onClick={() => onChannelSelect(channel.id)}
         className={cn(
-          "w-full flex items-center gap-2 px-2 py-2 rounded transition-colors group",
+          "w-full flex items-center gap-2 px-2 py-2 rounded transition-colors group relative",
           isActive ? "bg-black text-white dark:bg-zinc-800" : "hover:bg-gray-50 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-300"
         )}
       >
-        <Icon className="w-5 h-5 shrink-0 opacity-60" />
+        <Icon className="shrink-0 opacity-60 w-5 h-5" />
         <span className="flex-1 text-left truncate text-sm">{channel.name}</span>
 
         {/* @提醒标识 - 优先级最高 */}
@@ -150,11 +152,12 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
   const SectionHeader = ({
     title,
     section,
-    count
+    count,
   }: {
     title: string;
     section: keyof typeof expandedSections;
     count: number;
+    isFirst?: boolean;
   }) => {
     const isExpanded = expandedSections[section];
 
@@ -189,26 +192,13 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
   );
 
   return (
-    <div className="w-56 border-r border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 flex flex-col h-full">
-      <div className="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-700">
-        <h2 className="text-base font-medium dark:text-gray-100">频道</h2>
-        {onJoinChannel && availableChannels && availableChannels.length > 0 && (
-          <button
-            onClick={() => setShowJoinModal(true)}
-            className="p-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded transition-colors"
-            title="加入频道"
-          >
-            <Plus className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-          </button>
-        )}
-      </div>
-
+    <div className="border-r border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 flex flex-col h-full w-56 min-w-56">
       <ScrollArea className="flex-1">
-        <div className="p-2 space-y-0.5">
+        <div className="space-y-0.5 p-2">
           {/* 官方频道 */}
           <SectionHeader title="官方" section="official" count={officialChannels.length} />
           {expandedSections.official && (
-            <div className="space-y-0.5 ml-1 mb-2">
+            <div className="space-y-0.5 mb-2 ml-1">
               {officialChannels.map(channel => (
                 <ChannelItem key={channel.id} channel={channel} />
               ))}
@@ -218,13 +208,14 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
           {/* 粉丝群 */}
           <SectionHeader title="私域" section="fangroup" count={fangroupChannels.length} />
           {expandedSections.fangroup && (
-            <div className="space-y-0.5 ml-1 mb-2">
+            <div className="space-y-0.5 mb-2 ml-1">
+              {/* 创建粉丝群按钮 */}
               {onCreateFangroup && (
                 <button
                   onClick={onCreateFangroup}
-                  className="w-full flex items-center gap-2 px-2 py-2 rounded transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 group"
+                  className="w-full flex items-center gap-2 px-2 py-2 rounded transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400"
                 >
-                  <Plus className="w-4 h-4 shrink-0" />
+                  <Plus className="shrink-0 w-4 h-4" />
                   <span className="flex-1 text-left text-sm">创建粉丝群</span>
                 </button>
               )}
@@ -237,7 +228,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
           {/* 作品频道 */}
           <SectionHeader title="作品" section="work" count={workChannels.length} />
           {expandedSections.work && (
-            <div className="space-y-0.5 ml-1 mb-2">
+            <div className="space-y-0.5 mb-2 ml-1">
               {workChannels.map(channel => (
                 <ChannelItem key={channel.id} channel={channel} />
               ))}
@@ -245,6 +236,25 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
           )}
         </div>
       </ScrollArea>
+
+      {/* 底部操作栏 */}
+      <div className="border-t border-gray-100 dark:border-gray-700 p-2 flex justify-center items-center relative">
+        {onJoinChannel && availableChannels && availableChannels.length > 0 && (
+          <button
+            onClick={() => setShowJoinModal(true)}
+            className="absolute left-2 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+          >
+            发现频道
+          </button>
+        )}
+        <button
+          onClick={onToggleCollapse}
+          className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+          title="收起频道列表"
+        >
+          <ChevronLeft className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+        </button>
+      </div>
 
       {/* 加入频道弹窗 */}
       {showJoinModal && (

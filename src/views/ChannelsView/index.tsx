@@ -3,6 +3,7 @@ import { ChannelList, type Channel } from './components/ChannelList';
 import { ChatArea, type Message } from './components/ChatArea';
 import { CreateFangroupDialog } from './components/CreateFangroupDialog';
 import PinnedMessagesBar from './components/PinnedMessagesBar';
+import { cn } from '@/lib/utils';
 import {
   getMyChannels,
   getAvailableChannels,
@@ -79,6 +80,7 @@ const ChannelsView: React.FC = () => {
   const [userRole, setUserRole] = useState<'owner' | 'admin' | 'member'>('member');
   const [pinRefreshTrigger, setPinRefreshTrigger] = useState(0);
   const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null);
+  const [isChannelListCollapsed, setIsChannelListCollapsed] = useState(false);
 
   const activeChannel = userChannels.find(c => c.id === activeChannelId);
 
@@ -608,15 +610,24 @@ const ChannelsView: React.FC = () => {
 
   return (
     <div className="h-full flex bg-background overflow-hidden" style={{ padding: 0 }}>
-      {/* 频道列表 */}
-      <ChannelList
-        channels={userChannels}
-        activeChannelId={activeChannelId}
-        onChannelSelect={setActiveChannelId}
-        onJoinChannel={handleJoinChannel}
-        availableChannels={availableChannels}
-        onCreateFangroup={() => setShowCreateDialog(true)}
-      />
+      {/* 频道列表 - 带过渡动画 */}
+      <div
+        className={cn(
+          "transition-all duration-300 ease-in-out overflow-hidden",
+          isChannelListCollapsed ? "w-0" : "w-56"
+        )}
+      >
+        <ChannelList
+          channels={userChannels}
+          activeChannelId={activeChannelId}
+          onChannelSelect={setActiveChannelId}
+          onJoinChannel={handleJoinChannel}
+          availableChannels={availableChannels}
+          onCreateFangroup={() => setShowCreateDialog(true)}
+          isCollapsed={false}
+          onToggleCollapse={() => setIsChannelListCollapsed(true)}
+        />
+      </div>
 
       {/* 聊天区域 */}
       {activeChannel && (
@@ -637,6 +648,8 @@ const ChannelsView: React.FC = () => {
             onReactionsChange={handleReactionsChange}
             onPinChange={handlePinChange}
             scrollToMessageId={scrollToMessageId}
+            isChannelListCollapsed={isChannelListCollapsed}
+            onToggleChannelList={() => setIsChannelListCollapsed(!isChannelListCollapsed)}
             pinnedMessagesBar={
               <PinnedMessagesBar
                 channelId={activeChannel.id}

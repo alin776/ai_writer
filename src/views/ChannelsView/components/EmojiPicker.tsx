@@ -122,12 +122,22 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, onSelectSticker, on
     }
   }, [activeTab]);
 
-  // 加载收藏贴图
+  // 组件初始化时加载收藏列表（用于搜索结果判断是否已收藏）
+  useEffect(() => {
+    loadFavorites();
+  }, []);
+
+  // 切换到收藏 Tab 时刷新
   useEffect(() => {
     if (activeTab === 'favorite') {
       loadFavorites();
     }
   }, [activeTab]);
+
+  // 快速查找是否已收藏（基于 tenorId）
+  const favoriteIds = useMemo(() => {
+    return new Set(favorites.filter(f => f.tenorId).map(f => f.tenorId));
+  }, [favorites]);
 
   // ==================== 数据加载函数 ====================
 
@@ -254,6 +264,16 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, onSelectSticker, on
     }
   };
 
+  // 切换收藏状态（用于搜索结果）
+  const handleToggleFavorite = async (sticker: TenorSticker) => {
+    const existingFavorite = favorites.find(f => f.tenorId === sticker.id);
+    if (existingFavorite) {
+      await handleRemoveFavorite(existingFavorite.id);
+    } else {
+      await handleAddFavorite(sticker);
+    }
+  };
+
   // ==================== 上传功能 ====================
 
   const handleUploadClick = () => {
@@ -349,39 +369,47 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, onSelectSticker, on
         ) : searchResults.length > 0 ? (
           <>
             <div className="grid grid-cols-4 gap-1">
-              {searchResults.map((sticker) => (
-                <div
-                  key={sticker.id}
-                  className="relative group aspect-square rounded overflow-hidden cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
-                  onClick={() => handleStickerSelect(sticker.url)}
-                >
-                  <img
-                    src={sticker.previewUrl}
-                    alt={sticker.description || '贴图'}
-                    className="w-full h-full object-contain"
-                    loading="lazy"
-                    onError={(e) => {
-                      console.error('[EmojiPicker] 图片加载失败:', sticker.previewUrl);
-                      // 尝试用 url 替代 previewUrl
-                      const target = e.target as HTMLImageElement;
-                      if (target.src !== sticker.url) {
-                        target.src = sticker.url;
-                      }
-                    }}
-                  />
-                  {/* 收藏按钮 */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleAddFavorite(sticker);
-                    }}
-                    className="absolute top-0.5 right-0.5 p-1 bg-black/50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="收藏"
+              {searchResults.map((sticker) => {
+                const isFavorited = favoriteIds.has(sticker.id);
+                return (
+                  <div
+                    key={sticker.id}
+                    className="relative group aspect-square rounded overflow-hidden cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => handleStickerSelect(sticker.url)}
                   >
-                    <Heart className="w-3 h-3 text-white" />
-                  </button>
-                </div>
-              ))}
+                    <img
+                      src={sticker.previewUrl}
+                      alt={sticker.description || '贴图'}
+                      className="w-full h-full object-contain"
+                      loading="lazy"
+                      onError={(e) => {
+                        console.error('[EmojiPicker] 图片加载失败:', sticker.previewUrl);
+                        const target = e.target as HTMLImageElement;
+                        if (target.src !== sticker.url) {
+                          target.src = sticker.url;
+                        }
+                      }}
+                    />
+                    {/* 收藏按钮 - 已收藏显示红心 */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleFavorite(sticker);
+                      }}
+                      className={`absolute top-0.5 right-0.5 p-1 rounded transition-opacity ${
+                        isFavorited
+                          ? 'bg-red-500 opacity-100'
+                          : 'bg-black/50 opacity-0 group-hover:opacity-100'
+                      }`}
+                      title={isFavorited ? '取消收藏' : '收藏'}
+                    >
+                      <Heart
+                        className={`w-3 h-3 ${isFavorited ? 'text-white fill-white' : 'text-white'}`}
+                      />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
             {/* 加载更多 */}
             {searchNextPos && (
