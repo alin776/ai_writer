@@ -21,6 +21,7 @@ import type { MessageEditEvent } from '@/hooks/useChannelWebSocket';
 import { addFavoriteSticker } from '@/services/stickerApi';
 import { useToast } from '@/hooks/useToast';
 import { ToastContainer } from '@/components/ui/Toast';
+import { UserProfilePopover } from './UserProfilePopover';
 
 export interface Message {
   id: string;
@@ -124,6 +125,16 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   const [showDeleteAnnouncementDialog, setShowDeleteAnnouncementDialog] = useState(false);
   // 用户隐藏的公告ID（localStorage）
   const [hiddenAnnouncementId, setHiddenAnnouncementId] = useState<string | null>(null);
+  // 用户资料弹出卡片状态
+  const [userProfilePopover, setUserProfilePopover] = useState<{
+    show: boolean;
+    userId: string;
+    userName: string;
+    userAvatar?: string;
+    userTitle?: string;
+    userTitleColor?: string;
+    position: { x: number; y: number };
+  } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -977,12 +988,28 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   isAnnouncement && "bg-amber-50/60 px-3 py-2 mx-0 rounded"
                 )}
               >
-                <Avatar className="w-8 h-8 shrink-0">
-                  <AvatarImage src={message.userAvatar} />
-                  <AvatarFallback className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                    {message.userName[0]}
-                  </AvatarFallback>
-                </Avatar>
+                <div
+                  className="shrink-0 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setUserProfilePopover({
+                      show: true,
+                      userId: message.userId,
+                      userName: message.userName,
+                      userAvatar: message.userAvatar,
+                      userTitle: message.userTitle,
+                      userTitleColor: message.userTitleColor,
+                      position: { x: e.clientX, y: e.clientY },
+                    });
+                  }}
+                >
+                  <Avatar className="w-8 h-8 hover:ring-2 hover:ring-blue-400 transition-all">
+                    <AvatarImage src={message.userAvatar} />
+                    <AvatarFallback className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                      {message.userName[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
 
                 <div className={cn(
                   "flex flex-col max-w-[70%]",
@@ -1898,6 +1925,22 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
 
       {/* Toast 通知容器 */}
       <ToastContainer messages={toastMessages} onClose={closeToast} />
+
+      {/* 用户资料弹出卡片 */}
+      {userProfilePopover?.show && (
+        <UserProfilePopover
+          userId={userProfilePopover.userId}
+          userName={userProfilePopover.userName}
+          userAvatar={userProfilePopover.userAvatar}
+          userTitle={userProfilePopover.userTitle}
+          userTitleColor={userProfilePopover.userTitleColor}
+          currentUserId={currentUser.id}
+          channelId={channel.id}
+          channelType={channel.type}
+          position={userProfilePopover.position}
+          onClose={() => setUserProfilePopover(null)}
+        />
+      )}
     </div>
   );
 }
