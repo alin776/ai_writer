@@ -827,10 +827,11 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   };
 
   const statusInfo = getChannelStatusInfo();
-  // 发布公告权限：粉丝群创建者 或 官方频道的群主/管理员
+  // 发布公告权限：粉丝群创建者 或 官方频道的群主/管理员 或 作品群的作者
   const canSendAnnouncement =
     (currentUser.isCreator && channel.type === 'fangroup') ||
-    (channel.type === 'official' && (currentUser.role === 'owner' || currentUser.role === 'admin'));
+    (channel.type === 'official' && (currentUser.role === 'owner' || currentUser.role === 'admin')) ||
+    (channel.type === 'work' && currentUser.role === 'owner');
 
   return (
     <div

@@ -1350,9 +1350,9 @@ async def send_message(
                         detail=f"慢速模式已启用，请等待 {remaining} 秒后再发送消息"
                     )
 
-    # 只有粉丝群和官方频道的创建者可以发送公告
+    # 只有粉丝群、官方频道、作品群的创建者可以发送公告
     if message_type == "announcement":
-        if (channel.type not in ['fangroup', 'official']) or member.role != 'owner':
+        if (channel.type not in ['fangroup', 'official', 'work']) or member.role != 'owner':
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="只有频道创建者可以发送公告"
