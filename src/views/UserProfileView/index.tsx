@@ -206,11 +206,6 @@ const UserProfileView = () => {
                   </div>
                 </div>
 
-                {/* 用户ID */}
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                  ID: {user.username}
-                </p>
-
                 {/* 个人简介 */}
                 {user.bio && (
                   <p className="text-gray-600 dark:text-gray-300 whitespace-pre-line mb-3 line-clamp-3">
