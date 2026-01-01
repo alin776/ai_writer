@@ -352,14 +352,23 @@ async def get_friends(
     result = await db.execute(query)
     friendships = result.scalars().all()
 
-    # 获取好友信息
+    # 获取好友信息和私聊频道的最后消息时间
     items = []
     for fs in friendships:
         friend = await db.get(User, fs.friend_id)
+
+        # 获取私聊频道的最后消息时间
+        last_message_at = None
+        if fs.private_channel_id:
+            channel = await db.get(Channel, fs.private_channel_id)
+            if channel:
+                last_message_at = channel.last_message_at
+
         items.append(FriendshipResponse(
             id=fs.id,
             friend=user_to_brief(friend),
             private_channel_id=fs.private_channel_id,
+            last_message_at=last_message_at,
             created_at=fs.created_at
         ))
 

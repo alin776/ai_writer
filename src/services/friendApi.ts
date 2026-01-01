@@ -32,6 +32,7 @@ export interface FriendshipResponse {
   id: string;
   friend: UserBrief;
   privateChannelId: string | null;
+  lastMessageAt: string | null;  // 私聊频道最后消息时间
   createdAt: string;
 }
 

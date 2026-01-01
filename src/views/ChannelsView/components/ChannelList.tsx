@@ -22,6 +22,7 @@ export interface Channel {
   isPinned?: boolean;
   description?: string;
   coverImage?: string;
+  lastMessageAt?: string;  // 最后消息时间，用于排序
 }
 
 interface ChannelListProps {
@@ -41,6 +42,21 @@ interface ChannelListProps {
 
 export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoinChannel, availableChannels, pendingChannelIds, onCreateFangroup, isCollapsed = false, onToggleCollapse, currentUserId, onChannelUpdate, onRefreshAvailable }: ChannelListProps) {
   const { showToast } = useToast();
+
+  // 按最后消息时间降序排序频道
+  const sortByLastMessage = (a: Channel, b: Channel) => {
+    const timeA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+    const timeB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+    return timeB - timeA;  // 降序，最新的在前
+  };
+
+  // 按最后消息时间降序排序好友
+  const sortFriendsByLastMessage = (a: FriendshipResponse, b: FriendshipResponse) => {
+    const timeA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+    const timeB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+    return timeB - timeA;  // 降序，最新的在前
+  };
+
   const [expandedSections, setExpandedSections] = useState({
     official: true,
     fangroup: true,
@@ -433,14 +449,14 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
     return channel.name.toLowerCase().includes(query) ||
       channel.bookTitle?.toLowerCase().includes(query) ||
       channel.author?.toLowerCase().includes(query);
-  });
+  }).sort(sortByLastMessage);  // 按最后消息时间排序
 
   // 弹窗用的可加入频道过滤（使用 searchQuery）
   const modalFilteredChannels = (availableChannels || []).filter(channel =>
     channel.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     channel.bookTitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     channel.author?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ).sort(sortByLastMessage);  // 按最后消息时间排序
 
   return (
     <div className="border-r border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 flex flex-col h-full w-56 min-w-56">
@@ -519,7 +535,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
               <div className="mb-3">
                 <div className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1 font-medium">我的频道</div>
                 <div className="space-y-0.5">
-                  {[...officialChannels, ...fangroupChannels, ...workChannels].map(channel => (
+                  {[...officialChannels, ...fangroupChannels, ...workChannels].sort(sortByLastMessage).map(channel => (
                     <ChannelItem key={channel.id} channel={channel} clearSearchOnSelect />
                   ))}
                 </div>
@@ -587,7 +603,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
             <SectionHeader title="官方" section="official" count={channels.filter(c => c.type === 'official').length} />
             {expandedSections.official && (
               <div className="space-y-0.5 mb-2 ml-1">
-                {channels.filter(c => c.type === 'official').map(channel => (
+                {channels.filter(c => c.type === 'official').sort(sortByLastMessage).map(channel => (
                   <ChannelItem key={channel.id} channel={channel} />
                 ))}
               </div>
@@ -626,7 +642,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                 </button>
                 {expandedSections.friends && (
                   <div className="space-y-0.5 mb-2">
-                    {friends.map(item => {
+                    {[...friends].sort(sortFriendsByLastMessage).map(item => {
                       const displayName = item.friend.fullName || item.friend.username;
                       const isActive = item.privateChannelId === activeChannelId;
                       return (
@@ -656,6 +672,11 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                           <span className="flex-1 w-0 text-left truncate text-sm">
                             {displayName}
                           </span>
+                          {item.privateChannelId && unreadData.get(item.privateChannelId)?.unreadCount ? (
+                            <span className="shrink-0 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-medium bg-red-500 text-white rounded-full">
+                              {unreadData.get(item.privateChannelId)!.unreadCount > 99 ? '99+' : unreadData.get(item.privateChannelId)!.unreadCount}
+                            </span>
+                          ) : null}
                         </button>
                       );
                     })}
@@ -668,7 +689,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
             <SectionHeader title="私域" section="fangroup" count={channels.filter(c => c.type === 'fangroup').length} />
             {expandedSections.fangroup && (
               <div className="space-y-0.5 mb-2 ml-1">
-                {channels.filter(c => c.type === 'fangroup').map(channel => (
+                {channels.filter(c => c.type === 'fangroup').sort(sortByLastMessage).map(channel => (
                   <ChannelItem key={channel.id} channel={channel} />
                 ))}
               </div>
@@ -678,7 +699,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
             <SectionHeader title="作品" section="work" count={channels.filter(c => c.type === 'work').length} />
             {expandedSections.work && (
               <div className="space-y-0.5 mb-2 ml-1">
-                {channels.filter(c => c.type === 'work').map(channel => (
+                {channels.filter(c => c.type === 'work').sort(sortByLastMessage).map(channel => (
                   <ChannelItem key={channel.id} channel={channel} />
                 ))}
               </div>

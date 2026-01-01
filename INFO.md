@@ -1,109 +1,70 @@
-✅ 执行计划文档已创建完成！
+  VITE v7.1.10  ready in 443 ms
 
----
-## 文档结构
-
-tasks/
-├── todo.md                          # 主入口 + 快速清单
-└── channel-optimization/            # 详细计划目录
-    ├── 00-总体规划.md               # 项目概述、技术选型
-    ├── 01-Phase1-实时通信.md        # WebSocket、正在输入、在线状态
-    ├── 02-Phase2-交互增强.md        # 消息反应、编辑、文件上传
-    ├── 03-Phase3-功能完善.md        # 置顶、表情增强、已读回执
-    └── 04-Phase4-高级功能.md        # 语音/视频通话
-
----
-## Review 历史
-
-### 第一次 Review
-- 发现 WebSocket 框架已存在
-- 发现 is_pinned, reaction_count 字段已存在
-
-### 第二次深度 Review
-- 修复 Phase 3 "添加 is_pinned" 错误（字段已存在）
-- 添加 COS 服务复用说明
-- 添加 channel_read_states 表复用说明
-
-### 第三次深度 Review ⭐
-
-**发现的重大遗漏：**
-
-| 遗漏项 | 严重性 | 状态 |
-|-------|-------|------|
-| 前端类型定义未同步更新 | **高** | ✅ 已修复 |
-| 后端 Schema 更新遗漏 | **高** | ✅ 已修复 |
-| 前端 API 方法签名不完整 | 中 | ✅ 已修复 |
-| getReactions API 遗漏 | 中 | ✅ 已修复 |
-
-**新增内容：**
-- todo.md 添加"前端同步更新清单"章节
-- 各 Phase 文档补充 Schema 和类型更新步骤
-- 补充完整的前端 API 方法签名
-
----
-## 最终验证清单
-
-- [x] **验证是否引入新问题** - 无
-- [x] **检查是否真正解决原问题** - 是
-- [x] **检查修改完整性** - 前后端同步更新已补充
-- [x] **验证逻辑一致性** - 各文档保持一致
-- [x] **检查数据库迁移完整性** - 已覆盖所有字段
-
----
-## 现有基础设施汇总
-
-### 后端
-| 功能 | 位置 | 可复用 |
-|-----|------|--------|
-| WebSocket 框架 | `ws.py` | ⭐⭐⭐⭐⭐ |
-| 连接管理器 | `active_notification_connections` | ⭐⭐⭐⭐⭐ |
-| 广播函数 | `broadcast_notification()` | ⭐⭐⭐⭐⭐ |
-| COS 服务 | `cos_service.py` | ⭐⭐⭐⭐⭐ |
-| Redis | `core/redis.py` | ⭐⭐⭐⭐⭐ |
-| is_pinned | `ChannelMessage` | ⭐⭐⭐⭐⭐ |
-| reaction_count | `ChannelMessage` | ⭐⭐⭐⭐ |
-| channel_read_states | 完整表 | ⭐⭐⭐⭐⭐ |
-
-### 前端
-| 功能 | 位置 | 说明 |
-|-----|------|------|
-| useNotificationWebSocket | hooks | 可复用模式 |
-| 基础表情选择器 | ChatArea 内嵌 | 需提取 |
-
----
-## 最终工作量
-
-| 阶段 | 原计划 | 实际 | 减少 |
-|-----|-------|------|------|
-| Phase 1 | 17项 | 10项 | **40%** |
-| Phase 2 | 22项 | 18项 | **18%** |
-| Phase 3 | 14项 | 12项 | **14%** |
-| Phase 4 | 12项 | 12项 | 0% |
-| **总计** | 65项 | 52项 | **20%** |
-
-> 注：第三次 Review 后，因补充了前端同步步骤，实际工作量略有增加，但仍比原计划少 20%
-
----
-## 计划概要
-
-| 阶段    | 核心功能                                 | 任务数 |
-|---------|------------------------------------------|--------|
-| Phase 1 | WebSocket 扩展 + 正在输入 + 在线状态     | 10 项  |
-| Phase 2 | 消息反应 + 消息编辑 + 文件上传           | 18 项  |
-| Phase 3 | 消息置顶完善 + 表情增强 + 已读回执       | 12 项  |
-| Phase 4 | 语音/视频通话（可选）                    | 12 项  |
-
----
-## 每个文档包含
-
-- ✅ 现有基础设施说明（明确标注已有/待添加）
-- ✅ 细粒度任务清单（已有项目标记为 [x]）
-- ✅ **后端 Schema 更新步骤**（第三次 Review 新增）
-- ✅ **前端类型定义更新步骤**（第三次 Review 新增）
-- ✅ **完整的前端 API 方法签名**（第三次 Review 新增）
-- ✅ 复用说明（指明复用哪个现有组件）
-- ✅ API 设计（端点 + 请求/响应）
-- ✅ 前端组件设计
-- ✅ 详细实现步骤
-- ✅ 测试计划
-- ✅ 回滚方案
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+  ➜  press h + enter to show help
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+15:58:37 [vite] ws proxy error:
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1139:18)
+    at afterConnectMultiple (node:net:1712:7)
+15:58:37 [vite] ws proxy error:
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1139:18)
+    at afterConnectMultiple (node:net:1712:7) (x2)
+15:58:50 [vite] ws proxy error:
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1139:18)
+    at afterConnectMultiple (node:net:1712:7) (x3)
+15:58:50 [vite] ws proxy error:
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1139:18)
+    at afterConnectMultiple (node:net:1712:7) (x4)
+15:58:50 [vite] ws proxy error:
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1139:18)
+    at afterConnectMultiple (node:net:1712:7) (x5)
+15:58:56 [vite] http proxy error: /api/v1/channels/unread-summary
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1139:18)
+    at afterConnectMultiple (node:net:1712:7)
+15:58:56 [vite] http proxy error: /api/v1/friends/requests/count
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1139:18)
+    at afterConnectMultiple (node:net:1712:7)
+15:58:56 [vite] http proxy error: /api/v1/channels/3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0/unread-info
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1139:18)
+    at afterConnectMultiple (node:net:1712:7)
+15:58:56 [vite] ws proxy error:
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1139:18)
+    at afterConnectMultiple (node:net:1712:7)
+15:58:56 [vite] http proxy error: /api/v1/channels/unread-summary
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1139:18)
+    at afterConnectMultiple (node:net:1712:7)
+15:58:56 [vite] http proxy error: /api/v1/channels/unread-summary
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1139:18)
+    at afterConnectMultiple (node:net:1712:7) (x2)
+15:58:57 [vite] http proxy error: /api/v1/channels/3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0/unread-info
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1139:18)
+    at afterConnectMultiple (node:net:1712:7)
+15:58:57 [vite] http proxy error: /api/v1/friends/requests/count
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1139:18)
+    at afterConnectMultiple (node:net:1712:7)
+15:59:01 [vite] http proxy error: /api/v1/channels/unread-summary
+AggregateError [ECONNREFUSED]:
+    at internalConnectMultiple (node:net:1139:18)
+    at afterConnectMultiple (node:net:1712:7)
+15:59:01 [vite] ws proxy error:
+AggregateError [ETIMEDOUT]:
+    at internalConnectMultiple (node:net:1139:18)
+    at afterConnectMultiple (node:net:1712:7)
+15:59:05 [vite] ws proxy error:
+AggregateError [ETIMEDOUT]:
+    at internalConnectMultiple (node:net:1139:18)
+    at afterConnectMultiple (node:net:1712:7) (x2)

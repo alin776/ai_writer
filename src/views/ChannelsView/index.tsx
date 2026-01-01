@@ -38,6 +38,7 @@ const convertApiChannelToChannel = (apiChannel: ApiChannel): Channel => {
     isPermanent: apiChannel.isPermanent,
     warningDays: apiChannel.warningDays,
     coverImage: apiChannel.coverImage,
+    lastMessageAt: apiChannel.lastMessageAt,
   };
 };
 

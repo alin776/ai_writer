@@ -19,6 +19,7 @@ import {
   BookMarked,
   LogOut,
   MessageCircle,
+  User,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useWorkNavStore } from '../../store/workNavStore';
@@ -139,10 +140,11 @@ export const Sidebar: React.FC = () => {
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(`${path}/`);
   const hasPermission = (item: NavItem) => !item.roles?.length || item.roles.includes(user?.role || '');
 
-  const bottomNavItems: NavItem[] = [
+  const bottomNavItems: NavItem[] = useMemo(() => [
+    { id: 'profile', label: '个人主页', icon: User, path: user ? `/user/${user.id}` : '/login' },
     { id: 'notifications', label: '通知中心', icon: Bell, path: '/notifications' },
     { id: 'settings', label: '系统设置', icon: Settings, path: '/settings' },
-  ];
+  ], [user]);
 
   // 导航项渲染函数
   const renderNavItem = (item: NavItem) => {

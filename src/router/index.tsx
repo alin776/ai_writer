@@ -38,6 +38,7 @@ const TaskRewardsView = React.lazy(() => import('../views/TaskRewardsView'));
 const NovelSquareView = React.lazy(() => import('../views/NovelSquareView'));
 const MyBookshelfView = React.lazy(() => import('../views/MyBookshelfView'));
 const ChannelsView = React.lazy(() => import('../views/ChannelsView'));
+const UserProfileView = React.lazy(() => import('../views/UserProfileView'));
 const NotFoundView = React.lazy(() => import('../views/NotFoundView'));
 
 const LoadingFallback: React.FC = () => (
@@ -276,6 +277,14 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <ChannelsView />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/user/:userId',
+        element: (
+          <SuspenseWrapper>
+            <UserProfileView />
           </SuspenseWrapper>
         ),
       },

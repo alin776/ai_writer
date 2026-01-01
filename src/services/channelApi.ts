@@ -43,6 +43,7 @@ export interface ChannelMember {
   id: string;
   userId: string;
   username: string;
+  fullName?: string;
   avatar?: string;
   role: 'owner' | 'admin' | 'member';
   joinedAt: string;

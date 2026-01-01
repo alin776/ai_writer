@@ -35,6 +35,7 @@ class WorkResponse(WorkBase):
     total_words: int
     total_chapters: int
     view_count: int
+    favorite_count: int = 0
     is_published: bool = False
     is_featured: bool = False
     created_at: datetime

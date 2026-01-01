@@ -56,6 +56,7 @@ class FriendshipResponse(BaseModel):
     id: UUID
     friend: UserBrief
     private_channel_id: Optional[UUID] = None
+    last_message_at: Optional[datetime] = None  # 私聊频道最后消息时间
     created_at: datetime
 
     class Config:

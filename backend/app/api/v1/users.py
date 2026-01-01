@@ -8,9 +8,14 @@ from uuid import UUID
 from app.core.database import get_db
 from app.core.security import get_current_active_user, oauth2_scheme
 from app.models.user import User
+from app.models.work import Work
 from app.models.friendship import Friendship
 from app.models.friend_request import FriendRequest
 from app.schemas.user import (
+    UserProfileStats,
+    UserRelation,
+    WorkBrief,
+    UserProfileResponse,
     UserResponse,
     UserUpdate,
     NotificationSettings,
@@ -426,6 +431,156 @@ async def search_users(
         ))
 
     return UserSearchResponse(total=total, items=items)
+
+
+# ==================== 用户主页 ====================
+
+async def get_user_stats(db: AsyncSession, user_id: UUID) -> UserProfileStats:
+    """获取用户统计数据"""
+    # 作品统计（只统计已发布的）
+    result = await db.execute(
+        select(
+            func.count(Work.id).label('work_count'),
+            func.coalesce(func.sum(Work.total_words), 0).label('total_words'),
+            func.coalesce(func.sum(Work.favorite_count), 0).label('total_favorites')
+        ).where(
+            Work.author_id == user_id,
+            Work.is_published == True
+        )
+    )
+    work_stats = result.first()
+
+    # 好友数量
+    friend_result = await db.execute(
+        select(func.count(Friendship.id)).where(
+            Friendship.user_id == user_id
+        )
+    )
+    friend_count = friend_result.scalar() or 0
+
+    return UserProfileStats(
+        work_count=work_stats.work_count or 0,
+        total_words=work_stats.total_words or 0,
+        total_favorites=work_stats.total_favorites or 0,
+        friend_count=friend_count
+    )
+
+
+async def get_user_relation(
+    db: AsyncSession,
+    current_user_id: UUID,
+    target_user_id: UUID
+) -> UserRelation:
+    """获取与目标用户的关系"""
+    # 是否是自己
+    if current_user_id == target_user_id:
+        return UserRelation(is_self=True, is_friend=False)
+
+    # 检查好友关系
+    friendship_result = await db.execute(
+        select(Friendship).where(
+            Friendship.user_id == current_user_id,
+            Friendship.friend_id == target_user_id
+        )
+    )
+    friendship = friendship_result.scalar_one_or_none()
+
+    if friendship:
+        return UserRelation(
+            is_self=False,
+            is_friend=True,
+            private_channel_id=friendship.private_channel_id
+        )
+
+    # 检查待处理请求 - 我发出的请求
+    sent_result = await db.execute(
+        select(FriendRequest).where(
+            FriendRequest.from_user_id == current_user_id,
+            FriendRequest.to_user_id == target_user_id,
+            FriendRequest.status == 'pending'
+        )
+    )
+    sent = sent_result.scalar_one_or_none()
+    if sent:
+        return UserRelation(
+            is_self=False,
+            is_friend=False,
+            pending_request={"id": str(sent.id), "direction": "sent", "status": "pending"}
+        )
+
+    # 检查待处理请求 - 我收到的请求
+    received_result = await db.execute(
+        select(FriendRequest).where(
+            FriendRequest.from_user_id == target_user_id,
+            FriendRequest.to_user_id == current_user_id,
+            FriendRequest.status == 'pending'
+        )
+    )
+    received = received_result.scalar_one_or_none()
+    if received:
+        return UserRelation(
+            is_self=False,
+            is_friend=False,
+            pending_request={"id": str(received.id), "direction": "received", "status": "pending"}
+        )
+
+    # 陌生人
+    return UserRelation(is_self=False, is_friend=False)
+
+
+@router.get("/{user_id}/profile", response_model=UserProfileResponse)
+async def get_user_profile(
+    user_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    获取用户主页数据（聚合接口）
+    
+    返回用户信息、统计数据、与当前用户的关系、已发布作品列表
+    """
+    # 1. 获取目标用户
+    result = await db.execute(select(User).where(User.id == user_id))
+    target_user = result.scalar_one_or_none()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    # 2. 获取统计数据
+    stats = await get_user_stats(db, user_id)
+
+    # 3. 获取关系
+    relation = await get_user_relation(db, current_user.id, user_id)
+
+    # 4. 获取已发布作品
+    works_result = await db.execute(
+        select(Work)
+        .where(Work.author_id == user_id, Work.is_published == True)
+        .order_by(Work.published_at.desc())
+        .limit(50)
+    )
+    works = works_result.scalars().all()
+
+    # 转换作品为 WorkBrief
+    works_brief = [
+        WorkBrief(
+            id=w.id,
+            title=w.title,
+            cover_image=w.cover_image,
+            total_words=w.total_words,
+            favorite_count=w.favorite_count,
+            genre=w.genre.value if hasattr(w.genre, 'value') else str(w.genre),
+            status=w.status.value if hasattr(w.status, 'value') else str(w.status)
+        )
+        for w in works
+    ]
+
+    return UserProfileResponse(
+        user=target_user,
+        stats=stats,
+        relation=relation,
+        works=works_brief
+    )
+
 
 
 @router.get("/{user_id}", response_model=UserResponse)

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, field_serializer, field_validator
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 from datetime import datetime
 from uuid import UUID
 import re
@@ -237,3 +237,58 @@ class ResetPasswordRequest(BaseModel):
 class ResetPasswordResponse(BaseModel):
     """重置密码响应"""
     detail: str = "密码重置成功，请使用新密码登录"
+
+# ==================== 用户主页相关 ====================
+
+class UserProfileStats(BaseModel):
+    """用户统计数据"""
+    work_count: int
+    total_words: int
+    total_favorites: int
+    friend_count: int
+
+    class Config:
+        from_attributes = True
+
+
+class UserRelation(BaseModel):
+    """与当前用户的关系"""
+    is_self: bool
+    is_friend: bool
+    private_channel_id: Optional[UUID] = None
+    pending_request: Optional[dict] = None  # 包含 id, direction, status
+
+    class Config:
+        from_attributes = True
+
+    @field_serializer('private_channel_id')
+    def serialize_channel_id(self, value: Optional[UUID], _info) -> Optional[str]:
+        """将 UUID 序列化为字符串"""
+        return str(value) if value else None
+
+
+class WorkBrief(BaseModel):
+    """作品简要信息（用于主页展示）"""
+    id: UUID
+    title: str
+    cover_image: Optional[str] = None
+    total_words: int
+    favorite_count: int
+    genre: str
+    status: str
+
+    class Config:
+        from_attributes = True
+
+    @field_serializer('id')
+    def serialize_id(self, value: UUID, _info) -> str:
+        """将 UUID 序列化为字符串"""
+        return str(value)
+
+
+class UserProfileResponse(BaseModel):
+    """用户主页响应"""
+    user: UserResponse
+    stats: UserProfileStats
+    relation: UserRelation
+    works: List[WorkBrief]

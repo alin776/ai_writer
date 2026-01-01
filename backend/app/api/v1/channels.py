@@ -920,6 +920,7 @@ async def get_channel_members(
                 "id": member.id,
                 "user_id": member.user_id,
                 "username": member.user.username if member.user else "已删除用户",
+                "full_name": member.user.full_name if member.user else None,
                 "avatar": member.user.avatar if member.user else None,
                 "role": member.role,
                 "custom_title": member.custom_title,
