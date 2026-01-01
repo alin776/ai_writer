@@ -23,7 +23,6 @@ import { addFavoriteSticker } from '@/services/stickerApi';
 import { useToast } from '@/hooks/useToast';
 import { ToastContainer } from '@/components/ui/Toast';
 import { UserProfilePopover } from './UserProfilePopover';
-import { checkFriendship } from '@/services/friendApi';
 
 export interface Message {
   id: string;
@@ -345,21 +344,13 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   };
 
   // 处理私信发送（从用户名片）
-  const handleStartPrivateChat = async (targetUserId: string, message: string) => {
+  const handleStartPrivateChat = async (targetUserId: string, message: string, privateChannelId: string) => {
     try {
-      // 检查好友关系，获取私聊频道 ID
-      const result = await checkFriendship(targetUserId);
-
-      if (!result.isFriend || !result.privateChannelId) {
-        showWarning('需要先添加对方为好友才能发送私信');
-        return;
-      }
-
-      // 发送消息到私聊频道
-      await channelApi.sendMessage(result.privateChannelId, message, 'normal');
+      // 直接使用传入的 privateChannelId，避免重复查询好友关系
+      await channelApi.sendMessage(privateChannelId, message, 'normal');
 
       // 导航到私聊频道
-      navigate(`/channels?channelId=${result.privateChannelId}`);
+      navigate(`/channels?channelId=${privateChannelId}`);
       showSuccess('私信已发送');
     } catch (error) {
       console.error('发送私信失败:', error);

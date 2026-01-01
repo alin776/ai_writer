@@ -32,7 +32,7 @@ export interface UserProfilePopoverProps {
   userRole?: 'owner' | 'admin' | 'member';
   position: { x: number; y: number };
   onClose: () => void;
-  onStartPrivateChat?: (userId: string, message: string) => void;
+  onStartPrivateChat?: (userId: string, message: string, privateChannelId: string) => void;
 }
 
 type FriendStatus = 'none' | 'friend' | 'request_sent' | 'request_received' | 'loading';
@@ -63,6 +63,7 @@ export function UserProfilePopover({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const [dmError, setDmError] = useState<string | null>(null); // 私信错误提示
   const showReportDialogRef = useRef(false);
   const ignoreClickOutsideRef = useRef(false);
 
@@ -233,10 +234,25 @@ export function UserProfilePopover({
   const handleSendDM = () => {
     if (!dmMessage.trim()) return;
 
+    // 清除之前的错误
+    setDmError(null);
+
+    // 检查好友关系状态
+    if (friendStatus === 'loading') {
+      setDmError('正在检查好友关系，请稍候...');
+      return;
+    }
+
+    if (!friendshipData?.isFriend || !friendshipData?.privateChannelId) {
+      setDmError('需要先添加对方为好友才能发送私信');
+      return;
+    }
+
+    // 调用回调发送私信
     if (onStartPrivateChat) {
-      onStartPrivateChat(userId, dmMessage.trim());
-    } else if (friendshipData?.privateChannelId) {
-      // 没有回调但有私聊频道，跳转到频道（但消息不会发送）
+      onStartPrivateChat(userId, dmMessage.trim(), friendshipData.privateChannelId);
+    } else {
+      // 备用方案：直接导航到私聊频道（但消息不会发送）
       navigate(`/channels?channelId=${friendshipData.privateChannelId}`);
     }
     setDmMessage('');
@@ -453,13 +469,23 @@ export function UserProfilePopover({
         {/* 分隔线 - height: 1px, background: #36393f, margin: 12px 0 */}
         <div className="h-px bg-gray-200 dark:bg-[#36393f] my-3" />
 
+        {/* 私信错误提示 */}
+        {dmError && (
+          <div className="text-xs text-red-500 dark:text-red-400 mb-2 px-1">
+            {dmError}
+          </div>
+        )}
+
         {/* 私信输入框 - background: #40444b, border-radius: 8px, padding: 8px 12px */}
         {!isSelf && (
           <div className="flex items-center bg-gray-100 dark:bg-[#40444b] rounded-lg py-2 px-3 gap-2">
             <input
               type="text"
               value={dmMessage}
-              onChange={(e) => setDmMessage(e.target.value)}
+              onChange={(e) => {
+                setDmMessage(e.target.value);
+                if (dmError) setDmError(null); // 输入时清除错误
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();

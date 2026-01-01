@@ -99,7 +99,7 @@ const ChannelsView: React.FC = () => {
       // 清除 URL 参数，避免刷新时重复跳转
       setSearchParams({}, { replace: true });
     }
-  }, []);
+  }, [searchParams]); // 监听 searchParams 变化，支持页内导航
 
   // 当用户频道加载完成后，处理初始频道 ID
   useEffect(() => {
@@ -108,6 +108,25 @@ const ChannelsView: React.FC = () => {
       if (targetChannel) {
         setActiveChannelId(initialChannelIdFromUrl);
         setInitialChannelIdFromUrl(null);  // 清除，避免重复设置
+      } else {
+        // 频道不在列表中（可能是新创建的私聊频道），重新加载频道列表
+        const reloadAndSwitch = async () => {
+          try {
+            const response = await getMyChannels();
+            const channels = response.channels.map(convertApiChannelToChannel);
+            setUserChannels(channels);
+
+            // 再次检查目标频道是否存在
+            const targetChannel = channels.find(c => c.id === initialChannelIdFromUrl);
+            if (targetChannel) {
+              setActiveChannelId(initialChannelIdFromUrl);
+            }
+          } catch (error) {
+            console.error('重新加载频道失败:', error);
+          }
+          setInitialChannelIdFromUrl(null);
+        };
+        reloadAndSwitch();
       }
     }
   }, [initialChannelIdFromUrl, userChannels, loading]);
