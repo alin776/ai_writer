@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Hash, Lock, Users, MessageCircle, BookOpen, Coffee, FlaskConical, ChevronDown, ChevronRight, ChevronLeft, Bell, Plus, X, Search, AtSign, Edit2 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Hash, Lock, Users, MessageCircle, BookOpen, Coffee, FlaskConical, ChevronDown, ChevronRight, ChevronLeft, Bell, Plus, X, Search, AtSign, Edit2, UserPlus } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { channelApi, UnreadSummary } from '@/services/channelApi';
@@ -45,9 +44,12 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
     work: true,
   });
   const [showJoinModal, setShowJoinModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');  // 发现频道弹窗搜索
+  const [localSearchQuery, setLocalSearchQuery] = useState('');  // 本地频道过滤
+  const [showPlusMenu, setShowPlusMenu] = useState(false);  // +按钮下拉菜单
   const [unreadData, setUnreadData] = useState<Map<string, { unreadCount: number; mentionCount: number }>>(new Map());
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);  // 正在编辑的频道
+  const plusMenuRef = useRef<HTMLDivElement>(null);
 
   // 获取未读数据
   useEffect(() => {
@@ -82,6 +84,41 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
     };
   }, [activeChannelId]); // 当切换频道时也刷新未读数据
 
+  // 点击外部关闭+菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (plusMenuRef.current && !plusMenuRef.current.contains(event.target as Node)) {
+        setShowPlusMenu(false);
+      }
+    };
+    if (showPlusMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showPlusMenu]);
+
+  // 防抖刷新可加入频道
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debouncedRefreshAvailable = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      onRefreshAvailable?.();
+    }, 300);
+  }, [onRefreshAvailable]);
+
+  // 清理防抖定时器
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections(prev => ({
       ...prev,
@@ -104,11 +141,22 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
     return Hash;
   };
 
-  const officialChannels = channels.filter(c => c.type === 'official');
-  const fangroupChannels = channels.filter(c => c.type === 'fangroup');
-  const workChannels = channels.filter(c => c.type === 'work');
+  // 本地搜索过滤
+  const filterBySearch = (channelList: Channel[]) => {
+    if (!localSearchQuery.trim()) return channelList;
+    const query = localSearchQuery.toLowerCase();
+    return channelList.filter(c =>
+      c.name.toLowerCase().includes(query) ||
+      c.bookTitle?.toLowerCase().includes(query) ||
+      c.author?.toLowerCase().includes(query)
+    );
+  };
 
-  const ChannelItem = ({ channel }: { channel: Channel }) => {
+  const officialChannels = filterBySearch(channels.filter(c => c.type === 'official'));
+  const fangroupChannels = filterBySearch(channels.filter(c => c.type === 'fangroup'));
+  const workChannels = filterBySearch(channels.filter(c => c.type === 'work'));
+
+  const ChannelItem = ({ channel, clearSearchOnSelect }: { channel: Channel; clearSearchOnSelect?: boolean }) => {
     const Icon = getChannelIcon(channel);
     const isActive = channel.id === activeChannelId;
     const channelUnreadData = unreadData.get(channel.id);
@@ -123,9 +171,17 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
       }
     };
 
+    const handleChannelClick = () => {
+      onChannelSelect(channel.id);
+      // 如果是从搜索结果点击，清空搜索框
+      if (clearSearchOnSelect) {
+        setLocalSearchQuery('');
+      }
+    };
+
     return (
       <button
-        onClick={() => onChannelSelect(channel.id)}
+        onClick={handleChannelClick}
         className={cn(
           "w-full flex items-center gap-2 px-2 py-2 rounded transition-colors group relative overflow-hidden",
           isActive ? "bg-black text-white dark:bg-zinc-800" : "hover:bg-gray-50 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-300"
@@ -205,7 +261,6 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
     title: string;
     section: keyof typeof expandedSections;
     count: number;
-    isFirst?: boolean;
   }) => {
     const isExpanded = expandedSections[section];
 
@@ -228,16 +283,27 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
   const handleJoinChannel = async (channelId: string) => {
     if (onJoinChannel) {
       await onJoinChannel(channelId);
-      // 官方频道直接加入后关闭弹窗，非官方频道（申请）保持弹窗打开显示"已申请"状态
+      // 官方频道直接加入后关闭弹窗/清空搜索，非官方频道（申请）保持状态显示"已申请"
       const channel = availableChannels?.find(c => c.id === channelId);
       if (channel?.type === 'official') {
         setShowJoinModal(false);
         setSearchQuery('');
+        setLocalSearchQuery('');  // 同时清空本地搜索
       }
     }
   };
 
-  const filteredAvailableChannels = (availableChannels || []).filter(channel =>
+  // 搜索结果面板用的可加入频道过滤（使用 localSearchQuery）
+  const filteredAvailableChannels = (availableChannels || []).filter(channel => {
+    if (!localSearchQuery.trim()) return false;  // 只在有搜索词时显示
+    const query = localSearchQuery.toLowerCase();
+    return channel.name.toLowerCase().includes(query) ||
+      channel.bookTitle?.toLowerCase().includes(query) ||
+      channel.author?.toLowerCase().includes(query);
+  });
+
+  // 弹窗用的可加入频道过滤（使用 searchQuery）
+  const modalFilteredChannels = (availableChannels || []).filter(channel =>
     channel.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     channel.bookTitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     channel.author?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -245,63 +311,180 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
 
   return (
     <div className="border-r border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 flex flex-col h-full w-56 min-w-56">
-      <ScrollArea className="flex-1">
-        <div className="space-y-0.5 p-2">
-          {/* 官方频道 */}
-          <SectionHeader title="官方" section="official" count={officialChannels.length} />
-          {expandedSections.official && (
-            <div className="space-y-0.5 mb-2 ml-1">
-              {officialChannels.map(channel => (
-                <ChannelItem key={channel.id} channel={channel} />
-              ))}
-            </div>
-          )}
-
-          {/* 粉丝群 */}
-          <SectionHeader title="私域" section="fangroup" count={fangroupChannels.length} />
-          {expandedSections.fangroup && (
-            <div className="space-y-0.5 mb-2 ml-1">
-              {/* 创建粉丝群按钮 */}
-              {onCreateFangroup && (
+      {/* 顶部搜索框和+按钮 */}
+      <div className="p-2 border-b border-gray-100 dark:border-gray-700">
+        <div className="flex items-center gap-1">
+          <div className="flex-1 relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+            <input
+              type="text"
+              placeholder="搜索"
+              value={localSearchQuery}
+              onChange={(e) => {
+                setLocalSearchQuery(e.target.value);
+                // 输入时防抖刷新可加入频道列表
+                if (e.target.value.trim()) {
+                  debouncedRefreshAvailable();
+                }
+              }}
+              className="w-full pl-7 pr-7 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-300 dark:focus:border-gray-500"
+            />
+            {/* 清除按钮 */}
+            {localSearchQuery && (
+              <button
+                onClick={() => setLocalSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+              >
+                <X className="w-3 h-3 text-gray-400 dark:text-gray-500" />
+              </button>
+            )}
+          </div>
+          <div className="relative" ref={plusMenuRef}>
+            <button
+              onClick={() => setShowPlusMenu(!showPlusMenu)}
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              title="更多操作"
+            >
+              <Plus className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+            </button>
+            {/* 下拉菜单 */}
+            {showPlusMenu && (
+              <div className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 py-1">
                 <button
-                  onClick={onCreateFangroup}
-                  className="w-full flex items-center gap-2 px-2 py-2 rounded transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                  onClick={() => {
+                    setShowPlusMenu(false);
+                    onCreateFangroup?.();
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
-                  <Plus className="shrink-0 w-4 h-4" />
-                  <span className="flex-1 text-left text-sm">创建粉丝群</span>
+                  <Users className="w-4 h-4" />
+                  <span>创建群聊</span>
                 </button>
-              )}
-              {fangroupChannels.map(channel => (
-                <ChannelItem key={channel.id} channel={channel} />
-              ))}
-            </div>
-          )}
-
-          {/* 作品频道 */}
-          <SectionHeader title="作品" section="work" count={workChannels.length} />
-          {expandedSections.work && (
-            <div className="space-y-0.5 mb-2 ml-1">
-              {workChannels.map(channel => (
-                <ChannelItem key={channel.id} channel={channel} />
-              ))}
-            </div>
-          )}
+                <button
+                  onClick={() => {
+                    setShowPlusMenu(false);
+                    onRefreshAvailable?.();
+                    setShowJoinModal(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>加好友/群</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </ScrollArea>
+      </div>
+
+      {/* 搜索结果面板 或 频道列表 */}
+      {localSearchQuery.trim() ? (
+        <ScrollArea className="flex-1">
+          <div className="p-2">
+            {/* 我的频道 */}
+            {(officialChannels.length > 0 || fangroupChannels.length > 0 || workChannels.length > 0) && (
+              <div className="mb-3">
+                <div className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1 font-medium">我的频道</div>
+                <div className="space-y-0.5">
+                  {[...officialChannels, ...fangroupChannels, ...workChannels].map(channel => (
+                    <ChannelItem key={channel.id} channel={channel} clearSearchOnSelect />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 发现频道 */}
+            {filteredAvailableChannels.length > 0 && (
+              <div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1 font-medium">发现频道</div>
+                <div className="space-y-0.5">
+                  {filteredAvailableChannels.map(channel => {
+                    const Icon = getChannelIcon(channel);
+                    return (
+                      <div
+                        key={channel.id}
+                        className="flex items-center gap-2 px-2 py-2 rounded hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors"
+                      >
+                        {/* 频道图标 */}
+                        {channel.coverImage ? (
+                          <img
+                            src={channel.coverImage}
+                            alt={channel.name}
+                            className="shrink-0 w-5 h-5 rounded-full object-cover"
+                          />
+                        ) : (
+                          <Icon className="shrink-0 opacity-60 w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        )}
+                        {/* 频道名称 */}
+                        <span className="flex-1 text-sm text-gray-700 dark:text-gray-300 truncate">{channel.name}</span>
+                        {/* 申请/加入按钮 */}
+                        <button
+                          onClick={() => handleJoinChannel(channel.id)}
+                          disabled={channel.status === 'locked' || pendingChannelIds?.has(channel.id)}
+                          className={cn(
+                            "px-2 py-1 text-xs rounded transition-colors",
+                            pendingChannelIds?.has(channel.id)
+                              ? "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                              : channel.status === 'locked'
+                                ? "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                                : "bg-blue-500 text-white hover:bg-blue-600"
+                          )}
+                        >
+                          {pendingChannelIds?.has(channel.id) ? '已申请' : channel.type === 'official' ? '加入' : '申请'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 无结果 */}
+            {officialChannels.length === 0 && fangroupChannels.length === 0 && workChannels.length === 0 && filteredAvailableChannels.length === 0 && (
+              <div className="text-center py-8 text-xs text-gray-400 dark:text-gray-500">
+                未找到匹配的频道
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      ) : (
+        <ScrollArea className="flex-1">
+          <div className="space-y-0.5 p-2">
+            {/* 官方频道 */}
+            <SectionHeader title="官方" section="official" count={channels.filter(c => c.type === 'official').length} />
+            {expandedSections.official && (
+              <div className="space-y-0.5 mb-2 ml-1">
+                {channels.filter(c => c.type === 'official').map(channel => (
+                  <ChannelItem key={channel.id} channel={channel} />
+                ))}
+              </div>
+            )}
+
+            {/* 粉丝群 */}
+            <SectionHeader title="私域" section="fangroup" count={channels.filter(c => c.type === 'fangroup').length} />
+            {expandedSections.fangroup && (
+              <div className="space-y-0.5 mb-2 ml-1">
+                {channels.filter(c => c.type === 'fangroup').map(channel => (
+                  <ChannelItem key={channel.id} channel={channel} />
+                ))}
+              </div>
+            )}
+
+            {/* 作品频道 */}
+            <SectionHeader title="作品" section="work" count={channels.filter(c => c.type === 'work').length} />
+            {expandedSections.work && (
+              <div className="space-y-0.5 mb-2 ml-1">
+                {channels.filter(c => c.type === 'work').map(channel => (
+                  <ChannelItem key={channel.id} channel={channel} />
+                ))}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      )}
 
       {/* 底部操作栏 */}
-      <div className="border-t border-gray-100 dark:border-gray-700 p-2 flex justify-center items-center relative">
-        {onJoinChannel && availableChannels && availableChannels.length > 0 && (
-          <button
-            onClick={() => {
-              onRefreshAvailable?.();
-              setShowJoinModal(true);
-            }}
-            className="absolute left-2 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-          >
-            发现频道
-          </button>
-        )}
+      <div className="border-t border-gray-100 dark:border-gray-700 p-2 flex justify-center items-center">
         <button
           onClick={onToggleCollapse}
           className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
@@ -355,13 +538,13 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
 
             {/* 频道列表 */}
             <div className="flex-1 overflow-y-auto p-4">
-              {filteredAvailableChannels.length === 0 ? (
+              {modalFilteredChannels.length === 0 ? (
                 <div className="text-center py-8 text-xs text-gray-400 dark:text-gray-500">
                   {searchQuery ? '未找到匹配的频道' : '暂无可加入的频道'}
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {filteredAvailableChannels.map(channel => {
+                  {modalFilteredChannels.map(channel => {
                     const Icon = getChannelIcon(channel);
                     return (
                       <div
