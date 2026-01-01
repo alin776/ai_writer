@@ -13,6 +13,7 @@ class ChannelType(str, enum.Enum):
     OFFICIAL = "official"  # 官方频道
     FANGROUP = "fangroup"  # 粉丝群频道
     WORK = "work"  # 作品频道
+    PRIVATE = "private"  # 私聊频道
 
 
 class ChannelStatus(str, enum.Enum):
@@ -35,7 +36,7 @@ class Channel(Base):
     cover_image = Column(String(500), nullable=True)
 
     # 频道类型和状态
-    type = Column(Enum('official', 'fangroup', 'work', name='channeltype'), nullable=False, index=True)
+    type = Column(Enum('official', 'fangroup', 'work', 'private', name='channeltype'), nullable=False, index=True)
     status = Column(Enum('active', 'warning', 'locked', name='channelstatus'), nullable=False, default='active')
 
     # 所有者信息（粉丝群频道需要）

@@ -11,7 +11,9 @@ interface ChatSearchPageProps {
   channel: {
     id: string;
     name: string;
+    type?: 'official' | 'fangroup' | 'work' | 'private';
   };
+  displayName?: string; // 私聊频道时传入对方用户名
   isOpen: boolean;
   onClose: () => void;
   onMessageClick: (msgId: string) => void;
@@ -41,7 +43,7 @@ interface SearchMessage {
 // 筛选条件
 interface SearchFilters {
   keyword: string;
-  contentType: 'image_video' | 'file' | 'link' | null;
+  contentType: 'all' | 'image_video' | 'file' | 'link' | null;
   userId: string | null;
   startDate: string | null;
   endDate: string | null;
@@ -57,16 +59,20 @@ interface ChannelMember {
 
 // 分类标签配置
 const FILTER_TABS = [
+  { id: 'all', label: '全部' },
   { id: 'image_video', label: '图片与视频' },
   { id: 'file', label: '文件' },
   { id: 'link', label: '链接' },
 ] as const;
 
-export function ChatSearchPage({ channel, isOpen, onClose, onMessageClick }: ChatSearchPageProps) {
+export function ChatSearchPage({ channel, displayName, isOpen, onClose, onMessageClick }: ChatSearchPageProps) {
+  // 计算显示名称：私聊频道使用 displayName，其他使用 channel.name
+  const channelDisplayName = channel.type === 'private' ? (displayName || '私聊') : channel.name;
+
   // 筛选条件
   const [filters, setFilters] = useState<SearchFilters>({
     keyword: '',
-    contentType: null,
+    contentType: 'all',
     userId: null,
     startDate: null,
     endDate: null,
@@ -91,8 +97,9 @@ export function ChatSearchPage({ channel, isOpen, onClose, onMessageClick }: Cha
 
   // 执行搜索
   const handleSearch = useCallback(async (resetResults = true) => {
-    // 至少需要关键词或内容类型
-    if (!filters.keyword && !filters.contentType) {
+    // "全部"标签允许搜索所有记录，其他情况至少需要关键词或内容类型
+    const hasValidFilter = filters.contentType === 'all' || filters.keyword || filters.contentType || filters.userId || filters.startDate;
+    if (!hasValidFilter) {
       return;
     }
 
@@ -107,7 +114,7 @@ export function ChatSearchPage({ channel, isOpen, onClose, onMessageClick }: Cha
     try {
       const response = await channelApi.searchMessages(channel.id, {
         keyword: filters.keyword || undefined,
-        contentType: filters.contentType || undefined,
+        contentType: filters.contentType === 'all' ? undefined : (filters.contentType || undefined),
         userId: filters.userId || undefined,
         startDate: filters.startDate || undefined,
         endDate: filters.endDate || undefined,
@@ -184,12 +191,17 @@ export function ChatSearchPage({ channel, isOpen, onClose, onMessageClick }: Cha
   // 关闭时重置状态
   useEffect(() => {
     if (!isOpen) {
-      setFilters({ keyword: '', contentType: null, userId: null, startDate: null, endDate: null });
+      // 关闭时重置状态
+      setFilters({ keyword: '', contentType: 'all', userId: null, startDate: null, endDate: null });
       setResults([]);
       setTotal(0);
       setSkip(0);
       setError(null);
       setSelectedMember(null);
+    } else {
+      // 打开时自动加载"全部"记录
+      setFilters(f => ({ ...f, contentType: 'all' }));
+      setTimeout(() => handleSearch(), 100);
     }
   }, [isOpen]);
 
@@ -215,7 +227,7 @@ export function ChatSearchPage({ channel, isOpen, onClose, onMessageClick }: Cha
               onClick={(e) => e.stopPropagation()}
             >
               {/* 头部 */}
-              <Header channel={channel} total={total} onClose={onClose} />
+              <Header channelDisplayName={channelDisplayName} total={total} onClose={onClose} />
 
               {/* 搜索框 */}
               <SearchInput
@@ -226,13 +238,12 @@ export function ChatSearchPage({ channel, isOpen, onClose, onMessageClick }: Cha
 
               {/* 分类标签 */}
               <FilterTabs
-                activeTab={filters.contentType}
+                activeTab={filters.contentType || 'all'}
                 onTabChange={(tab) => {
-                  const newContentType = tab === filters.contentType ? null : tab as typeof filters.contentType;
+                  const newContentType = tab as typeof filters.contentType;
                   setFilters(f => ({ ...f, contentType: newContentType }));
-                  if (newContentType || filters.keyword) {
-                    setTimeout(() => handleSearch(), 0);
-                  }
+                  // 切换标签时自动搜索
+                  setTimeout(() => handleSearch(), 0);
                 }}
                 onDateClick={() => setShowDatePicker(true)}
                 onMemberClick={() => setShowMemberPicker(true)}
@@ -298,8 +309,8 @@ export function ChatSearchPage({ channel, isOpen, onClose, onMessageClick }: Cha
 // ==================== 子组件 ====================
 
 // Header 组件
-function Header({ channel, total, onClose }: {
-  channel: { name: string };
+function Header({ channelDisplayName, total, onClose }: {
+  channelDisplayName: string;
   total: number;
   onClose: () => void;
 }) {
@@ -310,7 +321,7 @@ function Header({ channel, total, onClose }: {
 
       {/* 标题居中 */}
       <h3 className="text-sm font-normal text-gray-700 dark:text-gray-200 truncate">
-        "{channel.name}"的聊天记录{total > 0 && `(${total})`}
+        "{channelDisplayName}"的聊天记录{total > 0 && `(${total})`}
       </h3>
 
       {/* 关闭按钮 */}

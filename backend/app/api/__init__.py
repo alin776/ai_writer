@@ -34,6 +34,7 @@ from app.api.v1 import (
     channels,
     chapter_comments,
     stickers,
+    friends,
 )
 from app.api.v1.endpoints import books
 from app.api.v1 import export as export_routes
@@ -86,3 +87,4 @@ api_router.include_router(contact.router, prefix="/contact", tags=["contact"])
 api_router.include_router(channels.router, prefix="/channels", tags=["channels"])
 api_router.include_router(chapter_comments.router, tags=["chapter-comments"])
 api_router.include_router(stickers.router, tags=["stickers"])
+api_router.include_router(friends.router, prefix="/friends", tags=["friends"])

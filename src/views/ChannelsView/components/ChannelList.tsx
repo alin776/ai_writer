@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Lock, Users, MessageCircle, BookOpen, Coffee, FlaskConical, ChevronDown, ChevronRight, ChevronLeft, Bell, Plus, X, Search, AtSign, Edit2, UserPlus } from 'lucide-react';
+import { Hash, Lock, Users, MessageCircle, BookOpen, Coffee, FlaskConical, ChevronDown, ChevronRight, ChevronLeft, Bell, Plus, X, Search, AtSign, Edit2, UserPlus, User, Inbox } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { channelApi, UnreadSummary } from '@/services/channelApi';
+import friendApi, { FriendshipResponse, FriendRequest as FriendRequestType, UserSearchResult } from '@/services/friendApi';
 import { EditFangroupDialog } from './EditFangroupDialog';
+import { useToast } from '@/hooks/useToast';
 
 export interface Channel {
   id: string;
   name: string;
-  type: 'official' | 'fangroup' | 'work';
+  type: 'official' | 'fangroup' | 'work' | 'private';
   status?: 'active' | 'warning' | 'locked';
   creatorId?: string;
   unreadCount?: number;
@@ -38,10 +40,12 @@ interface ChannelListProps {
 }
 
 export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoinChannel, availableChannels, pendingChannelIds, onCreateFangroup, isCollapsed = false, onToggleCollapse, currentUserId, onChannelUpdate, onRefreshAvailable }: ChannelListProps) {
+  const { showToast } = useToast();
   const [expandedSections, setExpandedSections] = useState({
     official: true,
     fangroup: true,
     work: true,
+    friends: true,  // 新增：好友分组
   });
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');  // 发现频道弹窗搜索
@@ -50,6 +54,17 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
   const [unreadData, setUnreadData] = useState<Map<string, { unreadCount: number; mentionCount: number }>>(new Map());
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);  // 正在编辑的频道
   const plusMenuRef = useRef<HTMLDivElement>(null);
+
+  // 好友系统相关状态
+  const [friends, setFriends] = useState<FriendshipResponse[]>([]);
+  const [pendingRequestCount, setPendingRequestCount] = useState(0);
+  const [showFriendRequests, setShowFriendRequests] = useState(false);
+  const [friendRequests, setFriendRequests] = useState<FriendRequestType[]>([]);
+
+  // 发现弹窗用户搜索相关状态
+  const [searchTab, setSearchTab] = useState<'all' | 'users' | 'channels'>('all');
+  const [searchUsers, setSearchUsers] = useState<UserSearchResult[]>([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
 
   // 获取未读数据
   useEffect(() => {
@@ -83,6 +98,124 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
       clearInterval(interval);
     };
   }, [activeChannelId]); // 当切换频道时也刷新未读数据
+
+  // 加载好友数据
+  useEffect(() => {
+    const loadFriendData = async () => {
+      try {
+        const [friendsRes, countRes] = await Promise.all([
+          friendApi.getFriends(),
+          friendApi.getPendingCount()
+        ]);
+        setFriends(friendsRes.items);
+        setPendingRequestCount(countRes.pendingCount);
+      } catch (error) {
+        console.error('加载好友数据失败:', error);
+      }
+    };
+
+    loadFriendData();
+
+    // 每30秒刷新待处理数量
+    const interval = setInterval(async () => {
+      try {
+        const res = await friendApi.getPendingCount();
+        setPendingRequestCount(res.pendingCount);
+      } catch (error) {
+        console.error('刷新好友请求数量失败:', error);
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // 打开好友请求弹窗时加载请求列表
+  useEffect(() => {
+    if (showFriendRequests) {
+      friendApi.getReceivedRequests().then(res => {
+        setFriendRequests(res.items);
+      }).catch(error => {
+        console.error('加载好友请求失败:', error);
+      });
+    }
+  }, [showFriendRequests]);
+
+  // 处理好友请求
+  const handleAcceptRequest = async (requestId: string) => {
+    try {
+      const res = await friendApi.handleFriendRequest(requestId, 'accept');
+      setFriendRequests(prev => prev.filter(r => r.id !== requestId));
+      setPendingRequestCount(prev => Math.max(0, prev - 1));
+      if ('friendship' in res) {
+        setFriends(prev => [res.friendship, ...prev]);
+      }
+      showToast('success', '已添加好友');
+    } catch (error: any) {
+      showToast('error', error.message || '操作失败');
+    }
+  };
+
+  const handleRejectRequest = async (requestId: string) => {
+    try {
+      await friendApi.handleFriendRequest(requestId, 'reject');
+      setFriendRequests(prev => prev.filter(r => r.id !== requestId));
+      setPendingRequestCount(prev => Math.max(0, prev - 1));
+      showToast('success', '已拒绝请求');
+    } catch (error: any) {
+      showToast('error', error.message || '操作失败');
+    }
+  };
+
+  // 获取头像首字母和颜色
+  const getAvatarInitial = (name: string) => name.charAt(0).toUpperCase();
+  const getAvatarBgColor = (name: string) => {
+    const colors = [
+      'bg-red-500', 'bg-orange-500', 'bg-amber-500', 'bg-yellow-500',
+      'bg-lime-500', 'bg-green-500', 'bg-emerald-500', 'bg-teal-500',
+      'bg-cyan-500', 'bg-sky-500', 'bg-blue-500', 'bg-indigo-500',
+      'bg-violet-500', 'bg-purple-500', 'bg-fuchsia-500', 'bg-pink-500'
+    ];
+    return colors[name.charCodeAt(0) % colors.length];
+  };
+
+  // 搜索用户（带防抖）
+  const searchUserDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const handleSearchUsers = useCallback((keyword: string) => {
+    if (searchUserDebounceRef.current) {
+      clearTimeout(searchUserDebounceRef.current);
+    }
+
+    if (!keyword.trim()) {
+      setSearchUsers([]);
+      return;
+    }
+
+    searchUserDebounceRef.current = setTimeout(async () => {
+      setIsSearchingUsers(true);
+      try {
+        const res = await friendApi.searchUsers(keyword);
+        setSearchUsers(res.items);
+      } catch (error) {
+        console.error('搜索用户失败:', error);
+      } finally {
+        setIsSearchingUsers(false);
+      }
+    }, 300);
+  }, []);
+
+  // 发送好友请求
+  const handleSendFriendRequest = async (userId: string) => {
+    try {
+      await friendApi.sendFriendRequest(userId);
+      // 更新搜索结果中的状态
+      setSearchUsers(prev => prev.map(u =>
+        u.id === userId ? { ...u, relationStatus: 'request_sent' as const } : u
+      ));
+      showToast('success', '好友请求已发送');
+    } catch (error: any) {
+      showToast('error', error.message || '发送失败');
+    }
+  };
 
   // 点击外部关闭+菜单
   useEffect(() => {
@@ -460,6 +593,77 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
               </div>
             )}
 
+            {/* 好友请求条目 - 有未处理请求时显示 */}
+            {pendingRequestCount > 0 && (
+              <button
+                onClick={() => setShowFriendRequests(true)}
+                className="w-full flex items-center gap-2 px-2 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded transition-colors text-gray-700 dark:text-gray-300"
+              >
+                <div className="shrink-0 w-5 h-5 flex items-center justify-center">
+                  <Users className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                </div>
+                <span className="flex-1 text-left text-sm">好友请求</span>
+                <span className="px-1.5 py-0.5 text-xs bg-blue-500 text-white rounded-full min-w-[20px] text-center">
+                  {pendingRequestCount}
+                </span>
+              </button>
+            )}
+
+            {/* 好友分组 */}
+            {friends.length > 0 && (
+              <>
+                <button
+                  onClick={() => setExpandedSections(prev => ({ ...prev, friends: !prev.friends }))}
+                  className="w-full flex items-center gap-1.5 px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded transition-colors group"
+                >
+                  {expandedSections.friends ? (
+                    <ChevronDown className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
+                  )}
+                  <span className="flex-1 text-left text-gray-500 dark:text-gray-400 text-sm tracking-wide">好友</span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">{friends.length}</span>
+                </button>
+                {expandedSections.friends && (
+                  <div className="space-y-0.5 mb-2">
+                    {friends.map(item => {
+                      const displayName = item.friend.fullName || item.friend.username;
+                      const isActive = item.privateChannelId === activeChannelId;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => item.privateChannelId && onChannelSelect(item.privateChannelId)}
+                          className={cn(
+                            "w-full flex items-center gap-2 px-2 py-2 rounded transition-colors ml-1",
+                            isActive
+                              ? "bg-black text-white dark:bg-zinc-800"
+                              : "hover:bg-gray-50 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-300"
+                          )}
+                        >
+                          {item.friend.avatar ? (
+                            <img
+                              src={item.friend.avatar}
+                              className="shrink-0 w-5 h-5 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className={cn(
+                              "shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-medium",
+                              getAvatarBgColor(displayName)
+                            )}>
+                              {getAvatarInitial(displayName)}
+                            </div>
+                          )}
+                          <span className="flex-1 w-0 text-left truncate text-sm">
+                            {displayName}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+
             {/* 粉丝群 */}
             <SectionHeader title="私域" section="fangroup" count={channels.filter(c => c.type === 'fangroup').length} />
             {expandedSections.fangroup && (
@@ -503,18 +707,22 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
             onClick={() => {
               setShowJoinModal(false);
               setSearchQuery('');
+              setSearchUsers([]);
+              setSearchTab('all');
             }}
           />
 
           {/* 弹窗 */}
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] max-h-[600px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl z-50 flex flex-col">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] h-[600px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl z-50 flex flex-col">
             {/* 头部 */}
             <div className="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-700">
-              <h3 className="text-sm dark:text-gray-100">发现频道</h3>
+              <h3 className="text-sm dark:text-gray-100">全局搜索</h3>
               <button
                 onClick={() => {
                   setShowJoinModal(false);
                   setSearchQuery('');
+                  setSearchUsers([]);
+                  setSearchTab('all');
                 }}
                 className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
               >
@@ -528,22 +736,110 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
                 <input
                   type="text"
-                  placeholder="搜索频道、作品或作者..."
+                  placeholder="搜索频道、作品或用户..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    handleSearchUsers(e.target.value);
+                  }}
                   className="w-full pl-9 pr-3 py-2 text-xs border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-gray-300 dark:focus:border-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 />
               </div>
+              {/* 标签栏 */}
+              <div className="flex gap-2 mt-2">
+                {(['all', 'users', 'channels'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setSearchTab(tab)}
+                    className={cn(
+                      "px-3 py-1 text-xs rounded transition-colors",
+                      searchTab === tab
+                        ? "bg-black dark:bg-white text-white dark:text-black"
+                        : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                    )}
+                  >
+                    {tab === 'all' ? '全部' : tab === 'users' ? '用户' : '群聊'}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* 频道列表 */}
+            {/* 内容区域 */}
             <div className="flex-1 overflow-y-auto p-4">
-              {modalFilteredChannels.length === 0 ? (
-                <div className="text-center py-8 text-xs text-gray-400 dark:text-gray-500">
-                  {searchQuery ? '未找到匹配的频道' : '暂无可加入的频道'}
+              {/* 空状态：未输入关键词时 */}
+              {!searchQuery.trim() ? (
+                <div className="flex flex-col items-center justify-center h-full py-20">
+                  <div className="w-20 h-20 rounded-full border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center mb-4">
+                    <Inbox className="w-10 h-10 text-gray-400 dark:text-gray-500" />
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">输入关键词搜索</p>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <>
+              {/* 用户搜索结果 */}
+              {(searchTab === 'all' || searchTab === 'users') && searchUsers.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-medium">用户</div>
+                  <div className="space-y-2">
+                    {searchUsers.map(user => {
+                      const displayName = user.fullName || user.username;
+                      return (
+                        <div key={user.id} className="flex items-start gap-3 p-3 border border-gray-100 dark:border-gray-700 rounded-lg hover:border-gray-200 dark:hover:border-gray-600 transition-colors">
+                          {/* 头像 */}
+                          <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
+                            {user.avatar ? (
+                              <img src={user.avatar} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className={cn("w-full h-full flex items-center justify-center text-white text-lg font-medium", getAvatarBgColor(displayName))}>
+                                {getAvatarInitial(displayName)}
+                              </div>
+                            )}
+                          </div>
+                          {/* 用户信息 */}
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-xs font-medium truncate dark:text-gray-100">{displayName}</h4>
+                            <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate">@{user.username}</p>
+                          </div>
+                          {/* 操作按钮 */}
+                          <button
+                            onClick={() => handleSendFriendRequest(user.id)}
+                            disabled={user.relationStatus !== 'none'}
+                            className={cn(
+                              "px-3 py-1.5 text-xs rounded transition-colors flex-shrink-0",
+                              user.relationStatus === 'none'
+                                ? "bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200"
+                                : user.relationStatus === 'friend'
+                                  ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 cursor-default"
+                                  : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-default"
+                            )}
+                          >
+                            {user.relationStatus === 'none' ? '添加' :
+                              user.relationStatus === 'friend' ? '已是好友' :
+                                user.relationStatus === 'request_sent' ? '已申请' : '待处理'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* 频道搜索结果 */}
+              {(searchTab === 'all' || searchTab === 'channels') && (
+                <>
+                  {searchTab === 'all' && searchUsers.length > 0 && modalFilteredChannels.length > 0 && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-medium">群聊</div>
+                  )}
+                  {modalFilteredChannels.length === 0 && searchUsers.length === 0 ? (
+                    <div className="text-center py-8 text-xs text-gray-400 dark:text-gray-500">
+                      {searchQuery ? '未找到匹配的结果' : '暂无可加入的频道'}
+                    </div>
+                  ) : modalFilteredChannels.length === 0 && searchTab === 'channels' ? (
+                    <div className="text-center py-8 text-xs text-gray-400 dark:text-gray-500">
+                      未找到匹配的频道
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
                   {modalFilteredChannels.map(channel => {
                     const Icon = getChannelIcon(channel);
                     return (
@@ -619,6 +915,92 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                                 ? '加入'
                                 : '申请'}
                         </button>
+                      </div>
+                    );
+                  })}
+                    </div>
+                  )}
+                </>
+              )}
+                </>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 好友请求弹窗 */}
+      {showFriendRequests && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-50" onClick={() => setShowFriendRequests(false)} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] max-h-[500px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl z-50 flex flex-col">
+            {/* 头部 */}
+            <div className="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-700">
+              <h3 className="text-sm font-medium dark:text-gray-100">好友请求</h3>
+              <button
+                onClick={() => setShowFriendRequests(false)}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              >
+                <X className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+              </button>
+            </div>
+
+            {/* 请求列表 */}
+            <div className="flex-1 overflow-y-auto p-3">
+              {friendRequests.length === 0 ? (
+                <div className="text-center py-8 text-xs text-gray-400 dark:text-gray-500">
+                  暂无好友请求
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {friendRequests.map(request => {
+                    const displayName = request.fromUser.fullName || request.fromUser.username;
+                    return (
+                      <div key={request.id} className="flex items-start gap-3 p-3 border border-gray-100 dark:border-gray-700 rounded-lg">
+                        {/* 头像 */}
+                        <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
+                          {request.fromUser.avatar ? (
+                            <img src={request.fromUser.avatar} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className={cn(
+                              "w-full h-full flex items-center justify-center text-white text-lg font-medium",
+                              getAvatarBgColor(displayName)
+                            )}>
+                              {getAvatarInitial(displayName)}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 信息 */}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-xs font-medium dark:text-gray-100">
+                            {displayName}
+                          </h4>
+                          {request.message && (
+                            <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                              {request.message}
+                            </p>
+                          )}
+                          <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
+                            {new Date(request.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+
+                        {/* 操作按钮 */}
+                        <div className="flex gap-2 flex-shrink-0">
+                          <button
+                            onClick={() => handleRejectRequest(request.id)}
+                            className="px-2.5 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"
+                          >
+                            拒绝
+                          </button>
+                          <button
+                            onClick={() => handleAcceptRequest(request.id)}
+                            className="px-2.5 py-1 text-xs bg-black dark:bg-white text-white dark:text-black rounded hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
+                          >
+                            同意
+                          </button>
+                        </div>
                       </div>
                     );
                   })}

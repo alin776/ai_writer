@@ -64,6 +64,8 @@ from app.models.chapter_comment import (
 )
 from app.models.user_sticker import UserSticker, UserFavoriteSticker, StickerSource
 from app.models.channel_join_request import ChannelJoinRequest, JoinRequestStatus
+from app.models.friendship import Friendship
+from app.models.friend_request import FriendRequest
 
 __all__ = [
     "User",
@@ -158,4 +160,6 @@ __all__ = [
     "StickerSource",
     "ChannelJoinRequest",
     "JoinRequestStatus",
+    "Friendship",
+    "FriendRequest",
 ]

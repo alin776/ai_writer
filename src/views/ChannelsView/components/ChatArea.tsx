@@ -86,6 +86,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   const [mentionStartIndex, setMentionStartIndex] = useState(-1); // @ 符号的位置
   const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0); // 键盘选中的索引
   const [members, setMembers] = useState<ChannelMember[]>([]);
+  const [privateChatPartnerName, setPrivateChatPartnerName] = useState<string | null>(null); // 私聊对方名称
   const [contextMenu, setContextMenu] = useState<{
     show: boolean;
     x: number;
@@ -194,12 +195,22 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
       try {
         const response = await getChannelMembers(channel.id);
         setMembers(response.members);
+
+        // 私聊频道：找到对方用户并设置显示名称
+        if (channel.type === 'private' && response.members.length > 0) {
+          const partner = response.members.find(m => m.userId !== currentUser.id);
+          if (partner) {
+            setPrivateChatPartnerName(partner.fullName || partner.username);
+          }
+        } else {
+          setPrivateChatPartnerName(null);
+        }
       } catch (error) {
         console.error('加载成员列表失败:', error);
       }
     };
     loadMembers();
-  }, [channel.id]);
+  }, [channel.id, channel.type, currentUser.id]);
 
   // 用户进入频道时自动标记为已读
   useEffect(() => {
@@ -846,8 +857,10 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   <PanelLeftClose className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
                 )}
               </button>
-              <h3 className="text-base font-medium dark:text-gray-100 truncate" title={channel.name}>{channel.name}</h3>
-              {channel.isPermanent && (
+              <h3 className="text-base font-medium dark:text-gray-100 truncate" title={channel.type === 'private' ? (privateChatPartnerName || '私聊') : channel.name}>
+                {channel.type === 'private' ? (privateChatPartnerName || '私聊') : channel.name}
+              </h3>
+              {channel.isPermanent && channel.type !== 'private' && (
                 <span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-1 rounded">永久</span>
               )}
             </div>
@@ -867,8 +880,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
           <div className={cn(
             "mt-2 px-3 py-2 rounded text-sm",
             statusInfo.variant === 'destructive' && "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-800",
-            statusInfo.variant === 'default' && "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-100 dark:border-amber-800",
-            statusInfo.variant === 'secondary' && "bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-100 dark:border-gray-700"
+            statusInfo.variant === 'default' && "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-100 dark:border-amber-800"
           )}>
             {statusInfo.text}
           </div>
@@ -1593,8 +1605,12 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
             {/* 频道信息 */}
             {channel.type !== 'work' && (
               <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                <h3 className="text-sm mb-2 dark:text-gray-100">{channel.name}</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{channel.description || '暂无描述'}</p>
+                <h3 className="text-sm mb-2 dark:text-gray-100">
+                  {channel.type === 'private' ? (privateChatPartnerName || '私聊') : channel.name}
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {channel.type === 'private' ? '私聊对话' : (channel.description || '暂无描述')}
+                </p>
               </div>
             )}
 
@@ -1870,6 +1886,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
       {/* 聊天记录搜索页面 */}
       <ChatSearchPage
         channel={channel}
+        displayName={privateChatPartnerName || undefined}
         isOpen={showSearchPage}
         onClose={() => setShowSearchPage(false)}
         onMessageClick={(msgId) => {

@@ -2234,12 +2234,7 @@ async def search_messages(
             detail="未加入该频道"
         )
 
-    # 参数验证：keyword 和 content_type 至少需要一个
-    if not keyword and not content_type:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="keyword 或 content_type 至少需要一个"
-        )
+    # 注意：允许不传任何筛选条件，此时返回所有消息（用于"全部"标签）
 
     # 日期范围验证
     if start_date and end_date and start_date > end_date:

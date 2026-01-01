@@ -9,7 +9,7 @@ interface MemberManagementDialogProps {
   onClose: () => void;
   channelId: string;
   channelName: string;
-  channelType: 'official' | 'fangroup' | 'work';
+  channelType: 'official' | 'fangroup' | 'work' | 'private';
   currentUserId: string;
   isCreator: boolean;
   userRole: 'owner' | 'admin' | 'member';

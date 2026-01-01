@@ -13,7 +13,7 @@ export interface Channel {
   name: string;
   description?: string;
   coverImage?: string;
-  type: 'official' | 'fangroup' | 'work';
+  type: 'official' | 'fangroup' | 'work' | 'private';
   status: 'active' | 'warning' | 'locked';
   creatorId?: string;
   workId?: string;
@@ -228,11 +228,8 @@ export const uploadChannelCover = async (file: File): Promise<{ coverUrl: string
   const formData = new FormData();
   formData.append('file', file);
 
-  const result = await api.post<{ coverUrl: string }>('/channels/upload-cover', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
+  // FormData 会自动设置 Content-Type，不需要手动指定
+  const result = await api.post<{ coverUrl: string }>('/channels/upload-cover', formData);
   return result;
 };
 

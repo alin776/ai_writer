@@ -1,11 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, or_, func
 from typing import List
+from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user, oauth2_scheme
 from app.models.user import User
+from app.models.friendship import Friendship
+from app.models.friend_request import FriendRequest
 from app.schemas.user import (
     UserResponse,
     UserUpdate,
@@ -22,6 +26,7 @@ from app.schemas.user import (
     VerifyAndUpdateEmailRequest,
     VerifyAndUpdateEmailResponse,
 )
+from app.schemas.friend import UserSearchResponse, UserSearchResult
 from app.services.user_service import UserService
 from app.services.cos_service import get_cos_service
 from app.services.email_verification_service import get_email_verification_service
@@ -328,6 +333,101 @@ async def upload_my_avatar(
     return AvatarUploadResponse(avatar_url=avatar_url)
 
 
+# ==================== 用户搜索 ====================
+# 注意：此路由必须在 /{user_id} 之前，否则 "search" 会被当作 user_id 匹配
+
+@router.get("/search", response_model=UserSearchResponse)
+async def search_users(
+    keyword: str = Query(..., min_length=1, description="搜索关键词"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    全站搜索用户
+
+    - 搜索字段：username, full_name
+    - 返回用户与当前用户的关系状态
+    - 排除当前用户自己
+    """
+    # 1. 基础搜索（排除自己，排除非活跃用户）
+    query = select(User).where(
+        User.id != current_user.id,
+        User.is_active == True,
+        or_(
+            User.username.ilike(f"%{keyword}%"),
+            User.full_name.ilike(f"%{keyword}%")
+        )
+    )
+
+    # 获取总数
+    count_query = select(func.count()).select_from(query.subquery())
+    total = (await db.execute(count_query)).scalar()
+
+    # 获取用户列表
+    query = query.order_by(User.username).offset(skip).limit(limit)
+    result = await db.execute(query)
+    users = result.scalars().all()
+
+    if not users:
+        return UserSearchResponse(total=0, items=[])
+
+    # 2. 批量查询关系状态
+    user_ids = [u.id for u in users]
+
+    # 查询好友关系
+    friendships_result = await db.execute(
+        select(Friendship.friend_id).where(
+            Friendship.user_id == current_user.id,
+            Friendship.friend_id.in_(user_ids)
+        )
+    )
+    friend_ids = set(row[0] for row in friendships_result.fetchall())
+
+    # 查询我发出的请求
+    sent_requests_result = await db.execute(
+        select(FriendRequest.to_user_id).where(
+            FriendRequest.from_user_id == current_user.id,
+            FriendRequest.to_user_id.in_(user_ids),
+            FriendRequest.status == 'pending'
+        )
+    )
+    sent_request_ids = set(row[0] for row in sent_requests_result.fetchall())
+
+    # 查询我收到的请求
+    received_requests_result = await db.execute(
+        select(FriendRequest.from_user_id).where(
+            FriendRequest.to_user_id == current_user.id,
+            FriendRequest.from_user_id.in_(user_ids),
+            FriendRequest.status == 'pending'
+        )
+    )
+    received_request_ids = set(row[0] for row in received_requests_result.fetchall())
+
+    # 3. 组装结果
+    items = []
+    for user in users:
+        if user.id in friend_ids:
+            relation_status = "friend"
+        elif user.id in sent_request_ids:
+            relation_status = "request_sent"
+        elif user.id in received_request_ids:
+            relation_status = "request_received"
+        else:
+            relation_status = "none"
+
+        items.append(UserSearchResult(
+            id=user.id,
+            username=user.username,
+            full_name=user.full_name,
+            avatar=user.avatar,
+            relation_status=relation_status
+        ))
+
+    return UserSearchResponse(total=total, items=items)
+
+
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: str,
@@ -337,13 +437,13 @@ async def get_user(
     """根据 ID 获取用户信息"""
     user_service = UserService(db)
     user = await user_service.get_user_by_id(user_id)
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-    
+
     return user
 
 
