@@ -11,6 +11,7 @@ from app.models.user import User
 from app.models.work import Work
 from app.models.friendship import Friendship
 from app.models.friend_request import FriendRequest
+from app.models.user_report import UserReport, UserReportReason, UserReportStatus
 from app.schemas.user import (
     UserProfileStats,
     UserRelation,
@@ -692,4 +693,73 @@ async def logout_other_sessions(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to logout other sessions: {str(error)}"
         )
+
+
+# ==================== 举报用户 ====================
+
+@router.post("/{user_id}/report")
+async def report_user(
+    user_id: UUID,
+    reason: str = Query(..., description="举报原因: spam, harassment, inappropriate, impersonation, other"),
+    description: str = Query(None, description="详细描述"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    举报用户
+
+    - reason: spam(垃圾信息), harassment(骚扰行为), inappropriate(不当内容), impersonation(冒充他人), other(其他)
+    """
+    # 不能举报自己
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="不能举报自己"
+        )
+
+    # 检查被举报用户是否存在
+    result = await db.execute(select(User).where(User.id == user_id))
+    target_user = result.scalar_one_or_none()
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="用户不存在"
+        )
+
+    # 验证举报原因
+    try:
+        report_reason = UserReportReason(reason)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的举报原因"
+        )
+
+    # 检查是否已经举报过（待处理状态）
+    existing_report = await db.execute(
+        select(UserReport).where(
+            UserReport.reporter_id == current_user.id,
+            UserReport.reported_user_id == user_id,
+            UserReport.status == UserReportStatus.pending
+        )
+    )
+    if existing_report.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="您已举报过该用户，请等待处理"
+        )
+
+    # 创建举报记录
+    report = UserReport(
+        reporter_id=current_user.id,
+        reported_user_id=user_id,
+        reason=report_reason,
+        description=description,
+        status=UserReportStatus.pending
+    )
+    db.add(report)
+    await db.commit()
+
+    return {"message": "举报已提交，我们会尽快处理"}
+
 

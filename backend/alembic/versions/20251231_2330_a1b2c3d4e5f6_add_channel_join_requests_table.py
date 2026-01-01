@@ -18,8 +18,14 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # 创建申请状态枚举
-    op.execute("CREATE TYPE joinrequeststatus AS ENUM ('pending', 'approved', 'rejected')")
+    # 创建申请状态枚举（如果不存在）
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE joinrequeststatus AS ENUM ('pending', 'approved', 'rejected');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
 
     # 创建频道加入申请表
     op.create_table(

@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { checkFriendship, sendFriendRequest, type FriendCheckResponse } from '@/services/friendApi';
 import { getMyChannels, type Channel } from '@/services/channelApi';
 import MiniEmojiPicker from './MiniEmojiPicker';
+import ReportUserDialog from './ReportUserDialog';
 
 export interface UserProfilePopoverProps {
   userId: string;
@@ -59,6 +60,14 @@ export function UserProfilePopover({
   const [adjustedPosition, setAdjustedPosition] = useState(position);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const showReportDialogRef = useRef(false);
+  const ignoreClickOutsideRef = useRef(false);
+
+  // 同步更新 ref
+  useEffect(() => {
+    showReportDialogRef.current = showReportDialog;
+  }, [showReportDialog]);
 
   // 是否是自己
   const isSelf = userId === currentUserId;
@@ -148,6 +157,21 @@ export function UserProfilePopover({
   // 点击外部关闭
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      // 如果设置了忽略标志，跳过这次检测
+      if (ignoreClickOutsideRef.current) {
+        ignoreClickOutsideRef.current = false;
+        return;
+      }
+
+      // 如果举报对话框打开，不关闭 popover（使用 ref 确保读取最新值）
+      if (showReportDialogRef.current) return;
+
+      // 检查是否点击在 DropdownMenu 内容上（通过 data-radix 属性识别）
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-radix-menu-content]') || target.closest('[role="menu"]') || target.closest('[role="menuitem"]')) {
+        return;
+      }
+
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
         onClose();
       }
@@ -168,13 +192,19 @@ export function UserProfilePopover({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // 如果举报对话框打开，先关闭对话框
+        if (showReportDialog) {
+          showReportDialogRef.current = false;
+          setShowReportDialog(false);
+          return;
+        }
         onClose();
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [onClose, showReportDialog]);
 
   // 添加好友
   const handleAddFriend = async () => {
@@ -209,7 +239,7 @@ export function UserProfilePopover({
     onClose();
   };
 
-  // 邀请至服务器
+  // 邀请至频道
   const handleInviteToChannel = (channelId: string) => {
     // TODO: 实现邀请功能
     console.log('邀请用户到频道:', channelId);
@@ -252,11 +282,11 @@ export function UserProfilePopover({
   return (
     <div
       ref={popoverRef}
-      className="fixed z-50 w-[300px] bg-[#232428] rounded-lg overflow-hidden"
+      className="fixed z-50 w-[300px] bg-white dark:bg-[#232428] rounded-lg overflow-hidden"
       style={{
         left: adjustedPosition.x,
         top: adjustedPosition.y,
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
       }}
     >
       {/* 顶部背景横幅 - 使用精确的渐变色 */}
@@ -293,26 +323,23 @@ export function UserProfilePopover({
                   <MoreVertical className="w-4 h-4" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[188px] bg-[#18191c] border-none p-1.5" style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.24)' }}>
-                <DropdownMenuItem onClick={handleViewProfile} className="text-[#b9bbbe] hover:text-white focus:text-white focus:bg-[#4752c4] rounded-sm">
+              <DropdownMenuContent align="end" className="w-[188px] bg-white dark:bg-[#18191c] border border-gray-200 dark:border-none p-1.5" style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.15)' }}>
+                <DropdownMenuItem onClick={handleViewProfile} className="text-gray-700 dark:text-[#b9bbbe] hover:text-gray-900 dark:hover:text-white focus:text-gray-900 dark:focus:text-white focus:bg-gray-100 dark:focus:bg-[#4752c4] rounded-sm">
                   查看完整个人资料
                 </DropdownMenuItem>
 
                 {myChannels.length > 0 && (
                   <DropdownMenuSub>
-                    <DropdownMenuSubTrigger className="text-[#b9bbbe] hover:text-white focus:text-white focus:bg-[#4752c4] rounded-sm">
-                      邀请至服务器
+                    <DropdownMenuSubTrigger className="text-gray-700 dark:text-[#b9bbbe] hover:text-gray-900 dark:hover:text-white focus:text-gray-900 dark:focus:text-white focus:bg-gray-100 dark:focus:bg-[#4752c4] rounded-sm">
+                      邀请至频道
                     </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="w-[200px] bg-[#18191c] border-none p-1.5" style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.24)' }}>
-                      {myChannels.slice(0, 8).map((channel) => (
+                    <DropdownMenuSubContent className="w-[200px] max-h-[300px] overflow-y-auto bg-white dark:bg-[#18191c] border border-gray-200 dark:border-none p-1.5" style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.15)' }}>
+                      {myChannels.map((channel) => (
                         <DropdownMenuItem
                           key={channel.id}
                           onClick={() => handleInviteToChannel(channel.id)}
-                          className="text-[#b9bbbe] hover:text-white focus:text-white focus:bg-[#4752c4] rounded-sm"
+                          className="text-gray-700 dark:text-[#b9bbbe] hover:text-gray-900 dark:hover:text-white focus:text-gray-900 dark:focus:text-white focus:bg-gray-100 dark:focus:bg-[#4752c4] rounded-sm"
                         >
-                          <span className="w-5 h-5 rounded-full bg-[#36393f] flex items-center justify-center text-[10px] mr-2">
-                            {channel.name[0]}
-                          </span>
                           <span className="truncate">{channel.name}</span>
                         </DropdownMenuItem>
                       ))}
@@ -320,15 +347,24 @@ export function UserProfilePopover({
                   </DropdownMenuSub>
                 )}
 
-                <DropdownMenuSeparator className="bg-[#36393f] my-1.5" />
+                <DropdownMenuSeparator className="bg-gray-200 dark:bg-[#36393f] my-1.5" />
 
-                <DropdownMenuItem className="text-[#b9bbbe] hover:text-white focus:text-white focus:bg-[#4752c4] rounded-sm">
+                <DropdownMenuItem className="text-gray-700 dark:text-[#b9bbbe] hover:text-gray-900 dark:hover:text-white focus:text-gray-900 dark:focus:text-white focus:bg-gray-100 dark:focus:bg-[#4752c4] rounded-sm">
                   忽略
                 </DropdownMenuItem>
-                <DropdownMenuItem className="text-[#ed4245] hover:text-white focus:text-white focus:bg-[#ed4245] rounded-sm">
+                <DropdownMenuItem className="text-red-500 dark:text-[#ed4245] hover:text-white focus:text-white focus:bg-red-500 dark:focus:bg-[#ed4245] rounded-sm">
                   屏蔽
                 </DropdownMenuItem>
-                <DropdownMenuItem className="text-[#ed4245] hover:text-white focus:text-white focus:bg-[#ed4245] rounded-sm">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    // 设置忽略标志，防止下拉菜单关闭时触发外部点击检测
+                    ignoreClickOutsideRef.current = true;
+                    // 更新 ref 和 state
+                    showReportDialogRef.current = true;
+                    setShowReportDialog(true);
+                  }}
+                  className="text-red-500 dark:text-[#ed4245] hover:text-white focus:text-white focus:bg-red-500 dark:focus:bg-[#ed4245] rounded-sm"
+                >
                   举报用户个人资料
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -342,31 +378,31 @@ export function UserProfilePopover({
         {/* 头像 - 80px, border 6px, position top -40px left 16px */}
         <div className="absolute -top-10 left-4">
           <div className="relative">
-            <Avatar className="w-20 h-20 border-[6px] border-[#232428]">
+            <Avatar className="w-20 h-20 border-[6px] border-white dark:border-[#232428]">
               <AvatarImage src={userAvatar} />
-              <AvatarFallback className="text-2xl bg-[#36393f] text-white">
+              <AvatarFallback className="text-2xl bg-gray-200 dark:bg-[#36393f] text-gray-600 dark:text-white">
                 {userName[0]}
               </AvatarFallback>
             </Avatar>
             {/* 在线状态指示器 - 16px, border 3px */}
-            <div className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-[#3ba55c] border-[3px] border-[#232428]" />
+            <div className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-[#3ba55c] border-[3px] border-white dark:border-[#232428]" />
           </div>
         </div>
 
         {/* 用户名和ID - margin-bottom: 12px */}
         <div className="mb-3">
-          <h3 className="text-xl font-semibold text-white mb-0.5">{userName}</h3>
-          <p className="text-sm text-[#b9bbbe]">{userId.slice(0, 8)}</p>
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-0.5">{userName}</h3>
+          <p className="text-sm text-gray-500 dark:text-[#b9bbbe]">{userId.slice(0, 8)}</p>
         </div>
 
         {/* 共同服务器信息 - font-size: 12px, color: #b9bbbe, margin-bottom: 12px */}
         {!isSelf && mutualChannelCount > 0 && (
-          <div className="flex items-center gap-1.5 text-xs text-[#b9bbbe] mb-3">
+          <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-[#b9bbbe] mb-3">
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
               <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/>
             </svg>
-            <span>{mutualChannelCount} 个共同服务器</span>
+            <span>{mutualChannelCount} 个共同频道</span>
           </div>
         )}
 
@@ -407,11 +443,11 @@ export function UserProfilePopover({
         )}
 
         {/* 分隔线 - height: 1px, background: #36393f, margin: 12px 0 */}
-        <div className="h-px bg-[#36393f] my-3" />
+        <div className="h-px bg-gray-200 dark:bg-[#36393f] my-3" />
 
         {/* 私信输入框 - background: #40444b, border-radius: 8px, padding: 8px 12px */}
         {!isSelf && (
-          <div className="flex items-center bg-[#40444b] rounded-lg py-2 px-3 gap-2">
+          <div className="flex items-center bg-gray-100 dark:bg-[#40444b] rounded-lg py-2 px-3 gap-2">
             <input
               type="text"
               value={dmMessage}
@@ -423,11 +459,11 @@ export function UserProfilePopover({
                 }
               }}
               placeholder={`私信 @${userName}`}
-              className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm text-[#dcddde] placeholder-[#72767d]"
+              className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm text-gray-700 dark:text-[#dcddde] placeholder-gray-400 dark:placeholder-[#72767d]"
             />
             <button
               ref={emojiButtonRef}
-              className="shrink-0 text-white/60 hover:text-white transition-opacity"
+              className="shrink-0 text-gray-500 dark:text-white/60 hover:text-gray-700 dark:hover:text-white transition-opacity"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
             >
               <span className="text-lg leading-none">😊</span>
@@ -465,6 +501,17 @@ export function UserProfilePopover({
           />
         </div>
       )}
+
+      {/* 举报用户对话框 */}
+      <ReportUserDialog
+        isOpen={showReportDialog}
+        onClose={() => {
+          showReportDialogRef.current = false;
+          setShowReportDialog(false);
+        }}
+        userId={userId}
+        userName={userName}
+      />
     </div>
   );
 }

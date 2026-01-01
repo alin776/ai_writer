@@ -1,12 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MoreHorizontal, Heart, BookOpen } from 'lucide-react';
+import { MoreHorizontal, Heart, BookOpen, Flag } from 'lucide-react';
 import { getUserProfile, UserProfile } from '@/services/userApi';
-import { sendFriendRequest, handleFriendRequest } from '@/services/friendApi';
+import { sendFriendRequest, handleFriendRequest, reportUser } from '@/services/friendApi';
 import { useAuthStore } from '@/store/authStore';
 import { useWorkNavStore } from '@/store/workNavStore';
 import { useToast } from '@/hooks/useToast';
 import { ImageWithFallback } from '@/components/library/ImageWithFallback';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ReportUserDialog } from '@/views/ChannelsView/components/ReportUserDialog';
 
 // 数字格式化
 const formatNumber = (num: number): string => {
@@ -24,6 +31,7 @@ const UserProfileView = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
 
   useEffect(() => {
     if (userId) {
@@ -200,9 +208,25 @@ const UserProfileView = () => {
                   </h1>
                   <div className="flex gap-2">
                     {renderActionButton()}
-                    <button className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                      <MoreHorizontal className="w-5 h-5" />
-                    </button>
+                    {/* 更多选项 - 非自己才显示 */}
+                    {!relation.isSelf && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                            <MoreHorizontal className="w-5 h-5" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40">
+                          <DropdownMenuItem
+                            onClick={() => setShowReportDialog(true)}
+                            className="text-red-500 focus:text-red-500"
+                          >
+                            <Flag className="w-4 h-4 mr-2" />
+                            举报用户
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 </div>
 
@@ -275,6 +299,16 @@ const UserProfileView = () => {
           )}
         </div>
       </div>
+
+      {/* 举报用户对话框 */}
+      {userId && profile && (
+        <ReportUserDialog
+          isOpen={showReportDialog}
+          onClose={() => setShowReportDialog(false)}
+          userId={userId}
+          userName={profile.user.fullName || profile.user.username}
+        />
+      )}
     </div>
   );
 };

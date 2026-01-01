@@ -1,6 +1,6 @@
 """add summary to chapters
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: 20251019_2320
 Revises: f6b288607b25
 Create Date: 2025-10-19 23:20:00.000000
 
@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = 'a1b2c3d4e5f6'
+revision = '20251019_2320'
 down_revision = 'f6b288607b25'
 branch_labels = None
 depends_on = None

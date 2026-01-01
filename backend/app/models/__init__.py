@@ -66,6 +66,7 @@ from app.models.user_sticker import UserSticker, UserFavoriteSticker, StickerSou
 from app.models.channel_join_request import ChannelJoinRequest, JoinRequestStatus
 from app.models.friendship import Friendship
 from app.models.friend_request import FriendRequest
+from app.models.user_report import UserReport, UserReportReason, UserReportStatus
 
 __all__ = [
     "User",
@@ -162,4 +163,7 @@ __all__ = [
     "JoinRequestStatus",
     "Friendship",
     "FriendRequest",
+    "UserReport",
+    "UserReportReason",
+    "UserReportStatus",
 ]

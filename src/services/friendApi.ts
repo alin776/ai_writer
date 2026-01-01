@@ -166,6 +166,21 @@ export async function checkFriendship(userId: string): Promise<FriendCheckRespon
   return apiAdapter.get(`/friends/check/${userId}`);
 }
 
+/**
+ * 举报用户
+ */
+export async function reportUser(
+  userId: string,
+  reason: 'spam' | 'harassment' | 'inappropriate' | 'impersonation' | 'other',
+  description?: string
+): Promise<{ message: string }> {
+  const params = new URLSearchParams({ reason });
+  if (description) {
+    params.append('description', description);
+  }
+  return apiAdapter.post(`/users/${userId}/report?${params.toString()}`, null);
+}
+
 // 默认导出
 export default {
   searchUsers,
@@ -176,5 +191,6 @@ export default {
   getPendingCount,
   getFriends,
   deleteFriend,
-  checkFriendship
+  checkFriendship,
+  reportUser
 };

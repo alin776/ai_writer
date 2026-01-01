@@ -83,21 +83,21 @@ const MiniEmojiPicker: React.FC<MiniEmojiPickerProps> = ({ onSelect, onClose }) 
 
   return (
     <div
-      className="w-72 h-80 bg-[#232428] border border-[#36393f] rounded-lg overflow-hidden flex flex-col"
-      style={{ boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)' }}
+      className="w-72 h-80 bg-white dark:bg-[#232428] border border-gray-200 dark:border-[#36393f] rounded-lg overflow-hidden flex flex-col"
+      style={{ boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)' }}
     >
       {/* 内容区域 */}
       <div className="flex-1 overflow-y-auto">
         {/* 最近使用 */}
         {recentEmojis.length > 0 && (
           <div className="p-2">
-            <div className="text-xs text-[#b9bbbe] mb-1">最近使用</div>
+            <div className="text-xs text-gray-500 dark:text-[#b9bbbe] mb-1">最近使用</div>
             <div className="grid grid-cols-8 gap-0.5">
               {recentEmojis.map((emoji, index) => (
                 <button
                   key={`recent-${index}`}
                   onClick={() => handleEmojiSelect(emoji)}
-                  className="w-8 h-8 flex items-center justify-center text-xl hover:bg-[#36393f] rounded transition-colors"
+                  className="w-8 h-8 flex items-center justify-center text-xl hover:bg-gray-100 dark:hover:bg-[#36393f] rounded transition-colors"
                 >
                   {emoji}
                 </button>
@@ -108,14 +108,14 @@ const MiniEmojiPicker: React.FC<MiniEmojiPickerProps> = ({ onSelect, onClose }) 
 
         {/* Emoji 分类 */}
         {Object.entries(EMOJI_CATEGORIES).map(([key, category]) => (
-          <div key={key} className="p-2 border-t border-[#36393f]">
-            <div className="text-xs text-[#b9bbbe] mb-1">{category.name}</div>
+          <div key={key} className="p-2 border-t border-gray-200 dark:border-[#36393f]">
+            <div className="text-xs text-gray-500 dark:text-[#b9bbbe] mb-1">{category.name}</div>
             <div className="grid grid-cols-8 gap-0.5">
               {category.emojis.map((emoji, index) => (
                 <button
                   key={`${key}-${index}`}
                   onClick={() => handleEmojiSelect(emoji)}
-                  className="w-8 h-8 flex items-center justify-center text-xl hover:bg-[#36393f] rounded transition-colors"
+                  className="w-8 h-8 flex items-center justify-center text-xl hover:bg-gray-100 dark:hover:bg-[#36393f] rounded transition-colors"
                 >
                   {emoji}
                 </button>

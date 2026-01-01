@@ -110,8 +110,30 @@ class WorkReportAdminResponse(BaseModel):
         from_attributes = True
 
 
+class UserReportAdminResponse(BaseModel):
+    """用户举报管理响应（包含关联信息）"""
+    id: UUID
+    reporter_id: UUID
+    reported_user_id: UUID
+    reason: str
+    description: Optional[str] = None
+    status: str
+    admin_note: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    reviewed_by: Optional[UUID] = None
+    created_at: datetime
+    # 关联信息
+    reporter_name: Optional[str] = None
+    reported_user_name: Optional[str] = None
+    reported_user_avatar: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class ReportSummary(BaseModel):
     """举报统计概览"""
     message_reports: dict  # { total, pending, processed_today }
     comment_reports: dict
     work_reports: dict
+    user_reports: Optional[dict] = None  # { total, pending, processed_today }
