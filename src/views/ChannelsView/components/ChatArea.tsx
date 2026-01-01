@@ -663,13 +663,6 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         text: `预警:距离频道折叠还有 ${7 - (channel.warningDays || 0)} 天,快来聊天唤醒频道吧!`
       };
     }
-    if (channel.type === 'work' && !channel.isPermanent) {
-      return {
-        show: true,
-        variant: 'secondary' as const,
-        text: '试运行中:保持活跃满一个月可转为永久频道'
-      };
-    }
     return { show: false };
   };
 
@@ -839,7 +832,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
       {/* 频道头部 */}
       <div className="p-3 border-b border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900">
         <div className="flex items-center justify-between">
-          <div>
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               {/* 展开/收缩图标 */}
               <button
@@ -853,17 +846,11 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   <PanelLeftClose className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
                 )}
               </button>
-              <h3 className="text-base font-medium dark:text-gray-100">{channel.name}</h3>
+              <h3 className="text-base font-medium dark:text-gray-100 truncate" title={channel.name}>{channel.name}</h3>
               {channel.isPermanent && (
                 <span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-1 rounded">永久</span>
               )}
-              {channel.type === 'work' && channel.bookTitle && (
-                <span className="text-sm text-gray-400 dark:text-gray-500">《{channel.bookTitle}》</span>
-              )}
             </div>
-            {channel.type === 'work' && channel.collectCount && (
-              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">收藏 {channel.collectCount}</p>
-            )}
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -1586,11 +1573,16 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
             {channel.type === 'work' && (
               <div className="p-4 border-b border-gray-100 dark:border-gray-700">
                 <div className="flex gap-3">
-                  <div className="w-16 h-22 bg-gray-100 dark:bg-gray-800 rounded flex-shrink-0 flex items-center justify-center">
-                    <span className="text-xs text-gray-400 dark:text-gray-500">封面</span>
-                  </div>
+                  <img
+                    src={channel.coverImage || '/default-cover.jpg'}
+                    alt={channel.bookTitle || channel.name}
+                    className="w-16 h-22 bg-gray-100 dark:bg-gray-800 rounded flex-shrink-0 object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = '/default-cover.jpg';
+                    }}
+                  />
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-sm mb-1 truncate dark:text-gray-100">{channel.bookTitle || channel.name}</h3>
+                    <h3 className="text-sm mb-1 truncate dark:text-gray-100" title={channel.bookTitle || channel.name}>{channel.bookTitle || channel.name}</h3>
                     <p className="text-xs text-gray-500 dark:text-gray-400">作者:{channel.author || '佚名'}</p>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">收藏 {channel.collectCount || 0}</p>
                   </div>

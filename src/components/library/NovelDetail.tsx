@@ -5,7 +5,7 @@ import {
   Star,
   Clock,
   BookOpen,
-  Share2,
+  Users,
   MessageCircle,
   ChevronDown,
   ThumbsUp,
@@ -15,6 +15,7 @@ import {
 import { Novel } from './NovelCard';
 import { ImageWithFallback } from './ImageWithFallback';
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DataService } from '../../services/DataService';
 import Modal from '../common/Modal';
 import { useGlobalStore } from '../../store/globalStore';
@@ -65,6 +66,7 @@ interface RatingStats {
 }
 
 export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = 'novel-square' }: NovelDetailProps) {
+  const navigate = useNavigate();
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set([0]));
   const [userRating, setUserRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
@@ -293,6 +295,37 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
     } catch (error) {
       console.error('书架操作失败:', error);
       showError('操作失败，请重试');
+    }
+  };
+
+  // 进入书友圈
+  const handleEnterBookClub = async () => {
+    try {
+      // 检查用户是否已收藏
+      if (!isInBookshelf) {
+        showError('请先收藏作品才能进入书友圈');
+        return;
+      }
+
+      // 获取作品频道信息
+      const channelInfo = await DataService.getWorkChannel(novel.id);
+
+      if (!channelInfo.hasChannel) {
+        showError('该作品暂无书友圈');
+        return;
+      }
+
+      // 检查频道是否已锁定（作品已下架）
+      if (channelInfo.channelStatus === 'locked') {
+        showError('该书友圈已关闭（作品已下架）');
+        return;
+      }
+
+      // 跳转到频道页面，带上频道ID
+      navigate(`/channels?channelId=${channelInfo.channelId}`);
+    } catch (error) {
+      console.error('进入书友圈失败:', error);
+      showError('进入书友圈失败，请重试');
     }
   };
 
@@ -554,9 +587,12 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
                     {isInBookshelf ? '已加入书架' : '加入书架'}
                   </button>
                 )}
-                <button className="px-6 py-3 border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 text-sm hover:border-gray-300 dark:hover:border-slate-600 hover:text-black dark:hover:text-white transition-colors flex items-center gap-2">
-                  <Share2 className="w-4 h-4" />
-                  分享
+                <button
+                  onClick={handleEnterBookClub}
+                  className="px-6 py-3 border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 text-sm hover:border-gray-300 dark:hover:border-slate-600 hover:text-black dark:hover:text-white transition-colors flex items-center gap-2"
+                >
+                  <Users className="w-4 h-4" />
+                  进入书友圈
                 </button>
               </div>
             </div>

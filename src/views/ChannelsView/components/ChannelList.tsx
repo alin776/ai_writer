@@ -35,9 +35,10 @@ interface ChannelListProps {
   onToggleCollapse?: () => void;
   currentUserId?: string;  // 当前用户ID，用于判断是否为粉丝群创建者
   onChannelUpdate?: () => void;  // 频道信息更新回调
+  onRefreshAvailable?: () => void;  // 刷新可加入频道列表
 }
 
-export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoinChannel, availableChannels, pendingChannelIds, onCreateFangroup, isCollapsed = false, onToggleCollapse, currentUserId, onChannelUpdate }: ChannelListProps) {
+export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoinChannel, availableChannels, pendingChannelIds, onCreateFangroup, isCollapsed = false, onToggleCollapse, currentUserId, onChannelUpdate, onRefreshAvailable }: ChannelListProps) {
   const [expandedSections, setExpandedSections] = useState({
     official: true,
     fangroup: true,
@@ -111,11 +112,12 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
     const Icon = getChannelIcon(channel);
     const isActive = channel.id === activeChannelId;
     const channelUnreadData = unreadData.get(channel.id);
-    const isCreator = channel.type === 'fangroup' && channel.creatorId === currentUserId;
+    // 粉丝群或作品频道的创建者可以编辑
+    const canEdit = (channel.type === 'fangroup' || channel.type === 'work') && channel.creatorId === currentUserId;
 
-    // 点击头像编辑（仅粉丝群创建者）
+    // 点击头像编辑（粉丝群或作品频道创建者）
     const handleAvatarClick = (e: React.MouseEvent) => {
-      if (isCreator) {
+      if (canEdit) {
         e.stopPropagation();  // 阻止选中频道
         setEditingChannel(channel);
       }
@@ -125,16 +127,16 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
       <button
         onClick={() => onChannelSelect(channel.id)}
         className={cn(
-          "w-full flex items-center gap-2 px-2 py-2 rounded transition-colors group relative",
+          "w-full flex items-center gap-2 px-2 py-2 rounded transition-colors group relative overflow-hidden",
           isActive ? "bg-black text-white dark:bg-zinc-800" : "hover:bg-gray-50 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-300"
         )}
       >
-        {/* 频道图标/头像 - 粉丝群创建者可点击编辑 */}
-        {isCreator ? (
+        {/* 频道图标/头像 - 创建者可点击编辑 */}
+        {canEdit ? (
           <div
             onClick={handleAvatarClick}
             className="relative shrink-0 cursor-pointer group/avatar"
-            title="点击编辑粉丝群"
+            title={channel.type === 'work' ? "点击编辑作品频道" : "点击编辑粉丝群"}
           >
             {channel.coverImage ? (
               <img
@@ -144,7 +146,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
               />
             ) : (
               <div className="w-5 h-5 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center group-hover/avatar:ring-2 group-hover/avatar:ring-blue-500 transition-all">
-                <Users className="w-3 h-3 text-gray-500 dark:text-gray-400" />
+                <Icon className="w-3 h-3 text-gray-500 dark:text-gray-400" />
               </div>
             )}
             {/* 编辑图标遮罩 */}
@@ -161,7 +163,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
         ) : (
           <Icon className="shrink-0 opacity-60 w-5 h-5" />
         )}
-        <span className="flex-1 text-left truncate text-sm">{channel.name}</span>
+        <span className="flex-1 w-0 text-left truncate text-sm" title={channel.name}>{channel.name}</span>
 
         {/* @提醒标识 - 优先级最高 */}
         {channelUnreadData && channelUnreadData.mentionCount > 0 && (
@@ -291,7 +293,10 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
       <div className="border-t border-gray-100 dark:border-gray-700 p-2 flex justify-center items-center relative">
         {onJoinChannel && availableChannels && availableChannels.length > 0 && (
           <button
-            onClick={() => setShowJoinModal(true)}
+            onClick={() => {
+              onRefreshAvailable?.();
+              setShowJoinModal(true);
+            }}
             className="absolute left-2 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
           >
             发现频道
@@ -381,10 +386,11 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                         {/* 频道信息 */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <h4 className="text-xs truncate dark:text-gray-100">
-                              {channel.type === 'work' && channel.bookTitle
-                                ? `《${channel.bookTitle}》`
-                                : channel.name}
+                            <h4
+                              className="text-xs truncate dark:text-gray-100"
+                              title={channel.name}
+                            >
+                              {channel.name}
                             </h4>
                             {channel.isPermanent && (
                               <span className="text-[10px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">永久</span>
@@ -394,7 +400,9 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                           {channel.type === 'work' && (
                             <div className="text-[10px] text-gray-500 dark:text-gray-400 space-y-0.5">
                               <p>作者：{channel.author || '佚名'}</p>
-                              <p>收藏：{channel.collectCount || 0}</p>
+                              {channel.description && (
+                                <p className="text-[10px] line-clamp-2">{channel.description}</p>
+                              )}
                             </div>
                           )}
 

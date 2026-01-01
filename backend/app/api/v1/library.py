@@ -464,44 +464,36 @@ async def add_to_bookshelf(
     # 增加作品的收藏数
     work.favorite_count += 1
 
-    # 检查是否需要自动创建作品频道
-    # 当收藏数达到 20 且尚未创建频道时，自动创建
-    if work.favorite_count == 20:
-        # 检查是否已有频道
-        existing_channel_result = await db.execute(
-            select(Channel).where(
-                Channel.work_id == work.id,
-                Channel.type == ChannelType.WORK
+    # 收藏成功后，自动加入作品书友圈频道
+    channel_result = await db.execute(
+        select(Channel).where(
+            Channel.work_id == work.id,
+            Channel.type == ChannelType.WORK
+        )
+    )
+    channel = channel_result.scalar_one_or_none()
+
+    if channel:
+        # 检查用户是否已是频道成员
+        member_result = await db.execute(
+            select(ChannelMember).where(
+                ChannelMember.channel_id == channel.id,
+                ChannelMember.user_id == current_user.id
             )
         )
-        existing_channel = existing_channel_result.scalar_one_or_none()
+        existing_member = member_result.scalar_one_or_none()
 
-        if not existing_channel:
-            # 创建作品频道
-            channel = Channel(
-                id=uuid.uuid4(),
-                name=f"《{work.title}》书友圈",
-                description=f"《{work.title}》的读者交流频道",
-                type=ChannelType.WORK,
-                status=ChannelStatus.ACTIVE,
-                work_id=work.id,
-                creator_id=work.author_id,  # 作者作为创建者
-                is_permanent=False,  # 作品频道默认非永久
-                is_pinned=False,
-            )
-            db.add(channel)
-
-            # 作者自动成为频道管理员
-            author_member = ChannelMember(
+        if not existing_member:
+            # 将用户加入频道
+            new_member = ChannelMember(
                 id=uuid.uuid4(),
                 channel_id=channel.id,
-                user_id=work.author_id,
-                role=MemberRole.ADMIN
+                user_id=current_user.id,
+                role=MemberRole.MEMBER
             )
-            db.add(author_member)
-            channel.member_count = 1
-
-            logger.info(f"Auto-created work channel for work {work.id} ({work.title}) at 20 favorites")
+            db.add(new_member)
+            channel.member_count += 1
+            logger.info(f"User {current_user.id} auto-joined work channel {channel.id}")
 
     await db.commit()
 
@@ -551,6 +543,31 @@ async def remove_from_bookshelf(
     # 减少作品的收藏数
     if work and work.favorite_count > 0:
         work.favorite_count -= 1
+
+    # 取消收藏时，自动退出作品书友圈频道（作者除外）
+    channel_result = await db.execute(
+        select(Channel).where(
+            Channel.work_id == work_id,
+            Channel.type == ChannelType.WORK
+        )
+    )
+    channel = channel_result.scalar_one_or_none()
+
+    if channel:
+        # 查询用户在该频道的成员记录
+        member_result = await db.execute(
+            select(ChannelMember).where(
+                ChannelMember.channel_id == channel.id,
+                ChannelMember.user_id == current_user.id
+            )
+        )
+        member = member_result.scalar_one_or_none()
+
+        # 只有非 owner 才能被移除（作者是 owner）
+        if member and member.role != MemberRole.OWNER:
+            await db.delete(member)
+            channel.member_count = max(0, channel.member_count - 1)
+            logger.info(f"User {current_user.id} auto-left work channel {channel.id}")
 
     await db.commit()
 
@@ -707,6 +724,60 @@ async def check_in_bookshelf(
     return {
         "work_id": str(work_id),
         "in_bookshelf": in_bookshelf
+    }
+
+
+@router.get("/works/{work_id}/channel", response_model=dict)
+async def get_work_channel(
+    work_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    获取作品的书友圈频道信息
+
+    - **work_id**: 作品ID
+
+    返回:
+    - channel_id: 频道ID（如果存在）
+    - has_channel: 是否有书友圈
+    - is_member: 当前用户是否是频道成员
+    - channel_name: 频道名称
+    """
+    # 查询作品对应的频道
+    channel_result = await db.execute(
+        select(Channel).where(
+            Channel.work_id == work_id,
+            Channel.type == ChannelType.WORK
+        )
+    )
+    channel = channel_result.scalar_one_or_none()
+
+    if not channel:
+        return {
+            "work_id": str(work_id),
+            "has_channel": False,
+            "channel_id": None,
+            "channel_name": None,
+            "is_member": False
+        }
+
+    # 检查当前用户是否是频道成员
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel.id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    is_member = member_result.scalar_one_or_none() is not None
+
+    return {
+        "work_id": str(work_id),
+        "has_channel": True,
+        "channel_id": str(channel.id),
+        "channel_name": channel.name,
+        "channel_status": channel.status,
+        "is_member": is_member
     }
 
 

@@ -105,6 +105,9 @@ def build_channel_response(channel: Channel, work: Optional[Work] = None) -> dic
         data["book_title"] = work.title
         data["author"] = work.author.username if work.author else None
         data["collect_count"] = work.favorite_count
+        # 如果频道没有封面，使用作品封面作为 fallback
+        if not data["cover_image"] and work.cover_image:
+            data["cover_image"] = work.cover_image
 
     return data
 
@@ -1231,6 +1234,13 @@ async def send_message(
             detail="频道不存在"
         )
 
+    # 检查频道是否已锁定
+    if channel.status == "locked":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="频道已锁定，无法发送消息"
+        )
+
     # 检查频道成员身份
     member_result = await db.execute(
         select(ChannelMember)
@@ -1514,7 +1524,7 @@ async def update_fangroup(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    更新粉丝群信息（仅创建者可操作）
+    更新频道信息（仅创建者可操作，支持粉丝群和作品频道）
     """
     # 查找频道
     channel_result = await db.execute(
@@ -1528,11 +1538,11 @@ async def update_fangroup(
             detail="频道不存在"
         )
 
-    # 检查是否为粉丝群
-    if channel.type != "fangroup":
+    # 检查是否为粉丝群或作品频道
+    if channel.type not in ("fangroup", "work"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="只能更新粉丝群频道"
+            detail="只能更新粉丝群或作品频道"
         )
 
     # 检查是否为创建者
@@ -3442,6 +3452,13 @@ async def send_message_with_attachments(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="频道不存在"
+        )
+
+    # 检查频道是否已锁定
+    if channel.status == "locked":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="频道已锁定，无法发送消息"
         )
 
     # 检查频道成员身份

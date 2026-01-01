@@ -193,7 +193,7 @@ export function ForwardMessageDialog({
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 text-left min-w-0">
-                        <div className="text-sm font-medium truncate dark:text-slate-200">
+                        <div className="text-sm font-medium truncate dark:text-slate-200" title={channel.name}>
                           {channel.name}
                         </div>
                         <div className="text-xs text-gray-500 dark:text-slate-400">

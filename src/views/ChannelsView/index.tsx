@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ChannelList, type Channel } from './components/ChannelList';
 import { ChatArea, type Message } from './components/ChatArea';
 import { CreateFangroupDialog } from './components/CreateFangroupDialog';
@@ -72,6 +73,7 @@ const convertApiMessageToMessage = (apiMessage: ChannelMessage): Message => {
 const ChannelsView: React.FC = () => {
   const { showToast } = useToast();
   const { user } = useAuthStore();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeChannelId, setActiveChannelId] = useState<string>('');
   const [channelMessages, setChannelMessages] = useState<{ [key: string]: Message[] }>({});
   const [userChannels, setUserChannels] = useState<Channel[]>([]);
@@ -83,8 +85,30 @@ const ChannelsView: React.FC = () => {
   const [pinRefreshTrigger, setPinRefreshTrigger] = useState(0);
   const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null);
   const [isChannelListCollapsed, setIsChannelListCollapsed] = useState(false);
+  const [initialChannelIdFromUrl, setInitialChannelIdFromUrl] = useState<string | null>(null);
 
   const activeChannel = userChannels.find(c => c.id === activeChannelId);
+
+  // 从 URL 参数读取初始频道 ID
+  useEffect(() => {
+    const channelIdFromUrl = searchParams.get('channelId');
+    if (channelIdFromUrl) {
+      setInitialChannelIdFromUrl(channelIdFromUrl);
+      // 清除 URL 参数，避免刷新时重复跳转
+      setSearchParams({}, { replace: true });
+    }
+  }, []);
+
+  // 当用户频道加载完成后，处理初始频道 ID
+  useEffect(() => {
+    if (initialChannelIdFromUrl && userChannels.length > 0 && !loading) {
+      const targetChannel = userChannels.find(c => c.id === initialChannelIdFromUrl);
+      if (targetChannel) {
+        setActiveChannelId(initialChannelIdFromUrl);
+        setInitialChannelIdFromUrl(null);  // 清除，避免重复设置
+      }
+    }
+  }, [initialChannelIdFromUrl, userChannels, loading]);
 
   const currentUser = {
     id: user?.id || 'current-user',
@@ -565,6 +589,11 @@ const ChannelsView: React.FC = () => {
       console.log('[ChannelsView] 创建成功后转换的频道:', channels.map(c => ({ id: c.id, name: c.name, type: c.type, coverImage: c.coverImage })));
       setUserChannels(channels);
 
+      // 同时刷新可加入频道列表（编辑后信息需要同步）
+      const availableResponse = await getAvailableChannels({ skip: 0, limit: 20 });
+      const availableList = availableResponse.channels.map(convertApiChannelToChannel);
+      setAvailableChannels(availableList);
+
       // 选中新创建的频道（假设是列表第一个粉丝群）
       const newFangroup = channels.find(c => c.type === 'fangroup');
       if (newFangroup) {
@@ -572,6 +601,17 @@ const ChannelsView: React.FC = () => {
       }
     } catch (error) {
       console.error('重新加载频道失败:', error);
+    }
+  };
+
+  // 刷新可加入频道列表
+  const handleRefreshAvailable = async () => {
+    try {
+      const response = await getAvailableChannels({ skip: 0, limit: 20 });
+      const channels = response.channels.map(convertApiChannelToChannel);
+      setAvailableChannels(channels);
+    } catch (error) {
+      console.error('刷新可加入频道失败:', error);
     }
   };
 
@@ -644,6 +684,7 @@ const ChannelsView: React.FC = () => {
           onToggleCollapse={() => setIsChannelListCollapsed(true)}
           currentUserId={user?.id}
           onChannelUpdate={handleCreateSuccess}
+          onRefreshAvailable={handleRefreshAvailable}
         />
       </div>
 

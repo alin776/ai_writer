@@ -155,16 +155,16 @@ export function EditFangroupDialog({ isOpen, onClose, onSuccess, channel }: Edit
         return;
       }
 
-      // 更新粉丝群
-      console.log('[EditFangroupDialog] 更新粉丝群:', updateData);
+      // 更新频道
+      console.log('[EditFangroupDialog] 更新频道:', updateData);
       await updateFangroup(channel.id, updateData);
 
-      showToast('success', '粉丝群信息已更新');
+      showToast('success', '频道信息已更新');
       onSuccess();
       onClose();
     } catch (error) {
-      console.error('更新粉丝群失败:', error);
-      showToast('error', '更新粉丝群失败');
+      console.error('更新频道失败:', error);
+      showToast('error', '更新频道失败');
     } finally {
       setIsSubmitting(false);
     }
@@ -190,7 +190,7 @@ export function EditFangroupDialog({ isOpen, onClose, onSuccess, channel }: Edit
           {/* 头部 */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              编辑粉丝群
+              {channel.type === 'work' ? '编辑作品频道' : '编辑粉丝群'}
             </h2>
             <button
               onClick={handleClose}
@@ -303,7 +303,7 @@ export function EditFangroupDialog({ isOpen, onClose, onSuccess, channel }: Edit
                 id="edit-description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="介绍一下你的粉丝群..."
+                placeholder="介绍一下你的频道..."
                 maxLength={200}
                 rows={3}
                 disabled={isSubmitting}

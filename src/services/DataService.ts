@@ -1401,6 +1401,20 @@ class DataServiceClass {
   }
 
   /**
+   * 获取作品的书友圈频道信息
+   */
+  async getWorkChannel(workId: string): Promise<{
+    workId: string;
+    hasChannel: boolean;
+    channelId: string | null;
+    channelName: string | null;
+    channelStatus: 'active' | 'warning' | 'locked' | null;
+    isMember: boolean;
+  }> {
+    return this.adapter.get(`/library/works/${workId}/channel`);
+  }
+
+  /**
    * 更新阅读进度
    */
   async updateReadingProgress(workId: string, chapterId: string, position: number = 0): Promise<any> {

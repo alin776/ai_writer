@@ -11,6 +11,8 @@ from app.core.security import get_current_active_user
 from app.core.config import settings
 from app.models.user import User
 from app.models.work import Work, WorkStatus
+from app.models.channel import Channel
+from app.models.channel_member import ChannelMember
 from app.schemas.work import WorkCreate, WorkUpdate, WorkResponse, WorkListResponse, WorkSummary
 from app.services.work_service import WorkService
 from app.services.cos_service import get_cos_service
@@ -192,6 +194,18 @@ async def delete_work(
             detail="Not authorized to delete this work"
         )
 
+    # 在删除作品前，锁定对应的书友圈频道
+    channel_result = await db.execute(
+        select(Channel).where(Channel.work_id == work.id)
+    )
+    channel = channel_result.scalar_one_or_none()
+    if channel:
+        channel.status = 'locked'
+        channel.locked_at = func.now()
+        channel.work_id = None  # 作品已删除，清除关联
+        await db.commit()
+        logger.info(f"Locked and unlinked work channel {channel.id} for deleted work {work.id}")
+
     # 删除作品
     await work_service.delete_work(work_id)
 
@@ -318,6 +332,47 @@ async def publish_work(
             detail="发布失败"
         )
 
+    # 检查是否已有书友圈频道，没有则创建
+    existing_channel = await db.execute(
+        select(Channel).where(Channel.work_id == updated_work.id)
+    )
+    channel = existing_channel.scalar_one_or_none()
+
+    if not channel:
+        # 创建书友圈频道
+        channel_name = f"《{updated_work.title}》书友圈"
+        channel = Channel(
+            name=channel_name,
+            description=f"{updated_work.title} 的读者交流群",
+            type='work',
+            status='active',
+            creator_id=current_user.id,
+            work_id=updated_work.id,
+            is_permanent=False,
+            member_count=1,  # 作者
+            cover_image=updated_work.cover_image,  # 使用作品封面作为频道头像
+        )
+        db.add(channel)
+        await db.flush()  # 获取 channel.id
+
+        # 作者成为频道 owner
+        owner_member = ChannelMember(
+            channel_id=channel.id,
+            user_id=current_user.id,
+            role='owner',
+            custom_title='作者',
+            title_color='#FF6B6B'
+        )
+        db.add(owner_member)
+        await db.commit()
+        logger.info(f"Created work channel: {channel_name} for work {updated_work.id}")
+    elif channel.status == 'locked':
+        # 重新发布时，解锁已锁定的频道
+        channel.status = 'active'
+        channel.locked_at = None
+        await db.commit()
+        logger.info(f"Unlocked work channel {channel.id} for republished work {updated_work.id}")
+
     return PublishWorkResponse(
         message=f"《{updated_work.title}》已发布到小说广场",
         work_id=str(updated_work.id),
@@ -360,6 +415,17 @@ async def unpublish_work(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="取消发布失败"
         )
+
+    # 锁定对应的书友圈频道
+    channel_result = await db.execute(
+        select(Channel).where(Channel.work_id == updated_work.id)
+    )
+    channel = channel_result.scalar_one_or_none()
+    if channel:
+        channel.status = 'locked'
+        channel.locked_at = func.now()
+        await db.commit()
+        logger.info(f"Locked work channel {channel.id} for unpublished work {updated_work.id}")
 
     return PublishWorkResponse(
         message=f"《{updated_work.title}》已取消发布",
