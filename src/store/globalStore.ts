@@ -96,7 +96,7 @@ const generateId = (): string => {
  * 全局状态管理 Store
  * 管理应用的全局状态，如 Toast 消息、Loading 状态等
  */
-export const useGlobalStore = create<GlobalState>((set) => ({
+export const useGlobalStore = create<GlobalState>((set, get) => ({
   // 初始状态
   toasts: [],
   isLoading: false,
@@ -150,30 +150,18 @@ export const useGlobalStore = create<GlobalState>((set) => ({
 
   // 快捷方法
   success: (message: string, duration?: number) => {
-    set((state) => {
-      state.showToast('success', message, duration);
-      return state;
-    });
+    get().showToast('success', message, duration);
   },
 
   error: (message: string, duration?: number) => {
-    set((state) => {
-      state.showToast('error', message, duration);
-      return state;
-    });
+    get().showToast('error', message, duration);
   },
 
   warning: (message: string, duration?: number) => {
-    set((state) => {
-      state.showToast('warning', message, duration);
-      return state;
-    });
+    get().showToast('warning', message, duration);
   },
 
   info: (message: string, duration?: number) => {
-    set((state) => {
-      state.showToast('info', message, duration);
-      return state;
-    });
+    get().showToast('info', message, duration);
   },
 }));

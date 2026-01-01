@@ -83,7 +83,7 @@ const MiniEmojiPicker: React.FC<MiniEmojiPickerProps> = ({ onSelect, onClose }) 
 
   return (
     <div
-      className="w-72 h-80 bg-white dark:bg-[#232428] border border-gray-200 dark:border-[#36393f] rounded-lg overflow-hidden flex flex-col"
+      className="w-72 h-80 !bg-white dark:!bg-[#232428] border border-gray-200 dark:border-[#36393f] rounded-lg overflow-hidden flex flex-col"
       style={{ boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)' }}
     >
       {/* 内容区域 */}

@@ -21,6 +21,7 @@ export interface ChannelMessage {
   created_at: string;
   user_name: string;
   user_avatar: string | null;
+  user_bio: string | null;  // 用户简介
   user_honor: string | null;
   user_title: string | null;
   user_title_color: string | null;

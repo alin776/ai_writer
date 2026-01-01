@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -22,12 +23,14 @@ import { addFavoriteSticker } from '@/services/stickerApi';
 import { useToast } from '@/hooks/useToast';
 import { ToastContainer } from '@/components/ui/Toast';
 import { UserProfilePopover } from './UserProfilePopover';
+import { checkFriendship } from '@/services/friendApi';
 
 export interface Message {
   id: string;
   userId: string;
   userName: string;
   userAvatar?: string;
+  userBio?: string; // 用户简介
   userTitle?: string; // 用户称号
   userTitleColor?: string; // 称号颜色
   content: string;
@@ -131,6 +134,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     userId: string;
     userName: string;
     userAvatar?: string;
+    userBio?: string;
     userTitle?: string;
     userTitleColor?: string;
     position: { x: number; y: number };
@@ -143,6 +147,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const { error: showError, warning: showWarning, success: showSuccess } = useGlobalStore();
   const { messages: toastMessages, success: toastSuccess, error: toastError, close: closeToast } = useToast();
+  const navigate = useNavigate();
 
   // WebSocket 实时消息
   const { isConnected, typingUsers, onlineUsers, sendTyping } = useChannelWebSocket({
@@ -337,6 +342,29 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     setAnnouncementContent('');
     setAnnouncementFiles([]);
     setShowAnnouncementDialog(false);
+  };
+
+  // 处理私信发送（从用户名片）
+  const handleStartPrivateChat = async (targetUserId: string, message: string) => {
+    try {
+      // 检查好友关系，获取私聊频道 ID
+      const result = await checkFriendship(targetUserId);
+
+      if (!result.isFriend || !result.privateChannelId) {
+        showWarning('需要先添加对方为好友才能发送私信');
+        return;
+      }
+
+      // 发送消息到私聊频道
+      await channelApi.sendMessage(result.privateChannelId, message, 'normal');
+
+      // 导航到私聊频道
+      navigate(`/channels?channelId=${result.privateChannelId}`);
+      showSuccess('私信已发送');
+    } catch (error) {
+      console.error('发送私信失败:', error);
+      showError('发送私信失败，请稍后重试');
+    }
   };
 
   // 计算过滤后的成员列表（用于键盘导航）
@@ -997,6 +1025,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                       userId: message.userId,
                       userName: message.userName,
                       userAvatar: message.userAvatar,
+                      userBio: message.userBio,
                       userTitle: message.userTitle,
                       userTitleColor: message.userTitleColor,
                       position: { x: e.clientX, y: e.clientY },
@@ -1932,6 +1961,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
           userId={userProfilePopover.userId}
           userName={userProfilePopover.userName}
           userAvatar={userProfilePopover.userAvatar}
+          userBio={userProfilePopover.userBio}
           userTitle={userProfilePopover.userTitle}
           userTitleColor={userProfilePopover.userTitleColor}
           currentUserId={currentUser.id}
@@ -1939,6 +1969,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
           channelType={channel.type}
           position={userProfilePopover.position}
           onClose={() => setUserProfilePopover(null)}
+          onStartPrivateChat={handleStartPrivateChat}
         />
       )}
     </div>

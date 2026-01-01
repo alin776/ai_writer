@@ -116,6 +116,8 @@ export default function NovelSquareView() {
       id: String(work.id),
       title: work.title,
       author: work.authorName,
+      authorId: work.authorId,
+      authorAvatar: work.authorAvatar,
       category: work.genre,
       description: work.description || '暂无简介',
       cover: work.coverImage || getDefaultCover(),

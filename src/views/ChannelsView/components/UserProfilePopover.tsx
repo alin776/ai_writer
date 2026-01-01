@@ -23,6 +23,7 @@ export interface UserProfilePopoverProps {
   userId: string;
   userName: string;
   userAvatar?: string;
+  userBio?: string;
   userTitle?: string;
   userTitleColor?: string;
   currentUserId: string;
@@ -31,7 +32,7 @@ export interface UserProfilePopoverProps {
   userRole?: 'owner' | 'admin' | 'member';
   position: { x: number; y: number };
   onClose: () => void;
-  onStartPrivateChat?: (userId: string) => void;
+  onStartPrivateChat?: (userId: string, message: string) => void;
 }
 
 type FriendStatus = 'none' | 'friend' | 'request_sent' | 'request_received' | 'loading';
@@ -40,6 +41,7 @@ export function UserProfilePopover({
   userId,
   userName,
   userAvatar,
+  userBio,
   userTitle,
   userTitleColor,
   currentUserId,
@@ -232,10 +234,12 @@ export function UserProfilePopover({
     if (!dmMessage.trim()) return;
 
     if (onStartPrivateChat) {
-      onStartPrivateChat(userId);
+      onStartPrivateChat(userId, dmMessage.trim());
     } else if (friendshipData?.privateChannelId) {
+      // 没有回调但有私聊频道，跳转到频道（但消息不会发送）
       navigate(`/channels?channelId=${friendshipData.privateChannelId}`);
     }
+    setDmMessage('');
     onClose();
   };
 
@@ -282,7 +286,7 @@ export function UserProfilePopover({
   return (
     <div
       ref={popoverRef}
-      className="fixed z-50 w-[300px] bg-white dark:bg-[#232428] rounded-lg overflow-hidden"
+      className="fixed z-50 w-[300px] !bg-white dark:!bg-[#232428] rounded-lg overflow-hidden"
       style={{
         left: adjustedPosition.x,
         top: adjustedPosition.y,
@@ -323,7 +327,7 @@ export function UserProfilePopover({
                   <MoreVertical className="w-4 h-4" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[188px] bg-white dark:bg-[#18191c] border border-gray-200 dark:border-none p-1.5" style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.15)' }}>
+              <DropdownMenuContent align="end" className="w-[188px] !bg-white dark:!bg-[#18191c] !border-gray-200 dark:!border-transparent p-1.5" style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.15)' }}>
                 <DropdownMenuItem onClick={handleViewProfile} className="text-gray-700 dark:text-[#b9bbbe] hover:text-gray-900 dark:hover:text-white focus:text-gray-900 dark:focus:text-white focus:bg-gray-100 dark:focus:bg-[#4752c4] rounded-sm">
                   查看完整个人资料
                 </DropdownMenuItem>
@@ -333,7 +337,7 @@ export function UserProfilePopover({
                     <DropdownMenuSubTrigger className="text-gray-700 dark:text-[#b9bbbe] hover:text-gray-900 dark:hover:text-white focus:text-gray-900 dark:focus:text-white focus:bg-gray-100 dark:focus:bg-[#4752c4] rounded-sm">
                       邀请至频道
                     </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="w-[200px] max-h-[300px] overflow-y-auto bg-white dark:bg-[#18191c] border border-gray-200 dark:border-none p-1.5" style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.15)' }}>
+                    <DropdownMenuSubContent className="w-[200px] max-h-[300px] overflow-y-auto !bg-white dark:!bg-[#18191c] !border-gray-200 dark:!border-transparent p-1.5" style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.15)' }}>
                       {myChannels.map((channel) => (
                         <DropdownMenuItem
                           key={channel.id}
@@ -352,7 +356,7 @@ export function UserProfilePopover({
                 <DropdownMenuItem className="text-gray-700 dark:text-[#b9bbbe] hover:text-gray-900 dark:hover:text-white focus:text-gray-900 dark:focus:text-white focus:bg-gray-100 dark:focus:bg-[#4752c4] rounded-sm">
                   忽略
                 </DropdownMenuItem>
-                <DropdownMenuItem className="text-red-500 dark:text-[#ed4245] hover:text-white focus:text-white focus:bg-red-500 dark:focus:bg-[#ed4245] rounded-sm">
+                <DropdownMenuItem className="text-red-500 dark:text-[#ed4245] hover:!text-white focus:!text-white hover:!bg-red-500 focus:!bg-red-500 dark:hover:!bg-[#ed4245] dark:focus:!bg-[#ed4245] rounded-sm">
                   屏蔽
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -363,7 +367,7 @@ export function UserProfilePopover({
                     showReportDialogRef.current = true;
                     setShowReportDialog(true);
                   }}
-                  className="text-red-500 dark:text-[#ed4245] hover:text-white focus:text-white focus:bg-red-500 dark:focus:bg-[#ed4245] rounded-sm"
+                  className="text-red-500 dark:text-[#ed4245] hover:!text-white focus:!text-white hover:!bg-red-500 focus:!bg-red-500 dark:hover:!bg-[#ed4245] dark:focus:!bg-[#ed4245] rounded-sm"
                 >
                   举报用户个人资料
                 </DropdownMenuItem>
@@ -389,10 +393,14 @@ export function UserProfilePopover({
           </div>
         </div>
 
-        {/* 用户名和ID - margin-bottom: 12px */}
+        {/* 用户名和简介 - margin-bottom: 12px */}
         <div className="mb-3">
           <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-0.5">{userName}</h3>
-          <p className="text-sm text-gray-500 dark:text-[#b9bbbe]">{userId.slice(0, 8)}</p>
+          {userBio && (
+            <p className="text-sm text-gray-500 dark:text-[#b9bbbe] line-clamp-2" title={userBio}>
+              {userBio.length > 50 ? userBio.slice(0, 50) + '...' : userBio}
+            </p>
+          )}
         </div>
 
         {/* 共同服务器信息 - font-size: 12px, color: #b9bbbe, margin-bottom: 12px */}

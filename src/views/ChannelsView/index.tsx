@@ -59,6 +59,7 @@ const convertApiMessageToMessage = (apiMessage: ChannelMessage): Message => {
     userId: apiMessage.userId || '',
     userName: apiMessage.userName || '已删除用户',
     userAvatar: apiMessage.userAvatar,
+    userBio: apiMessage.userBio,
     userTitle: apiMessage.userTitle,
     userTitleColor: apiMessage.userTitleColor,
     content: apiMessage.content,
@@ -200,9 +201,29 @@ const ChannelsView: React.FC = () => {
         console.log('[ChannelsView] 转换后的频道列表:', channels.map(c => ({ id: c.id, name: c.name, coverImage: c.coverImage })));
         setUserChannels(channels);
 
-        // 设置默认选中第一个频道
-        if (channels.length > 0 && !activeChannelId) {
-          setActiveChannelId(channels[0].id);
+        // 直接从 URL 读取频道 ID（避免异步状态问题）
+        const channelIdFromUrl = searchParams.get('channelId') || initialChannelIdFromUrl;
+
+        // 如果有 URL 参数指定的频道，优先使用它
+        if (channelIdFromUrl) {
+          const targetChannel = channels.find(c => c.id === channelIdFromUrl);
+          if (targetChannel) {
+            setActiveChannelId(channelIdFromUrl);
+            setInitialChannelIdFromUrl(null);
+            // 清除 URL 参数
+            setSearchParams({}, { replace: true });
+          } else {
+            // 目标频道不在列表中，设置默认频道
+            console.log('[ChannelsView] 目标频道不在用户频道列表中:', channelIdFromUrl);
+            if (channels.length > 0 && !activeChannelId) {
+              setActiveChannelId(channels[0].id);
+            }
+          }
+        } else {
+          // 没有 URL 参数，设置默认选中第一个频道
+          if (channels.length > 0 && !activeChannelId) {
+            setActiveChannelId(channels[0].id);
+          }
         }
       } catch (error) {
         console.error('加载频道失败:', error);
@@ -348,6 +369,7 @@ const ChannelsView: React.FC = () => {
         userId: response.userId || '',
         userName: response.userName || '未知用户',
         userAvatar: response.userAvatar,
+        userBio: response.userBio,
         userTitle: response.userTitle,
         userTitleColor: response.userTitleColor,
         content: response.content,
@@ -414,6 +436,7 @@ const ChannelsView: React.FC = () => {
       userId: wsMessage.user_id,
       userName: wsMessage.user_name,
       userAvatar: wsMessage.user_avatar || undefined,
+      userBio: wsMessage.user_bio || undefined,
       userTitle: wsMessage.user_title || undefined,
       userTitleColor: wsMessage.user_title_color || undefined,
       content: wsMessage.content,

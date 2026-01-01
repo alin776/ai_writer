@@ -521,6 +521,47 @@ async def join_channel(
             )
         )
 
+    # 作品频道：检查用户是否已收藏该作品，如果是则直接加入
+    if channel.type == 'work' and channel.work_id:
+        from app.models.bookshelf import Bookshelf
+        bookshelf_result = await db.execute(
+            select(Bookshelf).where(
+                Bookshelf.user_id == current_user.id,
+                Bookshelf.work_id == channel.work_id
+            )
+        )
+        if bookshelf_result.scalar_one_or_none():
+            # 用户已收藏该作品，直接加入频道
+            member = ChannelMember(
+                id=uuid.uuid4(),
+                channel_id=data.channel_id,
+                user_id=current_user.id,
+                role='member'
+            )
+            db.add(member)
+            channel.member_count += 1
+            await db.commit()
+            await db.refresh(member)
+
+            return JoinChannelResponse(
+                status="joined",
+                message="已成功加入书友圈",
+                member=ChannelMemberResponse(
+                    id=member.id,
+                    channel_id=member.channel_id,
+                    user_id=member.user_id,
+                    role=member.role,
+                    is_muted=member.is_muted,
+                    is_banned=member.is_banned,
+                    custom_title=member.custom_title,
+                    title_color=member.title_color,
+                    joined_at=member.joined_at,
+                    last_read_at=member.last_read_at,
+                    user_name=current_user.username,
+                    user_avatar=current_user.avatar
+                )
+            )
+
     # 非官方频道：创建加入申请
     # 检查是否已有待审核的申请
     existing_request = await db.execute(
@@ -1194,6 +1235,7 @@ async def get_channel_messages(
             edited_at=msg.edited_at,
             user_name=msg.user.username if msg.user else "已删除用户",
             user_avatar=msg.user.avatar if msg.user else None,
+            user_bio=msg.user.bio if msg.user else None,
             user_honor=msg.user.honor if msg.user else None,
             user_title=member.custom_title if member else None,
             user_title_color=member.title_color if member else None,
@@ -1416,6 +1458,7 @@ async def send_message(
         "created_at": message.created_at.isoformat(),
         "user_name": current_user.username,
         "user_avatar": current_user.avatar,
+        "user_bio": current_user.bio,
         "user_honor": current_user.honor,
         "user_title": member.custom_title,
         "user_title_color": member.title_color,
@@ -1430,6 +1473,7 @@ async def send_message(
         type=message.type,
         is_pinned=message.is_pinned,
         is_deleted=message.is_deleted,
+        is_edited=message.is_edited,
         reply_to_id=message.reply_to_id,
         reaction_count=message.reaction_count,
         created_at=message.created_at,
@@ -1437,6 +1481,7 @@ async def send_message(
         deleted_at=message.deleted_at,
         user_name=current_user.username,
         user_avatar=current_user.avatar,
+        user_bio=current_user.bio,
         user_honor=current_user.honor,
         user_title=member.custom_title,
         user_title_color=member.title_color
@@ -3642,6 +3687,7 @@ async def send_message_with_attachments(
         "created_at": message.created_at.isoformat(),
         "user_name": current_user.username,
         "user_avatar": current_user.avatar,
+        "user_bio": current_user.bio,
         "user_honor": current_user.honor,
         "user_title": member.custom_title,
         "user_title_color": member.title_color,
@@ -3667,6 +3713,7 @@ async def send_message_with_attachments(
         "userId": str(message.user_id),
         "userName": current_user.username,
         "userAvatar": current_user.avatar,
+        "userBio": current_user.bio,
         "userTitle": member.custom_title,
         "userTitleColor": member.title_color,
         "content": message.content,
@@ -3852,6 +3899,7 @@ async def forward_message(
                 "created_at": new_message.created_at.isoformat() if new_message.created_at else None,
                 "user_name": current_user.username,
                 "user_avatar": current_user.avatar,
+                "user_bio": current_user.bio if hasattr(current_user, 'bio') else None,
                 "user_honor": current_user.honor if hasattr(current_user, 'honor') else None,
                 "user_title": None,
                 "user_title_color": None,

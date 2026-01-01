@@ -52,6 +52,7 @@ class LibraryWorkResponse(BaseModel):
     published_at: Optional[datetime] = None
     author_name: str
     author_id: str
+    author_avatar: Optional[str] = None
     published_chapter_count: int
     is_featured: bool = False
 
@@ -126,6 +127,7 @@ async def get_featured_novels(
             published_at=work.published_at,
             author_name=work.author.username,
             author_id=str(work.author_id),
+            author_avatar=work.author.avatar,
             published_chapter_count=published_chapter_count,
             is_featured=work.is_featured
         ))
@@ -229,6 +231,7 @@ async def get_published_novels(
             published_at=work.published_at,
             author_name=work.author.username,
             author_id=str(work.author_id),
+            author_avatar=work.author.avatar,
             published_chapter_count=published_chapter_count,
             is_featured=work.is_featured
         ))
@@ -321,6 +324,7 @@ async def get_published_novel_detail(
         published_at=work.published_at,
         author_name=work.author.username,
         author_id=str(work.author_id),
+        author_avatar=work.author.avatar,
         published_chapter_count=published_chapter_count,
         chapters=chapter_responses
     )

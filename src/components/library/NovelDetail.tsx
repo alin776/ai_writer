@@ -188,6 +188,8 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
             id: detailRes.id,
             title: detailRes.title,
             author: detailRes.authorName,
+            authorId: detailRes.authorId,
+            authorAvatar: detailRes.authorAvatar,
             category: genreMap[detailRes.genre] || detailRes.genre,
             description: detailRes.description || '暂无简介',
             cover: detailRes.coverImage || novel.cover,
@@ -301,8 +303,23 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
   // 进入书友圈
   const handleEnterBookClub = async () => {
     try {
-      // 检查用户是否已收藏
-      if (!isInBookshelf) {
+      // 直接调用 API 检查书架状态，确保使用最新状态
+      let inBookshelf = false;
+      try {
+        const bookshelfStatus = await DataService.checkInBookshelf(novel.id);
+        inBookshelf = bookshelfStatus.inBookshelf;
+      } catch (checkError: any) {
+        // 如果是 401 未授权错误，提示用户登录
+        if (checkError?.response?.status === 401) {
+          showError('请先登录');
+          return;
+        }
+        // 其他错误，尝试使用本地状态
+        console.error('检查书架状态失败:', checkError);
+        inBookshelf = isInBookshelf;
+      }
+
+      if (!inBookshelf) {
         showError('请先收藏作品才能进入书友圈');
         return;
       }
@@ -319,6 +336,17 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
       if (channelInfo.channelStatus === 'locked') {
         showError('该书友圈已关闭（作品已下架）');
         return;
+      }
+
+      // 如果用户不是频道成员，先自动加入频道
+      if (!channelInfo.isMember && channelInfo.channelId) {
+        try {
+          const { joinChannel } = await import('../../services/channelApi');
+          await joinChannel(channelInfo.channelId);
+        } catch (joinError) {
+          console.error('自动加入频道失败:', joinError);
+          // 加入失败也继续跳转，让频道页面处理
+        }
       }
 
       // 跳转到频道页面，带上频道ID
@@ -515,7 +543,23 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
               <div className="mb-4">
                 <h1 className="mb-3 text-gray-900 dark:text-white">{novelData.title}</h1>
                 <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-slate-400 mb-4">
-                  <span>作者：{novelData.author}</span>
+                  <div
+                    className="flex items-center gap-2 cursor-pointer hover:text-black dark:hover:text-white transition-colors"
+                    onClick={() => novelData.authorId && navigate(`/user/${novelData.authorId}`)}
+                  >
+                    {novelData.authorAvatar ? (
+                      <img
+                        src={novelData.authorAvatar}
+                        alt={novelData.author}
+                        className="w-6 h-6 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-slate-700 flex items-center justify-center text-xs font-medium text-gray-600 dark:text-slate-400">
+                        {novelData.author ? novelData.author[0].toUpperCase() : '?'}
+                      </div>
+                    )}
+                    <span className="hover:underline">{novelData.author}</span>
+                  </div>
                   <span className="px-2 py-1 bg-gray-100 dark:bg-slate-800 text-xs">{novelData.category}</span>
                   <span className="px-2 py-1 bg-black dark:bg-slate-700 text-white text-xs">{novelData.status}</span>
                 </div>

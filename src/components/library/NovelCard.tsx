@@ -5,6 +5,8 @@ export interface Novel {
   id: string;
   title: string;
   author: string;
+  authorId?: string;
+  authorAvatar?: string;
   category: string;
   description: string;
   cover: string;

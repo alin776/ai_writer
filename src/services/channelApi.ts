@@ -75,6 +75,7 @@ export interface ChannelMessage {
   // 用户信息
   userName?: string;
   userAvatar?: string;
+  userBio?: string;
   userTitle?: string;
   userTitleColor?: string;
   // 附件

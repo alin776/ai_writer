@@ -80,6 +80,8 @@ export default function MyBookshelfView() {
       id: String(item.id),
       title: item.title,
       author: item.authorName,
+      authorId: item.authorId,
+      authorAvatar: item.authorAvatar,
       category: GENRE_REVERSE_MAP[item.genre] || '其他',
       description: item.description || '暂无简介',
       cover: item.coverImage || getDefaultCover(),
