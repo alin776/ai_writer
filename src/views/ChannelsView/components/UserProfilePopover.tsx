@@ -107,9 +107,9 @@ export function UserProfilePopover({
     const fetchChannels = async () => {
       try {
         const response = await getMyChannels();
-        // 筛选出非私聊频道
+        // 筛选出非私聊、非官方频道（官方频道每个人都在，不需要邀请）
         const manageableChannels = response.channels.filter(
-          ch => ch.type !== 'private'
+          ch => ch.type !== 'private' && ch.type !== 'official'
         );
         setMyChannels(manageableChannels);
         // 模拟共同频道数（实际应该从后端获取）

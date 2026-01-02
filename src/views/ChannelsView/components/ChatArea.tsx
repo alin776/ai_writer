@@ -274,9 +274,9 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
       const fetchInvitableChannels = async () => {
         try {
           const response = await getMyChannels();
-          // 筛选出非私聊频道（只有自己创建/管理的频道可以邀请）
+          // 筛选出非私聊、非官方频道（官方频道每个人都在，不需要邀请）
           const channels = response.channels.filter(
-            ch => ch.type !== 'private'
+            ch => ch.type !== 'private' && ch.type !== 'official'
           ).map(ch => ({
             id: ch.id,
             name: ch.name,
