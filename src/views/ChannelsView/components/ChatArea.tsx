@@ -2227,38 +2227,41 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                     </div>
                   </div>
 
-                  <div className={dividerClass} />
-
-                  {/* 私信 */}
-                  <button
-                    className={menuItemClass}
-                    onClick={async () => {
-                      // 检查好友关系，如果是好友则直接跳转到私聊频道
-                      try {
-                        const result = await checkFriendship(userContextMenu.userId);
-                        if (result.isFriend && result.privateChannelId) {
-                          navigate(`/channels?channelId=${result.privateChannelId}`);
-                        } else {
-                          // 不是好友，打开用户名片让用户添加好友
-                          setUserProfilePopover({
-                            show: true,
-                            userId: userContextMenu.userId,
-                            userName: userContextMenu.userName,
-                            userAvatar: userContextMenu.userAvatar,
-                            position: { x: userContextMenu.x, y: userContextMenu.y },
-                          });
-                          showWarning('需要先添加对方为好友才能发送私信');
-                        }
-                      } catch (error) {
-                        console.error('检查好友关系失败:', error);
-                        showError('检查好友关系失败');
-                      }
-                      setUserContextMenu(null);
-                    }}
-                  >
-                    <span>发送私信</span>
-                    <Mail className="w-4 h-4 opacity-80" />
-                  </button>
+                  {/* 私信 - 在私聊频道中不显示，因为已经在私聊了 */}
+                  {channel.type !== 'private' && (
+                    <>
+                      <div className={dividerClass} />
+                      <button
+                        className={menuItemClass}
+                        onClick={async () => {
+                          // 检查好友关系，如果是好友则直接跳转到私聊频道
+                          try {
+                            const result = await checkFriendship(userContextMenu.userId);
+                            if (result.isFriend && result.privateChannelId) {
+                              navigate(`/channels?channelId=${result.privateChannelId}`);
+                            } else {
+                              // 不是好友，打开用户名片让用户添加好友
+                              setUserProfilePopover({
+                                show: true,
+                                userId: userContextMenu.userId,
+                                userName: userContextMenu.userName,
+                                userAvatar: userContextMenu.userAvatar,
+                                position: { x: userContextMenu.x, y: userContextMenu.y },
+                              });
+                              showWarning('需要先添加对方为好友才能发送私信');
+                            }
+                          } catch (error) {
+                            console.error('检查好友关系失败:', error);
+                            showError('检查好友关系失败');
+                          }
+                          setUserContextMenu(null);
+                        }}
+                      >
+                        <span>发送私信</span>
+                        <Mail className="w-4 h-4 opacity-80" />
+                      </button>
+                    </>
+                  )}
 
                   <div className={dividerClass} />
 

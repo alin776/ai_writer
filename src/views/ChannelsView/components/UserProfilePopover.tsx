@@ -477,7 +477,8 @@ export function UserProfilePopover({
         )}
 
         {/* 私信输入框 - background: #40444b, border-radius: 8px, padding: 8px 12px */}
-        {!isSelf && (
+        {/* 在私聊频道中不显示，因为已经在私聊了 */}
+        {!isSelf && channelType !== 'private' && (
           <div className="flex items-center bg-gray-100 dark:bg-[#40444b] rounded-lg py-2 px-3 gap-2">
             <input
               type="text"
