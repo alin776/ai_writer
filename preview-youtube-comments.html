@@ -342,15 +342,21 @@
       transform: rotate(180deg);
     }
 
+    /* 展开时隐藏顶部的按钮，只显示底部的隐藏回复按钮 */
+    .show-replies-btn.expanded {
+      display: none;
+    }
+
     /* 回复列表 */
     .replies-list {
       margin-top: 8px;
-      margin-left: 56px; /* 头像40px + 间距16px */
+      margin-left: 10px; /* 子节点头像对齐到根节点点赞图标位置 */
       padding-left: 0;
       display: flex;
       flex-direction: column;
       gap: 0;
       position: relative;
+      overflow: visible; /* 确保连接线不被截断 */
     }
 
     .reply-item {
@@ -361,28 +367,34 @@
       padding-left: 0;
     }
 
-    /* 回复项的L形圆弧连接线 - 从主线分出 */
+    /* 回复项的垂直连接线 - 向下延伸到下一个节点 */
     .reply-item::before {
       content: '';
       position: absolute;
-      left: -37px; /* 对齐到主线位置: 56px - 19px = 37px */
+      left: -46px; /* 对齐到根节点头像中心: 56 + 10 - 20 = 46 */
       top: 0;
-      width: 12px;
-      height: 24px;
-      border-left: 1px solid #3f3f3f;
-      border-bottom: 1px solid #3f3f3f;
-      border-bottom-left-radius: 12px;
+      bottom: -12px; /* 延伸到下一个元素 */
+      width: 1px;
+      background: #3f3f3f;
     }
 
-    /* 回复项的水平延伸线 - 从圆弧到头像 */
+    /* 第一个回复项的垂直线向上延伸到根节点头像下方 */
+    .reply-item:first-child::before {
+      top: -100px; /* 向上延伸到根节点头像下方 */
+    }
+
+    /* 回复项的弯折连接线 */
     .reply-item::after {
       content: '';
       position: absolute;
-      left: -25px;
-      top: 24px;
-      width: 25px;
-      height: 1px;
-      background: #3f3f3f;
+      left: -46px; /* 对齐到根节点头像中心 */
+      top: 12px;
+      width: 46px; /* 从连接线到头像 */
+      height: 12px;
+      border-bottom: 1px solid #3f3f3f;
+      border-left: 1px solid #3f3f3f;
+      border-bottom-left-radius: 12px;
+      background: transparent;
     }
 
     .reply-item .avatar {
@@ -424,7 +436,7 @@
       font-size: 13px;
     }
 
-    /* 隐藏回复按钮 */
+    /* 隐藏回复按钮 - 最后一个节点，使用└形状 */
     .hide-replies-btn {
       display: flex;
       align-items: center;
@@ -436,34 +448,28 @@
       font-weight: 500;
       cursor: pointer;
       padding: 8px 16px;
-      margin-left: 12px;
-      margin-top: 8px;
+      margin-left: 0;
+      margin-top: 12px;
       border-radius: 18px;
       position: relative;
     }
 
-    /* 隐藏回复按钮的L形圆弧连接线 */
+    /* 隐藏回复按钮的弯折连接线 - 最后一个节点 */
     .hide-replies-btn::before {
       content: '';
       position: absolute;
-      left: -37px;
+      left: -46px; /* 对齐到根节点头像中心 */
       top: 0;
-      width: 12px;
-      height: 18px;
-      border-left: 1px solid #3f3f3f;
+      width: 46px; /* 从连接线到按钮 */
+      height: 20px;
       border-bottom: 1px solid #3f3f3f;
+      border-left: 1px solid #3f3f3f;
       border-bottom-left-radius: 12px;
     }
 
-    /* 隐藏回复按钮的水平延伸线 */
+    /* 移除水平延伸线，弯折已包含 */
     .hide-replies-btn::after {
-      content: '';
-      position: absolute;
-      left: -25px;
-      top: 18px;
-      width: 25px;
-      height: 1px;
-      background: #3f3f3f;
+      display: none;
     }
 
     .hide-replies-btn:hover {
@@ -476,19 +482,14 @@
       transform: rotate(180deg);
     }
 
-    /* 主评论的垂直连接线（当有回复展开时） */
+    /* 主评论的垂直连接线（当有回复展开时）- 已移除，由reply-item的线代替 */
     .comment-item.has-replies-expanded {
       position: relative;
     }
 
+    /* 去掉外层主线，使用reply-item内部的线 */
     .comment-item.has-replies-expanded::before {
-      content: '';
-      position: absolute;
-      left: 19px; /* 头像中心 */
-      top: 48px; /* 从头像下方开始 */
-      bottom: 36px; /* 延伸到隐藏回复按钮之前 */
-      width: 1px;
-      background: #3f3f3f;
+      display: none;
     }
 
     /* 分隔线 */

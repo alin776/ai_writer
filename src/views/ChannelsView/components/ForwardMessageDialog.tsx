@@ -135,17 +135,19 @@ export function ForwardMessageDialog({
         add_comment: comment || undefined,
       });
 
-      if (response.forwarded_count > 0) {
-        showSuccess(`成功转发到 ${response.forwarded_count} 个频道`);
+      if (response.forwardedCount > 0) {
+        showSuccess(`成功转发到 ${response.forwardedCount} 个频道`);
       }
-      if (response.failed_channels.length > 0) {
-        showWarning(`${response.failed_channels.length} 个频道转发失败`);
+      if (response.failedChannels.length > 0) {
+        showWarning(`${response.failedChannels.length} 个频道转发失败`);
       }
 
       handleClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('转发失败:', error);
-      showError('转发失败，请稍后重试');
+      // 显示后端返回的具体错误信息
+      const errorMessage = error?.response?.data?.detail || error?.message || '转发失败，请稍后重试';
+      showError(errorMessage);
     } finally {
       setIsForwarding(false);
     }

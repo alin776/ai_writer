@@ -70,6 +70,25 @@ export interface ChannelMessage {
   isEdited: boolean;
   replyToId?: string;
   forwardedFromId?: string;  // 转发来源消息ID
+  forwardedFrom?: {  // 转发来源详细信息（ApiAdapter 已转为 camelCase）
+    messageId: string;
+    channelId: string;
+    channelName: string;
+    userId?: string;
+    userName: string;
+    userAvatar?: string;
+    userBio?: string;
+    userHonor?: string;
+    content: string;
+    createdAt: string;
+    attachments?: {
+      id: string;
+      fileName: string;
+      fileType?: string;
+      fileUrl: string;
+      thumbnailUrl?: string;
+    }[];
+  };
   reactionCount: number;
   createdAt: string;
   updatedAt: string;
@@ -677,25 +696,25 @@ export interface ForwardMessageRequest {
 }
 
 export interface ForwardMessageResponse {
-  forwarded_count: number;
-  failed_channels: string[];
+  forwardedCount: number;
+  failedChannels: string[];
   messages: {
-    channel_id: string;
-    channel_name: string;
-    message_id: string;
+    channelId: string;
+    channelName: string;
+    messageId: string;
   }[];
 }
 
 export interface ForwardInfo {
-  is_forwarded: boolean;
-  original_deleted?: boolean;
+  isForwarded: boolean;
+  originalDeleted?: boolean;
   original?: {
-    message_id: string;
-    channel_id: string;
-    channel_name: string;
-    user_name: string;
+    messageId: string;
+    channelId: string;
+    channelName: string;
+    userName: string;
     content: string;
-    created_at: string;
+    createdAt: string;
   };
 }
 

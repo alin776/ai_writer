@@ -50,11 +50,21 @@ export interface Message {
     content: string;
   };
   forwardedFrom?: {
+    messageId: string;
     channelId: string;
     channelName: string;
+    userId?: string;
     userName: string;
+    userAvatar?: string;
     content: string;
     createdAt: string;
+    attachments?: {
+      id: string;
+      fileName: string;
+      fileType?: string;
+      fileUrl: string;
+      thumbnailUrl?: string;
+    }[];
   };
   reactions?: ReactionSummary[];
   attachments?: MessageAttachment[]; // 新增附件字段
@@ -85,9 +95,10 @@ interface ChatAreaProps {
   pinnedMessagesBar?: React.ReactNode;
   isChannelListCollapsed?: boolean;
   onToggleChannelList?: () => void;
+  onNavigateToOriginalMessage?: (channelId: string, messageId: string) => void;
 }
 
-export function ChatArea({ channel, messages, currentUser, onSendMessage, onSendMessageWithAttachments, onMentionAll, onLeaveChannel, onNewMessage, onMessageDelete, onMessageEdit, onReactionAdd, onReactionRemove, onReactionsChange, onPinChange, scrollToMessageId, pinnedMessagesBar, isChannelListCollapsed, onToggleChannelList }: ChatAreaProps) {
+export function ChatArea({ channel, messages, currentUser, onSendMessage, onSendMessageWithAttachments, onMentionAll, onLeaveChannel, onNewMessage, onMessageDelete, onMessageEdit, onReactionAdd, onReactionRemove, onReactionsChange, onPinChange, scrollToMessageId, pinnedMessagesBar, isChannelListCollapsed, onToggleChannelList, onNavigateToOriginalMessage }: ChatAreaProps) {
   const [messageInput, setMessageInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiPickerPosition, setEmojiPickerPosition] = useState({ x: 0, y: 0 });
@@ -1399,21 +1410,57 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
 
                   {/* 转发引用框 */}
                   {message.forwardedFrom && (
-                    <div className="mt-2 border-l-4 border-indigo-500 bg-white dark:bg-gray-800 rounded-r-lg shadow-sm overflow-hidden">
+                    <div className="mt-2 border-l-4 border-indigo-500 bg-white dark:bg-gray-800 rounded-r-lg shadow-sm overflow-hidden max-w-md">
                       <div className="p-3">
+                        {/* 原消息内容 */}
                         <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
                           {message.forwardedFrom.content}
                         </p>
+
+                        {/* 原消息附件（图片） */}
+                        {message.forwardedFrom.attachments && message.forwardedFrom.attachments.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            {message.forwardedFrom.attachments
+                              .filter(att => att.fileType?.startsWith('image/'))
+                              .slice(0, 4)  // 最多显示4张图片
+                              .map((att, idx) => (
+                                <div key={att.id || idx} className="rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
+                                  <img
+                                    src={att.thumbnailUrl || att.fileUrl}
+                                    alt={att.fileName}
+                                    className="w-full max-h-48 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                    onClick={() => window.open(att.fileUrl, '_blank')}
+                                  />
+                                </div>
+                              ))}
+                            {/* 如果有更多图片 */}
+                            {message.forwardedFrom.attachments.filter(att => att.fileType?.startsWith('image/')).length > 4 && (
+                              <p className="text-xs text-gray-500">
+                                +{message.forwardedFrom.attachments.filter(att => att.fileType?.startsWith('image/')).length - 4} 张图片
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between group cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          来自 <span className="text-indigo-600 dark:text-indigo-400 font-medium">#{message.forwardedFrom.channelName}</span>
-                          <span className="mx-1">·</span>
-                          <span>{new Date(message.forwardedFrom.createdAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}</span>
-                        </span>
-                        <svg className="w-4 h-4 text-gray-400 group-hover:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <polyline points="9 18 15 12 9 6" />
-                        </svg>
+                      {/* 来源信息 - 药丸形状标签（在卡片内部） */}
+                      <div className="px-3 pb-3">
+                        <div
+                          className="w-fit inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-600/80 rounded-full cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors group"
+                          onClick={() => {
+                            if (message.forwardedFrom && onNavigateToOriginalMessage) {
+                              onNavigateToOriginalMessage(message.forwardedFrom.channelId, message.forwardedFrom.messageId);
+                            }
+                          }}
+                        >
+                          <span className="text-xs text-gray-500 dark:text-gray-300">
+                            来自 <span className="text-indigo-600 dark:text-indigo-400 font-medium">#{message.forwardedFrom.channelName}</span>
+                            <span className="mx-1">·</span>
+                            <span>{new Date(message.forwardedFrom.createdAt).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }).replace('/', '月') + '日'}</span>
+                          </span>
+                          <svg className="w-3.5 h-3.5 text-gray-400 group-hover:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <polyline points="9 18 15 12 9 6" />
+                          </svg>
+                        </div>
                       </div>
                     </div>
                   )}

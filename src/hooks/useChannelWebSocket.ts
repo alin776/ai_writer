@@ -17,6 +17,23 @@ export interface ChannelMessage {
   is_pinned: boolean;
   reply_to_id: string | null;
   forwarded_from_id?: string | null;  // 转发来源消息ID
+  forwarded_from?: {  // 转发来源详细信息
+    message_id: string;
+    channel_id: string;
+    channel_name: string;
+    user_id?: string;
+    user_name: string;
+    user_avatar?: string;
+    content: string;
+    created_at: string;
+    attachments?: {
+      id: string;
+      file_name: string;
+      file_type?: string;
+      file_url: string;
+      thumbnail_url?: string;
+    }[];
+  };
   reaction_count: number;
   created_at: string;
   user_name: string;

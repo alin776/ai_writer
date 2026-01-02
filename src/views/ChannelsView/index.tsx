@@ -54,6 +54,25 @@ const convertApiMessageToMessage = (apiMessage: ChannelMessage): Message => {
     thumbnailUrl: att.thumbnailUrl,
   })) || [];
 
+  // 转换转发来源信息（ApiAdapter 已经转换为 camelCase）
+  const forwardedFrom = apiMessage.forwardedFrom ? {
+    messageId: apiMessage.forwardedFrom.messageId,
+    channelId: apiMessage.forwardedFrom.channelId,
+    channelName: apiMessage.forwardedFrom.channelName,
+    userId: apiMessage.forwardedFrom.userId,
+    userName: apiMessage.forwardedFrom.userName,
+    userAvatar: apiMessage.forwardedFrom.userAvatar,
+    content: apiMessage.forwardedFrom.content,
+    createdAt: apiMessage.forwardedFrom.createdAt,
+    attachments: apiMessage.forwardedFrom.attachments?.map((att: any) => ({
+      id: att.id,
+      fileName: att.fileName,
+      fileType: att.fileType,
+      fileUrl: att.fileUrl,
+      thumbnailUrl: att.thumbnailUrl,
+    })),
+  } : undefined;
+
   return {
     id: apiMessage.id,
     userId: apiMessage.userId || '',
@@ -68,6 +87,7 @@ const convertApiMessageToMessage = (apiMessage: ChannelMessage): Message => {
     isPinned: apiMessage.isPinned || false,
     isEdited: apiMessage.isEdited || false,
     editedAt: apiMessage.editedAt ? new Date(apiMessage.editedAt) : undefined,
+    forwardedFrom,
     attachments: attachments.length > 0 ? attachments : undefined,
   };
 };
@@ -86,6 +106,7 @@ const ChannelsView: React.FC = () => {
   const [userRole, setUserRole] = useState<'owner' | 'admin' | 'member'>('member');
   const [pinRefreshTrigger, setPinRefreshTrigger] = useState(0);
   const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null);
+  const [pendingScrollToMessageId, setPendingScrollToMessageId] = useState<string | null>(null); // 切换频道后需要滚动到的消息
   const [isChannelListCollapsed, setIsChannelListCollapsed] = useState(false);
   const [initialChannelIdFromUrl, setInitialChannelIdFromUrl] = useState<string | null>(null);
 
@@ -209,6 +230,26 @@ const ChannelsView: React.FC = () => {
     setTimeout(() => setScrollToMessageId(messageId), 0);
   }, []);
 
+  // 跳转到原始消息（转发消息来源）
+  const handleNavigateToOriginalMessage = useCallback((channelId: string, messageId: string) => {
+    if (channelId === activeChannelId) {
+      // 同一频道，直接滚动到消息
+      setScrollToMessageId(null);
+      setTimeout(() => setScrollToMessageId(messageId), 0);
+    } else {
+      // 不同频道，检查是否已加入
+      const targetChannel = userChannels.find(c => c.id === channelId);
+      if (targetChannel) {
+        // 已加入，切换频道并设置待滚动消息ID
+        setPendingScrollToMessageId(messageId);
+        setActiveChannelId(channelId);
+      } else {
+        // 未加入该频道
+        showToast('warning', '您还未加入原消息所在的频道');
+      }
+    }
+  }, [activeChannelId, userChannels, showToast]);
+
   // 加载用户频道
   useEffect(() => {
     const loadChannels = async () => {
@@ -309,6 +350,14 @@ const ChannelsView: React.FC = () => {
           ...prev,
           [activeChannelId]: messagesWithReply,
         }));
+
+        // 检查是否有待滚动的消息（从转发消息跳转过来）
+        if (pendingScrollToMessageId) {
+          setTimeout(() => {
+            setScrollToMessageId(pendingScrollToMessageId);
+            setPendingScrollToMessageId(null);
+          }, 100); // 延迟确保消息渲染完成
+        }
       } catch (error) {
         console.error('加载消息失败:', error);
         showToast('error', '加载消息失败');
@@ -318,8 +367,14 @@ const ChannelsView: React.FC = () => {
     // 如果该频道消息未加载过，则加载
     if (!channelMessages[activeChannelId]) {
       loadMessages();
+    } else if (pendingScrollToMessageId) {
+      // 消息已缓存，直接处理待滚动消息
+      setTimeout(() => {
+        setScrollToMessageId(pendingScrollToMessageId);
+        setPendingScrollToMessageId(null);
+      }, 100);
     }
-  }, [activeChannelId]);
+  }, [activeChannelId, pendingScrollToMessageId]);
 
   const handleSendMessage = async (content: string, type: 'normal' | 'announcement' = 'normal', replyToId?: string) => {
     if (!activeChannelId) return;
@@ -449,6 +504,25 @@ const ChannelsView: React.FC = () => {
       thumbnailUrl: att.thumbnailUrl,
     })) || [];
 
+    // 转换转发来源信息（WebSocket 使用 snake_case）
+    const forwardedFrom = wsMessage.forwarded_from ? {
+      messageId: wsMessage.forwarded_from.message_id,
+      channelId: wsMessage.forwarded_from.channel_id,
+      channelName: wsMessage.forwarded_from.channel_name,
+      userId: wsMessage.forwarded_from.user_id,
+      userName: wsMessage.forwarded_from.user_name,
+      userAvatar: wsMessage.forwarded_from.user_avatar,
+      content: wsMessage.forwarded_from.content,
+      createdAt: wsMessage.forwarded_from.created_at,
+      attachments: wsMessage.forwarded_from.attachments?.map((att: any) => ({
+        id: att.id,
+        fileName: att.file_name,
+        fileType: att.file_type,
+        fileUrl: att.file_url,
+        thumbnailUrl: att.thumbnail_url,
+      })),
+    } : undefined;
+
     // 转换为组件格式
     const newMessage: Message = {
       id: wsMessage.id,
@@ -463,6 +537,7 @@ const ChannelsView: React.FC = () => {
       type: wsMessage.type as 'normal' | 'announcement' | 'mention',
       isPinned: wsMessage.is_pinned,
       isEdited: false,
+      forwardedFrom,
       attachments: attachments.length > 0 ? attachments : undefined,
     };
 
@@ -752,6 +827,7 @@ const ChannelsView: React.FC = () => {
             scrollToMessageId={scrollToMessageId}
             isChannelListCollapsed={isChannelListCollapsed}
             onToggleChannelList={() => setIsChannelListCollapsed(!isChannelListCollapsed)}
+            onNavigateToOriginalMessage={handleNavigateToOriginalMessage}
             pinnedMessagesBar={
               <PinnedMessagesBar
                 channelId={activeChannel.id}

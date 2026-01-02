@@ -1160,7 +1160,10 @@ async def get_channel_messages(
         )
         .options(
             selectinload(ChannelMessage.user),
-            selectinload(ChannelMessage.attachments)
+            selectinload(ChannelMessage.attachments),
+            selectinload(ChannelMessage.forwarded_from).selectinload(ChannelMessage.user),
+            selectinload(ChannelMessage.forwarded_from).selectinload(ChannelMessage.channel),
+            selectinload(ChannelMessage.forwarded_from).selectinload(ChannelMessage.attachments)
         )
         .order_by(ChannelMessage.created_at.asc())
     )
@@ -1217,6 +1220,35 @@ async def get_channel_messages(
             }
             for att in (msg.attachments or [])
         ]
+
+        # 构建转发来源信息
+        forwarded_from_data = None
+        if msg.forwarded_from_id and msg.forwarded_from:
+            orig = msg.forwarded_from
+            orig_attachments = [
+                {
+                    "id": str(att.id),
+                    "file_name": att.file_name,
+                    "file_type": att.file_type,
+                    "file_url": att.file_url,
+                    "thumbnail_url": att.thumbnail_url
+                }
+                for att in (orig.attachments or [])
+            ]
+            forwarded_from_data = {
+                "message_id": str(orig.id),
+                "channel_id": str(orig.channel_id),
+                "channel_name": orig.channel.name if orig.channel else "已删除频道",
+                "user_id": str(orig.user_id) if orig.user_id else None,
+                "user_name": orig.user.username if orig.user else "已删除用户",
+                "user_avatar": orig.user.avatar if orig.user else None,
+                "user_bio": orig.user.bio if orig.user else None,
+                "user_honor": orig.user.honor if orig.user else None,
+                "content": orig.content,
+                "created_at": orig.created_at.isoformat() if orig.created_at else None,
+                "attachments": orig_attachments
+            }
+
         message_responses.append(ChannelMessageResponse(
             id=msg.id,
             channel_id=msg.channel_id,
@@ -1228,6 +1260,7 @@ async def get_channel_messages(
             is_edited=msg.is_edited,
             reply_to_id=msg.reply_to_id,
             forwarded_from_id=msg.forwarded_from_id,
+            forwarded_from=forwarded_from_data,
             reaction_count=msg.reaction_count,
             created_at=msg.created_at,
             updated_at=msg.updated_at,
@@ -3790,6 +3823,8 @@ async def forward_message(
     - 需要是源频道成员
     - 需要是目标频道成员
     """
+    logger.info(f"[转发消息] 用户 {current_user.id} 请求转发消息 {message_id} 从频道 {channel_id} 到 {len(request.target_channel_ids)} 个目标频道")
+
     # 检查源频道成员身份
     source_member_result = await db.execute(
         select(ChannelMember).where(
@@ -3854,10 +3889,34 @@ async def forward_message(
     failed_channels = [cid for cid in request.target_channel_ids if cid not in valid_channel_ids]
     forwarded_messages = []
 
-    # 构建转发消息内容
-    forward_content = f"[转发消息]\n来自: {original_msg.channel.name}\n发送者: {original_msg.user.username if original_msg.user else '已删除用户'}\n---\n{original_msg.content}"
-    if request.add_comment:
-        forward_content = f"{request.add_comment}\n\n{forward_content}"
+    # 转发消息的 content 只存储用户评论，原消息信息通过 forwarded_from_id 关联
+    forward_content = request.add_comment or ""
+
+    # 准备原消息的附件信息
+    original_attachments = []
+    for att in original_msg.attachments:
+        original_attachments.append({
+            "id": str(att.id),
+            "file_name": att.file_name,
+            "file_type": att.file_type,
+            "file_url": att.file_url,
+            "thumbnail_url": att.thumbnail_url
+        })
+
+    # 构建 forwardedFrom 结构化数据
+    forwarded_from_data = {
+        "message_id": str(original_msg.id),
+        "channel_id": str(original_msg.channel_id),
+        "channel_name": original_msg.channel.name,
+        "user_id": str(original_msg.user_id) if original_msg.user_id else None,
+        "user_name": original_msg.user.username if original_msg.user else "已删除用户",
+        "user_avatar": original_msg.user.avatar if original_msg.user else None,
+        "user_bio": original_msg.user.bio if original_msg.user else None,
+        "user_honor": original_msg.user.honor if original_msg.user else None,
+        "content": original_msg.content,
+        "created_at": original_msg.created_at.isoformat() if original_msg.created_at else None,
+        "attachments": original_attachments
+    }
 
     # 逐个频道转发
     for target_channel in target_channels:
@@ -3895,6 +3954,7 @@ async def forward_message(
                 "is_pinned": False,
                 "reply_to_id": None,
                 "forwarded_from_id": str(original_msg.id),
+                "forwarded_from": forwarded_from_data,  # 结构化的转发来源信息
                 "reaction_count": 0,
                 "created_at": new_message.created_at.isoformat() if new_message.created_at else None,
                 "user_name": current_user.username,
@@ -3911,6 +3971,8 @@ async def forward_message(
             failed_channels.append(target_channel.id)
 
     await db.commit()
+
+    logger.info(f"[转发消息] 转发完成: 成功 {len(forwarded_messages)} 个, 失败 {len(failed_channels)} 个")
 
     return ForwardMessageResponse(
         forwarded_count=len(forwarded_messages),

@@ -156,6 +156,7 @@ class ChannelMessageResponse(ChannelMessageBase):
     is_edited: bool = False
     reply_to_id: Optional[UUID]
     forwarded_from_id: Optional[UUID] = None  # 转发来源消息ID
+    forwarded_from: Optional["ForwardedFromInfo"] = None  # 转发来源详细信息
     reaction_count: int
     created_at: datetime
     updated_at: datetime
@@ -285,6 +286,24 @@ class MessageWithAttachmentsResponse(ChannelMessageResponse):
 
 
 # ========== Message Forward Schemas ==========
+
+class ForwardedFromInfo(BaseModel):
+    """消息响应中的转发来源信息"""
+    message_id: UUID
+    channel_id: UUID
+    channel_name: str
+    user_id: Optional[UUID] = None
+    user_name: str
+    user_avatar: Optional[str] = None
+    user_bio: Optional[str] = None
+    user_honor: Optional[str] = None
+    content: str
+    created_at: Optional[datetime] = None
+    attachments: List[dict] = []  # 原消息的附件列表
+
+    class Config:
+        from_attributes = True
+
 
 class ForwardMessageRequest(BaseModel):
     """转发消息请求"""
