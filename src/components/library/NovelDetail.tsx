@@ -55,8 +55,16 @@ interface Comment {
   isDeleted: boolean;
   parentId?: string;
   replyToUserId?: string;
+  replyToUser?: {
+    id: string;
+    username: string;
+    avatar?: string;
+  };
   isLiked?: boolean;
+  isDisliked?: boolean;
   userRating?: number;
+  replyCount?: number;
+  replies?: Comment[];
 }
 
 interface RatingStats {
@@ -80,7 +88,16 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const commentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // 回复功能状态
+  const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
+  const [replyToComment, setReplyToComment] = useState<{ commentId: string; username: string; parentId?: string; replyToUserId?: string; replyToReplyId?: string } | null>(null);
+  const [replyContent, setReplyContent] = useState('');
+  const [showReplyEmojiPicker, setShowReplyEmojiPicker] = useState(false);
+  const replyEmojiButtonRef = useRef<HTMLButtonElement>(null);
+  const replyEmojiPickerRef = useRef<HTMLDivElement>(null);
+  const [replyEmojiPosition, setReplyEmojiPosition] = useState<'top' | 'bottom'>('bottom');
   // 点击外部关闭表情选择器
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -98,6 +115,24 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showEmojiPicker]);
+
+  // 点击外部关闭子评论表情选择器
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        showReplyEmojiPicker &&
+        replyEmojiPickerRef.current &&
+        replyEmojiButtonRef.current &&
+        !replyEmojiPickerRef.current.contains(event.target as Node) &&
+        !replyEmojiButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowReplyEmojiPicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showReplyEmojiPicker]);
   // 优先从全局 store 读取缓存的书架状态，避免页面切换时状态丢失
   const [isInBookshelf, setIsInBookshelf] = useState(() => useWorkNavStore.getState().bookshelfMap[novel.id] || false);
   const [loading, setLoading] = useState(true);
@@ -404,6 +439,10 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
       const newComment = await DataService.createComment(novel.id, { content: commentContent });
       setComments([newComment, ...comments]);
       setCommentContent('');
+      // 重置 textarea 高度
+      if (commentTextareaRef.current) {
+        commentTextareaRef.current.style.height = 'auto';
+      }
 
       success(userRating > 0 ? '评分和评论发表成功！' : '评论发表成功！');
     } catch (error) {
@@ -412,7 +451,92 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
     }
   };
 
-  // 点赞/取消点赞评论
+  // 递归在评论树中添加回复
+  const addReplyToTree = (comments: Comment[], parentId: string, newReply: Comment): Comment[] => {
+    return comments.map(comment => {
+      if (comment.id === parentId) {
+        return {
+          ...comment,
+          replies: [...(comment.replies || []), newReply],
+          replyCount: (comment.replyCount || 0) + 1
+        };
+      }
+      if (comment.replies && comment.replies.length > 0) {
+        return {
+          ...comment,
+          replies: addReplyToTree(comment.replies, parentId, newReply)
+        };
+      }
+      return comment;
+    });
+  };
+
+  // 提交回复
+  const handleSubmitReply = async (parentCommentId: string) => {
+    if (!replyContent.trim()) {
+      showError('请输入回复内容');
+      return;
+    }
+
+    try {
+      // 当回复一个回复时，parentId 应该是被回复评论的 ID（实现真正的树形嵌套）
+      const actualParentId = replyToComment?.replyToReplyId || parentCommentId;
+
+      console.log('提交回复参数:', {
+        workId: novel.id,
+        content: replyContent,
+        parentId: actualParentId,
+        replyToUserId: replyToComment?.replyToUserId
+      });
+
+      const newReply = await DataService.createComment(novel.id, {
+        content: replyContent,
+        parentId: actualParentId,
+        replyToUserId: replyToComment?.replyToUserId
+      });
+
+      // 递归更新评论树
+      setComments(prevComments => addReplyToTree(prevComments, actualParentId, newReply));
+
+      // 展开回复列表（展开被回复评论所在的整条路径）
+      setExpandedReplies(prev => {
+        const next = new Set(prev);
+        next.add(actualParentId);
+        // 也展开顶级评论的回复
+        next.add(parentCommentId);
+        return next;
+      });
+
+      // 清空回复状态
+      setReplyToComment(null);
+      setReplyContent('');
+
+      success('回复成功！');
+    } catch (error: any) {
+      console.error('回复失败:', error);
+      console.error('错误详情:', error?.response?.data);
+      const errorMessage = error?.response?.data?.detail || error?.message || '回复失败，请重试';
+      showError(typeof errorMessage === 'string' ? errorMessage : '回复失败，请重试');
+    }
+  };
+
+  // 递归更新评论树中某个评论的状态
+  const updateCommentInTree = (comments: Comment[], commentId: string, updater: (c: Comment) => Comment): Comment[] => {
+    return comments.map(comment => {
+      if (comment.id === commentId) {
+        return updater(comment);
+      }
+      if (comment.replies && comment.replies.length > 0) {
+        return {
+          ...comment,
+          replies: updateCommentInTree(comment.replies, commentId, updater)
+        };
+      }
+      return comment;
+    });
+  };
+
+  // 点赞/取消点赞评论（包括回复）
   const handleToggleLike = async (commentId: string, isLiked: boolean) => {
     try {
       if (isLiked) {
@@ -421,21 +545,157 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
         await DataService.likeComment(commentId);
       }
 
-      // 更新评论列表中的点赞状态
-      setComments(comments.map(comment => {
-        if (comment.id === commentId) {
-          return {
-            ...comment,
-            isLiked: !isLiked,
-            likeCount: isLiked ? comment.likeCount - 1 : comment.likeCount + 1,
-          };
-        }
-        return comment;
-      }));
+      // 递归更新评论树中的点赞状态（点赞和踩互斥）
+      setComments(prevComments => updateCommentInTree(prevComments, commentId, (c) => ({
+        ...c,
+        isLiked: !isLiked,
+        likeCount: isLiked ? c.likeCount - 1 : c.likeCount + 1,
+        // 点赞时自动取消踩
+        isDisliked: !isLiked ? false : c.isDisliked,
+      })));
     } catch (error) {
       console.error('点赞操作失败:', error);
       showError('操作失败，请重试');
     }
+  };
+
+  // 踩/取消踩评论（包括回复）
+  const handleToggleDislike = async (commentId: string, isDisliked: boolean) => {
+    try {
+      if (isDisliked) {
+        await DataService.undislikeComment(commentId);
+      } else {
+        await DataService.dislikeComment(commentId);
+      }
+
+      // 递归更新评论树中的踩状态（点赞和踩互斥）
+      setComments(prevComments => updateCommentInTree(prevComments, commentId, (c) => ({
+        ...c,
+        isDisliked: !isDisliked,
+        // 踩时自动取消点赞
+        isLiked: !isDisliked ? false : c.isLiked,
+        likeCount: !isDisliked && c.isLiked ? c.likeCount - 1 : c.likeCount,
+      })));
+    } catch (error) {
+      console.error('踩操作失败:', error);
+      showError('操作失败，请重试');
+    }
+  };
+
+  // 递归渲染回复列表（支持无限层级）
+  // 连接线逻辑参考 preview-youtube-comments.html
+  const renderReplies = (replies: Comment[], rootCommentId: string, depth: number): React.ReactNode => {
+    const MAX_DEPTH = 6;
+    const isTopLevel = depth === 0;
+
+    return replies.map((reply, replyIndex) => {
+      const isFirst = replyIndex === 0;
+      const isLast = replyIndex === replies.length - 1;
+      const hasChildren = reply.replies && reply.replies.length > 0;
+
+      return (
+        // 外层容器：包含回复内容和子回复，垂直线基于此定位可正确延伸
+        <div key={reply.id} className="relative overflow-visible pt-3">
+          {/* 垂直连接线 - 放在外层容器 */}
+          <div
+            className="absolute w-px bg-gray-300 dark:bg-[#3f3f3f]"
+            style={{
+              // 顶层对齐主评论头像中心(-36px)，嵌套层对齐父回复头像中心(-24px)
+              left: isTopLevel ? '-36px' : '-24px',
+              // 第一个回复向上延伸到父级头像下方
+              top: isFirst ? (isTopLevel ? '-60px' : '-48px') : '-12px',
+              // 非最后一个：延伸到底部连接下一个回复项
+              // 最后一个（顶层）：延伸到"隐藏回复"按钮（-12px 填补 mt-3 间隙）
+              // 最后一个（非顶层）：在弯折处停止
+              bottom: isLast ? (isTopLevel ? '-12px' : 'calc(100% - 12px)') : '0'
+            }}
+          />
+          {/* 弯折连接线 */}
+          <div
+            className="absolute border-b border-l border-gray-300 dark:border-[#3f3f3f] rounded-bl-xl"
+            style={{
+              left: isTopLevel ? '-36px' : '-24px',
+              top: '12px',
+              width: isTopLevel ? '36px' : '24px',
+              height: '12px'
+            }}
+          />
+          <div className="flex gap-3 relative group/reply overflow-visible">
+          {/* 头像 */}
+          {reply.user?.avatar ? (
+            <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
+              <img src={reply.user.avatar} alt={reply.user.username} className="w-full h-full object-cover" />
+            </div>
+          ) : (
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#2196f3] to-[#4caf50] flex items-center justify-center text-white text-[10px] font-medium flex-shrink-0">
+              {reply.user?.username?.[0]?.toUpperCase() || '?'}
+            </div>
+          )}
+
+          <div className="flex-1 min-w-0 overflow-visible">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span onClick={() => reply.user?.id && navigate(`/user/${reply.user.id}`)} className="text-[13px] font-medium text-gray-900 dark:text-[#f1f1f1] cursor-pointer hover:underline">
+                @{reply.user?.username || '匿名用户'}
+              </span>
+              <span className="text-xs text-gray-500 dark:text-[#aaa]">{formatTime(reply.createdAt)}</span>
+              {depth > 0 && <span className="text-[10px] text-gray-400 dark:text-[#666]">Lv.{depth + 1}</span>}
+              <button onClick={() => handleReportComment(reply.id)} className="ml-auto p-1 rounded-full text-gray-400 hover:bg-gray-100 dark:hover:bg-[#272727] opacity-0 group-hover/reply:opacity-100">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+              </button>
+            </div>
+            <p className="text-sm text-gray-800 dark:text-[#f1f1f1] leading-relaxed">
+              {reply.replyToUser && <span onClick={() => navigate(`/user/${reply.replyToUser!.id}`)} className="text-[#3ea6ff] cursor-pointer hover:underline mr-1">@{reply.replyToUser.username}</span>}
+              {reply.content}
+            </p>
+
+            {/* 操作按钮 */}
+            <div className="flex items-center h-8 -ml-2 mt-0.5">
+              <button onClick={() => handleToggleLike(reply.id, reply.isLiked || false)} className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors ${reply.isLiked ? 'text-[#3ea6ff]' : 'text-gray-500 dark:text-[#aaa] hover:bg-gray-100 dark:hover:bg-[#272727]'}`}>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M18.77,11h-4.23l1.52-4.94C16.38,5.03,15.54,4,14.38,4c-0.58,0-1.14,0.24-1.52,0.65L7,11H3v10h4h1h9.43 c1.06,0,1.98-0.67,2.19-1.61l1.34-6C21.23,12.15,20.18,11,18.77,11z M7,20H4v-8h3V20z M19.98,13.17l-1.34,6 C18.54,19.65,18.03,20,17.43,20H8v-8.61l5.6-6.06C13.79,5.12,14.08,5,14.38,5c0.26,0,0.5,0.11,0.63,0.3 c0.07,0.1,0.15,0.26,0.09,0.47l-1.52,4.94L13.18,12h1.35h4.23c0.41,0,0.8,0.17,1.03,0.46C19.92,12.61,20.05,12.86,19.98,13.17z"/></svg>
+              </button>
+              {reply.likeCount > 0 && <span className="text-xs text-gray-500 dark:text-[#aaa] mr-1">{reply.likeCount}</span>}
+              <button onClick={() => handleToggleDislike(reply.id, reply.isDisliked || false)} className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors ${reply.isDisliked ? 'text-[#3ea6ff]' : 'text-gray-500 dark:text-[#aaa] hover:bg-gray-100 dark:hover:bg-[#272727]'}`}>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17,4h-1H6.57C5.5,4,4.59,4.67,4.38,5.61l-1.34,6C2.77,12.85,3.82,14,5.23,14h4.23l-1.52,4.94C7.62,19.97,8.46,21,9.62,21 c0.58,0,1.14-0.24,1.52-0.65L17,14h4V4H17z M10.4,19.67C10.21,19.88,9.92,20,9.62,20c-0.26,0-0.5-0.11-0.63-0.3 c-0.07-0.1-0.15-0.26-0.09-0.47l1.52-4.94l0.4-1.29H9.46H5.23c-0.41,0-0.8-0.17-1.03-0.46c-0.12-0.15-0.25-0.4-0.18-0.71l1.34-6 C5.46,5.35,5.97,5,6.57,5H16v8.61L10.4,19.67z M20,13h-3V5h3V13z"/></svg>
+              </button>
+              {depth < MAX_DEPTH && (
+                <button onClick={() => { setReplyToComment({ commentId: rootCommentId, username: reply.user?.username || '匿名用户', parentId: rootCommentId, replyToUserId: reply.user?.id, replyToReplyId: reply.id }); setReplyContent(''); }} className="h-8 px-3 text-xs font-medium text-gray-700 dark:text-[#f1f1f1] hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full">
+                  回复
+                </button>
+              )}
+            </div>
+
+            {/* 回复输入框 */}
+            {replyToComment?.replyToReplyId === reply.id && (
+              <div className="flex gap-3 mt-3">
+                {currentUserAvatar ? (
+                  <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0"><img src={currentUserAvatar} alt={currentUserName || '我'} className="w-full h-full object-cover" /></div>
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#667eea] to-[#764ba2] flex items-center justify-center text-white text-[10px] font-medium flex-shrink-0">{currentUserName?.[0]?.toUpperCase() || '我'}</div>
+                )}
+                <div className="flex-1">
+                  <textarea value={replyContent} onChange={(e) => { setReplyContent(e.target.value); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (replyContent.trim()) handleSubmitReply(rootCommentId); }}} className="w-full bg-transparent border-b border-gray-300 dark:border-[#303030] text-[13px] text-gray-900 dark:text-[#f1f1f1] py-1 outline-none resize-none overflow-hidden" placeholder="添加回复..." autoFocus rows={1} />
+                  <div className="flex items-center justify-between mt-2">
+                    <button onClick={() => setShowReplyEmojiPicker(!showReplyEmojiPicker)} className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full">
+                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-6c.78 2.34 2.72 4 5 4s4.22-1.66 5-4H7zm8-4c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm-6 0c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1z"/></svg>
+                    </button>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setReplyToComment(null); setReplyContent(''); setShowReplyEmojiPicker(false); }} className="px-3 py-1.5 text-xs text-gray-700 dark:text-[#f1f1f1] hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full">取消</button>
+                      <button onClick={() => handleSubmitReply(rootCommentId)} disabled={!replyContent.trim()} className={`px-3 py-1.5 text-xs font-medium rounded-full ${replyContent.trim() ? 'bg-[#3ea6ff] text-[#0f0f0f] hover:bg-[#65b8ff]' : 'bg-gray-200 dark:bg-[#272727] text-gray-400 cursor-not-allowed'}`}>回复</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 递归渲染子回复 - 需要 overflow-visible 确保连接线不被裁剪 */}
+            {reply.replies && reply.replies.length > 0 && depth < MAX_DEPTH && (
+              <div className="mt-2 relative overflow-visible">{renderReplies(reply.replies, rootCommentId, depth + 1)}</div>
+            )}
+          </div>
+        </div>
+      </div>
+      );
+    });
   };
 
   // 打开举报对话框
@@ -791,13 +1051,27 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
                     )}
                   </div>
                 </div>
-                <input
-                  type="text"
+                <textarea
+                  ref={commentTextareaRef}
                   value={commentContent}
-                  onChange={(e) => setCommentContent(e.target.value)}
-                  className="w-full bg-transparent border-b border-gray-300 dark:border-[#303030] text-sm text-gray-900 dark:text-[#f1f1f1] placeholder-gray-400 dark:placeholder-[#aaa] py-2 outline-none focus:border-gray-900 dark:focus:border-[#f1f1f1] transition-colors"
+                  onChange={(e) => {
+                    setCommentContent(e.target.value);
+                    // 自动调整高度
+                    e.target.style.height = 'auto';
+                    e.target.style.height = e.target.scrollHeight + 'px';
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (commentContent.trim()) {
+                        handleSubmitComment();
+                      }
+                    }
+                  }}
+                  className="w-full bg-transparent border-b border-gray-300 dark:border-[#303030] text-sm text-gray-900 dark:text-[#f1f1f1] placeholder-gray-400 dark:placeholder-[#aaa] py-2 outline-none focus:border-gray-900 dark:focus:border-[#f1f1f1] transition-colors resize-none overflow-hidden"
                   placeholder="添加评论..."
                   onFocus={() => setShowCommentActions(true)}
+                  rows={1}
                 />
                 {showCommentActions && (
                   <div className="flex items-center justify-between mt-2">
@@ -883,7 +1157,10 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
                       {/* 评论内容 */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[13px] font-medium text-gray-900 dark:text-[#f1f1f1]">
+                          <span
+                            onClick={() => comment.user?.id && navigate(`/user/${comment.user.id}`)}
+                            className="text-[13px] font-medium text-gray-900 dark:text-[#f1f1f1] cursor-pointer hover:underline"
+                          >
                             @{comment.user?.username || '匿名用户'}
                           </span>
                           <span className="text-xs text-gray-500 dark:text-[#aaa]">
@@ -904,7 +1181,10 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
                             </div>
                           )}
                           {/* 三点菜单 - hover时显示 */}
-                          <button className="ml-auto p-1 rounded-full text-gray-400 dark:text-[#aaa] hover:bg-gray-100 dark:hover:bg-[#272727] opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => currentUserId === comment.userId ? handleDeleteComment(comment.id) : handleReportComment(comment.id)}
+                            className="ml-auto p-1 rounded-full text-gray-400 dark:text-[#aaa] hover:bg-gray-100 dark:hover:bg-[#272727] opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
                             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                               <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                             </svg>
@@ -933,34 +1213,179 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
                           )}
 
                           {/* 踩按钮 */}
-                          <button className="flex items-center justify-center w-9 h-9 rounded-full text-gray-500 dark:text-[#aaa] hover:bg-gray-100 dark:hover:bg-[#272727] transition-colors">
+                          <button
+                            onClick={() => handleToggleDislike(comment.id, comment.isDisliked || false)}
+                            className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors ${
+                              comment.isDisliked
+                                ? 'text-[#3ea6ff]'
+                                : 'text-gray-500 dark:text-[#aaa] hover:bg-gray-100 dark:hover:bg-[#272727]'
+                            }`}
+                          >
                             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                               <path d="M17,4h-1H6.57C5.5,4,4.59,4.67,4.38,5.61l-1.34,6C2.77,12.85,3.82,14,5.23,14h4.23l-1.52,4.94C7.62,19.97,8.46,21,9.62,21 c0.58,0,1.14-0.24,1.52-0.65L17,14h4V4H17z M10.4,19.67C10.21,19.88,9.92,20,9.62,20c-0.26,0-0.5-0.11-0.63-0.3 c-0.07-0.1-0.15-0.26-0.09-0.47l1.52-4.94l0.4-1.29H9.46H5.23c-0.41,0-0.8-0.17-1.03-0.46c-0.12-0.15-0.25-0.4-0.18-0.71l1.34-6 C5.46,5.35,5.97,5,6.57,5H16v8.61L10.4,19.67z M20,13h-3V5h3V13z"/>
                             </svg>
                           </button>
 
                           {/* 回复按钮 */}
-                          <button className="h-9 px-4 ml-1 text-xs font-medium text-gray-700 dark:text-[#f1f1f1] hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full transition-colors">
+                          <button
+                            onClick={() => {
+                              if (replyToComment?.commentId === comment.id) {
+                                setReplyToComment(null);
+                                setReplyContent('');
+                              } else {
+                                setReplyToComment({
+                                  commentId: comment.id,
+                                  username: comment.user?.username || '匿名用户',
+                                  parentId: comment.id,
+                                  replyToUserId: comment.user?.id
+                                });
+                                setReplyContent('');
+                              }
+                            }}
+                            className="h-9 px-4 ml-1 text-xs font-medium text-gray-700 dark:text-[#f1f1f1] hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full transition-colors"
+                          >
                             回复
                           </button>
-
-                          {/* 删除/举报按钮 */}
-                          {currentUserId === comment.userId ? (
-                            <button
-                              onClick={() => handleDeleteComment(comment.id)}
-                              className="h-9 px-4 text-xs text-gray-500 dark:text-[#aaa] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors opacity-0 group-hover:opacity-100"
-                            >
-                              删除
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleReportComment(comment.id)}
-                              className="h-9 px-4 text-xs text-gray-500 dark:text-[#aaa] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors opacity-0 group-hover:opacity-100"
-                            >
-                              举报
-                            </button>
-                          )}
                         </div>
+
+                        {/* 回复输入框 - 只在回复主评论时显示（不是回复子回复） */}
+                        {replyToComment?.commentId === comment.id && !replyToComment?.replyToReplyId && (
+                          <div className="flex gap-3 mt-3 ml-14">
+                            {currentUserAvatar ? (
+                              <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
+                                <img src={currentUserAvatar} alt={currentUserName || '我'} className="w-full h-full object-cover" />
+                              </div>
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#667eea] to-[#764ba2] flex items-center justify-center text-white text-[10px] font-medium flex-shrink-0">
+                                {currentUserName ? currentUserName[0].toUpperCase() : '我'}
+                              </div>
+                            )}
+                            <div className="flex-1">
+                              <textarea
+                                value={replyContent}
+                                onChange={(e) => {
+                                  setReplyContent(e.target.value);
+                                  // 自动调整高度
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = e.target.scrollHeight + 'px';
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    if (replyContent.trim()) {
+                                      handleSubmitReply(comment.id);
+                                    }
+                                  }
+                                }}
+                                className="w-full bg-transparent border-b border-gray-300 dark:border-[#303030] text-[13px] text-gray-900 dark:text-[#f1f1f1] placeholder-gray-400 dark:placeholder-[#aaa] py-1 outline-none focus:border-gray-900 dark:focus:border-[#f1f1f1] transition-colors resize-none overflow-hidden"
+                                placeholder="添加回复..."
+                                autoFocus
+                                rows={1}
+                              />
+                              <div className="flex items-center justify-between mt-2">
+                                <div className="relative">
+                                  <button
+                                    ref={replyEmojiButtonRef}
+                                    onClick={(e) => {
+                                      const button = e.currentTarget;
+                                      const rect = button.getBoundingClientRect();
+                                      const spaceBelow = window.innerHeight - rect.bottom;
+                                      const pickerHeight = 320; // h-80 = 320px
+                                      setReplyEmojiPosition(spaceBelow < pickerHeight ? 'top' : 'bottom');
+                                      setShowReplyEmojiPicker(!showReplyEmojiPicker);
+                                    }}
+                                    className="p-1.5 text-gray-500 dark:text-[#aaa] hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full transition-colors"
+                                  >
+                                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-6c.78 2.34 2.72 4 5 4s4.22-1.66 5-4H7zm8-4c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm-6 0c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1z"/>
+                                    </svg>
+                                  </button>
+                                  {showReplyEmojiPicker && (
+                                    <div
+                                      ref={replyEmojiPickerRef}
+                                      className={`absolute left-0 z-50 ${replyEmojiPosition === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'}`}
+                                    >
+                                      <MiniEmojiPicker
+                                        onSelect={(emoji) => {
+                                          setReplyContent(prev => prev + emoji);
+                                        }}
+                                        onClose={() => setShowReplyEmojiPicker(false)}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setReplyToComment(null);
+                                      setReplyContent('');
+                                      setShowReplyEmojiPicker(false);
+                                    }}
+                                    className="px-3 py-1.5 text-xs text-gray-700 dark:text-[#f1f1f1] hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full transition-colors"
+                                  >
+                                    取消
+                                  </button>
+                                  <button
+                                    onClick={() => handleSubmitReply(comment.id)}
+                                    disabled={!replyContent.trim()}
+                                    className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                                      replyContent.trim()
+                                        ? 'bg-[#3ea6ff] text-[#0f0f0f] hover:bg-[#65b8ff]'
+                                        : 'bg-gray-200 dark:bg-[#272727] text-gray-400 dark:text-[#717171] cursor-not-allowed'
+                                    }`}
+                                  >
+                                    回复
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 展开回复按钮 */}
+                        {comment.replies && comment.replies.length > 0 && !expandedReplies.has(comment.id) && (
+                          <button
+                            onClick={() => setExpandedReplies(prev => new Set(prev).add(comment.id))}
+                            className="flex items-center gap-2 px-4 py-2 -ml-4 mt-1 text-sm font-medium text-[#3ea6ff] hover:bg-[#3ea6ff]/10 rounded-full transition-colors"
+                          >
+                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+                            </svg>
+                            {comment.replies.length} 条回复
+                          </button>
+                        )}
+
+                        {/* 回复列表 - 使用递归渲染支持无限层级 */}
+                        {comment.replies && comment.replies.length > 0 && expandedReplies.has(comment.id) && (
+                          <div className="mt-2 relative overflow-visible">
+                            {renderReplies(comment.replies, comment.id, 0)}
+
+                            {/* 隐藏回复按钮 */}
+                            <button
+                              onClick={() => setExpandedReplies(prev => {
+                                const next = new Set(prev);
+                                next.delete(comment.id);
+                                return next;
+                              })}
+                              className="flex items-center gap-2 px-4 py-2 mt-3 relative text-sm font-medium text-[#3ea6ff] hover:bg-[#3ea6ff]/10 rounded-full transition-colors"
+                            >
+                              {/* 弯折连接线 - 对齐到根节点头像中心 */}
+                              <div
+                                className="absolute border-b border-l border-gray-300 dark:border-[#3f3f3f] rounded-bl-xl"
+                                style={{
+                                  left: '-36px',
+                                  top: '0',
+                                  width: '36px',
+                                  height: '20px'
+                                }}
+                              />
+                              <svg className="w-5 h-5 rotate-180" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+                              </svg>
+                              隐藏回复
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}

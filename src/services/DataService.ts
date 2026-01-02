@@ -1368,6 +1368,20 @@ class DataServiceClass {
     return this.adapter.delete(`/comments/comments/${commentId}/like`);
   }
 
+  /**
+   * 踩评论
+   */
+  async dislikeComment(commentId: string): Promise<any> {
+    return this.adapter.post(`/comments/comments/${commentId}/dislike`, {});
+  }
+
+  /**
+   * 取消踩评论
+   */
+  async undislikeComment(commentId: string): Promise<any> {
+    return this.adapter.delete(`/comments/comments/${commentId}/dislike`);
+  }
+
   // ========== 书架相关API ==========
 
   /**

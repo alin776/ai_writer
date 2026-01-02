@@ -17,7 +17,6 @@ import {
   Bell,
   Trophy,
   BookMarked,
-  LogOut,
   MessageCircle,
   User,
 } from 'lucide-react';
@@ -25,6 +24,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useWorkNavStore } from '../../store/workNavStore';
 import { channelApi } from '@/services/channelApi';
 import clsx from 'clsx';
+import UserCardPopover from './UserCardPopover';
 
 interface NavItem {
   id: string;
@@ -72,7 +72,7 @@ export const Sidebar: React.FC = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isLibraryExpanded, setIsLibraryExpanded] = useState(true);
   const [isServiceExpanded, setIsServiceExpanded] = useState(true);
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isUserCardOpen, setIsUserCardOpen] = useState(false);
   const [isQRCodeOpen, setIsQRCodeOpen] = useState(false);
   const [hasChannelMention, setHasChannelMention] = useState(false); // 频道是否有@提醒
   const [channelUnreadCount, setChannelUnreadCount] = useState(0); // 频道未读消息总数
@@ -103,16 +103,16 @@ export const Sidebar: React.FC = () => {
     }
   }, [user, location.pathname]); // 路径变化时也刷新（可能标记了已读）
 
-  // 点击外部关闭菜单
+  // 点击外部关闭菜单 - 由 UserCardPopover 内部处理
+  // useEffect 保留用于其他可能的外部点击处理
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-        setIsUserMenuOpen(false);
-      }
+      // 如果用户卡片打开，让 UserCardPopover 自己处理关闭逻辑
+      if (isUserCardOpen) return;
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isUserCardOpen]);
 
   const handleLogout = () => {
     logout();
@@ -284,47 +284,15 @@ export const Sidebar: React.FC = () => {
       </nav>
 
       <div className="p-3 border-t border-gray-200 dark:border-slate-700 relative" ref={userMenuRef}>
-        {/* 用户菜单弹出框 */}
-        {isUserMenuOpen && (
-          <div className="absolute bottom-full left-3 right-3 mb-2 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 overflow-hidden z-50">
-            {(user?.role === 'admin' || user?.isAdmin) && (
-              <button
-                onClick={() => {
-                  navigate('/admin/dashboard');
-                  setIsUserMenuOpen(false);
-                }}
-                className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                <span>管理后台</span>
-              </button>
-            )}
-            <button
-              onClick={() => {
-                navigate('/settings');
-                setIsUserMenuOpen(false);
-              }}
-              className={clsx(
-                "w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors",
-                (user?.role === 'admin' || user?.isAdmin) && "border-t border-gray-200 dark:border-slate-700"
-              )}
-            >
-              <Settings className="w-4 h-4" />
-              <span>系统设置</span>
-            </button>
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors border-t border-gray-200 dark:border-slate-700"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>退出登录</span>
-            </button>
-          </div>
-        )}
+        {/* 用户明信片弹窗 */}
+        <UserCardPopover
+          isOpen={isUserCardOpen}
+          onClose={() => setIsUserCardOpen(false)}
+        />
 
         {!isCollapsed ? (
           <div
-            onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+            onClick={() => setIsUserCardOpen(!isUserCardOpen)}
             className="flex items-center space-x-2.5 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded transition-colors cursor-pointer"
           >
             <div className="w-8 h-8 bg-gray-900 dark:bg-slate-700 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -392,7 +360,7 @@ export const Sidebar: React.FC = () => {
         ) : (
           <div className="flex justify-center">
             <div
-              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              onClick={() => setIsUserCardOpen(!isUserCardOpen)}
               className="w-9 h-9 bg-gray-900 dark:bg-slate-700 rounded-full flex items-center justify-center hover:bg-gray-800 dark:hover:bg-slate-600 transition-colors cursor-pointer overflow-hidden"
             >
               {user?.avatar ? (

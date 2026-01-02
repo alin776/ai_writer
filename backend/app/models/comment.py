@@ -37,6 +37,9 @@ class Comment(Base):
     # 点赞数
     like_count = Column(Integer, default=0, nullable=False)
 
+    # 踩数
+    dislike_count = Column(Integer, default=0, nullable=False)
+
     # 是否被删除（软删除）
     is_deleted = Column(Boolean, default=False, nullable=False)
 
@@ -50,6 +53,7 @@ class Comment(Base):
     reply_to_user = relationship("User", foreign_keys=[reply_to_user_id])
     parent = relationship("Comment", remote_side=[id], backref="replies")
     likes = relationship("CommentLike", backref="comment", cascade="all, delete-orphan", passive_deletes=True)
+    dislikes = relationship("CommentDislike", backref="comment", cascade="all, delete-orphan", passive_deletes=True)
     reports = relationship("CommentReport", backref="comment", cascade="all, delete-orphan", passive_deletes=True)
 
     def __repr__(self):
@@ -73,6 +77,25 @@ class CommentLike(Base):
 
     def __repr__(self):
         return f"<CommentLike comment_id={self.comment_id} user_id={self.user_id}>"
+
+
+class CommentDislike(Base):
+    """评论踩模型"""
+
+    __tablename__ = "comment_dislikes"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    comment_id = Column(UUID(as_uuid=True), ForeignKey("comments.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # 时间戳
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # 关联关系
+    user = relationship("User", backref="comment_dislikes")
+
+    def __repr__(self):
+        return f"<CommentDislike comment_id={self.comment_id} user_id={self.user_id}>"
 
 
 class CommentReport(Base):

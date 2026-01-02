@@ -3,6 +3,11 @@ import { persist } from 'zustand/middleware';
 import type { User } from '@/types';
 
 /**
+ * 用户在线状态类型
+ */
+export type OnlineStatus = 'online' | 'idle' | 'dnd' | 'offline';
+
+/**
  * 认证状态接口
  */
 interface AuthState {
@@ -14,6 +19,7 @@ interface AuthState {
   refreshTokenExpiresAt: number | null;  // refresh token 过期时间戳（毫秒）
   isAuthenticated: boolean;
   hasHydrated: boolean;
+  onlineStatus: OnlineStatus;  // 用户在线状态
 
   // 方法
   /**
@@ -59,6 +65,12 @@ interface AuthState {
    * 标记持久化是否完成
    */
   setHasHydrated: (value: boolean) => void;
+
+  /**
+   * 设置用户在线状态
+   * @param status 在线状态
+   */
+  setOnlineStatus: (status: OnlineStatus) => void;
 }
 
 /**
@@ -76,6 +88,7 @@ export const useAuthStore = create<AuthState>()(
       refreshTokenExpiresAt: null,
       isAuthenticated: false,
       hasHydrated: false,
+      onlineStatus: 'online' as OnlineStatus,
 
       // 登录方法
       login: (
@@ -129,6 +142,11 @@ export const useAuthStore = create<AuthState>()(
       setHasHydrated: (value: boolean) => {
         set({ hasHydrated: value });
       },
+
+      // 设置用户在线状态
+      setOnlineStatus: (status: OnlineStatus) => {
+        set({ onlineStatus: status });
+      },
     }),
     {
       name: 'auth-storage', // localStorage 中的 key
@@ -139,6 +157,7 @@ export const useAuthStore = create<AuthState>()(
         tokenExpiresAt: state.tokenExpiresAt,
         refreshTokenExpiresAt: state.refreshTokenExpiresAt,
         isAuthenticated: state.isAuthenticated,
+        onlineStatus: state.onlineStatus,
       }), // 只持久化这些字段
       onRehydrateStorage: () => {
         return (state) => {

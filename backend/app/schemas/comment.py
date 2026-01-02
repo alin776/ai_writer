@@ -44,6 +44,7 @@ class CommentResponse(CommentBase):
     user: UserInfo
     reply_to_user: Optional[UserInfo] = None
     is_liked: bool = False  # 当前用户是否点赞
+    is_disliked: bool = False  # 当前用户是否踩
     reply_count: int = 0  # 回复数量
     user_rating: Optional[int] = None  # 评论者对该作品的评分(1-5星)
 
@@ -52,8 +53,12 @@ class CommentResponse(CommentBase):
 
 
 class CommentWithRepliesResponse(CommentResponse):
-    """带回复的评论响应"""
-    replies: List[CommentResponse] = []
+    """带回复的评论响应（支持无限层级嵌套）"""
+    replies: List["CommentWithRepliesResponse"] = []
+
+
+# 更新前向引用，支持递归嵌套
+CommentWithRepliesResponse.model_rebuild()
 
 
 class CommentListResponse(BaseModel):

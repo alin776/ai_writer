@@ -16,8 +16,17 @@ import {
 import { cn } from '@/lib/utils';
 import { checkFriendship, sendFriendRequest, type FriendCheckResponse } from '@/services/friendApi';
 import { getMyChannels, type Channel } from '@/services/channelApi';
+import { useAuthStore, type OnlineStatus } from '@/store/authStore';
 import MiniEmojiPicker from './MiniEmojiPicker';
 import ReportUserDialog from './ReportUserDialog';
+
+// 状态颜色映射
+const statusColors: Record<OnlineStatus, string> = {
+  online: '#3ba55c',
+  idle: '#f0b232',
+  dnd: '#f23f43',
+  offline: '#80848e',
+};
 
 export interface UserProfilePopoverProps {
   userId: string;
@@ -52,6 +61,7 @@ export function UserProfilePopover({
   onStartPrivateChat,
 }: UserProfilePopoverProps) {
   const navigate = useNavigate();
+  const { onlineStatus } = useAuthStore();
   const popoverRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const [friendStatus, setFriendStatus] = useState<FriendStatus>('loading');
@@ -405,7 +415,10 @@ export function UserProfilePopover({
               </AvatarFallback>
             </Avatar>
             {/* 在线状态指示器 - 16px, border 3px */}
-            <div className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-[#3ba55c] border-[3px] border-white dark:border-[#232428]" />
+            <div
+              className="absolute bottom-1 right-1 w-4 h-4 rounded-full border-[3px] border-white dark:border-[#232428]"
+              style={{ backgroundColor: isSelf ? statusColors[onlineStatus] : '#3ba55c' }}
+            />
           </div>
         </div>
 

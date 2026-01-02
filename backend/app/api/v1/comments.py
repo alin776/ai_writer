@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from typing import Optional
+from typing import Optional, Dict, List
 import logging
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.user import User
 from app.models.work import Work
-from app.models.comment import Comment, CommentLike, CommentReport
+from app.models.comment import Comment, CommentLike, CommentDislike, CommentReport
 from app.models.rating import WorkRating
 from app.schemas.comment import (
     CommentCreate,
@@ -25,6 +25,89 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+async def build_comment_tree(
+    comment: Comment,
+    all_comments_by_parent: Dict[str, List[Comment]],
+    user_likes: set,
+    user_dislikes: set,
+    user_ratings: Dict[str, int],
+    work_id: str,
+    max_depth: int = 10,
+    current_depth: int = 0
+) -> CommentWithRepliesResponse:
+    """
+    递归构建评论树
+
+    Args:
+        comment: 当前评论
+        all_comments_by_parent: 按 parent_id 分组的所有评论
+        user_likes: 当前用户点赞的评论ID集合
+        user_dislikes: 当前用户踩的评论ID集合
+        user_ratings: 用户ID -> 评分的映射
+        work_id: 作品ID
+        max_depth: 最大递归深度
+        current_depth: 当前深度
+    """
+    comment_id_str = str(comment.id)
+
+    # 获取该评论的直接回复
+    direct_replies = all_comments_by_parent.get(comment_id_str, [])
+
+    # 递归构建子回复
+    reply_responses = []
+    if current_depth < max_depth:
+        for reply in direct_replies:
+            reply_response = await build_comment_tree(
+                reply,
+                all_comments_by_parent,
+                user_likes,
+                user_dislikes,
+                user_ratings,
+                work_id,
+                max_depth,
+                current_depth + 1
+            )
+            reply_responses.append(reply_response)
+
+    # 计算总回复数（包括所有层级）
+    def count_all_replies(parent_id: str) -> int:
+        direct = all_comments_by_parent.get(parent_id, [])
+        total = len(direct)
+        for r in direct:
+            total += count_all_replies(str(r.id))
+        return total
+
+    reply_count = count_all_replies(comment_id_str)
+
+    return CommentWithRepliesResponse(
+        id=comment_id_str,
+        work_id=str(comment.work_id),
+        user_id=str(comment.user_id),
+        parent_id=str(comment.parent_id) if comment.parent_id else None,
+        reply_to_user_id=str(comment.reply_to_user_id) if comment.reply_to_user_id else None,
+        content=comment.content,
+        like_count=comment.like_count,
+        is_deleted=comment.is_deleted,
+        created_at=comment.created_at,
+        updated_at=comment.updated_at,
+        user=UserInfo(
+            id=str(comment.user.id),
+            username=comment.user.username,
+            avatar=comment.user.avatar
+        ),
+        reply_to_user=UserInfo(
+            id=str(comment.reply_to_user.id),
+            username=comment.reply_to_user.username,
+            avatar=comment.reply_to_user.avatar
+        ) if comment.reply_to_user else None,
+        is_liked=comment_id_str in user_likes,
+        is_disliked=comment_id_str in user_dislikes,
+        reply_count=reply_count,
+        user_rating=user_ratings.get(str(comment.user_id)),
+        replies=reply_responses
+    )
+
+
 @router.get("/works/{work_id}/comments", response_model=CommentListResponse)
 async def get_work_comments(
     work_id: str,
@@ -34,7 +117,7 @@ async def get_work_comments(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    获取作品的评论列表(只返回顶级评论,每个评论包含其回复)
+    获取作品的评论列表(返回树形结构，支持无限层级嵌套)
 
     - **work_id**: 作品ID
     - **skip**: 跳过的记录数
@@ -52,8 +135,18 @@ async def get_work_comments(
             detail="作品不存在或未发布"
         )
 
-    # 查询顶级评论(parent_id为空的评论)
-    query = (
+    # 获取顶级评论总数（用于分页）
+    count_result = await db.execute(
+        select(func.count(Comment.id)).where(
+            Comment.work_id == work_id,
+            Comment.parent_id == None,
+            Comment.is_deleted == False
+        )
+    )
+    total = count_result.scalar() or 0
+
+    # 查询顶级评论（分页）
+    top_comments_result = await db.execute(
         select(Comment)
         .where(
             Comment.work_id == work_id,
@@ -65,131 +158,88 @@ async def get_work_comments(
             selectinload(Comment.reply_to_user)
         )
         .order_by(Comment.created_at.desc())
+        .offset(skip)
+        .limit(limit)
     )
+    top_comments = top_comments_result.scalars().all()
 
-    # 获取总数
-    count_result = await db.execute(
-        select(func.count(Comment.id)).where(
+    if not top_comments:
+        return CommentListResponse(
+            total=total,
+            page=skip // limit + 1,
+            page_size=limit,
+            items=[]
+        )
+
+    # 一次性获取该作品的所有评论（用于构建树）
+    all_comments_result = await db.execute(
+        select(Comment)
+        .where(
             Comment.work_id == work_id,
-            Comment.parent_id == None,
             Comment.is_deleted == False
         )
+        .options(
+            selectinload(Comment.user),
+            selectinload(Comment.reply_to_user)
+        )
     )
-    total = count_result.scalar() or 0
+    all_comments = all_comments_result.scalars().all()
 
-    # 分页查询
-    result = await db.execute(query.offset(skip).limit(limit))
-    comments = result.scalars().all()
+    # 按 parent_id 分组
+    all_comments_by_parent: Dict[str, List[Comment]] = {}
+    for c in all_comments:
+        parent_key = str(c.parent_id) if c.parent_id else "root"
+        if parent_key not in all_comments_by_parent:
+            all_comments_by_parent[parent_key] = []
+        all_comments_by_parent[parent_key].append(c)
 
-    # 构建响应数据
+    # 对每个分组按时间排序
+    for key in all_comments_by_parent:
+        all_comments_by_parent[key].sort(key=lambda x: x.created_at)
+
+    # 获取当前用户的点赞/踩记录
+    user_likes: set = set()
+    user_dislikes: set = set()
+    if current_user:
+        likes_result = await db.execute(
+            select(CommentLike.comment_id).where(
+                CommentLike.user_id == current_user.id
+            )
+        )
+        user_likes = {str(row[0]) for row in likes_result.fetchall()}
+
+        dislikes_result = await db.execute(
+            select(CommentDislike.comment_id).where(
+                CommentDislike.user_id == current_user.id
+            )
+        )
+        user_dislikes = {str(row[0]) for row in dislikes_result.fetchall()}
+
+    # 获取所有评论者的评分
+    commenter_ids = list({str(c.user_id) for c in all_comments})
+    user_ratings: Dict[str, int] = {}
+    if commenter_ids:
+        ratings_result = await db.execute(
+            select(WorkRating.user_id, WorkRating.rating).where(
+                WorkRating.work_id == work_id,
+                WorkRating.user_id.in_(commenter_ids)
+            )
+        )
+        for row in ratings_result.fetchall():
+            user_ratings[str(row[0])] = row[1]
+
+    # 构建树形结构
     items = []
-    for comment in comments:
-        # 查询该评论的所有回复
-        replies_result = await db.execute(
-            select(Comment)
-            .where(
-                Comment.parent_id == comment.id,
-                Comment.is_deleted == False
-            )
-            .options(
-                selectinload(Comment.user),
-                selectinload(Comment.reply_to_user)
-            )
-            .order_by(Comment.created_at.asc())
+    for comment in top_comments:
+        tree = await build_comment_tree(
+            comment,
+            all_comments_by_parent,
+            user_likes,
+            user_dislikes,
+            user_ratings,
+            work_id
         )
-        replies = replies_result.scalars().all()
-
-        # 检查当前用户是否点赞了该评论
-        is_liked = False
-        if current_user:
-            like_result = await db.execute(
-                select(CommentLike).where(
-                    CommentLike.comment_id == comment.id,
-                    CommentLike.user_id == current_user.id
-                )
-            )
-            is_liked = like_result.scalar_one_or_none() is not None
-
-        # 查询评论者对该作品的评分
-        rating_result = await db.execute(
-            select(WorkRating.rating).where(
-                WorkRating.user_id == comment.user_id,
-                WorkRating.work_id == work_id
-            )
-        )
-        user_rating = rating_result.scalar_one_or_none()
-
-        # 构建回复列表
-        reply_responses = []
-        for reply in replies:
-            # 检查是否点赞回复
-            reply_is_liked = False
-            if current_user:
-                reply_like_result = await db.execute(
-                    select(CommentLike).where(
-                        CommentLike.comment_id == reply.id,
-                        CommentLike.user_id == current_user.id
-                    )
-                )
-                reply_is_liked = reply_like_result.scalar_one_or_none() is not None
-
-            # 查询回复者对该作品的评分
-            reply_rating_result = await db.execute(
-                select(WorkRating.rating).where(
-                    WorkRating.user_id == reply.user_id,
-                    WorkRating.work_id == work_id
-                )
-            )
-            reply_user_rating = reply_rating_result.scalar_one_or_none()
-
-            reply_responses.append(CommentResponse(
-                id=str(reply.id),
-                work_id=str(reply.work_id),
-                user_id=str(reply.user_id),
-                parent_id=str(reply.parent_id) if reply.parent_id else None,
-                reply_to_user_id=str(reply.reply_to_user_id) if reply.reply_to_user_id else None,
-                content=reply.content,
-                like_count=reply.like_count,
-                is_deleted=reply.is_deleted,
-                created_at=reply.created_at,
-                updated_at=reply.updated_at,
-                user=UserInfo(
-                    id=str(reply.user.id),
-                    username=reply.user.username,
-                    avatar=reply.user.avatar
-                ),
-                reply_to_user=UserInfo(
-                    id=str(reply.reply_to_user.id),
-                    username=reply.reply_to_user.username,
-                    avatar=reply.reply_to_user.avatar
-                ) if reply.reply_to_user else None,
-                is_liked=reply_is_liked,
-                reply_count=0,
-                user_rating=reply_user_rating
-            ))
-
-        items.append(CommentWithRepliesResponse(
-            id=str(comment.id),
-            work_id=str(comment.work_id),
-            user_id=str(comment.user_id),
-            parent_id=None,
-            reply_to_user_id=None,
-            content=comment.content,
-            like_count=comment.like_count,
-            is_deleted=comment.is_deleted,
-            created_at=comment.created_at,
-            updated_at=comment.updated_at,
-            user=UserInfo(
-                id=str(comment.user.id),
-                username=comment.user.username,
-                avatar=comment.user.avatar
-            ),
-            reply_to_user=None,
-            is_liked=is_liked,
-            reply_count=len(replies),
-            user_rating=user_rating,
-            replies=reply_responses
-        ))
+        items.append(tree)
 
     page = skip // limit + 1
 
@@ -256,8 +306,8 @@ async def create_comment(
     await db.commit()
     await db.refresh(comment)
 
-    # 加载关联数据
-    await db.execute(
+    # 重新查询以加载关联数据
+    result = await db.execute(
         select(Comment)
         .where(Comment.id == comment.id)
         .options(
@@ -265,7 +315,7 @@ async def create_comment(
             selectinload(Comment.reply_to_user)
         )
     )
-    await db.refresh(comment)
+    comment = result.scalar_one()
 
     # 查询评论者对该作品的评分
     rating_result = await db.execute(
@@ -298,6 +348,7 @@ async def create_comment(
             avatar=comment.reply_to_user.avatar
         ) if comment.reply_to_user else None,
         is_liked=False,
+        is_disliked=False,
         reply_count=0,
         user_rating=user_rating
     )
@@ -355,6 +406,15 @@ async def update_comment(
     )
     is_liked = like_result.scalar_one_or_none() is not None
 
+    # 检查是否踩
+    dislike_result = await db.execute(
+        select(CommentDislike).where(
+            CommentDislike.comment_id == comment.id,
+            CommentDislike.user_id == current_user.id
+        )
+    )
+    is_disliked = dislike_result.scalar_one_or_none() is not None
+
     # 查询评论者对该作品的评分
     rating_result = await db.execute(
         select(WorkRating.rating).where(
@@ -386,6 +446,7 @@ async def update_comment(
             avatar=comment.reply_to_user.avatar
         ) if comment.reply_to_user else None,
         is_liked=is_liked,
+        is_disliked=is_disliked,
         reply_count=0,
         user_rating=user_rating
     )
@@ -464,6 +525,18 @@ async def like_comment(
             detail="已经点赞过该评论"
         )
 
+    # 如果已经踩过，先取消踩（点赞和踩互斥）
+    dislike_result = await db.execute(
+        select(CommentDislike).where(
+            CommentDislike.comment_id == comment_id,
+            CommentDislike.user_id == current_user.id
+        )
+    )
+    existing_dislike = dislike_result.scalar_one_or_none()
+    if existing_dislike:
+        await db.delete(existing_dislike)
+        comment.dislike_count = max(0, comment.dislike_count - 1)
+
     # 创建点赞记录
     like = CommentLike(
         comment_id=comment_id,
@@ -531,6 +604,126 @@ async def unlike_comment(
     return {
         "message": "取消点赞成功",
         "like_count": comment.like_count
+    }
+
+
+@router.post("/comments/{comment_id}/dislike", response_model=dict)
+async def dislike_comment(
+    comment_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    踩评论
+
+    - **comment_id**: 评论ID
+    """
+    # 查询评论
+    result = await db.execute(
+        select(Comment).where(Comment.id == comment_id, Comment.is_deleted == False)
+    )
+    comment = result.scalar_one_or_none()
+
+    if not comment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="评论不存在"
+        )
+
+    # 检查是否已经踩过
+    dislike_result = await db.execute(
+        select(CommentDislike).where(
+            CommentDislike.comment_id == comment_id,
+            CommentDislike.user_id == current_user.id
+        )
+    )
+    existing_dislike = dislike_result.scalar_one_or_none()
+
+    if existing_dislike:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="已经踩过该评论"
+        )
+
+    # 如果已经点赞过，先取消点赞（点赞和踩互斥）
+    like_result = await db.execute(
+        select(CommentLike).where(
+            CommentLike.comment_id == comment_id,
+            CommentLike.user_id == current_user.id
+        )
+    )
+    existing_like = like_result.scalar_one_or_none()
+    if existing_like:
+        await db.delete(existing_like)
+        comment.like_count = max(0, comment.like_count - 1)
+
+    # 创建踩记录
+    dislike = CommentDislike(
+        comment_id=comment_id,
+        user_id=current_user.id
+    )
+    db.add(dislike)
+
+    # 增加踩数
+    comment.dislike_count += 1
+
+    await db.commit()
+
+    return {
+        "message": "踩成功",
+        "dislike_count": comment.dislike_count
+    }
+
+
+@router.delete("/comments/{comment_id}/dislike", response_model=dict)
+async def undislike_comment(
+    comment_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    取消踩评论
+
+    - **comment_id**: 评论ID
+    """
+    # 查询评论
+    result = await db.execute(
+        select(Comment).where(Comment.id == comment_id, Comment.is_deleted == False)
+    )
+    comment = result.scalar_one_or_none()
+
+    if not comment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="评论不存在"
+        )
+
+    # 查询踩记录
+    dislike_result = await db.execute(
+        select(CommentDislike).where(
+            CommentDislike.comment_id == comment_id,
+            CommentDislike.user_id == current_user.id
+        )
+    )
+    dislike = dislike_result.scalar_one_or_none()
+
+    if not dislike:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="未踩该评论"
+        )
+
+    # 删除踩记录
+    await db.delete(dislike)
+
+    # 减少踩数
+    comment.dislike_count = max(0, comment.dislike_count - 1)
+
+    await db.commit()
+
+    return {
+        "message": "取消踩成功",
+        "dislike_count": comment.dislike_count
     }
 
 

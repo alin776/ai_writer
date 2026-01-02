@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>用户明信片预览 - Discord风格</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      background: #f2f3f5;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 40px;
+    }
+
+    .preview-container {
+      display: flex;
+      gap: 60px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .preview-wrapper {
+      position: relative;
+    }
+
+    .preview-label {
+      color: #4f5660;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      text-align: center;
+      letter-spacing: 0.5px;
+    }
+
+    /* 用户明信片主容器 */
+    .user-card {
+      width: 340px;
+      background: #fff;
+      border-radius: 8px;
+      overflow: visible;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+      position: relative;
+    }
+
+    /* 顶部横幅 - 品红色 */
+    .card-banner {
+      height: 60px;
+      background: #a33a6e;
+      border-radius: 8px 8px 0 0;
+      position: relative;
+    }
+
+    /* 徽章区域 - 在卡片右侧外部 */
+    .badges-section {
+      position: absolute;
+      top: 60px;
+      right: -8px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      z-index: 10;
+    }
+
+    .badge {
+      background: #5865f2;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 12px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    }
+
+    .badge.new {
+      background: #23a55a;
+      font-size: 11px;
+    }
+
+    /* 头像和问题气泡容器 */
+    .avatar-bubble-section {
+      position: relative;
+      height: 60px;
+      padding: 0 16px;
+    }
+
+    /* 头像区域 */
+    .avatar-wrapper {
+      position: absolute;
+      top: -40px;
+      left: 16px;
+    }
+
+    .avatar {
+      width: 92px;
+      height: 92px;
+      border-radius: 50%;
+      border: 7px solid #fff;
+      background: #5865f2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: visible;
+      position: relative;
+    }
+
+    .avatar-img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    /* 头像装饰（圣诞帽）- 覆盖在头像上 */
+    .avatar-decoration {
+      position: absolute;
+      top: -20px;
+      left: -10px;
+      width: 110px;
+      height: 110px;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .avatar-decoration img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* 简化的圣诞帽 CSS 绘制 */
+    .santa-hat-css {
+      position: absolute;
+      top: -18px;
+      left: 8px;
+      width: 40px;
+      height: 35px;
+      transform: rotate(-20deg);
+      z-index: 5;
+    }
+
+    .santa-hat-css::before {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 10px;
+      background: #fff;
+      border-radius: 5px;
+    }
+
+    .santa-hat-css::after {
+      content: '';
+      position: absolute;
+      bottom: 8px;
+      left: 5px;
+      width: 0;
+      height: 0;
+      border-left: 15px solid transparent;
+      border-right: 15px solid transparent;
+      border-bottom: 30px solid #d42f2f;
+    }
+
+    .santa-ball {
+      position: absolute;
+      top: -5px;
+      right: 5px;
+      width: 12px;
+      height: 12px;
+      background: #fff;
+      border-radius: 50%;
+    }
+
+    /* 在线状态指示器 */
+    .status-indicator {
+      position: absolute;
+      bottom: 2px;
+      right: 2px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #23a55a;
+      border: 4px solid #fff;
+      z-index: 6;
+    }
+
+    /* 问题气泡 */
+    .question-bubble {
+      position: absolute;
+      top: -20px;
+      left: 120px;
+      background: #fff;
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: #313338;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      max-width: 200px;
+      line-height: 1.4;
+    }
+
+    .question-bubble::before {
+      content: '';
+      position: absolute;
+      left: -8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 0;
+      height: 0;
+      border-top: 8px solid transparent;
+      border-bottom: 8px solid transparent;
+      border-right: 8px solid #fff;
+    }
+
+    .question-icon {
+      width: 22px;
+      height: 22px;
+      min-width: 22px;
+      border-radius: 50%;
+      background: #5865f2;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    /* 用户信息区域 */
+    .user-info {
+      padding: 16px;
+      padding-top: 24px;
+    }
+
+    .user-name {
+      font-size: 20px;
+      font-weight: 600;
+      color: #060607;
+      margin-bottom: 0;
+      line-height: 1.2;
+    }
+
+    .user-id {
+      font-size: 14px;
+      color: #80848e;
+      margin-bottom: 0;
+    }
+
+    /* 分隔线 */
+    .divider {
+      height: 1px;
+      background: #e1e2e4;
+      margin: 12px 0;
+    }
+
+    /* 菜单项 */
+    .menu-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 8px;
+      margin: 0 -8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .menu-item:hover {
+      background: #e8e9eb;
+    }
+
+    .menu-item-icon {
+      width: 20px;
+      height: 20px;
+      margin-right: 12px;
+      color: #4e5058;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .menu-item-text {
+      flex: 1;
+      font-size: 14px;
+      color: #313338;
+      font-weight: 500;
+    }
+
+    .menu-item-badge {
+      background: #f23f43;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      margin-right: 8px;
+    }
+
+    .menu-item-arrow {
+      color: #80848e;
+      font-size: 18px;
+      font-weight: 300;
+    }
+
+    /* 状态选择项 */
+    .status-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 8px;
+      margin: 0 -8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .status-item:hover {
+      background: #e8e9eb;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #23a55a;
+      margin-right: 12px;
+    }
+
+    .status-text {
+      flex: 1;
+      font-size: 14px;
+      color: #313338;
+      font-weight: 500;
+    }
+
+    /* 切换账户分隔 */
+    .account-divider {
+      height: 1px;
+      background: #e1e2e4;
+      margin: 8px 0;
+    }
+
+    /* SVG 图标 */
+    .icon-edit {
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+    }
+
+    .icon-user {
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+    }
+
+    /* 状态下拉菜单 */
+    .status-dropdown {
+      display: none;
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      background: #fff;
+      border-radius: 4px;
+      padding: 6px;
+      margin-top: 4px;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.18);
+      z-index: 10;
+      border: 1px solid #e1e2e4;
+    }
+
+    .status-dropdown.show {
+      display: block;
+    }
+
+    .status-option {
+      display: flex;
+      align-items: center;
+      padding: 10px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .status-option:hover {
+      background: #5865f2;
+    }
+
+    .status-option .status-dot {
+      margin-right: 10px;
+    }
+
+    .status-option-text {
+      font-size: 14px;
+      color: #313338;
+      font-weight: 500;
+    }
+
+    .status-option:hover .status-option-text {
+      color: #fff;
+    }
+
+    .status-wrapper {
+      position: relative;
+    }
+
+    /* ========== 深色主题 ========== */
+    .user-card.dark {
+      background: #232428;
+    }
+
+    .user-card.dark .avatar {
+      border-color: #232428;
+    }
+
+    .user-card.dark .status-indicator {
+      border-color: #232428;
+    }
+
+    .user-card.dark .question-bubble {
+      background: #f2f3f5;
+    }
+
+    .user-card.dark .question-bubble::before {
+      border-right-color: #f2f3f5;
+    }
+
+    .user-card.dark .user-name {
+      color: #f2f3f5;
+    }
+
+    .user-card.dark .user-id {
+      color: #b5bac1;
+    }
+
+    .user-card.dark .divider,
+    .user-card.dark .account-divider {
+      background: #3f4147;
+    }
+
+    .user-card.dark .menu-item:hover,
+    .user-card.dark .status-item:hover {
+      background: #3f4147;
+    }
+
+    .user-card.dark .menu-item-text,
+    .user-card.dark .status-text {
+      color: #dbdee1;
+    }
+
+    .user-card.dark .menu-item-icon {
+      color: #b5bac1;
+    }
+
+    .user-card.dark .menu-item-arrow {
+      color: #b5bac1;
+    }
+
+    .user-card.dark .status-dropdown {
+      background: #111214;
+      border-color: #1e1f22;
+    }
+
+    .user-card.dark .status-option-text {
+      color: #dbdee1;
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-container">
+    <!-- 浅色主题（与截图一致） -->
+    <div class="preview-wrapper">
+      <div class="preview-label">浅色主题 (Light) - 与截图一致</div>
+      <div class="user-card">
+        <!-- 徽章 - 在卡片右侧外部 -->
+        <div class="badges-section">
+          <div class="badge">16</div>
+          <div class="badge new">3 New</div>
+        </div>
+
+        <!-- 顶部横幅 -->
+        <div class="card-banner"></div>
+
+        <!-- 头像和问题气泡 -->
+        <div class="avatar-bubble-section">
+          <div class="avatar-wrapper">
+            <div class="avatar">
+              <img class="avatar-img" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Join2049&backgroundColor=65c9ff" alt="avatar">
+              <!-- 圣诞帽装饰 -->
+              <div class="santa-hat-css">
+                <div class="santa-ball"></div>
+              </div>
+              <div class="status-indicator"></div>
+            </div>
+          </div>
+
+          <!-- 问题气泡 -->
+          <div class="question-bubble">
+            <div class="question-icon">+</div>
+            <span>您有什么最无用的天赋?</span>
+          </div>
+        </div>
+
+        <!-- 用户信息 -->
+        <div class="user-info">
+          <div class="user-name">Join2049</div>
+          <div class="user-id">join2049</div>
+
+          <div class="divider"></div>
+
+          <!-- 编辑个人资料 -->
+          <div class="menu-item">
+            <div class="menu-item-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" class="icon-edit">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+            </div>
+            <span class="menu-item-text">编辑个人资料</span>
+            <span class="menu-item-badge">新的</span>
+          </div>
+
+          <!-- 在线状态 -->
+          <div class="status-wrapper">
+            <div class="status-item" onclick="toggleStatusDropdown(this)">
+              <div class="status-dot"></div>
+              <span class="status-text">在线</span>
+              <span class="menu-item-arrow">›</span>
+            </div>
+
+            <!-- 状态下拉菜单 -->
+            <div class="status-dropdown">
+              <div class="status-option" onclick="selectStatus('online', '#23a55a', '在线')">
+                <div class="status-dot" style="background: #23a55a;"></div>
+                <span class="status-option-text">在线</span>
+              </div>
+              <div class="status-option" onclick="selectStatus('idle', '#f0b232', '闲置')">
+                <div class="status-dot" style="background: #f0b232;"></div>
+                <span class="status-option-text">闲置</span>
+              </div>
+              <div class="status-option" onclick="selectStatus('dnd', '#f23f43', '请勿打扰')">
+                <div class="status-dot" style="background: #f23f43;"></div>
+                <span class="status-option-text">请勿打扰</span>
+              </div>
+              <div class="status-option" onclick="selectStatus('offline', '#80848e', '隐身')">
+                <div class="status-dot" style="background: #80848e;"></div>
+                <span class="status-option-text">隐身</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="account-divider"></div>
+
+          <!-- 切换账户 -->
+          <div class="menu-item">
+            <div class="menu-item-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" class="icon-user">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+            </div>
+            <span class="menu-item-text">切换账户</span>
+            <span class="menu-item-arrow">›</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 深色主题 -->
+    <div class="preview-wrapper">
+      <div class="preview-label">深色主题 (Dark)</div>
+      <div class="user-card dark">
+        <!-- 徽章 -->
+        <div class="badges-section">
+          <div class="badge">16</div>
+          <div class="badge new">3 New</div>
+        </div>
+
+        <!-- 顶部横幅 -->
+        <div class="card-banner"></div>
+
+        <!-- 头像和问题气泡 -->
+        <div class="avatar-bubble-section">
+          <div class="avatar-wrapper">
+            <div class="avatar">
+              <img class="avatar-img" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Join2049&backgroundColor=65c9ff" alt="avatar">
+              <div class="santa-hat-css">
+                <div class="santa-ball"></div>
+              </div>
+              <div class="status-indicator"></div>
+            </div>
+          </div>
+
+          <div class="question-bubble">
+            <div class="question-icon">+</div>
+            <span>您有什么最无用的天赋?</span>
+          </div>
+        </div>
+
+        <!-- 用户信息 -->
+        <div class="user-info">
+          <div class="user-name">Join2049</div>
+          <div class="user-id">join2049</div>
+
+          <div class="divider"></div>
+
+          <div class="menu-item">
+            <div class="menu-item-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" class="icon-edit">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+            </div>
+            <span class="menu-item-text">编辑个人资料</span>
+            <span class="menu-item-badge">新的</span>
+          </div>
+
+          <div class="status-wrapper">
+            <div class="status-item" onclick="toggleStatusDropdown(this)">
+              <div class="status-dot"></div>
+              <span class="status-text">在线</span>
+              <span class="menu-item-arrow">›</span>
+            </div>
+
+            <div class="status-dropdown">
+              <div class="status-option" onclick="selectStatus('online', '#23a55a', '在线')">
+                <div class="status-dot" style="background: #23a55a;"></div>
+                <span class="status-option-text">在线</span>
+              </div>
+              <div class="status-option" onclick="selectStatus('idle', '#f0b232', '闲置')">
+                <div class="status-dot" style="background: #f0b232;"></div>
+                <span class="status-option-text">闲置</span>
+              </div>
+              <div class="status-option" onclick="selectStatus('dnd', '#f23f43', '请勿打扰')">
+                <div class="status-dot" style="background: #f23f43;"></div>
+                <span class="status-option-text">请勿打扰</span>
+              </div>
+              <div class="status-option" onclick="selectStatus('offline', '#80848e', '隐身')">
+                <div class="status-dot" style="background: #80848e;"></div>
+                <span class="status-option-text">隐身</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="account-divider"></div>
+
+          <div class="menu-item">
+            <div class="menu-item-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" class="icon-user">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+            </div>
+            <span class="menu-item-text">切换账户</span>
+            <span class="menu-item-arrow">›</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleStatusDropdown(element) {
+      const dropdown = element.nextElementSibling;
+      const allDropdowns = document.querySelectorAll('.status-dropdown');
+
+      allDropdowns.forEach(d => {
+        if (d !== dropdown) d.classList.remove('show');
+      });
+
+      if (dropdown && dropdown.classList.contains('status-dropdown')) {
+        dropdown.classList.toggle('show');
+      }
+    }
+
+    function selectStatus(status, color, text) {
+      document.querySelectorAll('.status-indicator').forEach(indicator => {
+        indicator.style.background = color;
+      });
+
+      document.querySelectorAll('.status-text').forEach(textEl => {
+        textEl.textContent = text;
+      });
+
+      document.querySelectorAll('.status-item .status-dot').forEach(dot => {
+        dot.style.background = color;
+      });
+
+      document.querySelectorAll('.status-dropdown').forEach(dropdown => {
+        dropdown.classList.remove('show');
+      });
+    }
+
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.status-wrapper')) {
+        document.querySelectorAll('.status-dropdown').forEach(dropdown => {
+          dropdown.classList.remove('show');
+        });
+      }
+    });
+  </script>
+</body>
+</html>

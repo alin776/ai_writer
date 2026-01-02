@@ -2,6 +2,7 @@
  * 消息转发对话框
  */
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Search, Loader2, Send, Image as ImageIcon, Hash, Smile, User, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { forwardMessage, getMyChannels, type Channel } from '@/services/channelApi';
@@ -43,6 +44,7 @@ export function ForwardMessageDialog({
   const [isForwarding, setIsForwarding] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const { success: showSuccess, error: showError, warning: showWarning } = useGlobalStore();
+  const navigate = useNavigate();
 
   // 创建私聊频道ID到好友信息的映射
   const privateChannelFriendMap = useMemo(() => {
@@ -130,13 +132,25 @@ export function ForwardMessageDialog({
 
     setIsForwarding(true);
     try {
+      const targetChannelIds = Array.from(selectedChannels);
       const response = await forwardMessage(sourceChannelId, messageId, {
-        target_channel_ids: Array.from(selectedChannels),
+        target_channel_ids: targetChannelIds,
         add_comment: comment || undefined,
       });
 
       if (response.forwardedCount > 0) {
         showSuccess(`成功转发到 ${response.forwardedCount} 个频道`);
+
+        // 转发成功后，导航到第一个成功转发的频道
+        // 如果只选了一个频道，直接跳转；如果选了多个，跳转到第一个
+        const firstTargetChannelId = targetChannelIds[0];
+        handleClose();
+
+        // 延迟导航，确保对话框关闭动画完成
+        setTimeout(() => {
+          navigate(`/channels?channelId=${firstTargetChannelId}`);
+        }, 100);
+        return;
       }
       if (response.failedChannels.length > 0) {
         showWarning(`${response.failedChannels.length} 个频道转发失败`);
@@ -165,6 +179,16 @@ export function ForwardMessageDialog({
   const handleEmojiSelect = (emoji: string) => {
     setComment(prev => prev + emoji);
     setShowEmojiPicker(false);
+  };
+
+  // 处理键盘事件 - Enter 键发送
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (selectedChannels.size > 0 && !isForwarding) {
+        handleForward();
+      }
+    }
   };
 
   // 获取频道类型标签
@@ -348,6 +372,7 @@ export function ForwardMessageDialog({
                   type="text"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   placeholder="添加一条可选消息......"
                   className="flex-1 bg-transparent text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
                   maxLength={500}
