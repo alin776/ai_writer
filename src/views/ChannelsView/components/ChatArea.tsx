@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft, Image } from 'lucide-react';
+import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft, Image, MessageCircle, BookOpen, Coffee, FlaskConical, Hash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -1080,6 +1080,81 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
       {/* 消息列表 */}
       <ScrollArea className="flex-1" style={{ padding: '12px' }} ref={scrollRef}>
         <div className="space-y-3">
+          {/* 频道欢迎区域 - Discord 风格 */}
+          {channel.type !== 'private' && (
+            <div className="px-4 pt-6 pb-4">
+              {/* 频道图标 */}
+              {(() => {
+                // 官方频道使用矢量图标
+                if (channel.type === 'official') {
+                  let IconComponent = Hash;
+                  if (channel.name.includes('公共酒馆')) IconComponent = MessageCircle;
+                  else if (channel.name.includes('作者酒馆')) IconComponent = BookOpen;
+                  else if (channel.name.includes('读者茶馆')) IconComponent = Coffee;
+                  else if (channel.name.includes('官方实验室')) IconComponent = FlaskConical;
+
+                  return (
+                    <div className="w-[68px] h-[68px] flex items-center justify-center mb-4">
+                      <IconComponent className="w-14 h-14 text-gray-500 dark:text-gray-400" strokeWidth={1.5} />
+                    </div>
+                  );
+                }
+
+                // 其他频道使用封面图或首字母
+                return (
+                  <div className="w-[68px] h-[68px] rounded-full bg-gray-100 dark:bg-[#36393f] flex items-center justify-center mb-4 overflow-hidden">
+                    {channel.coverImage ? (
+                      <img
+                        src={channel.coverImage}
+                        alt={channel.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-2xl text-gray-600 dark:text-gray-300 font-bold">
+                        {channel.name.charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* 欢迎标题 */}
+              <h1 className="text-[32px] font-bold text-gray-900 dark:text-white mb-2 leading-tight">
+                欢迎来到 {channel.name}！
+              </h1>
+
+              {/* 频道起点描述 */}
+              <p className="text-gray-500 dark:text-[#96989d] text-base leading-relaxed">
+                这是 <span className="font-medium">{channel.name}</span> 频道的起点。
+                {channel.description && (
+                  <span className="ml-1">{channel.description}</span>
+                )}
+              </p>
+            </div>
+          )}
+
+          {/* 时间分割线 - 显示在第一条消息之前 */}
+          {messages.length > 0 && (
+            <div className="relative flex items-center justify-center py-2 px-4">
+              <div className="absolute inset-0 flex items-center px-4">
+                <div className="w-full border-t border-red-300 dark:border-red-800" />
+              </div>
+              <span className="relative px-3 text-xs font-medium text-red-500 dark:text-red-400 bg-white dark:bg-gray-900">
+                {(() => {
+                  const firstMsg = messages[0];
+                  const date = firstMsg.timestamp instanceof Date
+                    ? firstMsg.timestamp
+                    : new Date(firstMsg.timestamp);
+                  return date.toLocaleDateString('zh-CN', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  });
+                })()}
+              </span>
+            </div>
+          )}
+
           {messages.map((message, index) => {
             const previousMessage = index > 0 ? messages[index - 1] : null;
             const isOwnMessage = message.userId === currentUser.id;
@@ -1665,13 +1740,6 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                 transform: 'translateY(-100%)'
               }}
             >
-              <div className="p-2 border-b border-gray-100 dark:border-gray-700">
-                <h4 className="text-xs text-gray-600 dark:text-gray-400 px-2">
-                  选择要 @ 的成员
-                  {mentionFilter && <span className="ml-1 text-blue-500">"{mentionFilter}"</span>}
-                  <span className="ml-2 text-gray-400">(↑↓选择 Enter确认)</span>
-                </h4>
-              </div>
               <div className="max-h-64 overflow-y-auto">
                 {filteredList.map((item, index) => (
                   <button
