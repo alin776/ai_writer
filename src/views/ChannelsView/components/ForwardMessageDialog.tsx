@@ -2,7 +2,7 @@
  * 消息转发对话框
  */
 import { useState, useEffect, useMemo } from 'react';
-import { X, Search, Loader2, Send, Image as ImageIcon, Hash, Smile, User } from 'lucide-react';
+import { X, Search, Loader2, Send, Image as ImageIcon, Hash, Smile, User, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { forwardMessage, getMyChannels, type Channel } from '@/services/channelApi';
 import { getFriends, type FriendshipResponse } from '@/services/friendApi';
@@ -184,6 +184,11 @@ export function ForwardMessageDialog({
   // 获取第一张图片作为缩略图
   const thumbnailImage = messageAttachments?.find(a => a.fileType?.startsWith('image/'));
 
+  // 计算文档附件（非图片类型）
+  const documentAttachments = messageAttachments?.filter(a => !a.fileType?.startsWith('image/')) || [];
+  const documentCount = documentAttachments.length;
+  const firstDocument = documentAttachments[0];
+
   if (!isOpen) return null;
 
   return (
@@ -195,7 +200,10 @@ export function ForwardMessageDialog({
       />
 
       {/* 对话框 */}
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[420px] max-h-[90vh] bg-white dark:bg-gray-800 rounded-xl shadow-2xl overflow-hidden flex flex-col">
+      <div
+        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[51] w-[420px] max-h-[90vh] bg-white dark:bg-gray-800 rounded-xl shadow-2xl overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* 头部 - 固定 */}
         <div className="flex items-start justify-between p-5 pb-3 shrink-0">
           <div>
@@ -242,9 +250,14 @@ export function ForwardMessageDialog({
                 const displayAvatar = getChannelDisplayAvatar(channel);
                 const isPrivate = channel.type === 'private';
                 return (
-                  <label
+                  <div
                     key={channel.id}
-                    className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleChannel(channel.id);
+                    }}
+                    className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors select-none"
                   >
                       {/* 频道图标 - 圆形 */}
                       <div className={cn(
@@ -283,48 +296,54 @@ export function ForwardMessageDialog({
                           </svg>
                         )}
                       </div>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleChannel(channel.id)}
-                        className="sr-only"
-                      />
-                    </label>
+                    </div>
                   );
                 })}
               </div>
             )}
         </div>
 
-        {/* 底部：消息预览 + 输入框 + 发送按钮 - 固定在底部 */}
-        <div className="px-5 pb-5 pt-4 border-t border-gray-100 dark:border-gray-700 space-y-3 shrink-0">
-          {/* 消息预览卡片 */}
-          <div className="flex gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+        {/* 底部：消息预览 + 输入框 + 发送按钮 - Discord 风格 */}
+        <div className="px-4 pb-4 pt-3 border-t border-gray-200/50 dark:border-gray-700/50 space-y-3 shrink-0 bg-gray-50/50 dark:bg-gray-800/30">
+          {/* 消息预览卡片 - Discord 风格 */}
+          <div className="flex gap-3 p-3 bg-white dark:bg-gray-700/80 rounded-xl border border-gray-200/60 dark:border-gray-600/40 shadow-sm">
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
+                <p className="text-sm text-gray-800 dark:text-gray-200 line-clamp-1 font-medium">
                   {messageContent || '（无文字内容）'}
                 </p>
+                {/* 图片数量提示 */}
                 {imageCount > 0 && (
-                  <div className="flex items-center gap-1 mt-1 text-xs text-gray-400">
-                    <ImageIcon className="w-3.5 h-3.5" />
+                  <div className="flex items-center gap-1.5 mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    <ImageIcon className="w-4 h-4" />
                     <span>{imageCount}张图片</span>
                   </div>
                 )}
+                {/* 文档数量提示 */}
+                {documentCount > 0 && (
+                  <div className="flex items-center gap-1.5 mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    <FileText className="w-4 h-4" />
+                    <span className="truncate">{documentCount}个文件{firstDocument ? ` · ${firstDocument.fileName}` : ''}</span>
+                  </div>
+                )}
               </div>
-              {/* 图片缩略图 */}
-              {thumbnailImage && (
-                <div className="w-16 h-12 rounded-md overflow-hidden shrink-0 bg-gray-200 dark:bg-gray-600">
+              {/* 右侧预览 - 图片缩略图优先，否则显示文档图标 */}
+              {thumbnailImage ? (
+                <div className="w-[72px] h-[54px] rounded-lg overflow-hidden shrink-0 bg-gray-100 dark:bg-gray-600 border border-gray-200/50 dark:border-gray-500/30">
                   <img
                     src={thumbnailImage.thumbnailUrl || thumbnailImage.fileUrl}
                     className="w-full h-full object-cover"
                   />
                 </div>
-              )}
+              ) : firstDocument ? (
+                <div className="w-[72px] h-[54px] rounded-lg shrink-0 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border border-blue-200/50 dark:border-blue-700/30 flex items-center justify-center">
+                  <FileText className="w-7 h-7 text-blue-500 dark:text-blue-400" />
+                </div>
+              ) : null}
             </div>
 
-            {/* 添加评论输入框 */}
-            <div>
-              <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700 rounded-lg px-3 py-2.5 border border-gray-200 dark:border-gray-600">
+            {/* 添加评论输入框 + 发送按钮 - 同一行 Discord 风格 */}
+            <div className="flex items-stretch gap-2">
+              <div className="flex-1 flex items-center gap-2 bg-white dark:bg-gray-700 rounded-xl px-4 py-2.5 border border-gray-200/60 dark:border-gray-600/40 shadow-sm">
                 <input
                   type="text"
                   value={comment}
@@ -337,36 +356,33 @@ export function ForwardMessageDialog({
                 <button
                   type="button"
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+                  className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600"
                 >
                   <Smile className="w-5 h-5" />
                 </button>
               </div>
-            </div>
 
-            {/* 发送按钮 */}
-            <button
-              onClick={handleForward}
-              disabled={selectedChannels.size === 0 || isForwarding}
-              className={cn(
-                "w-full py-2.5 rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2",
-                selectedChannels.size === 0 || isForwarding
-                  ? "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
-                  : "bg-indigo-500 hover:bg-indigo-600 text-white"
-              )}
-            >
-              {isForwarding ? (
-                <>
+              {/* 发送按钮 - Discord 风格蓝色按钮 */}
+              <button
+                onClick={handleForward}
+                disabled={selectedChannels.size === 0 || isForwarding}
+                className={cn(
+                  "px-4 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-1.5 shadow-sm",
+                  selectedChannels.size === 0 || isForwarding
+                    ? "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                    : "bg-[#5865F2] hover:bg-[#4752C4] active:bg-[#3C45A5] text-white"
+                )}
+              >
+                {isForwarding ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>转发中...</span>
-                </>
-              ) : (
-                <>
-                  <span>发送</span>
-                  <Send className="w-4 h-4" />
-                </>
-              )}
-            </button>
+                ) : (
+                  <>
+                    <span>发送</span>
+                    <Send className="w-3.5 h-3.5" />
+                  </>
+                )}
+              </button>
+            </div>
           </div>
       </div>
 

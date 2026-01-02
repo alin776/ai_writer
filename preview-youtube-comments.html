@@ -212,7 +212,6 @@
     }
 
     .comment-menu {
-      margin-left: auto;
       background: none;
       border: none;
       color: #aaa;
@@ -223,12 +222,62 @@
       transition: opacity 0.2s;
     }
 
-    .comment-item:hover .comment-menu {
+    .comment-item:hover .comment-menu,
+    .reply-item:hover .comment-menu {
       opacity: 1;
     }
 
     .comment-menu:hover {
       background: #272727;
+    }
+
+    /* 菜单包装器 */
+    .menu-wrapper {
+      position: relative;
+      margin-left: auto;
+    }
+
+    /* 下拉菜单 */
+    .dropdown-menu {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: 100%;
+      background: #282828;
+      border-radius: 12px;
+      box-shadow: 0 4px 32px rgba(0, 0, 0, 0.4);
+      min-width: 120px;
+      z-index: 1000;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .dropdown-menu.show {
+      display: block;
+    }
+
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      color: #f1f1f1;
+      font-size: 14px;
+      cursor: pointer;
+      background: none;
+      border: none;
+      width: 100%;
+      text-align: left;
+    }
+
+    .dropdown-item:hover {
+      background: #3f3f3f;
+    }
+
+    .dropdown-item svg {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
     }
 
     .comment-text {
@@ -350,7 +399,7 @@
     /* 回复列表 */
     .replies-list {
       margin-top: 8px;
-      margin-left: 10px; /* 子节点头像对齐到根节点点赞图标位置 */
+      margin-left: 0; /* 子节点头像对齐到根节点点赞图标位置 */
       padding-left: 0;
       display: flex;
       flex-direction: column;
@@ -371,7 +420,7 @@
     .reply-item::before {
       content: '';
       position: absolute;
-      left: -46px; /* 对齐到根节点头像中心: 56 + 10 - 20 = 46 */
+      left: -36px; /* 对齐到根节点头像中心: 56 - 20 = 36 */
       top: 0;
       bottom: -12px; /* 延伸到下一个元素 */
       width: 1px;
@@ -380,16 +429,16 @@
 
     /* 第一个回复项的垂直线向上延伸到根节点头像下方 */
     .reply-item:first-child::before {
-      top: -100px; /* 向上延伸到根节点头像下方 */
+      top: -60px; /* 向上延伸到根节点头像下方 */
     }
 
     /* 回复项的弯折连接线 */
     .reply-item::after {
       content: '';
       position: absolute;
-      left: -46px; /* 对齐到根节点头像中心 */
+      left: -36px; /* 对齐到根节点头像中心 */
       top: 12px;
-      width: 46px; /* 从连接线到头像 */
+      width: 36px; /* 从连接线到头像 */
       height: 12px;
       border-bottom: 1px solid #3f3f3f;
       border-left: 1px solid #3f3f3f;
@@ -438,7 +487,7 @@
 
     /* 隐藏回复按钮 - 最后一个节点，使用└形状 */
     .hide-replies-btn {
-      display: flex;
+      display: inline-flex; /* 改为 inline-flex，宽度自适应内容 */
       align-items: center;
       gap: 8px;
       background: none;
@@ -452,15 +501,16 @@
       margin-top: 12px;
       border-radius: 18px;
       position: relative;
+      width: fit-content; /* 宽度自适应内容 */
     }
 
     /* 隐藏回复按钮的弯折连接线 - 最后一个节点 */
     .hide-replies-btn::before {
       content: '';
       position: absolute;
-      left: -46px; /* 对齐到根节点头像中心 */
+      left: -36px; /* 对齐到根节点头像中心 */
       top: 0;
-      width: 46px; /* 从连接线到按钮 */
+      width: 36px; /* 从连接线到按钮 */
       height: 20px;
       border-bottom: 1px solid #3f3f3f;
       border-left: 1px solid #3f3f3f;
@@ -565,11 +615,21 @@
         <div class="comment-header">
           <span class="comment-username">@艾連葉卡-z3h</span>
           <span class="comment-time">2个月前</span>
-          <button class="comment-menu">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-            </svg>
-          </button>
+          <div class="menu-wrapper">
+            <button class="comment-menu" onclick="toggleDropdown(this)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+              </svg>
+            </button>
+            <div class="dropdown-menu">
+              <button class="dropdown-item">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6h-5.6z"/>
+                </svg>
+                举报
+              </button>
+            </div>
+          </div>
         </div>
         <p class="comment-text">台湾加油TWTWWTW</p>
         <div class="comment-actions">
@@ -631,8 +691,50 @@
                 <svg viewBox="0 0 24 24" fill="currentColor">
                   <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
                 </svg>
-                <span class="replies-count">显示更多回复</span>
+                <span class="replies-count">1 条回复</span>
               </button>
+
+              <!-- 嵌套回复列表（默认隐藏） -->
+              <div class="replies-list nested-replies" id="nested-replies-list" style="display: none;">
+                <!-- 嵌套回复 1 -->
+                <div class="reply-item">
+                  <div class="avatar" style="background: #e91e63;">测</div>
+                  <div class="comment-content">
+                    <div class="comment-header">
+                      <span class="comment-username">@测试嵌套回复</span>
+                      <span class="comment-time">1天前</span>
+                      <button class="comment-menu">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                        </svg>
+                      </button>
+                    </div>
+                    <p class="comment-text"><span class="reply-to">@darkdragon2018</span>这是一条嵌套的测试回复，用于验证连接线效果</p>
+                    <div class="comment-actions">
+                      <button class="action-btn">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M18.77,11h-4.23l1.52-4.94C16.38,5.03,15.54,4,14.38,4c-0.58,0-1.14,0.24-1.52,0.65L7,11H3v10h4h1h9.43 c1.06,0,1.98-0.67,2.19-1.61l1.34-6C21.23,12.15,20.18,11,18.77,11z M7,20H4v-8h3V20z M19.98,13.17l-1.34,6 C18.54,19.65,18.03,20,17.43,20H8v-8.61l5.6-6.06C13.79,5.12,14.08,5,14.38,5c0.26,0,0.5,0.11,0.63,0.3 c0.07,0.1,0.15,0.26,0.09,0.47l-1.52,4.94L13.18,12h1.35h4.23c0.41,0,0.8,0.17,1.03,0.46C19.92,12.61,20.05,12.86,19.98,13.17z"/>
+                        </svg>
+                      </button>
+                      <span class="like-count">3</span>
+                      <button class="action-btn">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M17,4h-1H6.57C5.5,4,4.59,4.67,4.38,5.61l-1.34,6C2.77,12.85,3.82,14,5.23,14h4.23l-1.52,4.94C7.62,19.97,8.46,21,9.62,21 c0.58,0,1.14-0.24,1.52-0.65L17,14h4V4H17z M10.4,19.67C10.21,19.88,9.92,20,9.62,20c-0.26,0-0.5-0.11-0.63-0.3 c-0.07-0.1-0.15-0.26-0.09-0.47l1.52-4.94l0.4-1.29H9.46H5.23c-0.41,0-0.8-0.17-1.03-0.46c-0.12-0.15-0.25-0.4-0.18-0.71l1.34-6 C5.46,5.35,5.97,5,6.57,5H16v8.61L10.4,19.67z M20,13h-3V5h3V13z"/>
+                        </svg>
+                      </button>
+                      <button class="reply-btn" onclick="showReplyInput(this, '@测试嵌套回复')">回复</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 隐藏回复按钮 -->
+                <button class="hide-replies-btn" onclick="hideReplies('nested-replies-btn', 'nested-replies-list', 1)">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+                  </svg>
+                  隐藏回复
+                </button>
+              </div>
             </div>
           </div>
 
@@ -981,6 +1083,30 @@
         }
       }
     }
+
+    function toggleDropdown(btn) {
+      // 关闭其他所有下拉菜单
+      document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
+        if (menu !== btn.nextElementSibling) {
+          menu.classList.remove('show');
+        }
+      });
+
+      // 切换当前下拉菜单
+      const dropdown = btn.nextElementSibling;
+      if (dropdown && dropdown.classList.contains('dropdown-menu')) {
+        dropdown.classList.toggle('show');
+      }
+    }
+
+    // 点击其他地方关闭下拉菜单
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.menu-wrapper')) {
+        document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
+          menu.classList.remove('show');
+        });
+      }
+    });
 
     function showReplyInput(replyBtn, replyToUser) {
       // 获取评论内容容器
