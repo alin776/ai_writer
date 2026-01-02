@@ -110,7 +110,7 @@ function ImageAttachment({ attachment }: { attachment: AttachmentType }) {
         <img
           src={attachment.thumbnailUrl || attachment.fileUrl}
           alt={attachment.fileName}
-          className="max-w-[200px] max-h-[150px] rounded-lg object-cover block"
+          className="max-w-[500px] max-h-[300px] rounded-lg object-cover block"
           onError={() => setImageError(true)}
         />
         {/* 悬浮操作 */}

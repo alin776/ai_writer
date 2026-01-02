@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft, Image } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -711,8 +711,8 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     return { show: false };
   };
 
-  // 渲染消息内容，支持 @用户名 高亮和贴图图片
-  const renderMessageContent = (content: string, isOwnMessage: boolean) => {
+  // 渲染消息内容，支持 @用户名 高亮和贴图图片、链接点击
+  const renderMessageContent = (content: string, isOwnMessage: boolean, onMentionClick?: (username: string, e: React.MouseEvent) => void) => {
     // 先检查是否是纯贴图消息 ![sticker](url)
     const stickerOnlyMatch = content.match(/^!\[sticker\]\((.+)\)$/);
     if (stickerOnlyMatch) {
@@ -726,10 +726,11 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
       );
     }
 
-    // 处理混合内容：图片 + 文本 + @提及
+    // 处理混合内容：图片 + 文本 + @提及 + 链接
     // 合并正则匹配
     // 注意：用户名可能包含@（如邮箱），所以匹配到空格为止，而不是在@处停止
-    const combinedRegex = /!\[([^\]]*)\]\(([^)]+)\)|@([^\s]+)/g;
+    // 添加链接匹配：https?://开头的URL
+    const combinedRegex = /!\[([^\]]*)\]\(([^)]+)\)|@([^\s]+)|(https?:\/\/[^\s]+)/g;
     const parts: (string | React.ReactNode)[] = [];
     let lastIndex = 0;
     let match;
@@ -754,15 +755,35 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
             loading="lazy"
           />
         );
-      } else {
-        // @提及匹配 - 统一样式
+      } else if (match[0].startsWith('@')) {
+        // @提及匹配 - 可点击显示用户名片
+        const username = match[3];
         parts.push(
           <span
             key={`mention-${keyIndex++}`}
-            className="px-1 py-0.5 rounded font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
+            className="inline-flex items-center px-1 rounded font-medium bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 cursor-pointer hover:bg-cyan-200 dark:hover:bg-cyan-800/50 leading-normal"
+            onClick={(e) => {
+              e.stopPropagation();
+              onMentionClick?.(username, e);
+            }}
           >
-            {match[0]}
+            @{username}
           </span>
+        );
+      } else if (match[4]) {
+        // 链接匹配
+        const url = match[4];
+        parts.push(
+          <a
+            key={`link-${keyIndex++}`}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 dark:text-blue-400 hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {url}
+          </a>
         );
       }
       lastIndex = match.index + match[0].length;
@@ -1009,7 +1030,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
 
       {/* 消息列表 */}
       <ScrollArea className="flex-1" style={{ padding: '12px' }} ref={scrollRef}>
-        <div className="space-y-0">
+        <div className="space-y-3">
           {messages.map((message, index) => {
             const previousMessage = index > 0 ? messages[index - 1] : null;
             const isOwnMessage = message.userId === currentUser.id;
@@ -1071,7 +1092,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
 
                     {/* 引用区域 */}
                     <div
-                      className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 text-sm cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 ml-[52px] mb-0.5"
+                      className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 text-sm cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 ml-[52px] -mt-1.5"
                       onClick={() => jumpToMessage(message.replyTo!.id)}
                     >
                       {/* 被引用用户小头像 */}
@@ -1090,11 +1111,18 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                       </span>
 
                       {/* 被引用内容摘要 - 过滤 markdown 格式 */}
-                      <span className="truncate text-gray-400 dark:text-gray-500 max-w-[200px]">
-                        {message.replyTo.content
-                          .replace(/!\[.*?\]\(.*?\)/g, '[图片]')  // 替换图片为 [图片]
-                          .replace(/\[.*?\]\(.*?\)/g, '[链接]')   // 替换链接为 [链接]
-                        }
+                      <span className="truncate text-gray-400 dark:text-gray-500 max-w-[200px] flex items-center gap-1">
+                        {/* 检测是否包含图片 */}
+                        {/!\[.*?\]\(.*?\)/.test(message.replyTo.content) && (
+                          <Image className="w-4 h-4 inline-block flex-shrink-0" />
+                        )}
+                        <span className="truncate">
+                          {message.replyTo.content
+                            .replace(/!\[.*?\]\(.*?\)/g, '')  // 移除图片标记
+                            .replace(/\[.*?\]\(.*?\)/g, '[链接]')   // 替换链接为 [链接]
+                            .trim()
+                          }
+                        </span>
                       </span>
                     </div>
                   </>
@@ -1145,7 +1173,22 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   {/* 用户信息栏 - 连续消息时隐藏 */}
                   {!isContinuationMessage && (
                     <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-gray-900 dark:text-gray-100 font-medium hover:underline cursor-pointer">
+                    <span
+                      className="text-gray-900 dark:text-gray-100 font-medium hover:underline cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setUserProfilePopover({
+                          show: true,
+                          userId: message.userId,
+                          userName: message.userName,
+                          userAvatar: message.userAvatar,
+                          userBio: message.userBio,
+                          userTitle: message.userTitle,
+                          userTitleColor: message.userTitleColor,
+                          position: { x: e.clientX, y: e.clientY },
+                        });
+                      }}
+                    >
                       {message.userName}
                     </span>
 
@@ -1206,7 +1249,21 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                         isStickerOnly ? "" : "",
                         isAnnouncement && "text-amber-900 dark:text-amber-200"
                       )}>
-                        {renderMessageContent(message.content, isOwnMessage)}
+                        {renderMessageContent(message.content, isOwnMessage, (username, e) => {
+                          // 查找被@的用户信息
+                          const mentionedMember = members.find(m => m.username === username);
+                          // 即使找不到成员也显示名片（用用户名作为基本信息）
+                          setUserProfilePopover({
+                            show: true,
+                            userId: mentionedMember?.userId || '',
+                            userName: username,
+                            userAvatar: mentionedMember?.avatar,
+                            userBio: mentionedMember?.bio,
+                            userTitle: mentionedMember?.title,
+                            userTitleColor: mentionedMember?.titleColor,
+                            position: { x: e.clientX, y: e.clientY },
+                          });
+                        })}
                       </div>
                     )}
 
@@ -1215,7 +1272,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                       <div className={cn(
                         "w-fit mt-1",
                         // 附件图片限制最大宽度
-                        "[&_img]:max-w-[550px] [&_img]:rounded-lg [&_img]:cursor-pointer [&_img]:border [&_img]:border-gray-200 dark:[&_img]:border-gray-700"
+                        "[&_img]:max-w-[700px] [&_img]:rounded-lg [&_img]:cursor-pointer [&_img]:border [&_img]:border-gray-200 dark:[&_img]:border-gray-700"
                       )}>
                         <MessageAttachments attachments={message.attachments} />
                       </div>

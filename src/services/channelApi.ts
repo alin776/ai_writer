@@ -45,6 +45,9 @@ export interface ChannelMember {
   username: string;
   fullName?: string;
   avatar?: string;
+  bio?: string;
+  title?: string;
+  titleColor?: string;
   role: 'owner' | 'admin' | 'member';
   joinedAt: string;
   isMuted?: boolean;
