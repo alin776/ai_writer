@@ -23,6 +23,7 @@ import { addFavoriteSticker } from '@/services/stickerApi';
 import { useToast } from '@/hooks/useToast';
 import { ToastContainer } from '@/components/ui/Toast';
 import { UserProfilePopover } from './UserProfilePopover';
+import { MessageActionBar } from './MessageActionBar';
 
 export interface Message {
   id: string;
@@ -41,6 +42,9 @@ export interface Message {
   replyTo?: {
     id: string;
     userName: string;
+    userAvatar?: string;  // 被引用用户头像
+    userTitle?: string;   // 被引用用户称号
+    userTitleColor?: string;  // 称号颜色
     content: string;
   };
   reactions?: ReactionSummary[];
@@ -751,16 +755,11 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
           />
         );
       } else {
-        // @提及匹配
+        // @提及匹配 - 统一样式
         parts.push(
           <span
             key={`mention-${keyIndex++}`}
-            className={cn(
-              "px-1 py-0.5 rounded font-medium",
-              isOwnMessage
-                ? "bg-amber-400/30 text-amber-100"
-                : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
-            )}
+            className="px-1 py-0.5 rounded font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
           >
             {match[0]}
           </span>
@@ -831,6 +830,34 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     channelApi.markChannelAsRead(channel.id);
   };
 
+  // 快速添加表情反应
+  const handleQuickReact = async (messageId: string, emoji: string) => {
+    try {
+      await channelApi.addReaction(channel.id, messageId, emoji);
+    } catch (error: any) {
+      console.error('添加反应失败:', error);
+      showError(error.response?.data?.detail || '添加反应失败');
+    }
+  };
+
+  // 判断是否是连续消息（同用户、5分钟内、非特殊消息）
+  const isContinuation = (current: Message, previous: Message | null): boolean => {
+    if (!previous) return false;
+    if (current.userId !== previous.userId) return false;
+    if (current.type === 'announcement' || previous.type === 'announcement') return false;
+    if (current.replyTo) return false; // 有回复的消息打断连续
+
+    const currentTime = current.timestamp instanceof Date
+      ? current.timestamp.getTime()
+      : new Date(current.timestamp).getTime();
+    const previousTime = previous.timestamp instanceof Date
+      ? previous.timestamp.getTime()
+      : new Date(previous.timestamp).getTime();
+
+    // 5分钟内的消息算连续
+    return currentTime - previousTime < 5 * 60 * 1000;
+  };
+
   // 撤回消息
   const handleRecallMessage = async (messageId: string) => {
     try {
@@ -864,13 +891,25 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     (channel.type === 'work' && currentUser.role === 'owner');
 
   return (
-    <div
-      className="flex-1 flex flex-col bg-white dark:bg-gray-900 h-full relative"
-      onContextMenu={(e) => {
-        // 阻止默认右键菜单，只允许自定义右键菜单
-        e.preventDefault();
-      }}
-    >
+    <>
+      {/* 高亮动画样式 */}
+      <style>{`
+        @keyframes highlight-fade {
+          0% { background-color: rgba(59, 130, 246, 0.2); }
+          100% { background-color: transparent; }
+        }
+        .highlight-message {
+          animation: highlight-fade 2s ease-out;
+        }
+      `}</style>
+
+      <div
+        className="flex-1 flex flex-col bg-white dark:bg-gray-900 h-full relative"
+        onContextMenu={(e) => {
+          // 阻止默认右键菜单，只允许自定义右键菜单
+          e.preventDefault();
+        }}
+      >
       {/* 频道头部 */}
       <div className="p-3 border-b border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900">
         <div className="flex items-center justify-between">
@@ -970,8 +1009,9 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
 
       {/* 消息列表 */}
       <ScrollArea className="flex-1" style={{ padding: '12px' }} ref={scrollRef}>
-        <div className="space-y-3">
-          {messages.map((message) => {
+        <div className="space-y-0">
+          {messages.map((message, index) => {
+            const previousMessage = index > 0 ? messages[index - 1] : null;
             const isOwnMessage = message.userId === currentUser.id;
             const isAnnouncement = message.type === 'announcement';
             const isMention = message.type === 'mention';
@@ -981,6 +1021,8 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
             const isMediaOnly = !message.content && message.attachments && message.attachments.length > 0;
             // 不需要边框的情况：纯贴图 或 纯附件
             const noBorder = isStickerOnly || isMediaOnly;
+            // 是否是连续消息
+            const isContinuationMessage = isContinuation(message, previousMessage);
 
             return (
               <div
@@ -1002,105 +1044,167 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   });
                 }}
                 className={cn(
-                  "group flex gap-2.5 mb-4 transition-colors",
-                  isOwnMessage ? "flex-row-reverse" : "flex-row",
-                  isAnnouncement && "bg-amber-50/60 px-3 py-2 mx-0 rounded"
+                  "group relative px-4 transition-colors",
+                  "hover:bg-black/[0.02] dark:hover:bg-white/[0.02]",
+                  isContinuationMessage ? "py-0.5" : "py-1",
+                  message.replyTo && "mt-2", // 有回复时增加顶部边距
+                  isAnnouncement && "bg-amber-50/60 dark:bg-amber-900/30 rounded"
                 )}
               >
-                <div
-                  className="shrink-0 cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setUserProfilePopover({
-                      show: true,
-                      userId: message.userId,
-                      userName: message.userName,
-                      userAvatar: message.userAvatar,
-                      userBio: message.userBio,
-                      userTitle: message.userTitle,
-                      userTitleColor: message.userTitleColor,
-                      position: { x: e.clientX, y: e.clientY },
-                    });
-                  }}
-                >
-                  <Avatar className="w-8 h-8 hover:ring-2 hover:ring-blue-400 transition-all">
-                    <AvatarImage src={message.userAvatar} />
-                    <AvatarFallback className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                      {message.userName[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
+                {/* 回复引用区域 - 显示在消息上方，独立一行 */}
+                {message.replyTo && (
+                  <>
+                    {/* SVG 连接线 */}
+                    <svg
+                      className="absolute left-[16px] top-[6px] w-[52px] h-[18px]"
+                      style={{ pointerEvents: 'none' }}
+                    >
+                      <path
+                        d="M 20 16 L 20 6 Q 20 2 24 2 L 50 2"
+                        fill="none"
+                        stroke="#a3a6aa"
+                        className="dark:stroke-gray-600"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                    </svg>
 
-                <div className={cn(
-                  "flex flex-col max-w-[70%]",
-                  isOwnMessage ? "items-end" : "items-start"
-                )}>
-                  {/* 自己的消息不显示顶部信息栏（用户名、时间等） */}
-                  {!isOwnMessage && (
-                    <div className={cn(
-                      "flex items-baseline gap-2 mb-1.5 flex-wrap",
-                      "flex-row"
-                    )}>
-                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{message.userName}</span>
+                    {/* 引用区域 */}
+                    <div
+                      className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 text-sm cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 ml-[52px] mb-0.5"
+                      onClick={() => jumpToMessage(message.replyTo!.id)}
+                    >
+                      {/* 被引用用户小头像 */}
+                      <img
+                        src={message.replyTo.userAvatar || message.userAvatar || '/default-avatar.png'}
+                        alt={message.replyTo.userName}
+                        className="w-4 h-4 rounded-full"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = '/default-avatar.png';
+                        }}
+                      />
 
-                      {message.userTitle && (
-                        <span
-                          className="text-xs px-2 py-0.5 rounded"
-                          style={{
-                            color: message.userTitleColor || '#78716c',
-                            backgroundColor: message.userTitleColor ? `${message.userTitleColor}15` : '#fafaf9'
-                          }}
-                        >
-                          {message.userTitle}
-                        </span>
-                      )}
-
-                      <span className="text-xs text-gray-400 dark:text-gray-500">
-                        {message.timestamp.toLocaleTimeString('zh-CN', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
+                      {/* 被引用用户名 */}
+                      <span className="text-gray-600 dark:text-gray-300 hover:underline font-medium">
+                        @{message.replyTo.userName}
                       </span>
 
-                      {message.isEdited && (
-                        <span
-                          className="text-xs text-gray-400 dark:text-gray-500 italic cursor-default"
-                          title={message.editedAt ? `编辑于 ${message.editedAt.toLocaleString('zh-CN')}` : '已编辑'}
-                        >
-                          (已编辑)
-                        </span>
-                      )}
-
-                      {isAnnouncement && (
-                        <span className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 rounded flex items-center gap-1">
-                          <Megaphone className="w-3 h-3" />
-                          公告
-                        </span>
-                      )}
+                      {/* 被引用内容摘要 - 过滤 markdown 格式 */}
+                      <span className="truncate text-gray-400 dark:text-gray-500 max-w-[200px]">
+                        {message.replyTo.content
+                          .replace(/!\[.*?\]\(.*?\)/g, '[图片]')  // 替换图片为 [图片]
+                          .replace(/\[.*?\]\(.*?\)/g, '[链接]')   // 替换链接为 [链接]
+                        }
+                      </span>
                     </div>
+                  </>
+                )}
+
+                {/* 主消息区域 - 头像 + 内容 */}
+                <div className={cn(
+                  "flex items-start",
+                  message.replyTo ? "gap-3" : "gap-4"
+                )}>
+                {/* 头像区域 - 连续消息时显示时间占位 */}
+                {isContinuationMessage ? (
+                  <div className="w-10 flex-shrink-0 flex items-center justify-center">
+                    <span className="text-gray-400 text-[11px] opacity-0 group-hover:opacity-100 transition-opacity">
+                      {message.timestamp.toLocaleTimeString('zh-CN', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </span>
+                  </div>
+                ) : (
+                  <div
+                    className="shrink-0 cursor-pointer mt-0.5"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setUserProfilePopover({
+                        show: true,
+                        userId: message.userId,
+                        userName: message.userName,
+                        userAvatar: message.userAvatar,
+                        userBio: message.userBio,
+                        userTitle: message.userTitle,
+                        userTitleColor: message.userTitleColor,
+                        position: { x: e.clientX, y: e.clientY },
+                      });
+                    }}
+                  >
+                    <Avatar className="w-10 h-10 hover:ring-2 hover:ring-blue-400 transition-all">
+                      <AvatarImage src={message.userAvatar} />
+                      <AvatarFallback className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                        {message.userName[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                )}
+
+                <div className="flex-1 flex flex-col min-w-0">
+                  {/* 用户信息栏 - 连续消息时隐藏 */}
+                  {!isContinuationMessage && (
+                    <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-gray-900 dark:text-gray-100 font-medium hover:underline cursor-pointer">
+                      {message.userName}
+                    </span>
+
+                    {message.userTitle && (
+                      <span
+                        className="inline-flex items-center gap-0.5 text-[10px] px-1 rounded-[3px] font-medium text-white"
+                        style={{ backgroundColor: message.userTitleColor || '#248046' }}
+                      >
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M13 3L4 14h7v7l9-11h-7V3z"/>
+                        </svg>
+                        {message.userTitle}
+                      </span>
+                    )}
+
+                    <span className="text-gray-400 text-xs">
+                      {message.timestamp.toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </span>
+
+                    {message.isEdited && (
+                      <span
+                        className="text-xs text-gray-400 dark:text-gray-500 italic cursor-default"
+                        title={message.editedAt ? `编辑于 ${message.editedAt.toLocaleString('zh-CN')}` : '已编辑'}
+                      >
+                        (已编辑)
+                      </span>
+                    )}
+
+                    {isAnnouncement && (
+                      <span className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 rounded flex items-center gap-1">
+                        <Megaphone className="w-3 h-3" />
+                        公告
+                      </span>
+                    )}
+                  </div>
                   )}
 
-                  {/* 消息气泡（包含回复和内容） */}
+                  {/* 消息内容区 */}
                   <div className={cn(
-                    "rounded-lg inline-block overflow-hidden max-w-full",
-                    // 纯贴图/纯附件消息不需要背景和边框
-                    noBorder ? "" : (
-                      isOwnMessage
-                        ? "bg-black dark:bg-gray-700 text-white"
-                        : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
-                    ),
-                    !noBorder && isMention && !isOwnMessage && "bg-blue-50/80 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700",
-                    !noBorder && isAnnouncement && "bg-amber-100 dark:bg-amber-900/50 border-amber-200 dark:border-amber-700 text-amber-900 dark:text-amber-200"
+                    "max-w-full",
+                    // 公告消息保留特殊样式
+                    isAnnouncement && "rounded-lg px-3 py-2 bg-amber-100 dark:bg-amber-900/50 border border-amber-200 dark:border-amber-700",
+                    // @提及消息保留高亮背景
+                    isMention && !isAnnouncement && "rounded-lg px-3 py-2 bg-blue-50/80 dark:bg-blue-900/30"
+                    // 普通消息：无背景、无边框
                   )}>
                     {/* 消息内容（纯附件消息时不显示） */}
                     {message.content && (
                       <div className={cn(
-                        "text-sm leading-relaxed whitespace-pre-wrap break-words",
+                        "text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap break-words",
                         // 纯贴图消息不需要内边距
-                        isStickerOnly ? "" : "px-3 py-2.5",
-                        !noBorder && isOwnMessage && "text-white",
-                        !noBorder && !isOwnMessage && "text-gray-700 dark:text-gray-200",
-                        !noBorder && isAnnouncement && "text-amber-900 dark:text-amber-200"
+                        isStickerOnly ? "" : "",
+                        isAnnouncement && "text-amber-900 dark:text-amber-200"
                       )}>
                         {renderMessageContent(message.content, isOwnMessage)}
                       </div>
@@ -1109,49 +1213,14 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                     {/* 消息附件 */}
                     {message.attachments && message.attachments.length > 0 && (
                       <div className={cn(
-                        "w-fit",
-                        // 纯附件消息不需要内边距，有文字时才需要
-                        isMediaOnly ? "" : "px-3",
-                        message.content ? "pb-2" : (isMediaOnly ? "" : "py-2")
+                        "w-fit mt-1",
+                        // 附件图片限制最大宽度
+                        "[&_img]:max-w-[550px] [&_img]:rounded-lg [&_img]:cursor-pointer [&_img]:border [&_img]:border-gray-200 dark:[&_img]:border-gray-700"
                       )}>
                         <MessageAttachments attachments={message.attachments} />
                       </div>
                     )}
                   </div>
-
-                  {/* 回复引用 - 显示在消息下方 */}
-                  {message.replyTo && (
-                    <div
-                      className={cn(
-                        "group/reply flex items-center gap-2 mt-1.5 text-xs max-w-full",
-                        isOwnMessage ? "flex-row-reverse" : "flex-row"
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md cursor-pointer transition-all",
-                          "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
-                          "hover:bg-gray-200 dark:hover:bg-gray-700"
-                        )}
-                        onClick={() => jumpToMessage(message.replyTo!.id)}
-                      >
-                        <Reply className="w-3 h-3 flex-shrink-0" />
-                        <span className="truncate max-w-[200px]">
-                          <span className="font-medium text-gray-600 dark:text-gray-300">{message.replyTo.userName}</span>
-                          <span className="mx-1">:</span>
-                          <span className="opacity-75">{message.replyTo.content}</span>
-                        </span>
-                      </div>
-                      {/* 定位到原文位置按钮 */}
-                      <button
-                        onClick={() => jumpToMessage(message.replyTo!.id)}
-                        className="opacity-0 group-hover/reply:opacity-100 p-1 rounded transition-all duration-200 hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-600 dark:hover:text-green-400 text-gray-400"
-                        title="定位到原文位置"
-                      >
-                        <ArrowDown className="w-3.5 h-3.5 rotate-180" />
-                      </button>
-                    </div>
-                  )}
 
                   {/* 消息反应 */}
                   <MessageReactions
@@ -1161,6 +1230,76 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                     onReactionsChange={(reactions) => onReactionsChange?.(message.id, reactions)}
                   />
                 </div>
+                </div>
+
+                {/* 悬停操作栏 */}
+                <MessageActionBar
+                  messageId={message.id}
+                  isOwnMessage={isOwnMessage}
+                  isPinned={message.isPinned}
+                  canEdit={(() => {
+                    if (!isOwnMessage || !message.timestamp) return false;
+                    const messageTime = message.timestamp instanceof Date
+                      ? message.timestamp.getTime()
+                      : new Date(message.timestamp).getTime();
+                    return Date.now() - messageTime < 10 * 60 * 1000;
+                  })()}
+                  canRecall={(() => {
+                    if (!isOwnMessage || !message.timestamp) return false;
+                    const messageTime = message.timestamp instanceof Date
+                      ? message.timestamp.getTime()
+                      : new Date(message.timestamp).getTime();
+                    return Date.now() - messageTime < 5 * 60 * 1000;
+                  })()}
+                  canPin={currentUser.role === 'owner' || currentUser.role === 'admin'}
+                  hasImage={!!message.content?.match(/!\[.*?\]\((.+?)\)/)}
+                  onReply={() => {
+                    setReplyingTo(message);
+                    textareaRef.current?.focus();
+                  }}
+                  onQuickReact={(emoji) => handleQuickReact(message.id, emoji)}
+                  onOpenEmojiPicker={() => {}}
+                  onEdit={() => {
+                    setEditingMessage(message);
+                    setEditContent(message.content);
+                  }}
+                  onRecall={() => {
+                    if (window.confirm('确定要撤回这条消息吗？')) {
+                      handleRecallMessage(message.id);
+                    }
+                  }}
+                  onPin={async () => {
+                    try {
+                      if (message.isPinned) {
+                        await channelApi.unpinMessage(channel.id, message.id);
+                      } else {
+                        await channelApi.pinMessage(channel.id, message.id);
+                      }
+                      onPinChange?.();
+                    } catch (error: any) {
+                      showError(error.response?.data?.detail || (message.isPinned ? '取消置顶失败' : '置顶失败'));
+                    }
+                  }}
+                  onReport={() => {
+                    setReportingMessageId(message.id);
+                    setShowReportDialog(true);
+                  }}
+                  onAddToSticker={async () => {
+                    const imageMatch = message.content?.match(/!\[.*?\]\((.+?)\)/);
+                    if (imageMatch?.[1]) {
+                      try {
+                        await addFavoriteSticker({
+                          stickerUrl: imageMatch[1],
+                          previewUrl: imageMatch[1],
+                          source: 'tenor'
+                        });
+                        toastSuccess('添加成功', '已添加到表情收藏');
+                      } catch (e: any) {
+                        toastError('添加失败', e.response?.data?.detail || '请稍后重试');
+                      }
+                    }
+                  }}
+                />
               </div>
             );
           })}
@@ -1964,5 +2103,6 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         />
       )}
     </div>
+    </>
   );
 }

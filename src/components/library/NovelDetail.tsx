@@ -528,7 +528,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
       </header>
 
       <div className="max-w-6xl mx-auto px-6 py-8">
-        <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 p-8 mb-6">
+        <div className="bg-white dark:bg-slate-900 p-8 mb-6">
           <div className="flex gap-8">
             <div className="flex-shrink-0">
               <ImageWithFallback
@@ -644,11 +644,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
         </div>
 
         {/* 章节目录 */}
-        <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 mb-6">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700">
-            <h2 className="text-sm text-gray-900 dark:text-white">章节目录</h2>
-          </div>
-
+        <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl mb-6">
           {loading ? (
             <div className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">加载中...</div>
           ) : chapters.length === 0 ? (
@@ -658,12 +654,16 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
               {chapterGroups.map((group, groupIndex) => (
                 <div key={groupIndex}>
                   <div
-                    className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer transition-colors flex items-center justify-between group"
+                    className={`px-6 py-4 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer transition-colors flex items-center justify-between group ${
+                      groupIndex === 0 ? 'rounded-t-xl' : ''
+                    } ${
+                      groupIndex === chapterGroups.length - 1 && !expandedGroups.has(groupIndex) ? 'rounded-b-xl' : ''
+                    }`}
                     onClick={() => toggleGroup(groupIndex)}
                   >
                     <div className="flex-1">
                       <h3 className="text-sm mb-1 group-hover:text-black dark:group-hover:text-white transition-colors text-gray-900 dark:text-white">
-                        第{group[0].order}章 - 第{group[group.length - 1].order}章
+                        章节目录
                       </h3>
                       <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-slate-400">
                         <span className="flex items-center gap-1">

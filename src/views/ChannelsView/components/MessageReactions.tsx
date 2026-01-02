@@ -121,16 +121,16 @@ export const MessageReactions: React.FC<MessageReactionsProps> = ({
           onClick={() => handleReactionClick(reaction.emoji, reaction.hasReacted)}
           disabled={loading === reaction.emoji}
           className={cn(
-            'inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full transition-colors cursor-pointer',
-            reaction.hasReacted
-              ? 'bg-blue-100 dark:bg-blue-900/50 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300'
-              : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-400',
+            'inline-flex items-center gap-1 px-2 py-0.5 text-sm rounded transition-all duration-100 cursor-pointer',
+            'bg-black/[0.04] dark:bg-white/[0.04] border border-transparent',
+            'hover:bg-black/[0.08] dark:hover:bg-white/[0.08]',
+            reaction.hasReacted && 'bg-[#5865f2]/10 border-[#5865f2]',
             loading === reaction.emoji && 'opacity-50'
           )}
           title={reaction.hasReacted ? '点击取消' : '点击添加'}
         >
-          <span className="text-sm">{reaction.emoji}</span>
-          <span>{reaction.count}</span>
+          <span>{reaction.emoji}</span>
+          <span className="text-gray-700 dark:text-gray-300">{reaction.count}</span>
         </button>
       ))}
 
