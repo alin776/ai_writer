@@ -10,7 +10,8 @@ import { useGlobalStore } from '@/store/globalStore';
 import type { Channel } from './ChannelList';
 import { MemberManagementDialog } from './MemberManagementDialog';
 import { ReportMessageDialog } from './ReportMessageDialog';
-import { getChannelMembers, type ChannelMember, channelApi, UnreadInfo, type ReactionSummary, type MessageAttachment, uploadAttachment } from '@/services/channelApi';
+import { getChannelMembers, type ChannelMember, channelApi, UnreadInfo, type ReactionSummary, type MessageAttachment, uploadAttachment, getMyChannels } from '@/services/channelApi';
+import { checkFriendship } from '@/services/friendApi';
 import { useChannelWebSocket, type ChannelMessage, type ReactionEvent } from '@/hooks/useChannelWebSocket';
 import { TypingIndicator } from './TypingIndicator';
 import { MessageReactions } from './MessageReactions';
@@ -82,6 +83,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   const [messageInput, setMessageInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiPickerPosition, setEmojiPickerPosition] = useState({ x: 0, y: 0 });
+  const [reactionTargetMessageId, setReactionTargetMessageId] = useState<string | null>(null); // 添加反应的目标消息ID
   const [showSidebar, setShowSidebar] = useState(false);
   const [showMemberDialog, setShowMemberDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
@@ -99,6 +101,14 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     x: number;
     y: number;
     messageId: string;
+  } | null>(null);
+  const [userContextMenu, setUserContextMenu] = useState<{
+    show: boolean;
+    x: number;
+    y: number;
+    userId: string;
+    userName: string;
+    userAvatar?: string;
   } | null>(null);
   const [unreadInfo, setUnreadInfo] = useState<UnreadInfo | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -142,6 +152,8 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     userTitleColor?: string;
     position: { x: number; y: number };
   } | null>(null);
+  // 可邀请的频道列表（用于右键菜单）
+  const [invitableChannels, setInvitableChannels] = useState<{id: string; name: string; type: string}[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -230,6 +242,30 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     };
     loadMembers();
   }, [channel.id, channel.type, currentUser.id]);
+
+  // 当用户右键菜单打开时，获取可邀请的频道列表
+  useEffect(() => {
+    if (userContextMenu?.show) {
+      const fetchInvitableChannels = async () => {
+        try {
+          const response = await getMyChannels();
+          // 筛选出非私聊频道（只有自己创建/管理的频道可以邀请）
+          const channels = response.channels.filter(
+            ch => ch.type !== 'private'
+          ).map(ch => ({
+            id: ch.id,
+            name: ch.name,
+            type: ch.type
+          }));
+          setInvitableChannels(channels);
+        } catch (error) {
+          console.error('获取可邀请频道失败:', error);
+          setInvitableChannels([]);
+        }
+      };
+      fetchInvitableChannels();
+    }
+  }, [userContextMenu?.show]);
 
   // 用户进入频道时自动标记为已读
   useEffect(() => {
@@ -623,7 +659,20 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     setShowMentionMenu(!showMentionMenu);
   };
 
-  const insertEmoji = (emoji: string) => {
+  const insertEmoji = async (emoji: string) => {
+    // 如果是添加反应模式
+    if (reactionTargetMessageId) {
+      try {
+        await channelApi.addReaction(channel.id, reactionTargetMessageId, emoji);
+      } catch (e) {
+        console.error('添加反应失败', e);
+      }
+      setReactionTargetMessageId(null);
+      setShowEmojiPicker(false);
+      return;
+    }
+
+    // 否则是插入文字模式
     const textarea = textareaRef.current;
     if (textarea) {
       const cursorPos = textarea.selectionStart;
@@ -1161,6 +1210,20 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                         position: { x: e.clientX, y: e.clientY },
                       });
                     }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      // 不显示自己的用户菜单
+                      if (message.userId === currentUser.id) return;
+                      setUserContextMenu({
+                        show: true,
+                        x: e.clientX,
+                        y: e.clientY,
+                        userId: message.userId,
+                        userName: message.userName,
+                        userAvatar: message.userAvatar,
+                      });
+                    }}
                   >
                     <Avatar className="w-10 h-10 hover:ring-2 hover:ring-blue-400 transition-all">
                       <AvatarImage src={message.userAvatar} />
@@ -1237,19 +1300,16 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   {/* 消息内容区 */}
                   <div className={cn(
                     "max-w-full",
-                    // 公告消息保留特殊样式
-                    isAnnouncement && "rounded-lg px-3 py-2 bg-amber-100 dark:bg-amber-900/50 border border-amber-200 dark:border-amber-700",
                     // @提及消息保留高亮背景
                     isMention && !isAnnouncement && "rounded-lg px-3 py-2 bg-blue-50/80 dark:bg-blue-900/30"
-                    // 普通消息：无背景、无边框
+                    // 普通消息和公告消息：无边框、无内部背景（公告只在整行有背景）
                   )}>
                     {/* 消息内容（纯附件消息时不显示） */}
                     {message.content && (
                       <div className={cn(
                         "text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap break-words",
                         // 纯贴图消息不需要内边距
-                        isStickerOnly ? "" : "",
-                        isAnnouncement && "text-amber-900 dark:text-amber-200"
+                        isStickerOnly ? "" : ""
                       )}>
                         {renderMessageContent(message.content, isOwnMessage, (username, e) => {
                           // 查找被@的用户信息
@@ -1312,12 +1372,21 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   })()}
                   canPin={currentUser.role === 'owner' || currentUser.role === 'admin'}
                   hasImage={!!message.content?.match(/!\[.*?\]\((.+?)\)/)}
+                  messageContent={message.content}
+                  channelId={channel.id}
                   onReply={() => {
                     setReplyingTo(message);
                     textareaRef.current?.focus();
                   }}
                   onQuickReact={(emoji) => handleQuickReact(message.id, emoji)}
-                  onOpenEmojiPicker={() => {}}
+                  onOpenEmojiPicker={() => {
+                    setReactionTargetMessageId(message.id);
+                    setEmojiPickerPosition({
+                      x: window.innerWidth - 400,
+                      y: 200
+                    });
+                    setShowEmojiPicker(true);
+                  }}
                   onEdit={() => {
                     setEditingMessage(message);
                     setEditContent(message.content);
@@ -1547,7 +1616,10 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
           {/* 遮罩层 */}
           <div
             className="fixed inset-0 z-40"
-            onClick={() => setShowEmojiPicker(false)}
+            onClick={() => {
+              setShowEmojiPicker(false);
+              setReactionTargetMessageId(null);
+            }}
           />
           {/* 表情窗口 */}
           <div
@@ -1560,7 +1632,10 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
             <EmojiPicker
               onSelect={insertEmoji}
               onSelectSticker={handleStickerSelect}
-              onClose={() => setShowEmojiPicker(false)}
+              onClose={() => {
+                setShowEmojiPicker(false);
+                setReactionTargetMessageId(null);
+              }}
             />
           </div>
         </>
@@ -1652,17 +1727,47 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
       })()}
 
       {/* 右键消息菜单 */}
-      {contextMenu && contextMenu.show && (
+      {contextMenu && contextMenu.show && (() => {
+        // 计算菜单位置，确保不超出屏幕
+        const menuWidth = 188;
+        const menuHeight = 350; // 预估菜单高度
+        const padding = 10;
+
+        let adjustedX = contextMenu.x;
+        let adjustedY = contextMenu.y;
+
+        // 防止超出右边缘
+        if (contextMenu.x + menuWidth + padding > window.innerWidth) {
+          adjustedX = window.innerWidth - menuWidth - padding;
+        }
+
+        // 防止超出底部
+        if (contextMenu.y + menuHeight + padding > window.innerHeight) {
+          adjustedY = window.innerHeight - menuHeight - padding;
+        }
+
+        // 防止超出左边缘
+        if (adjustedX < padding) {
+          adjustedX = padding;
+        }
+
+        // 防止超出顶部
+        if (adjustedY < padding) {
+          adjustedY = padding;
+        }
+
+        return (
         <>
           <div
             className="fixed inset-0 z-40"
             onClick={() => setContextMenu(null)}
           />
           <div
-            className="fixed bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 py-1 min-w-[140px]"
+            className="fixed bg-white dark:bg-[#18191c] rounded shadow-lg z-50 w-[188px] p-1.5"
             style={{
-              left: `${contextMenu.x}px`,
-              top: `${contextMenu.y}px`
+              left: `${adjustedX}px`,
+              top: `${adjustedY}px`,
+              boxShadow: '0 0 0 1px rgba(0,0,0,.05), 0 2px 10px rgba(0,0,0,.1)'
             }}
           >
             {(() => {
@@ -1684,18 +1789,8 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   : new Date(message.timestamp).getTime();
                 const now = Date.now();
                 const timeDiff = now - messageTime;
-                canRecall = isOwnMessage && timeDiff < 5 * 60 * 1000 && timeDiff >= 0; // 5分钟内
-                canEdit = isOwnMessage && timeDiff < 10 * 60 * 1000 && timeDiff >= 0; // 10分钟内
-
-                // 调试信息
-                console.log('撤回/编辑检查:', {
-                  messageTime: new Date(messageTime).toLocaleString(),
-                  now: new Date(now).toLocaleString(),
-                  timeDiff: Math.floor(timeDiff / 1000) + '秒',
-                  canRecall,
-                  canEdit,
-                  isOwnMessage
-                });
+                canRecall = isOwnMessage && timeDiff < 5 * 60 * 1000 && timeDiff >= 0;
+                canEdit = isOwnMessage && timeDiff < 10 * 60 * 1000 && timeDiff >= 0;
               }
 
               // 添加到表情的处理函数
@@ -1714,21 +1809,130 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                 setContextMenu(null);
               };
 
+              // 复制文字
+              const handleCopyText = () => {
+                if (message?.content) {
+                  // 移除markdown图片语法，只复制纯文本
+                  const plainText = message.content
+                    .replace(/!\[.*?\]\(.*?\)/g, '')
+                    .replace(/\[.*?\]\(.*?\)/g, (match) => {
+                      const textMatch = match.match(/\[(.*?)\]/);
+                      return textMatch ? textMatch[1] : '';
+                    })
+                    .trim();
+                  navigator.clipboard.writeText(plainText || message.content);
+                  toastSuccess('已复制', '文字已复制到剪贴板');
+                }
+                setContextMenu(null);
+              };
+
+              // 复制消息链接
+              const handleCopyLink = () => {
+                const link = `${window.location.origin}/channels/${channel.id}?message=${message?.id}`;
+                navigator.clipboard.writeText(link);
+                toastSuccess('已复制', '消息链接已复制到剪贴板');
+                setContextMenu(null);
+              };
+
+              // 快捷表情反应
+              const quickReactions = ['👍', '💯', '👎', '😂'];
+              // 悬浮子菜单的更多表情
+              const moreReactions = ['❤️', '😊', '😢', '😮', '😡', '🎉', '🔥', '👀', '🙏', '💪', '✅', '❌'];
+              const handleQuickReaction = async (emoji: string) => {
+                if (message) {
+                  try {
+                    await channelApi.addReaction(channel.id, message.id, emoji);
+                  } catch (e) {
+                    console.error('添加反应失败', e);
+                  }
+                }
+                setContextMenu(null);
+              };
+
+              // 菜单项样式
+              const menuItemClass = "w-full px-2 py-1.5 text-sm text-left rounded-sm flex items-center justify-between text-gray-600 dark:text-[#b9bbbe] hover:bg-[#5865f2] hover:text-white transition-colors";
+              const menuItemDangerClass = "w-full px-2 py-1.5 text-sm text-left rounded-sm flex items-center justify-between text-[#ed4245] hover:bg-[#ed4245] hover:text-white transition-colors";
+              const dividerClass = "h-px bg-gray-200 dark:bg-[#2e3035] my-1";
+
               return (
                 <>
-                  {/* 添加到表情 - 最上方 */}
-                  {hasImage && (
-                    <button
-                      className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-amber-600 dark:text-amber-400"
-                      onClick={handleAddToSticker}
-                    >
-                      <Star className="w-3.5 h-3.5" />
-                      添加到表情
-                    </button>
-                  )}
+                  {/* 顶部快捷表情栏 */}
+                  <div className="flex gap-0.5 pb-2">
+                    {quickReactions.map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={() => handleQuickReaction(emoji)}
+                        className="w-8 h-8 flex items-center justify-center text-xl rounded hover:bg-gray-100 dark:hover:bg-[#4f545c99] hover:scale-110 transition-all"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
 
+                  {/* 添加反应 - 带悬浮子菜单 */}
+                  <div className="relative group/reaction">
+                    <button
+                      className={menuItemClass}
+                      onClick={(e) => {
+                        // 点击打开完整表情选择器
+                        if (message) {
+                          setReactionTargetMessageId(message.id);
+                          setEmojiPickerPosition({
+                            x: Math.min(contextMenu.x + 200, window.innerWidth - 350),
+                            y: Math.min(contextMenu.y, window.innerHeight - 450)
+                          });
+                          setShowEmojiPicker(true);
+                        }
+                        setContextMenu(null);
+                      }}
+                    >
+                      <span>添加反应</span>
+                      <svg className="w-2.5 h-2.5 opacity-60" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                      </svg>
+                    </button>
+
+                    {/* 悬浮子菜单 - 更多表情 */}
+                    <div className="absolute left-full top-0 ml-1 hidden group-hover/reaction:block">
+                      <div className="bg-white dark:bg-[#18191c] rounded shadow-lg p-2 w-[200px]" style={{ boxShadow: '0 0 0 1px rgba(0,0,0,.05), 0 2px 10px rgba(0,0,0,.1)' }}>
+                        <div className="grid grid-cols-6 gap-1">
+                          {moreReactions.map((emoji) => (
+                            <button
+                              key={emoji}
+                              onClick={() => handleQuickReaction(emoji)}
+                              className="w-7 h-7 flex items-center justify-center text-lg rounded hover:bg-gray-100 dark:hover:bg-[#4f545c99] hover:scale-110 transition-all"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-gray-200 dark:border-[#2e3035]">
+                          <button
+                            onClick={(e) => {
+                              if (message) {
+                                setReactionTargetMessageId(message.id);
+                                setEmojiPickerPosition({
+                                  x: Math.min(contextMenu.x + 200, window.innerWidth - 350),
+                                  y: Math.min(contextMenu.y, window.innerHeight - 450)
+                                });
+                                setShowEmojiPicker(true);
+                              }
+                              setContextMenu(null);
+                            }}
+                            className="w-full text-xs text-center py-1.5 text-gray-500 dark:text-gray-400 hover:text-[#5865f2] dark:hover:text-[#5865f2] hover:bg-gray-50 dark:hover:bg-[#2e3035] rounded transition-colors"
+                          >
+                            显示更多
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={dividerClass} />
+
+                  {/* 回复 */}
                   <button
-                    className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 dark:text-gray-200"
+                    className={menuItemClass}
                     onClick={() => {
                       if (message) {
                         setReplyingTo(message);
@@ -1737,13 +1941,14 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                       setContextMenu(null);
                     }}
                   >
-                    <Reply className="w-3.5 h-3.5" />
-                    回复
+                    <span>回复</span>
+                    <Reply className="w-4 h-4 opacity-80" />
                   </button>
 
+                  {/* 编辑 */}
                   {canEdit && (
                     <button
-                      className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400"
+                      className={menuItemClass}
                       onClick={() => {
                         if (message) {
                           setEditingMessage(message);
@@ -1752,14 +1957,15 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                         setContextMenu(null);
                       }}
                     >
-                      <Edit2 className="w-3.5 h-3.5" />
-                      编辑
+                      <span>编辑消息</span>
+                      <Edit2 className="w-4 h-4 opacity-80" />
                     </button>
                   )}
 
+                  {/* 置顶 */}
                   {canPin && message && (
                     <button
-                      className={`w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 ${message.isPinned ? 'text-orange-600 dark:text-orange-400' : 'text-amber-600 dark:text-amber-400'}`}
+                      className={menuItemClass}
                       onClick={async () => {
                         try {
                           if (message.isPinned) {
@@ -1774,45 +1980,250 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                         setContextMenu(null);
                       }}
                     >
-                      <Pin className="w-3.5 h-3.5" />
-                      {message.isPinned ? '取消置顶' : '置顶'}
+                      <span>{message.isPinned ? '取消置顶' : '置顶消息'}</span>
+                      <Pin className="w-4 h-4 opacity-80" />
                     </button>
                   )}
 
+                  <div className={dividerClass} />
+
+                  {/* 复制文字 */}
+                  <button className={menuItemClass} onClick={handleCopyText}>
+                    <span>复制文字</span>
+                    <svg className="w-4 h-4 opacity-80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                  </button>
+
+                  {/* 复制消息链接 */}
+                  <button className={menuItemClass} onClick={handleCopyLink}>
+                    <span>复制消息链接</span>
+                    <svg className="w-4 h-4 opacity-80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                    </svg>
+                  </button>
+
+                  {/* 添加到表情（有图片时显示） */}
+                  {hasImage && (
+                    <>
+                      <div className={dividerClass} />
+                      <button className={menuItemClass} onClick={handleAddToSticker}>
+                        <span>添加到表情</span>
+                        <Star className="w-4 h-4 opacity-80" />
+                      </button>
+                    </>
+                  )}
+
+                  {/* 撤回（自己的消息） */}
                   {canRecall && (
-                    <button
-                      className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400"
-                      onClick={() => {
-                        if (window.confirm('确定要撤回这条消息吗？')) {
-                          handleRecallMessage(contextMenu.messageId);
-                        }
-                        setContextMenu(null);
-                      }}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      撤回
-                    </button>
+                    <>
+                      <div className={dividerClass} />
+                      <button
+                        className={menuItemDangerClass}
+                        onClick={() => {
+                          if (window.confirm('确定要撤回这条消息吗？')) {
+                            handleRecallMessage(contextMenu.messageId);
+                          }
+                          setContextMenu(null);
+                        }}
+                      >
+                        <span>撤回消息</span>
+                        <Trash2 className="w-4 h-4 opacity-80" />
+                      </button>
+                    </>
                   )}
 
+                  {/* 举报（他人消息） */}
                   {!isOwnMessage && (
-                    <button
-                      className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400"
-                      onClick={() => {
-                        setReportingMessageId(contextMenu.messageId);
-                        setShowReportDialog(true);
-                        setContextMenu(null);
-                      }}
-                    >
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      举报
-                    </button>
+                    <>
+                      <div className={dividerClass} />
+                      <button
+                        className={menuItemDangerClass}
+                        onClick={() => {
+                          setReportingMessageId(contextMenu.messageId);
+                          setShowReportDialog(true);
+                          setContextMenu(null);
+                        }}
+                      >
+                        <span>举报消息</span>
+                        <AlertCircle className="w-4 h-4 opacity-80" />
+                      </button>
+                    </>
                   )}
                 </>
               );
             })()}
           </div>
         </>
-      )}
+        );
+      })()}
+
+      {/* 用户头像右键菜单 */}
+      {userContextMenu && userContextMenu.show && (() => {
+        // 计算菜单位置，确保不超出屏幕
+        const menuWidth = 200;
+        const menuHeight = 250; // 预估菜单高度
+        const padding = 10;
+
+        let adjustedX = userContextMenu.x;
+        let adjustedY = userContextMenu.y;
+
+        // 防止超出右边缘
+        if (userContextMenu.x + menuWidth + padding > window.innerWidth) {
+          adjustedX = window.innerWidth - menuWidth - padding;
+        }
+
+        // 防止超出底部
+        if (userContextMenu.y + menuHeight + padding > window.innerHeight) {
+          adjustedY = window.innerHeight - menuHeight - padding;
+        }
+
+        // 防止超出左边缘
+        if (adjustedX < padding) {
+          adjustedX = padding;
+        }
+
+        // 防止超出顶部
+        if (adjustedY < padding) {
+          adjustedY = padding;
+        }
+
+        return (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setUserContextMenu(null)}
+          />
+          <div
+            className="fixed bg-white dark:bg-[#18191c] rounded shadow-lg z-50 w-[200px] p-1.5"
+            style={{
+              left: `${adjustedX}px`,
+              top: `${adjustedY}px`,
+              boxShadow: '0 0 0 1px rgba(0,0,0,.05), 0 2px 10px rgba(0,0,0,.1)'
+            }}
+          >
+            {(() => {
+              const menuItemClass = "w-full px-2 py-1.5 text-sm text-left rounded-sm flex items-center justify-between text-gray-600 dark:text-[#b9bbbe] hover:bg-[#5865f2] hover:text-white transition-colors";
+              const menuItemDangerClass = "w-full px-2 py-1.5 text-sm text-left rounded-sm flex items-center justify-between text-[#ed4245] hover:bg-[#ed4245] hover:text-white transition-colors";
+              const dividerClass = "h-px bg-gray-200 dark:bg-[#2e3035] my-1";
+
+              return (
+                <>
+                  {/* 查看完整个人资料 */}
+                  <button
+                    className={menuItemClass}
+                    onClick={() => {
+                      // 直接跳转到个人主页
+                      navigate(`/user/${userContextMenu.userId}`);
+                      setUserContextMenu(null);
+                    }}
+                  >
+                    <span>查看完整个人资料</span>
+                  </button>
+
+                  {/* 邀请至频道 - 带悬浮子菜单 */}
+                  <div className="relative group/invite">
+                    <button className={menuItemClass}>
+                      <span>邀请至频道</span>
+                      <svg className="w-2.5 h-2.5 opacity-60" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                      </svg>
+                    </button>
+
+                    {/* 频道列表子菜单 */}
+                    <div className="absolute left-full top-0 ml-1 hidden group-hover/invite:block">
+                      <div className="bg-white dark:bg-[#18191c] rounded shadow-lg p-1.5 min-w-[150px] max-h-[300px] overflow-y-auto" style={{ boxShadow: '0 0 0 1px rgba(0,0,0,.05), 0 2px 10px rgba(0,0,0,.1)' }}>
+                        {invitableChannels.length > 0 ? (
+                          invitableChannels.map((ch) => (
+                            <button
+                              key={ch.id}
+                              className="w-full px-2 py-1.5 text-sm text-left rounded-sm text-gray-600 dark:text-[#b9bbbe] hover:bg-[#5865f2] hover:text-white transition-colors truncate"
+                              onClick={() => {
+                                // TODO: 实现邀请用户到频道的API调用
+                                console.log('邀请用户到频道:', ch.id);
+                                showSuccess(`已邀请 ${userContextMenu.userName} 加入 ${ch.name}`);
+                                setUserContextMenu(null);
+                              }}
+                            >
+                              {ch.name}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="text-xs text-gray-400 dark:text-gray-500 px-2 py-1">
+                            暂无可邀请的频道
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={dividerClass} />
+
+                  {/* 私信 */}
+                  <button
+                    className={menuItemClass}
+                    onClick={async () => {
+                      // 检查好友关系，如果是好友则直接跳转到私聊频道
+                      try {
+                        const result = await checkFriendship(userContextMenu.userId);
+                        if (result.isFriend && result.privateChannelId) {
+                          navigate(`/channels?channelId=${result.privateChannelId}`);
+                        } else {
+                          // 不是好友，打开用户名片让用户添加好友
+                          setUserProfilePopover({
+                            show: true,
+                            userId: userContextMenu.userId,
+                            userName: userContextMenu.userName,
+                            userAvatar: userContextMenu.userAvatar,
+                            position: { x: userContextMenu.x, y: userContextMenu.y },
+                          });
+                          showWarning('需要先添加对方为好友才能发送私信');
+                        }
+                      } catch (error) {
+                        console.error('检查好友关系失败:', error);
+                        showError('检查好友关系失败');
+                      }
+                      setUserContextMenu(null);
+                    }}
+                  >
+                    <span>发送私信</span>
+                    <Mail className="w-4 h-4 opacity-80" />
+                  </button>
+
+                  <div className={dividerClass} />
+
+                  {/* 屏蔽 */}
+                  <button
+                    className={menuItemDangerClass}
+                    onClick={() => {
+                      // TODO: 屏蔽用户
+                      setUserContextMenu(null);
+                    }}
+                  >
+                    <span>屏蔽</span>
+                  </button>
+
+                  {/* 举报用户 */}
+                  <button
+                    className={menuItemDangerClass}
+                    onClick={() => {
+                      // 打开举报对话框
+                      setReportingMessageId(''); // 清除消息举报
+                      setShowReportDialog(true);
+                      setUserContextMenu(null);
+                    }}
+                  >
+                    <span>举报用户个人资料</span>
+                  </button>
+                </>
+              );
+            })()}
+          </div>
+        </>
+        );
+      })()}
 
       {/* 作品频道侧边栏 */}
       {showSidebar && (
