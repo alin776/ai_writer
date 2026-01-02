@@ -25,6 +25,7 @@ import { useToast } from '@/hooks/useToast';
 import { ToastContainer } from '@/components/ui/Toast';
 import { UserProfilePopover } from './UserProfilePopover';
 import { MessageActionBar } from './MessageActionBar';
+import { ForwardMessageDialog } from './ForwardMessageDialog';
 
 export interface Message {
   id: string;
@@ -47,6 +48,13 @@ export interface Message {
     userTitle?: string;   // 被引用用户称号
     userTitleColor?: string;  // 称号颜色
     content: string;
+  };
+  forwardedFrom?: {
+    channelId: string;
+    channelName: string;
+    userName: string;
+    content: string;
+    createdAt: string;
   };
   reactions?: ReactionSummary[];
   attachments?: MessageAttachment[]; // 新增附件字段
@@ -88,6 +96,12 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   const [showMemberDialog, setShowMemberDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [reportingMessageId, setReportingMessageId] = useState<string>('');
+  const [forwardingMessage, setForwardingMessage] = useState<{
+    id: string;
+    content: string;
+    sender: string;
+    attachments?: MessageAttachment[];
+  } | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [showMentionMenu, setShowMentionMenu] = useState(false);
   const [mentionMenuPosition, setMentionMenuPosition] = useState({ x: 0, y: 0 });
@@ -1372,6 +1386,38 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   </div>
                   )}
 
+                  {/* 转发标记 */}
+                  {message.forwardedFrom && (
+                    <div className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <polyline points="15 14 20 9 15 4" />
+                        <path d="M4 20v-7a4 4 0 0 1 4-4h12" />
+                      </svg>
+                      <span>已转发</span>
+                    </div>
+                  )}
+
+                  {/* 转发引用框 */}
+                  {message.forwardedFrom && (
+                    <div className="mt-2 border-l-4 border-indigo-500 bg-white dark:bg-gray-800 rounded-r-lg shadow-sm overflow-hidden">
+                      <div className="p-3">
+                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
+                          {message.forwardedFrom.content}
+                        </p>
+                      </div>
+                      <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between group cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          来自 <span className="text-indigo-600 dark:text-indigo-400 font-medium">#{message.forwardedFrom.channelName}</span>
+                          <span className="mx-1">·</span>
+                          <span>{new Date(message.forwardedFrom.createdAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}</span>
+                        </span>
+                        <svg className="w-4 h-4 text-gray-400 group-hover:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </div>
+                    </div>
+                  )}
+
                   {/* 消息内容区 */}
                   <div className={cn(
                     "max-w-full",
@@ -1501,6 +1547,14 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                         toastError('添加失败', e.response?.data?.detail || '请稍后重试');
                       }
                     }
+                  }}
+                  onForward={() => {
+                    setForwardingMessage({
+                      id: message.id,
+                      content: message.content,
+                      sender: message.userName,
+                      attachments: message.attachments,
+                    });
                   }}
                 />
               </div>
@@ -2430,6 +2484,17 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         }}
         channelId={channel.id}
         messageId={reportingMessageId}
+      />
+
+      {/* 转发对话框 */}
+      <ForwardMessageDialog
+        isOpen={!!forwardingMessage}
+        onClose={() => setForwardingMessage(null)}
+        sourceChannelId={channel.id}
+        messageId={forwardingMessage?.id || ''}
+        messageContent={forwardingMessage?.content || ''}
+        messageSender={forwardingMessage?.sender || ''}
+        messageAttachments={forwardingMessage?.attachments}
       />
 
       {/* 编辑对话框 */}

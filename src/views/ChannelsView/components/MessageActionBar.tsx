@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Reply, MoreHorizontal, Smile, Edit2, Trash2, Pin, AlertCircle, Star } from 'lucide-react';
+import { Reply, MoreHorizontal, Smile, Edit2, Trash2, Pin, AlertCircle, Star, Forward } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import MiniEmojiPicker from './MiniEmojiPicker';
 
@@ -21,6 +21,7 @@ interface MessageActionBarProps {
   onPin?: () => void;
   onReport?: () => void;
   onAddToSticker?: () => void;
+  onForward?: () => void;
 }
 
 // 快速表情
@@ -47,6 +48,7 @@ export function MessageActionBar({
   onPin,
   onReport,
   onAddToSticker,
+  onForward,
 }: MessageActionBarProps) {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -139,6 +141,17 @@ export function MessageActionBar({
       >
         <Reply className="w-4 h-4" />
       </button>
+
+      {/* 转发按钮 */}
+      {onForward && (
+        <button
+          onClick={onForward}
+          className="py-1 px-1.5 rounded text-gray-500 dark:text-gray-400 transition-all duration-100 hover:bg-black/[0.06] dark:hover:bg-white/[0.06] hover:text-gray-900 dark:hover:text-gray-100"
+          title="转发"
+        >
+          <Forward className="w-4 h-4" />
+        </button>
+      )}
 
       {/* 更多按钮 */}
       <div className="relative">
@@ -237,6 +250,20 @@ export function MessageActionBar({
                 <span>回复</span>
                 <Reply className="w-4 h-4 opacity-80" />
               </button>
+
+              {/* 转发 */}
+              {onForward && (
+                <button
+                  className={menuItemClass}
+                  onClick={() => {
+                    onForward();
+                    setShowMoreMenu(false);
+                  }}
+                >
+                  <span>转发</span>
+                  <Forward className="w-4 h-4 opacity-80" />
+                </button>
+              )}
 
               {/* 编辑 */}
               {canEdit && onEdit && (

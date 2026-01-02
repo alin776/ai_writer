@@ -21,6 +21,7 @@ import Modal from '../common/Modal';
 import { useGlobalStore } from '../../store/globalStore';
 import { useWorkNavStore } from '../../store/workNavStore';
 import { NovelReader } from './NovelReader';
+import MiniEmojiPicker from '../../views/ChannelsView/components/MiniEmojiPicker';
 
 interface NovelDetailProps {
   novel: Novel;
@@ -75,12 +76,36 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentContent, setCommentContent] = useState('');
+  const [showCommentActions, setShowCommentActions] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+
+  // 点击外部关闭表情选择器
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        showEmojiPicker &&
+        emojiPickerRef.current &&
+        emojiButtonRef.current &&
+        !emojiPickerRef.current.contains(event.target as Node) &&
+        !emojiButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showEmojiPicker]);
   // 优先从全局 store 读取缓存的书架状态，避免页面切换时状态丢失
   const [isInBookshelf, setIsInBookshelf] = useState(() => useWorkNavStore.getState().bookshelfMap[novel.id] || false);
   const [loading, setLoading] = useState(true);
   const [ratingStats, setRatingStats] = useState<RatingStats | null>(null);
   const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null);
+  const [currentUserName, setCurrentUserName] = useState<string | null>(null);
   const [favoriteCount, setFavoriteCount] = useState(novel.likes || 0);
 
   // 存储从 API 加载的完整小说数据
@@ -216,6 +241,8 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
         // 如果 API 失败（bookshelfStatus === null），保持初始化时从 store 读取的本地缓存状态
         setRatingStats(ratingStatsRes);
         setCurrentUserId(currentUser?.id || null);
+        setCurrentUserAvatar(currentUser?.avatar || null);
+        setCurrentUserName(currentUser?.username || null);
         if (ratingStatsRes?.userRating) {
           setUserRating(ratingStatsRes.userRating);
         }
@@ -711,150 +738,243 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
           )}
         </div>
 
-        {/* 评论区 */}
-        <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
-            <h2 className="text-sm flex items-center gap-2 text-gray-900 dark:text-white">
-              <MessageCircle className="w-4 h-4" />
-              读者评论
+        {/* 评论区 - YouTube风格 */}
+        <div>
+          {/* 标题栏 */}
+          <div className="px-6 py-4 flex items-center gap-8">
+            <h2 className="text-base font-medium text-gray-900 dark:text-[#f1f1f1]">
+              {comments.length} 条评论
             </h2>
-            <span className="text-xs text-gray-500 dark:text-slate-400">共 {comments.length} 条评论</span>
+            <button className="flex items-center gap-2 text-sm text-gray-700 dark:text-[#f1f1f1] hover:text-gray-500 dark:hover:text-[#aaa] transition-colors">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>
+              </svg>
+              排序方式
+            </button>
           </div>
 
-          <div className="p-6">
-            {/* 发表评论区 */}
-            <div className="border border-gray-200 dark:border-slate-700 p-4 mb-4">
-              <div className="mb-4">
-                <div className="text-xs text-gray-600 dark:text-slate-400 mb-2">你的评分</div>
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      className={`w-5 h-5 cursor-pointer transition-colors ${
-                        star <= (hoveredRating || userRating)
-                          ? 'fill-black dark:fill-white text-black dark:text-white'
-                          : 'text-gray-300 dark:text-slate-600'
-                      }`}
-                      onClick={() => setUserRating(star)}
-                      onMouseEnter={() => setHoveredRating(star)}
-                      onMouseLeave={() => setHoveredRating(0)}
-                    />
-                  ))}
-                  {userRating > 0 && (
-                    <span className="ml-2 text-xs text-gray-600 dark:text-slate-400">{userRating}.0</span>
-                  )}
+          <div className="px-6 pb-8">
+            {/* 发表评论区 - YouTube风格 */}
+            <div className="flex gap-4 mb-8">
+              {currentUserAvatar ? (
+                <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+                  <img
+                    src={currentUserAvatar}
+                    alt={currentUserName || '我'}
+                    className="w-full h-full object-cover"
+                  />
                 </div>
-              </div>
-
-              <textarea
-                value={commentContent}
-                onChange={(e) => setCommentContent(e.target.value)}
-                className="w-full text-sm text-gray-600 dark:text-slate-400 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-2 outline-none resize-none"
-                rows={3}
-                placeholder="写下你的评论..."
-              />
-              <div className="flex justify-end mt-3">
-                <button
-                  onClick={handleSubmitComment}
-                  className="px-6 py-2 bg-black dark:bg-slate-700 text-white text-xs hover:bg-gray-800 dark:hover:bg-slate-600 transition-colors"
-                >
-                  发表评论
-                </button>
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#667eea] to-[#764ba2] flex items-center justify-center text-white text-base font-medium flex-shrink-0">
+                  {currentUserName ? currentUserName[0].toUpperCase() : '我'}
+                </div>
+              )}
+              <div className="flex-1">
+                <div className="mb-3">
+                  <div className="text-xs text-gray-500 dark:text-[#aaa] mb-2">你的评分</div>
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`w-5 h-5 cursor-pointer transition-colors ${
+                          star <= (hoveredRating || userRating)
+                            ? 'fill-[#f1c40f] text-[#f1c40f]'
+                            : 'text-gray-400 dark:text-[#717171]'
+                        }`}
+                        onClick={() => setUserRating(star)}
+                        onMouseEnter={() => setHoveredRating(star)}
+                        onMouseLeave={() => setHoveredRating(0)}
+                      />
+                    ))}
+                    {userRating > 0 && (
+                      <span className="ml-2 text-xs text-gray-500 dark:text-[#aaa]">{userRating}.0</span>
+                    )}
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  value={commentContent}
+                  onChange={(e) => setCommentContent(e.target.value)}
+                  className="w-full bg-transparent border-b border-gray-300 dark:border-[#303030] text-sm text-gray-900 dark:text-[#f1f1f1] placeholder-gray-400 dark:placeholder-[#aaa] py-2 outline-none focus:border-gray-900 dark:focus:border-[#f1f1f1] transition-colors"
+                  placeholder="添加评论..."
+                  onFocus={() => setShowCommentActions(true)}
+                />
+                {showCommentActions && (
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="relative">
+                      <button
+                        ref={emojiButtonRef}
+                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                        className="p-2 text-gray-500 dark:text-[#aaa] hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full transition-colors"
+                      >
+                        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-6c.78 2.34 2.72 4 5 4s4.22-1.66 5-4H7zm8-4c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm-6 0c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1z"/>
+                        </svg>
+                      </button>
+                      {/* 表情选择器 */}
+                      {showEmojiPicker && (
+                        <div ref={emojiPickerRef} className="absolute bottom-full left-0 mb-2 z-50">
+                          <MiniEmojiPicker
+                            onSelect={(emoji) => {
+                              setCommentContent(prev => prev + emoji);
+                              setShowEmojiPicker(false);
+                            }}
+                            onClose={() => setShowEmojiPicker(false)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setShowCommentActions(false);
+                          setShowEmojiPicker(false);
+                          setCommentContent('');
+                        }}
+                        className="px-4 py-2 text-sm text-gray-700 dark:text-[#f1f1f1] hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full transition-colors"
+                      >
+                        取消
+                      </button>
+                      <button
+                        onClick={handleSubmitComment}
+                        disabled={!commentContent.trim()}
+                        className={`px-4 py-2 text-sm font-medium rounded-full transition-colors ${
+                          commentContent.trim()
+                            ? 'bg-[#3ea6ff] text-[#0f0f0f] hover:bg-[#65b8ff]'
+                            : 'bg-gray-200 dark:bg-[#272727] text-gray-400 dark:text-[#717171] cursor-not-allowed'
+                        }`}
+                      >
+                        评论
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* 评论列表 */}
+            {/* 评论列表 - YouTube风格 */}
             {loading ? (
-              <div className="py-12 text-center text-gray-500 dark:text-slate-400">加载中...</div>
+              <div className="py-12 text-center text-gray-500 dark:text-[#aaa]">加载中...</div>
             ) : comments.length === 0 ? (
-              <div className="py-12 text-center text-gray-500 dark:text-slate-400">暂无评论，快来抢沙发吧！</div>
+              <div className="py-12 text-center text-gray-500 dark:text-[#aaa]">暂无评论，快来抢沙发吧！</div>
             ) : (
               <>
                 <div className="space-y-4">
                   {comments.slice(0, visibleComments).map((comment) => (
                     <div
                       key={comment.id}
-                      className="border-b border-gray-100 dark:border-slate-700 pb-4 last:border-0"
+                      className="flex gap-4 group"
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-3">
-                          {comment.user?.avatar ? (
-                            <img
-                              src={comment.user.avatar}
-                              alt={comment.user.username}
-                              className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                              style={{ width: '40px', height: '40px' }}
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-slate-700 flex items-center justify-center text-sm font-medium text-gray-600 dark:text-slate-400 flex-shrink-0">
-                              {comment.user?.username ? comment.user.username[0].toUpperCase() : '?'}
+                      {/* 头像 */}
+                      {comment.user?.avatar ? (
+                        <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+                          <img
+                            src={comment.user.avatar}
+                            alt={comment.user.username}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#e91e63] to-[#9c27b0] flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
+                          {comment.user?.username ? comment.user.username[0].toUpperCase() : '?'}
+                        </div>
+                      )}
+
+                      {/* 评论内容 */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[13px] font-medium text-gray-900 dark:text-[#f1f1f1]">
+                            @{comment.user?.username || '匿名用户'}
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-[#aaa]">
+                            {formatTime(comment.createdAt)}
+                          </span>
+                          {comment.userRating && (
+                            <div className="flex items-center gap-0.5 ml-1">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  className={`w-3 h-3 ${
+                                    star <= comment.userRating!
+                                      ? 'fill-[#f1c40f] text-[#f1c40f]'
+                                      : 'text-gray-400 dark:text-[#717171]'
+                                  }`}
+                                />
+                              ))}
                             </div>
                           )}
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-black dark:text-white">{comment.user?.username || '匿名用户'}</span>
-                            {comment.userRating && (
-                              <div className="flex items-center gap-0.5">
-                                {[1, 2, 3, 4, 5].map((star) => (
-                                  <Star
-                                    key={star}
-                                    className={`w-3 h-3 ${
-                                      star <= comment.userRating!
-                                        ? 'fill-yellow-400 text-yellow-400'
-                                        : 'text-gray-300 dark:text-slate-600'
-                                    }`}
-                                  />
-                                ))}
-                              </div>
-                            )}
-                          </div>
+                          {/* 三点菜单 - hover时显示 */}
+                          <button className="ml-auto p-1 rounded-full text-gray-400 dark:text-[#aaa] hover:bg-gray-100 dark:hover:bg-[#272727] opacity-0 group-hover:opacity-100 transition-opacity">
+                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                            </svg>
+                          </button>
                         </div>
-                        <span className="text-xs text-gray-400 dark:text-slate-500">
-                          {formatTime(comment.createdAt)}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600 dark:text-slate-400 mb-3">{comment.content}</p>
 
-                      <div className="flex items-center gap-4">
-                        <button
-                          onClick={() => handleToggleLike(comment.id, comment.isLiked || false)}
-                          className={`flex items-center gap-1 text-xs transition-colors ${
-                            comment.isLiked
-                              ? 'text-blue-600 dark:text-blue-400'
-                              : 'text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-400'
-                          }`}
-                        >
-                          <ThumbsUp className={`w-3 h-3 ${comment.isLiked ? 'fill-blue-600 dark:fill-blue-400' : ''}`} />
-                          <span>{comment.likeCount > 0 ? comment.likeCount : '点赞'}</span>
-                        </button>
+                        <p className="text-sm text-gray-800 dark:text-[#f1f1f1] mb-2 leading-relaxed">{comment.content}</p>
 
-                        {currentUserId === comment.userId ? (
+                        {/* 操作按钮 - YouTube风格 */}
+                        <div className="flex items-center h-9 -ml-2">
+                          {/* 点赞按钮 */}
                           <button
-                            onClick={() => handleDeleteComment(comment.id)}
-                            className="flex items-center gap-1 text-xs text-gray-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                            onClick={() => handleToggleLike(comment.id, comment.isLiked || false)}
+                            className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors ${
+                              comment.isLiked
+                                ? 'text-[#3ea6ff]'
+                                : 'text-gray-500 dark:text-[#aaa] hover:bg-gray-100 dark:hover:bg-[#272727]'
+                            }`}
                           >
-                            <Trash2 className="w-3 h-3" />
-                            <span>删除</span>
+                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M18.77,11h-4.23l1.52-4.94C16.38,5.03,15.54,4,14.38,4c-0.58,0-1.14,0.24-1.52,0.65L7,11H3v10h4h1h9.43 c1.06,0,1.98-0.67,2.19-1.61l1.34-6C21.23,12.15,20.18,11,18.77,11z M7,20H4v-8h3V20z M19.98,13.17l-1.34,6 C18.54,19.65,18.03,20,17.43,20H8v-8.61l5.6-6.06C13.79,5.12,14.08,5,14.38,5c0.26,0,0.5,0.11,0.63,0.3 c0.07,0.1,0.15,0.26,0.09,0.47l-1.52,4.94L13.18,12h1.35h4.23c0.41,0,0.8,0.17,1.03,0.46C19.92,12.61,20.05,12.86,19.98,13.17z"/>
+                            </svg>
                           </button>
-                        ) : (
-                          <button
-                            onClick={() => handleReportComment(comment.id)}
-                            className="flex items-center gap-1 text-xs text-gray-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                          >
-                            <Flag className="w-3 h-3" />
-                            <span>举报</span>
+                          {comment.likeCount > 0 && (
+                            <span className="text-xs text-gray-500 dark:text-[#aaa] mr-1">{comment.likeCount}</span>
+                          )}
+
+                          {/* 踩按钮 */}
+                          <button className="flex items-center justify-center w-9 h-9 rounded-full text-gray-500 dark:text-[#aaa] hover:bg-gray-100 dark:hover:bg-[#272727] transition-colors">
+                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M17,4h-1H6.57C5.5,4,4.59,4.67,4.38,5.61l-1.34,6C2.77,12.85,3.82,14,5.23,14h4.23l-1.52,4.94C7.62,19.97,8.46,21,9.62,21 c0.58,0,1.14-0.24,1.52-0.65L17,14h4V4H17z M10.4,19.67C10.21,19.88,9.92,20,9.62,20c-0.26,0-0.5-0.11-0.63-0.3 c-0.07-0.1-0.15-0.26-0.09-0.47l1.52-4.94l0.4-1.29H9.46H5.23c-0.41,0-0.8-0.17-1.03-0.46c-0.12-0.15-0.25-0.4-0.18-0.71l1.34-6 C5.46,5.35,5.97,5,6.57,5H16v8.61L10.4,19.67z M20,13h-3V5h3V13z"/>
+                            </svg>
                           </button>
-                        )}
+
+                          {/* 回复按钮 */}
+                          <button className="h-9 px-4 ml-1 text-xs font-medium text-gray-700 dark:text-[#f1f1f1] hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full transition-colors">
+                            回复
+                          </button>
+
+                          {/* 删除/举报按钮 */}
+                          {currentUserId === comment.userId ? (
+                            <button
+                              onClick={() => handleDeleteComment(comment.id)}
+                              className="h-9 px-4 text-xs text-gray-500 dark:text-[#aaa] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                            >
+                              删除
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleReportComment(comment.id)}
+                              className="h-9 px-4 text-xs text-gray-500 dark:text-[#aaa] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                            >
+                              举报
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
 
                 {visibleComments < comments.length && (
-                  <div className="text-center mt-4">
+                  <div className="mt-4 -ml-4">
                     <button
-                      className="text-sm text-gray-600 dark:text-slate-400 hover:text-black dark:hover:text-white transition-colors"
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#3ea6ff] hover:bg-[#3ea6ff]/10 rounded-full transition-colors"
                       onClick={() => setVisibleComments(visibleComments + 5)}
                     >
+                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+                      </svg>
                       加载更多评论
                     </button>
                   </div>
