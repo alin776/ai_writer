@@ -1044,6 +1044,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
             const noBorder = isStickerOnly || isMediaOnly;
             // 是否是连续消息
             const isContinuationMessage = isContinuation(message, previousMessage);
+            const isBeingRepliedTo = replyingTo?.id === message.id; // 是否正在被回复
 
             return (
               <div
@@ -1069,7 +1070,8 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   "hover:bg-black/[0.02] dark:hover:bg-white/[0.02]",
                   isContinuationMessage ? "py-0.5" : "py-1",
                   message.replyTo && "mt-2", // 有回复时增加顶部边距
-                  isAnnouncement && "bg-amber-50/60 dark:bg-amber-900/30 rounded"
+                  isAnnouncement && "bg-amber-50/60 dark:bg-amber-900/30 rounded",
+                  isBeingRepliedTo && "bg-purple-50 dark:bg-purple-900/20 rounded" // 被回复的消息浅紫色背景
                 )}
               >
                 {/* 回复引用区域 - 显示在消息上方，独立一行 */}
@@ -1411,57 +1413,62 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
 
       {/* 输入区域 */}
       <div className="p-3 bg-white dark:bg-gray-900">
-        {/* 回复预览 */}
-        {replyingTo && (
-          <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-blue-50 dark:bg-blue-900/30 border-l-2 border-blue-500 dark:border-blue-400 rounded-lg">
-            <Reply className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                回复 {replyingTo.userName}
+        {/* 主输入容器 */}
+        <div className={cn(
+          "border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm",
+          replyingTo ? "rounded-2xl" : "rounded-2xl"
+        )}>
+          {/* 回复预览 - Discord风格，在容器内部 */}
+          {replyingTo && (
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-slate-700">
+              <div className="flex items-center gap-1.5 text-sm">
+                <span className="text-gray-500 dark:text-gray-400">正在回复至</span>
+                <span
+                  className="text-blue-600 dark:text-blue-400 font-medium cursor-pointer hover:underline"
+                  onClick={() => jumpToMessage(replyingTo.id)}
+                >
+                  {replyingTo.userName}
+                </span>
               </div>
-              <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
-                {replyingTo.content}
-              </div>
+              <button
+                onClick={() => setReplyingTo(null)}
+                className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500 dark:text-gray-400"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <button
-              onClick={() => setReplyingTo(null)}
-              className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800 rounded text-blue-600 dark:text-blue-400"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
+          )}
 
-        {/* 主输入容器 - AIPanel 风格 */}
-        <div className="rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm px-4 py-3 space-y-3">
-          {/* 已上传文件预览 - 在输入框上方 */}
-          <FilePreview
-            files={uploadedFiles}
-            onRemove={(fileId) => setUploadedFiles(prev => prev.filter(f => f.id !== fileId))}
-          />
+          {/* 输入内容区域 */}
+          <div className="px-4 py-3 space-y-3">
+            {/* 已上传文件预览 - 在输入框上方 */}
+            <FilePreview
+              files={uploadedFiles}
+              onRemove={(fileId) => setUploadedFiles(prev => prev.filter(f => f.id !== fileId))}
+            />
 
-          {/* 输入框 */}
-          <textarea
-            ref={textareaRef}
-            value={messageInput}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={
-              channel.status === 'locked'
-                ? '频道已折叠'
-                : replyingTo
-                  ? `回复 ${replyingTo.userName}...`
-                  : '输入消息...'
-            }
-            className="min-h-[40px] bg-transparent outline-none border-none text-[13px] placeholder:text-gray-400 dark:placeholder:text-slate-500 resize-none leading-relaxed dark:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={channel.status === 'locked'}
-            rows={1}
-            style={{
-              width: '100%',
-              display: 'block',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
+            {/* 输入框 */}
+            <textarea
+              ref={textareaRef}
+              value={messageInput}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder={
+                channel.status === 'locked'
+                  ? '频道已折叠'
+                  : replyingTo
+                    ? `回复 ${replyingTo.userName}...`
+                    : '输入消息...'
+              }
+              className="min-h-[40px] bg-transparent outline-none border-none text-[13px] placeholder:text-gray-400 dark:placeholder:text-slate-500 resize-none leading-relaxed dark:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={channel.status === 'locked'}
+              rows={1}
+              style={{
+                width: '100%',
+                display: 'block',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
               overflowWrap: 'break-word',
               overflowY: 'hidden',
               overflowX: 'hidden',
@@ -1529,6 +1536,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                 <Send className="w-4 h-4" />
               </button>
             )}
+          </div>
           </div>
         </div>
       </div>
