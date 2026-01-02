@@ -330,7 +330,7 @@ export function MessageActionBar({
                 </>
               )}
 
-              {/* 撤回 */}
+              {/* 删除 */}
               {canRecall && onRecall && (
                 <>
                   <div className={dividerClass} />
@@ -341,7 +341,7 @@ export function MessageActionBar({
                       setShowMoreMenu(false);
                     }}
                   >
-                    <span>撤回消息</span>
+                    <span>删除信息</span>
                     <Trash2 className="w-4 h-4 opacity-80" />
                   </button>
                 </>

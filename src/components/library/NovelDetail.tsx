@@ -900,7 +900,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
                       showError('暂无可阅读章节');
                     }
                   }}
-                  className="px-8 py-3 bg-black dark:bg-slate-700 text-white text-sm hover:bg-gray-800 dark:hover:bg-slate-600 transition-colors"
+                  className="px-8 py-3 bg-black dark:bg-slate-700 text-white text-sm rounded-lg hover:bg-gray-800 dark:hover:bg-slate-600 transition-colors"
                 >
                   开始阅读
                 </button>
@@ -908,7 +908,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
                 {!isFromBookshelf && (
                   <button
                     onClick={handleToggleBookshelf}
-                    className={`px-6 py-3 border text-sm transition-colors flex items-center gap-2 ${
+                    className={`px-6 py-3 border text-sm rounded-lg transition-colors flex items-center gap-2 ${
                       isInBookshelf
                         ? 'border-red-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'
                         : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 hover:border-gray-300 dark:hover:border-slate-600 hover:text-black dark:hover:text-white'
@@ -920,7 +920,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
                 )}
                 <button
                   onClick={handleEnterBookClub}
-                  className="px-6 py-3 border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 text-sm hover:border-gray-300 dark:hover:border-slate-600 hover:text-black dark:hover:text-white transition-colors flex items-center gap-2"
+                  className="px-6 py-3 border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 text-sm rounded-lg hover:border-gray-300 dark:hover:border-slate-600 hover:text-black dark:hover:text-white transition-colors flex items-center gap-2"
                 >
                   <Users className="w-4 h-4" />
                   进入书友圈

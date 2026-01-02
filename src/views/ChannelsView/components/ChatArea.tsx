@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft, Image, MessageCircle, BookOpen, Coffee, FlaskConical, Hash } from 'lucide-react';
+import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft, Image, MessageCircle, BookOpen, Coffee, FlaskConical, Hash, Forward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -26,6 +26,7 @@ import { ToastContainer } from '@/components/ui/Toast';
 import { UserProfilePopover } from './UserProfilePopover';
 import { MessageActionBar } from './MessageActionBar';
 import { ForwardMessageDialog } from './ForwardMessageDialog';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 
 export interface Message {
   id: string;
@@ -179,6 +180,11 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   } | null>(null);
   // 可邀请的频道列表（用于右键菜单）
   const [invitableChannels, setInvitableChannels] = useState<{id: string; name: string; type: string}[]>([]);
+  // 删除消息确认弹窗状态
+  const [deleteMessageDialog, setDeleteMessageDialog] = useState<{
+    show: boolean;
+    messageId: string | null;
+  }>({ show: false, messageId: null });
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -953,14 +959,14 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     return currentTime - previousTime < 5 * 60 * 1000;
   };
 
-  // 撤回消息
+  // 删除消息
   const handleRecallMessage = async (messageId: string) => {
     try {
       await channelApi.recallMessage(channel.id, messageId);
-      // 刷新消息列表（这里假设父组件会处理）
-      window.location.reload(); // 简单实现，实际应该通过回调更新
+      // WebSocket 会广播删除事件，父组件通过 onMessageDelete 回调更新消息列表
+      showSuccess('消息已删除');
     } catch (error: any) {
-      alert(error.response?.data?.detail || '撤回失败');
+      showError(error.response?.data?.detail || '删除失败');
     }
   };
 
@@ -1531,13 +1537,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                       : new Date(message.timestamp).getTime();
                     return Date.now() - messageTime < 10 * 60 * 1000;
                   })()}
-                  canRecall={(() => {
-                    if (!isOwnMessage || !message.timestamp) return false;
-                    const messageTime = message.timestamp instanceof Date
-                      ? message.timestamp.getTime()
-                      : new Date(message.timestamp).getTime();
-                    return Date.now() - messageTime < 5 * 60 * 1000;
-                  })()}
+                  canRecall={isOwnMessage}
                   canPin={currentUser.role === 'owner' || currentUser.role === 'admin'}
                   hasImage={!!message.content?.match(/!\[.*?\]\((.+?)\)/)}
                   messageContent={message.content}
@@ -1560,9 +1560,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                     setEditContent(message.content);
                   }}
                   onRecall={() => {
-                    if (window.confirm('确定要撤回这条消息吗？')) {
-                      handleRecallMessage(message.id);
-                    }
+                    setDeleteMessageDialog({ show: true, messageId: message.id });
                   }}
                   onPin={async () => {
                     try {
@@ -1950,7 +1948,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
               const imageUrl = imageMatch?.[1];
 
               // 计算时间差
-              let canRecall = false;
+              let canRecall = isOwnMessage; // 只要是自己的消息就可以删除
               let canEdit = false;
               if (message?.timestamp) {
                 const messageTime = message.timestamp instanceof Date
@@ -1958,7 +1956,6 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   : new Date(message.timestamp).getTime();
                 const now = Date.now();
                 const timeDiff = now - messageTime;
-                canRecall = isOwnMessage && timeDiff < 5 * 60 * 1000 && timeDiff >= 0;
                 canEdit = isOwnMessage && timeDiff < 10 * 60 * 1000 && timeDiff >= 0;
               }
 
@@ -2114,6 +2111,25 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                     <Reply className="w-4 h-4 opacity-80" />
                   </button>
 
+                  {/* 转发 */}
+                  <button
+                    className={menuItemClass}
+                    onClick={() => {
+                      if (message) {
+                        setForwardingMessage({
+                          id: message.id,
+                          content: message.content,
+                          sender: message.userName,
+                          attachments: message.attachments
+                        });
+                      }
+                      setContextMenu(null);
+                    }}
+                  >
+                    <span>转发</span>
+                    <Forward className="w-4 h-4 opacity-80" />
+                  </button>
+
                   {/* 编辑 */}
                   {canEdit && (
                     <button
@@ -2185,20 +2201,18 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                     </>
                   )}
 
-                  {/* 撤回（自己的消息） */}
+                  {/* 删除（自己的消息） */}
                   {canRecall && (
                     <>
                       <div className={dividerClass} />
                       <button
                         className={menuItemDangerClass}
                         onClick={() => {
-                          if (window.confirm('确定要撤回这条消息吗？')) {
-                            handleRecallMessage(contextMenu.messageId);
-                          }
+                          setDeleteMessageDialog({ show: true, messageId: contextMenu.messageId });
                           setContextMenu(null);
                         }}
                       >
-                        <span>撤回消息</span>
+                        <span>删除信息</span>
                         <Trash2 className="w-4 h-4 opacity-80" />
                       </button>
                     </>
@@ -2542,6 +2556,22 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         messageContent={forwardingMessage?.content || ''}
         messageSender={forwardingMessage?.sender || ''}
         messageAttachments={forwardingMessage?.attachments}
+      />
+
+      {/* 删除消息确认对话框 */}
+      <ConfirmDialog
+        isOpen={deleteMessageDialog.show}
+        title="删除消息"
+        message="确定要删除这条消息吗？删除后将无法恢复。"
+        confirmText="删除"
+        cancelText="取消"
+        variant="danger"
+        onConfirm={() => {
+          if (deleteMessageDialog.messageId) {
+            handleRecallMessage(deleteMessageDialog.messageId);
+          }
+        }}
+        onCancel={() => setDeleteMessageDialog({ show: false, messageId: null })}
       />
 
       {/* 编辑对话框 */}

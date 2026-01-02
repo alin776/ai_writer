@@ -2107,29 +2107,12 @@ async def recall_message(
             detail="消息已被删除"
         )
 
-    # 如果不是创建者或管理员,进行普通用户的权限检查
+    # 如果不是创建者或管理员,检查是否是消息发送者
     if not is_creator and not is_admin:
-        # 检查是否是消息发送者
         if message.user_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="只能撤回自己的消息"
-            )
-
-        # 检查是否超过5分钟
-        from datetime import datetime, timedelta, timezone
-        time_limit = timedelta(minutes=5)
-        now = datetime.now(timezone.utc)
-
-        if message.created_at.tzinfo is None:
-            created_at = message.created_at.replace(tzinfo=timezone.utc)
-        else:
-            created_at = message.created_at
-
-        if now - created_at > time_limit:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="超过撤回时限（5分钟）"
             )
 
     # 标记为已删除

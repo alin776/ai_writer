@@ -405,23 +405,9 @@ export default function NovelSquareView() {
                   placeholder="搜索作品或作者..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-gray-400 dark:focus:border-slate-600 transition-colors"
+                  className="w-full pl-10 pr-4 py-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-white focus:outline-none focus:border-gray-400 dark:focus:border-slate-600 transition-colors"
                 />
               </div>
-              <button
-                onClick={() => {
-                  setSelectedCategory('全部');
-                  setSelectedStatus('全部');
-                  setSelectedSort('最新');
-                  setSearchQuery('');
-                  setPage(1);
-                  // 清除持久化的浏览状态
-                  clearNovelSquareBrowseState();
-                }}
-                className="px-4 py-2 bg-black dark:bg-slate-700 text-white text-sm hover:bg-gray-800 dark:hover:bg-slate-600 transition-colors"
-              >
-                重置
-              </button>
             </div>
 
             <div className="flex items-center gap-2">
@@ -429,7 +415,7 @@ export default function NovelSquareView() {
                 <button
                   key={category}
                   onClick={() => setSelectedCategory(category)}
-                  className={`px-3 py-1 text-sm transition-colors ${
+                  className={`px-3 py-1 text-sm rounded-lg transition-colors ${
                     selectedCategory === category
                       ? 'bg-black dark:bg-slate-700 text-white'
                       : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700'
@@ -445,7 +431,7 @@ export default function NovelSquareView() {
                 <button
                   key={status}
                   onClick={() => setSelectedStatus(status)}
-                  className={`px-3 py-1 text-sm transition-colors ${
+                  className={`px-3 py-1 text-sm rounded-lg transition-colors ${
                     selectedStatus === status
                       ? 'bg-black dark:bg-slate-700 text-white'
                       : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700'
@@ -461,7 +447,7 @@ export default function NovelSquareView() {
                 <button
                   key={sort}
                   onClick={() => setSelectedSort(sort)}
-                  className={`px-3 py-1 text-sm transition-colors ${
+                  className={`px-3 py-1 text-sm rounded-lg transition-colors ${
                     selectedSort === sort
                       ? 'bg-black dark:bg-slate-700 text-white'
                       : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700'
