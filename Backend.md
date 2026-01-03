@@ -1,68 +1,179 @@
-﻿cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:15,532 - app.api.v1.ws - WARNING - [Channel WS] 广播失败: 频道 3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0 无活跃连接
-INFO:     connection closed
-INFO:     ('127.0.0.1', 54057) - "WebSocket /api/v1/ws/channels/3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3OTkxM2U3ZS1kNWNkLTRlMDktYmNlNi1jYTY2MzliZDg0NTYiLCJleHAiOjE3NjczNDg0MTAsInR5cGUiOiJhY2Nlc3MifQ.BQ0qDal9vtxNlcAh1gFALM5HRRmlZAEctAN1aZmTnT8" [accepted]
-2026-01-02 17:43:15,549 - app.api.v1.ws - INFO - [Channel WS] 连接建立: channel=3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, user=79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:15,549 - app.api.v1.ws - INFO - [Channel WS] 广播消息到频道 3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, 在线用户: 1, 排除用户: 79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:15,549 - app.api.v1.ws - INFO - [Channel WS] 广播完成, 成功发送: 0, 断开连接: 0
-INFO:     connection open
-2026-01-02 17:43:18,536 - app.api.v1.ws - INFO - [Channel WS] 连接断开: channel=3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, user=79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:18,536 - app.api.v1.ws - WARNING - [Channel WS] 广播失败: 频道 3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0 无活跃连接
-INFO:     connection closed
-INFO:     ('127.0.0.1', 56387) - "WebSocket /api/v1/ws/channels/3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3OTkxM2U3ZS1kNWNkLTRlMDktYmNlNi1jYTY2MzliZDg0NTYiLCJleHAiOjE3NjczNDg0MTAsInR5cGUiOiJhY2Nlc3MifQ.BQ0qDal9vtxNlcAh1gFALM5HRRmlZAEctAN1aZmTnT8" [accepted]
-2026-01-02 17:43:18,544 - app.api.v1.ws - INFO - [Channel WS] 连接建立: channel=3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, user=79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:18,544 - app.api.v1.ws - INFO - [Channel WS] 广播消息到频道 3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, 在线用户: 1, 排除用户: 79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:18,544 - app.api.v1.ws - INFO - [Channel WS] 广播完成, 成功发送: 0, 断开连接: 0
-INFO:     connection open
-2026-01-02 17:43:21,538 - app.api.v1.ws - INFO - [Channel WS] 连接断开: channel=3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, user=79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:21,539 - app.api.v1.ws - WARNING - [Channel WS] 广播失败: 频道 3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0 无活跃连接
-INFO:     connection closed
-INFO:     ('127.0.0.1', 60376) - "WebSocket /api/v1/ws/channels/3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3OTkxM2U3ZS1kNWNkLTRlMDktYmNlNi1jYTY2MzliZDg0NTYiLCJleHAiOjE3NjczNDg0MTAsInR5cGUiOiJhY2Nlc3MifQ.BQ0qDal9vtxNlcAh1gFALM5HRRmlZAEctAN1aZmTnT8" [accepted]
-2026-01-02 17:43:21,553 - app.api.v1.ws - INFO - [Channel WS] 连接建立: channel=3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, user=79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:21,554 - app.api.v1.ws - INFO - [Channel WS] 广播消息到频道 3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, 在线用户: 1, 排除用户: 79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:21,555 - app.api.v1.ws - INFO - [Channel WS] 广播完成, 成功发送: 0, 断开连接: 0
-INFO:     connection open
-2026-01-02 17:43:24,540 - app.api.v1.ws - INFO - [Channel WS] 连接断开: channel=3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, user=79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:24,541 - app.api.v1.ws - WARNING - [Channel WS] 广播失败: 频道 3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0 无活跃连接
-INFO:     connection closed
-INFO:     ('127.0.0.1', 63041) - "WebSocket /api/v1/ws/channels/3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3OTkxM2U3ZS1kNWNkLTRlMDktYmNlNi1jYTY2MzliZDg0NTYiLCJleHAiOjE3NjczNDg0MTAsInR5cGUiOiJhY2Nlc3MifQ.BQ0qDal9vtxNlcAh1gFALM5HRRmlZAEctAN1aZmTnT8" [accepted]
-2026-01-02 17:43:24,557 - app.api.v1.ws - INFO - [Channel WS] 连接建立: channel=3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, user=79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:24,557 - app.api.v1.ws - INFO - [Channel WS] 广播消息到频道 3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, 在线用户: 1, 排除用户: 79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:24,557 - app.api.v1.ws - INFO - [Channel WS] 广播完成, 成功发送: 0, 断开连接: 0
-INFO:     connection open
-2026-01-02 17:43:27,541 - app.api.v1.ws - INFO - [Channel WS] 连接断开: channel=3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, user=79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:27,542 - app.api.v1.ws - WARNING - [Channel WS] 广播失败: 频道 3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0 无活跃连接
-INFO:     connection closed
-INFO:     ('127.0.0.1', 61161) - "WebSocket /api/v1/ws/channels/3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3OTkxM2U3ZS1kNWNkLTRlMDktYmNlNi1jYTY2MzliZDg0NTYiLCJleHAiOjE3NjczNDg0MTAsInR5cGUiOiJhY2Nlc3MifQ.BQ0qDal9vtxNlcAh1gFALM5HRRmlZAEctAN1aZmTnT8" [accepted]
-2026-01-02 17:43:27,559 - app.api.v1.ws - INFO - [Channel WS] 连接建立: channel=3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, user=79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:27,561 - app.api.v1.ws - INFO - [Channel WS] 广播消息到频道 3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, 在线用户: 1, 排除用户: 79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:27,561 - app.api.v1.ws - INFO - [Channel WS] 广播完成, 成功发送: 0, 断开连接: 0
-INFO:     connection open
-2026-01-02 17:43:27,565 - app.api.middleware.monitoring_middleware - INFO - API请求完成: GET /api/v1/channels/unread-summary
-INFO:     127.0.0.1:61163 - "GET /api/v1/channels/unread-summary HTTP/1.1" 200 OK
-2026-01-02 17:43:28,542 - app.api.middleware.monitoring_middleware - INFO - API请求完成: GET /api/v1/friends/requests/count
-INFO:     127.0.0.1:53571 - "GET /api/v1/friends/requests/count HTTP/1.1" 200 OK
-2026-01-02 17:43:30,539 - app.api.v1.ws - INFO - [Channel WS] 连接断开: channel=3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, user=79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:30,540 - app.api.v1.ws - WARNING - [Channel WS] 广播失败: 频道 3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0 无活跃连接
-INFO:     connection closed
-INFO:     ('127.0.0.1', 62506) - "WebSocket /api/v1/ws/channels/3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3OTkxM2U3ZS1kNWNkLTRlMDktYmNlNi1jYTY2MzliZDg0NTYiLCJleHAiOjE3NjczNDg0MTAsInR5cGUiOiJhY2Nlc3MifQ.BQ0qDal9vtxNlcAh1gFALM5HRRmlZAEctAN1aZmTnT8" [accepted]
-2026-01-02 17:43:30,553 - app.api.v1.ws - INFO - [Channel WS] 连接建立: channel=3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, user=79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:30,554 - app.api.v1.ws - INFO - [Channel WS] 广播消息到频道 3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, 在线用户: 1, 排除用户: 79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:30,555 - app.api.v1.ws - INFO - [Channel WS] 广播完成, 成功发送: 0, 断开连接: 0
-INFO:     connection open
-2026-01-02 17:43:33,528 - app.api.v1.ws - INFO - [Channel WS] 连接断开: channel=3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, user=79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:33,530 - app.api.v1.ws - WARNING - [Channel WS] 广播失败: 频道 3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0 无活跃连接
-INFO:     connection closed
-INFO:     ('127.0.0.1', 64308) - "WebSocket /api/v1/ws/channels/3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3OTkxM2U3ZS1kNWNkLTRlMDktYmNlNi1jYTY2MzliZDg0NTYiLCJleHAiOjE3NjczNDg0MTAsInR5cGUiOiJhY2Nlc3MifQ.BQ0qDal9vtxNlcAh1gFALM5HRRmlZAEctAN1aZmTnT8" [accepted]
-2026-01-02 17:43:33,548 - app.api.v1.ws - INFO - [Channel WS] 连接建立: channel=3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, user=79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:33,549 - app.api.v1.ws - INFO - [Channel WS] 广播消息到频道 3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, 在线用户: 1, 排除用户: 79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:33,549 - app.api.v1.ws - INFO - [Channel WS] 广播完成, 成功发送: 0, 断开连接: 0
-INFO:     connection open
-2026-01-02 17:43:36,528 - app.api.v1.ws - INFO - [Channel WS] 连接断开: channel=3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, user=79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:36,528 - app.api.v1.ws - WARNING - [Channel WS] 广播失败: 频道 3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0 无活跃连接
-INFO:     connection closed
-INFO:     ('127.0.0.1', 59678) - "WebSocket /api/v1/ws/channels/3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3OTkxM2U3ZS1kNWNkLTRlMDktYmNlNi1jYTY2MzliZDg0NTYiLCJleHAiOjE3NjczNDg0MTAsInR5cGUiOiJhY2Nlc3MifQ.BQ0qDal9vtxNlcAh1gFALM5HRRmlZAEctAN1aZmTnT8" [accepted]
-2026-01-02 17:43:36,544 - app.api.v1.ws - INFO - [Channel WS] 连接建立: channel=3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, user=79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:36,544 - app.api.v1.ws - INFO - [Channel WS] 广播消息到频道 3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0, 在线用户: 1, 排除用户: 79913e7e-d5cd-4e09-bce6-ca6639bd8456
-2026-01-02 17:43:36,546 - app.api.v1.ws - INFO - [Channel WS] 广播完成, 成功发送: 0, 断开连接: 0
-INFO:     connection open
+﻿INFO:     127.0.0.1:49957 - "GET /api/v1/channels/3749ebb4-a2d6-4ab8-aa14-cf6c26611fc0/messages/around/a1b34164-a44e-4269-8f7f-e90b5aa8e83c?params%5Blimit%5D=50 HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+  + Exception Group Traceback (most recent call last):
+  |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\_utils.py", line 85, in collapse_excgroups
+  |     yield
+  |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 190, in __call__
+  |     async with anyio.create_task_group() as task_group:
+  |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 781, in __aexit__
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\uvicorn\protocols\http\httptools_impl.py", line 419, in run_asgi
+    |     result = await app(  # type: ignore[func-returns-value]
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\uvicorn\middleware\proxy_headers.py", line 84, in __call__
+    |     return await self.app(scope, receive, send)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\fastapi\applications.py", line 1054, in __call__
+    |     await super().__call__(scope, receive, send)
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\applications.py", line 123, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 186, in __call__
+    |     raise exc
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 189, in __call__
+    |     with collapse_excgroups():
+    |   File "C:\Program Files\Python312\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(value)
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\_utils.py", line 91, in collapse_excgroups
+    |     raise exc
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Java\ai_writer\backend\app\api\middleware\trace_middleware.py", line 48, in dispatch
+    |     response = await call_next(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 165, in call_next
+    |     raise app_exc
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 151, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 189, in __call__
+    |     with collapse_excgroups():
+    |   File "C:\Program Files\Python312\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(value)
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\_utils.py", line 91, in collapse_excgroups
+    |     raise exc
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Java\ai_writer\backend\app\api\middleware\monitoring_middleware.py", line 68, in dispatch
+    |     response = await call_next(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 165, in call_next
+    |     raise app_exc
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 151, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 83, in __call__
+    |     await self.app(scope, receive, send)
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    |     raise exc
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\routing.py", line 762, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\routing.py", line 782, in app
+    |     await route.handle(scope, receive, send)
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\routing.py", line 297, in handle
+    |     await self.app(scope, receive, send)
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\routing.py", line 77, in app
+    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    |     raise exc
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\routing.py", line 72, in app
+    |     response = await func(request)
+    |                ^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\fastapi\routing.py", line 299, in app
+    |     raise e
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\fastapi\routing.py", line 294, in app
+    |     raw_response = await run_endpoint_function(
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\fastapi\routing.py", line 191, in run_endpoint_function
+    |     return await dependant.call(**values)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Java\ai_writer\backend\app\api\v1\channels.py", line 1461, in get_messages_around
+    |     message_type=msg.message_type,
+    |                  ^^^^^^^^^^^^^^^^
+    | AttributeError: 'ChannelMessage' object has no attribute 'message_type'
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\uvicorn\protocols\http\httptools_impl.py", line 419, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\uvicorn\middleware\proxy_headers.py", line 84, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\fastapi\applications.py", line 1054, in __call__
+    await super().__call__(scope, receive, send)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\applications.py", line 123, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 186, in __call__
+    raise exc
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 189, in __call__
+    with collapse_excgroups():
+  File "C:\Program Files\Python312\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(value)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\_utils.py", line 91, in collapse_excgroups
+    raise exc
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\app\api\middleware\trace_middleware.py", line 48, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 165, in call_next
+    raise app_exc
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 151, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 189, in __call__
+    with collapse_excgroups():
+  File "C:\Program Files\Python312\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(value)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\_utils.py", line 91, in collapse_excgroups
+    raise exc
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\app\api\middleware\monitoring_middleware.py", line 68, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 165, in call_next
+    raise app_exc
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 151, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 83, in __call__
+    await self.app(scope, receive, send)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\routing.py", line 762, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\routing.py", line 782, in app
+    await route.handle(scope, receive, send)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\routing.py", line 297, in handle
+    await self.app(scope, receive, send)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\routing.py", line 77, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\routing.py", line 72, in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\fastapi\routing.py", line 299, in app
+    raise e
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\fastapi\routing.py", line 294, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\fastapi\routing.py", line 191, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\app\api\v1\channels.py", line 1461, in get_messages_around
+    message_type=msg.message_type,
+                 ^^^^^^^^^^^^^^^^
+AttributeError: 'ChannelMessage' object has no attribute 'message_type'

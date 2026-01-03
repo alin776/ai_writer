@@ -2457,119 +2457,6 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         );
       })()}
 
-      {/* 作品频道侧边栏 */}
-      {showSidebar && (
-        <>
-          {/* 遮罩层 */}
-          <div
-            className="absolute inset-0 bg-black/20 z-40"
-            onClick={() => setShowSidebar(false)}
-          />
-
-          {/* 侧边栏 */}
-          <div className="absolute right-0 top-0 bottom-0 w-80 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 z-50 flex flex-col shadow-2xl">
-            {/* 关闭按钮 */}
-            <button
-              onClick={() => setShowSidebar(false)}
-              className="absolute top-3 right-3 p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
-            >
-              <X className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-            </button>
-
-            {/* 作品信息 */}
-            {channel.type === 'work' && (
-              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                <div className="flex gap-3">
-                  <img
-                    src={channel.coverImage || '/default-cover.jpg'}
-                    alt={channel.bookTitle || channel.name}
-                    className="w-16 h-22 bg-gray-100 dark:bg-gray-800 rounded flex-shrink-0 object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = '/default-cover.jpg';
-                    }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm mb-1 truncate dark:text-gray-100" title={channel.bookTitle || channel.name}>{channel.bookTitle || channel.name}</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">作者:{channel.author || '佚名'}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">收藏 {channel.collectCount || 0}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* 频道信息 */}
-            {channel.type !== 'work' && (
-              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                <h3 className="text-sm mb-2 dark:text-gray-100">
-                  {channel.type === 'private' ? (privateChatPartnerName || '私聊') : channel.name}
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {channel.type === 'private' ? '私聊对话' : (channel.description || '暂无描述')}
-                </p>
-              </div>
-            )}
-
-            {/* 管理选项 */}
-            <div className="flex-1 overflow-y-auto">
-              <div className="p-4">
-                <h4 className="text-xs text-gray-500 dark:text-gray-400 mb-3">频道管理</h4>
-                <div className="space-y-1">
-                  {/* 管理成员按钮 - owner/admin 可见（官方频道、粉丝群、作品频道） */}
-                  {(currentUser.role === 'owner' || currentUser.role === 'admin') &&
-                   (channel.type === 'official' || channel.type === 'fangroup' || channel.type === 'work') && (
-                    <button
-                      onClick={() => setShowMemberDialog(true)}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-800 rounded dark:text-gray-200"
-                    >
-                      <Users className="w-3.5 h-3.5" />
-                      管理成员
-                    </button>
-                  )}
-
-                  {/* 粉丝群 - 创作者专属：解散频道 */}
-                  {currentUser.isCreator && channel.type === 'fangroup' && (
-                    <button
-                      onClick={onLeaveChannel}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      解散频道
-                    </button>
-                  )}
-
-                  {/* 粉丝群 - 非创建者：退出频道 */}
-                  {!currentUser.isCreator && channel.type === 'fangroup' && (
-                    <button
-                      onClick={onLeaveChannel}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      退出频道
-                    </button>
-                  )}
-
-                  {/* 作品频道 - 都显示退出选项 */}
-                  {channel.type === 'work' && (
-                    <button
-                      onClick={onLeaveChannel}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      退出频道
-                    </button>
-                  )}
-
-                  {/* 官方频道 - 不可退出 */}
-                  {channel.type === 'official' && (
-                    <p className="text-xs text-gray-400 dark:text-gray-500 px-3 py-2">官方频道无法退出</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
       {/* 成员管理对话框 */}
       <MemberManagementDialog
         isOpen={showMemberDialog}
@@ -2860,6 +2747,116 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                 });
               }}
             />
+          )}
+
+          {/* 频道详情侧边栏 - 使用 flex 布局而非绝对定位 */}
+          {showSidebar && (
+            <div className="w-60 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0">
+              {/* 作品信息 */}
+              {channel.type === 'work' && (
+                <div className="p-4 border-b border-gray-100 dark:border-gray-700 relative">
+                  {/* 关闭按钮 */}
+                  <button
+                    onClick={() => setShowSidebar(false)}
+                    className="absolute top-2 right-2 p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+                  >
+                    <X className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                  </button>
+                  <div className="flex gap-3">
+                    <img
+                      src={channel.coverImage || '/default-cover.jpg'}
+                      alt={channel.bookTitle || channel.name}
+                      className="w-16 h-22 bg-gray-100 dark:bg-gray-800 rounded flex-shrink-0 object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/default-cover.jpg';
+                      }}
+                    />
+                    <div className="flex-1 min-w-0 pr-6">
+                      <h3 className="text-sm mb-1 truncate dark:text-gray-100" title={channel.bookTitle || channel.name}>{channel.bookTitle || channel.name}</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">作者:{channel.author || '佚名'}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">收藏 {channel.collectCount || 0}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 频道信息 */}
+              {channel.type !== 'work' && (
+                <div className="p-4 border-b border-gray-100 dark:border-gray-700 relative">
+                  {/* 关闭按钮 */}
+                  <button
+                    onClick={() => setShowSidebar(false)}
+                    className="absolute top-2 right-2 p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+                  >
+                    <X className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                  </button>
+                  <h3 className="text-sm font-medium mb-2 dark:text-gray-100 pr-6">
+                    {channel.type === 'private' ? (privateChatPartnerName || '私聊') : channel.name}
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {channel.type === 'private' ? '私聊对话' : (channel.description || '暂无描述')}
+                  </p>
+                </div>
+              )}
+
+              {/* 管理选项 */}
+              <div className="flex-1 overflow-y-auto">
+                <div className="p-4">
+                  <h4 className="text-xs text-gray-500 dark:text-gray-400 mb-3">频道管理</h4>
+                  <div className="space-y-1">
+                    {/* 管理成员按钮 - owner/admin 可见（官方频道、粉丝群、作品频道） */}
+                    {(currentUser.role === 'owner' || currentUser.role === 'admin') &&
+                     (channel.type === 'official' || channel.type === 'fangroup' || channel.type === 'work') && (
+                      <button
+                        onClick={() => setShowMemberDialog(true)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-800 rounded dark:text-gray-200"
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        管理成员
+                      </button>
+                    )}
+
+                    {/* 粉丝群 - 创作者专属：解散频道 */}
+                    {currentUser.isCreator && channel.type === 'fangroup' && (
+                      <button
+                        onClick={onLeaveChannel}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        解散频道
+                      </button>
+                    )}
+
+                    {/* 粉丝群 - 非创建者：退出频道 */}
+                    {!currentUser.isCreator && channel.type === 'fangroup' && (
+                      <button
+                        onClick={onLeaveChannel}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        退出频道
+                      </button>
+                    )}
+
+                    {/* 作品频道 - 都显示退出选项 */}
+                    {channel.type === 'work' && (
+                      <button
+                        onClick={onLeaveChannel}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        退出频道
+                      </button>
+                    )}
+
+                    {/* 官方频道 - 不可退出 */}
+                    {channel.type === 'official' && (
+                      <p className="text-xs text-gray-400 dark:text-gray-500 px-3 py-2">官方频道无法退出</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>
