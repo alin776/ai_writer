@@ -115,7 +115,38 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
   );
 };
 
-type AtCommandStage = 'root' | 'knowledge';
+type AtCommandStage = 'root' | 'knowledge' | 'optimization';
+
+// 去痕迹强度选项
+type OptimizationIntensity = 'light' | 'medium' | 'strong';
+
+interface IntensityOption {
+  key: OptimizationIntensity;
+  label: string;
+  description: string;
+  changePercent: string;
+}
+
+const INTENSITY_OPTIONS: IntensityOption[] = [
+  {
+    key: 'light',
+    label: '轻度',
+    description: '仅去除明显AI套话，保持原文风格',
+    changePercent: '~5%',
+  },
+  {
+    key: 'medium',
+    label: '中度',
+    description: '平衡自然度与内容保留，推荐使用',
+    changePercent: '~20%',
+  },
+  {
+    key: 'strong',
+    label: '强度',
+    description: '深度重构句式，最大化自然度',
+    changePercent: '~40%',
+  },
+];
 
 type RootCommandOption = {
   key: 'knowledge' | 'optimization';
@@ -138,6 +169,7 @@ const ROOT_OPTIONS: RootCommandOption[] = [
     label: '@optimization',
     description: '开启 AI 去痕迹优化',
     icon: <Sparkles className="w-4 h-4" />,
+    hasChildren: true,
   },
 ];
 
@@ -211,6 +243,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
   const [selectedDocs, setSelectedDocs] = useState<Array<{ id: string; title: string }>>([]);
   const [optimizationSelected, setOptimizationSelected] = useState(false);
+  const [selectedIntensity, setSelectedIntensity] = useState<OptimizationIntensity | null>(null);
   const [selectionContext, setSelectionContext] = useState<{
     selected_text?: string;
     selected_text_html?: string;
@@ -661,19 +694,34 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   const handleRootOption = useCallback(
     (option: RootCommandOption) => {
       if (option.key === 'optimization') {
-        setOptimizationSelected(true);
-        setInputValue(stripCurrentToken());
-        closeAtMenu();
-        requestAnimationFrame(() => inputRef.current?.focus());
+        setAtStage('optimization');
+        setAtQuery('');
+        setHighlightIndex(0);
+        setAtMenuOpen(true);
+        repositionMenu();
         return;
       }
-      setAtStage('knowledge');
-      setAtQuery('');
-      setHighlightIndex(0);
-      setAtMenuOpen(true);
-      repositionMenu();
+      if (option.key === 'knowledge') {
+        setAtStage('knowledge');
+        setAtQuery('');
+        setHighlightIndex(0);
+        setAtMenuOpen(true);
+        repositionMenu();
+        return;
+      }
     },
-    [closeAtMenu, repositionMenu, stripCurrentToken]
+    [repositionMenu]
+  );
+
+  const handleOptimizationSelect = useCallback(
+    (intensity: IntensityOption) => {
+      setOptimizationSelected(true);
+      setSelectedIntensity(intensity.key);
+      setInputValue(stripCurrentToken());
+      closeAtMenu();
+      requestAnimationFrame(() => inputRef.current?.focus());
+    },
+    [closeAtMenu, stripCurrentToken]
   );
 
   const handleKnowledgeSelect = useCallback(
@@ -723,6 +771,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
   const removeOptimization = useCallback(() => {
     setOptimizationSelected(false);
+    setSelectedIntensity(null);
   }, []);
 
   const handleSend = async () => {
@@ -769,6 +818,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         chapter_context: chapterId ? `当前章节ID: ${chapterId}` : undefined,
         knowledge_doc_ids: knowledgeDocIds,
         use_optimization: useOptimization,
+        intensity: selectedIntensity || 'medium',
         ...selectionPayload,
         ...(useOptimization && safeChapterContent
           ? {
@@ -787,6 +837,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     adjustInputHeight();
     setSelectedDocs([]);
     setOptimizationSelected(false);
+    setSelectedIntensity(null);
     setSelectionContext(null);
 
     // 发送成功后清除该会话的草稿
@@ -806,7 +857,11 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      const options = atStage === 'root' ? filteredRootOptions : filteredKnowledgeDocs;
+      const options = atStage === 'root'
+        ? filteredRootOptions
+        : atStage === 'optimization'
+        ? INTENSITY_OPTIONS
+        : filteredKnowledgeDocs;
       const hasOptions = options.length > 0;
 
       if (atMenuOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
@@ -827,6 +882,8 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
           const option = options[Math.min(highlightIndex, options.length - 1)];
           if (atStage === 'root') {
             handleRootOption(option as RootCommandOption);
+          } else if (atStage === 'optimization') {
+            handleOptimizationSelect(option as IntensityOption);
           } else {
             handleKnowledgeSelect(option as { id: string; title: string });
           }
@@ -862,6 +919,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       filteredKnowledgeDocs,
       filteredRootOptions,
       handleKnowledgeSelect,
+      handleOptimizationSelect,
       handleRootOption,
       handleSend,
       highlightIndex,
@@ -1187,7 +1245,12 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
             {optimizationSelected && (
               <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
                 <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
-                optimization
+                AI去痕迹
+                {selectedIntensity && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-300">
+                    {INTENSITY_OPTIONS.find(i => i.key === selectedIntensity)?.label || '中度'}
+                  </span>
+                )}
                 <button
                   type="button"
                   className="hover:text-zinc-900 transition-colors"
@@ -1316,6 +1379,20 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                       <ChevronLeft className="w-4 h-4" />
                       返回
                     </button>
+                  ) : atStage === 'optimization' ? (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setAtStage('root');
+                        setHighlightIndex(0);
+                        setAtQuery('');
+                      }}
+                      className="inline-flex items-center gap-1 text-slate-300 hover:text-white transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      返回
+                    </button>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-slate-300">
                       <Sparkles className="w-4 h-4" />
@@ -1323,7 +1400,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                     </span>
                   )}
                   <span className="text-slate-400 text-[11px]">
-                    {atStage === 'knowledge' ? '选择要引用的知识库文档' : '选择指令或继续输入'}
+                    {atStage === 'knowledge' ? '选择要引用的知识库文档' : atStage === 'optimization' ? '选择去痕强度' : '选择指令或继续输入'}
                   </span>
                 </div>
                 <span className="text-[10px] text-slate-500">Enter 选中 · ↑↓ 移动</span>
@@ -1356,6 +1433,44 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                   ) : (
                     <div className="px-3 py-2 text-[12px] text-slate-400">没有匹配的指令</div>
                   )
+                ) : atStage === 'optimization' ? (
+                  <div className="space-y-1">
+                    {INTENSITY_OPTIONS.map((intensity, idx) => {
+                      const isCurrentSelection = selectedIntensity === intensity.key;
+                      return (
+                        <button
+                          key={intensity.key}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => handleOptimizationSelect(intensity)}
+                          onMouseEnter={() => setHighlightIndex(idx)}
+                          className={`w-full px-3 py-2.5 flex items-center justify-between text-left transition-colors ${
+                            isCurrentSelection
+                              ? 'bg-purple-900/40 border-l-2 border-purple-400'
+                              : idx === highlightIndex
+                              ? 'bg-slate-800/80 border-l-2 border-slate-500'
+                              : 'hover:bg-slate-800/60'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Sparkles className={`w-4 h-4 ${isCurrentSelection ? 'text-purple-400' : 'text-slate-200'}`} />
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[12px] text-white">{intensity.label}</span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400">
+                                  {intensity.changePercent}
+                                </span>
+                              </div>
+                              <span className="text-[11px] text-slate-400">{intensity.description}</span>
+                            </div>
+                          </div>
+                          {isCurrentSelection && (
+                            <span className="text-[10px] text-purple-400 font-medium">当前</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 ) : (
                   <div className="space-y-1">
                     {knowledgeLoading && (
