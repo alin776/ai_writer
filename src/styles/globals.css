@@ -838,3 +838,39 @@ select option {
     clip-path: circle(var(--theme-toggle-radius, 100vmax) at var(--theme-toggle-x, 50%) var(--theme-toggle-y, 50%));
   }
 }
+
+/* 侧边栏细滚动条样式 */
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.4);
+  border-radius: 2px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.6);
+}
+
+.dark .sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.5);
+}
+
+.dark .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.7);
+}
+
+/* Firefox */
+.sidebar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.4) transparent;
+}
+
+.dark .sidebar-scrollbar {
+  scrollbar-color: rgba(100, 116, 139, 0.5) transparent;
+}

@@ -113,6 +113,7 @@ async def get_work_comments(
     work_id: str,
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
+    sort_by: str = Query("newest", regex="^(newest|most_liked)$"),
     current_user: Optional[User] = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -122,6 +123,7 @@ async def get_work_comments(
     - **work_id**: 作品ID
     - **skip**: 跳过的记录数
     - **limit**: 每页数量
+    - **sort_by**: 排序方式 (newest=最新, most_liked=最热)
     """
     # 验证作品是否存在且已发布
     work_result = await db.execute(
@@ -145,6 +147,12 @@ async def get_work_comments(
     )
     total = count_result.scalar() or 0
 
+    # 根据排序方式设置排序条件
+    if sort_by == "most_liked":
+        order_clause = Comment.like_count.desc()
+    else:  # newest
+        order_clause = Comment.created_at.desc()
+
     # 查询顶级评论（分页）
     top_comments_result = await db.execute(
         select(Comment)
@@ -157,7 +165,7 @@ async def get_work_comments(
             selectinload(Comment.user),
             selectinload(Comment.reply_to_user)
         )
-        .order_by(Comment.created_at.desc())
+        .order_by(order_clause)
         .offset(skip)
         .limit(limit)
     )

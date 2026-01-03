@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Hash, Lock, Users, MessageCircle, BookOpen, Coffee, FlaskConical, ChevronDown, ChevronRight, Bell, Plus, X, Search, AtSign, Edit2, UserPlus, User, Inbox } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { channelApi, UnreadSummary } from '@/services/channelApi';
 import friendApi, { FriendshipResponse, FriendRequest as FriendRequestType, UserSearchResult } from '@/services/friendApi';
@@ -81,6 +80,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
   const [searchTab, setSearchTab] = useState<'all' | 'users' | 'channels'>('all');
   const [searchUsers, setSearchUsers] = useState<UserSearchResult[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const [isListScrolled, setIsListScrolled] = useState(false); // 列表是否滚动
 
   // 获取未读数据
   useEffect(() => {
@@ -343,7 +343,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
       <button
         onClick={handleChannelClick}
         className={cn(
-          "w-full flex items-center gap-2 px-2 py-2 rounded transition-colors group relative overflow-hidden",
+          "w-full flex items-center gap-2 px-2 py-2 rounded-lg transition-colors group relative overflow-hidden",
           isActive ? "bg-gray-200 text-gray-900 dark:bg-zinc-700 dark:text-gray-100" : "hover:bg-gray-50 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-300"
         )}
       >
@@ -427,7 +427,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
     return (
       <button
         onClick={() => toggleSection(section)}
-        className="w-full flex items-center gap-1.5 px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded transition-colors group"
+        className="w-full flex items-center gap-1.5 px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors group"
       >
         {isExpanded ? (
           <ChevronDown className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
@@ -472,7 +472,10 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
   return (
     <div className="border-r border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 flex flex-col h-full w-56 min-w-56">
       {/* 顶部搜索框和+按钮 */}
-      <div className="p-2 border-b border-gray-100 dark:border-gray-700">
+      <div className={cn(
+        "p-2 border-b transition-colors",
+        isListScrolled ? "border-gray-100 dark:border-gray-700" : "border-transparent"
+      )}>
         <div className="flex items-center gap-1">
           <div className="flex-1 relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
@@ -487,7 +490,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                   debouncedRefreshAvailable();
                 }
               }}
-              className="w-full pl-7 pr-7 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-300 dark:focus:border-gray-500"
+              className="w-full pl-7 pr-7 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-300 dark:focus:border-gray-500"
             />
             {/* 清除按钮 */}
             {localSearchQuery && (
@@ -539,7 +542,10 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
 
       {/* 搜索结果面板 或 频道列表 */}
       {localSearchQuery.trim() ? (
-        <ScrollArea className="flex-1">
+        <div
+          className="flex-1 overflow-y-auto sidebar-scrollbar"
+          onScroll={(e) => setIsListScrolled(e.currentTarget.scrollTop > 0)}
+        >
           <div className="p-2">
             {/* 我的频道 */}
             {(officialChannels.length > 0 || fangroupChannels.length > 0 || workChannels.length > 0) && (
@@ -571,7 +577,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                           }
                         }}
                         className={cn(
-                          "w-full flex items-center gap-2 px-2 py-2 rounded transition-colors",
+                          "w-full flex items-center gap-2 px-2 py-2 rounded-lg transition-colors",
                           isActive
                             ? "bg-gray-200 text-gray-900 dark:bg-zinc-700 dark:text-gray-100"
                             : "hover:bg-gray-50 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-300"
@@ -658,9 +664,12 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
       ) : (
-        <ScrollArea className="flex-1">
+        <div
+          className="flex-1 overflow-y-auto sidebar-scrollbar"
+          onScroll={(e) => setIsListScrolled(e.currentTarget.scrollTop > 0)}
+        >
           <div className="space-y-0.5 p-2">
             {/* 官方频道 */}
             <SectionHeader title="官方" section="official" count={channels.filter(c => c.type === 'official').length} />
@@ -676,7 +685,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
             {pendingRequestCount > 0 && (
               <button
                 onClick={() => setShowFriendRequests(true)}
-                className="w-full flex items-center gap-2 px-2 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded transition-colors text-gray-700 dark:text-gray-300"
+                className="w-full flex items-center gap-2 px-2 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded-lg transition-colors text-gray-700 dark:text-gray-300"
               >
                 <div className="shrink-0 w-5 h-5 flex items-center justify-center">
                   <Users className="w-4 h-4 text-gray-500 dark:text-gray-400" />
@@ -693,7 +702,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
               <>
                 <button
                   onClick={() => setExpandedSections(prev => ({ ...prev, friends: !prev.friends }))}
-                  className="w-full flex items-center gap-1.5 px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded transition-colors group"
+                  className="w-full flex items-center gap-1.5 px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors group"
                 >
                   {expandedSections.friends ? (
                     <ChevronDown className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
@@ -713,7 +722,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                           key={item.id}
                           onClick={() => item.privateChannelId && onChannelSelect(item.privateChannelId)}
                           className={cn(
-                            "w-full flex items-center gap-2 px-2 py-2 rounded transition-colors ml-1",
+                            "w-full flex items-center gap-2 px-2 py-2 rounded-lg transition-colors ml-1",
                             isActive
                               ? "bg-gray-200 text-gray-900 dark:bg-zinc-700 dark:text-gray-100"
                               : "hover:bg-gray-50 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-300"
@@ -768,7 +777,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
       )}
 
       {/* 加入频道弹窗 */}

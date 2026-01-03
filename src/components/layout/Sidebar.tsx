@@ -76,6 +76,7 @@ export const Sidebar: React.FC = () => {
   const [isQRCodeOpen, setIsQRCodeOpen] = useState(false);
   const [hasChannelMention, setHasChannelMention] = useState(false); // 频道是否有@提醒
   const [channelUnreadCount, setChannelUnreadCount] = useState(0); // 频道未读消息总数
+  const [isNavScrolled, setIsNavScrolled] = useState(false); // 导航区域是否滚动
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // 获取频道未读状态
@@ -161,7 +162,7 @@ export const Sidebar: React.FC = () => {
         key={item.id}
         to={item.path}
         className={clsx(
-          'group relative flex items-center px-3 py-2 rounded transition-all duration-200 !text-gray-900 dark:!text-white',
+          'group relative flex items-center px-3 py-2 rounded-lg transition-all duration-200 !text-gray-900 dark:!text-white',
           active
             ? 'bg-blue-50 dark:bg-blue-900/30'
             : 'hover:bg-gray-100 dark:hover:bg-slate-800',
@@ -169,7 +170,6 @@ export const Sidebar: React.FC = () => {
         )}
         title={isCollapsed ? tooltip : undefined}
       >
-        {active && <div className="absolute left-0 top-1 bottom-1 w-1 bg-blue-600 dark:bg-blue-400 rounded-r"></div>}
         <div className="relative flex-shrink-0">
           <Icon className={clsx(isCollapsed ? 'w-5 h-5' : 'w-4 h-4', 'text-gray-900 dark:text-white')} />
           {/* 频道@提醒红点 - 优先级最高 */}
@@ -200,15 +200,19 @@ export const Sidebar: React.FC = () => {
   return (
     <aside
       className={clsx(
-        'bg-gray-50 dark:bg-slate-900 border-r border-gray-200 dark:border-slate-700 transition-all duration-300 flex flex-col',
-        isCollapsed ? 'w-20' : 'w-64'
+        'bg-gray-50 dark:bg-slate-900 border-r border-gray-200 dark:border-slate-700 transition-all duration-300 flex flex-col overflow-hidden',
+        isCollapsed ? 'w-16' : 'w-64'
       )}
     >
-      <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-slate-700">
+      <div className={clsx(
+        "h-16 flex items-center justify-between border-b transition-colors",
+        isCollapsed ? "px-3" : "px-4",
+        isNavScrolled ? "border-gray-200 dark:border-slate-700" : "border-transparent"
+      )}>
         {!isCollapsed ? (
           <>
             <Link to="/works" className="flex items-center space-x-2.5 group min-w-0">
-              <div className="w-10 h-10 bg-gray-900 dark:bg-slate-800 rounded-lg flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 bg-gray-900 dark:bg-slate-800 rounded-full flex items-center justify-center flex-shrink-0">
                 <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '28px', height: '28px', filter: 'brightness(0) invert(1)' }} />
               </div>
               <div className="min-w-0">
@@ -226,14 +230,17 @@ export const Sidebar: React.FC = () => {
           </>
         ) : (
           <button onClick={() => setIsCollapsed(false)} className="w-full flex justify-center" title="展开侧边栏">
-            <div className="w-12 h-12 bg-gray-900 dark:bg-slate-800 rounded-lg flex items-center justify-center hover:bg-gray-800 dark:hover:bg-slate-700 transition-all">
-              <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '32px', height: '32px', filter: 'brightness(0) invert(1)' }} />
+            <div className="w-10 h-10 bg-gray-900 dark:bg-slate-800 rounded-full flex items-center justify-center hover:bg-gray-800 dark:hover:bg-slate-700 transition-all">
+              <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '28px', height: '28px', filter: 'brightness(0) invert(1)' }} />
             </div>
           </button>
         )}
       </div>
 
-      <nav className="flex-1 px-3 py-4 overflow-y-auto">
+      <nav
+        className="flex-1 px-3 py-4 overflow-y-auto overflow-x-hidden sidebar-scrollbar"
+        onScroll={(e) => setIsNavScrolled(e.currentTarget.scrollTop > 0)}
+      >
         <div className="space-y-0.5">
           {!isCollapsed && (
             <div className="px-3 py-2 text-xs font-medium text-gray-900 dark:text-slate-200 uppercase tracking-wider">创作</div>
@@ -283,7 +290,7 @@ export const Sidebar: React.FC = () => {
         </div>
       </nav>
 
-      <div className="p-3 border-t border-gray-200 dark:border-slate-700 relative" ref={userMenuRef}>
+      <div className="p-3 relative" ref={userMenuRef}>
         {/* 用户明信片弹窗 */}
         <UserCardPopover
           isOpen={isUserCardOpen}
@@ -292,52 +299,52 @@ export const Sidebar: React.FC = () => {
 
         {!isCollapsed ? (
           <div
-            onClick={() => setIsUserCardOpen(!isUserCardOpen)}
-            className="flex items-center space-x-2.5 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded transition-colors cursor-pointer"
+            className="flex items-center p-2 rounded-lg border border-transparent hover:border-gray-200 dark:hover:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
-            <div className="w-8 h-8 bg-gray-900 dark:bg-slate-700 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
-              {user?.avatar ? (
-                <img src={user.avatar} alt={user.username} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-xs font-medium text-white">
-                  {user?.username ? user.username[0].toUpperCase() : 'U'}
-                </span>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-gray-700 dark:text-slate-200 truncate leading-tight">
-                {user?.username || '用户'}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-slate-400 leading-tight truncate">
-                {user?.email || ''}
-              </p>
-            </div>
-            {/* 设置图标 - 悬浮显示二维码 */}
             <div
-              className="relative"
+              onClick={() => setIsUserCardOpen(!isUserCardOpen)}
+              className="flex items-center space-x-2.5 flex-1 min-w-0"
+            >
+              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {user?.avatar ? (
+                  <img src={user.avatar} alt={user.username} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-xs font-medium text-white">
+                    {user?.username ? user.username[0].toUpperCase() : 'U'}
+                  </span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                  {user?.username || '用户'}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
+                  个人账户
+                </p>
+              </div>
+            </div>
+            {/* 星球图标 - 悬浮显示二维码 */}
+            <div
+              className="relative ml-2"
               onMouseEnter={() => setIsQRCodeOpen(true)}
               onMouseLeave={() => setIsQRCodeOpen(false)}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* 星球图标 */}
-                <svg
-                  className="w-6 h-6 text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 flex-shrink-0 transition-colors cursor-pointer"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  {/* 星球主体 */}
-                  <circle cx="12" cy="12" r="5" />
-                  {/* 轨道环 */}
-                  <ellipse cx="12" cy="12" rx="11" ry="4" transform="rotate(-20 12 12)" />
-                  {/* 小卫星/星星装饰 */}
-                  <circle cx="19" cy="8" r="1" fill="currentColor" stroke="none" />
-                  <circle cx="6" cy="5" r="0.5" fill="currentColor" stroke="none" />
-                  <circle cx="18" cy="17" r="0.5" fill="currentColor" stroke="none" />
-                </svg>
+              <svg
+                className="w-6 h-6 text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 flex-shrink-0 transition-colors cursor-pointer"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="5" />
+                <ellipse cx="12" cy="12" rx="11" ry="4" transform="rotate(-20 12 12)" />
+                <circle cx="19" cy="8" r="1" fill="currentColor" stroke="none" />
+                <circle cx="6" cy="5" r="0.5" fill="currentColor" stroke="none" />
+                <circle cx="18" cy="17" r="0.5" fill="currentColor" stroke="none" />
+              </svg>
               {/* 二维码弹出框 */}
               {isQRCodeOpen && (
                 <div className="fixed bottom-24 left-72 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-slate-700 p-4 z-[100]">
@@ -361,7 +368,7 @@ export const Sidebar: React.FC = () => {
           <div className="flex justify-center">
             <div
               onClick={() => setIsUserCardOpen(!isUserCardOpen)}
-              className="w-9 h-9 bg-gray-900 dark:bg-slate-700 rounded-full flex items-center justify-center hover:bg-gray-800 dark:hover:bg-slate-600 transition-colors cursor-pointer overflow-hidden"
+              className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors cursor-pointer overflow-hidden"
             >
               {user?.avatar ? (
                 <img src={user.avatar} alt={user.username} className="w-full h-full object-cover" />

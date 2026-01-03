@@ -1321,10 +1321,11 @@ class DataServiceClass {
   /**
    * 获取作品的评论列表
    */
-  async getWorkComments(workId: string, params?: { skip?: number; limit?: number }): Promise<any> {
+  async getWorkComments(workId: string, params?: { skip?: number; limit?: number; sortBy?: 'newest' | 'most_liked' }): Promise<any> {
     const queryParams = new URLSearchParams();
     if (params?.skip !== undefined) queryParams.append('skip', params.skip.toString());
     if (params?.limit !== undefined) queryParams.append('limit', params.limit.toString());
+    if (params?.sortBy) queryParams.append('sort_by', params.sortBy);
 
     return this.adapter.get(`/comments/works/${workId}/comments${queryParams.toString() ? `?${queryParams.toString()}` : ''}`);
   }

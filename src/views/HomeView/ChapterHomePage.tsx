@@ -171,7 +171,7 @@ export default function ChapterHomePage({ onNavigateToAuth, onNavigateToSubscrip
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
               <motion.div
-                className="w-12 h-12 rounded-lg flex items-center justify-center"
+                className="w-12 h-12 rounded-full flex items-center justify-center"
                 animate={{
                   backgroundColor: isDarkBackground ? '#ffffff' : '#000000',
                 }}

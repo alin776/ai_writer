@@ -645,16 +645,16 @@ const WorksView: React.FC = () => {
   }
 
   return (
-    <div className="bg-[#fafafa] dark:bg-gray-900 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 56px)' }}>
+    <div className="bg-[#fafafa] dark:bg-gray-900 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 44px)' }}>
       {/* Header */}
       <header className="bg-[#fafafa] dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-        <div className="w-full max-w-[1400px] mx-auto px-12 py-6">
+        <div className="w-full max-w-[1400px] mx-auto px-12 py-4">
           {/* 第一行：标题和按钮 */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-6">
               <div className="relative">
-                <div className="bg-black text-white dark:bg-gray-800 dark:text-gray-100 px-8 py-3.5" style={{ transform: 'skewX(-2deg)' }}>
-                  <h1 className="text-2xl font-medium" style={{ transform: 'skewX(2deg)' }}>{t('works.title')}</h1>
+                <div className="bg-black text-white dark:bg-gray-800 dark:text-gray-100 px-6 py-2.5 rounded-lg" style={{ transform: 'skewX(-2deg)' }}>
+                  <h1 className="text-xl font-medium" style={{ transform: 'skewX(2deg)' }}>{t('works.title')}</h1>
                 </div>
               </div>
               <div className="flex items-center gap-1" style={{ fontSize: '13px' }}>
@@ -666,7 +666,7 @@ const WorksView: React.FC = () => {
             <div className="flex gap-2">
               <button
                 onClick={openImportModal}
-                className="px-5 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:border-gray-900 dark:hover:border-gray-400 transition-colors flex items-center gap-2"
+                className="px-5 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:border-gray-900 dark:hover:border-gray-400 transition-colors flex items-center gap-2 rounded-lg"
                 style={{ transform: 'skewX(-2deg)', fontSize: '13px' }}
               >
                 <Upload className="w-4 h-4" style={{ transform: 'skewX(2deg)' }} />
@@ -674,7 +674,7 @@ const WorksView: React.FC = () => {
               </button>
               <button
                 onClick={() => navigate('/works/create')}
-                className="px-5 py-2.5 bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white transition-colors flex items-center gap-2"
+                className="px-5 py-2.5 bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white transition-colors flex items-center gap-2 rounded-lg"
                 style={{ transform: 'skewX(-2deg)', fontSize: '13px' }}
               >
                 <Plus className="w-4 h-4" style={{ transform: 'skewX(2deg)' }} />
@@ -684,23 +684,23 @@ const WorksView: React.FC = () => {
           </div>
 
           {/* 第二行：统计卡片 */}
-          <div className="flex gap-4 mb-6">
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-6 py-4 flex-1" style={{ transform: 'skewX(-2deg)' }}>
+          <div className="flex gap-4 mb-4">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-5 py-3 flex-1 rounded-lg" style={{ transform: 'skewX(-2deg)' }}>
               <div style={{ transform: 'skewX(2deg)' }}>
-                <div className="text-gray-400 dark:text-gray-500 mb-1.5" style={{ fontSize: '12px' }}>{t('works.stats.totalWords')}</div>
-                <div className="text-3xl text-gray-900 dark:text-gray-100 font-medium">{totalWords.toLocaleString()}</div>
+                <div className="text-gray-400 dark:text-gray-500 mb-1" style={{ fontSize: '11px' }}>{t('works.stats.totalWords')}</div>
+                <div className="text-2xl text-gray-900 dark:text-gray-100 font-medium">{totalWords.toLocaleString()}</div>
               </div>
             </div>
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-6 py-4 flex-1" style={{ transform: 'skewX(-2deg)' }}>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-5 py-3 flex-1 rounded-lg" style={{ transform: 'skewX(-2deg)' }}>
               <div style={{ transform: 'skewX(2deg)' }}>
-                <div className="text-gray-400 dark:text-gray-500 mb-1.5" style={{ fontSize: '12px' }}>{t('works.stats.weeklyNew')}</div>
-                <div className="text-3xl text-gray-900 dark:text-gray-100 font-medium">{weekNewWords > 0 ? '+' : ''}{weekNewWords.toLocaleString()}</div>
+                <div className="text-gray-400 dark:text-gray-500 mb-1" style={{ fontSize: '11px' }}>{t('works.stats.weeklyNew')}</div>
+                <div className="text-2xl text-gray-900 dark:text-gray-100 font-medium">{weekNewWords > 0 ? '+' : ''}{weekNewWords.toLocaleString()}</div>
               </div>
             </div>
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-6 py-4 flex-1" style={{ transform: 'skewX(-2deg)' }}>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-5 py-3 flex-1 rounded-lg" style={{ transform: 'skewX(-2deg)' }}>
               <div style={{ transform: 'skewX(2deg)' }}>
-                <div className="text-gray-400 dark:text-gray-500 mb-1.5" style={{ fontSize: '12px' }}>{t('works.stats.ongoing')}</div>
-                <div className="text-3xl text-gray-900 dark:text-gray-100 font-medium">{writingCount}</div>
+                <div className="text-gray-400 dark:text-gray-500 mb-1" style={{ fontSize: '11px' }}>{t('works.stats.ongoing')}</div>
+                <div className="text-2xl text-gray-900 dark:text-gray-100 font-medium">{writingCount}</div>
               </div>
             </div>
           </div>
@@ -715,7 +715,7 @@ const WorksView: React.FC = () => {
                 placeholder={t('works.search.placeholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors"
+                className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors rounded-lg"
                 style={{ fontSize: '13px' }}
               />
             </div>
@@ -726,7 +726,7 @@ const WorksView: React.FC = () => {
                 <button
                   key={status}
                   onClick={() => setSelectedStatus(status)}
-                  className={`px-3 py-2 border transition-colors ${
+                  className={`px-3 py-2 border transition-colors rounded-lg ${
                     selectedStatus === status
                       ? 'bg-black dark:bg-gray-100 text-white dark:text-gray-900 border-black dark:border-gray-100'
                       : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-gray-900 dark:hover:border-gray-400'
@@ -744,7 +744,7 @@ const WorksView: React.FC = () => {
             <select
               value={selectedGenre}
               onChange={(e) => setSelectedGenre(e.target.value)}
-              className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer"
+              className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer rounded-lg"
               style={{ transform: 'skewX(-2deg)', fontSize: '10px' }}
             >
               {allGenres.map(genre => (
@@ -758,7 +758,7 @@ const WorksView: React.FC = () => {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer"
+              className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer rounded-lg"
               style={{ transform: 'skewX(-2deg)', fontSize: '10px' }}
             >
               <option value="date">{t('works.sort.date')}</option>
@@ -774,7 +774,7 @@ const WorksView: React.FC = () => {
         {filteredWorks.length === 0 ? (
           // 空状态
           <div className="flex flex-col items-center justify-center h-full">
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-12 text-center" style={{ transform: 'skewX(-2deg)' }}>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-12 text-center rounded-lg" style={{ transform: 'skewX(-2deg)' }}>
               <div style={{ transform: 'skewX(2deg)' }}>
                 <BookOpen className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
                 <h3 className="text-lg text-gray-900 dark:text-gray-100 mb-2">{t('works.empty')}</h3>
@@ -786,7 +786,7 @@ const WorksView: React.FC = () => {
                 {!searchQuery && selectedStatus === 'all' && selectedGenre === 'all' && (
                   <button
                     onClick={() => navigate('/works/create')}
-                    className="px-6 py-2.5 bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white transition-colors inline-flex items-center gap-2"
+                    className="px-6 py-2.5 bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white transition-colors inline-flex items-center gap-2 rounded-lg"
                     style={{ transform: 'skewX(-2deg)', fontSize: '11px' }}
                   >
                     <Plus className="w-4 h-4" style={{ transform: 'skewX(2deg)' }} />
@@ -801,7 +801,7 @@ const WorksView: React.FC = () => {
             {filteredWorks.map((work) => (
               <div
                 key={work.id}
-                className="group bg-white dark:bg-gray-800 overflow-hidden transition-all duration-300 ease-out border border-gray-100 dark:border-gray-700 hover:border-gray-900 dark:hover:border-gray-400 h-[140px] hover:h-[160px] hover:my-4 hover:shadow-2xl relative cursor-pointer"
+                className="group bg-white dark:bg-gray-800 overflow-hidden transition-all duration-300 ease-out border border-gray-100 dark:border-gray-700 hover:border-gray-900 dark:hover:border-gray-400 h-[140px] hover:h-[160px] hover:my-4 hover:shadow-2xl relative cursor-pointer rounded-lg"
                 style={{ transform: 'skewX(-2deg)', transitionProperty: 'all' }}
                 onClick={() => navigate(`/works/${work.id}`)}
                 onMouseEnter={(e) => {
@@ -841,11 +841,11 @@ const WorksView: React.FC = () => {
                         <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 group-hover:text-black dark:group-hover:text-white transition-colors">
                           {work.title}
                         </h3>
-                        <span className={`px-2 py-0.5 ${getStatusColor(work.status)}`} style={{ fontSize: '11px' }}>
+                        <span className={`px-2 py-0.5 rounded ${getStatusColor(work.status)}`} style={{ fontSize: '11px' }}>
                           {getStatusText(work.status)}
                         </span>
                         {work.genre && (
-                          <span className="px-2 py-0.5 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300" style={{ fontSize: '11px' }}>
+                          <span className="px-2 py-0.5 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded" style={{ fontSize: '11px' }}>
                             {getGenreDisplayName(work.genre)}
                           </span>
                         )}
@@ -867,7 +867,7 @@ const WorksView: React.FC = () => {
                               {work.totalWords.toLocaleString()} / {(100000).toLocaleString()} {t('works.stats.words')}
                             </span>
                           </div>
-                          <div className="w-2/3 bg-gray-200 dark:bg-gray-700 h-1 overflow-hidden" style={{ transform: 'skewX(-2deg)' }}>
+                          <div className="w-2/3 bg-gray-200 dark:bg-gray-700 h-1 overflow-hidden rounded" style={{ transform: 'skewX(-2deg)' }}>
                             <div
                               className={`h-1 transition-all ${work.status === 'writing' ? 'bg-black dark:bg-gray-100 progress-stripes' : 'bg-black dark:bg-gray-100'}`}
                               style={{
@@ -917,7 +917,7 @@ const WorksView: React.FC = () => {
                           e.stopPropagation();
                           navigate(`/works/${work.id}`);
                         }}
-                        className="px-4 py-1.5 bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white transition-colors"
+                        className="px-4 py-1.5 bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white transition-colors rounded-lg"
                         style={{ transform: 'skewX(-2deg)', fontSize: '13px' }}
                       >
                         <span style={{ transform: 'skewX(2deg)', display: 'inline-block' }}>{t('works.viewDetails')}</span>
@@ -931,7 +931,7 @@ const WorksView: React.FC = () => {
                             e.stopPropagation();
                             openPublishModal(work);
                           }}
-                          className="p-2 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
+                          className="p-2 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors rounded-lg"
                           title={work.isPublished ? "管理发布" : "发布到小说广场"}
                         >
                           <Globe className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
@@ -941,7 +941,7 @@ const WorksView: React.FC = () => {
                             e.stopPropagation();
                             openEditModal(work);
                           }}
-                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-lg"
                           title={t('works.editInfo')}
                         >
                           <Edit3 className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
@@ -951,7 +951,7 @@ const WorksView: React.FC = () => {
                             e.stopPropagation();
                             openExportModal(work);
                           }}
-                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-lg"
                           title={t('works.export.button')}
                         >
                           <Download className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
@@ -961,7 +961,7 @@ const WorksView: React.FC = () => {
                             e.stopPropagation();
                             handleDelete(work.id, work.title);
                           }}
-                          className="p-2 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                          className="p-2 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors rounded-lg"
                           title={t('works.delete.button')}
                         >
                           <Trash2 className="w-3.5 h-3.5 text-red-500" />
@@ -979,12 +979,12 @@ const WorksView: React.FC = () => {
       {/* 编辑弹窗 */}
       {editingWork && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeEditModal}>
-          <div className="bg-white dark:bg-gray-800 w-[500px] max-h-[600px] overflow-y-auto scrollbar-hide" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-gray-800 w-[500px] max-h-[600px] overflow-y-auto scrollbar-hide rounded-xl" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ transform: 'skewX(2deg)' }} className="p-6">
               {/* 标题栏 */}
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg text-gray-900 dark:text-gray-100">{t('works.edit.title')}</h2>
-                <button onClick={closeEditModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <button onClick={closeEditModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-lg">
                   <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 </button>
               </div>
@@ -998,7 +998,7 @@ const WorksView: React.FC = () => {
                     type="text"
                     value={editFormData.title}
                     onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors rounded-lg"
                     style={{ fontSize: '12px' }}
                     placeholder={t('works.edit.workTitlePlaceholder')}
                   />
@@ -1010,7 +1010,7 @@ const WorksView: React.FC = () => {
                   <textarea
                     value={editFormData.description}
                     onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors resize-none"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors resize-none rounded-lg"
                     style={{ fontSize: '12px' }}
                     rows={2}
                     placeholder={t('works.edit.descriptionPlaceholder')}
@@ -1024,7 +1024,7 @@ const WorksView: React.FC = () => {
                     <select
                       value={editFormData.genre}
                       onChange={(e) => setEditFormData({ ...editFormData, genre: e.target.value as WorkGenre })}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer rounded-lg"
                       style={{ fontSize: '12px' }}
                     >
                       <option value="">{t('works.genre.selectGenre')}</option>
@@ -1039,7 +1039,7 @@ const WorksView: React.FC = () => {
                     <select
                       value={editFormData.status}
                       onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value as WorkStatus })}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer rounded-lg"
                       style={{ fontSize: '12px' }}
                     >
                       <option value="draft">{t('works.status.draft')}</option>
@@ -1073,7 +1073,7 @@ const WorksView: React.FC = () => {
                       <img
                         src={coverPreview || editFormData.coverImage}
                         alt={t('works.edit.coverPreview')}
-                        className="w-full h-32 object-cover border border-gray-200 dark:border-gray-600"
+                        className="w-full h-32 object-cover border border-gray-200 dark:border-gray-600 rounded-lg"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
                         }}
@@ -1087,14 +1087,14 @@ const WorksView: React.FC = () => {
               <div className="flex items-center gap-2 mt-6">
                 <button
                   onClick={closeEditModal}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-900 dark:hover:border-gray-400 transition-colors"
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-900 dark:hover:border-gray-400 transition-colors rounded-lg"
                   style={{ transform: 'skewX(-2deg)', fontSize: '11px' }}
                 >
                   <span style={{ transform: 'skewX(2deg)' }}>{t('works.edit.cancel')}</span>
                 </button>
                 <button
                   onClick={saveEdit}
-                  className="flex-1 px-4 py-2.5 bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white transition-colors rounded-lg"
                   style={{ transform: 'skewX(-2deg)', fontSize: '11px' }}
                 >
                   <span style={{ transform: 'skewX(2deg)' }}>{t('works.edit.save')}</span>
@@ -1108,12 +1108,12 @@ const WorksView: React.FC = () => {
       {/* 导入弹窗 */}
       {showImportModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeImportModal}>
-          <div className="bg-white dark:bg-gray-800 w-[550px] max-h-[700px] overflow-y-auto scrollbar-hide" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-gray-800 w-[550px] max-h-[700px] overflow-y-auto scrollbar-hide rounded-xl" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ transform: 'skewX(2deg)' }} className="p-6">
               {/* 标题栏 */}
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg text-gray-900 dark:text-gray-100">{t('works.import.title')}</h2>
-                <button onClick={closeImportModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <button onClick={closeImportModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-lg">
                   <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 </button>
               </div>
@@ -1130,7 +1130,7 @@ const WorksView: React.FC = () => {
                 />
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-gray-900 dark:hover:border-gray-400 p-8 text-center cursor-pointer transition-colors"
+                  className="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-gray-900 dark:hover:border-gray-400 p-8 text-center cursor-pointer transition-colors rounded-lg"
                 >
                   {importFile ? (
                     <div className="flex items-center justify-center gap-2">
@@ -1151,7 +1151,7 @@ const WorksView: React.FC = () => {
               </div>
 
               {/* 格式说明 */}
-              <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600" style={{ fontSize: '11px' }}>
+              <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg" style={{ fontSize: '11px' }}>
                 <p className="text-gray-600 dark:text-gray-400 mb-1"><strong>JSON</strong>：{t('works.import.jsonFormat').replace('JSON格式：', '').replace('JSON: ', '')}</p>
                 <p className="text-gray-600 dark:text-gray-400 mb-1"><strong>Markdown</strong>：{t('works.import.markdownFormat').replace('Markdown格式：', '').replace('Markdown: ', '')}</p>
                 <p className="text-gray-600 dark:text-gray-400"><strong>TXT</strong>：{t('works.import.txtFormat').replace('TXT格式：', '').replace('TXT: ', '')}</p>
@@ -1159,7 +1159,7 @@ const WorksView: React.FC = () => {
 
               {/* 预览加载中 */}
               {isPreviewing && (
-                <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-center">
+                <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-center rounded-lg">
                   <div className="animate-spin w-6 h-6 border-2 border-gray-300 dark:border-gray-500 border-t-gray-900 dark:border-t-gray-100 rounded-full mx-auto mb-2"></div>
                   <p className="text-gray-600 dark:text-gray-400" style={{ fontSize: '12px' }}>{t('works.import.parsing')}</p>
                 </div>
@@ -1167,7 +1167,7 @@ const WorksView: React.FC = () => {
 
               {/* 预览结果 */}
               {importPreview && !isPreviewing && (
-                <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
+                <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
                   <h3 className="text-gray-900 dark:text-gray-100 font-medium mb-3" style={{ fontSize: '13px' }}>{t('works.import.preview')}</h3>
 
                   <div className="space-y-2" style={{ fontSize: '12px' }}>
@@ -1235,7 +1235,7 @@ const WorksView: React.FC = () => {
               <div className="flex items-center gap-2 mt-6">
                 <button
                   onClick={closeImportModal}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-900 dark:hover:border-gray-400 transition-colors"
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-900 dark:hover:border-gray-400 transition-colors rounded-lg"
                   style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
                   disabled={isImporting}
                 >
@@ -1272,14 +1272,14 @@ const WorksView: React.FC = () => {
       {/* 导出弹窗 */}
       {showExportModal && exportingWork && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeExportModal}>
-          <div className="bg-white dark:bg-gray-800 w-[520px] max-h-[640px] overflow-y-auto scrollbar-hide" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-gray-800 w-[520px] max-h-[640px] overflow-y-auto scrollbar-hide rounded-xl" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ transform: 'skewX(2deg)' }} className="p-6 space-y-5">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-lg text-gray-900 dark:text-gray-100">{t('works.export.title')}</h2>
                   <p className="text-[12px] text-gray-500 dark:text-gray-400 mt-1">《{exportingWork.title}》 · {t('works.export.totalChapters', { count: exportingWork.totalChapters })}</p>
                 </div>
-                <button onClick={closeExportModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <button onClick={closeExportModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-lg">
                   <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 </button>
               </div>
@@ -1289,7 +1289,7 @@ const WorksView: React.FC = () => {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => setExportMode('full')}
-                    className={`px-4 py-3 border text-sm transition-colors ${
+                    className={`px-4 py-3 border text-sm transition-colors rounded-lg ${
                       exportMode === 'full'
                         ? 'bg-black dark:bg-gray-100 text-white dark:text-gray-900 border-black dark:border-gray-100'
                         : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-gray-900 dark:hover:border-gray-400'
@@ -1303,7 +1303,7 @@ const WorksView: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setExportMode('range')}
-                    className={`px-4 py-3 border text-sm transition-colors ${
+                    className={`px-4 py-3 border text-sm transition-colors rounded-lg ${
                       exportMode === 'range'
                         ? 'bg-black dark:bg-gray-100 text-white dark:text-gray-900 border-black dark:border-gray-100'
                         : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-gray-900 dark:hover:border-gray-400'
@@ -1332,7 +1332,7 @@ const WorksView: React.FC = () => {
                         min={1}
                         value={exportStartChapter}
                         onChange={(e) => setExportStartChapter(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors rounded-lg"
                         style={{ fontSize: '13px' }}
                       />
                     </div>
@@ -1343,7 +1343,7 @@ const WorksView: React.FC = () => {
                         min={1}
                         value={exportEndChapter}
                         onChange={(e) => setExportEndChapter(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors rounded-lg"
                         style={{ fontSize: '13px' }}
                       />
                     </div>
@@ -1355,7 +1355,7 @@ const WorksView: React.FC = () => {
               )}
 
               {exportError && (
-                <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[12px] px-3 py-2 border border-red-100 dark:border-red-800">
+                <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[12px] px-3 py-2 border border-red-100 dark:border-red-800 rounded-lg">
                   {exportError}
                 </div>
               )}
@@ -1363,7 +1363,7 @@ const WorksView: React.FC = () => {
               <div className="flex items-center gap-2 pt-2">
                 <button
                   onClick={closeExportModal}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-900 dark:hover:border-gray-400 transition-colors"
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-900 dark:hover:border-gray-400 transition-colors rounded-lg"
                   style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
                   disabled={isExporting}
                 >
@@ -1372,7 +1372,7 @@ const WorksView: React.FC = () => {
                 <button
                   onClick={handleExport}
                   disabled={isExporting}
-                  className={`flex-1 px-4 py-2.5 text-white transition-colors ${
+                  className={`flex-1 px-4 py-2.5 text-white transition-colors rounded-lg ${
                     isExporting ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed' : 'bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white'
                   }`}
                   style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
@@ -1388,7 +1388,7 @@ const WorksView: React.FC = () => {
       {/* 发布弹窗 */}
       {showPublishModal && publishingWork && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closePublishModal}>
-          <div className="bg-white dark:bg-gray-800 w-[600px] max-h-[700px] overflow-y-auto scrollbar-hide" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-gray-800 w-[600px] max-h-[700px] overflow-y-auto scrollbar-hide rounded-xl" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ transform: 'skewX(2deg)' }} className="p-6">
               {/* 标题栏 */}
               <div className="flex items-center justify-between mb-4">
@@ -1402,13 +1402,13 @@ const WorksView: React.FC = () => {
                       : '选择要发布的章节'}
                   </p>
                 </div>
-                <button onClick={closePublishModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <button onClick={closePublishModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-lg">
                   <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 </button>
               </div>
 
               {/* 作品信息 */}
-              <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
+              <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
                 <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">{publishingWork.title}</h3>
                 <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400">
                   <span>共 {publishingWork.totalChapters} 章</span>
@@ -1418,7 +1418,7 @@ const WorksView: React.FC = () => {
               </div>
 
               {/* 章节选择说明 */}
-              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300 rounded-lg">
                 {publishingWork.isPublished ? (
                   <div className="space-y-1">
                     <p>• 勾选新章节可以添加到发布列表</p>
@@ -1434,7 +1434,7 @@ const WorksView: React.FC = () => {
               <div className="mb-3 flex items-center justify-between">
                 <button
                   onClick={() => toggleAllChapters(chaptersForPublish)}
-                  className="px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  className="px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-lg"
                   style={{ transform: 'skewX(-2deg)' }}
                 >
                   <span style={{ transform: 'skewX(2deg)' }}>
@@ -1447,7 +1447,7 @@ const WorksView: React.FC = () => {
               </div>
 
               {/* 章节列表 */}
-              <div className="space-y-1 mb-4 max-h-[300px] overflow-y-auto border border-gray-200 dark:border-gray-600">
+              <div className="space-y-1 mb-4 max-h-[300px] overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg">
                 {chaptersForPublish.map((chapter) => (
                   <label
                     key={chapter.id}
@@ -1476,7 +1476,7 @@ const WorksView: React.FC = () => {
               <div className="flex items-center gap-2">
                 <button
                   onClick={closePublishModal}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-900 dark:hover:border-gray-400 transition-colors"
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-900 dark:hover:border-gray-400 transition-colors rounded-lg"
                   style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
                   disabled={isPublishing}
                 >

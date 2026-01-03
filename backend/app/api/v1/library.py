@@ -397,6 +397,7 @@ class BookshelfItemResponse(LibraryWorkResponse):
     last_read_position: int = 0
     last_read_at: Optional[datetime] = None
     added_at: datetime
+    work_updated_at: Optional[datetime] = None  # 作品最新章节发布时间
 
 
 class BookshelfListResponse(BaseModel):
@@ -618,6 +619,15 @@ async def get_bookshelf(
         )
         average_rating = avg_rating_result.scalar() or 0.0
 
+        # 获取最新章节发布时间
+        latest_chapter_result = await db.execute(
+            select(func.max(Chapter.published_at)).where(
+                Chapter.work_id == work.id,
+                Chapter.is_published == True
+            )
+        )
+        work_updated_at = latest_chapter_result.scalar()
+
         items.append(BookshelfItemResponse(
             id=str(work.id),
             title=work.title,
@@ -639,7 +649,8 @@ async def get_bookshelf(
             last_read_chapter_order=item.last_read_chapter.order if item.last_read_chapter else None,
             last_read_position=item.last_read_position,
             last_read_at=item.last_read_at,
-            added_at=item.created_at
+            added_at=item.created_at,
+            work_updated_at=work_updated_at
         ))
 
     return BookshelfListResponse(

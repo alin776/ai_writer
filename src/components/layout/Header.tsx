@@ -44,14 +44,40 @@ const Header: React.FC = () => {
   // 获取当前页面标题
   const getPageTitle = () => {
     const path = location.pathname;
+
+    // 创作模块
     if (path.includes('/works') && path !== '/works') return t('header.pages.workDetail');
-    if (path === '/works') return t('header.pages.works');
-    if (path.includes('/editor')) return t('header.pages.editor');
+    if (path === '/works') return '作品管理';
+    if (path.includes('/knowledge')) return '知识库';
+    if (path.includes('/humanize')) return 'AI去痕';
+    if (path.includes('/channels')) return '频道';
+
+    // 图书馆模块
+    if (path.includes('/library/novel-square')) return '小说广场';
+    if (path.includes('/library/my-bookshelf')) return '我的书架';
+
+    // 我的服务模块
+    if (path.includes('/tasks')) return '任务中心';
+    if (path.includes('/service/credits')) return '我的积分';
+    if (path.includes('/service/usage')) return '使用记录';
+    if (path.includes('/service/obtain')) return '获取积分';
+
+    // 底部导航
+    if (path.includes('/user/')) return '个人主页';
+    if (path.includes('/notifications')) return '通知中心';
+    if (path.includes('/settings')) return '系统设置';
+
+    // 管理员模块
     if (path.includes('/admin/dashboard')) return t('header.pages.dashboard');
     if (path.includes('/admin/users')) return t('header.pages.users');
     if (path.includes('/admin/ai-models')) return t('header.pages.aiModels');
     if (path.includes('/admin/cost')) return t('header.pages.cost');
-    if (path.includes('/settings')) return t('header.pages.settings');
+    if (path.includes('/admin/notifications')) return '通知管理';
+    if (path.includes('/admin/tasks')) return '任务配置';
+
+    // 编辑器
+    if (path.includes('/editor')) return t('header.pages.editor');
+
     return t('app.name');
   };
 
@@ -59,7 +85,7 @@ const Header: React.FC = () => {
   const isEditorPage = location.pathname.includes('/editor');
 
   return (
-    <header className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 h-14 flex items-center px-4 sticky top-0 z-40">
+    <header className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 h-11 flex items-center px-4 sticky top-0 z-40">
       <div className="flex items-center justify-between w-full max-w-full">
         {/* 左侧内容 - 根据页面类型动态显示 */}
         <div className="flex items-center space-x-3 min-w-0">

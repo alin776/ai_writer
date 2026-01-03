@@ -47,6 +47,7 @@ interface BookshelfItem {
   lastReadAt?: string;
   progress: number;
   addedAt: string;
+  workUpdatedAt?: string;  // 作品最新章节发布时间
 }
 
 const categories = ['全部', '玄幻', '都市', '言情', '科幻', '武侠', '游戏', '历史', '军事', '其他'];
@@ -106,6 +107,7 @@ export default function MyBookshelfView() {
       lastReadAt: item.lastReadAt,
       progress,
       addedAt: item.addedAt,
+      workUpdatedAt: item.workUpdatedAt,
     };
   };
 
@@ -190,8 +192,10 @@ export default function MyBookshelfView() {
       } else if (selectedSort === '添加时间') {
         return new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime();
       } else {
-        // 更新时间 - 暂时使用添加时间
-        return new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime();
+        // 更新时间 - 使用作品最新章节发布时间
+        if (!a.workUpdatedAt) return 1;
+        if (!b.workUpdatedAt) return -1;
+        return new Date(b.workUpdatedAt).getTime() - new Date(a.workUpdatedAt).getTime();
       }
     });
 

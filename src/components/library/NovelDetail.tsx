@@ -98,6 +98,11 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
   const replyEmojiButtonRef = useRef<HTMLButtonElement>(null);
   const replyEmojiPickerRef = useRef<HTMLDivElement>(null);
   const [replyEmojiPosition, setReplyEmojiPosition] = useState<'top' | 'bottom'>('bottom');
+
+  // 评论排序状态
+  const [commentSortBy, setCommentSortBy] = useState<'newest' | 'most_liked'>('newest');
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
   // 点击外部关闭表情选择器
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -133,6 +138,34 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showReplyEmojiPicker]);
+
+  // 点击外部关闭排序菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showSortMenu && sortMenuRef.current && !sortMenuRef.current.contains(event.target as Node)) {
+        setShowSortMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showSortMenu]);
+
+  // 排序改变时重新加载评论
+  const handleSortChange = async (sortBy: 'newest' | 'most_liked') => {
+    if (sortBy === commentSortBy) {
+      setShowSortMenu(false);
+      return;
+    }
+    setCommentSortBy(sortBy);
+    setShowSortMenu(false);
+    try {
+      const commentsRes = await DataService.getWorkComments(novel.id, { sortBy });
+      setComments(commentsRes.items || []);
+    } catch (error) {
+      console.error('加载评论失败:', error);
+    }
+  };
+
   // 优先从全局 store 读取缓存的书架状态，避免页面切换时状态丢失
   const [isInBookshelf, setIsInBookshelf] = useState(() => useWorkNavStore.getState().bookshelfMap[novel.id] || false);
   const [loading, setLoading] = useState(true);
@@ -228,7 +261,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
         // 并行加载作品详情(含章节)、评论、书架状态、评分统计和当前用户信息
         const [detailRes, commentsRes, bookshelfStatus, ratingStatsRes, currentUser] = await Promise.all([
           DataService.getPublishedNovelDetail(novel.id),
-          DataService.getWorkComments(novel.id).catch(() => ({ items: [] })),
+          DataService.getWorkComments(novel.id, { sortBy: commentSortBy }).catch(() => ({ items: [] })),
           // API 失败时返回 null，保持本地缓存状态
           DataService.checkInBookshelf(novel.id).catch(() => null),
           DataService.getWorkRatingStats(novel.id).catch(() => null),
@@ -1005,12 +1038,37 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
             <h2 className="text-base font-medium text-gray-900 dark:text-[#f1f1f1]">
               {comments.length} 条评论
             </h2>
-            <button className="flex items-center gap-2 text-sm text-gray-700 dark:text-[#f1f1f1] hover:text-gray-500 dark:hover:text-[#aaa] transition-colors">
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>
-              </svg>
-              排序方式
-            </button>
+            <div className="relative" ref={sortMenuRef}>
+              <button
+                onClick={() => setShowSortMenu(!showSortMenu)}
+                className="flex items-center gap-2 text-sm text-gray-700 dark:text-[#f1f1f1] hover:text-gray-500 dark:hover:text-[#aaa] transition-colors"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>
+                </svg>
+                {commentSortBy === 'newest' ? '最新' : '最热'}
+              </button>
+              {showSortMenu && (
+                <div className="absolute top-full left-0 mt-1 bg-white dark:bg-[#282828] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50 min-w-[100px]">
+                  <button
+                    onClick={() => handleSortChange('newest')}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-[#3f3f3f] ${
+                      commentSortBy === 'newest' ? 'text-blue-500 dark:text-[#3ea6ff]' : 'text-gray-700 dark:text-[#f1f1f1]'
+                    }`}
+                  >
+                    最新
+                  </button>
+                  <button
+                    onClick={() => handleSortChange('most_liked')}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-[#3f3f3f] ${
+                      commentSortBy === 'most_liked' ? 'text-blue-500 dark:text-[#3ea6ff]' : 'text-gray-700 dark:text-[#f1f1f1]'
+                    }`}
+                  >
+                    最热
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="px-6 pb-8">
