@@ -31,12 +31,14 @@ from app.schemas.user import (
     SendEmailCodeResponse,
     VerifyAndUpdateEmailRequest,
     VerifyAndUpdateEmailResponse,
+    UpdateOnlineStatusRequest,
 )
 from app.schemas.friend import UserSearchResponse, UserSearchResult
 from app.services.user_service import UserService
 from app.services.cos_service import get_cos_service
 from app.services.email_verification_service import get_email_verification_service
 from app.services.task_service import TaskService
+from app.api.v1.ws import update_user_online_status
 from app.core.config import settings
 
 router = APIRouter()
@@ -147,6 +149,23 @@ async def update_my_preferences(
         return result
     except ValueError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+
+@router.put("/me/status", response_model=UserResponse)
+async def update_online_status(
+    payload: UpdateOnlineStatusRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """更新用户在线状态"""
+    current_user.online_status = payload.status
+    await db.commit()
+    await db.refresh(current_user)
+
+    # 更新 WebSocket 内存状态并广播到所有相关频道
+    await update_user_online_status(current_user.id, payload.status)
+
+    return current_user
 
 
 @router.post("/me/change-password", response_model=ChangePasswordResponse)

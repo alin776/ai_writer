@@ -98,6 +98,8 @@ export const useAuthStore = create<AuthState>()(
         tokenExpiresAt: number | null = null,
         refreshTokenExpiresAt: number | null = null
       ) => {
+        // 从后端用户数据同步 onlineStatus，如果没有则默认为 'online'
+        const userOnlineStatus = (user?.onlineStatus as OnlineStatus) || 'online';
         set({
           user,
           token,
@@ -105,6 +107,7 @@ export const useAuthStore = create<AuthState>()(
           tokenExpiresAt,
           refreshTokenExpiresAt,
           isAuthenticated: true,
+          onlineStatus: userOnlineStatus,
         });
       },
 

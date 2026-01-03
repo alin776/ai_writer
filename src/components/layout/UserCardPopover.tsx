@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Pencil, User, LogOut, LayoutDashboard } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuthStore, type OnlineStatus } from '@/store/authStore';
+import { DataService } from '@/services/DataService';
 
 export interface UserCardPopoverProps {
   isOpen: boolean;
@@ -91,10 +92,15 @@ export function UserCardPopover({ isOpen, onClose }: UserCardPopoverProps) {
     onClose();
   };
 
-  const handleSelectStatus = (status: OnlineStatus) => {
+  const handleSelectStatus = async (status: OnlineStatus) => {
     setOnlineStatus(status);
     setIsStatusDropdownOpen(false);
-    // TODO: 调用API同步用户在线状态到服务器
+    // 同步用户在线状态到服务器
+    try {
+      await DataService.updateOnlineStatus(status);
+    } catch (error) {
+      console.error('更新在线状态失败:', error);
+    }
   };
 
   return (

@@ -128,6 +128,7 @@ class UserResponse(UserBase):
     is_active: bool
     is_admin: bool
     is_verified: bool
+    online_status: str = 'online'  # online, idle, dnd, offline
     created_at: datetime
     updated_at: datetime
     last_login_at: Optional[datetime] = None
@@ -239,6 +240,11 @@ class ResetPasswordResponse(BaseModel):
     detail: str = "密码重置成功，请使用新密码登录"
 
 # ==================== 用户主页相关 ====================
+
+class UpdateOnlineStatusRequest(BaseModel):
+    """更新在线状态请求"""
+    status: Literal['online', 'idle', 'dnd', 'offline'] = Field(..., description="在线状态")
+
 
 class UserProfileStats(BaseModel):
     """用户统计数据"""

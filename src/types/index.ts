@@ -23,6 +23,7 @@ export interface User {
   fullName?: string;      // 后端: full_name
   avatar?: string;
   bio?: string;
+  onlineStatus?: 'online' | 'idle' | 'dnd' | 'offline';  // 后端: online_status
   notificationSettings?: NotificationSettings; // 后端: notification_settings
   preferences?: UserPreferences;              // 后端: preferences
   isActive: boolean;      // 后端: is_active

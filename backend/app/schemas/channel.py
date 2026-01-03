@@ -114,6 +114,7 @@ class ChannelMemberResponse(ChannelMemberBase):
     # 用户信息
     user_name: Optional[str] = None
     user_avatar: Optional[str] = None
+    user_online_status: Optional[str] = None  # 用户在线状态
 
     class Config:
         from_attributes = True
@@ -170,6 +171,7 @@ class ChannelMessageResponse(ChannelMessageBase):
     user_honor: Optional[str] = None  # 用户全局称号
     user_title: Optional[str] = None  # 频道内自定义称号
     user_title_color: Optional[str] = None
+    user_online_status: Optional[str] = None  # 用户在线状态 (online, idle, dnd, offline)
 
     # 附件列表
     attachments: List["AttachmentResponse"] = []

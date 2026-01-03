@@ -46,6 +46,7 @@ export interface ChannelMember {
   fullName?: string;
   avatar?: string;
   bio?: string;
+  onlineStatus?: 'online' | 'idle' | 'dnd' | 'offline';
   title?: string;
   titleColor?: string;
   role: 'owner' | 'admin' | 'member';
@@ -192,6 +193,22 @@ export const getChannelMessages = async (
   const data = await api.get<ChannelMessageListResponse>(
     `/channels/${channelId}/messages`,
     { params }
+  );
+  return data;
+};
+
+/**
+ * 获取指定消息及其前后的消息
+ * 用于跳转到历史消息时加载消息上下文
+ */
+export const getMessagesAround = async (
+  channelId: string,
+  messageId: string,
+  limit: number = 50
+): Promise<ChannelMessageListResponse> => {
+  const data = await api.get<ChannelMessageListResponse>(
+    `/channels/${channelId}/messages/around/${messageId}`,
+    { params: { limit } }
   );
   return data;
 };

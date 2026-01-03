@@ -35,6 +35,7 @@ export interface UserProfilePopoverProps {
   userBio?: string;
   userTitle?: string;
   userTitleColor?: string;
+  userOnlineStatus?: OnlineStatus;  // 用户真实在线状态
   currentUserId: string;
   channelId?: string;
   channelType?: 'official' | 'fangroup' | 'work' | 'private';
@@ -53,6 +54,7 @@ export function UserProfilePopover({
   userBio,
   userTitle,
   userTitleColor,
+  userOnlineStatus,
   currentUserId,
   channelType,
   userRole,
@@ -417,7 +419,7 @@ export function UserProfilePopover({
             {/* 在线状态指示器 - 16px, border 3px */}
             <div
               className="absolute bottom-1 right-1 w-4 h-4 rounded-full border-[3px] border-white dark:border-[#232428]"
-              style={{ backgroundColor: isSelf ? statusColors[onlineStatus] : '#3ba55c' }}
+              style={{ backgroundColor: isSelf ? statusColors[onlineStatus] : statusColors[userOnlineStatus || 'online'] }}
             />
           </div>
         </div>

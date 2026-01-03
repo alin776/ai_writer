@@ -517,7 +517,8 @@ async def join_channel(
                 joined_at=member.joined_at,
                 last_read_at=member.last_read_at,
                 user_name=current_user.username,
-                user_avatar=current_user.avatar
+                user_avatar=current_user.avatar,
+                user_online_status=current_user.online_status
             )
         )
 
@@ -558,7 +559,8 @@ async def join_channel(
                     joined_at=member.joined_at,
                     last_read_at=member.last_read_at,
                     user_name=current_user.username,
-                    user_avatar=current_user.avatar
+                    user_avatar=current_user.avatar,
+                    user_online_status=current_user.online_status
                 )
             )
 
@@ -963,6 +965,7 @@ async def get_channel_members(
                 "username": member.user.username if member.user else "已删除用户",
                 "full_name": member.user.full_name if member.user else None,
                 "avatar": member.user.avatar if member.user else None,
+                "online_status": member.user.online_status if member.user else "offline",
                 "role": member.role,
                 "custom_title": member.custom_title,
                 "title_color": member.title_color,
@@ -1270,12 +1273,211 @@ async def get_channel_messages(
             user_avatar=msg.user.avatar if msg.user else None,
             user_bio=msg.user.bio if msg.user else None,
             user_honor=msg.user.honor if msg.user else None,
+            user_online_status=msg.user.online_status if msg.user else None,
             user_title=member.custom_title if member else None,
             user_title_color=member.title_color if member else None,
             attachments=attachments_data
         ))
 
     has_more = skip + limit < total
+
+    return ChannelMessageListResponse(
+        messages=message_responses,
+        total=total,
+        has_more=has_more
+    )
+
+
+@router.get("/{channel_id}/messages/around/{message_id}", response_model=ChannelMessageListResponse)
+async def get_messages_around(
+    channel_id: UUID,
+    message_id: UUID,
+    limit: int = Query(50, ge=1, le=100, description="获取的消息数量"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    获取指定消息及其前后的消息
+    用于跳转到历史消息时加载消息上下文
+    """
+    # 获取频道信息
+    channel_result = await db.execute(
+        select(Channel).where(Channel.id == channel_id)
+    )
+    channel = channel_result.scalar_one_or_none()
+
+    if not channel:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="频道不存在"
+        )
+
+    # 检查是否是频道成员
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    member = member_result.scalar_one_or_none()
+
+    if not member and channel.type != "official":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="未加入该频道"
+        )
+
+    # 获取目标消息
+    target_msg_result = await db.execute(
+        select(ChannelMessage).where(
+            ChannelMessage.id == message_id,
+            ChannelMessage.channel_id == channel_id,
+            ChannelMessage.is_deleted == False
+        )
+    )
+    target_msg = target_msg_result.scalar_one_or_none()
+
+    if not target_msg:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="消息不存在"
+        )
+
+    # 如果用户被封禁，检查目标消息是否在封禁前
+    banned_at_filter = None
+    if member and member.is_banned and member.banned_at:
+        banned_at_filter = member.banned_at
+        if target_msg.created_at > member.banned_at:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="消息不存在"
+            )
+
+    # 计算目标消息在该频道所有消息中的位置（按时间升序）
+    position_query = select(func.count(ChannelMessage.id)).where(
+        ChannelMessage.channel_id == channel_id,
+        ChannelMessage.is_deleted == False,
+        ChannelMessage.created_at < target_msg.created_at
+    )
+    if banned_at_filter:
+        position_query = position_query.where(ChannelMessage.created_at <= banned_at_filter)
+    position_result = await db.execute(position_query)
+    position = position_result.scalar() or 0
+
+    # 计算skip值，使目标消息在结果中间位置
+    half_limit = limit // 2
+    skip = max(0, position - half_limit)
+
+    # 查询消息
+    query = (
+        select(ChannelMessage)
+        .where(
+            ChannelMessage.channel_id == channel_id,
+            ChannelMessage.is_deleted == False
+        )
+        .options(
+            selectinload(ChannelMessage.user),
+            selectinload(ChannelMessage.attachments),
+            selectinload(ChannelMessage.forwarded_from).selectinload(ChannelMessage.user),
+            selectinload(ChannelMessage.forwarded_from).selectinload(ChannelMessage.channel),
+            selectinload(ChannelMessage.forwarded_from).selectinload(ChannelMessage.attachments)
+        )
+        .order_by(ChannelMessage.created_at.asc())
+    )
+
+    # 封禁用户只能看到封禁前的消息
+    if banned_at_filter:
+        query = query.where(ChannelMessage.created_at <= banned_at_filter)
+
+    query = query.offset(skip).limit(limit)
+
+    result = await db.execute(query)
+    messages = result.scalars().all()
+
+    # 获取总数
+    count_query = select(func.count(ChannelMessage.id)).where(
+        ChannelMessage.channel_id == channel_id,
+        ChannelMessage.is_deleted == False
+    )
+    if banned_at_filter:
+        count_query = count_query.where(ChannelMessage.created_at <= banned_at_filter)
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    # 获取成员信息
+    member_dict = {}
+    if messages:
+        user_ids = list(set(msg.user_id for msg in messages if msg.user_id))
+        if user_ids:
+            members_result = await db.execute(
+                select(ChannelMember).where(
+                    ChannelMember.channel_id == channel_id,
+                    ChannelMember.user_id.in_(user_ids)
+                )
+            )
+            for m in members_result.scalars():
+                member_dict[m.user_id] = m
+
+    # 构建响应
+    message_responses = []
+    for msg in messages:
+        m = member_dict.get(msg.user_id)
+        attachments_data = [
+            {
+                "id": att.id,
+                "file_name": att.file_name,
+                "file_url": att.file_url,
+                "file_type": att.file_type,
+                "file_size": att.file_size
+            }
+            for att in (msg.attachments or [])
+        ]
+
+        forwarded_from_data = None
+        if msg.forwarded_from:
+            fwd = msg.forwarded_from
+            forwarded_from_data = {
+                "messageId": str(fwd.id),
+                "channelId": str(fwd.channel_id),
+                "channelName": fwd.channel.name if fwd.channel else "未知频道",
+                "userName": fwd.user.full_name if fwd.user else "未知用户",
+                "content": fwd.content[:100] if fwd.content else "",
+                "createdAt": fwd.created_at.isoformat() if fwd.created_at else None,
+                "attachments": [
+                    {
+                        "id": att.id,
+                        "file_name": att.file_name,
+                        "file_url": att.file_url,
+                        "file_type": att.file_type,
+                        "file_size": att.file_size
+                    }
+                    for att in (fwd.attachments or [])
+                ]
+            }
+
+        message_responses.append(ChannelMessageResponse(
+            id=msg.id,
+            channel_id=msg.channel_id,
+            user_id=msg.user_id,
+            user_name=msg.user.full_name if msg.user else "未知用户",
+            user_avatar=msg.user.avatar if msg.user else None,
+            content=msg.content,
+            message_type=msg.message_type,
+            reply_to_id=msg.reply_to_id,
+            is_pinned=msg.is_pinned,
+            pinned_at=msg.pinned_at,
+            pinned_by=msg.pinned_by,
+            created_at=msg.created_at,
+            updated_at=msg.updated_at,
+            reactions=msg.reactions or {},
+            user_role=m.role if m else None,
+            user_title=m.title if m else None,
+            is_creator=m.is_creator if m else False,
+            attachments=attachments_data,
+            forwarded_from=forwarded_from_data
+        ))
+
+    has_more = skip + len(messages) < total
 
     return ChannelMessageListResponse(
         messages=message_responses,
@@ -1493,6 +1695,7 @@ async def send_message(
         "user_avatar": current_user.avatar,
         "user_bio": current_user.bio,
         "user_honor": current_user.honor,
+        "user_online_status": current_user.online_status,
         "user_title": member.custom_title,
         "user_title_color": member.title_color,
         "attachments": []
@@ -1516,6 +1719,7 @@ async def send_message(
         user_avatar=current_user.avatar,
         user_bio=current_user.bio,
         user_honor=current_user.honor,
+        user_online_status=current_user.online_status,
         user_title=member.custom_title,
         user_title_color=member.title_color
     )

@@ -154,6 +154,15 @@ class DataServiceClass {
   }
 
   /**
+   * 更新用户在线状态
+   * @param status 在线状态 (online, idle, dnd, offline)
+   * @returns Promise<User>
+   */
+  async updateOnlineStatus(status: 'online' | 'idle' | 'dnd' | 'offline'): Promise<User> {
+    return this.adapter.put('/users/me/status', { status });
+  }
+
+  /**
    * 获取通知设置
    * @returns Promise<NotificationSettings>
    */

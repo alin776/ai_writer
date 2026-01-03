@@ -43,6 +43,9 @@ active_channel_connections: Dict[UUID, Dict[UUID, WebSocket]] = {}
 # 用户->频道反向映射 {user_id: Set[channel_id]}
 user_channel_map: Dict[UUID, Set[UUID]] = {}
 
+# 用户在线状态存储 {user_id: online_status}
+user_online_status: Dict[UUID, str] = {}
+
 
 # ============ JWT Token 验证 (WebSocket专用) ============
 
@@ -496,6 +499,14 @@ async def channel_stream(websocket: WebSocket, channel_id: str, token: str = Que
         await websocket.close(code=4003, reason="Not a channel member or banned")
         return
 
+    # 3.5 获取用户的在线状态
+    async with AsyncSessionLocal() as db:
+        user = await db.get(User, user_id)
+        user_status = user.online_status if user else 'online'
+
+    # 存储用户状态
+    user_online_status[user_id] = user_status
+
     # 4. 接受连接
     await websocket.accept()
     logger.info(f"[Channel WS] 连接建立: channel={channel_id}, user={user_id}")
@@ -509,11 +520,12 @@ async def channel_stream(websocket: WebSocket, channel_id: str, token: str = Que
         user_channel_map[user_id] = set()
     user_channel_map[user_id].add(channel_uuid)
 
-    # 6. 广播用户上线
-    await broadcast_channel_event(channel_uuid, {
-        "type": "PRESENCE",
-        "payload": {"user_id": str(user_id), "status": "online"}
-    }, exclude_user=user_id)
+    # 6. 广播用户上线（隐身用户不广播）
+    if user_status != 'offline':
+        await broadcast_channel_event(channel_uuid, {
+            "type": "PRESENCE",
+            "payload": {"user_id": str(user_id), "status": user_status}
+        }, exclude_user=user_id)
 
     # 7. 发送当前在线用户列表给新连接的用户
     online_users = get_channel_online_users(channel_uuid)
@@ -559,11 +571,18 @@ async def channel_stream(websocket: WebSocket, channel_id: str, token: str = Que
             if not user_channel_map[user_id]:
                 del user_channel_map[user_id]
 
-        # 广播用户离线
-        await broadcast_channel_event(channel_uuid, {
-            "type": "PRESENCE",
-            "payload": {"user_id": str(user_id), "status": "offline"}
-        })
+        # 广播用户离线（隐身用户不广播）
+        stored_status = user_online_status.get(user_id, 'online')
+        if stored_status != 'offline':
+            await broadcast_channel_event(channel_uuid, {
+                "type": "PRESENCE",
+                "payload": {"user_id": str(user_id), "status": "offline"}
+            })
+
+        # 清理用户状态（如果用户没有其他频道连接）
+        if user_id not in user_channel_map:
+            user_online_status.pop(user_id, None)
+
         try:
             if websocket.client_state != WebSocketState.DISCONNECTED:
                 await websocket.close()
@@ -637,8 +656,44 @@ async def broadcast_message_edit(
 
 
 def get_channel_online_users(channel_id: UUID) -> list:
-    """获取频道在线用户列表"""
+    """获取频道在线用户列表（排除隐身用户）"""
     if channel_id not in active_channel_connections:
         return []
-    return [str(uid) for uid in active_channel_connections[channel_id].keys()]
+    # 排除隐身用户（状态为 'offline'）
+    return [
+        str(uid) for uid in active_channel_connections[channel_id].keys()
+        if user_online_status.get(uid, 'online') != 'offline'
+    ]
+
+
+async def update_user_online_status(user_id: UUID, new_status: str):
+    """
+    更新用户在线状态并广播到所有相关频道
+
+    Args:
+        user_id: 用户ID
+        new_status: 新的在线状态 ('online', 'idle', 'dnd', 'offline')
+    """
+    old_status = user_online_status.get(user_id, 'online')
+    user_online_status[user_id] = new_status
+
+    # 获取用户所在的所有频道
+    user_channels = user_channel_map.get(user_id, set())
+
+    # 广播到每个频道
+    for channel_id in user_channels:
+        # 如果用户变为隐身，广播 offline；否则广播真实状态
+        broadcast_status = 'offline' if new_status == 'offline' else new_status
+
+        # 如果用户从隐身变为可见，广播 online 状态
+        if old_status == 'offline' and new_status != 'offline':
+            broadcast_status = new_status
+
+        await broadcast_channel_event(channel_id, {
+            "type": "PRESENCE",
+            "payload": {
+                "user_id": str(user_id),
+                "status": broadcast_status
+            }
+        }, exclude_user=user_id)
 

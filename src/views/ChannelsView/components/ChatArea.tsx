@@ -36,6 +36,7 @@ export interface Message {
   userBio?: string; // 用户简介
   userTitle?: string; // 用户称号
   userTitleColor?: string; // 称号颜色
+  userOnlineStatus?: 'online' | 'idle' | 'dnd' | 'offline'; // 用户在线状态
   content: string;
   timestamp: Date;
   type?: 'normal' | 'announcement' | 'mention';
@@ -97,14 +98,16 @@ interface ChatAreaProps {
   isChannelListCollapsed?: boolean;
   onToggleChannelList?: () => void;
   onNavigateToOriginalMessage?: (channelId: string, messageId: string) => void;
+  onLoadMessagesAround?: (messageId: string) => Promise<boolean>;  // 加载消息附近的上下文，返回是否成功
 }
 
-export function ChatArea({ channel, messages, currentUser, onSendMessage, onSendMessageWithAttachments, onMentionAll, onLeaveChannel, onNewMessage, onMessageDelete, onMessageEdit, onReactionAdd, onReactionRemove, onReactionsChange, onPinChange, scrollToMessageId, pinnedMessagesBar, isChannelListCollapsed, onToggleChannelList, onNavigateToOriginalMessage }: ChatAreaProps) {
+export function ChatArea({ channel, messages, currentUser, onSendMessage, onSendMessageWithAttachments, onMentionAll, onLeaveChannel, onNewMessage, onMessageDelete, onMessageEdit, onReactionAdd, onReactionRemove, onReactionsChange, onPinChange, scrollToMessageId, pinnedMessagesBar, isChannelListCollapsed, onToggleChannelList, onNavigateToOriginalMessage, onLoadMessagesAround }: ChatAreaProps) {
   const [messageInput, setMessageInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiPickerPosition, setEmojiPickerPosition] = useState({ x: 0, y: 0 });
   const [reactionTargetMessageId, setReactionTargetMessageId] = useState<string | null>(null); // 添加反应的目标消息ID
   const [showSidebar, setShowSidebar] = useState(false);
+  const [showMemberPanel, setShowMemberPanel] = useState(false); // 成员列表面板
   const [showMemberDialog, setShowMemberDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [reportingMessageId, setReportingMessageId] = useState<string>('');
@@ -135,6 +138,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     userId: string;
     userName: string;
     userAvatar?: string;
+    userOnlineStatus?: 'online' | 'idle' | 'dnd' | 'offline';
   } | null>(null);
   const [unreadInfo, setUnreadInfo] = useState<UnreadInfo | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -176,6 +180,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     userBio?: string;
     userTitle?: string;
     userTitleColor?: string;
+    userOnlineStatus?: 'online' | 'idle' | 'dnd' | 'offline';
     position: { x: number; y: number };
   } | null>(null);
   // 可邀请的频道列表（用于右键菜单）
@@ -878,7 +883,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   };
 
   // 跳转到指定消息
-  const jumpToMessage = (messageId: string) => {
+  const jumpToMessage = async (messageId: string) => {
     const element = messageRefs.current.get(messageId);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -886,9 +891,26 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
       element.classList.add('highlight-message');
       setTimeout(() => element.classList.remove('highlight-message'), 2000);
     } else {
-      // 消息不在当前加载的列表中
-      console.warn('[ChatArea] 消息不在当前列表中:', messageId);
-      showWarning('该消息不在当前页面，请向上滚动加载更多消息');
+      // 消息不在当前加载的列表中，尝试加载
+      console.log('[ChatArea] 消息不在当前列表中，尝试加载:', messageId);
+      if (onLoadMessagesAround) {
+        const success = await onLoadMessagesAround(messageId);
+        if (success) {
+          // 加载成功后，延迟执行跳转（等待渲染完成）
+          setTimeout(() => {
+            const newElement = messageRefs.current.get(messageId);
+            if (newElement) {
+              newElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              newElement.classList.add('highlight-message');
+              setTimeout(() => newElement.classList.remove('highlight-message'), 2000);
+            }
+          }, 200);
+        } else {
+          showWarning('消息加载失败，请稍后重试');
+        }
+      } else {
+        showWarning('该消息不在当前页面，请向上滚动加载更多消息');
+      }
     }
   };
 
@@ -1313,6 +1335,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                         userBio: message.userBio,
                         userTitle: message.userTitle,
                         userTitleColor: message.userTitleColor,
+                        userOnlineStatus: message.userOnlineStatus,
                         position: { x: e.clientX, y: e.clientY },
                       });
                     }}
@@ -1328,6 +1351,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                         userId: message.userId,
                         userName: message.userName,
                         userAvatar: message.userAvatar,
+                        userOnlineStatus: message.userOnlineStatus,
                       });
                     }}
                   >
@@ -1356,6 +1380,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                           userBio: message.userBio,
                           userTitle: message.userTitle,
                           userTitleColor: message.userTitleColor,
+                          userOnlineStatus: message.userOnlineStatus,
                           position: { x: e.clientX, y: e.clientY },
                         });
                       }}
@@ -1497,6 +1522,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                             userBio: mentionedMember?.bio,
                             userTitle: mentionedMember?.title,
                             userTitleColor: mentionedMember?.titleColor,
+                            userOnlineStatus: mentionedMember?.onlineStatus,
                             position: { x: e.clientX, y: e.clientY },
                           });
                         })}
@@ -2361,6 +2387,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                                 userId: userContextMenu.userId,
                                 userName: userContextMenu.userName,
                                 userAvatar: userContextMenu.userAvatar,
+                                userOnlineStatus: userContextMenu.userOnlineStatus,
                                 position: { x: userContextMenu.x, y: userContextMenu.y },
                               });
                               showWarning('需要先添加对方为好友才能发送私信');
@@ -2783,6 +2810,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
           userBio={userProfilePopover.userBio}
           userTitle={userProfilePopover.userTitle}
           userTitleColor={userProfilePopover.userTitleColor}
+          userOnlineStatus={userProfilePopover.userOnlineStatus}
           currentUserId={currentUser.id}
           channelId={channel.id}
           channelType={channel.type}

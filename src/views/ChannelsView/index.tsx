@@ -11,6 +11,7 @@ import {
   joinChannel,
   leaveChannel,
   getChannelMessages,
+  getMessagesAround,
   sendMessage as apiSendMessage,
   sendMessageWithAttachments as apiSendMessageWithAttachments,
   getChannelMembers,
@@ -81,6 +82,7 @@ const convertApiMessageToMessage = (apiMessage: ChannelMessage): Message => {
     userBio: apiMessage.userBio,
     userTitle: apiMessage.userTitle,
     userTitleColor: apiMessage.userTitleColor,
+    userOnlineStatus: apiMessage.userOnlineStatus,
     content: apiMessage.content,
     timestamp: new Date(apiMessage.createdAt),
     type: apiMessage.type,
@@ -249,6 +251,51 @@ const ChannelsView: React.FC = () => {
       }
     }
   }, [activeChannelId, userChannels, showToast]);
+
+  // 加载指定消息及其附近的消息（用于跳转到历史消息）
+  const handleLoadMessagesAround = useCallback(async (messageId: string): Promise<boolean> => {
+    if (!activeChannelId) return false;
+
+    try {
+      console.log('[ChannelsView] 加载消息附近上下文:', messageId);
+      const response = await getMessagesAround(activeChannelId, messageId, 50);
+
+      // 先转换所有消息（不包含回复信息）
+      const newMessages = response.messages.map(convertApiMessageToMessage);
+
+      // 然后添加回复信息（与 loadMessages 逻辑一致）
+      const newMessagesWithReply = newMessages.map(msg => {
+        const apiMsg = response.messages.find(m => m.id === msg.id);
+        if (apiMsg?.replyToId) {
+          const replyToMsg = newMessages.find(m => m.id === apiMsg.replyToId);
+          if (replyToMsg) {
+            return {
+              ...msg,
+              replyTo: {
+                id: replyToMsg.id,
+                userName: replyToMsg.userName,
+                content: replyToMsg.content,
+              },
+            };
+          }
+        }
+        return msg;
+      });
+
+      // 更新消息列表（替换当前列表）
+      setChannelMessages(prev => ({
+        ...prev,
+        [activeChannelId]: newMessagesWithReply
+      }));
+
+      console.log('[ChannelsView] 消息上下文加载成功，共', newMessagesWithReply.length, '条消息');
+      return true;
+    } catch (error) {
+      console.error('[ChannelsView] 加载消息上下文失败:', error);
+      showToast('error', '加载消息失败');
+      return false;
+    }
+  }, [activeChannelId, showToast]);
 
   // 加载用户频道
   useEffect(() => {
@@ -446,6 +493,7 @@ const ChannelsView: React.FC = () => {
         userBio: response.userBio,
         userTitle: response.userTitle,
         userTitleColor: response.userTitleColor,
+        userOnlineStatus: response.userOnlineStatus,
         content: response.content,
         timestamp: new Date(response.createdAt),
         type: response.type as 'normal' | 'announcement' | 'mention',
@@ -532,6 +580,7 @@ const ChannelsView: React.FC = () => {
       userBio: wsMessage.user_bio || undefined,
       userTitle: wsMessage.user_title || undefined,
       userTitleColor: wsMessage.user_title_color || undefined,
+      userOnlineStatus: wsMessage.user_online_status || undefined,
       content: wsMessage.content,
       timestamp: new Date(wsMessage.created_at),
       type: wsMessage.type as 'normal' | 'announcement' | 'mention',
@@ -828,6 +877,7 @@ const ChannelsView: React.FC = () => {
             isChannelListCollapsed={isChannelListCollapsed}
             onToggleChannelList={() => setIsChannelListCollapsed(!isChannelListCollapsed)}
             onNavigateToOriginalMessage={handleNavigateToOriginalMessage}
+            onLoadMessagesAround={handleLoadMessagesAround}
             pinnedMessagesBar={
               <PinnedMessagesBar
                 channelId={activeChannel.id}
