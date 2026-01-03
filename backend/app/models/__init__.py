@@ -57,6 +57,10 @@ from app.models.chapter_comment import (
     CommentLocationType,
     ChapterCommentReportReason,
 )
+from app.models.bookshelf import Bookshelf
+from app.models.comment import Comment, CommentLike, CommentReport, ReportReason
+from app.models.rating import WorkRating
+from app.models.worldview_progress import WorldviewExtractionProgress
 
 __all__ = [
     "User",
@@ -141,4 +145,12 @@ __all__ = [
     "ChapterCommentReport",
     "CommentLocationType",
     "ChapterCommentReportReason",
+    # Legacy models (kept for database compatibility)
+    "Bookshelf",
+    "Comment",
+    "CommentLike",
+    "CommentReport",
+    "ReportReason",
+    "WorkRating",
+    "WorldviewExtractionProgress",
 ]

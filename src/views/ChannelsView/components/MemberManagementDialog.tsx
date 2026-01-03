@@ -430,8 +430,8 @@ export function MemberManagementDialog({
                         <span
                           className="text-xs px-2 py-1 rounded"
                           style={{
-                            backgroundColor: `${member.titleColor}20`,
-                            color: member.titleColor
+                            backgroundColor: `${member.titleColor || '#FF6B6B'}20`,
+                            color: member.titleColor || '#FF6B6B'
                           }}
                         >
                           {member.customTitle}

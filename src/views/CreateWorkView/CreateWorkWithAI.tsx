@@ -105,7 +105,7 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
   const [storyConcept, setStoryConcept] = useState('');
   const [worldViewData, setWorldViewData] = useState<WorldViewData>({});
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
-  const [editingFields, setEditingFields] = useState<Set<string>>(new Set());
+  const [editingFields, setEditingFields] = useState<Set<keyof WorldViewData>>(new Set());
   const [finalData, setFinalData] = useState({ title: '', description: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showFinalForm, setShowFinalForm] = useState(false);
@@ -181,14 +181,14 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
   /**
    * 开始编辑字段
    */
-  const startEditing = (fieldId: string) => {
+  const startEditing = (fieldId: keyof WorldViewData) => {
     setEditingFields(new Set([...editingFields, fieldId]));
   };
 
   /**
    * 保存字段编辑
    */
-  const saveField = (fieldId: string) => {
+  const saveField = (fieldId: keyof WorldViewData) => {
     const newEditing = new Set(editingFields);
     newEditing.delete(fieldId);
     setEditingFields(newEditing);
@@ -197,7 +197,7 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
   /**
    * 取消字段编辑
    */
-  const cancelField = (fieldId: string) => {
+  const cancelField = (fieldId: keyof WorldViewData) => {
     const newEditing = new Set(editingFields);
     newEditing.delete(fieldId);
     setEditingFields(newEditing);
