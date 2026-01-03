@@ -154,19 +154,21 @@ class ImportService:
     ) -> ImportPreviewResponse:
         """预览文本/Markdown格式"""
         text = self._smart_decode(content)
-        
-        # 提取标题（第一行或第一个#标题）
-        title = self._extract_title(text)
-        
+
+        # 智能提取元信息（标题、简介）
+        metadata = self._extract_metadata(text)
+        title = metadata['title']
+        description = metadata['description']
+
         # 智能章节分割
         chapters = self._split_chapters(text)
-        
+
         # 计算总字数
         total_words = self._calculate_word_count(text)
-        
+
         preview_work = ImportPreviewWork(
             title=title,
-            description=None,
+            description=description,  # 使用提取的简介
             genre=None,
             total_words=total_words,
             total_chapters=len(chapters)
@@ -394,14 +396,18 @@ class ImportService:
         logger.info(f"用户 {user_id} 开始导入文本数据")
 
         text = self._smart_decode(content)
-        
-        # 提取标题
-        title = self._extract_title(text)
-        
+
+        # 智能提取元信息（标题、简介）
+        metadata = self._extract_metadata(text)
+        title = metadata['title']
+        description = metadata['description']
+
         # 分割章节
         chapters = self._split_chapters(text)
         if not chapters:
-            chapters = [{'title': title, 'content': text.strip()}]
+            # 未检测到章节时，整个文本作为单章导入，也需要转换为HTML格式
+            html_content = self._convert_text_to_html(text.strip())
+            chapters = [{'title': title, 'content': html_content}]
         
         work: Work
         starting_order = 0
@@ -420,7 +426,7 @@ class ImportService:
             work = Work(
                 author_id=user_id,
                 title=title,
-                description=None,
+                description=description,  # 使用提取的简介
                 genre=WorkGenre.OTHER,
                 status=WorkStatus.DRAFT,
                 total_words=0,
@@ -440,7 +446,7 @@ class ImportService:
             chapter = Chapter(
                 work_id=work.id,
                 title=chapter_data['title'],
-                content=content_text,  # 保留纯文本，避免未清洗的 HTML 直存
+                content=content_text,  # HTML格式，已通过 _convert_text_to_html 转换
                 order=starting_order + idx + 1,
                 word_count=word_count,
                 status=ChapterStatus.DRAFT,
@@ -510,51 +516,175 @@ class ImportService:
         return len(content.replace('\n', '').replace(' ', ''))
 
     def _extract_title(self, text: str) -> str:
-        """从文本中提取标题"""
+        """从文本中提取标题（保留向后兼容）"""
+        metadata = self._extract_metadata(text)
+        return metadata['title']
+
+    def _extract_metadata(self, text: str) -> Dict[str, Any]:
+        """智能提取作品元信息（标题、简介）
+
+        解析逻辑：
+        1. 第一个非空行作为作品名称
+        2. 识别 "简介：" / "简介:" / "内容简介：" 等后的内容作为简介
+        3. 遇到第一个章节标题时停止元信息提取
+
+        Returns:
+            Dict with keys: title, description, content_start_line
+        """
         lines = text.strip().split('\n')
-        
-        # 尝试从Markdown标题提取
-        for line in lines[:10]:  # 只检查前10行
-            line = line.strip()
-            if line.startswith('# '):
-                return line[2:].strip()[:200]
-        
-        # 使用第一行非空行作为标题
-        for line in lines[:5]:
-            line = line.strip()
-            if line and len(line) <= 200:
-                return line
-        
-        return "未命名作品"
+
+        title = "未命名作品"
+        description = None
+        content_start_line = 0
+
+        # 章节标题正则（用于判断元信息区域结束）
+        chapter_patterns = [
+            r'^【第[零一二三四五六七八九十百千万\d]+[章回节]',
+            r'^第[零一二三四五六七八九十百千万\d]+[章回节]',
+            r'^Chapter\s+\d+',
+            r'^##\s+',
+        ]
+
+        # 简介标识正则
+        intro_pattern = r'^(简介|内容简介|作品简介|摘要)[\s：:]*$'
+        intro_inline_pattern = r'^(简介|内容简介|作品简介|摘要)[\s：:]+(.+)$'
+
+        in_intro = False
+        intro_lines = []
+
+        for idx, line in enumerate(lines):
+            stripped = line.strip()
+
+            # 跳过空行（在找到标题之前）
+            if not stripped:
+                if in_intro:
+                    # 简介中的空行，继续收集
+                    continue
+                continue
+
+            # 检查是否遇到章节标题
+            is_chapter = False
+            for pattern in chapter_patterns:
+                if re.match(pattern, stripped):
+                    is_chapter = True
+                    break
+
+            if is_chapter:
+                content_start_line = idx
+                break
+
+            # 提取标题（第一个非空行，且不是简介标识）
+            if title == "未命名作品":
+                # 检查是否是Markdown标题
+                if stripped.startswith('# '):
+                    title = stripped[2:].strip()[:200]
+                # 检查不是简介开头
+                elif not re.match(intro_pattern, stripped) and not re.match(intro_inline_pattern, stripped):
+                    title = stripped[:200]
+                continue
+
+            # 检查简介标识（独立行）
+            if re.match(intro_pattern, stripped):
+                in_intro = True
+                continue
+
+            # 检查简介标识（同行带内容）
+            inline_match = re.match(intro_inline_pattern, stripped)
+            if inline_match:
+                intro_lines.append(inline_match.group(2).strip())
+                in_intro = True
+                continue
+
+            # 收集简介内容
+            if in_intro:
+                intro_lines.append(stripped)
+
+        # 组装简介
+        if intro_lines:
+            description = '\n'.join(intro_lines).strip()
+            # 限制简介长度
+            if len(description) > 2000:
+                description = description[:2000] + '...'
+
+        return {
+            'title': title,
+            'description': description,
+            'content_start_line': content_start_line
+        }
     
     def _split_chapters(self, text: str) -> List[Dict[str, str]]:
         """智能分割章节
-        
-        识别模式：
-        - "第X章" "Chapter X"
-        - "## 第X章"（Markdown）
-        - "# 标题"（Markdown一级标题）
+
+        识别模式（按优先级排序）：
+        1. 【第X章 标题】 / 【第X章】 - 方括号包裹格式
+        2. 第X章 标题 / 第X章：标题 / 第X章 - 标准中文格式
+        3. 第X回 / 第X节 - 回目/节格式
+        4. Chapter X Title - 英文格式
+        5. ## 标题 - Markdown格式
+
+        支持中文数字（零一二三...百千万）和阿拉伯数字
         """
         chapters = []
-        
-        # 模式1: 第X章
-        pattern1 = r'第[零一二三四五六七八九十百千万\d]+章[\s：:]+(.+)?'
-        # 模式2: Chapter X
-        pattern2 = r'Chapter\s+\d+[\s：:]*(.+)?'
-        # 模式3: Markdown标题
-        pattern3 = r'^##\s+(.+)$'
-        
+
+        # 章节匹配模式（编译正则提高性能）
+        chapter_patterns = [
+            # 模式1: 【第X章/回/节 标题】 或 【第X章/回/节】
+            (r'^【(第[零一二三四五六七八九十百千万\d]+[章回节][^\】]*)】\s*(.*)$', 'bracket'),
+            # 模式2: 第X章/回/节 后跟空格、冒号、顿号或直接标题
+            (r'^(第[零一二三四五六七八九十百千万\d]+[章回节])[\s：:、]+(.+)$', 'chinese_with_title'),
+            # 模式3: 第X章/回/节 单独一行
+            (r'^(第[零一二三四五六七八九十百千万\d]+[章回节])\s*$', 'chinese_only'),
+            # 模式4: Chapter X 后跟标题（可选）
+            (r'^(Chapter\s+\d+)[\s：:]*(.*)$', 'english'),
+            # 模式5: Markdown二级标题
+            (r'^##\s+(.+)$', 'markdown'),
+        ]
+
+        # 编译正则
+        compiled_patterns = [(re.compile(p, re.IGNORECASE if t == 'english' else 0), t) for p, t in chapter_patterns]
+
         lines = text.split('\n')
         current_chapter = None
         current_content = []
-        
-        for line in lines:
+
+        # 跳过元信息区域（标题、简介等）
+        metadata = self._extract_metadata(text)
+        start_line = metadata.get('content_start_line', 0)
+
+        for idx, line in enumerate(lines):
+            stripped = line.strip()
+
             # 检查是否匹配章节标题
-            match1 = re.match(pattern1, line.strip())
-            match2 = re.match(pattern2, line.strip(), re.IGNORECASE)
-            match3 = re.match(pattern3, line.strip())
-            
-            if match1 or match2 or match3:
+            chapter_title = None
+            for pattern, pattern_type in compiled_patterns:
+                match = pattern.match(stripped)
+                if match:
+                    if pattern_type == 'bracket':
+                        # 【第X章 标题】格式，group(1)是完整标题
+                        chapter_title = match.group(1).strip()
+                        # 如果】后还有内容，可能是副标题
+                        suffix = match.group(2).strip() if match.group(2) else ''
+                        if suffix:
+                            chapter_title = f"{chapter_title} {suffix}"
+                    elif pattern_type == 'chinese_with_title':
+                        # 第X章 标题 格式
+                        chapter_num = match.group(1)
+                        title_part = match.group(2).strip()
+                        chapter_title = f"{chapter_num} {title_part}"
+                    elif pattern_type == 'chinese_only':
+                        # 第X章 单独格式
+                        chapter_title = match.group(1)
+                    elif pattern_type == 'english':
+                        # Chapter X 格式
+                        chapter_num = match.group(1)
+                        title_part = match.group(2).strip() if match.group(2) else ''
+                        chapter_title = f"{chapter_num} {title_part}".strip()
+                    elif pattern_type == 'markdown':
+                        # Markdown格式
+                        chapter_title = match.group(1).strip()
+                    break
+
+            if chapter_title:
                 # 保存上一章节
                 if current_chapter:
                     raw_content = '\n'.join(current_content).strip()
@@ -563,15 +693,15 @@ class ImportService:
                         'title': current_chapter,
                         'content': html_content
                     })
-                
+
                 # 开始新章节
-                current_chapter = line.strip().lstrip('#').strip()
+                current_chapter = chapter_title
                 current_content = []
             else:
-                # 累积内容
-                if current_chapter:
+                # 累积内容（只有在已经开始章节后才累积）
+                if current_chapter is not None:
                     current_content.append(line)
-        
+
         # 保存最后一章
         if current_chapter and current_content:
             raw_content = '\n'.join(current_content).strip()

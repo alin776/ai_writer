@@ -15,6 +15,23 @@
   background: #f3f4f6;
 }
 
+/* 拖拽状态 */
+.file-picker.is-dragging {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.08);
+  border-style: solid;
+}
+
+.file-picker.is-dragging .file-placeholder svg {
+  color: #3b82f6;
+  transform: scale(1.1);
+  transition: transform 0.2s ease;
+}
+
+.file-picker.is-dragging .file-placeholder-title {
+  color: #3b82f6;
+}
+
 .file-picker.is-disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -98,4 +115,74 @@
   border-color: #d1d5db;
   color: #111827;
   background: #f9fafb;
+}
+
+/* ==================== 暗色模式 ==================== */
+
+.dark .file-picker {
+  border-color: #475569;
+  background: #0f172a;
+}
+
+.dark .file-picker:hover {
+  border-color: #64748b;
+  background: #1e293b;
+}
+
+/* 暗色模式拖拽状态 */
+.dark .file-picker.is-dragging {
+  border-color: #60a5fa;
+  background: rgba(96, 165, 250, 0.1);
+}
+
+.dark .file-picker.is-dragging .file-placeholder svg {
+  color: #60a5fa;
+}
+
+.dark .file-picker.is-dragging .file-placeholder-title {
+  color: #60a5fa;
+}
+
+.dark .file-placeholder {
+  color: #94a3b8;
+}
+
+.dark .file-placeholder svg {
+  color: #64748b;
+}
+
+.dark .file-placeholder-title {
+  color: #f8fafc;
+}
+
+.dark .file-placeholder-desc {
+  color: #94a3b8;
+}
+
+.dark .file-placeholder-note {
+  color: #64748b;
+}
+
+.dark .file-picked svg {
+  color: #60a5fa;
+}
+
+.dark .file-picked-name {
+  color: #f8fafc;
+}
+
+.dark .file-picked-size {
+  color: #94a3b8;
+}
+
+.dark .file-remove {
+  border-color: #475569;
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+.dark .file-remove:hover {
+  border-color: #64748b;
+  color: #f8fafc;
+  background: #334155;
 }

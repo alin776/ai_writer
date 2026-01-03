@@ -22,6 +22,13 @@
   flex-direction: column;
   box-shadow: 0 15px 45px rgba(15, 23, 42, 0.18);
   animation: slideUp 0.22s ease-out;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* 对话框拖拽状态 */
+.import-dialog.is-dragging-over {
+  border-color: #3b82f6;
+  box-shadow: 0 15px 45px rgba(15, 23, 42, 0.18), 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
 .import-dialog-body {
@@ -471,6 +478,12 @@
   background: #1e293b;
   border-color: #334155;
   box-shadow: 0 15px 45px rgba(0, 0, 0, 0.5);
+}
+
+/* 暗色模式对话框拖拽状态 */
+.dark .import-dialog.is-dragging-over {
+  border-color: #60a5fa;
+  box-shadow: 0 15px 45px rgba(0, 0, 0, 0.5), 0 0 0 3px rgba(96, 165, 250, 0.25);
 }
 
 .dark .import-dialog-header {

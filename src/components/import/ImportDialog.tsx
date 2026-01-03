@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ImportOptions, ImportPreviewResponse } from '@/types/export';
 import type { Work } from '@/types';
 import { DataService } from '@/services/DataService';
@@ -18,6 +18,21 @@ const detectFormat = (filename: string): 'json' | 'markdown' | 'txt' => {
   return 'txt';
 };
 
+// 检查文件类型是否被接受
+const isFileAccepted = (file: File, accept: string): boolean => {
+  if (!accept) return true;
+  const acceptedTypes = accept.split(',').map(t => t.trim().toLowerCase());
+  const fileName = file.name.toLowerCase();
+  return acceptedTypes.some(accepted => {
+    if (accepted.startsWith('.')) {
+      return fileName.endsWith(accepted);
+    }
+    return false;
+  });
+};
+
+const ACCEPTED_EXTENSIONS = '.json,.md,.markdown,.txt';
+
 const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
   const [file, setFile] = useState<File | null>(null);
   const [format, setFormat] = useState<'json' | 'markdown' | 'txt'>('json');
@@ -33,6 +48,16 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const dragCounterRef = useRef(0);
+  const stateRef = useRef({ previewing, loading, importMode });
+
+  // 保持 ref 与 state 同步
+  useEffect(() => {
+    stateRef.current = { previewing, loading, importMode };
+  }, [previewing, loading, importMode]);
 
   const loadWorks = async () => {
     try {
@@ -47,7 +72,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
     }
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (importMode === 'existing' && works.length === 0 && !worksLoading) {
       loadWorks();
     }
@@ -136,9 +161,119 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
     }
   };
 
+  // 处理拖拽文件 - 使用原生事件监听器
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const handleDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (stateRef.current.previewing || stateRef.current.loading) return;
+
+      dragCounterRef.current++;
+      if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
+        setIsDraggingOver(true);
+      }
+    };
+
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      dragCounterRef.current--;
+      if (dragCounterRef.current === 0) {
+        setIsDraggingOver(false);
+      }
+    };
+
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    };
+
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      setIsDraggingOver(false);
+      dragCounterRef.current = 0;
+
+      if (stateRef.current.previewing || stateRef.current.loading) return;
+
+      const droppedFile = e.dataTransfer?.files?.[0];
+      if (droppedFile) {
+        // 检查文件类型
+        if (!isFileAccepted(droppedFile, ACCEPTED_EXTENSIONS)) {
+          setError('不支持的文件格式，请选择 .json、.md 或 .txt 文件');
+          return;
+        }
+
+        // 处理文件
+        setPreview(null);
+        setError(null);
+        setFile(droppedFile);
+
+        const detectedFormat = detectFormat(droppedFile.name);
+        if (stateRef.current.importMode === 'existing' && detectedFormat === 'json') {
+          setError('追加到已有作品暂不支持 JSON 文件，请选择 Markdown 或 TXT');
+          setFile(null);
+          setFormat('markdown');
+          return;
+        }
+
+        setFormat(detectedFormat);
+        // 延迟触发预览，确保 state 更新
+        setTimeout(() => {
+          handlePreview(droppedFile, detectedFormat);
+        }, 0);
+      }
+    };
+
+    // 绑定原生事件
+    dialog.addEventListener('dragenter', handleDragEnter);
+    dialog.addEventListener('dragleave', handleDragLeave);
+    dialog.addEventListener('dragover', handleDragOver);
+    dialog.addEventListener('drop', handleDrop);
+
+    return () => {
+      dialog.removeEventListener('dragenter', handleDragEnter);
+      dialog.removeEventListener('dragleave', handleDragLeave);
+      dialog.removeEventListener('dragover', handleDragOver);
+      dialog.removeEventListener('drop', handleDrop);
+    };
+  }, []);
+
+  // 全局阻止浏览器默认拖拽行为
+  useEffect(() => {
+    const preventDefaults = (e: DragEvent) => {
+      e.preventDefault();
+    };
+
+    // 在 window 级别阻止，确保最早捕获
+    window.addEventListener('dragover', preventDefaults, true);
+    window.addEventListener('drop', preventDefaults, true);
+
+    return () => {
+      window.removeEventListener('dragover', preventDefaults, true);
+      window.removeEventListener('drop', preventDefaults, true);
+    };
+  }, []);
+
   return (
-    <div className="import-dialog-overlay" onClick={onClose}>
-      <div className="import-dialog" onClick={e => e.stopPropagation()}>
+    <div
+      className="import-dialog-overlay"
+      onClick={onClose}
+    >
+      <div
+        ref={dialogRef}
+        className={`import-dialog ${isDraggingOver ? 'is-dragging-over' : ''}`}
+        onClick={e => e.stopPropagation()}
+      >
         {/* 标题栏 */}
         <div className="import-dialog-header">
           <h2>
@@ -155,7 +290,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
         {/* 文件上传区域 */}
         <div className="form-section">
           <h3>选择文件</h3>
-          
+
           <div className="import-mode">
             <label>
               <input
@@ -220,9 +355,9 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
           <FilePicker
             file={file}
             onChange={handleFileChange}
-            accept=".json,.md,.markdown,.txt"
+            accept={ACCEPTED_EXTENSIONS}
             placeholder="点击选择文件或拖拽到此处"
-            description="支持 JSON、Markdown、TXT（TXT/MD 最大 10MB，支持 UTF-8/GBK 编码）"
+            description="支持 .json / .md / .txt 格式"
             note={importMode === 'existing' ? '追加模式仅支持 Markdown/TXT' : undefined}
             disabled={previewing || loading}
           />
@@ -305,20 +440,20 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
         {preview && !previewing && (
           <div className="form-section preview-section">
             <h3>导入预览</h3>
-            
+
             <div className="preview-info">
               <div className="preview-item">
                 <span className="label">作品标题：</span>
                 <strong>{preview.work.title}</strong>
               </div>
-              
+
               {preview.work.description && (
                 <div className="preview-item">
                   <span className="label">简介：</span>
                   <span>{preview.work.description}</span>
                 </div>
               )}
-              
+
               <div className="preview-stats">
                 <div className="stat">
                   <strong>{preview.chapters.length}</strong>
@@ -403,7 +538,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
           >
             取消
           </button>
-          
+
           {file && !preview && !previewing && (
             <button
               onClick={() => handlePreview()}
@@ -413,7 +548,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
               预览
             </button>
           )}
-          
+
           <button
             onClick={handleImport}
             className="button button-primary"
