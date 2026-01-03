@@ -714,8 +714,13 @@ class NotificationService:
         self,
         recipient_user_id: UUID,
         replier_name: str,
+        replier_id: UUID,
+        replier_avatar: Optional[str],
         comment_preview: str,
+        work_id: str,
         work_title: str,
+        comment_id: str,
+        parent_comment_id: Optional[str] = None,
         action_url: Optional[str] = None
     ) -> Notification:
         """
@@ -724,8 +729,13 @@ class NotificationService:
         Args:
             recipient_user_id: 接收通知的用户ID（原评论作者）
             replier_name: 回复者用户名
+            replier_id: 回复者用户ID
+            replier_avatar: 回复者头像URL
             comment_preview: 回复内容预览（建议50字以内）
+            work_id: 作品ID
             work_title: 作品标题
+            comment_id: 回复评论的ID
+            parent_comment_id: 被回复的父评论ID
             action_url: 点击跳转的URL
         """
         title = f"{replier_name} 回复了你的评论"
@@ -735,6 +745,16 @@ class NotificationService:
         if action_url:
             action_button = {"text": "查看回复", "url": action_url}
 
+        # 存储元数据，用于前端实现回复功能
+        metadata = {
+            "work_id": work_id,
+            "comment_id": comment_id,
+            "parent_comment_id": parent_comment_id,
+            "replier_id": str(replier_id),
+            "replier_name": replier_name,
+            "replier_avatar": replier_avatar
+        }
+
         notification = Notification(
             title=title,
             content=content,
@@ -743,6 +763,7 @@ class NotificationService:
             priority=NotificationPriority.NORMAL,
             display_type=["notification"],
             action_button=action_button,
+            activity_rules=metadata,  # 复用 activity_rules 存储元数据
             target_users=TargetUserType.CUSTOM,
             custom_user_ids=[recipient_user_id],
             status=NotificationStatus.ACTIVE,

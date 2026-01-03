@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/ta
 import { ImageWithFallback } from '../../components/common/ImageWithFallback';
 import { BookOpen, Feather, Sparkles, ChevronRight, CheckCircle, Eye, EyeOff, HelpCircle } from 'lucide-react';
 import { ApiAdapter } from '@/services/ApiAdapter';
+import { processPendingInvite } from '@/utils/pendingInvite';
 
 // 创建API实例
 const api = new ApiAdapter();
@@ -354,7 +355,14 @@ const AuthView: React.FC = () => {
 
       // 更新用户信息
       login(user, accessToken, refreshToken, tokenExpiresAt, refreshTokenExpiresAt);
-      navigate('/works');
+
+      // 处理待定的频道邀请
+      const pendingChannelId = await processPendingInvite();
+      if (pendingChannelId) {
+        navigate(`/channels?channelId=${pendingChannelId}`);
+      } else {
+        navigate('/works');
+      }
     } catch (error: any) {
       const errorMessage = error?.response?.data?.detail || error?.message || t('auth.loginError');
       setErrors({ submit: errorMessage });

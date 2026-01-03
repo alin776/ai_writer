@@ -350,9 +350,14 @@ async def create_comment(
             await notification_service.create_comment_reply_notification(
                 recipient_user_id=recipient_uuid,
                 replier_name=current_user.username,
+                replier_id=current_user.id,
+                replier_avatar=current_user.avatar,
                 comment_preview=comment_preview,
+                work_id=work_id,
                 work_title=work.title,
-                action_url=f"/library/novel-square/{work_id}"
+                comment_id=str(comment.id),
+                parent_comment_id=comment_data.parent_id,
+                action_url=f"/library/novel-square?openNovel={work_id}&comment={comment.id}"
             )
     except Exception as e:
         # 通知发送失败不影响评论创建

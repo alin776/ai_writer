@@ -29,6 +29,7 @@ import { MessageActionBar } from './MessageActionBar';
 import { ForwardMessageDialog } from './ForwardMessageDialog';
 import { ChannelSettingsPanel } from './ChannelSettingsPanel';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
+import InviteLinkPreview from './InviteLinkPreview';
 
 export interface Message {
   id: string;
@@ -865,18 +866,31 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
       } else if (match[4]) {
         // 链接匹配
         const url = match[4];
-        parts.push(
-          <a
-            key={`link-${keyIndex++}`}
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 dark:text-blue-400 hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {url}
-          </a>
-        );
+        // 检测是否是邀请链接 - 格式: /invite/{code} 或 ?join=
+        const inviteMatch = url.match(/\/invite\/([a-zA-Z0-9]+)/);
+        if (inviteMatch) {
+          const inviteCode = inviteMatch[1];
+          parts.push(
+            <InviteLinkPreview
+              key={`invite-${keyIndex++}`}
+              inviteCode={inviteCode}
+              inviteUrl={url}
+            />
+          );
+        } else {
+          parts.push(
+            <a
+              key={`link-${keyIndex++}`}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 dark:text-blue-400 hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {url}
+            </a>
+          );
+        }
       }
       lastIndex = match.index + match[0].length;
     }

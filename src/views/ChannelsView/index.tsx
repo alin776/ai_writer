@@ -107,6 +107,12 @@ const ChannelsView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [joinResultDialog, setJoinResultDialog] = useState<{
+    isOpen: boolean;
+    type: 'success' | 'pending' | 'error';
+    channelName?: string;
+    message: string;
+  }>({ isOpen: false, type: 'success', message: '' });
   const [userRole, setUserRole] = useState<'owner' | 'admin' | 'member'>('member');
   const [pinRefreshTrigger, setPinRefreshTrigger] = useState(0);
   const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null);
@@ -116,17 +122,20 @@ const ChannelsView: React.FC = () => {
 
   const activeChannel = userChannels.find(c => c.id === activeChannelId);
 
-  // 从 URL 参数读取初始频道 ID
+  // 注意：URL 参数 (channelId, join) 直接在 loadChannels 中处理
+  // 这里只处理页内导航的 channelId 参数（非初始加载）
   useEffect(() => {
-    const channelIdFromUrl = searchParams.get('channelId');
-    if (channelIdFromUrl) {
-      setInitialChannelIdFromUrl(channelIdFromUrl);
-      // 清除 URL 参数，避免刷新时重复跳转
-      setSearchParams({}, { replace: true });
+    // 只在非初始加载时处理 channelId 参数
+    if (!loading && userChannels.length > 0) {
+      const channelIdFromUrl = searchParams.get('channelId');
+      if (channelIdFromUrl) {
+        setInitialChannelIdFromUrl(channelIdFromUrl);
+        setSearchParams({}, { replace: true });
+      }
     }
-  }, [searchParams]); // 监听 searchParams 变化，支持页内导航
+  }, [searchParams, loading, userChannels.length]);
 
-  // 当用户频道加载完成后，处理初始频道 ID
+  // 当用户频道加载完成后，处理初始频道 ID（页内导航）
   useEffect(() => {
     if (initialChannelIdFromUrl && userChannels.length > 0 && !loading) {
       const targetChannel = userChannels.find(c => c.id === initialChannelIdFromUrl);
@@ -314,9 +323,82 @@ const ChannelsView: React.FC = () => {
 
         // 直接从 URL 读取频道 ID（避免异步状态问题）
         const channelIdFromUrl = searchParams.get('channelId') || initialChannelIdFromUrl;
+        const joinIdFromUrl = searchParams.get('join');
 
-        // 如果有 URL 参数指定的频道，优先使用它
-        if (channelIdFromUrl) {
+        // 优先处理 join 参数（邀请链接）
+        if (joinIdFromUrl) {
+          console.log('[ChannelsView] 检测到 join 参数:', joinIdFromUrl);
+          // 检查是否已经在频道中
+          const existingChannel = channels.find(c => c.id === joinIdFromUrl);
+          if (existingChannel) {
+            // 已经是成员，直接切换
+            setActiveChannelId(joinIdFromUrl);
+            setJoinResultDialog({
+              isOpen: true,
+              type: 'success',
+              channelName: existingChannel.name,
+              message: `您已经是「${existingChannel.name}」的成员`
+            });
+            setSearchParams({}, { replace: true });
+          } else {
+            // 需要加入频道
+            try {
+              const joinResult = await joinChannel(joinIdFromUrl);
+
+              // 根据返回状态处理
+              if (joinResult.status === 'joined') {
+                // 真正加入成功，重新加载频道列表并切换
+                const newResponse = await getMyChannels();
+                const newChannels = newResponse.channels.map(convertApiChannelToChannel);
+                setUserChannels(newChannels);
+                setActiveChannelId(joinIdFromUrl);
+                // 获取频道名称
+                const joinedChannel = newChannels.find(c => c.id === joinIdFromUrl);
+                setJoinResultDialog({
+                  isOpen: true,
+                  type: 'success',
+                  channelName: joinedChannel?.name,
+                  message: joinResult.message || '成功加入频道'
+                });
+              } else if (joinResult.status === 'pending') {
+                // 申请已提交，等待审核
+                // 从可加入频道列表中获取频道名称
+                const targetChannel = availableChannels.find(c => c.id === joinIdFromUrl);
+                setJoinResultDialog({
+                  isOpen: true,
+                  type: 'pending',
+                  channelName: targetChannel?.name,
+                  message: joinResult.message || '申请已提交，请等待管理员审核'
+                });
+                // 添加到待审核列表
+                setPendingChannelIds(prev => new Set(prev).add(joinIdFromUrl));
+                // 设置默认频道
+                if (channels.length > 0) {
+                  setActiveChannelId(channels[0].id);
+                }
+              } else {
+                // 其他状态，设置默认频道
+                if (channels.length > 0) {
+                  setActiveChannelId(channels[0].id);
+                }
+              }
+            } catch (joinError: unknown) {
+              console.error('加入频道失败:', joinError);
+              const errorMessage = joinError instanceof Error ? joinError.message : '加入频道失败';
+              setJoinResultDialog({
+                isOpen: true,
+                type: 'error',
+                message: errorMessage
+              });
+              // 加入失败，设置默认频道
+              if (channels.length > 0) {
+                setActiveChannelId(channels[0].id);
+              }
+            }
+            setSearchParams({}, { replace: true });
+          }
+        } else if (channelIdFromUrl) {
+          // 如果有 URL 参数指定的频道，优先使用它
           const targetChannel = channels.find(c => c.id === channelIdFromUrl);
           if (targetChannel) {
             setActiveChannelId(channelIdFromUrl);
@@ -919,6 +1001,70 @@ const ChannelsView: React.FC = () => {
           channelId={activeChannel.id}
           channelName={activeChannel.name}
         />
+      )}
+
+      {/* 加入频道结果弹窗 */}
+      {joinResultDialog.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[#313338] rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
+            {/* 图标 */}
+            <div className="flex justify-center mb-4">
+              {joinResultDialog.type === 'success' && (
+                <div className="w-16 h-16 rounded-full bg-[#23a55a]/20 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-[#23a55a]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              )}
+              {joinResultDialog.type === 'pending' && (
+                <div className="w-16 h-16 rounded-full bg-[#f0b232]/20 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-[#f0b232]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              )}
+              {joinResultDialog.type === 'error' && (
+                <div className="w-16 h-16 rounded-full bg-[#f23f43]/20 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-[#f23f43]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
+              )}
+            </div>
+
+            {/* 标题 */}
+            <h3 className="text-lg font-semibold text-[#f2f3f5] text-center mb-2">
+              {joinResultDialog.type === 'success' && '加入成功'}
+              {joinResultDialog.type === 'pending' && '申请已提交'}
+              {joinResultDialog.type === 'error' && '加入失败'}
+            </h3>
+
+            {/* 频道名称 */}
+            {joinResultDialog.channelName && (
+              <p className="text-[#b5bac1] text-center mb-2">
+                {joinResultDialog.channelName}
+              </p>
+            )}
+
+            {/* 消息 */}
+            <p className="text-[#949ba4] text-sm text-center mb-6">
+              {joinResultDialog.message}
+            </p>
+
+            {/* 按钮 */}
+            <button
+              onClick={() => setJoinResultDialog(prev => ({ ...prev, isOpen: false }))}
+              className={cn(
+                "w-full py-2.5 px-4 rounded-md text-white font-medium transition-colors",
+                joinResultDialog.type === 'success' && "bg-[#5865f2] hover:bg-[#4752c4]",
+                joinResultDialog.type === 'pending' && "bg-[#5865f2] hover:bg-[#4752c4]",
+                joinResultDialog.type === 'error' && "bg-[#5865f2] hover:bg-[#4752c4]"
+              )}
+            >
+              {joinResultDialog.type === 'success' ? '开始聊天' : '知道了'}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

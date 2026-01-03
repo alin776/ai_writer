@@ -30,6 +30,8 @@ interface NovelDetailProps {
   isFromBookshelf?: boolean;
   /** 来源：小说广场或书架，用于独立管理阅读状态 */
   source?: 'novel-square' | 'bookshelf';
+  /** 高亮显示的评论ID，用于从通知跳转时滚动到对应评论 */
+  highlightCommentId?: string | null;
 }
 
 interface Chapter {
@@ -74,7 +76,7 @@ interface RatingStats {
   userRating: number | null;
 }
 
-export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = 'novel-square' }: NovelDetailProps) {
+export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = 'novel-square', highlightCommentId }: NovelDetailProps) {
   const navigate = useNavigate();
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set([0]));
   const [userRating, setUserRating] = useState(0);
@@ -103,6 +105,84 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
   const [commentSortBy, setCommentSortBy] = useState<'newest' | 'most_liked'>('newest');
   const [showSortMenu, setShowSortMenu] = useState(false);
   const sortMenuRef = useRef<HTMLDivElement>(null);
+
+  // 高亮评论状态
+  const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
+  const commentsSectionRef = useRef<HTMLDivElement>(null);
+
+  // 递归查找子评论所在的顶级评论
+  const findParentCommentId = (targetId: string, comments: Comment[]): string | null => {
+    for (const comment of comments) {
+      if (comment.id === targetId) {
+        return null; // 目标是顶级评论
+      }
+      if (comment.replies) {
+        const foundInReplies = findInReplies(targetId, comment.replies);
+        if (foundInReplies) {
+          return comment.id; // 返回顶级评论 ID
+        }
+      }
+    }
+    return null;
+  };
+
+  // 递归在回复中查找目标评论
+  const findInReplies = (targetId: string, replies: Comment[]): boolean => {
+    for (const reply of replies) {
+      if (reply.id === targetId) {
+        return true;
+      }
+      if (reply.replies && findInReplies(targetId, reply.replies)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // 处理高亮评论滚动和闪烁效果
+  useEffect(() => {
+    if (highlightCommentId && comments.length > 0) {
+      // 先查找是否为顶级评论
+      const topLevelIndex = comments.findIndex(c => c.id === highlightCommentId);
+
+      if (topLevelIndex !== -1) {
+        // 目标是顶级评论
+        if (topLevelIndex >= visibleComments) {
+          setVisibleComments(topLevelIndex + 1);
+        }
+      } else {
+        // 目标可能是子评论，查找其父级顶级评论
+        const parentCommentId = findParentCommentId(highlightCommentId, comments);
+        if (parentCommentId) {
+          const parentIndex = comments.findIndex(c => c.id === parentCommentId);
+          if (parentIndex !== -1) {
+            // 确保父级评论在可见范围内
+            if (parentIndex >= visibleComments) {
+              setVisibleComments(parentIndex + 1);
+            }
+            // 展开父级评论的回复
+            setExpandedReplies(prev => new Set(prev).add(parentCommentId));
+          }
+        }
+      }
+
+      setHighlightedCommentId(highlightCommentId);
+
+      // 延迟滚动，确保评论已渲染
+      setTimeout(() => {
+        const commentElement = document.getElementById(`comment-${highlightCommentId}`);
+        if (commentElement) {
+          commentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+          // 3秒后移除高亮效果
+          setTimeout(() => {
+            setHighlightedCommentId(null);
+          }, 3000);
+        }
+      }, 500);
+    }
+  }, [highlightCommentId, comments]);
+
   // 点击外部关闭表情选择器
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -628,7 +708,15 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
 
       return (
         // 外层容器：包含回复内容和子回复，垂直线基于此定位可正确延伸
-        <div key={reply.id} className="relative overflow-visible pt-3">
+        <div
+          key={reply.id}
+          id={`comment-${reply.id}`}
+          className={`relative overflow-visible pt-3 ${
+            highlightedCommentId === reply.id
+              ? 'bg-blue-50 dark:bg-blue-900/30 animate-pulse ring-2 ring-blue-400 dark:ring-blue-500 rounded-lg'
+              : ''
+          }`}
+        >
           {/* 垂直连接线 - 放在外层容器 */}
           <div
             className="absolute w-px bg-gray-300 dark:bg-[#3f3f3f]"
@@ -1195,7 +1283,12 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
                   {comments.slice(0, visibleComments).map((comment) => (
                     <div
                       key={comment.id}
-                      className="flex gap-4 group"
+                      id={`comment-${comment.id}`}
+                      className={`flex gap-4 group p-3 rounded-lg transition-all ${
+                        highlightedCommentId === comment.id
+                          ? 'bg-blue-50 dark:bg-blue-900/30 animate-pulse ring-2 ring-blue-400 dark:ring-blue-500'
+                          : ''
+                      }`}
                     >
                       {/* 头像 */}
                       {comment.user?.avatar ? (

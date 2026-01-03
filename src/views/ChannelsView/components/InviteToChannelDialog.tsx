@@ -3,7 +3,7 @@ import { X, Search, UserPlus, Check, Loader2, Copy } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/useToast';
 import { getFriends, FriendshipResponse } from '@/services/friendApi';
-import { inviteToChannel, getChannelMembers } from '@/services/channelApi';
+import { inviteToChannel, getChannelMembers, createInviteLink } from '@/services/channelApi';
 
 interface InviteToChannelDialogProps {
   isOpen: boolean;
@@ -26,9 +26,8 @@ export function InviteToChannelDialog({
   const [invitingIds, setInvitingIds] = useState<Set<string>>(new Set());
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
-
-  // 生成邀请链接
-  const inviteLink = `${window.location.origin}/channels?join=${channelId}`;
+  const [inviteLink, setInviteLink] = useState<string>('');
+  const [inviteLinkLoading, setInviteLinkLoading] = useState(false);
 
   const handleCopyLink = async () => {
     try {
@@ -50,7 +49,8 @@ export function InviteToChannelDialog({
   const loadData = async () => {
     try {
       setLoading(true);
-      // 并行加载好友列表和频道成员
+      setInviteLinkLoading(true);
+      // 并行加载好友列表、频道成员和创建邀请链接
       const [friendsRes, membersRes] = await Promise.all([
         getFriends(),
         getChannelMembers(channelId),
@@ -59,11 +59,22 @@ export function InviteToChannelDialog({
       // 获取已在频道中的成员ID
       const existingMemberIds = new Set(membersRes.members.map((m: any) => m.id));
       setMemberIds(existingMemberIds);
+
+      // 创建邀请链接（默认7天过期）
+      try {
+        const inviteData = await createInviteLink(channelId, { expiresHours: 168 });
+        setInviteLink(`${window.location.origin}/invite/${inviteData.code}`);
+      } catch (inviteError) {
+        console.error('创建邀请链接失败:', inviteError);
+        // 如果创建失败，使用旧格式作为备用
+        setInviteLink(`${window.location.origin}/channels?join=${channelId}`);
+      }
     } catch (error) {
       console.error('加载数据失败:', error);
       showToast('error', '加载好友列表失败');
     } finally {
       setLoading(false);
+      setInviteLinkLoading(false);
     }
   };
 
@@ -161,7 +172,7 @@ export function InviteToChannelDialog({
                     >
                       <div className="flex items-center gap-3">
                         <Avatar className="w-10 h-10">
-                          <AvatarImage src={friendship.friend.avatar} />
+                          <AvatarImage src={friendship.friend.avatar ?? undefined} />
                           <AvatarFallback className="bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-white">
                             {friendship.friend.username[0]?.toUpperCase()}
                           </AvatarFallback>
@@ -217,7 +228,7 @@ export function InviteToChannelDialog({
                     >
                       <div className="flex items-center gap-3">
                         <Avatar className="w-10 h-10">
-                          <AvatarImage src={friendship.friend.avatar} />
+                          <AvatarImage src={friendship.friend.avatar ?? undefined} />
                           <AvatarFallback className="bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-white">
                             {friendship.friend.username[0]?.toUpperCase()}
                           </AvatarFallback>
@@ -253,19 +264,27 @@ export function InviteToChannelDialog({
             <input
               type="text"
               readOnly
-              value={inviteLink}
+              value={inviteLinkLoading ? '生成邀请链接中...' : inviteLink}
               className="flex-1 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 select-all"
               onClick={(e) => (e.target as HTMLInputElement).select()}
             />
             <button
               onClick={handleCopyLink}
+              disabled={inviteLinkLoading || !inviteLink}
               className={`px-4 py-2 text-sm font-medium rounded transition-colors flex items-center gap-1.5 ${
                 copied
                   ? 'bg-green-500 text-white'
+                  : inviteLinkLoading || !inviteLink
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-[#5865F2] hover:bg-[#4752C4] text-white'
               }`}
             >
-              {copied ? (
+              {inviteLinkLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  加载中
+                </>
+              ) : copied ? (
                 <>
                   <Check className="w-4 h-4" />
                   已复制

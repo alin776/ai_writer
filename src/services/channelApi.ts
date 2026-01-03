@@ -101,6 +101,7 @@ export interface ChannelMessage {
   userBio?: string;
   userTitle?: string;
   userTitleColor?: string;
+  userOnlineStatus?: 'online' | 'idle' | 'dnd' | 'offline';
   // 附件
   attachments?: MessageAttachment[];
 }
@@ -840,6 +841,106 @@ export const getMyJoinRequests = async (
   return await api.get(`/channels/my-join-requests?${params.toString()}`);
 };
 
+
+// ==================== 邀请链接预览 API ====================
+
+export interface InvitePreview {
+  channelId: string;
+  channelName: string;
+  channelIcon: string | null;
+  channelType: string;
+  memberCount: number;
+  onlineCount: number;
+  createdAt: string | null;
+  isValid: boolean;
+}
+
+/**
+ * 获取邀请链接预览信息（无需登录）
+ */
+export const getInvitePreview = async (inviteCode: string): Promise<InvitePreview> => {
+  const data = await api.get<{
+    channel_id: string;
+    channel_name: string;
+    channel_icon: string | null;
+    channel_type: string;
+    member_count: number;
+    online_count: number;
+    created_at: string | null;
+    is_valid: boolean;
+  }>(`/channels/invite/${inviteCode}/preview`);
+
+  return {
+    channelId: data.channel_id,
+    channelName: data.channel_name,
+    channelIcon: data.channel_icon,
+    channelType: data.channel_type,
+    memberCount: data.member_count,
+    onlineCount: data.online_count,
+    createdAt: data.created_at,
+    isValid: data.is_valid
+  };
+};
+
+/**
+ * 通过邀请码加入频道
+ */
+export const joinByInviteCode = async (inviteCode: string): Promise<{
+  message: string;
+  channelId: string;
+  channelName: string;
+}> => {
+  const data = await api.post<{
+    message: string;
+    channel_id: string;
+    channel_name: string;
+  }>(`/channels/join-by-invite/${inviteCode}`);
+
+  return {
+    message: data.message,
+    channelId: data.channel_id,
+    channelName: data.channel_name
+  };
+};
+
+/**
+ * 创建频道邀请链接
+ */
+export const createInviteLink = async (
+  channelId: string,
+  options?: { maxUses?: number; expiresHours?: number }
+): Promise<{
+  id: string;
+  code: string;
+  maxUses: number | null;
+  useCount: number;
+  expiresAt: string | null;
+  inviteUrl: string;
+}> => {
+  const params = new URLSearchParams();
+  if (options?.maxUses) params.append('max_uses', options.maxUses.toString());
+  if (options?.expiresHours) params.append('expires_hours', options.expiresHours.toString());
+
+  const url = `/channels/${channelId}/invites${params.toString() ? `?${params.toString()}` : ''}`;
+  const data = await api.post<{
+    id: string;
+    code: string;
+    max_uses: number | null;
+    use_count: number;
+    expires_at: string | null;
+    invite_url: string;
+  }>(url);
+
+  return {
+    id: data.id,
+    code: data.code,
+    maxUses: data.max_uses,
+    useCount: data.use_count,
+    expiresAt: data.expires_at,
+    inviteUrl: data.invite_url
+  };
+};
+
 // 导出一个包含所有 API 函数的对象
 export const channelApi = {
   // 频道管理
@@ -907,4 +1008,9 @@ export const channelApi = {
   getJoinRequests,
   reviewJoinRequest,
   getMyJoinRequests,
+
+  // 邀请链接预览
+  getInvitePreview,
+  joinByInviteCode,
+  createInviteLink,
 };

@@ -42,6 +42,7 @@ export interface ChannelMessage {
   user_honor: string | null;
   user_title: string | null;
   user_title_color: string | null;
+  user_online_status?: 'online' | 'idle' | 'dnd' | 'offline';  // 用户在线状态
   attachments?: {  // 附件列表（使用 camelCase）
     id: string;
     fileName: string;

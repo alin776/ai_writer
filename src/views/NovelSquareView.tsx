@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, BookOpen, Loader2 } from 'lucide-react';
 import { NovelCard, Novel } from '../components/library/NovelCard';
 import { FeaturedCarousel } from '../components/library/FeaturedCarousel';
@@ -84,6 +85,10 @@ export default function NovelSquareView() {
   const [hasMore, setHasMore] = useState(true);
 
   const { showToast } = useToast();
+
+  // URL 参数处理
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null);
 
   // 用于防止重复恢复状态
   const hasRestoredRef = useRef(false);
@@ -310,6 +315,43 @@ export default function NovelSquareView() {
     }
   }, [novelSquareReadingState]);
 
+  // 处理 URL 参数：openNovel 和 comment
+  useEffect(() => {
+    const openNovelId = searchParams.get('openNovel');
+    const commentId = searchParams.get('comment');
+
+    if (openNovelId) {
+      // 设置高亮评论 ID
+      if (commentId) {
+        setHighlightCommentId(commentId);
+      }
+
+      // 清除 URL 参数
+      setSearchParams({}, { replace: true });
+
+      // 打开小说详情
+      const existingNovel = novels.find((n) => n.id === openNovelId);
+      if (existingNovel) {
+        setSelectedNovel(existingNovel);
+      } else {
+        // 创建临时 Novel 对象
+        setSelectedNovel({
+          id: openNovelId,
+          title: '加载中...',
+          author: '',
+          category: '其他',
+          description: '',
+          cover: getDefaultCover(),
+          views: 0,
+          likes: 0,
+          rating: 0,
+          chapters: 0,
+          status: '其他' as const,
+        });
+      }
+    }
+  }, [searchParams, novels]);
+
   // 搜索防抖
   useEffect(() => {
     if (!hasInitializedRef.current) return;
@@ -381,10 +423,12 @@ export default function NovelSquareView() {
         novel={selectedNovel}
         onBack={() => {
           setSelectedNovel(null);
+          setHighlightCommentId(null);
           // 用户主动返回时清除阅读状态
           clearNovelSquareReadingState();
         }}
         source="novel-square"
+        highlightCommentId={highlightCommentId}
       />
     );
   }

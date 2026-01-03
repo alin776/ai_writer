@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TimelineNotification } from '../components/notifications/TimelineNotification';
+import { InteractionNotificationItem } from '../components/notifications/InteractionNotificationItem';
 import { FeaturedActivity } from '../components/notifications/FeaturedActivity';
 import { CompactActivity } from '../components/notifications/CompactActivity';
 import { Bell, Sparkles, Check, Trash2, X, CheckSquare, MessageCircle } from 'lucide-react';
@@ -347,27 +348,21 @@ export default function NotificationCenter() {
               )}
 
               {activeTab === 'interactions' && (
-                <div className="relative">
-                  <div className="absolute left-4 top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700" />
-                  <div className="space-y-0">
-                    {interactions.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-12">
-                        <MessageCircle className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" />
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{t('notifications.emptyInteractions')}</p>
-                      </div>
-                    ) : (
-                      interactions.map((notification, index) => (
-                        <TimelineNotification
-                          key={notification.id}
-                          notification={convertToTimelineFormat(notification)}
-                          isLast={index === interactions.length - 1}
-                          batchDeleteMode={false}
-                          isSelected={false}
-                          onToggleSelect={() => {}}
-                        />
-                      ))
-                    )}
-                  </div>
+                <div className="space-y-0">
+                  {interactions.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <MessageCircle className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{t('notifications.emptyInteractions')}</p>
+                    </div>
+                  ) : (
+                    interactions.map((notification) => (
+                      <InteractionNotificationItem
+                        key={notification.id}
+                        notification={notification}
+                        onReplySuccess={() => loadData()}
+                      />
+                    ))
+                  )}
                 </div>
               )}
 

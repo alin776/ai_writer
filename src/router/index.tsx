@@ -39,6 +39,7 @@ const NovelSquareView = React.lazy(() => import('../views/NovelSquareView'));
 const MyBookshelfView = React.lazy(() => import('../views/MyBookshelfView'));
 const ChannelsView = React.lazy(() => import('../views/ChannelsView'));
 const UserProfileView = React.lazy(() => import('../views/UserProfileView'));
+const InviteLandingView = React.lazy(() => import('../views/InviteLandingView'));
 const NotFoundView = React.lazy(() => import('../views/NotFoundView'));
 
 const LoadingFallback: React.FC = () => (
@@ -108,6 +109,14 @@ export const router = createBrowserRouter([
     element: (
       <SuspenseWrapper>
         <ContactView />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: '/invite/:code',
+    element: (
+      <SuspenseWrapper>
+        <InviteLandingView />
       </SuspenseWrapper>
     ),
   },

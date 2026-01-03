@@ -4391,6 +4391,45 @@ async def join_by_invite(
     }
 
 
+
+
+@router.get("/invite/{invite_code}/preview")
+async def get_invite_preview(
+    invite_code: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """获取邀请链接预览信息（无需登录）"""
+    invite_result = await db.execute(
+        select(ChannelInvite)
+        .options(selectinload(ChannelInvite.channel))
+        .where(ChannelInvite.code == invite_code, ChannelInvite.is_active == True)
+    )
+    invite = invite_result.scalar_one_or_none()
+
+    if not invite:
+        raise HTTPException(status_code=404, detail="邀请链接不存在或已失效")
+
+    if not invite.is_valid:
+        raise HTTPException(status_code=400, detail="邀请链接已过期或已达到使用上限")
+
+    channel = invite.channel
+
+    # 获取在线人数（从 WebSocket 连接管理器）
+    from app.api.v1.ws import get_channel_online_users
+    online_users = await get_channel_online_users(channel.id, db)
+    online_count = len(online_users)
+
+    return {
+        "channel_id": str(channel.id),
+        "channel_name": channel.name,
+        "channel_icon": channel.cover_image,
+        "channel_type": channel.type,
+        "member_count": channel.member_count,
+        "online_count": online_count,
+        "created_at": channel.created_at.isoformat() if channel.created_at else None,
+        "is_valid": invite.is_valid
+    }
+
 # ===== 已读回执 API =====
 
 @router.get("/{channel_id}/messages/{message_id}/readers")
