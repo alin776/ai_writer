@@ -55,10 +55,12 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions, A
     let muteUntil = 0;
     let generationId = 0; // 用于取消过期的生成
     let lastDecorationUpdate = 0; // 上次装饰器更新时间（用于防抖）
-    const DECORATION_UPDATE_INTERVAL = 200; // 装饰器更新间隔（毫秒，优化为200ms避免显示不一致）
-    const GENERATION_TIMEOUT = 15000; // 生成超时时间（毫秒，15秒）
+    const DECORATION_UPDATE_INTERVAL = 50; // 装饰器更新间隔（毫秒，优化为50ms提升流畅度）
+    const GENERATION_TIMEOUT = 8000; // 生成超时时间（毫秒，8秒）
+    const COOLDOWN_TIME = 2000; // 同位置冷却时间（毫秒，从5秒优化为2秒）
     let awaitingDecision = false; // ⏸️ 已给出建议，等待用户 Tab/Esc 处理前不再生成
     let lastCachedSuggestion: { text: string; suggestion: string } | null = null; // 复用最近上下文的结果
+    let lastCursorPos = -1; // 上次光标位置，用于检测光标移动
 
     // 创建建议文字 widget（透明文字 + 小图标在左上角）
     const createSuggestionWidget = (text: string, isGenerating: boolean) => {
@@ -208,9 +210,24 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions, A
 
               const { state } = view;
               const { selection } = state;
+              const { from } = selection;
 
-              // 已有生成结果且用户尚未处理（Tab/Esc），暂停后续触发，避免重复消耗
-              if (awaitingDecision) return;
+              // 🔧 修复失灵：检测光标是否移动，移动时重置状态
+              if (lastCursorPos !== -1 && from !== lastCursorPos) {
+                // 光标移动了，清除当前建议和锁定状态
+                if (awaitingDecision || currentSuggestion) {
+                  console.log('[AI自动补全] 光标移动，重置状态');
+                  awaitingDecision = false;
+                  currentSuggestion = '';
+                  // 清除装饰器
+                  const tr = state.tr;
+                  tr.setMeta(AIAutoCompletePluginKey, {
+                    decorations: DecorationSet.empty,
+                  });
+                  view.dispatch(tr);
+                }
+              }
+              lastCursorPos = from;
 
               // 清除之前的定时器
               if (timeout) {
@@ -218,8 +235,23 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions, A
                 timeout = null;
               }
 
-              // 如果正在生成，不触发新的请求
-              if (isGenerating) return;
+              // 已有生成结果且用户尚未处理（Tab/Esc），暂停后续触发，避免重复消耗
+              if (awaitingDecision) return;
+
+              // 🔧 修复失灵：如果正在生成但已超时，强制重置状态
+              if (isGenerating) {
+                // 检查是否卡住太久（超过生成超时时间的1.5倍）
+                const stuckTimeout = GENERATION_TIMEOUT * 1.5;
+                if (lastTriggerTime > 0 && Date.now() - lastTriggerTime > stuckTimeout) {
+                  console.log('[AI自动补全] 检测到状态卡住，强制重置');
+                  isGenerating = false;
+                  generationId++;
+                  awaitingDecision = false;
+                  currentSuggestion = '';
+                } else {
+                  return; // 正常生成中，不触发新请求
+                }
+              }
 
               // 如果有选中内容，不触发
               if (!selection.empty) return;
@@ -238,7 +270,6 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions, A
               }
 
               // 获取光标前的文本
-              const { from } = selection;
               const textBefore = state.doc.textBetween(
                 Math.max(0, from - 200),
                 from,
@@ -254,8 +285,8 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions, A
               // 静默期检查
               if (now < muteUntil) return;
 
-              // 同一位置5秒内只触发一次
-              if (from === lastTriggerPos && now - lastTriggerTime < 5000) return;
+              // 同一位置冷却检查（使用 COOLDOWN_TIME 常量）
+              if (from === lastTriggerPos && now - lastTriggerTime < COOLDOWN_TIME) return;
 
               // 命中缓存：相同上下文直接复用，避免重复生成
               if (lastCachedSuggestion?.text === trimmed && lastCachedSuggestion.suggestion) {
@@ -351,9 +382,10 @@ export const AIAutoCompleteExtension = Extension.create<AIAutoCompleteOptions, A
                   });
                   dispatch(tr);
                 } finally {
-                  if (generationId === currentGenId) {
-                    isGenerating = false;
-                  }
+                  // 🔧 修复失灵：无论生成是否被取消，都要重置 isGenerating
+                  // 因为这个 finally 是特定于这个生成任务的
+                  isGenerating = false;
+                  console.log('[AI自动补全] 生成任务结束，isGenerating 已重置');
                 }
               }, delay);
             },
