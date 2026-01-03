@@ -223,7 +223,7 @@ export function ChatSearchPage({ channel, displayName, isOpen, onClose, onMessag
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="relative w-[520px] h-[600px] bg-white dark:bg-[#1e1e1e] rounded-lg shadow-2xl flex flex-col"
+              className="relative w-[520px] h-[600px] bg-white dark:bg-[#18191c] rounded-lg shadow-2xl flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               {/* 头部 */}
@@ -315,7 +315,7 @@ function Header({ channelDisplayName, total, onClose }: {
   onClose: () => void;
 }) {
   return (
-    <header className="flex items-center justify-between h-12 px-3 border-b border-gray-200 dark:border-gray-700/50 flex-shrink-0">
+    <header className="flex items-center justify-between h-12 px-3 border-b border-gray-200 dark:border-[#2b2d31] flex-shrink-0">
       {/* 左侧占位 */}
       <div className="w-8"></div>
 
@@ -353,7 +353,7 @@ function SearchInput({ value, onChange, onSearch }: {
           placeholder="搜索"
           className={cn(
             "w-full pl-9 pr-3 py-2 text-sm",
-            "bg-gray-100 dark:bg-[#2d2d2d] rounded",
+            "bg-gray-100 dark:bg-[#2b2d31] rounded",
             "text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500",
             "outline-none border border-transparent",
             "focus:border-gray-300 dark:focus:border-gray-600"
@@ -381,7 +381,7 @@ function FilterTabs({
   hasMemberFilter: boolean;
 }) {
   return (
-    <div className="flex items-center gap-4 px-4 py-2 border-b border-gray-200 dark:border-gray-700/50 flex-shrink-0 overflow-x-auto">
+    <div className="flex items-center gap-4 px-4 py-2 border-b border-gray-200 dark:border-[#2b2d31] flex-shrink-0 overflow-x-auto">
       {FILTER_TABS.map(tab => (
         <button
           key={tab.id}
@@ -523,7 +523,7 @@ function ResultItem({
 
   return (
     <div
-      className="flex gap-3 px-3 py-3 hover:bg-gray-50 dark:hover:bg-[#2a2a2a] cursor-pointer transition-colors"
+      className="flex gap-3 px-3 py-3 hover:bg-gray-50 dark:hover:bg-[#2b2d31] cursor-pointer transition-colors"
       onClick={onClick}
     >
       {/* 头像 */}
@@ -564,7 +564,7 @@ function ResultItem({
         {fileAtts.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
             {fileAtts.map(att => (
-              <div key={att.id} className="inline-flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-[#2d2d2d] rounded">
+              <div key={att.id} className="inline-flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-[#2b2d31] rounded">
                 <FileText className="w-5 h-5 text-gray-400 dark:text-gray-500" />
                 <span className="text-sm text-gray-600 dark:text-gray-400 truncate max-w-[120px]">
                   {att.fileName}
@@ -668,8 +668,8 @@ function DateInput({ value, onChange, placeholder }: {
       {/* 显示层 */}
       <div
         className={cn(
-          "flex items-center justify-between px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded",
-          "bg-white dark:bg-gray-700",
+          "flex items-center justify-between px-2 py-1.5 text-sm border border-gray-300 dark:border-[#36373d] rounded",
+          "bg-white dark:bg-[#2b2d31]",
           value ? "text-gray-900 dark:text-gray-100" : "text-gray-400 dark:text-gray-500"
         )}
       >
@@ -714,7 +714,7 @@ function DatePickerPopover({
   };
 
   return (
-    <div className="absolute top-[120px] left-3 right-3 p-4 bg-white dark:bg-[#2d2d2d] rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 z-50">
+    <div className="absolute top-[120px] left-3 right-3 p-4 bg-white dark:bg-[#18191c] rounded-lg shadow-2xl border border-gray-200 dark:border-[#2b2d31] z-50">
       {/* 点击外部关闭 */}
       <div className="fixed inset-0 z-[-1]" onClick={onClose} />
 
@@ -729,7 +729,7 @@ function DatePickerPopover({
             <button
               key={item.label}
               onClick={() => handleQuickSelect(item.days)}
-              className="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300"
+              className="px-3 py-1 text-sm bg-gray-100 dark:bg-[#2b2d31] rounded hover:bg-gray-200 dark:hover:bg-[#36373d] text-gray-700 dark:text-gray-300"
             >
               {item.label}
             </button>
@@ -782,19 +782,19 @@ function MemberPickerPopover({
   );
 
   return (
-    <div className="absolute top-[120px] left-3 right-3 bg-white dark:bg-[#2d2d2d] rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
+    <div className="absolute top-[120px] left-3 right-3 bg-white dark:bg-[#18191c] rounded-lg shadow-2xl border border-gray-200 dark:border-[#2b2d31] z-50 overflow-hidden">
       {/* 点击外部关闭 */}
       <div className="fixed inset-0 z-[-1]" onClick={onClose} />
 
       {/* 搜索框 */}
-      <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+      <div className="p-2 border-b border-gray-200 dark:border-[#2b2d31]">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
           <input
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             placeholder="搜索成员..."
-            className="w-full pl-9 pr-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 rounded text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none"
+            className="w-full pl-9 pr-3 py-1.5 text-sm bg-gray-100 dark:bg-[#2b2d31] rounded text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none"
           />
         </div>
       </div>
@@ -803,7 +803,7 @@ function MemberPickerPopover({
       {selectedId && (
         <div
           onClick={() => onSelect(null)}
-          className="flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+          className="flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2b2d31] text-gray-500 dark:text-gray-400"
         >
           <X className="w-4 h-4" />
           <span className="text-sm">清除筛选</span>
@@ -818,8 +818,8 @@ function MemberPickerPopover({
             onClick={() => onSelect(member)}
             className={cn(
               "flex items-center gap-2 p-2 cursor-pointer",
-              "hover:bg-gray-50 dark:hover:bg-gray-700",
-              selectedId === member.userId && "bg-blue-50 dark:bg-blue-900/30"
+              "hover:bg-gray-50 dark:hover:bg-[#2b2d31]",
+              selectedId === member.userId && "bg-blue-50 dark:bg-[#2b2d31]"
             )}
           >
             <Avatar className="w-8 h-8 rounded">
