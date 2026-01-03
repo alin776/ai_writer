@@ -4416,7 +4416,7 @@ async def get_invite_preview(
 
     # 获取在线人数（从 WebSocket 连接管理器）
     from app.api.v1.ws import get_channel_online_users
-    online_users = await get_channel_online_users(channel.id, db)
+    online_users = get_channel_online_users(channel.id)  # 同步函数，只需要 channel_id
     online_count = len(online_users)
 
     return {

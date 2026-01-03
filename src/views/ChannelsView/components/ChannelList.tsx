@@ -828,7 +828,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                     setSearchQuery(e.target.value);
                     handleSearchUsers(e.target.value);
                   }}
-                  className="w-full pl-9 pr-3 py-2 text-xs border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-gray-300 dark:focus:border-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  className="w-full pl-9 pr-3 py-2 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:border-gray-300 dark:focus:border-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 />
               </div>
               {/* 标签栏 */}
@@ -838,7 +838,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                     key={tab}
                     onClick={() => setSearchTab(tab)}
                     className={cn(
-                      "px-3 py-1 text-xs rounded transition-colors",
+                      "px-3 py-1 text-xs rounded-full transition-colors",
                       searchTab === tab
                         ? "bg-black dark:bg-white text-white dark:text-black"
                         : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
@@ -855,7 +855,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
               {/* 空状态：未输入关键词时 */}
               {!searchQuery.trim() ? (
                 <div className="flex flex-col items-center justify-center h-full py-20">
-                  <div className="w-20 h-20 rounded-full border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center mb-4">
+                  <div className="w-20 h-20 rounded-2xl border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center mb-4">
                     <Inbox className="w-10 h-10 text-gray-400 dark:text-gray-500" />
                   </div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">输入关键词搜索</p>
@@ -870,7 +870,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                     {searchUsers.map(user => {
                       const displayName = user.fullName || user.username;
                       return (
-                        <div key={user.id} className="flex items-start gap-3 p-3 border border-gray-100 dark:border-gray-700 rounded-lg hover:border-gray-200 dark:hover:border-gray-600 transition-colors">
+                        <div key={user.id} className="flex items-start gap-3 p-3 border border-transparent rounded-lg hover:border-gray-200 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                           {/* 头像 */}
                           <div className="w-12 h-12 aspect-square rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
                             {user.avatar ? (
@@ -931,7 +931,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                     return (
                       <div
                         key={channel.id}
-                        className="flex items-start gap-3 p-3 border border-gray-100 dark:border-gray-700 rounded-lg hover:border-gray-200 dark:hover:border-gray-600 transition-colors"
+                        className="flex items-start gap-3 p-3 border border-transparent rounded-lg hover:border-gray-200 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                       >
                         {/* 频道图标/封面 */}
                         <div className="w-12 h-12 aspect-square bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">

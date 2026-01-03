@@ -859,27 +859,9 @@ export interface InvitePreview {
  * 获取邀请链接预览信息（无需登录）
  */
 export const getInvitePreview = async (inviteCode: string): Promise<InvitePreview> => {
-  const data = await api.get<{
-    channel_id: string;
-    channel_name: string;
-    channel_icon: string | null;
-    channel_type: string;
-    member_count: number;
-    online_count: number;
-    created_at: string | null;
-    is_valid: boolean;
-  }>(`/channels/invite/${inviteCode}/preview`);
-
-  return {
-    channelId: data.channel_id,
-    channelName: data.channel_name,
-    channelIcon: data.channel_icon,
-    channelType: data.channel_type,
-    memberCount: data.member_count,
-    onlineCount: data.online_count,
-    createdAt: data.created_at,
-    isValid: data.is_valid
-  };
+  // ApiAdapter 已经自动将 snake_case 转换为 camelCase，直接返回即可
+  const data = await api.get<InvitePreview>(`/channels/invite/${inviteCode}/preview`);
+  return data;
 };
 
 /**
@@ -890,17 +872,13 @@ export const joinByInviteCode = async (inviteCode: string): Promise<{
   channelId: string;
   channelName: string;
 }> => {
+  // ApiAdapter 已经自动将 snake_case 转换为 camelCase，直接返回即可
   const data = await api.post<{
     message: string;
-    channel_id: string;
-    channel_name: string;
+    channelId: string;
+    channelName: string;
   }>(`/channels/join-by-invite/${inviteCode}`);
-
-  return {
-    message: data.message,
-    channelId: data.channel_id,
-    channelName: data.channel_name
-  };
+  return data;
 };
 
 /**
@@ -922,23 +900,16 @@ export const createInviteLink = async (
   if (options?.expiresHours) params.append('expires_hours', options.expiresHours.toString());
 
   const url = `/channels/${channelId}/invites${params.toString() ? `?${params.toString()}` : ''}`;
+  // ApiAdapter 已经自动将 snake_case 转换为 camelCase，直接返回即可
   const data = await api.post<{
     id: string;
     code: string;
-    max_uses: number | null;
-    use_count: number;
-    expires_at: string | null;
-    invite_url: string;
+    maxUses: number | null;
+    useCount: number;
+    expiresAt: string | null;
+    inviteUrl: string;
   }>(url);
-
-  return {
-    id: data.id,
-    code: data.code,
-    maxUses: data.max_uses,
-    useCount: data.use_count,
-    expiresAt: data.expires_at,
-    inviteUrl: data.invite_url
-  };
+  return data;
 };
 
 // 导出一个包含所有 API 函数的对象
