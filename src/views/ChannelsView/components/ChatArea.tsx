@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft, Image, MessageCircle, BookOpen, Coffee, FlaskConical, Hash, Forward, BellOff, Bell, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import type { Channel } from './ChannelList';
 import { MemberManagementDialog } from './MemberManagementDialog';
 import { MemberListPanel } from './MemberListPanel';
 import { ReportMessageDialog } from './ReportMessageDialog';
-import { getChannelMembers, type ChannelMember, channelApi, UnreadInfo, type ReactionSummary, type MessageAttachment, uploadAttachment, getMyChannels, updateChannelSettings } from '@/services/channelApi';
+import { getChannelMembers, type ChannelMember, channelApi, UnreadInfo, type ReactionSummary, type MessageAttachment, uploadAttachment, getMyChannels, updateChannelSettings, inviteToChannel } from '@/services/channelApi';
 import { checkFriendship } from '@/services/friendApi';
 import { useChannelWebSocket, type ChannelMessage, type ReactionEvent } from '@/hooks/useChannelWebSocket';
 import { TypingIndicator } from './TypingIndicator';
@@ -130,6 +130,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0); // 键盘选中的索引
   const [members, setMembers] = useState<ChannelMember[]>([]);
   const [privateChatPartnerName, setPrivateChatPartnerName] = useState<string | null>(null); // 私聊对方名称
+  const [privateChatPartner, setPrivateChatPartner] = useState<ChannelMember | null>(null); // 私聊对方完整信息
   const [contextMenu, setContextMenu] = useState<{
     show: boolean;
     x: number;
@@ -276,9 +277,11 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
           const partner = response.members.find(m => m.userId !== currentUser.id);
           if (partner) {
             setPrivateChatPartnerName(partner.fullName || partner.username);
+            setPrivateChatPartner(partner); // 保存完整伙伴信息
           }
         } else {
           setPrivateChatPartnerName(null);
+          setPrivateChatPartner(null);
         }
       } catch (error) {
         console.error('加载成员列表失败:', error);
@@ -314,8 +317,10 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   // 用户进入频道时自动标记为已读
   useEffect(() => {
     // 延迟一点让消息加载完成，然后标记已读
-    const timer = setTimeout(() => {
-      channelApi.markChannelAsRead(channel.id);
+    const timer = setTimeout(async () => {
+      await channelApi.markChannelAsRead(channel.id);
+      // 标记已读后清除未读信息，让分割线消失
+      setUnreadInfo(prev => prev ? { ...prev, unreadCount: 0, mentionCount: 0 } : null);
     }, 500);
     return () => clearTimeout(timer);
   }, [channel.id]);
@@ -866,8 +871,9 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
       } else if (match[4]) {
         // 链接匹配
         const url = match[4];
-        // 检测是否是邀请链接 - 格式: /invite/{code} 或 ?join=
-        const inviteMatch = url.match(/\/invite\/([a-zA-Z0-9]+)/);
+        // 检测是否是邀请链接 - 格式: /invite/{code}
+        // 邀请码可能包含字母、数字、- 和 _
+        const inviteMatch = url.match(/\/invite\/([a-zA-Z0-9_-]+)/);
         if (inviteMatch) {
           const inviteCode = inviteMatch[1];
           parts.push(
@@ -949,6 +955,8 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
       jumpToMessage(unreadInfo.firstUnreadMessageId);
       // 标记为已读
       channelApi.markChannelAsRead(channel.id, unreadInfo.firstUnreadMessageId);
+      // 清除未读信息，让分割线和跳转按钮消失
+      setUnreadInfo(prev => prev ? { ...prev, unreadCount: 0 } : null);
     }
   };
 
@@ -972,6 +980,8 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     setNewMessageCount(0);
     // 标记所有消息为已读
     channelApi.markChannelAsRead(channel.id);
+    // 清除未读信息
+    setUnreadInfo(prev => prev ? { ...prev, unreadCount: 0, mentionCount: 0 } : null);
   };
 
   // 快速添加表情反应
@@ -1250,25 +1260,33 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
             </div>
           )}
 
-          {/* 时间分割线 - 显示在第一条消息之前 */}
-          {messages.length > 0 && (
-            <div className="relative flex items-center justify-center py-2 px-4">
-              <div className="absolute inset-0 flex items-center px-4">
-                <div className="w-full border-t border-red-300 dark:border-red-800" />
+          {/* 私信频道欢迎区域 - 显示对方用户信息 */}
+          {channel.type === 'private' && privateChatPartner && (
+            <div className="px-4 pt-6 pb-4">
+              {/* 用户头像 */}
+              <div className="w-[68px] h-[68px] rounded-full bg-gray-100 dark:bg-[#36393f] flex items-center justify-center mb-4 overflow-hidden">
+                {privateChatPartner.avatar ? (
+                  <img
+                    src={privateChatPartner.avatar}
+                    alt={privateChatPartnerName || '用户'}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-2xl text-gray-600 dark:text-gray-300 font-bold">
+                    {(privateChatPartnerName || '用户').charAt(0).toUpperCase()}
+                  </span>
+                )}
               </div>
-              <span className="relative px-3 text-xs font-medium text-red-500 dark:text-red-400 bg-white dark:bg-gray-900">
-                {(() => {
-                  const firstMsg = messages[0];
-                  const date = firstMsg.timestamp instanceof Date
-                    ? firstMsg.timestamp
-                    : new Date(firstMsg.timestamp);
-                  return date.toLocaleDateString('zh-CN', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  });
-                })()}
-              </span>
+
+              {/* 用户名 */}
+              <h1 className="text-[32px] font-bold text-gray-900 dark:text-white mb-2 leading-tight">
+                {privateChatPartnerName || '用户'}
+              </h1>
+
+              {/* 私信起点描述 */}
+              <p className="text-gray-500 dark:text-[#96989d] text-base leading-relaxed">
+                这是您与 <span className="font-medium">{privateChatPartnerName || '用户'}</span> 私信记录的开头。
+              </p>
             </div>
           )}
 
@@ -1286,10 +1304,32 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
             // 是否是连续消息
             const isContinuationMessage = isContinuation(message, previousMessage);
             const isBeingRepliedTo = replyingTo?.id === message.id; // 是否正在被回复
+            // 是否是第一条未读消息
+            const isFirstUnread = unreadInfo?.firstUnreadMessageId === message.id && unreadInfo?.unreadCount > 0;
 
             return (
+              <React.Fragment key={message.id}>
+                {/* 未读消息分割线 - 显示在第一条未读消息前 */}
+                {isFirstUnread && (
+                  <div className="relative flex items-center justify-center py-2 px-4">
+                    <div className="absolute inset-0 flex items-center px-4">
+                      <div className="w-full border-t border-red-300 dark:border-red-800" />
+                    </div>
+                    <span className="relative px-3 text-xs font-medium text-red-500 dark:text-red-400 bg-white dark:bg-gray-900">
+                      {(() => {
+                        const date = message.timestamp instanceof Date
+                          ? message.timestamp
+                          : new Date(message.timestamp);
+                        return date.toLocaleDateString('zh-CN', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        });
+                      })()}
+                    </span>
+                  </div>
+                )}
               <div
-                key={message.id}
                 ref={(el) => {
                   if (el) {
                     messageRefs.current.set(message.id, el);
@@ -1693,6 +1733,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   }}
                 />
               </div>
+              </React.Fragment>
             );
           })}
           {/* 滚动锚点 */}
@@ -2421,10 +2462,20 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                             <button
                               key={ch.id}
                               className="w-full px-2 py-1.5 text-sm text-left rounded-sm text-gray-600 dark:text-[#b9bbbe] hover:bg-[#5865f2] hover:text-white transition-colors truncate"
-                              onClick={() => {
-                                // TODO: 实现邀请用户到频道的API调用
-                                console.log('邀请用户到频道:', ch.id);
-                                showSuccess(`已邀请 ${userContextMenu.userName} 加入 ${ch.name}`);
+                              onClick={async () => {
+                                try {
+                                  const result = await inviteToChannel(ch.id, userContextMenu.userId);
+                                  if (result.alreadyMember) {
+                                    showWarning(`${userContextMenu.userName} 已是 ${ch.name} 的成员`);
+                                  } else if (result.inviteSent) {
+                                    showSuccess(`已向 ${userContextMenu.userName} 发送 ${ch.name} 的邀请`);
+                                  } else {
+                                    showSuccess(result.message);
+                                  }
+                                } catch (error: any) {
+                                  console.error('邀请失败:', error);
+                                  showError(error?.detail || error?.message || '邀请失败，请重试');
+                                }
                                 setUserContextMenu(null);
                               }}
                             >
@@ -2899,7 +2950,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                     setShowSidebar(false);
                   }}
                   onAddMember={() => {
-                    setShowMemberDialog(true);
+                    onInviteToChannel?.();
                     setShowSidebar(false);
                   }}
                   onRemoveMember={() => {

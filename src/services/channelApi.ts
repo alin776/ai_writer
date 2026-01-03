@@ -154,13 +154,28 @@ export const joinChannel = async (channelId: string, joinMessage?: string): Prom
 };
 
 /**
- * 邀请好友加入频道
+ * 邀请好友加入频道（发送私信邀请）
  */
-export const inviteToChannel = async (channelId: string, userId: string): Promise<{ message: string }> => {
-  const data = await api.post<{ message: string }>(`/channels/${channelId}/invite`, {
+export const inviteToChannel = async (channelId: string, userId: string): Promise<{
+  message: string;
+  inviteSent?: boolean;
+  alreadyMember?: boolean;
+  privateChannelId?: string;
+}> => {
+  const data = await api.post<{
+    message: string;
+    invite_sent?: boolean;
+    already_member?: boolean;
+    private_channel_id?: string;
+  }>(`/channels/${channelId}/invite`, {
     user_id: userId
   });
-  return data;
+  return {
+    message: data.message,
+    inviteSent: data.invite_sent,
+    alreadyMember: data.already_member,
+    privateChannelId: data.private_channel_id
+  };
 };
 
 /**
@@ -853,6 +868,7 @@ export interface InvitePreview {
   onlineCount: number;
   createdAt: string | null;
   isValid: boolean;
+  isMember: boolean;  // 当前用户是否已是频道成员
 }
 
 /**

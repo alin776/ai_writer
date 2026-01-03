@@ -32,9 +32,16 @@ const InviteLinkPreview: React.FC<InviteLinkPreviewProps> = ({ inviteCode, invit
     fetchPreview();
   }, [inviteCode]);
 
-  const handleJoin = async () => {
+  const handleClick = async () => {
     if (!preview || joining) return;
 
+    // 已是成员，直接跳转到频道
+    if (preview.isMember) {
+      navigate(`/channels?channelId=${preview.channelId}`);
+      return;
+    }
+
+    // 未加入，先加入再跳转
     try {
       setJoining(true);
       const result = await joinByInviteCode(inviteCode);
@@ -54,15 +61,22 @@ const InviteLinkPreview: React.FC<InviteLinkPreviewProps> = ({ inviteCode, invit
     return `${date.getFullYear()}年${date.getMonth() + 1}月`;
   };
 
+  // 获取按钮文字
+  const getButtonText = () => {
+    if (joining) return '加入中...';
+    if (preview?.isMember) return '前往频道';
+    return '加入';
+  };
+
   // 加载状态
   if (loading) {
     return (
-      <div className="mt-2 max-w-[320px] rounded-xl overflow-hidden bg-[#2b2d31]">
-        <div className="h-[50px] bg-[#1e1f22]" />
-        <div className="px-4 pb-4">
-          <div className="w-14 h-14 rounded-full bg-[#36393f] -mt-6 mb-3 animate-pulse" />
-          <div className="h-4 bg-[#36393f] rounded w-32 mb-2 animate-pulse" />
-          <div className="h-3 bg-[#36393f] rounded w-48 animate-pulse" />
+      <div className="mt-2 max-w-[320px] rounded-xl overflow-hidden bg-white dark:bg-[#2b2d31] border border-[#e3e5e8] dark:border-transparent">
+        <div className="h-[60px] bg-[#f2f3f5] dark:bg-[#1e1f22]" />
+        <div className="px-4 pb-4 bg-white dark:bg-[#2b2d31]">
+          <div className="w-14 h-14 rounded-full bg-[#e3e5e8] dark:bg-[#36393f] -mt-7 mb-3 animate-pulse" />
+          <div className="h-4 bg-[#e3e5e8] dark:bg-[#36393f] rounded w-32 mb-2 animate-pulse" />
+          <div className="h-3 bg-[#e3e5e8] dark:bg-[#36393f] rounded w-48 animate-pulse" />
         </div>
       </div>
     );
@@ -84,14 +98,14 @@ const InviteLinkPreview: React.FC<InviteLinkPreviewProps> = ({ inviteCode, invit
   }
 
   return (
-    <div className="mt-2 max-w-[320px] rounded-xl overflow-hidden bg-[#2b2d31]">
-      {/* 横幅 */}
-      <div className="h-[50px] bg-[#1e1f22]" />
+    <div className="mt-2 max-w-[320px] rounded-xl overflow-hidden bg-white dark:bg-[#2b2d31] border border-[#e3e5e8] dark:border-transparent">
+      {/* 横幅 - 头像应该在中间切开 */}
+      <div className="h-[60px] bg-[#f2f3f5] dark:bg-[#1e1f22]" />
 
       {/* 内容区 */}
-      <div className="px-4 pb-4 relative">
+      <div className="px-4 pb-4 relative bg-white dark:bg-[#2b2d31]">
         {/* 频道图标 - 悬浮效果 */}
-        <div className="w-14 h-14 rounded-full bg-white flex items-center justify-content -mt-6 mb-3 overflow-hidden">
+        <div className="w-14 h-14 rounded-full bg-white flex items-center justify-content -mt-6 mb-3 overflow-hidden border-4 border-white dark:border-[#2b2d31]">
           {preview.channelIcon ? (
             <img
               src={preview.channelIcon}
@@ -107,14 +121,14 @@ const InviteLinkPreview: React.FC<InviteLinkPreviewProps> = ({ inviteCode, invit
 
         {/* 频道名称 */}
         <div className="flex items-center gap-1.5 mb-1">
-          <span className="text-[16px] font-semibold text-[#f2f3f5]">
+          <span className="text-[16px] font-semibold text-[#060607] dark:text-[#f2f3f5]">
             {preview.channelName}
           </span>
           <span className="text-[#23a55a]" title="首页">🏠</span>
         </div>
 
         {/* 统计信息 */}
-        <div className="flex gap-3 text-[12px] text-[#b5bac1] mb-1">
+        <div className="flex gap-3 text-[12px] text-[#5c5e66] dark:text-[#b5bac1] mb-1">
           <span className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-[#23a55a]" />
             {preview.onlineCount.toLocaleString()} 人在线
@@ -127,18 +141,18 @@ const InviteLinkPreview: React.FC<InviteLinkPreviewProps> = ({ inviteCode, invit
 
         {/* 创建日期 */}
         {preview.createdAt && (
-          <div className="text-[12px] text-[#949ba4]">
+          <div className="text-[12px] text-[#6d6f78] dark:text-[#949ba4]">
             创建日期: {formatDate(preview.createdAt)}
           </div>
         )}
 
-        {/* 加入按钮 */}
+        {/* 按钮 - 根据成员状态显示不同文字 */}
         <button
-          onClick={handleJoin}
+          onClick={handleClick}
           disabled={joining}
           className="w-full mt-3 py-[7px] px-4 bg-[#248046] hover:bg-[#1a6334] text-white text-[14px] font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {joining ? '加入中...' : '前往服务器'}
+          {getButtonText()}
         </button>
       </div>
     </div>

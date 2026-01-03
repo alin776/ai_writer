@@ -81,9 +81,17 @@ export function InviteToChannelDialog({
   const handleInvite = async (friendId: string, friendName: string) => {
     try {
       setInvitingIds(prev => new Set(prev).add(friendId));
-      await inviteToChannel(channelId, friendId);
+      const result = await inviteToChannel(channelId, friendId);
       setInvitedIds(prev => new Set(prev).add(friendId));
-      showToast('success', `已邀请 ${friendName} 加入频道`);
+
+      // 根据后端返回显示不同提示
+      if (result.alreadyMember) {
+        showToast('info', `${friendName} 已是频道成员`);
+      } else if (result.inviteSent) {
+        showToast('success', `已向 ${friendName} 发送频道邀请`);
+      } else {
+        showToast('success', result.message);
+      }
     } catch (error: any) {
       console.error('邀请失败:', error);
       const message = error?.response?.data?.detail || '邀请失败，请重试';

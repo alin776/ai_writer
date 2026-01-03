@@ -147,6 +147,45 @@ async def get_current_active_user(current_user = Depends(get_current_user)):
     return current_user
 
 
+# 可选的OAuth2方案（不会自动抛出401错误）
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_PREFIX}/auth/login", auto_error=False)
+
+
+async def get_current_user_optional(
+    token: Optional[str] = Depends(oauth2_scheme_optional),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    获取当前用户（可选，未登录时返回 None）
+
+    使用方法:
+    async def some_route(current_user = Depends(get_current_user_optional)):
+        if current_user:
+            # 已登录
+        else:
+            # 未登录
+    """
+    if token is None:
+        return None
+
+    from app.services.user_service import UserService
+
+    try:
+        payload = decode_token(token)
+        user_id: str = payload.get("sub")
+        token_type: str = payload.get("type")
+
+        if user_id is None or token_type != "access":
+            return None
+    except (JWTError, HTTPException):
+        return None
+
+    user_service = UserService(db)
+    user = await user_service.get_user_by_id(user_id)
+
+    return user
+
+
 async def get_current_admin_user(current_user = Depends(get_current_active_user)):
     """获取当前管理员用户（需要管理员权限）"""
     if not current_user.is_admin:

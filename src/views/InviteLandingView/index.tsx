@@ -48,6 +48,13 @@ const InviteLandingView: React.FC = () => {
       return;
     }
 
+    // 已是成员，直接跳转到频道
+    if (preview.isMember) {
+      navigate(`/channels?channelId=${preview.channelId}`);
+      return;
+    }
+
+    // 未加入，先加入再跳转
     try {
       setJoining(true);
       const result = await joinByInviteCode(code);
@@ -59,6 +66,14 @@ const InviteLandingView: React.FC = () => {
     } finally {
       setJoining(false);
     }
+  };
+
+  // 获取按钮文字
+  const getButtonText = () => {
+    if (!isAuthenticated) return '接受邀请';
+    if (joining) return '加入中...';
+    if (preview?.isMember) return '前往频道';
+    return '加入频道';
   };
 
   // 加载状态
@@ -151,7 +166,7 @@ const InviteLandingView: React.FC = () => {
           disabled={joining}
           className="w-full py-3.5 px-4 bg-[#5865f2] hover:bg-[#4752c4] text-white text-base font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {joining ? '加入中...' : '接受邀请'}
+          {getButtonText()}
         </button>
 
         {/* 登录提示（未登录时显示） */}

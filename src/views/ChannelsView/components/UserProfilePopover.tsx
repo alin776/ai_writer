@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { checkFriendship, sendFriendRequest, type FriendCheckResponse } from '@/services/friendApi';
-import { getMyChannels, type Channel } from '@/services/channelApi';
+import { getMyChannels, type Channel, inviteToChannel } from '@/services/channelApi';
 import { useAuthStore, type OnlineStatus } from '@/store/authStore';
 import MiniEmojiPicker from './MiniEmojiPicker';
 import ReportUserDialog from './ReportUserDialog';
@@ -272,9 +272,17 @@ export function UserProfilePopover({
   };
 
   // 邀请至频道
-  const handleInviteToChannel = (channelId: string) => {
-    // TODO: 实现邀请功能
-    console.log('邀请用户到频道:', channelId);
+  const handleInviteToChannel = async (channelId: string, channelName: string) => {
+    try {
+      const result = await inviteToChannel(channelId, userId);
+      if (result.alreadyMember) {
+        console.log(`${userName} 已是 ${channelName} 的成员`);
+      } else if (result.inviteSent) {
+        console.log(`已向 ${userName} 发送 ${channelName} 的邀请`);
+      }
+    } catch (error) {
+      console.error('邀请失败:', error);
+    }
     onClose();
   };
 
@@ -369,7 +377,7 @@ export function UserProfilePopover({
                       {myChannels.map((channel) => (
                         <DropdownMenuItem
                           key={channel.id}
-                          onClick={() => handleInviteToChannel(channel.id)}
+                          onClick={() => handleInviteToChannel(channel.id, channel.name)}
                           className="text-gray-700 dark:text-[#b9bbbe] hover:text-gray-900 dark:hover:text-white focus:text-gray-900 dark:focus:text-white focus:bg-gray-100 dark:focus:bg-[#4752c4] rounded-sm"
                         >
                           <span className="truncate">{channel.name}</span>

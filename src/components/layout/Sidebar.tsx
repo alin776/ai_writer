@@ -319,7 +319,7 @@ export const Sidebar: React.FC = () => {
                   {user?.username || '用户'}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
-                  个人账户
+                  {user?.isAdmin ? '管理员账户' : '个人账户'}
                 </p>
               </div>
             </div>

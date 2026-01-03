@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy import select, func, and_, or_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
@@ -9,7 +9,7 @@ import logging
 import uuid
 
 from app.core.database import get_db
-from app.core.security import get_current_active_user
+from app.core.security import get_current_active_user, get_current_user_optional
 from app.models.user import User
 from app.models.work import Work
 from app.models.channel import Channel, ChannelType, ChannelStatus
@@ -4238,6 +4238,195 @@ async def get_forward_info(
     }
 
 
+# ===== 直接邀请好友加入频道 API =====
+
+def _generate_private_channel_name(user_id_1: UUID, user_id_2: UUID) -> str:
+    """生成私聊频道名称（排序保证唯一性）"""
+    ids = sorted([str(user_id_1), str(user_id_2)])
+    return f"{ids[0]}_{ids[1]}"
+
+
+@router.post("/{channel_id}/invite")
+async def invite_user_to_channel(
+    channel_id: UUID,
+    request_body: dict,
+    request: Request,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    邀请好友加入频道 - 发送私信邀请
+
+    不直接将用户加入频道，而是发送一条包含邀请链接的私信，
+    让被邀请者自己决定是否加入。
+    """
+    user_id = request_body.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="缺少 user_id 参数")
+
+    try:
+        target_user_id = UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的用户ID格式")
+
+    # 检查频道是否存在
+    channel_result = await db.execute(
+        select(Channel).where(Channel.id == channel_id)
+    )
+    channel = channel_result.scalar_one_or_none()
+    if not channel:
+        raise HTTPException(status_code=404, detail="频道不存在")
+
+    # 检查当前用户是否是频道成员
+    member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == current_user.id
+        )
+    )
+    current_member = member_result.scalar_one_or_none()
+    if not current_member:
+        raise HTTPException(status_code=403, detail="您不是该频道成员，无法邀请他人")
+
+    # 检查被邀请用户是否存在
+    target_user_result = await db.execute(
+        select(User).where(User.id == target_user_id)
+    )
+    target_user = target_user_result.scalar_one_or_none()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="被邀请用户不存在")
+
+    # 检查被邀请用户是否已经是成员
+    existing_member_result = await db.execute(
+        select(ChannelMember).where(
+            ChannelMember.channel_id == channel_id,
+            ChannelMember.user_id == target_user_id
+        )
+    )
+    existing_member = existing_member_result.scalar_one_or_none()
+    if existing_member:
+        if existing_member.is_banned:
+            raise HTTPException(status_code=403, detail="该用户已被踢出频道，无法重新邀请")
+        return {"message": "该用户已是频道成员", "already_member": True}
+
+    # 1. 创建邀请链接
+    from datetime import datetime, timezone, timedelta
+    invite = ChannelInvite(
+        channel_id=channel_id,
+        creator_id=current_user.id,  # 修正字段名
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        max_uses=1  # 单人邀请，限制使用1次
+    )
+    db.add(invite)
+    await db.flush()  # 获取邀请码
+
+    # 2. 查找或创建私聊频道
+    private_channel_name = _generate_private_channel_name(current_user.id, target_user_id)
+    existing_private_channel = await db.execute(
+        select(Channel).where(
+            Channel.name == private_channel_name,
+            Channel.type == ChannelType.PRIVATE
+        )
+    )
+    private_channel = existing_private_channel.scalar_one_or_none()
+
+    if private_channel:
+        # 复用已存在的私聊频道
+        if private_channel.status != 'active':
+            private_channel.status = 'active'
+
+        # 检查成员是否存在，不存在则添加
+        existing_members = await db.execute(
+            select(ChannelMember.user_id).where(
+                ChannelMember.channel_id == private_channel.id
+            )
+        )
+        existing_member_ids = set(row[0] for row in existing_members.fetchall())
+
+        if current_user.id not in existing_member_ids:
+            db.add(ChannelMember(
+                channel_id=private_channel.id,
+                user_id=current_user.id,
+                role=MemberRole.OWNER
+            ))
+            private_channel.member_count += 1
+
+        if target_user_id not in existing_member_ids:
+            db.add(ChannelMember(
+                channel_id=private_channel.id,
+                user_id=target_user_id,
+                role=MemberRole.MEMBER
+            ))
+            private_channel.member_count += 1
+    else:
+        # 创建新的私聊频道
+        private_channel = Channel(
+            name=private_channel_name,
+            type=ChannelType.PRIVATE,
+            creator_id=current_user.id,
+            is_permanent=True,
+            member_count=2
+        )
+        db.add(private_channel)
+        await db.flush()
+
+        # 添加两个成员
+        member1 = ChannelMember(
+            channel_id=private_channel.id,
+            user_id=current_user.id,
+            role=MemberRole.OWNER
+        )
+        member2 = ChannelMember(
+            channel_id=private_channel.id,
+            user_id=target_user_id,
+            role=MemberRole.MEMBER
+        )
+        db.add(member1)
+        db.add(member2)
+
+    # 3. 发送包含邀请链接的私信
+    # 从请求头获取前端域名，默认回退到 localhost
+    origin = request.headers.get("origin") or "http://localhost:5173"
+    invite_url = f"{origin}/invite/{invite.code}"
+
+    invite_message = ChannelMessage(
+        channel_id=private_channel.id,
+        user_id=current_user.id,
+        content=f"邀请你加入频道「{channel.name}」\n{invite_url}",
+        type="normal"
+    )
+    db.add(invite_message)
+
+    await db.commit()
+    await db.refresh(invite_message)  # 刷新获取 created_at
+
+    # 4. 通过 WebSocket 广播消息（commit 成功后再广播）
+    try:
+        from app.api.v1.ws import broadcast_channel_message
+        await broadcast_channel_message(
+            private_channel.id,
+            {
+                "id": str(invite_message.id),
+                "channel_id": str(private_channel.id),
+                "user_id": str(current_user.id),
+                "user_name": current_user.username,
+                "user_avatar": current_user.avatar,
+                "content": invite_message.content,
+                "type": invite_message.type,
+                "created_at": invite_message.created_at.isoformat() if invite_message.created_at else None
+            }
+        )
+    except Exception as e:
+        # WebSocket 广播失败不影响邀请成功
+        logger.warning(f"WebSocket 广播失败: {e}")
+
+    return {
+        "message": f"已向 {target_user.username} 发送频道邀请",
+        "invite_sent": True,
+        "private_channel_id": str(private_channel.id)
+    }
+
+
 # ===== 频道邀请链接 API =====
 
 from app.models.channel_invite import ChannelInvite
@@ -4253,7 +4442,7 @@ async def create_invite(
     db: AsyncSession = Depends(get_db)
 ):
     """创建频道邀请链接"""
-    # 检查是否是管理员或群主
+    # 检查是否是频道成员（所有成员都可以创建邀请链接）
     member_result = await db.execute(
         select(ChannelMember).where(
             ChannelMember.channel_id == channel_id,
@@ -4261,8 +4450,8 @@ async def create_invite(
         )
     )
     member = member_result.scalar_one_or_none()
-    if not member or member.role not in ['owner', 'admin']:
-        raise HTTPException(status_code=403, detail="只有管理员可以创建邀请链接")
+    if not member:
+        raise HTTPException(status_code=403, detail="您不是该频道成员，无法创建邀请链接")
 
     from datetime import datetime, timezone
     expires_at = None
@@ -4396,9 +4585,10 @@ async def join_by_invite(
 @router.get("/invite/{invite_code}/preview")
 async def get_invite_preview(
     invite_code: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-    """获取邀请链接预览信息（无需登录）"""
+    """获取邀请链接预览信息（可选登录，登录后返回是否已是成员）"""
     invite_result = await db.execute(
         select(ChannelInvite)
         .options(selectinload(ChannelInvite.channel))
@@ -4409,10 +4599,23 @@ async def get_invite_preview(
     if not invite:
         raise HTTPException(status_code=404, detail="邀请链接不存在或已失效")
 
-    if not invite.is_valid:
-        raise HTTPException(status_code=400, detail="邀请链接已过期或已达到使用上限")
-
     channel = invite.channel
+
+    # 检查当前用户是否已是频道成员
+    is_member = False
+    if current_user:
+        member_result = await db.execute(
+            select(ChannelMember).where(
+                ChannelMember.channel_id == channel.id,
+                ChannelMember.user_id == current_user.id
+            )
+        )
+        is_member = member_result.scalar_one_or_none() is not None
+
+    # 如果用户已是成员，即使邀请失效也返回预览（方便跳转）
+    # 只有非成员才需要检查邀请有效性
+    if not is_member and not invite.is_valid:
+        raise HTTPException(status_code=400, detail="邀请链接已过期或已达到使用上限")
 
     # 获取在线人数（从 WebSocket 连接管理器）
     from app.api.v1.ws import get_channel_online_users
@@ -4427,7 +4630,8 @@ async def get_invite_preview(
         "member_count": channel.member_count,
         "online_count": online_count,
         "created_at": channel.created_at.isoformat() if channel.created_at else None,
-        "is_valid": invite.is_valid
+        "is_valid": invite.is_valid,
+        "is_member": is_member
     }
 
 # ===== 已读回执 API =====
