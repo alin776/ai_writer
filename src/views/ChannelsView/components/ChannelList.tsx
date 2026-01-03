@@ -22,6 +22,7 @@ export interface Channel {
   description?: string;
   coverImage?: string;
   lastMessageAt?: string;  // 最后消息时间，用于排序
+  currentUserRole?: 'owner' | 'admin' | 'member';  // 当前用户在频道中的角色
 }
 
 interface ChannelListProps {
@@ -320,8 +321,11 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
     const Icon = getChannelIcon(channel);
     const isActive = channel.id === activeChannelId;
     const channelUnreadData = unreadData.get(channel.id);
-    // 粉丝群或作品频道的创建者可以编辑
-    const canEdit = (channel.type === 'fangroup' || channel.type === 'work') && channel.creatorId === currentUserId;
+    // 粉丝群或作品频道的创建者可以编辑，官方频道的管理员也可以编辑
+    const canEdit = (
+      ((channel.type === 'fangroup' || channel.type === 'work') && channel.creatorId === currentUserId) ||
+      (channel.type === 'official' && (channel.currentUserRole === 'owner' || channel.currentUserRole === 'admin'))
+    );
 
     // 点击头像编辑（粉丝群或作品频道创建者）
     const handleAvatarClick = (e: React.MouseEvent) => {
@@ -347,12 +351,12 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
           isActive ? "bg-gray-200 text-gray-900 dark:bg-zinc-700 dark:text-gray-100" : "hover:bg-gray-50 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-300"
         )}
       >
-        {/* 频道图标/头像 - 创建者可点击编辑 */}
+        {/* 频道图标/头像 - 创建者/管理员可点击编辑 */}
         {canEdit ? (
           <div
             onClick={handleAvatarClick}
             className="relative shrink-0 cursor-pointer group/avatar w-5 h-5"
-            title={channel.type === 'work' ? "点击编辑作品频道" : "点击编辑粉丝群"}
+            title={channel.type === 'official' ? "点击编辑官方频道" : channel.type === 'work' ? "点击编辑作品频道" : "点击编辑粉丝群"}
           >
             {channel.coverImage ? (
               <img

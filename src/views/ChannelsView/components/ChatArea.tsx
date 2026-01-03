@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft, Image, MessageCircle, BookOpen, Coffee, FlaskConical, Hash, Forward } from 'lucide-react';
+import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft, Image, MessageCircle, BookOpen, Coffee, FlaskConical, Hash, Forward, BellOff, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -11,7 +11,7 @@ import type { Channel } from './ChannelList';
 import { MemberManagementDialog } from './MemberManagementDialog';
 import { MemberListPanel } from './MemberListPanel';
 import { ReportMessageDialog } from './ReportMessageDialog';
-import { getChannelMembers, type ChannelMember, channelApi, UnreadInfo, type ReactionSummary, type MessageAttachment, uploadAttachment, getMyChannels } from '@/services/channelApi';
+import { getChannelMembers, type ChannelMember, channelApi, UnreadInfo, type ReactionSummary, type MessageAttachment, uploadAttachment, getMyChannels, updateChannelSettings } from '@/services/channelApi';
 import { checkFriendship } from '@/services/friendApi';
 import { useChannelWebSocket, type ChannelMessage, type ReactionEvent } from '@/hooks/useChannelWebSocket';
 import { TypingIndicator } from './TypingIndicator';
@@ -27,6 +27,7 @@ import { ToastContainer } from '@/components/ui/Toast';
 import { UserProfilePopover } from './UserProfilePopover';
 import { MessageActionBar } from './MessageActionBar';
 import { ForwardMessageDialog } from './ForwardMessageDialog';
+import { ChannelSettingsPanel } from './ChannelSettingsPanel';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 
 export interface Message {
@@ -109,6 +110,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   const [reactionTargetMessageId, setReactionTargetMessageId] = useState<string | null>(null); // 添加反应的目标消息ID
   const [showSidebar, setShowSidebar] = useState(false);
   const [showMemberPanel, setShowMemberPanel] = useState(false); // 成员列表面板
+  const [isMuted, setIsMuted] = useState(false); // 频道静音状态
   const [showMemberDialog, setShowMemberDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [reportingMessageId, setReportingMessageId] = useState<string>('');
@@ -151,6 +153,9 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   // 公告编辑状态
   const [showAnnouncementDialog, setShowAnnouncementDialog] = useState(false);
   const [announcementContent, setAnnouncementContent] = useState('');
+  // 群名称编辑状态
+  const [showEditNameDialog, setShowEditNameDialog] = useState(false);
+  const [editingChannelName, setEditingChannelName] = useState('');
   const [announcementFiles, setAnnouncementFiles] = useState<{
     id: string;
     fileName: string;
@@ -1054,6 +1059,21 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
               </div>
             </div>
             <div className="flex items-center gap-1">
+              {/* 频道静音按钮 - 非私聊频道显示 */}
+              {channel.type !== 'private' && (
+                <button
+                  onClick={() => setIsMuted(!isMuted)}
+                  className={cn(
+                    "p-1.5 rounded transition-colors",
+                    isMuted
+                      ? "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                      : "hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-400 dark:text-gray-500"
+                  )}
+                  title={isMuted ? "取消静音" : "频道静音"}
+                >
+                  {isMuted ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+                </button>
+              )}
               {/* 成员列表按钮 - 非私聊频道显示 */}
               {channel.type !== 'private' && (
                 <button
@@ -1655,7 +1675,15 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         </div>
 
         {/* 浮动跳转按钮 */}
-        <div className="fixed bottom-44 right-8 flex flex-col gap-2 z-10">
+        <div className={cn(
+          "fixed bottom-44 flex flex-col gap-2 z-10 transition-all duration-200",
+          // 根据右侧面板显示情况调整位置
+          channel.type !== 'private' && (showSidebar && showMemberPanel)
+            ? "right-[512px]"  // 两个面板都显示：w-60*2 (480px) + right-8 (32px)
+            : channel.type !== 'private' && (showSidebar || showMemberPanel)
+              ? "right-[272px]"  // 只有一个面板：w-60 (240px) + right-8 (32px)
+              : "right-8"
+        )}>
           {/* 跳转到@提醒 */}
           {unreadInfo && unreadInfo.mentionCount > 0 && (
             <button
@@ -2645,6 +2673,80 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         </div>
       )}
 
+      {/* 编辑群名称对话框 */}
+      {showEditNameDialog && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setShowEditNameDialog(false)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 标题栏 */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-base font-medium dark:text-gray-100">修改群名称</h3>
+              <button
+                onClick={() => {
+                  setShowEditNameDialog(false);
+                  setEditingChannelName('');
+                }}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              >
+                <X className="w-4 h-4 dark:text-gray-400" />
+              </button>
+            </div>
+
+            {/* 输入内容 */}
+            <div className="p-4">
+              <input
+                type="text"
+                value={editingChannelName}
+                onChange={(e) => setEditingChannelName(e.target.value)}
+                placeholder="请输入群名称"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                maxLength={50}
+                autoFocus
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                {editingChannelName.length}/50
+              </p>
+            </div>
+
+            {/* 底部按钮 */}
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-b-lg">
+              <button
+                onClick={() => {
+                  setShowEditNameDialog(false);
+                  setEditingChannelName('');
+                }}
+                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={async () => {
+                  if (!editingChannelName.trim()) return;
+                  try {
+                    await updateChannelSettings(channel.id, { name: editingChannelName.trim() });
+                    toastSuccess('群名称修改成功');
+                    setShowEditNameDialog(false);
+                    setEditingChannelName('');
+                  } catch (error) {
+                    console.error('修改群名称失败:', error);
+                    toastError('修改群名称失败');
+                  }
+                }}
+                disabled={!editingChannelName.trim() || editingChannelName === channel.name}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 删除公告确认对话框 */}
       {showDeleteAnnouncementDialog && (
         <div
@@ -2749,114 +2851,74 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
             />
           )}
 
-          {/* 频道详情侧边栏 - 使用 flex 布局而非绝对定位 */}
-          {showSidebar && (
-            <div className="w-60 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0">
-              {/* 作品信息 */}
-              {channel.type === 'work' && (
-                <div className="p-4 border-b border-gray-100 dark:border-gray-700 relative">
-                  {/* 关闭按钮 */}
-                  <button
-                    onClick={() => setShowSidebar(false)}
-                    className="absolute top-2 right-2 p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
-                  >
-                    <X className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-                  </button>
-                  <div className="flex gap-3">
-                    <img
-                      src={channel.coverImage || '/default-cover.jpg'}
-                      alt={channel.bookTitle || channel.name}
-                      className="w-16 h-22 bg-gray-100 dark:bg-gray-800 rounded flex-shrink-0 object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = '/default-cover.jpg';
-                      }}
-                    />
-                    <div className="flex-1 min-w-0 pr-6">
-                      <h3 className="text-sm mb-1 truncate dark:text-gray-100" title={channel.bookTitle || channel.name}>{channel.bookTitle || channel.name}</h3>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">作者:{channel.author || '佚名'}</p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">收藏 {channel.collectCount || 0}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* 频道信息 */}
-              {channel.type !== 'work' && (
-                <div className="p-4 border-b border-gray-100 dark:border-gray-700 relative">
-                  {/* 关闭按钮 */}
-                  <button
-                    onClick={() => setShowSidebar(false)}
-                    className="absolute top-2 right-2 p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
-                  >
-                    <X className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-                  </button>
-                  <h3 className="text-sm font-medium mb-2 dark:text-gray-100 pr-6">
-                    {channel.type === 'private' ? (privateChatPartnerName || '私聊') : channel.name}
-                  </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {channel.type === 'private' ? '私聊对话' : (channel.description || '暂无描述')}
-                  </p>
-                </div>
-              )}
-
-              {/* 管理选项 */}
-              <div className="flex-1 overflow-y-auto">
-                <div className="p-4">
-                  <h4 className="text-xs text-gray-500 dark:text-gray-400 mb-3">频道管理</h4>
-                  <div className="space-y-1">
-                    {/* 管理成员按钮 - owner/admin 可见（官方频道、粉丝群、作品频道） */}
-                    {(currentUser.role === 'owner' || currentUser.role === 'admin') &&
-                     (channel.type === 'official' || channel.type === 'fangroup' || channel.type === 'work') && (
-                      <button
-                        onClick={() => setShowMemberDialog(true)}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-800 rounded dark:text-gray-200"
-                      >
-                        <Users className="w-3.5 h-3.5" />
-                        管理成员
-                      </button>
-                    )}
-
-                    {/* 粉丝群 - 创作者专属：解散频道 */}
-                    {currentUser.isCreator && channel.type === 'fangroup' && (
-                      <button
-                        onClick={onLeaveChannel}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        解散频道
-                      </button>
-                    )}
-
-                    {/* 粉丝群 - 非创建者：退出频道 */}
-                    {!currentUser.isCreator && channel.type === 'fangroup' && (
-                      <button
-                        onClick={onLeaveChannel}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                        退出频道
-                      </button>
-                    )}
-
-                    {/* 作品频道 - 都显示退出选项 */}
-                    {channel.type === 'work' && (
-                      <button
-                        onClick={onLeaveChannel}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                        退出频道
-                      </button>
-                    )}
-
-                    {/* 官方频道 - 不可退出 */}
-                    {channel.type === 'official' && (
-                      <p className="text-xs text-gray-400 dark:text-gray-500 px-3 py-2">官方频道无法退出</p>
-                    )}
-                  </div>
-                </div>
+          {/* 频道设置面板 */}
+          {showSidebar && channel.type !== 'private' && (
+            <>
+              {/* 点击外部关闭的遮罩层 */}
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setShowSidebar(false)}
+              />
+              <div className="relative z-20">
+                <ChannelSettingsPanel
+                  channel={channel}
+                  members={members}
+                  currentUser={currentUser}
+                  onClose={() => setShowSidebar(false)}
+                  onSearchChat={() => {
+                    setShowSearchPage(true);
+                    setShowSidebar(false);
+                  }}
+                  onManageMembers={() => {
+                    setShowMemberDialog(true);
+                    setShowSidebar(false);
+                  }}
+                  onAddMember={() => {
+                    setShowMemberDialog(true);
+                    setShowSidebar(false);
+                  }}
+                  onRemoveMember={() => {
+                    setShowMemberDialog(true);
+                    setShowSidebar(false);
+                  }}
+                  onDissolveChannel={currentUser.role === 'owner' ? onLeaveChannel : undefined}
+                  onLeaveChannel={currentUser.role !== 'owner' ? onLeaveChannel : undefined}
+                  onViewMoreMembers={() => {
+                    setShowMemberPanel(true);
+                    setShowSidebar(false);
+                  }}
+                  onEditAnnouncement={() => {
+                    setAnnouncementContent(latestAnnouncement?.content || channel.description || '');
+                    setShowAnnouncementDialog(true);
+                  }}
+                  onEditChannelName={() => {
+                    setEditingChannelName(channel.name);
+                    setShowEditNameDialog(true);
+                  }}
+                  onMemberClick={(member, e) => {
+                    setUserProfilePopover({
+                      show: true,
+                      userId: member.userId,
+                      userName: member.username,
+                      userAvatar: member.avatar,
+                      userBio: member.bio,
+                      userTitle: member.title,
+                      userTitleColor: member.titleColor,
+                      userOnlineStatus: member.onlineStatus,
+                      position: { x: e.clientX - 320, y: e.clientY }
+                    });
+                  }}
+                  announcement={latestAnnouncement ? {
+                    content: latestAnnouncement.content,
+                    authorName: latestAnnouncement.userName,
+                    authorAvatar: latestAnnouncement.userAvatar,
+                    updatedAt: latestAnnouncement.timestamp instanceof Date
+                      ? latestAnnouncement.timestamp.toLocaleString('zh-CN')
+                      : new Date(latestAnnouncement.timestamp).toLocaleString('zh-CN')
+                  } : undefined}
+                />
               </div>
-            </div>
+            </>
           )}
         </div>
       </div>

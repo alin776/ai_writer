@@ -172,11 +172,13 @@ const ChannelsView: React.FC = () => {
       try {
         const response = await getChannelMembers(activeChannelId);
         const currentMember = response.members.find(m => m.userId === user.id);
-        if (currentMember) {
-          setUserRole(currentMember.role as 'owner' | 'admin' | 'member');
-        } else {
-          setUserRole('member');
-        }
+        const role = currentMember?.role as 'owner' | 'admin' | 'member' || 'member';
+        setUserRole(role);
+
+        // 更新频道列表中的 currentUserRole，用于 ChannelList 判断编辑权限
+        setUserChannels(prev => prev.map(ch =>
+          ch.id === activeChannelId ? { ...ch, currentUserRole: role } : ch
+        ));
       } catch (error) {
         console.error('加载用户角色失败:', error);
         setUserRole('member');
