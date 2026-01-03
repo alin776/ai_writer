@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Megaphone } from 'lucide-react';
-import { getChannelAnnouncements } from '../../../services/channelApi';
-import type { ChannelMessage } from '../../../types';
+import { getChannelAnnouncements, type ChannelMessage } from '../../../services/channelApi';
 
 interface AnnouncementListDialogProps {
   channelId: string;
