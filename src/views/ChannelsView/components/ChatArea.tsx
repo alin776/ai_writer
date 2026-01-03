@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useGlobalStore } from '@/store/globalStore';
 import type { Channel } from './ChannelList';
 import { MemberManagementDialog } from './MemberManagementDialog';
+import { MemberListPanel } from './MemberListPanel';
 import { ReportMessageDialog } from './ReportMessageDialog';
 import { getChannelMembers, type ChannelMember, channelApi, UnreadInfo, type ReactionSummary, type MessageAttachment, uploadAttachment, getMyChannels } from '@/services/channelApi';
 import { checkFriendship } from '@/services/friendApi';
@@ -1026,47 +1027,56 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         }
       `}</style>
 
-      <div
-        className="flex-1 flex flex-col bg-white dark:bg-gray-900 h-full relative"
-        onContextMenu={(e) => {
-          // 阻止默认右键菜单，只允许自定义右键菜单
-          e.preventDefault();
-        }}
-      >
-      {/* 频道头部 */}
-      <div className="p-3 border-b border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900">
-        <div className="flex items-center justify-between">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              {/* 展开/收缩图标 */}
-              <button
-                onClick={onToggleChannelList}
-                className="p-1 -ml-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
-                title={isChannelListCollapsed ? "展开频道列表" : "收起频道列表"}
-              >
-                {isChannelListCollapsed ? (
-                  <PanelLeft className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
-                ) : (
-                  <PanelLeftClose className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        {/* 频道头部 - 横跨整个宽度 */}
+        <div className="p-3 border-b border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                {/* 展开/收缩图标 */}
+                <button
+                  onClick={onToggleChannelList}
+                  className="p-1 -ml-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+                  title={isChannelListCollapsed ? "展开频道列表" : "收起频道列表"}
+                >
+                  {isChannelListCollapsed ? (
+                    <PanelLeft className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
+                  ) : (
+                    <PanelLeftClose className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
+                  )}
+                </button>
+                <h3 className="text-base font-medium dark:text-gray-100 truncate" title={channel.type === 'private' ? (privateChatPartnerName || '私聊') : channel.name}>
+                  {channel.type === 'private' ? (privateChatPartnerName || '私聊') : channel.name}
+                </h3>
+                {channel.isPermanent && channel.type !== 'private' && (
+                  <span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-1 rounded">永久</span>
                 )}
-              </button>
-              <h3 className="text-base font-medium dark:text-gray-100 truncate" title={channel.type === 'private' ? (privateChatPartnerName || '私聊') : channel.name}>
-                {channel.type === 'private' ? (privateChatPartnerName || '私聊') : channel.name}
-              </h3>
-              {channel.isPermanent && channel.type !== 'private' && (
-                <span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-1 rounded">永久</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              {/* 成员列表按钮 - 非私聊频道显示 */}
+              {channel.type !== 'private' && (
+                <button
+                  onClick={() => setShowMemberPanel(!showMemberPanel)}
+                  className={cn(
+                    "p-1.5 rounded transition-colors",
+                    showMemberPanel
+                      ? "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                      : "hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-400 dark:text-gray-500"
+                  )}
+                  title={showMemberPanel ? "隐藏成员名单" : "显示成员名单"}
+                >
+                  <Users className="w-4 h-4" />
+                </button>
               )}
+              <button
+                onClick={() => setShowSidebar(true)}
+                className="p-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded"
+              >
+                <MoreVertical className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setShowSidebar(true)}
-              className="p-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded"
-            >
-              <MoreVertical className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-            </button>
-          </div>
-        </div>
 
         {/* 状态提示 */}
         {statusInfo.show && (
@@ -1125,8 +1135,17 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
             </button>
           </div>
         )}
-      </div>
+        </div>
 
+        {/* 内容区域 - 聊天消息 + 成员列表面板 */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* 聊天内容区域 */}
+          <div
+            className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-w-0 relative"
+            onContextMenu={(e) => {
+              e.preventDefault();
+            }}
+          >
       {/* 置顶消息栏 */}
       {pinnedMessagesBar}
 
@@ -2819,7 +2838,31 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
           onStartPrivateChat={handleStartPrivateChat}
         />
       )}
-    </div>
+          </div>
+
+          {/* 成员列表面板 */}
+          {showMemberPanel && channel.type !== 'private' && (
+            <MemberListPanel
+              members={members}
+              onMemberClick={(member, e) => {
+                // 点击成员显示用户卡片
+                const rect = (e.target as HTMLElement).getBoundingClientRect();
+                setUserProfilePopover({
+                  show: true,
+                  userId: member.userId,
+                  userName: member.username,
+                  userAvatar: member.avatar,
+                  userBio: member.bio,
+                  userTitle: member.title,
+                  userTitleColor: member.titleColor,
+                  userOnlineStatus: undefined,
+                  position: { x: rect.left - 320, y: rect.top }
+                });
+              }}
+            />
+          )}
+        </div>
+      </div>
     </>
   );
 }
