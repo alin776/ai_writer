@@ -9,6 +9,7 @@ import {
   Cpu,
   DollarSign,
   Library,
+  LibraryBig,
   Wallet,
   BarChart3,
   Gift,
@@ -49,7 +50,7 @@ const channelNavItems: NavItem[] = [
 
 const libraryNavItems: NavItem[] = [
   { id: 'novel-square', label: '小说广场', icon: BookMarked, path: '/library/novel-square' },
-  { id: 'my-bookshelf', label: '我的书架', icon: BookOpen, path: '/library/my-bookshelf' },
+  { id: 'my-bookshelf', label: '我的书架', icon: LibraryBig, path: '/library/my-bookshelf' },
 ];
 
 const serviceNavItems: NavItem[] = [
