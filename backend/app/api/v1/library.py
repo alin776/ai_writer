@@ -18,6 +18,7 @@ from app.models.channel_member import ChannelMember, MemberRole
 from app.schemas.work import WorkResponse
 from pydantic import BaseModel
 import uuid
+from app.services.notification_service import NotificationService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -501,6 +502,20 @@ async def add_to_bookshelf(
             logger.info(f"User {current_user.id} auto-joined work channel {channel.id}")
 
     await db.commit()
+    # 发送收藏通知给作品作者
+    try:
+        # 不通知自己
+        if str(work.author_id) != str(current_user.id):
+            notification_service = NotificationService(db)
+            await notification_service.create_work_favorited_notification(
+                author_user_id=work.author_id,
+                collector_name=current_user.username,
+                work_title=work.title,
+                action_url=f"/library/novel-square/{work_id}"
+            )
+    except Exception as e:
+        # 通知发送失败不影响收藏操作
+        logger.warning(f"发送收藏通知失败: {e}")
 
     # 新创建时返回 201 Created
     response.status_code = status.HTTP_201_CREATED

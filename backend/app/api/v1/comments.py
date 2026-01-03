@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import Optional, Dict, List
 import logging
+import uuid as uuid_module
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
@@ -20,6 +21,7 @@ from app.schemas.comment import (
     UserInfo
 )
 from app.schemas.report import CommentReportCreate, CommentReportResponse
+from app.services.notification_service import NotificationService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -324,6 +326,37 @@ async def create_comment(
         )
     )
     comment = result.scalar_one()
+    # 如果是回复评论，发送通知给被回复者
+    try:
+        # 确定需要通知的用户ID（优先使用 reply_to_user_id，否则使用父评论作者）
+        notify_user_id = None
+        if comment_data.reply_to_user_id:
+            notify_user_id = comment_data.reply_to_user_id
+        elif comment_data.parent_id:
+            # 查询父评论作者
+            parent_result = await db.execute(
+                select(Comment.user_id).where(Comment.id == comment_data.parent_id)
+            )
+            parent_user_id = parent_result.scalar_one_or_none()
+            if parent_user_id:
+                notify_user_id = parent_user_id
+
+        # 如果有需要通知的用户，且不是自己，发送通知
+        if notify_user_id and str(notify_user_id) != str(current_user.id):
+            notification_service = NotificationService(db)
+            comment_preview = comment_data.content[:50] + "..." if len(comment_data.content) > 50 else comment_data.content
+            # 确保 recipient_user_id 是 UUID 类型
+            recipient_uuid = uuid_module.UUID(str(notify_user_id)) if isinstance(notify_user_id, str) else notify_user_id
+            await notification_service.create_comment_reply_notification(
+                recipient_user_id=recipient_uuid,
+                replier_name=current_user.username,
+                comment_preview=comment_preview,
+                work_title=work.title,
+                action_url=f"/library/novel-square/{work_id}"
+            )
+    except Exception as e:
+        # 通知发送失败不影响评论创建
+        logger.warning(f"发送评论回复通知失败: {e}")
 
     # 查询评论者对该作品的评分
     rating_result = await db.execute(

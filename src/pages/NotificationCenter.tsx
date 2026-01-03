@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { TimelineNotification } from '../components/notifications/TimelineNotification';
 import { FeaturedActivity } from '../components/notifications/FeaturedActivity';
 import { CompactActivity } from '../components/notifications/CompactActivity';
-import { Bell, Sparkles, Check, Trash2, X, CheckSquare } from 'lucide-react';
+import { Bell, Sparkles, Check, Trash2, X, CheckSquare, MessageCircle } from 'lucide-react';
 import { ImageWithFallback } from '../components/notifications/ImageWithFallback';
 import { getUserNotifications, markNotificationsAsRead, dismissNotification } from '../services/notificationApi';
 import { NotificationType, type UserNotification } from '../types/notification';
@@ -22,8 +22,9 @@ interface Activity {
 
 export default function NotificationCenter() {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'notifications' | 'activities'>('activities');
+  const [activeTab, setActiveTab] = useState<'notifications' | 'activities' | 'interactions'>('activities');
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
+  const [interactions, setInteractions] = useState<UserNotification[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -31,6 +32,7 @@ export default function NotificationCenter() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
+  const interactionUnreadCount = interactions.filter(n => !n.isRead).length;
 
   // 从后端加载通知和活动
   useEffect(() => {
@@ -47,9 +49,19 @@ export default function NotificationCenter() {
 
       const allNotifications = response.items;
       const eventNotifications = allNotifications.filter(n => n.type === NotificationType.EVENT);
-      const regularNotifications = allNotifications.filter(n => n.type !== NotificationType.EVENT);
+      // 互动通知：评论回复和作品被收藏
+      const interactionNotifications = allNotifications.filter(n =>
+        n.type === NotificationType.COMMENT_REPLY || n.type === NotificationType.WORK_FAVORITED
+      );
+      // 普通通知：排除活动和互动
+      const regularNotifications = allNotifications.filter(n =>
+        n.type !== NotificationType.EVENT &&
+        n.type !== NotificationType.COMMENT_REPLY &&
+        n.type !== NotificationType.WORK_FAVORITED
+      );
 
       setNotifications(regularNotifications);
+      setInteractions(interactionNotifications);
 
       const convertedActivities: Activity[] = eventNotifications.map((n, index) => {
         // 只显示第一段作为简短描述，或截取前100个字符
@@ -105,6 +117,8 @@ export default function NotificationCenter() {
     const getIconType = () => {
       if (n.type === NotificationType.FEATURE) return 'update';
       if (n.type === NotificationType.EVENT) return 'event';
+      if (n.type === NotificationType.COMMENT_REPLY) return 'comment';
+      if (n.type === NotificationType.WORK_FAVORITED) return 'favorite';
       return 'info';
     };
 
@@ -229,6 +243,27 @@ export default function NotificationCenter() {
                     <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black dark:bg-white" />
                   )}
                 </button>
+                <button
+                  onClick={() => setActiveTab('interactions')}
+                  className={`pb-3 px-2 transition-all relative text-sm ${
+                    activeTab === 'interactions'
+                      ? 'text-black dark:text-white'
+                      : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4" />
+                    <span>{t('notifications.interactions')}</span>
+                    {interactionUnreadCount > 0 && (
+                      <span className="bg-black dark:bg-white text-white dark:text-gray-900 rounded-full w-4 h-4 flex items-center justify-center text-xs">
+                        {interactionUnreadCount}
+                      </span>
+                    )}
+                  </div>
+                  {activeTab === 'interactions' && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black dark:bg-white" />
+                  )}
+                </button>
               </div>
 
               {activeTab === 'notifications' && (
@@ -286,7 +321,7 @@ export default function NotificationCenter() {
             </div>
 
             <div className="overflow-y-auto pr-4 scrollbar-auto-hide">
-              {activeTab === 'notifications' ? (
+              {activeTab === 'notifications' && (
                 <div className="relative">
                   <div className={`absolute ${batchDeleteMode ? 'left-12' : 'left-4'} top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700 transition-all`} />
                   <div className="space-y-0">
@@ -309,7 +344,34 @@ export default function NotificationCenter() {
                     )}
                   </div>
                 </div>
-              ) : (
+              )}
+
+              {activeTab === 'interactions' && (
+                <div className="relative">
+                  <div className="absolute left-4 top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700" />
+                  <div className="space-y-0">
+                    {interactions.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12">
+                        <MessageCircle className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" />
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{t('notifications.emptyInteractions')}</p>
+                      </div>
+                    ) : (
+                      interactions.map((notification, index) => (
+                        <TimelineNotification
+                          key={notification.id}
+                          notification={convertToTimelineFormat(notification)}
+                          isLast={index === interactions.length - 1}
+                          batchDeleteMode={false}
+                          isSelected={false}
+                          onToggleSelect={() => {}}
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'activities' && (
                 <div className="space-y-6">
                   {activities.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12">

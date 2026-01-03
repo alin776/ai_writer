@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft, Image, MessageCircle, BookOpen, Coffee, FlaskConical, Hash, Forward, BellOff, Bell } from 'lucide-react';
+import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft, Image, MessageCircle, BookOpen, Coffee, FlaskConical, Hash, Forward, BellOff, Bell, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -88,6 +88,7 @@ interface ChatAreaProps {
   onSendMessageWithAttachments?: (content: string, attachmentIds: string[], type?: 'normal' | 'announcement', replyToId?: string) => void;
   onMentionAll?: () => void;
   onLeaveChannel?: () => void;
+  onInviteToChannel?: () => void;
   onNewMessage?: (message: ChannelMessage) => void;
   onMessageDelete?: (messageId: string) => void;
   onMessageEdit?: (event: MessageEditEvent) => void;
@@ -103,7 +104,7 @@ interface ChatAreaProps {
   onLoadMessagesAround?: (messageId: string) => Promise<boolean>;  // 加载消息附近的上下文，返回是否成功
 }
 
-export function ChatArea({ channel, messages, currentUser, onSendMessage, onSendMessageWithAttachments, onMentionAll, onLeaveChannel, onNewMessage, onMessageDelete, onMessageEdit, onReactionAdd, onReactionRemove, onReactionsChange, onPinChange, scrollToMessageId, pinnedMessagesBar, isChannelListCollapsed, onToggleChannelList, onNavigateToOriginalMessage, onLoadMessagesAround }: ChatAreaProps) {
+export function ChatArea({ channel, messages, currentUser, onSendMessage, onSendMessageWithAttachments, onMentionAll, onLeaveChannel, onInviteToChannel, onNewMessage, onMessageDelete, onMessageEdit, onReactionAdd, onReactionRemove, onReactionsChange, onPinChange, scrollToMessageId, pinnedMessagesBar, isChannelListCollapsed, onToggleChannelList, onNavigateToOriginalMessage, onLoadMessagesAround }: ChatAreaProps) {
   const [messageInput, setMessageInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiPickerPosition, setEmojiPickerPosition] = useState({ x: 0, y: 0 });
@@ -1059,6 +1060,16 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
               </div>
             </div>
             <div className="flex items-center gap-1">
+              {/* 邀请至频道按钮 - 非私聊频道显示 */}
+              {channel.type !== 'private' && (
+                <button
+                  onClick={onInviteToChannel}
+                  className="p-1.5 rounded transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-400 dark:text-gray-500"
+                  title="邀请至频道"
+                >
+                  <UserPlus className="w-4 h-4" />
+                </button>
+              )}
               {/* 频道静音按钮 - 非私聊频道显示 */}
               {channel.type !== 'private' && (
                 <button

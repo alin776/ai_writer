@@ -9,7 +9,8 @@
  */
 export enum NotificationCategory {
   SYSTEM = 'system',           // 系统自动通知
-  ANNOUNCEMENT = 'announcement' // 运营通知/活动
+  ANNOUNCEMENT = 'announcement', // 运营通知/活动
+  INTERACTION = 'interaction'  // 互动通知（评论回复、收藏等）
 }
 
 /**
@@ -27,7 +28,11 @@ export enum NotificationType {
   EVENT = 'event',                           // 活动
   FEATURE = 'feature',                       // 新功能上线
   ANNOUNCEMENT = 'announcement',             // 公告
-  MAINTENANCE = 'maintenance'                // 系统维护
+  MAINTENANCE = 'maintenance',               // 系统维护
+
+  // 互动通知类型
+  COMMENT_REPLY = 'comment_reply',           // 评论被回复
+  WORK_FAVORITED = 'work_favorited'          // 作品被收藏
 }
 
 /**

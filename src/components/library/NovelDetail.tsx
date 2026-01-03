@@ -974,7 +974,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
               {chapterGroups.map((group, groupIndex) => (
                 <div key={groupIndex}>
                   <div
-                    className={`px-6 py-4 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer transition-colors flex items-center justify-between group ${
+                    className={`px-6 py-4 cursor-pointer transition-colors flex items-center justify-between group ${
                       groupIndex === 0 ? 'rounded-t-xl' : ''
                     } ${
                       groupIndex === chapterGroups.length - 1 && !expandedGroups.has(groupIndex) ? 'rounded-b-xl' : ''
@@ -1000,11 +1000,11 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
                     />
                   </div>
                   {expandedGroups.has(groupIndex) && (
-                    <div className="bg-gray-50 dark:bg-slate-800/50">
+                    <div className="px-2 py-1">
                       {group.map((chapter) => (
                         <div
                           key={chapter.id}
-                          className="px-12 py-3 hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer transition-colors flex items-center justify-between group"
+                          className="px-10 py-3 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer transition-colors flex items-center justify-between group rounded-lg"
                           onClick={() => handleStartReading(chapter.id)}
                         >
                           <div className="flex-1">

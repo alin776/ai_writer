@@ -760,8 +760,10 @@
   "notifications": {
     "title": "Notifications",
     "activities": "Activities",
+    "interactions": "Comments & @",
     "empty": "No notifications",
     "emptyActivities": "No activities",
+    "emptyInteractions": "No comments or mentions",
     "loading": "Loading...",
     "loadError": "Failed to load notifications",
     "markAllRead": "Mark all as read",

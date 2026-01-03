@@ -18,6 +18,8 @@ import {
   Calendar,
   Settings,
   Megaphone,
+  MessageCircle,
+  Heart,
 } from 'lucide-react';
 import type { UserNotification } from '../../types/notification';
 import { NotificationType, NotificationPriority } from '../../types/notification';
@@ -67,6 +69,10 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onClo
         return <Megaphone className={`${iconClass} text-blue-500`} />;
       case NotificationType.MAINTENANCE:
         return <Settings className={`${iconClass} text-gray-400`} />;
+      case NotificationType.COMMENT_REPLY:
+        return <MessageCircle className={`${iconClass} text-blue-500`} />;
+      case NotificationType.WORK_FAVORITED:
+        return <Heart className={`${iconClass} text-red-500`} />;
       default:
         return <Info className={`${iconClass} text-gray-400`} />;
     }

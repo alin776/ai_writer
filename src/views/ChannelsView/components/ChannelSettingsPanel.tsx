@@ -178,7 +178,7 @@ export function ChannelSettingsPanel({
         <div className="px-2 py-2 bg-white dark:bg-gray-900">
           <button
             onClick={onSearchChat}
-            className="w-full px-2 py-3 flex items-center justify-between text-sm font-medium text-gray-900 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/80 rounded-lg transition-colors"
+            className="w-full px-3 py-3 flex items-center justify-between text-sm font-medium text-gray-900 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl transition-colors"
           >
             <span>查找聊天内容</span>
             <ChevronRight className="w-4 h-4 text-gray-400 dark:text-gray-500" />
@@ -306,11 +306,11 @@ export function ChannelSettingsPanel({
           onClick={() => setShowAnnouncementDetail(false)}
         >
           <div
-            className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col"
+            className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md mx-4 h-[400px] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 弹窗头部 */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-base font-medium text-gray-900 dark:text-gray-100">
                 「{channel.name}」的群公告
               </h3>
@@ -361,7 +361,7 @@ export function ChannelSettingsPanel({
             </div>
 
             {/* 弹窗底部 */}
-            <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div className="flex-shrink-0 px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <span className="text-xs text-gray-400 dark:text-gray-500">
                 {channel.type === 'official' ? '仅群主和管理员可编辑' : '仅群主可编辑'}
               </span>

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { ChannelList, type Channel } from './components/ChannelList';
 import { ChatArea, type Message } from './components/ChatArea';
 import { CreateFangroupDialog } from './components/CreateFangroupDialog';
+import { InviteToChannelDialog } from './components/InviteToChannelDialog';
 import PinnedMessagesBar from './components/PinnedMessagesBar';
 import { cn } from '@/lib/utils';
 import {
@@ -105,6 +106,7 @@ const ChannelsView: React.FC = () => {
   const [pendingChannelIds, setPendingChannelIds] = useState<Set<string>>(new Set());  // 已申请待审核的频道
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [userRole, setUserRole] = useState<'owner' | 'admin' | 'member'>('member');
   const [pinRefreshTrigger, setPinRefreshTrigger] = useState(0);
   const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null);
@@ -868,6 +870,7 @@ const ChannelsView: React.FC = () => {
             onSendMessage={handleSendMessage}
             onSendMessageWithAttachments={handleSendMessageWithAttachments}
             onLeaveChannel={handleLeaveChannel}
+            onInviteToChannel={() => setShowInviteDialog(true)}
             onNewMessage={handleNewMessage}
             onMessageDelete={handleMessageDelete}
             onMessageEdit={handleMessageEdit}
@@ -907,6 +910,16 @@ const ChannelsView: React.FC = () => {
         onClose={() => setShowCreateDialog(false)}
         onSuccess={handleCreateSuccess}
       />
+
+      {/* 邀请好友至频道对话框 */}
+      {activeChannel && (
+        <InviteToChannelDialog
+          isOpen={showInviteDialog}
+          onClose={() => setShowInviteDialog(false)}
+          channelId={activeChannel.id}
+          channelName={activeChannel.name}
+        />
+      )}
     </div>
   );
 };

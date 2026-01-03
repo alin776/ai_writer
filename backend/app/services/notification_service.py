@@ -707,3 +707,99 @@ class NotificationService:
         await self._create_user_notifications(notification)
 
         return notification
+
+    # ==================== 互动通知快捷方法 ====================
+
+    async def create_comment_reply_notification(
+        self,
+        recipient_user_id: UUID,
+        replier_name: str,
+        comment_preview: str,
+        work_title: str,
+        action_url: Optional[str] = None
+    ) -> Notification:
+        """
+        创建评论被回复通知
+
+        Args:
+            recipient_user_id: 接收通知的用户ID（原评论作者）
+            replier_name: 回复者用户名
+            comment_preview: 回复内容预览（建议50字以内）
+            work_title: 作品标题
+            action_url: 点击跳转的URL
+        """
+        title = f"{replier_name} 回复了你的评论"
+        content = f"在《{work_title}》中：{comment_preview}"
+
+        action_button = None
+        if action_url:
+            action_button = {"text": "查看回复", "url": action_url}
+
+        notification = Notification(
+            title=title,
+            content=content,
+            category=NotificationCategory.INTERACTION,
+            type=NotificationType.COMMENT_REPLY,
+            priority=NotificationPriority.NORMAL,
+            display_type=["notification"],
+            action_button=action_button,
+            target_users=TargetUserType.CUSTOM,
+            custom_user_ids=[recipient_user_id],
+            status=NotificationStatus.ACTIVE,
+            published_at=datetime.now(timezone.utc),
+            allow_dismiss=True,
+            show_once=False
+        )
+
+        self.db.add(notification)
+        await self.db.commit()
+        await self.db.refresh(notification)
+
+        await self._create_user_notifications(notification)
+        return notification
+
+    async def create_work_favorited_notification(
+        self,
+        author_user_id: UUID,
+        collector_name: str,
+        work_title: str,
+        action_url: Optional[str] = None
+    ) -> Notification:
+        """
+        创建作品被收藏通知
+
+        Args:
+            author_user_id: 作品作者的用户ID
+            collector_name: 收藏者用户名
+            work_title: 被收藏的作品标题
+            action_url: 点击跳转的URL
+        """
+        title = f"{collector_name} 收藏了你的作品"
+        content = f"《{work_title}》被收藏了，继续创作更多精彩内容吧！"
+
+        action_button = None
+        if action_url:
+            action_button = {"text": "查看作品", "url": action_url}
+
+        notification = Notification(
+            title=title,
+            content=content,
+            category=NotificationCategory.INTERACTION,
+            type=NotificationType.WORK_FAVORITED,
+            priority=NotificationPriority.NORMAL,
+            display_type=["notification"],
+            action_button=action_button,
+            target_users=TargetUserType.CUSTOM,
+            custom_user_ids=[author_user_id],
+            status=NotificationStatus.ACTIVE,
+            published_at=datetime.now(timezone.utc),
+            allow_dismiss=True,
+            show_once=False
+        )
+
+        self.db.add(notification)
+        await self.db.commit()
+        await self.db.refresh(notification)
+
+        await self._create_user_notifications(notification)
+        return notification

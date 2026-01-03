@@ -760,8 +760,10 @@
   "notifications": {
     "title": "通知",
     "activities": "活動",
+    "interactions": "評論和@",
     "empty": "暫無通知",
     "emptyActivities": "暫無活動",
+    "emptyInteractions": "暫無評論和@消息",
     "loading": "載入中...",
     "loadError": "載入通知失敗",
     "markAllRead": "全部已讀",

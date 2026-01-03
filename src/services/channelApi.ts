@@ -153,6 +153,16 @@ export const joinChannel = async (channelId: string, joinMessage?: string): Prom
 };
 
 /**
+ * 邀请好友加入频道
+ */
+export const inviteToChannel = async (channelId: string, userId: string): Promise<{ message: string }> => {
+  const data = await api.post<{ message: string }>(`/channels/${channelId}/invite`, {
+    user_id: userId
+  });
+  return data;
+};
+
+/**
  * 退出频道
  *
  * @returns disbanded - true 表示频道已解散（粉丝群创建者退出），false 表示普通退出

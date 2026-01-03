@@ -1,11 +1,11 @@
-import { Info, Zap, Calendar, Circle } from 'lucide-react';
+import { Info, Zap, Calendar, Circle, MessageCircle, Heart } from 'lucide-react';
 
 interface Notification {
   id: number;
   title: string;
   content: string;
   time: string;
-  type: 'info' | 'update' | 'event';
+  type: 'info' | 'update' | 'event' | 'comment' | 'favorite';
   read: boolean;
 }
 
@@ -30,6 +30,10 @@ export function TimelineNotification({
         return <Zap className="w-4 h-4" />;
       case 'event':
         return <Calendar className="w-4 h-4" />;
+      case 'comment':
+        return <MessageCircle className="w-4 h-4" />;
+      case 'favorite':
+        return <Heart className="w-4 h-4" />;
       default:
         return <Info className="w-4 h-4" />;
     }
