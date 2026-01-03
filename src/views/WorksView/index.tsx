@@ -103,7 +103,9 @@ const WorksView: React.FC = () => {
   const [importPreview, setImportPreview] = useState<ImportPreviewResponse | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounterRef = useRef(0);
 
   // 导出弹窗状态
   const [exportingWork, setExportingWork] = useState<Work | null>(null);
@@ -520,6 +522,8 @@ const WorksView: React.FC = () => {
     setShowImportModal(false);
     setImportFile(null);
     setImportPreview(null);
+    setIsDraggingFile(false);
+    dragCounterRef.current = 0;
   };
 
   // 处理文件选择
@@ -551,6 +555,98 @@ const WorksView: React.FC = () => {
       showToast('error', error?.message || t('works.import.previewError'));
     } finally {
       setIsPreviewing(false);
+    }
+  };
+
+  // 检查文件类型是否被接受
+  const isFileAccepted = (file: File, accept: string): boolean => {
+    if (!accept) return true;
+    const acceptedTypes = accept.split(',').map(t => t.trim().toLowerCase());
+    const fileName = file.name.toLowerCase();
+    return acceptedTypes.some(accepted => {
+      if (accepted.startsWith('.')) {
+        return fileName.endsWith(accepted);
+      }
+      return false;
+    });
+  };
+
+  // 处理拖拽文件
+  const handleFileDrop = async (file: File) => {
+    if (!isFileAccepted(file, '.json,.md,.markdown,.txt')) {
+      showToast('error', '不支持的文件格式，请选择 .json、.md 或 .txt 文件');
+      return;
+    }
+
+    setImportFile(file);
+    setImportPreview(null);
+
+    // 根据文件扩展名自动选择格式
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (ext === 'json') {
+      setImportFormat('json');
+    } else if (ext === 'md' || ext === 'markdown') {
+      setImportFormat('markdown');
+    } else if (ext === 'txt') {
+      setImportFormat('txt');
+    }
+
+    // 自动预览
+    try {
+      setIsPreviewing(true);
+      const format = ext === 'json' ? 'json' : ext === 'md' || ext === 'markdown' ? 'markdown' : 'txt';
+      const preview = await DataService.previewImport(file, format);
+      setImportPreview(preview);
+    } catch (error: any) {
+      console.error('预览失败:', error);
+      showToast('error', error?.message || t('works.import.previewError'));
+    } finally {
+      setIsPreviewing(false);
+    }
+  };
+
+  // 拖拽事件处理
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isImporting || isPreviewing) return;
+
+    dragCounterRef.current++;
+    if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
+      setIsDraggingFile(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDraggingFile(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    setIsDraggingFile(false);
+    dragCounterRef.current = 0;
+
+    if (isImporting || isPreviewing) return;
+
+    const droppedFile = e.dataTransfer?.files?.[0];
+    if (droppedFile) {
+      handleFileDrop(droppedFile);
     }
   };
 
@@ -1131,13 +1227,14 @@ const WorksView: React.FC = () => {
 
       {/* 导入弹窗 */}
       {showImportModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeImportModal}>
-          <div
-            className="bg-white dark:bg-gray-800 w-[550px] max-w-[92vw] overflow-y-auto scrollbar-hide rounded-xl"
-            style={{ transform: 'skewX(-2deg)', maxHeight: '90vh' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ transform: 'skewX(2deg)' }} className="p-4">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={closeImportModal}
+          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        >
+          <div className="bg-white dark:bg-gray-800 w-[550px] max-h-[700px] overflow-y-auto scrollbar-hide" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ transform: 'skewX(2deg)' }} className="p-6">
               {/* 标题栏 */}
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-base text-gray-900 dark:text-gray-100">{t('works.import.title')}</h2>
@@ -1154,10 +1251,24 @@ const WorksView: React.FC = () => {
                   accept=".json,.md,.markdown,.txt"
                   onChange={handleFileSelect}
                   className="hidden"
+                  disabled={isPreviewing || isImporting}
                 />
                 <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-gray-900 dark:hover:border-gray-400 p-6 text-center cursor-pointer transition-colors rounded-lg"
+                  onClick={() => {
+                    if (isPreviewing || isImporting) return;
+                    fileInputRef.current?.click();
+                  }}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  className={`border-2 border-dashed p-8 text-center transition-colors ${
+                    isPreviewing || isImporting
+                      ? 'opacity-50 cursor-not-allowed border-gray-300 dark:border-gray-600'
+                      : isDraggingFile
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 cursor-pointer'
+                        : 'border-gray-300 dark:border-gray-600 hover:border-gray-900 dark:hover:border-gray-400 cursor-pointer'
+                  }`}
                 >
                   {importFile ? (
                     <div className="flex items-center justify-center gap-2">
@@ -1169,8 +1280,10 @@ const WorksView: React.FC = () => {
                     </div>
                   ) : (
                     <div>
-                      <Upload className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-1" />
-                      <p className="text-gray-600 dark:text-gray-400" style={{ fontSize: '12px' }}>{t('works.import.dropHint')}</p>
+                      <Upload className={`w-8 h-8 mx-auto mb-2 ${isDraggingFile ? 'text-blue-500' : 'text-gray-400 dark:text-gray-500'}`} />
+                      <p className={`${isDraggingFile ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`} style={{ fontSize: '13px' }}>
+                        {isDraggingFile ? '松开鼠标导入文件' : t('works.import.dropHint')}
+                      </p>
                       <p className="text-gray-400 dark:text-gray-500 mt-1" style={{ fontSize: '11px' }}>{t('works.import.formatHint')}</p>
                     </div>
                   )}

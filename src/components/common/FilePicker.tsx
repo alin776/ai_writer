@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import { Upload, File as FileIcon, X } from 'lucide-react';
 import './FilePicker.css';
 
@@ -18,6 +18,31 @@ const formatFileSize = (bytes: number): string => {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 };
 
+// 检查文件类型是否符合 accept 规则
+const isFileAccepted = (file: File, accept: string): boolean => {
+  if (!accept) return true;
+
+  const acceptedTypes = accept.split(',').map(t => t.trim().toLowerCase());
+  const fileName = file.name.toLowerCase();
+  const fileType = file.type.toLowerCase();
+
+  return acceptedTypes.some(accepted => {
+    // 扩展名匹配 (如 .json, .md)
+    if (accepted.startsWith('.')) {
+      return fileName.endsWith(accepted);
+    }
+    // MIME 类型匹配 (如 text/plain, image/*)
+    if (accepted.includes('/')) {
+      if (accepted.endsWith('/*')) {
+        const baseType = accepted.slice(0, -2);
+        return fileType.startsWith(baseType);
+      }
+      return fileType === accepted;
+    }
+    return false;
+  });
+};
+
 const FilePicker: React.FC<FilePickerProps> = ({
   file,
   onChange,
@@ -28,6 +53,8 @@ const FilePicker: React.FC<FilePickerProps> = ({
   disabled = false,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounterRef = useRef(0);
 
   const handleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0] || null;
@@ -40,13 +67,63 @@ const FilePicker: React.FC<FilePickerProps> = ({
     onChange(null);
   };
 
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (disabled) return;
+
+    dragCounterRef.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  }, [disabled]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (disabled) return;
+
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false);
+    }
+  }, [disabled]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (disabled) return;
+
+    setIsDragging(false);
+    dragCounterRef.current = 0;
+
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (droppedFile) {
+      // 检查文件类型是否被接受
+      if (accept && !isFileAccepted(droppedFile, accept)) {
+        console.warn('文件类型不符合要求:', droppedFile.type, droppedFile.name);
+        return;
+      }
+      onChange(droppedFile);
+    }
+  }, [disabled, accept, onChange]);
+
   return (
     <div
-      className={`file-picker ${disabled ? 'is-disabled' : ''}`}
+      className={`file-picker ${disabled ? 'is-disabled' : ''} ${isDragging ? 'is-dragging' : ''}`}
       onClick={() => {
         if (disabled) return;
         inputRef.current?.click();
       }}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
     >
       <input
         ref={inputRef}
