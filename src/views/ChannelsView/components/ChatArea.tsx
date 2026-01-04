@@ -5,14 +5,22 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useGlobalStore } from '@/store/globalStore';
 import type { Channel } from './ChannelList';
 import { MemberManagementDialog } from './MemberManagementDialog';
 import { MemberListPanel } from './MemberListPanel';
 import { ReportMessageDialog } from './ReportMessageDialog';
-import { getChannelMembers, type ChannelMember, channelApi, UnreadInfo, type ReactionSummary, type MessageAttachment, uploadAttachment, getMyChannels, updateChannelSettings, inviteToChannel } from '@/services/channelApi';
-import { checkFriendship } from '@/services/friendApi';
+import { getChannelMembers, type ChannelMember, channelApi, UnreadInfo, type ReactionSummary, type MessageAttachment, uploadAttachment, getMyChannels, updateChannelSettings, inviteToChannel, updateNotificationSettings } from '@/services/channelApi';
+import { checkFriendship, sendFriendRequest } from '@/services/friendApi';
 import { useChannelWebSocket, type ChannelMessage, type ReactionEvent } from '@/hooks/useChannelWebSocket';
 import { TypingIndicator } from './TypingIndicator';
 import { MessageReactions } from './MessageReactions';
@@ -24,6 +32,7 @@ import type { MessageEditEvent } from '@/hooks/useChannelWebSocket';
 import { addFavoriteSticker } from '@/services/stickerApi';
 import { useToast } from '@/hooks/useToast';
 import { ToastContainer } from '@/components/ui/Toast';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { UserProfilePopover } from './UserProfilePopover';
 import { MessageActionBar } from './MessageActionBar';
 import { ForwardMessageDialog } from './ForwardMessageDialog';
@@ -97,6 +106,7 @@ interface ChatAreaProps {
   onReactionRemove?: (event: ReactionEvent) => void;
   onReactionsChange?: (messageId: string, reactions: ReactionSummary[]) => void;
   onPinChange?: () => void;
+  onMuteChange?: (isMuted: boolean) => void;  // 静音状态变化回调
   scrollToMessageId?: string | null;
   pinnedMessagesBar?: React.ReactNode;
   isChannelListCollapsed?: boolean;
@@ -105,14 +115,15 @@ interface ChatAreaProps {
   onLoadMessagesAround?: (messageId: string) => Promise<boolean>;  // 加载消息附近的上下文，返回是否成功
 }
 
-export function ChatArea({ channel, messages, currentUser, onSendMessage, onSendMessageWithAttachments, onMentionAll, onLeaveChannel, onInviteToChannel, onNewMessage, onMessageDelete, onMessageEdit, onReactionAdd, onReactionRemove, onReactionsChange, onPinChange, scrollToMessageId, pinnedMessagesBar, isChannelListCollapsed, onToggleChannelList, onNavigateToOriginalMessage, onLoadMessagesAround }: ChatAreaProps) {
+export function ChatArea({ channel, messages, currentUser, onSendMessage, onSendMessageWithAttachments, onMentionAll, onLeaveChannel, onInviteToChannel, onNewMessage, onMessageDelete, onMessageEdit, onReactionAdd, onReactionRemove, onReactionsChange, onPinChange, onMuteChange, scrollToMessageId, pinnedMessagesBar, isChannelListCollapsed, onToggleChannelList, onNavigateToOriginalMessage, onLoadMessagesAround }: ChatAreaProps) {
   const [messageInput, setMessageInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiPickerPosition, setEmojiPickerPosition] = useState({ x: 0, y: 0 });
   const [reactionTargetMessageId, setReactionTargetMessageId] = useState<string | null>(null); // 添加反应的目标消息ID
   const [showSidebar, setShowSidebar] = useState(false);
   const [showMemberPanel, setShowMemberPanel] = useState(false); // 成员列表面板
-  const [isMuted, setIsMuted] = useState(false); // 频道静音状态
+  const [isMuted, setIsMuted] = useState(channel.isMuted ?? false); // 频道静音状态，从channel初始化
+  const [showMuteConfirm, setShowMuteConfirm] = useState(false); // 静音确认弹窗
   const [showMemberDialog, setShowMemberDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [reportingMessageId, setReportingMessageId] = useState<string>('');
@@ -194,6 +205,12 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   } | null>(null);
   // 可邀请的频道列表（用于右键菜单）
   const [invitableChannels, setInvitableChannels] = useState<{id: string; name: string; type: string}[]>([]);
+  // 好友检查弹窗状态（邀请非好友时显示）
+  const [friendRequiredDialog, setFriendRequiredDialog] = useState<{
+    show: boolean;
+    userId: string;
+    userName: string;
+  } | null>(null);
   // 删除消息确认弹窗状态
   const [deleteMessageDialog, setDeleteMessageDialog] = useState<{
     show: boolean;
@@ -205,7 +222,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const mentionButtonRef = useRef<HTMLButtonElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const { error: showError, warning: showWarning, success: showSuccess } = useGlobalStore();
+  const { error: showError, warning: showWarning, success: showSuccess, info: showInfo } = useGlobalStore();
   const { messages: toastMessages, success: toastSuccess, error: toastError, close: closeToast } = useToast();
   const navigate = useNavigate();
 
@@ -324,6 +341,31 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
     }, 500);
     return () => clearTimeout(timer);
   }, [channel.id]);
+
+  // 同步频道静音状态（切换频道时更新）
+  useEffect(() => {
+    setIsMuted(channel.isMuted ?? false);
+  }, [channel.id, channel.isMuted]);
+
+  // 切换静音状态 - 显示确认弹窗
+  const handleToggleMute = () => {
+    setShowMuteConfirm(true);
+  };
+
+  // 确认切换静音状态
+  const confirmToggleMute = async () => {
+    const newMuted = !isMuted;
+    setIsMuted(newMuted); // 先乐观更新UI
+    try {
+      await updateNotificationSettings(channel.id, { isMuted: newMuted });
+      showSuccess(newMuted ? '已开启消息免打扰' : '已关闭消息免打扰');
+      onMuteChange?.(newMuted);  // 通知父组件更新频道列表
+    } catch (error) {
+      console.error('更新静音状态失败:', error);
+      setIsMuted(!newMuted); // 失败时回滚
+      showError('操作失败，请重试');
+    }
+  };
 
   // 获取最新公告
   useEffect(() => {
@@ -1094,21 +1136,19 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   <UserPlus className="w-4 h-4" />
                 </button>
               )}
-              {/* 频道静音按钮 - 非私聊频道显示 */}
-              {channel.type !== 'private' && (
-                <button
-                  onClick={() => setIsMuted(!isMuted)}
-                  className={cn(
-                    "p-1.5 rounded transition-colors",
-                    isMuted
-                      ? "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
-                      : "hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-400 dark:text-gray-500"
-                  )}
-                  title={isMuted ? "取消静音" : "频道静音"}
-                >
-                  {isMuted ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
-                </button>
-              )}
+              {/* 频道静音按钮 - 所有频道显示 */}
+              <button
+                onClick={handleToggleMute}
+                className={cn(
+                  "p-1.5 rounded transition-colors",
+                  isMuted
+                    ? "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                    : "hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-400 dark:text-gray-500"
+                )}
+                title={isMuted ? "取消静音" : "消息免打扰"}
+              >
+                {isMuted ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+              </button>
               {/* 成员列表按钮 - 非私聊频道显示 */}
               {channel.type !== 'private' && (
                 <button
@@ -1547,10 +1587,10 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   {message.forwardedFrom && (
                     <div className="mt-2 border-l-4 border-indigo-500 bg-white dark:bg-gray-800 rounded-r-lg shadow-sm overflow-hidden max-w-md">
                       <div className="p-3">
-                        {/* 原消息内容 */}
-                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
-                          {message.forwardedFrom.content}
-                        </p>
+                        {/* 原消息内容 - 使用 renderMessageContent 支持链接预览卡片 */}
+                        <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
+                          {renderMessageContent(message.forwardedFrom.content, false)}
+                        </div>
 
                         {/* 原消息附件（图片） */}
                         {message.forwardedFrom.attachments && message.forwardedFrom.attachments.length > 0 && (
@@ -1752,40 +1792,43 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         )}>
           {/* 跳转到@提醒 */}
           {unreadInfo && unreadInfo.mentionCount > 0 && (
-            <button
-              onClick={jumpToMention}
-              className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-colors"
-              title="跳转到最新@提醒"
-            >
-              <AtSign className="w-4 h-4" />
-              <span className="text-sm">{unreadInfo.mentionCount}</span>
-            </button>
+            <Tooltip content="跳转到最新@提醒" position="left">
+              <button
+                onClick={jumpToMention}
+                className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-colors"
+              >
+                <AtSign className="w-4 h-4" />
+                <span className="text-sm">{unreadInfo.mentionCount}</span>
+              </button>
+            </Tooltip>
           )}
 
           {/* 跳转到未读消息 */}
           {unreadInfo && unreadInfo.unreadCount > 0 && !isAtBottom && (
-            <button
-              onClick={jumpToUnread}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 transition-colors"
-              title="跳转到第一条未读消息"
-            >
-              <Mail className="w-4 h-4" />
-              <span className="text-sm">{unreadInfo.unreadCount > 99 ? '99+' : unreadInfo.unreadCount}</span>
-            </button>
+            <Tooltip content="跳转到第一条未读消息" position="left">
+              <button
+                onClick={jumpToUnread}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 transition-colors"
+              >
+                <Mail className="w-4 h-4" />
+                <span className="text-sm">{unreadInfo.unreadCount > 99 ? '99+' : unreadInfo.unreadCount}</span>
+              </button>
+            </Tooltip>
           )}
 
           {/* 回到底部 */}
           {!isAtBottom && (
-            <button
-              onClick={scrollToBottom}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-800 transition-colors"
-              title="回到底部"
-            >
-              <ArrowDown className="w-4 h-4" />
-              {newMessageCount > 0 && (
-                <span className="text-sm">{newMessageCount > 99 ? '99+' : newMessageCount}</span>
-              )}
-            </button>
+            <Tooltip content="回到底部" position="left">
+              <button
+                onClick={scrollToBottom}
+                className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-white rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border border-gray-200 dark:border-transparent"
+              >
+                <ArrowDown className="w-4 h-4" />
+                {newMessageCount > 0 && (
+                  <span className="text-sm">{newMessageCount > 99 ? '99+' : newMessageCount}</span>
+                )}
+              </button>
+            </Tooltip>
           )}
         </div>
       </ScrollArea>
@@ -2464,9 +2507,22 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                               className="w-full px-2 py-1.5 text-sm text-left rounded-sm text-gray-600 dark:text-[#b9bbbe] hover:bg-[#5865f2] hover:text-white transition-colors truncate"
                               onClick={async () => {
                                 try {
+                                  // 先检查好友关系
+                                  const friendCheck = await checkFriendship(userContextMenu.userId);
+                                  if (!friendCheck.isFriend) {
+                                    // 不是好友，显示提示弹窗
+                                    setFriendRequiredDialog({
+                                      show: true,
+                                      userId: userContextMenu.userId,
+                                      userName: userContextMenu.userName,
+                                    });
+                                    setUserContextMenu(null);
+                                    return;
+                                  }
+
                                   const result = await inviteToChannel(ch.id, userContextMenu.userId);
                                   if (result.alreadyMember) {
-                                    showWarning(`${userContextMenu.userName} 已是 ${ch.name} 的成员`);
+                                    showInfo(`${userContextMenu.userName} 已是 ${ch.name} 的成员`);
                                   } else if (result.inviteSent) {
                                     showSuccess(`已向 ${userContextMenu.userName} 发送 ${ch.name} 的邀请`);
                                   } else {
@@ -2609,6 +2665,20 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
           }
         }}
         onCancel={() => setDeleteMessageDialog({ show: false, messageId: null })}
+      />
+
+      {/* 静音确认对话框 */}
+      <ConfirmDialog
+        isOpen={showMuteConfirm}
+        title={isMuted ? "取消消息免打扰" : "开启消息免打扰"}
+        message={isMuted
+          ? "取消后，您将收到该频道的消息通知。"
+          : "开启后，您将不再收到该频道的消息通知。"}
+        confirmText="确定"
+        cancelText="取消"
+        variant="info"
+        onConfirm={confirmToggleMute}
+        onCancel={() => setShowMuteConfirm(false)}
       />
 
       {/* 编辑对话框 */}
@@ -2940,6 +3010,8 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   channel={channel}
                   members={members}
                   currentUser={currentUser}
+                  isMuted={isMuted}
+                  onToggleMute={handleToggleMute}
                   onClose={() => setShowSidebar(false)}
                   onSearchChat={() => {
                     setShowSearchPage(true);
@@ -2998,6 +3070,46 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
           )}
         </div>
       </div>
+
+      {/* 需要先添加好友才能邀请的提示弹窗 */}
+      <Dialog
+        open={friendRequiredDialog?.show || false}
+        onOpenChange={(open) => !open && setFriendRequiredDialog(null)}
+      >
+        <DialogContent className="sm:max-w-[400px] !bg-white dark:!bg-[#2b2d31] !border-gray-200 dark:!border-transparent">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 dark:text-white">无法邀请</DialogTitle>
+            <DialogDescription className="text-gray-600 dark:text-[#b5bac1]">
+              你需要先添加 <span className="font-medium text-gray-900 dark:text-white">{friendRequiredDialog?.userName}</span> 为好友，才能邀请对方加入频道。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              onClick={() => setFriendRequiredDialog(null)}
+              className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              取消
+            </Button>
+            <Button
+              onClick={async () => {
+                if (friendRequiredDialog?.userId) {
+                  try {
+                    await sendFriendRequest(friendRequiredDialog.userId);
+                    showSuccess(`已向 ${friendRequiredDialog.userName} 发送好友请求`);
+                  } catch (error: any) {
+                    showError(error?.message || '发送好友请求失败');
+                  }
+                }
+                setFriendRequiredDialog(null);
+              }}
+              className="bg-[#5865f2] hover:bg-[#4752c4] text-white"
+            >
+              添加好友
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
