@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/ta
 import { ImageWithFallback } from '../../components/common/ImageWithFallback';
 import { BookOpen, Feather, Sparkles, ChevronRight, CheckCircle, Eye, EyeOff, HelpCircle } from 'lucide-react';
 import { ApiAdapter } from '@/services/ApiAdapter';
-import { processPendingInvite } from '@/utils/pendingInvite';
+import { processPendingInvite, getPendingInvite } from '@/utils/pendingInvite';
 
 // 创建API实例
 const api = new ApiAdapter();
@@ -28,10 +28,25 @@ const AuthView: React.FC = () => {
   // 获取注册页面传递的状态
   const registerSuccess = location.state as { message?: string; username?: string } | null;
 
-  // 如果用户已登录，自动跳转到作品页面
+  // 如果用户已登录，自动跳转
+  // 注意：如果有待处理的频道邀请，需要先处理邀请再跳转到频道
   useEffect(() => {
     if (hasHydrated && isAuthenticated) {
-      navigate('/works', { replace: true });
+      // 检查是否有待处理的邀请
+      const pendingCode = getPendingInvite();
+      if (pendingCode) {
+        // 有待处理邀请，异步处理后跳转到频道
+        processPendingInvite().then((channelId) => {
+          if (channelId) {
+            navigate(`/channels?channelId=${channelId}`, { replace: true });
+          } else {
+            navigate('/works', { replace: true });
+          }
+        });
+      } else {
+        // 没有待处理邀请，直接跳转到作品页
+        navigate('/works', { replace: true });
+      }
     }
   }, [hasHydrated, isAuthenticated, navigate]);
 

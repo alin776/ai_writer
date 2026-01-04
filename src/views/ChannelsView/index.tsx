@@ -845,7 +845,7 @@ const ChannelsView: React.FC = () => {
         if (channelToJoin) {
           setUserChannels(prev => [...prev, channelToJoin]);
           setAvailableChannels(prev => prev.filter(c => c.id !== channelId));
-          setActiveChannelId(channelId);
+          handleChannelSelect(channelId);
         }
         showToast('success', '成功加入频道');
       } else {
@@ -879,7 +879,7 @@ const ChannelsView: React.FC = () => {
       // 选中新创建的频道（假设是列表第一个粉丝群）
       const newFangroup = channels.find(c => c.type === 'fangroup');
       if (newFangroup) {
-        setActiveChannelId(newFangroup.id);
+        handleChannelSelect(newFangroup.id);
       }
     } catch (error) {
       console.error('重新加载频道失败:', error);
@@ -957,7 +957,7 @@ const ChannelsView: React.FC = () => {
         <ChannelList
           channels={userChannels}
           activeChannelId={activeChannelId}
-          onChannelSelect={setActiveChannelId}
+          onChannelSelect={handleChannelSelect}
           onJoinChannel={handleJoinChannel}
           availableChannels={availableChannels}
           pendingChannelIds={pendingChannelIds}
