@@ -122,6 +122,19 @@ const ChannelsView: React.FC = () => {
 
   const activeChannel = userChannels.find(c => c.id === activeChannelId);
 
+  // localStorage key for persisting active channel
+  const LAST_CHANNEL_KEY = 'lastActiveChannelId';
+
+  // 包装函数：切换频道时同时保存到 localStorage
+  const handleChannelSelect = useCallback((channelId: string) => {
+    setActiveChannelId(channelId);
+    if (channelId) {
+      localStorage.setItem(LAST_CHANNEL_KEY, channelId);
+    } else {
+      localStorage.removeItem(LAST_CHANNEL_KEY);
+    }
+  }, []);
+
   // 注意：URL 参数 (channelId, join) 直接在 loadChannels 中处理
   // 这里只处理页内导航的 channelId 参数（非初始加载）
   useEffect(() => {
@@ -413,9 +426,25 @@ const ChannelsView: React.FC = () => {
             }
           }
         } else {
-          // 没有 URL 参数，设置默认选中第一个频道
-          if (channels.length > 0 && !activeChannelId) {
-            setActiveChannelId(channels[0].id);
+          // 没有 URL 参数，尝试从 localStorage 恢复上次的频道
+          const savedChannelId = localStorage.getItem('lastActiveChannelId');
+          if (savedChannelId) {
+            const savedChannel = channels.find(c => c.id === savedChannelId);
+            if (savedChannel) {
+              // 成功恢复上次的频道
+              setActiveChannelId(savedChannelId);
+            } else {
+              // 保存的频道不存在（可能已退出），清除并使用默认
+              localStorage.removeItem('lastActiveChannelId');
+              if (channels.length > 0 && !activeChannelId) {
+                setActiveChannelId(channels[0].id);
+              }
+            }
+          } else {
+            // 没有保存的频道，使用默认第一个
+            if (channels.length > 0 && !activeChannelId) {
+              setActiveChannelId(channels[0].id);
+            }
           }
         }
       } catch (error) {
@@ -887,9 +916,9 @@ const ChannelsView: React.FC = () => {
       // 切换到其他频道或清空选中
       const remainingChannels = userChannels.filter(c => c.id !== activeChannelId);
       if (remainingChannels.length > 0) {
-        setActiveChannelId(remainingChannels[0].id);
+        handleChannelSelect(remainingChannels[0].id);
       } else {
-        setActiveChannelId('');
+        handleChannelSelect('');
       }
 
       // 显示提示
