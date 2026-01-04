@@ -76,24 +76,64 @@ const InviteLandingView: React.FC = () => {
     return '加入频道';
   };
 
+  // Logo + 网站名称组件
+  const LogoHeader = () => (
+    <div className="fixed top-0 left-0 z-50 p-4 lg:p-6">
+      <button
+        onClick={() => navigate('/')}
+        className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+      >
+        <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center">
+          <img
+            src="/logo-icon.svg"
+            alt="文枢AI"
+            className="w-9 h-9"
+          />
+        </div>
+        <span className="text-base tracking-wider font-medium text-white">
+          文枢AI
+        </span>
+      </button>
+    </div>
+  );
+
+  // 背景容器组件
+  const BackgroundContainer = ({ children }: { children: React.ReactNode }) => (
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#4a5568]">
+      {/* 背景图片 */}
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: 'url(/images/invite-bg.jpg)' }}
+      />
+      {/* 半透明遮罩 */}
+      <div className="absolute inset-0 bg-black/30" />
+      {/* Logo */}
+      <LogoHeader />
+      {/* 内容 */}
+      <div className="relative z-10">
+        {children}
+      </div>
+    </div>
+  );
+
   // 加载状态
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#87CEEB] flex items-center justify-center">
+      <BackgroundContainer>
         <div className="w-[480px] bg-[#36393f] rounded-2xl p-8 text-center">
           <div className="w-20 h-20 rounded-2xl bg-[#2b2d31] mx-auto mb-4 animate-pulse" />
           <div className="h-4 bg-[#2b2d31] rounded w-32 mx-auto mb-2 animate-pulse" />
           <div className="h-6 bg-[#2b2d31] rounded w-48 mx-auto mb-4 animate-pulse" />
           <div className="h-4 bg-[#2b2d31] rounded w-40 mx-auto animate-pulse" />
         </div>
-      </div>
+      </BackgroundContainer>
     );
   }
 
   // 错误状态
   if (error || !preview) {
     return (
-      <div className="min-h-screen bg-[#87CEEB] flex items-center justify-center">
+      <BackgroundContainer>
         <div className="w-[480px] bg-[#36393f] rounded-2xl p-8 text-center">
           <div className="w-20 h-20 rounded-2xl bg-[#2b2d31] mx-auto mb-4 flex items-center justify-center">
             <svg className="w-10 h-10 text-[#80848e]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -111,20 +151,14 @@ const InviteLandingView: React.FC = () => {
             返回首页
           </button>
         </div>
-      </div>
+      </BackgroundContainer>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#87CEEB] flex items-center justify-center relative overflow-hidden">
-      {/* 装饰性背景元素（可选） */}
-      <div className="absolute inset-0 opacity-10">
-        <div className="absolute top-10 left-10 w-20 h-20 bg-white rounded-full blur-3xl" />
-        <div className="absolute bottom-20 right-20 w-32 h-32 bg-white rounded-full blur-3xl" />
-      </div>
-
+    <BackgroundContainer>
       {/* 邀请卡片 */}
-      <div className="w-[480px] bg-[#36393f] rounded-2xl p-8 text-center relative z-10" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+      <div className="w-[480px] bg-[#36393f] rounded-2xl p-8 text-center" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
         {/* 频道图标 - 圆角方形 + 白色边框 */}
         <div className="w-20 h-20 rounded-2xl bg-white mx-auto mb-4 overflow-hidden flex items-center justify-center" style={{ border: '4px solid white', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
           {preview.channelIcon ? (
@@ -176,7 +210,7 @@ const InviteLandingView: React.FC = () => {
           </p>
         )}
       </div>
-    </div>
+    </BackgroundContainer>
   );
 };
 

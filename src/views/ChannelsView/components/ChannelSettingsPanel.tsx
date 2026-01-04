@@ -16,6 +16,8 @@ interface ChannelSettingsPanelProps {
     isCreator?: boolean;
     role?: 'owner' | 'admin' | 'member';
   };
+  isMuted?: boolean;  // 静音状态
+  onToggleMute?: () => void;  // 切换静音
   onClose: () => void;
   onSearchChat: () => void;
   onManageMembers: () => void;
@@ -40,6 +42,8 @@ export function ChannelSettingsPanel({
   channel,
   members,
   currentUser,
+  isMuted = false,
+  onToggleMute,
   onClose,
   onSearchChat,
   onManageMembers,
@@ -54,7 +58,6 @@ export function ChannelSettingsPanel({
   onEditChannelName,
   announcement,
 }: ChannelSettingsPanelProps) {
-  const [muteNotification, setMuteNotification] = useState(false);
   const [showDissolveConfirm, setShowDissolveConfirm] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showAnnouncementDetail, setShowAnnouncementDetail] = useState(false);
@@ -191,18 +194,18 @@ export function ChannelSettingsPanel({
         {/* 频道静音 */}
         <div className="px-2 py-2 bg-white dark:bg-gray-900">
           <div className="py-3 px-2 flex items-center justify-between rounded-lg">
-            <span className="text-sm font-medium text-gray-900 dark:text-gray-200">频道静音</span>
+            <span className="text-sm font-medium text-gray-900 dark:text-gray-200">消息免打扰</span>
             <button
-              onClick={() => setMuteNotification(!muteNotification)}
+              onClick={onToggleMute}
               className={cn(
                 "relative w-10 h-[22px] rounded-full transition-colors",
-                muteNotification ? "bg-[#07c160]" : "bg-gray-300 dark:bg-gray-600"
+                isMuted ? "bg-[#07c160]" : "bg-gray-300 dark:bg-gray-600"
               )}
             >
               <span
                 className={cn(
                   "absolute top-0.5 left-0.5 w-[18px] h-[18px] bg-white rounded-full shadow transition-transform",
-                  muteNotification && "translate-x-[18px]"
+                  isMuted && "translate-x-[18px]"
                 )}
               />
             </button>

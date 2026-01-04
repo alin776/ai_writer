@@ -3,6 +3,7 @@ import { Search } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { ChannelMember } from '@/services/channelApi';
+import { useUserNotes } from '@/hooks/useUserNotes';
 
 interface MemberListPanelProps {
   members: ChannelMember[];
@@ -11,6 +12,7 @@ interface MemberListPanelProps {
 
 export function MemberListPanel({ members, onMemberClick }: MemberListPanelProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const { getDisplayName } = useUserNotes();
 
   // 过滤成员
   const filteredMembers = useMemo(() => {
@@ -44,7 +46,11 @@ export function MemberListPanel({ members, onMemberClick }: MemberListPanelProps
     return { owners, admins, onlineMembers, offlineMembers };
   }, [filteredMembers]);
 
-  const renderMember = (member: ChannelMember, isSpecialRole: boolean = false) => (
+  const renderMember = (member: ChannelMember, isSpecialRole: boolean = false) => {
+    const originalName = member.fullName || member.username;
+    const displayName = getDisplayName(member.id, originalName);
+
+    return (
     <div
       key={member.id}
       onClick={(e) => onMemberClick?.(member, e)}
@@ -53,9 +59,9 @@ export function MemberListPanel({ members, onMemberClick }: MemberListPanelProps
       {/* 头像容器 - 包含状态指示器 */}
       <div className="relative flex-shrink-0">
         <Avatar className="w-8 h-8">
-          <AvatarImage src={member.avatar} alt={member.username} />
+          <AvatarImage src={member.avatar} alt={displayName} />
           <AvatarFallback className="bg-gradient-to-br from-blue-400 to-purple-500 text-white text-xs">
-            {member.username?.[0]?.toUpperCase() || 'U'}
+            {displayName?.[0]?.toUpperCase() || 'U'}
           </AvatarFallback>
         </Avatar>
         {/* 在线状态指示器 */}
@@ -77,7 +83,7 @@ export function MemberListPanel({ members, onMemberClick }: MemberListPanelProps
               isSpecialRole ? "text-green-600 dark:text-green-400" : "text-gray-800 dark:text-gray-200"
             )}
           >
-            {member.fullName || member.username}
+            {displayName}
           </span>
           {/* 称号徽章 */}
           {member.title && (
@@ -100,7 +106,8 @@ export function MemberListPanel({ members, onMemberClick }: MemberListPanelProps
         )}
       </div>
     </div>
-  );
+    );
+  };
 
   const renderGroup = (title: string, count: number, memberList: ChannelMember[], isSpecialRole: boolean = false) => {
     if (memberList.length === 0) return null;

@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/useToast';
 import { getFriends, FriendshipResponse } from '@/services/friendApi';
 import { inviteToChannel, getChannelMembers, createInviteLink } from '@/services/channelApi';
+import { InviteLinkSettingsDialog } from './InviteLinkSettingsDialog';
 
 interface InviteToChannelDialogProps {
   isOpen: boolean;
@@ -28,6 +29,11 @@ export function InviteToChannelDialog({
   const [copied, setCopied] = useState(false);
   const [inviteLink, setInviteLink] = useState<string>('');
   const [inviteLinkLoading, setInviteLinkLoading] = useState(false);
+  // 邀请链接设置状态
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [inviteExpiresHours, setInviteExpiresHours] = useState<number | null>(0.5); // 默认30分钟
+  const [inviteMaxUses, setInviteMaxUses] = useState<number | null>(null); // 默认无限制
+  const [inviteExpiresAt, setInviteExpiresAt] = useState<string | null>(null);
 
   const handleCopyLink = async () => {
     try {
@@ -60,15 +66,8 @@ export function InviteToChannelDialog({
       const existingMemberIds = new Set(membersRes.members.map((m: any) => m.id));
       setMemberIds(existingMemberIds);
 
-      // 创建邀请链接（默认7天过期）
-      try {
-        const inviteData = await createInviteLink(channelId, { expiresHours: 168 });
-        setInviteLink(`${window.location.origin}/invite/${inviteData.code}`);
-      } catch (inviteError) {
-        console.error('创建邀请链接失败:', inviteError);
-        // 如果创建失败，使用旧格式作为备用
-        setInviteLink(`${window.location.origin}/channels?join=${channelId}`);
-      }
+      // 创建邀请链接（使用当前设置）
+      await generateInviteLink();
     } catch (error) {
       console.error('加载数据失败:', error);
       showToast('error', '加载好友列表失败');
@@ -76,6 +75,79 @@ export function InviteToChannelDialog({
       setLoading(false);
       setInviteLinkLoading(false);
     }
+  };
+
+  // 生成邀请链接
+  const generateInviteLink = async () => {
+    try {
+      setInviteLinkLoading(true);
+      const options: { maxUses?: number; expiresHours?: number } = {};
+      if (inviteMaxUses !== null) {
+        options.maxUses = inviteMaxUses;
+      }
+      if (inviteExpiresHours !== null) {
+        options.expiresHours = inviteExpiresHours;
+      }
+      const inviteData = await createInviteLink(channelId, options);
+      setInviteLink(`${window.location.origin}/invite/${inviteData.code}`);
+      setInviteExpiresAt(inviteData.expiresAt);
+    } catch (inviteError) {
+      console.error('创建邀请链接失败:', inviteError);
+      // 如果创建失败，使用旧格式作为备用
+      setInviteLink(`${window.location.origin}/channels?join=${channelId}`);
+      setInviteExpiresAt(null);
+    } finally {
+      setInviteLinkLoading(false);
+    }
+  };
+
+  // 处理设置弹窗确认
+  const handleSettingsConfirm = async (options: { expiresHours: number | null; maxUses: number | null }) => {
+    setInviteExpiresHours(options.expiresHours);
+    setInviteMaxUses(options.maxUses);
+    // 立即生成新链接
+    setInviteLinkLoading(true);
+    try {
+      const apiOptions: { maxUses?: number; expiresHours?: number } = {};
+      if (options.maxUses !== null) {
+        apiOptions.maxUses = options.maxUses;
+      }
+      if (options.expiresHours !== null) {
+        apiOptions.expiresHours = options.expiresHours;
+      }
+      const inviteData = await createInviteLink(channelId, apiOptions);
+      setInviteLink(`${window.location.origin}/invite/${inviteData.code}`);
+      setInviteExpiresAt(inviteData.expiresAt);
+      showToast('success', '已生成新的邀请链接');
+    } catch (error) {
+      console.error('创建邀请链接失败:', error);
+      showToast('error', '生成邀请链接失败');
+    } finally {
+      setInviteLinkLoading(false);
+    }
+  };
+
+  // 获取过期时间提示文字
+  const getExpiresText = (): string => {
+    if (inviteExpiresHours === null) {
+      return '您的邀请链接永不过期。';
+    }
+    if (inviteExpiresHours === 0.5) {
+      return '您的邀请链接在 30 分钟后过期。';
+    }
+    if (inviteExpiresHours === 1) {
+      return '您的邀请链接在 1 小时后过期。';
+    }
+    if (inviteExpiresHours < 24) {
+      return `您的邀请链接在 ${inviteExpiresHours} 小时后过期。`;
+    }
+    if (inviteExpiresHours === 24) {
+      return '您的邀请链接在 1 天后过期。';
+    }
+    if (inviteExpiresHours === 168) {
+      return '您的邀请链接在 7 天后过期。';
+    }
+    return `您的邀请链接在 ${Math.floor(inviteExpiresHours / 24)} 天后过期。`;
   };
 
   const handleInvite = async (friendId: string, friendName: string) => {
@@ -305,8 +377,27 @@ export function InviteToChannelDialog({
               )}
             </button>
           </div>
+          {/* 过期时间提示和编辑链接 */}
+          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            {getExpiresText()}
+            <button
+              onClick={() => setShowSettingsDialog(true)}
+              className="ml-1 text-[#5865F2] hover:underline"
+            >
+              编辑邀请链接。
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* 邀请链接设置弹窗 */}
+      <InviteLinkSettingsDialog
+        isOpen={showSettingsDialog}
+        onClose={() => setShowSettingsDialog(false)}
+        onGenerate={handleSettingsConfirm}
+        initialExpiresHours={inviteExpiresHours}
+        initialMaxUses={inviteMaxUses}
+      />
     </div>
   );
 }

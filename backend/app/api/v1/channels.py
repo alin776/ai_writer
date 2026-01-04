@@ -18,6 +18,7 @@ from app.models.channel_message import ChannelMessage, MessageType
 from app.models.message_report import MessageReport
 from app.models.channel_read_state import ChannelReadState
 from app.models.channel_join_request import ChannelJoinRequest
+from app.models.channel_notification_setting import ChannelNotificationSetting
 from app.schemas.channel import (
     ChannelCreate,
     FangroupCreate,
@@ -130,7 +131,7 @@ async def update_unread_counts(
     sender_id: UUID,
     mentioned_usernames: List[str]
 ):
-    """更新频道成员的未读消息数和@提醒数"""
+    """更新频道成员的未读消息数和@提醒数（排除静音用户）"""
     # 获取所有频道成员（除了发送者和被封禁的用户）
     members_result = await db.execute(
         select(ChannelMember)
@@ -143,7 +144,35 @@ async def update_unread_counts(
     )
     members = members_result.scalars().all()
 
+    # 获取所有成员的通知设置
+    member_ids = [m.user_id for m in members]
+    notification_settings = {}
+    if member_ids:
+        ns_result = await db.execute(
+            select(ChannelNotificationSetting).where(
+                ChannelNotificationSetting.channel_id == channel_id,
+                ChannelNotificationSetting.user_id.in_(member_ids)
+            )
+        )
+        notification_settings = {ns.user_id: ns for ns in ns_result.scalars().all()}
+
     for member in members:
+        # 获取该用户的通知设置
+        ns = notification_settings.get(member.user_id)
+        is_muted = ns.is_muted if ns else False
+        notify_mentions = ns.notify_mentions if ns else True
+
+        # 如果用户静音了频道，跳过未读计数更新
+        # 但如果被@且用户允许@通知，仍然增加@计数
+        is_mentioned = (
+            (member.user and member.user.username in mentioned_usernames) or
+            ("全体成员" in mentioned_usernames)
+        )
+
+        # 静音用户且未被@（或@通知也关闭），跳过
+        if is_muted and not (is_mentioned and notify_mentions):
+            continue
+
         # 获取或创建已读状态记录
         read_state_result = await db.execute(
             select(ChannelReadState).where(
@@ -163,15 +192,12 @@ async def update_unread_counts(
             )
             db.add(read_state)
 
-        # 增加未读数
-        read_state.unread_count += 1
+        # 未静音用户：增加未读数
+        if not is_muted:
+            read_state.unread_count += 1
 
-        # 检查是否被@
-        if member.user and member.user.username in mentioned_usernames:
-            read_state.mention_count += 1
-
-        # 检查 @全体成员
-        if "全体成员" in mentioned_usernames:
+        # 被@且允许@通知：增加@计数
+        if is_mentioned and notify_mentions:
             read_state.mention_count += 1
 
     await db.flush()
@@ -343,8 +369,17 @@ async def get_my_channels(
         )
         members_result = await db.execute(members_query)
         members = {m.channel_id: m for m in members_result.scalars().all()}
+
+        # 查询用户的频道通知设置（静音状态）
+        notification_settings_query = select(ChannelNotificationSetting).where(
+            ChannelNotificationSetting.channel_id.in_(channel_ids),
+            ChannelNotificationSetting.user_id == current_user.id
+        )
+        notification_settings_result = await db.execute(notification_settings_query)
+        notification_settings = {ns.channel_id: ns for ns in notification_settings_result.scalars().all()}
     else:
         members = {}
+        notification_settings = {}
 
     # 构建响应
     channel_responses = []
@@ -374,6 +409,10 @@ async def get_my_channels(
         else:
             channel_data['current_user_role'] = None
             channel_data['can_access'] = False
+
+        # 添加静音状态
+        ns = notification_settings.get(channel.id)
+        channel_data['is_muted'] = ns.is_muted if ns else False
 
         channel_responses.append(ChannelResponse(**channel_data))
 
@@ -4875,8 +4914,6 @@ async def set_slowmode(
 
 # ===== 自定义通知 API =====
 
-from app.models.channel_notification_setting import ChannelNotificationSetting
-
 
 @router.get("/{channel_id}/notification-settings")
 async def get_notification_settings(
@@ -5066,4 +5103,64 @@ async def trending_gif(
     except Exception as e:
         logger.error(f"获取热门 GIF 失败: {e}")
         return {"gifs": [], "total": 0, "error": "获取失败"}
+
+
+# ===== 共同频道 API =====
+
+@router.get("/mutual/{user_id}")
+async def get_mutual_channels(
+    user_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取当前用户与指定用户的共同频道"""
+    # 不能查自己
+    if user_id == current_user.id:
+        return {"channels": []}
+
+    # 获取当前用户加入的所有非私聊频道
+    current_user_channels_result = await db.execute(
+        select(ChannelMember.channel_id).where(
+            ChannelMember.user_id == current_user.id,
+            ChannelMember.is_banned == False
+        )
+    )
+    current_user_channel_ids = set(row[0] for row in current_user_channels_result.fetchall())
+
+    # 获取目标用户加入的所有非私聊频道
+    target_user_channels_result = await db.execute(
+        select(ChannelMember.channel_id).where(
+            ChannelMember.user_id == user_id,
+            ChannelMember.is_banned == False
+        )
+    )
+    target_user_channel_ids = set(row[0] for row in target_user_channels_result.fetchall())
+
+    # 计算交集（共同频道ID）
+    mutual_channel_ids = current_user_channel_ids & target_user_channel_ids
+
+    if not mutual_channel_ids:
+        return {"channels": []}
+
+    # 获取共同频道的详细信息（排除私聊频道）
+    channels_result = await db.execute(
+        select(Channel).where(
+            Channel.id.in_(mutual_channel_ids),
+            Channel.type != 'private'  # 排除私聊频道
+        ).order_by(Channel.name)
+    )
+    channels = channels_result.scalars().all()
+
+    return {
+        "channels": [
+            {
+                "id": str(ch.id),
+                "name": ch.name,
+                "type": ch.type,
+                "coverImage": ch.cover_image,
+                "memberCount": ch.member_count or 0,
+            }
+            for ch in channels
+        ]
+    }
 

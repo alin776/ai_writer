@@ -71,6 +71,9 @@ class ChannelResponse(ChannelBase):
     # 慢速模式
     slowmode_interval: Optional[int] = None  # 慢速模式间隔(秒)
 
+    # 静音状态
+    is_muted: bool = False  # 当前用户是否已静音该频道
+
     class Config:
         from_attributes = True
 

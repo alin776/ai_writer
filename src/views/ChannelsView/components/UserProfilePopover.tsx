@@ -13,12 +13,22 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { checkFriendship, sendFriendRequest, type FriendCheckResponse } from '@/services/friendApi';
 import { getMyChannels, type Channel, inviteToChannel } from '@/services/channelApi';
 import { useAuthStore, type OnlineStatus } from '@/store/authStore';
+import { useGlobalStore } from '@/store/globalStore';
 import MiniEmojiPicker from './MiniEmojiPicker';
 import ReportUserDialog from './ReportUserDialog';
+import { useUserNotes } from '@/hooks/useUserNotes';
 
 // 状态颜色映射
 const statusColors: Record<OnlineStatus, string> = {
@@ -64,6 +74,9 @@ export function UserProfilePopover({
 }: UserProfilePopoverProps) {
   const navigate = useNavigate();
   const { onlineStatus } = useAuthStore();
+  const { success: showSuccess, error: showError, info: showInfo } = useGlobalStore();
+  const { getDisplayName } = useUserNotes();
+  const displayName = getDisplayName(userId, userName);
   const popoverRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const [friendStatus, setFriendStatus] = useState<FriendStatus>('loading');
@@ -75,14 +88,20 @@ export function UserProfilePopover({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const [showFriendRequiredDialog, setShowFriendRequiredDialog] = useState(false);
   const [dmError, setDmError] = useState<string | null>(null); // 私信错误提示
   const showReportDialogRef = useRef(false);
+  const showFriendRequiredDialogRef = useRef(false);
   const ignoreClickOutsideRef = useRef(false);
 
   // 同步更新 ref
   useEffect(() => {
     showReportDialogRef.current = showReportDialog;
   }, [showReportDialog]);
+
+  useEffect(() => {
+    showFriendRequiredDialogRef.current = showFriendRequiredDialog;
+  }, [showFriendRequiredDialog]);
 
   // 是否是自己
   const isSelf = userId === currentUserId;
@@ -178,8 +197,8 @@ export function UserProfilePopover({
         return;
       }
 
-      // 如果举报对话框打开，不关闭 popover（使用 ref 确保读取最新值）
-      if (showReportDialogRef.current) return;
+      // 如果举报对话框或好友提示对话框打开，不关闭 popover（使用 ref 确保读取最新值）
+      if (showReportDialogRef.current || showFriendRequiredDialogRef.current) return;
 
       // 检查是否点击在 DropdownMenu 内容上（通过 data-radix 属性识别）
       const target = e.target as HTMLElement;
@@ -207,6 +226,12 @@ export function UserProfilePopover({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // 如果好友提示对话框打开，先关闭对话框
+        if (showFriendRequiredDialog) {
+          showFriendRequiredDialogRef.current = false;
+          setShowFriendRequiredDialog(false);
+          return;
+        }
         // 如果举报对话框打开，先关闭对话框
         if (showReportDialog) {
           showReportDialogRef.current = false;
@@ -219,7 +244,7 @@ export function UserProfilePopover({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, showReportDialog]);
+  }, [onClose, showReportDialog, showFriendRequiredDialog]);
 
   // 添加好友
   const handleAddFriend = async () => {
@@ -273,15 +298,28 @@ export function UserProfilePopover({
 
   // 邀请至频道
   const handleInviteToChannel = async (channelId: string, channelName: string) => {
+    // 检查是否是好友
+    if (friendStatus !== 'friend') {
+      // 设置忽略标志，防止下拉菜单关闭时触发外部点击检测
+      ignoreClickOutsideRef.current = true;
+      // 更新 ref 和 state
+      showFriendRequiredDialogRef.current = true;
+      setShowFriendRequiredDialog(true);
+      return;
+    }
+
     try {
       const result = await inviteToChannel(channelId, userId);
       if (result.alreadyMember) {
-        console.log(`${userName} 已是 ${channelName} 的成员`);
+        showInfo(`${displayName} 已是 ${channelName} 的成员`);
       } else if (result.inviteSent) {
-        console.log(`已向 ${userName} 发送 ${channelName} 的邀请`);
+        showSuccess(`已向 ${displayName} 发送 ${channelName} 的邀请`);
+      } else {
+        showSuccess(result.message || '邀请已发送');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('邀请失败:', error);
+      showError(error?.message || '邀请失败，请重试');
     }
     onClose();
   };
@@ -421,7 +459,7 @@ export function UserProfilePopover({
             <Avatar className="w-20 h-20 border-[6px] border-white dark:border-[#232428]">
               <AvatarImage src={userAvatar} />
               <AvatarFallback className="text-2xl bg-gray-200 dark:bg-[#36393f] text-gray-600 dark:text-white">
-                {userName[0]}
+                {displayName[0]}
               </AvatarFallback>
             </Avatar>
             {/* 在线状态指示器 - 16px, border 3px */}
@@ -434,7 +472,7 @@ export function UserProfilePopover({
 
         {/* 用户名和简介 - margin-bottom: 12px */}
         <div className="mb-3">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-0.5">{userName}</h3>
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-0.5">{displayName}</h3>
           {userBio && (
             <p className="text-sm text-gray-500 dark:text-[#b9bbbe] line-clamp-2" title={userBio}>
               {userBio.length > 50 ? userBio.slice(0, 50) + '...' : userBio}
@@ -516,7 +554,7 @@ export function UserProfilePopover({
                   handleSendDM();
                 }
               }}
-              placeholder={`私信 @${userName}`}
+              placeholder={`私信 @${displayName}`}
               className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm text-gray-700 dark:text-[#dcddde] placeholder-gray-400 dark:placeholder-[#72767d]"
             />
             <button
@@ -568,8 +606,45 @@ export function UserProfilePopover({
           setShowReportDialog(false);
         }}
         userId={userId}
-        userName={userName}
+        userName={displayName}
       />
+
+      {/* 需要先添加好友的提示弹窗 */}
+      <Dialog open={showFriendRequiredDialog} onOpenChange={(open) => {
+        showFriendRequiredDialogRef.current = open;
+        setShowFriendRequiredDialog(open);
+      }}>
+        <DialogContent className="sm:max-w-[400px] !bg-white dark:!bg-[#2b2d31] !border-gray-200 dark:!border-transparent">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 dark:text-white">无法邀请</DialogTitle>
+            <DialogDescription className="text-gray-600 dark:text-[#b5bac1]">
+              你需要先添加 <span className="font-medium text-gray-900 dark:text-white">{displayName}</span> 为好友，才能邀请对方加入频道。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                showFriendRequiredDialogRef.current = false;
+                setShowFriendRequiredDialog(false);
+              }}
+              className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              取消
+            </Button>
+            <Button
+              onClick={() => {
+                showFriendRequiredDialogRef.current = false;
+                setShowFriendRequiredDialog(false);
+                handleAddFriend();
+              }}
+              className="bg-[#5865f2] hover:bg-[#4752c4] text-white"
+            >
+              添加好友
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

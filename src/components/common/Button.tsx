@@ -107,7 +107,7 @@ const Button: React.FC<ButtonProps> = ({
   const getVariantStyles = (): string => {
     const variants: Record<ButtonVariant, string> = {
       primary:
-        'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 focus:ring-blue-500 dark:bg-blue-500 dark:hover:bg-blue-400 dark:active:bg-blue-600',
+        'bg-[#5865f2] text-white hover:bg-[#4752c4] active:bg-[#3c45a5] focus:ring-[#5865f2]',
       secondary:
         'bg-gray-600 text-white hover:bg-gray-700 active:bg-gray-800 focus:ring-gray-500 dark:bg-gray-500 dark:hover:bg-gray-400 dark:active:bg-gray-600',
       danger:

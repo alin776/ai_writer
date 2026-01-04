@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Lock, Users, MessageCircle, BookOpen, Coffee, FlaskConical, ChevronDown, ChevronRight, Bell, Plus, X, Search, AtSign, Edit2, UserPlus, User, Inbox } from 'lucide-react';
+import { Hash, Lock, Users, MessageCircle, BookOpen, Coffee, FlaskConical, ChevronDown, ChevronRight, Bell, BellOff, Plus, X, Search, AtSign, Edit2, UserPlus, User, Inbox } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { channelApi, UnreadSummary } from '@/services/channelApi';
 import friendApi, { FriendshipResponse, FriendRequest as FriendRequestType, UserSearchResult } from '@/services/friendApi';
 import { EditFangroupDialog } from './EditFangroupDialog';
 import { useToast } from '@/hooks/useToast';
+import { useUserNotes } from '@/hooks/useUserNotes';
 
 export interface Channel {
   id: string;
@@ -23,6 +24,7 @@ export interface Channel {
   coverImage?: string;
   lastMessageAt?: string;  // 最后消息时间，用于排序
   currentUserRole?: 'owner' | 'admin' | 'member';  // 当前用户在频道中的角色
+  isMuted?: boolean;  // 当前用户是否已静音该频道
 }
 
 interface ChannelListProps {
@@ -42,6 +44,7 @@ interface ChannelListProps {
 
 export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoinChannel, availableChannels, pendingChannelIds, onCreateFangroup, currentUserId, onChannelUpdate, onRefreshAvailable }: ChannelListProps) {
   const { showToast } = useToast();
+  const { getDisplayName } = useUserNotes();
 
   // 按最后消息时间降序排序频道
   const sortByLastMessage = (a: Channel, b: Channel) => {
@@ -385,6 +388,11 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
         )}
         <span className="flex-1 w-0 text-left truncate text-sm" title={channel.name}>{channel.name}</span>
 
+        {/* 静音标识 */}
+        {channel.isMuted && (
+          <BellOff className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 shrink-0" title="已静音" />
+        )}
+
         {/* @提醒标识 - 优先级最高 */}
         {channelUnreadData && channelUnreadData.mentionCount > 0 && (
           <div className="flex items-center gap-1 bg-red-500 text-white rounded-full px-2 py-0.5">
@@ -569,7 +577,8 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                 <div className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1 font-medium">我的好友</div>
                 <div className="space-y-0.5">
                   {filteredFriends.sort(sortFriendsByLastMessage).map(item => {
-                    const displayName = item.friend.fullName || item.friend.username;
+                    const originalName = item.friend.fullName || item.friend.username;
+                    const displayName = getDisplayName(item.friend.id, originalName);
                     const isActive = item.privateChannelId === activeChannelId;
                     return (
                       <button
@@ -719,7 +728,8 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                 {expandedSections.friends && (
                   <div className="space-y-0.5 mb-2">
                     {[...friends].sort(sortFriendsByLastMessage).map(item => {
-                      const displayName = item.friend.fullName || item.friend.username;
+                      const originalName = item.friend.fullName || item.friend.username;
+                      const displayName = getDisplayName(item.friend.id, originalName);
                       const isActive = item.privateChannelId === activeChannelId;
                       return (
                         <button
@@ -1019,9 +1029,9 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
       {showFriendRequests && (
         <>
           <div className="fixed inset-0 bg-black/40 z-50" onClick={() => setShowFriendRequests(false)} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] max-h-[500px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl z-50 flex flex-col">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[500px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl z-50 flex flex-col border border-gray-300 dark:border-gray-600">
             {/* 头部 */}
-            <div className="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-700">
+            <div className="flex items-center justify-between p-3 border-b-2 border-gray-300 dark:border-gray-600">
               <h3 className="text-sm font-medium dark:text-gray-100">好友请求</h3>
               <button
                 onClick={() => setShowFriendRequests(false)}
@@ -1042,7 +1052,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                   {friendRequests.map(request => {
                     const displayName = request.fromUser.fullName || request.fromUser.username;
                     return (
-                      <div key={request.id} className="flex items-start gap-3 p-3 border border-gray-100 dark:border-gray-700 rounded-lg">
+                      <div key={request.id} className="flex items-start gap-3 p-3 rounded-xl transition-shadow hover:shadow-md hover:shadow-gray-200 dark:hover:shadow-gray-900/50 border border-gray-200 dark:border-gray-700">
                         {/* 头像 */}
                         <div className="w-12 h-12 aspect-square rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
                           {request.fromUser.avatar ? (

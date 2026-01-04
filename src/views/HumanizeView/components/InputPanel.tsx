@@ -72,7 +72,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
               disabled={isProcessing}
               className={`px-3 py-2 rounded-md text-xs font-medium transition-all ${
                 intensity === level
-                  ? 'bg-blue-600 dark:bg-blue-500 text-white shadow-sm'
+                  ? 'bg-[#5865f2] text-white shadow-sm'
                   : 'bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
               } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
             >

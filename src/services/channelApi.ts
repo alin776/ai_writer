@@ -32,6 +32,8 @@ export interface Channel {
   collectCount?: number;
   // 慢速模式
   slowmodeInterval?: number;
+  // 静音状态
+  isMuted?: boolean;
 }
 
 export interface ChannelListResponse {
@@ -857,6 +859,57 @@ export const getMyJoinRequests = async (
 };
 
 
+// ==================== 频道通知设置 API ====================
+
+export interface NotificationSettings {
+  isMuted: boolean;
+  muteUntil: string | null;
+  notifyMentions: boolean;
+  notifyAnnouncements: boolean;
+}
+
+/**
+ * 获取频道通知设置
+ */
+export const getNotificationSettings = async (
+  channelId: string
+): Promise<NotificationSettings> => {
+  return await api.get(`/channels/${channelId}/notification-settings`);
+};
+
+/**
+ * 更新频道通知设置
+ */
+export const updateNotificationSettings = async (
+  channelId: string,
+  settings: {
+    isMuted?: boolean;
+    muteHours?: number;  // 静音时长（小时），最长8760（1年）
+    notifyMentions?: boolean;
+    notifyAnnouncements?: boolean;
+  }
+): Promise<NotificationSettings> => {
+  const params = new URLSearchParams();
+  if (settings.isMuted !== undefined) params.append('is_muted', settings.isMuted.toString());
+  if (settings.muteHours !== undefined) params.append('mute_hours', settings.muteHours.toString());
+  if (settings.notifyMentions !== undefined) params.append('notify_mentions', settings.notifyMentions.toString());
+  if (settings.notifyAnnouncements !== undefined) params.append('notify_announcements', settings.notifyAnnouncements.toString());
+
+  return await api.put(`/channels/${channelId}/notification-settings?${params.toString()}`);
+};
+
+// ==================== 共同频道 API ====================
+
+/**
+ * 获取与指定用户的共同频道
+ */
+export const getMutualChannels = async (userId: string): Promise<{
+  channels: Channel[];
+}> => {
+  const data = await api.get<{ channels: Channel[] }>(`/channels/mutual/${userId}`);
+  return data;
+};
+
 // ==================== 邀请链接预览 API ====================
 
 export interface InvitePreview {
@@ -996,8 +1049,15 @@ export const channelApi = {
   reviewJoinRequest,
   getMyJoinRequests,
 
+  // 频道通知设置
+  getNotificationSettings,
+  updateNotificationSettings,
+
   // 邀请链接预览
   getInvitePreview,
   joinByInviteCode,
   createInviteLink,
+
+  // 共同频道
+  getMutualChannels,
 };

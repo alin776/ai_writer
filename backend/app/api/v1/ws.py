@@ -27,6 +27,7 @@ from app.services.notification_service import NotificationService
 from app.schemas.notification import UserNotificationResponse
 from app.models.channel_member import ChannelMember
 from app.models.channel import Channel
+from app.models.channel_notification_setting import ChannelNotificationSetting
 from app.models.user import User
 import uuid as uuid_module
 
@@ -623,8 +624,57 @@ async def broadcast_channel_event(channel_id: UUID, event_data: dict, exclude_us
 
 
 async def broadcast_channel_message(channel_id: UUID, message_data: dict, exclude_user: UUID = None):
-    """广播新消息到频道"""
-    await broadcast_channel_event(channel_id, {"type": "MESSAGE_NEW", "payload": message_data}, exclude_user)
+    """广播新消息到频道（过滤静音用户）"""
+    if channel_id not in active_channel_connections:
+        return
+
+    # 获取在线用户列表
+    online_user_ids = list(active_channel_connections[channel_id].keys())
+    if not online_user_ids:
+        return
+
+    # 查询哪些在线用户静音了该频道
+    muted_user_ids = set()
+    try:
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import select
+            result = await db.execute(
+                select(ChannelNotificationSetting.user_id).where(
+                    ChannelNotificationSetting.channel_id == channel_id,
+                    ChannelNotificationSetting.user_id.in_(online_user_ids),
+                    ChannelNotificationSetting.is_muted == True
+                )
+            )
+            muted_user_ids = {row[0] for row in result.fetchall()}
+    except Exception as e:
+        logger.error(f"[Channel WS] 查询静音用户失败: {e}")
+
+    # 广播消息，排除静音用户
+    event_data = {"type": "MESSAGE_NEW", "payload": message_data}
+    disconnected = []
+    sent_count = 0
+    skipped_muted = 0
+
+    for uid, ws in active_channel_connections[channel_id].items():
+        if exclude_user and uid == exclude_user:
+            continue
+        if uid in muted_user_ids:
+            skipped_muted += 1
+            continue
+        try:
+            if ws.client_state == WebSocketState.CONNECTED:
+                await ws.send_json(event_data)
+                sent_count += 1
+            else:
+                disconnected.append(uid)
+        except Exception as e:
+            logger.error(f"[Channel WS] 发送消息给 {uid} 失败: {e}")
+            disconnected.append(uid)
+
+    logger.info(f"[Channel WS] 新消息广播完成, 发送: {sent_count}, 跳过静音: {skipped_muted}")
+
+    for uid in disconnected:
+        active_channel_connections[channel_id].pop(uid, None)
 
 
 async def broadcast_message_delete(channel_id: UUID, message_id: str):

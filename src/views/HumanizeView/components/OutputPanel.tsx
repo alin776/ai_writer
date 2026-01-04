@@ -109,7 +109,6 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
               title="展开历史记录"
             >
               <History className="w-3.5 h-3.5" />
-              <span>历史</span>
             </button>
           )}
         </div>

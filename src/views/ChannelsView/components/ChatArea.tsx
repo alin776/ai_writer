@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft, Image, MessageCircle, BookOpen, Coffee, FlaskConical, Hash, Forward, BellOff, Bell, UserPlus } from 'lucide-react';
+import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft, Image, MessageCircle, BookOpen, Coffee, FlaskConical, Hash, Forward, BellOff, Bell, UserPlus, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -31,12 +31,14 @@ import { ChatSearchPage } from './ChatSearchPage';
 import type { MessageEditEvent } from '@/hooks/useChannelWebSocket';
 import { addFavoriteSticker } from '@/services/stickerApi';
 import { useToast } from '@/hooks/useToast';
+import { useUserNotes } from '@/hooks/useUserNotes';
 import { ToastContainer } from '@/components/ui/Toast';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { UserProfilePopover } from './UserProfilePopover';
 import { MessageActionBar } from './MessageActionBar';
 import { ForwardMessageDialog } from './ForwardMessageDialog';
 import { ChannelSettingsPanel } from './ChannelSettingsPanel';
+import { PrivateChatUserPanel } from './PrivateChatUserPanel';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import InviteLinkPreview from './InviteLinkPreview';
 
@@ -121,6 +123,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   const [emojiPickerPosition, setEmojiPickerPosition] = useState({ x: 0, y: 0 });
   const [reactionTargetMessageId, setReactionTargetMessageId] = useState<string | null>(null); // 添加反应的目标消息ID
   const [showSidebar, setShowSidebar] = useState(false);
+  const [showUserPanel, setShowUserPanel] = useState(false); // 私聊用户资料面板
   const [showMemberPanel, setShowMemberPanel] = useState(false); // 成员列表面板
   const [isMuted, setIsMuted] = useState(channel.isMuted ?? false); // 频道静音状态，从channel初始化
   const [showMuteConfirm, setShowMuteConfirm] = useState(false); // 静音确认弹窗
@@ -224,7 +227,13 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const { error: showError, warning: showWarning, success: showSuccess, info: showInfo } = useGlobalStore();
   const { messages: toastMessages, success: toastSuccess, error: toastError, close: closeToast } = useToast();
+  const { getDisplayName } = useUserNotes();
   const navigate = useNavigate();
+
+  // 私聊对方的显示名称（优先使用备注）
+  const privateChatDisplayName = privateChatPartner
+    ? getDisplayName(privateChatPartner.userId, privateChatPartnerName || privateChatPartner.username)
+    : privateChatPartnerName;
 
   // WebSocket 实时消息
   const { isConnected, typingUsers, onlineUsers, sendTyping } = useChannelWebSocket({
@@ -346,6 +355,13 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   useEffect(() => {
     setIsMuted(channel.isMuted ?? false);
   }, [channel.id, channel.isMuted]);
+
+  // 频道切换时关闭所有面板
+  useEffect(() => {
+    setShowSidebar(false);
+    setShowUserPanel(false);
+    setShowMemberPanel(false);
+  }, [channel.id]);
 
   // 切换静音状态 - 显示确认弹窗
   const handleToggleMute = () => {
@@ -1117,8 +1133,8 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                     <PanelLeftClose className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
                   )}
                 </button>
-                <h3 className="text-base font-medium dark:text-gray-100 truncate" title={channel.type === 'private' ? (privateChatPartnerName || '私聊') : channel.name}>
-                  {channel.type === 'private' ? (privateChatPartnerName || '私聊') : channel.name}
+                <h3 className="text-base font-medium dark:text-gray-100 truncate" title={channel.type === 'private' ? (privateChatDisplayName || '私聊') : channel.name}>
+                  {channel.type === 'private' ? (privateChatDisplayName || '私聊') : channel.name}
                 </h3>
                 {channel.isPermanent && channel.type !== 'private' && (
                   <span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-1 rounded">永久</span>
@@ -1164,12 +1180,29 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   <Users className="w-4 h-4" />
                 </button>
               )}
-              <button
-                onClick={() => setShowSidebar(true)}
-                className="p-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded"
-              >
-                <MoreVertical className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-              </button>
+              {/* 私聊频道：用户资料按钮；非私聊频道：更多选项按钮 */}
+              {channel.type === 'private' ? (
+                <button
+                  onClick={() => setShowUserPanel(!showUserPanel)}
+                  className={cn(
+                    "p-1.5 rounded transition-colors",
+                    showUserPanel
+                      ? "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                      : "hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-400 dark:text-gray-500"
+                  )}
+                  title={showUserPanel ? "隐藏用户个人资料" : "用户个人资料"}
+                >
+                  <User className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowSidebar(true)}
+                  className="p-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 rounded transition-colors"
+                  title="更多选项"
+                >
+                  <MoreVertical className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -1308,24 +1341,24 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                 {privateChatPartner.avatar ? (
                   <img
                     src={privateChatPartner.avatar}
-                    alt={privateChatPartnerName || '用户'}
+                    alt={privateChatDisplayName || '用户'}
                     className="w-full h-full object-cover"
                   />
                 ) : (
                   <span className="text-2xl text-gray-600 dark:text-gray-300 font-bold">
-                    {(privateChatPartnerName || '用户').charAt(0).toUpperCase()}
+                    {(privateChatDisplayName || '用户').charAt(0).toUpperCase()}
                   </span>
                 )}
               </div>
 
               {/* 用户名 */}
               <h1 className="text-[32px] font-bold text-gray-900 dark:text-white mb-2 leading-tight">
-                {privateChatPartnerName || '用户'}
+                {privateChatDisplayName || '用户'}
               </h1>
 
               {/* 私信起点描述 */}
               <p className="text-gray-500 dark:text-[#96989d] text-base leading-relaxed">
-                这是您与 <span className="font-medium">{privateChatPartnerName || '用户'}</span> 私信记录的开头。
+                这是您与 <span className="font-medium">{privateChatDisplayName || '用户'}</span> 私信记录的开头。
               </p>
             </div>
           )}
@@ -1346,6 +1379,8 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
             const isBeingRepliedTo = replyingTo?.id === message.id; // 是否正在被回复
             // 是否是第一条未读消息
             const isFirstUnread = unreadInfo?.firstUnreadMessageId === message.id && unreadInfo?.unreadCount > 0;
+            // 消息发送者显示名称（优先使用备注）
+            const messageDisplayName = getDisplayName(message.userId, message.userName);
 
             return (
               <React.Fragment key={message.id}>
@@ -1421,7 +1456,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                       {/* 被引用用户小头像 */}
                       <img
                         src={message.replyTo.userAvatar || message.userAvatar || '/default-avatar.png'}
-                        alt={message.replyTo.userName}
+                        alt={getDisplayName(message.replyTo.userId, message.replyTo.userName)}
                         className="w-4 h-4 rounded-full"
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = '/default-avatar.png';
@@ -1430,7 +1465,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
 
                       {/* 被引用用户名 */}
                       <span className="text-gray-600 dark:text-gray-300 hover:underline font-medium">
-                        @{message.replyTo.userName}
+                        @{getDisplayName(message.replyTo.userId, message.replyTo.userName)}
                       </span>
 
                       {/* 被引用内容摘要 - 过滤 markdown 格式 */}
@@ -1502,7 +1537,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                     <Avatar className="w-10 h-10 hover:ring-2 hover:ring-blue-400 transition-all">
                       <AvatarImage src={message.userAvatar} />
                       <AvatarFallback className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                        {message.userName[0]}
+                        {messageDisplayName[0]}
                       </AvatarFallback>
                     </Avatar>
                   </div>
@@ -1529,7 +1564,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                         });
                       }}
                     >
-                      {message.userName}
+                      {messageDisplayName}
                     </span>
 
                     {message.userTitle && (
@@ -1767,7 +1802,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                     setForwardingMessage({
                       id: message.id,
                       content: message.content,
-                      sender: message.userName,
+                      sender: messageDisplayName,
                       attachments: message.attachments,
                     });
                   }}
@@ -1784,11 +1819,13 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
         <div className={cn(
           "fixed bottom-44 flex flex-col gap-2 z-10 transition-all duration-200",
           // 根据右侧面板显示情况调整位置
-          channel.type !== 'private' && (showSidebar && showMemberPanel)
-            ? "right-[512px]"  // 两个面板都显示：w-60*2 (480px) + right-8 (32px)
-            : channel.type !== 'private' && (showSidebar || showMemberPanel)
-              ? "right-[272px]"  // 只有一个面板：w-60 (240px) + right-8 (32px)
-              : "right-8"
+          channel.type === 'private' && showUserPanel
+            ? "right-[372px]"  // 私聊用户面板：w-[340px] + right-8 (32px)
+            : channel.type !== 'private' && (showSidebar && showMemberPanel)
+              ? "right-[512px]"  // 两个面板都显示：w-60*2 (480px) + right-8 (32px)
+              : channel.type !== 'private' && (showSidebar || showMemberPanel)
+                ? "right-[272px]"  // 只有一个面板：w-60 (240px) + right-8 (32px)
+                : "right-8"
         )}>
           {/* 跳转到@提醒 */}
           {unreadInfo && unreadInfo.mentionCount > 0 && (
@@ -2301,7 +2338,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                         setForwardingMessage({
                           id: message.id,
                           content: message.content,
-                          sender: message.userName,
+                          sender: getDisplayName(message.userId, message.userName),
                           attachments: message.attachments
                         });
                       }
@@ -3067,6 +3104,15 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                 />
               </div>
             </>
+          )}
+
+          {/* 私聊用户资料面板 */}
+          {showUserPanel && channel.type === 'private' && privateChatPartner && (
+            <PrivateChatUserPanel
+              user={privateChatPartner}
+              currentUserId={currentUser.id}
+              onClose={() => setShowUserPanel(false)}
+            />
           )}
         </div>
       </div>

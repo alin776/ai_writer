@@ -41,6 +41,7 @@ const convertApiChannelToChannel = (apiChannel: ApiChannel): Channel => {
     warningDays: apiChannel.warningDays,
     coverImage: apiChannel.coverImage,
     lastMessageAt: apiChannel.lastMessageAt,
+    isMuted: apiChannel.isMuted,  // 静音状态
   };
 };
 
@@ -989,6 +990,12 @@ const ChannelsView: React.FC = () => {
             onReactionRemove={handleReactionRemove}
             onReactionsChange={handleReactionsChange}
             onPinChange={handlePinChange}
+            onMuteChange={(isMuted) => {
+              // 更新频道列表中的静音状态
+              setUserChannels(prev => prev.map(c =>
+                c.id === activeChannel.id ? { ...c, isMuted } : c
+              ));
+            }}
             scrollToMessageId={scrollToMessageId}
             isChannelListCollapsed={isChannelListCollapsed}
             onToggleChannelList={() => setIsChannelListCollapsed(!isChannelListCollapsed)}

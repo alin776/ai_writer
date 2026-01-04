@@ -115,7 +115,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
       <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
         <button
           onClick={onOpenFullHistory}
-          className="w-full text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+          className="w-full text-sm text-[#5865f2] hover:text-[#4752c4] font-medium"
         >
           查看全部历史
         </button>
