@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft, Image, MessageCircle, BookOpen, Coffee, FlaskConical, Hash, Forward, BellOff, Bell, UserPlus, User } from 'lucide-react';
+import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft, Image, MessageCircle, BookOpen, Coffee, FlaskConical, Hash, Forward, BellOff, Bell, UserPlus, User, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -1628,7 +1628,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                         </div>
 
                         {/* 原消息附件（图片） */}
-                        {message.forwardedFrom.attachments && message.forwardedFrom.attachments.length > 0 && (
+                        {message.forwardedFrom.attachments && message.forwardedFrom.attachments.filter(att => att.fileType?.startsWith('image/')).length > 0 && (
                           <div className="mt-3 space-y-2">
                             {message.forwardedFrom.attachments
                               .filter(att => att.fileType?.startsWith('image/'))
@@ -1649,6 +1649,26 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                                 +{message.forwardedFrom.attachments.filter(att => att.fileType?.startsWith('image/')).length - 4} 张图片
                               </p>
                             )}
+                          </div>
+                        )}
+
+                        {/* 原消息附件（非图片文件） */}
+                        {message.forwardedFrom.attachments && message.forwardedFrom.attachments.filter(att => !att.fileType?.startsWith('image/')).length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            {message.forwardedFrom.attachments
+                              .filter(att => !att.fileType?.startsWith('image/'))
+                              .map((att, idx) => (
+                                <a
+                                  key={att.id || idx}
+                                  href={att.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                                >
+                                  <FileText className="w-4 h-4 text-gray-500 dark:text-gray-400 shrink-0" />
+                                  <span className="text-sm text-gray-700 dark:text-gray-300">{att.fileName}</span>
+                                </a>
+                              ))}
                           </div>
                         )}
                       </div>

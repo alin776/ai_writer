@@ -202,16 +202,28 @@ export function ForwardMessageDialog({
     }
   };
 
-  // 计算图片附件数量
-  const imageCount = messageAttachments?.filter(a => a.fileType?.startsWith('image/')).length || 0;
+  // 检测是否是纯贴图消息 ![sticker](url) 或 ![image](url)
+  const stickerMatch = messageContent.match(/^!\[(sticker|image)\]\((.+)\)$/);
+  const isStickerOnly = !!stickerMatch;
+  const stickerUrl = stickerMatch?.[2];
 
-  // 获取第一张图片作为缩略图
-  const thumbnailImage = messageAttachments?.find(a => a.fileType?.startsWith('image/'));
+  // 计算图片附件数量
+  const imageAttachmentCount = messageAttachments?.filter(a => a.fileType?.startsWith('image/')).length || 0;
+  // 总图片数：附件图片 + 贴图
+  const imageCount = imageAttachmentCount + (isStickerOnly ? 1 : 0);
+
+  // 获取第一张图片作为缩略图（优先贴图，然后附件）
+  const thumbnailImage = stickerUrl
+    ? { fileUrl: stickerUrl, thumbnailUrl: stickerUrl }
+    : messageAttachments?.find(a => a.fileType?.startsWith('image/'));
 
   // 计算文档附件（非图片类型）
   const documentAttachments = messageAttachments?.filter(a => !a.fileType?.startsWith('image/')) || [];
   const documentCount = documentAttachments.length;
   const firstDocument = documentAttachments[0];
+
+  // 获取显示文本（如果是纯贴图消息则显示空）
+  const displayContent = isStickerOnly ? '' : messageContent;
 
   if (!isOpen) return null;
 
@@ -333,7 +345,7 @@ export function ForwardMessageDialog({
           <div className="flex gap-3 p-3 bg-white dark:bg-gray-700/80 rounded-xl border border-gray-200/60 dark:border-gray-600/40 shadow-sm">
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-800 dark:text-gray-200 line-clamp-1 font-medium">
-                  {messageContent || '（无文字内容）'}
+                  {displayContent || (imageCount > 0 ? '（图片消息）' : '（无文字内容）')}
                 </p>
                 {/* 图片数量提示 */}
                 {imageCount > 0 && (

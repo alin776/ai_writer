@@ -1277,10 +1277,18 @@ async def get_channel_messages(
                 }
                 for att in (orig.attachments or [])
             ]
+            # 处理频道名称：私聊频道显示"私聊"而不是 UUID
+            if orig.channel:
+                if orig.channel.type == ChannelType.PRIVATE:
+                    channel_name = "私聊"
+                else:
+                    channel_name = orig.channel.name
+            else:
+                channel_name = "已删除频道"
             forwarded_from_data = {
                 "message_id": str(orig.id),
                 "channel_id": str(orig.channel_id),
-                "channel_name": orig.channel.name if orig.channel else "已删除频道",
+                "channel_name": channel_name,
                 "user_id": str(orig.user_id) if orig.user_id else None,
                 "user_name": orig.user.username if orig.user else "已删除用户",
                 "user_avatar": orig.user.avatar if orig.user else None,
@@ -4130,10 +4138,15 @@ async def forward_message(
         })
 
     # 构建 forwardedFrom 结构化数据
+    # 处理频道名称：私聊频道显示"私聊"而不是 UUID
+    if original_msg.channel.type == ChannelType.PRIVATE:
+        orig_channel_name = "私聊"
+    else:
+        orig_channel_name = original_msg.channel.name
     forwarded_from_data = {
         "message_id": str(original_msg.id),
         "channel_id": str(original_msg.channel_id),
-        "channel_name": original_msg.channel.name,
+        "channel_name": orig_channel_name,
         "user_id": str(original_msg.user_id) if original_msg.user_id else None,
         "user_name": original_msg.user.username if original_msg.user else "已删除用户",
         "user_avatar": original_msg.user.avatar if original_msg.user else None,
