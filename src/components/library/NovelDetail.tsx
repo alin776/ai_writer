@@ -88,6 +88,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
   const [commentContent, setCommentContent] = useState('');
   const [showCommentActions, setShowCommentActions] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [emojiPickerPosition, setEmojiPickerPosition] = useState<'top' | 'bottom'>('top');
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const commentTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -796,9 +797,37 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
                 <div className="flex-1">
                   <textarea value={replyContent} onChange={(e) => { setReplyContent(e.target.value); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (replyContent.trim()) handleSubmitReply(rootCommentId); }}} className="w-full bg-transparent border-b border-gray-300 dark:border-[#303030] text-[13px] text-gray-900 dark:text-[#f1f1f1] py-1 outline-none resize-none overflow-hidden" placeholder="添加回复..." autoFocus rows={1} />
                   <div className="flex items-center justify-between mt-2">
-                    <button onClick={() => setShowReplyEmojiPicker(!showReplyEmojiPicker)} className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full">
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-6c.78 2.34 2.72 4 5 4s4.22-1.66 5-4H7zm8-4c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm-6 0c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1z"/></svg>
-                    </button>
+                    <div className="relative">
+                      <button
+                        onClick={(e) => {
+                          const button = e.currentTarget;
+                          const rect = button.getBoundingClientRect();
+                          const spaceBelow = window.innerHeight - rect.bottom;
+                          const pickerHeight = 320;
+                          setReplyEmojiPosition(spaceBelow < pickerHeight ? 'top' : 'bottom');
+                          setShowReplyEmojiPicker(!showReplyEmojiPicker);
+                        }}
+                        className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full"
+                      >
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-6c.78 2.34 2.72 4 5 4s4.22-1.66 5-4H7zm8-4c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm-6 0c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1z"/></svg>
+                      </button>
+                      {showReplyEmojiPicker && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-40"
+                            onClick={() => setShowReplyEmojiPicker(false)}
+                          />
+                          <div className={`absolute left-0 z-50 ${replyEmojiPosition === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'}`}>
+                            <MiniEmojiPicker
+                              onSelect={(emoji) => {
+                                setReplyContent(prev => prev + emoji);
+                              }}
+                              onClose={() => setShowReplyEmojiPicker(false)}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
                     <div className="flex gap-2">
                       <button onClick={() => { setReplyToComment(null); setReplyContent(''); setShowReplyEmojiPicker(false); }} className="px-3 py-1.5 text-xs text-gray-700 dark:text-[#f1f1f1] hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full">取消</button>
                       <button onClick={() => handleSubmitReply(rootCommentId)} disabled={!replyContent.trim()} className={`px-3 py-1.5 text-xs font-medium rounded-full ${replyContent.trim() ? 'bg-[#3ea6ff] text-[#0f0f0f] hover:bg-[#65b8ff]' : 'bg-gray-200 dark:bg-[#272727] text-gray-400 cursor-not-allowed'}`}>回复</button>
@@ -1224,7 +1253,15 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
                     <div className="relative">
                       <button
                         ref={emojiButtonRef}
-                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                        onClick={(e) => {
+                          if (!showEmojiPicker && emojiButtonRef.current) {
+                            const rect = emojiButtonRef.current.getBoundingClientRect();
+                            const spaceAbove = rect.top;
+                            const pickerHeight = 320;
+                            setEmojiPickerPosition(spaceAbove < pickerHeight ? 'bottom' : 'top');
+                          }
+                          setShowEmojiPicker(!showEmojiPicker);
+                        }}
                         className="p-2 text-gray-500 dark:text-[#aaa] hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full transition-colors"
                       >
                         <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
@@ -1233,7 +1270,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
                       </button>
                       {/* 表情选择器 */}
                       {showEmojiPicker && (
-                        <div ref={emojiPickerRef} className="absolute bottom-full left-0 mb-2 z-50">
+                        <div ref={emojiPickerRef} className={`absolute left-0 z-50 ${emojiPickerPosition === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'}`}>
                           <MiniEmojiPicker
                             onSelect={(emoji) => {
                               setCommentContent(prev => prev + emoji);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Reply, MoreHorizontal, Smile, Edit2, Trash2, Pin, AlertCircle, Star, Forward } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import MiniEmojiPicker from './MiniEmojiPicker';
@@ -52,6 +52,8 @@ export function MessageActionBar({
 }: MessageActionBarProps) {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [emojiPickerDirection, setEmojiPickerDirection] = useState<'up' | 'down'>('down');
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
 
   // 复制文字
   const handleCopyText = () => {
@@ -106,7 +108,16 @@ export function MessageActionBar({
       {/* 表情选择器按钮 */}
       <div className="relative">
         <button
-          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+          ref={emojiButtonRef}
+          onClick={() => {
+            if (!showEmojiPicker && emojiButtonRef.current) {
+              const rect = emojiButtonRef.current.getBoundingClientRect();
+              const spaceBelow = window.innerHeight - rect.bottom;
+              const pickerHeight = 320; // MiniEmojiPicker 高度
+              setEmojiPickerDirection(spaceBelow < pickerHeight ? 'up' : 'down');
+            }
+            setShowEmojiPicker(!showEmojiPicker);
+          }}
           className="py-1 px-1.5 rounded text-gray-500 dark:text-gray-400 transition-all duration-100 hover:bg-black/[0.06] dark:hover:bg-white/[0.06] hover:text-gray-900 dark:hover:text-gray-100"
           title="添加表情"
         >
@@ -120,7 +131,10 @@ export function MessageActionBar({
               className="fixed inset-0 z-40"
               onClick={() => setShowEmojiPicker(false)}
             />
-            <div className="absolute right-0 top-full mt-1 z-50">
+            <div className={cn(
+              "absolute right-0 z-50",
+              emojiPickerDirection === 'down' ? 'top-full mt-1' : 'bottom-full mb-1'
+            )}>
               <MiniEmojiPicker
                 onSelect={(emoji) => {
                   onQuickReact(emoji);

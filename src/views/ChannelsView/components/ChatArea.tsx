@@ -1196,7 +1196,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                 </button>
               ) : (
                 <button
-                  onClick={() => setShowSidebar(true)}
+                  onClick={() => setShowSidebar(!showSidebar)}
                   className="p-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 rounded transition-colors"
                   title="更多选项"
                 >
@@ -3056,14 +3056,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
 
           {/* 频道设置面板 */}
           {showSidebar && channel.type !== 'private' && (
-            <>
-              {/* 点击外部关闭的遮罩层 */}
-              <div
-                className="fixed inset-0 z-10"
-                onClick={() => setShowSidebar(false)}
-              />
-              <div className="relative z-20">
-                <ChannelSettingsPanel
+            <ChannelSettingsPanel
                   channel={channel}
                   members={members}
                   currentUser={currentUser}
@@ -3072,25 +3065,20 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   onClose={() => setShowSidebar(false)}
                   onSearchChat={() => {
                     setShowSearchPage(true);
-                    setShowSidebar(false);
                   }}
                   onManageMembers={() => {
                     setShowMemberDialog(true);
-                    setShowSidebar(false);
                   }}
                   onAddMember={() => {
                     onInviteToChannel?.();
-                    setShowSidebar(false);
                   }}
                   onRemoveMember={() => {
                     setShowMemberDialog(true);
-                    setShowSidebar(false);
                   }}
                   onDissolveChannel={currentUser.role === 'owner' ? onLeaveChannel : undefined}
                   onLeaveChannel={currentUser.role !== 'owner' ? onLeaveChannel : undefined}
                   onViewMoreMembers={() => {
                     setShowMemberPanel(true);
-                    setShowSidebar(false);
                   }}
                   onEditAnnouncement={() => {
                     setAnnouncementContent(latestAnnouncement?.content || channel.description || '');
@@ -3122,8 +3110,6 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                       : new Date(latestAnnouncement.timestamp).toLocaleString('zh-CN')
                   } : undefined}
                 />
-              </div>
-            </>
           )}
 
           {/* 私聊用户资料面板 */}
