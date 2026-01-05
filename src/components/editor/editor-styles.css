@@ -18,6 +18,18 @@
   background-color: #0f172a;
 }
 
+/* ========== 编辑器画布 ========== */
+.editor-canvas {
+  padding: 1rem 0.5rem;
+  min-height: 100%;
+}
+
+.editor-canvas .ProseMirror {
+  min-height: calc(100vh - 120px);
+  max-width: 100%;
+  padding: 0 1rem;
+}
+
 /* ========== 自定义编辑器内容样式（替代 prose） ========== */
 .novel-editor-content {
   font-family: 'Microsoft YaHei', '微软雅黑', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;

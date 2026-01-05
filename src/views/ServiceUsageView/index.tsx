@@ -5,6 +5,13 @@ import { TRANSACTION_TYPE_CONFIG, TransactionType, formatTransactionDescription 
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../components/ui/select';
 
 const ServiceUsageView: React.FC = () => {
   const {
@@ -53,18 +60,22 @@ const ServiceUsageView: React.FC = () => {
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">积分流水</h2>
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-gray-600 dark:text-gray-400">筛选类型:</span>
-                <select
+                <Select
                   value={selectedType}
-                  onChange={(e) => handleTypeChange(e.target.value as TransactionType | 'all')}
-                  className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onValueChange={(value) => handleTypeChange(value as TransactionType | 'all')}
                 >
-                  <option value="all">全部</option>
-                  <option value="recharge">充值</option>
-                  <option value="consume">消费</option>
-                  <option value="gift">赠送</option>
-                  <option value="expire">过期</option>
-                  <option value="refund">退款</option>
-                </select>
+                  <SelectTrigger className="w-[100px]" size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部</SelectItem>
+                    <SelectItem value="recharge">充值</SelectItem>
+                    <SelectItem value="consume">消费</SelectItem>
+                    <SelectItem value="gift">赠送</SelectItem>
+                    <SelectItem value="expire">过期</SelectItem>
+                    <SelectItem value="refund">退款</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

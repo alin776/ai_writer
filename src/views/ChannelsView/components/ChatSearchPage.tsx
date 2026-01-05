@@ -223,7 +223,7 @@ export function ChatSearchPage({ channel, displayName, isOpen, onClose, onMessag
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="relative w-[520px] h-[600px] bg-white dark:bg-[#18191c] rounded-lg shadow-2xl flex flex-col"
+              className="relative w-[520px] h-[600px] bg-white dark:bg-[#18191c] rounded-2xl shadow-2xl flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               {/* 头部 */}
@@ -353,7 +353,7 @@ function SearchInput({ value, onChange, onSearch }: {
           placeholder="搜索"
           className={cn(
             "w-full pl-9 pr-3 py-2 text-sm",
-            "bg-gray-100 dark:bg-[#2b2d31] rounded",
+            "bg-gray-100 dark:bg-[#2b2d31] rounded-xl",
             "text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500",
             "outline-none border border-transparent",
             "focus:border-gray-300 dark:focus:border-gray-600"
@@ -471,7 +471,7 @@ function ResultList({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto p-2 space-y-2">
       {results.map((msg) => (
         <ResultItem
           key={msg.id}
@@ -523,7 +523,7 @@ function ResultItem({
 
   return (
     <div
-      className="flex gap-3 px-3 py-3 hover:bg-gray-50 dark:hover:bg-[#2b2d31] cursor-pointer transition-colors"
+      className="flex gap-3 px-3 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-[#2b2d31] cursor-pointer transition-colors"
       onClick={onClick}
     >
       {/* 头像 */}
@@ -782,7 +782,7 @@ function MemberPickerPopover({
   );
 
   return (
-    <div className="absolute top-[120px] left-3 right-3 bg-white dark:bg-[#18191c] rounded-lg shadow-2xl border border-gray-200 dark:border-[#2b2d31] z-50 overflow-hidden">
+    <div className="absolute top-[120px] left-3 right-3 bg-white dark:bg-[#18191c] rounded-xl shadow-2xl border border-gray-200 dark:border-[#2b2d31] z-50 overflow-hidden">
       {/* 点击外部关闭 */}
       <div className="fixed inset-0 z-[-1]" onClick={onClose} />
 
@@ -794,7 +794,7 @@ function MemberPickerPopover({
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             placeholder="搜索成员..."
-            className="w-full pl-9 pr-3 py-1.5 text-sm bg-gray-100 dark:bg-[#2b2d31] rounded text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none"
+            className="w-full pl-9 pr-3 py-1.5 text-sm bg-gray-100 dark:bg-[#2b2d31] rounded-lg text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none"
           />
         </div>
       </div>
@@ -811,18 +811,18 @@ function MemberPickerPopover({
       )}
 
       {/* 成员列表 */}
-      <div className="max-h-[240px] overflow-y-auto">
+      <div className="max-h-[240px] overflow-y-auto p-2 space-y-1">
         {filteredMembers.map(member => (
           <div
             key={member.id}
             onClick={() => onSelect(member)}
             className={cn(
-              "flex items-center gap-2 p-2 cursor-pointer",
+              "flex items-center gap-2 p-2 cursor-pointer rounded-lg",
               "hover:bg-gray-50 dark:hover:bg-[#2b2d31]",
               selectedId === member.userId && "bg-blue-50 dark:bg-[#2b2d31]"
             )}
           >
-            <Avatar className="w-8 h-8 rounded">
+            <Avatar className="w-8 h-8 rounded-md">
               <AvatarImage src={member.avatar || undefined} />
               <AvatarFallback className="bg-gray-200 dark:bg-gray-600 text-xs">
                 {member.username?.[0] || '?'}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Shield, ShieldOff, Ban, CheckCircle } from 'lucide-react';
+import { Search, Shield, ShieldOff, Ban, CheckCircle, Award, X, Check } from 'lucide-react';
 import { Button, Card, Input, Loading } from '../../components/common';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
@@ -21,6 +21,8 @@ const AdminUsersView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [editingHonor, setEditingHonor] = useState<string | null>(null);
+  const [honorValue, setHonorValue] = useState('');
   const { showToast } = useGlobalStore();
   const { user: currentUser } = useAuthStore();
 
@@ -127,6 +129,41 @@ const AdminUsersView: React.FC = () => {
     }
   };
 
+  /**
+   * 开始编辑称号
+   */
+  const handleStartEditHonor = (userId: string, currentHonor: string | undefined) => {
+    setEditingHonor(userId);
+    setHonorValue(currentHonor || '');
+  };
+
+  /**
+   * 取消编辑称号
+   */
+  const handleCancelEditHonor = () => {
+    setEditingHonor(null);
+    setHonorValue('');
+  };
+
+  /**
+   * 保存称号
+   */
+  const handleSaveHonor = async (userId: string) => {
+    try {
+      setActionLoading(userId);
+      await DataService.updateUserHonor(userId, honorValue || null);
+      showToast('success', honorValue ? '称号已更新' : '称号已清除');
+      setEditingHonor(null);
+      setHonorValue('');
+      await loadUsers();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '更新称号失败';
+      showToast('error', message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   if (isLoading) {
     return <Loading />;
   }
@@ -157,6 +194,7 @@ const AdminUsersView: React.FC = () => {
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">用户名</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">邮箱</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">称号</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">角色</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">状态</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">创建时间</th>
@@ -166,7 +204,7 @@ const AdminUsersView: React.FC = () => {
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                       {searchQuery ? '没有找到匹配的用户' : '暂无用户'}
                     </td>
                   </tr>
@@ -184,6 +222,58 @@ const AdminUsersView: React.FC = () => {
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{user.email}</td>
+                        <td className="px-4 py-3 text-sm">
+                          {editingHonor === user.id ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                value={honorValue}
+                                onChange={(e) => setHonorValue(e.target.value)}
+                                placeholder="输入称号"
+                                className="w-24 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                maxLength={50}
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveHonor(user.id);
+                                  if (e.key === 'Escape') handleCancelEditHonor();
+                                }}
+                              />
+                              <button
+                                onClick={() => handleSaveHonor(user.id)}
+                                disabled={isLoading}
+                                className="p-1 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded disabled:opacity-50"
+                                title="保存"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={handleCancelEditHonor}
+                                disabled={isLoading}
+                                className="p-1 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded disabled:opacity-50"
+                                title="取消"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              {user.honor ? (
+                                <span className="px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-medium">
+                                  {user.honor}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400 dark:text-gray-500 text-xs">-</span>
+                              )}
+                              <button
+                                onClick={() => handleStartEditHonor(user.id, user.honor)}
+                                className="p-1 text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded transition-colors"
+                                title="编辑称号"
+                              >
+                                <Award className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-sm">
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${

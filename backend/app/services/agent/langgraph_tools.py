@@ -961,6 +961,98 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
                 pass
 
 
+# ==================== 世界观查询工具 ====================
+
+@tool
+async def get_worldview_summary(work_id: str) -> str:
+    """获取作品的世界观摘要信息
+
+    这个工具用于查询作品中已保存的世界观内容，包括：
+    - 角色列表及其描述、关系
+    - 地点列表及其描述
+    - 世界设定列表（魔法体系、规则等）
+
+    适用场景：
+    - 用户询问"世界观里有什么"、"有哪些角色"等问题时使用
+    - 需要了解作品全局设定时使用
+
+    参数:
+        work_id: 作品ID（UUID格式）
+
+    返回:
+        JSON格式的世界观摘要，包含characters、locations、settings三个部分
+
+    示例:
+        work_id = "627feba4-2097-4f28-a3f3-7641d10f7f40"
+    """
+    # 验证 work_id 格式
+    uuid_error = validate_uuid(work_id, "作品ID")
+    if uuid_error:
+        return uuid_error
+
+    async with AsyncSessionLocal() as db:
+        try:
+            from app.services.worldview_service import WorldviewService
+
+            worldview_service = WorldviewService(db)
+
+            # 获取世界观数据
+            characters = await worldview_service.get_characters_by_work(work_id)
+            locations = await worldview_service.get_locations_by_work(work_id)
+            settings = await worldview_service.get_settings_by_work(work_id)
+
+            # 构建摘要
+            summary = {
+                "total": {
+                    "characters": len(characters),
+                    "locations": len(locations),
+                    "settings": len(settings)
+                },
+                "characters": [],
+                "locations": [],
+                "settings": []
+            }
+
+            # 添加角色信息
+            for char in characters:
+                char_info = {
+                    "name": char.name,
+                    "role": char.role if hasattr(char, 'role') else "",
+                    "description": char.description[:200] if char.description else ""
+                }
+                if hasattr(char, 'tags') and char.tags:
+                    char_info["tags"] = char.tags[:5]  # 最多5个标签
+                summary["characters"].append(char_info)
+
+            # 添加地点信息
+            for loc in locations:
+                loc_info = {
+                    "name": loc.name,
+                    "type": loc.type if hasattr(loc, 'type') else "",
+                    "description": loc.description[:200] if loc.description else ""
+                }
+                summary["locations"].append(loc_info)
+
+            # 添加设定信息
+            for setting in settings:
+                setting_info = {
+                    "title": setting.title,
+                    "category": setting.category if hasattr(setting, 'category') else "",
+                    "content": setting.content[:200] if setting.content else ""
+                }
+                summary["settings"].append(setting_info)
+
+            logger.info(f"[get_worldview_summary] ✅ 获取世界观摘要成功: {summary['total']}")
+            return json.dumps(summary, ensure_ascii=False, indent=2)
+
+        except Exception as e:
+            logger.error(f"[get_worldview_summary] 获取世界观摘要失败: {e}", exc_info=True)
+            return json.dumps({
+                "error": "获取世界观摘要失败",
+                "message": str(e)
+            }, ensure_ascii=False, indent=2)
+
+
 # ==================== 工具列表 ====================
 
 # 导入编辑器工具
@@ -980,6 +1072,8 @@ LANGGRAPH_TOOLS = [
     read_chapter_tool,
     get_chapter_by_order_tool,
     search_analysis_fragments_tool,
+    # 世界观工具
+    get_worldview_summary,
     # 编辑器工具
     smart_continue,
     smart_rewrite,
@@ -1005,6 +1099,8 @@ __all__ = [
     "get_chapter_by_order_tool",
     "search_analysis_fragments_tool",
     "get_context_tool",
+    # 世界观工具
+    "get_worldview_summary",
     # 工具列表
     "LANGGRAPH_TOOLS",
     # StandardTool 版本（2025-12-14）

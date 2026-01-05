@@ -89,6 +89,8 @@ export default function NovelSquareView() {
   // URL 参数处理
   const [searchParams, setSearchParams] = useSearchParams();
   const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null);
+  const [initialChapterId, setInitialChapterId] = useState<string | null>(null);
+  const [highlightChapterCommentId, setHighlightChapterCommentId] = useState<string | null>(null);
 
   // 用于防止重复恢复状态
   const hasRestoredRef = useRef(false);
@@ -315,15 +317,25 @@ export default function NovelSquareView() {
     }
   }, [novelSquareReadingState]);
 
-  // 处理 URL 参数：openNovel 和 comment
+  // 处理 URL 参数：openNovel、comment、chapter、chapterComment
   useEffect(() => {
     const openNovelId = searchParams.get('openNovel');
     const commentId = searchParams.get('comment');
+    const chapterId = searchParams.get('chapter');
+    const chapterCommentId = searchParams.get('chapterComment');
 
     if (openNovelId) {
-      // 设置高亮评论 ID
+      // 设置高亮评论 ID（作品评论）
       if (commentId) {
         setHighlightCommentId(commentId);
+      }
+
+      // 设置初始章节和章节评论 ID
+      if (chapterId) {
+        setInitialChapterId(chapterId);
+      }
+      if (chapterCommentId) {
+        setHighlightChapterCommentId(chapterCommentId);
       }
 
       // 清除 URL 参数
@@ -424,11 +436,15 @@ export default function NovelSquareView() {
         onBack={() => {
           setSelectedNovel(null);
           setHighlightCommentId(null);
+          setInitialChapterId(null);
+          setHighlightChapterCommentId(null);
           // 用户主动返回时清除阅读状态
           clearNovelSquareReadingState();
         }}
         source="novel-square"
         highlightCommentId={highlightCommentId}
+        initialChapterId={initialChapterId}
+        highlightChapterCommentId={highlightChapterCommentId}
       />
     );
   }

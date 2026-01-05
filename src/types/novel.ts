@@ -161,3 +161,66 @@ export interface NovelProject {
   createdAt: Date;
   updatedAt: Date;
 }
+
+// ==================== 世界观同步相关类型 ====================
+
+// 新增人物项
+export interface NewCharacterItem {
+  name: string;
+  role?: string;
+  description?: string;
+  firstAppearance?: string;
+  importance?: string;
+  tags?: string[];
+}
+
+// 更新人物项
+export interface UpdatedCharacterItem {
+  name: string;
+  changes: string;
+}
+
+// 新增地点项
+export interface NewLocationItem {
+  name: string;
+  type?: string;
+  description?: string;
+  importance?: string;
+  tags?: string[];
+}
+
+// 新增设定项
+export interface NewSettingItem {
+  title: string;
+  category?: string;
+  content?: string;
+  tags?: string[];
+}
+
+// 人物关系变化项
+export interface RelationshipChangeItem {
+  from: string;
+  to: string;
+  oldRelation?: string;
+  newRelation: string;
+  reason?: string;
+}
+
+// 世界观变化响应
+export interface WorldviewChanges {
+  newCharacters: NewCharacterItem[];
+  updatedCharacters: UpdatedCharacterItem[];
+  newLocations: NewLocationItem[];
+  newSettings: NewSettingItem[];
+  relationshipChanges: RelationshipChangeItem[];
+  scannedChapters?: number;
+}
+
+// 应用变化结果
+export interface ApplyChangesResult {
+  charactersCreated: number;
+  charactersUpdated: number;
+  locationsCreated: number;
+  settingsCreated: number;
+  relationshipsCreated: number;
+}

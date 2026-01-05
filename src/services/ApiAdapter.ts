@@ -91,6 +91,10 @@ export class ApiAdapter implements IDataAdapter {
           const { status, data, config } = error.response;
           const url = config?.url || '';
 
+          // 转换错误响应数据为 camelCase
+          const camelCaseData = this.convertKeysToCamelCase(data);
+          error.response.data = camelCaseData;
+
           // 401 时尝试用 refresh token 续期，再重放原请求
           if (status === 401 && config && !url.includes('/auth/login') && !url.includes('/auth/register') && !url.includes('/auth/refresh')) {
             const originalRequest: any = config;
@@ -161,7 +165,8 @@ export class ApiAdapter implements IDataAdapter {
               console.error('请求错误:', data?.message || error.message);
           }
 
-          return Promise.reject(data || error);
+          // 保持错误对象结构，确保前端可以访问 error.response.data
+          return Promise.reject(error);
         } else if (error.request) {
           // 请求已发送但没有收到响应
           console.error('网络错误，请检查网络连接');

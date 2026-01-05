@@ -895,19 +895,17 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   // v5.1: 从当前消息获取 flowItems
   const lastAgentFlowItems = lastMessageIsAgent ? ((messages[messages.length - 1] as any)?.flowItems || []) : [];
   const shouldShowAgentContent = (hasStreamingAgentMessage || lastAgentFlowItems.length > 0) && lastAgentContent;
+  const canCopyAgentContent = !hasStreamingAgentMessage;
 
   return (
     <div className="p-3 h-full flex flex-col overflow-hidden dark:bg-slate-900">
       <div
         ref={messagesContainerRef}
-        className="flex-1 min-h-0 mb-3 space-y-2.5 overflow-y-auto overflow-x-hidden custom-scrollbar bg-white dark:bg-slate-900"
+        className="flex-1 min-h-0 mb-3 space-y-2.5 overflow-y-auto overflow-x-hidden scrollbar-auto-hide bg-white dark:bg-slate-900"
       >
         {/* 欢迎消息 */}
         {messages.length === 0 && (
-          <div className="flex items-start gap-2">
-            <div className="h-6 w-6 rounded-full bg-zinc-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-              <Bot className="h-3.5 w-3.5 text-white" />
-            </div>
+          <div className="flex items-start">
             <div className="flex-1 p-2.5 rounded-lg bg-zinc-50/70 border border-zinc-100 dark:bg-slate-800 dark:border-slate-700">
               <p className="text-[11px] leading-relaxed text-zinc-500 dark:text-slate-400">
                 你好！我是你的写作助手。我可以帮你续写故事情节、优化文字表达、分析人物关系，以及提供创作建议。
@@ -942,18 +940,13 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
           return (
             <div key={index} className={`flex items-start gap-2 ${isUser ? 'justify-end' : ''}`}>
-              {!isUser && (
-                <div className="h-6 w-6 rounded-full bg-zinc-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-4">
-                  <Bot className="h-3.5 w-3.5 text-white" />
-                </div>
-              )}
 
               <div className={`flex flex-col gap-1 w-full ${isUser ? 'items-end' : 'items-start'} group`}>
                 <div
                   className={`relative ${
                     isUser
-                      ? 'p-2.5 rounded-lg flex-initial w-fit max-w-[85%] md:max-w-[75ch] bg-zinc-800 dark:bg-blue-600 text-zinc-50 shadow-sm ml-auto break-words'
-                      : 'flex-1 max-w-[95%] mt-8'
+                      ? 'p-2.5 rounded-lg flex-initial w-fit max-w-[80%] md:max-w-[60ch] bg-zinc-800 dark:bg-blue-600 text-zinc-50 shadow-sm ml-auto break-words'
+                      : 'flex-1 max-w-full'
                   }`}
                 >
                   {isUser ? (
@@ -1039,11 +1032,6 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
           return (
             <div className="flex items-start gap-2 mt-4">
-              {/* 单一 Bot 头像 */}
-              <div className="h-6 w-6 rounded-full bg-zinc-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                <Bot className="h-3.5 w-3.5 text-white" />
-              </div>
-
               <div className="flex-1 space-y-4">
                 {/* 1. ActivityStream（Agent模式活动流） */}
                 {hasActivityStream && (
@@ -1126,10 +1114,24 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
                 {/* 5. Agent 输出内容（流式或已完成） */}
                 {shouldShowAgentContent && (
-                  <div className="max-w-[95%]">
+                  <div className="max-w-full group">
                     <div className="text-zinc-500 dark:text-slate-300">
                       <MarkdownContent content={lastAgentContent} />
                     </div>
+                    {/* 复制按钮 */}
+                    {canCopyAgentContent && (
+                      <button
+                        onClick={() => copyMessage(lastAgentContent, 'agent-last')}
+                        className="inline-flex self-start items-center justify-center w-8 h-8 text-zinc-500 hover:text-zinc-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors mt-1"
+                        aria-label="复制AI内容"
+                      >
+                        {copiedMessageId === 'agent-last' ? (
+                          <Check className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1140,9 +1142,6 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         {/* 错误提示 */}
         {error && (
           <div className="flex items-start gap-2">
-            <div className="h-6 w-6 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
-              <Bot className="h-3.5 w-3.5 text-white" />
-            </div>
             <div className="flex-1 p-2.5 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800">
               <p className="text-[11px] leading-relaxed text-red-600 dark:text-red-400">
                 {error}
@@ -1331,19 +1330,14 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                       返回
                     </button>
                   ) : (
-                    <span className="inline-flex items-center gap-1 text-slate-300">
-                      <Sparkles className="w-4 h-4" />
+                    <span className="inline-flex items-center text-slate-300">
                       @ 指令
                     </span>
                   )}
-                  <span className="text-slate-400 text-[11px]">
-                    {atStage === 'knowledge' ? '选择要引用的知识库文档' : '选择指令或继续输入'}
-                  </span>
                 </div>
-                <span className="text-[10px] text-slate-500">Enter 选中 · ↑↓ 移动</span>
               </div>
 
-              <div ref={knowledgeListRef} className="max-h-72 overflow-y-auto custom-scrollbar py-2">
+              <div ref={knowledgeListRef} className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2">
                 {atStage === 'root' ? (
                   filteredRootOptions.length > 0 ? (
                     filteredRootOptions.map((option, idx) => (
@@ -1353,8 +1347,10 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => handleRootOption(option)}
                         onMouseEnter={() => setHighlightIndex(idx)}
-                        className={`w-full px-3 py-2.5 flex items-center justify-between text-left transition-colors ${
-                          idx === highlightIndex ? 'bg-slate-800/80 border-l-2 border-slate-500' : 'hover:bg-slate-800/60'
+                        className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-left transition-colors ${
+                          idx === highlightIndex
+                            ? 'bg-slate-800/80 ring-1 ring-slate-600/60'
+                            : 'hover:bg-slate-800/60'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -1395,8 +1391,10 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => handleKnowledgeSelect(doc)}
                           onMouseEnter={() => setHighlightIndex(idx)}
-                          className={`w-full px-3 py-2.5 flex items-center justify-between text-left transition-colors ${
-                            idx === highlightIndex ? 'bg-slate-800/80 border-l-2 border-slate-500' : 'hover:bg-slate-800/60'
+                          className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-left transition-colors ${
+                            idx === highlightIndex
+                              ? 'bg-slate-800/80 ring-1 ring-slate-600/60'
+                              : 'hover:bg-slate-800/60'
                           }`}
                         >
                           <div className="flex items-center gap-2">

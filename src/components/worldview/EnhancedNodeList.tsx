@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Search, User, MapPin, BookOpen, Target, Plus, ChevronDown } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Character, Location, Setting } from '@/types/novel';
 import { EntityType } from '@/types/relationship';
@@ -116,9 +115,9 @@ export function EnhancedNodeList({
   };
 
   return (
-    <div className="flex flex-col h-full text-sm">
+    <div className="h-full flex flex-col text-sm">
       {/* 搜索框 */}
-      <div className="p-3 border-b border-border-light">
+      <div className="flex-shrink-0 p-3 border-b border-border-light">
         <div className="relative">
           <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-muted-foreground" />
           <Input
@@ -131,7 +130,7 @@ export function EnhancedNodeList({
       </div>
 
       {/* 节点列表 */}
-      <ScrollArea className="flex-1 custom-scrollbar">
+      <div className="overflow-y-auto custom-scrollbar pr-2" style={{ maxHeight: 'calc(100vh - 200px)' }}>
         <div className="p-3 space-y-4">
           {/* 角色列表 */}
           <Collapsible open={isCharactersOpen} onOpenChange={setIsCharactersOpen} className="animate-fade-in group/section">
@@ -235,7 +234,7 @@ export function EnhancedNodeList({
             </CollapsibleContent>
           </Collapsible>
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }

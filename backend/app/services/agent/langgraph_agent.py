@@ -71,11 +71,13 @@ from app.services.agent.langgraph_tools import (
     get_chapter_by_order_tool,
     get_context_tool,
     search_analysis_fragments_tool,
+    get_worldview_summary,
 )
 from app.services.agent.utils.context_builder import (
     _compress_task_result,
     _build_summarization_context,
     _build_knowledge_system_messages,
+    _build_worldview_system_messages,
 )
 # ✅ Phase 2.4: 导入工具辅助函数
 from app.services.agent.utils.tool_helpers import (
@@ -464,8 +466,8 @@ class WritingAgentGraph:
                 }
             )
 
-        # 各Agent节点添加条件边：判断是否需要调用工具
-        for agent_node in ["writing_agent", "planning_agent", "analysis_agent", "stuck_agent"]:
+        # ✅ 2025-12-30: 所有Agent节点（包括general_chat）都支持工具调用
+        for agent_node in ["writing_agent", "planning_agent", "analysis_agent", "stuck_agent", "general_chat"]:
             workflow.add_conditional_edges(
                 agent_node,
                 self._should_continue,
@@ -483,12 +485,10 @@ class WritingAgentGraph:
                 "writing": "writing_agent",
                 "planning": "planning_agent",
                 "analysis": "analysis_agent",
-                "stuck": "stuck_agent"
+                "stuck": "stuck_agent",
+                "general": "general_chat"  # ✅ 2025-12-30: general 也可以返回处理工具结果
             }
         )
-
-        # 一般对话直接结束
-        workflow.add_edge("general_chat", END)
 
         # 编译图
         return workflow.compile(checkpointer=self.checkpointer)
@@ -1305,9 +1305,10 @@ class WritingAgentGraph:
 
         # 构建初始状态（不预设intent,由LangGraph的intent_classifier节点识别）
         knowledge_messages = _build_knowledge_system_messages(context)
+        worldview_messages = _build_worldview_system_messages(context)  # 世界观系统消息
 
         initial_state = {
-            "messages": knowledge_messages + history_messages + [HumanMessage(content=message)],  # 知识上下文 + 历史消息 + 当前消息
+            "messages": worldview_messages + knowledge_messages + history_messages + [HumanMessage(content=message)],  # 世界观 + 知识上下文 + 历史消息 + 当前消息
             "work_id": work_id,
             "chapter_id": chapter_id,
             "intent": None,  # ✅ 优化：由LangGraph的intent_classifier节点自动识别
@@ -1662,10 +1663,21 @@ class WritingAgentGraph:
                             logger.warning(f"[Planning] 快速路径保存对话失败: {e}")
                         return quick_result
 
+                # ========== 🆕 AI 意图分类（复用 IntentClassifier）==========
+                # 在规划前判断：如果是普通对话，直接响应，不进入规划流程
+                from app.services.agent.model_selector import TaskType
+
+                intent, confidence = await self.intent_classifier.classify_by_ai(message)
+                logger.info(f"[Planning] AI意图分类: {intent} (置信度: {confidence:.2f})")
+
+                # ✅ 2025-12-30: 移除 general 快速路径，统一走 LangGraph 工具调用流程
+                # 原因：快速路径跳过工具决策，导致无法查询世界观、读取章节等
+                # 现在所有意图（包括 general）都通过 LangGraph 处理，支持工具调用
+                if intent == "general" and confidence >= 0.85:
+                    logger.info(f"[Planning] 识别为 general 意图，但仍走 LangGraph 流程（支持工具调用）")
+                    # 不再直接响应，继续执行下面的规划流程
+
                 # ========== 阶段1: 规划（Planning） - 委托到 PlanGenerator ==========
-                # 🔧 2025-12-29: 删除了冗余的意图分类快速路径
-                # 原因：规划 Prompt 已有 direct_answer 逻辑，无需额外的意图分类层
-                # 所有请求统一走规划流程，由 Prompt 自己判断是否需要工具
                 planning_start = time.time()
 
                 try:
@@ -1899,7 +1911,8 @@ class WritingAgentGraph:
                     message=message,
                     on_content=on_content,
                     response_hint=plan_data.get("response_hint"),
-                    knowledge_docs=knowledge_docs_for_response  # ✅ P0修复: 传递知识库文档
+                    knowledge_docs=knowledge_docs_for_response,  # ✅ P0修复: 传递知识库文档
+                    direct_answer=plan_data.get("direct_answer")  # ✅ 分阶段执行：传递 direct_answer
                 )
 
                 # ========== 保存对话到 ContextManager ==========
@@ -2010,7 +2023,8 @@ class WritingAgentGraph:
         message: str,
         on_content: Optional[callable] = None,
         response_hint: Optional[str] = None,
-        knowledge_docs: Optional[List[Dict]] = None  # ✅ P0修复: 添加知识库文档参数
+        knowledge_docs: Optional[List[Dict]] = None,  # ✅ P0修复: 添加知识库文档参数
+        direct_answer: Optional[str] = None  # ✅ 分阶段执行：传递 direct_answer
     ) -> str:
         """智能构建最终响应
 
@@ -2093,6 +2107,13 @@ class WritingAgentGraph:
 
         # 情况1：没有输出任务（极少见）
         if len(output_tasks) == 0:
+            # ✅ 分阶段执行：如果有 direct_answer，说明是创作请求的第一阶段
+            # 调用AI整合，基于获取的信息（如世界观）生成询问
+            if direct_answer:
+                logger.info("[Response] 分阶段执行第一阶段，基于任务结果生成询问")
+                # 使用AI整合，会基于世界观内容生成针对性的询问
+                return await self._ai_summarization(task_results, message, on_content, knowledge_docs)
+
             logger.warning("[Response] 没有明确输出任务，使用AI整合")
             return await self._ai_summarization(task_results, message, on_content, knowledge_docs)
 

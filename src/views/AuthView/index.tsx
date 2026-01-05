@@ -379,7 +379,18 @@ const AuthView: React.FC = () => {
         navigate('/works');
       }
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.detail || error?.message || t('auth.loginError');
+      console.error('[AuthView] Login error:', error);
+
+      // 提取错误信息
+      let errorMessage = t('auth.loginError');
+
+      // 检查是否是限流错误 (429)
+      if (error?.response?.status === 429) {
+        errorMessage = error?.response?.data?.detail || '登录频繁，请稍后重试';
+      } else {
+        errorMessage = error?.response?.data?.detail || error?.message || t('auth.loginError');
+      }
+
       setErrors({ submit: errorMessage });
     } finally {
       loginInFlight.current = false;

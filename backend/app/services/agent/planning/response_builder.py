@@ -23,12 +23,15 @@ logger = logging.getLogger(__name__)
 # 定义工具类型
 INPUT_TOOLS = {
     "get_context_tool",
-    "search_analysis_fragments_tool"
+    "search_analysis_fragments_tool",
+    "get_worldview_summary",  # 世界观查询工具，仅用于提供创作上下文
+    "get_chapter_by_order_tool",  # 章节读取工具，在续写场景下是输入型
+    "read_chapter_tool"  # 章节读取工具，在续写场景下是输入型
 }
 
 DISPLAY_TOOLS = {
-    "get_chapter_by_order_tool",
-    "read_chapter_tool"
+    # 移除章节读取工具，因为在分阶段执行场景下，它们是输入型
+    # 如果用户明确要求"获取第三章"，AI整合后也会正确返回内容
 }
 
 OUTPUT_TOOLS = {
@@ -102,7 +105,8 @@ class ResponseBuilder:
         message: str,
         on_content: Optional[Callable] = None,
         response_hint: Optional[str] = None,
-        knowledge_docs: Optional[List[Dict]] = None
+        knowledge_docs: Optional[List[Dict]] = None,
+        direct_answer: Optional[str] = None
     ) -> str:
         """智能构建最终响应
 
@@ -152,6 +156,13 @@ class ResponseBuilder:
 
         # 情况1：没有输出任务
         if len(output_tasks) == 0:
+            # ✅ 分阶段执行：如果有 direct_answer，说明是第一阶段，返回询问
+            if direct_answer:
+                logger.info("[Response] 分阶段执行第一阶段，返回 direct_answer 询问用户")
+                if on_content:
+                    on_content(direct_answer)
+                return direct_answer
+
             logger.warning("[Response] 没有明确输出任务，使用AI整合")
             return await self.ai_summarization(task_results, message, on_content, knowledge_docs)
 
@@ -350,11 +361,29 @@ class ResponseBuilder:
    - 章节标题 = 工具返回的 title 字段值
    - 章节内容 = 工具返回的 content 字段值
    - 章节序号 = 工具返回的 order 字段值
-2. 综合所有任务结果，用清晰、友好的语言呈现
-3. 如果是创作内容，直接输出创作结果
-4. 如果是分析/规划，给出详细说明
-5. 如果用户询问事实性问题（如标题、内容等），直接引用工具返回的数据
-6. 如果用户引用了知识库文档，优先基于文档内容回答
+
+2. 【分阶段执行识别】⚠️ 最重要！
+   - 如果任务结果只包含**准备信息**（如世界观、章节内容），没有创作/分析结果
+   - 说明这是**创作请求的第一阶段**，需要询问用户创作细节
+   - 必须基于准备信息，生成针对性的询问：
+     * 如果获取了世界观：展示世界观内容（角色、地点、设定），询问字数、风格、重点
+     * 如果获取了章节内容：简要概括章节，询问续写方向、字数、风格
+   - 示例格式：
+     "我看到世界观中有以下设定：
+     - 主角：【XX】
+     - 场景：【XX】
+     - 设定：【XX】
+
+     关于第一章，您希望：
+     1. 字数大约多少？（建议2000-3000字）
+     2. 风格偏好？（激昂、平淡、悬疑等）
+     3. 重点展开哪些内容？"
+
+3. 综合所有任务结果，用清晰、友好的语言呈现
+4. 如果是创作内容，直接输出创作结果
+5. 如果是分析/规划，给出详细说明
+6. 如果用户询问事实性问题（如标题、内容等），直接引用工具返回的数据
+7. 如果用户引用了知识库文档，优先基于文档内容回答
 
 {format_guidelines}
 

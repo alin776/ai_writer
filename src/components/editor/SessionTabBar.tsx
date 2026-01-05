@@ -78,7 +78,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
               key={tab.id}
               onClick={() => onSwitchTab(tab.id)}
               className={clsx(
-                'group flex items-center gap-2 px-3 h-8 rounded-md border transition-all text-sm min-w-[120px]',
+                'group flex items-center gap-1.5 px-2.5 h-8 rounded-md border transition-all text-sm max-w-[100px]',
                 isActive
                   ? 'bg-slate-100 dark:bg-slate-800 border-gray-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
                   : 'bg-white dark:bg-slate-900 border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-gray-200 dark:hover:border-slate-600'

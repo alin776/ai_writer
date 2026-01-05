@@ -618,10 +618,10 @@ class HTTPAIService:
     async def stream_summarize(
         self,
         text: str,
-        max_tokens: int = 500,
+        max_tokens: int = 100,
         temperature: float = 0.3
     ) -> AsyncGenerator[tuple[str, dict | None], None]:
-        """AI Summarize (streaming response)
+        """AI Summarize (streaming response) - 简短概括主要事件
 
         Yields:
             tuple: (文本片段, usage统计或None)
@@ -1414,3 +1414,4 @@ class HTTPAIService:
 
         logger.debug(f"Generated cache key: {cache_key}")
         return cache_key
+

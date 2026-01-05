@@ -41,7 +41,7 @@ import type {
   CostMetrics,
 } from '@/types';
 import type { SearchResponse } from '@/types/search';
-import type { WorldData, Setting, Character, Location } from '@/types/novel';
+import type { WorldData, Setting, Character, Location, WorldviewChanges, ApplyChangesResult } from '@/types/novel';
 import type {
   ExportOptions,
   ExportResponse,
@@ -771,6 +771,51 @@ class DataServiceClass {
     return this.adapter.patch(`/admin/users/${id}/toggle-admin`);
   }
 
+  /**
+   * 更新用户称号（管理员）
+   * @param id 用户ID
+   * @param honor 新称号（空字符串或 null 清除称号）
+   * @returns Promise<{ message: string }>
+   */
+  async updateUserHonor(id: string, honor: string | null): Promise<{ message: string }> {
+    return this.adapter.patch(`/admin/users/${id}/honor`, { honor });
+  }
+
+  // ==================== 管理员频道管理 ====================
+
+  /**
+   * 获取所有频道列表（管理员）
+   * @param params 查询参数
+   * @returns Promise<{ total: number; channels: Channel[] }>
+   */
+  async getAdminChannels(params?: {
+    skip?: number;
+    limit?: number;
+    channel_type?: string;
+    channel_status?: string;
+    search?: string;
+  }): Promise<{ total: number; channels: any[] }> {
+    const queryParams = new URLSearchParams();
+    if (params?.skip) queryParams.append('skip', params.skip.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.channel_type) queryParams.append('channel_type', params.channel_type);
+    if (params?.channel_status) queryParams.append('channel_status', params.channel_status);
+    if (params?.search) queryParams.append('search', params.search);
+
+    const queryString = queryParams.toString();
+    return this.adapter.get(`/admin/channels${queryString ? `?${queryString}` : ''}`);
+  }
+
+  /**
+   * 更新频道状态（管理员）
+   * @param channelId 频道ID
+   * @param status 新状态 (active/warning/locked)
+   * @returns Promise<{ message: string; channel: any }>
+   */
+  async updateChannelStatus(channelId: string, status: string): Promise<{ message: string; channel: any }> {
+    return this.adapter.patch(`/admin/channels/${channelId}/status?new_status=${status}`);
+  }
+
   // ==================== AI 模型管理 ====================
 
   /**
@@ -1483,6 +1528,16 @@ class DataServiceClass {
     });
   }
 
+  /**
+   * 举报作品
+   */
+  async reportWork(workId: string, reason: string, description?: string): Promise<any> {
+    return this.adapter.post(`/library/works/${workId}/report`, {
+      reason,
+      description,
+    });
+  }
+
   // ========== 管理员 - 小说管理API ==========
 
   /**
@@ -1522,6 +1577,134 @@ class DataServiceClass {
    */
   async adminDeleteWork(workId: string): Promise<void> {
     return this.adapter.delete(`/admin/works/works/${workId}`);
+  }
+
+  // ==================== 举报管理 API ====================
+
+  /**
+   * 获取举报统计概览
+   */
+  async getReportsSummary(): Promise<any> {
+    return this.adapter.get('/admin/reports/summary');
+  }
+
+  /**
+   * 获取消息举报列表
+   */
+  async getMessageReports(status?: string): Promise<any> {
+    return this.adapter.get('/admin/reports/messages', status ? { status } : undefined);
+  }
+
+  /**
+   * 获取评论举报列表
+   */
+  async getCommentReports(isProcessed?: boolean): Promise<any> {
+    return this.adapter.get('/admin/reports/comments', isProcessed !== undefined ? { is_processed: isProcessed } : undefined);
+  }
+
+  /**
+   * 获取小说举报列表
+   */
+  async getWorkReports(status?: string): Promise<any> {
+    return this.adapter.get('/admin/reports/works', status ? { status } : undefined);
+  }
+
+  /**
+   * 处理消息举报
+   */
+  async processMessageReport(reportId: string, action: string, adminNote?: string): Promise<any> {
+    return this.adapter.patch(`/admin/reports/messages/${reportId}`, { action, admin_note: adminNote });
+  }
+
+  /**
+   * 处理评论举报
+   */
+  async processCommentReport(reportId: string, action: string, adminNote?: string): Promise<any> {
+    return this.adapter.patch(`/admin/reports/comments/${reportId}`, { action, admin_note: adminNote });
+  }
+
+  /**
+   * 处理小说举报
+   */
+  async processWorkReport(reportId: string, action: string, adminNote?: string): Promise<any> {
+    return this.adapter.patch(`/admin/reports/works/${reportId}`, { action, admin_note: adminNote });
+  }
+
+  // ==================== AI生成世界观 ====================
+
+  /**
+   * 🆕 方案C：基于故事梗概生成完整世界观设定（22个字段）
+   * @param request 包含story_concept的请求对象
+   * @returns Promise<any> 返回生成的22个字段
+   */
+  async generateAIGuidelines(request: { storyConcept: string }): Promise<any> {
+    return this.adapter.post('/worldview/ai-guidelines/generate', {
+      story_concept: request.storyConcept
+    });
+  }
+
+  // ==================== 世界观同步相关 ====================
+
+  /**
+   * 从单个章节提取世界观变化（方案A）
+   * @param workId 作品ID
+   * @param chapterId 章节ID
+   * @param chapterContent 章节内容（可选，不传则从数据库读取）
+   * @returns Promise<WorldviewChanges>
+   */
+  async extractWorldviewChanges(
+    workId: string,
+    chapterId: string,
+    chapterContent?: string
+  ): Promise<WorldviewChanges> {
+    return this.adapter.post(`/worldview/works/${workId}/worldview/extract-changes`, {
+      chapter_id: chapterId,
+      chapter_content: chapterContent
+    });
+  }
+
+  /**
+   * 批量扫描章节提取世界观变化（方案C）
+   * @param workId 作品ID
+   * @param startChapter 起始章节号
+   * @param endChapter 结束章节号（可选）
+   * @param limit 最多扫描章节数
+   * @returns Promise<WorldviewChanges>
+   */
+  async scanWorldviewChanges(
+    workId: string,
+    startChapter: number = 1,
+    endChapter?: number,
+    limit: number = 10
+  ): Promise<WorldviewChanges> {
+    return this.adapter.post(`/worldview/works/${workId}/worldview/scan-changes`, {
+      start_chapter: startChapter,
+      end_chapter: endChapter,
+      limit
+    });
+  }
+
+  /**
+   * 应用世界观变化到卡片
+   * @param workId 作品ID
+   * @param changes 变化数据
+   * @param selectedItems 选择性应用的项目
+   * @returns Promise<ApplyChangesResult>
+   */
+  async applyWorldviewChanges(
+    workId: string,
+    changes: WorldviewChanges,
+    selectedItems?: {
+      new_characters?: string[];
+      new_locations?: string[];
+      new_settings?: string[];
+      relationship_changes?: string[];
+    }
+  ): Promise<ApplyChangesResult> {
+    return this.adapter.post(`/worldview/works/${workId}/worldview/apply-changes`, {
+      changes,
+      selected_items: selectedItems
+    });
   }
 }
 

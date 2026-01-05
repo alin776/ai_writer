@@ -16,6 +16,7 @@ import type { UserNotification } from '../../types/notification';
 import { NotificationType } from '../../types/notification';
 import { useNotificationStore } from '../../store/notificationStore';
 import { DataService } from '../../services/DataService';
+import { chapterCommentApi } from '../../services/chapterCommentApi';
 import { useToast } from '../../hooks/useToast';
 
 interface InteractionNotificationItemProps {
@@ -49,6 +50,7 @@ export function InteractionNotificationItem({
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isComposingRef = useRef(false);
 
   // 获取元数据
   const metadata = notification.activityRules as CommentReplyMetadata | undefined;
@@ -100,15 +102,18 @@ export function InteractionNotificationItem({
       await markAsRead([notification.id]);
     }
 
-    // 优先使用 metadata 构建 URL（确保格式正确）
+    // Prefer explicit action URL when available (e.g. chapter comment links)
+    if (notification.actionButton?.url) {
+      navigate(notification.actionButton.url);
+      return;
+    }
+
+    // Fallback to metadata-driven URL
     if (metadata?.workId) {
       const url = metadata.commentId
         ? `/library/novel-square?openNovel=${metadata.workId}&comment=${metadata.commentId}`
         : `/library/novel-square?openNovel=${metadata.workId}`;
       navigate(url);
-    } else if (notification.actionButton?.url) {
-      // 回退到 actionButton.url
-      navigate(notification.actionButton.url);
     }
   };
 
@@ -127,29 +132,60 @@ export function InteractionNotificationItem({
   };
 
   // 处理提交回复
-  const handleSubmitReply = async () => {
-    if (!replyContent.trim()) return;
+  const getActionParams = () => {
+    const actionUrl = notification.actionButton?.url;
+    if (!actionUrl) return null;
+    try {
+      const parsed = new URL(actionUrl, window.location.origin);
+      return {
+        workId: parsed.searchParams.get('openNovel') || undefined,
+        commentId: parsed.searchParams.get('comment') || undefined,
+        chapterId: parsed.searchParams.get('chapter') || undefined,
+        chapterCommentId: parsed.searchParams.get('chapterComment') || undefined,
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const handleSubmitReply = async (content?: string) => {
+    if (isSubmitting) return;
+    const trimmed = (content ?? replyContent).trim();
+    if (!trimmed) return;
+
+    const actionParams = getActionParams();
+    const workId = metadata?.workId || actionParams?.workId;
+    const parentCommentId = metadata?.commentId || actionParams?.commentId || actionParams?.chapterCommentId;
+    const isChapterComment = !!(actionParams?.chapterId || actionParams?.chapterCommentId);
 
     // 验证必要的元数据
-    if (!metadata?.workId || !metadata?.commentId) {
+    if (!parentCommentId || (!workId && !actionParams?.chapterId)) {
       console.error('缺少必要的元数据:', {
         metadata,
         activityRules: notification.activityRules,
         notificationId: notification.id,
         notificationType: notification.type
       });
-      toast.error(`无法回复：缺少 ${!metadata?.workId ? 'workId' : 'commentId'}`);
+      toast.error(`无法回复：缺少 ${!workId ? 'workId' : 'commentId'}`);
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // 调用 API 创建评论
-      await DataService.createComment(metadata.workId, {
-        content: replyContent,
-        parentId: metadata.commentId, // 回复这条评论
-        replyToUserId: metadata.replierId // 回复给原回复者
-      });
+      if (isChapterComment && actionParams?.chapterId) {
+        await chapterCommentApi.createComment(actionParams.chapterId, {
+          content: trimmed,
+          parentId: parentCommentId,
+          replyToUserId: metadata?.replierId,
+        });
+      } else if (workId) {
+        // 调用 API 创建评论
+        await DataService.createComment(workId, {
+          content: trimmed,
+          parentId: parentCommentId, // 回复这条评论
+          replyToUserId: metadata?.replierId // 回复给原回复者
+        });
+      }
 
       // 成功后清空输入
       setReplyContent('');
@@ -290,10 +326,18 @@ export function InteractionNotificationItem({
                   type="text"
                   value={replyContent}
                   onChange={(e) => setReplyContent(e.target.value)}
+                  onCompositionStart={() => {
+                    isComposingRef.current = true;
+                  }}
+                  onCompositionEnd={() => {
+                    isComposingRef.current = false;
+                  }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey && replyContent.trim()) {
+                    // Skip while composing (IME)
+                    if (isComposingRef.current) return;
+                    if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      handleSubmitReply();
+                      handleSubmitReply(e.currentTarget.value);
                     }
                   }}
                   placeholder="回复"

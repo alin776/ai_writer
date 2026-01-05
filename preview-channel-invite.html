@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>频道邀请功能预览 - Discord风格</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #36393f;
+      color: #dcddde;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .preview-section {
+      max-width: 1200px;
+      margin: 0 auto 60px;
+    }
+
+    .section-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-title .badge {
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .badge-p1 { background: #5865f2; color: #fff; }
+    .badge-p2 { background: #3ba55c; color: #fff; }
+    .badge-p3 { background: #faa61a; color: #fff; }
+
+    .section-desc {
+      color: #b9bbbe;
+      margin-bottom: 24px;
+      font-size: 14px;
+    }
+
+    .preview-container {
+      display: flex;
+      gap: 40px;
+      flex-wrap: wrap;
+    }
+
+    /* ==================== 功能1：邀请好友弹窗 ==================== */
+    .invite-dialog {
+      width: 440px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      overflow: hidden;
+    }
+
+    .invite-dialog-header {
+      padding: 16px;
+      position: relative;
+    }
+
+    .invite-dialog-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #060607;
+      margin-bottom: 4px;
+    }
+
+    .invite-dialog-subtitle {
+      font-size: 12px;
+      color: #4e5058;
+    }
+
+    .invite-dialog-subtitle .channel-icon {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .invite-dialog-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #72767d;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    .invite-dialog-close:hover {
+      background: rgba(79,84,92,0.16);
+    }
+
+    .invite-search {
+      padding: 0 16px 16px;
+    }
+
+    .invite-search-box {
+      position: relative;
+    }
+
+    .invite-search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #80848e;
+      pointer-events: none;
+    }
+
+    .invite-search-input {
+      width: 100%;
+      padding: 10px 12px 10px 40px;
+      background: #e3e5e8;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      color: #060607;
+      outline: none;
+    }
+
+    .invite-search-input::placeholder {
+      color: #80848e;
+    }
+
+    .invite-search-input:focus {
+      box-shadow: 0 0 0 2px #5865f2;
+    }
+
+    .invite-friends-list {
+      max-height: 200px;
+      overflow-y: auto;
+      padding: 0 8px;
+    }
+
+    .invite-friend-item {
+      display: flex;
+      align-items: center;
+      padding: 8px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .invite-friend-item:hover {
+      background: rgba(79,84,92,0.08);
+    }
+
+    .invite-friend-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #5865f2;
+      margin-right: 12px;
+      overflow: hidden;
+    }
+
+    .invite-friend-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .invite-friend-name {
+      flex: 1;
+      font-size: 16px;
+      font-weight: 500;
+      color: #060607;
+    }
+
+    .invite-friend-btn {
+      padding: 6px 16px;
+      border: 1px solid #c4c9ce;
+      border-radius: 3px;
+      background: transparent;
+      font-size: 14px;
+      font-weight: 500;
+      color: #060607;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .invite-friend-btn:hover {
+      background: rgba(79,84,92,0.08);
+    }
+
+    .invite-friend-btn.sent {
+      border-color: transparent;
+      background: transparent;
+      color: #80848e;
+      cursor: default;
+    }
+
+    .invite-divider {
+      height: 1px;
+      background: #e3e5e8;
+      margin: 16px;
+    }
+
+    .invite-link-section {
+      padding: 0 16px 16px;
+    }
+
+    .invite-link-label {
+      font-size: 12px;
+      font-weight: 400;
+      color: #4e5058;
+      margin-bottom: 8px;
+    }
+
+    .invite-link-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .invite-link-input {
+      flex: 1;
+      padding: 10px 12px;
+      background: #e3e5e8;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      color: #060607;
+      outline: none;
+    }
+
+    .invite-link-copy-btn {
+      padding: 0 16px;
+      background: #5865f2;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .invite-link-copy-btn:hover {
+      background: #4752c4;
+    }
+
+    .invite-link-expire {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #80848e;
+    }
+
+    .invite-link-expire a {
+      color: #00a8fc;
+      text-decoration: none;
+    }
+
+    .invite-link-expire a:hover {
+      text-decoration: underline;
+    }
+
+    /* ==================== 功能2：聊天中邀请链接预览卡片 ==================== */
+    .chat-preview-container {
+      width: 600px;
+      background: #313338;
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .chat-message {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .chat-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #5865f2;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .chat-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .chat-content {
+      flex: 1;
+    }
+
+    .chat-header {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .chat-username {
+      font-size: 16px;
+      font-weight: 500;
+      color: #f2f3f5;
+    }
+
+    .chat-timestamp {
+      font-size: 12px;
+      color: #949ba4;
+    }
+
+    .chat-text {
+      color: #dbdee1;
+      font-size: 16px;
+      line-height: 1.4;
+    }
+
+    .chat-link {
+      color: #00a8fc;
+      text-decoration: none;
+    }
+
+    .chat-link:hover {
+      text-decoration: underline;
+    }
+
+    /* 邀请卡片预览 - 样式A：带横幅（图片3） */
+    .invite-card-with-banner {
+      margin-top: 8px;
+      background: #2b2d31;
+      border-radius: 12px;
+      overflow: hidden;
+      max-width: 320px;
+    }
+
+    .invite-card-banner {
+      height: 50px;
+      background: #1e1f22;
+    }
+
+    .invite-card-with-banner .invite-card-body {
+      padding: 0 16px 16px;
+      position: relative;
+    }
+
+    .invite-card-with-banner .invite-card-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: -24px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .invite-card-with-banner .invite-card-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .invite-card-with-banner .invite-card-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f2f3f5;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .invite-card-with-banner .invite-card-stats {
+      display: flex;
+      gap: 12px;
+      font-size: 12px;
+      color: #b5bac1;
+      margin-bottom: 4px;
+    }
+
+    .invite-card-with-banner .invite-card-created {
+      font-size: 12px;
+      color: #949ba4;
+    }
+
+    .invite-card-with-banner .invite-card-join-btn {
+      width: 100%;
+      padding: 7px 16px;
+      background: #248046;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #fff;
+      cursor: pointer;
+      margin-top: 12px;
+      transition: background 0.2s;
+    }
+
+    /* 邀请卡片预览 - 样式B：无横幅（图片4） */
+    .invite-card {
+      margin-top: 8px;
+      background: #2b2d31;
+      border-radius: 8px;
+      overflow: hidden;
+      max-width: 432px;
+      padding: 16px;
+    }
+
+    .invite-card-server {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .invite-card-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: #36393f;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .invite-card-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .invite-card-info {
+      flex: 1;
+    }
+
+    .invite-card-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f2f3f5;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .invite-card-home-icon {
+      color: #23a55a;
+      font-size: 14px;
+    }
+
+    .invite-card-stats {
+      display: flex;
+      gap: 12px;
+      font-size: 12px;
+      color: #b5bac1;
+    }
+
+    .invite-card-stat {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .invite-card-stat .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .dot-online { background: #23a55a; }
+    .dot-members { background: #80848e; }
+
+    .invite-card-created {
+      font-size: 12px;
+      color: #949ba4;
+      margin-top: 8px;
+    }
+
+    .invite-card-join-btn {
+      width: 100%;
+      padding: 10px 16px;
+      background: #248046;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #fff;
+      cursor: pointer;
+      margin-top: 16px;
+      transition: background 0.2s;
+    }
+
+    .invite-card-join-btn:hover {
+      background: #1a6334;
+    }
+
+    /* ==================== 功能3：邀请链接落地页 ==================== */
+    .landing-page {
+      width: 100%;
+      min-height: 600px;
+      background: linear-gradient(135deg, #404EED 0%, #5865F2 50%, #7289DA 100%);
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+    }
+
+    /* 星空背景效果 */
+    .landing-page::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image:
+        radial-gradient(2px 2px at 20px 30px, rgba(255,255,255,0.3), transparent),
+        radial-gradient(2px 2px at 40px 70px, rgba(255,255,255,0.2), transparent),
+        radial-gradient(2px 2px at 50px 160px, rgba(255,255,255,0.3), transparent),
+        radial-gradient(2px 2px at 90px 40px, rgba(255,255,255,0.2), transparent),
+        radial-gradient(2px 2px at 130px 80px, rgba(255,255,255,0.3), transparent),
+        radial-gradient(3px 3px at 160px 120px, rgba(255,255,255,0.4), transparent),
+        radial-gradient(2px 2px at 200px 50px, rgba(255,255,255,0.2), transparent),
+        radial-gradient(2px 2px at 250px 150px, rgba(255,255,255,0.3), transparent),
+        radial-gradient(2px 2px at 300px 90px, rgba(255,255,255,0.2), transparent),
+        radial-gradient(3px 3px at 400px 200px, rgba(255,255,255,0.4), transparent),
+        radial-gradient(2px 2px at 500px 100px, rgba(255,255,255,0.3), transparent),
+        radial-gradient(2px 2px at 600px 180px, rgba(255,255,255,0.2), transparent),
+        radial-gradient(2px 2px at 700px 60px, rgba(255,255,255,0.3), transparent),
+        radial-gradient(3px 3px at 800px 140px, rgba(255,255,255,0.4), transparent);
+      pointer-events: none;
+    }
+
+    .landing-logo {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .landing-logo svg {
+      width: 32px;
+      height: 32px;
+    }
+
+    .landing-card {
+      width: 480px;
+      background: #313338;
+      border-radius: 8px;
+      padding: 32px;
+      text-align: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    .landing-server-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 24px;
+      background: #fff;
+      margin: 0 auto 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      overflow: hidden;
+    }
+
+    .landing-server-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .landing-invite-text {
+      font-size: 14px;
+      color: #b5bac1;
+      margin-bottom: 8px;
+    }
+
+    .landing-server-name {
+      font-size: 24px;
+      font-weight: 700;
+      color: #f2f3f5;
+      margin-bottom: 8px;
+    }
+
+    .landing-stats {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .landing-stat {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      color: #b5bac1;
+    }
+
+    .landing-form-group {
+      text-align: left;
+      margin-bottom: 16px;
+    }
+
+    .landing-form-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #b5bac1;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .landing-form-input {
+      width: 100%;
+      padding: 12px;
+      background: #1e1f22;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      color: #dbdee1;
+      outline: none;
+    }
+
+    .landing-form-input::placeholder {
+      color: #72767d;
+    }
+
+    .landing-form-input:focus {
+      box-shadow: 0 0 0 2px #5865f2;
+    }
+
+    .landing-form-hint {
+      font-size: 12px;
+      color: #949ba4;
+      margin-top: 8px;
+    }
+
+    .landing-birthdate {
+      display: flex;
+      gap: 8px;
+    }
+
+    .landing-birthdate select {
+      flex: 1;
+      padding: 12px;
+      background: #1e1f22;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      color: #dbdee1;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .landing-terms {
+      font-size: 12px;
+      color: #949ba4;
+      margin: 16px 0;
+      text-align: left;
+    }
+
+    .landing-terms a {
+      color: #00a8fc;
+      text-decoration: none;
+    }
+
+    .landing-terms a:hover {
+      text-decoration: underline;
+    }
+
+    .landing-submit-btn {
+      width: 100%;
+      padding: 14px;
+      background: #5865f2;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      font-weight: 500;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .landing-submit-btn:hover {
+      background: #4752c4;
+    }
+
+    .landing-login-link {
+      margin-top: 16px;
+      font-size: 14px;
+      color: #949ba4;
+    }
+
+    .landing-login-link a {
+      color: #00a8fc;
+      text-decoration: none;
+    }
+
+    .landing-login-link a:hover {
+      text-decoration: underline;
+    }
+
+    /* 已登录用户版本 */
+    .landing-card.logged-in .landing-go-btn {
+      width: 100%;
+      padding: 14px;
+      background: #248046;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      font-weight: 500;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 16px;
+    }
+
+    .landing-card.logged-in .landing-go-btn:hover {
+      background: #1a6334;
+    }
+
+    /* 切换按钮 */
+    .toggle-btns {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .toggle-btn {
+      padding: 8px 16px;
+      background: #4e5058;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .toggle-btn.active {
+      background: #5865f2;
+    }
+
+    .toggle-btn:hover {
+      background: #5865f2;
+    }
+
+    /* 气泡动画 */
+    .bubble {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.1);
+      animation: float 6s ease-in-out infinite;
+    }
+
+    .bubble:nth-child(1) {
+      width: 60px;
+      height: 60px;
+      left: 10%;
+      top: 20%;
+      animation-delay: 0s;
+    }
+
+    .bubble:nth-child(2) {
+      width: 40px;
+      height: 40px;
+      left: 80%;
+      top: 60%;
+      animation-delay: 1s;
+    }
+
+    .bubble:nth-child(3) {
+      width: 80px;
+      height: 80px;
+      left: 5%;
+      top: 70%;
+      animation-delay: 2s;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-20px); }
+    }
+
+    /* 分隔线 */
+    .page-divider {
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #5865f2, transparent);
+      margin: 40px 0;
+    }
+  </style>
+</head>
+<body>
+  <!-- ==================== 功能1：邀请好友弹窗 ==================== -->
+  <div class="preview-section">
+    <h2 class="section-title">
+      功能1：邀请好友弹窗
+      <span class="badge badge-p1">P1 - 优先级高</span>
+    </h2>
+    <p class="section-desc">在频道设置中点击"邀请好友"按钮时显示的弹窗。支持搜索好友列表和复制邀请链接两种方式。</p>
+
+    <div class="preview-container">
+      <!-- 初始状态 -->
+      <div class="invite-dialog">
+        <div class="invite-dialog-header">
+          <div class="invite-dialog-title">邀请朋友加入 Manus Beta</div>
+          <div class="invite-dialog-subtitle">
+            接收者将直接进入 <span class="channel-icon"># <span style="margin-right:2px;">💗</span> get-started</span>
+          </div>
+          <div class="invite-dialog-close">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18.4 4L12 10.4L5.6 4L4 5.6L10.4 12L4 18.4L5.6 20L12 13.6L18.4 20L20 18.4L13.6 12L20 5.6L18.4 4Z"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="invite-search">
+          <div class="invite-search-box">
+            <svg class="invite-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M21.707 20.293l-4.054-4.054A8.46 8.46 0 0 0 19.5 11.5c0-4.694-3.806-8.5-8.5-8.5S2.5 6.806 2.5 11.5s3.806 8.5 8.5 8.5a8.46 8.46 0 0 0 4.739-1.447l4.054 4.054a1 1 0 0 0 1.414-1.414zM11 18c-3.584 0-6.5-2.916-6.5-6.5S7.416 5 11 5s6.5 2.916 6.5 6.5S14.584 18 11 18z"/>
+            </svg>
+            <input type="text" class="invite-search-input" placeholder="搜索好友">
+          </div>
+        </div>
+
+        <div class="invite-friends-list">
+          <div class="invite-friend-item">
+            <div class="invite-friend-avatar">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=joinbit2" alt="">
+            </div>
+            <div class="invite-friend-name">joinbit2</div>
+            <button class="invite-friend-btn">邀请</button>
+          </div>
+          <div class="invite-friend-item">
+            <div class="invite-friend-avatar">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=anice" alt="">
+            </div>
+            <div class="invite-friend-name">anice</div>
+            <button class="invite-friend-btn">邀请</button>
+          </div>
+          <div class="invite-friend-item">
+            <div class="invite-friend-avatar">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=nightsky" alt="">
+            </div>
+            <div class="invite-friend-name">Nightsky</div>
+            <button class="invite-friend-btn">邀请</button>
+          </div>
+        </div>
+
+        <div class="invite-divider"></div>
+
+        <div class="invite-link-section">
+          <div class="invite-link-label">或者，向好友发送服务器邀请链接</div>
+          <div class="invite-link-row">
+            <input type="text" class="invite-link-input" value="https://aiwriter.com/invite/yjAYxzT9" readonly>
+            <button class="invite-link-copy-btn">复制</button>
+          </div>
+          <div class="invite-link-expire">
+            您的邀请链接将在7天后过期。<a href="#">编辑邀请链接。</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- 已发送状态 -->
+      <div class="invite-dialog">
+        <div class="invite-dialog-header">
+          <div class="invite-dialog-title">邀请朋友加入 Manus Beta</div>
+          <div class="invite-dialog-subtitle">
+            接收者将直接进入 <span class="channel-icon"># <span style="margin-right:2px;">💗</span> get-started</span>
+          </div>
+          <div class="invite-dialog-close">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18.4 4L12 10.4L5.6 4L4 5.6L10.4 12L4 18.4L5.6 20L12 13.6L18.4 20L20 18.4L13.6 12L20 5.6L18.4 4Z"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="invite-search">
+          <div class="invite-search-box">
+            <svg class="invite-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M21.707 20.293l-4.054-4.054A8.46 8.46 0 0 0 19.5 11.5c0-4.694-3.806-8.5-8.5-8.5S2.5 6.806 2.5 11.5s3.806 8.5 8.5 8.5a8.46 8.46 0 0 0 4.739-1.447l4.054 4.054a1 1 0 0 0 1.414-1.414zM11 18c-3.584 0-6.5-2.916-6.5-6.5S7.416 5 11 5s6.5 2.916 6.5 6.5S14.584 18 11 18z"/>
+            </svg>
+            <input type="text" class="invite-search-input" placeholder="搜索好友">
+          </div>
+        </div>
+
+        <div class="invite-friends-list">
+          <div class="invite-friend-item">
+            <div class="invite-friend-avatar">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=joinbit2" alt="">
+            </div>
+            <div class="invite-friend-name">joinbit2</div>
+            <button class="invite-friend-btn sent">已发送</button>
+          </div>
+          <div class="invite-friend-item">
+            <div class="invite-friend-avatar">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=anice" alt="">
+            </div>
+            <div class="invite-friend-name">anice</div>
+            <button class="invite-friend-btn">邀请</button>
+          </div>
+          <div class="invite-friend-item">
+            <div class="invite-friend-avatar">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=nightsky" alt="">
+            </div>
+            <div class="invite-friend-name">Nightsky</div>
+            <button class="invite-friend-btn">邀请</button>
+          </div>
+        </div>
+
+        <div class="invite-divider"></div>
+
+        <div class="invite-link-section">
+          <div class="invite-link-label">或者，向好友发送服务器邀请链接</div>
+          <div class="invite-link-row">
+            <input type="text" class="invite-link-input" value="https://aiwriter.com/invite/manusai" readonly>
+            <button class="invite-link-copy-btn">复制</button>
+          </div>
+          <div class="invite-link-expire">
+            您的邀请链接将在7天后过期。<a href="#">编辑邀请链接。</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-divider"></div>
+
+  <!-- ==================== 功能2：聊天中邀请链接预览卡片 ==================== -->
+  <div class="preview-section">
+    <h2 class="section-title">
+      功能2：聊天中邀请链接预览卡片
+      <span class="badge badge-p2">P2 - 中等优先级</span>
+    </h2>
+    <p class="section-desc">当用户在聊天中发送频道邀请链接时，自动解析并显示为富媒体卡片，展示频道信息和快速加入按钮。</p>
+
+    <div class="preview-container" style="flex-direction: column; gap: 32px;">
+
+      <!-- 样式A：带横幅（图片3） -->
+      <div>
+        <div style="color: #fff; font-size: 14px; margin-bottom: 12px; font-weight: 600;">样式A：带横幅（对应图片3）</div>
+        <div class="chat-preview-container">
+          <div class="chat-message">
+            <div class="chat-avatar">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=join2049" alt="">
+            </div>
+            <div class="chat-content">
+              <div class="chat-header">
+                <span class="chat-username">Join2049</span>
+                <span class="chat-timestamp">13:10</span>
+              </div>
+              <div class="chat-text">
+                <a href="#" class="chat-link">https://aiwriter.com/invite/SrzarTyP</a>
+              </div>
+
+              <!-- 邀请卡片 - 样式A：带横幅 -->
+              <div class="invite-card-with-banner">
+                <div class="invite-card-banner"></div>
+                <div class="invite-card-body">
+                  <div class="invite-card-icon">
+                    <img src="https://api.dicebear.com/7.x/identicon/svg?seed=manus" alt="">
+                  </div>
+                  <div class="invite-card-name">
+                    Manus Beta
+                    <span style="color: #23a55a;">🏠</span>
+                  </div>
+                  <div class="invite-card-stats">
+                    <span class="invite-card-stat">
+                      <span class="dot dot-online"></span>
+                      2,278 人在线
+                    </span>
+                    <span class="invite-card-stat">
+                      <span class="dot dot-members"></span>
+                      35,080 位成员
+                    </span>
+                  </div>
+                  <div class="invite-card-created">创建日期: 2025年3月</div>
+                  <button class="invite-card-join-btn">前往服务器</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="page-divider"></div>
+
+  <!-- ==================== 功能3：邀请链接落地页 ==================== -->
+  <div class="preview-section">
+    <h2 class="section-title">
+      功能3：邀请链接落地页
+      <span class="badge badge-p3">P3 - 较复杂</span>
+    </h2>
+    <p class="section-desc">
+      当用户点击邀请链接（如 /invite/xxx）时显示的落地页。根据用户登录状态显示不同内容。
+    </p>
+
+    <div class="toggle-btns">
+      <button class="toggle-btn active" onclick="showLoggedOut()">未登录用户</button>
+      <button class="toggle-btn" onclick="showLoggedIn()">已登录用户</button>
+    </div>
+
+    <div class="preview-container">
+      <!-- 未登录用户版本 -->
+      <div class="landing-page" id="landing-logged-out">
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+
+        <div class="landing-logo">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+          </svg>
+          AI Writer
+        </div>
+
+        <div class="landing-card">
+          <div class="landing-server-icon">
+            <img src="https://api.dicebear.com/7.x/identicon/svg?seed=manus" alt="">
+          </div>
+          <div class="landing-invite-text">您已被邀请加入</div>
+          <div class="landing-server-name">Manus Beta</div>
+          <div class="landing-stats">
+            <span class="landing-stat">
+              <span class="dot dot-online"></span>
+              2,319 人在线
+            </span>
+            <span class="landing-stat">
+              <span class="dot dot-members"></span>
+              35,080 位成员
+            </span>
+          </div>
+
+          <div class="landing-form-group">
+            <label class="landing-form-label">昵称</label>
+            <input type="text" class="landing-form-input" placeholder="希望大家怎么称呼您?">
+            <div class="landing-form-hint">这是其他人所看到的您的名称。可以使用特殊字符和表情符号。</div>
+          </div>
+
+          <div class="landing-form-group">
+            <label class="landing-form-label">出生日期</label>
+            <div class="landing-birthdate">
+              <select>
+                <option>年</option>
+                <option>2000</option>
+                <option>1999</option>
+                <option>1998</option>
+              </select>
+              <select>
+                <option>月</option>
+                <option>1</option>
+                <option>2</option>
+                <option>3</option>
+              </select>
+              <select>
+                <option>日</option>
+                <option>1</option>
+                <option>2</option>
+                <option>3</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="landing-terms">
+            点击"创建账号"即表示您同意 AI Writer 的<a href="#">服务条款</a>，并已阅读<a href="#">隐私政策</a>。
+          </div>
+
+          <button class="landing-submit-btn">创建账户</button>
+
+          <div class="landing-login-link">
+            已经拥有账号？<a href="#">请登录</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- 已登录用户版本 -->
+      <div class="landing-page" id="landing-logged-in" style="display: none;">
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+
+        <div class="landing-logo">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+          </svg>
+          AI Writer
+        </div>
+
+        <div class="landing-card logged-in">
+          <div class="landing-server-icon">
+            <img src="https://api.dicebear.com/7.x/identicon/svg?seed=manus" alt="">
+          </div>
+          <div class="landing-invite-text">您已被邀请加入</div>
+          <div class="landing-server-name">Manus Beta</div>
+          <div class="landing-stats">
+            <span class="landing-stat">
+              <span class="dot dot-online"></span>
+              2,319 人在线
+            </span>
+            <span class="landing-stat">
+              <span class="dot dot-members"></span>
+              35,080 位成员
+            </span>
+          </div>
+
+          <div style="margin-top: 24px; padding: 16px; background: #1e1f22; border-radius: 8px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="width: 48px; height: 48px; border-radius: 50%; background: #5865f2; overflow: hidden;">
+                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=currentuser" alt="" style="width: 100%; height: 100%;">
+              </div>
+              <div>
+                <div style="font-size: 16px; font-weight: 600; color: #f2f3f5;">当前用户</div>
+                <div style="font-size: 14px; color: #949ba4;">@currentuser</div>
+              </div>
+            </div>
+          </div>
+
+          <button class="landing-go-btn">前往服务器</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showLoggedOut() {
+      document.getElementById('landing-logged-out').style.display = 'flex';
+      document.getElementById('landing-logged-in').style.display = 'none';
+      document.querySelectorAll('.toggle-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', i === 0);
+      });
+    }
+
+    function showLoggedIn() {
+      document.getElementById('landing-logged-out').style.display = 'none';
+      document.getElementById('landing-logged-in').style.display = 'flex';
+      document.querySelectorAll('.toggle-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', i === 1);
+      });
+    }
+  </script>
+</body>
+</html>

@@ -124,9 +124,8 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
             <h1 className="text-5xl text-gray-800 dark:text-gray-100 tracking-[0.5em] mb-4" style={{ fontFamily: "'HYShangWeiShouShuW', 'Ma Shan Zheng', cursive" }}>
               开始创作
             </h1>
-            {/* 墨迹装饰 */}
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-32 h-px bg-gradient-to-r from-transparent via-gray-400 dark:via-gray-500 to-transparent"></div>
           </div>
+          <p className="text-gray-500 dark:text-gray-400 mt-4">选择适合你的创作方式</p>
         </div>
 
         {/* 对联式选项 */}
@@ -134,27 +133,27 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
           {/* 左侧：清晰思路 */}
           <motion.button
             onClick={(e) => handleModeClick('manual', e)}
-            className={`relative py-10 px-8 transition-all duration-500 overflow-hidden ${
+            className={`relative py-12 px-8 min-h-[320px] transition-all duration-500 overflow-hidden rounded-2xl ${
               selectedMode === 'manual'
                 ? ''
                 : selectedMode === 'ai'
                 ? 'opacity-40'
                 : 'hover:bg-white/20 dark:hover:bg-white/5'
             }`}
-            whileHover={{ scale: selectedMode ? 1 : 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
             {/* 背景山水图片 */}
             {selectedMode === 'manual' && (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                initial={{ opacity: 0, scale: 1.2 }}
+                animate={{ opacity: 1, scale: 1.5 }}
                 transition={{ duration: 0.8 }}
                 className="absolute inset-0 z-0"
                 style={{
                   backgroundImage: 'url(/images/mountain-bg.png)',
-                  backgroundSize: 'cover',
+                  backgroundSize: 'contain',
                   backgroundPosition: 'center',
+                  backgroundRepeat: 'no-repeat',
                   opacity: 0.15,
                 }}
               />
@@ -270,27 +269,27 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
           {/* 右侧：AI 协作 */}
           <motion.button
             onClick={(e) => handleModeClick('ai', e)}
-            className={`relative py-10 px-8 transition-all duration-500 overflow-hidden ${
+            className={`relative py-12 px-8 min-h-[320px] transition-all duration-500 overflow-hidden rounded-2xl ${
               selectedMode === 'ai'
                 ? ''
                 : selectedMode === 'manual'
                 ? 'opacity-40'
                 : 'hover:bg-white/20 dark:hover:bg-white/5'
             }`}
-            whileHover={{ scale: selectedMode ? 1 : 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
             {/* 背景山水图片 */}
             {selectedMode === 'ai' && (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                initial={{ opacity: 0, scale: 1.2 }}
+                animate={{ opacity: 1, scale: 1.5 }}
                 transition={{ duration: 0.8 }}
                 className="absolute inset-0 z-0"
                 style={{
                   backgroundImage: 'url(/images/waterfall-bg.png)',
-                  backgroundSize: 'cover',
+                  backgroundSize: 'contain',
                   backgroundPosition: 'center',
+                  backgroundRepeat: 'no-repeat',
                   opacity: 0.15,
                 }}
               />
@@ -413,30 +412,17 @@ const CreateWorkChoice: React.FC<CreateWorkChoiceProps> = ({ onSelect, onBack })
               initial={{ y: -20 }}
               animate={{ y: 0 }}
               transition={{ delay: 0.2, duration: 0.5 }}
-              className="py-6 border-t border-gray-200 dark:border-gray-700"
+              className="py-6"
             >
               {/* 详细说明 */}
               <div className="max-w-2xl mx-auto text-center space-y-4">
-                <div className="space-y-4 text-gray-600 dark:text-gray-400 leading-loose">
-                  {selectedMode === 'manual' ? (
-                    <>
-                      <p>直接进入创作界面，快速记录您的灵感与构思</p>
-                      <p className="text-sm text-gray-400 dark:text-gray-500">适合已有完整故事框架的创作者</p>
-                    </>
-                  ) : (
-                    <>
-                      <p>通过AI的引导式提问，逐步完善您的创作思路</p>
-                      <p className="text-sm text-gray-400 dark:text-gray-500">适合需要梳理想法的创作者</p>
-                    </>
-                  )}
-                </div>
 
                 {/* 进入按钮 */}
                 <motion.button
                   onClick={handleConfirm}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-16 py-4 border-2 border-gray-800 dark:border-gray-200 text-gray-800 dark:text-gray-200 hover:bg-gray-800 hover:text-white dark:hover:bg-gray-200 dark:hover:text-slate-900 transition-all duration-300"
+                  className="px-16 py-4 border-2 border-gray-800 dark:border-gray-200 text-gray-800 dark:text-gray-200 hover:bg-gray-800 hover:text-white dark:hover:bg-gray-200 dark:hover:text-slate-900 transition-all duration-300 rounded-xl"
                 >
                   进入创作
                 </motion.button>

@@ -56,7 +56,8 @@ from .llm_optimizer import (
 from .context_builder import (
     _compress_task_result,
     _build_summarization_context,
-    _build_knowledge_system_messages
+    _build_knowledge_system_messages,
+    _build_worldview_system_messages
 )
 
 from .tool_helpers import (
@@ -110,6 +111,7 @@ __all__ = [
     "_compress_task_result",
     "_build_summarization_context",
     "_build_knowledge_system_messages",
+    "_build_worldview_system_messages",
 
     # 工具辅助
     "resolve_version_reference",

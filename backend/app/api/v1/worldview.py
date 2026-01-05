@@ -20,7 +20,10 @@ from app.schemas.worldview import (
     LocationCreate, LocationUpdate, LocationResponse,
     SettingCreate, SettingUpdate, SettingResponse,
     WorkGuidelinesCreate, WorkGuidelinesUpdate, WorkGuidelinesResponse,
-    WorldDataResponse
+    WorldDataResponse,
+    # 世界观同步相关
+    WorldviewChangesResponse, ExtractChangesRequest, ScanChangesRequest,
+    ApplyChangesRequest, ApplyChangesResponse
 )
 from app.services.worldview_service import WorldviewService
 from app.services.ai_guidelines_service import AIGuidelinesService
@@ -205,16 +208,22 @@ async def _auto_populate_worldview_from_guidelines(
     work_id: str,
     guidelines_data: AIGuidelinesUpdate,
     worldview_service: WorldviewService,
-    db: AsyncSession,  # 2025-12-01: 添加db参数以支持成本追踪
-    user_id: str  # 2025-12-01: 添加user_id参数以支持成本追踪
+    db: AsyncSession,
+    user_id: str
 ):
-    """从AI规范自动提取并创建人物、地点、设定（按名称去重，支持重复触发）"""
+    """
+    从AI规范自动提取并创建人物、地点、设定卡片
+    优化版：充分解析AI生成的详细内容，生成更丰富的卡片
+    """
     from sqlalchemy import select
     from uuid import UUID
+    import re
 
     work_uuid = UUID(work_id)
-    
-    # 1. 创建主角人物
+
+    # ════════════════════════════════════════════════════════════════
+    # 1. 创建主角人物卡片（详细版）
+    # ════════════════════════════════════════════════════════════════
     if guidelines_data.protagonist_name:
         exists_stmt = select(Character.id).where(
             Character.work_id == work_uuid,
@@ -222,25 +231,83 @@ async def _auto_populate_worldview_from_guidelines(
         )
         exists_result = await db.execute(exists_stmt)
         if not exists_result.scalar_one_or_none():
+            # 构建详细的人物描述
+            desc_parts = []
+
+            if guidelines_data.protagonist_identity:
+                desc_parts.append(f"【身份背景】\n{guidelines_data.protagonist_identity}")
+
+            if guidelines_data.protagonist_traits:
+                desc_parts.append(f"【性格特点】\n{guidelines_data.protagonist_traits}")
+
+            if guidelines_data.protagonist_goal:
+                desc_parts.append(f"【目标追求】\n{guidelines_data.protagonist_goal}")
+
             character_data = CharacterCreate(
                 work_id=work_id,
-                name=guidelines_data.protagonist_name or "主角",
-                description=f"{guidelines_data.protagonist_identity or ''}\n\n性格：{guidelines_data.protagonist_traits or ''}\n\n目标：{guidelines_data.protagonist_goal or ''}".strip(),
-                role="主角"
+                name=guidelines_data.protagonist_name,
+                description="\n\n".join(desc_parts) if desc_parts else "主角",
+                role="主角",
+                tags=["主角", "核心人物"]
             )
             try:
                 await worldview_service.create_character(character_data)
                 logger.info(f"[自动创建] 主角人物: {guidelines_data.protagonist_name}")
             except Exception as e:
                 logger.error(f"创建主角人物失败: {e}", exc_info=True)
-    
-    # 2. 解析并创建地点
+
+    # ════════════════════════════════════════════════════════════════
+    # 2. 解析并创建地点卡片（智能解析格式）
+    # ════════════════════════════════════════════════════════════════
     if guidelines_data.main_locations:
         locations_text = guidelines_data.main_locations
-        # 按顿号、分号、逗号分割
-        location_names = [loc.strip() for loc in locations_text.replace('、', ',').replace('；', ',').replace(';', ',').split(',') if loc.strip()]
-        
-        for loc_name in location_names[:10]:  # 最多创建10个地点
+
+        # 尝试解析新格式：【场景名】类型 | 特色描述 | 氛围关键词
+        # 按换行分割
+        location_lines = [line.strip() for line in locations_text.split('\n') if line.strip()]
+
+        for line in location_lines[:10]:  # 最多创建10个地点
+            # 尝试解析【】格式
+            match = re.match(r'【(.+?)】(.+)', line)
+            if match:
+                loc_name = match.group(1).strip()
+                loc_detail = match.group(2).strip()
+
+                # 进一步解析 | 分隔的内容
+                parts = [p.strip() for p in loc_detail.split('|')]
+                loc_type = parts[0] if len(parts) > 0 else "场景"
+                loc_desc = parts[1] if len(parts) > 1 else loc_detail
+                loc_atmosphere = parts[2] if len(parts) > 2 else ""
+
+                full_desc = loc_desc
+                if loc_atmosphere:
+                    full_desc += f"\n\n氛围：{loc_atmosphere}"
+            else:
+                # 回退到旧逻辑：按顿号、分号、逗号分割
+                loc_names_simple = [loc.strip() for loc in line.replace('、', ',').replace('；', ',').replace(';', ',').split(',') if loc.strip()]
+                for loc_name in loc_names_simple:
+                    exists_stmt = select(Location.id).where(
+                        Location.work_id == work_uuid,
+                        Location.name == loc_name
+                    )
+                    exists_result = await db.execute(exists_stmt)
+                    if exists_result.scalar_one_or_none():
+                        continue
+
+                    location_data = LocationCreate(
+                        work_id=work_id,
+                        name=loc_name,
+                        description="AI生成的主要场景",
+                        type="场景"
+                    )
+                    try:
+                        await worldview_service.create_location(location_data)
+                        logger.info(f"[自动创建] 地点: {loc_name}")
+                    except Exception as e:
+                        logger.error(f"创建地点失败 {loc_name}: {e}", exc_info=True)
+                continue
+
+            # 检查是否已存在
             exists_stmt = select(Location.id).where(
                 Location.work_id == work_uuid,
                 Location.name == loc_name
@@ -252,26 +319,44 @@ async def _auto_populate_worldview_from_guidelines(
             location_data = LocationCreate(
                 work_id=work_id,
                 name=loc_name,
-                description=f"来自AI生成的主要场景",
-                type="场景"  # 注意：Schema字段是type不是location_type
+                description=full_desc,
+                type=loc_type
             )
             try:
                 await worldview_service.create_location(location_data)
-                logger.info(f"[自动创建] 地点: {loc_name}")
+                logger.info(f"[自动创建] 地点: {loc_name} ({loc_type})")
             except Exception as e:
                 logger.error(f"创建地点失败 {loc_name}: {e}", exc_info=True)
-    
-    # 3. 创建设定卡片
+
+    # ════════════════════════════════════════════════════════════════
+    # 3. 创建设定卡片（更丰富的分类）
+    # ════════════════════════════════════════════════════════════════
     settings_to_create = []
-    
-    # 力量体系
+
+    # 力量体系（详细版）
     if guidelines_data.power_system_name:
+        power_content_parts = [f"体系名称：{guidelines_data.power_system_name}"]
+
+        if guidelines_data.power_levels:
+            power_content_parts.append(f"\n【等级划分】\n{guidelines_data.power_levels}")
+
+        if guidelines_data.power_cost:
+            power_content_parts.append(f"\n【代价与限制】\n{guidelines_data.power_cost}")
+
         settings_to_create.append({
-            "name": guidelines_data.power_system_name,
-            "content": f"等级划分：{guidelines_data.power_levels or ''}\n\n代价限制：{guidelines_data.power_cost or ''}".strip(),
+            "name": f"力量体系：{guidelines_data.power_system_name}",
+            "content": "\n".join(power_content_parts),
             "category": "力量体系"
         })
-    
+
+    # 世界观简介
+    if guidelines_data.world_intro:
+        settings_to_create.append({
+            "name": "核心世界观",
+            "content": guidelines_data.world_intro,
+            "category": "世界观设定"
+        })
+
     # 世界规则
     if guidelines_data.world_rules:
         settings_to_create.append({
@@ -279,23 +364,40 @@ async def _auto_populate_worldview_from_guidelines(
             "content": guidelines_data.world_rules,
             "category": "世界观设定"
         })
-    
-    # 世界观简介
-    if guidelines_data.world_intro:
+
+    # 创作基调
+    if guidelines_data.creative_tone:
         settings_to_create.append({
-            "name": "世界观简介",
-            "content": guidelines_data.world_intro,
-            "category": "世界观设定"
+            "name": "创作基调",
+            "content": guidelines_data.creative_tone,
+            "category": "写作风格"
         })
-    
+
     # 冲突设计
     if guidelines_data.conflict_design:
         settings_to_create.append({
-            "name": "冲突设计",
+            "name": "核心冲突设计",
             "content": guidelines_data.conflict_design,
             "category": "剧情设定"
         })
-    
+
+    # 三幕剧情大纲
+    plot_parts = []
+    if guidelines_data.act_one:
+        plot_parts.append(f"【第一幕：开局与建置】\n{guidelines_data.act_one}")
+    if guidelines_data.act_two:
+        plot_parts.append(f"【第二幕：冲突与发展】\n{guidelines_data.act_two}")
+    if guidelines_data.act_three:
+        plot_parts.append(f"【第三幕：高潮与结局】\n{guidelines_data.act_three}")
+
+    if plot_parts:
+        settings_to_create.append({
+            "name": "三幕剧情大纲",
+            "content": "\n\n".join(plot_parts),
+            "category": "剧情设定"
+        })
+
+    # 批量创建设定卡片
     for setting_info in settings_to_create:
         exists_stmt = select(Setting.id).where(
             Setting.work_id == work_uuid,
@@ -307,7 +409,7 @@ async def _auto_populate_worldview_from_guidelines(
 
         setting_data = SettingCreate(
             work_id=work_id,
-            title=setting_info["name"],  # 注意：Schema字段是title不是name
+            title=setting_info["name"],
             content=setting_info["content"],
             category=setting_info["category"]
         )
@@ -998,22 +1100,85 @@ async def delete_ai_guidelines(
 
 
 @router.post("/ai-guidelines/generate", response_model=AIGuidelinesGenerateResponse)
-async def generate_phase2_content(
+async def generate_ai_guidelines(
     request: AIGuidelinesGenerateRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    AI生成阶段二内容
-    基于阶段一的15个用户输入，智能生成阶段二的17个核心设定字段
-    
-    注意：此接口不需要认证，因为它只是AI生成，不涉及用户数据
+    AI生成世界观内容
+
+    支持两种模式：
+    1. 🆕 方案C：基于story_concept（故事梗概）生成完整31个字段
+    2. 旧版本：基于15个创作规范字段生成17个核心设定字段
     """
+    user_id = str(current_user.id)
     from app.services.ai.http_ai_service import HTTPAIService
     import json
-    
-    # 构建prompt用于AI生成
-    prompt = f"""你是一名资深商业IP总策划师。现在需要根据用户提供的创作规范信息，为他们生成完整的小说核心设定。
 
-【用户提供的创作规范（阶段一）】
+    # 🆕 判断使用哪种模式
+    if request.story_concept:
+        # ========== 方案C：基于故事梗概一键生成完整31字段 ==========
+        logger.info(f"[AI Guidelines] 方案C：基于故事梗概生成完整设定")
+        prompt = f"""你是一名资深小说策划师。用户提供了一个故事梗概，你需要基于这个梗概，生成**完整且详细**的22个小说创作设定字段。
+
+【用户的故事梗概】
+{request.story_concept}
+
+【生成要求】
+请以JSON格式返回完整的22个字段：
+
+{{
+  // === 核心创作规范（5个字段）===
+  "target_audience": "目标读者画像（年龄、性别、阅读偏好，50字左右）",
+  "high_concept": "高概念卖点，一句话总结核心吸引力",
+  "dominant_emotion": "主导情感体验（如：逆袭的爽感、被理解的慰藉、探索的惊奇等）",
+  "writing_style": "文字风格（如：冷峻简洁、华丽诗性、幽默诙谐、平实感人等）",
+  "chapter_length": "平均章节字数（如：2000-3000字）",
+
+  // === 小说类型（3个字段）===
+  "primary_genre": "一级类型（玄幻/都市/仙侠/科幻/悬疑/言情等）",
+  "secondary_tags": "二级标签，用顿号分隔（如：系统流、无敌流、种田文，至少3个）",
+  "creative_tone": "创作基调（整体氛围和情感色彩，50字左右）",
+
+  // === 世界背景（3个字段）===
+  "world_intro": "核心世界观（200-300字）。包括：①与现实/常规的核心差异 ②基本运行法则 ③普通人生活状态 ④独特吸引点",
+  "main_locations": "主要场景（每个50-80字）。格式：【场景名】类型 | 特色 | 氛围，至少3个，换行分隔",
+  "world_rules": "世界核心规则（150-200字）。包括：①社会阶层格局 ②资源获取方式 ③普通人上升路径 ④禁忌底线",
+
+  // === 力量体系（3个字段）===
+  "power_system_name": "力量体系名称（有独特性，避免通用名）",
+  "power_levels": "等级划分。格式：等级名 | 实力 | 能力 | 地位，6-9个等级，换行分隔",
+  "power_cost": "力量代价与限制（100-150字）。包括：①获取代价 ②使用限制 ③副作用风险 ④天花板",
+
+  // === 主角设定（4个字段）===
+  "protagonist_name": "主角姓名（符合世界观，有寓意更好）",
+  "protagonist_identity": "主角身份背景（150-200字）。包括：①出身 ②开局处境 ③与世界观关系 ④特殊之处",
+  "protagonist_traits": "主角性格（100-150字）。包括：①3个核心标签 ②形成原因 ③优点 ④缺陷 ⑤标志性行为",
+  "protagonist_goal": "主角目标层次（100字）。包括：①表层目标 ②深层目标 ③终极目标",
+
+  // === 剧情构思（4个字段）===
+  "conflict_design": "核心冲突（150-200字）。包括：①vs自我 ②vs他人 ③vs世界 ④升级节点",
+  "act_one": "第一幕（150-200字）。包括：①开篇钩子 ②日常被打破 ③引出冲突 ④转折点",
+  "act_two": "第二幕（200-250字）。包括：①尝试挫折 ②成长阶段 ③配角引入 ④中点转折 ⑤最低谷",
+  "act_three": "第三幕（150-200字）。包括：①最终觉悟 ②决战设计 ③结局类型 ④核心表达"
+}}
+
+【重要提醒】
+1. 所有字段都要**具体详细**，避免泛泛而谈
+2. 内容要有**独特性和辨识度**，基于故事梗概深度推演
+3. 各字段要**相互呼应**，形成完整体系
+4. 返回严格的JSON格式，不要有任何解释文字
+5. 所有22个字段都必须填写，不能为空"""
+
+        max_tokens = 6000  # 方案C需要更多token
+
+    else:
+        # ========== 旧版本：基于15个字段生成17个字段 ==========
+        logger.info(f"[AI Guidelines] 旧版本：基于创作规范生成核心设定")
+        prompt = f"""你是一名资深商业IP总策划师和专业小说架构师。现在需要根据用户提供的创作规范，生成**详细且可执行**的小说核心设定。
+
+【用户提供的创作规范】
 
 一、战略定位
 - 商业目标：{request.business_goal or '未指定'}
@@ -1039,72 +1204,70 @@ async def generate_phase2_content(
 - 章节长度：{request.chapter_length or '未指定'}
 - 内容禁忌：{request.content_taboos or '未指定'}
 
-【请你生成以下内容】
-
-请基于上述信息，生成完整的核心设定内容，要求简洁、具体、可执行。请以JSON格式返回，格式如下：
+【生成要求】
+请以JSON格式返回17个核心设定字段：
 
 {{
-  "primary_genre": "小说一级类型（如：玄幻、都市、武侠等）",
-  "secondary_tags": "二级标签（多个标签用顿号分隔）",
-  "creative_tone": "创作基调描述",
-  "world_intro": "核心世界观简介（100字左右）",
-  "main_locations": "主要场景/地点",
+  "primary_genre": "一级类型",
+  "secondary_tags": "二级标签",
+  "creative_tone": "创作基调",
+  "world_intro": "核心世界观",
+  "main_locations": "主要场景",
   "world_rules": "世界规则",
   "power_system_name": "力量体系名称",
   "power_levels": "等级划分",
-  "power_cost": "代价与限制",
-  "protagonist_name": "主角姓名/代号",
-  "protagonist_identity": "主角身份与背景",
-  "protagonist_traits": "主角性格特点",
-  "protagonist_goal": "主角终极目标",
+  "power_cost": "力量代价",
+  "protagonist_name": "主角姓名",
+  "protagonist_identity": "主角身份",
+  "protagonist_traits": "主角性格",
+  "protagonist_goal": "主角目标",
   "conflict_design": "冲突设计",
-  "act_one": "第一幕剧情",
-  "act_two": "第二幕剧情",
-  "act_three": "第三幕剧情"
+  "act_one": "第一幕",
+  "act_two": "第二幕",
+  "act_three": "第三幕"
 }}
 
-请确保返回的是严格的JSON格式，不要有任何其他解释文字。"""
-    
+【重要提醒】
+返回严格的JSON格式，不要有任何解释文字"""
+
+        max_tokens = 4000
+
     # 调用AI服务生成内容
     full_response = ""
     try:
-        # 2025-12-01: 传递db和user_id以启用成本追踪
         ai_service = HTTPAIService(db=db, user_id=user_id)
-        
-        # 收集AI流式响应
-        async for chunk in ai_service._stream_chat(
+
+        async for chunk, usage in ai_service._stream_chat(
             messages=[
-                {"role": "system", "content": "你是一名资深商业IP总策划师。请根据用户提供的信息，生成小说核心设定，以JSON格式返回。"},
+                {"role": "system", "content": "你是一名资深商业IP总策划师和专业小说架构师。请根据用户提供的信息，生成详细、具体、有独特性的小说设定。必须以严格的JSON格式返回，不要有任何解释文字。"},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=2000,
-            temperature=0.7,
-            task_type=TaskType.CONTENT_CREATION  # ✅ 新增：AI设定生成属于内容创作
+            max_tokens=max_tokens,
+            temperature=0.8,
+            task_type=TaskType.CONTENT_CREATION
         ):
             full_response += chunk
-        
+
         logger.info(f"AI生成的原始响应: {full_response[:500]}...")
-        
-        # 尝试提取JSON
-        # 查找JSON代码块
+
+        # 提取JSON
         json_start = full_response.find('{')
         json_end = full_response.rfind('}') + 1
-        
+
         if json_start >= 0 and json_end > json_start:
             json_str = full_response[json_start:json_end]
             generated_data = json.loads(json_str)
-            
+
             # 构建响应
             response = AIGuidelinesGenerateResponse(**generated_data)
-            logger.info(f"AI生成成功，生成的类型: {response.primary_genre}")
+            logger.info(f"AI生成成功，主类型: {response.primary_genre}, 主角: {response.protagonist_name}")
             return response
         else:
             logger.error(f"无法从AI响应中提取JSON: {full_response[:200]}")
             raise ValueError("AI返回的内容不是有效的JSON格式")
-            
+
     except json.JSONDecodeError as e:
         logger.error(f"JSON解析失败: {e}, 响应内容: {full_response[:500] if full_response else 'N/A'}")
-        # ✅ 2025-12-14: 添加事务回滚，确保积分扣除被回滚
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1112,9 +1275,146 @@ async def generate_phase2_content(
         )
     except Exception as e:
         logger.error(f"AI生成失败: {e}")
-        # ✅ 2025-12-14: 添加事务回滚，确保积分扣除被回滚
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"AI生成失败: {str(e)}"
         )
+
+
+# ==================== 世界观同步接口（方案A + 方案C） ====================
+
+@router.post("/works/{work_id}/worldview/extract-changes", response_model=WorldviewChangesResponse)
+async def extract_changes_from_chapter(
+    work_id: str,
+    request: ExtractChangesRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    方案A：从单个章节提取世界观变化
+
+    章节写完后调用此接口，AI 会分析章节内容，提取出新出现的人物、地点、设定等变化。
+    返回变化列表供用户确认，不会自动应用。
+    """
+    from app.services.worldview_sync_service import WorldviewSyncService
+    from sqlalchemy import select
+    from app.models.chapter import Chapter
+
+    # 验证作品权限
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(work_id)
+    if not work:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    # 获取章节内容
+    chapter_content = request.chapter_content
+    if not chapter_content:
+        # 从数据库读取章节内容
+        chapter_stmt = select(Chapter).where(Chapter.id == request.chapter_id)
+        chapter_result = await db.execute(chapter_stmt)
+        chapter = chapter_result.scalar_one_or_none()
+        if not chapter:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found")
+        chapter_content = chapter.content or ""
+
+    if len(chapter_content) < 100:
+        # 内容太短，返回空结果
+        return WorldviewChangesResponse()
+
+    # 调用同步服务提取变化
+    sync_service = WorldviewSyncService(db, user_id=str(current_user.id))
+    changes = await sync_service.extract_changes_from_chapter(
+        work_id=work_id,
+        chapter_id=request.chapter_id,
+        chapter_content=chapter_content
+    )
+
+    logger.info(f"[世界观同步] 从章节 {request.chapter_id} 提取变化完成: "
+                f"新人物={len(changes.get('new_characters', []))}, "
+                f"新地点={len(changes.get('new_locations', []))}")
+
+    return WorldviewChangesResponse(**changes)
+
+
+@router.post("/works/{work_id}/worldview/scan-changes", response_model=WorldviewChangesResponse)
+async def scan_chapters_for_changes(
+    work_id: str,
+    request: ScanChangesRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    方案C：批量扫描章节，生成世界观变化报告
+
+    扫描指定范围的章节，综合分析所有内容，提取出与现有世界观相比的新增和变化。
+    适用于：写了多章后想一次性同步世界观的场景。
+    """
+    from app.services.worldview_sync_service import WorldviewSyncService
+
+    # 验证作品权限
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(work_id)
+    if not work:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    # 调用同步服务批量扫描
+    sync_service = WorldviewSyncService(db, user_id=str(current_user.id))
+    changes = await sync_service.scan_chapters_for_changes(
+        work_id=work_id,
+        start_chapter=request.start_chapter,
+        end_chapter=request.end_chapter,
+        limit=request.limit
+    )
+
+    logger.info(f"[世界观同步] 批量扫描完成: 扫描章节数={changes.get('scanned_chapters', 0)}, "
+                f"新人物={len(changes.get('new_characters', []))}, "
+                f"新地点={len(changes.get('new_locations', []))}")
+
+    return WorldviewChangesResponse(**changes)
+
+
+@router.post("/works/{work_id}/worldview/apply-changes", response_model=ApplyChangesResponse)
+async def apply_worldview_changes(
+    work_id: str,
+    request: ApplyChangesRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    应用世界观变化到卡片
+
+    将提取出的变化（新人物、新地点、新设定）应用到世界观卡片中。
+    支持选择性应用：通过 selected_items 参数指定要应用的项目。
+    """
+    from app.services.worldview_sync_service import WorldviewSyncService
+
+    # 验证作品权限
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(work_id)
+    if not work:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    # 将 Pydantic 模型转换为字典
+    changes_dict = request.changes.model_dump()
+
+    # 调用同步服务应用变化
+    sync_service = WorldviewSyncService(db, user_id=str(current_user.id))
+    stats = await sync_service.apply_changes(
+        work_id=work_id,
+        changes=changes_dict,
+        selected_items=request.selected_items
+    )
+
+    logger.info(f"[世界观同步] 应用变化完成: {stats}")
+
+    # 失效相关缓存
+    _invalidate_worldview_cache(work_id, ['characters', 'locations', 'settings'])
+
+    return ApplyChangesResponse(**stats)

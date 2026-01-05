@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Novel } from './NovelCard';
 import { ImageWithFallback } from './ImageWithFallback';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DataService } from '../../services/DataService';
 import Modal from '../common/Modal';
@@ -32,6 +32,10 @@ interface NovelDetailProps {
   source?: 'novel-square' | 'bookshelf';
   /** 高亮显示的评论ID，用于从通知跳转时滚动到对应评论 */
   highlightCommentId?: string | null;
+  /** 初始章节ID，用于从通知跳转时直接打开指定章节 */
+  initialChapterId?: string | null;
+  /** 高亮显示的章节评论ID，用于从通知跳转时定位到具体评论 */
+  highlightChapterCommentId?: string | null;
 }
 
 interface Chapter {
@@ -76,7 +80,7 @@ interface RatingStats {
   userRating: number | null;
 }
 
-export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = 'novel-square', highlightCommentId }: NovelDetailProps) {
+export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = 'novel-square', highlightCommentId, initialChapterId, highlightChapterCommentId }: NovelDetailProps) {
   const navigate = useNavigate();
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set([0]));
   const [userRating, setUserRating] = useState(0);
@@ -110,6 +114,14 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
   // 高亮评论状态
   const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
   const commentsSectionRef = useRef<HTMLDivElement>(null);
+
+  // 存储从 API 加载的完整小说数据
+  const [novelData, setNovelData] = useState<Novel>(novel);
+
+  const descriptionParagraphs = useMemo(() => {
+    const raw = (novelData?.description || '').split(/\n+/).map((p) => p.trim()).filter(Boolean);
+    return raw.length > 0 ? raw : ['暂无简介'];
+  }, [novelData?.description]);
 
   // 递归查找子评论所在的顶级评论
   const findParentCommentId = (targetId: string, comments: Comment[]): string | null => {
@@ -257,9 +269,6 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
   const [favoriteCount, setFavoriteCount] = useState(novel.likes || 0);
 
-  // 存储从 API 加载的完整小说数据
-  const [novelData, setNovelData] = useState<Novel>(novel);
-
   // 确认删除对话框
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
@@ -271,7 +280,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
 
   // 阅读器状态
   const [showReader, setShowReader] = useState(false);
-  const [selectedChapterId, setSelectedChapterId] = useState<string | undefined>(undefined);
+  const [selectedChapterId, setSelectedChapterId] = useState<string | undefined>(initialChapterId || undefined);
 
   // Toast
   const { success, error: showError } = useGlobalStore();
@@ -428,6 +437,24 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
       setShowReader(true);
     }
   }, [loading, chapters, currentReadingState, novel.id, getLastChapter]);
+
+  // 从通知跳转时自动进入阅读模式
+  useEffect(() => {
+    if (
+      !loading &&
+      chapters.length > 0 &&
+      initialChapterId &&
+      !hasAutoEnteredReaderRef.current
+    ) {
+      hasAutoEnteredReaderRef.current = true;
+      // 确保章节存在
+      const targetChapter = chapters.find(c => c.id === initialChapterId);
+      if (targetChapter) {
+        setSelectedChapterId(initialChapterId);
+        setShowReader(true);
+      }
+    }
+  }, [loading, chapters, initialChapterId]);
 
   // 章节分组（每10章一组）
   const chapterGroups = chapters.reduce((groups: Chapter[][], chapter) => {
@@ -943,6 +970,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
         }}
         initialChapters={chapters}
         novelTitle={novelData?.title}
+        highlightChapterCommentId={highlightChapterCommentId}
       />
     );
   }
@@ -1033,7 +1061,29 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
 
               <div className="mb-6">
                 <h3 className="text-sm mb-3 text-gray-900 dark:text-white">作品简介</h3>
-                <p className="text-sm text-gray-600 dark:text-slate-400 leading-relaxed">{novelData.description}</p>
+                <div className="space-y-2">
+                  {descriptionParagraphs.map((paragraph, index) => {
+                    const firstChar = index === 0 ? paragraph.charAt(0) : '';
+                    const restText = index === 0 ? paragraph.slice(1) : paragraph;
+                    return (
+                      <p
+                        key={`${index}-${paragraph.slice(0, 12)}`}
+                        className="text-sm text-gray-600 dark:text-slate-400 leading-relaxed"
+                        style={{ textIndent: index === 0 ? '0' : '2em', clear: index === 0 ? 'none' : 'both' }}
+                      >
+                        {index === 0 && firstChar && (
+                          <span
+                            className="float-left mr-2 text-2xl font-medium text-amber-500 dark:text-amber-300"
+                            style={{ lineHeight: '1', paddingRight: '0.1em', marginLeft: '0.2em' }}
+                          >
+                            {firstChar}
+                          </span>
+                        )}
+                        {restText}
+                      </p>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="flex items-center gap-3">

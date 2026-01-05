@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   MessageSquare,
   Search,
-  Filter,
   MoreVertical,
   Lock,
   Unlock,
@@ -10,12 +9,27 @@ import {
   Users,
   MessageCircle,
   Calendar,
+  Eye,
 } from 'lucide-react';
-import { getMyChannels, type Channel as ApiChannel } from '@/services/channelApi';
+import { DataService } from '@/services/DataService';
 import { useToast } from '@/hooks/useToast';
 
-interface Channel extends ApiChannel {
-  // 扩展类型以包含所有需要的字段
+interface AdminChannel {
+  id: string;
+  name: string;
+  description?: string;
+  type: string;
+  status: string;
+  creatorId?: string;
+  workId?: string;
+  memberCount: number;
+  messageCount: number;
+  isPermanent: boolean;
+  warningDays?: number;
+  createdAt: string;
+  updatedAt?: string;
+  lockedAt?: string;
+  bookTitle?: string;
 }
 
 const TYPE_MAP: Record<string, string> = {
@@ -38,18 +52,38 @@ const STATUS_COLOR_MAP: Record<string, string> = {
 
 export default function AdminChannelsView() {
   const { showToast } = useToast();
-  const [channels, setChannels] = useState<Channel[]>([]);
+  const [channels, setChannels] = useState<AdminChannel[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // 点击外部关闭菜单
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenu(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // 加载频道列表
   const loadChannels = async () => {
     try {
       setLoading(true);
-      const response = await getMyChannels();
-      setChannels(response.channels as Channel[]);
+      const response = await DataService.getAdminChannels({
+        channel_type: filterType || undefined,
+        channel_status: filterStatus || undefined,
+        search: searchQuery || undefined,
+      });
+      setChannels(response.channels);
+      setTotal(response.total);
     } catch (err) {
       console.error('加载频道列表失败:', err);
       showToast('error', '加载频道列表失败');
@@ -60,26 +94,72 @@ export default function AdminChannelsView() {
 
   useEffect(() => {
     loadChannels();
-  }, []);
+  }, [filterType, filterStatus]);
 
-  // 筛选频道
-  const filteredChannels = channels.filter((channel) => {
-    if (searchQuery && !channel.name.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false;
-    }
-    if (filterType && channel.type !== filterType) {
-      return false;
-    }
-    if (filterStatus && channel.status !== filterStatus) {
-      return false;
-    }
-    return true;
-  });
+  // 搜索防抖
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadChannels();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // 处理状态切换
   const handleToggleStatus = async (channelId: string, currentStatus: string) => {
-    // TODO: 调用后端 API 更新频道状态
-    showToast('info', '状态更新功能待实现');
+    const newStatus = currentStatus === 'locked' ? 'active' : 'locked';
+    const action = newStatus === 'locked' ? '折叠' : '激活';
+
+    if (!confirm(`确定要${action}该频道吗？`)) {
+      return;
+    }
+
+    try {
+      setActionLoading(channelId);
+      await DataService.updateChannelStatus(channelId, newStatus);
+      showToast('success', `频道已${action}`);
+      await loadChannels();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : `${action}失败`;
+      showToast('error', message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // 设置警告状态
+  const handleSetWarning = async (channelId: string) => {
+    if (!confirm('确定要将该频道设为警告状态吗？')) {
+      return;
+    }
+
+    try {
+      setActionLoading(channelId);
+      await DataService.updateChannelStatus(channelId, 'warning');
+      showToast('success', '频道已设为警告状态');
+      setOpenMenu(null);
+      await loadChannels();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '操作失败';
+      showToast('error', message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // 恢复正常状态
+  const handleSetActive = async (channelId: string) => {
+    try {
+      setActionLoading(channelId);
+      await DataService.updateChannelStatus(channelId, 'active');
+      showToast('success', '频道已恢复正常');
+      setOpenMenu(null);
+      await loadChannels();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '操作失败';
+      showToast('error', message);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   // 格式化日期
@@ -104,7 +184,7 @@ export default function AdminChannelsView() {
           </div>
           <div className="flex items-center space-x-3">
             <div className="text-sm text-gray-600 dark:text-gray-300">
-              共 <span className="font-semibold text-blue-600">{filteredChannels.length}</span> 个频道
+              共 <span className="font-semibold text-blue-600">{total}</span> 个频道
             </div>
           </div>
         </div>
@@ -157,7 +237,7 @@ export default function AdminChannelsView() {
           <div className="flex items-center justify-center h-64">
             <div className="text-gray-500 dark:text-gray-400">加载中...</div>
           </div>
-        ) : filteredChannels.length === 0 ? (
+        ) : channels.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64">
             <MessageSquare className="w-16 h-16 text-gray-300 dark:text-gray-600 mb-4" />
             <p className="text-gray-500 dark:text-gray-400">没有找到频道</p>
@@ -191,7 +271,7 @@ export default function AdminChannelsView() {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredChannels.map((channel) => (
+                {channels.map((channel) => (
                   <tr key={channel.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -217,13 +297,13 @@ export default function AdminChannelsView() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                        {TYPE_MAP[channel.type]}
+                        {TYPE_MAP[channel.type] || channel.type}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${STATUS_COLOR_MAP[channel.status]}`}>
-                          {STATUS_MAP[channel.status]}
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${STATUS_COLOR_MAP[channel.status] || STATUS_COLOR_MAP.active}`}>
+                          {STATUS_MAP[channel.status] || channel.status}
                         </span>
                         {channel.status === 'warning' && channel.warningDays && (
                           <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -235,19 +315,19 @@ export default function AdminChannelsView() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm text-gray-900 dark:text-gray-100">
                         <Users className="w-4 h-4 mr-1 text-gray-400" />
-                        {channel.memberCount}
+                        {channel.memberCount ?? 0}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm text-gray-900 dark:text-gray-100">
                         <MessageCircle className="w-4 h-4 mr-1 text-gray-400" />
-                        {channel.messageCount}
+                        {channel.messageCount ?? 0}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       <div className="flex items-center">
                         <Calendar className="w-4 h-4 mr-1" />
-                        {formatDate(channel.createdAt)}
+                        {channel.createdAt ? formatDate(channel.createdAt) : '-'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -255,7 +335,8 @@ export default function AdminChannelsView() {
                         {channel.status === 'locked' ? (
                           <button
                             onClick={() => handleToggleStatus(channel.id, channel.status)}
-                            className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                            disabled={actionLoading === channel.id}
+                            className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 disabled:opacity-50"
                             title="激活频道"
                           >
                             <Unlock className="w-4 h-4" />
@@ -263,18 +344,59 @@ export default function AdminChannelsView() {
                         ) : (
                           <button
                             onClick={() => handleToggleStatus(channel.id, channel.status)}
-                            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
+                            disabled={actionLoading === channel.id}
+                            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 disabled:opacity-50"
                             title="折叠频道"
                           >
                             <Lock className="w-4 h-4" />
                           </button>
                         )}
-                        <button
-                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                          title="更多操作"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
+
+                        {/* 更多操作下拉菜单 */}
+                        <div className="relative" ref={openMenu === channel.id ? menuRef : null}>
+                          <button
+                            onClick={() => setOpenMenu(openMenu === channel.id ? null : channel.id)}
+                            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            title="更多操作"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+
+                          {openMenu === channel.id && (
+                            <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
+                              {channel.status !== 'warning' && channel.status !== 'locked' && (
+                                <button
+                                  onClick={() => handleSetWarning(channel.id)}
+                                  disabled={actionLoading === channel.id}
+                                  className="w-full flex items-center px-4 py-2 text-sm text-yellow-600 dark:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
+                                >
+                                  <AlertTriangle className="w-4 h-4 mr-2" />
+                                  设为警告
+                                </button>
+                              )}
+                              {channel.status === 'warning' && (
+                                <button
+                                  onClick={() => handleSetActive(channel.id)}
+                                  disabled={actionLoading === channel.id}
+                                  className="w-full flex items-center px-4 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
+                                >
+                                  <Eye className="w-4 h-4 mr-2" />
+                                  恢复正常
+                                </button>
+                              )}
+                              {channel.status === 'locked' && (
+                                <button
+                                  onClick={() => handleSetActive(channel.id)}
+                                  disabled={actionLoading === channel.id}
+                                  className="w-full flex items-center px-4 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
+                                >
+                                  <Unlock className="w-4 h-4 mr-2" />
+                                  解除折叠
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>

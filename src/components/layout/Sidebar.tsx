@@ -39,10 +39,10 @@ const mainNavItems: NavItem[] = [
   { id: 'works', label: '作品管理', icon: BookOpen, path: '/works' },
   { id: 'knowledge', label: '知识库', icon: Library, path: '/knowledge' },
   { id: 'humanize', label: 'AI去痕', icon: Wand2, path: '/humanize' },
-  { id: 'channels', label: '频道', icon: MessageCircle, path: '/channels' },
 ];
 
 const libraryNavItems: NavItem[] = [
+  { id: 'channels', label: '频道', icon: MessageCircle, path: '/channels' },
   { id: 'novel-square', label: '小说广场', icon: BookMarked, path: '/library/novel-square' },
   { id: 'my-bookshelf', label: '我的书架', icon: BookOpen, path: '/library/my-bookshelf' },
 ];
@@ -256,7 +256,7 @@ export const Sidebar: React.FC = () => {
               isCollapsed && 'justify-center'
             )}
           >
-            {!isCollapsed && <span>图书馆</span>}
+            {!isCollapsed && <span>社区</span>}
             <ChevronDown className={clsx('w-4 h-4 transition-transform', !isLibraryExpanded && '-rotate-90')} />
           </button>
           {isLibraryExpanded && libraryNavItems.map(renderNavItem)}

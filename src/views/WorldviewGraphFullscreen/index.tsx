@@ -643,7 +643,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
               <TabsTrigger value="nodes" className="text-xs px-1">节点列表</TabsTrigger>
               <TabsTrigger value="groups" className="text-xs px-1">分组管理</TabsTrigger>
             </TabsList>
-            <TabsContent value="nodes" className="flex-1 mt-0 overflow-hidden">
+            <TabsContent value="nodes" className="flex-1 min-h-0 mt-0 overflow-hidden">
               <EnhancedNodeList
                 characters={worldData.characters}
                 locations={worldData.locations}
@@ -761,7 +761,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
                 }}
               />
             </TabsContent>
-            <TabsContent value="groups" className="flex-1 mt-0 overflow-hidden">
+            <TabsContent value="groups" className="flex-1 min-h-0 mt-0 overflow-hidden">
               <GroupPanel
                 workId={workId!}
                 groups={groups}

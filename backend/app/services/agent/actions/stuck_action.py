@@ -148,6 +148,7 @@ class StuckAction(BaseAction):
 - search_analysis_fragments_tool: 检索相关创作灵感和分析（RAG）
 - analyze_text_tool: 分析现有内容
 - continue_writing_tool: 尝试续写方向
+- get_worldview_summary: 查询世界观信息（当用户询问"世界观里有什么"、"有哪些角色/地点/设定"时立即调用）
 
 当前信息: 作品ID={work_id}, 章节ID={chapter_id}
 

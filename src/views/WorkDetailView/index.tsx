@@ -1325,7 +1325,7 @@ const WorkDetailView: React.FC = () => {
 
   return (
     <>
-      <div className="flex bg-zinc-50/30 dark:bg-slate-900" style={{ height: 'calc(100vh - 60px)' }}>
+      <div className="flex bg-zinc-50/30 dark:bg-slate-900" style={{ height: 'calc(100vh - 44px)' }}>
         {/* 左侧章节面板 */}
         <div
           className={`bg-gradient-to-b from-white to-zinc-50/30 dark:from-slate-900 dark:to-slate-900 flex flex-col border-r border-zinc-100/80 dark:border-slate-700 transition-all duration-300 h-full overflow-hidden ${
@@ -1334,36 +1334,31 @@ const WorkDetailView: React.FC = () => {
         >
           {isLeftCollapsed ? null : (
             /* 展开状态 */
-            <div className="px-4 py-3 flex-1 flex flex-col min-h-0">
-              {/* 标题区域 */}
-              <div className="mb-3 flex-shrink-0">
-                <div className="flex items-center justify-between mb-1">
-                  <h2 className="text-[15px] text-zinc-800 dark:text-slate-100 tracking-tight">{t('workDetail.title')}</h2>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleAddChapter()}
-                      className="h-9 w-9 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
-                    >
-                      <Plus className="h-6 w-6" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setIsLeftCollapsed(true)}
-                      className="h-9 w-9 p-0 text-zinc-400 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
-                    >
-                      <ChevronLeft className="h-6 w-6" />
-                    </Button>
-                  </div>
+            <div className="flex-1 flex flex-col min-h-0">
+              {/* 标题区域 - 与右侧工具栏对齐 */}
+              <div className="px-3 py-1.5 flex items-center justify-between border-b border-zinc-100 dark:border-slate-700 flex-shrink-0">
+                <h2 className="text-[15px] text-zinc-800 dark:text-slate-100 tracking-tight">{t('workDetail.title')}</h2>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleAddChapter()}
+                    className="h-7 w-7 p-0 flex items-center justify-center text-zinc-500 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
+                  >
+                    <Plus className="h-5 w-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsLeftCollapsed(true)}
+                    className="h-7 w-7 p-0 flex items-center justify-center text-zinc-500 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
                 </div>
-                <div className="h-px bg-gradient-to-r from-zinc-200 via-zinc-100 to-transparent dark:from-slate-700 dark:via-slate-800 dark:to-transparent" />
               </div>
 
               {/* 章节列表 */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar -mx-2 min-h-0">
-                <div className="px-2 space-y-1">
+              <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0 px-2 py-2">
+                <div className="space-y-1">
                   {/* 新章节输入框 */}
                   {isAddingChapter && (
                     <div className="relative px-3 py-2.5 rounded-xl bg-white shadow-lg shadow-zinc-200/60 ring-1 ring-zinc-900/5 transition-all dark:bg-slate-800 dark:shadow-slate-900/40 dark:ring-slate-700">

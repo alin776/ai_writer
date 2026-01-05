@@ -147,6 +147,7 @@ class AnalysisAction(BaseAction):
 - get_context_tool: 获取上下文信息
 - read_chapter_tool: 读取章节内容
 - search_analysis_fragments_tool: 检索历史分析片段（RAG）
+- get_worldview_summary: 查询世界观信息（当用户询问"世界观里有什么"、"有哪些角色/地点/设定"时立即调用）
 
 当前信息: 作品ID={work_id}, 章节ID={chapter_id}
 

@@ -34,6 +34,13 @@ import {
   Globe,
   Eye as EyeIcon
 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../components/ui/select';
 import { DataService } from '../../services/DataService';
 import { TxtExportService, type TxtExportResult } from '../../services/TxtExportService';
 import { useGlobalStore } from '../../store/globalStore';
@@ -741,30 +748,38 @@ const WorksView: React.FC = () => {
             </div>
 
             {/* 类型筛选 */}
-            <select
-              value={selectedGenre}
-              onChange={(e) => setSelectedGenre(e.target.value)}
-              className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer rounded-lg"
-              style={{ transform: 'skewX(-2deg)', fontSize: '10px' }}
-            >
-              {allGenres.map(genre => (
-                <option key={genre} value={genre}>
-                  {getGenreDisplayName(genre)}
-                </option>
-              ))}
-            </select>
+            <Select value={selectedGenre} onValueChange={setSelectedGenre}>
+              <SelectTrigger
+                className="w-[90px] bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                size="sm"
+                style={{ transform: 'skewX(-2deg)', fontSize: '10px' }}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {allGenres.map(genre => (
+                  <SelectItem key={genre} value={genre}>
+                    {getGenreDisplayName(genre)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             {/* 排序 */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer rounded-lg"
-              style={{ transform: 'skewX(-2deg)', fontSize: '10px' }}
-            >
-              <option value="date">{t('works.sort.date')}</option>
-              <option value="words">{t('works.sort.words')}</option>
-              <option value="title">{t('works.sort.title')}</option>
-            </select>
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value as any)}>
+              <SelectTrigger
+                className="w-[90px] bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                size="sm"
+                style={{ transform: 'skewX(-2deg)', fontSize: '10px' }}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date">{t('works.sort.date')}</SelectItem>
+                <SelectItem value="words">{t('works.sort.words')}</SelectItem>
+                <SelectItem value="title">{t('works.sort.title')}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </header>
@@ -1021,32 +1036,38 @@ const WorksView: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '11px' }}>{t('works.edit.genre')}</label>
-                    <select
-                      value={editFormData.genre}
-                      onChange={(e) => setEditFormData({ ...editFormData, genre: e.target.value as WorkGenre })}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer rounded-lg"
-                      style={{ fontSize: '12px' }}
+                    <Select
+                      value={editFormData.genre || 'none'}
+                      onValueChange={(value) => setEditFormData({ ...editFormData, genre: value === 'none' ? '' : value as WorkGenre })}
                     >
-                      <option value="">{t('works.genre.selectGenre')}</option>
-                      {['fantasy', 'urban', 'romance', 'scifi', 'wuxia', 'game', 'history', 'military', 'other'].map((genre) => (
-                        <option key={genre} value={genre}>{t(`works.genre.${genre}`)}</option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="w-full" size="sm">
+                        <SelectValue placeholder={t('works.genre.selectGenre')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">{t('works.genre.selectGenre')}</SelectItem>
+                        {['fantasy', 'urban', 'romance', 'scifi', 'wuxia', 'game', 'history', 'military', 'other'].map((genre) => (
+                          <SelectItem key={genre} value={genre}>{t(`works.genre.${genre}`)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div>
                     <label className="block text-gray-700 dark:text-gray-300 mb-1" style={{ fontSize: '11px' }}>{t('works.edit.status')}</label>
-                    <select
+                    <Select
                       value={editFormData.status}
-                      onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value as WorkStatus })}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer rounded-lg"
-                      style={{ fontSize: '12px' }}
+                      onValueChange={(value) => setEditFormData({ ...editFormData, status: value as WorkStatus })}
                     >
-                      <option value="draft">{t('works.status.draft')}</option>
-                      <option value="writing">{t('works.status.writing')}</option>
-                      <option value="completed">{t('works.status.completed')}</option>
-                      <option value="abandoned">{t('works.status.abandoned')}</option>
-                    </select>
+                      <SelectTrigger className="w-full" size="sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="draft">{t('works.status.draft')}</SelectItem>
+                        <SelectItem value="writing">{t('works.status.writing')}</SelectItem>
+                        <SelectItem value="completed">{t('works.status.completed')}</SelectItem>
+                        <SelectItem value="abandoned">{t('works.status.abandoned')}</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 

@@ -15,6 +15,7 @@ interface TimelineNotificationProps {
   batchDeleteMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: () => void;
+  onMarkAsRead?: () => void;
 }
 
 export function TimelineNotification({
@@ -22,7 +23,8 @@ export function TimelineNotification({
   isLast,
   batchDeleteMode = false,
   isSelected = false,
-  onToggleSelect
+  onToggleSelect,
+  onMarkAsRead
 }: TimelineNotificationProps) {
   const getIcon = () => {
     switch (notification.type) {
@@ -84,12 +86,15 @@ export function TimelineNotification({
           <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">{notification.time}</span>
         </div>
 
-        <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed pr-4">
+        <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed pr-4 whitespace-pre-line">
           {notification.content}
         </p>
 
-        {!batchDeleteMode && (
-          <button className="text-xs text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition-colors opacity-0 group-hover:opacity-100">
+        {!batchDeleteMode && !notification.read && onMarkAsRead && (
+          <button
+            onClick={onMarkAsRead}
+            className="text-xs text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition-colors opacity-0 group-hover:opacity-100"
+          >
             标记已读
           </button>
         )}

@@ -524,13 +524,13 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
             </button>
             {/* 下拉菜单 */}
             {showPlusMenu && (
-              <div className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 py-1">
+              <div className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg z-50 p-1">
                 <button
                   onClick={() => {
                     setShowPlusMenu(false);
                     onCreateFangroup?.();
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
                 >
                   <Users className="w-4 h-4" />
                   <span>创建群聊</span>
@@ -541,7 +541,7 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
                     onRefreshAvailable?.();
                     setShowJoinModal(true);
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
                 >
                   <UserPlus className="w-4 h-4" />
                   <span>加好友/群</span>

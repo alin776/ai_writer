@@ -211,6 +211,177 @@ def _build_summarization_context(
     return ''.join(context_parts)
 
 
+def _build_worldview_system_messages(
+    context: Optional[Dict[str, Any]],
+    max_total_chars: int = 3000
+) -> List[SystemMessage]:
+    """将 worldview_data 构造成系统提示
+
+    Args:
+        context: 上下文字典，包含 worldview_data
+        max_total_chars: 总最大字符数
+
+    Returns:
+        SystemMessage 列表
+    """
+    if not context:
+        return []
+
+    worldview = context.get("worldview_data")
+    if not isinstance(worldview, dict) or not worldview:
+        return []
+
+    parts: List[str] = []
+    total = 0
+
+    # 构建人物信息
+    characters = worldview.get("characters", [])
+    if characters:
+        char_lines = ["【人物设定】"]
+        for char in characters:
+            name = char.get("name", "未知")
+            role = char.get("role", "")
+            desc = char.get("description", "")
+            tags = char.get("tags", [])
+            relationships = char.get("relationships", [])
+
+            char_info = f"• {name}"
+            if role:
+                char_info += f"（{role}）"
+            if desc:
+                char_info += f"：{desc}"
+            if tags:
+                char_info += f" [标签: {', '.join(tags[:5])}]"
+            if relationships:
+                # 解析关系数组
+                rel_strs = []
+                for rel in relationships[:3]:  # 最多3个关系
+                    if isinstance(rel, dict):
+                        rel_name = rel.get("target_name", rel.get("name", ""))
+                        rel_type = rel.get("relationship_type", rel.get("type", ""))
+                        if rel_name and rel_type:
+                            rel_strs.append(f"{rel_name}({rel_type})")
+                if rel_strs:
+                    char_info += f" [关系: {', '.join(rel_strs)}]"
+
+            char_lines.append(char_info)
+
+        char_block = "\n".join(char_lines)
+        if total + len(char_block) <= max_total_chars:
+            parts.append(char_block)
+            total += len(char_block)
+
+    # 构建地点信息
+    locations = worldview.get("locations", [])
+    if locations and total < max_total_chars:
+        loc_lines = ["【地点设定】"]
+        for loc in locations:
+            name = loc.get("name", "未知")
+            loc_type = loc.get("type", "")
+            desc = loc.get("description", "")
+
+            loc_info = f"• {name}"
+            if loc_type:
+                loc_info += f"（{loc_type}）"
+            if desc:
+                loc_info += f"：{desc}"
+
+            loc_lines.append(loc_info)
+
+        loc_block = "\n".join(loc_lines)
+        if total + len(loc_block) <= max_total_chars:
+            parts.append(loc_block)
+            total += len(loc_block)
+
+    # 构建设定信息
+    settings = worldview.get("settings", [])
+    if settings and total < max_total_chars:
+        setting_lines = ["【世界设定】"]
+        for setting in settings:
+            title = setting.get("title", "未知")
+            category = setting.get("category", "")
+            content = setting.get("content", "")
+
+            setting_info = f"• {title}"
+            if category:
+                setting_info += f"（{category}）"
+            if content:
+                setting_info += f"：{content}"
+
+            setting_lines.append(setting_info)
+
+        setting_block = "\n".join(setting_lines)
+        if total + len(setting_block) <= max_total_chars:
+            parts.append(setting_block)
+            total += len(setting_block)
+
+    # 构建作品规范
+    guidelines = worldview.get("guidelines", {})
+    if guidelines and total < max_total_chars:
+        guide_lines = ["【写作规范】"]
+
+        # 大纲流程
+        outline = guidelines.get("outline", "")
+        if outline:
+            guide_lines.append(f"• 大纲流程：{outline[:500]}")
+
+        # 风格相关
+        style = guidelines.get("style", "")
+        if style:
+            guide_lines.append(f"• 整体风格：{style}")
+
+        tone = guidelines.get("tone", "")
+        if tone:
+            guide_lines.append(f"• 语言风格：{tone}")
+
+        # 写作参数
+        words_per_chapter = guidelines.get("words_per_chapter")
+        if words_per_chapter:
+            guide_lines.append(f"• 每章字数：约{words_per_chapter}字")
+
+        # 世界规则
+        power_system = guidelines.get("power_system", "")
+        if power_system:
+            guide_lines.append(f"• 力量体系：{power_system[:300]}")
+
+        world_rules = guidelines.get("world_rules", "")
+        if world_rules:
+            guide_lines.append(f"• 世界规则：{world_rules[:300]}")
+
+        # 创作目标
+        target_audience = guidelines.get("target_audience", "")
+        if target_audience:
+            guide_lines.append(f"• 目标读者：{target_audience}")
+
+        main_theme = guidelines.get("main_theme", "")
+        if main_theme:
+            guide_lines.append(f"• 主题：{main_theme}")
+
+        plot_direction = guidelines.get("plot_direction", "")
+        if plot_direction:
+            guide_lines.append(f"• 剧情走向：{plot_direction[:300]}")
+
+        notes = guidelines.get("notes", "")
+        if notes:
+            guide_lines.append(f"• 备注：{notes[:200]}")
+
+        guide_block = "\n".join(guide_lines)
+        if total + len(guide_block) <= max_total_chars:
+            parts.append(guide_block)
+            total += len(guide_block)
+
+    if not parts:
+        return []
+
+    system_text = (
+        "以下是本作品的世界观设定，请在创作时严格遵循这些设定，确保内容一致性：\n\n"
+        + "\n\n".join(parts)
+        + "\n\n请基于以上世界观设定进行创作，保持人物性格、地点描述、世界规则的一致性。"
+    )
+
+    return [SystemMessage(content=system_text)]
+
+
 def _build_knowledge_system_messages(
     context: Optional[Dict[str, Any]],
     max_docs: int = 3,
@@ -280,4 +451,5 @@ __all__ = [
     "_compress_task_result",
     "_build_summarization_context",
     "_build_knowledge_system_messages",
+    "_build_worldview_system_messages",
 ]

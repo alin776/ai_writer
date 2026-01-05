@@ -2071,14 +2071,14 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
             />
             {/* 成员菜单 */}
             <div
-              className="fixed bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl mention-menu z-50 w-64"
+              className="fixed bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl mention-menu z-50 w-64 p-2"
               style={{
                 left: `${mentionMenuPosition.x}px`,
                 top: `${mentionMenuPosition.y}px`,
                 transform: 'translateY(-100%)'
               }}
             >
-              <div className="max-h-64 overflow-y-auto">
+              <div className="max-h-64 overflow-y-auto space-y-1">
                 {filteredList.map((item, index) => (
                   <button
                     key={item.type === 'all' ? 'all' : item.member?.id}
@@ -2090,7 +2090,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                       setMentionSelectedIndex(0);
                     }}
                     className={cn(
-                      "w-full px-3 py-2 text-xs text-left flex items-center gap-2 dark:text-gray-200 transition-colors",
+                      "w-full px-3 py-2 text-xs text-left flex items-center gap-2 dark:text-gray-200 transition-colors rounded-xl",
                       index === mentionSelectedIndex
                         ? "bg-blue-50 dark:bg-blue-900/30"
                         : "hover:bg-gray-50 dark:hover:bg-gray-700"

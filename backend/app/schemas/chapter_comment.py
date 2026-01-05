@@ -68,7 +68,7 @@ class ChapterCommentResponse(ChapterCommentBase):
 
 
 class ChapterCommentWithReplies(ChapterCommentResponse):
-    """带回复列表的章节评论"""
+    """带回复列表的章节评论（两层结构：回复不再嵌套）"""
     replies: List[ChapterCommentResponse] = []
 
 

@@ -91,7 +91,7 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
     }
   };
 
-  // 获取世界观（批量生成所有章节概括）
+  // 批量生成（只生成没有概括的章节）
   const handleGetWorldview = async () => {
     if (!workId) return;
 
@@ -118,6 +118,36 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
     } catch (error) {
       console.error('Failed to get worldview:', error);
       onToast('error', t('editor.summary.getWorldviewFailed'));
+    } finally {
+      setIsLoadingNovel(false);
+    }
+  };
+
+  // 强制重新生成所有章节概括
+  const handleRegenerateAll = async () => {
+    if (!workId) return;
+
+    setIsLoadingNovel(true);
+    try {
+      const chapters = await DataService.getChapters(workId);
+
+      if (chapters.length === 0) {
+        onToast('warning', '暂无章节');
+        return;
+      }
+
+      onToast('info', `开始重新生成 ${chapters.length} 个章节的概括...`);
+
+      // 强制重新生成所有章节概括
+      for (const chapter of chapters) {
+        await DataService.generateChapterSummary(chapter.id, true); // regenerate=true
+      }
+
+      onToast('success', '所有章节概括已重新生成完成');
+      loadNovelSummary();
+    } catch (error) {
+      console.error('Failed to regenerate all summaries:', error);
+      onToast('error', '重新生成概括失败');
     } finally {
       setIsLoadingNovel(false);
     }
@@ -179,7 +209,7 @@ export function SummaryPanel({ workId, currentChapterId, onToast }: SummaryPanel
             <div className="space-y-1.5">
               <Button
                 size="sm"
-                onClick={() => loadNovelSummary()}
+                onClick={handleRegenerateAll}
                 disabled={isLoadingNovel}
                 className="w-full h-8 text-[11px] bg-zinc-100 hover:bg-zinc-200 text-zinc-700 transition-all border border-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-300 dark:border-zinc-600"
               >
