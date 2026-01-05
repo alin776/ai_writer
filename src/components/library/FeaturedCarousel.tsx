@@ -87,9 +87,9 @@ export function FeaturedCarousel({ onViewDetail }: FeaturedCarouselProps = {}) {
   const currentNovel = featuredNovels[currentIndex];
 
   return (
-    <div className="bg-white border-b border-gray-200 dark:bg-slate-900 dark:border-slate-700">
+    <div className="bg-white dark:bg-slate-900">
       <div className="max-w-6xl mx-auto px-6 py-8">
-        <h2 className="mb-6 pb-3 border-b border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white">
+        <h2 className="mb-6 text-gray-900 dark:text-white">
           编辑推荐
         </h2>
 
@@ -140,7 +140,7 @@ export function FeaturedCarousel({ onViewDetail }: FeaturedCarouselProps = {}) {
                 return (
                   <div
                     key={novel.id}
-                    className="absolute transition-all duration-500 ease-in-out overflow-hidden shadow-lg"
+                    className="absolute transition-all duration-500 ease-in-out overflow-hidden shadow-lg rounded-xl"
                     style={{
                       right: rightPosition,
                       width: `${imgWidth}px`,
@@ -166,7 +166,7 @@ export function FeaturedCarousel({ onViewDetail }: FeaturedCarouselProps = {}) {
               <p className="text-gray-600 dark:text-slate-400 mb-6 leading-relaxed">{currentNovel.description}</p>
               <button
                 onClick={() => onViewDetail?.(currentNovel.id)}
-                className="px-8 py-2 bg-red-600 text-white hover:bg-red-700 transition-colors"
+                className="px-8 py-2 bg-red-600 text-white hover:bg-red-700 transition-colors rounded-lg"
               >
                 书籍详情
               </button>

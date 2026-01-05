@@ -997,8 +997,8 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
                     )}
                     <span className="hover:underline">{novelData.author}</span>
                   </div>
-                  <span className="px-2 py-1 bg-gray-100 dark:bg-slate-800 text-xs">{novelData.category}</span>
-                  <span className="px-2 py-1 bg-black dark:bg-slate-700 text-white text-xs">{novelData.status}</span>
+                  <span className="px-2 py-1 bg-gray-100 dark:bg-slate-800 text-xs rounded-lg">{novelData.category}</span>
+                  <span className="px-2 py-1 bg-black dark:bg-slate-700 text-white text-xs rounded-lg">{novelData.status}</span>
                 </div>
               </div>
 
