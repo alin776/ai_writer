@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 写作助手 - 执行轨迹预览</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-primary: #fafaf9;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f5f5f4;
+      --text-primary: #1c1917;
+      --text-secondary: #57534e;
+      --text-muted: #a8a29e;
+      --accent-amber: #d97706;
+      --accent-emerald: #059669;
+      --accent-blue: #2563eb;
+      --accent-violet: #7c3aed;
+      --border-color: #e7e5e4;
+      --font-serif: 'Noto Serif SC', 'Source Han Serif CN', Georgia, serif;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 32px;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .header h1 {
+      font-family: var(--font-serif);
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    /* 用户输入 */
+    .user-input {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .user-input-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .user-input-text {
+      font-family: var(--font-serif);
+      font-size: 16px;
+      color: var(--text-primary);
+      line-height: 1.8;
+    }
+
+    /* 执行轨迹 */
+    .execution-trace {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .trace-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .trace-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .trace-title svg {
+      width: 16px;
+      height: 16px;
+      color: var(--accent-amber);
+    }
+
+    .trace-status {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .trace-status .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-emerald);
+    }
+
+    .trace-status .dot.running {
+      background: var(--accent-blue);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    /* 步骤列表 */
+    .trace-steps {
+      padding: 16px 24px;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--bg-tertiary);
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .step-item:last-child {
+      border-bottom: none;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .step-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .step-icon svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .step-icon.reading {
+      background: #fef3c7;
+      color: var(--accent-amber);
+    }
+
+    .step-icon.searching {
+      background: #dbeafe;
+      color: var(--accent-blue);
+    }
+
+    .step-icon.writing {
+      background: #d1fae5;
+      color: var(--accent-emerald);
+    }
+
+    .step-icon.thinking {
+      background: #ede9fe;
+      color: var(--accent-violet);
+    }
+
+    .step-icon.completed svg {
+      color: var(--accent-emerald);
+    }
+
+    .step-icon.running svg {
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .step-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .step-description {
+      font-size: 14px;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .step-description .highlight {
+      color: var(--accent-amber);
+      font-weight: 500;
+    }
+
+    .step-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .step-meta .result {
+      color: var(--accent-emerald);
+    }
+
+    .step-time {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* 进度条 */
+    .progress-bar {
+      height: 3px;
+      background: var(--bg-tertiary);
+      margin-top: 16px;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-amber), var(--accent-emerald));
+      transition: width 0.5s ease-out;
+      border-radius: 2px;
+    }
+
+    /* 生成内容 */
+    .generated-content {
+      margin-top: 24px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .content-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .content-header svg {
+      width: 16px;
+      height: 16px;
+      color: var(--accent-emerald);
+    }
+
+    .content-header span {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--accent-emerald);
+    }
+
+    .content-body {
+      padding: 24px;
+    }
+
+    .content-text {
+      font-family: var(--font-serif);
+      font-size: 16px;
+      color: var(--text-primary);
+      line-height: 2;
+      text-indent: 2em;
+    }
+
+    .content-text p {
+      margin-bottom: 1em;
+    }
+
+    .typing-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 18px;
+      background: var(--accent-amber);
+      margin-left: 2px;
+      animation: blink 0.8s ease-in-out infinite;
+      vertical-align: text-bottom;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    /* 控制按钮 */
+    .controls {
+      margin-top: 32px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--accent-amber);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #b45309;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-secondary);
+    }
+
+    /* 隐藏 */
+    .hidden {
+      display: none !important;
+    }
+
+    /* 统计信息 */
+    .stats {
+      margin-top: 16px;
+      padding: 12px 24px;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .stat-value {
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>✨ AI 写作助手</h1>
+      <p>智能创作 · 执行轨迹可视化</p>
+    </div>
+
+    <!-- 用户输入 -->
+    <div class="user-input">
+      <div class="user-input-label">创作指令</div>
+      <div class="user-input-text" id="userInput">帮我续写第三章，林风刚刚突破到筑基期，正准备下山历练</div>
+    </div>
+
+    <!-- 执行轨迹 -->
+    <div class="execution-trace">
+      <div class="trace-header">
+        <div class="trace-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+          </svg>
+          创作过程
+        </div>
+        <div class="trace-status" id="traceStatus">
+          <span class="dot"></span>
+          <span id="statusText">准备就绪</span>
+        </div>
+      </div>
+
+      <div class="trace-steps" id="traceSteps">
+        <!-- 步骤会动态插入这里 -->
+      </div>
+
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <!-- 生成内容 -->
+    <div class="generated-content hidden" id="generatedContent">
+      <div class="content-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+          <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+          <path d="M2 2l7.586 7.586"/>
+        </svg>
+        <span>续写完成</span>
+      </div>
+      <div class="content-body">
+        <div class="content-text" id="contentText"></div>
+      </div>
+      <div class="stats">
+        <div class="stat-item">
+          <span>字数</span>
+          <span class="stat-value" id="wordCount">0</span>
+        </div>
+        <div class="stat-item">
+          <span>耗时</span>
+          <span class="stat-value" id="totalTime">0s</span>
+        </div>
+        <div class="stat-item">
+          <span>引用设定</span>
+          <span class="stat-value" id="refCount">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 控制按钮 -->
+    <div class="controls">
+      <button class="btn btn-primary" onclick="startDemo()">🚀 开始创作</button>
+      <button class="btn btn-secondary" onclick="resetDemo()">🔄 重置</button>
+    </div>
+  </div>
+
+  <script>
+    // SVG 图标
+    const icons = {
+      book: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      </svg>`,
+      search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/>
+        <path d="m21 21-4.35-4.35"/>
+      </svg>`,
+      user: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>`,
+      pen: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+        <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+      </svg>`,
+      sparkles: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+      </svg>`,
+      check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>`,
+      loader: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+      </svg>`
+    };
+
+    // 写作场景的演示数据
+    const demoSteps = [
+      {
+        type: 'reading',
+        icon: 'book',
+        description: '正在阅读 <span class="highlight">《第三章 初试锋芒》</span> 的内容...',
+        result: '已读取 3,200 字',
+        time: 0.3
+      },
+      {
+        type: 'searching',
+        icon: 'user',
+        description: '正在查阅人物 <span class="highlight">「林风」</span> 的详细设定...',
+        result: '主角 · 筑基期 · 天赋异禀',
+        time: 0.2
+      },
+      {
+        type: 'searching',
+        icon: 'search',
+        description: '正在检索 <span class="highlight">「筑基期」</span> 相关的修炼体系...',
+        result: '找到 5 条相关设定',
+        time: 0.2
+      },
+      {
+        type: 'searching',
+        icon: 'search',
+        description: '正在查找 <span class="highlight">「下山历练」</span> 的剧情大纲...',
+        result: '第一站：青云城',
+        time: 0.2
+      },
+      {
+        type: 'thinking',
+        icon: 'sparkles',
+        description: '正在分析前文的 <span class="highlight">写作风格</span>...',
+        result: '热血 · 轻松 · 快节奏',
+        time: 0.4
+      },
+      {
+        type: 'writing',
+        icon: 'pen',
+        description: '正在构思续写内容，目标约 <span class="highlight">2,000 字</span>...',
+        result: '大纲已生成',
+        time: 0.5
+      },
+      {
+        type: 'writing',
+        icon: 'pen',
+        description: '正在生成续写内容...',
+        result: null,
+        time: 2.0
+      }
+    ];
+
+    // 生成的小说内容
+    const generatedNovelText = `清晨的阳光洒落在青云宗的山门之上，林风背着简单的行囊，站在这个他生活了三年的地方，心中感慨万千。
+
+"师弟，此去山下，万事小心。"身后传来大师兄沉稳的声音。
+
+林风转身，看着这位一直照顾自己的大师兄，郑重地点了点头："大师兄放心，我会照顾好自己的。"
+
+筑基期的修为虽然在宗门内只能算是中等，但对于凡俗世界来说，已经足够应对大多数危险了。更何况，他丹田中那枚神秘的金色种子，似乎随着修为的提升而愈发活跃起来。
+
+"青云城距此三百里，是你下山历练的第一站。"大师兄递过来一块玉牌，"这是宗门的身份令牌，遇到麻烦时可以亮出来。"
+
+林风接过玉牌，感受到其中蕴含的淡淡灵力，心中暖意涌动。
+
+告别了大师兄，林风御剑而起。虽然筑基期的修为还不能长时间御剑飞行，但短途代步还是绑绑有余的。
+
+山风呼啸，白云在脚下翻涌，林风望着远方若隐若现的城池轮廓，嘴角微微上扬。
+
+真正的修仙之路，从今天才算正式开始！`;
+
+    let currentStep = 0;
+    let isRunning = false;
+    let startTime = 0;
+
+    function renderStep(step, index) {
+      const stepEl = document.createElement('div');
+      stepEl.className = 'step-item';
+      stepEl.id = `step-${index}`;
+
+      stepEl.innerHTML = `
+        <div class="step-icon ${step.type} running" id="step-icon-${index}">
+          ${icons.loader}
+        </div>
+        <div class="step-content">
+          <div class="step-description">${step.description}</div>
+          <div class="step-meta">
+            <span class="result hidden" id="step-result-${index}">${step.result || ''}</span>
+          </div>
+        </div>
+        <div class="step-time hidden" id="step-time-${index}">${step.time.toFixed(1)}s</div>
+      `;
+
+      return stepEl;
+    }
+
+    async function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function completeStep(index, step) {
+      await sleep(step.time * 1000);
+
+      const iconEl = document.getElementById(`step-icon-${index}`);
+      const resultEl = document.getElementById(`step-result-${index}`);
+      const timeEl = document.getElementById(`step-time-${index}`);
+
+      iconEl.classList.remove('running');
+      iconEl.classList.add('completed');
+      iconEl.innerHTML = icons.check;
+
+      if (step.result) {
+        resultEl.classList.remove('hidden');
+      }
+      timeEl.classList.remove('hidden');
+
+      // 更新进度条
+      const progress = ((index + 1) / demoSteps.length) * 100;
+      document.getElementById('progressFill').style.width = `${progress}%`;
+    }
+
+    async function typeWriter(element, text, speed = 30) {
+      element.innerHTML = '';
+      const paragraphs = text.split('\n\n');
+      
+      for (let i = 0; i < paragraphs.length; i++) {
+        const p = document.createElement('p');
+        element.appendChild(p);
+        
+        const chars = paragraphs[i].split('');
+        for (let j = 0; j < chars.length; j++) {
+          p.textContent += chars[j];
+          await sleep(speed);
+        }
+      }
+    }
+
+    async function startDemo() {
+      if (isRunning) return;
+      isRunning = true;
+      startTime = Date.now();
+
+      // 重置
+      document.getElementById('traceSteps').innerHTML = '';
+      document.getElementById('generatedContent').classList.add('hidden');
+      document.getElementById('progressFill').style.width = '0%';
+
+      // 更新状态
+      document.querySelector('.trace-status .dot').classList.add('running');
+      document.getElementById('statusText').textContent = '创作中...';
+
+      // 逐步执行
+      for (let i = 0; i < demoSteps.length; i++) {
+        const step = demoSteps[i];
+        const stepsContainer = document.getElementById('traceSteps');
+        const stepEl = renderStep(step, i);
+        stepsContainer.appendChild(stepEl);
+        stepEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+        await completeStep(i, step);
+      }
+
+      // 完成状态
+      document.querySelector('.trace-status .dot').classList.remove('running');
+      document.getElementById('statusText').textContent = '创作完成';
+
+      // 显示生成内容
+      await sleep(300);
+      const contentEl = document.getElementById('generatedContent');
+      contentEl.classList.remove('hidden');
+
+      // 打字机效果显示内容
+      const textEl = document.getElementById('contentText');
+      await typeWriter(textEl, generatedNovelText, 20);
+
+      // 更新统计
+      const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+      document.getElementById('wordCount').textContent = generatedNovelText.length;
+      document.getElementById('totalTime').textContent = totalTime + 's';
+      document.getElementById('refCount').textContent = '3';
+
+      isRunning = false;
+    }
+
+    function resetDemo() {
+      isRunning = false;
+      document.getElementById('traceSteps').innerHTML = '';
+      document.getElementById('generatedContent').classList.add('hidden');
+      document.getElementById('progressFill').style.width = '0%';
+      document.querySelector('.trace-status .dot').classList.remove('running');
+      document.getElementById('statusText').textContent = '准备就绪';
+    }
+  </script>
+</body>
+</html>
+

@@ -138,6 +138,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
     relationship: Relationship;
     sourceLabel: string;
     targetLabel: string;
+    workId?: string;
   } | null>(null);
   const [panelCreateRelationshipData, setPanelCreateRelationshipData] = useState<{
     sourceId: string;
@@ -992,7 +993,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
                 if (rel) {
                   const sourceLabel = getNodeLabel(rel.sourceId, rel.sourceType);
                   const targetLabel = getNodeLabel(rel.targetId, rel.targetType);
-                  setPanelRelationshipData({ relationship: rel, sourceLabel, targetLabel });
+                  setPanelRelationshipData({ relationship: rel, sourceLabel, targetLabel, workId });
                   setPanelMode('relationship');
                   // 如果右侧面板是收缩状态，自动展开
                   if (rightPanelCollapsed) {
@@ -1282,7 +1283,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
               if (rel) {
                 const sourceLabel = getNodeLabel(rel.sourceId, rel.sourceType);
                 const targetLabel = getNodeLabel(rel.targetId, rel.targetType);
-                setPanelRelationshipData({ relationship: rel, sourceLabel, targetLabel });
+                setPanelRelationshipData({ relationship: rel, sourceLabel, targetLabel, workId });
                 setPanelMode('relationship');
               }
             }}

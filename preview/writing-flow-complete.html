@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 写作助手 - 完整场景预览</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-primary: #fafaf9;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f5f5f4;
+      --text-primary: #1c1917;
+      --text-secondary: #57534e;
+      --text-muted: #a8a29e;
+      --accent-amber: #d97706;
+      --accent-emerald: #059669;
+      --accent-blue: #2563eb;
+      --accent-violet: #7c3aed;
+      --accent-rose: #e11d48;
+      --border-color: #e7e5e4;
+      --font-serif: 'Noto Serif SC', 'Source Han Serif CN', Georgia, serif;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 32px;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .header h1 {
+      font-family: var(--font-serif);
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    /* 场景选择器 */
+    .scenario-selector {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      margin-bottom: 32px;
+      padding: 20px;
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+    }
+
+    .scenario-btn {
+      padding: 10px 16px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background: var(--bg-tertiary);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .scenario-btn:hover {
+      border-color: var(--accent-amber);
+      background: #fffbeb;
+    }
+
+    .scenario-btn.active {
+      border-color: var(--accent-amber);
+      background: #fef3c7;
+      color: var(--accent-amber);
+      font-weight: 500;
+    }
+
+    .scenario-btn .emoji {
+      font-size: 16px;
+    }
+
+    /* 用户输入 */
+    .user-input {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .user-input-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .user-input-text {
+      font-family: var(--font-serif);
+      font-size: 16px;
+      color: var(--text-primary);
+      line-height: 1.8;
+    }
+
+    /* 执行轨迹 */
+    .execution-trace {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .trace-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .trace-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .trace-title svg {
+      width: 16px;
+      height: 16px;
+      color: var(--accent-amber);
+    }
+
+    .trace-status {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .trace-status .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-emerald);
+    }
+
+    .trace-status .dot.running {
+      background: var(--accent-blue);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    /* 步骤列表 */
+    .trace-steps {
+      padding: 16px 24px;
+      min-height: 100px;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--bg-tertiary);
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .step-item:last-child {
+      border-bottom: none;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .step-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .step-icon svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* 不同类型的图标颜色 */
+    .step-icon.reading { background: #fef3c7; color: var(--accent-amber); }
+    .step-icon.searching { background: #dbeafe; color: var(--accent-blue); }
+    .step-icon.writing { background: #d1fae5; color: var(--accent-emerald); }
+    .step-icon.thinking { background: #ede9fe; color: var(--accent-violet); }
+    .step-icon.analyzing { background: #fce7f3; color: var(--accent-rose); }
+    .step-icon.editing { background: #e0f2fe; color: #0284c7; }
+
+    .step-icon.completed svg { color: var(--accent-emerald); }
+    .step-icon.running svg { animation: spin 1s linear infinite; }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .step-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .step-description {
+      font-size: 14px;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .step-description .highlight {
+      color: var(--accent-amber);
+      font-weight: 500;
+    }
+
+    .step-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .step-meta .result {
+      color: var(--accent-emerald);
+    }
+
+    .step-time {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ========== 可折叠内容区域 ========== */
+    .step-expandable {
+      margin-top: 12px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      background: var(--bg-tertiary);
+    }
+
+    .expand-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s;
+    }
+
+    .expand-header:hover {
+      background: rgba(0,0,0,0.02);
+    }
+
+    .expand-header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--accent-emerald);
+      font-weight: 500;
+    }
+
+    .expand-header-left svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .expand-header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .expand-header-right .stat {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .expand-header-right .stat-value {
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .expand-arrow {
+      width: 16px;
+      height: 16px;
+      color: var(--text-muted);
+      transition: transform 0.2s;
+    }
+
+    .expand-arrow.expanded {
+      transform: rotate(180deg);
+    }
+
+    .expand-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease-out;
+    }
+
+    .expand-content.expanded {
+      max-height: 1000px;
+    }
+
+    .expand-body {
+      padding: 16px;
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-secondary);
+    }
+
+    /* 小说内容样式 */
+    .novel-content {
+      font-family: var(--font-serif);
+      font-size: 15px;
+      color: var(--text-primary);
+      line-height: 2;
+    }
+
+    .novel-content p {
+      text-indent: 2em;
+      margin-bottom: 0.8em;
+    }
+
+    .novel-content p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* 分析报告样式 */
+    .analysis-report {
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .analysis-report h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 14px 0 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .analysis-report h3:first-child {
+      margin-top: 0;
+    }
+
+    .analysis-report ul {
+      padding-left: 18px;
+      margin: 6px 0;
+    }
+
+    .analysis-report li {
+      margin: 3px 0;
+      color: var(--text-secondary);
+    }
+
+    .analysis-report .score {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      background: #d1fae5;
+      color: var(--accent-emerald);
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 12px;
+    }
+
+    .analysis-report .warning {
+      color: var(--accent-amber);
+    }
+
+    .analysis-report .good {
+      color: var(--accent-emerald);
+    }
+
+    /* 进度条 */
+    .progress-bar {
+      height: 3px;
+      background: var(--bg-tertiary);
+      margin-top: 16px;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-amber), var(--accent-emerald));
+      transition: width 0.5s ease-out;
+      border-radius: 2px;
+    }
+
+    /* 底部统计 */
+    .trace-footer {
+      padding: 12px 24px;
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-tertiary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .trace-footer .stats {
+      display: flex;
+      gap: 16px;
+    }
+
+    .trace-footer .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .trace-footer .stat-value {
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    /* 控制按钮 */
+    .controls {
+      margin-top: 32px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--accent-amber);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #b45309;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-secondary);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>✨ AI 写作助手 - 完整场景预览</h1>
+      <p>涵盖所有工具和功能的执行轨迹展示</p>
+    </div>
+
+    <!-- 场景选择器 -->
+    <div class="scenario-selector">
+      <button class="scenario-btn active" onclick="selectScenario('continue')" id="btn-continue">
+        <span class="emoji">✏️</span> 续写
+      </button>
+      <button class="scenario-btn" onclick="selectScenario('rewrite')" id="btn-rewrite">
+        <span class="emoji">🔄</span> 改写润色
+      </button>
+      <button class="scenario-btn" onclick="selectScenario('expand')" id="btn-expand">
+        <span class="emoji">📝</span> 扩写
+      </button>
+      <button class="scenario-btn" onclick="selectScenario('analyze')" id="btn-analyze">
+        <span class="emoji">📊</span> 分析评审
+      </button>
+      <button class="scenario-btn" onclick="selectScenario('deai')" id="btn-deai">
+        <span class="emoji">🎭</span> 去AI痕迹
+      </button>
+      <button class="scenario-btn" onclick="selectScenario('worldview')" id="btn-worldview">
+        <span class="emoji">🌍</span> 世界观查询
+      </button>
+      <button class="scenario-btn" onclick="selectScenario('chat')" id="btn-chat">
+        <span class="emoji">💬</span> 普通对话
+      </button>
+    </div>
+
+    <!-- 用户输入 -->
+    <div class="user-input">
+      <div class="user-input-label">创作指令</div>
+      <div class="user-input-text" id="userInput">帮我续写第三章，林风刚刚突破到筑基期，正准备下山历练</div>
+    </div>
+
+    <!-- 执行轨迹（所有内容都在这个卡片内） -->
+    <div class="execution-trace">
+      <div class="trace-header">
+        <div class="trace-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+          </svg>
+          <span id="traceTitle">创作过程</span>
+        </div>
+        <div class="trace-status" id="traceStatus">
+          <span class="dot"></span>
+          <span id="statusText">准备就绪</span>
+        </div>
+      </div>
+
+      <div class="trace-steps" id="traceSteps">
+        <div style="color: var(--text-muted); text-align: center; padding: 40px;">
+          点击上方场景按钮，然后点击「开始」查看执行轨迹
+        </div>
+      </div>
+
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+      </div>
+
+      <!-- 底部统计（完成后显示） -->
+      <div class="trace-footer hidden" id="traceFooter">
+        <div class="stats">
+          <div class="stat-item">
+            <span>总耗时</span>
+            <span class="stat-value" id="totalTime">0s</span>
+          </div>
+          <div class="stat-item" id="wordCountSection">
+            <span>生成字数</span>
+            <span class="stat-value" id="wordCount">0</span>
+          </div>
+          <div class="stat-item" id="refCountSection">
+            <span>引用设定</span>
+            <span class="stat-value" id="refCount">0</span>
+          </div>
+        </div>
+        <div style="color: var(--accent-emerald); font-weight: 500;">✓ 完成</div>
+      </div>
+    </div>
+
+    <!-- 控制按钮 -->
+    <div class="controls">
+      <button class="btn btn-primary" onclick="startDemo()">🚀 开始</button>
+      <button class="btn btn-secondary" onclick="resetDemo()">🔄 重置</button>
+    </div>
+  </div>
+
+  <script>
+    // SVG 图标
+    const icons = {
+      book: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
+      search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>`,
+      user: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+      pen: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>`,
+      sparkles: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>`,
+      check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`,
+      loader: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`,
+      edit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+      chart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>`,
+      globe: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
+      refresh: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>`,
+      message: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+      chevronDown: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`
+    };
+
+    // 场景数据
+    const scenarios = {
+      // ========== 续写场景 ==========
+      continue: {
+        title: '续写内容',
+        input: '帮我续写第三章，林风刚刚突破到筑基期，正准备下山历练',
+        traceTitle: '创作过程',
+        steps: [
+          { type: 'reading', icon: 'book', description: '正在阅读 <span class="highlight">《第三章 初试锋芒》</span> 的内容...', result: '已读取 3,200 字', time: 0.3 },
+          { type: 'searching', icon: 'user', description: '正在查阅人物 <span class="highlight">「林风」</span> 的详细设定...', result: '主角 · 筑基期 · 天赋异禀', time: 0.2 },
+          { type: 'searching', icon: 'search', description: '正在检索 <span class="highlight">「筑基期」</span> 相关的修炼体系...', result: '找到 5 条相关设定', time: 0.2 },
+          { type: 'searching', icon: 'search', description: '正在查找 <span class="highlight">「下山历练」</span> 的剧情大纲...', result: '第一站：青云城', time: 0.2 },
+          { type: 'thinking', icon: 'sparkles', description: '正在分析前文的 <span class="highlight">写作风格</span>...', result: '热血 · 轻松 · 快节奏', time: 0.4 },
+          { type: 'writing', icon: 'pen', description: '正在生成续写内容...', result: null, time: 1.5, expandable: true }
+        ],
+        output: `清晨的阳光洒落在青云宗的山门之上，林风背着简单的行囊，站在这个他生活了三年的地方，心中感慨万千。
+
+"师弟，此去山下，万事小心。"身后传来大师兄沉稳的声音。
+
+林风转身，看着这位一直照顾自己的大师兄，郑重地点了点头："大师兄放心，我会照顾好自己的。"
+
+筑基期的修为虽然在宗门内只能算是中等，但对于凡俗世界来说，已经足够应对大多数危险了。
+
+告别了大师兄，林风御剑而起。山风呼啸，白云在脚下翻涌，他望着远方若隐若现的城池轮廓，嘴角微微上扬。
+
+真正的修仙之路，从今天才算正式开始！`,
+        outputTitle: '续写完成',
+        stats: { words: 397, refs: 3 },
+        isNovel: true
+      },
+
+      // ========== 改写润色场景 ==========
+      rewrite: {
+        title: '智能改写',
+        input: '帮我润色一下这段打斗描写，让它更有画面感',
+        traceTitle: '改写过程',
+        steps: [
+          { type: 'reading', icon: 'book', description: '正在读取 <span class="highlight">选中的文本</span>...', result: '共 500 字', time: 0.1 },
+          { type: 'thinking', icon: 'sparkles', description: '正在分析 <span class="highlight">原文风格</span> 和改写需求...', result: '打斗场景 · 需增强画面感', time: 0.3 },
+          { type: 'searching', icon: 'search', description: '正在参考 <span class="highlight">同类型优秀描写</span>...', result: '找到 3 段参考', time: 0.2 },
+          { type: 'editing', icon: 'edit', description: '正在进行 <span class="highlight">润色改写</span>...', result: null, time: 1.2, expandable: true }
+        ],
+        output: `剑光如虹，林风身形暴起！
+
+那一剑，快若惊鸿，携带着筑基期的全部灵力，在空气中划出一道耀眼的银弧。对面的黑衣人瞳孔骤缩，本能地侧身闪避，却仍被剑气擦伤肩头，鲜血顿时飞溅。
+
+"好快的剑！"黑衣人惊呼出声。
+
+林风却不给他喘息之机，脚下一点，如鬼魅般欺近，连续三剑，剑剑封喉！
+
+叮叮叮——
+
+金铁交鸣声不绝于耳，两人的身影在月光下化作两道残影，每一次交锋都带起一阵狂风。`,
+        outputTitle: '改写完成',
+        stats: { words: 280, refs: 1 },
+        isNovel: true
+      },
+
+      // ========== 扩写场景 ==========
+      expand: {
+        title: '扩写内容',
+        input: '把这段场景描写扩展到500字左右，增加更多细节',
+        traceTitle: '扩写过程',
+        steps: [
+          { type: 'reading', icon: 'book', description: '正在读取 <span class="highlight">原文内容</span>...', result: '共 150 字', time: 0.1 },
+          { type: 'thinking', icon: 'sparkles', description: '正在分析 <span class="highlight">扩写方向</span>...', result: '场景细节 · 氛围渲染', time: 0.3 },
+          { type: 'searching', icon: 'search', description: '正在检索 <span class="highlight">「青云城」</span> 的地点设定...', result: '繁华城市 · 修仙集市', time: 0.2 },
+          { type: 'writing', icon: 'pen', description: '正在扩写至 <span class="highlight">500 字</span>...', result: null, time: 1.5, expandable: true }
+        ],
+        output: `青云城，作为方圆千里最大的城池，即便是清晨时分，也已是人声鼎沸。
+
+林风落在城门外，收起飞剑，随着人流缓步入城。城门高约十丈，由青黑色的巨石垒成，上面刻满了复杂的阵法纹路，散发着淡淡的灵光——这是护城大阵的一部分。
+
+"验令牌！"守城的士兵例行公事地喊道。
+
+林风取出青云宗的身份令牌，灵光一闪，士兵立刻换上了恭敬的神色："原来是青云宗的仙师，请进！"
+
+踏入城中，林风顿时被眼前的景象吸引住了。宽阔的主街两旁，各种店铺鳞次栉比，丹药铺、法器店、灵兽阁……应有尽有。
+
+"这就是凡俗与修仙并存的青云城吗？"林风喃喃自语，眼中满是新奇。`,
+        outputTitle: '扩写完成',
+        stats: { words: 520, refs: 2 },
+        isNovel: true
+      },
+
+      // ========== 分析评审场景 ==========
+      analyze: {
+        title: '分析评审',
+        input: '帮我分析一下第三章的写作质量，看看有什么问题',
+        traceTitle: '分析过程',
+        steps: [
+          { type: 'reading', icon: 'book', description: '正在读取 <span class="highlight">《第三章》</span> 全文...', result: '共 5,200 字', time: 0.3 },
+          { type: 'analyzing', icon: 'chart', description: '正在分析 <span class="highlight">情节结构</span>...', result: '三幕式结构', time: 0.4 },
+          { type: 'analyzing', icon: 'chart', description: '正在分析 <span class="highlight">人物塑造</span>...', result: '涉及 4 个人物', time: 0.3 },
+          { type: 'analyzing', icon: 'chart', description: '正在分析 <span class="highlight">文笔风格</span>...', result: '热血爽文风', time: 0.3 },
+          { type: 'analyzing', icon: 'chart', description: '正在检测 <span class="highlight">常见问题</span>...', result: '发现 3 个建议', time: 0.4 },
+          { type: 'thinking', icon: 'sparkles', description: '正在生成 <span class="highlight">综合评估报告</span>...', result: null, time: 0.5, expandable: true }
+        ],
+        output: `<h3>📊 整体评分</h3>
+<p>综合评分：<span class="score">85/100</span></p>
+
+<h3>✅ 优点</h3>
+<ul>
+<li class="good">情节节奏紧凑，突破描写有代入感</li>
+<li class="good">人物对话自然，符合人设</li>
+<li class="good">修炼体系描写清晰，没有矛盾</li>
+</ul>
+
+<h3>⚠️ 改进建议</h3>
+<ul>
+<li class="warning">第2段场景描写略显单薄，建议增加环境细节</li>
+<li class="warning">「林风心中一动」出现3次，建议替换部分用词</li>
+<li class="warning">结尾收束过快，可适当增加过渡</li>
+</ul>
+
+<h3>📈 详细指标</h3>
+<ul>
+<li>情节结构：<span class="score">90</span></li>
+<li>人物塑造：<span class="score">85</span></li>
+<li>文笔流畅：<span class="score">82</span></li>
+<li>节奏把控：<span class="score">88</span></li>
+<li>设定一致：<span class="score">95</span></li>
+</ul>`,
+        outputTitle: '分析报告',
+        stats: { words: 0, refs: 0 },
+        isNovel: false
+      },
+
+      // ========== 去AI痕迹场景 ==========
+      deai: {
+        title: '去AI痕迹',
+        input: '帮我检测并修改这段文字的AI痕迹',
+        traceTitle: '优化过程',
+        steps: [
+          { type: 'reading', icon: 'book', description: '正在读取 <span class="highlight">待检测文本</span>...', result: '共 800 字', time: 0.1 },
+          { type: 'analyzing', icon: 'chart', description: '正在进行 <span class="highlight">AI 特征检测</span>...', result: '检测到 5 处特征', time: 0.5 },
+          { type: 'thinking', icon: 'sparkles', description: '正在分析 <span class="highlight">问题类型</span>...', result: '词汇单一 · 句式重复', time: 0.3 },
+          { type: 'editing', icon: 'refresh', description: '正在进行 <span class="highlight">人性化改写</span>...', result: null, time: 1.5, expandable: true }
+        ],
+        output: `<h3>🔍 检测结果</h3>
+<p>原文AI特征评分：<span class="score" style="background:#fef3c7;color:var(--accent-amber)">72/100</span>（较高）</p>
+<p>改写后评分：<span class="score">16/100</span>（很低 ✓）</p>
+
+<h3>📝 已修改内容</h3>
+<ul>
+<li><del>首先，我们需要了解...</del> → <span class="good">说起这个，就不得不提...</span></li>
+<li><del>总的来说</del> → <span class="good">说白了</span></li>
+<li><del>值得一提的是</del> → <span class="good">有意思的是</span></li>
+<li><del>在这个过程中</del> → <span class="good">这时候</span></li>
+<li><del>我们可以看到</del> → <span class="good">（直接陈述）</span></li>
+</ul>
+
+<h3>💡 优化说明</h3>
+<ul>
+<li>消除过渡词堆砌</li>
+<li>增加口语化表达</li>
+<li>打破规整的句式结构</li>
+</ul>`,
+        outputTitle: '优化报告',
+        stats: { words: 0, refs: 0 },
+        isNovel: false
+      },
+
+      // ========== 世界观查询场景 ==========
+      worldview: {
+        title: '世界观查询',
+        input: '林风的师父是谁？青云宗有哪些长老？',
+        traceTitle: '查询过程',
+        steps: [
+          { type: 'searching', icon: 'globe', description: '正在检索 <span class="highlight">「林风」</span> 的人物关系...', result: '找到师徒关系', time: 0.2 },
+          { type: 'searching', icon: 'user', description: '正在查阅 <span class="highlight">「玄清真人」</span> 的设定...', result: '青云宗掌门', time: 0.2 },
+          { type: 'searching', icon: 'search', description: '正在检索 <span class="highlight">「青云宗」</span> 的组织架构...', result: '找到 6 位长老', time: 0.3 },
+          { type: 'thinking', icon: 'sparkles', description: '正在整理 <span class="highlight">查询结果</span>...', result: null, time: 0.2, expandable: true }
+        ],
+        output: `<h3>👤 林风的师父</h3>
+<p><strong>玄清真人</strong>（青云宗掌门）</p>
+<ul>
+<li>修为：元婴后期</li>
+<li>特点：性格温和，但教徒极严</li>
+<li>与林风关系：亦师亦父</li>
+</ul>
+
+<h3>🏛️ 青云宗长老</h3>
+<ul>
+<li><strong>玄明长老</strong> - 大长老，负责宗门事务</li>
+<li><strong>玄德长老</strong> - 二长老，掌管外门</li>
+<li><strong>玄心长老</strong> - 三长老，负责丹药阁</li>
+<li><strong>玄武长老</strong> - 四长老，执掌执法堂</li>
+<li><strong>玄月长老</strong> - 五长老（女），负责内门女弟子</li>
+<li><strong>玄机长老</strong> - 六长老，掌管藏经阁</li>
+</ul>`,
+        outputTitle: '查询结果',
+        stats: { words: 0, refs: 0 },
+        isNovel: false
+      },
+
+      // ========== 普通对话场景 ==========
+      chat: {
+        title: '普通对话',
+        input: '修仙小说的境界划分一般是怎样的？',
+        traceTitle: '思考过程',
+        steps: [
+          { type: 'thinking', icon: 'sparkles', description: '正在理解 <span class="highlight">问题意图</span>...', result: '知识问答', time: 0.2 },
+          { type: 'searching', icon: 'search', description: '正在检索 <span class="highlight">相关知识</span>...', result: '找到通用设定', time: 0.2 },
+          { type: 'writing', icon: 'message', description: '正在组织 <span class="highlight">回答内容</span>...', result: null, time: 0.5, expandable: true }
+        ],
+        output: `<h3>⚔️ 修仙境界划分（常见体系）</h3>
+
+<p><strong>凡人阶段</strong></p>
+<ul>
+<li>练气期（1-9层）- 引气入体</li>
+<li>筑基期 - 构建修仙根基</li>
+</ul>
+
+<p><strong>修仙阶段</strong></p>
+<ul>
+<li>金丹期 - 凝结金丹</li>
+<li>元婴期 - 孕育元婴</li>
+<li>化神期 - 元婴化神</li>
+</ul>
+
+<p><strong>登仙阶段</strong></p>
+<ul>
+<li>炼虚期 - 炼化虚空</li>
+<li>合体期 - 元神肉身合一</li>
+<li>大乘期 - 半步仙人</li>
+<li>渡劫期 - 飞升仙界</li>
+</ul>
+
+<p style="margin-top: 12px; color: var(--text-muted); font-size: 12px;">💡 您的作品使用的是这套体系，林风目前处于筑基期。</p>`,
+        outputTitle: '回复内容',
+        stats: { words: 0, refs: 0 },
+        isNovel: false
+      }
+    };
+
+    let currentScenario = 'continue';
+    let isRunning = false;
+    let startTime = 0;
+
+    function selectScenario(scenario) {
+      currentScenario = scenario;
+      
+      // 更新按钮状态
+      document.querySelectorAll('.scenario-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(`btn-${scenario}`).classList.add('active');
+      
+      // 更新用户输入
+      const data = scenarios[scenario];
+      document.getElementById('userInput').textContent = data.input;
+      
+      // 重置显示
+      resetDemo();
+    }
+
+    function renderStep(step, index, isLast, data) {
+      const stepEl = document.createElement('div');
+      stepEl.className = 'step-item';
+      stepEl.id = `step-${index}`;
+
+      let expandableHtml = '';
+      if (step.expandable && isLast) {
+        expandableHtml = `
+          <div class="step-expandable hidden" id="expandable-${index}">
+            <div class="expand-header" onclick="toggleExpand(${index})">
+              <div class="expand-header-left">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>${data.outputTitle}</span>
+              </div>
+              <div class="expand-header-right">
+                ${data.stats.words > 0 ? `<span class="stat"><span class="stat-value">${data.stats.words}</span> 字</span>` : ''}
+                <svg class="expand-arrow" id="arrow-${index}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+            </div>
+            <div class="expand-content" id="content-${index}">
+              <div class="expand-body">
+                <div class="${data.isNovel ? 'novel-content' : 'analysis-report'}" id="output-${index}"></div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      stepEl.innerHTML = `
+        <div class="step-icon ${step.type} running" id="step-icon-${index}">
+          ${icons.loader}
+        </div>
+        <div class="step-content">
+          <div class="step-description">${step.description}</div>
+          <div class="step-meta">
+            <span class="result hidden" id="step-result-${index}">${step.result || ''}</span>
+          </div>
+          ${expandableHtml}
+        </div>
+        <div class="step-time hidden" id="step-time-${index}">${step.time.toFixed(1)}s</div>
+      `;
+
+      return stepEl;
+    }
+
+    function toggleExpand(index) {
+      const content = document.getElementById(`content-${index}`);
+      const arrow = document.getElementById(`arrow-${index}`);
+      
+      content.classList.toggle('expanded');
+      arrow.classList.toggle('expanded');
+    }
+
+    async function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function completeStep(index, step, isLast, data) {
+      await sleep(step.time * 1000);
+
+      const iconEl = document.getElementById(`step-icon-${index}`);
+      const resultEl = document.getElementById(`step-result-${index}`);
+      const timeEl = document.getElementById(`step-time-${index}`);
+
+      iconEl.classList.remove('running');
+      iconEl.classList.add('completed');
+      iconEl.innerHTML = icons.check;
+
+      if (step.result) {
+        resultEl.classList.remove('hidden');
+      }
+      timeEl.classList.remove('hidden');
+
+      // 更新进度条
+      const steps = scenarios[currentScenario].steps;
+      const progress = ((index + 1) / steps.length) * 100;
+      document.getElementById('progressFill').style.width = `${progress}%`;
+
+      // 如果是最后一步且有可展开内容
+      if (step.expandable && isLast) {
+        const expandable = document.getElementById(`expandable-${index}`);
+        expandable.classList.remove('hidden');
+        
+        // 渲染输出内容
+        const outputEl = document.getElementById(`output-${index}`);
+        if (data.isNovel) {
+          outputEl.innerHTML = '';
+          const paragraphs = data.output.split('\n\n');
+          for (const para of paragraphs) {
+            const p = document.createElement('p');
+            p.textContent = para;
+            outputEl.appendChild(p);
+          }
+        } else {
+          outputEl.innerHTML = data.output;
+        }
+
+        // 自动展开
+        await sleep(200);
+        toggleExpand(index);
+      }
+    }
+
+    async function startDemo() {
+      if (isRunning) return;
+      isRunning = true;
+      startTime = Date.now();
+
+      const data = scenarios[currentScenario];
+
+      // 重置
+      document.getElementById('traceSteps').innerHTML = '';
+      document.getElementById('progressFill').style.width = '0%';
+      document.getElementById('traceTitle').textContent = data.traceTitle;
+      document.getElementById('traceFooter').classList.add('hidden');
+
+      // 更新状态
+      document.querySelector('.trace-status .dot').classList.add('running');
+      document.getElementById('statusText').textContent = '处理中...';
+
+      // 逐步执行
+      for (let i = 0; i < data.steps.length; i++) {
+        const step = data.steps[i];
+        const isLast = i === data.steps.length - 1;
+        const stepsContainer = document.getElementById('traceSteps');
+        const stepEl = renderStep(step, i, isLast, data);
+        stepsContainer.appendChild(stepEl);
+        stepEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+        await completeStep(i, step, isLast, data);
+      }
+
+      // 完成状态
+      document.querySelector('.trace-status .dot').classList.remove('running');
+      document.getElementById('statusText').textContent = '已完成';
+
+      // 显示底部统计
+      const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+      document.getElementById('totalTime').textContent = totalTime + 's';
+      
+      if (data.stats.words > 0) {
+        document.getElementById('wordCount').textContent = data.stats.words;
+        document.getElementById('wordCountSection').classList.remove('hidden');
+      } else {
+        document.getElementById('wordCountSection').classList.add('hidden');
+      }
+      
+      if (data.stats.refs > 0) {
+        document.getElementById('refCount').textContent = data.stats.refs;
+        document.getElementById('refCountSection').classList.remove('hidden');
+      } else {
+        document.getElementById('refCountSection').classList.add('hidden');
+      }
+
+      document.getElementById('traceFooter').classList.remove('hidden');
+
+      isRunning = false;
+    }
+
+    function resetDemo() {
+      isRunning = false;
+      document.getElementById('traceSteps').innerHTML = `
+        <div style="color: var(--text-muted); text-align: center; padding: 40px;">
+          点击「开始」查看执行轨迹
+        </div>
+      `;
+      document.getElementById('progressFill').style.width = '0%';
+      document.querySelector('.trace-status .dot').classList.remove('running');
+      document.getElementById('statusText').textContent = '准备就绪';
+      document.getElementById('traceFooter').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>

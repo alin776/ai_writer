@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 执行轨迹预览 - Manus 风格</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #1e1e1e;
+            color: #e0e0e0;
+            line-height: 1.6;
+            padding: 24px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        /* Agent 头部 - Manus 风格 */
+        .agent-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .agent-logo {
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .agent-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .agent-badge {
+            font-size: 10px;
+            padding: 1px 5px;
+            background: #2a2a2a;
+            color: #888;
+            border-radius: 3px;
+            border: 1px solid #3a3a3a;
+        }
+
+        /* Agent 消息 */
+        .agent-message {
+            color: #ccc;
+            font-size: 14px;
+            margin-bottom: 16px;
+            line-height: 1.7;
+        }
+
+        /* 执行步骤 - Manus 风格 */
+        .execution-step {
+            margin-bottom: 12px;
+        }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 0;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .step-title-area {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .step-icon {
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #888;
+        }
+
+        .step-icon.completed {
+            color: #888;
+        }
+
+        .step-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #fff;
+        }
+
+        .step-toggle {
+            color: #666;
+            font-size: 12px;
+            transition: transform 0.2s;
+        }
+
+        .step-spacer {
+            flex: 1;
+        }
+
+        /* 步骤内容 - Manus 风格：缩进但无边框 */
+        .step-content {
+            margin-left: 26px;
+            padding-top: 4px;
+        }
+
+        /* 知识调取 - Manus 风格：带圆弧边框的容器 */
+        .knowledge-section {
+            margin-bottom: 8px;
+        }
+
+        .knowledge-container {
+            display: inline-block;
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            border-radius: 12px;
+            padding: 8px 12px;
+        }
+
+        .knowledge-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .knowledge-icon {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .knowledge-title {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .knowledge-toggle {
+            color: #666;
+            font-size: 11px;
+            margin-left: 2px;
+        }
+
+        .knowledge-items {
+            padding-top: 6px;
+        }
+
+        /* 知识项 - Manus 风格：蓝色下划线链接 */
+        .knowledge-item {
+            display: block;
+            padding: 3px 0;
+            font-size: 13px;
+            color: #5c9eff;
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+
+        .knowledge-item:hover {
+            color: #7cb3ff;
+        }
+
+        /* 步骤描述 */
+        .step-description {
+            font-size: 13px;
+            color: #999;
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+
+        /* 文件操作 - Manus 风格：圆弧边框 */
+        .file-operation {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            border-radius: 16px;
+            margin: 8px 0;
+        }
+
+        .file-icon {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .file-text {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .file-name {
+            font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+            color: #aaa;
+            font-size: 12px;
+        }
+
+        /* 分隔 */
+        .section-gap {
+            height: 16px;
+        }
+
+        /* 最终输出 */
+        .final-output {
+            margin-top: 8px;
+        }
+
+        .output-intro {
+            font-size: 14px;
+            color: #ccc;
+            margin-bottom: 12px;
+            line-height: 1.7;
+        }
+
+        .output-intro strong {
+            color: #fff;
+        }
+
+        .output-list {
+            margin: 12px 0;
+            padding-left: 20px;
+        }
+
+        .output-list li {
+            margin-bottom: 6px;
+            color: #ccc;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .output-list strong {
+            color: #fff;
+        }
+
+        .output-hint {
+            font-size: 14px;
+            color: #888;
+            margin-top: 12px;
+        }
+
+        /* 文档卡片 - Manus 风格 */
+        .document-card {
+            background: #252525;
+            border: 1px solid #333;
+            border-radius: 10px;
+            margin-top: 16px;
+            overflow: hidden;
+        }
+
+        .document-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            border-bottom: 1px solid #333;
+        }
+
+        .document-title-area {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .document-icon {
+            width: 24px;
+            height: 24px;
+            background: #3b82f6;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .document-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #fff;
+        }
+
+        .document-menu {
+            color: #666;
+            cursor: pointer;
+            padding: 4px;
+            font-size: 14px;
+        }
+
+        .document-content {
+            padding: 16px;
+            max-height: 350px;
+            overflow-y: auto;
+        }
+
+        .chapter-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 12px;
+        }
+
+        .chapter-text {
+            font-size: 14px;
+            color: #bbb;
+            line-height: 1.8;
+        }
+
+        .chapter-text p {
+            margin-bottom: 10px;
+        }
+
+        .chapter-text .highlight {
+            color: #5c9eff;
+            font-weight: 500;
+        }
+
+        /* 完成状态 - Manus 风格 */
+        .completion-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 16px;
+            color: #10b981;
+            font-size: 13px;
+        }
+
+        .completion-icon {
+            font-size: 14px;
+        }
+
+        /* 隐藏内容 */
+        .hidden {
+            display: none;
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Agent 头部 -->
+        <div class="agent-header">
+            <div class="agent-logo">⚙️</div>
+            <span class="agent-name">manus</span>
+            <span class="agent-badge">Lite</span>
+        </div>
+
+        <!-- Agent 消息 -->
+        <div class="agent-message">
+            这是一个极具史诗感和宿命感的设定。我将为你创作这部小说的前三章，重点展现"反派的惊天交易"、"痴儿的卑微现状"以及"天骄陨落与痴儿澄澈"的强烈对比。请稍等，我先为你规划创作思路。
+        </div>
+
+        <!-- 执行步骤 1 -->
+        <div class="execution-step">
+            <div class="step-header" onclick="toggleStep(this)">
+                <div class="step-icon completed">✓</div>
+                <div class="step-title-area">
+                    <span class="step-title">分析设定并构建章节大纲</span>
+                    <span class="step-toggle">∧</span>
+                </div>
+                <div class="step-spacer"></div>
+            </div>
+            <div class="step-content">
+                <!-- 知识调取 -->
+                <div class="knowledge-section">
+                    <div class="knowledge-container">
+                        <div class="knowledge-header" onclick="toggleKnowledge(this)">
+                            <span class="knowledge-icon">📄</span>
+                            <span class="knowledge-title">知识已调取(2)</span>
+                            <span class="knowledge-toggle">∧</span>
+                        </div>
+                        <div class="knowledge-items">
+                            <a class="knowledge-item">项目分析结构和内容偏好</a>
+                            <a class="knowledge-item">项目分析输出格式偏好</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-description">
+                    已分析设定，确定以"反派交易"、"痴儿特殊"以及"天骄陨落与澄澈对比"为主线，将构建章节大纲，准备后续创作。
+                </div>
+
+                <!-- 文件操作 -->
+                <div class="file-operation">
+                    <span class="file-icon">📝</span>
+                    <span class="file-text">正在创建文件</span>
+                    <span class="file-name">novel_chapters_1_3.md</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 执行步骤 2 -->
+        <div class="execution-step">
+            <div class="step-header" onclick="toggleStep(this)">
+                <div class="step-icon completed">✓</div>
+                <div class="step-title-area">
+                    <span class="step-title">交付小说文档给用户</span>
+                    <span class="step-toggle">∧</span>
+                </div>
+                <div class="step-spacer"></div>
+            </div>
+            <div class="step-content">
+                <!-- 知识调取 -->
+                <div class="knowledge-section">
+                    <div class="knowledge-container">
+                        <div class="knowledge-header" onclick="toggleKnowledge(this)">
+                            <span class="knowledge-icon">📄</span>
+                            <span class="knowledge-title">知识已调取(2)</span>
+                            <span class="knowledge-toggle">∧</span>
+                        </div>
+                        <div class="knowledge-items">
+                            <a class="knowledge-item">项目分析结构和内容偏好</a>
+                            <a class="knowledge-item">项目分析输出格式偏好</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-description">
+                    已完成前三章内容创作，包含反派交易、痴儿特殊以及天骄陨落与澄澈对比的主要线索，将交付给用户。
+                </div>
+            </div>
+        </div>
+
+        <div class="section-gap"></div>
+
+        <!-- Agent 头部 2 -->
+        <div class="agent-header">
+            <div class="agent-logo">⚙️</div>
+            <span class="agent-name">manus</span>
+            <span class="agent-badge">Lite</span>
+        </div>
+
+        <!-- 最终输出 -->
+        <div class="final-output">
+            <div class="output-intro">
+                我已经根据你提供的宏大设定，为你创作了这部修仙小说的前三章内容。
+                这三章分别从<strong>宏观的交易背景</strong>、<strong>微观的痴儿现状</strong>以及<strong>天骄与痴儿的命运对比</strong>三个维度展开：
+            </div>
+
+            <ol class="output-list">
+                <li><strong>第一章：寂灭道主的交易</strong> —— 描写了反派"寂灭道主"与天道进行的惊天博弈，确立了"空白区"这一核心设定。</li>
+                <li><strong>第二章：扫叶人与心魔劫</strong> —— 引入主角"阿纯"，展现痴儿在修行界卑微却又极其纯粹的生存状态。</li>
+                <li><strong>第三章：天骄的崩塌与痴儿的变数</strong> —— 通过顶级天骄林风在心魔劫中的陨落，反衬出痴儿"无执念、无贪嗔"的心境优势，揭示了反派交易的真正后手。</li>
+            </ol>
+
+            <div class="output-hint">
+                你可以点击附件查看完整的小说章节内容。如果你对某些情节或角色的设定有进一步的想法，欢迎随时告诉我！
+            </div>
+
+            <!-- 文档卡片 -->
+            <div class="document-card">
+                <div class="document-header">
+                    <div class="document-title-area">
+                        <div class="document-icon">📄</div>
+                        <span class="document-title">尘封道纪：前三章</span>
+                    </div>
+                    <div class="document-menu">•••</div>
+                </div>
+                <div class="document-content">
+                    <h2 class="chapter-title">第一章：寂灭道主的交易</h2>
+                    <div class="chapter-text">
+                        <p>天地初定，万物初生，法则如新铸的铁链，冰冷而坚固地锁住了世间的一切。</p>
+                        <p>在九天之上，一片混沌未开的虚无之境，站着两位至高无上的存在。一位是<span class="highlight">天道</span>，祂无形无相，是秩序的化身，是众生命数的编织者，此刻正以亿万星辰为眼，俯瞰着祂刚刚完成的杰作——这片浩瀚的修行界。</p>
+                        <p>在祂的对面，是<span class="highlight">寂灭道主</span>。</p>
+                        <p>道主身披无尽幽光，气息古老而沉重，他并非天道的一部分，而是与天道同时诞生的另一极，是"变数"与"终结"的象征。他本应在万物运行的尽头证得永恒，成为这片天地间第一个超脱者。然而，此刻他却主动放弃了这条路。</p>
+                        <p>"吾以道统永封，此生再无证道之可能为代价，"寂灭道主的声音，如无数古老星辰同时崩塌，却又带着一种令人心悸的平静，"换取修改众生命数的一角。"</p>
+                        <p>天道沉默了。祂是秩序，是规则，是绝对的公平。任何对命数的修改，都将动摇祂存在的根基。但寂灭道主的代价，同样是不可思议的——一位至高存在的永恒沉沦。</p>
+                        <p>"你欲何为？"天道的声音在虚无中回响，没有情绪，只有法则的震动。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 完成状态 -->
+        <div class="completion-status">
+            <span class="completion-icon">✓</span>
+            <span>任务已完成</span>
+        </div>
+    </div>
+
+    <script>
+        function toggleStep(header) {
+            const content = header.nextElementSibling;
+            const toggle = header.querySelector('.step-toggle');
+
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                toggle.textContent = '∧';
+            } else {
+                content.classList.add('hidden');
+                toggle.textContent = '∨';
+            }
+        }
+
+        function toggleKnowledge(header) {
+            const items = header.parentElement.querySelector('.knowledge-items');
+            const toggle = header.querySelector('.knowledge-toggle');
+
+            if (items.classList.contains('hidden')) {
+                items.classList.remove('hidden');
+                toggle.textContent = '∧';
+            } else {
+                items.classList.add('hidden');
+                toggle.textContent = '∨';
+            }
+        }
+    </script>
+</body>
+</html>

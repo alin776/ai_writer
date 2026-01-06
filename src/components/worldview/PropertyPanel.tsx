@@ -38,6 +38,7 @@ interface PropertyPanelProps {
     relationship: Relationship;
     sourceLabel: string;
     targetLabel: string;
+    workId?: string; // 作品ID（用于AI生成）
   } | null;
   // 创建关系数据
   createRelationshipData?: {
@@ -205,6 +206,10 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
     color: string;
     lineStyle: 'solid' | 'dashed' | 'dotted';
   } | null>(null);
+
+  // AI 生成相关状态（关系编辑）
+  const [relationshipEditAiInput, setRelationshipEditAiInput] = useState('');
+  const [isGeneratingRelationshipEditAI, setIsGeneratingRelationshipEditAI] = useState(false);
 
   // 饼状图激活状态
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -879,6 +884,49 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
       }
     };
 
+    // AI 生成关系标签和描述（编辑模式）
+    const handleRelationshipEditAIGenerate = async () => {
+      if (!relationshipEditAiInput.trim()) return;
+      if (!relationshipData.workId) {
+        console.error('AI 生成失败: workId 为空');
+        return;
+      }
+
+      setIsGeneratingRelationshipEditAI(true);
+      try {
+        const { DataService } = await import('@/services/DataService');
+
+        const result = await DataService.aiGenerateRelationship({
+          workId: relationshipData.workId,
+          userInput: relationshipEditAiInput.trim(),
+          source: {
+            id: relationship.sourceId,
+            name: sourceLabel,
+            type: relationship.sourceType,
+          },
+          target: {
+            id: relationship.targetId,
+            name: targetLabel,
+            type: relationship.targetType,
+          },
+          relationshipType: currentData.relationshipType,
+          direction: currentData.direction
+        });
+
+        setEditedRelationship(prev => prev ? {
+          ...prev,
+          label: result.label.slice(0, 20),
+          description: result.description,
+        } : null);
+
+        setRelationshipEditAiInput('');
+      } catch (error) {
+        console.error('AI 生成失败:', error);
+      } finally {
+        setIsGeneratingRelationshipEditAI(false);
+      }
+    };
+
     const currentData = isEditingRelationship && editedRelationship ? editedRelationship : {
       relationshipType: relationship.relationshipType,
       label: relationship.label,
@@ -1033,6 +1081,50 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
                       <SelectItem value="dotted">点线</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* AI 智能填充区域 */}
+                <div className="pt-4 border-t border-border">
+                  <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-4 py-3 dark:border-slate-700 dark:bg-slate-800">
+                    <div className="flex flex-col gap-3">
+                      <textarea
+                        value={relationshipEditAiInput}
+                        onChange={(e) => setRelationshipEditAiInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey && relationshipEditAiInput.trim()) {
+                            e.preventDefault();
+                            handleRelationshipEditAIGenerate();
+                          }
+                        }}
+                        placeholder="输入你对这个关系的想法，AI 帮你完善标签和描述..."
+                        className="w-full bg-transparent outline-none border-none text-[12px] placeholder:text-gray-400 resize-none leading-relaxed dark:text-slate-200 dark:placeholder:text-slate-500"
+                        disabled={isGeneratingRelationshipEditAI}
+                        rows={2}
+                        style={{
+                          minHeight: '48px',
+                          maxHeight: '120px',
+                        }}
+                      />
+                      <div className="flex items-center justify-end">
+                        {isGeneratingRelationshipEditAI ? (
+                          <button
+                            disabled
+                            className="w-10 h-10 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center dark:bg-slate-700 dark:text-slate-400"
+                          >
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          </button>
+                        ) : relationshipEditAiInput.trim() ? (
+                          <button
+                            onClick={handleRelationshipEditAIGenerate}
+                            className="w-10 h-10 rounded-full transition-all flex items-center justify-center bg-gray-900 text-white hover:bg-gray-800 active:scale-95 shadow-sm dark:bg-blue-600 dark:hover:bg-blue-500"
+                            aria-label="AI 生成"
+                          >
+                            <Send className="h-4 w-4" strokeWidth={2.4} />
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* 保存/取消按钮 */}

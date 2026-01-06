@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>执行轨迹预览 - AI Writer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-primary: #0d0d0d;
+      --bg-secondary: #1a1a1a;
+      --bg-tertiary: #252525;
+      --text-primary: #e5e5e5;
+      --text-secondary: #a3a3a3;
+      --text-muted: #666;
+      --accent-blue: #3b82f6;
+      --accent-green: #22c55e;
+      --accent-amber: #f59e0b;
+      --border-color: #333;
+      --font-mono: 'SF Mono', 'Fira Code', 'Monaco', monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .header {
+      margin-bottom: 32px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .header h1 {
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    /* 用户问题 */
+    .user-query {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+
+    .user-query-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .user-query-text {
+      font-size: 14px;
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+
+    /* 执行轨迹容器 */
+    .execution-flow {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    /* 执行步骤 */
+    .step {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    .step:last-child {
+      border-bottom: none;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* 思考说明 */
+    .step-thinking {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+      line-height: 1.6;
+    }
+
+    .step-thinking::before {
+      content: "◆";
+      color: var(--accent-amber);
+      margin-right: 8px;
+      font-size: 10px;
+    }
+
+    /* 工具调用 */
+    .tool-call {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--bg-tertiary);
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+
+    .tool-icon {
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .tool-icon svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .tool-icon.running svg {
+      animation: spin 1s linear infinite;
+    }
+
+    .tool-icon.completed svg {
+      color: var(--accent-green);
+    }
+
+    .tool-icon.pending svg {
+      color: var(--text-muted);
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .tool-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .tool-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .tool-params {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      word-break: break-all;
+    }
+
+    .tool-params .param-key {
+      color: var(--accent-blue);
+    }
+
+    .tool-params .param-value {
+      color: var(--text-secondary);
+    }
+
+    /* 结果摘要 */
+    .tool-result {
+      margin-top: 8px;
+      padding-left: 16px;
+      border-left: 2px solid var(--border-color);
+    }
+
+    .tool-result-text {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .tool-result-text::before {
+      content: "└";
+      color: var(--text-muted);
+      margin-right: 6px;
+    }
+
+    .tool-result-text.success {
+      color: var(--accent-green);
+    }
+
+    .tool-result-text.info {
+      color: var(--accent-blue);
+    }
+
+    /* 耗时标签 */
+    .elapsed-time {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    /* 进度条 */
+    .progress-bar {
+      height: 2px;
+      background: var(--bg-tertiary);
+      margin-top: 16px;
+      border-radius: 1px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
+      transition: width 0.5s ease-out;
+    }
+
+    /* 状态指示器 */
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 12px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-green);
+    }
+
+    .status-dot.running {
+      background: var(--accent-blue);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* 最终响应 */
+    .final-response {
+      margin-top: 24px;
+      padding: 20px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+    }
+
+    .final-response-label {
+      font-size: 11px;
+      color: var(--accent-green);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .final-response-content {
+      font-size: 14px;
+      color: var(--text-primary);
+      line-height: 1.7;
+    }
+
+    /* 控制按钮 */
+    .controls {
+      margin-top: 32px;
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--accent-blue);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #2563eb;
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+    }
+
+    /* 代码高亮 */
+    code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--accent-blue);
+    }
+
+    /* 隐藏元素 */
+    .hidden {
+      display: none !important;
+    }
+
+    /* 打字机光标 */
+    .typing-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 14px;
+      background: var(--text-primary);
+      margin-left: 2px;
+      animation: blink 0.8s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎯 执行轨迹预览</h1>
+      <p>模拟 Cursor 风格的 AI 执行过程展示</p>
+    </div>
+
+    <!-- 用户问题 -->
+    <div class="user-query">
+      <div class="user-query-label">用户问题</div>
+      <div class="user-query-text" id="userQuery">为什么现在无法进行连线了？一连线，鼠标松开，这条线就断了</div>
+    </div>
+
+    <!-- 执行轨迹 -->
+    <div class="execution-flow" id="executionFlow">
+      <!-- 步骤会动态插入这里 -->
+    </div>
+
+    <!-- 最终响应 -->
+    <div class="final-response hidden" id="finalResponse">
+      <div class="final-response-label">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        分析完成
+      </div>
+      <div class="final-response-content" id="responseContent"></div>
+    </div>
+
+    <!-- 控制按钮 -->
+    <div class="controls">
+      <button class="btn btn-primary" onclick="startDemo()">🚀 开始演示</button>
+      <button class="btn btn-secondary" onclick="resetDemo()">🔄 重置</button>
+    </div>
+  </div>
+
+  <script>
+    // 演示数据
+    const demoSteps = [
+      {
+        thinking: "让我检查连线逻辑，看看 onConnect 回调是如何处理的。",
+        tools: [
+          {
+            name: "Search",
+            params: { pattern: "onConnect", path: "src/components/worldview/WorldviewGraph.tsx" },
+            result: "Found 64 lines",
+            resultType: "info",
+            elapsed: 0.3
+          }
+        ]
+      },
+      {
+        thinking: "让我检查调用 WorldviewGraph 的地方，看看 onConnect 回调是如何传递和处理的：",
+        tools: [
+          {
+            name: "Search",
+            params: { pattern: "onConnect", path: "src/views/WorldviewGraphFullscreen" },
+            result: "Found 14 lines",
+            resultType: "info",
+            elapsed: 0.2
+          },
+          {
+            name: "Search",
+            params: { pattern: "const handleConnect", path: "src/views/WorldviewGraphFullscreen/index.tsx" },
+            result: "Found 21 lines",
+            resultType: "info",
+            elapsed: 0.2
+          }
+        ]
+      },
+      {
+        thinking: "让我查看 pendingConnection 是如何使用的：",
+        tools: [
+          {
+            name: "Search",
+            params: { pattern: "pendingConnection", path: "src/views/WorldviewGraphFullscreen/index.tsx" },
+            result: "Found 19 lines",
+            resultType: "info",
+            elapsed: 0.2
+          },
+          {
+            name: "Search",
+            params: { pattern: "pendingConnection", path: "src/components/worldview/WorldviewGraph.tsx" },
+            result: "Found 60 lines",
+            resultType: "info",
+            elapsed: 0.3
+          }
+        ]
+      },
+      {
+        thinking: "让我读取相关代码，了解连线的完整流程：",
+        tools: [
+          {
+            name: "Read",
+            params: { file: "src/components/worldview/WorldviewGraph.tsx", lines: "150-200" },
+            result: "Read 50 lines",
+            resultType: "success",
+            elapsed: 0.1
+          }
+        ]
+      },
+      {
+        thinking: "让我检查什么情况下 pendingConnection 会被清除：",
+        tools: [
+          {
+            name: "Search",
+            params: { pattern: "setPendingConnection(null)", path: "src/views/WorldviewGraphFullscreen" },
+            result: "Found 15 lines",
+            resultType: "info",
+            elapsed: 0.2
+          }
+        ]
+      },
+      {
+        thinking: "让我检查 PropertyPanel 的 onClose 回调是如何触发的：",
+        tools: [
+          {
+            name: "Read",
+            params: { file: "src/views/WorldviewGraphFullscreen/index.tsx", lines: "280-320" },
+            result: "Read 40 lines",
+            resultType: "success",
+            elapsed: 0.1
+          }
+        ]
+      },
+      {
+        thinking: "让我检查 onConnect 回调中的 nodes 依赖是否有问题：",
+        tools: [
+          {
+            name: "Read",
+            params: { file: "src/components/worldview/WorldviewGraph.tsx", lines: "380-420" },
+            result: "Read 40 lines",
+            resultType: "success",
+            elapsed: 0.1
+          }
+        ]
+      },
+      {
+        thinking: "让我检查节点的 Handle 定义是否正确：",
+        tools: [
+          {
+            name: "Search",
+            params: { pattern: 'const CharacterNode"', path: "src/components/worldview/WorldviewGraph.tsx" },
+            result: "Found 1 match",
+            resultType: "info",
+            elapsed: 0.1
+          }
+        ]
+      }
+    ];
+
+    const finalResponseText = `根据代码分析，我发现了问题所在：
+
+**问题原因：**
+在 \`WorldviewGraph.tsx\` 中，\`onConnect\` 回调使用了闭包捕获的 \`nodes\` 状态，但没有将 \`nodes\` 添加到 \`useCallback\` 的依赖数组中。这导致连线时使用的是旧的节点状态。
+
+**具体位置：**
+- 文件：\`src/components/worldview/WorldviewGraph.tsx\`
+- 行号：约 385-400 行
+
+**修复建议：**
+\`\`\`tsx
+const handleConnect = useCallback((connection) => {
+  // 修复：添加 nodes 到依赖数组
+}, [nodes, setEdges]);
+\`\`\`
+
+需要我帮你修复这个问题吗？`;
+
+    // SVG 图标
+    const icons = {
+      search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"></circle>
+        <path d="m21 21-4.35-4.35"></path>
+      </svg>`,
+      file: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+      </svg>`,
+      loading: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+      </svg>`,
+      check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>`
+    };
+
+    let currentStep = 0;
+    let isRunning = false;
+
+    function getToolIcon(toolName) {
+      if (toolName === 'Search') return icons.search;
+      if (toolName === 'Read') return icons.file;
+      return icons.search;
+    }
+
+    function formatParams(params) {
+      return Object.entries(params).map(([key, value]) => 
+        `<span class="param-key">${key}</span>: <span class="param-value">"${value}"</span>`
+      ).join(', ');
+    }
+
+    function renderStep(step, stepIndex) {
+      const stepEl = document.createElement('div');
+      stepEl.className = 'step';
+      stepEl.id = `step-${stepIndex}`;
+
+      let html = `<div class="step-thinking">${step.thinking}</div>`;
+
+      step.tools.forEach((tool, toolIndex) => {
+        const toolId = `tool-${stepIndex}-${toolIndex}`;
+        html += `
+          <div class="tool-call" id="${toolId}">
+            <div class="tool-icon running" id="${toolId}-icon">
+              ${icons.loading}
+            </div>
+            <div class="tool-content">
+              <div class="tool-name">${tool.name}</div>
+              <div class="tool-params">${formatParams(tool.params)}</div>
+              <div class="tool-result hidden" id="${toolId}-result">
+                <div class="tool-result-text ${tool.resultType}">${tool.result}</div>
+              </div>
+            </div>
+            <div class="elapsed-time hidden" id="${toolId}-time">${tool.elapsed.toFixed(1)}s</div>
+          </div>
+        `;
+      });
+
+      stepEl.innerHTML = html;
+      return stepEl;
+    }
+
+    async function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function animateToolComplete(stepIndex, toolIndex, tool) {
+      const toolId = `tool-${stepIndex}-${toolIndex}`;
+      const iconEl = document.getElementById(`${toolId}-icon`);
+      const resultEl = document.getElementById(`${toolId}-result`);
+      const timeEl = document.getElementById(`${toolId}-time`);
+
+      // 模拟执行时间
+      await sleep(tool.elapsed * 1000 + 200);
+
+      // 更新图标
+      iconEl.classList.remove('running');
+      iconEl.classList.add('completed');
+      iconEl.innerHTML = icons.check;
+
+      // 显示结果
+      resultEl.classList.remove('hidden');
+      timeEl.classList.remove('hidden');
+    }
+
+    async function runStep(step, stepIndex) {
+      const flow = document.getElementById('executionFlow');
+      const stepEl = renderStep(step, stepIndex);
+      flow.appendChild(stepEl);
+
+      // 滚动到最新
+      stepEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+      // 依次完成每个工具调用
+      for (let i = 0; i < step.tools.length; i++) {
+        await animateToolComplete(stepIndex, i, step.tools[i]);
+      }
+
+      await sleep(300);
+    }
+
+    async function startDemo() {
+      if (isRunning) return;
+      isRunning = true;
+
+      // 重置
+      document.getElementById('executionFlow').innerHTML = '';
+      document.getElementById('finalResponse').classList.add('hidden');
+
+      // 逐步执行
+      for (let i = 0; i < demoSteps.length; i++) {
+        await runStep(demoSteps[i], i);
+      }
+
+      // 显示最终响应
+      await sleep(500);
+      const responseEl = document.getElementById('finalResponse');
+      const contentEl = document.getElementById('responseContent');
+      
+      responseEl.classList.remove('hidden');
+      
+      // 打字机效果
+      await typeWriter(contentEl, finalResponseText);
+
+      isRunning = false;
+    }
+
+    async function typeWriter(element, text) {
+      element.innerHTML = '';
+      const cursor = document.createElement('span');
+      cursor.className = 'typing-cursor';
+      
+      // 简单的 Markdown 处理
+      const processedText = text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+        .replace(/\n/g, '<br>');
+
+      // 直接显示（简化演示）
+      element.innerHTML = processedText;
+    }
+
+    function resetDemo() {
+      isRunning = false;
+      document.getElementById('executionFlow').innerHTML = '';
+      document.getElementById('finalResponse').classList.add('hidden');
+    }
+
+    // 页面加载后自动开始
+    // window.onload = () => setTimeout(startDemo, 500);
+  </script>
+</body>
+</html>
+
