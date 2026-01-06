@@ -123,6 +123,8 @@ const WorkDetailView: React.FC = () => {
     replaceTabSession,
     attachSessionTab
   } = useTabManager(currentChapterId || workId || 'work', workId);
+
+  const currentChapterMeta = chapters.find((chapter) => chapter.id === currentChapterId);
   const [showHistoryPanel, setShowHistoryPanel] = useState(false);
   const handleOpenHistory = useCallback(() => setShowHistoryPanel(true), []);
   const handleCloseHistory = useCallback(() => setShowHistoryPanel(false), []);
@@ -1608,6 +1610,8 @@ const WorkDetailView: React.FC = () => {
             placeholder={t('editor.startWriting')}
             autoSave={true}
             autoSaveInterval={3000}
+            chapterTitle={currentChapterMeta?.title}
+            chapterOrder={currentChapterMeta?.order}
             workId={workId}
             chapterId={currentChapterId || undefined}
             aiAutoCompleteEnabled={aiAutoCompleteEnabled}

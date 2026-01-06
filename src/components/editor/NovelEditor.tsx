@@ -47,6 +47,8 @@ interface NovelEditorProps {
   placeholder?: string;
   autoSave?: boolean;
   autoSaveInterval?: number;
+  chapterTitle?: string;
+  chapterOrder?: number;
   // ===== Context-Aware 元数据 =====
   workId?: string;
   chapterId?: string;
@@ -98,6 +100,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   placeholder,
   autoSave = true,
   autoSaveInterval = 3000,
+  chapterTitle,
+  chapterOrder,
   workId,      // Context-Aware 参数
   chapterId,   // Context-Aware 参数
   aiAutoCompleteEnabled = false, // 默认关闭，避免意外消耗积分
@@ -1103,6 +1107,11 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     );
   }
 
+  const displayChapterTitle = chapterTitle
+    ? chapterTitle.replace(/^第\s*[\d一二三四五六七八九十百千零〇两]+\s*章[\s:：\-—·.]*?/, '')
+    : '';
+  const showChapterHeader = typeof chapterOrder === 'number' && displayChapterTitle;
+
   return (
     <>
       {/* Toast 通知容器 */}
@@ -1132,7 +1141,23 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
         {/* 编辑器内容区域 - 沉浸式画布 */}
         <div className="flex-1 overflow-y-auto bg-white dark:bg-slate-900">
-          <EditorContent editor={editor} className="editor-canvas" />
+          <div className="editor-canvas">
+            {showChapterHeader && (
+              <div className="chapter-header" aria-label="Chapter header">
+                <div className="chapter-header__order">第{chapterOrder}章</div>
+                <div className="chapter-header__rule">
+                  <svg className="chapter-header__rule-svg" viewBox="0 0 240 14" aria-hidden="true">
+                    <path d="M24 7 H216" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    <path d="M2 7 C6 3 12 3 20 7 C12 11 6 11 2 7 Z" fill="currentColor" />
+                    <path d="M238 7 C234 3 228 3 220 7 C228 11 234 11 238 7 Z" fill="currentColor" />
+                    <path d="M120 2 L126 7 L120 12 L114 7 Z" fill="currentColor" />
+                  </svg>
+                </div>
+                <div className="chapter-header__title">{displayChapterTitle}</div>
+              </div>
+            )}
+            <EditorContent editor={editor} className="editor-content-root" />
+          </div>
           {/* 气泡菜单 - 选中文本时显示 */}
           <BubbleMenu editor={editor} onOpenInlineAI={handleOpenInlineAI} />
           {/* AI 菜单 - 选中文本时显示 AI 操作 */}

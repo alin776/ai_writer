@@ -24,6 +24,64 @@
   min-height: 100%;
 }
 
+/* 章节头部（作品详情页） */
+.chapter-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 1.5rem 0 2.25rem;
+  padding: 0 1rem;
+  color: #1f3a5f;
+  text-align: center;
+}
+
+.chapter-header__order {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.chapter-header__rule {
+  position: relative;
+  width: 240px;
+  height: 14px;
+  margin: 0.35rem 0 0.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chapter-header__rule-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.chapter-header__title {
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 768px) {
+  .chapter-header {
+    margin: 1rem 0 1.5rem;
+  }
+
+  .chapter-header__order {
+    font-size: 1.2rem;
+  }
+
+  .chapter-header__rule {
+    width: 180px;
+  }
+
+  .chapter-header__title {
+    font-size: 1.8rem;
+  }
+}
+
 .editor-canvas .ProseMirror {
   min-height: calc(100vh - 120px);
   max-width: 100%;
@@ -149,6 +207,29 @@
   -webkit-font-kerning: none !important;
   -moz-font-kerning: none !important;
   text-rendering: geometricPrecision !important;
+}
+
+/* 作品详情页首段首字下沉 */
+.novel-editor-content p:first-of-type,
+.ProseMirror p:first-of-type {
+  text-indent: 0;
+}
+
+.novel-editor-content p:first-of-type::first-letter,
+.ProseMirror p:first-of-type::first-letter {
+  float: left;
+  font-size: 2.8em;
+  line-height: 1;
+  font-weight: 500;
+  color: #c87941;
+  padding-right: 0.1em;
+  margin-right: 0.35em;
+  margin-left: 0.65em;
+}
+
+.novel-editor-content p:first-of-type ~ p,
+.ProseMirror p:first-of-type ~ p {
+  clear: both;
 }
 
 /* 针对段落内的所有文本节点 */
@@ -730,10 +811,19 @@
   background-color: #0f172a;
 }
 
+.dark .chapter-header {
+  color: #cbd5f5;
+}
+
 /* 段落文本 - 深色模式 */
 .dark .novel-editor-content p,
 .dark .ProseMirror p {
   color: #e2e8f0;
+}
+
+.dark .novel-editor-content p:first-of-type::first-letter,
+.dark .ProseMirror p:first-of-type::first-letter {
+  color: #6b9dad;
 }
 
 /* 标题 - 深色模式 */

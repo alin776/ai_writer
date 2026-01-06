@@ -5,7 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import HumanizeService from '@/services/HumanizeService';
 import type { HumanizeSession } from '@/types/humanize';
 import { formatRelativeTime, formatFullDate } from '@/utils/formatDate';
-import { ArrowLeft, TrendingDown, Loader2, Copy } from 'lucide-react';
+import { ArrowLeft, TrendingDown, Loader2, Copy, ChevronDown, ChevronUp } from 'lucide-react';
 
 export const HumanizeSessionDetail: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -87,15 +87,18 @@ export const HumanizeSessionDetail: React.FC = () => {
                   <button
                     onClick={() => setIsOriginalExpanded((v) => !v)}
                     className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                    title={isOriginalExpanded ? '收起' : '展开'}
+                    aria-label={isOriginalExpanded ? '收起' : '展开'}
                   >
-                    {isOriginalExpanded ? '收起' : '展开'}
+                    {isOriginalExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
                   <button
                     onClick={() => handleCopy(session.detail?.original_full || session.detail?.original_preview || '')}
                     className="flex items-center gap-1 text-gray-600 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200"
+                    title="复制"
+                    aria-label="复制"
                   >
                     <Copy className="w-4 h-4" />
-                    复制
                   </button>
                 </div>
               </div>
@@ -117,15 +120,18 @@ export const HumanizeSessionDetail: React.FC = () => {
                   <button
                     onClick={() => setIsHumanizedExpanded((v) => !v)}
                     className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                    title={isHumanizedExpanded ? '收起' : '展开'}
+                    aria-label={isHumanizedExpanded ? '收起' : '展开'}
                   >
-                    {isHumanizedExpanded ? '收起' : '展开'}
+                    {isHumanizedExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
                   <button
                     onClick={() => handleCopy(session.detail?.humanized_full || session.detail?.humanized_preview || '')}
                     className="flex items-center gap-1 text-gray-600 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200"
+                    title="复制"
+                    aria-label="复制"
                   >
                     <Copy className="w-4 h-4" />
-                    复制
                   </button>
                 </div>
               </div>
