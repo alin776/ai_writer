@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from typing import List
 from uuid import UUID
+import logging
+import json
 
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -16,10 +18,53 @@ from app.schemas.relationship import (
     RelationshipCreate,
     RelationshipUpdate,
     RelationshipResponse,
-    RelationshipListResponse
+    RelationshipListResponse,
+    AIGenerateRelationshipRequest,
+    AIGenerateRelationshipResponse
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+# AI 生成关系的 Prompt 模板
+RELATIONSHIP_GENERATION_PROMPT = """你是一个小说世界观设计助手。
+
+## 任务
+为小说世界观中的两个实体生成关系标签和描述。
+
+## 输入信息
+- 源节点：{source_name}（类型：{source_type_cn}）
+  描述：{source_description}
+
+- 目标节点：{target_name}（类型：{target_type_cn}）
+  描述：{target_description}
+
+- 关系类型：{relationship_type}
+- 关系方向：{direction_cn}
+
+## 用户想法
+{user_input}
+
+## 输出要求
+请返回JSON格式：
+{{
+  "label": "简短标签（2-6个字，概括关系本质）",
+  "description": "详细描述（50-200字，说明关系的具体内容、背景、影响）"
+}}
+
+## 注意事项
+1. 标签要简洁有力，能一眼看出关系本质
+2. 描述要结合用户想法，丰富关系细节
+3. 保持与小说世界观风格一致
+4. 如果用户想法不清晰，基于节点信息合理推断
+5. 只返回JSON，不要有其他内容
+"""
+
+
+def _get_type_cn(entity_type: str) -> str:
+    """获取实体类型的中文名"""
+    type_map = {"character": "角色", "location": "地点", "setting": "设定"}
+    return type_map.get(entity_type, entity_type)
 
 
 async def verify_work_owner(work_id: UUID, user_id: UUID, db: AsyncSession):
@@ -35,6 +80,90 @@ async def verify_work_owner(work_id: UUID, user_id: UUID, db: AsyncSession):
         )
     return work
 
+
+# ==================== AI 生成关系（必须在动态路由之前） ====================
+
+@router.post("/ai-generate", response_model=AIGenerateRelationshipResponse)
+async def ai_generate_relationship(
+    request: AIGenerateRelationshipRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """AI 生成关系标签和描述"""
+    from app.services.ai.http_ai_service import HTTPAIService
+
+    logger.info(
+        f"[AI生成关系] 用户: {current_user.username}, "
+        f"源: {request.source.name}, 目标: {request.target.name}, "
+        f"类型: {request.relationship_type}"
+    )
+
+    # 验证作品所有权
+    await verify_work_owner(request.work_id, current_user.id, db)
+
+    # 构建 Prompt
+    prompt = RELATIONSHIP_GENERATION_PROMPT.format(
+        source_name=request.source.name,
+        source_type_cn=_get_type_cn(request.source.type),
+        source_description=request.source.description or "暂无描述",
+        target_name=request.target.name,
+        target_type_cn=_get_type_cn(request.target.type),
+        target_description=request.target.description or "暂无描述",
+        relationship_type=request.relationship_type,
+        direction_cn="双向" if request.direction == "two-way" else "单向",
+        user_input=request.user_input
+    )
+
+    result_text = ""
+    try:
+        # 调用 AI 服务
+        ai_service = HTTPAIService(db=db, user_id=str(current_user.id))
+
+        # 收集流式响应
+        async for chunk, usage in ai_service.stream_complete(
+            context=prompt,
+            prompt="请生成关系标签和描述",
+            max_tokens=500
+        ):
+            if chunk:
+                result_text += chunk
+
+        await ai_service.close()
+
+        # 解析 JSON 响应
+        result_text = result_text.strip()
+        # 处理可能的 markdown 代码块
+        if result_text.startswith("```"):
+            result_text = result_text.split("```")[1]
+            if result_text.startswith("json"):
+                result_text = result_text[4:]
+            result_text = result_text.strip()
+
+        result = json.loads(result_text)
+
+        logger.info(f"[AI生成关系] 成功: label={result.get('label')}")
+
+        return AIGenerateRelationshipResponse(
+            label=result.get("label", request.relationship_type)[:20],
+            description=result.get("description", "")
+        )
+
+    except json.JSONDecodeError as e:
+        logger.error(f"[AI生成关系] JSON解析失败: {e}, 原文: {result_text[:200] if result_text else 'empty'}")
+        # 降级：返回默认值
+        return AIGenerateRelationshipResponse(
+            label=request.relationship_type,
+            description=f"基于用户想法：{request.user_input}"
+        )
+    except Exception as e:
+        logger.error(f"[AI生成关系] 失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"AI生成失败: {str(e)}"
+        )
+
+
+# ==================== CRUD 路由 ====================
 
 @router.post("/", response_model=RelationshipResponse, status_code=status.HTTP_201_CREATED)
 async def create_relationship(
@@ -177,5 +306,5 @@ async def delete_relationship(
     # 删除关系
     await db.delete(db_relationship)
     await db.commit()
-    
+
     return None

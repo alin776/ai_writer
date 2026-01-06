@@ -1066,6 +1066,39 @@ class DataServiceClass {
     return this.adapter.delete(`/relationships/${id}`);
   }
 
+  /**
+   * AI 生成关系标签和描述
+   * @param data AI生成请求数据
+   * @returns Promise<{ label: string; description: string }>
+   */
+  async aiGenerateRelationship(data: {
+    workId: string;
+    userInput: string;
+    source: { id: string; name: string; type: string; description?: string };
+    target: { id: string; name: string; type: string; description?: string };
+    relationshipType: string;
+    direction: 'one-way' | 'two-way';
+  }): Promise<{ label: string; description: string }> {
+    return this.adapter.post('/relationships/ai-generate', {
+      work_id: data.workId,
+      user_input: data.userInput,
+      source: {
+        id: data.source.id,
+        name: data.source.name,
+        type: data.source.type,
+        description: data.source.description || null
+      },
+      target: {
+        id: data.target.id,
+        name: data.target.name,
+        type: data.target.type,
+        description: data.target.description || null
+      },
+      relationship_type: data.relationshipType,
+      direction: data.direction
+    });
+  }
+
   // ==================== 导入相关 ====================
 
   /**

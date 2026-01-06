@@ -3,7 +3,7 @@
  * 显示节点或关系的详细信息
  */
 import React, { useState, useEffect } from 'react';
-import { X, Users, MapPin, BookOpen, Link2, Edit2, Trash2, Star, Save, Clock, Calendar, Edit, MoreVertical, ArrowRight, ArrowLeftRight, User, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Users, MapPin, BookOpen, Link2, Edit2, Trash2, Star, Save, Clock, Calendar, Edit, MoreVertical, ArrowRight, ArrowLeftRight, User, ChevronLeft, ChevronRight, Sparkles, Send, Loader2 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { Character, Location, Setting } from '@/types/novel';
 import { Relationship, EntityType, getRelationshipOptions, getRelationshipExamples } from '@/types/relationship';
@@ -43,9 +43,12 @@ interface PropertyPanelProps {
     sourceId: string;
     sourceType: EntityType;
     sourceLabel: string;
+    sourceDescription?: string;
     targetId: string;
     targetType: EntityType;
     targetLabel: string;
+    targetDescription?: string;
+    workId?: string;
   } | null;
   // 时间线事件数据
   timelineEventData?: {
@@ -164,6 +167,10 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
     color: '#8b5cf6',
     lineStyle: 'solid' as 'solid' | 'dashed' | 'dotted',
   });
+
+  // AI 生成相关状态
+  const [aiInput, setAiInput] = useState('');
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   // 时间线事件表单状态
   const [timelineForm, setTimelineForm] = useState<Record<string, any>>({
@@ -1038,10 +1045,67 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
           color: '#8b5cf6',
           lineStyle: 'solid',
         });
+        setAiInput(''); // 同时清空 AI 输入
       } catch (error) {
         console.error('创建关系失败:', error);
       } finally {
         setIsSaving(false);
+      }
+    };
+
+    // AI 生成标签和描述
+    const handleAIGenerate = async () => {
+      if (!aiInput.trim()) return;
+      if (!createRelationshipData.workId) {
+        console.error('AI 生成失败: workId 为空');
+        return;
+      }
+
+      setIsGeneratingAI(true);
+      try {
+        // 动态导入 DataService
+        const { DataService } = await import('@/services/DataService');
+
+        // 调用后端 AI 接口
+        const result = await DataService.aiGenerateRelationship({
+          workId: createRelationshipData.workId,
+          userInput: aiInput.trim(),
+          source: {
+            id: createRelationshipData.sourceId,
+            name: sourceLabel,
+            type: createRelationshipData.sourceType,
+            description: createRelationshipData.sourceDescription
+          },
+          target: {
+            id: createRelationshipData.targetId,
+            name: targetLabel,
+            type: createRelationshipData.targetType,
+            description: createRelationshipData.targetDescription
+          },
+          relationshipType: currentRelationshipType,
+          direction: createForm.direction
+        });
+
+        setCreateForm(prev => ({
+          ...prev,
+          label: result.label.slice(0, 20),
+          description: result.description,
+        }));
+
+        // 清空输入
+        setAiInput('');
+      } catch (error) {
+        console.error('AI 生成失败:', error);
+        // 降级：使用简单的本地生成
+        const generatedLabel = `${sourceLabel}与${targetLabel}的${currentRelationshipType.replace('关系', '')}`;
+        setCreateForm(prev => ({
+          ...prev,
+          label: generatedLabel.slice(0, 20),
+          description: `基于您的想法：${aiInput}`,
+        }));
+        setAiInput('');
+      } finally {
+        setIsGeneratingAI(false);
       }
     };
 
@@ -1162,12 +1226,56 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
                 </Select>
               </div>
 
+              {/* AI 智能填充区域 */}
+              <div className="pt-6 border-t border-border mt-4">
+                <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-4 py-3 dark:border-slate-700 dark:bg-slate-800">
+                  <div className="flex flex-col gap-3">
+                    <textarea
+                      value={aiInput}
+                      onChange={(e) => setAiInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey && aiInput.trim()) {
+                          e.preventDefault();
+                          handleAIGenerate();
+                        }
+                      }}
+                      placeholder="输入你对这个关系的想法，AI 帮你完善标签和描述..."
+                      className="w-full bg-transparent outline-none border-none text-[12px] placeholder:text-gray-400 resize-none leading-relaxed dark:text-slate-200 dark:placeholder:text-slate-500"
+                      disabled={isGeneratingAI}
+                      rows={2}
+                      style={{
+                        minHeight: '48px',
+                        maxHeight: '120px',
+                      }}
+                    />
+                    <div className="flex items-center justify-end">
+                      {isGeneratingAI ? (
+                        <button
+                          disabled
+                          className="w-10 h-10 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center dark:bg-slate-700 dark:text-slate-400"
+                        >
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        </button>
+                      ) : aiInput.trim() ? (
+                        <button
+                          onClick={handleAIGenerate}
+                          className="w-10 h-10 rounded-full transition-all flex items-center justify-center bg-gray-900 text-white hover:bg-gray-800 active:scale-95 shadow-sm dark:bg-blue-600 dark:hover:bg-blue-500"
+                          aria-label="AI 生成"
+                        >
+                          <Send className="h-4 w-4" strokeWidth={2.4} />
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* 创建按钮 */}
               <div className="pt-4">
                 <Button
                   className="w-full"
                   onClick={handleSubmit}
-                  disabled={isSaving || !createForm.label.trim()}
+                  disabled={isSaving}
                 >
                   {isSaving ? '创建中...' : '创建关系'}
                 </Button>

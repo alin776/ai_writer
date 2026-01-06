@@ -142,9 +142,12 @@ const WorldviewGraphFullscreen: React.FC = () => {
     sourceId: string;
     sourceType: EntityType;
     sourceLabel: string;
+    sourceDescription?: string;
     targetId: string;
     targetType: EntityType;
     targetLabel: string;
+    targetDescription?: string;
+    workId?: string;
   } | null>(null);
   const [panelTimelineEventData, setPanelTimelineEventData] = useState<{
     event: TimelineEvent;
@@ -297,6 +300,16 @@ const WorldviewGraphFullscreen: React.FC = () => {
     return null;
   };
 
+  // 获取节点描述
+  const getNodeDescription = (nodeId: string, nodeType: EntityType): string => {
+    const entity = getNodeData(nodeId, nodeType);
+    if (!entity) return '';
+    if (nodeType === 'setting') {
+      return (entity as Setting).content || '';
+    }
+    return (entity as Character | Location).description || '';
+  };
+
   // 处理节点点击（点击选中模式）
   const handleNodeClickForConnection = (nodeId: string, nodeType: EntityType) => {
     // 焦点模式下：设置焦点节点
@@ -333,9 +346,12 @@ const WorldviewGraphFullscreen: React.FC = () => {
         sourceId: selectedNode.id,
         sourceType: selectedNode.type,
         sourceLabel: selectedNode.label,
+        sourceDescription: getNodeDescription(selectedNode.id, selectedNode.type),
         targetId: nodeId,
         targetType: nodeType,
         targetLabel: nodeLabel,
+        targetDescription: getNodeDescription(nodeId, nodeType),
+        workId: workId || '',
       });
       setPanelMode('create');
       // 如果右侧面板是收缩状态，自动展开
@@ -429,9 +445,12 @@ const WorldviewGraphFullscreen: React.FC = () => {
       sourceId,
       sourceType,
       sourceLabel,
+      sourceDescription: getNodeDescription(sourceId, sourceType),
       targetId,
       targetType,
       targetLabel,
+      targetDescription: getNodeDescription(targetId, targetType),
+      workId: workId || '',
     });
     setPanelMode('create');
     // 如果右侧面板是收缩状态，自动展开
