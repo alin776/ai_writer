@@ -1099,6 +1099,27 @@ class DataServiceClass {
     });
   }
 
+  /**
+   * AI 生成实体信息（角色/地点/设定）
+   * @param data AI生成请求数据
+   * @returns Promise<{ name?: string; role?: string; description: string }>
+   */
+  async aiGenerateEntity(data: {
+    workId: string;
+    userInput: string;
+    entityType: 'character' | 'location' | 'setting';
+    entityName: string;
+    entityRole?: string;
+  }): Promise<{ name?: string; role?: string; description: string }> {
+    return this.adapter.post('/worldview/ai-generate-entity', {
+      work_id: data.workId,
+      user_input: data.userInput,
+      entity_type: data.entityType,
+      entity_name: data.entityName,
+      entity_role: data.entityRole || null
+    });
+  }
+
   // ==================== 导入相关 ====================
 
   /**

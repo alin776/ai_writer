@@ -139,18 +139,35 @@ async def ai_generate_relationship(
                 result_text = result_text[4:]
             result_text = result_text.strip()
 
-        result = json.loads(result_text)
+        # 尝试解析 JSON
+        try:
+            result = json.loads(result_text)
+            label = result.get("label", request.relationship_type)[:20]
+            description = result.get("description", "")
+        except json.JSONDecodeError:
+            # AI 可能直接返回了文本而非 JSON
+            if len(result_text) > 10 and not result_text.startswith("{"):
+                logger.info(f"[AI生成关系] AI返回纯文本，直接使用")
+                label = request.relationship_type
+                description = result_text
+            else:
+                raise
 
-        logger.info(f"[AI生成关系] 成功: label={result.get('label')}")
+        logger.info(f"[AI生成关系] 成功: label={label}")
 
         return AIGenerateRelationshipResponse(
-            label=result.get("label", request.relationship_type)[:20],
-            description=result.get("description", "")
+            label=label,
+            description=description
         )
 
     except json.JSONDecodeError as e:
         logger.error(f"[AI生成关系] JSON解析失败: {e}, 原文: {result_text[:200] if result_text else 'empty'}")
-        # 降级：返回默认值
+        # 降级：如果有返回文本，用作描述
+        if result_text and len(result_text) > 10:
+            return AIGenerateRelationshipResponse(
+                label=request.relationship_type,
+                description=result_text
+            )
         return AIGenerateRelationshipResponse(
             label=request.relationship_type,
             description=f"基于用户想法：{request.user_input}"

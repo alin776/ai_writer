@@ -31,6 +31,7 @@ interface PropertyPanelProps {
     type: EntityType;
     entity: Character | Location | Setting;
     initialEditMode?: boolean; // 是否初始进入编辑模式
+    workId?: string; // 作品ID（用于AI生成）
   } | null;
   // 关系数据
   relationshipData?: {
@@ -168,9 +169,13 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
     lineStyle: 'solid' as 'solid' | 'dashed' | 'dotted',
   });
 
-  // AI 生成相关状态
+  // AI 生成相关状态（关系创建）
   const [aiInput, setAiInput] = useState('');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+
+  // AI 生成相关状态（节点编辑）
+  const [nodeAiInput, setNodeAiInput] = useState('');
+  const [isGeneratingNodeAI, setIsGeneratingNodeAI] = useState(false);
 
   // 时间线事件表单状态
   const [timelineForm, setTimelineForm] = useState<Record<string, any>>({
@@ -499,6 +504,72 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
 
     const currentEntity = isEditing && editedEntity ? editedEntity : entity;
 
+    // AI 生成节点信息（名称、角色/分类、描述）
+    const handleNodeAIGenerate = async () => {
+      if (!nodeAiInput.trim()) return;
+      if (!nodeData.workId) {
+        console.error('AI 生成失败: workId 为空');
+        return;
+      }
+
+      setIsGeneratingNodeAI(true);
+      try {
+        const { DataService } = await import('@/services/DataService');
+
+        const result = await DataService.aiGenerateEntity({
+          workId: nodeData.workId,
+          userInput: nodeAiInput.trim(),
+          entityType: type,
+          entityName: type === 'setting'
+            ? (currentEntity as Setting).title
+            : (currentEntity as Character | Location).name,
+          entityRole: type === 'character'
+            ? (currentEntity as Character).role
+            : type === 'location'
+              ? (currentEntity as Location).type
+              : (currentEntity as Setting).category,
+        });
+
+        // 更新所有字段
+        if (type === 'setting') {
+          setEditedEntity({
+            ...(currentEntity as Setting),
+            title: result.name || (currentEntity as Setting).title,
+            category: result.role || (currentEntity as Setting).category,
+            content: result.description
+          });
+        } else if (type === 'character') {
+          setEditedEntity({
+            ...(currentEntity as Character),
+            name: result.name || (currentEntity as Character).name,
+            role: result.role || (currentEntity as Character).role,
+            description: result.description
+          });
+        } else {
+          setEditedEntity({
+            ...(currentEntity as Location),
+            name: result.name || (currentEntity as Location).name,
+            type: result.role || (currentEntity as Location).type,
+            description: result.description
+          });
+        }
+
+        setNodeAiInput('');
+      } catch (error) {
+        console.error('AI 生成失败:', error);
+        // 降级：使用简单的本地生成
+        const fallbackDesc = `基于您的想法：${nodeAiInput}`;
+        if (type === 'setting') {
+          setEditedEntity({ ...(currentEntity as Setting), content: fallbackDesc });
+        } else {
+          setEditedEntity({ ...(currentEntity as Character | Location), description: fallbackDesc });
+        }
+        setNodeAiInput('');
+      } finally {
+        setIsGeneratingNodeAI(false);
+      }
+    };
+
     return (
       <div className="flex flex-col h-full text-sm">
         {/* 标题栏 */}
@@ -692,6 +763,50 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
                     className="border-border min-h-[120px] resize-none bg-input-background dark:bg-input/30"
                     rows={6}
                   />
+                </div>
+
+                {/* AI 智能填充区域 */}
+                <div className="pt-4 border-t border-border mt-3">
+                  <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-4 py-3 dark:border-slate-700 dark:bg-slate-800">
+                    <div className="flex flex-col gap-3">
+                      <textarea
+                        value={nodeAiInput}
+                        onChange={(e) => setNodeAiInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey && nodeAiInput.trim()) {
+                            e.preventDefault();
+                            handleNodeAIGenerate();
+                          }
+                        }}
+                        placeholder={type === 'character' ? '输入角色特点，AI 帮你完善描述...' : type === 'location' ? '输入地点特征，AI 帮你完善描述...' : '输入设定要点，AI 帮你完善内容...'}
+                        className="w-full bg-transparent outline-none border-none text-[12px] placeholder:text-gray-400 resize-none leading-relaxed dark:text-slate-200 dark:placeholder:text-slate-500"
+                        disabled={isGeneratingNodeAI}
+                        rows={2}
+                        style={{
+                          minHeight: '48px',
+                          maxHeight: '120px',
+                        }}
+                      />
+                      <div className="flex items-center justify-end">
+                        {isGeneratingNodeAI ? (
+                          <button
+                            disabled
+                            className="w-10 h-10 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center dark:bg-slate-700 dark:text-slate-400"
+                          >
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          </button>
+                        ) : nodeAiInput.trim() ? (
+                          <button
+                            onClick={handleNodeAIGenerate}
+                            className="w-10 h-10 rounded-full transition-all flex items-center justify-center bg-gray-900 text-white hover:bg-gray-800 active:scale-95 shadow-sm dark:bg-blue-600 dark:hover:bg-blue-500"
+                            aria-label="AI 生成"
+                          >
+                            <Send className="h-4 w-4" strokeWidth={2.4} />
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="mt-auto flex justify-end gap-2 pt-2">

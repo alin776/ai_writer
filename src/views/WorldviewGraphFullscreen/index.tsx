@@ -132,6 +132,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
     type: EntityType;
     entity: Character | Location | Setting;
     initialEditMode?: boolean;
+    workId?: string;
   } | null>(null);
   const [panelRelationshipData, setPanelRelationshipData] = useState<{
     relationship: Relationship;
@@ -263,7 +264,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
       const entity = getNodeData(id, type);
       if (entity) {
         // 打开属性面板显示详情
-        setPanelNodeData({ id, type, entity });
+        setPanelNodeData({ id, type, entity, workId: workId || '' });
         setPanelMode('node');
         // 定位到该节点
         setFocusNodeToView(`${type}-${id}`);
@@ -367,7 +368,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
     // 非连线模式：显示节点详情
     const entity = getNodeData(nodeId, nodeType);
     if (entity) {
-      setPanelNodeData({ id: nodeId, type: nodeType, entity });
+      setPanelNodeData({ id: nodeId, type: nodeType, entity, workId: workId || '' });
       setPanelMode('node');
       // 如果右侧面板是收缩状态，自动展开
       if (rightPanelCollapsed) {
@@ -710,7 +711,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
                   // 双击：打开右侧属性面板
                   const entity = getNodeData(nodeId, nodeType);
                   if (entity) {
-                    setPanelNodeData({ id: nodeId, type: nodeType, entity });
+                    setPanelNodeData({ id: nodeId, type: nodeType, entity, workId: workId || '' });
                     setPanelMode('node');
                     showToast('success', `查看详情：${getNodeLabel(nodeId, nodeType)}`);
                   }
@@ -738,11 +739,12 @@ const WorldviewGraphFullscreen: React.FC = () => {
                       characters: [...prev.characters, newCharacter],
                     }));
                     // 自动打开属性面板并进入编辑模式
-                    setPanelNodeData({ 
-                      id: newCharacter.id, 
-                      type: 'character', 
+                    setPanelNodeData({
+                      id: newCharacter.id,
+                      type: 'character',
                       entity: newCharacter,
-                      initialEditMode: true 
+                      initialEditMode: true,
+                      workId: workId || ''
                     });
                     setPanelMode('node');
                     showToast('success', '角色创建成功，请编辑详细信息');
@@ -765,11 +767,12 @@ const WorldviewGraphFullscreen: React.FC = () => {
                       locations: [...prev.locations, newLocation],
                     }));
                     // 自动打开属性面板并进入编辑模式
-                    setPanelNodeData({ 
-                      id: newLocation.id, 
-                      type: 'location', 
+                    setPanelNodeData({
+                      id: newLocation.id,
+                      type: 'location',
                       entity: newLocation,
-                      initialEditMode: true 
+                      initialEditMode: true,
+                      workId: workId || ''
                     });
                     setPanelMode('node');
                     showToast('success', '地点创建成功，请编辑详细信息');
@@ -792,11 +795,12 @@ const WorldviewGraphFullscreen: React.FC = () => {
                       settings: [...prev.settings, newSetting],
                     }));
                     // 自动打开属性面板并进入编辑模式
-                    setPanelNodeData({ 
-                      id: newSetting.id, 
-                      type: 'setting', 
+                    setPanelNodeData({
+                      id: newSetting.id,
+                      type: 'setting',
                       entity: newSetting,
-                      initialEditMode: true 
+                      initialEditMode: true,
+                      workId: workId || ''
                     });
                     setPanelMode('node');
                     showToast('success', '设定创建成功，请编辑详细信息');
@@ -889,7 +893,8 @@ const WorldviewGraphFullscreen: React.FC = () => {
                       id: newCharacter.id,
                       type: 'character',
                       entity: newCharacter,
-                      initialEditMode: true
+                      initialEditMode: true,
+                      workId: workId || ''
                     });
                     setPanelMode('node');
                     setLeftPanelTab('nodes');
@@ -916,7 +921,8 @@ const WorldviewGraphFullscreen: React.FC = () => {
                       id: newLocation.id,
                       type: 'location',
                       entity: newLocation,
-                      initialEditMode: true
+                      initialEditMode: true,
+                      workId: workId || ''
                     });
                     setPanelMode('node');
                     setLeftPanelTab('nodes');
@@ -943,7 +949,8 @@ const WorldviewGraphFullscreen: React.FC = () => {
                       id: newSetting.id,
                       type: 'setting',
                       entity: newSetting,
-                      initialEditMode: true
+                      initialEditMode: true,
+                      workId: workId || ''
                     });
                     setPanelMode('node');
                     setLeftPanelTab('nodes');

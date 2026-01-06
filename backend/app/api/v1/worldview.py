@@ -1418,3 +1418,210 @@ async def apply_worldview_changes(
     _invalidate_worldview_cache(work_id, ['characters', 'locations', 'settings'])
 
     return ApplyChangesResponse(**stats)
+
+
+# ==================== AI 生成实体描述 ====================
+
+from pydantic import BaseModel, Field
+from typing import Literal
+
+class AIGenerateEntityRequest(BaseModel):
+    """AI生成实体描述请求"""
+    work_id: UUID
+    user_input: str = Field(..., min_length=1, max_length=500, description="用户的想法")
+    entity_type: Literal["character", "location", "setting"]
+    entity_name: str = Field(..., description="实体名称")
+    entity_role: str | None = Field(None, description="实体角色/类型/分类")
+
+
+class AIGenerateEntityResponse(BaseModel):
+    """AI生成实体响应"""
+    name: str | None = Field(None, description="生成的名称")
+    role: str | None = Field(None, description="生成的角色定位/类型/分类")
+    description: str = Field(..., description="生成的描述")
+
+
+# AI 生成实体的 Prompt 模板
+ENTITY_GENERATION_PROMPTS = {
+    "character": """你是一个小说角色设计助手。
+
+## 任务
+为小说中的角色生成完整信息。
+
+## 当前信息
+- 角色名称：{entity_name}
+- 角色定位：{entity_role}
+
+## 用户想法
+{user_input}
+
+## 输出要求
+请返回JSON格式：
+{{
+  "name": "角色名称（如果用户想法中提到了新名字就用新名字，否则保持原名或生成一个合适的名字）",
+  "role": "角色定位（如：主角、反派、配角、导师、挚友等）",
+  "description": "角色描述（150-300字，包含外貌特征、性格特点、背景故事、能力特长等）"
+}}
+
+## 注意事项
+1. 描述要生动具体，有画面感
+2. 结合用户想法，丰富角色细节
+3. 保持与小说世界观风格一致
+4. 只返回JSON，不要有其他内容
+""",
+    "location": """你是一个小说场景设计助手。
+
+## 任务
+为小说中的地点生成完整信息。
+
+## 当前信息
+- 地点名称：{entity_name}
+- 地点类型：{entity_role}
+
+## 用户想法
+{user_input}
+
+## 输出要求
+请返回JSON格式：
+{{
+  "name": "地点名称（如果用户想法中提到了新名字就用新名字，否则保持原名或生成一个合适的名字）",
+  "role": "地点类型（如：城市、村庄、山脉、秘境、宗门等）",
+  "description": "地点描述（150-300字，包含地理位置、环境特色、氛围感受、重要性等）"
+}}
+
+## 注意事项
+1. 描述要有画面感和氛围感
+2. 结合用户想法，丰富场景细节
+3. 保持与小说世界观风格一致
+4. 只返回JSON，不要有其他内容
+""",
+    "setting": """你是一个小说设定设计助手。
+
+## 任务
+为小说中的设定生成完整信息。
+
+## 当前信息
+- 设定标题：{entity_name}
+- 设定分类：{entity_role}
+
+## 用户想法
+{user_input}
+
+## 输出要求
+请返回JSON格式：
+{{
+  "name": "设定标题（如果用户想法中提到了新标题就用新标题，否则保持原标题或生成一个合适的标题）",
+  "role": "设定分类（如：力量体系、世界规则、种族设定、历史背景等）",
+  "description": "设定内容（200-400字，包含核心概念、运作规则、影响范围、特殊之处等）"
+}}
+
+## 注意事项
+1. 内容要逻辑清晰，有体系感
+2. 结合用户想法，丰富设定细节
+3. 保持与小说世界观风格一致
+4. 只返回JSON，不要有其他内容
+"""
+}
+
+
+@router.post("/ai-generate-entity", response_model=AIGenerateEntityResponse)
+async def ai_generate_entity(
+    request: AIGenerateEntityRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """AI 生成实体描述（角色/地点/设定）"""
+    from app.services.ai.http_ai_service import HTTPAIService
+    import json
+
+    logger.info(
+        f"[AI生成实体] 用户: {current_user.username}, "
+        f"类型: {request.entity_type}, 名称: {request.entity_name}"
+    )
+
+    # 验证作品权限
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(request.work_id)
+    if not work:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    # 构建 Prompt
+    prompt_template = ENTITY_GENERATION_PROMPTS.get(request.entity_type)
+    if not prompt_template:
+        raise HTTPException(status_code=400, detail="Invalid entity type")
+
+    prompt = prompt_template.format(
+        entity_name=request.entity_name,
+        entity_role=request.entity_role or "未指定",
+        user_input=request.user_input
+    )
+
+    result_text = ""
+    try:
+        # 调用 AI 服务
+        ai_service = HTTPAIService(db=db, user_id=str(current_user.id))
+
+        # 收集流式响应
+        async for chunk, usage in ai_service.stream_complete(
+            context=prompt,
+            prompt="请生成描述",
+            max_tokens=800
+        ):
+            if chunk:
+                result_text += chunk
+
+        await ai_service.close()
+
+        # 解析 JSON 响应
+        result_text = result_text.strip()
+        # 处理可能的 markdown 代码块
+        if result_text.startswith("```"):
+            result_text = result_text.split("```")[1]
+            if result_text.startswith("json"):
+                result_text = result_text[4:]
+            result_text = result_text.strip()
+
+        # 尝试解析 JSON
+        name = None
+        role = None
+        description = ""
+        try:
+            result = json.loads(result_text)
+            name = result.get("name")
+            role = result.get("role")
+            description = result.get("description", "")
+        except json.JSONDecodeError:
+            # AI 可能直接返回了描述文本而非 JSON
+            # 如果文本长度足够且不像 JSON，直接使用它作为描述
+            if len(result_text) > 20 and not result_text.startswith("{"):
+                logger.info(f"[AI生成实体] AI返回纯文本，直接使用: {result_text[:50]}...")
+                description = result_text
+            else:
+                raise
+
+        logger.info(f"[AI生成实体] 成功: name={name}, role={role}")
+
+        return AIGenerateEntityResponse(
+            name=name,
+            role=role,
+            description=description
+        )
+
+    except json.JSONDecodeError as e:
+        logger.error(f"[AI生成实体] JSON解析失败: {e}, 原文: {result_text[:200] if result_text else 'empty'}")
+        # 降级：如果有返回文本，直接使用作为描述
+        if result_text and len(result_text) > 20:
+            return AIGenerateEntityResponse(name=None, role=None, description=result_text)
+        return AIGenerateEntityResponse(
+            name=None,
+            role=None,
+            description=f"基于用户想法：{request.user_input}"
+        )
+    except Exception as e:
+        logger.error(f"[AI生成实体] 失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"AI生成失败: {str(e)}"
+        )
