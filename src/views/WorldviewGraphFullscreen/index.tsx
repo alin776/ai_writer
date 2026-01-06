@@ -11,6 +11,7 @@ import {
   Download,
   LayoutGrid,
   Loader,
+  ChevronLeft,
   Users,
   MapPin,
   BookOpen,
@@ -18,7 +19,6 @@ import {
   Search,
   Filter,
   User,
-  HelpCircle,
 } from 'lucide-react';
 import WorldviewGraph from '@/components/worldview/WorldviewGraph';
 import PropertyPanel from '@/components/worldview/PropertyPanel';
@@ -77,11 +77,14 @@ const WorldviewGraphFullscreen: React.FC = () => {
   // 时间线相关状态
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [chapterAnchors, setChapterAnchors] = useState<ChapterAnchor[]>([]);
-  
+
   // 分组相关状态
   const [groups, setGroups] = useState<EntityGroup[]>([]);
   const [leftPanelTab, setLeftPanelTab] = useState<'nodes' | 'groups'>('nodes'); // 左侧面板Tab
-  
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false); // 左侧面板收缩状态
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false); // 右侧面板收缩状态
+  const toggleRightPanel = () => setRightPanelCollapsed((prev) => !prev);
+
   // 布局相关状态
   const [currentLayout, setCurrentLayout] = useState<LayoutAlgorithm>('force');
   const [layoutConfig, setLayoutConfig] = useState<GlobalLayoutConfig>(DEFAULT_LAYOUT_CONFIG);
@@ -443,14 +446,13 @@ const WorldviewGraphFullscreen: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)] bg-background text-sm">
+    <div className="flex flex-col h-full bg-background text-sm">
       {/* 顶部导航栏 */}
       <header className="h-14 border-b border-border-light bg-card/50 backdrop-blur-md flex items-center justify-between px-5">
         {/* 左侧区域 */}
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={handleBack} className="hover:bg-accent h-8 text-sm">
-            <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-            返回
+          <Button variant="ghost" size="sm" onClick={handleBack} className="hover:bg-accent h-8 w-8 p-0">
+            <ArrowLeft className="w-4 h-4" />
           </Button>
           <div className="h-6 w-px bg-border-light" />
           <div>
@@ -460,9 +462,9 @@ const WorldviewGraphFullscreen: React.FC = () => {
         </div>
 
         {/* 中央区域 - 视图切换 */}
-        <div className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg">
+        <div className="flex items-center gap-2">
           <Button
-            variant={viewMode === 'graph' ? 'default' : 'ghost'}
+            variant={viewMode === 'graph' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setViewMode('graph')}
             className={`h-8 text-sm ${viewMode === 'graph' ? 'shadow-sm' : ''}`}
@@ -471,7 +473,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
             关系图
           </Button>
           <Button
-            variant={viewMode === 'timeline' ? 'default' : 'ghost'}
+            variant={viewMode === 'timeline' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setViewMode('timeline')}
             className={`h-8 text-sm ${viewMode === 'timeline' ? 'shadow-sm' : ''}`}
@@ -510,25 +512,23 @@ const WorldviewGraphFullscreen: React.FC = () => {
 
           {viewMode === 'graph' && (
             <>
-              {/* 搜索面板 - 内联实现 */}
-              <div className="flex items-center gap-2 bg-transparent hover:bg-accent/50 border-0 rounded-[7px] px-3 h-7 transition-colors">
-                <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              {/* 搜索面板 - 胶囊样式 */}
+              <div className="flex items-center gap-1.5 border border-input bg-background hover:bg-accent/50 rounded-md px-3 h-8 transition-colors">
+                <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                 <Input
                   placeholder="搜索角色、地点、设定..."
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
-                  className="flex-1 border-0 bg-transparent h-5 text-sm focus-visible:ring-0 focus-visible:ring-offset-0 px-0"
+                  className="w-40 border-0 bg-transparent h-6 text-sm focus-visible:ring-0 focus-visible:ring-offset-0 px-0"
                 />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0 hover:bg-accent flex-shrink-0"
+                    <button
+                      className="h-6 w-6 p-0 hover:bg-accent rounded flex items-center justify-center flex-shrink-0"
                       title="节点类型筛选"
                     >
-                      <Filter className={`w-4 h-4 ${nodeTypeFilter === 'all' ? 'text-muted-foreground' : 'text-primary'}`} />
-                    </Button>
+                      <Filter className={`w-3.5 h-3.5 ${nodeTypeFilter === 'all' ? 'text-muted-foreground' : 'text-primary'}`} />
+                    </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-36">
                     <DropdownMenuItem
@@ -563,23 +563,21 @@ const WorldviewGraphFullscreen: React.FC = () => {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <button
                   onClick={() => setFocusMode(!focusMode)}
-                  className="h-7 w-7 p-0 hover:bg-accent flex-shrink-0"
+                  className="h-6 w-6 p-0 hover:bg-accent rounded flex items-center justify-center flex-shrink-0"
                   title={focusMode ? "关闭焦点模式" : "开启焦点模式"}
                 >
-                  <div className={`w-4 h-4 rounded-full border-2 transition-colors ${
+                  <div className={`w-3.5 h-3.5 rounded-full border-2 transition-colors ${
                     focusMode ? 'border-primary bg-primary' : 'border-muted-foreground'
                   }`}>
                     {focusMode && (
                       <div className="w-full h-full flex items-center justify-center">
-                        <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                        <div className="w-1 h-1 rounded-full bg-white" />
                       </div>
                     )}
                   </div>
-                </Button>
+                </button>
               </div>
 
               {/* 布局选择器 */}
@@ -635,16 +633,13 @@ const WorldviewGraphFullscreen: React.FC = () => {
       </header>
 
       {/* Main Content - 三栏布局 */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden min-h-0">
         {/* 左侧边栏 */}
-        <div className="w-48 border-r border-border-light bg-card flex flex-col">
-          <Tabs value={leftPanelTab} onValueChange={(value) => setLeftPanelTab(value as 'nodes' | 'groups')} className="flex-1 flex flex-col">
-            <TabsList className="w-full grid grid-cols-2 mx-1 mt-1 mb-0">
-              <TabsTrigger value="nodes" className="text-xs px-1">节点列表</TabsTrigger>
-              <TabsTrigger value="groups" className="text-xs px-1">分组管理</TabsTrigger>
-            </TabsList>
-            <TabsContent value="nodes" className="flex-1 min-h-0 mt-0 overflow-hidden">
-              <EnhancedNodeList
+        {!leftPanelCollapsed && (
+          <div className="w-56 border-r border-border-light bg-card flex flex-col overflow-hidden min-h-0">
+            <Tabs value={leftPanelTab} onValueChange={(value) => setLeftPanelTab(value as 'nodes' | 'groups')} className="flex-1 flex flex-col min-h-0">
+              <TabsContent value="nodes" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col">
+                <EnhancedNodeList
                 characters={worldData.characters}
                 locations={worldData.locations}
                 settings={worldData.settings}
@@ -759,9 +754,11 @@ const WorldviewGraphFullscreen: React.FC = () => {
                     showToast('error', '创建失败');
                   }
                 }}
+                onOpenGroupPanel={() => setLeftPanelTab('groups')}
+                onCollapsePanel={() => setLeftPanelCollapsed(true)}
               />
             </TabsContent>
-            <TabsContent value="groups" className="flex-1 min-h-0 mt-0 overflow-hidden">
+            <TabsContent value="groups" className="flex-1 min-h-0 mt-0 data-[state=active]:flex data-[state=active]:flex-col">
               <GroupPanel
                 workId={workId!}
                 groups={groups}
@@ -813,7 +810,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
                 onRemoveMember={async (groupId: string, memberId: string) => {
                   try {
                     await DataService.removeGroupMember(groupId, memberId);
-                    setGroups(prev => prev.map(g => 
+                    setGroups(prev => prev.map(g =>
                       g.id === groupId ? { ...g, members: g.members.filter(m => m.id !== memberId) } : g
                     ));
                     showToast('success', '成员已移除');
@@ -822,13 +819,108 @@ const WorldviewGraphFullscreen: React.FC = () => {
                     showToast('error', '移除失败');
                   }
                 }}
+                onBackToNodeList={() => setLeftPanelTab('nodes')}
+                onCreateCharacter={async () => {
+                  try {
+                    const newCharacter = await DataService.createCharacter({
+                      workId: workId!,
+                      name: '新角色',
+                      description: '请添加角色描述',
+                      role: '',
+                      tags: [],
+                      relationships: [],
+                    });
+                    setWorldData(prev => ({
+                      ...prev,
+                      characters: [...prev.characters, newCharacter],
+                    }));
+                    setPanelNodeData({
+                      id: newCharacter.id,
+                      type: 'character',
+                      entity: newCharacter,
+                      initialEditMode: true
+                    });
+                    setPanelMode('node');
+                    setLeftPanelTab('nodes');
+                    showToast('success', '角色创建成功，请编辑详细信息');
+                  } catch (error) {
+                    console.error('创建角色失败:', error);
+                    showToast('error', '创建失败');
+                  }
+                }}
+                onCreateLocation={async () => {
+                  try {
+                    const newLocation = await DataService.createLocation({
+                      workId: workId!,
+                      name: '新地点',
+                      description: '请添加地点描述',
+                      type: '',
+                      tags: [],
+                    });
+                    setWorldData(prev => ({
+                      ...prev,
+                      locations: [...prev.locations, newLocation],
+                    }));
+                    setPanelNodeData({
+                      id: newLocation.id,
+                      type: 'location',
+                      entity: newLocation,
+                      initialEditMode: true
+                    });
+                    setPanelMode('node');
+                    setLeftPanelTab('nodes');
+                    showToast('success', '地点创建成功，请编辑详细信息');
+                  } catch (error) {
+                    console.error('创建地点失败:', error);
+                    showToast('error', '创建失败');
+                  }
+                }}
+                onCreateSetting={async () => {
+                  try {
+                    const newSetting = await DataService.createSetting({
+                      workId: workId!,
+                      title: '新设定',
+                      category: '',
+                      content: '请添加设定内容',
+                      tags: [],
+                    });
+                    setWorldData(prev => ({
+                      ...prev,
+                      settings: [...prev.settings, newSetting],
+                    }));
+                    setPanelNodeData({
+                      id: newSetting.id,
+                      type: 'setting',
+                      entity: newSetting,
+                      initialEditMode: true
+                    });
+                    setPanelMode('node');
+                    setLeftPanelTab('nodes');
+                    showToast('success', '设定创建成功，请编辑详细信息');
+                  } catch (error) {
+                    console.error('创建设定失败:', error);
+                    showToast('error', '创建失败');
+                  }
+                }}
               />
             </TabsContent>
           </Tabs>
         </div>
+        )}
 
         {/* Main Canvas - 主画布 */}
-        <div className="flex-1 overflow-hidden h-full">
+        <div className="flex-1 overflow-hidden h-full relative">
+          {viewMode === 'timeline' && rightPanelCollapsed && (
+            <div className="absolute top-3 right-3 z-20">
+              <button
+                onClick={toggleRightPanel}
+                className="help-btn"
+                title="展开侧边栏"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           {viewMode === 'graph' ? (
             <WorldviewGraph
               worldData={worldData}
@@ -859,6 +951,10 @@ const WorldviewGraphFullscreen: React.FC = () => {
               connectionMode={connectionMode}
               connectionModeSource={selectedNode ? { id: selectedNode.id, name: selectedNode.label, type: selectedNode.type } : undefined}
               onExitConnectionMode={toggleConnectionMode}
+              leftPanelCollapsed={leftPanelCollapsed}
+              onToggleLeftPanel={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
+              rightPanelCollapsed={rightPanelCollapsed}
+              onToggleRightPanel={toggleRightPanel}
             />
           ) : (
             <TimelinePanel
@@ -919,32 +1015,35 @@ const WorldviewGraphFullscreen: React.FC = () => {
         </div>
 
         {/* Right Panel - 右侧属性面板 */}
-        <div className="w-80">
-          <PropertyPanel
-            mode={panelMode}
-            nodeData={panelNodeData}
-            relationshipData={panelRelationshipData}
-            createRelationshipData={panelCreateRelationshipData}
-            stats={{
-              characters: stats.characters,
-              locations: stats.locations,
-              settings: stats.settings,
-              relationships: stats.relationships,
-              relationshipsByType: relationships.reduce((acc, rel) => {
-                acc[rel.relationshipType] = (acc[rel.relationshipType] || 0) + 1;
-                return acc;
-              }, {} as Record<string, number>),
-            }}
-            relatedRelationships={relationships}
-            onClose={() => {
-              setPanelMode('idle');
-              setPanelNodeData(null);
-              setPanelRelationshipData(null);
-              setPanelCreateRelationshipData(null);
-              setPanelTimelineEventData(null);
-              setPanelCreateTimelineEventData(null);
-            }}
-            onSaveNode={async (updatedEntity) => {
+        <div className={`h-full transition-all duration-300 overflow-hidden ${rightPanelCollapsed ? 'w-0' : 'w-80'}`}>
+          {!rightPanelCollapsed && (
+            <PropertyPanel
+              mode={panelMode}
+              nodeData={panelNodeData}
+              relationshipData={panelRelationshipData}
+              createRelationshipData={panelCreateRelationshipData}
+              stats={{
+                characters: stats.characters,
+                locations: stats.locations,
+                settings: stats.settings,
+                relationships: stats.relationships,
+                relationshipsByType: relationships.reduce((acc, rel) => {
+                  acc[rel.relationshipType] = (acc[rel.relationshipType] || 0) + 1;
+                  return acc;
+                }, {} as Record<string, number>),
+              }}
+              relatedRelationships={relationships}
+              isCollapsed={rightPanelCollapsed}
+              onToggleCollapse={toggleRightPanel}
+              onClose={() => {
+                setPanelMode('idle');
+                setPanelNodeData(null);
+                setPanelRelationshipData(null);
+                setPanelCreateRelationshipData(null);
+                setPanelTimelineEventData(null);
+                setPanelCreateTimelineEventData(null);
+              }}
+              onSaveNode={async (updatedEntity) => {
               if (panelNodeData) {
                 const { type } = panelNodeData;
                 const typeName = type === 'character' ? '角色' : type === 'location' ? '地点' : '设定';
@@ -1130,7 +1229,8 @@ const WorldviewGraphFullscreen: React.FC = () => {
                 }
               }
             }}
-          />
+            />
+          )}
         </div>
       </div>
 

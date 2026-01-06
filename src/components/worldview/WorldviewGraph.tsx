@@ -28,7 +28,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { WorldData } from '@/types/novel';
 import { Relationship, EntityType, RELATIONSHIP_COLORS } from '@/types/relationship';
-import { Users, MapPin, BookOpen, X, HelpCircle } from 'lucide-react';
+import { Users, MapPin, BookOpen, X, HelpCircle, PanelLeftClose, PanelLeft, Layers, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import './WorldviewGraph.css';
 import {
@@ -84,6 +84,10 @@ interface WorldviewGraphProps {
   connectionMode?: boolean; // 连线模式
   connectionModeSource?: { id: string; name: string; type: EntityType }; // 连线模式已选中的源节点
   onExitConnectionMode?: () => void; // 退出连线模式
+  leftPanelCollapsed?: boolean; // 左侧面板是否收缩
+  onToggleLeftPanel?: () => void; // 切换左侧面板
+  rightPanelCollapsed?: boolean; // 右侧面板是否收缩
+  onToggleRightPanel?: () => void; // 切换右侧面板
 }
 
 // 自定义节点组件 - 角色节点
@@ -409,6 +413,10 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
   connectionMode = false,
   connectionModeSource,
   onExitConnectionMode,
+  leftPanelCollapsed = false,
+  onToggleLeftPanel,
+  rightPanelCollapsed = false,
+  onToggleRightPanel,
 }) => {
   const { t } = useTranslation();
   // 转换数据
@@ -578,10 +586,13 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
     setEdges(processedEdges);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNodeId, searchText, filterKey, focusMode, focusNodeId]);
-  
+
   // 提示框状态
   const [showHint, setShowHint] = useState(true);
   const [showHelpButton, setShowHelpButton] = useState(false);
+
+  // 小地图显示状态
+  const [showMiniMap, setShowMiniMap] = useState(true);
 
   // 首次进入显示提示，3秒后自动隐藏
   useEffect(() => {
@@ -646,13 +657,13 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
     <div className="worldview-graph-container">
       {/* 连线模式提示条 */}
       {connectionMode && (
-        <div className="absolute top-16 left-1/2 transform -translate-x-1/2 z-[60] bg-primary text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-3 backdrop-blur-sm animate-in fade-in duration-200 text-sm">
+        <div className="absolute top-16 left-1/2 transform -translate-x-1/2 z-[60] bg-primary/90 text-primary-foreground border border-primary/30 px-4 py-2 rounded-lg shadow-lg flex items-center gap-3 backdrop-blur-sm animate-in fade-in duration-200 text-sm">
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+            <div className="w-1.5 h-1.5 bg-primary-foreground rounded-full animate-pulse" />
             <span className="text-sm font-medium">{t('worldview.graph.connectionMode')}</span>
           </div>
           {connectionModeSource && (
-            <div className="flex items-center gap-2 px-2.5 py-1 bg-white/20 rounded-md">
+            <div className="flex items-center gap-2 px-2.5 py-1 bg-primary-foreground/10 rounded-md">
               <span className="text-xs opacity-80">{t('worldview.graph.selectedSource')}</span>
               <span className="text-sm font-medium">{connectionModeSource.name}</span>
             </div>
@@ -661,7 +672,7 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
             variant="ghost"
             size="sm"
             onClick={onExitConnectionMode}
-            className="text-white hover:bg-white/20 ml-2 h-7 text-xs"
+            className="text-primary-foreground hover:bg-primary-foreground/10 ml-2 h-7 text-xs"
           >
             <X className="w-3.5 h-3.5 mr-1" />
             {t('worldview.graph.exit')}
@@ -692,30 +703,50 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
         <ViewportController focusNodeToView={focusNodeToView} nodes={nodes} />
         
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-        <Controls />
-        <MiniMap 
-          nodeColor={(node) => {
-            switch (node.type) {
-              case 'character':
-                return '#3b82f6'; // blue
-              case 'location':
-                return '#10b981'; // green
-              case 'setting':
-                return '#f59e0b'; // amber
-              default:
-                return '#6b7280'; // gray
-            }
-          }}
-          maskColor="rgba(0, 0, 0, 0.6)"
-          position="bottom-right"
-          style={{
-            backgroundColor: '#1a1a1a',
-            border: '1px solid #2a2a2a',
-          }}
-        />
+
+        {/* 缩放控制 */}
+        <Controls showInteractive={false}>
+          <button
+            onClick={() => setShowMiniMap(!showMiniMap)}
+            className="minimap-toggle-btn react-flow__controls-button"
+            title={showMiniMap ? "隐藏小地图" : "显示小地图"}
+          >
+            <Layers className="w-4 h-4" style={{ fill: 'currentColor' }} />
+          </button>
+        </Controls>
+
+        {showMiniMap && (
+          <MiniMap
+            nodeColor={(node) => {
+              switch (node.type) {
+                case 'character':
+                  return '#3b82f6'; // blue
+                case 'location':
+                  return '#10b981'; // green
+                case 'setting':
+                  return '#f59e0b'; // amber
+                default:
+                  return '#6b7280'; // gray
+              }
+            }}
+            position="bottom-right"
+            className="worldview-minimap"
+          />
+        )}
         
         {/* 统计面板 */}
         <Panel position="top-left" className="worldview-stats-panel">
+          {onToggleLeftPanel && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggleLeftPanel}
+              className="h-7 w-7 p-0 mr-2"
+              title={leftPanelCollapsed ? "展开侧边栏" : "收起侧边栏"}
+            >
+              {leftPanelCollapsed ? <PanelLeft className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+            </Button>
+          )}
           <div className="stats-item">
             <Users className="w-4 h-4" />
             <span>{stats.characterCount} {t('worldview.graph.characters')}</span>
@@ -747,16 +778,27 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
           </Panel>
         )}
 
-        {/* 帮助按钮（提示消失后显示） */}
-        {showHelpButton && !showHint && (
-          <Panel position="top-right" className="worldview-help-button">
-            <button
-              onClick={() => setShowHint(true)}
-              className="help-btn"
-              title={t('worldview.graph.showHint')}
-            >
-              <HelpCircle className="w-4 h-4" />
-            </button>
+        {/* 右上角快捷操作（提示消失后显示） */}
+        {!showHint && (showHelpButton || (rightPanelCollapsed && onToggleRightPanel)) && (
+          <Panel position="top-right" className="worldview-top-right-actions">
+            {showHelpButton && (
+              <button
+                onClick={() => setShowHint(true)}
+                className="help-btn"
+                title={t('worldview.graph.showHint')}
+              >
+                <HelpCircle className="w-4 h-4" />
+              </button>
+            )}
+            {rightPanelCollapsed && onToggleRightPanel && (
+              <button
+                onClick={onToggleRightPanel}
+                className="help-btn"
+                title="展开侧边栏"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            )}
           </Panel>
         )}
       </ReactFlow>

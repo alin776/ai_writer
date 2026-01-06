@@ -2,8 +2,15 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search, User, MapPin, BookOpen, Target, Plus, ChevronDown } from 'lucide-react';
+import { Search, User, MapPin, BookOpen, Target, Plus, ChevronDown, FolderOpen, PanelLeftClose } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Character, Location, Setting } from '@/types/novel';
 import { EntityType } from '@/types/relationship';
 
@@ -17,6 +24,8 @@ interface EnhancedNodeListProps {
   onCreateCharacter?: () => void;
   onCreateLocation?: () => void;
   onCreateSetting?: () => void;
+  onOpenGroupPanel?: () => void;
+  onCollapsePanel?: () => void;
   relationships?: any[];
 }
 
@@ -29,7 +38,9 @@ export function EnhancedNodeList({
   onFocusNode,
   onCreateCharacter,
   onCreateLocation,
-  onCreateSetting
+  onCreateSetting,
+  onOpenGroupPanel,
+  onCollapsePanel
 }: EnhancedNodeListProps) {
   const [searchText, setSearchText] = useState('');
   const [isCharactersOpen, setIsCharactersOpen] = useState(true);
@@ -115,45 +126,67 @@ export function EnhancedNodeList({
   };
 
   return (
-    <div className="h-full flex flex-col text-sm">
+    <div className="h-full flex flex-col text-sm overflow-hidden">
       {/* 搜索框 */}
-      <div className="flex-shrink-0 p-3 border-b border-border-light">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-muted-foreground" />
-          <Input
-            placeholder="搜索节点..."
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            className="pl-8 h-8 text-sm bg-background border-0 shadow-sm"
-          />
+      <div className="flex-shrink-0 px-2 py-3 overflow-hidden">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              placeholder="搜索节点..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              className="pl-8 h-8 text-sm bg-background border-0 shadow-sm"
+            />
+          </div>
+          {(onCreateCharacter || onCreateLocation || onCreateSetting || onOpenGroupPanel) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 flex-shrink-0">
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-32">
+                {onOpenGroupPanel && (
+                  <>
+                    <DropdownMenuItem onClick={onOpenGroupPanel}>
+                      分组管理
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {onCreateCharacter && (
+                  <DropdownMenuItem onClick={onCreateCharacter}>
+                    新建角色
+                  </DropdownMenuItem>
+                )}
+                {onCreateLocation && (
+                  <DropdownMenuItem onClick={onCreateLocation}>
+                    新建地点
+                  </DropdownMenuItem>
+                )}
+                {onCreateSetting && (
+                  <DropdownMenuItem onClick={onCreateSetting}>
+                    新建设定
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
 
       {/* 节点列表 */}
-      <div className="overflow-y-auto custom-scrollbar pr-2" style={{ maxHeight: 'calc(100vh - 200px)' }}>
-        <div className="p-3 space-y-4">
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+        <div className="px-2 py-3 space-y-4">
           {/* 角色列表 */}
           <Collapsible open={isCharactersOpen} onOpenChange={setIsCharactersOpen} className="animate-fade-in group/section">
             <div className="flex items-center justify-between mb-2 relative overflow-hidden group/header">
-              <div className="absolute left-0 top-0 bottom-0 w-0 group-hover/header:w-[50%] bg-gradient-to-r from-orange-100/50 to-transparent transition-all duration-500 ease-out pointer-events-none" />
-              <CollapsibleTrigger className="flex items-center gap-2 flex-1 hover:opacity-70 transition-opacity relative">
+              <CollapsibleTrigger className="flex items-center gap-2 flex-1 hover:opacity-70 transition-opacity relative focus:outline-none focus-visible:outline-none">
                 <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isCharactersOpen ? '' : '-rotate-90'}`} />
-                <div className="w-6 h-6 rounded-md bg-character/10 flex items-center justify-center">
-                  <User className="w-3.5 h-3.5 text-character" />
-                </div>
                 <span className="text-foreground text-xs font-medium">角色</span>
                 <Badge variant="secondary" className="ml-1 h-4 text-xs">{filteredCharacters.length}</Badge>
               </CollapsibleTrigger>
-              {onCreateCharacter && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onCreateCharacter}
-                  className="h-6 w-6 p-0 opacity-0 group-hover/section:opacity-100 transition-opacity relative"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </Button>
-              )}
             </div>
             <CollapsibleContent className="space-y-1">
               {filteredCharacters.length > 0 ? (
@@ -169,25 +202,11 @@ export function EnhancedNodeList({
           {/* 地点列表 */}
           <Collapsible open={isLocationsOpen} onOpenChange={setIsLocationsOpen} className="animate-fade-in group/section">
             <div className="flex items-center justify-between mb-2 relative overflow-hidden group/header">
-              <div className="absolute left-0 top-0 bottom-0 w-0 group-hover/header:w-[50%] bg-gradient-to-r from-orange-100/50 to-transparent transition-all duration-500 ease-out pointer-events-none" />
-              <CollapsibleTrigger className="flex items-center gap-2 flex-1 hover:opacity-70 transition-opacity relative">
+              <CollapsibleTrigger className="flex items-center gap-2 flex-1 hover:opacity-70 transition-opacity relative focus:outline-none focus-visible:outline-none">
                 <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isLocationsOpen ? '' : '-rotate-90'}`} />
-                <div className="w-6 h-6 rounded-md bg-location/10 flex items-center justify-center">
-                  <MapPin className="w-3.5 h-3.5 text-location" />
-                </div>
                 <span className="text-foreground text-xs font-medium">地点</span>
                 <Badge variant="secondary" className="ml-1 h-4 text-xs">{filteredLocations.length}</Badge>
               </CollapsibleTrigger>
-              {onCreateLocation && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onCreateLocation}
-                  className="h-6 w-6 p-0 opacity-0 group-hover/section:opacity-100 transition-opacity relative"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </Button>
-              )}
             </div>
             <CollapsibleContent className="space-y-1">
               {filteredLocations.length > 0 ? (
@@ -203,25 +222,11 @@ export function EnhancedNodeList({
           {/* 设定列表 */}
           <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen} className="animate-fade-in group/section">
             <div className="flex items-center justify-between mb-2 relative overflow-hidden group/header">
-              <div className="absolute left-0 top-0 bottom-0 w-0 group-hover/header:w-[50%] bg-gradient-to-r from-orange-100/50 to-transparent transition-all duration-500 ease-out pointer-events-none" />
-              <CollapsibleTrigger className="flex items-center gap-2 flex-1 hover:opacity-70 transition-opacity relative">
+              <CollapsibleTrigger className="flex items-center gap-2 flex-1 hover:opacity-70 transition-opacity relative focus:outline-none focus-visible:outline-none">
                 <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isSettingsOpen ? '' : '-rotate-90'}`} />
-                <div className="w-6 h-6 rounded-md bg-setting/10 flex items-center justify-center">
-                  <BookOpen className="w-3.5 h-3.5 text-setting" />
-                </div>
                 <span className="text-foreground text-xs font-medium">设定</span>
                 <Badge variant="secondary" className="ml-1 h-4 text-xs">{filteredSettings.length}</Badge>
               </CollapsibleTrigger>
-              {onCreateSetting && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onCreateSetting}
-                  className="h-6 w-6 p-0 opacity-0 group-hover/section:opacity-100 transition-opacity relative"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </Button>
-              )}
             </div>
             <CollapsibleContent className="space-y-1">
               {filteredSettings.length > 0 ? (

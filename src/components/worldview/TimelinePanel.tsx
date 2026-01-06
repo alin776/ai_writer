@@ -250,7 +250,7 @@ export function TimelinePanel({
   const hasActiveFilters = searchQuery || selectedEntityId !== 'all' || selectedEventType !== 'all';
 
   return (
-    <div className="relative w-full h-full bg-gradient-to-br from-slate-50 to-slate-100/50 text-sm flex flex-col">
+    <div className="relative w-full h-full bg-gradient-to-br from-background to-muted/20 dark:from-background dark:to-muted/10 text-sm flex flex-col">
       {/* 顶部工具栏 */}
       <div className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="p-4 space-y-3">

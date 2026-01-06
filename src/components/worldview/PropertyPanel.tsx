@@ -3,7 +3,7 @@
  * 显示节点或关系的详细信息
  */
 import React, { useState, useEffect } from 'react';
-import { X, Users, MapPin, BookOpen, Link2, Edit2, Trash2, Star, Save, Clock, Calendar, Edit, MoreVertical, ArrowRight, ArrowLeftRight, User } from 'lucide-react';
+import { X, Users, MapPin, BookOpen, Link2, Edit2, Trash2, Star, Save, Clock, Calendar, Edit, MoreVertical, ArrowRight, ArrowLeftRight, User, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { Character, Location, Setting } from '@/types/novel';
 import { Relationship, EntityType } from '@/types/relationship';
@@ -75,6 +75,8 @@ interface PropertyPanelProps {
   entities?: Array<{ id: string; type: EntityType; label: string }>;
   // 回调
   onClose: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
   onSaveNode?: (updatedEntity: Character | Location | Setting) => Promise<void>;
   onDeleteNode?: () => void;
   onCreateRelationship?: (formData: {
@@ -117,6 +119,8 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
   chapters = [],
   entities = [],
   onClose,
+  isCollapsed = false,
+  onToggleCollapse,
   onSaveNode,
   onDeleteNode,
   onCreateRelationship,
@@ -262,50 +266,61 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
     const relationshipTypeCounts = stats.relationshipsByType;
 
     return (
-      <div className="flex flex-col h-full bg-card border-l border-border shadow-sm text-sm">
-        <div className="p-3 border-b border-border bg-gradient-to-r from-purple-50/50 via-amber-50/30 to-emerald-50/50">
+      <div className="flex flex-col h-full text-sm">
+        <div className="p-3 border-b border-border bg-gradient-to-r from-purple-50/50 via-amber-50/30 to-emerald-50/50 dark:from-purple-900/20 dark:via-amber-900/10 dark:to-emerald-900/20 flex items-center justify-between">
           <h3 className="text-foreground font-medium">世界观统计</h3>
+          {onToggleCollapse && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggleCollapse}
+              className="h-7 w-7 p-0"
+              title={isCollapsed ? '展开侧边栏' : '收缩侧边栏'}
+            >
+              {isCollapsed ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </Button>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           <div className="p-3 space-y-4">
             {/* 核心数据卡片 */}
             <div className="grid grid-cols-2 gap-2">
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-lg p-3 shadow-[0_1px_4px_rgba(139,92,246,0.15)]">
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-900/30 dark:to-purple-800/20 rounded-lg p-3 shadow-[0_1px_4px_rgba(139,92,246,0.15)]">
                 <div className="flex items-center gap-2 mb-1">
-                  <Users className="w-3.5 h-3.5 text-purple-600" />
-                  <span className="text-xs text-purple-900/70">角色</span>
+                  <Users className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                  <span className="text-xs text-purple-900/70 dark:text-purple-300/70">角色</span>
                 </div>
-                <div className="text-2xl text-purple-700 tabular-nums">{stats.characters}</div>
+                <div className="text-2xl text-purple-700 dark:text-purple-300 tabular-nums">{stats.characters}</div>
               </div>
 
-              <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-lg p-3 shadow-[0_1px_4px_rgba(245,158,11,0.15)]">
+              <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-900/30 dark:to-amber-800/20 rounded-lg p-3 shadow-[0_1px_4px_rgba(245,158,11,0.15)]">
                 <div className="flex items-center gap-2 mb-1">
-                  <MapPin className="w-3.5 h-3.5 text-amber-600" />
-                  <span className="text-xs text-amber-900/70">地点</span>
+                  <MapPin className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span className="text-xs text-amber-900/70 dark:text-amber-300/70">地点</span>
                 </div>
-                <div className="text-2xl text-amber-700 tabular-nums">{stats.locations}</div>
+                <div className="text-2xl text-amber-700 dark:text-amber-300 tabular-nums">{stats.locations}</div>
               </div>
 
-              <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-lg p-3 shadow-[0_1px_4px_rgba(16,185,129,0.15)]">
+              <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-900/30 dark:to-emerald-800/20 rounded-lg p-3 shadow-[0_1px_4px_rgba(16,185,129,0.15)]">
                 <div className="flex items-center gap-2 mb-1">
-                  <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="text-xs text-emerald-900/70">设定</span>
+                  <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span className="text-xs text-emerald-900/70 dark:text-emerald-300/70">设定</span>
                 </div>
-                <div className="text-2xl text-emerald-700 tabular-nums">{stats.settings}</div>
+                <div className="text-2xl text-emerald-700 dark:text-emerald-300 tabular-nums">{stats.settings}</div>
               </div>
 
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-lg p-3 shadow-[0_1px_4px_rgba(59,130,246,0.15)]">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/30 dark:to-blue-800/20 rounded-lg p-3 shadow-[0_1px_4px_rgba(59,130,246,0.15)]">
                 <div className="flex items-center gap-2 mb-1">
-                  <Link2 className="w-3.5 h-3.5 text-blue-600" />
-                  <span className="text-xs text-blue-900/70">关系</span>
+                  <Link2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  <span className="text-xs text-blue-900/70 dark:text-blue-300/70">关系</span>
                 </div>
-                <div className="text-2xl text-blue-700 tabular-nums">{stats.relationships}</div>
+                <div className="text-2xl text-blue-700 dark:text-blue-300 tabular-nums">{stats.relationships}</div>
               </div>
             </div>
 
             {/* 饼状图 */}
             {(stats.characters + stats.locations + stats.settings + stats.relationships > 0) && (
-              <div className="bg-gradient-to-br from-purple-50/30 via-white to-amber-50/30 rounded-xl p-3 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-purple-100/20">
+              <div className="bg-gradient-to-br from-purple-50/30 via-white to-amber-50/30 dark:from-purple-900/20 dark:via-slate-800 dark:to-amber-900/20 rounded-xl p-3 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)] border border-purple-100/20 dark:border-slate-700/50">
                 <div className="w-full h-[220px]">
                   <PieChart width={280} height={220}>
                     <Pie
@@ -450,7 +465,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
     const currentEntity = isEditing && editedEntity ? editedEntity : entity;
 
     return (
-      <div className="flex flex-col h-full bg-card border-l border-border-light shadow-sm text-sm">
+      <div className="flex flex-col h-full text-sm">
         {/* 标题栏 */}
         <div className="p-6 pb-4 flex items-start justify-between">
           <div className="flex-1">
@@ -517,7 +532,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
         </div>
 
         <ScrollArea className="flex-1 custom-scrollbar">
-          <div className="p-6 space-y-5">
+          <div className={isEditing ? 'p-6 min-h-full flex flex-col' : 'p-6 space-y-5'}>
             {!isEditing ? (
               <>
                 {/* 角色/分类 */}
@@ -537,7 +552,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
                 )}
 
                 {/* 描述 */}
-                <div className="space-y-2 pt-4 border-t border-border">
+                <div className="space-y-2 pt-4">
                   <p className="text-foreground/80 leading-relaxed whitespace-pre-wrap">
                     {(type === 'setting'
                       ? (currentEntity as Setting).content
@@ -595,20 +610,10 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
                 )}
               </>
             ) : (
-              <>
+              <div className="flex flex-col gap-5 flex-1">
                 {/* 编辑模式 */}
-                <div className="flex gap-2">
-                  <Button onClick={handleSave} size="sm" disabled={isSaving}>
-                    {isSaving ? '保存中...' : '保存'}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleCancelEdit}>
-                    取消
-                  </Button>
-                </div>
-
                 {type === 'character' && (
                   <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground uppercase tracking-wider">角色定位</Label>
                     <Input
                       value={(currentEntity as Character).role || ''}
                       onChange={(e) => setEditedEntity({ ...(currentEntity as Character), role: e.target.value })}
@@ -620,7 +625,6 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
 
                 {type === 'location' && (
                   <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground uppercase tracking-wider">分类</Label>
                     <Input
                       value={(currentEntity as Location).type || ''}
                       onChange={(e) => setEditedEntity({ ...(currentEntity as Location), type: e.target.value })}
@@ -632,7 +636,6 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
 
                 {type === 'setting' && (
                   <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground uppercase tracking-wider">分类</Label>
                     <Input
                       value={(currentEntity as Setting).category || ''}
                       onChange={(e) => setEditedEntity({ ...(currentEntity as Setting), category: e.target.value })}
@@ -642,8 +645,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
                   </div>
                 )}
 
-                <div className="space-y-2 pt-3 border-t border-border">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">详细描述</Label>
+                <div className="space-y-2 pt-3">
                   <Textarea
                     value={type === 'setting' ? (currentEntity as Setting).content : (currentEntity as Character | Location).description || ''}
                     onChange={(e) => {
@@ -654,11 +656,20 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
                       }
                     }}
                     placeholder="详细描述此节点的相关信息..."
-                    className="border-border min-h-[120px] resize-none"
+                    className="border-border min-h-[120px] resize-none bg-input-background dark:bg-input/30"
                     rows={6}
                   />
                 </div>
-              </>
+
+                <div className="mt-auto flex justify-end gap-2 pt-2">
+                  <Button onClick={handleSave} size="sm" disabled={isSaving}>
+                    {isSaving ? '保存中...' : '保存'}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleCancelEdit}>
+                    取消
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
         </ScrollArea>
@@ -673,13 +684,13 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
     const { relationship, sourceLabel, targetLabel } = relationshipData;
 
     return (
-      <div className="flex flex-col h-full bg-card border-l border-border-light shadow-sm text-sm">
+      <div className="flex flex-col h-full text-sm">
         {/* 标题栏 */}
-        <div className="p-6 pb-4 flex items-start justify-between">
-          <div className="flex items-center gap-3 flex-1">
-            <span className="text-3xl text-foreground leading-relaxed" style={{ fontFamily: "'Ma Shan Zheng', cursive" }}>{sourceLabel}</span>
-            <ArrowRight className="w-5 h-5 text-muted-foreground" />
-            <span className="text-3xl text-foreground leading-relaxed" style={{ fontFamily: "'Ma Shan Zheng', cursive" }}>{targetLabel}</span>
+        <div className="p-4 pb-3 flex items-start justify-between">
+          <div className="flex items-center gap-2 flex-1">
+            <span className="text-2xl text-foreground leading-snug">{sourceLabel}</span>
+            <ArrowRight className="w-4 h-4 text-muted-foreground" />
+            <span className="text-2xl text-foreground leading-snug">{targetLabel}</span>
           </div>
           <div className="flex items-center gap-1">
             <DropdownMenu>
@@ -827,17 +838,17 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
     };
 
     return (
-      <div className="flex flex-col h-full bg-card border-l border-border-light shadow-sm text-sm">
+      <div className="flex flex-col h-full text-sm">
         {/* 标题栏 */}
-        <div className="p-6 pb-4 flex items-start justify-between">
-          <div className="flex items-center gap-3 flex-1">
-            <span className="text-3xl text-foreground leading-relaxed" style={{ fontFamily: "'Ma Shan Zheng', cursive" }}>{sourceLabel}</span>
+        <div className="p-4 pb-3 flex items-start justify-between">
+          <div className="flex items-center gap-2 flex-1">
+            <span className="text-2xl text-foreground leading-snug">{sourceLabel}</span>
             {createForm.direction === 'two-way' ? (
-              <ArrowLeftRight className="w-5 h-5 text-muted-foreground" />
+              <ArrowLeftRight className="w-4 h-4 text-muted-foreground" />
             ) : (
-              <ArrowRight className="w-5 h-5 text-muted-foreground" />
+              <ArrowRight className="w-4 h-4 text-muted-foreground" />
             )}
-            <span className="text-3xl text-foreground leading-relaxed" style={{ fontFamily: "'Ma Shan Zheng', cursive" }}>{targetLabel}</span>
+            <span className="text-2xl text-foreground leading-snug">{targetLabel}</span>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
             <X className="w-4 h-4" />
@@ -849,7 +860,6 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
             <div className="p-6 space-y-5">
               {/* 关系类型 */}
               <div className="space-y-2">
-                <div className="text-xs text-muted-foreground uppercase tracking-wider">关系类型</div>
                 <Select
                   value={createForm.relationshipType}
                   onValueChange={(value) => setCreateForm(prev => ({...prev, relationshipType: value}))}
@@ -866,8 +876,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
               </div>
 
               {/* 标签 */}
-              <div className="space-y-2 pt-4 border-t border-border">
-                <div className="text-xs text-muted-foreground uppercase tracking-wider">标签</div>
+              <div className="space-y-2 pt-4">
                 <Input
                   value={createForm.label}
                   onChange={(e) => setCreateForm(prev => ({...prev, label: e.target.value}))}
@@ -876,20 +885,19 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
               </div>
 
               {/* 描述 */}
-              <div className="space-y-2 pt-4 border-t border-border">
-                <div className="text-xs text-muted-foreground uppercase tracking-wider">描述</div>
+              <div className="space-y-2 pt-4">
                 <Textarea
                   value={createForm.description}
                   onChange={(e) => setCreateForm(prev => ({...prev, description: e.target.value}))}
                   placeholder="描述这个关系的详细信息"
+                  className="bg-input-background dark:bg-input/30"
                   rows={3}
                 />
               </div>
 
               {/* 强度 */}
-              <div className="space-y-2 pt-4 border-t border-border">
+              <div className="space-y-2 pt-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider">强度</div>
                   <span className="text-foreground text-xs">{createForm.strength}/5</span>
                 </div>
                 <Slider
@@ -902,8 +910,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
               </div>
 
               {/* 方向 */}
-              <div className="space-y-2 pt-4 border-t border-border">
-                <div className="text-xs text-muted-foreground uppercase tracking-wider">方向</div>
+              <div className="space-y-2 pt-4">
                 <RadioGroup
                   value={createForm.direction}
                   onValueChange={(value: 'one-way' | 'two-way') => setCreateForm(prev => ({...prev, direction: value}))}
@@ -921,8 +928,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
               </div>
 
               {/* 颜色 */}
-              <div className="space-y-2 pt-4 border-t border-border">
-                <div className="text-xs text-muted-foreground uppercase tracking-wider">颜色</div>
+              <div className="space-y-2 pt-4">
                 <Input
                   type="color"
                   value={createForm.color}
@@ -932,8 +938,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
               </div>
 
               {/* 线型 */}
-              <div className="space-y-2 pt-4 border-t border-border">
-                <div className="text-xs text-muted-foreground uppercase tracking-wider">线型</div>
+              <div className="space-y-2 pt-4">
                 <Select
                   value={createForm.lineStyle}
                   onValueChange={(value: 'solid' | 'dashed' | 'dotted') => setCreateForm(prev => ({...prev, lineStyle: value}))}
@@ -990,7 +995,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
     };
 
     return (
-      <div className="flex flex-col h-full bg-card border-l border-border-light shadow-sm text-sm">
+      <div className="flex flex-col h-full text-sm">
         {/* 标题栏 */}
         <div className="p-6 pb-4 flex items-start justify-between">
           <h2
@@ -1262,7 +1267,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
     };
 
     return (
-      <div className="flex flex-col h-full bg-card border-l border-border-light shadow-sm text-sm">
+      <div className="flex flex-col h-full text-sm">
         {/* 标题栏 */}
         <div className="p-6 pb-4 flex items-start justify-between">
           <h2
@@ -1449,8 +1454,8 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
   };
 
   return (
-    <div className="property-panel h-full flex flex-col">
-      <div className="panel-content flex-1 overflow-y-auto p-4">
+    <div className="property-panel h-full flex flex-col bg-card border-l border-border-light">
+      <div className="panel-content flex-1 overflow-y-auto">
         {mode === 'idle' && renderIdleState()}
         {mode === 'node' && renderNodeDetails()}
         {mode === 'relationship' && renderRelationshipDetails()}

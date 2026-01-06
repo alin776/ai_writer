@@ -1,11 +1,15 @@
 /* 世界观关系图样式 */
 
+/* 隐藏 ReactFlow attribution bar */
+.react-flow__attribution {
+  display: none !important;
+}
+
 .worldview-graph-container {
   width: 100%;
   height: 100%;
   background: #fafafa;
   border-radius: 8px;
-  border: 1px solid #e5e7eb;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -116,23 +120,26 @@
 /* 统计面板 */
 .worldview-stats-panel {
   background: white;
-  padding: 12px 16px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 6px 10px;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   display: flex;
-  gap: 16px;
+  align-items: center;
+  gap: 12px;
 }
 
 .stats-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: 4px;
+  font-size: 12px;
   color: #374151;
   font-weight: 500;
 }
 
 .stats-item svg {
+  width: 14px;
+  height: 14px;
   color: #6b7280;
 }
 
@@ -193,8 +200,11 @@
   background: rgba(255, 255, 255, 0.3);
 }
 
-/* 帮助按钮 */
-.worldview-help-button {
+/* 右上角快捷操作 */
+.worldview-top-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 0;
 }
 
@@ -289,6 +299,31 @@
   }
 }
 
+/* 小地图切换按钮 */
+.minimap-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 28px;
+  background: white;
+  border: none;
+  border-bottom: 1px solid #e5e7eb;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.minimap-toggle-btn:hover {
+  background: #f3f4f6;
+  color: #3b82f6;
+}
+
+.minimap-toggle-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
 /* 控制按钮美化 */
 .react-flow__controls {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -304,6 +339,18 @@
 
 .react-flow__controls-button:hover {
   background: #f3f4f6;
+}
+
+/* 小地图样式 - 浅色模式 */
+.worldview-minimap {
+  background-color: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.worldview-minimap .react-flow__minimap-mask {
+  fill: rgba(0, 0, 0, 0.1) !important;
 }
 
 .react-flow__controls-button svg {
@@ -450,7 +497,6 @@
 
 .dark .worldview-graph-container {
   background: #0f172a;
-  border-color: #334155;
 }
 
 .dark .worldview-node {
@@ -504,7 +550,7 @@
 
 .dark .worldview-stats-panel {
   background: #1e293b;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
 .dark .stats-item {
@@ -554,6 +600,17 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
+.dark .minimap-toggle-btn {
+  background: #1e293b;
+  color: #cbd5e1;
+  border-bottom-color: #334155;
+}
+
+.dark .minimap-toggle-btn:hover {
+  background: #334155;
+  color: #60a5fa;
+}
+
 .dark .react-flow__controls-button {
   background: #1e293b;
   border-bottom-color: #334155;
@@ -565,6 +622,17 @@
 
 .dark .react-flow__controls-button svg {
   fill: #cbd5e1;
+}
+
+/* 小地图样式 - 暗色模式 */
+.dark .worldview-minimap {
+  background-color: #1e293b !important;
+  border: 1px solid #334155 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dark .worldview-minimap .react-flow__minimap-mask {
+  fill: rgba(0, 0, 0, 0.5) !important;
 }
 
 .dark .worldview-node .react-flow__handle {

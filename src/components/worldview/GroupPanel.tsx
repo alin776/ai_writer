@@ -3,11 +3,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, Edit, Trash2, Users, ChevronDown, X, UserPlus } from 'lucide-react';
+import { Plus, Edit, Trash2, Users, ChevronDown, X, UserPlus, User, MapPin, BookOpen, List } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import type { EntityGroup, CreateEntityGroupData } from '@/types/group';
 import type { Character, Location, Setting } from '@/types/novel';
 
@@ -22,6 +29,10 @@ interface GroupPanelProps {
   onDeleteGroup: (groupId: string) => Promise<void>;
   onAddMembers: (groupId: string, members: { entityId: string; entityType: 'character' | 'location' | 'setting' }[]) => Promise<void>;
   onRemoveMember: (groupId: string, memberId: string) => Promise<void>;
+  onBackToNodeList?: () => void;
+  onCreateCharacter?: () => void;
+  onCreateLocation?: () => void;
+  onCreateSetting?: () => void;
 }
 
 interface Entity {
@@ -40,7 +51,11 @@ export function GroupPanel({
   onUpdateGroup,
   onDeleteGroup,
   onAddMembers,
-  onRemoveMember
+  onRemoveMember,
+  onBackToNodeList,
+  onCreateCharacter,
+  onCreateLocation,
+  onCreateSetting
 }: GroupPanelProps) {
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
 
@@ -183,19 +198,55 @@ export function GroupPanel({
     <div className="flex flex-col h-full text-sm">
       {/* 顶部操作栏 */}
       <div className="p-3 border-b border-border-light">
-        <Button onClick={handleOpenCreateForm} className="w-full shadow-sm h-8 text-sm">
-          <Plus className="w-3.5 h-3.5 mr-1.5" />
-          创建分组
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={handleOpenCreateForm} className="flex-1 shadow-sm h-8 text-sm">
+            创建分组
+          </Button>
+          {(onBackToNodeList || onCreateCharacter || onCreateLocation || onCreateSetting) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 flex-shrink-0">
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-32">
+                {onBackToNodeList && (
+                  <>
+                    <DropdownMenuItem onClick={onBackToNodeList}>
+                      <List className="w-4 h-4 mr-2 text-muted-foreground" />
+                      节点列表
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {onCreateCharacter && (
+                  <DropdownMenuItem onClick={onCreateCharacter}>
+                    <User className="w-4 h-4 mr-2 text-character" />
+                    新建角色
+                  </DropdownMenuItem>
+                )}
+                {onCreateLocation && (
+                  <DropdownMenuItem onClick={onCreateLocation}>
+                    <MapPin className="w-4 h-4 mr-2 text-location" />
+                    新建地点
+                  </DropdownMenuItem>
+                )}
+                {onCreateSetting && (
+                  <DropdownMenuItem onClick={onCreateSetting}>
+                    <BookOpen className="w-4 h-4 mr-2 text-setting" />
+                    新建设定
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
       </div>
 
       {/* 创建分组表单 */}
       {isCreating && (
         <div className="p-4 border-b border-border-light bg-accent/10 space-y-3.5 animate-in slide-in-from-top-2 duration-200">
           <div className="space-y-2">
-            <Label htmlFor="create-name" className="text-xs text-muted-foreground">
-              分组名称 <span className="text-destructive">*</span>
-            </Label>
             <Input
               id="create-name"
               value={createFormData.name}
@@ -206,9 +257,6 @@ export function GroupPanel({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="create-description" className="text-xs text-muted-foreground">
-              描述
-            </Label>
             <Textarea
               id="create-description"
               value={createFormData.description}
@@ -219,9 +267,6 @@ export function GroupPanel({
             />
           </div>
           <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">
-              颜色标识
-            </Label>
             <div className="flex gap-2">
               {predefinedColors.map(color => (
                 <button
@@ -449,9 +494,6 @@ export function GroupPanel({
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>添加成员</DialogTitle>
-            <DialogDescription>
-              选择要添加到分组的实体
-            </DialogDescription>
           </DialogHeader>
 
           {/* 标签页 */}
@@ -503,7 +545,7 @@ export function GroupPanel({
                   return (
                     <div
                       key={entityId}
-                      className={`flex items-center space-x-3 p-2 rounded hover:bg-accent cursor-pointer ${
+                      className={`flex items-center space-x-3 p-2 rounded hover:bg-accent/40 cursor-pointer ${
                         isInGroup ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
                       onClick={() => !isInGroup && toggleEntitySelection(entityId)}

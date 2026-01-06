@@ -16,6 +16,7 @@ export class ApiAdapter implements IDataAdapter {
 
     this.axiosInstance = axios.create({
       baseURL,
+      withCredentials: true,
       timeout: 180000, // 180秒超时（3分钟），适配AI长文本生�?
       headers: {
         'Content-Type': 'application/json',
@@ -33,26 +34,26 @@ export class ApiAdapter implements IDataAdapter {
         }
 
         // �?Zustand persist 存储中读�?token
-        const authStorage = localStorage.getItem('auth-storage');
-        if (authStorage) {
-          try {
-            const authState = JSON.parse(authStorage);
-            console.log('[ApiAdapter] Auth storage:', authState);
-            
-            const token = authState.state?.token;
-            console.log('[ApiAdapter] Token:', token);
-            
-            if (token) {
-              config.headers.Authorization = `Bearer ${token}`;
-              console.log('[ApiAdapter] Authorization header set');
-            } else {
-              console.warn('[ApiAdapter] No token found in auth storage');
+        const storeToken = useAuthStore.getState().token;
+        let token = storeToken;
+
+        if (!token) {
+          const authStorage = localStorage.getItem('auth-storage');
+          if (authStorage) {
+            try {
+              const authState = JSON.parse(authStorage);
+              token = authState.state?.token || authState.token;
+            } catch (error) {
+              console.error('[ApiAdapter] Failed to parse auth storage:', error);
             }
-          } catch (error) {
-            console.error('[ApiAdapter] Failed to parse auth storage:', error);
           }
-        } else {
-          console.warn('[ApiAdapter] No auth-storage in localStorage');
+        }
+
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+          console.log('[ApiAdapter] Authorization header set');
+        } else if (import.meta.env.DEV) {
+          console.warn('[ApiAdapter] No token available for request');
         }
         return config;
       },
@@ -142,12 +143,16 @@ export class ApiAdapter implements IDataAdapter {
           }
 
           switch (status) {
-            case 401:
-              // 未授权，清除 token 并跳转登�?
-              localStorage.removeItem('auth-storage');
-              window.location.href = '/login';
+            case 401: {
+              const { token, refreshToken } = useAuthStore.getState();
+              const hasSession = Boolean(token || refreshToken);
+              if (!hasSession) {
+                localStorage.removeItem('auth-storage');
+                window.location.href = '/login';
+              }
               break;
-            case 403:
+            }
+case 403:
               // 无权限
               console.error('无权限访问');
               break;
@@ -190,14 +195,10 @@ export class ApiAdapter implements IDataAdapter {
 
     this.refreshPromise = (async () => {
       const { refreshToken, setToken, setRefreshToken, logout } = useAuthStore.getState();
-      if (!refreshToken) {
-        return null;
-      }
+      const refreshPayload = refreshToken ? { refresh_token: refreshToken } : {};
 
       try {
-        const response = await this.axiosInstance.post('/auth/refresh', {
-          refresh_token: refreshToken,
-        }, {
+        const response = await this.axiosInstance.post('/auth/refresh', refreshPayload, {
           headers: { 'Content-Type': 'application/json' },
         });
 
@@ -229,8 +230,10 @@ export class ApiAdapter implements IDataAdapter {
         return newAccessToken;
       } catch (error) {
         console.error('[ApiAdapter] Failed to refresh token:', error);
-        logout();
-        localStorage.removeItem('auth-storage');
+        if (refreshToken) {
+          logout();
+          localStorage.removeItem('auth-storage');
+        }
         return null;
       } finally {
         this.refreshPromise = null;
