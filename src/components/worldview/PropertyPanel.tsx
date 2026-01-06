@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Users, MapPin, BookOpen, Link2, Edit2, Trash2, Star, Save, Clock, Calendar, Edit, MoreVertical, ArrowRight, ArrowLeftRight, User, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { Character, Location, Setting } from '@/types/novel';
-import { Relationship, EntityType } from '@/types/relationship';
+import { Relationship, EntityType, getRelationshipOptions, getRelationshipExamples } from '@/types/relationship';
 import { TimelineEvent, EventType, EVENT_TYPE_OPTIONS } from '@/types/timeline';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -89,6 +89,15 @@ interface PropertyPanelProps {
     lineStyle: 'solid' | 'dashed' | 'dotted';
   }) => Promise<void>;
   onEditRelationship?: () => void;
+  onSaveRelationship?: (relationshipId: string, formData: {
+    relationshipType: string;
+    label: string;
+    description: string;
+    strength: number;
+    direction: 'one-way' | 'two-way';
+    color?: string;
+    lineStyle: 'solid' | 'dashed' | 'dotted';
+  }) => Promise<void>;
   onDeleteRelationship?: () => void;
   onRelationshipClick?: (relationshipId: string) => void;
   // 时间线事件回调
@@ -125,6 +134,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
   onDeleteNode,
   onCreateRelationship,
   onEditRelationship,
+  onSaveRelationship,
   onDeleteRelationship,
   onRelationshipClick,
   onCreateTimelineEvent,
@@ -171,6 +181,18 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
   // 编辑时间线事件状态
   const [editedEvent, setEditedEvent] = useState<TimelineEvent | null>(null);
   const [isEditingEvent, setIsEditingEvent] = useState(false);
+
+  // 编辑关系状态
+  const [isEditingRelationship, setIsEditingRelationship] = useState(false);
+  const [editedRelationship, setEditedRelationship] = useState<{
+    relationshipType: string;
+    label: string;
+    description: string;
+    strength: number;
+    direction: 'one-way' | 'two-way';
+    color: string;
+    lineStyle: 'solid' | 'dashed' | 'dotted';
+  } | null>(null);
 
   // 饼状图激活状态
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -389,12 +411,18 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
                     </Pie>
                     <Tooltip
                       contentStyle={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.98)',
-                        border: '1px solid rgba(0,0,0,0.08)',
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
                         borderRadius: '6px',
                         fontSize: '11px',
                         padding: '6px 10px',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.12)'
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                      }}
+                      itemStyle={{
+                        color: 'hsl(var(--foreground))',
+                      }}
+                      labelStyle={{
+                        color: 'hsl(var(--foreground))',
                       }}
                       formatter={(value: any, name: string) => [`${value}`, name]}
                     />
@@ -405,7 +433,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
 
             {/* 关系类型分布 */}
             {Object.keys(relationshipTypeCounts).length > 0 && (
-              <div className="bg-blue-50/40 rounded-lg p-3 border border-blue-100/30">
+              <div className="bg-blue-50/40 dark:bg-blue-950/30 rounded-lg p-3 border border-blue-100/30 dark:border-blue-800/30">
                 <h4 className="text-foreground font-medium mb-3 flex items-center gap-2">
                   <div className="w-1 h-4 bg-blue-500 rounded-full" />
                   关系类型分布
@@ -423,9 +451,9 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
                             <span className="px-2 py-0.5 bg-secondary text-secondary-foreground rounded text-xs font-medium min-w-[28px] text-center">{count}</span>
                           </div>
                         </div>
-                        <div className="h-1.5 bg-blue-100 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-blue-100 dark:bg-blue-900/40 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full transition-all duration-300"
+                            className="h-full bg-gradient-to-r from-blue-400 to-blue-500 dark:from-blue-500 dark:to-blue-400 rounded-full transition-all duration-300"
                             style={{ width: `${percentage}%` }}
                           />
                         </div>
@@ -681,6 +709,64 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
 
     const { relationship, sourceLabel, targetLabel } = relationshipData;
 
+    // 根据源类型和目标类型动态获取关系类型选项
+    const relationshipTypes = getRelationshipOptions(
+      relationship.sourceType,
+      relationship.targetType
+    );
+
+    // 获取动态示例提示
+    const examplePlaceholder = getRelationshipExamples(
+      relationship.sourceType,
+      relationship.targetType
+    );
+
+    // 开始编辑
+    const handleStartEditRelationship = () => {
+      setEditedRelationship({
+        relationshipType: relationship.relationshipType,
+        label: relationship.label,
+        description: relationship.description || '',
+        strength: relationship.strength,
+        direction: relationship.direction,
+        color: relationship.color || '#8b5cf6',
+        lineStyle: relationship.lineStyle,
+      });
+      setIsEditingRelationship(true);
+    };
+
+    // 取消编辑
+    const handleCancelEditRelationship = () => {
+      setIsEditingRelationship(false);
+      setEditedRelationship(null);
+    };
+
+    // 保存编辑
+    const handleSaveRelationship = async () => {
+      if (editedRelationship && onSaveRelationship) {
+        setIsSaving(true);
+        try {
+          await onSaveRelationship(relationship.id, editedRelationship);
+          setIsEditingRelationship(false);
+          setEditedRelationship(null);
+        } catch (error) {
+          console.error('保存关系失败:', error);
+        } finally {
+          setIsSaving(false);
+        }
+      }
+    };
+
+    const currentData = isEditingRelationship && editedRelationship ? editedRelationship : {
+      relationshipType: relationship.relationshipType,
+      label: relationship.label,
+      description: relationship.description || '',
+      strength: relationship.strength,
+      direction: relationship.direction,
+      color: relationship.color || '#8b5cf6',
+      lineStyle: relationship.lineStyle,
+    };
+
     return (
       <div className="flex flex-col h-full text-sm">
         {/* 标题栏 */}
@@ -691,26 +777,28 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
             <span className="text-2xl text-foreground leading-snug">{targetLabel}</span>
           </div>
           <div className="flex items-center gap-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                  <MoreVertical className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem onClick={onEditRelationship}>
-                  <Edit className="w-3.5 h-3.5 mr-2" />
-                  编辑
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleDeleteClick('relationship', relationship.label || '关系')}
-                  variant="destructive"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-2" />
-                  删除
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {!isEditingRelationship && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem onClick={handleStartEditRelationship}>
+                    <Edit className="w-3.5 h-3.5 mr-2" />
+                    编辑
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDeleteClick('relationship', relationship.label || '关系')}
+                    variant="destructive"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-2" />
+                    删除
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
               <X className="w-4 h-4" />
             </Button>
@@ -719,73 +807,193 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
 
         <ScrollArea className="flex-1 custom-scrollbar">
           <div className="p-6 space-y-5">
+            {isEditingRelationship ? (
+              <>
+                {/* 编辑模式 */}
+                {/* 关系类型 */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">关系类型</Label>
+                  <Select
+                    value={currentData.relationshipType}
+                    onValueChange={(value) => setEditedRelationship(prev => prev ? {...prev, relationshipType: value} : null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {relationshipTypes.map(type => (
+                        <SelectItem key={type} value={type}>{type}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            {/* 关系类型 */}
-            <div className="flex items-center gap-3">
-              <div className="text-xs text-muted-foreground uppercase tracking-wider">关系类型</div>
-              <div className="text-foreground">{relationship.relationshipType}</div>
-            </div>
-
-            {/* 标签 */}
-            {relationship.label && (
-              <div className="flex items-center gap-3 pt-4 border-t border-border">
-                <div className="text-xs text-muted-foreground uppercase tracking-wider">标签</div>
-                <div className="text-foreground">{relationship.label}</div>
-              </div>
-            )}
-
-            {/* 描述 */}
-            {relationship.description && (
-              <div className="space-y-2 pt-4 border-t border-border">
-                <div className="text-xs text-muted-foreground uppercase tracking-wider">描述</div>
-                <p className="text-foreground/80 leading-relaxed">{relationship.description}</p>
-              </div>
-            )}
-
-            {/* 强度 */}
-            <div className="space-y-2 pt-4 border-t border-border">
-              <div className="text-xs text-muted-foreground uppercase tracking-wider">强度</div>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-1.5 bg-accent rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-foreground/60 transition-all"
-                    style={{ width: `${(relationship.strength / 10) * 100}%` }}
+                {/* 标签 */}
+                <div className="space-y-2 pt-4 border-t border-border">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">标签</Label>
+                  <Input
+                    value={currentData.label}
+                    onChange={(e) => setEditedRelationship(prev => prev ? {...prev, label: e.target.value} : null)}
+                    placeholder={examplePlaceholder}
                   />
                 </div>
-                <span className="text-foreground text-xs">{relationship.strength}/10</span>
-              </div>
-            </div>
 
-            {/* 方向 */}
-            <div className="flex items-center gap-3 pt-4 border-t border-border">
-              <div className="text-xs text-muted-foreground uppercase tracking-wider">方向</div>
-              <div className="text-foreground">
-                {relationship.direction === 'two-way' ? '双向' : '单向'}
-              </div>
-            </div>
-
-            {/* 颜色 */}
-            {relationship.color && (
-              <div className="flex items-center gap-3 pt-4 border-t border-border">
-                <div className="text-xs text-muted-foreground uppercase tracking-wider">颜色</div>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-5 h-5 rounded border border-border"
-                    style={{ backgroundColor: relationship.color }}
+                {/* 描述 */}
+                <div className="space-y-2 pt-4 border-t border-border">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">描述</Label>
+                  <Textarea
+                    value={currentData.description}
+                    onChange={(e) => setEditedRelationship(prev => prev ? {...prev, description: e.target.value} : null)}
+                    placeholder="描述这个关系的详细信息"
+                    className="bg-input-background dark:bg-input/30"
+                    rows={3}
                   />
-                  <span className="text-foreground text-xs">{relationship.color}</span>
                 </div>
-              </div>
-            )}
 
-            {/* 线型 */}
-            <div className="flex items-center gap-3 pt-4 border-t border-border">
-              <div className="text-xs text-muted-foreground uppercase tracking-wider">线型</div>
-              <div className="text-foreground">
-                {relationship.lineStyle === 'solid' ? '实线' :
-                 relationship.lineStyle === 'dashed' ? '虚线' : '点线'}
-              </div>
-            </div>
+                {/* 强度 */}
+                <div className="space-y-2 pt-4 border-t border-border">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">强度</Label>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-foreground text-xs">{currentData.strength}/10</span>
+                  </div>
+                  <Slider
+                    value={[currentData.strength]}
+                    onValueChange={([value]) => setEditedRelationship(prev => prev ? {...prev, strength: value} : null)}
+                    min={1}
+                    max={10}
+                    step={1}
+                  />
+                </div>
+
+                {/* 方向 */}
+                <div className="space-y-2 pt-4 border-t border-border">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">方向</Label>
+                  <RadioGroup
+                    value={currentData.direction}
+                    onValueChange={(value: 'one-way' | 'two-way') => setEditedRelationship(prev => prev ? {...prev, direction: value} : null)}
+                    className="space-y-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="one-way" id="edit-unidirectional" />
+                      <label htmlFor="edit-unidirectional" className="cursor-pointer text-sm">单向</label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="two-way" id="edit-bidirectional" />
+                      <label htmlFor="edit-bidirectional" className="cursor-pointer text-sm">双向</label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {/* 颜色 */}
+                <div className="space-y-2 pt-4 border-t border-border">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">颜色</Label>
+                  <Input
+                    type="color"
+                    value={currentData.color}
+                    onChange={(e) => setEditedRelationship(prev => prev ? {...prev, color: e.target.value} : null)}
+                    className="h-10 cursor-pointer"
+                  />
+                </div>
+
+                {/* 线型 */}
+                <div className="space-y-2 pt-4 border-t border-border">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">线型</Label>
+                  <Select
+                    value={currentData.lineStyle}
+                    onValueChange={(value: 'solid' | 'dashed' | 'dotted') => setEditedRelationship(prev => prev ? {...prev, lineStyle: value} : null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="solid">实线</SelectItem>
+                      <SelectItem value="dashed">虚线</SelectItem>
+                      <SelectItem value="dotted">点线</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 保存/取消按钮 */}
+                <div className="flex gap-2 pt-4">
+                  <Button onClick={handleSaveRelationship} size="sm" disabled={isSaving}>
+                    {isSaving ? '保存中...' : '保存'}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleCancelEditRelationship}>
+                    取消
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* 查看模式 */}
+                {/* 关系类型 */}
+                <div className="flex items-center gap-3">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider">关系类型</div>
+                  <div className="text-foreground">{relationship.relationshipType}</div>
+                </div>
+
+                {/* 标签 */}
+                {relationship.label && (
+                  <div className="flex items-center gap-3 pt-4 border-t border-border">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">标签</div>
+                    <div className="text-foreground">{relationship.label}</div>
+                  </div>
+                )}
+
+                {/* 描述 */}
+                {relationship.description && (
+                  <div className="space-y-2 pt-4 border-t border-border">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">描述</div>
+                    <p className="text-foreground/80 leading-relaxed">{relationship.description}</p>
+                  </div>
+                )}
+
+                {/* 强度 */}
+                <div className="space-y-2 pt-4 border-t border-border">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider">强度</div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-1.5 bg-accent rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-foreground/60 transition-all"
+                        style={{ width: `${(relationship.strength / 10) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-foreground text-xs">{relationship.strength}/10</span>
+                  </div>
+                </div>
+
+                {/* 方向 */}
+                <div className="flex items-center gap-3 pt-4 border-t border-border">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider">方向</div>
+                  <div className="text-foreground">
+                    {relationship.direction === 'two-way' ? '双向' : '单向'}
+                  </div>
+                </div>
+
+                {/* 颜色 */}
+                {relationship.color && (
+                  <div className="flex items-center gap-3 pt-4 border-t border-border">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">颜色</div>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-5 h-5 rounded border border-border"
+                        style={{ backgroundColor: relationship.color }}
+                      />
+                      <span className="text-foreground text-xs">{relationship.color}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 线型 */}
+                <div className="flex items-center gap-3 pt-4 border-t border-border">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider">线型</div>
+                  <div className="text-foreground">
+                    {relationship.lineStyle === 'solid' ? '实线' :
+                     relationship.lineStyle === 'dashed' ? '虚线' : '点线'}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </ScrollArea>
       </div>
@@ -796,24 +1004,25 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
   const renderCreateRelationship = () => {
     if (!createRelationshipData) return null;
 
-    const { sourceLabel, targetLabel } = createRelationshipData;
+    const { sourceLabel, targetLabel, sourceType, targetType } = createRelationshipData;
 
-    const relationshipTypes = [
-      '亲属关系',
-      '师徒关系',
-      '好友关系',
-      '盟友关系',
-      '敌对关系',
-      '同事关系',
-      '恋人关系',
-      '竞争关系'
-    ];
+    // 根据源类型和目标类型动态获取关系类型选项
+    const relationshipTypes = getRelationshipOptions(sourceType, targetType);
+
+    // 获取动态示例提示
+    const examplePlaceholder = getRelationshipExamples(sourceType, targetType);
+
+    // 如果当前选中的关系类型不在可用选项中，自动选择第一个
+    const currentRelationshipType = relationshipTypes.includes(createForm.relationshipType)
+      ? createForm.relationshipType
+      : relationshipTypes[0] || '自定义';
 
     const handleSubmit = async () => {
       // 如果 label 为空，使用关系类型作为默认值
       const submitForm = {
         ...createForm,
-        label: createForm.label.trim() || createForm.relationshipType,
+        relationshipType: currentRelationshipType,
+        label: createForm.label.trim() || currentRelationshipType,
       };
 
       setIsSaving(true);
@@ -860,7 +1069,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
               {/* 关系类型 */}
               <div className="space-y-2">
                 <Select
-                  value={createForm.relationshipType}
+                  value={currentRelationshipType}
                   onValueChange={(value) => setCreateForm(prev => ({...prev, relationshipType: value}))}
                 >
                   <SelectTrigger>
@@ -879,7 +1088,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
                 <Input
                   value={createForm.label}
                   onChange={(e) => setCreateForm(prev => ({...prev, label: e.target.value}))}
-                  placeholder="例如：好友、师父、敌人"
+                  placeholder={examplePlaceholder}
                 />
               </div>
 

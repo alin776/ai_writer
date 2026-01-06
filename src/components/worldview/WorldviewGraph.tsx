@@ -100,15 +100,15 @@ interface WorldviewGraphProps {
 const CharacterNode: React.FC<NodeProps<WorldNode>> = ({ data }) => {
   return (
     <div className="worldview-node character-node">
-      {/* 4个方向的连接点 - 每个方向同时有source和target */}
-      <Handle type="source" position={Position.Top} id="top-source" style={{ top: -6 }} />
-      <Handle type="target" position={Position.Top} id="top-target" style={{ top: -6 }} />
-      <Handle type="source" position={Position.Right} id="right-source" style={{ right: -6 }} />
-      <Handle type="target" position={Position.Right} id="right-target" style={{ right: -6 }} />
-      <Handle type="source" position={Position.Bottom} id="bottom-source" style={{ bottom: -6 }} />
-      <Handle type="target" position={Position.Bottom} id="bottom-target" style={{ bottom: -6 }} />
-      <Handle type="source" position={Position.Left} id="left-source" style={{ left: -6 }} />
-      <Handle type="target" position={Position.Left} id="left-target" style={{ left: -6 }} />
+      {/* 4个方向的连接点 - source用于拖出连线，target用于接收连线 */}
+      <Handle type="target" position={Position.Top} id="top" />
+      <Handle type="source" position={Position.Top} id="top-source" />
+      <Handle type="target" position={Position.Right} id="right" />
+      <Handle type="source" position={Position.Right} id="right-source" />
+      <Handle type="target" position={Position.Bottom} id="bottom" />
+      <Handle type="source" position={Position.Bottom} id="bottom-source" />
+      <Handle type="target" position={Position.Left} id="left" />
+      <Handle type="source" position={Position.Left} id="left-source" />
       <div className="node-icon">
         <Users className="w-4 h-4" />
       </div>
@@ -124,15 +124,15 @@ const CharacterNode: React.FC<NodeProps<WorldNode>> = ({ data }) => {
 const LocationNode: React.FC<NodeProps<WorldNode>> = ({ data }) => {
   return (
     <div className="worldview-node location-node">
-      {/* 4个方向的连接点 - 每个方向同时有source和target */}
-      <Handle type="source" position={Position.Top} id="top-source" style={{ top: -6 }} />
-      <Handle type="target" position={Position.Top} id="top-target" style={{ top: -6 }} />
-      <Handle type="source" position={Position.Right} id="right-source" style={{ right: -6 }} />
-      <Handle type="target" position={Position.Right} id="right-target" style={{ right: -6 }} />
-      <Handle type="source" position={Position.Bottom} id="bottom-source" style={{ bottom: -6 }} />
-      <Handle type="target" position={Position.Bottom} id="bottom-target" style={{ bottom: -6 }} />
-      <Handle type="source" position={Position.Left} id="left-source" style={{ left: -6 }} />
-      <Handle type="target" position={Position.Left} id="left-target" style={{ left: -6 }} />
+      {/* 4个方向的连接点 - source用于拖出连线，target用于接收连线 */}
+      <Handle type="target" position={Position.Top} id="top" />
+      <Handle type="source" position={Position.Top} id="top-source" />
+      <Handle type="target" position={Position.Right} id="right" />
+      <Handle type="source" position={Position.Right} id="right-source" />
+      <Handle type="target" position={Position.Bottom} id="bottom" />
+      <Handle type="source" position={Position.Bottom} id="bottom-source" />
+      <Handle type="target" position={Position.Left} id="left" />
+      <Handle type="source" position={Position.Left} id="left-source" />
       <div className="node-icon">
         <MapPin className="w-4 h-4" />
       </div>
@@ -148,15 +148,15 @@ const LocationNode: React.FC<NodeProps<WorldNode>> = ({ data }) => {
 const SettingNode: React.FC<NodeProps<WorldNode>> = ({ data }) => {
   return (
     <div className="worldview-node setting-node">
-      {/* 4个方向的连接点 - 每个方向同时有source和target */}
-      <Handle type="source" position={Position.Top} id="top-source" style={{ top: -6 }} />
-      <Handle type="target" position={Position.Top} id="top-target" style={{ top: -6 }} />
-      <Handle type="source" position={Position.Right} id="right-source" style={{ right: -6 }} />
-      <Handle type="target" position={Position.Right} id="right-target" style={{ right: -6 }} />
-      <Handle type="source" position={Position.Bottom} id="bottom-source" style={{ bottom: -6 }} />
-      <Handle type="target" position={Position.Bottom} id="bottom-target" style={{ bottom: -6 }} />
-      <Handle type="source" position={Position.Left} id="left-source" style={{ left: -6 }} />
-      <Handle type="target" position={Position.Left} id="left-target" style={{ left: -6 }} />
+      {/* 4个方向的连接点 - source用于拖出连线，target用于接收连线 */}
+      <Handle type="target" position={Position.Top} id="top" />
+      <Handle type="source" position={Position.Top} id="top-source" />
+      <Handle type="target" position={Position.Right} id="right" />
+      <Handle type="source" position={Position.Right} id="right-source" />
+      <Handle type="target" position={Position.Bottom} id="bottom" />
+      <Handle type="source" position={Position.Bottom} id="bottom-source" />
+      <Handle type="target" position={Position.Left} id="left" />
+      <Handle type="source" position={Position.Left} id="left-source" />
       <div className="node-icon">
         <BookOpen className="w-4 h-4" />
       </div>
@@ -181,10 +181,55 @@ const edgeTypes: EdgeTypes = {
 };
 
 /**
+ * 根据两个节点的相对位置计算最佳的连接点 Handle
+ * sourceHandle 使用 xxx-source 格式（type="source"）
+ * targetHandle 使用 xxx 格式（type="target"）
+ */
+const calculateBestHandles = (
+  sourceNode: WorldNode,
+  targetNode: WorldNode
+): { sourceHandle: string; targetHandle: string } => {
+  const sourceX = sourceNode.position.x;
+  const sourceY = sourceNode.position.y;
+  const targetX = targetNode.position.x;
+  const targetY = targetNode.position.y;
+
+  // 计算方向向量
+  const dx = targetX - sourceX;
+  const dy = targetY - sourceY;
+
+  // 根据角度决定最佳连接点
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+  let sourceHandle: string;
+  let targetHandle: string;
+
+  if (angle >= -45 && angle < 45) {
+    // 目标在源的右边
+    sourceHandle = 'right-source';
+    targetHandle = 'left';
+  } else if (angle >= 45 && angle < 135) {
+    // 目标在源的下边
+    sourceHandle = 'bottom-source';
+    targetHandle = 'top';
+  } else if (angle >= -135 && angle < -45) {
+    // 目标在源的上边
+    sourceHandle = 'top-source';
+    targetHandle = 'bottom';
+  } else {
+    // 目标在源的左边
+    sourceHandle = 'left-source';
+    targetHandle = 'right';
+  }
+
+  return { sourceHandle, targetHandle };
+};
+
+/**
  * 将后端数据转换为 ReactFlow 的 nodes 和 edges
  */
 const convertToGraphData = (
-  worldData: WorldData, 
+  worldData: WorldData,
   relationships?: Relationship[]
 ): { nodes: WorldNode[]; edges: WorldEdge[] } => {
   const nodes: WorldNode[] = [];
@@ -284,25 +329,45 @@ const convertToGraphData = (
       }
       edgeGroups.get(groupKey)!.push(rel);
     });
-    
+
     // 第二遍：为每组边计算偏移量并创建edges
     edgeGroups.forEach((rels, groupKey) => {
       const edgeCount = rels.length;
       console.log(`[convertToGraphData] 边组 ${groupKey} 有 ${edgeCount} 条边`);
-      
+
       rels.forEach((rel, index) => {
         const sourceNodeId = `${rel.sourceType}-${rel.sourceId}`;
         const targetNodeId = `${rel.targetType}-${rel.targetId}`;
-        
+
+        // 找到源节点和目标节点
+        const sourceNode = nodes.find(n => n.id === sourceNodeId);
+        const targetNode = nodes.find(n => n.id === targetNodeId);
+
+        // 如果找不到源节点或目标节点，跳过这条边
+        if (!sourceNode || !targetNode) {
+          console.warn(`[convertToGraphData] 跳过边 ${rel.id}: 找不到节点`, {
+            sourceNodeId,
+            targetNodeId,
+            sourceFound: !!sourceNode,
+            targetFound: !!targetNode
+          });
+          return;
+        }
+
+        // 计算最佳连接点
+        const handles = calculateBestHandles(sourceNode, targetNode);
+        const sourceHandle = handles.sourceHandle;
+        const targetHandle = handles.targetHandle;
+
         // 计算线条粗细（根据强度1-10映射到1-5px）
         const strokeWidth = 1 + (rel.strength / 10) * 4;
-      
+
         // 获取颜色
         const color =
           rel.color ||
           RELATIONSHIP_COLORS[rel.relationshipType as keyof typeof RELATIONSHIP_COLORS] ||
           RELATIONSHIP_COLORS.DEFAULT;
-      
+
         // 线条样式
         let strokeDasharray = undefined;
         if (rel.lineStyle === 'dashed') {
@@ -310,36 +375,39 @@ const convertToGraphData = (
         } else if (rel.lineStyle === 'dotted') {
           strokeDasharray = '2,4';
         }
-        
-        // 🎯 终极升级：智能Handle选择 + 自定义贝塞尔曲线
-        // undefined = ReactFlow从8个Handle中自动选择最近的
-        // 偏移计算逻辑已移至 CustomBezierEdge 组件中
+
+        // 🎯 智能Handle选择 + 使用 smoothstep 边
         edges.push({
           id: `rel-${rel.id}`,
           source: sourceNodeId,
           target: targetNodeId,
-          
-          // 🎯 智能Handle选择：ReactFlow自动选择8个Handle中距离最近的
-          sourceHandle: undefined,
-          targetHandle: undefined,
-          
-          // 🎯 使用自定义贝塞尔曲线边（平滑曲线）
-          type: 'customBezier',
-          
+
+          // 🎯 使用计算出的最佳连接点
+          sourceHandle,
+          targetHandle,
+
+          // 🎯 使用 smoothstep 边类型（正确处理 Handle 位置）
+          type: 'smoothstep',
+
+          // 添加流动效果类名
+          className: `edge-flow edge-flow-${rel.direction}`,
+
           label: edgeCount > 1 ? `${rel.label} (${index + 1})` : rel.label, // 多条边时显示序号
-          animated: rel.strength >= 8,
-          style: { 
+          animated: false, // 禁用默认动画，使用自定义流动效果
+          style: {
             stroke: color,
             strokeWidth,
-            strokeDasharray,
+            strokeDasharray: rel.lineStyle === 'dotted' ? '2,4' : undefined, // 只保留点线样式
           },
-          
-          markerEnd: rel.direction === 'one-way' ? {
+
+          // 单向和双向都需要终点箭头
+          markerEnd: {
             type: MarkerType.ArrowClosed,
             width: 20,
             height: 20,
             color: color,
-          } : undefined,
+          },
+          // 双向时添加起点箭头
           markerStart: rel.direction === 'two-way' ? {
             type: MarkerType.ArrowClosed,
             width: 20,
@@ -454,11 +522,26 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
       const sourceNodeId = `${sourceType}-${sourceId}`;
       const targetNodeId = `${targetType}-${targetId}`;
 
+      // 查找源节点和目标节点以计算最佳 handle
+      const sourceNode = nodesRef.current.find(n => n.id === sourceNodeId);
+      const targetNode = nodesRef.current.find(n => n.id === targetNodeId);
+
+      // 计算最佳连接点
+      let sourceHandle: string | undefined;
+      let targetHandle: string | undefined;
+      if (sourceNode && targetNode) {
+        const handles = calculateBestHandles(sourceNode, targetNode);
+        sourceHandle = handles.sourceHandle;
+        targetHandle = handles.targetHandle;
+      }
+
       // 创建临时边缘
       const tempEdge: WorldEdge = {
         id: 'pending-connection',
         source: sourceNodeId,
         target: targetNodeId,
+        sourceHandle,
+        targetHandle,
         type: 'smoothstep',
         animated: true,
         style: {

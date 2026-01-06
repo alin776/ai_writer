@@ -241,6 +241,88 @@
   filter: drop-shadow(0 0 4px currentColor);
 }
 
+/* ========== 流动动画效果 ========== */
+
+/* 单向流动 - 从源到目标方向流动 */
+.edge-flow-one-way .react-flow__edge-path {
+  stroke-dasharray: 8 4;
+  animation: flow-forward 1s linear infinite;
+}
+
+/* 双向流动 - 先从头到尾，再从尾到头，来回往复 */
+.edge-flow-two-way .react-flow__edge-path {
+  stroke-dasharray: 8 4;
+  animation: flow-bidirectional 2s linear infinite;
+}
+
+/* 单向流动动画 - 向终点方向流动 */
+@keyframes flow-forward {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 双向流动动画 - 先正向（头到尾）再反向（尾到头） */
+@keyframes flow-bidirectional {
+  0% {
+    stroke-dashoffset: 24;
+  }
+  50% {
+    stroke-dashoffset: 0;
+  }
+  50.01% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 24;
+  }
+}
+
+/* 悬停时加速流动 */
+.react-flow__edge:hover.edge-flow-one-way .react-flow__edge-path {
+  animation-duration: 0.5s;
+}
+
+.react-flow__edge:hover.edge-flow-two-way .react-flow__edge-path {
+  animation-duration: 1s;
+}
+
+/* 点线样式的流动效果 */
+.edge-flow-one-way .react-flow__edge-path[style*="stroke-dasharray: 2"] {
+  animation: flow-forward-dotted 0.8s linear infinite;
+}
+
+.edge-flow-two-way .react-flow__edge-path[style*="stroke-dasharray: 2"] {
+  animation: flow-bidirectional-dotted 1.6s linear infinite;
+}
+
+@keyframes flow-forward-dotted {
+  from {
+    stroke-dashoffset: 12;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes flow-bidirectional-dotted {
+  0% {
+    stroke-dashoffset: 12;
+  }
+  50% {
+    stroke-dashoffset: 0;
+  }
+  50.01% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 12;
+  }
+}
+
 .react-flow__edge-textbg {
   fill: white;
   fill-opacity: 0.9;
@@ -264,6 +346,7 @@
   font-size: 11px;
   font-weight: 600;
   background: rgba(255, 255, 255, 0.95);
+  color: #1f2937;
   padding: 2px 6px;
   border-radius: 4px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -437,7 +520,7 @@
 }
 
 
-/* ���ӵ���ʽ�Ż� - 4���������ӵ� */
+/* 连接点样式优化 - 4个方向连接点 */
 .worldview-node .react-flow__handle {
   width: 12px;
   height: 12px;
@@ -448,7 +531,14 @@
   opacity: 0;
 }
 
-/* Hoverʱ��ʾ���ӵ� */
+/* 隐藏 source handles（只显示 target handles，避免视觉重复） */
+.worldview-node .react-flow__handle[data-handleid$="-source"] {
+  opacity: 0 !important;
+  width: 6px;
+  height: 6px;
+}
+
+/* Hover时显示连接点 */
 .worldview-node:hover .react-flow__handle {
   opacity: 1;
   transform: scale(1.3);

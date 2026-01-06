@@ -306,12 +306,12 @@ const WorldviewGraphFullscreen: React.FC = () => {
       showToast('success', `焦点模式：聚焦于 ${nodeLabel}`);
       return;
     }
-    
+
     // 在连线模式下处理连线
     if (connectionMode) {
-    
+
     const nodeLabel = getNodeLabel(nodeId, nodeType);
-    
+
     if (!selectedNode) {
       // 第一次点击：选中节点
       setSelectedNode({ id: nodeId, type: nodeType, label: nodeLabel });
@@ -338,17 +338,25 @@ const WorldviewGraphFullscreen: React.FC = () => {
         targetLabel: nodeLabel,
       });
       setPanelMode('create');
+      // 如果右侧面板是收缩状态，自动展开
+      if (rightPanelCollapsed) {
+        setRightPanelCollapsed(false);
+      }
       setSelectedNode(null); // 清除选中状态
       setConnectionMode(false); // 退出连线模式
     }
       return;
     }
-    
+
     // 非连线模式：显示节点详情
     const entity = getNodeData(nodeId, nodeType);
     if (entity) {
       setPanelNodeData({ id: nodeId, type: nodeType, entity });
       setPanelMode('node');
+      // 如果右侧面板是收缩状态，自动展开
+      if (rightPanelCollapsed) {
+        setRightPanelCollapsed(false);
+      }
     }
   };
   
@@ -426,6 +434,10 @@ const WorldviewGraphFullscreen: React.FC = () => {
       targetLabel,
     });
     setPanelMode('create');
+    // 如果右侧面板是收缩状态，自动展开
+    if (rightPanelCollapsed) {
+      setRightPanelCollapsed(false);
+    }
   };
 
   // 删除关系
@@ -956,6 +968,10 @@ const WorldviewGraphFullscreen: React.FC = () => {
                   const targetLabel = getNodeLabel(rel.targetId, rel.targetType);
                   setPanelRelationshipData({ relationship: rel, sourceLabel, targetLabel });
                   setPanelMode('relationship');
+                  // 如果右侧面板是收缩状态，自动展开
+                  if (rightPanelCollapsed) {
+                    setRightPanelCollapsed(false);
+                  }
                 }
               }}
               selectedNodeId={selectedNode?.id}
@@ -1116,7 +1132,12 @@ const WorldviewGraphFullscreen: React.FC = () => {
                   color: formData.color,
                   line_style: formData.lineStyle,
                 };
-                
+
+                // 调试：打印发送的数据
+                console.log('========= 创建关系请求数据 =========');
+                console.log(JSON.stringify(createData, null, 2));
+                console.log('====================================');
+
                 const newRelationship = await DataService.createRelationship(createData);
                 console.log('新创建的关系:', newRelationship);
                 // 立即更新关系列表，触发重新渲染
@@ -1186,8 +1207,42 @@ const WorldviewGraphFullscreen: React.FC = () => {
               }
             }}
             onEditRelationship={() => {
-              // 编辑关系功能可以后续扩展到属性面板
-              showToast('info', '编辑关系功能开发中...');
+              // 不再需要，编辑功能已在 PropertyPanel 内部实现
+            }}
+            onSaveRelationship={async (relationshipId, formData) => {
+              try {
+                const updateData = {
+                  relationship_type: formData.relationshipType,
+                  label: formData.label,
+                  description: formData.description,
+                  strength: formData.strength,
+                  direction: formData.direction,
+                  color: formData.color,
+                  line_style: formData.lineStyle,
+                };
+
+                const updatedRelationship = await DataService.updateRelationship(relationshipId, updateData);
+
+                // 更新本地状态
+                setRelationships(prev => prev.map(r =>
+                  r.id === relationshipId ? updatedRelationship : r
+                ));
+
+                // 更新面板数据
+                if (panelRelationshipData && panelRelationshipData.relationship.id === relationshipId) {
+                  setPanelRelationshipData({
+                    ...panelRelationshipData,
+                    relationship: updatedRelationship,
+                  });
+                }
+
+                showToast('success', '关系已更新');
+              } catch (error: any) {
+                console.error('更新关系失败:', error);
+                const errorDetail = error.response?.data?.detail || error.message || '未知错误';
+                showToast('error', `更新失败: ${errorDetail}`);
+                throw error;
+              }
             }}
             onDeleteRelationship={() => {
               if (panelRelationshipData) {

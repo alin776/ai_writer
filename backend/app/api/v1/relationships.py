@@ -43,16 +43,31 @@ async def create_relationship(
     db: AsyncSession = Depends(get_db)
 ):
     """创建关系"""
-    # 验证作品所有权
-    await verify_work_owner(relationship.work_id, current_user.id, db)
-    
-    # 创建关系
-    db_relationship = EntityRelationship(**relationship.dict())
-    db.add(db_relationship)
-    await db.commit()
-    await db.refresh(db_relationship)
-    
-    return db_relationship
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        logger.info(f"Creating relationship: {relationship.dict()}")
+
+        # 验证作品所有权
+        await verify_work_owner(relationship.work_id, current_user.id, db)
+
+        # 创建关系
+        relationship_data = relationship.dict()
+        logger.info(f"Relationship data for DB: {relationship_data}")
+
+        db_relationship = EntityRelationship(**relationship_data)
+        db.add(db_relationship)
+        await db.commit()
+        await db.refresh(db_relationship)
+
+        logger.info(f"Relationship created successfully: {db_relationship.id}")
+        return db_relationship
+    except Exception as e:
+        logger.error(f"Error creating relationship: {type(e).__name__}: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise
 
 
 @router.get("/{relationship_id}", response_model=RelationshipResponse)

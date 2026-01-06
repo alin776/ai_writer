@@ -1,15 +1,5 @@
-﻿INFO:     127.0.0.1:54597 - "POST /api/v1/comments/works/undefined/comments HTTP/1.1" 500 Internal Server Error
+﻿INFO:     127.0.0.1:61690 - "POST /api/v1/relationships/ HTTP/1.1" 500 Internal Server Error
 ERROR:    Exception in ASGI application
-Traceback (most recent call last):
-  File "asyncpg\protocol\prepared_stmt.pyx", line 175, in asyncpg.protocol.protocol.PreparedStatementState._encode_bind_msg
-  File "asyncpg\protocol\codecs/base.pyx", line 227, in asyncpg.protocol.protocol.Codec.encode
-  File "asyncpg\protocol\codecs/base.pyx", line 129, in asyncpg.protocol.protocol.Codec.encode_scalar
-  File "asyncpg\pgproto\./codecs/uuid.pyx", line 16, in asyncpg.pgproto.pgproto.uuid_encode
-  File "asyncpg\pgproto\./uuid.pyx", line 88, in asyncpg.pgproto.pgproto.pg_uuid_bytes_from_str
-ValueError: invalid UUID 'undefined': length must be between 32..36 characters, got 9
-
-The above exception was the direct cause of the following exception:
-
 Traceback (most recent call last):
   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 546, in _prepare_and_execute
     self._rows = await prepared_stmt.fetch(*parameters)
@@ -23,9 +13,9 @@ Traceback (most recent call last):
   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\asyncpg\prepared_stmt.py", line 230, in __do_execute
     return await executor(protocol)
            ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "asyncpg\protocol\protocol.pyx", line 186, in bind_execute
-  File "asyncpg\protocol\prepared_stmt.pyx", line 204, in asyncpg.protocol.protocol.PreparedStatementState._encode_bind_msg
-asyncpg.exceptions.DataError: invalid input for query argument $1: 'undefined' (invalid UUID 'undefined': length must be between 32..36 characters, got 9)
+  File "asyncpg\protocol\protocol.pyx", line 207, in bind_execute
+asyncpg.exceptions.NotNullViolationError: null value in column "created_at" of relation "entity_relationships" violates not-null constraint
+DETAIL:  失败, 行包含(5d8af651-24ce-4d6f-aaf6-f63d5ea79e63, 9be29f66-b4b2-4a3a-8b6b-0fe2efc096a1, b7dd607e-2eb8-473b-994c-82a55462da1d, character, dd32ccda-29e2-48ff-b42b-6c661706295b, character, 好友关系, 好友, 从小就好哥们，以后也是好哥们，属于男二的角..., 5, two-way, null, null, null, null, #450dc9, dashed, null, null, null, null).
 
 The above exception was the direct cause of the following exception:
 
@@ -48,7 +38,8 @@ Traceback (most recent call last):
     self._adapt_connection._handle_exception(error)
   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 797, in _handle_exception
     raise translated_error from error
-sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.Error: <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: 'undefined' (invalid UUID 'undefined': length must be between 32..36 characters, got 9)
+sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.IntegrityError: <class 'asyncpg.exceptions.NotNullViolationError'>: null value in column "created_at" of relation "entity_relationships" violates not-null constraint
+DETAIL:  失败, 行包含(5d8af651-24ce-4d6f-aaf6-f63d5ea79e63, 9be29f66-b4b2-4a3a-8b6b-0fe2efc096a1, b7dd607e-2eb8-473b-994c-82a55462da1d, character, dd32ccda-29e2-48ff-b42b-6c661706295b, character, 好友关系, 好友, 从小就好哥们，以后也是好哥们，属于男二的角..., 5, two-way, null, null, null, null, #450dc9, dashed, null, null, null, null).
 
 The above exception was the direct cause of the following exception:
 
@@ -132,24 +123,44 @@ Traceback (most recent call last):
   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\fastapi\routing.py", line 191, in run_endpoint_function
     return await dependant.call(**values)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Java\ai_writer\backend\app\api\v1\comments.py", line 278, in create_comment
-    work_result = await db.execute(
-                  ^^^^^^^^^^^^^^^^^
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\ext\asyncio\session.py", line 455, in execute
-    result = await greenlet_spawn(
+  File "D:\Java\ai_writer\backend\app\api\v1\relationships.py", line 61, in create_relationship
+    await db.commit()
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\ext\asyncio\session.py", line 1011, in commit
+    await greenlet_spawn(self.sync_session.commit)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 202, in greenlet_spawn
+    result = context.switch(value)
              ^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 200, in greenlet_spawn
-    result = context.throw(*sys.exc_info())
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2308, in execute
-    return self._execute_internal(
-           ^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2190, in _execute_internal
-    result: Result[Any] = compile_state_cls.orm_execute_statement(
-                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\context.py", line 293, in orm_execute_statement
-    result = conn.execute(
-             ^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1969, in commit
+    trans.commit(_to_root=True)
+  File "<string>", line 2, in commit
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1256, in commit
+    self._prepare_impl()
+  File "<string>", line 2, in _prepare_impl
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1231, in _prepare_impl
+    self.session.flush()
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4312, in flush
+    self._flush(objects)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4447, in _flush
+    with util.safe_reraise():
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\util\langhelpers.py", line 146, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4408, in _flush
+    flush_context.execute()
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 466, in execute
+    rec.execute(self)
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 1227, in _emit_insert_statements
+    result = connection.execute(
+             ^^^^^^^^^^^^^^^^^^^
   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1416, in execute
     return meth(
            ^^^^^
@@ -184,9 +195,8 @@ Traceback (most recent call last):
     self._adapt_connection._handle_exception(error)
   File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 797, in _handle_exception
     raise translated_error from error
-sqlalchemy.exc.DBAPIError: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: 'undefined' (invalid UUID 'undefined': length must be between 32..36 characters, got 9)
-[SQL: SELECT works.id, works.author_id, works.title, works.description, works.cover_image, works.genre, works.status, works.is_published, works.is_featured, works.total_words, works.total_chapters, works.view_count, works.favorite_count, works.created_at, works.updated_at, works.published_at
-FROM works
-WHERE works.id = $1::UUID AND works.is_published = true]
-[parameters: ('undefined',)]
-(Background on this error at: https://sqlalche.me/e/20/dbapi)
+sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.NotNullViolationError'>: null value in column "created_at" of relation "entity_relationships" violates not-null constraint
+DETAIL:  失败, 行包含(5d8af651-24ce-4d6f-aaf6-f63d5ea79e63, 9be29f66-b4b2-4a3a-8b6b-0fe2efc096a1, b7dd607e-2eb8-473b-994c-82a55462da1d, character, dd32ccda-29e2-48ff-b42b-6c661706295b, character, 好友关系, 好友, 从小就好哥们，以后也是好哥们，属于男二的角..., 5, two-way, null, null, null, null, #450dc9, dashed, null, null, null, null).
+[SQL: INSERT INTO entity_relationships (id, work_id, source_id, source_type, target_id, target_type, relationship_type, label, description, strength, direction, start_chapter_id, end_chapter_id, start_time, end_time, color, line_style, tags, category) VALUES ($1::UUID, $2::UUID, $3::UUID, $4::VARCHAR, $5::UUID, $6::VARCHAR, $7::VARCHAR, $8::VARCHAR, $9::VARCHAR, $10::INTEGER, $11::VARCHAR, $12::UUID, $13::UUID, $14::TIMESTAMP WITHOUT TIME ZONE, $15::TIMESTAMP WITHOUT TIME ZONE, $16::VARCHAR, $17::VARCHAR, $18::TEXT[], $19::VARCHAR) RETURNING entity_relationships.created_at, entity_relationships.updated_at]
+[parameters: (UUID('5d8af651-24ce-4d6f-aaf6-f63d5ea79e63'), UUID('9be29f66-b4b2-4a3a-8b6b-0fe2efc096a1'), UUID('b7dd607e-2eb8-473b-994c-82a55462da1d'), 'character', UUID('dd32ccda-29e2-48ff-b42b-6c661706295b'), 'character', '好友关系', '好友', '从小就好哥们，以后也是好哥们，属于男二的角色', 5, 'two-way', None, None, None, None, '#450dc9', 'dashed', None, None)]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)

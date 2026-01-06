@@ -48,10 +48,127 @@ export const RELATIONSHIP_TYPES = {
   LOCATION_CONTAIN: '包含于',
   LOCATION_ADJACENT: '邻近于',
   LOCATION_OPPOSE: '对立于',
-  
+
+  // 设定间关系
+  SETTING_BASED: '基于',
+  SETTING_DERIVED: '衍生于',
+  SETTING_OPPOSE: '对立于',
+  SETTING_CONTAIN: '包含于',
+
+  // 地点与设定关系
+  LOCATION_SETTING_APPLY: '适用于',
+  LOCATION_SETTING_ORIGIN: '起源于',
+  LOCATION_SETTING_SYMBOL: '象征于',
+
   // 自定义
   CUSTOM: '自定义',
 } as const;
+
+/**
+ * 根据实体类型组合获取可用的关系选项
+ */
+export const RELATIONSHIP_TYPE_BY_ENTITY: Record<string, string[]> = {
+  // 角色-角色
+  'character-character': [
+    RELATIONSHIP_TYPES.CHARACTER_FAMILY,
+    RELATIONSHIP_TYPES.CHARACTER_MENTOR,
+    RELATIONSHIP_TYPES.CHARACTER_FRIEND,
+    RELATIONSHIP_TYPES.CHARACTER_ALLY,
+    RELATIONSHIP_TYPES.CHARACTER_ENEMY,
+    RELATIONSHIP_TYPES.CHARACTER_COLLEAGUE,
+    RELATIONSHIP_TYPES.CHARACTER_LOVER,
+    RELATIONSHIP_TYPES.CHARACTER_RIVAL,
+  ],
+  // 地点-地点
+  'location-location': [
+    RELATIONSHIP_TYPES.LOCATION_CONTAIN,
+    RELATIONSHIP_TYPES.LOCATION_ADJACENT,
+    RELATIONSHIP_TYPES.LOCATION_OPPOSE,
+  ],
+  // 设定-设定
+  'setting-setting': [
+    RELATIONSHIP_TYPES.SETTING_BASED,
+    RELATIONSHIP_TYPES.SETTING_DERIVED,
+    RELATIONSHIP_TYPES.SETTING_OPPOSE,
+    RELATIONSHIP_TYPES.SETTING_CONTAIN,
+  ],
+  // 角色-地点（双向）
+  'character-location': [
+    RELATIONSHIP_TYPES.CHARACTER_LOCATION_LIVE,
+    RELATIONSHIP_TYPES.CHARACTER_LOCATION_BORN,
+    RELATIONSHIP_TYPES.CHARACTER_LOCATION_WORK,
+    RELATIONSHIP_TYPES.CHARACTER_LOCATION_RULE,
+    RELATIONSHIP_TYPES.CHARACTER_LOCATION_GUARD,
+  ],
+  'location-character': [
+    RELATIONSHIP_TYPES.CHARACTER_LOCATION_LIVE,
+    RELATIONSHIP_TYPES.CHARACTER_LOCATION_BORN,
+    RELATIONSHIP_TYPES.CHARACTER_LOCATION_WORK,
+    RELATIONSHIP_TYPES.CHARACTER_LOCATION_RULE,
+    RELATIONSHIP_TYPES.CHARACTER_LOCATION_GUARD,
+  ],
+  // 角色-设定（双向）
+  'character-setting': [
+    RELATIONSHIP_TYPES.CHARACTER_SETTING_MASTER,
+    RELATIONSHIP_TYPES.CHARACTER_SETTING_BELIEVE,
+    RELATIONSHIP_TYPES.CHARACTER_SETTING_OWN,
+    RELATIONSHIP_TYPES.CHARACTER_SETTING_BELONG,
+  ],
+  'setting-character': [
+    RELATIONSHIP_TYPES.CHARACTER_SETTING_MASTER,
+    RELATIONSHIP_TYPES.CHARACTER_SETTING_BELIEVE,
+    RELATIONSHIP_TYPES.CHARACTER_SETTING_OWN,
+    RELATIONSHIP_TYPES.CHARACTER_SETTING_BELONG,
+  ],
+  // 地点-设定（双向）
+  'location-setting': [
+    RELATIONSHIP_TYPES.LOCATION_SETTING_APPLY,
+    RELATIONSHIP_TYPES.LOCATION_SETTING_ORIGIN,
+    RELATIONSHIP_TYPES.LOCATION_SETTING_SYMBOL,
+  ],
+  'setting-location': [
+    RELATIONSHIP_TYPES.LOCATION_SETTING_APPLY,
+    RELATIONSHIP_TYPES.LOCATION_SETTING_ORIGIN,
+    RELATIONSHIP_TYPES.LOCATION_SETTING_SYMBOL,
+  ],
+};
+
+/**
+ * 根据源类型和目标类型获取可用的关系选项
+ * @param sourceType 源实体类型
+ * @param targetType 目标实体类型
+ * @returns 可用的关系类型数组
+ */
+export function getRelationshipOptions(sourceType: EntityType, targetType: EntityType): string[] {
+  const key = `${sourceType}-${targetType}`;
+  return RELATIONSHIP_TYPE_BY_ENTITY[key] || [RELATIONSHIP_TYPES.CUSTOM];
+}
+
+/**
+ * 根据实体类型组合获取示例提示
+ */
+export const RELATIONSHIP_EXAMPLES_BY_ENTITY: Record<string, string> = {
+  'character-character': '例如：好友、师父、敌人、恋人',
+  'location-location': '例如：主城、分院、邻村',
+  'setting-setting': '例如：基础功法、进阶版本',
+  'character-location': '例如：出生地、修炼处、战场',
+  'location-character': '例如：守护者、统治者、居民',
+  'character-setting': '例如：掌门功法、信仰神明',
+  'setting-character': '例如：创始人、传承者',
+  'location-setting': '例如：发源地、圣地',
+  'setting-location': '例如：适用范围、起源地',
+};
+
+/**
+ * 根据源类型和目标类型获取示例提示
+ * @param sourceType 源实体类型
+ * @param targetType 目标实体类型
+ * @returns 示例提示文本
+ */
+export function getRelationshipExamples(sourceType: EntityType, targetType: EntityType): string {
+  const key = `${sourceType}-${targetType}`;
+  return RELATIONSHIP_EXAMPLES_BY_ENTITY[key] || '例如：自定义关系标签';
+}
 
 /**
  * 关系类型颜色配置
