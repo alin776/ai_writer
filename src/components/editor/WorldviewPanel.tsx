@@ -202,6 +202,7 @@ export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, on
               <div
                 key={char.id}
                 id={`worldview-item-${char.id}`}
+                onClick={() => navigate(`/worldview/${workId}?type=character&id=${char.id}`)}
                 className={`group p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
                   highlightedItemId === char.id
                     ? 'border-blue-400 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/30 ring-2 ring-blue-400/50'
@@ -239,6 +240,7 @@ export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, on
               <div
                 key={location.id}
                 id={`worldview-item-${location.id}`}
+                onClick={() => navigate(`/worldview/${workId}?type=location&id=${location.id}`)}
                 className={`group p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
                   highlightedItemId === location.id
                     ? 'border-blue-400 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/30 ring-2 ring-blue-400/50'
@@ -276,6 +278,7 @@ export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, on
               <div
                 key={setting.id}
                 id={`worldview-item-${setting.id}`}
+                onClick={() => navigate(`/worldview/${workId}?type=setting&id=${setting.id}`)}
                 className={`group p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
                   highlightedItemId === setting.id
                     ? 'border-blue-400 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/30 ring-2 ring-blue-400/50'

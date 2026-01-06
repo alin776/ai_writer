@@ -88,6 +88,12 @@ interface WorldviewGraphProps {
   onToggleLeftPanel?: () => void; // 切换左侧面板
   rightPanelCollapsed?: boolean; // 右侧面板是否收缩
   onToggleRightPanel?: () => void; // 切换右侧面板
+  pendingConnection?: {  // 待确认的连接（显示临时边缘）
+    sourceId: string;
+    sourceType: EntityType;
+    targetId: string;
+    targetType: EntityType;
+  } | null;
 }
 
 // 自定义节点组件 - 角色节点
@@ -417,6 +423,7 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
   onToggleLeftPanel,
   rightPanelCollapsed = false,
   onToggleRightPanel,
+  pendingConnection,
 }) => {
   const { t } = useTranslation();
   // 转换数据
@@ -439,7 +446,42 @@ const WorldviewGraph: React.FC<WorldviewGraphProps> = ({
     const newGraphData = convertToGraphData(worldData, relationships);
     setEdges(newGraphData.edges);
   }, [relationships, worldData, setEdges]);
-  
+
+  // 处理待确认的连接（显示临时虚线边缘）
+  useEffect(() => {
+    if (pendingConnection) {
+      const { sourceId, sourceType, targetId, targetType } = pendingConnection;
+      const sourceNodeId = `${sourceType}-${sourceId}`;
+      const targetNodeId = `${targetType}-${targetId}`;
+
+      // 创建临时边缘
+      const tempEdge: WorldEdge = {
+        id: 'pending-connection',
+        source: sourceNodeId,
+        target: targetNodeId,
+        type: 'smoothstep',
+        animated: true,
+        style: {
+          stroke: '#fbbf24', // 黄色表示待确认
+          strokeWidth: 2,
+          strokeDasharray: '5,5',
+        },
+        label: '待确认...',
+        labelStyle: { fill: '#fbbf24', fontSize: 12 },
+        labelBgStyle: { fill: 'rgba(0,0,0,0.7)' },
+      };
+
+      setEdges(prev => {
+        // 移除旧的临时边缘（如果存在）
+        const filtered = prev.filter(e => e.id !== 'pending-connection');
+        return [...filtered, tempEdge];
+      });
+    } else {
+      // 移除临时边缘
+      setEdges(prev => prev.filter(e => e.id !== 'pending-connection'));
+    }
+  }, [pendingConnection, setEdges]);
+
   // 应用布局算法
   useEffect(() => {
     if (!layoutConfig || layoutConfig.algorithm === 'custom') return;

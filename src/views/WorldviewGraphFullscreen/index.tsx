@@ -3,7 +3,7 @@
  * 提供专业的关系图编辑体验
  */
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Network,
@@ -59,6 +59,7 @@ type ViewMode = 'graph' | 'timeline';
 const WorldviewGraphFullscreen: React.FC = () => {
   const { workId } = useParams<{ workId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
 
   // 状态管理
@@ -107,7 +108,15 @@ const WorldviewGraphFullscreen: React.FC = () => {
   
   // 编辑关系状态（用于属性面板编辑按钮）
   const [editingRelationship, setEditingRelationship] = useState<Relationship | null>(null);
-  
+
+  // 待确认的连接（用于显示临时边缘）
+  const [pendingConnection, setPendingConnection] = useState<{
+    sourceId: string;
+    sourceType: EntityType;
+    targetId: string;
+    targetType: EntityType;
+  } | null>(null);
+
   // 连线模式和选中状态
   const [connectionMode, setConnectionMode] = useState(false); // 是否开启连线模式
   const [selectedNode, setSelectedNode] = useState<{
@@ -240,6 +249,27 @@ const WorldviewGraphFullscreen: React.FC = () => {
     }
   };
 
+  // 处理 URL 参数，自动打开详情面板
+  useEffect(() => {
+    if (loading) return; // 等待数据加载完成
+
+    const type = searchParams.get('type') as EntityType | null;
+    const id = searchParams.get('id');
+
+    if (type && id) {
+      const entity = getNodeData(id, type);
+      if (entity) {
+        // 打开属性面板显示详情
+        setPanelNodeData({ id, type, entity });
+        setPanelMode('node');
+        // 定位到该节点
+        setFocusNodeToView(`${type}-${id}`);
+        // 清除 URL 参数，避免刷新时重复触发
+        setSearchParams({}, { replace: true });
+      }
+    }
+  }, [loading, searchParams, worldData]);
+
   // 获取节点标签
   const getNodeLabel = (nodeId: string, nodeType: EntityType): string => {
     if (nodeType === 'character') {
@@ -292,6 +322,13 @@ const WorldviewGraphFullscreen: React.FC = () => {
       showToast('info', '已取消选中');
     } else {
       // 第二次点击不同节点：在属性面板显示创建关系表单
+      // 设置待确认连接（显示临时边缘）
+      setPendingConnection({
+        sourceId: selectedNode.id,
+        sourceType: selectedNode.type,
+        targetId: nodeId,
+        targetType: nodeType,
+      });
       setPanelCreateRelationshipData({
         sourceId: selectedNode.id,
         sourceType: selectedNode.type,
@@ -371,11 +408,14 @@ const WorldviewGraphFullscreen: React.FC = () => {
     }
   };
   
-  // 处理连接创建（拖拽连线 - 备用，目前不使用）
+  // 处理连接创建（拖拽连线）
   const handleConnect = (sourceId: string, sourceType: EntityType, targetId: string, targetType: EntityType) => {
-    // 拖拽连线时，也使用属性面板
+    // 拖拽连线时，设置待确认连接并打开属性面板
     const sourceLabel = getNodeLabel(sourceId, sourceType);
     const targetLabel = getNodeLabel(targetId, targetType);
+
+    // 设置待确认连接（显示临时边缘）
+    setPendingConnection({ sourceId, sourceType, targetId, targetType });
 
     setPanelCreateRelationshipData({
       sourceId,
@@ -609,26 +649,6 @@ const WorldviewGraphFullscreen: React.FC = () => {
             </>
           )}
 
-          {/* 导出按钮 */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 text-sm" disabled={exporting}>
-                <Download className="w-3.5 h-3.5 mr-1.5" />
-                {exporting ? '导出中...' : '导出'}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleExport('png')}>
-                导出为 PNG
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport('svg')}>
-                导出为 SVG
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport('json')}>
-                导出为 JSON
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </header>
 
@@ -910,7 +930,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
 
         {/* Main Canvas - 主画布 */}
         <div className="flex-1 overflow-hidden h-full relative">
-          {viewMode === 'timeline' && rightPanelCollapsed && (
+          {viewMode === 'timeline' && rightPanelCollapsed && panelMode !== 'idle' && (
             <div className="absolute top-3 right-3 z-20">
               <button
                 onClick={toggleRightPanel}
@@ -943,8 +963,12 @@ const WorldviewGraphFullscreen: React.FC = () => {
               onLayoutApplied={() => {
                 showToast('success', `${getLayoutName(currentLayout)}已应用`);
               }}
-              searchText={searchFilter.searchText}
-              filteredNodeTypes={searchFilter.nodeTypes}
+              searchText={searchText}
+              filteredNodeTypes={{
+                character: nodeTypeFilter === 'all' || nodeTypeFilter === 'character',
+                location: nodeTypeFilter === 'all' || nodeTypeFilter === 'location',
+                setting: nodeTypeFilter === 'all' || nodeTypeFilter === 'setting',
+              }}
               focusMode={focusModeEnabled}
               focusNodeId={focusNodeId}
               focusNodeToView={focusNodeToView}
@@ -955,6 +979,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
               onToggleLeftPanel={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
               rightPanelCollapsed={rightPanelCollapsed}
               onToggleRightPanel={toggleRightPanel}
+              pendingConnection={pendingConnection}
             />
           ) : (
             <TimelinePanel
@@ -1042,6 +1067,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
                 setPanelCreateRelationshipData(null);
                 setPanelTimelineEventData(null);
                 setPanelCreateTimelineEventData(null);
+                setPendingConnection(null); // 清除临时连接线
               }}
               onSaveNode={async (updatedEntity) => {
               if (panelNodeData) {
@@ -1100,13 +1126,25 @@ const WorldviewGraphFullscreen: React.FC = () => {
                   return updated;
                 });
                 showToast('success', '关系创建成功');
-                
-                // 关闭面板
+
+                // 关闭面板并清除临时连接线
                 setPanelMode('idle');
                 setPanelCreateRelationshipData(null);
-              } catch (error) {
+                setPendingConnection(null);
+              } catch (error: any) {
                 console.error('创建关系失败:', error);
-                showToast('error', '创建失败');
+                console.error('错误详情:', {
+                  message: error.message,
+                  response: error.response?.data,
+                  status: error.response?.status,
+                  createData: {
+                    work_id: workId,
+                    source_id: panelCreateRelationshipData?.sourceId,
+                    target_id: panelCreateRelationshipData?.targetId,
+                  }
+                });
+                const errorDetail = error.response?.data?.detail || error.message || '未知错误';
+                showToast('error', `创建失败: ${errorDetail}`);
                 throw error;
               }
             }}

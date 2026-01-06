@@ -471,8 +471,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
           <div className="flex-1">
             {!isEditing ? (
               <h2
-                className="text-3xl text-foreground leading-relaxed m-0"
-                style={{ fontFamily: "'Ma Shan Zheng', cursive" }}
+                className="text-2xl font-semibold text-foreground leading-relaxed m-0"
               >
                 {type === 'setting'
                   ? (currentEntity as Setting).title
@@ -492,8 +491,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
                     setEditedEntity({ ...(currentEntity as Character | Location), name: e.target.value });
                   }
                 }}
-                className="text-xl border-border"
-                style={{ fontFamily: "'Ma Shan Zheng', cursive" }}
+                className="text-xl font-semibold border-border"
               />
             )}
           </div>
@@ -812,14 +810,15 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
     ];
 
     const handleSubmit = async () => {
-      if (!createForm.label.trim()) {
-        alert('请输入关系标签');
-        return;
-      }
+      // 如果 label 为空，使用关系类型作为默认值
+      const submitForm = {
+        ...createForm,
+        label: createForm.label.trim() || createForm.relationshipType,
+      };
 
       setIsSaving(true);
       try {
-        await onCreateRelationship?.(createForm);
+        await onCreateRelationship?.(submitForm);
         // 重置表单
         setCreateForm({
           relationshipType: '好友关系',
@@ -898,13 +897,13 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
               {/* 强度 */}
               <div className="space-y-2 pt-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-foreground text-xs">{createForm.strength}/5</span>
+                  <span className="text-foreground text-xs">{createForm.strength}/10</span>
                 </div>
                 <Slider
                   value={[createForm.strength]}
                   onValueChange={([value]) => setCreateForm(prev => ({...prev, strength: value}))}
                   min={1}
-                  max={5}
+                  max={10}
                   step={1}
                 />
               </div>
@@ -999,8 +998,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
         {/* 标题栏 */}
         <div className="p-6 pb-4 flex items-start justify-between">
           <h2
-            className="text-3xl text-foreground leading-relaxed m-0"
-            style={{ fontFamily: "'Ma Shan Zheng', cursive" }}
+            className="text-2xl font-semibold text-foreground leading-relaxed m-0"
           >
             时间线事件
           </h2>
@@ -1271,8 +1269,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({
         {/* 标题栏 */}
         <div className="p-6 pb-4 flex items-start justify-between">
           <h2
-            className="text-xl text-foreground leading-relaxed m-0"
-            style={{ fontFamily: "'Ma Shan Zheng', cursive" }}
+            className="text-xl font-semibold text-foreground leading-relaxed m-0"
           >
             创建时间线事件
           </h2>

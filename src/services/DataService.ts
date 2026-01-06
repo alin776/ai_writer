@@ -1044,7 +1044,7 @@ class DataServiceClass {
    * @returns Promise<any>
    */
   async createRelationship(relationship: CreateRelationshipData): Promise<Relationship> {
-    return this.adapter.post('/relationships', relationship);
+    return this.adapter.post('/relationships/', relationship);
   }
 
   /**

@@ -25,12 +25,22 @@ export class ApiAdapter implements IDataAdapter {
 
     // 请求拦截器：添加 Token
     this.axiosInstance.interceptors.request.use(
-      (config) => {
+      async (config) => {
         // 登录/注册无需附带 Authorization，避免预检导致�?CORS 异常
         const url = config.url || '';
         const skipAuthHeader = url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/refresh');
         if (skipAuthHeader) {
           return config;
+        }
+
+        const { tokenExpiresAt } = useAuthStore.getState();
+        if (tokenExpiresAt && Date.now() > tokenExpiresAt - 30000) {
+          const refreshedToken = await this.handleRefreshToken();
+          if (refreshedToken) {
+            config.headers = config.headers || {};
+            config.headers.Authorization = `Bearer ${refreshedToken}`;
+            return config;
+          }
         }
 
         // �?Zustand persist 存储中读�?token
@@ -42,14 +52,22 @@ export class ApiAdapter implements IDataAdapter {
           if (authStorage) {
             try {
               const authState = JSON.parse(authStorage);
-              token = authState.state?.token || authState.token;
+              token = authState.state?.token || authState.state?.accessToken || authState.state?.access_token || authState.token || authState.accessToken || authState.access_token;
             } catch (error) {
               console.error('[ApiAdapter] Failed to parse auth storage:', error);
             }
           }
         }
 
+        if (!token) {
+          const refreshedToken = await this.handleRefreshToken();
+          if (refreshedToken) {
+            token = refreshedToken;
+          }
+        }
+
         if (token) {
+          config.headers = config.headers || {};
           config.headers.Authorization = `Bearer ${token}`;
           console.log('[ApiAdapter] Authorization header set');
         } else if (import.meta.env.DEV) {
