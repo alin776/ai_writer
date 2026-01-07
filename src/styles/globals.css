@@ -910,3 +910,23 @@ select option {
 .dark .sidebar-scrollbar {
   scrollbar-color: rgba(100, 116, 139, 0.5) transparent;
 }
+
+/**
+ * Thinking 闪烁动画 - AI思考中指示器
+ */
+@keyframes thinking-blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.thinking-blink {
+  animation: thinking-blink 1.5s ease-in-out infinite;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}

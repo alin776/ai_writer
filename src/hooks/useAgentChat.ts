@@ -113,6 +113,15 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
   const persistMessages = useCallback(
     (messagesToSave: Message[], conversation?: string, mode?: 'plan' | 'agent') => {
+      // DEBUG: 检查保存时消息是否包含 flowItems
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[useAgentChat] Saving ${messagesToSave.length} messages`);
+        messagesToSave.forEach((msg, idx) => {
+          if (msg.role === 'agent') {
+            console.log(`[useAgentChat] Saving message ${idx} flowItems:`, (msg as any).flowItems?.length || 0);
+          }
+        });
+      }
       persistence.saveSession(messagesToSave, conversation, {
         mode,
         workId,
@@ -140,8 +149,20 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
   }, [sessionId, sessionManager]);
 
   useEffect(() => {
+    // 先确保会话存在，再更新数据
+    sessionManager.getOrCreateSession(sessionId, { mode: 'plan' });
+
     const persisted = persistence.loadSession(sessionId);
     if (persisted) {
+      // DEBUG: 检查从 localStorage 加载的消息是否包含 flowItems
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[useAgentChat] Loading session ${sessionId}, messages:`, persisted.messages.length);
+        persisted.messages.forEach((msg, idx) => {
+          if (msg.role === 'agent') {
+            console.log(`[useAgentChat] Message ${idx} flowItems:`, (msg as any).flowItems?.length || 0);
+          }
+        });
+      }
       sessionManager.updateSession(sessionId, {
         messages: persisted.messages as Message[],
         conversationId: persisted.conversationId || undefined,

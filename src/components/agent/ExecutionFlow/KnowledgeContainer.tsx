@@ -27,7 +27,9 @@ export function KnowledgeContainer({
   const IconComponent = ICON_MAP[icon] || BookOpen;
 
   return (
-    <div className="inline-block bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl px-3 py-2 mb-2">
+    <div className={`inline-block bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 mb-2 ${
+      expanded ? 'rounded-xl px-3 py-2' : 'rounded-full px-2.5 py-1'
+    }`}>
       {/* 头部 */}
       <div
         className="flex items-center gap-1.5 cursor-pointer select-none"

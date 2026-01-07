@@ -24,7 +24,7 @@ export function OutputCard({
   onApply
 }: OutputCardProps) {
   const [copied, setCopied] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);  // 默认展开
   const contentRef = useRef<HTMLDivElement>(null);
 
   // 内容变化时自动滚动到底部

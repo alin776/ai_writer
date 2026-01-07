@@ -1794,6 +1794,91 @@ class WritingAgentGraph:
                 task_step_map = {}  # v6.1: 记录每个任务的 step_id
                 agent_header_sent = [False]  # v6.2: 跟踪是否已发送agent_header
 
+                # v6.3: 辅助函数 - 发送knowledge_loaded事件
+                async def _emit_knowledge_loaded(on_flow_event, step_id, tool_name, result_data):
+                    """根据工具类型解析结果并发送knowledge_loaded事件"""
+                    from app.services.agent.stream.flow_events import FlowEventBuilder
+                    import json as json_module
+                    try:
+                        # 获取结果内容
+                        result_str = result_data.get("content", "") if isinstance(result_data, dict) else str(result_data)
+                        if not result_str:
+                            return
+
+                        # 世界观工具
+                        if tool_name in ["get_worldview_summary", "get_worldview_tool"]:
+                            data = json_module.loads(result_str) if isinstance(result_str, str) else result_str
+                            if "error" in data:
+                                return
+                            items = []
+                            # 角色
+                            for char in data.get("characters", []):
+                                items.append({"name": f"{char.get('name', '')} - {char.get('role', '')}", "tag": "人物"})
+                            # 地点
+                            for loc in data.get("locations", []):
+                                items.append({"name": loc.get("name", ""), "tag": "地点"})
+                            # 设定
+                            for setting in data.get("settings", []):
+                                items.append({"name": setting.get("title", ""), "tag": "设定"})
+                            if items:
+                                total = len(items)
+                                await on_flow_event(FlowEventBuilder.knowledge_loaded(
+                                    step_id, "worldview", f"世界观已加载({total})", "BookOpen", items
+                                ))
+
+                        # 章节读取工具
+                        elif tool_name in ["read_chapter_tool", "get_chapter_by_order_tool"]:
+                            data = json_module.loads(result_str) if isinstance(result_str, str) else result_str
+                            if "error" in data:
+                                return
+                            items = []
+                            # 多章节格式
+                            if data.get("type") == "multi_chapter":
+                                for ch in data.get("chapters", [])[:5]:
+                                    items.append({"name": f"{ch.get('title', '章节')} ({ch.get('word_count', 0)}字)", "tag": "章节"})
+                            # 单章节格式
+                            else:
+                                title = data.get("title", "章节")
+                                word_count = data.get("word_count", 0)
+                                items = [{"name": f"{title} ({word_count}字)", "tag": "章节"}]
+                            if items:
+                                await on_flow_event(FlowEventBuilder.knowledge_loaded(
+                                    step_id, "chapters", f"章节已读取({len(items)})", "FileText", items
+                                ))
+
+                        # 上下文获取工具
+                        elif tool_name == "get_context_tool":
+                            data = json_module.loads(result_str) if isinstance(result_str, str) else result_str
+                            if "error" in data:
+                                return
+                            items = []
+                            # 当前章节
+                            if data.get("current_chapter") and data["current_chapter"].get("title"):
+                                items.append({"name": data["current_chapter"].get("title", "当前章节"), "tag": "章节"})
+                            # 相关上下文 (related_context 是实际字段名)
+                            for ctx in data.get("related_context", [])[:3]:
+                                items.append({"name": ctx.get("chapter_title", ""), "tag": "前文"})
+                            if items:
+                                await on_flow_event(FlowEventBuilder.knowledge_loaded(
+                                    step_id, "chapters", f"上下文已加载({len(items)})", "FileText", items
+                                ))
+
+                        # 检索工具
+                        elif tool_name == "search_analysis_fragments_tool":
+                            data = json_module.loads(result_str) if isinstance(result_str, str) else result_str
+                            items = []
+                            # 实际返回格式是 results 字段
+                            results = data.get("results", []) if isinstance(data, dict) else data if isinstance(data, list) else []
+                            for f in results[:5]:
+                                content = f.get("content", "")[:30]
+                                items.append({"name": f"{content}...", "tag": "片段", "similarity": f.get("similarity")})
+                            if items:
+                                await on_flow_event(FlowEventBuilder.knowledge_loaded(
+                                    step_id, "search", f"检索结果({len(items)})", "Search", items
+                                ))
+                    except Exception as e:
+                        logger.debug(f"[FlowEvent] knowledge_loaded解析失败: {e}")
+
                 async def wrapped_on_task_start(task):
                     """包装任务开始回调，同时发送step_start事件"""
                     step_counter[0] += 1
@@ -1820,6 +1905,12 @@ class WritingAgentGraph:
                     if on_flow_event:
                         from app.services.agent.stream.flow_events import FlowEventBuilder, get_tool_icon
                         tool_name = task.get("tool", "")
+
+                        # v6.3: 发送knowledge_loaded事件（在step_complete之前）
+                        await _emit_knowledge_loaded(
+                            on_flow_event, current_step_id, tool_name, result_data
+                        )
+
                         tool_call = {"icon": get_tool_icon(tool_name), "name": tool_name} if tool_name else None
                         # v6.1: step_complete 的 description 可以保持详细，用于日志
                         await on_flow_event(FlowEventBuilder.step_complete(

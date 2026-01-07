@@ -1,5 +1,23 @@
 @import 'tailwindcss';
 
+/* Thinking闪烁动画 - 使用独立的keyframes名称避免和Tailwind冲突 */
+@keyframes thinking-blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.thinking-blink {
+  animation: thinking-blink 1.5s ease-in-out infinite;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
 /* 消息高亮动画 */
 @keyframes highlight-pulse {
   0%, 100% {

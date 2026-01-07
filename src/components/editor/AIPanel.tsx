@@ -1017,6 +1017,10 @@ ${selectionContext.selected_text}
           }
 
           const messageFlowItems = (message as any).flowItems || [];
+          // DEBUG: 检查 flowItems 是否正确加载
+          if (process.env.NODE_ENV === 'development' && !isUser) {
+            console.log(`[AIPanel] Message ${index} flowItems:`, messageFlowItems.length, messageFlowItems.map((i: any) => i?.type));
+          }
           // v6.2: completion 应该和 output 一起显示在内容区域，而不是在执行轨迹区域
           // v6.4: agent_header 也排除，因为内容区域已经有 AgentHeader 组件
           const flowItemsWithoutOutput = messageFlowItems.filter((item: any) =>
@@ -1034,7 +1038,7 @@ ${selectionContext.selected_text}
             <div key={index} className="space-y-2">
               {showFlowBlock && (
                 <div className="flex items-start">
-                  <div className="flex-1">
+                  <div className="flex-1 !border-none !bg-transparent">
                     {flowItemsWithoutOutput.length > 0 && (
                       <ExecutionFlow items={flowItemsWithoutOutput} />
                     )}
@@ -1047,7 +1051,7 @@ ${selectionContext.selected_text}
                       </div>
                     )}
                     {showThinking && (
-                      <span className="text-[12px] text-zinc-400 dark:text-slate-400 animate-[pulse_2s_ease-in-out_infinite] outline-none">
+                      <span className="text-[12px] text-zinc-400 dark:text-slate-400 thinking-blink">
                         Thinking...
                       </span>
                     )}
@@ -1061,21 +1065,21 @@ ${selectionContext.selected_text}
                   <div className="flex flex-col gap-1 w-full group">
                     <AgentHeader />
                     <div className="text-zinc-500 dark:text-slate-300">
-                      {lastOutputItem ? (
-                        // v6.3: 当 output flowItem 存在时，优先使用 message.content（流式内容）
-                        // 如果 message.content 为空，则使用 flowItem 中的 content
-                        <ExecutionFlow
-                          items={[{
-                            ...lastOutputItem,
-                            data: {
-                              ...(lastOutputItem.data as any),
-                              content: message.content || (lastOutputItem.data as any).content
-                            }
-                          }]}
-                        />
-                      ) : (
-                        <MarkdownContent content={message.content} />
-                      )}
+                      {/* v6.5: 统一使用 ExecutionFlow 样式，删除纯文本降级逻辑 */}
+                      <ExecutionFlow
+                        items={[{
+                          id: lastOutputItem?.id || `output-fallback-${index}`,
+                          type: 'output' as const,
+                          data: {
+                            title: (lastOutputItem?.data as any)?.title || '回复',
+                            content: message.content || (lastOutputItem?.data as any)?.content || '',
+                            intro: (lastOutputItem?.data as any)?.intro,
+                            introHighlight: (lastOutputItem?.data as any)?.introHighlight,
+                            isApplicable: (lastOutputItem?.data as any)?.isApplicable,
+                          },
+                          timestamp: lastOutputItem?.timestamp || message.timestamp,
+                        }]}
+                      />
                     </div>
 
                     {/* v6.2: 在内容下方显示completion状态，只有当消息不在流式输出中时才显示 */}
