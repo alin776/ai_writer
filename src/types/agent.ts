@@ -460,7 +460,8 @@ export interface OutputFlowData {
   intro?: string;          // "第五章已续写完成！本章主要讲述..."
   introHighlight?: string; // "林逸开始外门修炼" (加粗部分)
   title: string;           // "第五章：外门初修"
-  content: string;         // 章节内容 (支持HTML)
+  content: string;         // 章节内容 (支持Markdown)
+  isApplicable?: boolean;  // 是否可应用到编辑器（显示"应用到章节"按钮）
 }
 
 /**

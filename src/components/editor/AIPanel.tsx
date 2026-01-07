@@ -596,11 +596,12 @@ ${context.selected_text}
   }, [checkIfAtBottom]);
 
   // 当消息列表更新时，如果用户在底部则自动滚动
+  // 只在消息数量变化时滚动，避免流式内容更新时频繁滚动外层
   useEffect(() => {
     if (shouldAutoScrollRef.current) {
       scrollToBottom();
     }
-  }, [messages, tasks, scrollToBottom]);
+  }, [messages.length, tasks.length, scrollToBottom]);
 
   // ✅ 流式输出：真正的字符流，前端直接使用 message.content
 
@@ -1017,7 +1018,10 @@ ${selectionContext.selected_text}
 
           const messageFlowItems = (message as any).flowItems || [];
           // v6.2: completion 应该和 output 一起显示在内容区域，而不是在执行轨迹区域
-          const flowItemsWithoutOutput = messageFlowItems.filter((item: any) => item?.type !== 'output' && item?.type !== 'completion');
+          // v6.4: agent_header 也排除，因为内容区域已经有 AgentHeader 组件
+          const flowItemsWithoutOutput = messageFlowItems.filter((item: any) =>
+            item?.type !== 'output' && item?.type !== 'completion' && item?.type !== 'agent_header'
+          );
           const outputItems = messageFlowItems.filter((item: any) => item?.type === 'output');
           const completionItem = messageFlowItems.find((item: any) => item?.type === 'completion');
           const lastOutputItem = outputItems.length > 0 ? outputItems[outputItems.length - 1] : null;
@@ -1058,14 +1062,24 @@ ${selectionContext.selected_text}
                     <AgentHeader />
                     <div className="text-zinc-500 dark:text-slate-300">
                       {lastOutputItem ? (
-                        <ExecutionFlow items={[lastOutputItem]} />
+                        // v6.3: 当 output flowItem 存在时，优先使用 message.content（流式内容）
+                        // 如果 message.content 为空，则使用 flowItem 中的 content
+                        <ExecutionFlow
+                          items={[{
+                            ...lastOutputItem,
+                            data: {
+                              ...(lastOutputItem.data as any),
+                              content: message.content || (lastOutputItem.data as any).content
+                            }
+                          }]}
+                        />
                       ) : (
                         <MarkdownContent content={message.content} />
                       )}
                     </div>
 
-                    {/* v6.2: 在内容下方显示completion状态 */}
-                    {completionItem && (
+                    {/* v6.2: 在内容下方显示completion状态，只有当消息不在流式输出中时才显示 */}
+                    {completionItem && !isStreamingMessage && (
                       <ExecutionFlow items={[completionItem]} />
                     )}
                   </div>

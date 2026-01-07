@@ -136,10 +136,11 @@ class QuickPathHandler:
                     response = f"第{chapter_order}章「{title}」共 **{word_count}** 字"
 
                 if on_content:
-                    # v6.2: 在发送内容之前发送agent_header
+                    # v6.3: 先发送 output_ready（带空内容），再发送内容
                     if on_flow_event:
                         from app.services.agent.stream.flow_events import FlowEventBuilder
                         await on_flow_event(FlowEventBuilder.agent_header())
+                        await on_flow_event(FlowEventBuilder.output_ready("章节信息", "", is_applicable=False))
                     await on_content({"content": response})
 
                 logger.info(f"[QuickPath-Planning] 完成，耗时: {elapsed:.2f}s")
@@ -158,10 +159,11 @@ class QuickPathHandler:
                 response = quick_action.get("response", "你好！我是 AI 写作助手，有什么可以帮你的吗？")
 
                 if on_content:
-                    # v6.2: 在发送内容之前发送agent_header
+                    # v6.3: 先发送 output_ready（带空内容），再发送内容
                     if on_flow_event:
                         from app.services.agent.stream.flow_events import FlowEventBuilder
                         await on_flow_event(FlowEventBuilder.agent_header())
+                        await on_flow_event(FlowEventBuilder.output_ready("问候回复", "", is_applicable=False))
                     await on_content({"content": response})
 
                 return {

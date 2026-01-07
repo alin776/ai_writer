@@ -424,6 +424,7 @@ async def get_planning_static_prompt() -> str:
     "step3_process": "处理方式（如果是知识问答，填'直接回答'）"
   },
   "user_intent": "一句话描述",
+  "output_title": "最终输出的概括性标题（4-8字，如：分析结果、续写内容、世界观信息）",
   "direct_answer": "如果是知识问答/闲聊，在这里直接回答，tasks 为空数组",
   "response_hint": "可选，元数据查询时指定返回字段：title/word_count/title_and_word_count/content",
   "tasks": [
@@ -436,6 +437,11 @@ async def get_planning_static_prompt() -> str:
     }
   ]
 }
+
+⚠️ **output_title 字段规范**：
+- 必须简洁：4-8个字
+- 高度概括最终输出内容，如：「分析结果」「续写内容」「世界观信息」「章节内容」「创作建议」
+- 禁止引用具体内容，如：「您好！根据您提供的...」 ❌
 
 ⚠️ **title 字段规范**：
 - 必须简洁：4-8个字
@@ -463,6 +469,7 @@ async def get_planning_static_prompt() -> str:
     "step3_process": "直接回答写作技巧"
   },
   "user_intent": "咨询人物对话写作技巧",
+  "output_title": "写作建议",
   "direct_answer": "💡 **写好人物对话的关键技巧**：\\n\\n| 技巧 | 说明 |\\n|-----|-----|\\n| ✅ 符合人设 | 每个角色说话方式应该不同，反映其性格、背景 |\\n| ✅ 推动剧情 | 对话不是闲聊，要传递信息或推动故事发展 |\\n| ✅ 留白与潜台词 | 不要把所有意思都说出来，让读者去体会 |\\n| ✅ 节奏控制 | 长短句交替，紧张时用短句，舒缓时可以稍长 |\\n\\n> 📌 **核心要点**：避免让角色像在念课文，要自然！",
   "tasks": []
 }
@@ -520,6 +527,7 @@ async def get_planning_static_prompt() -> str:
     "step3_process": "执行之前讨论的计划：读取→分析→续写500字"
   },
   "user_intent": "执行之前讨论的续写计划",
+  "output_title": "续写内容",
   "tasks": [
     {"task_id": 1, "description": "获取第5章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 5}},
     {"task_id": 2, "description": "分析战斗风格", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$", "focus": "战斗风格分析"}},
@@ -930,6 +938,7 @@ _AGENT_MODE_CHECKPOINT_SECTION = """
 {
   "thinking": {"step1_output": "分析报告", "step2_material": "5个章节内容", "step3_process": "批量读取后汇总分析"},
   "user_intent": "分析前5章情节",
+  "output_title": "分析结果",
   "tasks": [
     {"task_id": 1, "description": "批量读取前5章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": "1-5"}, "checkpoint": false},
     {"task_id": 2, "description": "汇总分析情节发展", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.chapters$", "focus": "情节发展分析"}, "checkpoint": false}
@@ -941,6 +950,7 @@ _AGENT_MODE_CHECKPOINT_SECTION = """
 {
   "thinking": {"step1_output": "概括", "step2_material": "第3章", "step3_process": "读取并概括"},
   "user_intent": "概括第3章",
+  "output_title": "章节概括",
   "tasks": [
     {"task_id": 1, "description": "获取第3章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 3}, "checkpoint": false},
     {"task_id": 2, "description": "概括内容", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$", "focus": "概括"}, "checkpoint": false}

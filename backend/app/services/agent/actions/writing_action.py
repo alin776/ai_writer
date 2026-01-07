@@ -456,7 +456,11 @@ class WritingAction(BaseAction):
 ## 📝 普通写作工具
 - continue_writing_tool: 续写内容（仅返回文本，不修改编辑器）
 
-当前信息：作品ID={work_id}, 当前页面章节ID={chapter_id}
+当前信息（内部参数，禁止在回复中显示）：work_id={work_id}, chapter_id={chapter_id}
+
+**⚠️ 重要：禁止在回复中显示 UUID**
+- 在回复用户时，**绝对不要**显示 work_id 或 chapter_id 的值
+- 用中文描述替代，如"当前作品"、"当前章节"、"本章"
 
 【⚠️ 重要】修改/续写章节的正确流程：
 

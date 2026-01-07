@@ -419,6 +419,7 @@ export function useAgentChatStream(
                     content: event.content,
                     intro: event.intro,
                     introHighlight: event.introHighlight,
+                    isApplicable: event.is_applicable,
                   },
                   timestamp,
                 };

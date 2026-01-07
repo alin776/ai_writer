@@ -130,15 +130,17 @@ class FlowEventBuilder:
         title: str,
         content: str,
         intro: Optional[str] = None,
-        intro_highlight: Optional[str] = None
+        intro_highlight: Optional[str] = None,
+        is_applicable: bool = False
     ) -> dict:
         """构建输出就绪事件
 
         Args:
             title: 输出标题 (如 "第五章：外门初修")
-            content: 输出内容 (支持HTML)
+            content: 输出内容 (支持Markdown)
             intro: 介绍文字 (如 "第五章已续写完成！本章主要讲述{highlight}的经历")
             intro_highlight: 高亮文字 (如 "林逸开始外门修炼")
+            is_applicable: 是否可应用到编辑器（显示"应用到章节"按钮）
         """
         return {
             "type": "output_ready",
@@ -146,6 +148,7 @@ class FlowEventBuilder:
             "content": content,
             "intro": intro,
             "intro_highlight": intro_highlight,
+            "is_applicable": is_applicable,
             "timestamp": get_utc_now().isoformat()
         }
 

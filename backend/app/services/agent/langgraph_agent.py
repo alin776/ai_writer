@@ -1734,10 +1734,13 @@ class WritingAgentGraph:
                     direct_answer = raw_direct_answer.strip()
                     logger.info(f"[Planning] 检测到 direct_answer({len(direct_answer)}字)，直接返回答案，跳过任务执行")
 
-                    # v6.2: 在发送内容之前发送agent_header
+                    # v6.3: 先发送 output_ready（带空内容），再发送内容
                     if on_flow_event:
                         from app.services.agent.stream.flow_events import FlowEventBuilder
                         await on_flow_event(FlowEventBuilder.agent_header())
+                        # 使用 AI 生成的 output_title，降级为默认值
+                        output_title = plan_data.get("output_title") or "回复内容"
+                        await on_flow_event(FlowEventBuilder.output_ready(output_title, "", is_applicable=False))
 
                     # 通过回调发送内容
                     if on_content:
@@ -1952,6 +1955,34 @@ class WritingAgentGraph:
                 # ✅ P0修复: 从context中获取知识库文档，传递给_build_final_response
                 knowledge_docs_for_response = context.get("knowledge_docs") if context else None
 
+                # v6.3: 判断 is_applicable 并提前发送 output_ready（带空内容）
+                # 这样前端可以立即显示容器，内容通过 on_content 流式填充
+                CONTENT_GENERATION_TOOLS = {'continue_writing_tool'}
+                is_applicable = False
+
+                for result in task_results:
+                    tool_name = result.get('tool', '')
+                    if tool_name in CONTENT_GENERATION_TOOLS:
+                        is_applicable = True
+                    try:
+                        result_data = result.get('result')
+                        if isinstance(result_data, str):
+                            parsed = json.loads(result_data)
+                            if parsed.get('requires_confirmation'):
+                                is_applicable = True
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+                # v6.3: 使用 AI 生成的 output_title，降级为默认值
+                output_title = plan_data.get("output_title") or "生成内容"
+
+                # v6.3: 提前发送 output_ready 事件（带空内容），让前端立即显示容器
+                if on_flow_event:
+                    from app.services.agent.stream.flow_events import FlowEventBuilder
+                    await on_flow_event(FlowEventBuilder.output_ready(
+                        output_title, "", is_applicable=is_applicable
+                    ))
+
                 # 使用新的智能判断方法
                 # ✅ 传递 response_hint 用于元数据查询的精准返回
                 final_content = await self._build_final_response(
@@ -1963,22 +1994,8 @@ class WritingAgentGraph:
                     direct_answer=plan_data.get("direct_answer")  # ✅ 分阶段执行：传递 direct_answer
                 )
 
-                # v6.0: 只有调用了创作类工具才发送output_ready事件
-                # 创作类工具：continue_writing_tool, smart_continue, smart_rewrite, smart_insert
-                CREATIVE_TOOLS = {'continue_writing_tool', 'smart_continue', 'smart_rewrite', 'smart_insert'}
-                has_creative_output = any(
-                    result.get('tool') in CREATIVE_TOOLS
-                    for result in task_results
-                )
-
-                if on_flow_event and has_creative_output and final_content and len(final_content) > 100:
-                    from app.services.agent.stream.flow_events import FlowEventBuilder
-                    # 提取标题（如果内容以标题开头）
-                    title = "生成内容"
-                    lines = final_content.strip().split('\n')
-                    if lines and len(lines[0]) < 50:
-                        title = lines[0].strip('#').strip()
-                    await on_flow_event(FlowEventBuilder.output_ready(title, final_content))
+                # v6.3: 内容生成完成后，更新 output_ready 的 title（可选）
+                # 注意：内容已通过 on_content 流式发送，这里只更新元数据
 
                 # v6.0: completion事件移到API层发送，确保在所有内容输出完成后才显示
                 # 原因：此处发送completion时，on_content的内容可能还在队列中未发送到前端

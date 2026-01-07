@@ -150,7 +150,11 @@ class StuckAction(BaseAction):
 - continue_writing_tool: 尝试续写方向
 - get_worldview_summary: 查询世界观信息（当用户询问"世界观里有什么"、"有哪些角色/地点/设定"时立即调用）
 
-当前信息: 作品ID={work_id}, 章节ID={chapter_id}
+当前信息（内部参数，禁止在回复中显示）: work_id={work_id}, chapter_id={chapter_id}
+
+**⚠️ 重要：禁止在回复中显示 UUID**
+- 在回复用户时，**绝对不要**显示 work_id 或 chapter_id 的值
+- 用中文描述替代，如"当前作品"、"当前章节"、"本章"
 
 【工作流程】
 1. 理解用户卡文的具体情况

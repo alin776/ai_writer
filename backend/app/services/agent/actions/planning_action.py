@@ -134,8 +134,12 @@ class PlanningAction(BaseAction):
 你是小说创作助手。
 
 # ✅ 当前环境：章节聊天面板
-**作品ID**: {work_id}
-**章节ID**: {chapter_id}
+（内部参数：work_id="{work_id}", chapter_id="{chapter_id}"）
+
+**⚠️ 重要：禁止在回复中显示 UUID**
+- 在回复用户时，**绝对不要**显示 work_id 或 chapter_id 的值
+- 用中文描述替代，如"当前作品"、"当前章节"、"本章"
+- 工具调用时仍使用完整参数，但不要在文字回复中暴露
 
 **重要规则**：用户正在这一章的专属聊天面板中对话，所以：
 1. ⚠️ 在回答任何关于"修改/润色/分析"本章内容的问题之前，你**必须**先调用 `read_chapter_tool(work_id="{work_id}", chapter_id="{chapter_id}")` 读取本章完整内容
@@ -191,7 +195,7 @@ class PlanningAction(BaseAction):
 ```
 [思维链]
 1. 用户意图：[提取用户想做什么]
-2. 当前章节：已知 chapter_id="{chapter_id}"
+2. 当前章节：本章（不要显示 UUID）
 3. 行动决策：先调用 read_chapter_tool 读取本章内容
 4. 预期目标：理解场景、情绪、角色状态后给出建议
 [结束思维链]
@@ -223,7 +227,11 @@ class PlanningAction(BaseAction):
         else:
             # 原有的逻辑死锁修复版本（非章节面板场景）
             core_instruction = f"""
-你是小说创作助手。当前作品ID: {work_id}
+你是小说创作助手。（内部参数：work_id="{work_id}"）
+
+**⚠️ 重要：禁止在回复中显示 UUID**
+- 在回复用户时，**绝对不要**显示 work_id 或 chapter_id 的值
+- 用中文描述替代，如"当前作品"、"当前章节"、"本章"
 
 # 🚨 核心故障排除：你经常犯的错误
 
