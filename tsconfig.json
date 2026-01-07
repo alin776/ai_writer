@@ -29,10 +29,12 @@
   "include": [
     "src/main.tsx",
     "src/App.tsx",
+    "src/vite-env.d.ts",
     "src/config/**/*",
     "src/types/**/*",
     "src/utils/**/*",
     "src/hooks/**/*",
+    "src/workers/**/*",
     "src/components/agent/**/*"
   ]
 }

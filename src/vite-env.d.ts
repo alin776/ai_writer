@@ -1,6 +1,23 @@
 /// <reference types="vite/client" />
 
 /**
+ * Vite Worker 模块声明
+ */
+declare module '*?worker' {
+  const workerConstructor: {
+    new (): Worker;
+  };
+  export default workerConstructor;
+}
+
+declare module '@/workers/typewriterWorker?worker' {
+  const workerConstructor: {
+    new (): Worker;
+  };
+  export default workerConstructor;
+}
+
+/**
  * 环境变量类型定义
  */
 interface ImportMetaEnv {

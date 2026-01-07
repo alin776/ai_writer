@@ -510,7 +510,6 @@ async def channel_stream(websocket: WebSocket, channel_id: str, token: str = Que
 
     # 4. 接受连接
     await websocket.accept()
-    logger.info(f"[Channel WS] 连接建立: channel={channel_id}, user={user_id}")
 
     # 5. 注册连接
     if channel_uuid not in active_channel_connections:
@@ -555,7 +554,7 @@ async def channel_stream(websocket: WebSocket, channel_id: str, token: str = Que
                     await websocket.send_json({"type": "heartbeat"})
 
     except WebSocketDisconnect:
-        logger.info(f"[Channel WS] 连接断开: channel={channel_id}, user={user_id}")
+        pass
     except asyncio.CancelledError:
         pass
     except Exception as e:
@@ -594,30 +593,20 @@ async def channel_stream(websocket: WebSocket, channel_id: str, token: str = Que
 async def broadcast_channel_event(channel_id: UUID, event_data: dict, exclude_user: UUID = None):
     """向频道内所有用户广播事件"""
     if channel_id not in active_channel_connections:
-        logger.warning(f"[Channel WS] 广播失败: 频道 {channel_id} 无活跃连接")
         return
 
-    connected_users = list(active_channel_connections[channel_id].keys())
-    logger.info(f"[Channel WS] 广播消息到频道 {channel_id}, 在线用户: {len(connected_users)}, 排除用户: {exclude_user}")
-
     disconnected = []
-    sent_count = 0
     for uid, ws in active_channel_connections[channel_id].items():
         if exclude_user and uid == exclude_user:
-            logger.debug(f"[Channel WS] 跳过发送者: {uid}")
             continue
         try:
             if ws.client_state == WebSocketState.CONNECTED:
                 await ws.send_json(event_data)
-                sent_count += 1
-                logger.debug(f"[Channel WS] 消息已发送给用户: {uid}")
             else:
                 disconnected.append(uid)
         except Exception as e:
             logger.error(f"[Channel WS] 发送消息给 {uid} 失败: {e}")
             disconnected.append(uid)
-
-    logger.info(f"[Channel WS] 广播完成, 成功发送: {sent_count}, 断开连接: {len(disconnected)}")
 
     for uid in disconnected:
         active_channel_connections[channel_id].pop(uid, None)
@@ -652,26 +641,20 @@ async def broadcast_channel_message(channel_id: UUID, message_data: dict, exclud
     # 广播消息，排除静音用户
     event_data = {"type": "MESSAGE_NEW", "payload": message_data}
     disconnected = []
-    sent_count = 0
-    skipped_muted = 0
 
     for uid, ws in active_channel_connections[channel_id].items():
         if exclude_user and uid == exclude_user:
             continue
         if uid in muted_user_ids:
-            skipped_muted += 1
             continue
         try:
             if ws.client_state == WebSocketState.CONNECTED:
                 await ws.send_json(event_data)
-                sent_count += 1
             else:
                 disconnected.append(uid)
         except Exception as e:
             logger.error(f"[Channel WS] 发送消息给 {uid} 失败: {e}")
             disconnected.append(uid)
-
-    logger.info(f"[Channel WS] 新消息广播完成, 发送: {sent_count}, 跳过静音: {skipped_muted}")
 
     for uid in disconnected:
         active_channel_connections[channel_id].pop(uid, None)

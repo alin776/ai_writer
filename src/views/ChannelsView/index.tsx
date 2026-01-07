@@ -341,7 +341,6 @@ const ChannelsView: React.FC = () => {
 
         // 优先处理 join 参数（邀请链接）
         if (joinIdFromUrl) {
-          console.log('[ChannelsView] 检测到 join 参数:', joinIdFromUrl);
           // 检查是否已经在频道中
           const existingChannel = channels.find(c => c.id === joinIdFromUrl);
           if (existingChannel) {
@@ -421,7 +420,6 @@ const ChannelsView: React.FC = () => {
             setSearchParams({}, { replace: true });
           } else {
             // 目标频道不在列表中，设置默认频道
-            console.log('[ChannelsView] 目标频道不在用户频道列表中:', channelIdFromUrl);
             if (channels.length > 0 && !activeChannelId) {
               setActiveChannelId(channels[0].id);
             }

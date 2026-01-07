@@ -10,6 +10,7 @@ HybridRetriever: 结合向量检索与全文模糊匹配，提高长文本作品
 """
 
 import logging
+import re
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 
@@ -100,16 +101,20 @@ class HybridRetriever:
             look_ahead=look_ahead,
         )
 
-        formatted_vector = [
-            {
+        # 清理向量检索结果中的 HTML 标签
+        formatted_vector = []
+        for r in vector_results:
+            chunk_text = r["chunk_text"]
+            # 清理 HTML 标签和实体
+            chunk_text = re.sub(r'<[^>]+>', '', chunk_text)
+            chunk_text = chunk_text.replace('&nbsp;', ' ').replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
+            formatted_vector.append({
                 "chapter_title": r["chapter_title"],
                 "chapter_order": r["chapter_order"],
-                "content": r["chunk_text"],
+                "content": chunk_text,
                 "similarity": float(r["similarity"]),
                 "source": "vector",
-            }
-            for r in vector_results
-        ]
+            })
 
         # ========== 2) 全文模糊匹配（jieba 分词优化）==========
         text_results: List[Dict[str, Any]] = []
@@ -142,6 +147,9 @@ class HybridRetriever:
                 # 为每个命中章节提取 snippet
                 for ch in chapters:
                     content = ch.content or ""
+                    # 清理 HTML 标签和实体
+                    content = re.sub(r'<[^>]+>', '', content)
+                    content = content.replace('&nbsp;', ' ').replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
                     content_lower = content.lower()
 
                     # 找到第一个命中的关键词位置

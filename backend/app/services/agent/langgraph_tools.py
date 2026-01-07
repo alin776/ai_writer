@@ -411,12 +411,18 @@ async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "")
                     )
 
                     if chapter:
+                        # 清理 HTML 标签
+                        from app.utils.text_cleaner import text_cleaner
+                        clean_content = text_cleaner.html_to_clean_text(
+                            chapter.content if chapter.content else "",
+                            preserve_structure=False
+                        )
                         chapters_info.append({
                             "chapter_id": str(chapter.id),
                             "title": chapter.title,
                             "order": chapter.order,
-                            "content": chapter.content[:content_limit] if chapter.content else "",
-                            "content_length": len(chapter.content) if chapter.content else 0,
+                            "content": clean_content[:content_limit] if clean_content else "",
+                            "content_length": len(clean_content) if clean_content else 0,
                             "word_count": chapter.word_count,
                             "status": chapter.status.value if hasattr(chapter, 'status') else "unknown"
                         })
@@ -453,12 +459,19 @@ async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "")
                         "work_id": work_id
                     }, ensure_ascii=False, indent=2)
 
+                # 清理 HTML 标签
+                from app.utils.text_cleaner import text_cleaner
+                clean_content = text_cleaner.html_to_clean_text(
+                    chapter.content if chapter.content else "",
+                    preserve_structure=False
+                )
+
                 chapter_info = {
                     "chapter_id": str(chapter.id),
                     "title": chapter.title,
                     "order": chapter.order,
-                    "content": chapter.content[:5000] if chapter.content else "",
-                    "content_length": len(chapter.content) if chapter.content else 0,
+                    "content": clean_content[:5000] if clean_content else "",
+                    "content_length": len(clean_content) if clean_content else 0,
                     "word_count": chapter.word_count,
                     "status": chapter.status.value if hasattr(chapter, 'status') else "unknown"
                 }
@@ -896,11 +909,17 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
                 )
 
                 if chapter:
+                    # 清理 HTML 标签
+                    from app.utils.text_cleaner import text_cleaner
+                    clean_preview = text_cleaner.html_to_clean_text(
+                        chapter.content[:1200] if chapter.content else "",
+                        preserve_structure=False
+                    )
                     context_info["current_chapter"] = {
                         "chapter_id": str(chapter.id),
                         "title": chapter.title,
                         "order": chapter.order,
-                        "content_preview": chapter.content[:1000] if chapter.content else "",
+                        "content_preview": clean_preview[:1000] if clean_preview else "",
                         "word_count": chapter.word_count
                     }
 

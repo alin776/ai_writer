@@ -74,6 +74,11 @@ class ChapterVectorService:
         Returns:
             List[str]: 分段后的文本列表
         """
+        # 清理 HTML 标签（编辑器可能存储 <p></p> 等标签）
+        content = re.sub(r'<[^>]+>', '', content)
+        # 清理常见 HTML 实体
+        content = content.replace('&nbsp;', ' ').replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
+
         # 按中文句子边界分割
         sentences = re.split(r'([。！？\n])', content)
 

@@ -303,7 +303,13 @@ const WorkDetailView: React.FC = () => {
         });
 
         // 检查是否有预加载数据（从导入页面跳转时携带）
-        const preloadedData = (location.state as any)?.preloadedData;
+        const rawLocationState = location.state;
+        const nextLocationState =
+          rawLocationState && typeof rawLocationState === 'object'
+            ? { ...(rawLocationState as Record<string, unknown>) }
+            : null;
+        let shouldReplaceLocationState = false;
+        const preloadedData = (rawLocationState as any)?.preloadedData;
         let workData, chaptersData, worldDataFromServer;
 
         // 验证预加载数据的有效性
@@ -318,11 +324,10 @@ const WorkDetailView: React.FC = () => {
           chaptersData = preloadedData.chapters;
           worldDataFromServer = preloadedData.worldData;
           // 清除 preloadedData，保留其他 state 数据
-          const currentState = window.history.state || {};
-          window.history.replaceState(
-            { ...currentState, preloadedData: undefined },
-            ''
-          );
+          if (nextLocationState && 'preloadedData' in nextLocationState) {
+            delete (nextLocationState as Record<string, unknown>).preloadedData;
+            shouldReplaceLocationState = true;
+          }
         } else {
           // 正常从服务器获取数据
           [workData, chaptersData, worldDataFromServer] = await Promise.all([
@@ -398,7 +403,21 @@ const WorkDetailView: React.FC = () => {
 
         // 清除 location.state 中的搜索导航参数，避免刷新时重复执行
         if (searchNavState?.targetChapterId || searchNavState?.openWorldview) {
-          window.history.replaceState({}, '');
+          if (nextLocationState) {
+            delete (nextLocationState as Record<string, unknown>).targetChapterId;
+            delete (nextLocationState as Record<string, unknown>).openWorldview;
+            delete (nextLocationState as Record<string, unknown>).worldviewTab;
+            delete (nextLocationState as Record<string, unknown>).targetItemId;
+          }
+          shouldReplaceLocationState = true;
+        }
+
+        if (shouldReplaceLocationState) {
+          const hasKeys = nextLocationState && Object.keys(nextLocationState).length > 0;
+          navigate(location.pathname, {
+            replace: true,
+            state: hasKeys ? nextLocationState : null,
+          });
         }
 
         // 如果没有章节，自动创建默认章节
@@ -1306,6 +1325,11 @@ const WorkDetailView: React.FC = () => {
   useEffect(() => {
     rightPanelWidthRef.current = rightPanelWidth;
   }, [rightPanelWidth]);
+
+  // 如果 workId 不存在，不渲染任何内容（路由已切换到其他页面）
+  if (!workId) {
+    return null;
+  }
 
   if (isLoading) {
     return <Loading />;

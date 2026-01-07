@@ -414,7 +414,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
   // ✅ 定义 handleSendWithContext 用于处理带上下文的消息（InlineAI）
   // ✅ 使用 useRef 存储回调函数，让 useEffect 不因回调变化而重新渲染
-  const handleSendWithContextRef = useRef<(message: string, context?: any) => Promise<void>>();
+  const handleSendWithContextRef = useRef<(message: string, context?: any) => Promise<void>>(undefined);
 
   handleSendWithContextRef.current = async (message: string, context?: any) => {
     if (!message.trim()) return;

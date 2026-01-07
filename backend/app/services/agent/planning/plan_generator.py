@@ -233,11 +233,26 @@ class PlanGenerator:
         plan_prompt = f"""AI写作助手。{history_section}{knowledge_section}{selected_text_section}
 用户: {message}
 
-【内部参数 - 禁止在任务描述中显示】
+【内部参数 - 用户不可见】
 work_id: {work_id}
 chapter_id: {chapter_id}
-⚠️ 重要：在生成任务描述(description)时，绝对不要包含 work_id 或 chapter_id 的值！
-用中文描述替代，如"读取当前章节内容"、"分析本章内容"，而不是"读取 work_id: xxx 的内容"。
+
+⚠️⚠️⚠️ 极其重要 - 任务描述规则 ⚠️⚠️⚠️
+任务的 description 字段会直接显示给用户！绝对禁止在 description 中包含：
+- work_id 的值（如 "550e8400-e29b-41d4-a716..."）
+- chapter_id 的值（如 "e100be81-0b53-4ca2..."）
+- 任何 UUID 格式的字符串
+
+✅ 正确示例：
+  - "读取当前章节内容"
+  - "分析本章内容"
+  - "获取作品上下文"
+
+❌ 错误示例：
+  - "读取 work_id: 550e8400... 的内容"
+  - "读取 chapter_id: e100be81... 的章节"
+
+工具调用的 params 中仍需使用完整 UUID，但 description 必须用中文描述！
 
 {static_prompt}{chapter_planning_hint}"""
 

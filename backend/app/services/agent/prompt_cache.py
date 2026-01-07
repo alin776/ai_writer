@@ -19,7 +19,7 @@ Prompt 缓存模块 - Phase 2.6
 from app.core.cache import cache_review
 
 # Prompt 版本号 - 修改 Prompt 时请更新此版本号
-PROMPT_VERSION = "v2.28.0"  # 2025-01-07: 添加 title 字段要求，步骤标题简洁化（4-8字）
+PROMPT_VERSION = "v2.29.0"  # 2025-01-07: 添加搜索 query 提取规则，防止专有名词被拆分
 
 
 # ════════════════════════════════════════════════════════════════
@@ -43,6 +43,29 @@ def _get_retrieval_tools_section() -> str:
     - 搜索包含某关键词的内容: "哪里提到了XX"、"找一下XX相关的内容"
     - 查找人物/地点/设定相关描述: "赵穆出现在哪"、"关于源顺镖局的描述"
     - ⚠️ 用户提到人物名但未指定章节: "帮我改写赵穆的描写" → 先搜索赵穆出现位置
+
+⚠️ 【搜索 query 提取规则 - 极其重要！】
+提取用户描述中的**核心动作/事件/专有名词**作为搜索词，保持完整性！
+
+✅ 正确提取示例：
+- "段融第一次吞噬器灵的场景" → query: "吞噬器灵" 或 "段融 吞噬器灵"
+- "主角觉醒的描写" → query: "觉醒"
+- "赵穆和段融的对话" → query: "赵穆 段融"
+- "描写战斗的片段" → query: "战斗"
+- "关于源顺镖局的描述" → query: "源顺镖局"
+
+❌ 错误提取示例（绝对禁止！）：
+- "段融第一次吞噬器灵的场景" → query: "灵的场景" ❌ (拆分了专有名词"吞噬器灵")
+- "主角觉醒的描写" → query: "的描写" ❌ (丢失了核心词"觉醒")
+
+**关键原则**：
+1. 专有名词/动作词组必须保持完整（如"吞噬器灵"、"源顺镖局"、"金丹期"）
+2. 优先提取动词+宾语组合（如"吞噬器灵"而非"器灵"）
+3. 人物名+动作组合效果更好（如"段融 吞噬器灵"）
+4. 不要只提取"的场景"、"的描写"等无意义后缀
+5. **提取技巧**：找到用户描述中"第一次/首次/开始"后面紧跟的动作词组，这通常是核心搜索词
+   - "第一次吞噬器灵" → 提取 "吞噬器灵"
+   - "首次突破金丹" → 提取 "突破金丹"
 
 ⚠️ 【检索规则 - 强制执行】
 - 用户提到具体文字/关键词但不知位置 → 必须先调用 search_analysis_fragments_tool
@@ -823,6 +846,50 @@ async def get_planning_static_prompt() -> str:
     {"task_id": 2, "description": "分析前四章", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.chapters$", "focus": "多章综合分析"}},
     {"task_id": 3, "description": "创作第5-9章大纲", "tool": "continue_writing_tool", "params": {"context": "$TASK_2$", "requirements": "基于分析结果，为第5-9章设计详细大纲", "target_words": 1500}},
     {"task_id": 4, "description": "续写第五章", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.chapters[3].content$\\n\\n大纲：$TASK_3$", "requirements": "基于大纲续写第五章正文", "target_words": 3000}}
+  ]
+}
+
+【搜索示例】⚠️ 搜索关键词提取规则 - 极其重要！
+
+用户: "优化第一章中段融第一次吞噬器灵的场景描写"
+{
+  "thinking": {
+    "step1_output": "用户想优化一个特定场景的描写",
+    "step2_material": "需要先搜索'吞噬器灵'相关内容，找到具体位置",
+    "step3_process": "搜索定位 → 读取章节 → 分析并给出优化建议"
+  },
+  "user_intent": "优化吞噬器灵场景描写",
+  "tasks": [
+    {"task_id": 1, "description": "搜索吞噬器灵场景", "tool": "search_analysis_fragments_tool", "params": {"query": "吞噬器灵"}},
+    {"task_id": 2, "description": "读取第一章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 1}},
+    {"task_id": 3, "description": "分析并优化场景描写", "tool": "analyze_text_tool", "params": {"text": "$TASK_2.content$", "focus": "场景描写优化"}}
+  ]
+}
+⚠️ 关键：query 参数提取"吞噬器灵"（核心动作词组），而不是"灵的场景"（错误拆分）！
+
+用户: "找一下主角觉醒的描写"
+{
+  "thinking": {
+    "step1_output": "用户想找到主角觉醒的相关描写",
+    "step2_material": "需要搜索'觉醒'相关内容",
+    "step3_process": "搜索定位相关片段"
+  },
+  "user_intent": "搜索主角觉醒描写",
+  "tasks": [
+    {"task_id": 1, "description": "搜索觉醒相关内容", "tool": "search_analysis_fragments_tool", "params": {"query": "觉醒"}}
+  ]
+}
+
+用户: "赵穆和段融的对话在哪"
+{
+  "thinking": {
+    "step1_output": "用户想找两个人物的对话场景",
+    "step2_material": "需要搜索两个人物名",
+    "step3_process": "搜索定位"
+  },
+  "user_intent": "搜索赵穆和段融的对话",
+  "tasks": [
+    {"task_id": 1, "description": "搜索赵穆和段融", "tool": "search_analysis_fragments_tool", "params": {"query": "赵穆 段融"}}
   ]
 }
 
