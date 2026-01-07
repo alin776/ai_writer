@@ -145,7 +145,11 @@ class AIGuidelinesGenerateRequest(BaseModel):
 
 
 class AIGuidelinesGenerateResponse(BaseModel):
-    """AI生成内容的响应（完整31个字段）"""
+    """AI生成内容的响应（完整31个字段 + 标题和简介）"""
+
+    # 🆕 作品标题和简介（AI自动生成）
+    title: Optional[str] = None
+    description: Optional[str] = None
 
     # 🆕 方案C：返回完整31个字段
     # 阶段一：创作规范（15个字段）

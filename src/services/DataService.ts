@@ -1678,9 +1678,9 @@ class DataServiceClass {
   // ==================== AI生成世界观 ====================
 
   /**
-   * 🆕 方案C：基于故事梗概生成完整世界观设定（22个字段）
+   * 🆕 方案C：基于故事梗概生成完整世界观设定（24个字段，含标题和简介）
    * @param request 包含story_concept的请求对象
-   * @returns Promise<any> 返回生成的22个字段
+   * @returns Promise<any> 返回生成的24个字段（包括title和description）
    */
   async generateAIGuidelines(request: { storyConcept: string }): Promise<any> {
     return this.adapter.post('/worldview/ai-guidelines/generate', {

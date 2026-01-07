@@ -155,6 +155,11 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
       };
 
       setWorldViewData(generatedData);
+      // 自动填充AI生成的标题和简介
+      setFinalData({
+        title: response.title || '',
+        description: response.description || '',
+      });
       setStep('review');
       // 默认展开第一个模块
       setExpandedModules(new Set([WORLDVIEW_MODULES[0].id]));
