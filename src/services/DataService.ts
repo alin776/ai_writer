@@ -97,10 +97,6 @@ class DataServiceClass {
     const useMock = import.meta.env.VITE_USE_MOCK === 'true';
 
     this.adapter = useMock ? new MockAdapter() : new ApiAdapter();
-
-    console.log(`[DataService] 使用 ${useMock ? 'Mock' : 'Real API'} 数据源`);
-    console.log(`[DataService] VITE_USE_MOCK = ${import.meta.env.VITE_USE_MOCK}`);
-    console.log(`[DataService] VITE_API_BASE_URL = ${import.meta.env.VITE_API_BASE_URL}`);
   }
 
   // ==================== 认证相关 ====================
@@ -402,7 +398,6 @@ class DataServiceClass {
     // 如果同一章节已有pending请求，等待它完成后再发送新请求
     const pendingRequest = this.pendingChapterUpdates.get(id);
     if (pendingRequest) {
-      console.log(`[DataService] 章节 ${id} 已有pending请求，等待完成...`);
       try {
         await pendingRequest;
       } catch {
@@ -473,9 +468,7 @@ class DataServiceClass {
    * @returns Promise<string>
    */
   async aiSummarize(request: AISummaryRequest): Promise<string> {
-    console.log('[DataService.aiSummarize] 请求参数:', request);
     const response = await this.adapter.post<{ summary: string }>('/ai/summarize', request);
-    console.log('[DataService.aiSummarize] 响应数据:', response);
     return response.summary;
   }
 
@@ -486,12 +479,10 @@ class DataServiceClass {
    * @returns Promise<string> 章节概括
    */
   async generateChapterSummary(chapterId: string, regenerate: boolean = false): Promise<string> {
-    console.log('[DataService.generateChapterSummary] chapterId:', chapterId, 'regenerate:', regenerate);
     const response = await this.adapter.post<{ summary: string }>(
       `/chapters/${chapterId}/summary?regenerate=${regenerate}`,
       {}
     );
-    console.log('[DataService.generateChapterSummary] 响应数据:', response);
     return response.summary;
   }
 

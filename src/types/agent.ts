@@ -220,6 +220,17 @@ export interface Message {
   metadata?: AgentMetadata;
   timestamp: string;
   flowItems?: FlowItem[];  // v5.1: 执行轨迹绑定到消息
+  tasksSnapshot?: TaskSnapshot[]; // v6.2: 任务列表快照（用于历史执行轨迹）
+}
+
+export interface TaskSnapshot {
+  task_id: number;
+  description: string;
+  tool?: string;
+  estimated_time?: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  elapsed_time?: number;
+  progress_status?: string;
 }
 
 export interface ChatInputProps {
@@ -404,7 +415,68 @@ export const EnhancedProgressEventSchema = z.object({
 /**
  * 执行轨迹项类型
  */
-export type FlowItemType = 'text' | 'tool' | 'content';
+export type FlowItemType = 'text' | 'tool' | 'content' | 'step' | 'output' | 'agent_header' | 'completion';
+
+// ==================== 知识调取相关类型 (v6.0) ====================
+
+/**
+ * 知识项
+ */
+export interface KnowledgeItem {
+  name: string;            // "林逸 - 主角"
+  tag?: string;            // "人物" | "地点" | "设定" | "规范"
+  similarity?: number;     // 0.89 (检索结果用)
+  link?: string;           // 点击跳转链接
+}
+
+/**
+ * 知识调取数据
+ */
+export interface KnowledgeFlowData {
+  title: string;           // "世界观已加载(5)"
+  icon: string;            // "BookOpen" | "FileText" | "Search"
+  items: KnowledgeItem[];
+}
+
+/**
+ * 执行步骤数据
+ */
+export interface StepFlowData {
+  stepId: number;
+  title: string;           // "获取世界观设定"
+  status: 'running' | 'done' | 'error';
+  description?: string;    // 步骤描述
+  knowledge?: KnowledgeFlowData[];  // 知识调取列表
+  toolCall?: {
+    icon: string;          // "Wrench"
+    name: string;          // "get_worldview_summary"
+  };
+}
+
+/**
+ * 最终输出数据
+ */
+export interface OutputFlowData {
+  intro?: string;          // "第五章已续写完成！本章主要讲述..."
+  introHighlight?: string; // "林逸开始外门修炼" (加粗部分)
+  title: string;           // "第五章：外门初修"
+  content: string;         // 章节内容 (支持HTML)
+}
+
+/**
+ * Agent头部数据
+ */
+export interface AgentHeaderFlowData {
+  name?: string;           // "文枢AI"
+  badge?: string;          // 可选标签
+}
+
+/**
+ * 完成状态数据
+ */
+export interface CompletionFlowData {
+  text?: string;           // "任务已完成"
+}
 
 /**
  * AI 说明文字数据
@@ -437,7 +509,7 @@ export interface ContentFlowData {
 export interface FlowItem {
   id: string;
   type: FlowItemType;
-  data: TextFlowData | ToolFlowData | ContentFlowData;
+  data: TextFlowData | ToolFlowData | ContentFlowData | StepFlowData | OutputFlowData | AgentHeaderFlowData | CompletionFlowData;
   timestamp: string;
 }
 

@@ -390,7 +390,9 @@ export function ChannelList({ channels, activeChannelId, onChannelSelect, onJoin
 
         {/* 静音标识 */}
         {channel.isMuted && (
-          <BellOff className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 shrink-0" title="已静音" />
+          <span title="已静音">
+            <BellOff className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 shrink-0" />
+          </span>
         )}
 
         {/* @提醒标识 - 优先级最高 */}

@@ -19,7 +19,7 @@ Prompt 缓存模块 - Phase 2.6
 from app.core.cache import cache_review
 
 # Prompt 版本号 - 修改 Prompt 时请更新此版本号
-PROMPT_VERSION = "v2.27.0"  # 2025-12-30: 统一策略：所有创作请求都获取[世界观+前一章+目标章节]三个，支持续写已有内容
+PROMPT_VERSION = "v2.28.0"  # 2025-01-07: 添加 title 字段要求，步骤标题简洁化（4-8字）
 
 
 # ════════════════════════════════════════════════════════════════
@@ -426,8 +426,22 @@ async def get_planning_static_prompt() -> str:
   "user_intent": "一句话描述",
   "direct_answer": "如果是知识问答/闲聊，在这里直接回答，tasks 为空数组",
   "response_hint": "可选，元数据查询时指定返回字段：title/word_count/title_and_word_count/content",
-  "tasks": [...]
+  "tasks": [
+    {
+      "task_id": 1,
+      "title": "简洁标题（4-8字，如：获取世界观、读取章节、分析内容）",
+      "description": "详细描述（可选，用于日志）",
+      "tool": "工具名",
+      "params": {}
+    }
+  ]
 }
+
+⚠️ **title 字段规范**：
+- 必须简洁：4-8个字
+- 使用动宾短语：如"获取世界观"、"读取章节"、"分析内容"、"生成大纲"
+- 禁止冗长描述：如"获取第1至3章内容以了解故事背景" ❌
+- 正确示例："获取前三章" ✅、"分析情节" ✅、"创作大纲" ✅
 
 【direct_answer 格式要求】⚠️ 强制遵守！
 

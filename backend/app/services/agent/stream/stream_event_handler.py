@@ -8,6 +8,7 @@
 - 工具调用缓存
 - HITL 确认请求处理
 - 内容生成检测
+- 执行轨迹事件 (v6.0)
 """
 
 import json
@@ -15,6 +16,8 @@ import logging
 from typing import Dict, Any, Optional, List, TYPE_CHECKING
 
 from langchain_core.messages import AIMessage, ToolMessage
+
+from .flow_events import FlowEventBuilder, get_tool_icon
 
 if TYPE_CHECKING:
     from app.services.agent.stream.event_parser import EventParser
@@ -45,10 +48,85 @@ class StreamEventHandler:
         self.event_parser = event_parser
         self._cached_tool_calls = cached_tool_calls
         self._approval_callback = approval_callback
+        self._on_flow_event: Optional[callable] = None  # 执行轨迹事件回调
+        self._step_counter = 0  # 步骤计数器
 
     def set_approval_callback(self, callback: Optional[callable]):
         """设置 HITL 确认请求回调"""
         self._approval_callback = callback
+
+    def set_flow_event_callback(self, callback: Optional[callable]):
+        """设置执行轨迹事件回调"""
+        self._on_flow_event = callback
+
+    def reset_step_counter(self):
+        """重置步骤计数器"""
+        self._step_counter = 0
+
+    async def emit_flow_event(self, event: dict):
+        """发送执行轨迹事件"""
+        if self._on_flow_event:
+            try:
+                await self._on_flow_event(event)
+            except Exception as e:
+                logger.error(f"[FlowEvent] 发送失败: {e}")
+
+    async def emit_agent_header(self, name: str = "文枢AI", badge: str = ""):
+        """发送Agent头部事件"""
+        await self.emit_flow_event(FlowEventBuilder.agent_header(name, badge))
+
+    async def emit_text(self, content: str):
+        """发送文本消息事件"""
+        await self.emit_flow_event(FlowEventBuilder.text(content))
+
+    async def emit_step_start(self, title: str) -> int:
+        """发送步骤开始事件，返回步骤ID"""
+        self._step_counter += 1
+        await self.emit_flow_event(FlowEventBuilder.step_start(self._step_counter, title))
+        return self._step_counter
+
+    async def emit_knowledge_loaded(
+        self,
+        step_id: int,
+        knowledge_type: str,
+        title: str,
+        icon: str,
+        items: List[Dict[str, Any]]
+    ):
+        """发送知识加载完成事件"""
+        await self.emit_flow_event(FlowEventBuilder.knowledge_loaded(
+            step_id, knowledge_type, title, icon, items
+        ))
+
+    async def emit_step_complete(
+        self,
+        step_id: int,
+        description: str,
+        tool_name: Optional[str] = None
+    ):
+        """发送步骤完成事件"""
+        tool_call = None
+        if tool_name:
+            tool_call = {"icon": get_tool_icon(tool_name), "name": tool_name}
+        await self.emit_flow_event(FlowEventBuilder.step_complete(
+            step_id, description, tool_call
+        ))
+
+    async def emit_output_ready(
+        self,
+        title: str,
+        content: str,
+        intro: Optional[str] = None,
+        intro_highlight: Optional[str] = None
+    ):
+        """发送输出就绪事件"""
+        await self.emit_flow_event(FlowEventBuilder.output_ready(
+            title, content, intro, intro_highlight
+        ))
+
+    async def emit_completion(self, text: str = "任务已完成"):
+        """发送完成状态事件"""
+        await self.emit_flow_event(FlowEventBuilder.completion(text))
 
     async def handle_event(
         self,

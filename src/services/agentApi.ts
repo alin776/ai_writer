@@ -170,6 +170,7 @@ class AgentApiService {
       onToolCall?: (toolCall: any) => void;
       onActivityComplete?: (activity: any) => void;
       onApprovalRequest?: (approvalReq: any) => void;
+      onFlowEvent?: (event: any) => void;  // 执行轨迹事件 (v6.0)
       onReader?: (reader: ReadableStreamDefaultReader<Uint8Array>, controller?: AbortController) => void;
     },
     options?: {
@@ -187,16 +188,6 @@ class AgentApiService {
       .replace(/\/api\/v1\/?$/, '')
       .replace(/\/$/, '');
     const url = `${streamBase}/api/v1/agent/chat/stream`;
-
-    // 🔍 调试日志：追踪实际发送到后端的 payload
-    console.log('===== agentApi.chatStream 发送请求 =====');
-    console.log('1. URL:', url);
-    console.log('2. request 完整内容:', request);
-    console.log('3. request.context:', request.context);
-    console.log('4. request.context?.selected_text:', request.context?.selected_text);
-    console.log('5. request.context?.selection_position:', request.context?.selection_position);
-    console.log('6. request.context?.instruction_context:', request.context?.instruction_context);
-    console.log('==========================================');
 
     // ✅ 真正的流式输出：直接传递后端返回的内容，不再拆分和模拟
     // 后端现在会以小块（5字符）的粒度发送内容，前端直接展示即可
@@ -292,6 +283,29 @@ class AgentApiService {
                   break;
                 case 'approval_request':
                   callbacks.onApprovalRequest?.(data.data);
+                  break;
+
+                // 执行轨迹事件 (v6.0)
+                case 'agent_header':
+                  callbacks.onFlowEvent?.({ type: 'agent_header', data: data.data, timestamp: data.timestamp });
+                  break;
+                case 'text':
+                  callbacks.onFlowEvent?.({ type: 'text', data: data.data, timestamp: data.timestamp });
+                  break;
+                case 'step_start':
+                  callbacks.onFlowEvent?.({ type: 'step_start', stepId: data.step_id, title: data.title, status: data.status, timestamp: data.timestamp });
+                  break;
+                case 'knowledge_loaded':
+                  callbacks.onFlowEvent?.({ type: 'knowledge_loaded', stepId: data.step_id, knowledgeType: data.knowledge_type, title: data.title, icon: data.icon, items: data.items, timestamp: data.timestamp });
+                  break;
+                case 'step_complete':
+                  callbacks.onFlowEvent?.({ type: 'step_complete', stepId: data.step_id, description: data.description, toolCall: data.tool_call, status: data.status, timestamp: data.timestamp });
+                  break;
+                case 'output_ready':
+                  callbacks.onFlowEvent?.({ type: 'output_ready', title: data.title, content: data.content, intro: data.intro, introHighlight: data.intro_highlight, timestamp: data.timestamp });
+                  break;
+                case 'completion':
+                  callbacks.onFlowEvent?.({ type: 'completion', data: data.data, timestamp: data.timestamp });
                   break;
               }
             } catch (error) {

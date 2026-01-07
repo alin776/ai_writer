@@ -59,6 +59,7 @@ export interface Message {
   editedAt?: Date;
   replyTo?: {
     id: string;
+    userId?: string;  // 被引用用户ID
     userName: string;
     userAvatar?: string;  // 被引用用户头像
     userTitle?: string;   // 被引用用户称号
@@ -1456,7 +1457,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                       {/* 被引用用户小头像 */}
                       <img
                         src={message.replyTo.userAvatar || message.userAvatar || '/default-avatar.png'}
-                        alt={getDisplayName(message.replyTo.userId, message.replyTo.userName)}
+                        alt={getDisplayName(message.replyTo.userId || '', message.replyTo.userName)}
                         className="w-4 h-4 rounded-full"
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = '/default-avatar.png';
@@ -1465,7 +1466,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
 
                       {/* 被引用用户名 */}
                       <span className="text-gray-600 dark:text-gray-300 hover:underline font-medium">
-                        @{getDisplayName(message.replyTo.userId, message.replyTo.userName)}
+                        @{getDisplayName(message.replyTo.userId || '', message.replyTo.userName)}
                       </span>
 
                       {/* 被引用内容摘要 - 过滤 markdown 格式 */}

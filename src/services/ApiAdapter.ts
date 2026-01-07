@@ -69,9 +69,6 @@ export class ApiAdapter implements IDataAdapter {
         if (token) {
           config.headers = config.headers || {};
           config.headers.Authorization = `Bearer ${token}`;
-          console.log('[ApiAdapter] Authorization header set');
-        } else if (import.meta.env.DEV) {
-          console.warn('[ApiAdapter] No token available for request');
         }
         return config;
       },
@@ -83,28 +80,12 @@ export class ApiAdapter implements IDataAdapter {
     // 响应拦截器：处理错误和数据转�?
     this.axiosInstance.interceptors.response.use(
       (response) => {
-        const url = response.config.url || '';
-        console.log('[ApiAdapter] Response SUCCESS:', url);
-        console.log('[ApiAdapter] Response data type:', typeof response.data);
-        console.log('[ApiAdapter] Response data (raw):', response.data);
-        console.log('[ApiAdapter] Response status:', response.status);
-        
         // 在这里统一进行 snake_case �?camelCase 的转�?
         const camelCaseData = this.convertKeysToCamelCase(response.data);
-        console.log('[ApiAdapter] Response data (camelCase):', camelCaseData);
-        
+
         return { ...response, data: camelCaseData };
       },
       async (error) => {
-        console.error('[ApiAdapter] Error:', error);
-        console.error('[ApiAdapter] Error details:', {
-          hasResponse: !!error.response,
-          hasRequest: !!error.request,
-          message: error.message,
-          response: error.response,
-          responseData: error.response?.data,
-          status: error.response?.status
-        });
         if (error.response) {
           // 服务器返回错误状态码
           const { status, data, config } = error.response;
@@ -140,10 +121,6 @@ export class ApiAdapter implements IDataAdapter {
           );
 
           if (isWorldviewNotFound) {
-            // 只在开发模式下显示警告
-            if (import.meta.env.DEV) {
-              console.warn(`[API] 世界观API未实�? ${url}`);
-            }
             // 返回空数组，不中断应�?
             return Promise.resolve([]);
           }
@@ -154,10 +131,6 @@ export class ApiAdapter implements IDataAdapter {
           
           if (isGuidelinesNotFound) {
             // 静默处理 guidelines �?04，这是正常情�?
-            console.debug('Guidelines不存在（尚未创建�?', url);
-          } else {
-            // 其他错误正常打印
-            console.error('API Error:', error);
           }
 
           switch (status) {
@@ -172,31 +145,24 @@ export class ApiAdapter implements IDataAdapter {
             }
 case 403:
               // 无权限
-              console.error('无权限访问');
               break;
             case 404:
               // 资源不存在- 静默处理，由调用方决定如何处理
-              if (!isGuidelinesNotFound) {
-                console.debug('资源不存在', url);
-              }
               break;
             case 500:
               // 服务器错误
-              console.error('服务器错误');
               break;
             default:
-              console.error('请求错误:', data?.message || error.message);
+              break;
           }
 
           // 保持错误对象结构，确保前端可以访问 error.response.data
           return Promise.reject(error);
         } else if (error.request) {
           // 请求已发送但没有收到响应
-          console.error('网络错误，请检查网络连接');
           return Promise.reject(new Error('网络错误'));
         } else {
           // 其他错误
-          console.error('请求配置错误:', error.message);
           return Promise.reject(error);
         }
       }
@@ -325,9 +291,6 @@ case 403:
    * POST 请求
    */
   async post<T>(url: string, data?: any): Promise<T> {
-    console.log('[ApiAdapter.post] URL:', url);
-    console.log('[ApiAdapter.post] 请求数据:', data);
-
     // FormData 直接透传，避免键名转换破坏 multipart 结构
     // 注意：不要手动设置 Content-Type，让浏览器自动设置（包含 boundary）
     if (data instanceof FormData) {
@@ -341,11 +304,9 @@ case 403:
 
     // 将请求体从 camelCase 转换为 snake_case
     const snakeCaseData = this.convertKeysToSnakeCase(data);
-    console.log('[ApiAdapter.post] 转换后的数据 (snake_case):', snakeCaseData);
 
     // 响应拦截器已经处理了 camelCase 转换，直接返回
     const response = await this.axiosInstance.post(url, snakeCaseData);
-    console.log('[ApiAdapter.post] 收到响应 (已转camelCase):', response);
 
     return (response as any)?.data ?? (response as any as T);
   }
@@ -377,17 +338,12 @@ case 403:
    * PATCH 请求
    */
   async patch<T>(url: string, data?: any): Promise<T> {
-    console.log('[ApiAdapter.patch] URL:', url);
-    console.log('[ApiAdapter.patch] 请求数据:', data);
-    
     // 将请求体�?camelCase 转换�?snake_case
     const snakeCaseData = this.convertKeysToSnakeCase(data);
-    console.log('[ApiAdapter.patch] 转换后的数据 (snake_case):', snakeCaseData);
-    
+
     // 响应拦截器已经处理了 camelCase 转换，直接返�?
     const response = await this.axiosInstance.patch(url, snakeCaseData);
-    console.log('[ApiAdapter.patch] 收到响应 (已转camelCase):', response);
-    
+
     return (response as any)?.data ?? (response as any as T);
   }
 }

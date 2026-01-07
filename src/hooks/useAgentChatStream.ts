@@ -6,7 +6,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { agentApi } from '@/services/agentApi';
-import type { AgentChatRequest, EnhancedProgressEvent, ProgressData, ActivityItem, AgentActivityType, ActivityStatus } from '@/types/agent';
+import type { AgentChatRequest, EnhancedProgressEvent, ProgressData, ActivityItem, AgentActivityType, ActivityStatus, FlowItem, StepFlowData } from '@/types/agent';
 import { ProgressDataSchema, EnhancedProgressEventSchema } from '@/types/agent';  // ✅ 导入Zod Schema
 
 // 进度详情类型
@@ -60,6 +60,9 @@ export interface UseAgentChatStreamReturn {
   // ✅ 新增：活动流
   activities: ActivityItem[];
 
+  // ✅ 新增：执行轨迹 (v6.0)
+  flowItems: FlowItem[];
+
   // 内容
   content: string;
 
@@ -79,6 +82,7 @@ export interface UseAgentChatStreamOptions {
   onContent?: (content: string) => void;
   onComplete?: (result: any) => void;
   onError?: (error: Error) => void;
+  onFlowEvent?: (event: any) => void;  // 执行轨迹事件 (v6.0)
 }
 
 /**
@@ -104,6 +108,10 @@ export function useAgentChatStream(
 
   // ✅ 新增：活动流状态
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+
+  // ✅ 新增：执行轨迹状态 (v6.0)
+  const [flowItems, setFlowItems] = useState<FlowItem[]>([]);
+  const stepDataRef = useRef<Map<number, StepFlowData>>(new Map());  // 步骤数据缓存
 
   // 内容和结果
   const [content, setContent] = useState('');
@@ -172,6 +180,8 @@ export function useAgentChatStream(
     setToolCalls([]);
     setProgressData(null);  // ✅ 重置progressData
     setActivities([]);  // ✅ 重置activities
+    setFlowItems([]);  // ✅ 重置flowItems
+    stepDataRef.current.clear();  // ✅ 重置步骤缓存
     setContent('');
     setResult(null);
   }, []);
@@ -188,6 +198,8 @@ export function useAgentChatStream(
       setToolCalls([]);
       setProgressData(null);  // ✅ 重置progressData
       setActivities([]);  // ✅ 重置activities
+      setFlowItems([]);  // ✅ 重置flowItems
+      stepDataRef.current.clear();  // ✅ 重置步骤缓存
       setContent('');
       setResult(null);
 
@@ -325,6 +337,109 @@ export function useAgentChatStream(
             // 触发外部回调
             options?.onError?.(err);
           },
+
+          // ✅ 新增：执行轨迹事件处理 (v6.0)
+          onFlowEvent: (event) => {
+            const timestamp = event.timestamp || new Date().toISOString();
+
+            switch (event.type) {
+              case 'agent_header': {
+                const item: FlowItem = {
+                  id: `flow-${Date.now()}-header`,
+                  type: 'agent_header',
+                  data: { name: event.data?.name, badge: event.data?.badge },
+                  timestamp,
+                };
+                setFlowItems((prev) => [...prev, item]);
+                break;
+              }
+              case 'text': {
+                const item: FlowItem = {
+                  id: `flow-${Date.now()}-text`,
+                  type: 'text',
+                  data: { content: event.data?.content || '' },
+                  timestamp,
+                };
+                setFlowItems((prev) => [...prev, item]);
+                break;
+              }
+              case 'step_start': {
+                const stepData: StepFlowData = {
+                  stepId: event.stepId,
+                  title: event.title,
+                  status: 'running',
+                };
+                stepDataRef.current.set(event.stepId, stepData);
+                const item: FlowItem = {
+                  id: `flow-${Date.now()}-step-${event.stepId}`,
+                  type: 'step',
+                  data: stepData,
+                  timestamp,
+                };
+                setFlowItems((prev) => [...prev, item]);
+                break;
+              }
+              case 'knowledge_loaded': {
+                const stepData = stepDataRef.current.get(event.stepId);
+                if (stepData) {
+                  const knowledge = { title: event.title, icon: event.icon, items: event.items || [] };
+                  stepData.knowledge = [...(stepData.knowledge || []), knowledge];
+                  setFlowItems((prev) =>
+                    prev.map((item) =>
+                      item.type === 'step' && (item.data as StepFlowData).stepId === event.stepId
+                        ? { ...item, data: { ...stepData } }
+                        : item
+                    )
+                  );
+                }
+                break;
+              }
+              case 'step_complete': {
+                const stepData = stepDataRef.current.get(event.stepId);
+                if (stepData) {
+                  stepData.status = 'done';
+                  stepData.description = event.description;
+                  stepData.toolCall = event.toolCall;
+                  setFlowItems((prev) =>
+                    prev.map((item) =>
+                      item.type === 'step' && (item.data as StepFlowData).stepId === event.stepId
+                        ? { ...item, data: { ...stepData } }
+                        : item
+                    )
+                  );
+                }
+                break;
+              }
+              case 'output_ready': {
+                const item: FlowItem = {
+                  id: `flow-${Date.now()}-output`,
+                  type: 'output',
+                  data: {
+                    title: event.title,
+                    content: event.content,
+                    intro: event.intro,
+                    introHighlight: event.introHighlight,
+                  },
+                  timestamp,
+                };
+                setFlowItems((prev) => [...prev, item]);
+                break;
+              }
+              case 'completion': {
+                const item: FlowItem = {
+                  id: `flow-${Date.now()}-completion`,
+                  type: 'completion',
+                  data: { text: event.data?.text },
+                  timestamp,
+                };
+                setFlowItems((prev) => [...prev, item]);
+                break;
+              }
+            }
+
+            // 触发外部回调
+            options?.onFlowEvent?.(event);
+          },
         });
 
       } catch (err) {
@@ -350,6 +465,7 @@ export function useAgentChatStream(
     toolCalls,
     progressData,  // ✅ 返回progressData
     activities,  // ✅ 返回activities
+    flowItems,  // ✅ 返回flowItems (v6.0)
 
     // 内容
     content,

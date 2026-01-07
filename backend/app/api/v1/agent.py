@@ -1080,13 +1080,6 @@ async def agent_chat_stream(
                 # 准备上下文（创建新dict避免修改原request）
                 context = dict(request.context) if request.context else {}
 
-                # 🔍 调试日志：追踪 selected_text 是否到达后端
-                logger.info(f"[agent_chat_stream] 📥 收到的 context 字段:")
-                logger.info(f"  - selected_text: {context.get('selected_text', 'N/A')[:100] if context.get('selected_text') else 'N/A'}...")
-                logger.info(f"  - selection_position: {context.get('selection_position', 'N/A')}")
-                logger.info(f"  - chapter_context: {context.get('chapter_context', 'N/A')[:100] if context.get('chapter_context') else 'N/A'}...")
-                logger.info(f"  - instruction_context: {context.get('instruction_context', 'N/A')[:100] if context.get('instruction_context') else 'N/A'}...")
-
                 # 知识库文档注入
                 knowledge_service = KnowledgeService(db)
                 knowledge_docs: List[Dict[str, Any]] = []
@@ -1373,6 +1366,12 @@ async def agent_chat_stream(
                         assistant_chunks.append(raw_text)
                     await event_queue.put(('content', chunk))
 
+                # v6.0: 执行轨迹事件回调
+                async def on_flow_event(event):
+                    """执行轨迹事件回调 - 直接发送到SSE流"""
+                    event_type = event.get("type", "flow_event")
+                    await event_queue.put((event_type, event))
+
                 # 在后台运行 Agent（仅 planning 模式）
                 async def run_agent():
                     nonlocal result
@@ -1389,6 +1388,7 @@ async def agent_chat_stream(
                             on_task_progress=on_task_progress,
                             on_task_done=on_task_done,
                             on_content=on_content,
+                            on_flow_event=on_flow_event,  # v6.0: 执行轨迹事件
                             db=db,
                             enable_reflection=request.enable_reflection,  # DeepAgent 反思模式
                         )
@@ -1449,11 +1449,11 @@ async def agent_chat_stream(
                     # 兼容前端/测试用例：对content事件添加content字段
                     if event_type == 'content':
                         event_payload['content'] = event_data
-                    # 添加调试日志
-                    if event_type == 'progress':
-                        logger.info(f"[SSE] 发送 progress 事件: step={event_data.get('step')}, desc={event_data.get('description')}")
-                    elif event_type == 'activity_complete':
-                        logger.info(f"[SSE] 发送 activity_complete 事件: step={event_data.get('step')}, elapsed={event_data.get('elapsed_time'):.1f}s")
+                    # v6.0: 执行轨迹事件直接使用event_data作为payload
+                    elif event_type in ('agent_header', 'text', 'step_start', 'knowledge_loaded', 'step_complete', 'output_ready', 'completion'):
+                        event_payload = event_data  # flow事件已包含完整结构
+                        event_payload['mode'] = str(actual_mode)
+                        event_payload['conversation_id'] = conversation_id
                     yield f"data: {json.dumps(event_payload, ensure_ascii=False)}\n\n"
 
                 # 等待 Agent 任务完成
@@ -1524,6 +1524,13 @@ async def agent_chat_stream(
                         "mode": str(actual_mode)  # 记录使用的模式
                     }
                 )
+
+                # v6.0: 在done事件之前发送completion事件，确保所有内容已输出
+                from app.services.agent.stream.flow_events import FlowEventBuilder
+                completion_event = FlowEventBuilder.completion("任务已完成")
+                completion_event['mode'] = str(actual_mode)
+                completion_event['conversation_id'] = conversation_id
+                yield f"data: {json.dumps(completion_event, ensure_ascii=False)}\n\n"
 
                 # 发送完成事件
                 done_event = {

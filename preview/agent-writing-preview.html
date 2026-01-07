@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI写作助手 - 执行轨迹预览</title>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #1e1e1e;
+            color: #e0e0e0;
+            line-height: 1.6;
+            padding: 24px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        /* Agent 头部 */
+        .agent-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .agent-logo {
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #a78bfa;
+        }
+
+        .agent-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .agent-badge {
+            font-size: 10px;
+            padding: 1px 5px;
+            background: #2a2a2a;
+            color: #888;
+            border-radius: 3px;
+            border: 1px solid #3a3a3a;
+        }
+
+        /* Agent 消息 */
+        .agent-message {
+            color: #ccc;
+            font-size: 14px;
+            margin-bottom: 16px;
+            line-height: 1.7;
+        }
+
+        /* 执行步骤 */
+        .execution-step {
+            margin-bottom: 12px;
+        }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 0;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .step-title-area {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .step-icon {
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: #888;
+        }
+
+        .step-icon.completed {
+            color: #888;
+        }
+
+        .step-icon.running {
+            color: #3b82f6;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .step-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #fff;
+        }
+
+        .step-toggle {
+            color: #666;
+            font-size: 10px;
+            transition: transform 0.2s;
+        }
+
+        .step-spacer {
+            flex: 1;
+        }
+
+        /* 步骤内容 */
+        .step-content {
+            margin-left: 26px;
+            padding-top: 4px;
+        }
+
+        /* 知识调取容器 */
+        .knowledge-section {
+            margin-bottom: 8px;
+        }
+
+        .knowledge-container {
+            display: inline-block;
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            border-radius: 12px;
+            padding: 8px 12px;
+        }
+
+        .knowledge-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .knowledge-icon {
+            color: #888;
+            display: flex;
+            align-items: center;
+        }
+
+        .knowledge-title {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .knowledge-toggle {
+            color: #666;
+            font-size: 9px;
+            margin-left: 2px;
+        }
+
+        .knowledge-items {
+            padding-top: 6px;
+        }
+
+        .knowledge-item {
+            display: block;
+            padding: 3px 0;
+            font-size: 13px;
+            color: #5c9eff;
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+
+        .knowledge-item:hover {
+            color: #7cb3ff;
+        }
+
+        /* 知识项分类标签 */
+        .knowledge-item .tag {
+            display: inline-block;
+            font-size: 10px;
+            padding: 1px 4px;
+            background: #3a3a3a;
+            color: #888;
+            border-radius: 3px;
+            margin-left: 6px;
+            text-decoration: none;
+        }
+
+        /* 步骤描述 */
+        .step-description {
+            font-size: 13px;
+            color: #999;
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+
+        /* 文件/工具操作 */
+        .tool-operation {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            border-radius: 16px;
+            margin: 8px 0;
+        }
+
+        .tool-icon {
+            color: #888;
+            display: flex;
+            align-items: center;
+        }
+
+        .tool-text {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .tool-name {
+            font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+            color: #aaa;
+            font-size: 12px;
+        }
+
+        /* 分隔 */
+        .section-gap {
+            height: 16px;
+        }
+
+        /* 最终输出 */
+        .final-output {
+            margin-top: 8px;
+        }
+
+        .output-intro {
+            font-size: 14px;
+            color: #ccc;
+            margin-bottom: 12px;
+            line-height: 1.7;
+        }
+
+        .output-intro strong {
+            color: #fff;
+        }
+
+        /* 续写内容卡片 */
+        .content-card {
+            background: #252525;
+            border: 1px solid #333;
+            border-radius: 10px;
+            margin-top: 16px;
+            overflow: hidden;
+        }
+
+        .content-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            border-bottom: 1px solid #333;
+        }
+
+        .content-title-area {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .content-icon {
+            width: 24px;
+            height: 24px;
+            background: #10b981;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+
+        .content-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #fff;
+        }
+
+        .content-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            font-size: 11px;
+            padding: 4px 10px;
+            background: #3a3a3a;
+            color: #ccc;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .action-btn:hover {
+            background: #4a4a4a;
+        }
+
+        .action-btn.primary {
+            background: #3b82f6;
+            color: #fff;
+        }
+
+        .action-btn.primary:hover {
+            background: #2563eb;
+        }
+
+        .content-body {
+            padding: 16px;
+            max-height: 350px;
+            overflow-y: auto;
+        }
+
+        .chapter-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 12px;
+        }
+
+        .chapter-text {
+            font-size: 14px;
+            color: #bbb;
+            line-height: 1.8;
+        }
+
+        .chapter-text p {
+            margin-bottom: 10px;
+            text-indent: 2em;
+        }
+
+        .chapter-text .highlight {
+            color: #5c9eff;
+            font-weight: 500;
+        }
+
+        /* 完成状态 */
+        .completion-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 16px;
+            color: #10b981;
+            font-size: 13px;
+        }
+
+        .completion-icon {
+            font-size: 11px;
+        }
+
+        /* Token 统计 */
+        .token-stats {
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .token-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* 隐藏内容 */
+        .hidden {
+            display: none;
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Agent 头部 -->
+        <div class="agent-header">
+            <div class="agent-logo"><i data-lucide="sparkles" style="width:18px;height:18px"></i></div>
+            <span class="agent-name">AI写作助手</span>
+            <span class="agent-badge">Pro</span>
+        </div>
+
+        <!-- Agent 消息 -->
+        <div class="agent-message">
+            好的，我来帮你续写第五章。让我先了解一下前文内容和世界观设定，确保续写的内容与已有情节保持一致。
+        </div>
+
+        <!-- 执行步骤 1: 获取世界观 -->
+        <div class="execution-step">
+            <div class="step-header" onclick="toggleStep(this)">
+                <div class="step-icon completed"><i data-lucide="check" style="width:12px;height:12px"></i></div>
+                <div class="step-title-area">
+                    <span class="step-title">获取世界观设定</span>
+                    <span class="step-toggle">∧</span>
+                </div>
+                <div class="step-spacer"></div>
+            </div>
+            <div class="step-content">
+                <!-- 世界观知识 -->
+                <div class="knowledge-section">
+                    <div class="knowledge-container">
+                        <div class="knowledge-header" onclick="toggleKnowledge(this)">
+                            <span class="knowledge-icon"><i data-lucide="book-open" style="width:12px;height:12px"></i></span>
+                            <span class="knowledge-title">世界观已加载(5)</span>
+                            <span class="knowledge-toggle">∧</span>
+                        </div>
+                        <div class="knowledge-items">
+                            <a class="knowledge-item">林逸 - 主角<span class="tag">人物</span></a>
+                            <a class="knowledge-item">苏瑶 - 女主<span class="tag">人物</span></a>
+                            <a class="knowledge-item">青云宗<span class="tag">地点</span></a>
+                            <a class="knowledge-item">灵气修炼体系<span class="tag">设定</span></a>
+                            <a class="knowledge-item">写作规范：每章3000字<span class="tag">规范</span></a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-description">
+                    已加载作品世界观：2个主要人物、1个重要地点、1个力量体系设定、1条写作规范。
+                </div>
+
+                <div class="tool-operation">
+                    <span class="tool-icon"><i data-lucide="wrench" style="width:12px;height:12px"></i></span>
+                    <span class="tool-text">调用工具</span>
+                    <span class="tool-name">get_worldview_summary</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 执行步骤 2: 读取章节 -->
+        <div class="execution-step">
+            <div class="step-header" onclick="toggleStep(this)">
+                <div class="step-icon completed"><i data-lucide="check" style="width:12px;height:12px"></i></div>
+                <div class="step-title-area">
+                    <span class="step-title">读取前文章节</span>
+                    <span class="step-toggle">∧</span>
+                </div>
+                <div class="step-spacer"></div>
+            </div>
+            <div class="step-content">
+                <!-- 章节内容 -->
+                <div class="knowledge-section">
+                    <div class="knowledge-container">
+                        <div class="knowledge-header" onclick="toggleKnowledge(this)">
+                            <span class="knowledge-icon"><i data-lucide="file-text" style="width:12px;height:12px"></i></span>
+                            <span class="knowledge-title">章节已读取(2)</span>
+                            <span class="knowledge-toggle">∧</span>
+                        </div>
+                        <div class="knowledge-items">
+                            <a class="knowledge-item">第三章：初入青云 (2856字)</a>
+                            <a class="knowledge-item">第四章：灵根测试 (3102字)</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-description">
+                    已读取第3-4章内容，了解到林逸刚通过灵根测试，被分配到外门弟子区，即将开始修炼生涯。
+                </div>
+
+                <div class="tool-operation">
+                    <span class="tool-icon"><i data-lucide="wrench" style="width:12px;height:12px"></i></span>
+                    <span class="tool-text">调用工具</span>
+                    <span class="tool-name">get_chapter_by_order_tool (3-4)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 执行步骤 3: 检索相关片段 -->
+        <div class="execution-step">
+            <div class="step-header" onclick="toggleStep(this)">
+                <div class="step-icon completed"><i data-lucide="check" style="width:12px;height:12px"></i></div>
+                <div class="step-title-area">
+                    <span class="step-title">检索相关设定</span>
+                    <span class="step-toggle">∧</span>
+                </div>
+                <div class="step-spacer"></div>
+            </div>
+            <div class="step-content">
+                <!-- 检索结果 -->
+                <div class="knowledge-section">
+                    <div class="knowledge-container">
+                        <div class="knowledge-header" onclick="toggleKnowledge(this)">
+                            <span class="knowledge-icon"><i data-lucide="search" style="width:12px;height:12px"></i></span>
+                            <span class="knowledge-title">检索结果(3)</span>
+                            <span class="knowledge-toggle">∧</span>
+                        </div>
+                        <div class="knowledge-items">
+                            <a class="knowledge-item">外门弟子修炼规则 (相似度: 0.89)</a>
+                            <a class="knowledge-item">青云宗等级制度 (相似度: 0.85)</a>
+                            <a class="knowledge-item">林逸的特殊体质伏笔 (相似度: 0.82)</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-description">
+                    通过向量检索找到3条相关设定，将用于保持续写内容的一致性。
+                </div>
+
+                <div class="tool-operation">
+                    <span class="tool-icon"><i data-lucide="wrench" style="width:12px;height:12px"></i></span>
+                    <span class="tool-text">调用工具</span>
+                    <span class="tool-name">search_analysis_fragments_tool</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 执行步骤 4: 执行续写 -->
+        <div class="execution-step">
+            <div class="step-header" onclick="toggleStep(this)">
+                <div class="step-icon completed"><i data-lucide="check" style="width:12px;height:12px"></i></div>
+                <div class="step-title-area">
+                    <span class="step-title">生成续写内容</span>
+                    <span class="step-toggle">∧</span>
+                </div>
+                <div class="step-spacer"></div>
+            </div>
+            <div class="step-content">
+                <div class="step-description">
+                    基于世界观设定、前文内容和检索到的相关片段，开始生成第五章内容。
+                </div>
+
+                <div class="tool-operation">
+                    <span class="tool-icon"><i data-lucide="pen-tool" style="width:12px;height:12px"></i></span>
+                    <span class="tool-text">调用工具</span>
+                    <span class="tool-name">smart_continue (目标: 3000字)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-gap"></div>
+
+        <!-- Agent 头部 2 -->
+        <div class="agent-header">
+            <div class="agent-logo"><i data-lucide="sparkles" style="width:18px;height:18px"></i></div>
+            <span class="agent-name">AI写作助手</span>
+            <span class="agent-badge">Pro</span>
+        </div>
+
+        <!-- 最终输出 -->
+        <div class="final-output">
+            <div class="output-intro">
+                第五章已续写完成！本章主要讲述<strong>林逸开始外门修炼</strong>的经历，包含以下情节：
+            </div>
+
+            <!-- 续写内容卡片 -->
+            <div class="content-card">
+                <div class="content-header">
+                    <div class="content-title-area">
+                        <span class="content-title">第五章：外门初修</span>
+                    </div>
+                    <div class="content-actions">
+                        <button class="action-btn">复制</button>
+                        <button class="action-btn primary">应用到章节</button>
+                    </div>
+                </div>
+                <div class="content-body">
+                    <div class="chapter-text">
+                        <p>清晨的第一缕阳光穿透薄雾，洒在青云宗外门弟子居住的木屋上。林逸早早醒来，盘腿坐在简陋的床榻上，回想着昨日灵根测试的结果。</p>
+                        <p><span class="highlight">"下品灵根......"</span>他轻声呢喃，眼中闪过一丝不甘。在场的弟子中，他的资质几乎是最差的，但这并没有让他气馁。前世的记忆告诉他，修行之路从来不是一帆风顺的。</p>
+                        <p>推开木门，清新的空气扑面而来。外门弟子区位于青云峰的山脚，虽然灵气不如山顶浓郁，但对于刚入门的弟子来说已经足够。</p>
+                        <p>"新来的？"一个爽朗的声音从旁边传来。林逸转头，看到一个身穿青色外门弟子服的少年正朝他走来，脸上带着友善的笑容。</p>
+                        <p>"在下林逸，昨日刚通过测试。"林逸拱手行礼。</p>
+                        <p>"我叫张浩，来这里已经三个月了。"少年拍了拍林逸的肩膀，"走，我带你去领取修炼资源，顺便给你介绍一下这里的规矩。"</p>
+                        <p>两人并肩而行，张浩一边走一边介绍着外门的情况。原来，外门弟子每月可以领取一枚<span class="highlight">聚灵丹</span>和一本基础功法，但想要获得更多资源，就必须完成宗门发布的任务。</p>
+                        <p>"对了，"张浩压低声音，"下个月就是外门大比了，前十名可以获得进入<span class="highlight">灵泉池</span>修炼一天的机会。那可是内门弟子才能享受的待遇！"</p>
+                        <p>林逸眼中闪过一丝精光。灵泉池......如果能在那里修炼，或许能弥补他灵根资质的不足。</p>
+                        <p>"我会参加的。"他坚定地说道。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 完成状态 -->
+        <div class="completion-status">
+            <span class="completion-icon"><i data-lucide="check-circle" style="width:14px;height:14px"></i></span>
+            <span>任务已完成</span>
+        </div>
+    </div>
+
+    <script>
+        function toggleStep(header) {
+            const content = header.nextElementSibling;
+            const toggle = header.querySelector('.step-toggle');
+
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                toggle.textContent = '∧';
+            } else {
+                content.classList.add('hidden');
+                toggle.textContent = '∨';
+            }
+        }
+
+        function toggleKnowledge(header) {
+            const items = header.parentElement.querySelector('.knowledge-items');
+            const toggle = header.querySelector('.knowledge-toggle');
+
+            if (items.classList.contains('hidden')) {
+                items.classList.remove('hidden');
+                toggle.textContent = '∧';
+            } else {
+                items.classList.add('hidden');
+                toggle.textContent = '∨';
+            }
+        }
+
+        // 初始化 Lucide 图标
+        lucide.createIcons();
+    </script>
+</body>
+</html>

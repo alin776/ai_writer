@@ -1,21 +1,22 @@
-﻿import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, KeyboardEvent } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/button';
-import { Bot, Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronLeft, Tag, X, Copy, Check } from 'lucide-react';
+import { Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Tag, X, Copy, Check } from 'lucide-react';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import { useEditorStore } from '../../store/editorStore';
 import { useChatDraftStore } from '../../store/chatDraftStore';
-import type { AgentChatRequest } from '../../types/agent';
+import type { AgentChatRequest, TaskSnapshot } from '../../types/agent';
 import type { AgentMode } from '../agent/ModeSelector';
 import ModeSelector from '../agent/ModeSelector';
 import ActivityStream from '../agent/ActivityStream';  // ✅ 导入ActivityStream
 import { ExecutionFlow } from '../agent/ExecutionFlow';  // ✅ v5.0: 执行轨迹可视化
-import AgentEditConfirmDialog from '../agent/AgentEditConfirmDialog';  // ✅ 导入确认对话框
+import { AgentHeader } from '../agent/ExecutionFlow/AgentHeader';
+import AgentEditConfirmDialog from '../agent/AgentEditConfirmDialog';  // ✅ 编辑确认对话框
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import rehypeRaw from 'rehype-raw';
-import remarkGfm from 'remark-gfm';  // ✅ 支持 GFM 表格
+import remarkGfm from 'remark-gfm';  // ✅ 支持 GFM 语法
 import { knowledgeApi } from '@/services/knowledgeApi';
 
 interface AIPanelProps {
@@ -23,7 +24,7 @@ interface AIPanelProps {
   chapterId?: string;
   sessionId?: string;
   onTitleChange?: (title: string) => void;
-  /** 是否为当前活动面板（只有活动面板才处理 InlineAI 事件） */
+  /** 是否为当前活体（只有活跃窗口才监听 InlineAI 事件） */
   isActive?: boolean;
 }
 
@@ -90,7 +91,7 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
           blockquote({ children }) {
             return <blockquote className="border-l-2 border-zinc-300 pl-2 my-1.5 text-zinc-600 text-[14px]">{children}</blockquote>;
           },
-          // 分割线
+          // 分隔线
           hr() {
             return <hr className="my-2 border-zinc-200" />;
           },
@@ -115,6 +116,100 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
   );
 };
 
+
+const TaskList = ({ tasks }: { tasks: TaskSnapshot[] }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  if (!tasks || tasks.length === 0) return null;
+
+  // 计算已完成任务数
+  const completedCount = tasks.filter(t => t.status === 'completed').length;
+  const totalCount = tasks.length;
+
+  // 获取当前执行的任务（running状态），如果没有则取最后一个任务
+  const currentTask = tasks.find(t => t.status === 'running') || tasks[tasks.length - 1];
+
+  // 收缩状态：只显示当前任务行（带计数和展开按钮）
+  if (!isExpanded && currentTask) {
+    return (
+      <div className="rounded-xl border border-zinc-200 dark:border-slate-700 bg-zinc-50/50 dark:bg-slate-800/50 overflow-hidden">
+        <button
+          onClick={() => setIsExpanded(true)}
+          className={`w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-zinc-100/50 dark:hover:bg-slate-700/50 transition-colors ${
+            currentTask.status === 'completed'
+              ? 'text-green-700 dark:text-green-400'
+              : currentTask.status === 'running'
+                ? 'text-blue-700 dark:text-blue-400'
+                : 'text-zinc-600 dark:text-slate-400'
+          }`}
+        >
+          {currentTask.status === 'completed' ? (
+            <Check className="w-3.5 h-3.5 flex-shrink-0" />
+          ) : currentTask.status === 'running' ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+          ) : (
+            <div className="w-3.5 h-3.5 rounded-full border border-current flex-shrink-0" />
+          )}
+          <span className="flex-1 truncate text-left">{currentTask.description}</span>
+          <span className="text-[11px] text-zinc-500 dark:text-slate-400 flex-shrink-0">
+            {completedCount} / {totalCount}
+          </span>
+          <ChevronUp className="w-3.5 h-3.5 text-zinc-400 dark:text-slate-500 flex-shrink-0" />
+        </button>
+      </div>
+    );
+  }
+
+  // 展开状态：显示完整列表
+  return (
+    <div className="rounded-xl border border-zinc-200 dark:border-slate-700 bg-zinc-50/50 dark:bg-slate-800/50 overflow-hidden">
+      {/* 头部：任务进度 + 收缩按钮 */}
+      <button
+        onClick={() => setIsExpanded(false)}
+        className="w-full flex items-center justify-between px-3 py-2 hover:bg-zinc-100/50 dark:hover:bg-slate-700/50 transition-colors"
+      >
+        <span className="text-[11px] font-medium text-zinc-600 dark:text-slate-300">
+          任务进度
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-zinc-500 dark:text-slate-400">
+            {completedCount} / {totalCount}
+          </span>
+          <ChevronDown className="w-3.5 h-3.5 text-zinc-400 dark:text-slate-500" />
+        </div>
+      </button>
+
+      {/* 任务列表 */}
+      <div className="px-2 pb-2 space-y-1">
+        {tasks.map((task) => (
+          <div
+            key={task.task_id}
+            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] ${
+              task.status === 'completed'
+                ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                : task.status === 'running'
+                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                  : 'bg-zinc-100 text-zinc-600 dark:bg-slate-700 dark:text-slate-400'
+            }`}
+          >
+            {task.status === 'completed' ? (
+              <Check className="w-3.5 h-3.5 flex-shrink-0" />
+            ) : task.status === 'running' ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+            ) : (
+              <div className="w-3.5 h-3.5 rounded-full border border-current flex-shrink-0" />
+            )}
+            <span className="flex-1 truncate">{task.description}</span>
+            {task.elapsed_time !== undefined && task.status === 'completed' && (
+              <span className="text-[10px] opacity-60 flex-shrink-0">{task.elapsed_time.toFixed(1)}s</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 type AtCommandStage = 'root' | 'knowledge';
 
 type RootCommandOption = {
@@ -129,14 +224,14 @@ const ROOT_OPTIONS: RootCommandOption[] = [
   {
     key: 'knowledge',
     label: '@Knowledge',
-    description: '引用知识库里的文档',
+    description: '引用知识库中的文档',
     icon: <BookOpen className="w-4 h-4" />,
     hasChildren: true,
   },
   {
     key: 'optimization',
     label: '@optimization',
-    description: '开启 AI 去痕迹优化',
+    description: '调用 AI 去痕迹优化',
     icon: <Sparkles className="w-4 h-4" />,
   },
 ];
@@ -155,7 +250,7 @@ const extractKnowledgeTags = (value: string): string[] => {
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// 全局去重集合，确保跨组件只处理一次 inline-ai 消息
+// 全局去重集合，确保消息只处理一次 inline-ai 消息
 const getInlineAIProcessedSet = (): Set<string> => {
   if (typeof window === 'undefined') return new Set<string>();
   if (!(window as any).__inlineAIProcessed__) {
@@ -171,26 +266,24 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     error,
     suggestedActions,
     tasks,
-    currentTaskId,
     activities,
-    flowItems,  // v5.0: 执行轨迹项
     sendMessageStream,
     stopStreaming,
     pendingApproval,
     submitApproval,
-  } = useAgentChat({ workId, chapterId, sessionId });  // 🆕 传递workId和chapterId进行会话隔离
+  } = useAgentChat({ workId, chapterId, sessionId });  // ✅ 传入workId和chapterId进行会话隔离
 
-  // 获取当前章节内容，便于 @optimization 直接调用去痕迹接口
+  // 获取当前章节内容，用于 @optimization 直接调用去痕迹接口
   const { currentChapter } = useEditorStore();
 
-  // 获取草稿 store 方法，用于会话切换时保存/恢复输入状态
+  // 获取草稿 store 的方法，用于会话切换时保存/恢复输入状态
   const { saveDraft, getDraft, clearDraft } = useChatDraftStore();
 
   const [inputValue, setInputValue] = useState('');
   const [mode, setMode] = useState<AgentMode>('plan'); // ✅ Agent执行模式：plan(固定规划) | agent(DeepAgent反思)
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const shouldAutoScrollRef = useRef(true); // 用于追踪是否应该自动滚动
+  const shouldAutoScrollRef = useRef(true); // 跟踪是否应该自动滚动
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const [atMenuOpen, setAtMenuOpen] = useState(false);
@@ -217,7 +310,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     selection_position?: { from: number; to: number };
   } | null>(null);
 
-  // 复制成功状态（显示 ✓）
+  // 复制成功状态，显示 ✓
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
   // 组件挂载时恢复草稿
@@ -234,7 +327,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // 只在挂载时执行一次
 
-  // 实时保存草稿：每次输入变化时自动保存
+  // 实时保存草稿：每当内容变化时自动保存
   useEffect(() => {
     if (!sessionId) return;
 
@@ -253,7 +346,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     }
   }, [sessionId, inputValue, selectedDocs, optimizationSelected, selectionContext, saveDraft, clearDraft]);
 
-  // ✅ 流式输出：后端逐字发送，前端直接显示（无需前端打字机效果）
+  // ✅ 流式输出：真正的字符流，前端直接显示，不在前端处理换行效果
 
   const copyMessage = useCallback(async (content: string, messageId: string) => {
     try {
@@ -267,7 +360,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   }, []);
 
   const containsAt = useMemo(() => AT_CHARS.some((c) => inputValue.includes(c)), [inputValue]);
-  // 去痕长度保护与提示
+  // 去痕长度变量，用于显示
   const MAX_HUMANIZE_CHARS = 5000;
   const rawChapterContent = currentChapter?.content?.trim() || '';
   const truncatedCount =
@@ -293,14 +386,8 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     return knowledgeDocs.filter((doc) => doc.title.toLowerCase().includes(query));
   }, [atQuery, knowledgeDocs]);
 
-  // 监控：activities状态变化（仅在有数据时记录）
-  useEffect(() => {
-    if (activities.length > 0) {
-      console.log('[AIPanel] 活动流更新:', activities.length, '个活动');
-    }
-  }, [activities]);
 
-  // ??????????????
+  // 标题自动生成
   const lastSentTitleRef = useRef<string | null>(null);
   useEffect(() => {
     if (!onTitleChange || messages.length === 0) return;
@@ -325,20 +412,17 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     onTitleChange(title);
   }, [messages, onTitleChange, sessionId]);
 
-  // 监控：mode切换
-  useEffect(() => {
-    console.log('[AIPanel] 模式:', mode);
-  }, [mode]);
+  // ✅ 定义 handleSendWithContext 用于处理带上下文的消息（InlineAI）
+  // ✅ 使用 useRef 存储回调函数，让 useEffect 不因回调变化而重新渲染
+  const handleSendWithContextRef = useRef<(message: string, context?: any) => Promise<void>>();
 
-  // 🆕 定义 handleSendWithContext 用于处理带上下文的消息（InlineAI）
-  const handleSendWithContext = useCallback(async (message: string, context?: any) => {
+  handleSendWithContextRef.current = async (message: string, context?: any) => {
     if (!message.trim()) return;
 
-    console.log('[AIPanel] handleSendWithContext 调用:', { message, context });
     const backendMode: AgentChatRequest['mode'] = mode === 'agent' ? 'react' : 'planning';
 
-    // 🔑 固定 payload 结构：将选区信息放入独立的 selection 字段
-    // 避免将选中文本混入 prompt/chapter_context 导致被覆盖或结构混乱
+    // ✅ 固定 payload 结构，将选中信息放入独立的 selection 字段
+    // 避免将选中文本放入 prompt/chapter_context 导致被覆盖或结构混乱
     const selectionData = context?.selected_text ? {
       text: context.selected_text,
       html: context.selected_text_html || context.selected_text,
@@ -354,27 +438,25 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       enable_reflection: mode === 'agent',
       context: {
         ...context,
-        // 🔑 独立的 selection 字段（推荐结构）
+        // ✅ 新增独立 selection 字段，推荐结构化
         selection: selectionData,
         // 保留 selected_text 字段以兼容旧逻辑
         selected_text: context?.selected_text,
         selection_position: context?.selection_position,
-        // chapter_context 只放章节标识，不混入选中文本
+        // chapter_context 只放章节标识，不放选中文本
         chapter_context: chapterId ? `当前章节ID: ${chapterId}` : undefined,
-        // 🔑 如果有选中文本，添加结构化的指令上下文
+        // ✅ 如果有选中文本，添加结构化的指令上下文
         instruction_context: context?.selected_text
-          ? `用户选中了以下文本进行操作:\n---\n${context.selected_text}\n---\n用户指令: ${message}`
+          ? `用户选中了以下文本进行操作:
+---
+${context.selected_text}
+---
+用户指令: ${message}`
           : undefined,
       },
     };
 
-    console.log('[AIPanel] 🔑 固定结构 payload:', {
-      message,
-      selection: selectionData,
-      hasSelectedText: !!context?.selected_text,
-    });
-
-    // 用户发送消息时，标记应该自动滚动
+    // 用户发送消息时，重新应该自动滚动
     shouldAutoScrollRef.current = true;
 
     try {
@@ -382,19 +464,21 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     } catch (err) {
       console.error('[AIPanel] Failed to send message:', err);
     }
-  }, [mode, workId, chapterId, sendMessageStream]);
+  };
 
-  // 🆕 监听来自编辑器 InlineAI 的消息（只有活动面板才处理）
+  // ✅ 稳定的回调封装，避免因依赖变化而重新创建
+  const handleSendWithContext = useCallback((message: string, context?: any) => {
+    return handleSendWithContextRef.current?.(message, context);
+  }, []);
+
+  // ✅ 监听来自编辑器 InlineAI 的消息，只有活跃窗口才监听
   useEffect(() => {
-    // 非活动面板不设置监听器
+    // 非活跃不设置监听
     if (!isActive) {
-      console.log('[AIPanel] 非活动面板，跳过 InlineAI 监听设置');
       return;
     }
 
-    console.log('[AIPanel] 挂载 InlineAI 事件监听（活动面板）');
-
-    // 消费队列中的遗留消息
+    // 处理已队列中的待处理消息
     const queue: any[] = (window as any).__inlineAIQueue__ || [];
     const consumed = getInlineAIProcessedSet();
 
@@ -402,9 +486,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       const rid = item?.requestId || JSON.stringify(item);
       if (!consumed.has(rid)) {
         consumed.add(rid);
-        console.log('[AIPanel] consuming queued inline-ai payload', item);
-
-        // 🔑 直接传入原始 context，handleSendWithContext 会正确处理 selection 字段
+        // ✅ 直接传递原始 context，handleSendWithContext 会正确构建 selection 字段
         handleSendWithContext(item.message || '', item.context || {});
       }
     });
@@ -415,9 +497,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       const rid = requestId || `inline-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       if (consumed.has(rid)) return;
       consumed.add(rid);
-      console.log('[AIPanel] __agentInlineSend__ invoked', { msg, ctx, rid });
-
-      // 🔑 直接传入原始 context，handleSendWithContext 会正确处理 selection 字段
+      // ✅ 直接传递原始 context，handleSendWithContext 会正确构建 selection 字段
       handleSendWithContext(msg, ctx);
     };
 
@@ -433,17 +513,15 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       requestId?: string;
     }>) => {
       const { message, context, requestId } = event.detail;
-      console.log('[AIPanel] 收到 InlineAI 消息:', { message, context, requestId });
 
       // 去重检查
       const rid = requestId || `inline-${Date.now()}`;
       if (consumed.has(rid)) {
-        console.log('[AIPanel] 消息已处理，跳过:', rid);
         return;
       }
       consumed.add(rid);
 
-      // 🔑 直接传入原始 context，handleSendWithContext 会正确处理 selection 字段
+      // ✅ 直接传递原始 context，handleSendWithContext 会正确构建 selection 字段
       handleSendWithContext(message, context);
     };
 
@@ -452,17 +530,15 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     return () => {
       window.removeEventListener('inline-ai-send', handleInlineAIMessage as EventListener);
       delete (window as any).__agentInlineSend__;
-      console.log('[AIPanel] 卸载 InlineAI 事件监听');
     };
   }, [handleSendWithContext, isActive]);
 
-  // 🆕 监听 InlineAI intent（仅填充引用，不立即发送），全局 + 队列兜底
+  // ✅ 监听 InlineAI intent（用于设置上下文，不发送消息）：全局 + 事件队列
   useEffect(() => {
     if (!isActive) return;
     const intentQueue: any[] = (window as any).__inlineAIIntentQueue__ || [];
     if (intentQueue.length > 0) {
       const last = intentQueue[intentQueue.length - 1];
-      console.log('[AIPanel] intentQueue consumed (AIPanel):', last);
       setSelectionContext(last || null);
       (window as any).__inlineAIIntentQueue__ = [];
     }
@@ -480,7 +556,6 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       selected_text_html?: string;
       selection_position?: { from: number; to: number };
     }>) => {
-      console.log('[AIPanel] 收到 InlineAI intent:', event.detail);
       setSelectionContext(event.detail || null);
     };
 
@@ -491,12 +566,12 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     };
   }, [isActive]);
 
-  // 检测用户是否在底部
+  // 检查用户是否在底部
   const checkIfAtBottom = useCallback(() => {
     const container = messagesContainerRef.current;
     if (!container) return false;
 
-    // 检测滚动位置是否接近底部（允许50px的误差）
+    // 检查滚动位置是否接近底部（允许50px误差）
     const threshold = 50;
     const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
     return isAtBottom;
@@ -520,14 +595,14 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     return () => container.removeEventListener('scroll', handleScroll);
   }, [checkIfAtBottom]);
 
-  // 当消息或任务更新时，如果用户在底部就自动滚动
+  // 当消息列表更新时，如果用户在底部则自动滚动
   useEffect(() => {
     if (shouldAutoScrollRef.current) {
       scrollToBottom();
     }
   }, [messages, tasks, scrollToBottom]);
 
-  // ✅ 流式输出：后端已实现逐字发送，前端直接使用 message.content
+  // ✅ 流式输出：真正的字符流，前端直接使用 message.content
 
   const repositionMenu = useCallback(() => {
     const inputEl = inputRef.current;
@@ -616,7 +691,6 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         setKnowledgeError(null);
         // 使用新的 getDocTitles API，返回 {id, title}[]
         const docs = await knowledgeApi.getDocTitles();
-        console.log('[AIPanel] 获取知识库文档列表:', docs);
         setKnowledgeDocs(docs.map((d) => ({ id: d.id, title: d.title || '未命名文档' })));
         setKnowledgeHasMore(false);
       } catch (err: any) {
@@ -703,7 +777,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       return;
     }
 
-    // 先重置高度，让 scrollHeight 能正确计算实际内容高度
+    // 先重置高度，让 scrollHeight 能正确反映实际内容高度
     el.style.height = '32px';
     const maxH = 200;
     // 根据实际内容计算高度
@@ -758,16 +832,13 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         }
       : {};
 
-    // 调试日志：查看发送的知识库文档ID
-    console.log('[AIPanel] 发送消息，knowledge_doc_ids:', knowledgeDocIds, 'selectedDocs:', selectedDocs, 'selection:', selectionPayload);
-
-    // Agent 模式 = Planning + DeepAgent 反思（可动态调整任务）
-    // Plan 模式 = 纯 Planning，无反思（任务列表固定）
+    // Agent 模式 = Planning + DeepAgent 反思，可动态调整计划
+    // Plan 模式 = 纯 Planning，无反思，任务列表固定
     const enableDeepAgent = mode === 'agent';
 
     const request: AgentChatRequest = {
       message,
-      mode: 'planning',  // 后端始终使用 planning 模式
+      mode: 'planning',  // 始终使用 planning 模式
       enable_reflection: enableDeepAgent,  // Agent 模式启用 DeepAgent 反思
       work_id: workId,
       chapter_id: chapterId,
@@ -783,7 +854,11 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
             }
           : {}),
         instruction_context: selectionContext?.selected_text
-          ? `用户选中了以下文本进行操作:\n---\n${selectionContext.selected_text}\n---\n用户指令: ${message}`
+          ? `用户选中了以下文本进行操作:
+---
+${selectionContext.selected_text}
+---
+用户指令: ${message}`
           : undefined,
       },
     };
@@ -800,7 +875,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       clearDraft(sessionId);
     }
 
-    // 用户发送消息时，标记应该自动滚动
+    // 用户发送消息时，重新应该自动滚动
     shouldAutoScrollRef.current = true;
 
     try {
@@ -847,7 +922,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         closeAtMenu();
       }
 
-      // 回退删除：当输入为空时，Backspace 删除最后一个胶囊（优先知识文档，其次 optimization）
+      // 当输入框内容为空时，Backspace 删除最后一个标签（先知识文档，再 optimization）
       if (e.key === 'Backspace' && !inputValue.trim()) {
         if (selectedDocs.length > 0) {
           e.preventDefault();
@@ -886,17 +961,6 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     adjustInputHeight();
   }, [inputValue, selectedDocs.length, optimizationSelected, adjustInputHeight]);
 
-  const lastMessageIsAgent = messages.length > 0 && messages[messages.length - 1]?.role === 'agent';
-  // ✅ 流式输出：后端逐字发送，前端直接显示 message.content
-  const hasStreamingAgentMessage = isLoading && lastMessageIsAgent;
-  // ✅ 获取最后一条 agent 消息的内容（用于 Agent 响应块）
-  // 条件：正在 streaming 或 有执行轨迹时，都需要显示最后一条消息内容
-  const lastAgentContent = lastMessageIsAgent ? (messages[messages.length - 1]?.content || '') : '';
-  // v5.1: 从当前消息获取 flowItems
-  const lastAgentFlowItems = lastMessageIsAgent ? ((messages[messages.length - 1] as any)?.flowItems || []) : [];
-  const shouldShowAgentContent = (hasStreamingAgentMessage || lastAgentFlowItems.length > 0) && lastAgentContent;
-  const canCopyAgentContent = !hasStreamingAgentMessage;
-
   return (
     <div className="p-3 h-full flex flex-col overflow-hidden dark:bg-slate-900">
       <div
@@ -908,7 +972,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
           <div className="flex items-start">
             <div className="flex-1 p-2.5 rounded-lg bg-zinc-50/70 border border-zinc-100 dark:bg-slate-800 dark:border-slate-700">
               <p className="text-[11px] leading-relaxed text-zinc-500 dark:text-slate-400">
-                你好！我是你的写作助手。我可以帮你续写故事情节、优化文字表达、分析人物关系，以及提供创作建议。
+                你好，我是你的写作助手。我可以帮你续写、润色、优化文字表达、梳理情节脉络，以及提供创作建议。
               </p>
             </div>
           </div>
@@ -916,72 +980,24 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
         {/* 消息列表 */}
         {messages.map((message, index) => {
-          // 过滤掉null或undefined的消息
+          // 过滤掉null和undefined消息
           if (!message) {
             return null;
           }
 
-          // 判断是否是最后一条消息
-          const isLastMessage = index === messages.length - 1;
-          // v5.1: 获取当前消息的 flowItems
-          const messageFlowItems = (message as any).flowItems || [];
-          // v5.1 修复: 最后一条 agent 消息如果正在流式传输或有执行轨迹，在 Agent 响应块中渲染
-          // 这样可以避免同一消息在两处重复渲染
-          const shouldRenderInAgentBlock = isLastMessage && message.role === 'agent' &&
-            (hasStreamingAgentMessage || messageFlowItems.length > 0);
-
-          // 如果应该在 Agent 响应块中渲染，先不在这里渲染
-          if (shouldRenderInAgentBlock) {
-            return null;
-          }
-
           const isUser = message.role === 'user';
-          // messageFlowItems 已在上面定义
+          const isLastMessage = index === messages.length - 1;
 
-          return (
-            <div key={index} className={`flex items-start gap-2 ${isUser ? 'justify-end' : ''}`}>
-
-              <div className={`flex flex-col gap-1 w-full ${isUser ? 'items-end' : 'items-start'} group`}>
-                <div
-                  className={`relative ${
-                    isUser
-                      ? 'p-2.5 rounded-lg flex-initial w-fit max-w-[80%] md:max-w-[60ch] bg-zinc-800 dark:bg-blue-600 text-zinc-50 shadow-sm ml-auto break-words'
-                      : 'flex-1 max-w-full'
-                  }`}
-                >
-                  {isUser ? (
+          if (isUser) {
+            return (
+              <div key={index} className="flex items-start gap-2 justify-end">
+                <div className="flex flex-col gap-1 w-full items-end group">
+                  <div className="relative p-2.5 rounded-lg flex-initial w-fit max-w-[80%] md:max-w-[60ch] bg-zinc-800 dark:bg-blue-600 text-zinc-50 shadow-sm ml-auto break-words">
                     <p className="text-[14px] leading-relaxed whitespace-pre-wrap break-words">
                       {message.content}
                     </p>
-                  ) : (
-                    <div className="text-zinc-500 dark:text-slate-300">
-                      {/* v5.1: 显示该消息的执行轨迹 */}
-                      {messageFlowItems.length > 0 && (
-                        <ExecutionFlow items={messageFlowItems} />
-                      )}
-                      <MarkdownContent content={message.content} />
-                    </div>
-                  )}
 
-                  {/* Agent步骤展示（可选） */}
-                  {message.role === 'agent' && message.agentSteps && message.agentSteps.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-zinc-200/50 dark:border-slate-600">
-                      <details className="text-[10px] text-zinc-400 dark:text-slate-500">
-                        <summary className="cursor-pointer hover:text-zinc-600 dark:hover:text-slate-300">查看执行步骤</summary>
-                        <div className="mt-1 space-y-1">
-                          {message.agentSteps.map((step, idx) => (
-                            <div key={idx} className="pl-2 border-l-2 border-zinc-200 dark:border-slate-600">
-                              <div className="font-medium dark:text-slate-300">{step.step}</div>
-                              <div className="text-zinc-500 dark:text-slate-400">{step.result}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </details>
-                    </div>
-                  )}
-
-                  {/* 用户消息复制按钮 - 悬停显示 */}
-                  {isUser && (
+                    {/* 用户消息复制按钮 - 悬停显示 */}
                     <button
                       onClick={() => copyMessage(message.content, `msg-${index}`)}
                       className="absolute -bottom-1 -right-1 translate-y-full opacity-0 group-hover:opacity-100 inline-flex items-center justify-center w-6 h-6 text-zinc-400 hover:text-zinc-600 dark:hover:text-slate-300 transition-all"
@@ -993,155 +1009,75 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                         <Copy className="w-3.5 h-3.5" />
                       )}
                     </button>
-                  )}
+                  </div>
                 </div>
-
-                {isUser ? null : (
-                  <button
-                    onClick={() => copyMessage(message.content, `msg-${index}`)}
-                    className="inline-flex self-start items-center justify-center w-8 h-8 text-zinc-500 hover:text-zinc-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
-                    aria-label="复制AI内容"
-                  >
-                    {copiedMessageId === `msg-${index}` ? (
-                      <Check className="w-4 h-4 text-green-500" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
-                )}
               </div>
+            );
+          }
+
+          const messageFlowItems = (message as any).flowItems || [];
+          // v6.2: completion 应该和 output 一起显示在内容区域，而不是在执行轨迹区域
+          const flowItemsWithoutOutput = messageFlowItems.filter((item: any) => item?.type !== 'output' && item?.type !== 'completion');
+          const outputItems = messageFlowItems.filter((item: any) => item?.type === 'output');
+          const completionItem = messageFlowItems.find((item: any) => item?.type === 'completion');
+          const lastOutputItem = outputItems.length > 0 ? outputItems[outputItems.length - 1] : null;
+          const isStreamingMessage = isLastMessage && isLoading;
+          const showActivityStream = isStreamingMessage && mode === 'agent' && activities.length > 0;
+          const showThinking = isStreamingMessage && !showActivityStream && flowItemsWithoutOutput.length === 0;
+          const showFlowBlock = flowItemsWithoutOutput.length > 0 || showActivityStream || showThinking;
+
+          return (
+            <div key={index} className="space-y-2">
+              {showFlowBlock && (
+                <div className="flex items-start">
+                  <div className="flex-1">
+                    {flowItemsWithoutOutput.length > 0 && (
+                      <ExecutionFlow items={flowItemsWithoutOutput} />
+                    )}
+                    {showActivityStream && (
+                      <div className="min-w-0">
+                        <ActivityStream
+                          key={`activities-${activities.length}`}
+                          activities={activities}
+                        />
+                      </div>
+                    )}
+                    {showThinking && (
+                      <span className="text-[12px] text-zinc-400 dark:text-slate-400 animate-[pulse_2s_ease-in-out_infinite] outline-none">
+                        Thinking...
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* v6.2: 只有当有实际内容时才显示AgentHeader和内容区域 */}
+              {(message.content || lastOutputItem) && (
+                <div className="flex items-start">
+                  <div className="flex flex-col gap-1 w-full group">
+                    <AgentHeader />
+                    <div className="text-zinc-500 dark:text-slate-300">
+                      {lastOutputItem ? (
+                        <ExecutionFlow items={[lastOutputItem]} />
+                      ) : (
+                        <MarkdownContent content={message.content} />
+                      )}
+                    </div>
+
+                    {/* v6.2: 在内容下方显示completion状态 */}
+                    {completionItem && (
+                      <ExecutionFlow items={[completionItem]} />
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
 
-        {/* Agent 响应块 - 单一头像，包含执行轨迹、任务进度、流式内容 */}
-        {(() => {
-          // v5.1: 从当前流式消息中获取 flowItems
-          const lastMessage = messages[messages.length - 1];
-          const currentFlowItems = (lastMessage?.role === 'agent' ? (lastMessage as any).flowItems : []) || [];
-
-          // 判断是否有 Agent 响应内容需要显示
-          const hasActivityStream = mode === 'agent' && activities.length > 0;
-          const hasExecutionFlow = currentFlowItems.length > 0;
-          const hasTaskProgress = isLoading && tasks.length > 0 && !lastAgentContent;
-          const hasThinking = isLoading && tasks.length === 0 && !lastAgentContent && currentFlowItems.length === 0;
-
-          const hasAgentResponse = hasActivityStream || hasExecutionFlow || hasTaskProgress || hasThinking || shouldShowAgentContent;
-
-          if (!hasAgentResponse) return null;
-
-          return (
-            <div className="flex items-start gap-2 mt-4">
-              <div className="flex-1 space-y-4">
-                {/* 1. ActivityStream（Agent模式活动流） */}
-                {hasActivityStream && (
-                  <div className="min-w-0">
-                    <ActivityStream
-                      key={`activities-${activities.length}`}
-                      activities={activities}
-                    />
-                  </div>
-                )}
-
-                {/* 2. ExecutionFlow（执行轨迹可视化）- v5.1: 使用当前消息的 flowItems */}
-                {hasExecutionFlow && (
-                  <ExecutionFlow items={currentFlowItems} />
-                )}
-
-                {/* 3. 任务执行进度（todolist） */}
-                {hasTaskProgress && (
-                  <div className="space-y-3 will-change-contents">
-                    {/* 标题与进度 */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-zinc-400 dark:text-slate-500">执行中</span>
-                      <div className="flex-1 h-px bg-zinc-200 dark:bg-slate-700"></div>
-                      <span className="text-[10px] text-zinc-300 dark:text-slate-500 font-mono">
-                        {tasks.filter(t => t.status === 'completed').length}/{tasks.length}
-                      </span>
-                    </div>
-
-                    {/* 步骤列表 */}
-                    <div className="space-y-2">
-                      {tasks.map((task) => (
-                        <div
-                          key={task.task_id}
-                          className="flex items-start gap-2.5 transition-opacity duration-200 ease-in-out"
-                          style={{ opacity: 1 }}
-                        >
-                          {/* 状态指示器 */}
-                          {task.status === 'completed' ? (
-                            <div className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-slate-500 flex-shrink-0 mt-1.5 transition-all duration-300"></div>
-                          ) : task.status === 'running' ? (
-                            <div className="relative flex-shrink-0 mt-1.5 w-3 h-3 flex items-center justify-center outline-none">
-                              <div className="h-1 w-1 rounded-full bg-zinc-900 dark:bg-blue-400 relative z-10 animate-pulse outline-none"></div>
-                            </div>
-                          ) : (
-                            <div className="h-1 w-1 rounded-full bg-zinc-200 dark:bg-slate-600 flex-shrink-0 mt-1.5 transition-all duration-300"></div>
-                          )}
-
-                          <div className="flex-1 min-w-0 flex items-baseline justify-between gap-2">
-                            <p className={`text-[11px] leading-relaxed transition-colors duration-200 outline-none ${
-                              task.status === 'running' ? 'text-zinc-700 dark:text-slate-200 animate-pulse' : 'text-zinc-400 dark:text-slate-500'
-                            }`}>
-                              {task.description}
-                            </p>
-                            {task.status === 'completed' && task.elapsed_time !== undefined && (
-                              <span className="text-[10px] text-zinc-300 dark:text-slate-500 font-mono flex-shrink-0 animate-[fadeIn_0.3s_ease-in]">
-                                {task.elapsed_time.toFixed(1)}s
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* 进度条 */}
-                    <div className="relative h-px bg-zinc-100 dark:bg-slate-700 overflow-hidden">
-                      <div
-                        className="absolute left-0 top-0 h-full bg-zinc-400 dark:bg-blue-500 transition-all duration-500 ease-out"
-                        style={{ width: `${(tasks.filter(t => t.status === 'completed').length / tasks.length) * 100}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                )}
-
-                {/* 4. Thinking 状态 */}
-                {hasThinking && (
-                  <span className="text-[12px] text-zinc-400 dark:text-slate-400 animate-[pulse_2s_ease-in-out_infinite] outline-none">
-                    Thinking...
-                  </span>
-                )}
-
-                {/* 5. Agent 输出内容（流式或已完成） */}
-                {shouldShowAgentContent && (
-                  <div className="max-w-full group">
-                    <div className="text-zinc-500 dark:text-slate-300">
-                      <MarkdownContent content={lastAgentContent} />
-                    </div>
-                    {/* 复制按钮 */}
-                    {canCopyAgentContent && (
-                      <button
-                        onClick={() => copyMessage(lastAgentContent, 'agent-last')}
-                        className="inline-flex self-start items-center justify-center w-8 h-8 text-zinc-500 hover:text-zinc-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors mt-1"
-                        aria-label="复制AI内容"
-                      >
-                        {copiedMessageId === 'agent-last' ? (
-                          <Check className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <Copy className="w-4 h-4" />
-                        )}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-
         {/* 错误提示 */}
         {error && (
-          <div className="flex items-start gap-2">
+          <div className="flex items-start">
             <div className="flex-1 p-2.5 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800">
               <p className="text-[11px] leading-relaxed text-red-600 dark:text-red-400">
                 {error}
@@ -1152,6 +1088,13 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* 任务列表（固定在底部，不随消息滚动） */}
+      {tasks.length > 0 && (
+        <div className="mb-2">
+          <TaskList tasks={tasks as TaskSnapshot[]} />
+        </div>
+      )}
 
       {/* 建议操作 */}
       {suggestedActions.length > 0 && !isLoading && (
@@ -1170,11 +1113,11 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         </div>
       )}
 
-      {/* 模式选择 + 输入区（上下分区） */}
+      {/* 模式选择 + 输入框（放在下方区域） */}
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-4 py-3 space-y-3 flex-shrink-0 dark:border-slate-700 dark:bg-slate-800">
         <div className="relative">
           <div className="flex flex-wrap items-start gap-2 w-full min-h-12 px-1 py-2 rounded-xl bg-transparent text-gray-800 dark:text-slate-200">
-            {/* 胶囊在前，输入在后，保持同一行逻辑 */}
+            {/* 选中文本前置（放在后，保持同一行逻辑） */}
             {selectionContext?.selected_text && (
               <span
                 className="inline-flex items-center gap-2 rounded-xl bg-zinc-50 text-zinc-800 px-3 py-2 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
@@ -1191,7 +1134,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                     e.preventDefault();
                     setSelectionContext(null);
                   }}
-                  aria-label="移除引用"
+                  aria-label="移除选中"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -1244,7 +1187,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
               onKeyDown={handleKeyDown}
               onClick={syncAtStateFromRef}
               onFocus={syncAtStateFromRef}
-              placeholder="发消息或输入@选择指令..."
+              placeholder="输入消息，输入@选择指令..."
               className="flex-1 min-w-[200px] bg-transparent outline-none border-none text-[12px] placeholder:text-gray-400 resize-none leading-relaxed dark:text-slate-200 dark:placeholder:text-slate-500"
               disabled={isLoading}
               rows={1}
@@ -1267,7 +1210,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
         {truncatedCount > 0 && (
           <div className="text-[11px] text-amber-600 px-1 dark:text-amber-400">
-            章节内容超过 5000 字，已截断超出的 {truncatedCount} 字发送去痕迹。
+            章节内容超过 5000 字，已截断超过的 {truncatedCount} 字符进行去痕迹。
           </div>
         )}
 
@@ -1285,7 +1228,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
               <button
                 onClick={handleStop}
                 className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-800 flex items-center justify-center shadow-sm border border-gray-200 transition-colors dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-200 dark:border-slate-500"
-                aria-label="停止生成"
+                aria-label="ֹͣ发送"
               >
                 <Square className="w-4 h-4" strokeWidth={2.5} />
               </button>
@@ -1327,7 +1270,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
                       className="inline-flex items-center gap-1 text-slate-300 hover:text-white transition-colors"
                     >
                       <ChevronLeft className="w-4 h-4" />
-                      返回
+                      发送
                     </button>
                   ) : (
                     <span className="inline-flex items-center text-slate-300">
@@ -1412,7 +1355,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
           document.body
         )}
 
-      {/* ✅ 编辑器确认对话框 */}
+      {/* ✅ 编辑确认对话框 */}
       {pendingApproval && (
         <AgentEditConfirmDialog
           isOpen={true}

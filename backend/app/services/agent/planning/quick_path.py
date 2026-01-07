@@ -39,7 +39,8 @@ class QuickPathHandler:
         on_plan: Optional[callable] = None,
         on_task_start: Optional[callable] = None,
         on_task_done: Optional[callable] = None,
-        on_content: Optional[callable] = None
+        on_content: Optional[callable] = None,
+        on_flow_event: Optional[callable] = None  # v6.2: 添加flow事件回调
     ) -> Optional[Dict[str, Any]]:
         """Planning 模式的快速路径判断
 
@@ -135,6 +136,10 @@ class QuickPathHandler:
                     response = f"第{chapter_order}章「{title}」共 **{word_count}** 字"
 
                 if on_content:
+                    # v6.2: 在发送内容之前发送agent_header
+                    if on_flow_event:
+                        from app.services.agent.stream.flow_events import FlowEventBuilder
+                        await on_flow_event(FlowEventBuilder.agent_header())
                     await on_content({"content": response})
 
                 logger.info(f"[QuickPath-Planning] 完成，耗时: {elapsed:.2f}s")
@@ -153,6 +158,10 @@ class QuickPathHandler:
                 response = quick_action.get("response", "你好！我是 AI 写作助手，有什么可以帮你的吗？")
 
                 if on_content:
+                    # v6.2: 在发送内容之前发送agent_header
+                    if on_flow_event:
+                        from app.services.agent.stream.flow_events import FlowEventBuilder
+                        await on_flow_event(FlowEventBuilder.agent_header())
                     await on_content({"content": response})
 
                 return {

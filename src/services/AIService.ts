@@ -37,7 +37,6 @@ class AIService {
     // 使用后端API地址（dev 环境走相对路径以便代理消除 CORS）
     const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
     this.baseUrl = import.meta.env.DEV ? '/api/v1' : rawBase;
-    console.log('[AIService] 初始化，后端地址:', this.baseUrl);
   }
 
   /**
@@ -46,23 +45,19 @@ class AIService {
   private getAuthToken(): string {
     const authStorage = localStorage.getItem('auth-storage');
     if (!authStorage) {
-      console.error('[AIService] No auth-storage in localStorage');
       throw new Error('未登录，请先登录');
     }
-    
+
     try {
       const authState = JSON.parse(authStorage);
       const token = authState.state?.token;
-      
+
       if (!token) {
-        console.error('[AIService] No token in auth-storage');
         throw new Error('未找到认证令牌');
       }
-      
-      console.log('[AIService] Token retrieved successfully');
+
       return token;
     } catch (error) {
-      console.error('[AIService] Failed to parse auth storage:', error);
       throw new Error('认证信息格式错误');
     }
   }
@@ -72,7 +67,6 @@ class AIService {
    */
   cancel() {
     if (this.abortController) {
-      console.log('[AIService] 取消 AI 请求');
       this.abortController.abort();
       this.abortController = null;
     }
@@ -118,8 +112,6 @@ class AIService {
     actThree?: string;
   }> {
     try {
-      console.log('[AIService] 开始生成阶段二内容');
-      
       const apiUrl = `${this.baseUrl}/worldview/ai-guidelines/generate`;
       const token = this.getAuthToken();
 
@@ -189,9 +181,6 @@ class AIService {
     onChunk?: (chunk: string) => void
   ): Promise<string> {
     try {
-      console.log('[AIService] 开始 AI 续写请求');
-      console.log('[AIService] 请求参数:', request);
-
       const apiUrl = `${this.baseUrl}/ai/complete`;
       const token = this.getAuthToken();
 
@@ -209,8 +198,6 @@ class AIService {
         enable_rag: request.enableRag || false,
       };
 
-      console.log('[AIService] 请求体:', JSON.stringify(requestBody, null, 2));
-
       // 创建新的 AbortController
       this.abortController = new AbortController();
 
@@ -225,13 +212,10 @@ class AIService {
         signal: this.abortController.signal,
       });
 
-      console.log('[AIService] Response status:', response.status);
-
       if (!response.ok) {
         let errorMessage = `API 请求失败 (${response.status})`;
         try {
           const error = await response.json();
-          console.error('[AIService] API 错误详情:', error);
           errorMessage = error.detail || error.message || errorMessage;
         } catch (e) {
           errorMessage = `${errorMessage}: ${response.statusText}`;
@@ -246,22 +230,15 @@ class AIService {
 
       const decoder = new TextDecoder();
       let result = '';
-      let chunkCount = 0;
-
-      console.log('[AIService] 开始读取SSE流式响应');
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
-          console.log('[AIService] 流式响应结束');
           break;
         }
 
         const chunk = decoder.decode(value);
-        console.log(`[AIService] 收到原始 chunk ${++chunkCount}:`, chunk.substring(0, 100));
-
         const lines = chunk.split('\n').filter((line) => line.trim() !== '');
-        console.log(`[AIService] 解析出 ${lines.length} 行数据`);
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
@@ -269,35 +246,27 @@ class AIService {
 
             // 跳过 [DONE] 信号
             if (data === '[DONE]') {
-              console.log('[AIService] 收到 [DONE] 信号');
               continue;
             }
 
             // 检查错误
             if (data.startsWith('[ERROR]')) {
               const errorMsg = data.slice(8);
-              console.error('[AIService] 服务器错误:', errorMsg);
               throw new Error(errorMsg);
             }
 
             // 直接使用内容（后端已经过滤了think标签）
             const content = data;
-            console.log('[AIService] 提取的 content:', content);
 
             if (content) {
-              console.log('[AIService] 收到内容片段:', content);
               result += content;
               if (onChunk) {
-                console.log('[AIService] 调用 onChunk 回调');
                 onChunk(content);
               }
             }
           }
         }
       }
-
-      console.log('[AIService] 总共接收到的内容长度:', result.length);
-      console.log('[AIService] 最终结果:', result);
 
       // 清除 AbortController
       this.abortController = null;
@@ -309,11 +278,9 @@ class AIService {
 
       // 如果是取消请求,抛出特殊错误
       if (error instanceof Error && error.name === 'AbortError') {
-        console.log('[AIService] 请求已被用户取消');
         throw new Error('AI 生成已暂停');
       }
 
-      console.error('AI API 请求失败:', error);
       throw error;
     }
   }
@@ -356,7 +323,6 @@ class AIService {
       });
       return result.trim();
     } catch (error) {
-      console.error('快速补全失败:', error);
       return '';
     }
   }
@@ -590,7 +556,6 @@ class AIService {
 
       return result;
     } catch (error) {
-      console.error('AI 总结失败:', error);
       throw error;
     }
   }
@@ -610,7 +575,6 @@ class AIService {
    */
   async preloadMetadata(workId: string, chapterId: string): Promise<void> {
     try {
-      console.log('[AIService] 预加载元数据:', { workId, chapterId });
       const apiUrl = `${this.baseUrl}/ai/preload-metadata`;
       const token = this.getAuthToken();
 
@@ -622,10 +586,7 @@ class AIService {
         },
         body: JSON.stringify({ work_id: workId, chapter_id: chapterId }),
       });
-
-      console.log('[AIService] 元数据预加载完成');
     } catch (error) {
-      console.error('[AIService] 预加载元数据失败:', error);
       // 预加载失败不影响正常使用，静默处理
     }
   }
@@ -683,7 +644,6 @@ class AIService {
 
       return result;
     } catch (error) {
-      console.error('AI 翻译失败:', error);
       throw error;
     }
   }

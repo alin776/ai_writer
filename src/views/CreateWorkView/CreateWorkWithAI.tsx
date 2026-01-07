@@ -14,7 +14,7 @@ interface CreateWorkWithAIProps {
  * 世界观模块定义（5个折叠模块，共22个字段）
  */
 interface WorldViewField {
-  id: keyof WorldViewData;
+  id: string;
   label: string;
   placeholder: string;
 }
@@ -206,7 +206,7 @@ const CreateWorkWithAI: React.FC<CreateWorkWithAIProps> = ({ onComplete, onBack 
   /**
    * 更新字段值
    */
-  const updateField = (fieldId: keyof WorldViewData, value: string) => {
+  const updateField = (fieldId: string, value: string) => {
     setWorldViewData({ ...worldViewData, [fieldId]: value });
   };
 

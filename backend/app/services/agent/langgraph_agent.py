@@ -801,12 +801,6 @@ class WritingAgentGraph:
         last_message = state["messages"][-1].content
         context = state.get("context", {})
 
-        # 🔍 调试日志：检查 context 内容
-        logger.info(f"[Intent] 📥 state.context 字段:")
-        logger.info(f"  - context keys: {list(context.keys()) if context else '空'}")
-        logger.info(f"  - selected_text: {context.get('selected_text', 'N/A')[:50] + '...' if context.get('selected_text') else 'N/A'}")
-        logger.info(f"  - selection_position: {context.get('selection_position', 'N/A')}")
-
         # 🆕 检测选中文字 - 如果有选中文字，强制判定为 writing
         selected_text = context.get("selected_text", "")
         if selected_text and len(selected_text.strip()) > 0:
@@ -1559,6 +1553,7 @@ class WritingAgentGraph:
         on_task_progress: Optional[callable] = None,
         on_task_done: Optional[callable] = None,
         on_content: Optional[callable] = None,
+        on_flow_event: Optional[callable] = None,  # v6.0: 执行轨迹事件回调
         db: Optional[Any] = None,
         enable_reflection: bool = False  # DeepAgent 反思模式
     ) -> Dict[str, Any]:
@@ -1577,6 +1572,7 @@ class WritingAgentGraph:
             on_task_progress: 任务进度回调
             on_task_done: 任务完成回调
             on_content: 内容生成回调
+            on_flow_event: 执行轨迹事件回调 (v6.0)
             db: 数据库会话（用于token记录）
             enable_reflection: 是否启用DeepAgent反思模式
 
@@ -1643,10 +1639,14 @@ class WritingAgentGraph:
                         on_plan=on_plan,
                         on_task_start=on_task_start,
                         on_task_done=on_task_done,
-                        on_content=on_content
+                        on_content=on_content,
+                        on_flow_event=on_flow_event  # v6.2: 传递flow事件回调
                     )
                     if quick_result:
                         logger.info(f"[Planning] 快速路径命中，跳过规划流程")
+
+                        # v6.2: agent_header 已在 quick_path 中发送
+
                         # ✅ 修复：快速路径也需要保存对话到 ContextManager
                         try:
                             await self.context_manager.update_context(
@@ -1708,6 +1708,8 @@ class WritingAgentGraph:
                 if on_plan:
                     await on_plan(plan_data)
 
+                # v6.2: agent_header 移到 wrapped_on_task_start 中发送，确保有实际内容时才显示
+
                 # ========== 🆕 直接回答模式：检查 direct_answer ==========
                 raw_direct_answer = plan_data.get("direct_answer")
                 tasks = plan_data.get("tasks", [])
@@ -1731,6 +1733,11 @@ class WritingAgentGraph:
                 if has_valid_direct_answer and not has_tasks:
                     direct_answer = raw_direct_answer.strip()
                     logger.info(f"[Planning] 检测到 direct_answer({len(direct_answer)}字)，直接返回答案，跳过任务执行")
+
+                    # v6.2: 在发送内容之前发送agent_header
+                    if on_flow_event:
+                        from app.services.agent.stream.flow_events import FlowEventBuilder
+                        await on_flow_event(FlowEventBuilder.agent_header())
 
                     # 通过回调发送内容
                     if on_content:
@@ -1779,6 +1786,47 @@ class WritingAgentGraph:
                     if exec_selected_text:
                         initial_context += f"用户选中的文本：\n---\n{exec_selected_text}\n---\n\n"
 
+                # v6.0: 包装回调以发送flow事件
+                step_counter = [0]  # 使用列表以便在闭包中修改
+                task_step_map = {}  # v6.1: 记录每个任务的 step_id
+                agent_header_sent = [False]  # v6.2: 跟踪是否已发送agent_header
+
+                async def wrapped_on_task_start(task):
+                    """包装任务开始回调，同时发送step_start事件"""
+                    step_counter[0] += 1
+                    current_step_id = step_counter[0]
+                    # v6.1: 保存任务ID到step_id的映射
+                    task_step_map[task.get("task_id")] = current_step_id
+                    if on_flow_event:
+                        from app.services.agent.stream.flow_events import FlowEventBuilder
+                        # v6.2: 在第一个step_start之前发送agent_header
+                        if not agent_header_sent[0]:
+                            await on_flow_event(FlowEventBuilder.agent_header())
+                            agent_header_sent[0] = True
+                        # v6.1: 优先使用 title（简洁标题），回退到 description
+                        step_title = task.get("title") or task.get("description", "执行任务")
+                        await on_flow_event(FlowEventBuilder.step_start(current_step_id, step_title))
+                    if on_task_start:
+                        await on_task_start(task)
+
+                async def wrapped_on_task_done(task, result_data):
+                    """包装任务完成回调，同时发送step_complete事件"""
+                    # v6.1: 使用保存的 step_id，而不是当前的 step_counter
+                    task_id = task.get("task_id")
+                    current_step_id = task_step_map.get(task_id, step_counter[0])
+                    if on_flow_event:
+                        from app.services.agent.stream.flow_events import FlowEventBuilder, get_tool_icon
+                        tool_name = task.get("tool", "")
+                        tool_call = {"icon": get_tool_icon(tool_name), "name": tool_name} if tool_name else None
+                        # v6.1: step_complete 的 description 可以保持详细，用于日志
+                        await on_flow_event(FlowEventBuilder.step_complete(
+                            current_step_id,
+                            task.get("description") or task.get("title", "任务完成"),
+                            tool_call
+                        ))
+                    if on_task_done:
+                        await on_task_done(task, result_data)
+
                 # 使用新的并行执行方法
                 # ✅ 为任务执行添加超时保护（使用统一配置）
                 try:
@@ -1791,9 +1839,9 @@ class WritingAgentGraph:
                             deep_executor = DeepAgentExecutor(
                                 agent_graph=self,
                                 on_plan=on_plan,
-                                on_task_start=on_task_start,
+                                on_task_start=wrapped_on_task_start,  # v6.0: 使用包装回调
                                 on_task_progress=on_task_progress,
-                                on_task_done=on_task_done,
+                                on_task_done=wrapped_on_task_done,  # v6.0: 使用包装回调
                                 on_content=on_content,
                             )
 
@@ -1870,9 +1918,9 @@ class WritingAgentGraph:
                                 work_id=work_id,
                                 chapter_id=chapter_id,
                                 context=initial_context,
-                                on_task_start=on_task_start,
+                                on_task_start=wrapped_on_task_start,  # v6.0: 使用包装回调
                                 on_task_progress=on_task_progress,
-                                on_task_done=on_task_done
+                                on_task_done=wrapped_on_task_done  # v6.0: 使用包装回调
                             )
                         # ════════════════════════════════════════════
                 except asyncio.TimeoutError:
@@ -1914,6 +1962,26 @@ class WritingAgentGraph:
                     knowledge_docs=knowledge_docs_for_response,  # ✅ P0修复: 传递知识库文档
                     direct_answer=plan_data.get("direct_answer")  # ✅ 分阶段执行：传递 direct_answer
                 )
+
+                # v6.0: 只有调用了创作类工具才发送output_ready事件
+                # 创作类工具：continue_writing_tool, smart_continue, smart_rewrite, smart_insert
+                CREATIVE_TOOLS = {'continue_writing_tool', 'smart_continue', 'smart_rewrite', 'smart_insert'}
+                has_creative_output = any(
+                    result.get('tool') in CREATIVE_TOOLS
+                    for result in task_results
+                )
+
+                if on_flow_event and has_creative_output and final_content and len(final_content) > 100:
+                    from app.services.agent.stream.flow_events import FlowEventBuilder
+                    # 提取标题（如果内容以标题开头）
+                    title = "生成内容"
+                    lines = final_content.strip().split('\n')
+                    if lines and len(lines[0]) < 50:
+                        title = lines[0].strip('#').strip()
+                    await on_flow_event(FlowEventBuilder.output_ready(title, final_content))
+
+                # v6.0: completion事件移到API层发送，确保在所有内容输出完成后才显示
+                # 原因：此处发送completion时，on_content的内容可能还在队列中未发送到前端
 
                 # ========== 保存对话到 ContextManager ==========
                 try:
