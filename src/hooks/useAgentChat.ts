@@ -757,6 +757,36 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   currentFlowItems = [...currentFlowItems, item];
                   break;
                 }
+                case 'summarization_start': {
+                  const item: FlowItem = {
+                    id: `flow-${Date.now()}-summarization`,
+                    type: 'summarization',
+                    data: {
+                      status: 'running',
+                      taskClassification: {
+                        inputTasks: event.task_classification?.input_tasks || [],
+                        outputTasks: event.task_classification?.output_tasks || [],
+                        displayTasks: event.task_classification?.display_tasks || [],
+                      },
+                      contextStats: {
+                        originalLength: event.context_stats?.original_length || 0,
+                        compressedLength: event.context_stats?.compressed_length || 0,
+                        mode: event.context_stats?.mode || '流式生成',
+                      },
+                    },
+                    timestamp,
+                  };
+                  currentFlowItems = [...currentFlowItems, item];
+                  break;
+                }
+                case 'summarization_complete': {
+                  currentFlowItems = currentFlowItems.map(item =>
+                    item.type === 'summarization'
+                      ? { ...item, data: { ...item.data, status: 'done' } }
+                      : item
+                  );
+                  break;
+                }
               }
 
               // 更新消息的flowItems

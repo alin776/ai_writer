@@ -163,6 +163,42 @@ class FlowEventBuilder:
             "timestamp": get_utc_now().isoformat()
         }
 
+    @staticmethod
+    def summarization_start(
+        task_classification: Dict[str, List[Dict[str, Any]]],
+        context_stats: Dict[str, Any]
+    ) -> dict:
+        """构建AI整合分析开始事件
+
+        Args:
+            task_classification: 任务分类 {
+                "input_tasks": [{"tool": "...", "description": "..."}],
+                "output_tasks": [...],
+                "display_tasks": [...]
+            }
+            context_stats: 上下文统计 {
+                "original_length": 6048,
+                "compressed_length": 5643,
+                "mode": "流式生成"
+            }
+        """
+        return {
+            "type": "summarization_start",
+            "task_classification": task_classification,
+            "context_stats": context_stats,
+            "status": "running",
+            "timestamp": get_utc_now().isoformat()
+        }
+
+    @staticmethod
+    def summarization_complete() -> dict:
+        """构建AI整合分析完成事件"""
+        return {
+            "type": "summarization_complete",
+            "status": "done",
+            "timestamp": get_utc_now().isoformat()
+        }
+
 
 # 工具图标映射
 TOOL_ICONS = {

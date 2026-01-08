@@ -415,7 +415,7 @@ export const EnhancedProgressEventSchema = z.object({
 /**
  * 执行轨迹项类型
  */
-export type FlowItemType = 'text' | 'tool' | 'content' | 'step' | 'output' | 'agent_header' | 'completion';
+export type FlowItemType = 'text' | 'tool' | 'content' | 'step' | 'output' | 'agent_header' | 'completion' | 'summarization';
 
 // ==================== 知识调取相关类型 (v6.0) ====================
 
@@ -480,6 +480,23 @@ export interface CompletionFlowData {
 }
 
 /**
+ * AI整合分析数据 (Summarization)
+ */
+export interface SummarizationFlowData {
+  status: 'running' | 'done';
+  taskClassification: {
+    inputTasks: Array<{ tool: string; description: string }>;
+    outputTasks: Array<{ tool: string; description: string }>;
+    displayTasks: Array<{ tool: string; description: string }>;
+  };
+  contextStats: {
+    originalLength: number;
+    compressedLength: number;
+    mode: string;
+  };
+}
+
+/**
  * AI 说明文字数据
  */
 export interface TextFlowData {
@@ -510,7 +527,7 @@ export interface ContentFlowData {
 export interface FlowItem {
   id: string;
   type: FlowItemType;
-  data: TextFlowData | ToolFlowData | ContentFlowData | StepFlowData | OutputFlowData | AgentHeaderFlowData | CompletionFlowData;
+  data: TextFlowData | ToolFlowData | ContentFlowData | StepFlowData | OutputFlowData | AgentHeaderFlowData | CompletionFlowData | SummarizationFlowData;
   timestamp: string;
 }
 

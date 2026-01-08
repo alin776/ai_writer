@@ -297,6 +297,8 @@ class WritingAgentGraph:
         )
         # ✅ Phase 4.3: 延迟设置 ResponseBuilder 的流式生成函数
         self.response_builder.set_stream_generator(self._generate_text_stream)
+        # ✅ Phase 4.4: 设置 ResponseBuilder 的流式事件处理器（用于 Summarization 事件）
+        self.response_builder.set_stream_event_handler(self.stream_event_handler)
         logger.info("[LangGraph] ✅ 解耦模块已初始化 (IntentClassifier, ToolExecutor, EventParser, ResponseBuilder, ToolDispatcher, ParallelExecutor, PlanGenerator, QuickPathHandler, StreamEventHandler, SecondaryToolHandler, TaskRunner, AgentExecutor)")
 
         # 构建图
@@ -2046,8 +2048,7 @@ class WritingAgentGraph:
                 # ✅ P0修复: 从context中获取知识库文档，传递给_build_final_response
                 knowledge_docs_for_response = context.get("knowledge_docs") if context else None
 
-                # v6.3: 判断 is_applicable 并提前发送 output_ready（带空内容）
-                # 这样前端可以立即显示容器，内容通过 on_content 流式填充
+                # v6.3: 判断 is_applicable
                 CONTENT_GENERATION_TOOLS = {'continue_writing_tool'}
                 is_applicable = False
 
@@ -2067,22 +2068,22 @@ class WritingAgentGraph:
                 # v6.3: 使用 AI 生成的 output_title，降级为默认值
                 output_title = plan_data.get("output_title") or "生成内容"
 
-                # v6.3: 提前发送 output_ready 事件（带空内容），让前端立即显示容器
+                # v6.5: 设置 stream_event_handler 的回调，用于 Summarization 和 output_ready 事件
                 if on_flow_event:
-                    from app.services.agent.stream.flow_events import FlowEventBuilder
-                    await on_flow_event(FlowEventBuilder.output_ready(
-                        output_title, "", is_applicable=is_applicable
-                    ))
+                    self.stream_event_handler.set_flow_event_callback(on_flow_event)
 
                 # 使用新的智能判断方法
                 # ✅ 传递 response_hint 用于元数据查询的精准返回
+                # v6.5: 传递 output_title 和 is_applicable，在 summarization_complete 后发送 output_ready
                 final_content = await self._build_final_response(
                     task_results=task_results,
                     message=message,
                     on_content=on_content,
                     response_hint=plan_data.get("response_hint"),
                     knowledge_docs=knowledge_docs_for_response,  # ✅ P0修复: 传递知识库文档
-                    direct_answer=plan_data.get("direct_answer")  # ✅ 分阶段执行：传递 direct_answer
+                    direct_answer=plan_data.get("direct_answer"),  # ✅ 分阶段执行：传递 direct_answer
+                    output_title=output_title,  # v6.5: 传递 output_title
+                    is_applicable=is_applicable  # v6.5: 传递 is_applicable
                 )
 
                 # v6.3: 内容生成完成后，更新 output_ready 的 title（可选）
@@ -2200,7 +2201,9 @@ class WritingAgentGraph:
         on_content: Optional[callable] = None,
         response_hint: Optional[str] = None,
         knowledge_docs: Optional[List[Dict]] = None,  # ✅ P0修复: 添加知识库文档参数
-        direct_answer: Optional[str] = None  # ✅ 分阶段执行：传递 direct_answer
+        direct_answer: Optional[str] = None,  # ✅ 分阶段执行：传递 direct_answer
+        output_title: Optional[str] = None,  # v6.5: 输出标题
+        is_applicable: bool = False  # v6.5: 是否可应用
     ) -> str:
         """智能构建最终响应
 
@@ -2288,10 +2291,10 @@ class WritingAgentGraph:
             if direct_answer:
                 logger.info("[Response] 分阶段执行第一阶段，基于任务结果生成询问")
                 # 使用AI整合，会基于世界观内容生成针对性的询问
-                return await self._ai_summarization(task_results, message, on_content, knowledge_docs)
+                return await self._ai_summarization(task_results, message, on_content, knowledge_docs, output_title, is_applicable)
 
             logger.warning("[Response] 没有明确输出任务，使用AI整合")
-            return await self._ai_summarization(task_results, message, on_content, knowledge_docs)
+            return await self._ai_summarization(task_results, message, on_content, knowledge_docs, output_title, is_applicable)
 
         # 情况2：单个输出任务（主要场景，约85%）
         elif len(output_tasks) == 1:
@@ -2306,26 +2309,11 @@ class WritingAgentGraph:
                     f"[Response] 检测到知识库文档({len(knowledge_docs)}个)，"
                     f"使用AI整合（确保流式输出）"
                 )
-                return await self._ai_summarization(task_results, message, on_content, knowledge_docs)
+                return await self._ai_summarization(task_results, message, on_content, knowledge_docs, output_title, is_applicable)
 
-            # 创作类任务，且输出充分 → 直接返回
-            if tool_name in ["continue_writing_tool"]:
-                if len(result) > 500:
-                    logger.info(
-                        f"[Response] 单个创作任务({tool_name})，"
-                        f"输出{len(result)}字符，直接返回（跳过AI调用）"
-                    )
-
-                    # ✅ 方案B修复：真流式输出，直接发送整个内容
-                    # 由于内容已经生成完毕，直接一次性发送比分块发送更快
-                    if on_content:
-                        await on_content(result)
-
-                    return result
-
-            # 分析类任务，可能需要格式化
-            logger.info(f"[Response] 单个分析任务({tool_name})，使用AI格式化")
-            return await self._ai_summarization(task_results, message, on_content, knowledge_docs)
+            # v6.4: 所有单个输出任务都走AI整合路径（确保Summarization事件）
+            logger.info(f"[Response] 单个输出任务({tool_name})，使用AI整合")
+            return await self._ai_summarization(task_results, message, on_content, knowledge_docs, output_title, is_applicable)
 
         # 情况3：多个输出任务（约15%）
         else:
@@ -2335,7 +2323,7 @@ class WritingAgentGraph:
                     f"[Response] 检测到知识库文档({len(knowledge_docs)}个)，"
                     f"{len(output_tasks)}个输出任务，使用AI整合（确保流式输出）"
                 )
-                return await self._ai_summarization(task_results, message, on_content, knowledge_docs)
+                return await self._ai_summarization(task_results, message, on_content, knowledge_docs, output_title, is_applicable)
 
             # ✅ 方案B优化：检查是否全是分析/摘要类任务
             analysis_like_tools = {"analyze_text_tool", "summarization", "analyze_content"}
@@ -2351,31 +2339,11 @@ class WritingAgentGraph:
             # 多个分析/摘要任务 → AI整合（避免冗余拼接）
             if all_analyze and not has_writing:
                 logger.info(f"[Response] {len(output_tasks)}个分析类任务，使用AI整合（避免冗余）")
-                return await self._ai_summarization(task_results, message, on_content, knowledge_docs)
+                return await self._ai_summarization(task_results, message, on_content, knowledge_docs, output_title, is_applicable)
 
-            # 包含续写任务 → 简单拼接（保持创作内容完整）
-            logger.info(f"[Response] {len(output_tasks)}个输出任务，简单拼接")
-
-            parts = []
-            for task in output_tasks:
-                tool_name = task.get("tool", "unknown")  # ✅ 安全访问
-                result = task.get("result", "") or ""  # 处理None的情况
-
-                # 添加标题
-                if tool_name == "analyze_text_tool":
-                    parts.append(f"## 分析结果\n\n{result}")
-                elif tool_name == "continue_writing_tool":
-                    parts.append(f"## 续写内容\n\n{result}")
-                else:
-                    parts.append(result)
-
-            final_content = "\n\n".join(parts)
-
-            # ✅ 方案B修复：直接发送整个内容（比分块发送更快）
-            if on_content:
-                await on_content(final_content)
-
-            return final_content
+            # v6.4: 多个输出任务（包含续写）→ 也使用AI整合（确保Summarization事件）
+            logger.info(f"[Response] {len(output_tasks)}个输出任务（含续写），使用AI整合")
+            return await self._ai_summarization(task_results, message, on_content, knowledge_docs, output_title, is_applicable)
 
     async def _format_display_response(
         self,
@@ -2395,14 +2363,18 @@ class WritingAgentGraph:
         task_results: List[Dict],
         message: str,
         on_content: Optional[callable] = None,
-        knowledge_docs: Optional[List[Dict]] = None
+        knowledge_docs: Optional[List[Dict]] = None,
+        output_title: Optional[str] = None,  # v6.5: 输出标题
+        is_applicable: bool = False  # v6.5: 是否可应用
     ) -> str:
         """AI整合 - 委托到 ResponseBuilder"""
         return await self.response_builder.ai_summarization(
             task_results=task_results,
             message=message,
             on_content=on_content,
-            knowledge_docs=knowledge_docs
+            knowledge_docs=knowledge_docs,
+            output_title=output_title,
+            is_applicable=is_applicable
         )
 
     async def _execute_task(

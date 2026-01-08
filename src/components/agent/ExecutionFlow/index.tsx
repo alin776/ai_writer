@@ -5,7 +5,7 @@
  * 支持知识调取容器、可折叠步骤、输出卡片
  */
 
-import type { FlowItem, TextFlowData, ToolFlowData, ContentFlowData, StepFlowData, OutputFlowData, AgentHeaderFlowData, CompletionFlowData } from '@/types/agent';
+import type { FlowItem, TextFlowData, ToolFlowData, ContentFlowData, StepFlowData, OutputFlowData, AgentHeaderFlowData, CompletionFlowData, SummarizationFlowData } from '@/types/agent';
 import { TextBlock } from './TextBlock';
 import { ToolCard } from './ToolCard';
 import { ContentBlock } from './ContentBlock';
@@ -13,6 +13,7 @@ import { StepCard } from './StepCard';
 import { OutputCard } from './OutputCard';
 import { AgentHeader } from './AgentHeader';
 import { CompletionStatus } from './CompletionStatus';
+import { SummarizationCard } from './SummarizationCard';
 
 interface ExecutionFlowProps {
   items: FlowItem[];
@@ -68,6 +69,13 @@ export function ExecutionFlow({ items, onApplyContent }: ExecutionFlowProps) {
               <CompletionStatus
                 key={item.id}
                 {...(item.data as CompletionFlowData)}
+              />
+            );
+          case 'summarization':
+            return (
+              <SummarizationCard
+                key={item.id}
+                {...(item.data as SummarizationFlowData)}
               />
             );
           default:

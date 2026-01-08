@@ -1450,7 +1450,7 @@ async def agent_chat_stream(
                     if event_type == 'content':
                         event_payload['content'] = event_data
                     # v6.0: 执行轨迹事件直接使用event_data作为payload
-                    elif event_type in ('agent_header', 'text', 'step_start', 'knowledge_loaded', 'step_complete', 'output_ready', 'completion'):
+                    elif event_type in ('agent_header', 'text', 'step_start', 'knowledge_loaded', 'step_complete', 'output_ready', 'completion', 'summarization_start', 'summarization_complete'):
                         event_payload = event_data  # flow事件已包含完整结构
                         event_payload['mode'] = str(actual_mode)
                         event_payload['conversation_id'] = conversation_id

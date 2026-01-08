@@ -594,13 +594,16 @@ ${context.selected_text}
     return () => container.removeEventListener('scroll', handleScroll);
   }, [checkIfAtBottom]);
 
-  // 当消息列表更新时，如果用户在底部则自动滚动
-  // 只在消息数量变化时滚动，避免流式内容更新时频繁滚动外层
+  // 计算最后一条 agent 消息的 flowItems 长度，用于触发自动滚动
+  const lastAgentMessage = messages.findLast(m => m.role === 'agent');
+  const flowItemsCount = (lastAgentMessage as any)?.flowItems?.length || 0;
+
+  // 当消息列表或执行轨迹更新时，如果用户在底部则自动滚动
   useEffect(() => {
     if (shouldAutoScrollRef.current) {
       scrollToBottom();
     }
-  }, [messages.length, tasks.length, scrollToBottom]);
+  }, [messages.length, tasks.length, flowItemsCount, scrollToBottom]);
 
   // ✅ 流式输出：真正的字符流，前端直接使用 message.content
 

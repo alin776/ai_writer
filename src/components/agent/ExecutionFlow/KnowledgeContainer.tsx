@@ -4,13 +4,14 @@
  */
 
 import { useState } from 'react';
-import { BookOpen, FileText, Search, ChevronUp, ChevronDown } from 'lucide-react';
+import { BookOpen, FileText, Search, ChevronUp, ChevronDown, Layers } from 'lucide-react';
 import type { KnowledgeFlowData } from '@/types/agent';
 
 const ICON_MAP: Record<string, React.ComponentType<any>> = {
   BookOpen,
   FileText,
   Search,
+  Layers,
 };
 
 interface KnowledgeContainerProps extends KnowledgeFlowData {
