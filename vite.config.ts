@@ -16,12 +16,12 @@ export default defineConfig({
     proxy: {
       // WebSocket 代理需要单独配置
       '/api/v1/ws': {
-        target: 'ws://localhost:8000',
+        target: 'ws://127.0.0.1:8000',
         ws: true,
         changeOrigin: true,
       },
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
       },
