@@ -9,13 +9,16 @@
 - AI 整合（Phase 4.3）
 """
 
-from typing import Dict, List, Any, Optional, Callable, Awaitable
+from typing import Dict, List, Any, Optional, Callable, Awaitable, TYPE_CHECKING
 import json
 import logging
 
 from app.services.agent.utils.context_builder import _build_summarization_context
 from app.services.agent.model_selector import TaskType
 from app.services.agent.prompts.format_guidelines import get_format_guidelines
+
+if TYPE_CHECKING:
+    from app.services.agent.stream.stream_event_handler import StreamEventHandler
 
 logger = logging.getLogger(__name__)
 
@@ -85,19 +88,26 @@ class ResponseBuilder:
     def __init__(
         self,
         ai_service,
-        generate_text_stream_func: Optional[Callable[..., Awaitable[Dict]]] = None
+        generate_text_stream_func: Optional[Callable[..., Awaitable[Dict]]] = None,
+        stream_event_handler: Optional["StreamEventHandler"] = None
     ):
         """
         Args:
             ai_service: HTTPAIService 实例
             generate_text_stream_func: 流式文本生成函数（用于 AI 整合）
+            stream_event_handler: 流式事件处理器（用于发送 Summarization 事件）
         """
         self.ai_service = ai_service
         self._generate_text_stream = generate_text_stream_func
+        self._stream_event_handler = stream_event_handler
 
     def set_stream_generator(self, func: Callable[..., Awaitable[Dict]]):
         """设置流式生成函数（延迟初始化用）"""
         self._generate_text_stream = func
+
+    def set_stream_event_handler(self, handler: "StreamEventHandler"):
+        """设置流式事件处理器"""
+        self._stream_event_handler = handler
 
     async def build_final_response(
         self,
@@ -305,7 +315,9 @@ class ResponseBuilder:
         task_results: List[Dict],
         message: str,
         on_content: Optional[Callable] = None,
-        knowledge_docs: Optional[List[Dict]] = None
+        knowledge_docs: Optional[List[Dict]] = None,
+        output_title: Optional[str] = None,  # v6.5: 输出标题
+        is_applicable: bool = False  # v6.5: 是否可应用
     ) -> str:
         """AI整合任务结果
 
@@ -314,6 +326,8 @@ class ResponseBuilder:
             message: 用户原始消息
             on_content: 内容回调函数
             knowledge_docs: 用户引用的知识库文档列表
+            output_title: 输出标题（用于 output_ready 事件）
+            is_applicable: 是否可应用到编辑器
 
         Returns:
             AI整合后的最终响应
@@ -326,6 +340,9 @@ class ResponseBuilder:
         if not self._generate_text_stream:
             logger.warning("[Summarization] 未设置流式生成函数，返回简单拼接")
             return self._simple_concat(task_results, on_content)
+
+        # 任务分类
+        classified = classify_tasks(task_results)
 
         # 构建知识库文档上下文
         knowledge_section = self._build_knowledge_section(knowledge_docs)
@@ -342,11 +359,34 @@ class ResponseBuilder:
             max_context_length=6000
         )
 
+        original_length = len(all_context)
+        compressed_length = len(compressed_context)
+
         logger.info(
             f"[Summarization] 上下文处理: "
-            f"原始={len(all_context)}字符, "
-            f"处理后={len(compressed_context)}字符"
+            f"原始={original_length}字符, "
+            f"处理后={compressed_length}字符"
         )
+
+        # 发送 Summarization 开始事件
+        if self._stream_event_handler:
+            logger.info("[Summarization] 准备发送 summarization_start 事件")
+            task_classification = {
+                "input_tasks": [{"tool": t.get("tool", ""), "description": t.get("description", "")} for t in classified["input_tasks"]],
+                "output_tasks": [{"tool": t.get("tool", ""), "description": t.get("description", "")} for t in classified["output_tasks"]],
+                "display_tasks": [{"tool": t.get("tool", ""), "description": t.get("description", "")} for t in classified["display_tasks"]]
+            }
+            context_stats = {
+                "original_length": original_length,
+                "compressed_length": compressed_length,
+                "mode": "流式生成"
+            }
+            await self._stream_event_handler.emit_summarization_start(
+                task_classification, context_stats
+            )
+            logger.info("[Summarization] summarization_start 事件已发送")
+        else:
+            logger.warning("[Summarization] _stream_event_handler 未设置，跳过事件发送")
 
         # 获取格式指导
         format_guidelines = get_format_guidelines(lite=True)
@@ -392,7 +432,31 @@ class ResponseBuilder:
         # 使用流式生成
         logger.info("[Summarization] 使用流式生成（_generate_text_stream）")
 
+        # v6.6: 在第一个 chunk 输出时才发送 summarization_complete 和 output_ready
+        # 这样 SummarizationCard 的转圈状态会持续到 LLM 开始输出
+        first_chunk_sent = False
+
         async def stream_callback(chunk: str):
+            nonlocal first_chunk_sent
+            # 第一个 chunk 时发送 summarization_complete 和 output_ready
+            if not first_chunk_sent and chunk:
+                first_chunk_sent = True
+                if self._stream_event_handler:
+                    # 1. 先发送 summarization_complete（AI整合完成）
+                    await self._stream_event_handler.emit_summarization_complete()
+                    logger.info("[Summarization] summarization_complete 事件已发送（第一个chunk时）")
+
+                    # 2. 再发送 output_ready（输出容器出现）
+                    from app.services.agent.stream.flow_events import FlowEventBuilder
+                    await self._stream_event_handler.emit_flow_event(
+                        FlowEventBuilder.output_ready(
+                            output_title or "生成内容",
+                            "",  # 内容将通过 on_content 流式发送
+                            is_applicable=is_applicable
+                        )
+                    )
+                    logger.info("[Summarization] output_ready 事件已发送（第一个chunk时）")
+
             if on_content and chunk:
                 await on_content(chunk)
 
