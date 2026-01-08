@@ -1,51 +1,61 @@
-● 是的，日志中有 AI 整合汇总（Summarization） 功能：
+🔴 核心问题：工具选择规则仍未生效
 
-  行 158-162:
-  [TaskClassify] 任务分类: 输入型=3, 输出型=1, 展示型=0
-  [Response] 单个分析任务(analyze_text_tool)，使用AI格式化
-  [Summarization] 使用AI整合任务结果
-  [Summarization] 上下文处理: 原始=6048字符, 处理后=5643字符
-  [Summarization] 使用流式生成（_generate_text_stream）
+  | Prompt        | 预期工具                                | 实际工具              | 结果    |
+  |---------------|-----------------------------------------|-----------------------|---------|
+  | 1. 改写场景   | smart_rewrite                           | smart_rewrite         | ✅ 正确 |
+  | 2. 续写场景   | continue_writing_tool + apply_to_editor | 没有续写任务！        | ❌ 错误 |
+  | 3. 混合场景   | smart_rewrite                           | smart_rewrite         | ✅ 正确 |
+  | 4. 多章节优化 | smart_rewrite                           | continue_writing_tool | ❌ 错误 |
+  | 5. 润色+扩写  | smart_rewrite                           | continue_writing_tool | ❌ 错误 |
 
-  这个功能位于 app.services.agent.planning.response_builder 模块，作用是：
+  ---
+  🔴 问题1：续写场景完全没有生成续写任务（Prompt 2）
 
-  1. 任务分类 - 将执行完的任务分为输入型、输出型、展示型
-  2. AI整合 - 使用 AI（gemini-2.5-flash）将多个任务结果整合成一个连贯的最终响应
-  3. 上下文压缩 - 处理原始内容（6048字符→5643字符）
-  4. 流式输出 - 通过 _generate_text_stream 流式返回给用户
+  行 318: [Planning] 直接回答模式，答案长度: 86
+  行 322: [Planning-Alert] AI 违反协议：同时返回 direct_answer(86字) 和 3 个 tasks
+  行 358: 任务分类: 输入型=3, 输出型=0, 展示型=0  ← 全是输入型！
 
-  这是 Planning 模式的最后一步，把搜索、读取章节、分析等多个工具的结果汇总成用户可读的回答。
+  AI 只规划了"读取第3章、读取第4章、获取世界观"，没有续写任务。
 
-> file:///D:/Java/claude-code-skill/agent-writing-preview.html 这个Summarization功能是不是可以在前端UI呈现？来 review 这个问题
+  ---
+  🔴 问题2：改写/润色场景错用 continue_writing_tool（Prompt 4、5）
 
-● Read(D:/Java/claude-code-skill/agent-writing-preview.html)
-  ⎿  Read 945 lines
+  行 628: [TaskRunner] 调用 registry.call_tool(continue_writing)  ← Prompt 4
+  行 770: [TaskRunner] 调用 registry.call_tool(continue_writing)  ← Prompt 5
 
-● 根据我的分析，目前这个前端 UI 没有 专门展示 Summarization（AI整合）功能。
+  用户说"优化"、"润色"、"扩写"，AI 却选择了 continue_writing_tool。
 
-  现状对比：
+  ---
+  🟡 问题3：SmartRewriteInput Pydantic 验证失败
 
-  | 后端日志中的步骤   | 前端 UI 是否展示 |
-  |--------------------|------------------|
-  | 获取世界观设定     | ✅ 有            |
-  | 读取前文章节       | ✅ 有            |
-  | 检索相关设定       | ✅ 有            |
-  | 生成续写内容       | ✅ 有            |
-  | 修订编辑器章节     | ✅ 有            |
-  | Summarization 整合 | ❌ 缺失          |
+  行 150-159:
+  [StandardTool] 'smart_rewrite' 不存在，降级到 @tool:
+    3 validation errors for SmartRewriteInput
+    - chapter_content: Input should be a valid string (input_value=None)
+    - base_version: Input should be a valid string (input_value=None)
+    - user_id: Input should be a valid string (input_value=None)
 
-  后端日志中的 Summarization 流程：
-  [TaskClassify] 任务分类: 输入型=3, 输出型=1, 展示型=0
-  [Summarization] 使用AI整合任务结果
-  [Summarization] 上下文处理: 原始=6048字符, 处理后=5643字符
-  [Summarization] 使用流式生成
+  原因：SmartRewriteInput 的 chapter_content、base_version、user_id 定义为必需参数，但传入了 None。
 
-  建议： 可以在"生成续写内容"和"最终输出"之间添加一个 "AI整合分析" 步骤，展示：
-  - 任务分类结果（输入型/输出型/展示型）
-  - 上下文压缩信息
-  - 整合处理状态
+  ---
+  🟡 问题4：Rate Limiter Redis 错误
 
-  需要我帮你设计这个 Summarization 步骤的 UI 吗？
+  行 161, 508:
+  Rate limiter error: type object 'RedisClient' has no attribute 'incr'
 
-> 设计这个 Summarization 步骤的 UI,写在 file:///D:/Java/claude-code-skill/agent-writing-preview.html
-里面，需要严格遵守这个UI风格，开始吧
+  ---
+  🟡 问题5：数据库连接管理问题
+
+  行 226-253:
+  - Exception terminating connection
+  - asyncio.exceptions.CancelledError
+  - The garbage collector is trying to clean up non-checked-in connection
+
+  ---
+  🛠️ 需要修复的优先级
+
+  | 优先级 | 问题                              | 修复方向                                                     |
+  |--------|-----------------------------------|--------------------------------------------------------------|
+  | P0     | Prompt 4/5 改写场景用错工具       | Planning Prompt 中强化"优化/润色→smart_rewrite"规则          |
+  | P0     | Prompt 2 续写场景没有生成续写任务 | 检查 AI 为何跳过续写，可能需要更强的引导                     |
+  | P1     | SmartRewriteInput 验证失败        | 将 chapter_content、base_version、user_id 改为 Optional[str] |

@@ -310,7 +310,11 @@ class MessageBuilder:
             (is_read_request, is_write_request)
         """
         read_keywords = ["读", "看", "查看", "显示", "展示", "告诉我", "第几章", "内容是什么"]
-        write_keywords = ["写", "续写", "创作", "生成", "继续", "扩写", "补充"]
+        # 2026-01-09: 添加编辑意图词，与 secondary_tool_handler.py 保持一致
+        write_keywords = [
+            "写", "续写", "创作", "生成", "继续", "扩写", "补充",
+            "修改", "改写", "重写", "润色", "优化"  # 编辑类
+        ]
 
         is_read_request = any(keyword in user_message for keyword in read_keywords)
         is_write_request = any(keyword in user_message for keyword in write_keywords)

@@ -67,7 +67,7 @@ api_router.include_router(knowledge.router, prefix="/knowledge", tags=["knowledg
 api_router.include_router(agent.router, prefix="/agent", tags=["agent"])
 api_router.include_router(books.router, prefix="/books", tags=["books"])
 api_router.include_router(ws.router, tags=["websocket"])
-api_router.include_router(export_routes.router, tags=["export"])
+api_router.include_router(export_routes.router, prefix="/export", tags=["export"])
 api_router.include_router(import_routes.router, tags=["import"])
 api_router.include_router(ai_logs.router)
 

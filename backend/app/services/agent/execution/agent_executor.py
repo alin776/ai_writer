@@ -169,8 +169,9 @@ class AgentExecutor:
     ) -> Optional[Dict[str, Any]]:
         """检查并处理二次工具调用"""
         already_did_second_call = state.get("_second_tool_called", False)
+        # 2026-01-09: 改用结构化判断，传入 tool_result
         needs_second_tool = self.secondary_tool_handler.needs_secondary_tool_call(
-            user_message, agent_type, already_did_second_call
+            user_message, agent_type, already_did_second_call, tool_result
         )
 
         if not needs_second_tool:

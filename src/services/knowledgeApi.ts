@@ -161,7 +161,7 @@ class KnowledgeApiService {
    * 创建文本知识
    */
   async create(data: CreateKnowledgeRequest): Promise<KnowledgeItem> {
-    const response = await this.client.post<KnowledgeItem>('/', data);
+    const response = await this.client.post<KnowledgeItem>('', data);
     return response.data;
   }
 

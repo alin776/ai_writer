@@ -99,3 +99,58 @@
   color: #111827;
   background: #f9fafb;
 }
+
+/* 暗色模式 */
+.dark .file-picker {
+  border-color: #374151;
+  background: #1f2937;
+}
+
+.dark .file-picker:hover {
+  border-color: #4b5563;
+  background: #374151;
+}
+
+.dark .file-placeholder {
+  color: #9ca3af;
+}
+
+.dark .file-placeholder svg {
+  color: #6b7280;
+}
+
+.dark .file-placeholder-title {
+  color: #f3f4f6;
+}
+
+.dark .file-placeholder-desc {
+  color: #9ca3af;
+}
+
+.dark .file-placeholder-note {
+  color: #6b7280;
+}
+
+.dark .file-picked svg {
+  color: #3b82f6;
+}
+
+.dark .file-picked-name {
+  color: #f3f4f6;
+}
+
+.dark .file-picked-size {
+  color: #9ca3af;
+}
+
+.dark .file-remove {
+  border-color: #374151;
+  background: #1f2937;
+  color: #9ca3af;
+}
+
+.dark .file-remove:hover {
+  border-color: #4b5563;
+  color: #f3f4f6;
+  background: #374151;
+}

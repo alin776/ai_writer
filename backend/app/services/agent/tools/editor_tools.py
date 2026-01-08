@@ -39,8 +39,8 @@ def _get_ai_service() -> HTTPAIService:
 async def _generate_rewrite_versions(
     original_text: str,
     chapter_content: str,
-    user_requirement: str = None,
-    base_version: str = None,
+    user_requirement: Optional[str] = None,
+    base_version: Optional[str] = None,
     num_versions: int = 3
 ) -> List[Dict[str, Any]]:
     """
@@ -250,9 +250,9 @@ async def apply_chapter_edit(
     chapter_id: str,
     content: str,
     operation: str = "append",
-    position: int = None,
-    user_id: str = None,
-    description: str = None
+    position: Optional[int] = None,
+    user_id: Optional[str] = None,
+    description: Optional[str] = None
 ) -> str:
     """
     对章节执行编辑操作
@@ -321,7 +321,7 @@ async def apply_chapter_edit(
 async def smart_continue(
     chapter_id: str,
     content: str,
-    user_id: str = None
+    user_id: Optional[str] = None
 ) -> str:
     """
     智能续写 - 自动添加到章节末尾
@@ -373,11 +373,11 @@ async def smart_continue(
 )
 async def smart_rewrite(
     chapter_id: str,
-    text_to_rewrite: str = None,
-    chapter_content: str = None,
-    user_requirement: str = None,
-    base_version: str = None,
-    user_id: str = None
+    text_to_rewrite: Optional[str] = None,
+    chapter_content: Optional[str] = None,
+    user_requirement: Optional[str] = None,
+    base_version: Optional[str] = None,
+    user_id: Optional[str] = None
 ) -> str:
     """
     智能改写 - 改写用户指定范围的文本
@@ -482,9 +482,9 @@ async def smart_insert(
     chapter_id: str,
     content: str,
     user_intent: str,
-    chapter_content: str = None,
-    context: dict = None,
-    user_id: str = None
+    chapter_content: Optional[str] = None,
+    context: Optional[dict] = None,
+    user_id: Optional[str] = None
 ) -> str:
     """
     智能插入内容 - 自动推断最佳位置
@@ -583,11 +583,11 @@ from pydantic import Field
 class SmartRewriteInput(ToolInput):
     """智能改写工具输入"""
     chapter_id: str = Field(..., description="章节ID")
-    text_to_rewrite: str = Field(default=None, description="要改写的文本")
-    chapter_content: str = Field(default=None, description="章节完整内容")
-    user_requirement: str = Field(default=None, description="用户的具体要求")
-    base_version: str = Field(default=None, description="基准版本内容")
-    user_id: str = Field(default=None, description="用户ID")
+    text_to_rewrite: Optional[str] = Field(default=None, description="要改写的文本")
+    chapter_content: Optional[str] = Field(default=None, description="章节完整内容")
+    user_requirement: Optional[str] = Field(default=None, description="用户的具体要求")
+    base_version: Optional[str] = Field(default=None, description="基准版本内容")
+    user_id: Optional[str] = Field(default=None, description="用户ID")
 
 
 class SmartRewriteOutput(ToolOutput):
@@ -646,7 +646,7 @@ class SmartContinueInput(ToolInput):
     """智能续写工具输入"""
     chapter_id: str = Field(..., description="章节ID")
     content: str = Field(..., description="续写的内容")
-    user_id: str = Field(default=None, description="用户ID")
+    user_id: Optional[str] = Field(default=None, description="用户ID")
 
 
 class SmartContinueOutput(ToolOutput):
@@ -701,9 +701,9 @@ class SmartInsertInput(ToolInput):
     chapter_id: str = Field(..., description="章节ID")
     content: str = Field(..., description="要插入的内容")
     user_intent: str = Field(..., description="用户的意图描述")
-    chapter_content: str = Field(default=None, description="章节完整内容")
-    context: dict = Field(default=None, description="额外上下文")
-    user_id: str = Field(default=None, description="用户ID")
+    chapter_content: Optional[str] = Field(default=None, description="章节完整内容")
+    context: Optional[dict] = Field(default=None, description="额外上下文")
+    user_id: Optional[str] = Field(default=None, description="用户ID")
 
 
 class SmartInsertOutput(ToolOutput):
@@ -761,9 +761,9 @@ class ApplyChapterEditInput(ToolInput):
     chapter_id: str = Field(..., description="章节ID")
     content: str = Field(..., description="编辑内容")
     operation: str = Field(default="append", description="操作类型：append/replace/insert", pattern="^(append|replace|insert)$")
-    position: int = Field(default=None, description="插入位置（仅 insert 操作）")
-    user_id: str = Field(default=None, description="用户ID")
-    description: str = Field(default=None, description="操作描述")
+    position: Optional[int] = Field(default=None, description="插入位置（仅 insert 操作）")
+    user_id: Optional[str] = Field(default=None, description="用户ID")
+    description: Optional[str] = Field(default=None, description="操作描述")
 
 
 class ApplyChapterEditOutput(ToolOutput):

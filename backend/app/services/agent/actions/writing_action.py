@@ -265,7 +265,7 @@ class WritingAction(BaseAction):
 - read_chapter_tool: 读取章节内容
 - smart_rewrite: 生成改写版本（3个版本供用户选择）
 - apply_chapter_edit: 直接应用修改到章节
-- smart_continue: 续写章节
+- smart_continue: 追加内容到章节末尾（不生成内容，需要先有content）
 - get_worldview_summary: 查询世界观信息（当用户询问"世界观里有什么"时立即调用）
 
 请分析用户意图，决定调用哪些工具。"""
@@ -441,11 +441,13 @@ class WritingAction(BaseAction):
 
 ## ✍️ 编辑器工具（直接修改编辑器内容 - 优先使用）
 - smart_rewrite: 改写/修改章节内容（会生成3个版本供用户选择）
-  - 参数: chapter_id, instructions (可选), content (可选)
-  - 用于: 用户说"修改"、"改写"、"重写"章节时
-- smart_continue: 续写章节（会生成3个版本供用户选择）
-  - 参数: chapter_id, context (可选)
-  - 用于: 用户说"续写"章节时
+  - 参数: chapter_id, text_to_rewrite, user_requirement
+  - 用于: 用户说"修改"、"改写"、"重写"、"润色"、"优化"、"扩写"章节时
+  - ⚠️ "扩写"= 把现有内容写得更丰富，属于改写场景，不是续写！
+- smart_continue: 追加内容到章节末尾（不生成内容，需要先有content）
+  - 参数: chapter_id, content
+  - 用于: 系统内部调用，将已生成的内容追加到章节
+  - ⚠️ 续写场景请用 continue_writing_tool + apply_to_editor=true
 - smart_insert: 插入内容到章节
   - 参数: chapter_id, position, content
   - 用于: 用户说"插入"内容时
@@ -454,7 +456,7 @@ class WritingAction(BaseAction):
   - 用于: 替换/追加/插入操作
 
 ## 📝 普通写作工具
-- continue_writing_tool: 续写内容（仅返回文本，不修改编辑器）
+- continue_writing_tool: 续写内容（加 apply_to_editor=true 可写入编辑器）
 
 当前信息（内部参数，禁止在回复中显示）：work_id={work_id}, chapter_id={chapter_id}
 
@@ -472,19 +474,21 @@ class WritingAction(BaseAction):
 
 2️⃣ 用户说"续写第X章"时：
    第一步：调用 get_chapter_by_order_tool 获取第X章的 chapter_id
-   第二步：**必须**调用 smart_continue(chapter_id=xxx)
-   ❌ 错误：使用continue_writing_tool（这个不修改编辑器）
-   ✅ 正确：调用smart_continue工具
+   第二步：调用 continue_writing_tool，参数加 apply_to_editor=true, operation="append"
+   ✅ 正确：使用 continue_writing_tool + apply_to_editor=true
+   ❌ 错误：直接调用 smart_continue（它不生成内容）
 
 3️⃣ 用户说"插入XX到第X章"时：
    第一步：调用 get_chapter_by_order_tool 获取第X章的 chapter_id
    第二步：**必须**调用 smart_insert(chapter_id=xxx, position="end", content="...")
 
 📌 关键规则：
-- 当用户要求"修改"、"改写"、"续写"、"插入"章节内容时，**必须调用编辑器工具**
+- 当用户要求"修改"、"改写"、"续写"、"插入"、"润色"、"优化"、"扩写"章节内容时，**必须调用编辑器工具**
 - 编辑器工具会自动征求用户确认，所以放心使用
 - 不要只是分析或给建议，要实际调用工具去修改
 - 工具会返回HITL确认请求，前端会显示确认对话框
+- ⚠️ "扩写"、"润色"、"优化" → smart_rewrite（改写场景）
+- ⚠️ "续写" → continue_writing_tool + apply_to_editor=true（续写场景）
 
 根据用户需求，决定调用合适的工具。"""
 

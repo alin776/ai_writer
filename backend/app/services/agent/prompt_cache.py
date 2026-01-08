@@ -19,7 +19,7 @@ Prompt 缓存模块 - Phase 2.6
 from app.core.cache import cache_review
 
 # Prompt 版本号 - 修改 Prompt 时请更新此版本号
-PROMPT_VERSION = "v2.30.0"  # 2025-01-08: Planning Prompt 添加编辑器工具（smart_rewrite/smart_continue/smart_insert）
+PROMPT_VERSION = "v2.35.0"  # 2026-01-09: P1修复smart_rewrite参数说明，添加完整示例和填充规则
 
 
 # ════════════════════════════════════════════════════════════════
@@ -112,7 +112,9 @@ async def get_tool_decision_static_prompt() -> str:
 【编辑器工具 - 修改内容时优先使用】
 - smart_rewrite: 改写/修改章节内容
   参数: chapter_id, text_to_rewrite, user_requirement, base_version
-- smart_continue: 续写章节 (参数: chapter_id, context)
+- smart_continue: 追加内容到章节末尾（不生成内容，只追加传入的content）
+  参数: chapter_id, content（要追加的内容）
+  ⚠️ 注意：此工具不生成内容！续写请用 continue_writing_tool
 - smart_insert: 插入内容 (参数: chapter_id, position, content)
 - apply_chapter_edit: 直接应用编辑 (参数: chapter_id, operation, content)
 
@@ -128,7 +130,7 @@ async def get_tool_decision_static_prompt() -> str:
 
 1. 用户提到具体文字但未说章节 → 先用 search_analysis_fragments_tool 定位
 2. 用户说"修改第X章"、"改写第X章" → 使用 smart_rewrite（已知章节）
-3. 用户说"续写"、"继续写" → 使用 smart_continue
+3. 用户说"续写"、"继续写" → 使用 continue_writing_tool + apply_to_editor=true
 4. 用户说"插入" → 使用 smart_insert
 
 ⚠️ 【搜索兜底规则】：
@@ -158,7 +160,7 @@ async def get_tool_decision_static_prompt() -> str:
 
 "微光如露落雪太书面化" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "微光如露落雪"}}}}
 "修改第三章，白光退去太平淡" → {{"need_tools": true, "tool_name": "smart_rewrite", "tool_args": {{"chapter_id": "xxx", "text_to_rewrite": "白光退去...", "user_requirement": "更有画面感"}}}}
-"续写第五章" → {{"need_tools": true, "tool_name": "smart_continue", "tool_args": {{"chapter_id": "xxx"}}}}
+"续写第五章" → {{"need_tools": true, "tool_name": "continue_writing_tool", "tool_args": {{"context": "第五章内容...", "requirements": "续写", "apply_to_editor": true, "operation": "append"}}}}
 "有没有叫赵穆的人物" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "赵穆"}}}}
 "段融是谁" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "段融"}}}}
 
@@ -426,32 +428,84 @@ async def get_planning_static_prompt() -> str:
   - focus 参数示例："给出润色建议"、"分析问题并改写"、"使其更有画面感"
   - style 可选值: professional, creative, concise, elaborate
 
-创作内容：
-- continue_writing_tool: 创作新内容（包括大纲、正文、设定等）
-  - 适用于：续写章节、创作正文、生成大纲、设计角色成长、规划情节
-  - params: context（上下文）, requirements（要求）, target_words（目标字数，可选）
+创作内容（可选择是否写入编辑器）：
+- continue_writing_tool: 生成创意内容（续写、大纲、草案等）
+  - params: context（上下文）, requirements（要求）, target_words（目标字数）
   - target_words 建议值：大纲 1000-2000，正文 2000-4000
-  - ⚠️ "设计"/"规划"/"构思"/"创作"都是创作任务，使用这个工具
+  - 📌 **写入编辑器的方式**：添加 apply_to_editor=true, operation="append"
+  - 适用于：
+    * 生成大纲草案、构思剧情（不加 apply_to_editor）
+    * 续写章节并写入编辑器（加 apply_to_editor=true, operation="append"）
 
-编辑器工具（修改章节内容时必须使用 - 会触发用户确认）：
-- smart_rewrite: 改写章节内容（⭐ 优先使用，生成3个版本供选择）
-  - params: chapter_id(必需), text_to_rewrite(要改写的文本), user_requirement(改写要求)
-  - 适用于：用户说"修改"、"改写"、"重写"、"润色"章节内容
-  - ⚠️ 当用户明确要求修改章节内容时，必须使用此工具，不要只分析或给建议
-- smart_continue: 续写章节（生成内容追加到末尾，需用户确认）
-  - params: chapter_id(必需), context(可选上下文)
-  - 适用于：用户说"续写"、"继续写"章节，且希望内容追加到编辑器
-  - ⚠️ 与 continue_writing_tool 的区别：smart_continue 会修改编辑器内容
+编辑器工具（直接修改章节内容 - 会触发用户确认）：
+- smart_rewrite: 改写章节内容（⭐ 改写/润色必用！自动生成3个版本）
+  - params:
+    * chapter_id(必需): 要改写的章节ID
+    * text_to_rewrite(重要): 要改写的具体文本，从章节内容中提取
+    * chapter_content(重要): 整章内容，用于风格分析，通常与章节内容相同
+    * user_requirement(必需): 改写要求，从用户消息中提取（如"更有画面感"）
+    * base_version(可选): 在某个版本基础上继续改写
+  - 触发词：用户说"修改"、"改写"、"重写"、"润色"、"优化"、"扩写"章节内容
+  - ⚠️ 改写场景必须用这个工具！它会自己调用AI生成改写版本
+  - ⚠️ "扩写"= 把现有内容写得更丰富，属于改写场景，不是续写！
+  - ⚠️ **参数填充规则**（极其重要！）：
+    * 如果用户指定了要改写的文本 → text_to_rewrite 填入该文本
+    * 如果用户说"改写第X章" → 先用 get_chapter_by_order_tool 获取章节，再用 $TASK_N.content$ 引用
+    * user_requirement 必须从用户消息中提取改写要求！
+
+  【smart_rewrite 完整示例】⚠️ 必须参考！
+
+  用户: "帮我润色第1章中段融第一次吞噬器灵的场景"
+  {
+    "tasks": [
+      {"task_id": 1, "description": "获取第1章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 1}},
+      {"task_id": 2, "description": "润色吞噬器灵场景", "tool": "smart_rewrite", "params": {
+        "chapter_id": "$TASK_1.chapter_id$",
+        "text_to_rewrite": "$TASK_1.content$",
+        "chapter_content": "$TASK_1.content$",
+        "user_requirement": "优化心理描写、扩写感官体验、使节奏更紧凑"
+      }}
+    ]
+  }
+
+  用户: "把这段话改得更有画面感：天色未明，青冥中尚悬着几颗残星。"
+  {
+    "tasks": [
+      {"task_id": 1, "description": "改写指定文本", "tool": "smart_rewrite", "params": {
+        "chapter_id": "$CHAPTER_ID$",
+        "text_to_rewrite": "天色未明，青冥中尚悬着几颗残星。",
+        "chapter_content": "",
+        "user_requirement": "更有画面感"
+      }}
+    ]
+  }
+- smart_continue: 把已有内容追加到章节末尾（需要先有content）
+  - params: chapter_id(必需), content(要追加的内容)
+  - ⚠️ 这个工具不会生成内容，只是把传入的content追加到章节
+  - 一般由系统内部调用，规划时优先用 continue_writing_tool + apply_to_editor
 - smart_insert: 插入内容到章节指定位置
-  - params: chapter_id(必需), position(位置), content(内容)
-  - 适用于：用户说"插入"内容到某位置
+  - params: chapter_id(必需), content(要插入的内容), user_intent(用户意图)
+  - 触发词：用户说"插入"、"在...处添加"
 
-⚠️ 【编辑器工具使用规则 - 极其重要！】
-当用户要求"修改"、"改写"、"续写"、"插入"章节内容时：
+⚠️⚠️⚠️ 【工具选择强制规则 - 最高优先级！】⚠️⚠️⚠️
+
+**改写/润色场景** → **必须用 smart_rewrite**
+  - 用户说"改写"、"润色"、"修改"、"优化"、"扩写"第X章 → smart_rewrite
+  - ⚠️ "扩写"是把现有内容写得更丰富，不是往后续写！属于改写场景！
+  - smart_rewrite 会自动调用AI生成3个改写版本供用户选择
+
+**续写场景** → 用 continue_writing_tool + apply_to_editor=true
+  - 用户说"续写第X章"、"继续写"、"往后写" → continue_writing_tool，params 加 apply_to_editor=true, operation="append"
+  - 系统会把生成的内容转成修订确认
+
+❌ 禁止：用 continue_writing_tool 处理"扩写"、"优化"、"润色"请求
+✅ 正确：扩写/优化/润色 用 smart_rewrite，续写 用 continue_writing_tool + apply_to_editor=true
+
+执行步骤：
 1. **必须**先用 get_chapter_by_order_tool 获取 chapter_id
-2. **必须**调用对应的编辑器工具（smart_rewrite/smart_continue/smart_insert）
-3. **禁止**只返回分析或建议文本 → 必须实际调用工具去修改
-4. 编辑器工具会自动触发用户确认对话框，放心使用
+2. 改写 → 调用 smart_rewrite
+3. 续写并写入 → 调用 continue_writing_tool + apply_to_editor=true + operation="append"
+4. 工具会自动触发用户确认对话框
 
 【选中文本处理规则】⚠️ 重要！
 
@@ -488,16 +542,21 @@ async def get_planning_static_prompt() -> str:
   ]
 }
 
-⚠️⚠️⚠️ **【最重要】direct_answer 和 tasks 必须二选一！** ⚠️⚠️⚠️
+⚠️⚠️⚠️ **【最重要】direct_answer 和 tasks 的使用规则** ⚠️⚠️⚠️
 
-这是**强制规则**，违反会导致系统错误：
+**普通场景**（二选一）：
 - ✅ 知识问答/闲聊 → direct_answer 有内容，tasks = []（空数组）
 - ✅ 需要执行操作 → tasks 有内容，direct_answer = ""（空字符串）
-- ❌ **绝对禁止**：同时填写 direct_answer 和 tasks！
+- ❌ **禁止**：无意义地同时填写两者
+
+**分阶段执行场景**（例外情况，可以同时有）：
+- ✅ 创作请求的第一阶段 → direct_answer 写"好的，我先了解..."，tasks 写获取任务
+- 这种情况下 direct_answer 是说明性文字，告诉用户正在做什么
+- 示例：用户说"帮我写第一章" → direct_answer="好的，我先了解作品世界观..." + tasks=[获取世界观、读取章节]
 
 判断标准：
-- 如果需要调用任何工具 → 只填 tasks，direct_answer 必须为空
-- 如果不需要工具，纯回答 → 只填 direct_answer，tasks 必须为空数组
+- 如果 tasks 是准备工作（获取上下文）且需要后续询问用户 → 可以同时有 direct_answer
+- 如果 tasks 已经是最终执行任务 → direct_answer 必须为空
 
 ⚠️ **output_title 字段规范**：
 - 必须简洁：4-8个字
@@ -592,7 +651,7 @@ async def get_planning_static_prompt() -> str:
   "tasks": [
     {"task_id": 1, "description": "获取第5章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 5}},
     {"task_id": 2, "description": "分析战斗风格", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$", "focus": "战斗风格分析"}},
-    {"task_id": 3, "description": "续写500字战斗场景", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.content$", "requirements": "续写战斗场景，保持现有风格", "target_words": 500}}
+    {"task_id": 3, "description": "续写500字战斗场景", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.content$", "requirements": "续写战斗场景，保持现有风格", "target_words": 500, "apply_to_editor": true, "operation": "append"}}
   ]
 }
 
@@ -611,7 +670,7 @@ async def get_planning_static_prompt() -> str:
   "user_intent": "续写1000字战斗场景",
   "tasks": [
     {"task_id": 1, "description": "获取第5章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 5}},
-    {"task_id": 2, "description": "续写1000字战斗场景", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.content$", "requirements": "续写战斗场景", "target_words": 1000}}
+    {"task_id": 2, "description": "续写1000字战斗场景", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.content$", "requirements": "续写战斗场景", "target_words": 1000, "apply_to_editor": true, "operation": "append"}}
   ]
 }
 
@@ -630,7 +689,7 @@ async def get_planning_static_prompt() -> str:
   "user_intent": "直接续写第5章战斗场景",
   "tasks": [
     {"task_id": 1, "description": "获取第5章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 5}},
-    {"task_id": 2, "description": "续写战斗场景", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.content$", "requirements": "续写战斗场景", "target_words": 500}}
+    {"task_id": 2, "description": "续写战斗场景", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.content$", "requirements": "续写战斗场景", "target_words": 500, "apply_to_editor": true, "operation": "append"}}
   ]
 }
 
@@ -666,7 +725,7 @@ async def get_planning_static_prompt() -> str:
   "user_intent": "续写第6章",
   "tasks": [
     {"task_id": 1, "description": "获取第5章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 5}},
-    {"task_id": 2, "description": "续写第6章", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.content$", "requirements": "基于之前规划的大纲续写第6章", "target_words": 3000}}
+    {"task_id": 2, "description": "续写第6章", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.content$", "requirements": "基于之前规划的大纲续写第6章", "target_words": 3000, "apply_to_editor": true, "operation": "append"}}
   ]
 }
 
@@ -883,7 +942,7 @@ async def get_planning_static_prompt() -> str:
     {"task_id": 1, "description": "批量获取前四章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": "1-4"}},
     {"task_id": 2, "description": "分析前四章", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.chapters$", "focus": "多章综合分析"}},
     {"task_id": 3, "description": "创作第5-9章大纲", "tool": "continue_writing_tool", "params": {"context": "$TASK_2$", "requirements": "基于分析结果，为第5-9章设计详细大纲", "target_words": 1500}},
-    {"task_id": 4, "description": "续写第五章", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.chapters[3].content$\\n\\n大纲：$TASK_3$", "requirements": "基于大纲续写第五章正文", "target_words": 3000}}
+    {"task_id": 4, "description": "续写第五章", "tool": "continue_writing_tool", "params": {"context": "$TASK_1.chapters[3].content$\\n\\n大纲：$TASK_3$", "requirements": "基于大纲续写第五章正文", "target_words": 3000, "apply_to_editor": true, "operation": "append"}}
   ]
 }
 

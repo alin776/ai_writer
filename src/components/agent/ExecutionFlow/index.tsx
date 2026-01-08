@@ -21,6 +21,7 @@ import { RevisionCard } from './RevisionCard';
 interface ExecutionFlowProps {
   items: FlowItem[];
   onApplyContent?: (content: string) => void;
+  onAddToKnowledge?: (title: string, content: string) => void;
   onAcceptRevision?: (itemId: string, requestId: string | undefined, selectedVersion?: number) => void;
   onDiscardRevision?: (itemId: string, requestId: string | undefined) => void;
   onAcceptAllRevisions?: (itemIds: string[]) => void;
@@ -33,6 +34,7 @@ interface ExecutionFlowProps {
 export function ExecutionFlow({
   items,
   onApplyContent,
+  onAddToKnowledge,
   onAcceptRevision,
   onDiscardRevision,
   onAcceptAllRevisions,
@@ -108,6 +110,10 @@ export function ExecutionFlow({
                 key={item.id}
                 {...(item.data as OutputFlowData)}
                 onApply={onApplyContent ? () => onApplyContent((item.data as OutputFlowData).content) : undefined}
+                onAddToKnowledge={onAddToKnowledge ? () => onAddToKnowledge(
+                  (item.data as OutputFlowData).title,
+                  (item.data as OutputFlowData).content
+                ) : undefined}
               />
             );
           case 'agent_header':

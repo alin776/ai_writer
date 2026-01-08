@@ -11,6 +11,23 @@ import ModeSelector from '../agent/ModeSelector';
 import ActivityStream from '../agent/ActivityStream';  // ✅ 导入ActivityStream
 import { ExecutionFlow } from '../agent/ExecutionFlow';  // ✅ v5.0: 执行轨迹可视化
 import AgentEditConfirmDialog from '../agent/AgentEditConfirmDialog';  // ✅ 编辑确认对话框
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { ToastContainer } from '@/components/ui/Toast';
+import { useToast } from '@/hooks/useToast';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -315,6 +332,17 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   // 复制成功状态，显示 ✓
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
+  // 添加到知识库对话框状态
+  const [showAddKnowledgeDialog, setShowAddKnowledgeDialog] = useState(false);
+  const [knowledgeFormTitle, setKnowledgeFormTitle] = useState('');
+  const [knowledgeFormContent, setKnowledgeFormContent] = useState('');
+  const [knowledgeFormCategory, setKnowledgeFormCategory] = useState<'technique' | 'character' | 'worldview' | 'plot' | 'dialogue' | 'description' | 'reference' | 'other'>('reference');
+  const [knowledgeFormTags, setKnowledgeFormTags] = useState('');
+  const [knowledgeSubmitting, setKnowledgeSubmitting] = useState(false);
+
+  // Toast 提示
+  const { messages: toastMessages, success: showSuccess, error: showError, close: closeToast } = useToast();
+
   // 组件挂载时恢复草稿
   useEffect(() => {
     if (sessionId) {
@@ -360,6 +388,43 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       console.error('Copy failed:', err);
     }
   }, []);
+
+  // 打开添加知识对话框
+  const handleOpenAddKnowledge = useCallback((title: string, content: string) => {
+    setKnowledgeFormTitle(title);
+    setKnowledgeFormContent(content);
+    setKnowledgeFormCategory('reference');
+    setKnowledgeFormTags('');
+    setShowAddKnowledgeDialog(true);
+  }, []);
+
+  // 提交添加知识
+  const handleSubmitKnowledge = useCallback(async () => {
+    if (!knowledgeFormTitle.trim() || !knowledgeFormContent.trim()) return;
+
+    try {
+      setKnowledgeSubmitting(true);
+      await knowledgeApi.create({
+        title: knowledgeFormTitle.trim(),
+        content: knowledgeFormContent.trim(),
+        category: knowledgeFormCategory,
+        tags: knowledgeFormTags.split(',').map((t) => t.trim()).filter(Boolean),
+      });
+      setShowAddKnowledgeDialog(false);
+      // 重置表单
+      setKnowledgeFormTitle('');
+      setKnowledgeFormContent('');
+      setKnowledgeFormCategory('reference');
+      setKnowledgeFormTags('');
+      showSuccess('添加成功', '内容已保存到知识库');
+    } catch (error: any) {
+      console.error('Failed to add knowledge:', error);
+      const errorMessage = error?.response?.data?.detail || error?.message || '添加失败，请稍后重试';
+      showError('添加失败', errorMessage);
+    } finally {
+      setKnowledgeSubmitting(false);
+    }
+  }, [knowledgeFormTitle, knowledgeFormContent, knowledgeFormCategory, knowledgeFormTags, showSuccess, showError]);
 
   const containsAt = useMemo(() => AT_CHARS.some((c) => inputValue.includes(c)), [inputValue]);
   // 去痕长度变量，用于显示
@@ -969,6 +1034,7 @@ ${selectionContext.selected_text}
 
   return (
     <div className="p-3 h-full flex flex-col overflow-hidden dark:bg-slate-900">
+      <ToastContainer messages={toastMessages} onClose={closeToast} />
       <div
         ref={messagesContainerRef}
         className="flex-1 min-h-0 mb-3 space-y-2.5 overflow-y-auto overflow-x-hidden scrollbar-auto-hide bg-white dark:bg-slate-900"
@@ -1180,6 +1246,7 @@ ${selectionContext.selected_text}
                           },
                           timestamp: lastOutputItem?.timestamp || message.timestamp,
                         }]}
+                        onAddToKnowledge={handleOpenAddKnowledge}
                       />
                     </div>
 
@@ -1484,6 +1551,70 @@ ${selectionContext.selected_text}
           onClose={() => submitApproval(false)}
         />
       )}
+
+      {/* 添加到知识库对话框 */}
+      <Dialog open={showAddKnowledgeDialog} onOpenChange={setShowAddKnowledgeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>添加到知识库</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">标题</label>
+              <Input
+                value={knowledgeFormTitle}
+                onChange={(e) => setKnowledgeFormTitle(e.target.value)}
+                placeholder="输入标题..."
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">分类</label>
+              <Select value={knowledgeFormCategory} onValueChange={(value: any) => setKnowledgeFormCategory(value)}>
+                <SelectTrigger className="mt-1 w-full">
+                  <SelectValue placeholder="选择分类" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="technique">写作技巧</SelectItem>
+                  <SelectItem value="character">特色设定</SelectItem>
+                  <SelectItem value="worldview">世界观</SelectItem>
+                  <SelectItem value="plot">支线剧情</SelectItem>
+                  <SelectItem value="dialogue">对话台词</SelectItem>
+                  <SelectItem value="description">场景描写</SelectItem>
+                  <SelectItem value="reference">参考资料</SelectItem>
+                  <SelectItem value="other">其他</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">内容</label>
+              <textarea
+                value={knowledgeFormContent}
+                onChange={(e) => setKnowledgeFormContent(e.target.value)}
+                placeholder="输入知识内容..."
+                className="mt-1 w-full h-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm resize-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">标签</label>
+              <Input
+                value={knowledgeFormTags}
+                onChange={(e) => setKnowledgeFormTags(e.target.value)}
+                placeholder="用逗号分隔，例如：写作技巧, 特色设定"
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddKnowledgeDialog(false)}>
+              取消
+            </Button>
+            <Button onClick={handleSubmitKnowledge} disabled={knowledgeSubmitting || !knowledgeFormTitle.trim() || !knowledgeFormContent.trim()}>
+              {knowledgeSubmitting ? '添加中...' : '添加'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

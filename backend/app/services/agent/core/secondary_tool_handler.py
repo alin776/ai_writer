@@ -35,17 +35,42 @@ class SecondaryToolHandler:
     处理工具执行后需要进行的二次工具调用，主要用于编辑器工具链式调用
     """
 
-    # 修改意图关键词
-    MODIFY_KEYWORDS = [
+    # 修改意图关键词（已弃用，保留作为参考）
+    # 现在改用结构化判断，不再依赖硬编码关键词
+    _LEGACY_MODIFY_KEYWORDS = [
         "修改", "改写", "重写", "续写", "插入", "帮我改", "你来改",
-        "来帮我改", "改一下", "太平淡", "帮改", "改改"
+        "来帮我改", "改一下", "太平淡", "帮改", "改改", "优化", "扩写", "润色"
     ]
 
     # 读取意图关键词
     READ_KEYWORDS = ["读", "看", "查看", "显示", "展示", "告诉我", "第几章", "内容是什么"]
 
-    # 写作意图关键词
-    WRITE_KEYWORDS = ["写", "续写", "创作", "生成", "继续", "扩写", "补充"]
+    # 写作/编辑意图关键词（包含创作和编辑两类）
+    # 2026-01-09: 添加编辑意图词，避免"看看第三章，帮我优化一下"被误判为纯读取
+    WRITE_KEYWORDS = [
+        # 创作类
+        "写", "续写", "创作", "生成", "继续", "补充",
+        # 编辑类（改写/润色场景）
+        "修改", "改写", "重写", "润色", "优化", "扩写",
+        "帮我改", "改一下", "帮改", "改改", "太平淡"
+    ]
+
+    # 获取类工具（返回数据，不执行编辑）
+    GETTER_TOOLS = [
+        "get_chapter_by_order_tool",
+        "get_context_tool",
+        "read_chapter_tool",
+        "search_analysis_fragments_tool",
+        "get_worldview_summary"
+    ]
+
+    # 编辑类工具（执行实际编辑，会返回 requires_confirmation）
+    EDITOR_TOOLS = [
+        "smart_rewrite",
+        "smart_continue",
+        "smart_insert",
+        "apply_chapter_edit"
+    ]
 
     def __init__(self, generate_text_func: Callable[..., Awaitable[Dict[str, Any]]]):
         """
@@ -60,23 +85,80 @@ class SecondaryToolHandler:
         self,
         user_message: str,
         agent_type: str,
-        already_did_second_call: bool
+        already_did_second_call: bool,
+        tool_result: str = None
     ) -> bool:
         """检查是否需要二次工具调用
+
+        改进说明（2026-01-09）：
+        移除硬编码关键词判断，改用结构化判断：
+        - 基于第一次工具调用结果的结构来判断
+        - 如果结果包含 chapter_id 且不是编辑器工具的结果，则可能需要二次调用
 
         Args:
             user_message: 用户消息
             agent_type: Agent 类型
             already_did_second_call: 是否已执行过二次调用
+            tool_result: 第一次工具调用的结果（JSON字符串）
 
         Returns:
             是否需要二次工具调用
         """
+        # 基础检查
         if already_did_second_call:
             return False
         if agent_type != "writing":
             return False
-        return any(kw in user_message for kw in self.MODIFY_KEYWORDS)
+
+        # 如果没有工具结果，无法判断
+        if not tool_result:
+            return False
+
+        # 结构化判断：分析工具结果
+        try:
+            result = json.loads(tool_result)
+
+            # 1. 检查是否已经是编辑器工具的结果（有 requires_confirmation）
+            if result.get("requires_confirmation"):
+                # 已经是编辑器工具结果，不需要二次调用
+                return False
+
+            # 2. 检查是否已经是错误结果
+            if result.get("error"):
+                return False
+
+            # 3. 检查是否包含 chapter_id（说明是获取类工具的结果）
+            has_chapter_id = (
+                result.get("chapter_id") or
+                (result.get("current_chapter") or {}).get("id") or
+                (result.get("chapter") or {}).get("id")
+            )
+
+            # 4. 检查是否有章节内容（说明成功获取了数据）
+            has_content = (
+                result.get("content") or
+                (result.get("current_chapter") or {}).get("content") or
+                (result.get("chapter") or {}).get("content")
+            )
+
+            # 5. 如果是纯读取请求，不需要二次调用
+            is_pure_read = any(kw in user_message for kw in self.READ_KEYWORDS)
+            is_write_intent = any(kw in user_message for kw in self.WRITE_KEYWORDS)
+
+            # 如果只是读取请求且没有写作意图，不触发二次调用
+            if is_pure_read and not is_write_intent:
+                return False
+
+            # 6. 如果有 chapter_id 且有内容，可能需要二次调用来执行编辑
+            if has_chapter_id and has_content:
+                logger.info(f"[SecondaryToolHandler] 📋 检测到获取类工具结果，可能需要二次编辑调用")
+                return True
+
+            return False
+
+        except (json.JSONDecodeError, TypeError, AttributeError) as e:
+            logger.debug(f"[SecondaryToolHandler] 工具结果解析失败: {e}")
+            return False
 
     def extract_chapter_id_from_tool_result(self, tool_result: str) -> Optional[str]:
         """从工具返回结果中提取 chapter_id
@@ -178,13 +260,13 @@ class SecondaryToolHandler:
 现在判断是否需要第二次工具调用来完成用户的实际编辑需求。
 
 可用的编辑器工具：
-- smart_rewrite: 改写/修改章节内容 (参数: chapter_id, instructions)
-- smart_continue: 续写章节 (参数: chapter_id, context)
+- smart_rewrite: 改写/修改章节内容 (参数: chapter_id, text_to_rewrite, user_requirement)
+- smart_continue: 追加内容到章节末尾 (参数: chapter_id, content) - 注意：不生成内容，只追加
 - smart_insert: 插入内容 (参数: chapter_id, position, content)
 
 ⚠️ 重要规则：
-1. 用户说"修改"、"改写"、"重写" → 使用 smart_rewrite
-2. 用户说"续写"、"继续写" → 使用 smart_continue
+1. 用户说"修改"、"改写"、"重写"、"润色" → 使用 smart_rewrite
+2. 用户说"续写"、"继续写" → 此场景建议让用户使用 Planning 模式
 3. 用户说"插入" → 使用 smart_insert
 4. 必须严格返回JSON格式！
 

@@ -37,9 +37,11 @@ class ToolDispatcher:
     """工具分发器 - 统一工具调用分发"""
 
     # 编辑意图关键词
+    # 2026-01-09: 添加"优化"、"扩写"、"润色"，与 secondary_tool_handler.py 保持一致
     MODIFY_KEYWORDS = [
         "修改", "改写", "重写", "续写", "插入", "帮我改", "你来改",
-        "来帮我改", "改一下", "太平淡", "帮改", "改改"
+        "来帮我改", "改一下", "太平淡", "帮改", "改改",
+        "优化", "扩写", "润色"  # 2026-01-09 新增
     ]
 
     def __init__(self, agent):
@@ -326,10 +328,27 @@ class ToolDispatcher:
         self, tool_args: Dict[str, Any], state: "AgentState"
     ) -> str:
         """调用智能改写工具"""
-        text_to_rewrite = tool_args.get("text_to_rewrite") or tool_args.get("content", "")
-        chapter_content = tool_args.get("chapter_content", "")
-        user_requirement = tool_args.get("user_requirement", "")
+        # P2修复：多层兜底逻辑，避免参数为空
+        text_to_rewrite = (
+            tool_args.get("text_to_rewrite") or
+            tool_args.get("content", "") or
+            state.get("context", {}).get("selected_text", "")  # 兜底：从 state 获取选中文本
+        )
+
+        # chapter_content 兜底：使用 text_to_rewrite
+        chapter_content = tool_args.get("chapter_content", "") or text_to_rewrite
+
+        # user_requirement 兜底：从用户消息中提取
+        user_requirement = tool_args.get("user_requirement", "") or state.get("last_user_message", "")
+
         base_version = tool_args.get("base_version", "")
+
+        # 诊断日志：帮助定位参数问题
+        logger.info(f"[ToolDispatcher] smart_rewrite 参数检查: "
+                    f"chapter_id={tool_args.get('chapter_id', '(空)')}, "
+                    f"text_len={len(text_to_rewrite) if text_to_rewrite else 0}, "
+                    f"chapter_content_len={len(chapter_content) if chapter_content else 0}, "
+                    f"user_req_len={len(user_requirement) if user_requirement else 0}")
 
         # InlineAI 支持：优先使用 context 中的 selected_text
         context = state.get("context", {})

@@ -119,11 +119,27 @@ class ToolExecutor:
             params.setdefault("focus", "all")
 
         elif tool_name == "smart_rewrite":
-            params.setdefault("chapter_id", state.get("chapter_id", ""))
-            params.setdefault("text_to_rewrite", None)
-            params.setdefault("chapter_content", None)
-            params.setdefault("user_requirement", None)
-            params.setdefault("base_version", None)
+            # P1修复：从 state 获取上下文信息作为兜底，避免参数全为 None
+            current_chapter_id = state.get("chapter_id", "")
+            context_data = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
+            selected_text = context_data.get("selected_text", "")
+
+            params.setdefault("chapter_id", current_chapter_id)
+
+            # text_to_rewrite: 优先使用参数值，其次使用选中文本
+            if not params.get("text_to_rewrite"):
+                params["text_to_rewrite"] = selected_text if selected_text else ""
+
+            # chapter_content: 兜底使用 text_to_rewrite
+            if not params.get("chapter_content"):
+                params["chapter_content"] = params.get("text_to_rewrite", "")
+
+            # user_requirement: 从用户消息中提取改写要求
+            if not params.get("user_requirement"):
+                params["user_requirement"] = state.get("last_user_message", "")
+
+            # base_version: 默认空字符串（不是 None）
+            params.setdefault("base_version", "")
             params.setdefault("user_id", state.get("user_id"))
 
         elif tool_name == "smart_continue":

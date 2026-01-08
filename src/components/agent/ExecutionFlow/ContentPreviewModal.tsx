@@ -28,8 +28,6 @@ interface ContentPreviewModalProps {
 const FILE_FORMATS = [
   { key: 'txt', label: 'TXT', color: '#64748b' },
   { key: 'md', label: 'Markdown', color: '#3b82f6' },
-  { key: 'pdf', label: 'PDF', color: '#ef4444' },
-  { key: 'docx', label: 'DOCX', color: '#2563eb' },
 ] as const;
 
 type FileFormat = typeof FILE_FORMATS[number]['key'];
@@ -75,22 +73,13 @@ export function ContentPreviewModal({
   };
 
   // 下载内容
-  const handleDownload = (format: FileFormat) => {
+  const handleDownload = async (format: FileFormat) => {
     const formatConfig: Record<FileFormat, { ext: string; mime: string }> = {
       txt: { ext: '.txt', mime: 'text/plain' },
       md: { ext: '.md', mime: 'text/markdown' },
-      pdf: { ext: '.pdf', mime: 'application/pdf' },
-      docx: { ext: '.docx', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
     };
 
     const config = formatConfig[format];
-
-    // PDF 和 DOCX 需要后端支持
-    if (format === 'pdf' || format === 'docx') {
-      // TODO: 调用后端 API 进行格式转换
-      console.log(`${format.toUpperCase()} 格式需要后端支持`);
-      return;
-    }
 
     const blob = new Blob([content], { type: config.mime });
     const url = URL.createObjectURL(blob);

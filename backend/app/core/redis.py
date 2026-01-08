@@ -204,21 +204,40 @@ class RedisClient:
     async def expire(cls, key: str, seconds: int) -> bool:
         """
         设置键的过期时间
-        
+
         Args:
             key: 缓存键
             seconds: 过期时间（秒）
-            
+
         Returns:
             是否设置成功
         """
         try:
             redis = await cls.get_instance()
             return await redis.expire(key, seconds)
-            
+
         except Exception as e:
             logger.error(f"Redis EXPIRE error [{key}]: {e}")
             return False
+
+    @classmethod
+    async def incr(cls, key: str) -> int:
+        """
+        对键的值进行原子递增
+
+        Args:
+            key: 缓存键
+
+        Returns:
+            递增后的值
+        """
+        try:
+            redis = await cls.get_instance()
+            return await redis.incr(key)
+
+        except Exception as e:
+            logger.error(f"Redis INCR error [{key}]: {e}")
+            raise
 
 
 # 全局 Redis 实例（便于使用）

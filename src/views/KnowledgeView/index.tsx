@@ -31,6 +31,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import FilePicker from '@/components/common/FilePicker';
 import { knowledgeApi, type KnowledgeItem as ApiKnowledgeItem } from '@/services/knowledgeApi';
 import { ToastContainer } from '@/components/ui/Toast';
@@ -552,7 +559,7 @@ const KnowledgeView: React.FC = () => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <label className="text-sm font-medium text-gray-700">标题</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">标题</label>
               <Input
                 value={formTitle}
                 onChange={(e) => setFormTitle(e.target.value)}
@@ -561,30 +568,31 @@ const KnowledgeView: React.FC = () => {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700">分类</label>
-              <select
-                value={formCategory}
-                onChange={(e) => setFormCategory(e.target.value as KnowledgeCategory)}
-                className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {CATEGORY_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">分类</label>
+              <Select value={formCategory} onValueChange={(value) => setFormCategory(value as KnowledgeCategory)}>
+                <SelectTrigger className="mt-1 w-full">
+                  <SelectValue placeholder="选择分类" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700">内容</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">内容</label>
               <textarea
                 value={formContent}
                 onChange={(e) => setFormContent(e.target.value)}
                 placeholder="输入知识内容..."
-                className="mt-1 w-full h-40 px-3 py-2 border border-gray-300 rounded-md text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 w-full h-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm resize-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700">标签</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">标签</label>
               <Input
                 value={formTags}
                 onChange={(e) => setFormTags(e.target.value)}
@@ -611,7 +619,7 @@ const KnowledgeView: React.FC = () => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <label className="text-sm font-medium text-gray-700">标题</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">标题</label>
               <Input
                 value={formTitle}
                 onChange={(e) => setFormTitle(e.target.value)}
@@ -620,21 +628,22 @@ const KnowledgeView: React.FC = () => {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700">分类</label>
-              <select
-                value={formCategory}
-                onChange={(e) => setFormCategory(e.target.value as KnowledgeCategory)}
-                className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {CATEGORY_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">分类</label>
+              <Select value={formCategory} onValueChange={(value) => setFormCategory(value as KnowledgeCategory)}>
+                <SelectTrigger className="mt-1 w-full">
+                  <SelectValue placeholder="选择分类" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700">文件</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">文件</label>
               <div className="mt-1">
                 <FilePicker
                   file={uploadFile}
@@ -646,7 +655,7 @@ const KnowledgeView: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700">标签</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">标签</label>
               <Input
                 value={formTags}
                 onChange={(e) => setFormTags(e.target.value)}
@@ -673,7 +682,7 @@ const KnowledgeView: React.FC = () => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <label className="text-sm font-medium text-gray-700">标题</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">标题</label>
               <Input
                 value={formTitle}
                 onChange={(e) => setFormTitle(e.target.value)}
@@ -681,31 +690,32 @@ const KnowledgeView: React.FC = () => {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700">分类</label>
-              <select
-                value={formCategory}
-                onChange={(e) => setFormCategory(e.target.value as KnowledgeCategory)}
-                className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {CATEGORY_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">分类</label>
+              <Select value={formCategory} onValueChange={(value) => setFormCategory(value as KnowledgeCategory)}>
+                <SelectTrigger className="mt-1 w-full">
+                  <SelectValue placeholder="选择分类" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             {(currentItem?.source_type === 'manual' || currentItem?.source_type === 'imported') && (
               <div>
-                <label className="text-sm font-medium text-gray-700">内容</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">内容</label>
                 <textarea
                   value={formContent}
                   onChange={(e) => setFormContent(e.target.value)}
-                  className="mt-1 w-full h-40 px-3 py-2 border border-gray-300 rounded-md text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="mt-1 w-full h-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm resize-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             )}
             <div>
-              <label className="text-sm font-medium text-gray-700">标签</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">标签</label>
               <Input
                 value={formTags}
                 onChange={(e) => setFormTags(e.target.value)}
@@ -729,7 +739,7 @@ const KnowledgeView: React.FC = () => {
           <DialogHeader>
             <DialogTitle>确认删除</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-gray-600 py-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400 py-4">
             确定要删除「{currentItem?.title}」吗？此操作不可撤销。
           </p>
           <DialogFooter>
