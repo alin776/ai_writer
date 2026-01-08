@@ -370,7 +370,7 @@ class EventParser:
 
     @staticmethod
     def extract_json_from_text(text: str) -> Optional[dict]:
-        """从文本中提取JSON对象"""
+        """从文本中提取JSON对象（增强版，支持更多容错）"""
         text = text.strip()
         if not text:
             return None
@@ -399,12 +399,49 @@ class EventParser:
                 except json.JSONDecodeError:
                     pass
 
-        # 方法4: 正则匹配 JSON 对象
-        match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
-        if match:
+        # 方法4: 查找第一个 { 到最后一个 } 之间的内容（更宽松的匹配）
+        first_brace = text.find('{')
+        last_brace = text.rfind('}')
+        if first_brace != -1 and last_brace > first_brace:
+            json_candidate = text[first_brace:last_brace + 1]
             try:
-                return json.loads(match.group(0))
+                return json.loads(json_candidate)
             except json.JSONDecodeError:
-                pass
+                # 方法5: 尝试修复常见JSON错误
+                fixed = EventParser._fix_common_json_errors(json_candidate)
+                if fixed:
+                    try:
+                        return json.loads(fixed)
+                    except json.JSONDecodeError:
+                        pass
 
         return None
+
+    @staticmethod
+    def _fix_common_json_errors(text: str) -> Optional[str]:
+        """修复常见的JSON格式错误"""
+        if not text:
+            return None
+
+        # 移除尾随逗号（如 [1,2,] 或 {"a":1,}）
+        text = re.sub(r',\s*([}\]])', r'\1', text)
+
+        # 修复字符串中未转义的实际换行符
+        # 使用更安全的方式：逐字符处理
+        result = []
+        in_string = False
+        i = 0
+        while i < len(text):
+            char = text[i]
+            if char == '"' and (i == 0 or text[i-1] != '\\'):
+                in_string = not in_string
+                result.append(char)
+            elif in_string and char == '\n':
+                result.append('\\n')
+            elif in_string and char == '\r':
+                result.append('\\r')
+            else:
+                result.append(char)
+            i += 1
+
+        return ''.join(result)

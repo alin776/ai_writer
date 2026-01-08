@@ -1587,6 +1587,10 @@ class WritingAgentGraph:
             from app.services.agent.utils.monitoring import increment_counter, record_timer
             start_time = time.time()
 
+            # v7.0: 提前设置flow事件回调，确保执行阶段可发送revision事件
+            if on_flow_event:
+                self.stream_event_handler.set_flow_event_callback(on_flow_event)
+
             # ✅ P0修复：构建隔离的thread_id - 委托到公共方法
             isolated_thread_id = self._build_thread_id(user_id, work_id, conversation_id, "Planning")
 
@@ -2397,13 +2401,168 @@ class WritingAgentGraph:
         Returns:
             任务执行结果
         """
-        return await self.task_runner.execute_task(
+        result = await self.task_runner.execute_task(
             task=task,
             work_id=work_id,
             chapter_id=chapter_id,
             context=context,
             on_progress=on_progress
         )
+        # v7.0: 检测HITL确认请求并发送审批/修订事件
+        await self._handle_hitl_tool_result(task, result, work_id=work_id, chapter_id=chapter_id)
+        return result
+
+    async def _handle_hitl_tool_result(
+        self,
+        task: Dict[str, Any],
+        tool_result: Any,
+        work_id: Optional[str] = None,
+        chapter_id: Optional[str] = None
+    ) -> None:
+        """处理工具结果中的HITL确认请求（Planning路径）"""
+        if not tool_result:
+            return
+        tool_name = task.get("tool", "")
+        params = task.get("params", {}) or {}
+
+        result_obj = None
+        if isinstance(tool_result, dict):
+            result_obj = tool_result
+        elif isinstance(tool_result, str):
+            try:
+                result_obj = json.loads(tool_result)
+            except Exception:
+                result_obj = None
+
+        if not (isinstance(result_obj, dict) and result_obj.get("requires_confirmation")):
+            # Planning 中 continue_writing_tool 仅生成文本，不会触发修订；此处进行兜底转换
+            if tool_name == "continue_writing_tool" and self._should_promote_continue_task(task, chapter_id):
+                content_text = tool_result if isinstance(tool_result, str) else str(tool_result or "")
+                if not content_text.strip():
+                    return
+                operation = params.get("operation") or "append"
+                result_obj = {
+                    "requires_confirmation": True,
+                    "action_type": "edit",
+                    "operation": operation,
+                    "chapter_id": params.get("chapter_id") or chapter_id,
+                    "chapter_title": params.get("chapter_title"),
+                    "work_id": params.get("work_id") or work_id,
+                    "content": content_text,
+                    "description": params.get("description") or f"AI续写：+{len(content_text)}字",
+                    "editor_action": {
+                        "type": "continue",
+                        "requires_confirmation": True
+                    }
+                }
+            else:
+                return
+
+        # 构建审批数据
+        original_content = (
+            result_obj.get("original_text")
+            or result_obj.get("original_content")
+            or result_obj.get("old_title")
+        )
+        new_content = (
+            result_obj.get("content")
+            or result_obj.get("new_content")
+            or result_obj.get("new_title")
+        )
+
+        request_id = result_obj.get("request_id") or f"{tool_name}_{uuid.uuid4().hex}"
+        approval_data = {
+            "request_id": request_id,
+            "action_type": result_obj.get("action_type", "edit"),
+            "operation": result_obj.get("operation"),
+            "original_content": original_content,
+            "new_content": new_content,
+            "description": result_obj.get("description"),
+            "versions": result_obj.get("versions") or result_obj.get("recommendations"),
+            "chapter_id": result_obj.get("chapter_id"),
+            "chapter_title": result_obj.get("chapter_title"),
+            "work_id": result_obj.get("work_id"),
+            "old_title": result_obj.get("old_title"),
+            "new_title": result_obj.get("new_title"),
+            "editor_action": result_obj.get("editor_action")
+        }
+
+        # 如果工具返回了position但没有editor_action，则补充
+        if not approval_data.get("editor_action") and result_obj.get("position") is not None:
+            position_value = result_obj.get("position")
+            if isinstance(position_value, dict) and "from" in position_value:
+                position_payload = position_value
+            else:
+                position_payload = {"from": position_value, "to": position_value}
+
+            operation = approval_data.get("operation")
+            inferred_type = "modify"
+            if operation == "append":
+                inferred_type = "continue"
+            elif operation == "insert":
+                inferred_type = "insert"
+
+            approval_data["editor_action"] = {
+                "type": inferred_type,
+                "position": position_payload,
+                "requires_confirmation": True
+            }
+
+        # 调用审批回调（用于前端通知）
+        callback_result = None
+        if self._approval_callback:
+            try:
+                callback_result = await self._approval_callback(approval_data)
+            except Exception as e:
+                logger.warning(f"[HITL] 审批回调执行失败: {e}")
+
+        if isinstance(callback_result, dict) and callback_result.get("request_id"):
+            request_id = callback_result.get("request_id")
+        elif isinstance(callback_result, str):
+            request_id = callback_result
+
+        # 构建 revision 事件
+        action_type = approval_data.get("action_type", "edit")
+        operation = approval_data.get("operation")
+        revision_type_map = {
+            "rewrite": "replace",
+            "edit": "replace",
+            "continue": "append",
+            "insert": "insert",
+            "create": "create",
+            "rename": "rename"
+        }
+        revision_type = revision_type_map.get(action_type, "replace")
+        if operation == "append":
+            revision_type = "append"
+        elif operation == "insert":
+            revision_type = "insert"
+
+        content_preview = None
+        if new_content:
+            content_preview = new_content[:50] if len(new_content) > 50 else new_content
+
+        await self.stream_event_handler.emit_revision(
+            revision_type=revision_type,
+            request_id=request_id,
+            chapter_id=approval_data.get("chapter_id"),
+            chapter_title=approval_data.get("chapter_title"),
+            content_preview=content_preview,
+            old_title=approval_data.get("old_title"),
+            new_title=approval_data.get("new_title"),
+            versions=approval_data.get("versions")
+        )
+
+    def _should_promote_continue_task(self, task: Dict[str, Any], chapter_id: Optional[str]) -> bool:
+        """判断是否将 continue_writing_tool 的结果转为修订确认"""
+        if not chapter_id:
+            return False
+        params = task.get("params", {}) or {}
+        if params.get("apply_to_editor") is True:
+            return True
+        description = (task.get("description") or "")
+        keywords = ("续写", "继续写", "接着写", "补写", "追加", "章节末尾", "本章末尾")
+        return any(keyword in description for keyword in keywords)
 
     async def _fallback_legacy_execute(
         self,

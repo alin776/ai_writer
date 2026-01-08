@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 
 export interface RevisionData {
   id: string;
-  type: 'modify' | 'continue';
+  type: 'modify' | 'continue' | 'insert';
   position: { from: number; to: number };
   original?: string;
   replacement: string;

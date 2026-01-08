@@ -270,6 +270,9 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     stopStreaming,
     pendingApproval,
     submitApproval,
+    updateRevisionStatus,
+    undoRevision,      // v7.2
+    redoRevision,      // v7.2
   } = useAgentChat({ workId, chapterId, sessionId });  // ✅ 传入workId和chapterId进行会话隔离
 
   // 获取当前章节内容，用于 @optimization 直接调用去痕迹接口
@@ -595,7 +598,7 @@ ${context.selected_text}
   }, [checkIfAtBottom]);
 
   // 计算最后一条 agent 消息的 flowItems 长度，用于触发自动滚动
-  const lastAgentMessage = messages.findLast(m => m.role === 'agent');
+  const lastAgentMessage = [...messages].reverse().find(m => m.role === 'agent');
   const flowItemsCount = (lastAgentMessage as any)?.flowItems?.length || 0;
 
   // 当消息列表或执行轨迹更新时，如果用户在底部则自动滚动
@@ -1042,7 +1045,104 @@ ${selectionContext.selected_text}
                 <div className="flex items-start">
                   <div className="flex-1 !border-none !bg-transparent">
                     {flowItemsWithoutOutput.length > 0 && (
-                      <ExecutionFlow items={flowItemsWithoutOutput} />
+                      <ExecutionFlow
+                        items={flowItemsWithoutOutput}
+                        onAcceptRevision={(itemId, requestId, selectedVersion) => {
+                          console.log('[AIPanel] RevisionCard accepted:', { itemId, requestId, selectedVersion });
+
+                          // v7.2: 从 pendingApproval 中提取快照数据用于撤销/重做
+                          let snapshot: {
+                            originalContent?: string;
+                            newContent?: string;
+                            editorPosition?: { from: number; to: number };
+                            selectedVersion?: number;
+                          } | undefined;
+
+                          if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
+                            // 根据不同类型提取快照数据
+                            const originalContent = pendingApproval.original_content;
+                            let newContent = pendingApproval.new_content;
+                            const editorPosition = pendingApproval.editor_action?.position;
+
+                            // 如果是 rewrite 类型，使用选择的版本内容
+                            if (pendingApproval.action_type === 'rewrite' &&
+                                selectedVersion !== undefined &&
+                                pendingApproval.versions?.[selectedVersion]?.content) {
+                              newContent = pendingApproval.versions[selectedVersion].content;
+                            }
+
+                            snapshot = {
+                              originalContent,
+                              newContent,
+                              editorPosition,
+                              selectedVersion
+                            };
+
+                            console.log('[AIPanel] 保存快照数据:', {
+                              hasOriginal: !!originalContent,
+                              hasNew: !!newContent,
+                              hasPosition: !!editorPosition,
+                              selectedVersion
+                            });
+                          }
+
+                          // 更新 revision 状态为已采纳，并保存快照
+                          updateRevisionStatus(itemId, 'accepted', snapshot);
+
+                          // 如果有 pendingApproval，且 requestId 匹配，则调用 submitApproval
+                          if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
+                            submitApproval(true, selectedVersion);
+                          } else if (pendingApproval && requestId && pendingApproval.request_id !== requestId) {
+                            console.warn('[AIPanel] RevisionCard requestId 不匹配，已跳过 submitApproval', {
+                              pendingRequestId: pendingApproval.request_id,
+                              requestId
+                            });
+                          }
+                        }}
+                        onDiscardRevision={(itemId, requestId) => {
+                          console.log('[AIPanel] RevisionCard discarded:', { itemId, requestId });
+
+                          // v7.2: 从 pendingApproval 中提取快照数据用于重做
+                          let snapshot: {
+                            originalContent?: string;
+                            newContent?: string;
+                            editorPosition?: { from: number; to: number };
+                            selectedVersion?: number;
+                          } | undefined;
+
+                          if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
+                            const originalContent = pendingApproval.original_content;
+                            const newContent = pendingApproval.new_content;
+                            const editorPosition = pendingApproval.editor_action?.position;
+
+                            snapshot = {
+                              originalContent,
+                              newContent,
+                              editorPosition
+                            };
+                          }
+
+                          // 更新 revision 状态为已弃用，并保存快照
+                          updateRevisionStatus(itemId, 'discarded', snapshot);
+
+                          if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
+                            submitApproval(false);
+                          } else if (pendingApproval && requestId && pendingApproval.request_id !== requestId) {
+                            console.warn('[AIPanel] RevisionCard requestId 不匹配，已跳过 submitApproval', {
+                              pendingRequestId: pendingApproval.request_id,
+                              requestId
+                            });
+                          }
+                        }}
+                        onUndoRevision={(itemId) => {
+                          console.log('[AIPanel] RevisionCard undo:', { itemId });
+                          undoRevision(itemId);
+                        }}
+                        onRedoRevision={(itemId) => {
+                          console.log('[AIPanel] RevisionCard redo:', { itemId });
+                          redoRevision(itemId);
+                        }}
+                      />
                     )}
                     {showActivityStream && (
                       <div className="min-w-0">

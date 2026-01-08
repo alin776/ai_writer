@@ -307,6 +307,16 @@ class AgentApiService {
                 case 'completion':
                   callbacks.onFlowEvent?.({ type: 'completion', data: data.data, timestamp: data.timestamp });
                   break;
+                case 'revision': {
+                  // 兼容后端两种结构：直接 revision 事件 / 包裹在 data 中的 flow_event
+                  const payload = data.data as any;
+                  const revisionEvent =
+                    payload && payload.type === 'revision' && payload.data ? payload : null;
+                  const revisionData = revisionEvent ? revisionEvent.data : (payload?.data ?? payload);
+                  const timestamp = revisionEvent?.timestamp ?? payload?.timestamp ?? data.timestamp;
+                  callbacks.onFlowEvent?.({ type: 'revision', data: revisionData, timestamp });
+                  break;
+                }
                 case 'summarization_start':
                   console.log('[AgentApi] Received summarization_start event:', data);
                   console.log('[AgentApi] callbacks.onFlowEvent exists:', !!callbacks.onFlowEvent);
@@ -502,8 +512,8 @@ class AgentApiService {
     action: ApprovalActionRequest
   ): Promise<any> {
     const response = await this.client.post(
-      `/approvals/${requestId}/approve`,
-      action
+      `/approvals/${requestId}/action`,
+      { ...action, action: 'approve' }
     );
     return response.data;
   }
@@ -516,8 +526,8 @@ class AgentApiService {
     action: ApprovalActionRequest
   ): Promise<any> {
     const response = await this.client.post(
-      `/approvals/${requestId}/reject`,
-      action
+      `/approvals/${requestId}/action`,
+      { ...action, action: 'reject' }
     );
     return response.data;
   }

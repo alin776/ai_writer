@@ -25,6 +25,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
   const [options, setOptions] = useState({
     includeWorldview: true,
     includeGuidelines: true,
+    autoExtractWorldview: true,
   });
   const [importMode, setImportMode] = useState<'new' | 'existing'>('new');
   const [targetWorkId, setTargetWorkId] = useState<string>('');
@@ -121,6 +122,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
         createNew: importMode === 'new',
         includeWorldview: options.includeWorldview,
         includeGuidelines: options.includeGuidelines,
+        autoExtractWorldview: options.autoExtractWorldview,
         workId: importMode === 'existing' ? targetWorkId : undefined,
       };
 
@@ -289,6 +291,28 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
                 />
                 导入创作规范
               </label>
+            </div>
+          </div>
+        )}
+
+        {/* 自动解析选项（仅 Markdown/TXT 格式） */}
+        {(format === 'markdown' || format === 'txt') && file && (
+          <div className="form-section">
+            <h3>智能解析</h3>
+            <div className="import-options">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={options.autoExtractWorldview}
+                  onChange={e =>
+                    setOptions({ ...options, autoExtractWorldview: e.target.checked })
+                  }
+                />
+                自动解析世界观（AI 提取人物/地点/设定）
+              </label>
+              <p className="option-hint">
+                开启后将使用 AI 分析章节内容，自动创建人物、地点、设定卡片
+              </p>
             </div>
           </div>
         )}

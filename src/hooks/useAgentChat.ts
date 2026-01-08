@@ -4,7 +4,7 @@ import { agentApi } from '@/services/agentApi';
 import { useConversationPersistence } from './useConversationPersistence';
 import { getGlobalSessionManager } from '@/contexts/SessionContext';
 import type { SessionState } from './SessionStateManager';
-import type { AgentChatRequest, AgentChatResponse, ActivityItem, ProgressData, FlowItem, ToolFlowData, StepFlowData, TaskSnapshot } from '@/types/agent';
+import type { AgentChatRequest, AgentChatResponse, ActivityItem, ProgressData, FlowItem, ToolFlowData, StepFlowData, TaskSnapshot, SummarizationFlowData, RevisionFlowData, RevisionStatus } from '@/types/agent';
 import TypewriterWorker from '@/workers/typewriterWorker?worker';
 
 // 清理任务描述中的 UUID（兜底过滤）
@@ -46,7 +46,7 @@ export interface EditorAction {
 
 export interface ApprovalRequest {
   request_id: string;
-  action_type: 'edit' | 'rewrite' | 'insert';
+  action_type: 'edit' | 'rewrite' | 'insert' | 'create' | 'rename';
   operation?: string;
   original_content?: string;
   new_content?: string;
@@ -83,6 +83,16 @@ interface UseAgentChatReturn {
   createNewConversation: () => Promise<void>;
   pendingApproval: ApprovalRequest | null;
   submitApproval: (approved: boolean, selectedVersion?: number) => Promise<void>;
+  updateRevisionStatus: (itemId: string, status: RevisionStatus, snapshot?: {
+    originalContent?: string;
+    newContent?: string;
+    editorPosition?: { from: number; to: number };
+    selectedVersion?: number;
+  }) => void;
+  acceptAllRevisions: (itemIds: string[]) => void;
+  discardAllRevisions: (itemIds: string[]) => void;
+  undoRevision: (itemId: string) => void;      // v7.2
+  redoRevision: (itemId: string) => void;      // v7.2
   stopStreaming: () => void;
 }
 
@@ -781,11 +791,22 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   break;
                 }
                 case 'summarization_complete': {
-                  currentFlowItems = currentFlowItems.map(item =>
+                  currentFlowItems = currentFlowItems.map((item): FlowItem =>
                     item.type === 'summarization'
-                      ? { ...item, data: { ...item.data, status: 'done' } }
+                      ? { ...item, data: { ...(item.data as SummarizationFlowData), status: 'done' } }
                       : item
                   );
+                  break;
+                }
+                case 'revision': {
+                  // v7.0: 修订请求事件
+                  const item: FlowItem = {
+                    id: `flow-${Date.now()}-revision`,
+                    type: 'revision',
+                    data: event.data,
+                    timestamp,
+                  };
+                  currentFlowItems = [...currentFlowItems, item];
                   break;
                 }
               }
@@ -1266,11 +1287,17 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
             const newContent = pending.new_content;
             const originalContent = pending.original_content;
             const editorAction = pending.editor_action;
+            const resolvedType =
+              editorAction?.type === 'continue' || pending.operation === 'append'
+                ? 'continue'
+                : editorAction?.type === 'insert' || pending.operation === 'insert'
+                  ? 'insert'
+                  : 'modify';
 
             window.dispatchEvent(
               new CustomEvent('agent-show-revision', {
                 detail: {
-                  type: editorAction?.type === 'continue' ? 'continue' : 'modify',
+                  type: resolvedType,
                   original: originalContent,
                   replacement: newContent,
                   position: editorAction?.position,
@@ -1287,13 +1314,17 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
             window.dispatchEvent(
               new CustomEvent('agent-show-revision', {
                 detail: {
-                  type: 'continue',
+                  type: 'insert',
                   replacement: newContent,
                   position: editorAction?.position,
                   revisionId: `rev-${pending.request_id}-${Date.now()}`
                 }
               })
             );
+          }
+          // 🆕 处理 create/rename 类型（不触发编辑器修订，直接提交审批）
+          else if (pending.action_type === 'create' || pending.action_type === 'rename') {
+            // 无需触发 editor 修订标记
           }
         }
 
@@ -1314,6 +1345,158 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       }
     },
     [sessionId, sessionManager]
+  );
+
+  // v7.0: 更新 revision 状态
+  const updateRevisionStatus = useCallback(
+    (itemId: string, status: RevisionStatus, snapshot?: {
+      originalContent?: string;
+      newContent?: string;
+      editorPosition?: { from: number; to: number };
+      selectedVersion?: number;
+    }) => {
+      const currentSession = sessionManager.getSession(sessionId);
+      const currentMessages = currentSession?.messages || [];
+
+      // 遍历所有消息，找到包含该 revision 的消息并更新
+      const updated = currentMessages.map((msg: Message) => {
+        if (!msg.flowItems) return msg;
+
+        const updatedFlowItems = msg.flowItems.map((item: FlowItem) => {
+          if (item.id === itemId && item.type === 'revision') {
+            return {
+              ...item,
+              data: {
+                ...(item.data as RevisionFlowData),
+                status,
+                // v7.2: 保存快照数据用于撤销/重做
+                ...(snapshot || {})
+              }
+            };
+          }
+          return item;
+        });
+
+        return { ...msg, flowItems: updatedFlowItems };
+      });
+
+      sessionManager.updateSession(sessionId, { messages: updated });
+
+      // v7.1: 持久化修订状态，确保刷新后不丢失
+      persistMessages(updated, currentSession?.conversationId, currentSession?.mode);
+    },
+    [sessionId, sessionManager, persistMessages]
+  );
+
+  // v7.2: 撤销修订（恢复原始内容）
+  const undoRevision = useCallback(
+    (itemId: string) => {
+      const currentSession = sessionManager.getSession(sessionId);
+      const currentMessages = currentSession?.messages || [];
+
+      // 查找该修订的数据
+      let revisionData: RevisionFlowData | null = null;
+      for (const msg of currentMessages) {
+        if (!msg.flowItems) continue;
+        for (const item of msg.flowItems as FlowItem[]) {
+          if (item.id === itemId && item.type === 'revision') {
+            revisionData = item.data as RevisionFlowData;
+            break;
+          }
+        }
+        if (revisionData) break;
+      }
+
+      if (!revisionData) {
+        console.warn('[useAgentChat] revision not found for undo:', itemId);
+        return;
+      }
+
+      // 派发撤销事件到编辑器
+      if (revisionData.originalContent !== undefined || revisionData.revisionType === 'append' || revisionData.revisionType === 'insert') {
+        window.dispatchEvent(
+          new CustomEvent('agent-undo-revision', {
+            detail: {
+              itemId,
+              revisionType: revisionData.revisionType,
+              originalContent: revisionData.originalContent,
+              newContent: revisionData.newContent,
+              position: revisionData.editorPosition
+            }
+          })
+        );
+      }
+
+      // 更新状态为 pending（允许重新采纳）
+      updateRevisionStatus(itemId, 'pending');
+    },
+    [sessionId, sessionManager, updateRevisionStatus]
+  );
+
+  // v7.2: 重做修订（重新应用新内容）
+  const redoRevision = useCallback(
+    (itemId: string) => {
+      const currentSession = sessionManager.getSession(sessionId);
+      const currentMessages = currentSession?.messages || [];
+
+      // 查找该修订的数据
+      let revisionData: RevisionFlowData | null = null;
+      for (const msg of currentMessages) {
+        if (!msg.flowItems) continue;
+        for (const item of msg.flowItems as FlowItem[]) {
+          if (item.id === itemId && item.type === 'revision') {
+            revisionData = item.data as RevisionFlowData;
+            break;
+          }
+        }
+        if (revisionData) break;
+      }
+
+      if (!revisionData) {
+        console.warn('[useAgentChat] revision not found for redo:', itemId);
+        return;
+      }
+
+      // 派发重做事件到编辑器
+      if (revisionData.newContent !== undefined) {
+        const revisionType = revisionData.revisionType;
+        const editorType =
+          revisionType === 'append' ? 'continue' :
+          revisionType === 'insert' ? 'insert' : 'modify';
+
+        window.dispatchEvent(
+          new CustomEvent('agent-show-revision', {
+            detail: {
+              type: editorType,
+              original: revisionData.originalContent,
+              replacement: revisionData.newContent,
+              position: revisionData.editorPosition,
+              revisionId: `redo-${itemId}-${Date.now()}`
+            }
+          })
+        );
+      }
+
+      // 更新状态为 accepted
+      updateRevisionStatus(itemId, 'accepted');
+    },
+    [sessionId, sessionManager, updateRevisionStatus]
+  );
+
+  // v7.1: 批量采纳所有修订
+  const acceptAllRevisions = useCallback(
+    (itemIds: string[]) => {
+      itemIds.forEach(id => updateRevisionStatus(id, 'accepted'));
+    },
+    [updateRevisionStatus]
+  );
+
+  // v7.1: 批量弃用所有修订
+  const discardAllRevisions = useCallback(
+    (itemIds: string[]) => {
+      itemIds.forEach(id => updateRevisionStatus(id, 'discarded'));
+    },
+    [updateRevisionStatus]
   );
 
   return {
@@ -1337,6 +1520,11 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     createNewConversation,
     pendingApproval: sessionState.pendingApproval as ApprovalRequest | null,
     submitApproval,
+    updateRevisionStatus,
+    acceptAllRevisions,
+    discardAllRevisions,
+    undoRevision,      // v7.2
+    redoRevision,      // v7.2
     stopStreaming
   };
 }

@@ -28,6 +28,7 @@ export interface ImportOptions {
   workId?: string;
   includeWorldview: boolean;
   includeGuidelines: boolean;
+  autoExtractWorldview?: boolean;
 }
 
 export interface ImportPreviewWork {

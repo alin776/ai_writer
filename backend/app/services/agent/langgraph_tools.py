@@ -1082,6 +1082,12 @@ from app.services.agent.tools.editor_tools import (
     apply_chapter_edit
 )
 
+# 导入章节管理工具
+from app.services.agent.tools.chapter_tools import (
+    create_chapter,
+    update_chapter_title
+)
+
 LANGGRAPH_TOOLS = [
     # 写作工具
     continue_writing_tool,
@@ -1097,7 +1103,10 @@ LANGGRAPH_TOOLS = [
     smart_continue,
     smart_rewrite,
     smart_insert,
-    apply_chapter_edit
+    apply_chapter_edit,
+    # 章节管理工具
+    create_chapter,
+    update_chapter_title
 ]
 
 __all__ = [
@@ -1127,6 +1136,7 @@ __all__ = [
     "read_chapter_tool_st",
     "get_chapter_by_order_tool_st",
     "search_analysis_fragments_tool_st",
+    "get_worldview_summary_tool_st",
 ]
 
 
@@ -1347,6 +1357,53 @@ search_analysis_fragments_tool_st = StandardTool(
     output_schema=SearchAnalysisFragmentsOutput,
     executor=search_analysis_fragments_executor,
     tags=["chapter", "search", "analysis"],
+    version="1.0.0"
+)
+
+
+# ==================== 5. GetWorldviewSummaryTool StandardTool ====================
+
+class GetWorldviewSummaryInput(ToolInput):
+    """获取世界观摘要工具输入"""
+    work_id: str = Field(..., description="作品ID")
+
+
+class GetWorldviewSummaryOutput(ToolOutput):
+    """获取世界观摘要工具输出"""
+    pass
+
+
+async def get_worldview_summary_executor(input_data: GetWorldviewSummaryInput) -> GetWorldviewSummaryOutput:
+    """获取世界观摘要执行器（包装 @tool 版本）"""
+    try:
+        result_str = await get_worldview_summary.ainvoke({
+            "work_id": input_data.work_id
+        })
+
+        return GetWorldviewSummaryOutput(
+            success=True,
+            message="获取世界观摘要成功",
+            data={"worldview_summary": result_str},
+            metadata={"tool": "get_worldview_summary"}
+        )
+    except Exception as e:
+        logger.error(f"get_worldview_summary_executor 失败: {e}")
+        return GetWorldviewSummaryOutput(
+            success=False,
+            message=f"获取世界观摘要失败: {str(e)}",
+            data=None,
+            metadata={"error": str(e)}
+        )
+
+
+get_worldview_summary_tool_st = StandardTool(
+    name="get_worldview_summary",
+    description="获取作品的世界观摘要信息（角色、地点、设定）",
+    category=ToolCategory.UTILITY,
+    input_schema=GetWorldviewSummaryInput,
+    output_schema=GetWorldviewSummaryOutput,
+    executor=get_worldview_summary_executor,
+    tags=["worldview", "summary", "context"],
     version="1.0.0"
 )
 

@@ -9,6 +9,7 @@
 - step_complete: 步骤完成
 - output_ready: 输出就绪
 - completion: 任务完成
+- revision: 修订请求 (v7.0)
 """
 
 from typing import List, Optional, Dict, Any
@@ -196,6 +197,55 @@ class FlowEventBuilder:
         return {
             "type": "summarization_complete",
             "status": "done",
+            "timestamp": get_utc_now().isoformat()
+        }
+
+    @staticmethod
+    def revision(
+        revision_type: str,
+        request_id: Optional[str] = None,
+        chapter_id: Optional[str] = None,
+        chapter_title: Optional[str] = None,
+        content_preview: Optional[str] = None,
+        old_title: Optional[str] = None,
+        new_title: Optional[str] = None,
+        versions: Optional[List[Dict[str, str]]] = None
+    ) -> dict:
+        """构建修订请求事件 (v7.0)
+
+        Args:
+            revision_type: 修订类型 ("append" | "replace" | "insert" | "create" | "rename")
+            request_id: 对应的审批请求ID（用于前端关联）
+            chapter_id: 章节ID
+            chapter_title: 章节标题
+            content_preview: 内容预览（前50字）
+            old_title: 原标题（rename 类型）
+            new_title: 新标题（rename 类型）
+            versions: 改写版本列表（replace 类型）
+                      [{"style_name": "版本A", "reason": "细腻情感", "content": "..."}]
+        """
+        data = {
+            "revisionType": revision_type,
+            "status": "pending"
+        }
+        if request_id:
+            data["requestId"] = request_id
+        if chapter_id:
+            data["chapterId"] = chapter_id
+        if chapter_title:
+            data["chapterTitle"] = chapter_title
+        if content_preview:
+            data["contentPreview"] = content_preview
+        if old_title:
+            data["oldTitle"] = old_title
+        if new_title:
+            data["newTitle"] = new_title
+        if versions:
+            data["versions"] = versions
+
+        return {
+            "type": "revision",
+            "data": data,
             "timestamp": get_utc_now().isoformat()
         }
 

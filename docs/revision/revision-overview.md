@@ -1,5 +1,8 @@
 # 修订编辑器章节 - 总体设计文档
 
+> 最后更新: 2026-01-08
+> 开发进度: ✅ 100% 完成
+
 ## 1. 功能概述
 
 "修订编辑器章节"是一个非阻塞式的人机协同(HITL)功能，允许 Agent 对章节内容进行修改，用户可以随时审核并决定是否采纳。
@@ -26,8 +29,8 @@
 
 | 场景 | 工具 | 操作类型 | 状态 |
 |------|------|----------|------|
-| 新建章节 | `create_chapter` | create | ❌ 待新增 |
-| 修改标题 | `update_chapter_title` | rename | ❌ 待新增 |
+| 新建章节 | `create_chapter` | create | ✅ 已有 |
+| 修改标题 | `update_chapter_title` | rename | ✅ 已有 |
 
 ---
 
@@ -124,51 +127,70 @@ backend/app/services/agent/stream/
 
 前端:
 src/types/
-└── agent.ts                 # 类型定义 (需修改)
+└── agent.ts                 # 类型定义 ✅ 已修改
 
 src/components/agent/ExecutionFlow/
-├── index.tsx                # 执行轨迹入口 (需修改)
-├── RevisionCard.tsx         # 修订胶囊组件 (待新增)
+├── index.tsx                # 执行轨迹入口 ✅ 已修改
+├── RevisionCard.tsx         # 修订胶囊组件 ✅ 已新增
+└── ...
+
+src/components/editor/
+├── NovelEditor.tsx          # 编辑器 ✅ 已修改 (insert 类型)
+├── AIRevisionBar.tsx        # 修订操作栏 ✅ 已修改
+├── AIPanel.tsx              # AI面板 ✅ 已修改 (自动滚动)
 └── ...
 
 src/hooks/
-└── useAgentChat.ts          # Agent聊天Hook (需修改)
+├── useAgentChat.ts          # Agent聊天Hook ✅ 已修改
+└── useAgentChatStream.ts    # 流式Hook ✅ 已修改
 ```
 
 ---
 
 ## 7. 实现优先级
 
-### P0 - 核心功能
-1. 新增 `revision` FlowItem 类型
-2. 新建 `RevisionCard.tsx` 组件
-3. 后端发送 revision 事件
+### P0 - 核心功能 ✅ 已完成
+1. ✅ 新增 `revision` FlowItem 类型
+2. ✅ 新建 `RevisionCard.tsx` 组件
+3. ✅ NovelEditor 支持 insert 类型
+4. ✅ AIPanel 自动滚动到最新步骤
 
-### P1 - 新增工具
-4. 新增 `create_chapter` 工具
-5. 新增 `update_chapter_title` 工具
+### P1 - 新增工具 ✅ 已完成
+5. ✅ 新增 `create_chapter` 工具
+6. ✅ 新增 `update_chapter_title` 工具
+7. ✅ 后端发送 revision 事件
 
-### P2 - 优化
-6. 修订状态持久化
-7. 批量修订管理
+### P2 - 优化 ✅ 已完成
+8. ✅ 修订状态持久化
+9. ✅ 批量修订管理
+10. ✅ 撤销/重做功能
 
 ---
 
-## 8. 验证发现的问题
+## 8. 开发进度
 
-### 8.1 缺失的工具
-- ❌ `create_chapter_tool` - Agent 无法创建新章节
-- ❌ `update_chapter_title_tool` - Agent 无法修改章节标题
+> 详见 [验证报告](./revision-validation-report.md)（2026-01-08 更新）
 
-### 8.2 前端处理不完整
-- ❌ `handleShowRevision` 不支持 `insert` 类型（NovelEditor.tsx:503-628）
-- ❌ `EditorAction` 缺少 `chapter_id`、`revision_id` 字段
+### 8.1 已完成 ✅
+- `smart_continue` / `smart_rewrite` / `smart_insert` / `apply_chapter_edit` 工具
+- HITL 确认流程（后端→前端→用户）
+- FlowItem 事件机制（含 revision 类型）
+- `RevisionCard.tsx` 修订胶囊组件
+- `NovelEditor.tsx` insert 类型处理
+- `AIPanel.tsx` 自动滚动到最新步骤
+- `AIRevisionBar.tsx` insert 类型支持
+- `create_chapter` / `update_chapter_title` 章节管理工具
+- 后端 `emit_revision` 方法
+- 前端 revision 事件处理
+- 修订状态持久化（localStorage）
+- 批量修订管理（全部采纳/全部弃用）
 
-### 8.3 其他遗漏
-- ❌ 修订状态未持久化（刷新后丢失）
-- ❌ 无批量修订机制
+### 8.2 待开发 ❌
+- （无）
 
-详见 [验证报告](./revision-validation-report.md)
+### 8.3 后续优化 ⚠️
+- 修订历史记录表（可选）
+- 修订统计分析（可选）
 
 ---
 
@@ -179,3 +201,4 @@ src/hooks/
 - [类型定义](./revision-types.md)
 - [事件流程](./revision-event-flow.md)
 - [验证报告](./revision-validation-report.md)
+- [UI预览](./preview.html) - 浏览器打开查看 RevisionCard 效果

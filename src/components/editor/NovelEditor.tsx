@@ -74,7 +74,7 @@ export interface InlineAIContext {
   knowledge_doc_ids?: string[];
 }
 
-type AgentActionType = 'edit' | 'rewrite' | 'insert';
+type AgentActionType = 'edit' | 'rewrite' | 'insert' | 'create' | 'rename';
 
 type AgentApprovalRequest = {
   request_id: string;
@@ -502,7 +502,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     // 🆕 显示修订标记（不直接替换，等待用户确认）
     const handleShowRevision = (event: Event) => {
       const customEvent = event as CustomEvent<{
-        type: 'modify' | 'continue';
+        type: 'modify' | 'continue' | 'insert';
         original: string;
         replacement: string;
         position?: { from: number; to: number };
@@ -610,6 +610,48 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             id: rid,
             type: 'continue',
             position: position || { from: insertPos, to: insertPos },
+            replacement,
+            originalMessage,
+            context
+          });
+
+          if (originalMessage && context) {
+            lastRevisionContextRef.current = { message: originalMessage, context };
+          }
+        } else if (type === 'insert') {
+          // 插入模式：在指定位置插入内容，显示绿色高亮
+          console.log('[NovelEditor] 应用插入模式修订标记');
+
+          const insertPos = position?.from ?? editor.state.doc.content.size;
+          const resolvedPosition = position ?? { from: insertPos, to: insertPos };
+
+          // 1. 在指定位置插入新内容
+          editor.chain()
+            .focus()
+            .setTextSelection(insertPos)
+            .insertContent(replacement || '')
+            .run();
+
+          // 2. 对插入的内容应用 aiInserted 标记
+          const endPos = insertPos + (replacement?.length || 0);
+          editor.chain()
+            .setTextSelection({ from: insertPos, to: endPos })
+            .setMark('aiInserted')
+            .run();
+
+          // 3. 计算操作栏位置
+          const { view } = editor;
+          const coords = view.coordsAtPos(insertPos);
+          setRevisionBarPosition({
+            top: coords.bottom + 8,
+            left: coords.left
+          });
+
+          // 4. 设置活跃修订
+          setActiveRevision({
+            id: rid,
+            type: 'insert',
+            position: resolvedPosition,
             replacement,
             originalMessage,
             context
@@ -771,14 +813,117 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       }
     };
 
+    // v7.2: 撤销修订事件处理
+    const handleUndoRevision = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        itemId: string;
+        revisionType: string;
+        originalContent?: string;
+        newContent?: string;
+        position?: { from: number; to: number };
+      }>;
+
+      const { revisionType, originalContent, newContent, position } = customEvent.detail;
+
+      console.log('[NovelEditor] 收到撤销修订请求:', {
+        revisionType,
+        hasOriginal: originalContent !== undefined,
+        hasNew: newContent !== undefined,
+        position
+      });
+
+      // v7.2: 空快照保护 - 如果没有足够的快照数据，无法撤销
+      if (!position) {
+        console.warn('[NovelEditor] 撤销失败：缺少位置信息');
+        toast.warning('无法撤销：缺少位置信息');
+        return;
+      }
+
+      try {
+        if (revisionType === 'append' || revisionType === 'insert') {
+          // 续写/插入类型：删除新增的内容
+          if (newContent) {
+            const deleteFrom = position.from;
+            const deleteTo = position.from + newContent.length;
+
+            // 边界检查
+            const docSize = editor.state.doc.content.size;
+            if (deleteFrom < 0 || deleteTo > docSize) {
+              console.warn('[NovelEditor] 撤销失败：位置超出文档范围', { deleteFrom, deleteTo, docSize });
+              toast.warning('无法撤销：内容已被修改');
+              return;
+            }
+
+            editor.chain()
+              .focus()
+              .setTextSelection({ from: deleteFrom, to: deleteTo })
+              .deleteSelection()
+              .run();
+            toast.info('已撤销修订');
+          } else {
+            console.warn('[NovelEditor] 撤销失败：缺少新内容快照');
+            toast.warning('无法撤销：缺少内容快照');
+            return;
+          }
+        } else if (revisionType === 'replace') {
+          // 替换类型：恢复原始内容
+          if (originalContent === undefined && !newContent) {
+            console.warn('[NovelEditor] 撤销失败：缺少快照数据');
+            toast.warning('无法撤销：缺少内容快照');
+            return;
+          }
+
+          // 先删除新内容（如果有）
+          if (newContent) {
+            const deleteFrom = position.from;
+            const deleteTo = position.from + newContent.length;
+
+            // 边界检查
+            const docSize = editor.state.doc.content.size;
+            if (deleteFrom >= 0 && deleteTo <= docSize) {
+              editor.chain()
+                .focus()
+                .setTextSelection({ from: deleteFrom, to: deleteTo })
+                .deleteSelection()
+                .run();
+            }
+          }
+
+          // 插入原始内容（如果有）
+          if (originalContent) {
+            editor.chain()
+              .setTextSelection(position.from)
+              .insertContent(originalContent)
+              .run();
+          }
+          toast.info('已撤销修订');
+        } else {
+          // 不支持的修订类型（create/rename）
+          console.warn('[NovelEditor] 不支持的修订类型撤销:', revisionType);
+          toast.warning(`暂不支持撤销"${revisionType}"类型的修订`);
+          return;
+        }
+
+        setSaveStatus('unsaved');
+        if (autoSave) {
+          debouncedSave(editor);
+        }
+      } catch (error) {
+        console.error('[NovelEditor] 撤销修订失败:', error);
+        toast.error('撤销修订失败');
+      }
+    };
+
     window.addEventListener('agent-show-revision', handleShowRevision as EventListener);
     window.addEventListener('agent-replace-text', handleAgentReplace as EventListener);
     window.addEventListener('agent-append-text', handleAgentAppend as EventListener);
+    window.addEventListener('agent-undo-revision', handleUndoRevision as EventListener);
 
     return () => {
       window.removeEventListener('agent-show-revision', handleShowRevision as EventListener);
       window.removeEventListener('agent-replace-text', handleAgentReplace as EventListener);
       window.removeEventListener('agent-append-text', handleAgentAppend as EventListener);
+      window.removeEventListener('agent-undo-revision', handleUndoRevision as EventListener);
     };
   }, [editor, autoSave, toast, debouncedSave]);
 
@@ -883,6 +1028,16 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           }
           el.parentNode?.replaceChild(fragment, el);
         });
+      } else if (type === 'insert') {
+        // 插入模式：移除插入标记，保留内容
+        const insertedElements = tempDiv.querySelectorAll('ins[data-ai-inserted], ins.ai-inserted');
+        insertedElements.forEach(el => {
+          const fragment = document.createDocumentFragment();
+          while (el.firstChild) {
+            fragment.appendChild(el.firstChild);
+          }
+          el.parentNode?.replaceChild(fragment, el);
+        });
       }
 
       editor.commands.setContent(tempDiv.innerHTML);
@@ -939,6 +1094,12 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         });
       } else if (type === 'continue') {
         // 续写模式：移除插入的新内容
+        const insertedElements = tempDiv.querySelectorAll('ins[data-ai-inserted], ins.ai-inserted');
+        insertedElements.forEach(el => {
+          el.remove();
+        });
+      } else if (type === 'insert') {
+        // 插入模式：移除插入的新内容
         const insertedElements = tempDiv.querySelectorAll('ins[data-ai-inserted], ins.ai-inserted');
         insertedElements.forEach(el => {
           el.remove();

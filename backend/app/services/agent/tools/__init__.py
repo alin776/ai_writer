@@ -100,12 +100,19 @@ from .editor_tools import (
     apply_chapter_edit_tool
 )
 
+# ==================== 章节管理工具 ====================
+from .chapter_tools import (
+    create_chapter,
+    update_chapter_title
+)
+
 # ==================== 章节工具（StandardTool版本）====================
 from app.services.agent.langgraph_tools import (
     get_context_tool_st,
     read_chapter_tool_st,
     get_chapter_by_order_tool_st,
-    search_analysis_fragments_tool_st
+    search_analysis_fragments_tool_st,
+    get_worldview_summary_tool_st
 )
 
 
@@ -184,11 +191,16 @@ __all__ = [
     "smart_insert_tool",
     "apply_chapter_edit_tool",
 
+    # ==================== 章节管理工具 ====================
+    "create_chapter",
+    "update_chapter_title",
+
     # ==================== 章节工具（StandardTool版本）====================
     "get_context_tool_st",
     "read_chapter_tool_st",
     "get_chapter_by_order_tool_st",
     "search_analysis_fragments_tool_st",
+    "get_worldview_summary_tool_st",
 ]
 
 
@@ -221,6 +233,9 @@ def _register_standard_tools():
     registry.register_standard_tool(read_chapter_tool_st)
     registry.register_standard_tool(get_chapter_by_order_tool_st)
     registry.register_standard_tool(search_analysis_fragments_tool_st)
+
+    # 世界观工具
+    registry.register_standard_tool(get_worldview_summary_tool_st)
 
 
 # 模块加载时自动注册

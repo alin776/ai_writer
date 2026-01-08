@@ -6,7 +6,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { agentApi } from '@/services/agentApi';
-import type { AgentChatRequest, EnhancedProgressEvent, ProgressData, ActivityItem, AgentActivityType, ActivityStatus, FlowItem, StepFlowData } from '@/types/agent';
+import type { AgentChatRequest, EnhancedProgressEvent, ProgressData, ActivityItem, AgentActivityType, ActivityStatus, FlowItem, StepFlowData, SummarizationFlowData } from '@/types/agent';
 import { ProgressDataSchema, EnhancedProgressEventSchema } from '@/types/agent';  // ✅ 导入Zod Schema
 
 // 进度详情类型
@@ -462,12 +462,23 @@ export function useAgentChatStream(
               }
               case 'summarization_complete': {
                 setFlowItems((prev) =>
-                  prev.map((item) =>
+                  prev.map((item): FlowItem =>
                     item.type === 'summarization'
-                      ? { ...item, data: { ...item.data, status: 'done' } }
+                      ? { ...item, data: { ...(item.data as SummarizationFlowData), status: 'done' } }
                       : item
                   )
                 );
+                break;
+              }
+              case 'revision': {
+                // v7.0: 修订请求事件
+                const item: FlowItem = {
+                  id: `flow-${Date.now()}-revision`,
+                  type: 'revision',
+                  data: event.data,
+                  timestamp,
+                };
+                setFlowItems((prev) => [...prev, item]);
                 break;
               }
             }

@@ -1,6 +1,34 @@
 # 修订编辑器章节 - 前端组件实现
 
-## 1. 组件结构
+> 最后更新: 2026-01-08
+
+## 1. 现有 UI 风格分析
+
+### 1.1 设计规范（基于现有组件）
+
+| 属性 | 规范 | 示例 |
+|------|------|------|
+| 框架 | Tailwind CSS | 不使用自定义 CSS 类 |
+| 背景色 | 白色/深色 | `bg-white dark:bg-slate-800` |
+| 边框 | 灰色细边框 | `border border-gray-200 dark:border-slate-700` |
+| 圆角 | 胶囊/卡片 | `rounded-full` / `rounded-xl` / `rounded-[10px]` |
+| 文字颜色 | 灰色层级 | `text-gray-500` / `text-gray-900 dark:text-white` |
+| 字体大小 | 13-14px | `text-[13px]` / `text-[14px]` |
+| 图标大小 | 12-14px | `size={12}` / `size={14}` |
+| 间距 | 紧凑 | `gap-1.5` / `gap-2` / `px-2.5 py-1` |
+
+### 1.2 现有组件参考
+
+| 组件 | 文件 | 特点 |
+|------|------|------|
+| StepCard | `StepCard.tsx` | 可折叠步骤，状态图标 |
+| OutputCard | `OutputCard.tsx` | 白色卡片，标题栏+内容区 |
+| KnowledgeContainer | `KnowledgeContainer.tsx` | 胶囊样式，可展开 |
+| CompletionStatus | `CompletionStatus.tsx` | 简单状态显示 |
+
+---
+
+## 2. 组件结构
 
 ```
 src/components/agent/ExecutionFlow/
@@ -14,28 +42,26 @@ src/components/agent/ExecutionFlow/
 
 ---
 
-## 2. RevisionCard 组件设计
+## 3. RevisionCard 组件设计
 
-### 2.1 组件接口
+### 3.1 组件接口
 
 ```typescript
-// RevisionCard.tsx
+// src/types/agent.ts 新增类型
 
-interface RevisionCardProps {
-  revisionType: RevisionType;  // append | replace | insert | create | rename
-  status: RevisionStatus;      // pending | accepted | discarded
+export type RevisionType = 'append' | 'replace' | 'insert' | 'create' | 'rename';
+export type RevisionStatus = 'pending' | 'accepted' | 'discarded';
+
+export interface RevisionFlowData {
+  revisionType: RevisionType;
+  status: RevisionStatus;
   chapterId?: string;
   chapterTitle?: string;
-  contentPreview?: string;
-  oldTitle?: string;
-  newTitle?: string;
-  versions?: RewriteVersion[];
-  onAccept: (selectedVersion?: number) => void;
-  onDiscard: () => void;
+  contentPreview?: string;      // 内容预览（前50字）
+  oldTitle?: string;            // 原标题（rename 类型）
+  newTitle?: string;            // 新标题（rename 类型）
+  versions?: RewriteVersion[];  // 改写版本（replace 类型）
 }
-
-type RevisionType = 'append' | 'replace' | 'insert' | 'create' | 'rename';
-type RevisionStatus = 'pending' | 'accepted' | 'discarded';
 
 interface RewriteVersion {
   style_name: string;
@@ -44,16 +70,23 @@ interface RewriteVersion {
 }
 ```
 
-### 2.2 组件实现
+### 3.2 组件实现（Tailwind CSS 风格）
 
 ```tsx
+// src/components/agent/ExecutionFlow/RevisionCard.tsx
+
 import { useState } from 'react';
-import { FilePen, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { FilePen, Check, X, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import type { RevisionFlowData } from '@/types/agent';
+
+interface RevisionCardProps extends RevisionFlowData {
+  onAccept: (selectedVersion?: number) => void;
+  onDiscard: () => void;
+}
 
 export function RevisionCard({
   revisionType,
   status,
-  chapterId,
   chapterTitle,
   contentPreview,
   oldTitle,
@@ -67,121 +100,137 @@ export function RevisionCard({
 
   // 获取修订类型的显示文本
   const getRevisionTitle = () => {
-    switch (revisionType) {
-      case 'append': return '章节续写';
-      case 'replace': return '文本改写';
-      case 'insert': return '内容插入';
-      case 'create': return '新建章节';
-      case 'rename': return '修改标题';
-      default: return '章节修订';
-    }
+    const titles: Record<string, string> = {
+      append: '章节续写',
+      replace: '文本改写',
+      insert: '内容插入',
+      create: '新建章节',
+      rename: '修改标题'
+    };
+    return titles[revisionType] || '章节修订';
   };
 
-  // 获取状态标签样式
-  const getStatusBadge = () => {
-    switch (status) {
-      case 'pending':
-        return <span className="revision-badge pending">待确认</span>;
-      case 'accepted':
-        return <span className="revision-badge accepted">已采纳</span>;
-      case 'discarded':
-        return <span className="revision-badge discarded">已弃用</span>;
-    }
+  // 状态标签样式
+  const statusStyles: Record<string, string> = {
+    pending: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
+    accepted: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
+    discarded: 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
+  };
+
+  const statusText: Record<string, string> = {
+    pending: '待确认',
+    accepted: '已采纳',
+    discarded: '已弃用'
   };
 
   return (
-    <div className="revision-capsule">
+    <div className={`inline-block bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 mb-3 ${
+      expanded ? 'rounded-xl px-3 py-2' : 'rounded-full px-2.5 py-1'
+    }`}>
       {/* 头部 */}
-      <div className="revision-header" onClick={() => setExpanded(!expanded)}>
-        <span className="revision-icon">
+      <div
+        className="flex items-center gap-1.5 cursor-pointer select-none"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <span className="text-gray-500">
           <FilePen size={12} />
         </span>
-        <span className="revision-title">{getRevisionTitle()}</span>
-        <span className="revision-toggle">
-          {expanded ? <ChevronUp size={9} /> : <ChevronDown size={9} />}
+        <span className="text-[13px] text-gray-500">{getRevisionTitle()}</span>
+        <span className="text-gray-400 dark:text-gray-600 text-[9px] ml-0.5">
+          {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
         </span>
-        {getStatusBadge()}
+        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ml-auto ${statusStyles[status]}`}>
+          {statusText[status]}
+        </span>
       </div>
 
       {/* 内容区域 */}
       {expanded && (
-        <div className="revision-content">
+        <div className="pt-2">
           {/* 章节信息 */}
           {chapterTitle && (
-            <div className="revision-target">
-              <span className="target-name">{chapterTitle}</span>
+            <div className="mb-2">
+              <span className="text-[13px] text-blue-500 dark:text-[#5c9eff] underline underline-offset-2 cursor-pointer hover:text-blue-600">
+                {chapterTitle}
+              </span>
             </div>
           )}
 
           {/* 根据类型显示不同内容 */}
           {revisionType === 'rename' ? (
             // 修改标题
-            <div className="revision-rename">
-              <div className="rename-row">
-                <span className="rename-label">原标题:</span>
-                <span className="rename-value old">{oldTitle}</span>
+            <div className="space-y-1 mb-3">
+              <div className="flex items-center gap-2 text-[13px]">
+                <span className="text-gray-500 min-w-[50px]">原标题</span>
+                <span className="text-gray-400 line-through">{oldTitle}</span>
               </div>
-              <div className="rename-row">
-                <span className="rename-label">新标题:</span>
-                <span className="rename-value new">{newTitle}</span>
+              <div className="flex items-center gap-2 text-[13px]">
+                <span className="text-gray-500 min-w-[50px]">新标题</span>
+                <span className="text-emerald-600 dark:text-emerald-400">{newTitle}</span>
               </div>
             </div>
           ) : revisionType === 'replace' && versions ? (
             // 改写 - 多版本选择
-            <div className="revision-versions">
+            <div className="space-y-1.5 mb-3">
               {versions.map((v, idx) => (
-                <label key={idx} className="version-option">
+                <label
+                  key={idx}
+                  className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
+                    selectedVersion === idx
+                      ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
+                      : 'bg-gray-50 dark:bg-slate-700/50 border border-transparent hover:bg-gray-100 dark:hover:bg-slate-700'
+                  }`}
+                >
                   <input
                     type="radio"
                     name="version"
                     checked={selectedVersion === idx}
                     onChange={() => setSelectedVersion(idx)}
+                    className="w-3.5 h-3.5 text-blue-500"
                   />
-                  <span className="version-name">{v.style_name}</span>
-                  <span className="version-reason">{v.reason}</span>
+                  <span className="text-[13px] text-gray-900 dark:text-white font-medium">{v.style_name}</span>
+                  <span className="text-[12px] text-gray-500 dark:text-slate-400">{v.reason}</span>
                 </label>
               ))}
             </div>
           ) : (
             // 其他类型 - 内容预览
-            <div className="revision-preview">
-              <div className="preview-label">
-                {revisionType === 'create' ? '章节内容预览：' : '新增内容预览：'}
+            contentPreview && (
+              <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-2.5 mb-3">
+                <div className="text-[11px] text-gray-400 dark:text-slate-500 mb-1">
+                  {revisionType === 'create' ? '章节内容预览' : '新增内容预览'}
+                </div>
+                <div className="text-[13px] text-gray-600 dark:text-slate-300 leading-[1.6] line-clamp-2">
+                  "{contentPreview}..."
+                </div>
               </div>
-              <div className="preview-text">
-                {contentPreview ? `"${contentPreview}..."` : '(无内容)'}
-              </div>
-            </div>
+            )
           )}
 
           {/* 操作按钮 */}
           {status === 'pending' ? (
-            <div className="revision-actions">
-              <button className="revision-btn discard" onClick={onDiscard}>
+            <div className="flex gap-2">
+              <button
+                onClick={onDiscard}
+                className="flex items-center gap-1 px-2.5 py-1 text-[12px] text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-700 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
+              >
                 <X size={12} />
                 弃用
               </button>
               <button
-                className="revision-btn accept"
                 onClick={() => onAccept(versions ? selectedVersion : undefined)}
+                className="flex items-center gap-1 px-2.5 py-1 text-[12px] text-white bg-blue-500 rounded-full hover:bg-blue-600 transition-colors"
               >
                 <Check size={12} />
                 采纳
               </button>
             </div>
           ) : (
-            <div className="revision-result">
-              {status === 'accepted' ? (
-                <>
-                  <Check size={12} />
-                  修订已采纳
-                </>
-              ) : (
-                <>
-                  <X size={12} />
-                  修订已弃用
-                </>
-              )}
+            <div className={`flex items-center gap-1 text-[12px] ${
+              status === 'accepted' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500'
+            }`}>
+              {status === 'accepted' ? <Check size={12} /> : <X size={12} />}
+              {status === 'accepted' ? '修订已采纳' : '修订已弃用'}
             </div>
           )}
         </div>
@@ -193,204 +242,26 @@ export function RevisionCard({
 
 ---
 
-## 3. 样式定义
-
-```css
-/* RevisionCard.css 或在全局样式中 */
-
-.revision-capsule {
-  background: #2a2a2a;
-  border: 1px solid #3a3a3a;
-  border-radius: 16px;
-  padding: 4px 10px;
-  display: inline-block;
-  margin: 8px 0;
-}
-
-.revision-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.revision-icon {
-  color: #888;
-  display: flex;
-  align-items: center;
-}
-
-.revision-title {
-  font-size: 13px;
-  color: #888;
-}
-
-.revision-toggle {
-  color: #666;
-  font-size: 9px;
-  margin-left: 2px;
-}
-
-.revision-badge {
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  margin-left: auto;
-}
-
-.revision-badge.pending {
-  background: #3a3a3a;
-  color: #888;
-}
-
-.revision-badge.accepted {
-  background: #3a3a3a;
-  color: #10b981;
-}
-
-.revision-badge.discarded {
-  background: #3a3a3a;
-  color: #888;
-}
-
-.revision-content {
-  padding-top: 6px;
-}
-
-.revision-target {
-  margin-bottom: 6px;
-}
-
-.target-name {
-  font-size: 13px;
-  color: #5c9eff;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.revision-preview {
-  background: #222;
-  border-radius: 8px;
-  padding: 8px 10px;
-  margin-bottom: 8px;
-}
-
-.preview-label {
-  font-size: 10px;
-  color: #666;
-  margin-bottom: 3px;
-}
-
-.preview-text {
-  font-size: 12px;
-  color: #888;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.revision-actions {
-  display: flex;
-  gap: 6px;
-}
-
-.revision-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border: none;
-  border-radius: 12px;
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.revision-btn.discard {
-  background: #3a3a3a;
-  color: #ccc;
-}
-
-.revision-btn.accept {
-  background: #3a3a3a;
-  color: #ccc;
-}
-
-.revision-btn:hover {
-  background: #4a4a4a;
-}
-
-.revision-result {
-  font-size: 11px;
-  padding: 4px 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: #888;
-}
-
-/* 改写版本选择 */
-.revision-versions {
-  margin-bottom: 8px;
-}
-
-.version-option {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 0;
-  cursor: pointer;
-}
-
-.version-name {
-  font-size: 12px;
-  color: #ccc;
-}
-
-.version-reason {
-  font-size: 11px;
-  color: #666;
-}
-
-/* 修改标题 */
-.revision-rename {
-  margin-bottom: 8px;
-}
-
-.rename-row {
-  display: flex;
-  gap: 8px;
-  padding: 2px 0;
-}
-
-.rename-label {
-  font-size: 11px;
-  color: #666;
-  min-width: 50px;
-}
-
-.rename-value {
-  font-size: 12px;
-}
-
-.rename-value.old {
-  color: #888;
-  text-decoration: line-through;
-}
-
-.rename-value.new {
-  color: #10b981;
-}
-```
-
----
-
 ## 4. ExecutionFlow 集成
 
-### 4.1 修改 index.tsx
+### 4.1 修改 FlowItemType
+
+```typescript
+// src/types/agent.ts
+
+export type FlowItemType =
+  | 'text'
+  | 'tool'
+  | 'content'
+  | 'step'
+  | 'output'
+  | 'agent_header'
+  | 'completion'
+  | 'summarization'
+  | 'revision';  // 新增
+```
+
+### 4.2 修改 index.tsx
 
 ```tsx
 // src/components/agent/ExecutionFlow/index.tsx
@@ -398,9 +269,7 @@ export function RevisionCard({
 import { RevisionCard } from './RevisionCard';
 import type { RevisionFlowData } from '@/types/agent';
 
-export function ExecutionFlow({ items, onApplyContent }: ExecutionFlowProps) {
-  // ... 现有代码 ...
-
+export function ExecutionFlow({ items, onApplyContent, onAcceptRevision, onDiscardRevision }: ExecutionFlowProps) {
   return (
     <div>
       {items.map((item) => {
@@ -412,12 +281,8 @@ export function ExecutionFlow({ items, onApplyContent }: ExecutionFlowProps) {
               <RevisionCard
                 key={item.id}
                 {...(item.data as RevisionFlowData)}
-                onAccept={(selectedVersion) => {
-                  // 调用 submitApproval
-                }}
-                onDiscard={() => {
-                  // 调用 submitApproval(false)
-                }}
+                onAccept={(selectedVersion) => onAcceptRevision?.(item.id, selectedVersion)}
+                onDiscard={() => onDiscardRevision?.(item.id)}
               />
             );
 
@@ -432,71 +297,19 @@ export function ExecutionFlow({ items, onApplyContent }: ExecutionFlowProps) {
 
 ---
 
-## 5. 与 useAgentChat 集成
+## 5. 编辑器 insert 类型支持
 
-```tsx
-// 在 ExecutionFlow 中使用
+### 5.1 问题描述
 
-import { useAgentChat } from '@/hooks/useAgentChat';
-
-function ExecutionFlowContainer() {
-  const { flowItems, pendingApproval, submitApproval } = useAgentChat();
-
-  const handleAccept = async (selectedVersion?: number) => {
-    await submitApproval(true, selectedVersion);
-  };
-
-  const handleDiscard = async () => {
-    await submitApproval(false);
-  };
-
-  return (
-    <ExecutionFlow
-      items={flowItems}
-      onAccept={handleAccept}
-      onDiscard={handleDiscard}
-    />
-  );
-}
-```
-
----
-
-## 6. 修订状态管理
-
-```typescript
-// 在 useAgentChat 中管理修订状态
-
-interface RevisionState {
-  id: string;
-  status: 'pending' | 'accepted' | 'discarded';
-  data: RevisionFlowData;
-}
-
-// 更新修订状态
-const updateRevisionStatus = (id: string, status: RevisionStatus) => {
-  setFlowItems(prev =>
-    prev.map(item =>
-      item.id === id && item.type === 'revision'
-        ? { ...item, data: { ...item.data, status } }
-        : item
-    )
-  );
-};
-```
-
----
-
-## 7. 编辑器 insert 类型支持 (待补充)
-
-### 7.1 问题描述
-
-当前 `NovelEditor.tsx` 的 `handleShowRevision` 只支持 `modify` 和 `continue` 类型，缺少 `insert` 类型处理。
+当前 `NovelEditor.tsx` 的 `handleShowRevision` 只支持 `modify` 和 `continue` 类型。
 
 **现有代码** (`NovelEditor.tsx:503-628`):
 ```typescript
 const handleShowRevision = (event: Event) => {
-  const { type, ... } = customEvent.detail;
+  const customEvent = event as CustomEvent<{
+    type: 'modify' | 'continue';  // ❌ 缺少 'insert'
+    // ...
+  }>;
 
   if (type === 'modify' && position) {
     // ✅ 处理修改
@@ -507,11 +320,16 @@ const handleShowRevision = (event: Event) => {
 };
 ```
 
-### 7.2 需要补充的代码
+### 5.2 修复方案
 
 ```typescript
-// 在 handleShowRevision 中添加 insert 分支
+// 1. 更新类型定义
+const customEvent = event as CustomEvent<{
+  type: 'modify' | 'continue' | 'insert';  // 新增 insert
+  // ...
+}>;
 
+// 2. 在 handleShowRevision 中添加 insert 分支（约 620 行后）
 } else if (type === 'insert' && position) {
   // 插入模式：在指定位置插入内容，显示绿色高亮
   console.log('[NovelEditor] 应用插入模式修订标记');
@@ -552,7 +370,7 @@ const handleShowRevision = (event: Event) => {
 }
 ```
 
-### 7.3 修改位置
+### 5.3 修改位置
 
-文件: `src/components/editor/NovelEditor.tsx`
-位置: 约 620 行，在 `else if (type === 'continue')` 分支后添加
+- 文件: `src/components/editor/NovelEditor.tsx`
+- 位置: 约 620 行，在 `else if (type === 'continue')` 分支后添加

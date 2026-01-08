@@ -19,7 +19,7 @@ Prompt 缓存模块 - Phase 2.6
 from app.core.cache import cache_review
 
 # Prompt 版本号 - 修改 Prompt 时请更新此版本号
-PROMPT_VERSION = "v2.29.0"  # 2025-01-07: 添加搜索 query 提取规则，防止专有名词被拆分
+PROMPT_VERSION = "v2.30.0"  # 2025-01-08: Planning Prompt 添加编辑器工具（smart_rewrite/smart_continue/smart_insert）
 
 
 # ════════════════════════════════════════════════════════════════
@@ -283,6 +283,13 @@ async def get_planning_static_prompt() -> str:
   3. 重点展开哪些内容？（如：介绍主角、展示世界观、引出冲突等）"
 - 第二阶段（用户确认后）：调用 continue_writing_tool 创作
 
+【重要补充 - 编辑器修订】
+当用户明确要求把内容“写回当前章节”（如：续写本章/章节末尾追加/直接改到正文）时：
+1) 仍可用 continue_writing_tool 生成文本
+2) 但必须在该任务 params 里增加 apply_to_editor=true
+3) 若是续写/追加，operation="append"
+系统会把生成文本转成修订确认（approval_request + revision）
+
 ⚠️ **重要区分**：
 - ❌ "帮我写第一章" → 直接生成[获取世界观 → 创作]（错误！缺少用户确认）
 - ✅ "帮我写第一章" → 只生成[获取世界观]，然后询问创作细节
@@ -426,6 +433,26 @@ async def get_planning_static_prompt() -> str:
   - target_words 建议值：大纲 1000-2000，正文 2000-4000
   - ⚠️ "设计"/"规划"/"构思"/"创作"都是创作任务，使用这个工具
 
+编辑器工具（修改章节内容时必须使用 - 会触发用户确认）：
+- smart_rewrite: 改写章节内容（⭐ 优先使用，生成3个版本供选择）
+  - params: chapter_id(必需), text_to_rewrite(要改写的文本), user_requirement(改写要求)
+  - 适用于：用户说"修改"、"改写"、"重写"、"润色"章节内容
+  - ⚠️ 当用户明确要求修改章节内容时，必须使用此工具，不要只分析或给建议
+- smart_continue: 续写章节（生成内容追加到末尾，需用户确认）
+  - params: chapter_id(必需), context(可选上下文)
+  - 适用于：用户说"续写"、"继续写"章节，且希望内容追加到编辑器
+  - ⚠️ 与 continue_writing_tool 的区别：smart_continue 会修改编辑器内容
+- smart_insert: 插入内容到章节指定位置
+  - params: chapter_id(必需), position(位置), content(内容)
+  - 适用于：用户说"插入"内容到某位置
+
+⚠️ 【编辑器工具使用规则 - 极其重要！】
+当用户要求"修改"、"改写"、"续写"、"插入"章节内容时：
+1. **必须**先用 get_chapter_by_order_tool 获取 chapter_id
+2. **必须**调用对应的编辑器工具（smart_rewrite/smart_continue/smart_insert）
+3. **禁止**只返回分析或建议文本 → 必须实际调用工具去修改
+4. 编辑器工具会自动触发用户确认对话框，放心使用
+
 【选中文本处理规则】⚠️ 重要！
 
 当 Prompt 中包含【用户选中的文本】时，这表示用户在编辑器中选中了一段文字：
@@ -460,6 +487,17 @@ async def get_planning_static_prompt() -> str:
     }
   ]
 }
+
+⚠️⚠️⚠️ **【最重要】direct_answer 和 tasks 必须二选一！** ⚠️⚠️⚠️
+
+这是**强制规则**，违反会导致系统错误：
+- ✅ 知识问答/闲聊 → direct_answer 有内容，tasks = []（空数组）
+- ✅ 需要执行操作 → tasks 有内容，direct_answer = ""（空字符串）
+- ❌ **绝对禁止**：同时填写 direct_answer 和 tasks！
+
+判断标准：
+- 如果需要调用任何工具 → 只填 tasks，direct_answer 必须为空
+- 如果不需要工具，纯回答 → 只填 direct_answer，tasks 必须为空数组
 
 ⚠️ **output_title 字段规范**：
 - 必须简洁：4-8个字

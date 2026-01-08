@@ -415,7 +415,7 @@ export const EnhancedProgressEventSchema = z.object({
 /**
  * 执行轨迹项类型
  */
-export type FlowItemType = 'text' | 'tool' | 'content' | 'step' | 'output' | 'agent_header' | 'completion' | 'summarization';
+export type FlowItemType = 'text' | 'tool' | 'content' | 'step' | 'output' | 'agent_header' | 'completion' | 'summarization' | 'revision';
 
 // ==================== 知识调取相关类型 (v6.0) ====================
 
@@ -521,13 +521,54 @@ export interface ContentFlowData {
   content: string;
 }
 
+// ==================== 修订卡片类型 (v7.0) ====================
+
+/**
+ * 修订类型
+ */
+export type RevisionType = 'append' | 'replace' | 'insert' | 'create' | 'rename';
+
+/**
+ * 修订状态
+ */
+export type RevisionStatus = 'pending' | 'accepted' | 'discarded';
+
+/**
+ * 改写版本
+ */
+export interface RewriteVersion {
+  style_name: string;
+  reason: string;
+  content: string;
+}
+
+/**
+ * 修订卡片数据
+ */
+export interface RevisionFlowData {
+  revisionType: RevisionType;
+  status: RevisionStatus;
+  requestId?: string;
+  chapterId?: string;
+  chapterTitle?: string;
+  contentPreview?: string;      // 内容预览（前50字）
+  oldTitle?: string;            // 原标题（rename 类型）
+  newTitle?: string;            // 新标题（rename 类型）
+  versions?: RewriteVersion[];  // 改写版本（replace 类型）
+  // v7.2: 撤销/重做支持
+  originalContent?: string;     // 原始内容快照（用于撤销）
+  newContent?: string;          // 新内容快照（用于重做）
+  editorPosition?: { from: number; to: number };  // 编辑器位置
+  selectedVersion?: number;     // 选择的改写版本索引
+}
+
 /**
  * 执行轨迹项
  */
 export interface FlowItem {
   id: string;
   type: FlowItemType;
-  data: TextFlowData | ToolFlowData | ContentFlowData | StepFlowData | OutputFlowData | AgentHeaderFlowData | CompletionFlowData | SummarizationFlowData;
+  data: TextFlowData | ToolFlowData | ContentFlowData | StepFlowData | OutputFlowData | AgentHeaderFlowData | CompletionFlowData | SummarizationFlowData | RevisionFlowData;
   timestamp: string;
 }
 

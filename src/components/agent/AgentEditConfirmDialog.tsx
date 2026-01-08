@@ -15,7 +15,7 @@ interface RewriteVersion {
 
 interface ApprovalRequest {
   request_id: string;
-  action_type: 'edit' | 'rewrite' | 'insert';
+  action_type: 'edit' | 'rewrite' | 'insert' | 'create' | 'rename';
   operation?: string;
   original_content?: string;
   new_content?: string;
@@ -98,6 +98,10 @@ export const AgentEditConfirmDialog: React.FC<AgentEditConfirmDialogProps> = ({
         return 'AI改写 - 选择版本';
       case 'insert':
         return 'AI插入确认';
+      case 'create':
+        return 'AI新建章节确认';
+      case 'rename':
+        return 'AI修改标题确认';
       default:
         return 'AI操作确认';
     }
@@ -111,6 +115,10 @@ export const AgentEditConfirmDialog: React.FC<AgentEditConfirmDialogProps> = ({
         return <Wand2 className="w-5 h-5 text-purple-500" />;
       case 'insert':
         return <FileText className="w-5 h-5 text-green-500" />;
+      case 'create':
+        return <FileText className="w-5 h-5 text-emerald-500" />;
+      case 'rename':
+        return <FileText className="w-5 h-5 text-indigo-500" />;
       default:
         return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
     }

@@ -143,6 +143,29 @@ class StreamEventHandler:
         """发送AI整合分析完成事件"""
         await self.emit_flow_event(FlowEventBuilder.summarization_complete())
 
+    async def emit_revision(
+        self,
+        revision_type: str,
+        request_id: str = None,
+        chapter_id: str = None,
+        chapter_title: str = None,
+        content_preview: str = None,
+        old_title: str = None,
+        new_title: str = None,
+        versions: list = None
+    ):
+        """发送修订请求事件 (v7.0)"""
+        await self.emit_flow_event(FlowEventBuilder.revision(
+            revision_type=revision_type,
+            request_id=request_id,
+            chapter_id=chapter_id,
+            chapter_title=chapter_title,
+            content_preview=content_preview,
+            old_title=old_title,
+            new_title=new_title,
+            versions=versions
+        ))
+
     async def handle_event(
         self,
         event: dict,
@@ -283,13 +306,46 @@ class StreamEventHandler:
                     "request_id": f"{msg.name}_{msg.tool_call_id}",
                     "action_type": tool_result.get("action_type", "edit"),
                     "operation": tool_result.get("operation"),
-                    "original_content": tool_result.get("original_text"),
-                    "new_content": tool_result.get("content"),
+                    "original_content": (
+                        tool_result.get("original_text")
+                        or tool_result.get("original_content")
+                        or tool_result.get("old_title")
+                    ),
+                    "new_content": (
+                        tool_result.get("content")
+                        or tool_result.get("new_content")
+                        or tool_result.get("new_title")
+                    ),
                     "description": tool_result.get("description"),
                     "versions": versions,
                     "chapter_id": tool_result.get("chapter_id"),
+                    "chapter_title": tool_result.get("chapter_title"),
+                    "work_id": tool_result.get("work_id"),
+                    "old_title": tool_result.get("old_title"),
+                    "new_title": tool_result.get("new_title"),
                     "editor_action": tool_result.get("editor_action")
                 }
+
+                # 若工具返回 position 但未提供 editor_action，推断编辑类型
+                if not approval_data.get("editor_action") and tool_result.get("position") is not None:
+                    position_value = tool_result.get("position")
+                    if isinstance(position_value, dict) and "from" in position_value:
+                        position_payload = position_value
+                    else:
+                        position_payload = {"from": position_value, "to": position_value}
+
+                    operation = approval_data.get("operation")
+                    inferred_type = "modify"
+                    if operation == "append":
+                        inferred_type = "continue"
+                    elif operation == "insert":
+                        inferred_type = "insert"
+
+                    approval_data["editor_action"] = {
+                        "type": inferred_type,
+                        "position": position_payload,
+                        "requires_confirmation": True
+                    }
 
                 logger.info(
                     f"[HITL] 准备调用回调: request_id={approval_data['request_id']}, "
@@ -297,8 +353,52 @@ class StreamEventHandler:
                     f"editor_action={approval_data.get('editor_action')}"
                 )
 
-                await self._approval_callback(approval_data)
+                callback_result = await self._approval_callback(approval_data)
                 logger.info(f"[HITL] ✅ 回调执行成功")
+
+                request_id = approval_data.get("request_id")
+                if isinstance(callback_result, dict) and callback_result.get("request_id"):
+                    request_id = callback_result.get("request_id")
+                elif isinstance(callback_result, str):
+                    request_id = callback_result
+
+                # v7.0: 发送 revision 事件到执行轨迹
+                action_type = tool_result.get("action_type", "edit")
+                operation = tool_result.get("operation")
+
+                # 映射 action_type/operation 到 revision_type
+                revision_type_map = {
+                    "rewrite": "replace",
+                    "edit": "replace",
+                    "continue": "append",
+                    "insert": "insert",
+                    "create": "create",
+                    "rename": "rename"
+                }
+                revision_type = revision_type_map.get(action_type, "replace")
+                if operation == "append":
+                    revision_type = "append"
+                elif operation == "insert":
+                    revision_type = "insert"
+
+                # 生成内容预览（前50字）
+                content_preview = None
+                new_content = tool_result.get("content") or tool_result.get("new_content")
+                if new_content:
+                    content_preview = new_content[:50] if len(new_content) > 50 else new_content
+
+                # 发送 revision 事件
+                await self.emit_revision(
+                    revision_type=revision_type,
+                    request_id=request_id,
+                    chapter_id=tool_result.get("chapter_id"),
+                    chapter_title=tool_result.get("chapter_title"),
+                    content_preview=content_preview,
+                    old_title=tool_result.get("old_title"),
+                    new_title=tool_result.get("new_title"),
+                    versions=versions
+                )
+                logger.info(f"[HITL] ✅ revision 事件已发送: type={revision_type}")
 
             except json.JSONDecodeError as e:
                 logger.warning(

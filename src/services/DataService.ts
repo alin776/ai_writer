@@ -1140,11 +1140,12 @@ class DataServiceClass {
     formData.append('create_new', String(options.createNew));
     formData.append('include_worldview', String(options.includeWorldview));
     formData.append('include_guidelines', String(options.includeGuidelines));
-    
+    formData.append('auto_extract_worldview', String(options.autoExtractWorldview ?? false));
+
     if (options.workId) {
       formData.append('work_id', options.workId);
     }
-    
+
     return this.adapter.post('/works/import', formData);
   }
 

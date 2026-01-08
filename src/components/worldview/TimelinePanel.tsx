@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Clock, User, MapPin, BookOpen, ChevronDown, ChevronRight, Search, X } from 'lucide-react';
+import { Clock, User, MapPin, BookOpen, ChevronDown, ChevronRight, Search, X, PanelLeft, PanelLeftClose, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,10 @@ interface TimelinePanelProps {
   locations: Location[];
   settings: Setting[];
   relationships: Relationship[];
+  leftPanelCollapsed?: boolean;
+  onToggleLeftPanel?: () => void;
+  rightPanelCollapsed?: boolean;
+  onToggleRightPanel?: () => void;
   onEventClick: (event: TimelineEvent) => void;
   onAddEvent?: () => void;
   onEditEvent?: (event: TimelineEvent) => void;
@@ -38,6 +42,10 @@ export function TimelinePanel({
   locations,
   settings,
   relationships,
+  leftPanelCollapsed,
+  onToggleLeftPanel,
+  rightPanelCollapsed,
+  onToggleRightPanel,
   onEventClick,
   onAddEvent,
   onEditEvent,
@@ -248,6 +256,10 @@ export function TimelinePanel({
   };
 
   const hasActiveFilters = searchQuery || selectedEntityId !== 'all' || selectedEventType !== 'all';
+  const showLeftPanelToggle = Boolean(onToggleLeftPanel);
+  const showRightPanelToggle = Boolean(onToggleRightPanel && rightPanelCollapsed);
+  const isLeftPanelActive = Boolean(onToggleLeftPanel && !leftPanelCollapsed);
+  const isRightPanelActive = Boolean(onToggleRightPanel && !rightPanelCollapsed);
 
   return (
     <div className="relative w-full h-full bg-gradient-to-br from-background to-muted/20 dark:from-background dark:to-muted/10 text-sm flex flex-col">
@@ -255,29 +267,44 @@ export function TimelinePanel({
       <div className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="p-4 space-y-3">
           {/* 标题和快速跳转 */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-foreground text-lg font-medium">时间线视图</h2>
-              <p className="text-muted-foreground text-xs mt-0.5">
-                共 {filteredEvents.length} 个事件
-                {hasActiveFilters && <span className="text-primary ml-1">(已筛选)</span>}
-              </p>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              {showLeftPanelToggle && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onToggleLeftPanel?.()}
+                  className={`h-8 w-8 border border-border/60 hover:bg-accent/50 ${
+                    isLeftPanelActive ? 'bg-accent text-foreground border-border' : 'text-muted-foreground'
+                  }`}
+                  title={leftPanelCollapsed ? "展开左侧边栏" : "收起左侧边栏"}
+                >
+                  {leftPanelCollapsed ? <PanelLeft className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+                </Button>
+              )}
+
+              <div className="min-w-0">
+                <h2 className="text-foreground text-lg font-medium">时间线视图</h2>
+                <p className="text-muted-foreground text-xs mt-0.5">
+                  共 {filteredEvents.length} 个事件
+                  {hasActiveFilters && <span className="text-primary ml-1">(已筛选)</span>}
+                </p>
+              </div>
+
             </div>
 
-            {/* 章节快速跳转 */}
-            {sortedChapters.length > 0 && (
-              <Select onValueChange={scrollToChapter}>
-                <SelectTrigger className="w-40 h-8 text-xs">
-                  <SelectValue placeholder="跳转到章节..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {sortedChapters.map(chapter => (
-                    <SelectItem key={chapter.chapterId} value={chapter.chapterId} className="text-xs">
-                      第{chapter.chapterNumber}章 · {chapter.chapterTitle}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {showRightPanelToggle && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onToggleRightPanel?.()}
+                className={`h-8 w-8 border border-border/60 hover:bg-accent/50 ${
+                  isRightPanelActive ? 'bg-accent text-foreground border-border' : 'text-muted-foreground'
+                }`}
+                title={rightPanelCollapsed ? "展开右侧边栏" : "收起右侧边栏"}
+              >
+                {rightPanelCollapsed ? <PanelRightOpen className="w-4 h-4" /> : <PanelRightClose className="w-4 h-4" />}
+              </Button>
             )}
           </div>
 
@@ -303,6 +330,22 @@ export function TimelinePanel({
                 </Button>
               )}
             </div>
+
+            {/* 章节快速跳转 */}
+            {sortedChapters.length > 0 && (
+              <Select onValueChange={scrollToChapter}>
+                <SelectTrigger className="w-40 h-8 text-xs">
+                  <SelectValue placeholder="跳转到章节..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {sortedChapters.map(chapter => (
+                    <SelectItem key={chapter.chapterId} value={chapter.chapterId} className="text-xs">
+                      第{chapter.chapterNumber}章 · {chapter.chapterTitle}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             {/* 实体筛选 */}
             <Select value={selectedEntityId} onValueChange={setSelectedEntityId}>

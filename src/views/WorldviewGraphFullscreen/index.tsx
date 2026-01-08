@@ -238,8 +238,47 @@ const WorldviewGraphFullscreen: React.FC = () => {
         });
       }
       
+      // 自动补齐章节里程碑事件（每章一个）
+      const milestoneChapterIds = new Set(
+        timelineEventsData
+          .filter((event) => event.eventType === 'milestone' && event.chapterId)
+          .map((event) => event.chapterId as string)
+      );
+
+      const missingMilestones = chapterAnchorsData.filter(
+        (anchor) => !milestoneChapterIds.has(anchor.chapterId)
+      );
+
+      let mergedTimelineEvents = timelineEventsData;
+      if (missingMilestones.length > 0) {
+        const createdEvents = await Promise.all(
+          missingMilestones.map((anchor) =>
+            DataService.createTimelineEvent({
+              workId: workId,
+              entityId: anchor.chapterId,
+              entityType: 'setting',
+              eventType: 'milestone',
+              title: anchor.chapterTitle
+                ? `第${anchor.chapterNumber}章 · ${anchor.chapterTitle}`
+                : `第${anchor.chapterNumber}章`,
+              chapterId: anchor.chapterId,
+              chapterNumber: anchor.chapterNumber,
+              timestamp: anchor.timestamp,
+              color: '#f59e0b',
+            }).catch((error) => {
+              console.error('自动创建章节里程碑事件失败:', error);
+              return null;
+            })
+          )
+        );
+        const validCreatedEvents = createdEvents.filter(
+          (event): event is TimelineEvent => Boolean(event)
+        );
+        mergedTimelineEvents = [...timelineEventsData, ...validCreatedEvents];
+      }
+
       setRelationships(relationshipsData);
-      setTimelineEvents(timelineEventsData);
+      setTimelineEvents(mergedTimelineEvents);
       setChapterAnchors(chapterAnchorsData);
       setGroups(groupsData);
       
@@ -310,6 +349,15 @@ const WorldviewGraphFullscreen: React.FC = () => {
       return (entity as Setting).content || '';
     }
     return (entity as Character | Location).description || '';
+  };
+
+  const getChapterLabelById = (chapterId?: string) => {
+    if (!chapterId) return undefined;
+    const anchor = chapterAnchors.find((item) => item.chapterId === chapterId);
+    if (!anchor) return undefined;
+    return anchor.chapterTitle
+      ? `第${anchor.chapterNumber}章 · ${anchor.chapterTitle}`
+      : `第${anchor.chapterNumber}章`;
   };
 
   // 处理节点点击（点击选中模式）
@@ -577,6 +625,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
                 workId: workId!,
               });
               setPanelMode('createTimeline');
+              setRightPanelCollapsed(false);
             }} className="h-8 text-sm">
               <Plus className="w-3.5 h-3.5 mr-1.5" />
               创建事件
@@ -1033,12 +1082,17 @@ const WorldviewGraphFullscreen: React.FC = () => {
               locations={worldData.locations}
               settings={worldData.settings}
               relationships={relationships}
+              leftPanelCollapsed={leftPanelCollapsed}
+              onToggleLeftPanel={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
+              rightPanelCollapsed={rightPanelCollapsed}
+              onToggleRightPanel={toggleRightPanel}
               onAddEvent={() => {
                 // 打开创建时间线事件面板
                 setPanelCreateTimelineEventData({
                   workId: workId!,
                 });
                 setPanelMode('createTimeline');
+                setRightPanelCollapsed(false);
               }}
               onEditEvent={(event: TimelineEvent) => {
                 // 在属性面板显示事件详情
@@ -1046,9 +1100,13 @@ const WorldviewGraphFullscreen: React.FC = () => {
                               worldData.locations.find(l => l.id === event.entityId) ||
                               worldData.settings.find(s => s.id === event.entityId);
 
-                const entityLabel = event.entityType === 'character' ? (entity as Character)?.name :
-                                   event.entityType === 'location' ? (entity as Location)?.name :
-                                   (entity as Setting)?.title || '未知实体';
+                const entityLabel = entity
+                  ? (event.entityType === 'character'
+                      ? (entity as Character)?.name
+                      : event.entityType === 'location'
+                        ? (entity as Location)?.name
+                        : (entity as Setting)?.title)
+                  : (getChapterLabelById(event.chapterId) || '未知实体');
 
                 setPanelTimelineEventData({ event, entityLabel });
                 setPanelMode('timeline');
@@ -1071,9 +1129,13 @@ const WorldviewGraphFullscreen: React.FC = () => {
                               worldData.locations.find(l => l.id === event.entityId) ||
                               worldData.settings.find(s => s.id === event.entityId);
 
-                const entityLabel = event.entityType === 'character' ? (entity as Character)?.name :
-                                   event.entityType === 'location' ? (entity as Location)?.name :
-                                   (entity as Setting)?.title || '未知实体';
+                const entityLabel = entity
+                  ? (event.entityType === 'character'
+                      ? (entity as Character)?.name
+                      : event.entityType === 'location'
+                        ? (entity as Location)?.name
+                        : (entity as Setting)?.title)
+                  : (getChapterLabelById(event.chapterId) || '未知实体');
 
                 setPanelTimelineEventData({ event, entityLabel });
                 setPanelMode('timeline');

@@ -29,6 +29,7 @@ from app.models.chat_models import ChatMode
 from app.models.chapter import Chapter
 from app.services.agent.memory import MemoryManager
 from app.services.agent.tools import HITLManager
+from app.services.agent.tools.hitl import ApprovalStatus
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.ai.humanize_service import HumanizeService
 from app.services.agent.langgraph_agent import WritingAgentGraph
@@ -260,6 +261,14 @@ class ApprovalActionRequest(BaseModel):
     action: str = Field(..., description="操作类型: approve/reject/modify")
     modifications: Optional[Dict[str, Any]] = Field(None, description="修改内容（action=modify时）")
     feedback: Optional[str] = Field(None, description="反馈说明")
+
+
+class ApprovalResponseRequest(BaseModel):
+    """简化审批响应请求（编辑器确认）"""
+    request_id: str
+    approved: bool
+    selected_version: Optional[int] = None
+    reason: Optional[str] = None
 
 
 class ApprovalResponse(BaseModel):
@@ -1372,10 +1381,19 @@ async def agent_chat_stream(
                     event_type = event.get("type", "flow_event")
                     await event_queue.put((event_type, event))
 
+                # HITL 审批请求回调
+                async def on_approval_request(approval_data: dict):
+                    """HITL 审批请求回调 - 发送到SSE流"""
+                    await event_queue.put(('approval_request', approval_data))
+                    return approval_data.get("request_id")
+
                 # 在后台运行 Agent（仅 planning 模式）
                 async def run_agent():
                     nonlocal result
+                    prev_approval_callback = getattr(agent_graph, "_approval_callback", None)
                     try:
+                        # 绑定审批回调（注意：全局Agent可能被并发请求复用）
+                        agent_graph._approval_callback = on_approval_request
                         result = await agent_graph.chat_with_planning(
                             message=request.message,
                             user_id=user_id,
@@ -1401,6 +1419,8 @@ async def agent_chat_stream(
                             'error': str(e),
                             'error_type': type(e).__name__
                         }))
+                    finally:
+                        agent_graph._approval_callback = prev_approval_callback
 
                 # 启动 Agent 任务
                 agent_task = asyncio.create_task(run_agent())
@@ -1450,7 +1470,7 @@ async def agent_chat_stream(
                     if event_type == 'content':
                         event_payload['content'] = event_data
                     # v6.0: 执行轨迹事件直接使用event_data作为payload
-                    elif event_type in ('agent_header', 'text', 'step_start', 'knowledge_loaded', 'step_complete', 'output_ready', 'completion', 'summarization_start', 'summarization_complete'):
+                    elif event_type in ('agent_header', 'text', 'step_start', 'knowledge_loaded', 'step_complete', 'output_ready', 'completion', 'summarization_start', 'summarization_complete', 'revision'):
                         event_payload = event_data  # flow事件已包含完整结构
                         event_payload['mode'] = str(actual_mode)
                         event_payload['conversation_id'] = conversation_id
@@ -1578,6 +1598,40 @@ async def agent_chat_stream(
             "X-Conversation-Id": generated_conversation_id  # 便于前端保存续聊
         }
     )
+
+
+@router.post("/chat/approval-response")
+async def submit_approval_response(
+    request: ApprovalResponseRequest,
+    current_user: User = Depends(get_current_active_user),
+    hitl: HITLManager = Depends(get_hitl_manager)
+):
+    """
+    提交编辑器确认响应（简化版）
+
+    说明：用于编辑器内的确认/拒绝操作，写入响应缓存即可。
+    """
+    try:
+        status = ApprovalStatus.APPROVED if request.approved else ApprovalStatus.REJECTED
+        extra_data: Dict[str, Any] = {}
+        if request.selected_version is not None:
+            extra_data["selected_version"] = request.selected_version
+        if request.reason:
+            extra_data["reason"] = request.reason
+
+        await hitl.submit_approval(
+            request_id=request.request_id,
+            status=status,
+            data=extra_data
+        )
+
+        return {"success": True, "request_id": request.request_id}
+    except Exception as e:
+        logger.error(f"Submit approval response error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"提交确认响应失败: {str(e)}"
+        )
 
 
 # ==================== HITL 批准管理 ====================

@@ -440,13 +440,16 @@ class ToolDispatcher:
         """调用智能插入工具"""
         logger.info(f"[ToolDispatcher] 🚀 准备调用 smart_insert")
 
+        context = state.get("context", {})
+        selection_position = context.get("selection_position", None)
+
         try:
             result = await registry.call_tool("smart_insert", {
                 "chapter_id": tool_args.get("chapter_id", ""),
                 "content": tool_args.get("content", ""),
                 "user_intent": tool_args.get("position", "end"),
                 "chapter_content": None,
-                "context": None,
+                "context": {"selection": selection_position} if selection_position else None,
                 "user_id": state.get("user_id")
             })
 
@@ -468,6 +471,20 @@ class ToolDispatcher:
                 "context": None,
                 "user_id": state.get("user_id")
             })
+
+        # InlineAI: 添加 editor_action 字段（insert）
+        if selection_position:
+            try:
+                result_obj = json.loads(tool_result) if isinstance(tool_result, str) else tool_result
+                result_obj["editor_action"] = {
+                    "type": "insert",
+                    "position": selection_position,
+                    "requires_confirmation": True
+                }
+                tool_result = json.dumps(result_obj, ensure_ascii=False)
+                logger.info(f"[ToolDispatcher] 📝 添加 editor_action (insert)")
+            except Exception as e:
+                logger.warning(f"[ToolDispatcher] 添加 editor_action 失败: {e}")
 
         return tool_result
 

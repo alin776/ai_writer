@@ -1,18 +1,39 @@
 /**
  * OutputCard - 最终输出卡片组件
- * 显示续写内容，带复制/应用按钮
+ * 显示续写内容，带更多操作（预览/复制/下载）/应用按钮
  */
 
-import { Copy, Check, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { MoreHorizontal, ChevronDown, ChevronUp, Loader2, Eye, Copy, Download } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { OutputFlowData } from '@/types/agent';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+} from '@/components/ui/dropdown-menu';
+import { ContentPreviewModal } from './ContentPreviewModal';
 
 interface OutputCardProps extends OutputFlowData {
   onCopy?: () => void;
   onApply?: () => void;
+  onAddToKnowledge?: () => void;
 }
+
+// 文件格式配置
+const FILE_FORMATS = [
+  { key: 'txt', label: 'TXT', color: '#64748b' },
+  { key: 'md', label: 'Markdown', color: '#3b82f6' },
+  { key: 'pdf', label: 'PDF', color: '#ef4444' },
+  { key: 'docx', label: 'DOCX', color: '#2563eb' },
+] as const;
+
+type FileFormat = typeof FILE_FORMATS[number]['key'];
 
 export function OutputCard({
   intro,
@@ -21,10 +42,11 @@ export function OutputCard({
   content,
   isApplicable,
   onCopy,
-  onApply
+  onApply,
+  onAddToKnowledge
 }: OutputCardProps) {
-  const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(true);  // 默认展开
+  const [previewOpen, setPreviewOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // 内容变化时自动滚动到底部
@@ -34,12 +56,37 @@ export function OutputCard({
     }
   }, [content]);
 
+  // 复制内容
   const handleCopy = () => {
-    // 复制纯文本内容
     navigator.clipboard.writeText(content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
     onCopy?.();
+  };
+
+  // 下载内容
+  const handleDownload = (format: FileFormat) => {
+    const formatConfig: Record<FileFormat, { ext: string; mime: string }> = {
+      txt: { ext: '.txt', mime: 'text/plain' },
+      md: { ext: '.md', mime: 'text/markdown' },
+      pdf: { ext: '.pdf', mime: 'application/pdf' },
+      docx: { ext: '.docx', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+    };
+
+    const config = formatConfig[format];
+
+    // PDF 和 DOCX 需要后端支持
+    if (format === 'pdf' || format === 'docx') {
+      // TODO: 调用后端 API 进行格式转换
+      console.log(`${format.toUpperCase()} 格式需要后端支持`);
+      return;
+    }
+
+    const blob = new Blob([content], { type: config.mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title}${config.ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   // 渲染介绍文字，支持高亮
@@ -72,11 +119,12 @@ export function OutputCard({
       )}
 
       {/* 内容卡片 */}
-      <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-[10px] mt-4 overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-[10px] mt-4">
         {/* 标题栏 */}
         <div className="group flex items-center justify-between px-3 py-1 border-b border-gray-200 dark:border-slate-700">
           <span className="text-[13px] font-medium text-gray-900 dark:text-white">{title}</span>
           <div className="flex gap-1.5">
+            {/* 展开/收缩按钮 */}
             <button
               onClick={() => setExpanded(!expanded)}
               className="p-1.5 text-gray-400 dark:text-slate-500 rounded hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
@@ -84,13 +132,67 @@ export function OutputCard({
             >
               {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
-            <button
-              onClick={handleCopy}
-              className="p-1.5 text-gray-400 dark:text-slate-500 rounded hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
-              title={copied ? '已复制' : '复制'}
-            >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-            </button>
+
+            {/* 更多按钮 - 下拉菜单 */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="p-1.5 text-gray-400 dark:text-slate-500 rounded hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+                  title="更多操作"
+                >
+                  <MoreHorizontal size={14} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="min-w-[140px] bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 rounded-xl p-1.5"
+              >
+                {/* 预览 */}
+                <DropdownMenuItem
+                  onClick={() => setPreviewOpen(true)}
+                  className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer"
+                >
+                  <Eye size={16} className="text-gray-500 dark:text-gray-400" />
+                  预览
+                </DropdownMenuItem>
+
+                {/* 复制 */}
+                <DropdownMenuItem
+                  onClick={handleCopy}
+                  className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer"
+                >
+                  <Copy size={16} className="text-gray-500 dark:text-gray-400" />
+                  复制
+                </DropdownMenuItem>
+
+                {/* 下载 - 子菜单 */}
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer data-[state=open]:bg-gray-100 dark:data-[state=open]:bg-slate-700">
+                    <Download size={16} className="text-gray-500 dark:text-gray-400" />
+                    下载
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="min-w-[130px] bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 rounded-xl p-1.5">
+                    {FILE_FORMATS.map((format) => (
+                      <DropdownMenuItem
+                        key={format.key}
+                        onClick={() => handleDownload(format.key)}
+                        className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer"
+                      >
+                        <span
+                          className="w-[18px] h-[18px] flex items-center justify-center text-[10px] font-semibold text-white rounded"
+                          style={{ backgroundColor: format.color }}
+                        >
+                          {format.label[0]}
+                        </span>
+                        {format.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* 应用到章节按钮 */}
             {isApplicable && onApply && (
               <button
                 onClick={onApply}
@@ -121,6 +223,15 @@ export function OutputCard({
           )}
         </div>
       </div>
+
+      {/* 预览弹窗 */}
+      <ContentPreviewModal
+        isOpen={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        title={title}
+        content={content}
+        onAddToKnowledge={onAddToKnowledge}
+      />
     </div>
   );
 }
