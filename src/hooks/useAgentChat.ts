@@ -741,6 +741,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                       content: event.content,
                       intro: event.intro,
                       introHighlight: event.introHighlight,
+                      isApplicable: event.isApplicable,  // v6.8: 添加 isApplicable 字段
                     },
                     timestamp,
                   };
@@ -793,9 +794,27 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
               const updated = [...currentMessages];
               const tasksSnapshot = (currentSession?.tasks || []).map((task) => ({ ...task }));
               if (updated[agentMessageIndex]) {
+                // v6.8: 合并 flowItems，保留 output 类型项已有的 content（避免被覆盖）
+                const existingFlowItems = (updated[agentMessageIndex] as Message).flowItems || [];
+                const mergedFlowItems = currentFlowItems.map(item => {
+                  if (item.type === 'output') {
+                    // 查找已有的 output item，保留其 content
+                    const existingOutput = existingFlowItems.find(
+                      e => e.type === 'output' && e.id === item.id
+                    );
+                    if (existingOutput && (existingOutput.data as any).content) {
+                      return {
+                        ...item,
+                        data: { ...item.data, content: (existingOutput.data as any).content }
+                      };
+                    }
+                  }
+                  return item;
+                });
+
                 updated[agentMessageIndex] = {
                   ...updated[agentMessageIndex],
-                  flowItems: currentFlowItems,
+                  flowItems: mergedFlowItems,
                   tasksSnapshot  // 保存任务列表快照，确保切换章节时不丢失
                 };
                 sessionManager.updateSession(sessionId, { messages: updated });
@@ -835,10 +854,23 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     const updated = [...currentMessages];
                     const target = updated[agentMessageIndex];
                     if (target) {
+                      // v6.8: 同步更新 flowItems 中 output 类型项的 content
+                      const existingFlowItems = (target as Message).flowItems || [];
+                      const updatedFlowItems = existingFlowItems.map(item => {
+                        if (item.type === 'output') {
+                          return {
+                            ...item,
+                            data: { ...item.data, content: streamingContent }
+                          };
+                        }
+                        return item;
+                      });
+
                       updated[agentMessageIndex] = {
                         ...target,
                         content: streamingContent,
-                        agentSteps
+                        agentSteps,
+                        flowItems: updatedFlowItems  // v6.8: 更新 flowItems
                       };
                       sessionManager.updateSession(sessionId, { messages: updated });
                       // 节流持久化内容，确保切换章节时不丢失
@@ -930,6 +962,17 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
                 const tasksSnapshot = finalTasks.map((task) => ({ ...task }));
 
+                // v6.8: 同步更新 flowItems 中 output 类型项的 content
+                const finalFlowItems = currentFlowItems.map(item => {
+                  if (item.type === 'output') {
+                    return {
+                      ...item,
+                      data: { ...item.data, content: streamingContent }
+                    };
+                  }
+                  return item;
+                });
+
                 const updated = [...currentMessages];
                 const target = updated[agentMessageIndex];
                 if (target) {
@@ -938,7 +981,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     content: streamingContent,
                     agentSteps,
                     metadata,
-                    flowItems: currentFlowItems,  // v5.1: 保存 flowItems 到消息
+                    flowItems: finalFlowItems,  // v6.8: 使用更新后的 flowItems
                     tasksSnapshot  // v6.2: 保存任务列表快照
                   };
                 }

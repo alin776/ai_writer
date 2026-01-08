@@ -302,7 +302,7 @@ class AgentApiService {
                   callbacks.onFlowEvent?.({ type: 'step_complete', stepId: data.step_id, description: data.description, toolCall: data.tool_call, status: data.status, timestamp: data.timestamp });
                   break;
                 case 'output_ready':
-                  callbacks.onFlowEvent?.({ type: 'output_ready', title: data.title, content: data.content, intro: data.intro, introHighlight: data.intro_highlight, timestamp: data.timestamp });
+                  callbacks.onFlowEvent?.({ type: 'output_ready', title: data.title, content: data.content, intro: data.intro, introHighlight: data.intro_highlight, isApplicable: data.is_applicable, timestamp: data.timestamp });
                   break;
                 case 'completion':
                   callbacks.onFlowEvent?.({ type: 'completion', data: data.data, timestamp: data.timestamp });
