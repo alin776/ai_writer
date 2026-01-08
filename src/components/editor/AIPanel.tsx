@@ -10,7 +10,6 @@ import type { AgentMode } from '../agent/ModeSelector';
 import ModeSelector from '../agent/ModeSelector';
 import ActivityStream from '../agent/ActivityStream';  // ✅ 导入ActivityStream
 import { ExecutionFlow } from '../agent/ExecutionFlow';  // ✅ v5.0: 执行轨迹可视化
-import { AgentHeader } from '../agent/ExecutionFlow/AgentHeader';
 import AgentEditConfirmDialog from '../agent/AgentEditConfirmDialog';  // ✅ 编辑确认对话框
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -1022,9 +1021,9 @@ ${selectionContext.selected_text}
             console.log(`[AIPanel] Message ${index} flowItems:`, messageFlowItems.length, messageFlowItems.map((i: any) => i?.type));
           }
           // v6.2: completion 应该和 output 一起显示在内容区域，而不是在执行轨迹区域
-          // v6.4: agent_header 也排除，因为内容区域已经有 AgentHeader 组件
+          // v6.6: 保留 agent_header 在执行轨迹区域，确保流式输出过程中也能显示 logo 和名称
           const flowItemsWithoutOutput = messageFlowItems.filter((item: any) =>
-            item?.type !== 'output' && item?.type !== 'completion' && item?.type !== 'agent_header'
+            item?.type !== 'output' && item?.type !== 'completion'
           );
           const outputItems = messageFlowItems.filter((item: any) => item?.type === 'output');
           const completionItem = messageFlowItems.find((item: any) => item?.type === 'completion');
@@ -1059,11 +1058,10 @@ ${selectionContext.selected_text}
                 </div>
               )}
 
-              {/* v6.2: 只有当有实际内容时才显示AgentHeader和内容区域 */}
+              {/* v6.6: 只有当有实际内容时才显示内容区域（AgentHeader 已在执行轨迹区域显示） */}
               {(message.content || lastOutputItem) && (
                 <div className="flex items-start">
                   <div className="flex flex-col gap-1 w-full group">
-                    <AgentHeader />
                     <div className="text-zinc-500 dark:text-slate-300">
                       {/* v6.5: 统一使用 ExecutionFlow 样式，删除纯文本降级逻辑 */}
                       <ExecutionFlow
