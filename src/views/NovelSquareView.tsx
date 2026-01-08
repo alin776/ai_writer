@@ -388,13 +388,13 @@ export default function NovelSquareView() {
   }
 
   return (
-    <div className="h-full overflow-auto bg-gray-50 dark:bg-slate-900">
+    <div className="h-full overflow-y-auto overflow-x-hidden bg-gray-50 dark:bg-slate-900">
       {/* 轮播图和筛选区域 */}
       <div>
         <FeaturedCarousel onViewDetail={handleViewDetailById} />
 
-        <div className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700">
-          <div className="max-w-6xl mx-auto px-6 py-4">
+        <div className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 overflow-hidden">
+          <div className="w-[1152px] mx-auto px-6 py-4">
             <div className="flex items-center gap-4 mb-4">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500" />
@@ -474,8 +474,8 @@ export default function NovelSquareView() {
       </div>
 
       {/* 内容区 */}
-      <main>
-        <div className="max-w-6xl mx-auto px-6 py-6">
+      <main className="overflow-hidden">
+        <div className="w-[1152px] mx-auto px-6 py-6">
         {loading && novels.length === 0 ? (
           <div className="flex justify-center items-center py-20">
             <Loader2 className="w-8 h-8 text-gray-400 dark:text-slate-500 animate-spin" />

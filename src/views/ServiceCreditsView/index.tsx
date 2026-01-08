@@ -24,8 +24,8 @@ const ServiceCreditsView: React.FC = () => {
   }
 
   return (
-    <div className="h-full overflow-auto bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-5xl mx-auto p-6 space-y-6">
+    <div className="h-full overflow-y-auto overflow-x-hidden bg-gray-50 dark:bg-gray-900">
+      <div className="w-[1152px] mx-auto p-6 space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">我的积分</h1>
           <p className="mt-1 text-sm text-gray-500">查看您的积分余额和使用情况</p>

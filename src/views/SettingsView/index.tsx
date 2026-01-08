@@ -902,13 +902,16 @@ const SettingsView: React.FC = () => {
     <>
     <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
       {/* 固定页眉 */}
-      <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t("settings.title")}</h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("settings.subtitle")}</p>
+      <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="w-[1152px] mx-auto px-6 py-6">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t("settings.title")}</h1>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("settings.subtitle")}</p>
+        </div>
       </div>
 
       {/* 内容区 - 左侧固定，右侧滚动 */}
-      <div className="flex-1 min-h-0 flex overflow-hidden p-6 gap-6">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+        <div className="w-[1152px] mx-auto flex p-6 gap-6">
         {/* 左侧标签栏 - 固定 */}
         <div className="flex-shrink-0 w-64">
           <Card className="!bg-white dark:!bg-gray-900 shadow-none border-gray-100 dark:border-gray-800 sticky top-6">
@@ -970,6 +973,7 @@ const SettingsView: React.FC = () => {
             )}
             </div>
           </Card>
+        </div>
         </div>
       </div>
     </div>
