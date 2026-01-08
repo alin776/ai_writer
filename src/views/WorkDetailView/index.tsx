@@ -55,6 +55,15 @@ const WorkDetailView: React.FC = () => {
   const { rightSidebarType, setRightSidebarType } = useEditorStore();
   const setLastWork = useWorkNavStore((state) => state.setLastWork);
   const clearLastWork = useWorkNavStore((state) => state.clearLastWork);
+  const autoExtractFromImportRef = useRef(false);
+  const autoExtractWorkIdRef = useRef<string | undefined>(undefined);
+
+  if (workId && autoExtractWorkIdRef.current !== workId) {
+    autoExtractFromImportRef.current = Boolean(
+      (location.state as Record<string, any> | null)?.autoExtractWorldview
+    );
+    autoExtractWorkIdRef.current = workId;
+  }
   // 获取章节记忆功能
   const setLastChapter = useWorkNavStore((state) => state.setLastChapter);
   const getLastChapter = useWorkNavStore((state) => state.getLastChapter);
@@ -109,6 +118,64 @@ const WorkDetailView: React.FC = () => {
     guidelines: undefined,
     aiGuidelines: undefined,
   });
+  const autoExtractFromImport = autoExtractFromImportRef.current;
+
+  const refreshWorldData = useCallback(async () => {
+    if (!workId) return false;
+
+    try {
+      const latest = await DataService.getWorldData(workId);
+      const latestCount = (latest.characters?.length ?? 0)
+        + (latest.locations?.length ?? 0)
+        + (latest.settings?.length ?? 0);
+
+      setWorldData((prev) => {
+        const prevCount = (prev.characters?.length ?? 0)
+          + (prev.locations?.length ?? 0)
+          + (prev.settings?.length ?? 0);
+
+        if (latestCount === 0 && prevCount > 0) {
+          return prev;
+        }
+        if (latestCount === 0 && prevCount === 0) {
+          return prev;
+        }
+        return latest as any;
+      });
+
+      return latestCount > 0;
+    } catch (error) {
+      console.warn('[WorkDetailView] Failed to refresh worldview data:', error);
+      return false;
+    }
+  }, [workId]);
+  const hasWorldviewCards = worldData.characters.length + worldData.locations.length + worldData.settings.length > 0;
+
+  useEffect(() => {
+    if (!workId || !autoExtractFromImport || hasWorldviewCards) return;
+
+    let cancelled = false;
+    const delays = [2000, 6000, 12000, 25000, 45000];
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const run = async (index: number) => {
+      if (cancelled) return;
+      const hasNewCards = await refreshWorldData();
+      if (hasNewCards || cancelled) return;
+      if (index < delays.length - 1) {
+        timer = setTimeout(() => run(index + 1), delays[index + 1]);
+      }
+    };
+
+    timer = setTimeout(() => run(0), delays[0]);
+
+    return () => {
+      cancelled = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, [workId, autoExtractFromImport, hasWorldviewCards, refreshWorldData]);
   // 世界观面板初始 tab（用于搜索导航定位）
   const [worldviewInitialTab, setWorldviewInitialTab] = useState<'characters' | 'places' | 'settings' | undefined>(undefined);
   // 世界观面板目标项 ID（用于搜索导航滚动定位）
@@ -348,6 +415,7 @@ const WorkDetailView: React.FC = () => {
           openWorldview?: boolean;
           worldviewTab?: 'characters' | 'locations' | 'settings';
           targetItemId?: string;
+          autoExtractWorldview?: boolean;
         } | null;
 
         // 如果有章节，处理章节选择逻辑
@@ -399,15 +467,19 @@ const WorkDetailView: React.FC = () => {
             setWorldviewTargetItemId(searchNavState.targetItemId);
           }
           console.log('[WorkDetailView] 从搜索导航打开世界观面板:', mappedTab, searchNavState.targetItemId);
+        } else if (searchNavState?.autoExtractWorldview) {
+          // 导入后默认回到 agent 面板
+          setRightSidebarType('agent');
         }
 
         // 清除 location.state 中的搜索导航参数，避免刷新时重复执行
-        if (searchNavState?.targetChapterId || searchNavState?.openWorldview) {
+        if (searchNavState?.targetChapterId || searchNavState?.openWorldview || searchNavState?.autoExtractWorldview) {
           if (nextLocationState) {
             delete (nextLocationState as Record<string, unknown>).targetChapterId;
             delete (nextLocationState as Record<string, unknown>).openWorldview;
             delete (nextLocationState as Record<string, unknown>).worldviewTab;
             delete (nextLocationState as Record<string, unknown>).targetItemId;
+            delete (nextLocationState as Record<string, unknown>).autoExtractWorldview;
           }
           shouldReplaceLocationState = true;
         }
@@ -1686,6 +1758,7 @@ const WorkDetailView: React.FC = () => {
                   initialTab={worldviewInitialTab}
                   targetItemId={worldviewTargetItemId}
                   onTargetItemScrolled={() => setWorldviewTargetItemId(undefined)}
+                  onWorldDataUpdate={refreshWorldData}
                 />
               ) : rightSidebarType === 'summary' ? (
                 <SummaryPanel

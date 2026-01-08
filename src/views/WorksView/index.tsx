@@ -563,11 +563,13 @@ const WorksView: React.FC = () => {
 
     try {
       setIsImporting(true);
+      const shouldAutoExtractWorldview = importFormat !== 'json';
       const options: ImportOptions = {
         format: importFormat,
         createNew: true,
         includeWorldview: true,
-        includeGuidelines: true
+        includeGuidelines: true,
+        autoExtractWorldview: shouldAutoExtractWorldview,
       };
 
       const result = await DataService.importWork(importFile, options);
@@ -594,7 +596,8 @@ const WorksView: React.FC = () => {
             work: workData,
             chapters: chaptersData,
             worldData: worldData,
-          }
+          },
+          autoExtractWorldview: shouldAutoExtractWorldview,
         }
       });
     } catch (error: any) {

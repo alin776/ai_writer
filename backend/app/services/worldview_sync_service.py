@@ -20,6 +20,7 @@ from app.models.setting import Setting
 from app.models.relationship import EntityRelationship
 from app.services.worldview_service import WorldviewService
 from app.services.ai.http_ai_service import HTTPAIService
+from app.core.redis_client import redis_client
 from app.schemas.worldview import CharacterCreate, LocationCreate, SettingCreate
 
 logger = logging.getLogger(__name__)
@@ -346,7 +347,33 @@ class WorldviewSyncService:
                 logger.error(f"创建/更新关系失败 {from_name} -> {to_name}: {e}")
 
         await self.db.commit()
+        self._invalidate_worldview_cache(
+            work_id,
+            ['characters', 'locations', 'settings', 'guidelines']
+        )
         return stats
+
+    def _invalidate_worldview_cache(self, work_id: str, cache_types: Optional[List[str]] = None) -> None:
+        """Invalidate worldview-related cache entries after background sync."""
+        if not redis_client.is_available():
+            return
+
+        types = cache_types or ['characters', 'locations', 'settings', 'guidelines']
+        for cache_type in types:
+            cache_key = f"worldview:{cache_type}:{work_id}"
+            try:
+                redis_client.client.delete(cache_key)
+                logger.info(f"[Worldview Sync] Cache invalidated: {cache_key}")
+            except Exception as e:
+                logger.error(f"[Worldview Sync] Cache invalidation failed: {cache_key}, error={e}")
+
+        if any(cache_type in {'characters', 'locations', 'settings', 'guidelines'} for cache_type in types):
+            worlddata_key = f"worldview:worlddata:{work_id}"
+            try:
+                redis_client.client.delete(worlddata_key)
+                logger.info(f"[Worldview Sync] Cache invalidated: {worlddata_key}")
+            except Exception as e:
+                logger.error(f"[Worldview Sync] Cache invalidation failed: {worlddata_key}, error={e}")
 
     def _build_existing_summary(
         self,
