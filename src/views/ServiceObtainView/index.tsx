@@ -83,8 +83,8 @@ const ServiceObtainView: React.FC = () => {
   const canGenerateMore = stats ? stats.remainingQuota > 0 : false;
 
   return (
-    <div className="h-full overflow-auto bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-5xl mx-auto p-6 space-y-6">
+    <div className="h-full overflow-y-auto overflow-x-hidden bg-gray-50 dark:bg-gray-900">
+      <div className="w-[1152px] mx-auto p-6 space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">获取积分</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">通过兑换码或邀请好友获取积分</p>
