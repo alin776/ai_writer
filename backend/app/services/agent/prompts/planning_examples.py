@@ -91,7 +91,7 @@ def get_user_confirmation_examples() -> str:
   "tasks": [
     {"task_id": 1, "description": "获取第5章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 5}},
     {"task_id": 2, "description": "分析战斗风格", "tool": "analyze_text_tool", "params": {"text": "$TASK_1.content$", "focus": "战斗风格分析"}},
-    {"task_id": 3, "description": "续写500字战斗场景", "tool": "smart_continue", "params": {"context": "$TASK_1.content$", "requirements": "续写战斗场景，保持现有风格", "target_words": 500, "apply_to_editor": true, "operation": "append"}}
+    {"task_id": 3, "description": "续写500字战斗场景", "tool": "smart_continue", "params": {"chapter_content": "$TASK_1.content$", "user_requirement": "续写战斗场景，保持现有风格", "word_count": 500}}
   ]
 }
 
@@ -105,7 +105,7 @@ def get_user_confirmation_examples() -> str:
   "user_intent": "续写1000字战斗场景",
   "tasks": [
     {"task_id": 1, "description": "获取第5章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 5}},
-    {"task_id": 2, "description": "续写1000字战斗场景", "tool": "smart_continue", "params": {"context": "$TASK_1.content$", "requirements": "续写战斗场景", "target_words": 1000, "apply_to_editor": true, "operation": "append"}}
+    {"task_id": 2, "description": "续写1000字战斗场景", "tool": "smart_continue", "params": {"chapter_content": "$TASK_1.content$", "user_requirement": "续写战斗场景", "word_count": 1000}}
   ]
 }
 
@@ -119,7 +119,7 @@ def get_user_confirmation_examples() -> str:
   "user_intent": "直接续写第5章战斗场景",
   "tasks": [
     {"task_id": 1, "description": "获取第5章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 5}},
-    {"task_id": 2, "description": "续写战斗场景", "tool": "smart_continue", "params": {"context": "$TASK_1.content$", "requirements": "续写战斗场景", "target_words": 500, "apply_to_editor": true, "operation": "append"}}
+    {"task_id": 2, "description": "续写战斗场景", "tool": "smart_continue", "params": {"chapter_content": "$TASK_1.content$", "user_requirement": "续写战斗场景", "word_count": 500}}
   ]
 }
 """
@@ -154,7 +154,7 @@ def get_staged_execution_examples() -> str:
   "user_intent": "续写第6章",
   "tasks": [
     {"task_id": 1, "description": "获取第5章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 5}},
-    {"task_id": 2, "description": "续写第6章", "tool": "smart_continue", "params": {"context": "$TASK_1.content$", "requirements": "基于之前规划的大纲续写第6章", "target_words": 3000, "apply_to_editor": true, "operation": "append"}}
+    {"task_id": 2, "description": "续写第6章", "tool": "smart_continue", "params": {"chapter_content": "$TASK_1.content$", "user_requirement": "基于之前规划的大纲续写第6章", "word_count": 3000}}
   ]
 }
 
@@ -493,6 +493,66 @@ def get_agent_mode_examples() -> str:
 """
 
 
+def get_operation_tools_examples() -> str:
+    """OPERATION 工具示例（章节操作）"""
+    return """【OPERATION 工具示例】⚠️ 章节操作（会触发用户确认）
+
+用户: "帮我创建一个新章节，标题叫第四章 器灵之秘"
+{
+  "thinking": {
+    "step1_output": "用户要创建新章节，这是章节操作请求",
+    "step2_material": "不需要读取，直接创建",
+    "step3_process": "调用 create_chapter 创建章节"
+  },
+  "user_intent": "创建新章节",
+  "tasks": [
+    {"task_id": 1, "description": "创建新章节", "tool": "create_chapter", "params": {"title": "第四章 器灵之秘"}}
+  ]
+}
+
+用户: "把第二章标题改成觉醒"
+{
+  "thinking": {
+    "step1_output": "用户要修改章节标题",
+    "step2_material": "用户指定了第二章，可以直接使用章节序号",
+    "step3_process": "直接调用 update_chapter_title，传入章节序号"
+  },
+  "user_intent": "修改章节标题",
+  "tasks": [
+    {"task_id": 1, "description": "修改第二章标题", "tool": "update_chapter_title", "params": {"chapter_id": "2", "new_title": "觉醒"}}
+  ]
+}
+
+用户: "删除第三章"
+{
+  "thinking": {
+    "step1_output": "用户要删除章节，这是危险操作",
+    "step2_material": "用户指定了第三章，可以直接使用章节序号",
+    "step3_process": "直接调用 delete_chapter，传入章节序号"
+  },
+  "user_intent": "删除章节",
+  "tasks": [
+    {"task_id": 1, "description": "删除第三章", "tool": "delete_chapter", "params": {"chapter_id": "3"}}
+  ]
+}
+
+用户: "把第1章到第3章的标题分别改成觉醒、修炼、突破"
+{
+  "thinking": {
+    "step1_output": "用户要批量修改多个章节的标题",
+    "step2_material": "用户指定了第1、2、3章，可以直接使用章节序号",
+    "step3_process": "为每个章节生成一个 update_chapter_title 任务，直接使用章节序号"
+  },
+  "user_intent": "批量修改章节标题",
+  "tasks": [
+    {"task_id": 1, "description": "修改第1章标题", "tool": "update_chapter_title", "params": {"chapter_id": "1", "new_title": "觉醒"}},
+    {"task_id": 2, "description": "修改第2章标题", "tool": "update_chapter_title", "params": {"chapter_id": "2", "new_title": "修炼"}},
+    {"task_id": 3, "description": "修改第3章标题", "tool": "update_chapter_title", "params": {"chapter_id": "3", "new_title": "突破"}}
+  ]
+}
+"""
+
+
 def get_all_planning_examples() -> str:
     """获取所有规划示例（用于基础 Planning Prompt）"""
     return (
@@ -503,7 +563,8 @@ def get_all_planning_examples() -> str:
         get_search_examples() +
         get_smart_rewrite_examples() +
         get_selected_text_examples() +
-        get_multi_chapter_examples()
+        get_multi_chapter_examples() +
+        get_operation_tools_examples()
     )
 
 
@@ -518,5 +579,6 @@ __all__ = [
     "get_selected_text_examples",
     "get_multi_chapter_examples",
     "get_agent_mode_examples",
+    "get_operation_tools_examples",
     "get_all_planning_examples",
 ]

@@ -65,7 +65,8 @@ class TaskRunner:
         work_id: str,
         chapter_id: str,
         context: str,
-        on_progress: Optional[Callable] = None
+        on_progress: Optional[Callable] = None,
+        conversation_id: Optional[str] = None  # v8.0: 添加 conversation_id 用于操作日志
     ) -> str:
         """执行单个任务（DeepAgent 模式使用）
 
@@ -75,6 +76,7 @@ class TaskRunner:
             chapter_id: 章节ID
             context: 上下文
             on_progress: 进度回调
+            conversation_id: 会话ID（用于操作日志记录）
 
         Returns:
             任务执行结果
@@ -116,7 +118,7 @@ class TaskRunner:
                 result = await self._call_tool_via_registry(
                     tool_name=tool_name,
                     tool_args=params,
-                    state={"work_id": work_id, "chapter_id": chapter_id, "last_user_message": context}
+                    state={"work_id": work_id, "chapter_id": chapter_id, "last_user_message": context, "conversation_id": conversation_id or ""}
                 )
                 if on_progress:
                     await on_progress(task, "完成")

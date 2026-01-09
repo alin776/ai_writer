@@ -16,6 +16,7 @@ import json
 from langchain_core.tools import tool
 from .tool_registry import register_as_tool
 from .position_inferrer import position_inferrer
+from .tool_behaviors import creative_output_filter
 from .style_adapter import style_adapter
 from app.services.rate_limiter import agent_edit_limiter
 from app.core.database import AsyncSessionLocal
@@ -243,8 +244,8 @@ async def _generate_rewrite_versions(
 @tool
 @register_as_tool(
     "apply_chapter_edit",
-    "editor",
-    "对章节内容执行编辑操作（追加、替换、插入）。此操作需要用户确认。"
+    "operation",
+    "将已有内容写入章节（只负责写入，不生成内容）。需要先用 smart_continue 生成内容，再调用此工具。"
 )
 async def apply_chapter_edit(
     chapter_id: str,
@@ -316,7 +317,7 @@ async def apply_chapter_edit(
 @register_as_tool(
     "smart_continue",
     "creative",
-    "智能续写章节内容。根据章节上下文生成续写内容。"
+    "生成续写内容（只生成，不写入编辑器）。返回纯净的小说正文，由前端决定是否应用。"
 )
 async def smart_continue(
     chapter_id: str,
@@ -387,6 +388,9 @@ async def smart_continue(
             task_type=TaskType.CONTENT_CREATION
         )
 
+        # CREATIVE 工具：应用输出过滤器，去除脏信息
+        continued_content = creative_output_filter(continued_content)
+
         return json.dumps({
             "success": True,
             "action_type": "continue",
@@ -405,29 +409,15 @@ async def smart_continue(
 @register_as_tool(
     "smart_rewrite",
     "creative",
-    """智能改写章节中的文本。根据用户提到的词/短语定位并改写相关句子。
+    """生成改写版本（只生成，不写入编辑器）。返回3个改写版本供用户选择，由前端决定是否应用。
+
+    【重要】此工具只生成内容，不会修改编辑器。
 
     【使用步骤】：
     1. 先用read_chapter_tool读取章节内容
-    2. 在章节中定位用户提到的文本（如用户说"白光退去太平淡"，定位包含"白光退去"的句子）
-    3. 提取该句子作为text_to_rewrite（不要提取整段或整章）
-    4. 调用本工具，传入提取的句子
-
-    【改写粒度】：
-    - 用户提到具体词/短语 → 改写包含该词的句子
-    - 用户说"这段" → 改写整段
-    - 用户说"这章" → 改写整章
-
-    【用户自定义要求】：
-    - 如果用户提出具体要求（如"加强情感描写"、"更简洁"、"更有画面感"），将要求传入user_requirement参数
-    - 如果用户说"在第X版基础上改"，将该版本内容传入base_version参数
-
-    【示例】：
-    - 用户："白光退去太平淡" → 定位"白光退去，神女看见了勇者。" → 改写这句
-    - 用户："我觉得应该加强情感描写" → user_requirement="加强情感描写"
-    - 用户："在第二版基础上再改得更简洁" → base_version=第二版内容, user_requirement="更简洁"
-
-    此操作会生成3个改写版本供用户选择。"""
+    2. 定位用户提到的文本
+    3. 调用本工具生成改写版本
+    4. 用户在前端选择版本后，由前端应用到编辑器"""
 )
 async def smart_rewrite(
     chapter_id: str,
@@ -533,7 +523,7 @@ async def smart_rewrite(
 @register_as_tool(
     "smart_insert",
     "creative",
-    "智能插入内容。根据用户意图生成要插入的内容并推断最佳插入位置。"
+    "生成插入内容（只生成，不写入编辑器）。返回生成的内容和推荐位置，由前端决定是否应用。"
 )
 async def smart_insert(
     chapter_id: str,
@@ -598,6 +588,9 @@ async def smart_insert(
             temperature=0.8,
             task_type=TaskType.CONTENT_CREATION
         )
+
+        # CREATIVE 工具：应用输出过滤器，去除脏信息
+        generated_content = creative_output_filter(generated_content)
 
         # 推断插入位置
         position_result = {"position": "cursor", "confidence": 0.8, "reason": "根据用户意图"}
@@ -712,7 +705,7 @@ async def smart_rewrite_executor(input_data: SmartRewriteInput) -> SmartRewriteO
 smart_rewrite_tool = StandardTool(
     name="smart_rewrite",
     description="智能改写章节文本，生成3个版本供用户选择",
-    category=ToolCategory.WRITING,
+    category=ToolCategory.CREATIVE,  # 修正：CREATIVE 而非 WRITING
     input_schema=SmartRewriteInput,
     output_schema=SmartRewriteOutput,
     executor=smart_rewrite_executor,
@@ -770,7 +763,7 @@ async def smart_continue_executor(input_data: SmartContinueInput) -> SmartContin
 smart_continue_tool = StandardTool(
     name="smart_continue",
     description="智能续写章节内容，根据上下文生成续写内容",
-    category=ToolCategory.WRITING,
+    category=ToolCategory.CREATIVE,  # 修正：CREATIVE 而非 WRITING
     input_schema=SmartContinueInput,
     output_schema=SmartContinueOutput,
     executor=smart_continue_executor,
@@ -830,7 +823,7 @@ async def smart_insert_executor(input_data: SmartInsertInput) -> SmartInsertOutp
 smart_insert_tool = StandardTool(
     name="smart_insert",
     description="智能插入内容，根据用户意图生成内容并推断最佳插入位置",
-    category=ToolCategory.WRITING,
+    category=ToolCategory.CREATIVE,  # 修正：CREATIVE 而非 WRITING
     input_schema=SmartInsertInput,
     output_schema=SmartInsertOutput,
     executor=smart_insert_executor,
@@ -889,8 +882,8 @@ async def apply_chapter_edit_executor(input_data: ApplyChapterEditInput) -> Appl
 
 apply_chapter_edit_tool = StandardTool(
     name="apply_chapter_edit",
-    description="对章节内容执行编辑操作（追加、替换、插入），需要用户确认",
-    category=ToolCategory.UTILITY,
+    description="将已生成的内容写入章节（不生成内容，只负责写入）。需要先用 smart_continue/smart_rewrite 生成内容，再用此工具写入。",
+    category=ToolCategory.OPERATION,  # 修正：OPERATION（需要HITL确认）
     input_schema=ApplyChapterEditInput,
     output_schema=ApplyChapterEditOutput,
     executor=apply_chapter_edit_executor,

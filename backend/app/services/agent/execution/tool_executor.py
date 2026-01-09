@@ -35,6 +35,11 @@ TOOL_NAME_MAPPING = {
     # 分析工具
     "evaluate_quality_tool": "evaluate_quality",
     "analyze_content_tool": "analyze_content",
+    # 章节管理工具（OPERATION 类）
+    "create_chapter": "create_chapter",
+    "update_chapter_title": "update_chapter_title",
+    "delete_chapter": "delete_chapter",
+    "update_chapter_content": "update_chapter_content",
 }
 
 
@@ -195,6 +200,35 @@ class ToolExecutor:
             params.setdefault("depth", "normal")
             params.setdefault("context", "")
 
+        # 章节管理工具（OPERATION 类）- 需要传递 conversation_id
+        elif tool_name == "create_chapter":
+            params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("title", "")
+            params.setdefault("content", "")
+            params.setdefault("order", None)
+            params.setdefault("conversation_id", state.get("conversation_id", ""))
+
+        elif tool_name == "update_chapter_title":
+            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            params.setdefault("new_title", "")
+            params.setdefault("old_title", None)
+            params.setdefault("conversation_id", state.get("conversation_id", ""))
+            params.setdefault("work_id", state.get("work_id", ""))  # v8.0: 用于章节序号解析
+
+        elif tool_name == "delete_chapter":
+            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            params.setdefault("chapter_title", None)
+            params.setdefault("conversation_id", state.get("conversation_id", ""))
+            params.setdefault("work_id", state.get("work_id", ""))  # v8.0: 用于章节序号解析
+
+        elif tool_name == "update_chapter_content":
+            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            params.setdefault("new_content", "")
+            params.setdefault("operation", "replace")
+            params.setdefault("position", None)
+            params.setdefault("conversation_id", state.get("conversation_id", ""))
+            params.setdefault("work_id", state.get("work_id", ""))  # v8.0: 用于章节序号解析
+
         return params
 
     def extract_result(self, tool_name: str, result: dict) -> str:
@@ -234,6 +268,10 @@ class ToolExecutor:
 
         elif tool_name == "analyze_content":
             return data.get("analysis", data.get("summary", ""))
+
+        # 章节管理工具（OPERATION 类）- 返回完整 JSON 供 HITL 处理
+        elif tool_name in ["create_chapter", "update_chapter_title", "delete_chapter", "update_chapter_content"]:
+            return json.dumps(data, ensure_ascii=False)
 
         return json.dumps(data, ensure_ascii=False)
 
@@ -340,25 +378,32 @@ class ToolExecutor:
                         "work_id": tool_args.get("work_id", state.get("work_id", "")),
                         "title": tool_args.get("title", ""),
                         "content": tool_args.get("content", ""),
-                        "order": tool_args.get("order")
+                        "order": tool_args.get("order"),
+                        "conversation_id": tool_args.get("conversation_id", state.get("conversation_id", ""))
                     }
                 elif tool_name == "update_chapter_title":
                     params = {
                         "chapter_id": tool_args.get("chapter_id", state.get("chapter_id", "")),
                         "new_title": tool_args.get("new_title", ""),
-                        "old_title": tool_args.get("old_title")
+                        "old_title": tool_args.get("old_title"),
+                        "conversation_id": tool_args.get("conversation_id", state.get("conversation_id", "")),
+                        "work_id": tool_args.get("work_id", state.get("work_id", ""))
                     }
                 elif tool_name == "delete_chapter":
                     params = {
                         "chapter_id": tool_args.get("chapter_id", state.get("chapter_id", "")),
-                        "chapter_title": tool_args.get("chapter_title")
+                        "chapter_title": tool_args.get("chapter_title"),
+                        "conversation_id": tool_args.get("conversation_id", state.get("conversation_id", "")),
+                        "work_id": tool_args.get("work_id", state.get("work_id", ""))
                     }
                 elif tool_name == "update_chapter_content":
                     params = {
                         "chapter_id": tool_args.get("chapter_id", state.get("chapter_id", "")),
                         "new_content": tool_args.get("new_content", tool_args.get("content", "")),
                         "operation": tool_args.get("operation", "replace"),
-                        "position": tool_args.get("position")
+                        "position": tool_args.get("position"),
+                        "conversation_id": tool_args.get("conversation_id", state.get("conversation_id", "")),
+                        "work_id": tool_args.get("work_id", state.get("work_id", ""))
                     }
                 # 分析工具
                 elif tool_name == "check_story_consistency_tool":

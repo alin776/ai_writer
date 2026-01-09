@@ -1398,6 +1398,131 @@ const WorkDetailView: React.FC = () => {
     rightPanelWidthRef.current = rightPanelWidth;
   }, [rightPanelWidth]);
 
+  // 🆕 监听 Agent 章节操作的乐观更新事件
+  useEffect(() => {
+    const handleChapterPreview = (e: CustomEvent) => {
+      const { action_type, request_id, work_id, chapter_id, chapter_title, new_title, content, order } = e.detail;
+
+      // 只处理当前作品的事件
+      if (work_id !== workId) return;
+
+      if (action_type === 'create') {
+        // 创建章节：立即添加到列表（带 _pending 标记）
+        setChapters(prev => {
+          const now = new Date().toISOString();
+          const newChapter: Chapter = {
+            id: chapter_id,
+            workId: work_id,  // 驼峰命名
+            title: chapter_title || '新章节',
+            content: content || '',
+            order: order || prev.length + 1,
+            wordCount: 0,
+            viewCount: 0,
+            isPublished: false,
+            publishedAt: null,
+            createdAt: now,
+            updatedAt: now,
+            status: 'draft',
+            // 乐观更新标记
+            _pending: true,
+            _request_id: request_id
+          } as any;
+          console.log('[WorkDetailView] 🆕 添加预览章节:', chapter_title);
+          return [...prev, newChapter];
+        });
+      } else if (action_type === 'rename') {
+        // 重命名：立即更新标题
+        setChapters(prev => prev.map(ch => {
+          if (ch.id === chapter_id) {
+            return { ...ch, title: new_title, _pending: true, _old_title: ch.title, _request_id: request_id } as any;
+          }
+          return ch;
+        }));
+        console.log('[WorkDetailView] 🔄 预览重命名:', new_title);
+      } else if (action_type === 'delete') {
+        // 删除：标记为待删除
+        setChapters(prev => prev.map(ch => {
+          if (ch.id === chapter_id) {
+            return { ...ch, _pending_delete: true, _request_id: request_id } as any;
+          }
+          return ch;
+        }));
+        console.log('[WorkDetailView] 🗑️ 标记待删除:', chapter_id);
+      }
+    };
+
+    const handleChapterRevert = (e: CustomEvent) => {
+      const { action_type, request_id, work_id, chapter_id } = e.detail;
+
+      // 只处理当前作品的事件
+      if (work_id !== workId) return;
+
+      if (action_type === 'create') {
+        // 移除预览章节
+        setChapters(prev => prev.filter(ch => (ch as any)._request_id !== request_id));
+        console.log('[WorkDetailView] 🗑️ 移除预览章节');
+      } else if (action_type === 'rename') {
+        // 恢复原标题
+        setChapters(prev => prev.map(ch => {
+          if ((ch as any)._request_id === request_id && (ch as any)._old_title) {
+            const { _pending, _old_title, _request_id, ...rest } = ch as any;
+            return { ...rest, title: _old_title };
+          }
+          return ch;
+        }));
+        console.log('[WorkDetailView] 🔄 恢复原标题');
+      } else if (action_type === 'delete') {
+        // 移除待删除标记
+        setChapters(prev => prev.map(ch => {
+          if ((ch as any)._request_id === request_id) {
+            const { _pending_delete, _request_id, ...rest } = ch as any;
+            return rest;
+          }
+          return ch;
+        }));
+        console.log('[WorkDetailView] ✅ 取消删除标记');
+      }
+    };
+
+    const handleChapterConfirm = async (e: CustomEvent) => {
+      const { work_id } = e.detail;
+      // 只处理当前作品的事件
+      if (work_id !== workId) return;
+
+      // 从数据库重新加载章节列表
+      try {
+        const freshChapters = await DataService.getChapters(workId);
+        setChapters(freshChapters);
+        console.log('[WorkDetailView] 🔄 从数据库刷新章节列表');
+      } catch (err) {
+        console.error('[WorkDetailView] 刷新章节列表失败:', err);
+      }
+    };
+
+    // v8.0: 监听操作回滚事件，刷新章节列表
+    const handleOperationsRollback = async () => {
+      try {
+        const freshChapters = await DataService.getChapters(workId);
+        setChapters(freshChapters);
+        console.log('[WorkDetailView] 🔄 操作回滚后刷新章节列表');
+      } catch (err) {
+        console.error('[WorkDetailView] 回滚后刷新章节列表失败:', err);
+      }
+    };
+
+    window.addEventListener('agent-chapter-preview', handleChapterPreview as EventListener);
+    window.addEventListener('agent-chapter-revert', handleChapterRevert as EventListener);
+    window.addEventListener('agent-chapter-confirm', handleChapterConfirm as EventListener);
+    window.addEventListener('agent-operations-rollback', handleOperationsRollback as EventListener);
+
+    return () => {
+      window.removeEventListener('agent-chapter-preview', handleChapterPreview as EventListener);
+      window.removeEventListener('agent-chapter-revert', handleChapterRevert as EventListener);
+      window.removeEventListener('agent-chapter-confirm', handleChapterConfirm as EventListener);
+      window.removeEventListener('agent-operations-rollback', handleOperationsRollback as EventListener);
+    };
+  }, [workId]);
+
   // 如果 workId 不存在，不渲染任何内容（路由已切换到其他页面）
   if (!workId) {
     return null;

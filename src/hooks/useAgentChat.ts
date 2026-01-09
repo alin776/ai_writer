@@ -98,6 +98,10 @@ interface UseAgentChatReturn {
   undoRevision: (itemId: string) => void;      // v7.2
   redoRevision: (itemId: string) => void;      // v7.2
   stopStreaming: () => void;
+  // v8.0: 批量操作管理
+  hasOperations: boolean;  // 是否有待确认的操作
+  acceptAllOperations: () => Promise<void>;  // 采纳所有操作
+  rollbackAllOperations: () => Promise<void>;  // 回滚所有操作
 }
 
 export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatReturn {
@@ -531,6 +535,85 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                         )
                       });
                     }
+                  },
+                  // 🆕 planning 模式也需要处理审批请求
+                  onApprovalRequest: (approvalReq: any) => {
+                    const editorAction = approvalReq.editor_action;
+                    const pendingData = {
+                      request_id: approvalReq.request_id,
+                      action_type: approvalReq.action_type,
+                      operation: approvalReq.operation,
+                      original_content: approvalReq.original_content,
+                      new_content: approvalReq.new_content,
+                      description: approvalReq.description,
+                      versions: approvalReq.versions,
+                      editor_action: editorAction,
+                      work_id: approvalReq.work_id,
+                      chapter_id: approvalReq.chapter_id,
+                      chapter_title: approvalReq.chapter_title,
+                      new_title: approvalReq.new_title,
+                      old_title: approvalReq.old_title,
+                      order: approvalReq.order,
+                      content: approvalReq.content
+                    };
+
+                    sessionManager.updateSession(sessionId, {
+                      pendingApproval: pendingData
+                    });
+
+                    // 🆕 章节操作的乐观更新（立即在目录中显示）
+                    const actionType = approvalReq.action_type;
+                    const targetWorkId = approvalReq.work_id || workId;
+
+                    if (targetWorkId && ['create', 'rename', 'delete'].includes(actionType)) {
+                      window.dispatchEvent(
+                        new CustomEvent('agent-chapter-preview', {
+                          detail: {
+                            action_type: actionType,
+                            request_id: approvalReq.request_id,
+                            work_id: targetWorkId,
+                            chapter_id: approvalReq.chapter_id,
+                            chapter_title: approvalReq.chapter_title,
+                            new_title: approvalReq.new_title,
+                            old_title: approvalReq.old_title,
+                            content: approvalReq.content,
+                            order: approvalReq.order
+                          }
+                        })
+                      );
+                      console.log('[useAgentChat] 🆕 派发章节预览事件 (planning):', actionType, approvalReq.chapter_title);
+                    }
+
+                    // 编辑器修订标记
+                    if (editorAction) {
+                      const editorActionType = editorAction.type;
+                      const resolvedType =
+                        editorActionType === 'continue' || approvalReq.operation === 'append'
+                          ? 'continue'
+                          : editorActionType === 'insert' || approvalReq.operation === 'insert'
+                            ? 'insert'
+                            : 'modify';
+
+                      let replacement = approvalReq.new_content;
+                      if (approvalReq.action_type === 'rewrite' && approvalReq.versions?.length > 0) {
+                        replacement = approvalReq.versions[0].content;
+                      }
+
+                      window.dispatchEvent(
+                        new CustomEvent('agent-show-revision', {
+                          detail: {
+                            type: resolvedType,
+                            original: approvalReq.original_content,
+                            replacement,
+                            position: editorAction.position,
+                            beforeAnchor: editorAction.before_anchor,
+                            afterAnchor: editorAction.after_anchor,
+                            revisionId: `rev-${approvalReq.request_id}-${Date.now()}`
+                          }
+                        })
+                      );
+                      console.log('[useAgentChat] 🎯 派发修订事件到编辑器 (planning):', resolvedType);
+                    }
                   }
                 }
               : {}),
@@ -619,12 +702,44 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                       description: approvalReq.description,
                       versions: approvalReq.versions,
                       // 🆕 InlineAI: 包含 editor_action
-                      editor_action: editorAction
+                      editor_action: editorAction,
+                      // 🆕 章节操作相关字段
+                      work_id: approvalReq.work_id,
+                      chapter_id: approvalReq.chapter_id,
+                      chapter_title: approvalReq.chapter_title,
+                      new_title: approvalReq.new_title,
+                      old_title: approvalReq.old_title,
+                      order: approvalReq.order,
+                      content: approvalReq.content
                     };
 
                     sessionManager.updateSession(sessionId, {
                       pendingApproval: pendingData
                     });
+
+                    // 🆕 章节操作的乐观更新（立即在目录中显示）
+                    const actionType = approvalReq.action_type;
+                    const targetWorkId = approvalReq.work_id || workId;
+
+                    if (targetWorkId && ['create', 'rename', 'delete'].includes(actionType)) {
+                      // 派发事件通知 WorkDetailView 进行乐观更新
+                      window.dispatchEvent(
+                        new CustomEvent('agent-chapter-preview', {
+                          detail: {
+                            action_type: actionType,
+                            request_id: approvalReq.request_id,
+                            work_id: targetWorkId,
+                            chapter_id: approvalReq.chapter_id,
+                            chapter_title: approvalReq.chapter_title,
+                            new_title: approvalReq.new_title,
+                            old_title: approvalReq.old_title,
+                            content: approvalReq.content,
+                            order: approvalReq.order
+                          }
+                        })
+                      );
+                      console.log('[useAgentChat] 🆕 派发章节预览事件:', actionType, approvalReq.chapter_title);
+                    }
 
                     // 🆕 立即派发事件到编辑器，显示修订标记（红删绿增）
                     if (editorAction) {
@@ -1370,13 +1485,29 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
             // 无需触发 editor 修订标记
           }
         } else {
-          // 🆕 弃用时：派发撤销事件，移除修订标记，恢复原文
+          // v7.6: 弃用时：派发弃用事件，移除修订标记，恢复原文
           window.dispatchEvent(
-            new CustomEvent('agent-undo-revision', {
+            new CustomEvent('agent-discard-revision', {
               detail: { request_id: pending.request_id }
             })
           );
           console.log('[useAgentChat] ❌ 派发弃用事件');
+
+          // 🆕 章节操作弃用时：派发撤销事件
+          const targetWorkId = (pending as any).work_id || workId;
+          if (targetWorkId && ['create', 'rename', 'delete'].includes(pending.action_type || '')) {
+            window.dispatchEvent(
+              new CustomEvent('agent-chapter-revert', {
+                detail: {
+                  action_type: pending.action_type,
+                  request_id: pending.request_id,
+                  work_id: targetWorkId,
+                  chapter_id: (pending as any).chapter_id
+                }
+              })
+            );
+            console.log('[useAgentChat] 🔄 派发章节撤销事件:', pending.action_type);
+          }
         }
 
         await agentApi.submitApprovalResponse({
@@ -1384,6 +1515,17 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           approved,
           selected_version: selectedVersion
         });
+
+        // 🆕 章节操作采纳后派发确认事件，通知 WorkDetailView 刷新列表
+        const targetWorkId = (pending as any).work_id || workId;
+        if (approved && targetWorkId && ['create', 'rename', 'delete'].includes(pending.action_type || '')) {
+          window.dispatchEvent(
+            new CustomEvent('agent-chapter-confirm', {
+              detail: { work_id: targetWorkId }
+            })
+          );
+          console.log('[useAgentChat] ✅ 派发章节确认事件，刷新列表');
+        }
 
         // 🆕 无论批准还是拒绝，都清理 pendingApproval 状态
         sessionManager.updateSession(sessionId, { pendingApproval: null });
@@ -1395,7 +1537,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         });
       }
     },
-    [sessionId, sessionManager]
+    [sessionId, sessionManager, workId]
   );
 
   // v7.0: 更新 revision 状态
@@ -1590,6 +1732,57 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     [updateRevisionStatus]
   );
 
+  // v8.0: 批量操作管理 - 检查是否有待确认的操作
+  const [hasOperations, setHasOperations] = useState(false);
+
+  // 检查操作日志
+  useEffect(() => {
+    const checkOperations = async () => {
+      if (!sessionState.conversationId) {
+        setHasOperations(false);
+        return;
+      }
+      try {
+        const result = await agentApi.getOperations(sessionState.conversationId);
+        setHasOperations(result.operations && result.operations.length > 0);
+      } catch {
+        setHasOperations(false);
+      }
+    };
+    // 只在 isLoading 变为 false 时检查（即流式响应结束后）
+    if (!sessionState.isLoading && sessionState.conversationId) {
+      checkOperations();
+    }
+  }, [sessionState.isLoading, sessionState.conversationId]);
+
+  // v8.0: 采纳所有操作
+  const acceptAllOperations = useCallback(async () => {
+    if (!sessionState.conversationId) return;
+    try {
+      await agentApi.acceptOperations(sessionState.conversationId);
+      setHasOperations(false);
+      console.log('[useAgentChat] 所有操作已采纳');
+    } catch (error) {
+      console.error('[useAgentChat] 采纳操作失败:', error);
+    }
+  }, [sessionState.conversationId]);
+
+  // v8.0: 回滚所有操作
+  const rollbackAllOperations = useCallback(async () => {
+    if (!sessionState.conversationId) return;
+    try {
+      const result = await agentApi.rollbackOperations(sessionState.conversationId);
+      setHasOperations(false);
+      console.log(`[useAgentChat] 已回滚 ${result.rolled_back} 个操作`);
+      // 触发刷新事件，通知编辑器重新加载数据
+      window.dispatchEvent(new CustomEvent('agent-operations-rollback', {
+        detail: { conversationId: sessionState.conversationId, rolledBack: result.rolled_back }
+      }));
+    } catch (error) {
+      console.error('[useAgentChat] 回滚操作失败:', error);
+    }
+  }, [sessionState.conversationId]);
+
   return {
     messages: sessionState.messages as Message[],
     isLoading: sessionState.isLoading,
@@ -1616,6 +1809,10 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     discardAllRevisions,
     undoRevision,      // v7.2
     redoRevision,      // v7.2
-    stopStreaming
+    stopStreaming,
+    // v8.0: 批量操作管理
+    hasOperations,
+    acceptAllOperations,
+    rollbackAllOperations
   };
 }

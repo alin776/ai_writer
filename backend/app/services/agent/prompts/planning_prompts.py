@@ -34,7 +34,13 @@ def _get_planning_core_rules() -> str:
    - "第三章讲了什么" → 直接生成[获取第三章 → 概括]
    - "分析主角人设" → 直接生成[搜索 → 分析]
 
-2. **用户确认后**
+2. **章节操作请求**（OPERATION 工具，直接执行）
+   - "创建新章节"、"新建一个章节" → 直接生成 create_chapter 任务
+   - "删除第三章" → 直接生成 delete_chapter 任务
+   - "把第二章标题改成XXX" → 直接生成 update_chapter_title 任务
+   - ⚠️ 这些操作会触发用户确认，所以可以直接生成任务
+
+3. **用户确认后**
    - 用户说"可以"、"好的"、"开始"、"执行吧" → 立即生成之前讨论的任务
    - 用户给出具体要求（如"3000字，介绍主角"） → 立即生成创作任务
 
@@ -71,12 +77,11 @@ def _get_planning_core_rules() -> str:
 2. 将计划转换为具体的 tasks 数组
 3. **绝对不能**只回复文字（如"好的，开始执行！"），必须生成 tasks
 
-【重要补充 - 编辑器修订】
-当用户明确要求把内容"写回当前章节"（如：续写本章/章节末尾追加/直接改到正文）时：
-1) 仍可用 smart_continue 生成文本
-2) 但必须在该任务 params 里增加 apply_to_editor=true
-3) 若是续写/追加，operation="append"
-系统会把生成文本转成修订确认（approval_request + revision）
+【重要补充 - CREATIVE 与 OPERATION 工具分离】
+⚠️ 2026-01-10 更新：CREATIVE 工具（smart_continue, smart_rewrite, smart_insert）只生成内容，不直接写入编辑器。
+如果用户要求把内容写入编辑器，需要：
+1) 先用 CREATIVE 工具生成内容
+2) 再用 apply_chapter_edit 工具写入（会触发用户确认）
 
 【核心原则】⚠️ 最重要！
 
@@ -166,11 +171,24 @@ def _get_planning_core_rules() -> str:
   - 用户说"改写"、"润色"、"修改"、"优化"、"扩写"第X章 → smart_rewrite
   - ⚠️ "扩写"是把现有内容写得更丰富，不是往后续写！属于改写场景！
 
-**续写场景** → 用 smart_continue + apply_to_editor=true
-  - 用户说"续写第X章"、"继续写"、"往后写" → smart_continue，params 加 apply_to_editor=true, operation="append"
+**续写场景** → 用 smart_continue（只生成内容）
+  - 用户说"续写第X章"、"继续写"、"往后写" → smart_continue
+  - 如果用户要求写入编辑器，需要额外调用 apply_chapter_edit
+
+**章节操作场景** → 用 OPERATION 工具（需要用户确认）
+  - 用户说"创建新章节"、"新建章节" → create_chapter
+  - 用户说"删除章节" → delete_chapter（⚠️ 危险操作）
+  - 用户说"改标题"、"重命名章节" → update_chapter_title
+  - 用户说"更新章节内容" → update_chapter_content
+
+⚠️ **【章节操作工具的 chapter_id 参数规则】** ⚠️
+- update_chapter_title、update_chapter_content、delete_chapter 的 chapter_id 参数**支持直接使用章节序号**
+- 例如：用户说"把第2章标题改成XXX" → 直接传 chapter_id: "2"，**不需要**先获取章节信息
+- ❌ 错误做法：先调用 get_chapter_by_order_tool，再用 $TASK_X.chapter_id$ 引用
+- ✅ 正确做法：直接传入章节序号字符串，如 "1"、"2"、"3"
 
 ❌ 禁止：用 smart_continue 处理"扩写"、"优化"、"润色"请求
-✅ 正确：扩写/优化/润色 用 smart_rewrite，续写 用 smart_continue + apply_to_editor=true
+✅ 正确：扩写/优化/润色 用 smart_rewrite，续写 用 smart_continue
 
 【选中文本处理规则】⚠️ 重要！
 

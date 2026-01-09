@@ -1645,8 +1645,26 @@ async def submit_approval_response(
                 approval_data = approval_request.proposed_action
                 action_type = approval_data.get("action_type")
                 chapter_id = approval_data.get("chapter_id")
+                work_id = approval_data.get("work_id")
 
-                if chapter_id and action_type in ["edit", "rewrite", "continue"]:
+                # 处理章节创建
+                if action_type == "create" and work_id:
+                    chapter_service = ChapterService(db)
+                    title = approval_data.get("chapter_title") or approval_data.get("title", "新章节")
+                    content = approval_data.get("content", "")
+                    order = approval_data.get("order")
+
+                    new_chapter = await chapter_service.create_chapter_simple(
+                        work_id=work_id,
+                        title=title,
+                        content=content,
+                        order=order,
+                        chapter_id=chapter_id  # 使用预生成的 chapter_id
+                    )
+                    logger.info(f"[Approval] 章节已创建: chapter_id={new_chapter.id}, title={title}")
+
+                # 处理章节内容编辑
+                elif chapter_id and action_type in ["edit", "rewrite", "continue", "update_content"]:
                     chapter_service = ChapterService(db)
                     content = approval_data.get("content") or approval_data.get("new_content")
 
@@ -1666,6 +1684,21 @@ async def submit_approval_response(
                             position=position
                         )
                         logger.info(f"[Approval] 修订已写入数据库: chapter_id={chapter_id}, operation={operation}")
+
+                # 处理章节标题修改
+                elif chapter_id and action_type == "rename":
+                    chapter_service = ChapterService(db)
+                    new_title = approval_data.get("new_title")
+                    if new_title:
+                        from app.schemas.chapter import ChapterUpdate
+                        await chapter_service.update_chapter(chapter_id, ChapterUpdate(title=new_title))
+                        logger.info(f"[Approval] 章节标题已修改: chapter_id={chapter_id}, new_title={new_title}")
+
+                # 处理章节删除
+                elif chapter_id and action_type == "delete":
+                    chapter_service = ChapterService(db)
+                    await chapter_service.delete_chapter(chapter_id)
+                    logger.info(f"[Approval] 章节已删除: chapter_id={chapter_id}")
 
         # 更新 HITLManager 状态
         await hitl.submit_approval(
@@ -1688,6 +1721,115 @@ async def submit_approval_response(
 
 
 # ==================== HITL 批准管理 ====================
+
+# ==================== 操作日志管理（批量操作回滚） ====================
+
+class RollbackRequest(BaseModel):
+    """回滚请求"""
+    conversation_id: str = Field(..., description="会话ID")
+
+
+@router.get("/operations/{conversation_id}")
+async def get_operations(
+    conversation_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    获取会话的操作日志
+
+    返回本轮对话中执行的所有操作，用于前端显示和回滚
+    """
+    try:
+        from app.services.agent.tools.operation_log import OperationLogManager
+        redis_client = get_redis_client()
+        op_log = OperationLogManager(redis_client)
+
+        operations = op_log.get_operations(conversation_id)
+
+        return {
+            "success": True,
+            "conversation_id": conversation_id,
+            "operations": [
+                {
+                    "op_id": op.op_id,
+                    "op_type": op.op_type,
+                    "chapter_id": op.chapter_id,
+                    "work_id": op.work_id,
+                    "description": op.description,
+                    "timestamp": op.timestamp
+                }
+                for op in operations
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Get operations error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取操作日志失败: {str(e)}"
+        )
+
+
+@router.post("/operations/rollback")
+async def rollback_operations(
+    request: RollbackRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    回滚会话的所有操作（弃用时调用）
+
+    按逆序撤销本轮对话中的所有数据库操作
+    """
+    try:
+        from app.services.agent.tools.operation_log import OperationLogManager
+        redis_client = get_redis_client()
+        op_log = OperationLogManager(redis_client)
+
+        result = await op_log.rollback_all(request.conversation_id, db)
+
+        return {
+            "success": result["success"],
+            "conversation_id": request.conversation_id,
+            "rolled_back": result["rolled_back"],
+            "errors": result.get("errors", [])
+        }
+    except Exception as e:
+        logger.error(f"Rollback operations error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"回滚操作失败: {str(e)}"
+        )
+
+
+@router.post("/operations/accept")
+async def accept_operations(
+    request: RollbackRequest,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    采纳会话的所有操作
+
+    清除操作日志（操作已经执行，无需额外处理）
+    """
+    try:
+        from app.services.agent.tools.operation_log import OperationLogManager
+        redis_client = get_redis_client()
+        op_log = OperationLogManager(redis_client)
+
+        op_log.clear_operations(request.conversation_id)
+
+        return {
+            "success": True,
+            "conversation_id": request.conversation_id,
+            "message": "操作已采纳"
+        }
+    except Exception as e:
+        logger.error(f"Accept operations error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"采纳操作失败: {str(e)}"
+        )
+
 
 @router.get("/approvals/pending", response_model=List[ApprovalResponse])
 async def get_pending_approvals(

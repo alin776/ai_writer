@@ -3,11 +3,12 @@ Agent 工具模块 (Agent Tools)
 
 提供:
 1. 工具类型系统 (tool_types)
-2. 工具注册表 (tool_registry)
-3. 写作工具集 (writing_tools)
-4. 分析工具集 (analysis_tools)
-5. 工具监控系统 (tool_monitor)
-6. 人机协同工具 (hitl)
+2. 工具行为约束 (tool_behaviors)
+3. 工具注册表 (tool_registry)
+4. 写作工具集 (writing_tools)
+5. 分析工具集 (analysis_tools)
+6. 工具监控系统 (tool_monitor)
+7. 人机协同工具 (hitl)
 """
 
 # ==================== 工具类型系统 ====================
@@ -18,6 +19,16 @@ from .tool_types import (
     StandardTool,
     InputT,
     OutputT
+)
+
+# ==================== 工具行为约束 ====================
+from .tool_behaviors import (
+    CategoryBehavior,
+    CATEGORY_BEHAVIORS,
+    get_category_behavior,
+    creative_output_filter,
+    apply_category_filter,
+    with_creative_filter,
 )
 
 # ==================== 工具注册表 ====================
@@ -101,7 +112,12 @@ from .chapter_tools import (
     create_chapter,
     update_chapter_title,
     delete_chapter,
-    update_chapter_content
+    update_chapter_content,
+    # StandardTool 版本
+    create_chapter_tool,
+    update_chapter_title_tool,
+    delete_chapter_tool,
+    update_chapter_content_tool
 )
 
 # ==================== 辅助工具（2026-01-09）====================
@@ -127,6 +143,14 @@ __all__ = [
     "StandardTool",
     "InputT",
     "OutputT",
+
+    # ==================== 工具行为约束 ====================
+    "CategoryBehavior",
+    "CATEGORY_BEHAVIORS",
+    "get_category_behavior",
+    "creative_output_filter",
+    "apply_category_filter",
+    "with_creative_filter",
 
     # ==================== 工具注册表 ====================
     # 标准化注册表
@@ -195,6 +219,11 @@ __all__ = [
     "update_chapter_title",
     "delete_chapter",
     "update_chapter_content",
+    # StandardTool 版本
+    "create_chapter_tool",
+    "update_chapter_title_tool",
+    "delete_chapter_tool",
+    "update_chapter_content_tool",
 
     # ==================== 辅助工具（2026-01-09）====================
     "check_story_consistency_tool",
@@ -248,6 +277,12 @@ def _register_standard_tools():
 
     # 辅助工具（2026-01-09: 新增）
     registry.register_standard_tool(check_story_consistency_st)
+
+    # 章节管理工具（2026-01-10: 新增 OPERATION 类工具）
+    registry.register_standard_tool(create_chapter_tool)
+    registry.register_standard_tool(update_chapter_title_tool)
+    registry.register_standard_tool(delete_chapter_tool)
+    registry.register_standard_tool(update_chapter_content_tool)
 
 
 # 模块加载时自动注册

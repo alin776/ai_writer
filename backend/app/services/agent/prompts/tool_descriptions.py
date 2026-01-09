@@ -63,10 +63,10 @@ def _get_editor_tools_section() -> str:
     * 如果用户说"改写第X章" → 先用 get_chapter_by_order_tool 获取章节，再用 $TASK_N.content$ 引用
     * user_requirement 必须从用户消息中提取改写要求！
 
-- smart_continue: 智能续写（根据上下文生成续写内容）
+- smart_continue: 智能续写（只生成内容，不写入编辑器）
   参数: chapter_id, chapter_content, user_requirement, word_count
   触发词: "续写"、"继续写"、"往后写"
-  📌 写入编辑器: 添加 apply_to_editor=true, operation="append"
+  ⚠️ 此工具只生成内容，需要用 apply_chapter_edit 写入编辑器
 
 - smart_insert: 智能插入（根据意图生成插入内容）
   参数: chapter_id, user_intent, chapter_content, insert_context, word_count
@@ -139,17 +139,18 @@ def _get_operation_tools_section() -> str:
   ⚠️ 创建前应确认用户意图，避免误创建
 
 - update_chapter_title: 更新章节标题
-  参数: chapter_id, new_title
+  参数: chapter_id（支持章节序号如"1"、"2"，或UUID）, new_title
   用途: 修改章节标题
   触发词: "改标题"、"重命名章节"
+  ⚠️ 可以直接使用章节序号，无需先获取章节信息
 
 - update_chapter_content: 更新章节内容
-  参数: chapter_id, new_content, operation(replace/append/prepend，默认replace)
+  参数: chapter_id（支持章节序号如"1"、"2"，或UUID）, new_content, operation(replace/append/insert，默认replace)
   用途: 直接更新章节内容
   ⚠️ 优先使用 smart_rewrite/smart_continue，它们有版本选择功能
 
 - delete_chapter: 删除章节
-  参数: chapter_id
+  参数: chapter_id（支持章节序号如"1"、"2"，或UUID）
   用途: 删除指定章节
   ⚠️ 危险操作！必须先确认用户意图，建议先询问确认
 """

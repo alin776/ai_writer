@@ -293,6 +293,10 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     redoRevision,      // v7.2
     acceptAllRevisions,   // v7.3: 批量采纳
     discardAllRevisions,  // v7.3: 批量弃用
+    // v8.0: 批量操作管理
+    hasOperations,
+    acceptAllOperations,
+    rollbackAllOperations,
   } = useAgentChat({ workId, chapterId, sessionId });  // ✅ 传入workId和chapterId进行会话隔离
 
   // 获取当前章节内容，用于 @optimization 直接调用去痕迹接口
@@ -1226,17 +1230,17 @@ ${selectionContext.selected_text}
                             }).catch((err) => {
                               console.error('[AIPanel] ❌ 弃用请求失败:', err);
                             });
-                            // 派发弃用事件到编辑器
+                            // v7.6: 派发弃用事件到编辑器（直接操作修订标记）
                             window.dispatchEvent(
-                              new CustomEvent('agent-undo-revision', {
+                              new CustomEvent('agent-discard-revision', {
                                 detail: { request_id: requestId }
                               })
                             );
                           } else {
-                            // v7.4: 即使没有 pendingApproval，也派发弃用事件到编辑器
+                            // v7.6: 即使没有 pendingApproval，也派发弃用事件到编辑器
                             console.log('[AIPanel] 无 pendingApproval 和 requestId，直接派发弃用事件');
                             window.dispatchEvent(
-                              new CustomEvent('agent-undo-revision', {
+                              new CustomEvent('agent-discard-revision', {
                                 detail: { request_id: itemId }
                               })
                             );
@@ -1357,6 +1361,29 @@ ${selectionContext.selected_text}
               {action}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* v8.0: 批量操作确认（采纳/弃用） */}
+      {hasOperations && !isLoading && (
+        <div className="mb-2 p-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-700">
+          <p className="text-[12px] text-amber-700 dark:text-amber-300 mb-2">
+            Agent 已执行章节操作，请确认是否保留这些修改：
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={acceptAllOperations}
+              className="px-3 py-1.5 text-[11px] bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
+            >
+              采纳修改
+            </button>
+            <button
+              onClick={rollbackAllOperations}
+              className="px-3 py-1.5 text-[11px] bg-red-500 hover:bg-red-600 text-white rounded-md transition-colors"
+            >
+              撤销修改
+            </button>
+          </div>
         </div>
       )}
 

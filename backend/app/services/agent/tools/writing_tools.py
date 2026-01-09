@@ -12,6 +12,7 @@ import logging
 from pydantic import Field
 
 from .tool_types import ToolInput, ToolOutput, ToolCategory, StandardTool
+from .tool_behaviors import creative_output_filter
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.agent.model_selector import TaskType
 
@@ -224,6 +225,9 @@ async def expand_text_executor(
             task_type=TaskType.CONTENT_CREATION  # ← 新增：指定为创作任务
         )
 
+        # CREATIVE 工具：应用输出过滤器，去除脏信息
+        expanded_text = creative_output_filter(expanded_text)
+
         # 计算扩写统计
         final_length = len(expanded_text)
         added_length = final_length - original_length
@@ -268,7 +272,7 @@ async def expand_text_executor(
 expand_text_tool = StandardTool(
     name="expand_text",
     description="扩写文本内容,增加细节、对话或描写,使内容更加丰富",
-    category=ToolCategory.WRITING,
+    category=ToolCategory.CREATIVE,  # 修正：CREATIVE（AI生成内容）
     input_schema=ExpandTextInput,
     output_schema=ExpandTextOutput,
     executor=expand_text_executor,

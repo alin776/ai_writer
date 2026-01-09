@@ -164,7 +164,69 @@ class ChapterService:
             pass
 
         return chapter
-    
+
+    async def create_chapter_simple(
+        self,
+        work_id: str,
+        title: str,
+        content: str = "",
+        order: Optional[int] = None,
+        chapter_id: Optional[str] = None
+    ) -> Chapter:
+        """
+        简化版创建章节（供 Agent 审批流程使用）
+
+        Args:
+            work_id: 作品ID
+            title: 章节标题
+            content: 章节内容
+            order: 章节顺序（可选，默认追加到末尾）
+            chapter_id: 预生成的章节ID（可选）
+
+        Returns:
+            创建的章节对象
+        """
+        from app.schemas.chapter import ChapterCreate
+
+        chapter_data = ChapterCreate(
+            work_id=work_id,
+            title=title,
+            content=content,
+            order=order
+        )
+
+        # 如果提供了预生成的 chapter_id，需要特殊处理
+        if chapter_id:
+            # 如果没有指定顺序，自动计算
+            if order is None:
+                result = await self.db.execute(
+                    select(func.max(Chapter.order))
+                    .where(Chapter.work_id == work_id)
+                )
+                max_order = result.scalar()
+                order = (max_order or 0) + 1
+
+            word_count = calculate_word_count(content)
+
+            chapter = Chapter(
+                id=chapter_id,  # 使用预生成的 ID
+                work_id=work_id,
+                title=title,
+                content=content,
+                order=order,
+                word_count=word_count,
+                status=ChapterStatus.DRAFT,
+                is_published=False,
+            )
+
+            self.db.add(chapter)
+            await self.db.commit()
+            await self.db.refresh(chapter)
+            return chapter
+
+        # 否则使用标准创建流程
+        return await self.create_chapter(chapter_data)
+
     async def update_chapter(self, chapter_id: str, chapter_data: ChapterUpdate) -> Optional[Chapter]:
         """更新章节"""
         chapter = await self.get_chapter_by_id(chapter_id)

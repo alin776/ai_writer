@@ -1663,6 +1663,7 @@ class WritingAgentGraph:
                                     chapter_id=chapter_id,
                                     context=context.get("context_str", initial_context),
                                     on_progress=on_task_progress,
+                                    conversation_id=conversation_id,  # v8.0: 传递 conversation_id 用于操作日志
                                 )
 
                                 # ✅ 注册任务结果到参数解析器（供后续任务使用）
@@ -1712,7 +1713,8 @@ class WritingAgentGraph:
                                 context=initial_context,
                                 on_task_start=wrapped_on_task_start,  # v6.0: 使用包装回调
                                 on_task_progress=on_task_progress,
-                                on_task_done=wrapped_on_task_done  # v6.0: 使用包装回调
+                                on_task_done=wrapped_on_task_done,  # v6.0: 使用包装回调
+                                conversation_id=conversation_id  # v8.0: 传递 conversation_id 用于操作日志
                             )
                         # ════════════════════════════════════════════
                 except asyncio.TimeoutError:
@@ -1858,7 +1860,8 @@ class WritingAgentGraph:
         context: str,
         on_task_start: Optional[callable] = None,
         on_task_progress: Optional[callable] = None,
-        on_task_done: Optional[callable] = None
+        on_task_done: Optional[callable] = None,
+        conversation_id: Optional[str] = None  # v8.0: 添加 conversation_id 用于操作日志
     ) -> List[Dict[str, Any]]:
         """智能并行执行任务 - 委托到 ParallelExecutor
 
@@ -1870,6 +1873,7 @@ class WritingAgentGraph:
             on_task_start: 任务开始回调
             on_task_progress: 任务进度回调
             on_task_done: 任务完成回调
+            conversation_id: 会话ID（用于操作日志记录）
 
         Returns:
             任务结果列表
@@ -1881,7 +1885,8 @@ class WritingAgentGraph:
             context=context,
             on_task_start=on_task_start,
             on_task_progress=on_task_progress,
-            on_task_done=on_task_done
+            on_task_done=on_task_done,
+            conversation_id=conversation_id
         )
 
     # ==================== 规划响应（委托到 ResponseBuilder）====================
@@ -2079,7 +2084,8 @@ class WritingAgentGraph:
         work_id: str,
         chapter_id: str,
         context: str,
-        on_progress: Optional[callable] = None
+        on_progress: Optional[callable] = None,
+        conversation_id: Optional[str] = None  # v8.0: 添加 conversation_id 用于操作日志
     ) -> str:
         """执行单个任务 - 委托到 TaskRunner
 
@@ -2089,6 +2095,7 @@ class WritingAgentGraph:
             chapter_id: 章节ID
             context: 上下文
             on_progress: 进度回调
+            conversation_id: 会话ID（用于操作日志记录）
 
         Returns:
             任务执行结果
@@ -2098,7 +2105,8 @@ class WritingAgentGraph:
             work_id=work_id,
             chapter_id=chapter_id,
             context=context,
-            on_progress=on_progress
+            on_progress=on_progress,
+            conversation_id=conversation_id
         )
         # v7.0: 检测HITL确认请求并发送审批/修订事件
         await self._handle_hitl_tool_result(task, result, work_id=work_id, chapter_id=chapter_id)
@@ -2127,38 +2135,10 @@ class WritingAgentGraph:
                 result_obj = None
 
         if not (isinstance(result_obj, dict) and result_obj.get("requires_confirmation")):
-            # Planning 中 smart_continue 仅生成文本，不会触发修订；此处进行兜底转换
-            if tool_name == "smart_continue" and self._should_promote_continue_task(task, chapter_id):
-                # 🔧 2026-01-09: 新的 smart_continue 返回 JSON，需要提取 content 字段
-                if isinstance(result_obj, dict) and result_obj.get("content"):
-                    content_text = result_obj.get("content")
-                elif isinstance(tool_result, str):
-                    try:
-                        parsed = json.loads(tool_result)
-                        content_text = parsed.get("content", tool_result)
-                    except json.JSONDecodeError:
-                        content_text = tool_result
-                else:
-                    content_text = str(tool_result or "")
-                if not content_text.strip():
-                    return
-                operation = params.get("operation") or "append"
-                result_obj = {
-                    "requires_confirmation": True,
-                    "action_type": "edit",
-                    "operation": operation,
-                    "chapter_id": params.get("chapter_id") or chapter_id,
-                    "chapter_title": params.get("chapter_title"),
-                    "work_id": params.get("work_id") or work_id,
-                    "content": content_text,
-                    "description": params.get("description") or f"AI续写：+{len(content_text)}字",
-                    "editor_action": {
-                        "type": "continue",
-                        "requires_confirmation": True
-                    }
-                }
-            else:
-                return
+            # 🔧 2026-01-10: 严格分离 - CREATIVE 工具只返回内容，不触发编辑器操作
+            # 移除了 smart_continue 的自动转换逻辑
+            # 只有 OPERATION 工具（返回 requires_confirmation=True）才会触发修订请求
+            return
 
         # 构建审批数据
         original_content = (
@@ -2166,11 +2146,20 @@ class WritingAgentGraph:
             or result_obj.get("original_content")
             or result_obj.get("old_title")
         )
+        # v8.1: 智能解析 new_content - 如果是 JSON 字符串，提取其中的 content 字段
         new_content = (
             result_obj.get("content")
             or result_obj.get("new_content")
             or result_obj.get("new_title")
         )
+        if isinstance(new_content, str) and new_content.strip().startswith('{'):
+            try:
+                parsed = json.loads(new_content)
+                if isinstance(parsed, dict) and 'content' in parsed:
+                    new_content = parsed['content']
+                    logger.info(f"[HITL] 从 JSON 中提取 content 字段")
+            except json.JSONDecodeError:
+                pass
 
         request_id = result_obj.get("request_id") or f"{tool_name}_{uuid.uuid4().hex}"
         approval_data = {
@@ -2261,16 +2250,8 @@ class WritingAgentGraph:
             versions=approval_data.get("versions")
         )
 
-    def _should_promote_continue_task(self, task: Dict[str, Any], chapter_id: Optional[str]) -> bool:
-        """判断是否将 smart_continue 的结果转为修订确认"""
-        if not chapter_id:
-            return False
-        params = task.get("params", {}) or {}
-        if params.get("apply_to_editor") is True:
-            return True
-        description = (task.get("description") or "")
-        keywords = ("续写", "继续写", "接着写", "补写", "追加", "章节末尾", "本章末尾")
-        return any(keyword in description for keyword in keywords)
+    # 🔧 2026-01-10: 已移除 _should_promote_continue_task 方法
+    # CREATIVE 工具严格分离，不再自动转换为修订请求
 
     async def _fallback_legacy_execute(
         self,

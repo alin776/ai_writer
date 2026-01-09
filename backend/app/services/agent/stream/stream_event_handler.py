@@ -312,6 +312,21 @@ class StreamEventHandler:
 
                 # 构建审批数据
                 versions = tool_result.get("versions") or tool_result.get("recommendations")
+                # v8.1: 智能解析 new_content - 如果是 JSON 字符串，提取其中的 content 字段
+                raw_new_content = (
+                    tool_result.get("content")
+                    or tool_result.get("new_content")
+                    or tool_result.get("new_title")
+                )
+                if isinstance(raw_new_content, str) and raw_new_content.strip().startswith('{'):
+                    try:
+                        parsed = json.loads(raw_new_content)
+                        if isinstance(parsed, dict) and 'content' in parsed:
+                            raw_new_content = parsed['content']
+                            logger.info(f"[HITL] 从 JSON 中提取 content 字段")
+                    except json.JSONDecodeError:
+                        pass
+
                 approval_data = {
                     "request_id": f"{msg.name}_{msg.tool_call_id}",
                     "action_type": tool_result.get("action_type", "edit"),
@@ -321,11 +336,7 @@ class StreamEventHandler:
                         or tool_result.get("original_content")
                         or tool_result.get("old_title")
                     ),
-                    "new_content": (
-                        tool_result.get("content")
-                        or tool_result.get("new_content")
-                        or tool_result.get("new_title")
-                    ),
+                    "new_content": raw_new_content,
                     "description": tool_result.get("description"),
                     "versions": versions,
                     "chapter_id": tool_result.get("chapter_id"),

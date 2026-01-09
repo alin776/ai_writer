@@ -562,6 +562,56 @@ class AgentApiService {
     const response = await this.client.post('/chat/approval-response', request);
     return response.data;
   }
+
+  // ==================== 操作日志管理（批量操作回滚） ====================
+
+  /**
+   * 获取会话的操作日志
+   */
+  async getOperations(conversationId: string): Promise<{
+    success: boolean;
+    conversation_id: string;
+    operations: Array<{
+      op_id: string;
+      op_type: string;
+      chapter_id?: string;
+      work_id?: string;
+      description: string;
+      timestamp: string;
+    }>;
+  }> {
+    const response = await this.client.get(`/operations/${conversationId}`);
+    return response.data;
+  }
+
+  /**
+   * 回滚会话的所有操作（弃用时调用）
+   */
+  async rollbackOperations(conversationId: string): Promise<{
+    success: boolean;
+    conversation_id: string;
+    rolled_back: number;
+    errors: Array<{ op_id: string; error: string }>;
+  }> {
+    const response = await this.client.post('/operations/rollback', {
+      conversation_id: conversationId
+    });
+    return response.data;
+  }
+
+  /**
+   * 采纳会话的所有操作
+   */
+  async acceptOperations(conversationId: string): Promise<{
+    success: boolean;
+    conversation_id: string;
+    message: string;
+  }> {
+    const response = await this.client.post('/operations/accept', {
+      conversation_id: conversationId
+    });
+    return response.data;
+  }
 }
 
 // 导出单例

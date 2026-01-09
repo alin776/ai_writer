@@ -876,11 +876,92 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       }
     };
 
-    // v7.2: 撤销修订事件处理
+    // v7.6: 采纳修订事件处理 - 直接操作编辑器中的修订标记
+    const handleAcceptRevisionEvent = (event: Event) => {
+      console.log('[NovelEditor] 收到采纳修订请求');
+
+      try {
+        // 使用 DOM API 移除修订标记
+        const currentHtml = editor.getHTML();
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = currentHtml;
+
+        // 1. 移除所有 aiDeleted 标记的元素（删除原文）
+        const deletedElements = tempDiv.querySelectorAll('del[data-ai-deleted], del.ai-deleted');
+        deletedElements.forEach(el => el.remove());
+
+        // 2. 移除 aiInserted 标记，但保留其内容
+        const insertedElements = tempDiv.querySelectorAll('ins[data-ai-inserted], ins.ai-inserted');
+        insertedElements.forEach(el => {
+          const fragment = document.createDocumentFragment();
+          while (el.firstChild) {
+            fragment.appendChild(el.firstChild);
+          }
+          el.parentNode?.replaceChild(fragment, el);
+        });
+
+        editor.commands.setContent(tempDiv.innerHTML);
+
+        // 触发保存
+        setSaveStatus('unsaved');
+        if (autoSave) {
+          debouncedSave(editor);
+        }
+
+        // 清理状态
+        setActiveRevision(null);
+        setRevisionBarPosition(null);
+
+        toast.success(t('editor.aiPanel.revisionAccepted'));
+      } catch (error) {
+        console.error('[NovelEditor] 采纳修订失败:', error);
+        toast.error(t('editor.aiMenu.applyFailed'));
+      }
+    };
+
+    // v7.6: 弃用修订事件处理 - 直接操作编辑器中的修订标记
+    const handleDiscardRevisionEvent = (event: Event) => {
+      console.log('[NovelEditor] 收到弃用修订请求');
+
+      try {
+        // 使用 DOM API 移除修订标记
+        const currentHtml = editor.getHTML();
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = currentHtml;
+
+        // 1. 移除 aiInserted 标记及其内容（删除新内容）
+        const insertedElements = tempDiv.querySelectorAll('ins[data-ai-inserted], ins.ai-inserted');
+        insertedElements.forEach(el => el.remove());
+
+        // 2. 移除 aiDeleted 标记，但保留其内容（恢复原文）
+        const deletedElements = tempDiv.querySelectorAll('del[data-ai-deleted], del.ai-deleted');
+        deletedElements.forEach(el => {
+          const fragment = document.createDocumentFragment();
+          while (el.firstChild) {
+            fragment.appendChild(el.firstChild);
+          }
+          el.parentNode?.replaceChild(fragment, el);
+        });
+
+        editor.commands.setContent(tempDiv.innerHTML);
+
+        // 清理状态
+        setActiveRevision(null);
+        setRevisionBarPosition(null);
+
+        toast.info(t('editor.aiPanel.revisionDiscarded'));
+      } catch (error) {
+        console.error('[NovelEditor] 弃用修订失败:', error);
+        toast.error(t('editor.aiMenu.applyFailed'));
+      }
+    };
+
+    // v7.2: 撤销修订事件处理（用于已采纳后的撤销）
     const handleUndoRevision = (event: Event) => {
       const customEvent = event as CustomEvent<{
-        itemId: string;
-        revisionType: string;
+        itemId?: string;
+        request_id?: string;
+        revisionType?: string;
         originalContent?: string;
         newContent?: string;
         position?: { from: number; to: number };
@@ -894,6 +975,13 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         hasNew: newContent !== undefined,
         position
       });
+
+      // v7.6: 如果没有详细数据，尝试直接操作编辑器中的修订标记
+      if (!position && !revisionType) {
+        console.log('[NovelEditor] 无详细数据，尝试直接操作修订标记');
+        handleDiscardRevisionEvent(event);
+        return;
+      }
 
       // v7.2: 空快照保护 - 如果没有足够的快照数据，无法撤销
       if (!position) {
@@ -981,12 +1069,16 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     window.addEventListener('agent-replace-text', handleAgentReplace as EventListener);
     window.addEventListener('agent-append-text', handleAgentAppend as EventListener);
     window.addEventListener('agent-undo-revision', handleUndoRevision as EventListener);
+    window.addEventListener('agent-accept-revision', handleAcceptRevisionEvent as EventListener);
+    window.addEventListener('agent-discard-revision', handleDiscardRevisionEvent as EventListener);
 
     return () => {
       window.removeEventListener('agent-show-revision', handleShowRevision as EventListener);
       window.removeEventListener('agent-replace-text', handleAgentReplace as EventListener);
       window.removeEventListener('agent-append-text', handleAgentAppend as EventListener);
       window.removeEventListener('agent-undo-revision', handleUndoRevision as EventListener);
+      window.removeEventListener('agent-accept-revision', handleAcceptRevisionEvent as EventListener);
+      window.removeEventListener('agent-discard-revision', handleDiscardRevisionEvent as EventListener);
     };
   }, [editor, autoSave, toast, debouncedSave]);
 

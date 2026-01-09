@@ -7,10 +7,15 @@
 """
 
 from app.core.cache import cache_review
-from .tool_descriptions import _get_retrieval_tools_section
+from .tool_descriptions import (
+    _get_retrieval_tools_section,
+    _get_operation_tools_section,
+    _get_creative_tools_section,
+    _get_analysis_tools_section
+)
 
 # Prompt 版本号 - 修改 Prompt 时请更新此版本号
-PROMPT_VERSION = "v2.36.0"
+PROMPT_VERSION = "v2.38.0"  # 2026-01-10: 章节操作工具支持直接使用章节序号
 
 
 @cache_review(expire=3600, key_prefix=f"prompt:tool_decision:{PROMPT_VERSION}")
@@ -25,6 +30,9 @@ async def get_tool_decision_static_prompt() -> str:
         对所有请求都相同，因此可以安全缓存。
     """
     retrieval_tools = _get_retrieval_tools_section()
+    operation_tools = _get_operation_tools_section()
+    creative_tools = _get_creative_tools_section()
+    analysis_tools = _get_analysis_tools_section()
 
     return f"""⚠️ 核心原则：先判断是否需要操作具体内容，不需要就直接回答
 
@@ -58,6 +66,9 @@ async def get_tool_decision_static_prompt() -> str:
 需work_id: get_chapter_by_order_tool, get_context_tool, read_chapter_tool
 不需work_id: analyze_text_tool
 {retrieval_tools}
+{operation_tools}
+{creative_tools}
+{analysis_tools}
 ⚠️ **重要变更**：polish_text_tool 已移除
 - 所有润色/修改请求必须提供 chapter_id，使用基于章节上下文的工具
 - 如果涉及多个章节，read_chapter_tool 支持传递多个 chapter_id（用逗号分隔）
@@ -68,6 +79,13 @@ async def get_tool_decision_static_prompt() -> str:
 2. 用户说"修改第X章"、"改写第X章" → 使用 smart_rewrite（已知章节）
 3. 用户说"续写"、"继续写" → 使用 smart_continue
 4. 用户说"插入" → 使用 smart_insert
+5. 用户说"创建新章节"、"新建章节" → 使用 create_chapter
+6. 用户说"删除章节" → 使用 delete_chapter（⚠️ 危险操作，需确认）
+7. 用户说"改标题"、"重命名章节" → 使用 update_chapter_title
+8. 用户说"检查一致性"、"有没有矛盾" → 使用 check_story_consistency_tool
+9. 用户说"分析风格"、"写作特点" → 使用 analyze_style_tool
+10. 用户说"情感描写"、"展示情绪" → 使用 show_emotion_tool
+11. 用户说"增强场景"、"画面感" → 使用 enhance_scene_tool
 
 ⚠️ 【搜索兜底规则】：
 - 如果用户提供的文字**过于简短**（少于3个字）或是**通用描述**（如"这一章"、"这段话"）
@@ -96,9 +114,15 @@ async def get_tool_decision_static_prompt() -> str:
 
 "微光如露落雪太书面化" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "微光如露落雪"}}}}
 "修改第三章，白光退去太平淡" → {{"need_tools": true, "tool_name": "smart_rewrite", "tool_args": {{"chapter_id": "xxx", "text_to_rewrite": "白光退去...", "user_requirement": "更有画面感"}}}}
-"续写第五章" → {{"need_tools": true, "tool_name": "smart_continue", "tool_args": {{"context": "第五章内容...", "requirements": "续写", "apply_to_editor": true, "operation": "append"}}}}
+"续写第五章" → {{"need_tools": true, "tool_name": "smart_continue", "tool_args": {{"chapter_id": "xxx", "user_requirement": "续写", "word_count": 500}}}}
 "有没有叫赵穆的人物" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "赵穆"}}}}
 "段融是谁" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "段融"}}}}
+"创建一个新章节叫第六章" → {{"need_tools": true, "tool_name": "create_chapter", "tool_args": {{"work_id": "xxx", "title": "第六章"}}}}
+"删除第三章" → {{"need_tools": true, "tool_name": "delete_chapter", "tool_args": {{"chapter_id": "xxx"}}}}
+"把第二章标题改成觉醒" → {{"need_tools": true, "tool_name": "update_chapter_title", "tool_args": {{"chapter_id": "xxx", "new_title": "觉醒"}}}}
+"检查前五章有没有矛盾" → {{"need_tools": true, "tool_name": "check_story_consistency_tool", "tool_args": {{"work_id": "xxx"}}}}
+"分析一下我的写作风格" → {{"need_tools": true, "tool_name": "analyze_style_tool", "tool_args": {{"text": "..."}}}}
+"帮我写一段愤怒的情感描写" → {{"need_tools": true, "tool_name": "show_emotion_tool", "tool_args": {{"emotion": "愤怒", "intensity": 4}}}}
 
 ⚠️ 如果不确定用户是否需要工具，选择直接回答。请严格返回JSON格式:"""
 
