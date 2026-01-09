@@ -1,15 +1,21 @@
 /**
  * StepCard - 执行步骤卡片组件
- * 可折叠，显示状态图标、知识调取、工具调用
+ * 可折叠，显示状态图标、知识调取、工具调用、内嵌修订胶囊
  */
 
 import { useState } from 'react';
 import { Check, Loader2, ChevronUp, ChevronDown, Wrench } from 'lucide-react';
 import type { StepFlowData } from '@/types/agent';
 import { KnowledgeContainer } from './KnowledgeContainer';
+import { RevisionCard } from './RevisionCard';
 
 interface StepCardProps extends StepFlowData {
   defaultExpanded?: boolean;
+  // v7.3: 修订回调（从 ExecutionFlow 传入）
+  onAcceptRevision?: (selectedVersion?: number) => void;
+  onDiscardRevision?: () => void;
+  onUndoRevision?: () => void;
+  onRedoRevision?: () => void;
 }
 
 export function StepCard({
@@ -18,7 +24,12 @@ export function StepCard({
   description,
   knowledge,
   toolCall,
-  defaultExpanded = true
+  revision,
+  defaultExpanded = true,
+  onAcceptRevision,
+  onDiscardRevision,
+  onUndoRevision,
+  onRedoRevision
 }: StepCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
@@ -80,6 +91,19 @@ export function StepCard({
               <span className="font-mono text-[12px] text-gray-600 dark:text-slate-300">
                 {toolCall.name}
               </span>
+            </div>
+          )}
+
+          {/* v7.3: 内嵌修订胶囊 */}
+          {revision && (
+            <div className="mt-2">
+              <RevisionCard
+                {...revision}
+                onAccept={onAcceptRevision}
+                onDiscard={onDiscardRevision}
+                onUndo={onUndoRevision}
+                onRedo={onRedoRevision}
+              />
             </div>
           )}
         </div>

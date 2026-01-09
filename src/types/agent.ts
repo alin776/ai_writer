@@ -451,6 +451,8 @@ export interface StepFlowData {
     icon: string;          // "Wrench"
     name: string;          // "get_worldview_summary"
   };
+  revision?: RevisionFlowData;  // 内嵌的修订胶囊（v7.3）
+  revisionItemId?: string;      // 关联的 FlowItem ID（用于回调）
 }
 
 /**

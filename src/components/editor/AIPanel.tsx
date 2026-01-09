@@ -290,6 +290,8 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     updateRevisionStatus,
     undoRevision,      // v7.2
     redoRevision,      // v7.2
+    acceptAllRevisions,   // v7.3: 批量采纳
+    discardAllRevisions,  // v7.3: 批量弃用
   } = useAgentChat({ workId, chapterId, sessionId });  // ✅ 传入workId和chapterId进行会话隔离
 
   // 获取当前章节内容，用于 @optimization 直接调用去痕迹接口
@@ -1208,6 +1210,15 @@ ${selectionContext.selected_text}
                           console.log('[AIPanel] RevisionCard redo:', { itemId });
                           redoRevision(itemId);
                         }}
+                        // v7.3: 批量操作回调
+                        onAcceptAllRevisions={(itemIds) => {
+                          console.log('[AIPanel] Accept all revisions:', itemIds);
+                          acceptAllRevisions(itemIds);
+                        }}
+                        onDiscardAllRevisions={(itemIds) => {
+                          console.log('[AIPanel] Discard all revisions:', itemIds);
+                          discardAllRevisions(itemIds);
+                        }}
                       />
                     )}
                     {showActivityStream && (
@@ -1247,6 +1258,16 @@ ${selectionContext.selected_text}
                           timestamp: lastOutputItem?.timestamp || message.timestamp,
                         }]}
                         onAddToKnowledge={handleOpenAddKnowledge}
+                        onApplyContent={(content) => {
+                          // 派发 agent-show-revision 事件到编辑器
+                          window.dispatchEvent(new CustomEvent('agent-show-revision', {
+                            detail: {
+                              type: 'continue',
+                              replacement: content,
+                              revisionId: `output-${Date.now()}`
+                            }
+                          }));
+                        }}
                       />
                     </div>
 

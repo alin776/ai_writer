@@ -799,14 +799,41 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   break;
                 }
                 case 'revision': {
-                  // v7.0: 修订请求事件
-                  const item: FlowItem = {
-                    id: `flow-${Date.now()}-revision`,
-                    type: 'revision',
-                    data: event.data,
-                    timestamp,
-                  };
-                  currentFlowItems = [...currentFlowItems, item];
+                  // v7.3: 修订请求事件 - 嵌入到最后一个 step 中
+                  const revisionItemId = `flow-${Date.now()}-revision`;
+                  const revisionData = event.data;
+
+                  // 查找最后一个 step 类型的 FlowItem
+                  const lastStepIndex = [...currentFlowItems].reverse().findIndex(item => item.type === 'step');
+
+                  if (lastStepIndex !== -1) {
+                    // 计算正确的索引（因为我们是从后往前找的）
+                    const actualIndex = currentFlowItems.length - 1 - lastStepIndex;
+                    // 将 revision 嵌入到 step 中
+                    currentFlowItems = currentFlowItems.map((item, index) => {
+                      if (index === actualIndex && item.type === 'step') {
+                        const stepData = item.data as StepFlowData;
+                        return {
+                          ...item,
+                          data: {
+                            ...stepData,
+                            revision: revisionData,
+                            revisionItemId: revisionItemId
+                          }
+                        };
+                      }
+                      return item;
+                    });
+                  } else {
+                    // 如果没有找到 step，则作为独立的 FlowItem 添加（兜底）
+                    const item: FlowItem = {
+                      id: revisionItemId,
+                      type: 'revision',
+                      data: revisionData,
+                      timestamp,
+                    };
+                    currentFlowItems = [...currentFlowItems, item];
+                  }
                   break;
                 }
               }
@@ -1363,6 +1390,25 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         if (!msg.flowItems) return msg;
 
         const updatedFlowItems = msg.flowItems.map((item: FlowItem) => {
+          // v7.3: 处理嵌入在 step 中的 revision
+          if (item.type === 'step') {
+            const stepData = item.data as StepFlowData;
+            if (stepData.revisionItemId === itemId && stepData.revision) {
+              return {
+                ...item,
+                data: {
+                  ...stepData,
+                  revision: {
+                    ...stepData.revision,
+                    status,
+                    ...(snapshot || {})
+                  }
+                }
+              };
+            }
+          }
+
+          // 处理独立的 revision（兜底）
           if (item.id === itemId && item.type === 'revision') {
             return {
               ...item,
@@ -1394,11 +1440,20 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       const currentSession = sessionManager.getSession(sessionId);
       const currentMessages = currentSession?.messages || [];
 
-      // 查找该修订的数据
+      // 查找该修订的数据（支持嵌入在 step 中的 revision）
       let revisionData: RevisionFlowData | null = null;
       for (const msg of currentMessages) {
         if (!msg.flowItems) continue;
         for (const item of msg.flowItems as FlowItem[]) {
+          // v7.3: 检查嵌入在 step 中的 revision
+          if (item.type === 'step') {
+            const stepData = item.data as StepFlowData;
+            if (stepData.revisionItemId === itemId && stepData.revision) {
+              revisionData = stepData.revision;
+              break;
+            }
+          }
+          // 检查独立的 revision
           if (item.id === itemId && item.type === 'revision') {
             revisionData = item.data as RevisionFlowData;
             break;
@@ -1439,11 +1494,20 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       const currentSession = sessionManager.getSession(sessionId);
       const currentMessages = currentSession?.messages || [];
 
-      // 查找该修订的数据
+      // 查找该修订的数据（支持嵌入在 step 中的 revision）
       let revisionData: RevisionFlowData | null = null;
       for (const msg of currentMessages) {
         if (!msg.flowItems) continue;
         for (const item of msg.flowItems as FlowItem[]) {
+          // v7.3: 检查嵌入在 step 中的 revision
+          if (item.type === 'step') {
+            const stepData = item.data as StepFlowData;
+            if (stepData.revisionItemId === itemId && stepData.revision) {
+              revisionData = stepData.revision;
+              break;
+            }
+          }
+          // 检查独立的 revision
           if (item.id === itemId && item.type === 'revision') {
             revisionData = item.data as RevisionFlowData;
             break;

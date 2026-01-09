@@ -532,36 +532,59 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           // 修改模式：原文显示删除线 + 新内容显示绿色高亮
           console.log('[NovelEditor] 应用修改模式修订标记');
 
-          // 1. 先在原文位置应用 AIDeleted 标记（删除线）
-          editor.chain()
-            .focus()
-            .setTextSelection({ from: position.from, to: position.to })
-            .setMark('aiDeleted')
-            .run();
+          // 🔧 修复：使用 ProseMirror Transaction API 确保原子性操作
+          const { state, view } = editor;
+          const { tr } = state;
+          const aiDeletedMark = state.schema.marks.aiDeleted;
+          const aiInsertedMark = state.schema.marks.aiInserted;
 
-          // 2. 在原文后面插入新内容（使用纯文本方式，然后应用标记，避免 HTML 注入）
+          if (!aiDeletedMark || !aiInsertedMark) {
+            console.error('[NovelEditor] 修订标记扩展未正确注册');
+            return;
+          }
+
+          // 1. 在原文位置添加删除标记
+          tr.addMark(position.from, position.to, aiDeletedMark.create());
+
+          // 2. 在原文后面插入新内容（带有插入标记）
           const insertPos = position.to;
-          editor.chain()
-            .setTextSelection(insertPos)
-            .insertContent(replacement || '')  // 插入纯文本
-            .run();
+          const textContent = replacement || '';
 
-          // 3. 对插入的内容应用 aiInserted 标记
-          const endPos = insertPos + (replacement?.length || 0);
-          editor.chain()
-            .setTextSelection({ from: insertPos, to: endPos })
-            .setMark('aiInserted')
-            .run();
+          // 🔧 修复：处理包含换行符的文本
+          if (textContent.includes('\n')) {
+            // 包含换行符时，先提交删除标记，再用 insertContent 处理多段落
+            view.dispatch(tr);
 
-          // 4. 计算操作栏位置
-          const { view } = editor;
-          const coords = view.coordsAtPos(insertPos);
-          setRevisionBarPosition({
-            top: coords.bottom + 8,
-            left: coords.left
+            // 使用 chain 插入内容并应用标记
+            const endPos = insertPos + textContent.length;
+            editor.chain()
+              .focus()
+              .setTextSelection(insertPos)
+              .insertContent(textContent)
+              .setTextSelection({ from: insertPos, to: endPos })
+              .setMark('aiInserted')
+              .run();
+          } else {
+            // 无换行符时，使用原子事务
+            const insertedText = state.schema.text(textContent, [aiInsertedMark.create()]);
+            tr.insert(insertPos, insertedText);
+            view.dispatch(tr);
+          }
+
+          // 3. 计算操作栏位置（使用 requestAnimationFrame 确保 DOM 已重排）
+          requestAnimationFrame(() => {
+            try {
+              const coords = view.coordsAtPos(insertPos);
+              setRevisionBarPosition({
+                top: coords.bottom + 8,
+                left: coords.left
+              });
+            } catch (e) {
+              console.warn('[NovelEditor] 无法计算修订栏位置:', e);
+            }
           });
 
-          // 5. 设置活跃修订
+          // 4. 设置活跃修订
           setActiveRevision({
             id: rid,
             type: 'modify',
@@ -581,28 +604,48 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           // 续写模式：新内容显示绿色高亮
           console.log('[NovelEditor] 应用续写模式修订标记');
 
-          const insertPos = position?.to || editor.state.doc.content.size;
+          // 🔧 修复：使用 ProseMirror Transaction API 确保原子性操作
+          const { state, view } = editor;
+          const { tr } = state;
+          const aiInsertedMark = state.schema.marks.aiInserted;
 
-          // 插入新内容（使用纯文本方式，然后应用标记，避免 HTML 注入）
-          editor.chain()
-            .focus()
-            .setTextSelection(insertPos)
-            .insertContent(replacement || '')  // 插入纯文本
-            .run();
+          if (!aiInsertedMark) {
+            console.error('[NovelEditor] aiInserted 标记扩展未正确注册');
+            return;
+          }
 
-          // 对插入的内容应用 aiInserted 标记
-          const endPos = insertPos + (replacement?.length || 0);
-          editor.chain()
-            .setTextSelection({ from: insertPos, to: endPos })
-            .setMark('aiInserted')
-            .run();
+          const insertPos = position?.to || state.doc.content.size;
+          const textContent = replacement || '';
 
-          // 计算操作栏位置
-          const { view } = editor;
-          const coords = view.coordsAtPos(insertPos);
-          setRevisionBarPosition({
-            top: coords.bottom + 8,
-            left: coords.left
+          // 🔧 修复：处理包含换行符的文本
+          if (textContent.includes('\n')) {
+            // 包含换行符时，用 insertContent 处理多段落
+            const endPos = insertPos + textContent.length;
+            editor.chain()
+              .focus()
+              .setTextSelection(insertPos)
+              .insertContent(textContent)
+              .setTextSelection({ from: insertPos, to: endPos })
+              .setMark('aiInserted')
+              .run();
+          } else {
+            // 无换行符时，使用原子事务
+            const insertedText = state.schema.text(textContent, [aiInsertedMark.create()]);
+            tr.insert(insertPos, insertedText);
+            view.dispatch(tr);
+          }
+
+          // 计算操作栏位置（使用 requestAnimationFrame 确保 DOM 已重排）
+          requestAnimationFrame(() => {
+            try {
+              const coords = view.coordsAtPos(insertPos);
+              setRevisionBarPosition({
+                top: coords.bottom + 8,
+                left: coords.left
+              });
+            } catch (e) {
+              console.warn('[NovelEditor] 无法计算修订栏位置:', e);
+            }
           });
 
           // 设置活跃修订
@@ -622,32 +665,52 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           // 插入模式：在指定位置插入内容，显示绿色高亮
           console.log('[NovelEditor] 应用插入模式修订标记');
 
-          const insertPos = position?.from ?? editor.state.doc.content.size;
+          // 🔧 修复：使用 ProseMirror Transaction API 确保原子性操作
+          const { state, view } = editor;
+          const { tr } = state;
+          const aiInsertedMark = state.schema.marks.aiInserted;
+
+          if (!aiInsertedMark) {
+            console.error('[NovelEditor] aiInserted 标记扩展未正确注册');
+            return;
+          }
+
+          const insertPos = position?.from ?? state.doc.content.size;
           const resolvedPosition = position ?? { from: insertPos, to: insertPos };
+          const textContent = replacement || '';
 
-          // 1. 在指定位置插入新内容
-          editor.chain()
-            .focus()
-            .setTextSelection(insertPos)
-            .insertContent(replacement || '')
-            .run();
+          // 🔧 修复：处理包含换行符的文本
+          if (textContent.includes('\n')) {
+            // 包含换行符时，用 insertContent 处理多段落
+            const endPos = insertPos + textContent.length;
+            editor.chain()
+              .focus()
+              .setTextSelection(insertPos)
+              .insertContent(textContent)
+              .setTextSelection({ from: insertPos, to: endPos })
+              .setMark('aiInserted')
+              .run();
+          } else {
+            // 无换行符时，使用原子事务
+            const insertedText = state.schema.text(textContent, [aiInsertedMark.create()]);
+            tr.insert(insertPos, insertedText);
+            view.dispatch(tr);
+          }
 
-          // 2. 对插入的内容应用 aiInserted 标记
-          const endPos = insertPos + (replacement?.length || 0);
-          editor.chain()
-            .setTextSelection({ from: insertPos, to: endPos })
-            .setMark('aiInserted')
-            .run();
-
-          // 3. 计算操作栏位置
-          const { view } = editor;
-          const coords = view.coordsAtPos(insertPos);
-          setRevisionBarPosition({
-            top: coords.bottom + 8,
-            left: coords.left
+          // 计算操作栏位置（使用 requestAnimationFrame 确保 DOM 已重排）
+          requestAnimationFrame(() => {
+            try {
+              const coords = view.coordsAtPos(insertPos);
+              setRevisionBarPosition({
+                top: coords.bottom + 8,
+                left: coords.left
+              });
+            } catch (e) {
+              console.warn('[NovelEditor] 无法计算修订栏位置:', e);
+            }
           });
 
-          // 4. 设置活跃修订
+          // 设置活跃修订
           setActiveRevision({
             id: rid,
             type: 'insert',

@@ -42,11 +42,25 @@ export function ExecutionFlow({
   onUndoRevision,
   onRedoRevision
 }: ExecutionFlowProps) {
-  // 统计 pending 状态的修订
+  // v7.3: 统计 pending 状态的修订（包括嵌入在 step 中的）
   const pendingRevisions = useMemo(() => {
-    return items.filter(
-      item => item.type === 'revision' && (item.data as RevisionFlowData).status === 'pending'
-    );
+    const result: { id: string; isEmbedded: boolean }[] = [];
+
+    items.forEach(item => {
+      // 独立的 revision
+      if (item.type === 'revision' && (item.data as RevisionFlowData).status === 'pending') {
+        result.push({ id: item.id, isEmbedded: false });
+      }
+      // 嵌入在 step 中的 revision
+      if (item.type === 'step') {
+        const stepData = item.data as StepFlowData;
+        if (stepData.revision?.status === 'pending' && stepData.revisionItemId) {
+          result.push({ id: stepData.revisionItemId, isEmbedded: true });
+        }
+      }
+    });
+
+    return result;
   }, [items]);
 
   const pendingCount = pendingRevisions.length;
@@ -97,13 +111,20 @@ export function ExecutionFlow({
                 content={(item.data as ContentFlowData).content}
               />
             );
-          case 'step':
+          case 'step': {
+            const stepData = item.data as StepFlowData;
             return (
               <StepCard
                 key={item.id}
-                {...(item.data as StepFlowData)}
+                {...stepData}
+                // v7.3: 传递修订回调给 StepCard（用于内嵌的 RevisionCard）
+                onAcceptRevision={stepData.revisionItemId ? (selectedVersion) => onAcceptRevision?.(stepData.revisionItemId!, (stepData.revision as any)?.requestId, selectedVersion) : undefined}
+                onDiscardRevision={stepData.revisionItemId ? () => onDiscardRevision?.(stepData.revisionItemId!, (stepData.revision as any)?.requestId) : undefined}
+                onUndoRevision={stepData.revisionItemId ? () => onUndoRevision?.(stepData.revisionItemId!) : undefined}
+                onRedoRevision={stepData.revisionItemId ? () => onRedoRevision?.(stepData.revisionItemId!) : undefined}
               />
             );
+          }
           case 'output':
             return (
               <OutputCard
