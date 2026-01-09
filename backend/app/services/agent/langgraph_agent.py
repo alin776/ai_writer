@@ -2179,20 +2179,30 @@ class WritingAgentGraph:
             "position": result_obj.get("position")  # v7.5: 添加 position 字段
         }
 
-        # 如果工具返回了position但没有editor_action，则补充
-        if not approval_data.get("editor_action") and result_obj.get("position") is not None:
-            position_value = result_obj.get("position")
-            if isinstance(position_value, dict) and "from" in position_value:
-                position_payload = position_value
-            else:
-                position_payload = {"from": position_value, "to": position_value}
-
+        # v8.1: 如果没有 editor_action，根据 operation 类型自动生成
+        # 即使 position 为 None，也需要生成 editor_action 以便前端显示修订标记
+        if not approval_data.get("editor_action"):
             operation = approval_data.get("operation")
+            position_value = result_obj.get("position")
+
+            # 根据 position 构建 position_payload
+            if position_value is not None:
+                if isinstance(position_value, dict) and "from" in position_value:
+                    position_payload = position_value
+                else:
+                    position_payload = {"from": position_value, "to": position_value}
+            else:
+                # position 为 None 时，使用特殊标记表示"末尾"或"全文"
+                position_payload = None
+
+            # 根据 operation 推断编辑类型
             inferred_type = "modify"
             if operation == "append":
                 inferred_type = "continue"
             elif operation == "insert":
                 inferred_type = "insert"
+            elif operation == "replace":
+                inferred_type = "modify"
 
             approval_data["editor_action"] = {
                 "type": inferred_type,

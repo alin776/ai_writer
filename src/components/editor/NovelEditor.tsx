@@ -528,9 +528,12 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       const rid = revisionId || `rev-${Date.now()}`;
 
       try {
-        if (type === 'modify' && position && position.from !== undefined && position.to !== undefined) {
+        // v8.1: 处理 position 为 null 的情况（全文替换）
+        const resolvedPosition = position || { from: 0, to: editor.state.doc.content.size };
+
+        if (type === 'modify') {
           // 修改模式：原文显示删除线 + 新内容显示绿色高亮
-          console.log('[NovelEditor] 应用修改模式修订标记');
+          console.log('[NovelEditor] 应用修改模式修订标记, position:', resolvedPosition);
 
           // 🔧 修复：使用 ProseMirror Transaction API 确保原子性操作
           const { state, view } = editor;
@@ -544,10 +547,10 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           }
 
           // 1. 在原文位置添加删除标记
-          tr.addMark(position.from, position.to, aiDeletedMark.create());
+          tr.addMark(resolvedPosition.from, resolvedPosition.to, aiDeletedMark.create());
 
           // 2. 在原文后面插入新内容（带有插入标记）
-          const insertPos = position.to;
+          const insertPos = resolvedPosition.to;
           const textContent = replacement || '';
 
           // 🔧 修复：处理包含换行符的文本
@@ -588,7 +591,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           setActiveRevision({
             id: rid,
             type: 'modify',
-            position,
+            position: resolvedPosition,
             original,
             replacement,
             originalMessage,

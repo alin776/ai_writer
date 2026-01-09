@@ -1629,17 +1629,6 @@ ${selectionContext.selected_text}
           document.body
         )}
 
-      {/* ✅ 编辑确认对话框 */}
-      {pendingApproval && (
-        <AgentEditConfirmDialog
-          isOpen={true}
-          approvalRequest={pendingApproval}
-          onApprove={(selectedVersion) => submitApproval(true, selectedVersion)}
-          onReject={() => submitApproval(false)}
-          onClose={() => submitApproval(false)}
-        />
-      )}
-
       {/* 添加到知识库对话框 */}
       <Dialog open={showAddKnowledgeDialog} onOpenChange={setShowAddKnowledgeDialog}>
         <DialogContent>
