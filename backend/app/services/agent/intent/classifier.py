@@ -14,7 +14,7 @@ import json
 import logging
 
 from app.services.agent.model_selector import TaskType
-from app.services.agent.prompt_cache import get_complexity_decision_prompt
+from app.services.agent.prompts import get_complexity_decision_prompt
 
 logger = logging.getLogger(__name__)
 

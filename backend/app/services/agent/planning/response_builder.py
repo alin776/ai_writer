@@ -38,7 +38,9 @@ DISPLAY_TOOLS = {
 }
 
 OUTPUT_TOOLS = {
-    "continue_writing_tool",
+    "smart_continue",
+    "smart_rewrite",
+    "smart_insert",
     "analyze_text_tool"
 }
 
@@ -188,7 +190,7 @@ class ResponseBuilder:
                 return await self.ai_summarization(task_results, message, on_content, knowledge_docs)
 
             # 创作类任务，且输出充分
-            if tool_name in ["continue_writing_tool"] and len(result) > 500:
+            if tool_name in ["smart_continue", "smart_rewrite", "smart_insert"] and len(result) > 500:
                 logger.info(f"[Response] 单个创作任务({tool_name})，直接返回")
                 if on_content:
                     await on_content(result)
@@ -207,7 +209,7 @@ class ResponseBuilder:
             # 检查是否全是分析类任务
             analysis_like_tools = {"analyze_text_tool", "summarization", "analyze_content"}
             all_analyze = all(task.get("tool") in analysis_like_tools for task in output_tasks)
-            has_writing = any(task.get("tool") == "continue_writing_tool" for task in output_tasks)
+            has_writing = any(task.get("tool") in {"smart_continue", "smart_rewrite", "smart_insert"} for task in output_tasks)
 
             if all_analyze and not has_writing:
                 logger.info(f"[Response] {len(output_tasks)}个分析类任务，使用AI整合")
@@ -222,8 +224,8 @@ class ResponseBuilder:
 
                 if tool_name == "analyze_text_tool":
                     parts.append(f"## 分析结果\n\n{result}")
-                elif tool_name == "continue_writing_tool":
-                    parts.append(f"## 续写内容\n\n{result}")
+                elif tool_name in {"smart_continue", "smart_rewrite", "smart_insert"}:
+                    parts.append(f"## 创作内容\n\n{result}")
                 else:
                     parts.append(result)
 

@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 
 # 工具名称映射（@tool 名称 → StandardTool 名称）
 TOOL_NAME_MAPPING = {
-    "continue_writing_tool": "continue_writing",
     "analyze_text_tool": "analyze_text",
     "smart_rewrite": "smart_rewrite",
     "smart_continue": "smart_continue",
@@ -246,7 +245,6 @@ class ToolExecutor:
     ) -> str:
         """降级到 @tool 版本（向后兼容）"""
         from app.services.agent.langgraph_tools import (
-            continue_writing_tool,
             analyze_text_tool,
             get_worldview_summary,
         )
@@ -256,29 +254,54 @@ class ToolExecutor:
             smart_insert,
             apply_chapter_edit,
         )
+        from app.services.agent.tools.show_dont_tell import (
+            show_emotion_tool,
+            enhance_scene_tool,
+        )
+        from app.services.agent.tools.style_learning import (
+            learn_style_tool,
+            analyze_style_tool,
+            get_style_guidance_tool,
+        )
+        from app.services.agent.tools.chapter_tools import (
+            create_chapter,
+            update_chapter_title,
+            delete_chapter,
+            update_chapter_content,
+        )
+        from app.services.agent.tools.consistency_checker import (
+            check_story_consistency_tool,
+        )
 
         last_user_message = state.get("last_user_message", "")
 
         LEGACY_TOOLS = {
-            "continue_writing_tool": continue_writing_tool,
             "analyze_text_tool": analyze_text_tool,
             "smart_rewrite": smart_rewrite,
             "smart_continue": smart_continue,
             "smart_insert": smart_insert,
             "apply_chapter_edit": apply_chapter_edit,
             "get_worldview_summary": get_worldview_summary,
+            # 创作增强工具
+            "show_emotion_tool": show_emotion_tool,
+            "enhance_scene_tool": enhance_scene_tool,
+            "learn_style_tool": learn_style_tool,
+            "analyze_style_tool": analyze_style_tool,
+            "get_style_guidance_tool": get_style_guidance_tool,
+            # 章节操作工具
+            "create_chapter": create_chapter,
+            "update_chapter_title": update_chapter_title,
+            "delete_chapter": delete_chapter,
+            "update_chapter_content": update_chapter_content,
+            # 分析工具
+            "check_story_consistency_tool": check_story_consistency_tool,
         }
 
         legacy_tool = LEGACY_TOOLS.get(tool_name)
         if legacy_tool:
             logger.info(f"[LegacyTool] 使用 @tool 版本: {tool_name}")
             try:
-                if tool_name == "continue_writing_tool":
-                    params = {
-                        "context": tool_args.get("context", last_user_message),
-                        "requirements": tool_args.get("requirements", "")
-                    }
-                elif tool_name == "analyze_text_tool":
+                if tool_name == "analyze_text_tool":
                     params = {
                         "text": tool_args.get("text", last_user_message),
                         "focus": tool_args.get("focus", "all")
@@ -286,6 +309,64 @@ class ToolExecutor:
                 elif tool_name == "get_worldview_summary":
                     params = {
                         "work_id": tool_args.get("work_id", state.get("work_id", ""))
+                    }
+                elif tool_name == "show_emotion_tool":
+                    params = {
+                        "emotion": tool_args.get("emotion", ""),
+                        "intensity": tool_args.get("intensity", 3)
+                    }
+                elif tool_name == "enhance_scene_tool":
+                    params = {
+                        "description": tool_args.get("description", tool_args.get("text", last_user_message))
+                    }
+                elif tool_name == "analyze_style_tool":
+                    params = {
+                        "text": tool_args.get("text", last_user_message)
+                    }
+                elif tool_name == "learn_style_tool":
+                    params = {
+                        "user_id": tool_args.get("user_id", state.get("user_id", "")),
+                        "text": tool_args.get("text", last_user_message),
+                        "profile_name": tool_args.get("profile_name", "default")
+                    }
+                elif tool_name == "get_style_guidance_tool":
+                    params = {
+                        "user_id": tool_args.get("user_id", state.get("user_id", "")),
+                        "profile_name": tool_args.get("profile_name", "default")
+                    }
+                # 章节操作工具
+                elif tool_name == "create_chapter":
+                    params = {
+                        "work_id": tool_args.get("work_id", state.get("work_id", "")),
+                        "title": tool_args.get("title", ""),
+                        "content": tool_args.get("content", ""),
+                        "order": tool_args.get("order")
+                    }
+                elif tool_name == "update_chapter_title":
+                    params = {
+                        "chapter_id": tool_args.get("chapter_id", state.get("chapter_id", "")),
+                        "new_title": tool_args.get("new_title", ""),
+                        "old_title": tool_args.get("old_title")
+                    }
+                elif tool_name == "delete_chapter":
+                    params = {
+                        "chapter_id": tool_args.get("chapter_id", state.get("chapter_id", "")),
+                        "chapter_title": tool_args.get("chapter_title")
+                    }
+                elif tool_name == "update_chapter_content":
+                    params = {
+                        "chapter_id": tool_args.get("chapter_id", state.get("chapter_id", "")),
+                        "new_content": tool_args.get("new_content", tool_args.get("content", "")),
+                        "operation": tool_args.get("operation", "replace"),
+                        "position": tool_args.get("position")
+                    }
+                # 分析工具
+                elif tool_name == "check_story_consistency_tool":
+                    params = {
+                        "work_id": tool_args.get("work_id", state.get("work_id", "")),
+                        "chapters_json": tool_args.get("chapters_json", "[]"),
+                        "characters_json": tool_args.get("characters_json", "[]"),
+                        "worldview_json": tool_args.get("worldview_json", "{}")
                     }
                 else:
                     params = tool_args

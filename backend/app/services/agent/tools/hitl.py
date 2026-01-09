@@ -96,7 +96,8 @@ class HITLManager:
         context: Dict[str, Any] = None,
         alternatives: List[Dict[str, Any]] = None,
         checkpoint_data: Dict[str, Any] = None,
-        timeout_seconds: int = None
+        timeout_seconds: int = None,
+        request_id: str = None
     ) -> ApprovalRequest:
         """
         创建批准请求
@@ -111,11 +112,12 @@ class HITLManager:
             alternatives: 备选方案
             checkpoint_data: 检查点数据
             timeout_seconds: 超时时间（秒）
+            request_id: 可选的请求ID（如果不提供则自动生成）
 
         Returns:
             ApprovalRequest: 批准请求对象
         """
-        request_id = str(uuid.uuid4())
+        request_id = request_id or str(uuid.uuid4())
         timeout = timeout_seconds or self.default_timeout
 
         expires_at = datetime.fromtimestamp(

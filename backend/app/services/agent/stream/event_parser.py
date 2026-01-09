@@ -69,8 +69,7 @@ class EventParser:
         "search_memory_tool": {"icon": "Search", "title": "搜索记忆"},
         "search_knowledge_advanced": {"icon": "Search", "title": "高级知识检索"},
         # ========== 写作类 ==========
-        "continue_writing_tool": {"icon": "PenTool", "title": "继续创作"},
-        "smart_continue": {"icon": "ArrowRight", "title": "智能续写"},
+        "smart_continue": {"icon": "PenTool", "title": "智能续写"},
         "expand_text": {"icon": "Maximize2", "title": "扩写内容"},
         # ========== 编辑类 ==========
         "smart_rewrite": {"icon": "Edit3", "title": "智能改写"},
@@ -95,7 +94,7 @@ class EventParser:
     # 保留旧映射供兼容
     TOOL_DISPLAY_NAMES = {
         "get_chapter_by_order_tool": "读取章节",
-        "continue_writing_tool": "继续创作",
+        "smart_continue": "智能续写",
         "search_analysis_fragments_tool": "检索设定",
         "search_memory_tool": "搜索记忆",
         "add_todo_tool": "添加待办",
@@ -160,12 +159,9 @@ class EventParser:
             query = args.get("query", "")
             return query[:30] if query else "检索中..."
         # 写作类
-        elif tool_name == "continue_writing_tool":
+        elif tool_name == "smart_continue":
             words = args.get("target_words") or args.get("word_count", 500)
             return f"目标{words}字"
-        elif tool_name == "smart_continue":
-            words = args.get("target_words", 500)
-            return f"约{words}字"
         elif tool_name == "expand_text":
             return "扩写中..."
         # 编辑类
@@ -318,11 +314,11 @@ class EventParser:
             chapter_order = tool_args.get("chapter_order", "?")
             return f"📚 正在读取第{chapter_order}章..."
 
-        elif tool_name == "continue_writing_tool":
+        elif tool_name == "smart_continue":
             target_words = tool_args.get("target_words")
             if target_words:
-                return f"✍️ 正在创作内容（目标{target_words}字）..."
-            return "✍️ 正在创作内容..."
+                return f"✍️ 正在续写内容（目标{target_words}字）..."
+            return "✍️ 正在续写内容..."
 
         elif tool_name == "search_analysis_fragments_tool":
             query = tool_args.get("query", "")

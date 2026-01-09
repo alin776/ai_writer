@@ -841,7 +841,9 @@ class DeepAgentExecutor:
         else:
             # 兜底：硬编码基础工具列表
             lines.append("""**WRITING 类工具**:
-  - continue_writing_tool: 创作新内容（包括大纲、正文、设定等）
+  - smart_continue: 续写章节内容
+  - smart_rewrite: 改写/润色章节内容
+  - smart_insert: 插入内容到章节
 
 **ANALYSIS 类工具**:
   - analyze_text_tool: 分析已有文本内容（不能创作新内容）

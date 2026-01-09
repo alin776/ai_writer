@@ -15,13 +15,13 @@ from typing import Dict, Any, Optional, Callable, Awaitable
 from app.services.agent.tools import registry
 from app.services.agent.utils.tool_helpers import normalize_tool_params
 from app.services.agent.langgraph_tools import (
-    continue_writing_tool,
     analyze_text_tool,
     read_chapter_tool,
     get_chapter_by_order_tool,
     get_context_tool,
     search_analysis_fragments_tool,
 )
+from app.services.agent.tools.editor_tools import smart_continue
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class TaskRunner:
 
     # 工具名称映射
     TOOL_NAME_MAPPING = {
-        "continue_writing_tool": "continue_writing",
+        "smart_continue": "smart_continue",
         "analyze_text_tool": "analyze_text",
         "analyze_content_tool": "analyze_text",  # 兼容：统一使用 analyze_text
         "analyze_content": "analyze_text",       # 兼容：统一使用 analyze_text
@@ -219,15 +219,13 @@ class TaskRunner:
                 "look_ahead": params.get("look_ahead", 2),
             }
 
-        elif tool_name == "continue_writing_tool":
+        elif tool_name == "smart_continue":
             context_param = self._extract_context_param(params, context)
-            # 🔧 统一参数名：优先使用 target_words，兼容 target_length
-            target_words = params.get("target_words") or params.get("target_length") or 2000
+            # 🔧 2026-01-09: 修复 chapter_id 参数处理，与其他工具保持一致
+            # 优先使用 params 中的 chapter_id，否则使用传入的 chapter_id
             return {
-                "context": context_param,
-                "requirements": params.get("requirements", ""),
-                "target_length": target_words,  # 工具定义使用 target_length
-                "style": params.get("style", "")
+                "content": context_param,
+                "chapter_id": params.get("chapter_id") or chapter_id or "",
             }
 
         elif tool_name == "analyze_text_tool":
@@ -250,7 +248,7 @@ class TaskRunner:
         if not context_param or "$TASK_" in context_param:
             selected_text_extracted = self._extract_selected_text(context)
             if selected_text_extracted and len(selected_text_extracted) >= 5:
-                logger.info(f"[TaskRunner] continue_writing_tool 优先使用选中文本（{len(selected_text_extracted)}字符）")
+                logger.info(f"[TaskRunner] smart_continue 优先使用选中文本（{len(selected_text_extracted)}字符）")
                 context_param = selected_text_extracted
             else:
                 context_param = context
@@ -336,10 +334,10 @@ class TaskRunner:
                 "include_current": params.get("include_current", True),
                 "look_ahead": params.get("look_ahead", 2),
             })
-        elif tool_name == "continue_writing_tool":
-            return await continue_writing_tool.ainvoke({
-                "context": params.get("context", context),
-                "requirements": params.get("requirements", "")
+        elif tool_name == "smart_continue":
+            return await smart_continue.ainvoke({
+                "chapter_id": params.get("chapter_id", ""),
+                "content": params.get("content", context),
             })
         elif tool_name == "analyze_text_tool":
             return await analyze_text_tool.ainvoke({

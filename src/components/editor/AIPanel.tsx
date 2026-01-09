@@ -5,6 +5,7 @@ import { Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronLeft, C
 import { useAgentChat } from '../../hooks/useAgentChat';
 import { useEditorStore } from '../../store/editorStore';
 import { useChatDraftStore } from '../../store/chatDraftStore';
+import { agentApi } from '../../services/agentApi';  // v7.5: 非阻塞式修订
 import type { AgentChatRequest, TaskSnapshot } from '../../types/agent';
 import type { AgentMode } from '../agent/ModeSelector';
 import ModeSelector from '../agent/ModeSelector';
@@ -1160,11 +1161,32 @@ ${selectionContext.selected_text}
                           // 如果有 pendingApproval，且 requestId 匹配，则调用 submitApproval
                           if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
                             submitApproval(true, selectedVersion);
-                          } else if (pendingApproval && requestId && pendingApproval.request_id !== requestId) {
-                            console.warn('[AIPanel] RevisionCard requestId 不匹配，已跳过 submitApproval', {
-                              pendingRequestId: pendingApproval.request_id,
-                              requestId
+                          } else if (requestId) {
+                            // v7.5: 非阻塞式修订 - 直接调用后端 API 写入数据库
+                            console.log('[AIPanel] 非阻塞式修订，直接调用后端 API');
+                            agentApi.submitApprovalResponse({
+                              request_id: requestId,
+                              approved: true,
+                              selected_version: selectedVersion
+                            }).then(() => {
+                              console.log('[AIPanel] ✅ 修订已写入数据库');
+                            }).catch((err) => {
+                              console.error('[AIPanel] ❌ 写入数据库失败:', err);
                             });
+                            // 派发采纳事件到编辑器
+                            window.dispatchEvent(
+                              new CustomEvent('agent-accept-revision', {
+                                detail: { request_id: requestId }
+                              })
+                            );
+                          } else {
+                            // v7.4: 即使没有 pendingApproval，也派发采纳事件到编辑器
+                            console.log('[AIPanel] 无 pendingApproval 和 requestId，直接派发采纳事件');
+                            window.dispatchEvent(
+                              new CustomEvent('agent-accept-revision', {
+                                detail: { request_id: itemId }
+                              })
+                            );
                           }
                         }}
                         onDiscardRevision={(itemId, requestId) => {
@@ -1195,11 +1217,29 @@ ${selectionContext.selected_text}
 
                           if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
                             submitApproval(false);
-                          } else if (pendingApproval && requestId && pendingApproval.request_id !== requestId) {
-                            console.warn('[AIPanel] RevisionCard requestId 不匹配，已跳过 submitApproval', {
-                              pendingRequestId: pendingApproval.request_id,
-                              requestId
+                          } else if (requestId) {
+                            // v7.5: 非阻塞式修订 - 直接调用后端 API
+                            console.log('[AIPanel] 非阻塞式修订，直接调用后端 API (弃用)');
+                            agentApi.submitApprovalResponse({
+                              request_id: requestId,
+                              approved: false
+                            }).catch((err) => {
+                              console.error('[AIPanel] ❌ 弃用请求失败:', err);
                             });
+                            // 派发弃用事件到编辑器
+                            window.dispatchEvent(
+                              new CustomEvent('agent-undo-revision', {
+                                detail: { request_id: requestId }
+                              })
+                            );
+                          } else {
+                            // v7.4: 即使没有 pendingApproval，也派发弃用事件到编辑器
+                            console.log('[AIPanel] 无 pendingApproval 和 requestId，直接派发弃用事件');
+                            window.dispatchEvent(
+                              new CustomEvent('agent-undo-revision', {
+                                detail: { request_id: itemId }
+                              })
+                            );
                           }
                         }}
                         onUndoRevision={(itemId) => {

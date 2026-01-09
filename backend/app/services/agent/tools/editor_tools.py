@@ -315,38 +315,96 @@ async def apply_chapter_edit(
 @tool
 @register_as_tool(
     "smart_continue",
-    "editor",
-    "智能续写章节内容，自动添加到章节末尾。此操作需要用户确认。"
+    "creative",
+    "智能续写章节内容。根据章节上下文生成续写内容。"
 )
 async def smart_continue(
     chapter_id: str,
-    content: str,
+    chapter_content: Optional[str] = None,
+    user_requirement: Optional[str] = None,
+    word_count: int = 500,
     user_id: Optional[str] = None
 ) -> str:
     """
-    智能续写 - 自动添加到章节末尾
+    智能续写 - 生成续写内容（不直接修改编辑器）
 
     Args:
         chapter_id: 章节ID
-        content: 续写的内容
+        chapter_content: 章节当前内容（用于上下文）
+        user_requirement: 用户的续写要求
+        word_count: 期望续写字数
         user_id: 用户ID
 
     Returns:
-        包含确认请求的结果
+        生成的续写内容
     """
-    return await apply_chapter_edit(
-        chapter_id=chapter_id,
-        content=content,
-        operation="append",
-        user_id=user_id,
-        description=f"AI续写：+{len(content)}字"
-    )
+    try:
+        # 如果没有提供章节内容，自动获取
+        if not chapter_content and chapter_id:
+            try:
+                async with AsyncSessionLocal() as db:
+                    from app.services.chapter_service import ChapterService
+                    chapter_svc = ChapterService(db)
+                    chapter = await chapter_svc.get_chapter_by_id(chapter_id)
+                    if chapter and chapter.content:
+                        chapter_content = chapter.content
+            except Exception as e:
+                logger.warning(f"[smart_continue] 获取章节内容失败: {e}")
+
+        if not chapter_content:
+            return json.dumps({
+                "success": False,
+                "error": "missing_content",
+                "message": "缺少章节内容"
+            }, ensure_ascii=False)
+
+        # 使用AI生成续写内容
+        ai_service = _get_ai_service()
+
+        # 取最后1000字作为上下文
+        context = chapter_content[-1000:] if len(chapter_content) > 1000 else chapter_content
+
+        requirement_text = f"\n用户要求：{user_requirement}" if user_requirement else ""
+
+        prompt = f"""你是专业的小说续写助手。请根据以下内容续写约{word_count}字。
+
+【当前内容（最后部分）】
+{context}
+{requirement_text}
+
+【续写要求】
+1. 保持风格一致
+2. 情节自然衔接
+3. 约{word_count}字
+
+请直接输出续写内容，不要添加任何解释。"""
+
+        continued_content = await ai_service.call_ai(
+            system_prompt="你是专业的小说续写助手。",
+            user_prompt=prompt,
+            max_tokens=word_count * 2,
+            temperature=0.8,
+            task_type=TaskType.CONTENT_CREATION
+        )
+
+        return json.dumps({
+            "success": True,
+            "action_type": "continue",
+            "chapter_id": chapter_id,
+            "content": continued_content,
+            "content_length": len(continued_content),
+            "description": f"AI续写：生成{len(continued_content)}字"
+        }, ensure_ascii=False)
+
+    except Exception as e:
+        logger.error(f"smart_continue failed: {e}")
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
 
 
 @tool
 @register_as_tool(
     "smart_rewrite",
-    "editor",
+    "creative",
     """智能改写章节中的文本。根据用户提到的词/短语定位并改写相关句子。
 
     【使用步骤】：
@@ -369,7 +427,7 @@ async def smart_continue(
     - 用户："我觉得应该加强情感描写" → user_requirement="加强情感描写"
     - 用户："在第二版基础上再改得更简洁" → base_version=第二版内容, user_requirement="更简洁"
 
-    此操作会生成3个改写版本供用户选择，需要用户确认。"""
+    此操作会生成3个改写版本供用户选择。"""
 )
 async def smart_rewrite(
     chapter_id: str,
@@ -459,7 +517,6 @@ async def smart_rewrite(
 
         return json.dumps({
             "success": True,
-            "requires_confirmation": True,
             "action_type": "rewrite",
             "chapter_id": chapter_id,
             "original_text": text_to_rewrite,
@@ -475,67 +532,91 @@ async def smart_rewrite(
 @tool
 @register_as_tool(
     "smart_insert",
-    "editor",
-    "智能插入内容，根据用户意图自动推断最佳插入位置。此操作需要用户确认。"
+    "creative",
+    "智能插入内容。根据用户意图生成要插入的内容并推断最佳插入位置。"
 )
 async def smart_insert(
     chapter_id: str,
-    content: str,
     user_intent: str,
     chapter_content: Optional[str] = None,
-    context: Optional[dict] = None,
+    insert_context: Optional[str] = None,
+    word_count: int = 200,
     user_id: Optional[str] = None
 ) -> str:
     """
-    智能插入内容 - 自动推断最佳位置
+    智能插入 - 生成要插入的内容（不直接修改编辑器）
 
     Args:
         chapter_id: 章节ID
-        content: 要插入的内容
-        user_intent: 用户的意图描述
+        user_intent: 用户的意图描述（如"在这里加一段心理描写"）
         chapter_content: 章节完整内容
-        context: 额外上下文（如选中文本位置）
+        insert_context: 插入点附近的上下文
+        word_count: 期望生成字数
         user_id: 用户ID
 
     Returns:
-        包含位置推断和确认请求的结果
+        生成的插入内容和位置推断
     """
     try:
-        # 检查速率限制
-        if user_id:
-            is_allowed, remaining = await agent_edit_limiter.check(user_id)
-            if not is_allowed:
-                return json.dumps({
-                    "success": False,
-                    "error": "rate_limit_exceeded",
-                    "message": "操作过于频繁，请稍后再试。",
-                    "retry_after": 60
-                }, ensure_ascii=False)
+        # 如果没有提供章节内容，自动获取
+        if not chapter_content and chapter_id:
+            try:
+                async with AsyncSessionLocal() as db:
+                    from app.services.chapter_service import ChapterService
+                    chapter_svc = ChapterService(db)
+                    chapter = await chapter_svc.get_chapter_by_id(chapter_id)
+                    if chapter and chapter.content:
+                        chapter_content = chapter.content
+            except Exception as e:
+                logger.warning(f"[smart_insert] 获取章节内容失败: {e}")
 
-        # 智能推断位置
+        # 使用AI生成插入内容
+        ai_service = _get_ai_service()
+
+        context_text = f"\n【插入点上下文】\n{insert_context}" if insert_context else ""
+
+        prompt = f"""你是专业的小说创作助手。请根据用户意图生成约{word_count}字的内容。
+
+【用户意图】
+{user_intent}
+{context_text}
+
+【章节内容参考】
+{chapter_content[:1500] if chapter_content and len(chapter_content) > 1500 else chapter_content or "无"}
+
+【生成要求】
+1. 符合用户意图
+2. 与上下文风格一致
+3. 约{word_count}字
+
+请直接输出生成的内容，不要添加任何解释。"""
+
+        generated_content = await ai_service.call_ai(
+            system_prompt="你是专业的小说创作助手。",
+            user_prompt=prompt,
+            max_tokens=word_count * 2,
+            temperature=0.8,
+            task_type=TaskType.CONTENT_CREATION
+        )
+
+        # 推断插入位置
+        position_result = {"position": "cursor", "confidence": 0.8, "reason": "根据用户意图"}
         if chapter_content:
             position_result = position_inferrer.infer_position(
                 chapter_content=chapter_content,
                 operation="insert",
                 user_intent=user_intent,
-                context=context
+                context={"insert_context": insert_context} if insert_context else None
             )
-        else:
-            position_result = {
-                "position": "end",
-                "confidence": 0.7,
-                "reason": "默认插入到末尾"
-            }
 
         return json.dumps({
             "success": True,
-            "requires_confirmation": True,
             "action_type": "insert",
             "chapter_id": chapter_id,
-            "content": content,
-            "content_length": len(content),
+            "content": generated_content,
+            "content_length": len(generated_content),
             "position_inference": position_result,
-            "description": f"AI插入：+{len(content)}字 ({position_result['reason']})"
+            "description": f"AI生成插入内容：{len(generated_content)}字"
         }, ensure_ascii=False)
 
     except Exception as e:
@@ -645,7 +726,9 @@ smart_rewrite_tool = StandardTool(
 class SmartContinueInput(ToolInput):
     """智能续写工具输入"""
     chapter_id: str = Field(..., description="章节ID")
-    content: str = Field(..., description="续写的内容")
+    chapter_content: Optional[str] = Field(default=None, description="章节当前内容")
+    user_requirement: Optional[str] = Field(default=None, description="用户的续写要求")
+    word_count: int = Field(default=500, description="期望续写字数")
     user_id: Optional[str] = Field(default=None, description="用户ID")
 
 
@@ -657,10 +740,12 @@ class SmartContinueOutput(ToolOutput):
 async def smart_continue_executor(input_data: SmartContinueInput) -> SmartContinueOutput:
     """智能续写执行器（包装 @tool 版本）"""
     try:
-        # 🔧 2025-12-14: @tool 装饰器返回 StructuredTool，需要用 .ainvoke() 调用
+        # 🔧 2026-01-09: 更新参数以匹配新的 smart_continue 签名
         result_str = await smart_continue.ainvoke({
             "chapter_id": input_data.chapter_id,
-            "content": input_data.content,
+            "chapter_content": input_data.chapter_content,
+            "user_requirement": input_data.user_requirement,
+            "word_count": input_data.word_count,
             "user_id": input_data.user_id
         })
 
@@ -684,13 +769,13 @@ async def smart_continue_executor(input_data: SmartContinueInput) -> SmartContin
 
 smart_continue_tool = StandardTool(
     name="smart_continue",
-    description="智能续写章节内容，自动添加到章节末尾",
+    description="智能续写章节内容，根据上下文生成续写内容",
     category=ToolCategory.WRITING,
     input_schema=SmartContinueInput,
     output_schema=SmartContinueOutput,
     executor=smart_continue_executor,
-    tags=["editor", "continue", "hitl"],
-    version="1.0.0"
+    tags=["editor", "continue", "creative"],
+    version="2.0.0"
 )
 
 
@@ -699,10 +784,10 @@ smart_continue_tool = StandardTool(
 class SmartInsertInput(ToolInput):
     """智能插入工具输入"""
     chapter_id: str = Field(..., description="章节ID")
-    content: str = Field(..., description="要插入的内容")
     user_intent: str = Field(..., description="用户的意图描述")
     chapter_content: Optional[str] = Field(default=None, description="章节完整内容")
-    context: Optional[dict] = Field(default=None, description="额外上下文")
+    insert_context: Optional[str] = Field(default=None, description="插入点附近的上下文")
+    word_count: int = Field(default=200, description="期望生成字数")
     user_id: Optional[str] = Field(default=None, description="用户ID")
 
 
@@ -714,13 +799,13 @@ class SmartInsertOutput(ToolOutput):
 async def smart_insert_executor(input_data: SmartInsertInput) -> SmartInsertOutput:
     """智能插入执行器（包装 @tool 版本）"""
     try:
-        # 🔧 2025-12-14: @tool 装饰器返回 StructuredTool，需要用 .ainvoke() 调用
+        # 🔧 2026-01-09: 更新参数以匹配新的 smart_insert 签名
         result_str = await smart_insert.ainvoke({
             "chapter_id": input_data.chapter_id,
-            "content": input_data.content,
             "user_intent": input_data.user_intent,
             "chapter_content": input_data.chapter_content,
-            "context": input_data.context,
+            "insert_context": input_data.insert_context,
+            "word_count": input_data.word_count,
             "user_id": input_data.user_id
         })
 
@@ -744,13 +829,13 @@ async def smart_insert_executor(input_data: SmartInsertInput) -> SmartInsertOutp
 
 smart_insert_tool = StandardTool(
     name="smart_insert",
-    description="智能插入内容，根据用户意图自动推断最佳插入位置",
+    description="智能插入内容，根据用户意图生成内容并推断最佳插入位置",
     category=ToolCategory.WRITING,
     input_schema=SmartInsertInput,
     output_schema=SmartInsertOutput,
     executor=smart_insert_executor,
-    tags=["editor", "insert", "hitl"],
-    version="1.0.0"
+    tags=["editor", "insert", "creative"],
+    version="2.0.0"
 )
 
 

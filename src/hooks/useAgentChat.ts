@@ -42,6 +42,10 @@ export interface EditorAction {
   position?: { from: number; to: number };
   requires_confirmation?: boolean;
   description?: string;
+  /** 锚点定位：修改点前的文本（30-50字） */
+  before_anchor?: string;
+  /** 锚点定位：修改点后的文本（30-50字） */
+  after_anchor?: string;
 }
 
 export interface ApprovalRequest {
@@ -605,19 +609,54 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     });
                   },
                   onApprovalRequest: (approvalReq: any) => {
+                    const editorAction = approvalReq.editor_action;
+                    const pendingData = {
+                      request_id: approvalReq.request_id,
+                      action_type: approvalReq.action_type,
+                      operation: approvalReq.operation,
+                      original_content: approvalReq.original_content,
+                      new_content: approvalReq.new_content,
+                      description: approvalReq.description,
+                      versions: approvalReq.versions,
+                      // 🆕 InlineAI: 包含 editor_action
+                      editor_action: editorAction
+                    };
+
                     sessionManager.updateSession(sessionId, {
-                      pendingApproval: {
-                        request_id: approvalReq.request_id,
-                        action_type: approvalReq.action_type,
-                        operation: approvalReq.operation,
-                        original_content: approvalReq.original_content,
-                        new_content: approvalReq.new_content,
-                        description: approvalReq.description,
-                        versions: approvalReq.versions,
-                        // 🆕 InlineAI: 包含 editor_action
-                        editor_action: approvalReq.editor_action
-                      }
+                      pendingApproval: pendingData
                     });
+
+                    // 🆕 立即派发事件到编辑器，显示修订标记（红删绿增）
+                    if (editorAction) {
+                      const actionType = editorAction.type;
+                      const resolvedType =
+                        actionType === 'continue' || approvalReq.operation === 'append'
+                          ? 'continue'
+                          : actionType === 'insert' || approvalReq.operation === 'insert'
+                            ? 'insert'
+                            : 'modify';
+
+                      // 对于 rewrite 类型，默认显示第一个版本
+                      let replacement = approvalReq.new_content;
+                      if (approvalReq.action_type === 'rewrite' && approvalReq.versions?.length > 0) {
+                        replacement = approvalReq.versions[0].content;
+                      }
+
+                      window.dispatchEvent(
+                        new CustomEvent('agent-show-revision', {
+                          detail: {
+                            type: resolvedType,
+                            original: approvalReq.original_content,
+                            replacement,
+                            position: editorAction.position,
+                            beforeAnchor: editorAction.before_anchor,
+                            afterAnchor: editorAction.after_anchor,
+                            revisionId: `rev-${approvalReq.request_id}-${Date.now()}`
+                          }
+                        })
+                      );
+                      console.log('[useAgentChat] 🎯 立即派发修订事件到编辑器:', resolvedType);
+                    }
                   }
                 }
               : {}),
@@ -799,7 +838,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   break;
                 }
                 case 'revision': {
-                  // v7.3: 修订请求事件 - 嵌入到最后一个 step 中
+                  // v7.5: 非阻塞式修订 - 嵌入到最后一个 step 中 + 派发事件到编辑器
                   const revisionItemId = `flow-${Date.now()}-revision`;
                   const revisionData = event.data;
 
@@ -833,6 +872,33 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                       timestamp,
                     };
                     currentFlowItems = [...currentFlowItems, item];
+                  }
+
+                  // v7.5: 派发事件到编辑器显示修订标记
+                  if (revisionData.content || revisionData.editorAction) {
+                    const editorAction = revisionData.editorAction;
+                    const position = editorAction?.position || revisionData.position;
+
+                    // 映射 revisionType 到编辑器操作类型
+                    let editorType: 'modify' | 'continue' | 'insert' = 'modify';
+                    if (revisionData.revisionType === 'append' || revisionData.operation === 'append') {
+                      editorType = 'continue';
+                    } else if (revisionData.revisionType === 'insert' || revisionData.operation === 'insert') {
+                      editorType = 'insert';
+                    }
+
+                    window.dispatchEvent(new CustomEvent('agent-show-revision', {
+                      detail: {
+                        revisionId: revisionItemId,
+                        chapterId: revisionData.chapterId,
+                        type: editorType,
+                        replacement: revisionData.content,  // NovelEditor 期望 replacement
+                        original: revisionData.originalContent,
+                        position: position,
+                        beforeAnchor: editorAction?.before_anchor,
+                        afterAnchor: editorAction?.after_anchor,
+                      }
+                    }));
                   }
                   break;
                 }
@@ -1271,88 +1337,46 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
       try {
         if (approved) {
-          // 处理 rewrite 类型（改写，有多个版本选择）
-          if (pending.action_type === 'rewrite' && selectedVersion !== undefined) {
+          // 🆕 采纳时：修订标记已经显示，现在派发"确认采纳"事件
+          // 对于 rewrite 类型，如果用户选择了不同版本，需要更新显示
+          if (pending.action_type === 'rewrite' && selectedVersion !== undefined && selectedVersion > 0) {
             const versions = pending.versions;
             if (versions && versions[selectedVersion]) {
               const selectedContent = versions[selectedVersion].content;
-              const originalContent = pending.original_content;
               const editorAction = pending.editor_action;
 
-              // 🆕 WPS修订模式: 触发显示修订标记事件（而非直接替换）
+              // 用户选择了非默认版本，需要更新编辑器中的修订内容
               window.dispatchEvent(
-                new CustomEvent('agent-show-revision', {
+                new CustomEvent('agent-update-revision', {
                   detail: {
-                    type: 'modify',
-                    original: originalContent,
                     replacement: selectedContent,
-                    position: editorAction?.position,
-                    revisionId: `rev-${pending.request_id}-${Date.now()}`
+                    position: editorAction?.position
                   }
                 })
               );
             }
           }
-          // 处理 continue 类型（续写）
-          else if (pending.editor_action?.type === 'continue') {
-            const newContent = pending.new_content;
-            const editorAction = pending.editor_action;
 
-            window.dispatchEvent(
-              new CustomEvent('agent-show-revision', {
-                detail: {
-                  type: 'continue',
-                  replacement: newContent,
-                  position: editorAction?.position,
-                  revisionId: `rev-${pending.request_id}-${Date.now()}`
-                }
-              })
-            );
-          }
-          // 🆕 处理 edit 类型（编辑）
-          else if (pending.action_type === 'edit') {
-            const newContent = pending.new_content;
-            const originalContent = pending.original_content;
-            const editorAction = pending.editor_action;
-            const resolvedType =
-              editorAction?.type === 'continue' || pending.operation === 'append'
-                ? 'continue'
-                : editorAction?.type === 'insert' || pending.operation === 'insert'
-                  ? 'insert'
-                  : 'modify';
+          // 派发"确认采纳"事件，让编辑器应用修改（移除标记，保留新内容）
+          window.dispatchEvent(
+            new CustomEvent('agent-accept-revision', {
+              detail: { request_id: pending.request_id }
+            })
+          );
+          console.log('[useAgentChat] ✅ 派发采纳事件');
 
-            window.dispatchEvent(
-              new CustomEvent('agent-show-revision', {
-                detail: {
-                  type: resolvedType,
-                  original: originalContent,
-                  replacement: newContent,
-                  position: editorAction?.position,
-                  revisionId: `rev-${pending.request_id}-${Date.now()}`
-                }
-              })
-            );
-          }
-          // 🆕 处理 insert 类型（插入）
-          else if (pending.action_type === 'insert') {
-            const newContent = pending.new_content;
-            const editorAction = pending.editor_action;
-
-            window.dispatchEvent(
-              new CustomEvent('agent-show-revision', {
-                detail: {
-                  type: 'insert',
-                  replacement: newContent,
-                  position: editorAction?.position,
-                  revisionId: `rev-${pending.request_id}-${Date.now()}`
-                }
-              })
-            );
-          }
           // 🆕 处理 create/rename 类型（不触发编辑器修订，直接提交审批）
-          else if (pending.action_type === 'create' || pending.action_type === 'rename') {
+          if (pending.action_type === 'create' || pending.action_type === 'rename') {
             // 无需触发 editor 修订标记
           }
+        } else {
+          // 🆕 弃用时：派发撤销事件，移除修订标记，恢复原文
+          window.dispatchEvent(
+            new CustomEvent('agent-undo-revision', {
+              detail: { request_id: pending.request_id }
+            })
+          );
+          console.log('[useAgentChat] ❌ 派发弃用事件');
         }
 
         await agentApi.submitApprovalResponse({
@@ -1393,7 +1417,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           // v7.3: 处理嵌入在 step 中的 revision
           if (item.type === 'step') {
             const stepData = item.data as StepFlowData;
-            if (stepData.revisionItemId === itemId && stepData.revision) {
+            // v7.4: 支持 revisionItemId 或 item.id 匹配
+            if ((stepData.revisionItemId === itemId || item.id === itemId) && stepData.revision) {
               return {
                 ...item,
                 data: {
@@ -1448,7 +1473,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           // v7.3: 检查嵌入在 step 中的 revision
           if (item.type === 'step') {
             const stepData = item.data as StepFlowData;
-            if (stepData.revisionItemId === itemId && stepData.revision) {
+            // v7.4: 支持 revisionItemId 或 item.id 匹配
+            if ((stepData.revisionItemId === itemId || item.id === itemId) && stepData.revision) {
               revisionData = stepData.revision;
               break;
             }
@@ -1502,7 +1528,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           // v7.3: 检查嵌入在 step 中的 revision
           if (item.type === 'step') {
             const stepData = item.data as StepFlowData;
-            if (stepData.revisionItemId === itemId && stepData.revision) {
+            // v7.4: 支持 revisionItemId 或 item.id 匹配
+            if ((stepData.revisionItemId === itemId || item.id === itemId) && stepData.revision) {
               revisionData = stepData.revision;
               break;
             }

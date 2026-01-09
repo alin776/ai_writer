@@ -64,6 +64,10 @@ export interface EditorAction {
   requires_confirmation?: boolean;
   /** 操作描述 */
   description?: string;
+  /** 锚点定位：修改点前的文本（30-50字），用于位置失效时重新定位 */
+  before_anchor?: string;
+  /** 锚点定位：修改点后的文本（30-50字），用于位置失效时重新定位 */
+  after_anchor?: string;
 }
 
 export interface AgentStep {
@@ -587,6 +591,44 @@ export interface EnhancedTaskStartEvent {
   icon?: string;             // Lucide 图标名
   tool_title?: string;       // 工具标题
   tool_description?: string; // 工具描述
+}
+
+// ==================== 非阻塞式修订 (v7.5) ====================
+
+/**
+ * 待处理修订
+ */
+export interface PendingRevision {
+  id: string;                    // 前端生成的唯一ID
+  requestId: string;             // 后端的request_id
+  chapterId: string;
+  chapterTitle: string;
+  revisionType: RevisionType;
+  content: string;               // 完整内容
+  originalContent?: string;      // 原内容（replace类型需要）
+  contentPreview: string;        // 内容预览（前50字）
+  position?: { from: number; to: number };
+  operation?: string;            // 操作类型
+  editorAction?: EditorAction;   // 编辑器操作信息
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: number;
+  messageId?: string;            // 关联的消息ID
+  flowItemId?: string;           // 关联的FlowItem ID
+}
+
+/**
+ * 修订会话
+ */
+export interface RevisionSession {
+  sessionId: string;             // 对应一次Agent执行
+  conversationId: string;        // 对话ID
+  revisions: PendingRevision[];  // 修订列表
+  status: 'in_progress' | 'completed';
+  pendingCount: number;          // 待确认数量
+  acceptedCount: number;         // 已采纳数量
+  rejectedCount: number;         // 已弃用数量
+  startTime: number;
+  endTime?: number;
 }
 
 

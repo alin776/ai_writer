@@ -35,9 +35,8 @@ from app.services.ai.http_ai_service import HTTPAIService
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.services.agent.prompts import NovelPhase, PhaseCharacteristics
-from app.services.agent.prompt_library import get_content_prompt
 from app.services.agent.model_selector import TaskType
-from app.services.agent.prompt_cache import get_tool_decision_static_prompt, get_planning_static_prompt, get_planning_agent_mode_prompt, get_complexity_decision_prompt
+from app.services.agent.prompts import get_tool_decision_static_prompt, get_planning_static_prompt, get_planning_agent_mode_prompt, get_complexity_decision_prompt
 from app.services.agent.progress_tracker import ProgressTracker
 from app.services.agent.node_metadata import get_node_info
 # DeepAgent 反思系统
@@ -65,7 +64,6 @@ from app.services.agent.langgraph_tools import (
     _generate_text_helper,
     # 工具列表 & 单个工具（LangGraph 节点内直接调用）
     LANGGRAPH_TOOLS,
-    continue_writing_tool,
     analyze_text_tool,
     read_chapter_tool,
     get_chapter_by_order_tool,
@@ -1192,312 +1190,6 @@ class WritingAgentGraph:
         """处理一般对话 - 委托到 handlers 模块"""
         return await handle_general(self, state)
 
-    async def chat_stream(
-        self,
-        message: str,
-        user_id: Optional[str] = None,  # 新增：用户ID（用于长期记忆隔离）
-        work_id: Optional[str] = None,
-        chapter_id: Optional[str] = None,
-        conversation_id: Optional[str] = None,
-        context: Optional[dict] = None,
-        on_progress: Optional[callable] = None,
-        on_tool_call: Optional[callable] = None,
-        on_content: Optional[callable] = None,
-        db: Optional[Any] = None  # 新增：数据库会话（用于token记录）
-    ) -> dict:
-        """
-        流式执行chat()，提供实时进度反馈（已集成上下文管理）
-
-        Args:
-            message: 用户消息
-            user_id: 用户ID（用于长期记忆隔离）
-            work_id: 作品ID
-            chapter_id: 章节ID
-            conversation_id: 会话ID
-            context: 额外上下文
-            on_progress: 进度回调 async def on_progress(event: dict)
-            on_tool_call: 工具调用回调 async def on_tool_call(tool_name: str, tool_args: dict)
-            on_content: 内容生成回调 async def on_content(content: str)
-            db: 数据库会话（用于token记录到AICallLog）
-
-        Returns:
-            Dict: Agent响应（同chat()方法）
-        """
-
-        # 🔧 监控：导入监控工具
-        import time
-        from app.services.agent.utils.monitoring import increment_counter, record_timer
-
-        # 🔧 监控：记录总体开始时间
-        overall_start = time.time()
-
-        logger.info(f"[LangGraph Stream] 开始流式执行: {message[:50]}...")
-
-        # ✅ 前端兜底：若未传 conversation_id，则生成随机ID并返回给前端
-        if not conversation_id:
-            conversation_id = str(uuid.uuid4())
-            logger.warning(f"[LangGraph Stream] 未提供 conversation_id，自动生成: {conversation_id}")
-
-        # ✅ 前端兜底：提示缺失 work_id 可能导致跨作品污染
-        if not work_id:
-            logger.warning("[LangGraph Stream] work_id 缺失，将退化为用户/会话级隔离，请尽快在前端补充 work_id 以防跨作品污染")
-
-        # 懒加载AsyncRedisSaver索引
-        if isinstance(self.checkpointer, AsyncRedisSaver) and not self._checkpointer_setup_done:
-            try:
-                await self.checkpointer.asetup()
-                self._checkpointer_setup_done = True
-                logger.info(f"[LangGraph] AsyncRedisSaver索引创建成功")
-            except Exception as setup_error:
-                logger.error(f"[LangGraph] AsyncRedisSaver索引创建失败: {setup_error}")
-                raise
-
-        # 🔧 新增：构建上下文（加载历史对话）
-        session_id = conversation_id
-
-        # 动态设置user_id（用于长期记忆隔离）
-        if user_id:
-            self.context_manager.user_id = user_id
-            logger.info(f"[Context] 设置用户ID: {user_id}")
-
-        # ✅ 优化：移除重复的意图识别
-        # LangGraph的intent_classifier节点会自动完成意图识别
-        # 这里不再预先识别,避免重复调用
-
-        # 🔧 监控：上下文构建计时
-        context_start = time.time()
-
-        # 使用默认的writing_agent模板（LangGraph会根据实际意图动态切换）
-        system_prompt = self.prompt_manager.render(
-            "writing_agent",
-            user_message=message,
-            context_summary="",
-            user_preferences={},
-            writing_constraints=[],
-            examples=[]
-        )
-
-        context_bundle = await self.context_manager.build_context(
-            session_id=session_id,
-            system_prompt=system_prompt,
-            query=message,  # 新增：触发长期记忆检索
-            work_id=work_id  # ✅ P0-2修复：传递work_id隔离向量记忆
-        )
-
-        # 🔧 监控：记录上下文构建耗时
-        record_timer("context_build_duration", time.time() - context_start)
-
-        logger.info(f"[Context] 加载上下文: {context_bundle['metadata']}")
-
-        # 🔧 新增：将历史消息转换为LangGraph消息格式
-        history_messages = []
-        for msg in context_bundle["messages"]:
-            if msg["role"] == "system":
-                history_messages.append(SystemMessage(content=msg["content"]))
-            elif msg["role"] == "user":
-                history_messages.append(HumanMessage(content=msg["content"]))
-            elif msg["role"] == "assistant":
-                history_messages.append(AIMessage(content=msg["content"]))
-
-        # 构建初始状态（不预设intent,由LangGraph的intent_classifier节点识别）
-        knowledge_messages = _build_knowledge_system_messages(context)
-        worldview_messages = _build_worldview_system_messages(context)  # 世界观系统消息
-
-        initial_state = {
-            "messages": worldview_messages + knowledge_messages + history_messages + [HumanMessage(content=message)],  # 世界观 + 知识上下文 + 历史消息 + 当前消息
-            "work_id": work_id,
-            "chapter_id": chapter_id,
-            "intent": None,  # ✅ 优化：由LangGraph的intent_classifier节点自动识别
-            "context": context or {},
-            "agent_steps": [],
-            "suggested_actions": [],
-            "final_response": None
-        }
-
-        # ✅ P0-3修复：构建隔离的thread_id - 委托到公共方法
-        thread_id = self._build_thread_id(user_id, work_id, conversation_id, "LangGraph")
-
-        # 配置
-        config = {
-            "configurable": {
-                "thread_id": thread_id  # ✅ 使用work_id隔离的thread_id
-            }
-        }
-
-        # ✅ 初始化ProgressTracker（不预设expected_nodes，完全动态追踪）
-        progress_tracker = None
-        try:
-            # 不传expected_nodes/scenario，让ProgressTracker根据实际执行的节点动态计算进度
-            # 这样可以自适应任何intent（general/writing/planning/analysis/stuck）
-            # ProgressTracker内部有平滑处理机制，避免进度倒退
-            progress_tracker = ProgressTracker()
-            logger.info("[ProgressTracker] 初始化完成，使用动态节点追踪模式")
-        except Exception as e:
-            logger.error(f"[ProgressTracker] 初始化失败: {e}，将继续执行但不提供进度信息")
-            progress_tracker = None  # 降级：不使用ProgressTracker
-
-        try:
-            # 🔧 监控：LangGraph执行计时
-            graph_start = time.time()
-
-            # 使用astream()流式执行
-            event_count = 0
-
-            # ✅ 添加超时保护（使用统一配置）
-            async with async_timeout(TimeoutConfig.LANGGRAPH_STREAM):
-                async for event in self.graph.astream_events(initial_state, config, version="v2"):
-                    event_count += 1
-
-                    # 提取事件类型和数据
-                    event_type = event.get("event")
-                    event_name = event.get("name")
-                    event_data = event.get("data", {})
-
-                    # ✅ 处理节点开始事件
-                    if event_type == "on_chain_start" and event_name:
-                        if progress_tracker:
-                            progress_tracker.start_node(event_name)
-                            logger.debug(f"[ProgressTracker] 节点开始: {event_name}")
-
-                    # ✅ 处理节点结束事件
-                    elif event_type == "on_chain_end" and event_name:
-                        # ✅ P0-6调试：打印tools节点的事件数据
-                        if event_name == "tools":
-                            logger.info(f"[HITL Debug] tools节点on_chain_end事件: event_data keys={list(event_data.keys())}")
-                            output_data_preview = event_data.get("output")
-                            if output_data_preview:
-                                logger.info(f"[HITL Debug] output keys={list(output_data_preview.keys()) if isinstance(output_data_preview, dict) else type(output_data_preview)}")
-                                if isinstance(output_data_preview, dict) and "messages" in output_data_preview:
-                                    logger.info(f"[HITL Debug] messages数量={len(output_data_preview['messages'])}")
-                                    for i, msg in enumerate(output_data_preview["messages"]):
-                                        logger.info(f"[HITL Debug] message[{i}]: type={type(msg).__name__}, name={getattr(msg, 'name', 'N/A')}")
-
-                        # 构造原格式的event用于现有逻辑，添加降级处理
-                        output_data = event_data.get("output")
-                        if output_data is None:
-                            output_data = event_data  # 降级：使用完整event_data
-                        formatted_event = {event_name: output_data}
-
-                        # 处理事件并触发回调
-                        await self._handle_stream_event(
-                            formatted_event,
-                            on_progress=on_progress,
-                            on_tool_call=on_tool_call,
-                            on_content=on_content,
-                            progress_tracker=progress_tracker,  # ✅ 传递ProgressTracker
-                            context=context  # ✅ P0-6修复：传递context用于HITL回调
-                        )
-
-                    # ✅ 处理节点错误事件
-                    elif event_type == "on_chain_error" and event_name:
-                        if progress_tracker:
-                            progress_tracker.end_node(event_name)  # 标记节点完成（即使失败）
-                            logger.error(f"[ProgressTracker] 节点失败: {event_name}")
-
-            # 🔧 监控：记录LangGraph执行耗时
-            record_timer("graph_execution_duration", time.time() - graph_start)
-
-            logger.info(f"[LangGraph Stream] 流式执行完成，共{event_count}个事件")
-
-            # 获取最终状态
-            final_state = await self.graph.aget_state(config)
-
-            # 构建返回结果（与chat()相同的格式）
-            if final_state and final_state.values:
-                result = final_state.values
-                final_response = result.get("final_response")
-
-                # 🔧 新增：更新上下文（保存本轮对话）
-                # ✅ P0-2补充修复：传递work_id以正确保存向量记忆
-                await self.context_manager.update_context(
-                    session_id=session_id,
-                    new_messages=[
-                        {"role": "user", "content": message},
-                        {"role": "assistant", "content": final_response or ""}
-                    ],
-                    context=context_bundle.get("context"),
-                    work_id=work_id  # ✅ 新增：传递work_id
-                )
-                logger.info(f"[Context] 上下文已更新: {session_id} (work_id={work_id})")
-
-                # 🔧 监控：记录成功
-                increment_counter("chat_stream_success")
-                record_timer("chat_stream_total_duration", time.time() - overall_start)
-
-                return {
-                    "response": final_response,
-                    "conversation_id": conversation_id,
-                    "messages": result.get("messages", []),
-                    "agent_steps": result.get("agent_steps", []),
-                    "suggested_actions": result.get("suggested_actions", []),
-                    "metadata": {
-                        "intent": result.get("intent"),
-                        "timestamp": str(get_utc_now()),
-                        "stream_events": event_count,
-                        "context_token_count": context_bundle["metadata"]["token_count"]
-                    }
-                }
-            else:
-                logger.error("[LangGraph Stream] 无法获取最终状态")
-
-                # 🔧 监控：记录失败（无最终状态）
-                increment_counter("chat_stream_error", labels={"error_type": "NoFinalState"})
-                record_timer("chat_stream_total_duration", time.time() - overall_start)
-
-                return {
-                    "response": "执行完成，但无法获取结果",
-                    "conversation_id": conversation_id,
-                    "agent_steps": [],
-                    "suggested_actions": [],
-                    "metadata": {"error": "No final state"}
-                }
-
-        except asyncio.TimeoutError:
-            # ✅ 超时异常的特殊处理
-            logger.error(f"[LangGraph Stream] 执行超时（{TimeoutConfig.LANGGRAPH_STREAM}秒）")
-
-            # 🔧 监控：记录超时
-            increment_counter("chat_stream_error", labels={"error_type": "TimeoutError"})
-            record_timer("chat_stream_total_duration", time.time() - overall_start)
-
-            return {
-                "response": "抱歉，请求处理超时（超过5分钟）。请尝试简化您的问题或稍后再试。",
-                "conversation_id": conversation_id,
-                "agent_steps": [],
-                "suggested_actions": ["简化问题", "稍后重试"],
-                "metadata": {"error": f"Request timeout after {TimeoutConfig.LANGGRAPH_STREAM} seconds", "timeout": TimeoutConfig.LANGGRAPH_STREAM}
-            }
-
-        except Exception as e:
-            import traceback
-            error_msg = str(e) or repr(e)
-            error_trace = traceback.format_exc()
-
-            # 🔧 监控：记录异常
-            increment_counter("chat_stream_error", labels={"error_type": type(e).__name__})
-            record_timer("chat_stream_total_duration", time.time() - overall_start)
-
-            logger.error(f"[LangGraph Stream] 执行失败: {error_msg}")
-            logger.error(f"[LangGraph Stream] 错误堆栈:\n{error_trace}")
-            return {
-                "response": f"抱歉，处理您的请求时出错了：{error_msg}",
-                "conversation_id": conversation_id,
-                "agent_steps": [],
-                "suggested_actions": [],
-                "metadata": {"error": error_msg, "traceback": error_trace}
-            }
-
-        finally:
-            # ✅ 新增：清理ProgressTracker（P1任务7）
-            if progress_tracker:
-                try:
-                    # 重置tracker状态，释放资源
-                    progress_tracker.reset()
-                    del progress_tracker
-                    logger.debug("[ProgressTracker] 已清理")
-                except Exception as e:
-                    logger.warning(f"[ProgressTracker] 清理失败: {e}")
-
     async def _handle_stream_event(
         self,
         event: dict,
@@ -2053,7 +1745,7 @@ class WritingAgentGraph:
                 knowledge_docs_for_response = context.get("knowledge_docs") if context else None
 
                 # v6.3: 判断 is_applicable
-                CONTENT_GENERATION_TOOLS = {'continue_writing_tool'}
+                CONTENT_GENERATION_TOOLS = {'smart_continue', 'smart_rewrite', 'smart_insert'}
                 is_applicable = False
 
                 for result in task_results:
@@ -2336,7 +2028,7 @@ class WritingAgentGraph:
                 for task in output_tasks
             )
             has_writing = any(
-                task.get("tool") == "continue_writing_tool"
+                task.get("tool") in {"smart_continue", "smart_rewrite", "smart_insert"}
                 for task in output_tasks
             )
 
@@ -2435,9 +2127,19 @@ class WritingAgentGraph:
                 result_obj = None
 
         if not (isinstance(result_obj, dict) and result_obj.get("requires_confirmation")):
-            # Planning 中 continue_writing_tool 仅生成文本，不会触发修订；此处进行兜底转换
-            if tool_name == "continue_writing_tool" and self._should_promote_continue_task(task, chapter_id):
-                content_text = tool_result if isinstance(tool_result, str) else str(tool_result or "")
+            # Planning 中 smart_continue 仅生成文本，不会触发修订；此处进行兜底转换
+            if tool_name == "smart_continue" and self._should_promote_continue_task(task, chapter_id):
+                # 🔧 2026-01-09: 新的 smart_continue 返回 JSON，需要提取 content 字段
+                if isinstance(result_obj, dict) and result_obj.get("content"):
+                    content_text = result_obj.get("content")
+                elif isinstance(tool_result, str):
+                    try:
+                        parsed = json.loads(tool_result)
+                        content_text = parsed.get("content", tool_result)
+                    except json.JSONDecodeError:
+                        content_text = tool_result
+                else:
+                    content_text = str(tool_result or "")
                 if not content_text.strip():
                     return
                 operation = params.get("operation") or "append"
@@ -2484,7 +2186,8 @@ class WritingAgentGraph:
             "work_id": result_obj.get("work_id"),
             "old_title": result_obj.get("old_title"),
             "new_title": result_obj.get("new_title"),
-            "editor_action": result_obj.get("editor_action")
+            "editor_action": result_obj.get("editor_action"),
+            "position": result_obj.get("position")  # v7.5: 添加 position 字段
         }
 
         # 如果工具返回了position但没有editor_action，则补充
@@ -2547,14 +2250,19 @@ class WritingAgentGraph:
             request_id=request_id,
             chapter_id=approval_data.get("chapter_id"),
             chapter_title=approval_data.get("chapter_title"),
+            content=new_content,
             content_preview=content_preview,
+            original_content=original_content,
+            position=approval_data.get("position"),
+            operation=operation,
+            editor_action=approval_data.get("editor_action"),
             old_title=approval_data.get("old_title"),
             new_title=approval_data.get("new_title"),
             versions=approval_data.get("versions")
         )
 
     def _should_promote_continue_task(self, task: Dict[str, Any], chapter_id: Optional[str]) -> bool:
-        """判断是否将 continue_writing_tool 的结果转为修订确认"""
+        """判断是否将 smart_continue 的结果转为修订确认"""
         if not chapter_id:
             return False
         params = task.get("params", {}) or {}

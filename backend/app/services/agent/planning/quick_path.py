@@ -112,13 +112,15 @@ class QuickPathHandler:
 
                 # 解析结果
                 try:
-                    if isinstance(result, dict):
-                        data = result  # 已经是 dict
+                    if isinstance(result, str):
+                        data = json.loads(result)
+                    elif isinstance(result, dict):
+                        data = result
                     elif isinstance(result, list):
                         # 如果是 list，取第一个元素或转换
                         data = result[0] if result and isinstance(result[0], dict) else {"content": str(result)}
                     else:
-                        data = json.loads(result)
+                        data = {"content": str(result)}
                 except (json.JSONDecodeError, TypeError, IndexError) as e:
                     logger.warning(f"[QuickPath-Planning] 解析结果失败: {e}, result type: {type(result)}")
                     data = {"error": str(result)}

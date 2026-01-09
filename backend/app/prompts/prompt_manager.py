@@ -42,11 +42,7 @@ class PromptManager:
         # 定义需要加载的模板列表
         template_files = [
             "analyze_text.yaml",  # 文本分析模板
-            "intent_classifier.yaml",
             "writing_agent.yaml",
-            "planning_agent.yaml",
-            "tool_agent.yaml",
-            "query_agent.yaml",  # 新增：问答Agent模板
             "system_agent_prompt.yaml",  # 🆕 双Prompt架构：系统层Prompt
             "creative_writing_prompt.yaml",  # 🆕 双Prompt架构：创作层Prompt
         ]

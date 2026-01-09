@@ -437,3 +437,72 @@ def enhance_scene(description: str) -> str:
     result = tool.enhance_environment(description)
 
     return result.converted
+
+
+# ==================== @tool 包装（2026-01-09）====================
+
+from langchain_core.tools import tool
+from .tool_registry import register_as_tool
+import json
+
+
+@tool
+@register_as_tool(
+    "show_emotion_tool",
+    "creative",
+    "将抽象情绪转换为具体的感官描写（Show Don't Tell）"
+)
+def show_emotion_tool(emotion: str, intensity: int = 3) -> str:
+    """
+    将抽象情绪转换为具体描写
+
+    Args:
+        emotion: 情绪（如"生气"、"高兴"、"悲伤"、"害怕"）
+        intensity: 强度 1-5
+
+    Returns:
+        具体的感官描写
+    """
+    try:
+        result = show_emotion(emotion, intensity)
+        return json.dumps({
+            "success": True,
+            "original_emotion": emotion,
+            "converted": result,
+            "intensity": intensity
+        }, ensure_ascii=False, indent=2)
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        }, ensure_ascii=False)
+
+
+@tool
+@register_as_tool(
+    "enhance_scene_tool",
+    "creative",
+    "增强场景描写，添加多感官细节"
+)
+def enhance_scene_tool(description: str) -> str:
+    """
+    增强场景描写
+
+    Args:
+        description: 原始场景描述
+
+    Returns:
+        增强后的描写
+    """
+    try:
+        result = enhance_scene(description)
+        return json.dumps({
+            "success": True,
+            "original": description,
+            "enhanced": result
+        }, ensure_ascii=False, indent=2)
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        }, ensure_ascii=False)

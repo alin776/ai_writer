@@ -15,7 +15,6 @@ from app.services.agent.utils.tool_helpers import resolve_version_reference
 
 # 导入 @tool 版本用于降级
 from app.services.agent.langgraph_tools import (
-    continue_writing_tool,
     analyze_text_tool,
     get_context_tool,
     read_chapter_tool,
@@ -31,6 +30,77 @@ if TYPE_CHECKING:
     from app.services.agent.langgraph_agent import AgentState
 
 logger = logging.getLogger(__name__)
+
+
+# ==================== 工具分类列表（2026-01-09）====================
+
+# 创作类工具：AI生成内容，不直接修改数据库
+CREATIVE_TOOLS = [
+    "smart_rewrite",
+    "smart_continue",
+    "smart_insert",
+    "show_emotion_tool",
+    "enhance_scene_tool",
+    "learn_style_tool",
+]
+
+# 操作类工具：直接修改数据库，需要用户确认
+OPERATION_TOOLS = [
+    "apply_chapter_edit",
+    "create_chapter",
+    "update_chapter_title",
+    "delete_chapter",
+    "update_chapter_content",
+]
+
+# 查询类工具：只读取数据，不修改
+QUERY_TOOLS = [
+    "get_context_tool",
+    "read_chapter_tool",
+    "get_chapter_by_order_tool",
+    "search_analysis_fragments_tool",
+    "get_worldview_summary",
+    "get_style_guidance_tool",
+]
+
+# 分析类工具：分析内容，不修改数据
+ANALYSIS_TOOLS = [
+    "analyze_text_tool",
+    "check_story_consistency_tool",
+    "analyze_style_tool",
+]
+
+
+def get_tool_category(tool_name: str) -> str:
+    """获取工具分类
+
+    Args:
+        tool_name: 工具名称
+
+    Returns:
+        工具分类: "creative" | "operation" | "query" | "analysis" | "unknown"
+    """
+    if tool_name in CREATIVE_TOOLS:
+        return "creative"
+    elif tool_name in OPERATION_TOOLS:
+        return "operation"
+    elif tool_name in QUERY_TOOLS:
+        return "query"
+    elif tool_name in ANALYSIS_TOOLS:
+        return "analysis"
+    return "unknown"
+
+
+def requires_confirmation(tool_name: str) -> bool:
+    """判断工具是否需要用户确认
+
+    Args:
+        tool_name: 工具名称
+
+    Returns:
+        是否需要用户确认
+    """
+    return tool_name in OPERATION_TOOLS
 
 
 class ToolDispatcher:
@@ -74,12 +144,8 @@ class ToolDispatcher:
         """
         logger.info(f"[ToolDispatcher] 分发工具调用: {tool_name}")
 
-        # 1. 续写工具
-        if tool_name == "continue_writing_tool":
-            return await self._call_continue_writing(tool_args, last_user_message)
-
-        # 2. 分析工具
-        elif tool_name == "analyze_text_tool":
+        # 1. 分析工具
+        if tool_name == "analyze_text_tool":
             return await self._call_analyze_text(tool_args, last_user_message)
 
         # 3. 获取上下文工具
@@ -114,39 +180,19 @@ class ToolDispatcher:
         elif tool_name == "apply_chapter_edit":
             return await self._call_apply_chapter_edit(tool_args, state)
 
+        # 11. 删除章节工具（2026-01-09 新增）
+        elif tool_name == "delete_chapter":
+            return await self._call_delete_chapter(tool_args, state)
+
+        # 12. 更新章节内容工具（2026-01-09 新增）
+        elif tool_name == "update_chapter_content":
+            return await self._call_update_chapter_content(tool_args, state)
+
         # 其他工具：使用统一接口
         else:
             return await self._call_generic_tool(tool_name, tool_args, state)
 
     # ==================== 具体工具调用实现 ====================
-
-    async def _call_continue_writing(
-        self, tool_args: Dict[str, Any], last_user_message: str
-    ) -> str:
-        """调用续写工具"""
-        try:
-            result = await registry.call_tool("continue_writing", {
-                "context": tool_args.get("context", last_user_message),
-                "requirements": tool_args.get("requirements", ""),
-                "target_length": tool_args.get("target_length", 500),
-                "style": tool_args.get("style", "")
-            })
-
-            if isinstance(result, dict) and result.get("success"):
-                tool_result = result.get("data", {}).get("generated_text", "")
-                logger.info(f"[StandardTool] continue_writing 执行成功，字数: {len(tool_result)}")
-                return tool_result
-            else:
-                error_msg = result.get("message", "执行失败") if isinstance(result, dict) else "未知错误"
-                logger.error(f"[StandardTool] continue_writing 执行失败: {error_msg}")
-                return json.dumps({"error": "tool_failed", "message": error_msg}, ensure_ascii=False)
-
-        except Exception as e:
-            logger.warning(f"[StandardTool] 调用失败，降级到 @tool 版本: {e}")
-            return await continue_writing_tool.ainvoke({
-                "context": tool_args.get("context", last_user_message),
-                "requirements": tool_args.get("requirements", "")
-            })
 
     async def _call_analyze_text(
         self, tool_args: Dict[str, Any], last_user_message: str
@@ -372,7 +418,7 @@ class ToolDispatcher:
 
         try:
             result = await registry.call_tool("smart_rewrite", {
-                "chapter_id": tool_args.get("chapter_id", ""),
+                "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
                 "text_to_rewrite": text_to_rewrite,
                 "chapter_content": chapter_content,
                 "user_requirement": user_requirement,
@@ -391,7 +437,7 @@ class ToolDispatcher:
         except Exception as e:
             logger.warning(f"[StandardTool] smart_rewrite 调用失败，降级到 @tool: {e}")
             tool_result = await smart_rewrite.ainvoke({
-                "chapter_id": tool_args.get("chapter_id", ""),
+                "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
                 "text_to_rewrite": text_to_rewrite,
                 "chapter_content": chapter_content,
                 "user_requirement": user_requirement,
@@ -400,7 +446,7 @@ class ToolDispatcher:
             })
 
         # 保存版本记忆
-        self._save_version_memory(tool_result, state, selected_text, selection_position, text_to_rewrite)
+        self._save_version_memory(tool_result, state, selected_text, selection_position, text_to_rewrite, chapter_content)
 
         return tool_result
 
@@ -410,14 +456,13 @@ class ToolDispatcher:
         """调用智能续写工具"""
         logger.info(f"[ToolDispatcher] 🚀 准备调用 smart_continue")
 
-        context = state.get("context", {})
-        selected_text = context.get("selected_text", "")
-        selection_position = context.get("selection_position", None)
-
         try:
+            # 🔧 2026-01-09: 更新参数以匹配新的 smart_continue 签名
             result = await registry.call_tool("smart_continue", {
-                "chapter_id": tool_args.get("chapter_id", ""),
-                "content": tool_args.get("context", ""),
+                "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
+                "chapter_content": tool_args.get("chapter_content"),
+                "user_requirement": tool_args.get("user_requirement", ""),
+                "word_count": tool_args.get("word_count", 500),
                 "user_id": state.get("user_id")
             })
 
@@ -432,25 +477,14 @@ class ToolDispatcher:
         except Exception as e:
             logger.warning(f"[StandardTool] smart_continue 调用失败，降级到 @tool: {e}")
             tool_result = await smart_continue.ainvoke({
-                "chapter_id": tool_args.get("chapter_id", ""),
-                "content": tool_args.get("context", ""),
+                "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
+                "chapter_content": tool_args.get("chapter_content"),
+                "user_requirement": tool_args.get("user_requirement", ""),
+                "word_count": tool_args.get("word_count", 500),
                 "user_id": state.get("user_id")
             })
 
-        # InlineAI: 添加 editor_action 字段
-        if selected_text and selection_position:
-            try:
-                result_obj = json.loads(tool_result) if isinstance(tool_result, str) else tool_result
-                result_obj["editor_action"] = {
-                    "type": "continue",
-                    "position": selection_position,
-                    "requires_confirmation": True
-                }
-                tool_result = json.dumps(result_obj, ensure_ascii=False)
-                logger.info(f"[ToolDispatcher] 📝 添加 editor_action (continue)")
-            except Exception as e:
-                logger.warning(f"[ToolDispatcher] 添加 editor_action 失败: {e}")
-
+        # 🔧 2026-01-09: CREATIVE 工具不再添加 editor_action，不触发 HITL 确认
         return tool_result
 
     async def _call_smart_insert(
@@ -459,16 +493,14 @@ class ToolDispatcher:
         """调用智能插入工具"""
         logger.info(f"[ToolDispatcher] 🚀 准备调用 smart_insert")
 
-        context = state.get("context", {})
-        selection_position = context.get("selection_position", None)
-
         try:
+            # 🔧 2026-01-09: 更新参数以匹配新的 smart_insert 签名
             result = await registry.call_tool("smart_insert", {
-                "chapter_id": tool_args.get("chapter_id", ""),
-                "content": tool_args.get("content", ""),
-                "user_intent": tool_args.get("position", "end"),
-                "chapter_content": None,
-                "context": {"selection": selection_position} if selection_position else None,
+                "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
+                "user_intent": tool_args.get("user_intent") or tool_args.get("position", "插入内容"),
+                "chapter_content": tool_args.get("chapter_content"),
+                "insert_context": tool_args.get("insert_context"),
+                "word_count": tool_args.get("word_count", 200),
                 "user_id": state.get("user_id")
             })
 
@@ -483,28 +515,15 @@ class ToolDispatcher:
         except Exception as e:
             logger.warning(f"[StandardTool] smart_insert 调用失败，降级到 @tool: {e}")
             tool_result = await smart_insert.ainvoke({
-                "chapter_id": tool_args.get("chapter_id", ""),
-                "content": tool_args.get("content", ""),
-                "user_intent": tool_args.get("position", "end"),
-                "chapter_content": None,
-                "context": None,
+                "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
+                "user_intent": tool_args.get("user_intent") or tool_args.get("position", "插入内容"),
+                "chapter_content": tool_args.get("chapter_content"),
+                "insert_context": tool_args.get("insert_context"),
+                "word_count": tool_args.get("word_count", 200),
                 "user_id": state.get("user_id")
             })
 
-        # InlineAI: 添加 editor_action 字段（insert）
-        if selection_position:
-            try:
-                result_obj = json.loads(tool_result) if isinstance(tool_result, str) else tool_result
-                result_obj["editor_action"] = {
-                    "type": "insert",
-                    "position": selection_position,
-                    "requires_confirmation": True
-                }
-                tool_result = json.dumps(result_obj, ensure_ascii=False)
-                logger.info(f"[ToolDispatcher] 📝 添加 editor_action (insert)")
-            except Exception as e:
-                logger.warning(f"[ToolDispatcher] 添加 editor_action 失败: {e}")
-
+        # 🔧 2026-01-09: CREATIVE 工具不再添加 editor_action，不触发 HITL 确认
         return tool_result
 
     async def _call_apply_chapter_edit(
@@ -515,7 +534,7 @@ class ToolDispatcher:
 
         try:
             result = await registry.call_tool("apply_chapter_edit", {
-                "chapter_id": tool_args.get("chapter_id", ""),
+                "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
                 "content": tool_args.get("content", ""),
                 "operation": tool_args.get("operation", "replace"),
                 "position": None,
@@ -534,7 +553,7 @@ class ToolDispatcher:
         except Exception as e:
             logger.warning(f"[StandardTool] apply_chapter_edit 调用失败，降级到 @tool: {e}")
             tool_result = await apply_chapter_edit.ainvoke({
-                "chapter_id": tool_args.get("chapter_id", ""),
+                "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
                 "content": tool_args.get("content", ""),
                 "operation": tool_args.get("operation", "replace"),
                 "position": None,
@@ -543,6 +562,24 @@ class ToolDispatcher:
             })
 
         return tool_result
+
+    async def _call_delete_chapter(
+        self, tool_args: Dict[str, Any], state: "AgentState"
+    ) -> str:
+        """调用删除章节工具（2026-01-09 新增）"""
+        logger.info(f"[ToolDispatcher] 🚀 准备调用 delete_chapter")
+
+        from app.services.agent.tools.chapter_tools import delete_chapter
+        return await delete_chapter.ainvoke(tool_args)
+
+    async def _call_update_chapter_content(
+        self, tool_args: Dict[str, Any], state: "AgentState"
+    ) -> str:
+        """调用更新章节内容工具（2026-01-09 新增）"""
+        logger.info(f"[ToolDispatcher] 🚀 准备调用 update_chapter_content")
+
+        from app.services.agent.tools.chapter_tools import update_chapter_content
+        return await update_chapter_content.ainvoke(tool_args)
 
     async def _call_generic_tool(
         self, tool_name: str, tool_args: Dict[str, Any], state: "AgentState"
@@ -574,6 +611,7 @@ class ToolDispatcher:
         selected_text: str,
         selection_position: Optional[Dict],
         text_to_rewrite: str,
+        chapter_content: str = "",  # 新增：章节内容用于生成锚点
     ) -> None:
         """保存版本记忆"""
         try:
@@ -591,12 +629,31 @@ class ToolDispatcher:
 
                 # InlineAI: 添加 editor_action 字段
                 if selected_text and selection_position:
-                    result_obj["editor_action"] = {
+                    editor_action = {
                         "type": "modify",
                         "original_text": text_to_rewrite,
                         "position": selection_position,
                         "requires_confirmation": True
                     }
+
+                    # 🆕 生成锚点用于位置失效时重新定位
+                    if chapter_content and selection_position:
+                        pos_from = selection_position.get("from", 0)
+                        pos_to = selection_position.get("to", 0)
+                        # 提取修改点前30-50字作为前锚点
+                        anchor_start = max(0, pos_from - 50)
+                        before_anchor = chapter_content[anchor_start:pos_from]
+                        # 提取修改点后30-50字作为后锚点
+                        anchor_end = min(len(chapter_content), pos_to + 50)
+                        after_anchor = chapter_content[pos_to:anchor_end]
+
+                        if before_anchor:
+                            editor_action["before_anchor"] = before_anchor
+                        if after_anchor:
+                            editor_action["after_anchor"] = after_anchor
+                        logger.info(f"[ToolDispatcher] 🔗 添加锚点: before={len(before_anchor)}字, after={len(after_anchor)}字")
+
+                    result_obj["editor_action"] = editor_action
                     logger.info(f"[ToolDispatcher] 📝 添加 editor_action (modify)")
         except Exception as e:
             logger.warning(f"[ToolDispatcher] 保存版本记忆失败: {e}")

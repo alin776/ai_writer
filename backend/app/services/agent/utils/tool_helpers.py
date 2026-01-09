@@ -87,20 +87,9 @@ def normalize_tool_params(tool_name: str, params: Dict[str, Any]) -> Dict[str, A
     """
     normalized = params.copy()
 
-    # continue_writing_tool 的 requirements 必须是字符串
-    if tool_name == "continue_writing_tool":
-        requirements = params.get("requirements", "")
-        if isinstance(requirements, dict):
-            # 将字典转换为可读的字符串
-            parts = []
-            for key, value in requirements.items():
-                parts.append(f"{key}: {value}")
-            normalized["requirements"] = "，".join(parts)
-            logger.info(f"[参数标准化] continue_writing_tool.requirements: dict → str")
-
     # 🔧 2025-12-14: analyze_content → analyze_text 参数转换
     # analyze_content 使用 content 参数，analyze_text 使用 text 参数
-    elif tool_name in ("analyze_content", "analyze_content_tool", "analyze_text_tool", "analyze_text"):
+    if tool_name in ("analyze_content", "analyze_content_tool", "analyze_text_tool", "analyze_text"):
         # 如果有 content 但没有 text，转换参数名
         if "content" in params and "text" not in params:
             normalized["text"] = params["content"]

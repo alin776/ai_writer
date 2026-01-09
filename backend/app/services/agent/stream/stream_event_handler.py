@@ -149,18 +149,28 @@ class StreamEventHandler:
         request_id: str = None,
         chapter_id: str = None,
         chapter_title: str = None,
+        content: str = None,
         content_preview: str = None,
+        original_content: str = None,
+        position: dict = None,
+        operation: str = None,
+        editor_action: dict = None,
         old_title: str = None,
         new_title: str = None,
         versions: list = None
     ):
-        """发送修订请求事件 (v7.0)"""
+        """发送修订请求事件 (v7.5 非阻塞式修订)"""
         await self.emit_flow_event(FlowEventBuilder.revision(
             revision_type=revision_type,
             request_id=request_id,
             chapter_id=chapter_id,
             chapter_title=chapter_title,
+            content=content,
             content_preview=content_preview,
+            original_content=original_content,
+            position=position,
+            operation=operation,
+            editor_action=editor_action,
             old_title=old_title,
             new_title=new_title,
             versions=versions
@@ -323,7 +333,8 @@ class StreamEventHandler:
                     "work_id": tool_result.get("work_id"),
                     "old_title": tool_result.get("old_title"),
                     "new_title": tool_result.get("new_title"),
-                    "editor_action": tool_result.get("editor_action")
+                    "editor_action": tool_result.get("editor_action"),
+                    "position": tool_result.get("position")  # v7.5: 添加 position 字段
                 }
 
                 # 若工具返回 position 但未提供 editor_action，推断编辑类型
@@ -387,13 +398,18 @@ class StreamEventHandler:
                 if new_content:
                     content_preview = new_content[:50] if len(new_content) > 50 else new_content
 
-                # 发送 revision 事件
+                # 发送 revision 事件（v7.5 非阻塞式修订：携带完整数据）
                 await self.emit_revision(
                     revision_type=revision_type,
                     request_id=request_id,
                     chapter_id=tool_result.get("chapter_id"),
                     chapter_title=tool_result.get("chapter_title"),
+                    content=new_content,
                     content_preview=content_preview,
+                    original_content=tool_result.get("original_content"),
+                    position=tool_result.get("position"),
+                    operation=operation,
+                    editor_action=tool_result.get("editor_action"),
                     old_title=tool_result.get("old_title"),
                     new_title=tool_result.get("new_title"),
                     versions=versions

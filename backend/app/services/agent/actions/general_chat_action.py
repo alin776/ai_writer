@@ -146,7 +146,7 @@ class GeneralChatAction(BaseAction):
 - "润色XX" → 调用 smart_rewrite（2026-01-09新增）
 - "优化XX" → 调用 smart_rewrite（2026-01-09新增）
 - "扩写XX" → 调用 smart_rewrite（扩写=改写得更丰富，不是续写）
-- "续写" → 调用 continue_writing_tool + apply_to_editor=true（需要生成内容）
+- "续写" → 调用 smart_continue（续写场景）
 - "插入XX" → 调用 smart_insert
 - "直接修改编辑器" → 调用 smart_rewrite
 - "世界观里有什么" / "有哪些角色" / "查看世界观" → 调用 get_worldview_summary

@@ -16,7 +16,6 @@ from langchain_core.messages import AIMessage, SystemMessage
 from .base_action import BaseAction, ActionResult, ActionStatus
 from .action_registry import register_action
 from app.services.agent.prompts import PhaseCharacteristics, NovelPhase
-from app.services.agent.prompt_library import get_content_prompt
 from app.services.agent.prompts.format_guidelines import get_format_guidelines
 
 logger = logging.getLogger(__name__)
@@ -383,40 +382,28 @@ class WritingAction(BaseAction):
         messages = state.get("messages", [])
         context_summary = self._extract_context_from_messages(messages)
 
-        # 基础Prompt
-        if phase:
-            # 使用阶段优化的Prompt（保留原有逻辑）
-            base_prompt = get_content_prompt(
-                phase=phase,
-                scene_type=None,
-                context={
-                    'current_chapter': chapter_num,
-                    'total_chapters': 50  # 默认50章，可配置
-                }
+        # 基础Prompt - 统一使用 PromptManager
+        try:
+            # ✅ 修复：传递真实的上下文摘要，而不是空字符串
+            base_prompt = self.prompt_manager.render(
+                "writing_agent",
+                user_message="",  # 此处不需要具体消息
+                context_summary=context_summary,  # ✅ 使用提取的场景设定
+                user_preferences={},
+                writing_constraints=[],
+                examples=[]
             )
-        else:
-            # 🔧 使用 PromptManager 渲染默认 Prompt
-            try:
-                # ✅ 修复：传递真实的上下文摘要，而不是空字符串
-                base_prompt = self.prompt_manager.render(
-                    "writing_agent",
-                    user_message="",  # 此处不需要具体消息
-                    context_summary=context_summary,  # ✅ 使用提取的场景设定
-                    user_preferences={},
-                    writing_constraints=[],
-                    examples=[]
-                )
-                # ✅ 清理空的"当前任务"部分，保持Prompt结构清晰
-                base_prompt = re.sub(
-                    r'# 当前任务\s*\n\s*用户需求：\s*\n+.*?现在请开始创作网络小说内容：\s*\n*',
-                    '',
-                    base_prompt,
-                    flags=re.DOTALL
-                )
-            except Exception as e:
-                logger.warning(f"[WritingAction] PromptManager渲染失败，使用备用Prompt: {e}")
-                # 备用方案：使用原有的硬编码 Prompt
-                base_prompt = """你是专业的网络小说写作助手Agent，专注于创作网文故事。
+            # ✅ 清理空的"当前任务"部分，保持Prompt结构清晰
+            base_prompt = re.sub(
+                r'# 当前任务\s*\n\s*用户需求：\s*\n+.*?现在请开始创作网络小说内容：\s*\n*',
+                '',
+                base_prompt,
+                flags=re.DOTALL
+            )
+        except Exception as e:
+            logger.warning(f"[WritingAction] PromptManager渲染失败，使用备用Prompt: {e}")
+            # 备用方案：使用原有的硬编码 Prompt
+            base_prompt = """你是专业的网络小说写作助手Agent，专注于创作网文故事。
 
 【重要】你的写作风格：
 - 你是网文作家，不是程序员或技术文档作者
@@ -444,19 +431,15 @@ class WritingAction(BaseAction):
   - 参数: chapter_id, text_to_rewrite, user_requirement
   - 用于: 用户说"修改"、"改写"、"重写"、"润色"、"优化"、"扩写"章节时
   - ⚠️ "扩写"= 把现有内容写得更丰富，属于改写场景，不是续写！
-- smart_continue: 追加内容到章节末尾（不生成内容，需要先有content）
+- smart_continue: 续写内容到章节末尾
   - 参数: chapter_id, content
-  - 用于: 系统内部调用，将已生成的内容追加到章节
-  - ⚠️ 续写场景请用 continue_writing_tool + apply_to_editor=true
+  - 用于: 用户说"续写"、"继续写"时
 - smart_insert: 插入内容到章节
   - 参数: chapter_id, position, content
   - 用于: 用户说"插入"内容时
 - apply_chapter_edit: 应用章节编辑
   - 参数: chapter_id, operation, content
   - 用于: 替换/追加/插入操作
-
-## 📝 普通写作工具
-- continue_writing_tool: 续写内容（加 apply_to_editor=true 可写入编辑器）
 
 当前信息（内部参数，禁止在回复中显示）：work_id={work_id}, chapter_id={chapter_id}
 
@@ -474,9 +457,9 @@ class WritingAction(BaseAction):
 
 2️⃣ 用户说"续写第X章"时：
    第一步：调用 get_chapter_by_order_tool 获取第X章的 chapter_id
-   第二步：调用 continue_writing_tool，参数加 apply_to_editor=true, operation="append"
-   ✅ 正确：使用 continue_writing_tool + apply_to_editor=true
-   ❌ 错误：直接调用 smart_continue（它不生成内容）
+   第二步：调用 smart_continue(chapter_id=xxx)
+   ✅ 正确：使用 smart_continue
+   ❌ 错误：直接返回续写文本
 
 3️⃣ 用户说"插入XX到第X章"时：
    第一步：调用 get_chapter_by_order_tool 获取第X章的 chapter_id
@@ -488,7 +471,7 @@ class WritingAction(BaseAction):
 - 不要只是分析或给建议，要实际调用工具去修改
 - 工具会返回HITL确认请求，前端会显示确认对话框
 - ⚠️ "扩写"、"润色"、"优化" → smart_rewrite（改写场景）
-- ⚠️ "续写" → continue_writing_tool + apply_to_editor=true（续写场景）
+- ⚠️ "续写" → smart_continue（续写场景）
 
 根据用户需求，决定调用合适的工具。"""
 

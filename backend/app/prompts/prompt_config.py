@@ -87,30 +87,6 @@ class PromptConfig:
         ),
 
         # Agent Prompt
-        "content_creation_prompts": PromptModuleInfo(
-            path="app.services.agent.prompts.content_creation_prompts",
-            description="内容创作 Prompt (网文阶段/场景模板)",
-            category=PromptCategory.CONTENT_CREATION,
-            version="1.0.0"
-        ),
-        "novel_planning_prompts": PromptModuleInfo(
-            path="app.services.agent.prompts.novel_planning_prompts",
-            description="小说规划 Prompt (主题/世界观/角色/大纲)",
-            category=PromptCategory.PLANNING,
-            version="1.0.0"
-        ),
-        "prompt_optimizer": PromptModuleInfo(
-            path="app.services.agent.prompts.prompt_optimizer",
-            description="Prompt 优化器",
-            category=PromptCategory.AGENT,
-            version="1.0.0"
-        ),
-        "prompt_library": PromptModuleInfo(
-            path="app.services.agent.prompt_library",
-            description="Prompt 库管理系统 (统一访问/追踪)",
-            category=PromptCategory.AGENT,
-            version="1.0.0"
-        ),
         "prompt_cache": PromptModuleInfo(
             path="app.services.agent.prompt_cache",
             description="Prompt 缓存系统",
@@ -130,37 +106,9 @@ class PromptConfig:
     # ==================== YAML 模板文件注册表 ====================
 
     YAML_TEMPLATES: Dict[str, PromptModuleInfo] = {
-        "intent_classifier": PromptModuleInfo(
-            path="app/prompts/templates/intent_classifier.yaml",
-            description="意图分类器 Prompt",
-            category=PromptCategory.TEMPLATE,
-            file_type=PromptFileType.YAML,
-            version="1.0.0"
-        ),
         "writing_agent": PromptModuleInfo(
             path="app/prompts/templates/writing_agent.yaml",
             description="写作 Agent Prompt",
-            category=PromptCategory.TEMPLATE,
-            file_type=PromptFileType.YAML,
-            version="1.0.0"
-        ),
-        "planning_agent": PromptModuleInfo(
-            path="app/prompts/templates/planning_agent.yaml",
-            description="规划 Agent Prompt",
-            category=PromptCategory.TEMPLATE,
-            file_type=PromptFileType.YAML,
-            version="1.0.0"
-        ),
-        "tool_agent": PromptModuleInfo(
-            path="app/prompts/templates/tool_agent.yaml",
-            description="工具 Agent Prompt",
-            category=PromptCategory.TEMPLATE,
-            file_type=PromptFileType.YAML,
-            version="1.0.0"
-        ),
-        "query_agent": PromptModuleInfo(
-            path="app/prompts/templates/query_agent.yaml",
-            description="问答 Agent Prompt",
             category=PromptCategory.TEMPLATE,
             file_type=PromptFileType.YAML,
             version="1.0.0"

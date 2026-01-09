@@ -3,7 +3,7 @@
 LangGraph 工具定义
 
 从 langgraph_agent.py 拆分的 LangChain @tool 装饰器工具：
-- 写作工具: continue_writing_tool, analyze_text_tool
+- 写作工具: analyze_text_tool
 - 章节工具: read_chapter_tool (支持多章节), get_chapter_by_order_tool, get_context_tool
 - 检索工具: search_analysis_fragments_tool
 - 辅助函数: _generate_text_helper, validate_uuid, _retry_on_failure
@@ -264,34 +264,6 @@ async def _generate_text_helper(
 
 
 # ==================== 写作工具 ====================
-
-@tool
-async def continue_writing_tool(context: str, requirements: str = "") -> str:
-    """续写工具：根据上下文续写内容
-
-    Args:
-        context: 已有的文本上下文
-        requirements: 续写要求（可选）
-
-    Returns:
-        续写后的文本
-    """
-    prompt = f"""你是专业的小说续写助手。请直接续写小说内容，不要给建议或提问！
-
-上下文：
-{context}
-
-续写要求：{requirements if requirements else '保持原有风格，情节自然连贯，字数500-800字'}
-
-重要：请直接输出续写的小说正文，不要输出任何说明文字、建议或问题。立即开始续写："""
-
-    return await _generate_text_helper(
-        prompt,
-        temperature=0.8,
-        max_tokens=2000,
-        task_type=TaskType.CONTENT_CREATION
-    )
-
 
 @tool
 async def analyze_text_tool(text: str, focus: str = "all") -> str:
@@ -1085,28 +1057,41 @@ from app.services.agent.tools.editor_tools import (
 # 导入章节管理工具
 from app.services.agent.tools.chapter_tools import (
     create_chapter,
-    update_chapter_title
+    update_chapter_title,
+    delete_chapter,
+    update_chapter_content
 )
 
+# 导入辅助工具（2026-01-09）
+from app.services.agent.tools.consistency_checker import check_story_consistency_tool
+from app.services.agent.tools.show_dont_tell import show_emotion_tool, enhance_scene_tool
+from app.services.agent.tools.style_learning import learn_style_tool, get_style_guidance_tool, analyze_style_tool
+
 LANGGRAPH_TOOLS = [
-    # 写作工具
-    continue_writing_tool,
-    analyze_text_tool,
-    # 章节工具
+    # 查询工具
     get_context_tool,
     read_chapter_tool,
     get_chapter_by_order_tool,
     search_analysis_fragments_tool,
-    # 世界观工具
     get_worldview_summary,
-    # 编辑器工具
+    get_style_guidance_tool,
+    # 分析工具
+    analyze_text_tool,
+    check_story_consistency_tool,
+    analyze_style_tool,
+    # 创作工具
     smart_continue,
     smart_rewrite,
     smart_insert,
+    show_emotion_tool,
+    enhance_scene_tool,
+    learn_style_tool,
+    # 操作工具
     apply_chapter_edit,
-    # 章节管理工具
     create_chapter,
-    update_chapter_title
+    update_chapter_title,
+    delete_chapter,
+    update_chapter_content,
 ]
 
 __all__ = [
@@ -1120,7 +1105,6 @@ __all__ = [
     "_retry_on_failure",
     "_generate_text_helper",
     # 写作工具
-    "continue_writing_tool",
     "analyze_text_tool",
     # 章节工具
     "read_chapter_tool",

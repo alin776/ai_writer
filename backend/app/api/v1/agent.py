@@ -56,7 +56,6 @@ TOOL_ICONS = {
     "search_analysis_fragments_tool": "Search",
     "search_memory_tool": "Search",
     "search_knowledge_advanced": "Search",
-    "continue_writing_tool": "PenTool",
     "smart_continue": "PenTool",
     "expand_text": "Plus",
     "smart_rewrite": "Edit3",
@@ -84,7 +83,6 @@ TOOL_TITLES = {
     "search_memory_tool": "搜索记忆",
     "search_knowledge_advanced": "高级检索",
     "get_worldview_summary": "探索世界观",
-    "continue_writing_tool": "续写内容",
     "smart_continue": "智能续写",
     "expand_text": "扩写内容",
     "smart_rewrite": "智能改写",
@@ -132,7 +130,7 @@ def build_tool_description(task: dict) -> str:
     if tool == "search_analysis_fragments_tool":
         return params.get("query", "") or "检索中..."
 
-    if tool == "continue_writing_tool":
+    if tool == "smart_continue":
         # 🔧 统一参数名：优先使用 target_words，兼容 target_length
         words = params.get("target_words") or params.get("target_length") or 2000
         return f"约{words}字"
@@ -966,6 +964,7 @@ async def agent_chat_stream(
     current_user: User = Depends(get_current_active_user),
     memory: MemoryManager = Depends(get_memory_manager),
     ai_service: HTTPAIService = Depends(get_ai_service),
+    hitl: HITLManager = Depends(get_hitl_manager),  # HITL 管理器
     # ✅ 修复：移除db依赖，避免生命周期不匹配
     mode: Optional[str] = None,  # 新增：支持mode参数（通过查询参数或Body）
     fastapi_request: Request = None,  # 注入原始 Request 以检测断连
@@ -1383,9 +1382,25 @@ async def agent_chat_stream(
 
                 # HITL 审批请求回调
                 async def on_approval_request(approval_data: dict):
-                    """HITL 审批请求回调 - 发送到SSE流"""
+                    """HITL 审批请求回调 - 存储数据并发送到SSE流"""
+                    # v7.5: 存储修订数据到 HITLManager（用于后续采纳时写入数据库）
+                    request_id = approval_data.get("request_id") or str(uuid.uuid4())
+                    approval_data["request_id"] = request_id
+
+                    # 创建 approval request 存储到 Redis（使用相同的 request_id）
+                    hitl.create_approval_request(
+                        agent_id="writing_agent",
+                        user_id=user_id,
+                        title=approval_data.get("description", "修订请求"),
+                        description=approval_data.get("description", ""),
+                        proposed_action=approval_data,  # 存储完整的修订数据
+                        context={"work_id": request.work_id, "chapter_id": request.chapter_id},
+                        timeout_seconds=3600,  # 1小时过期
+                        request_id=request_id  # v7.5: 使用相同的 request_id
+                    )
+
                     await event_queue.put(('approval_request', approval_data))
-                    return approval_data.get("request_id")
+                    return request_id
 
                 # 在后台运行 Agent（仅 planning 模式）
                 async def run_agent():
@@ -1603,31 +1618,69 @@ async def agent_chat_stream(
 @router.post("/chat/approval-response")
 async def submit_approval_response(
     request: ApprovalResponseRequest,
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     hitl: HITLManager = Depends(get_hitl_manager)
 ):
     """
-    提交编辑器确认响应（简化版）
+    提交编辑器确认响应（v7.5 非阻塞式修订）
 
-    说明：用于编辑器内的确认/拒绝操作，写入响应缓存即可。
+    说明：采纳时写入数据库，弃用时只更新状态。
     """
+    from app.services.chapter_service import ChapterService
+
     try:
-        status = ApprovalStatus.APPROVED if request.approved else ApprovalStatus.REJECTED
+        approval_status = ApprovalStatus.APPROVED if request.approved else ApprovalStatus.REJECTED
         extra_data: Dict[str, Any] = {}
         if request.selected_version is not None:
             extra_data["selected_version"] = request.selected_version
         if request.reason:
             extra_data["reason"] = request.reason
 
+        # 如果是采纳，需要写入数据库
+        if request.approved:
+            # 从 HITLManager 获取修订数据
+            approval_request = hitl.get_approval_request(request.request_id)
+            if approval_request:
+                approval_data = approval_request.proposed_action
+                action_type = approval_data.get("action_type")
+                chapter_id = approval_data.get("chapter_id")
+
+                if chapter_id and action_type in ["edit", "rewrite", "continue"]:
+                    chapter_service = ChapterService(db)
+                    content = approval_data.get("content") or approval_data.get("new_content")
+
+                    # 如果是 rewrite 且选择了特定版本
+                    if request.selected_version is not None and approval_data.get("versions"):
+                        versions = approval_data.get("versions", [])
+                        if 0 <= request.selected_version < len(versions):
+                            content = versions[request.selected_version].get("content")
+
+                    if content:
+                        operation = approval_data.get("operation", "append")
+                        position = approval_data.get("position", {}).get("from") if approval_data.get("position") else None
+                        await chapter_service.apply_agent_edit(
+                            chapter_id=chapter_id,
+                            content=content,
+                            operation=operation,
+                            position=position
+                        )
+                        logger.info(f"[Approval] 修订已写入数据库: chapter_id={chapter_id}, operation={operation}")
+
+        # 更新 HITLManager 状态
         await hitl.submit_approval(
             request_id=request.request_id,
-            status=status,
+            status=approval_status,
             data=extra_data
         )
 
-        return {"success": True, "request_id": request.request_id}
+        return {
+            "success": True,
+            "request_id": request.request_id,
+            "action": "accepted" if request.approved else "rejected"
+        }
     except Exception as e:
-        logger.error(f"Submit approval response error: {str(e)}")
+        logger.error(f"Submit approval response error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"提交确认响应失败: {str(e)}"

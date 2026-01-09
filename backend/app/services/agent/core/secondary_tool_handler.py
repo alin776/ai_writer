@@ -261,12 +261,12 @@ class SecondaryToolHandler:
 
 可用的编辑器工具：
 - smart_rewrite: 改写/修改章节内容 (参数: chapter_id, text_to_rewrite, user_requirement)
-- smart_continue: 追加内容到章节末尾 (参数: chapter_id, content) - 注意：不生成内容，只追加
-- smart_insert: 插入内容 (参数: chapter_id, position, content)
+- smart_continue: 生成续写内容 (参数: chapter_id, chapter_content, user_requirement, word_count)
+- smart_insert: 生成插入内容 (参数: chapter_id, user_intent, chapter_content, insert_context, word_count)
 
 ⚠️ 重要规则：
 1. 用户说"修改"、"改写"、"重写"、"润色" → 使用 smart_rewrite
-2. 用户说"续写"、"继续写" → 此场景建议让用户使用 Planning 模式
+2. 用户说"续写"、"继续写" → 使用 smart_continue
 3. 用户说"插入" → 使用 smart_insert
 4. 必须严格返回JSON格式！
 
@@ -356,7 +356,7 @@ class SecondaryToolHandler:
 
         try:
             result = await registry.call_tool("smart_rewrite", {
-                "chapter_id": tool_args.get("chapter_id", ""),
+                "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
                 "text_to_rewrite": tool_args.get("text_to_rewrite", ""),
                 "chapter_content": None,
                 "user_requirement": tool_args.get("user_requirement", ""),
@@ -369,7 +369,7 @@ class SecondaryToolHandler:
         except Exception as e:
             logger.warning(f"[SecondaryToolHandler] smart_rewrite 失败，降级: {e}")
             return await smart_rewrite.ainvoke({
-                "chapter_id": tool_args.get("chapter_id", ""),
+                "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
                 "text_to_rewrite": tool_args.get("text_to_rewrite", ""),
                 "chapter_content": None,
                 "user_requirement": tool_args.get("user_requirement", ""),
@@ -386,9 +386,12 @@ class SecondaryToolHandler:
         logger.info(f"[SecondaryToolHandler] 🚀 调用 smart_continue, chapter_id={tool_args.get('chapter_id')}")
 
         try:
+            # 🔧 2026-01-09: 更新参数以匹配新的 smart_continue 签名
             result = await registry.call_tool("smart_continue", {
-                "chapter_id": tool_args.get("chapter_id", ""),
-                "content": tool_args.get("context", ""),
+                "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
+                "chapter_content": tool_args.get("chapter_content"),
+                "user_requirement": tool_args.get("user_requirement", ""),
+                "word_count": tool_args.get("word_count", 500),
                 "user_id": state.get("user_id")
             })
             if isinstance(result, dict) and result.get("success"):
@@ -397,8 +400,10 @@ class SecondaryToolHandler:
         except Exception as e:
             logger.warning(f"[SecondaryToolHandler] smart_continue 失败，降级: {e}")
             return await smart_continue.ainvoke({
-                "chapter_id": tool_args.get("chapter_id", ""),
-                "content": tool_args.get("context", ""),
+                "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
+                "chapter_content": tool_args.get("chapter_content"),
+                "user_requirement": tool_args.get("user_requirement", ""),
+                "word_count": tool_args.get("word_count", 500),
                 "user_id": state.get("user_id")
             })
 
@@ -411,12 +416,13 @@ class SecondaryToolHandler:
         logger.info(f"[SecondaryToolHandler] 🚀 调用 smart_insert, chapter_id={tool_args.get('chapter_id')}")
 
         try:
+            # 🔧 2026-01-09: 更新参数以匹配新的 smart_insert 签名
             result = await registry.call_tool("smart_insert", {
-                "chapter_id": tool_args.get("chapter_id", ""),
-                "content": tool_args.get("content", ""),
-                "user_intent": tool_args.get("position", "end"),
-                "chapter_content": None,
-                "context": None,
+                "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
+                "user_intent": tool_args.get("user_intent") or tool_args.get("position", "插入内容"),
+                "chapter_content": tool_args.get("chapter_content"),
+                "insert_context": tool_args.get("insert_context"),
+                "word_count": tool_args.get("word_count", 200),
                 "user_id": state.get("user_id")
             })
             if isinstance(result, dict) and result.get("success"):
@@ -425,11 +431,11 @@ class SecondaryToolHandler:
         except Exception as e:
             logger.warning(f"[SecondaryToolHandler] smart_insert 失败，降级: {e}")
             return await smart_insert.ainvoke({
-                "chapter_id": tool_args.get("chapter_id", ""),
-                "content": tool_args.get("content", ""),
-                "user_intent": tool_args.get("position", "end"),
-                "chapter_content": None,
-                "context": None,
+                "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
+                "user_intent": tool_args.get("user_intent") or tool_args.get("position", "插入内容"),
+                "chapter_content": tool_args.get("chapter_content"),
+                "insert_context": tool_args.get("insert_context"),
+                "word_count": tool_args.get("word_count", 200),
                 "user_id": state.get("user_id")
             })
 
@@ -443,7 +449,7 @@ class SecondaryToolHandler:
 
         try:
             result = await registry.call_tool("apply_chapter_edit", {
-                "chapter_id": tool_args.get("chapter_id", ""),
+                "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
                 "content": tool_args.get("content", ""),
                 "operation": tool_args.get("operation", "replace"),
                 "position": None,
@@ -456,7 +462,7 @@ class SecondaryToolHandler:
         except Exception as e:
             logger.warning(f"[SecondaryToolHandler] apply_chapter_edit 失败，降级: {e}")
             return await apply_chapter_edit.ainvoke({
-                "chapter_id": tool_args.get("chapter_id", ""),
+                "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
                 "content": tool_args.get("content", ""),
                 "operation": tool_args.get("operation", "replace"),
                 "position": None,

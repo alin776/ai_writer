@@ -38,10 +38,6 @@ from .tool_registry import (
 from .writing_tools import (
     # AI Service 设置
     set_ai_service,
-    # 续写工具
-    ContinueWritingInput,
-    ContinueWritingOutput,
-    continue_writing_tool,
     # 扩写工具
     ExpandTextInput,
     ExpandTextOutput,
@@ -103,8 +99,15 @@ from .editor_tools import (
 # ==================== 章节管理工具 ====================
 from .chapter_tools import (
     create_chapter,
-    update_chapter_title
+    update_chapter_title,
+    delete_chapter,
+    update_chapter_content
 )
+
+# ==================== 辅助工具（2026-01-09）====================
+from .consistency_checker import check_story_consistency_tool, check_story_consistency_st
+from .show_dont_tell import show_emotion_tool, enhance_scene_tool
+from .style_learning import learn_style_tool, get_style_guidance_tool, analyze_style_tool
 
 # ==================== 章节工具（StandardTool版本）====================
 from app.services.agent.langgraph_tools import (
@@ -140,10 +143,6 @@ __all__ = [
     # ==================== 写作工具 ====================
     # AI Service
     "set_ai_service",
-    # 续写工具
-    "ContinueWritingInput",
-    "ContinueWritingOutput",
-    "continue_writing_tool",
     # 扩写工具
     "ExpandTextInput",
     "ExpandTextOutput",
@@ -194,6 +193,17 @@ __all__ = [
     # ==================== 章节管理工具 ====================
     "create_chapter",
     "update_chapter_title",
+    "delete_chapter",
+    "update_chapter_content",
+
+    # ==================== 辅助工具（2026-01-09）====================
+    "check_story_consistency_tool",
+    "check_story_consistency_st",
+    "show_emotion_tool",
+    "enhance_scene_tool",
+    "learn_style_tool",
+    "get_style_guidance_tool",
+    "analyze_style_tool",
 
     # ==================== 章节工具（StandardTool版本）====================
     "get_context_tool_st",
@@ -214,7 +224,6 @@ def _register_standard_tools():
     - get_tools_info_for_prompt() 能生成工具列表
     """
     # 写作工具
-    registry.register_standard_tool(continue_writing_tool)
     registry.register_standard_tool(expand_text_tool)
 
     # 分析工具
@@ -236,6 +245,9 @@ def _register_standard_tools():
 
     # 世界观工具
     registry.register_standard_tool(get_worldview_summary_tool_st)
+
+    # 辅助工具（2026-01-09: 新增）
+    registry.register_standard_tool(check_story_consistency_st)
 
 
 # 模块加载时自动注册

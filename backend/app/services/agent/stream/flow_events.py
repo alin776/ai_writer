@@ -206,23 +206,32 @@ class FlowEventBuilder:
         request_id: Optional[str] = None,
         chapter_id: Optional[str] = None,
         chapter_title: Optional[str] = None,
+        content: Optional[str] = None,
         content_preview: Optional[str] = None,
+        original_content: Optional[str] = None,
+        position: Optional[Dict[str, Any]] = None,
+        operation: Optional[str] = None,
+        editor_action: Optional[Dict[str, Any]] = None,
         old_title: Optional[str] = None,
         new_title: Optional[str] = None,
         versions: Optional[List[Dict[str, str]]] = None
     ) -> dict:
-        """构建修订请求事件 (v7.0)
+        """构建修订请求事件 (v7.5 非阻塞式修订)
 
         Args:
             revision_type: 修订类型 ("append" | "replace" | "insert" | "create" | "rename")
             request_id: 对应的审批请求ID（用于前端关联）
             chapter_id: 章节ID
             chapter_title: 章节标题
+            content: 完整内容
             content_preview: 内容预览（前50字）
+            original_content: 原内容（replace类型需要）
+            position: 位置信息 {"from": int, "to": int}
+            operation: 操作类型 ("append" | "replace" | "insert")
+            editor_action: 编辑器操作信息 {"type": str, "position": dict, ...}
             old_title: 原标题（rename 类型）
             new_title: 新标题（rename 类型）
             versions: 改写版本列表（replace 类型）
-                      [{"style_name": "版本A", "reason": "细腻情感", "content": "..."}]
         """
         data = {
             "revisionType": revision_type,
@@ -234,8 +243,18 @@ class FlowEventBuilder:
             data["chapterId"] = chapter_id
         if chapter_title:
             data["chapterTitle"] = chapter_title
+        if content:
+            data["content"] = content
         if content_preview:
             data["contentPreview"] = content_preview
+        if original_content:
+            data["originalContent"] = original_content
+        if position:
+            data["position"] = position
+        if operation:
+            data["operation"] = operation
+        if editor_action:
+            data["editorAction"] = editor_action
         if old_title:
             data["oldTitle"] = old_title
         if new_title:
@@ -264,8 +283,7 @@ TOOL_ICONS = {
     "search_memory_tool": "Search",
     "search_knowledge_advanced": "Search",
     # 写作类
-    "continue_writing_tool": "PenTool",
-    "smart_continue": "ArrowRight",
+    "smart_continue": "PenTool",
     "expand_text": "Maximize2",
     # 编辑类
     "smart_rewrite": "Edit3",

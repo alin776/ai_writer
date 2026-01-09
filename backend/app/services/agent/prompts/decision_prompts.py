@@ -1,0 +1,203 @@
+"""
+决策类提示词模块
+
+包含：
+- 工具决策提示词 (get_tool_decision_static_prompt)
+- 复杂度决策提示词 (get_complexity_decision_prompt)
+"""
+
+from app.core.cache import cache_review
+from .tool_descriptions import _get_retrieval_tools_section
+
+# Prompt 版本号 - 修改 Prompt 时请更新此版本号
+PROMPT_VERSION = "v2.36.0"
+
+
+@cache_review(expire=3600, key_prefix=f"prompt:tool_decision:{PROMPT_VERSION}")
+async def get_tool_decision_static_prompt() -> str:
+    """获取工具决策的静态 Prompt 部分（可缓存 1 小时）
+
+    Returns:
+        str: 静态 Prompt 文本（约 150 tokens）
+
+    说明：
+        这部分 Prompt 包含工具列表、JSON 格式说明和示例，
+        对所有请求都相同，因此可以安全缓存。
+    """
+    retrieval_tools = _get_retrieval_tools_section()
+
+    return f"""⚠️ 核心原则：先判断是否需要操作具体内容，不需要就直接回答
+
+【第一步：判断是否需要工具】
+
+✅ 不需要工具，直接回答的情况（优先判断）：
+- 问候、寒暄（你好、在吗、谢谢、再见）
+- 关于 AI 的问题（你是谁、你能做什么、介绍一下你自己）
+- 知识问答（什么是XX、为什么XX、如何XX）
+- 闲聊、聊天、表达感受
+- 用户没有明确要求操作章节/文本内容
+- 任何不确定的情况 → 选择直接回答
+
+❌ 需要工具的情况（必须同时满足）：
+- 用户明确要求操作具体的章节内容（修改、续写、插入、改写、润色）
+- 或者用户要搜索/查找具体的文本片段、人物、情节
+
+【第二步：如果需要工具，选择合适的工具】
+
+【编辑器工具 - 修改内容时优先使用】
+- smart_rewrite: 改写/修改章节内容（生成3个版本供选择）
+  参数: chapter_id, text_to_rewrite, user_requirement, base_version
+- smart_continue: 智能续写（根据上下文生成续写内容）
+  参数: chapter_id, chapter_content, user_requirement, word_count
+- smart_insert: 智能插入（根据意图生成插入内容）
+  参数: chapter_id, user_intent, chapter_content, insert_context, word_count
+- apply_chapter_edit: 直接应用编辑到章节 (参数: chapter_id, operation, content)
+  ⚠️ 注意：此工具用于将已生成的内容应用到编辑器
+
+【读取工具】
+需work_id: get_chapter_by_order_tool, get_context_tool, read_chapter_tool
+不需work_id: analyze_text_tool
+{retrieval_tools}
+⚠️ **重要变更**：polish_text_tool 已移除
+- 所有润色/修改请求必须提供 chapter_id，使用基于章节上下文的工具
+- 如果涉及多个章节，read_chapter_tool 支持传递多个 chapter_id（用逗号分隔）
+
+【工具使用规则】
+
+1. 用户提到具体文字但未说章节 → 先用 search_analysis_fragments_tool 定位
+2. 用户说"修改第X章"、"改写第X章" → 使用 smart_rewrite（已知章节）
+3. 用户说"续写"、"继续写" → 使用 smart_continue
+4. 用户说"插入" → 使用 smart_insert
+
+⚠️ 【搜索兜底规则】：
+- 如果用户提供的文字**过于简短**（少于3个字）或是**通用描述**（如"这一章"、"这段话"）
+- → **不要调用搜索工具**，直接返回询问更多信息
+
+【返回格式】必须严格返回JSON：
+
+不需要工具时：
+{{"need_tools": false, "direct_response": "你的回答内容"}}
+
+需要工具时：
+{{"need_tools": true, "tool_name": "工具名", "tool_args": {{参数}}}}
+
+【示例 - 不需要工具的情况】
+
+"你好" → {{"need_tools": false, "direct_response": "..."}}
+"你是谁" → {{"need_tools": false, "direct_response": "..."}}
+"你能做什么" → {{"need_tools": false, "direct_response": "..."}}
+"谢谢" → {{"need_tools": false, "direct_response": "..."}}
+"写作有什么技巧" → {{"need_tools": false, "direct_response": "..."}}
+"这段话太平淡" → {{"need_tools": false, "direct_response": "请问您指的是哪一章？..."}}
+
+注意：direct_response 的内容由你根据问题自由生成，不要复制示例。
+
+【示例 - 需要工具的情况】
+
+"微光如露落雪太书面化" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "微光如露落雪"}}}}
+"修改第三章，白光退去太平淡" → {{"need_tools": true, "tool_name": "smart_rewrite", "tool_args": {{"chapter_id": "xxx", "text_to_rewrite": "白光退去...", "user_requirement": "更有画面感"}}}}
+"续写第五章" → {{"need_tools": true, "tool_name": "smart_continue", "tool_args": {{"context": "第五章内容...", "requirements": "续写", "apply_to_editor": true, "operation": "append"}}}}
+"有没有叫赵穆的人物" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "赵穆"}}}}
+"段融是谁" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "段融"}}}}
+
+⚠️ 如果不确定用户是否需要工具，选择直接回答。请严格返回JSON格式:"""
+
+
+@cache_review(expire=3600, key_prefix=f"prompt:complexity:{PROMPT_VERSION}")
+async def get_complexity_decision_prompt() -> str:
+    """复杂度判断 Prompt（在意图分类后调用）
+
+    用于判断请求复杂度（simple/complex）并确定执行方案：
+    - simple + tool: 直接执行单个工具
+    - simple + answer: 直接返回答案
+    - complex: 交给原有 Agent 流程
+
+    Returns:
+        str: Prompt 模板（需要 .format(intent=..., message=...) 填充）
+    """
+    return """你是执行路径决策器。根据已识别的意图类型和用户请求，判断最优执行路径。
+
+【输入信息】
+- 意图类型: {intent} (已由意图分类器识别)
+- 用户请求: {message}
+
+【决策规则】
+
+## 复杂度判断
+问自己：这个请求需要复杂处理吗？
+
+判断为 simple + direct_answer（直接回答，不需要工具）的条件：
+- 问候、寒暄（你好、在吗、谢谢）
+- 关于 AI 的问题（你是谁、你能做什么、介绍一下你自己）
+- 知识问答、闲聊、表达感受
+- 用户没有明确要求操作章节/文本内容
+- 任何不确定的情况 → 选择直接回答
+
+判断为 simple + tool（单个工具调用）的条件：
+- 只需要 1 个工具调用（如获取标题、字数）
+- 没有依赖关系
+- 没有多步骤
+
+判断为 complex（需要完整流程）的条件：
+- 需要多个工具协作
+- 有步骤依赖（先获取A，再用A做B）
+- 涉及创作完整章节
+- 需要分析后再行动
+- 需要概括/总结内容
+
+## 执行方案
+
+直接回答时（优先考虑）：
+- direct_answer: 答案内容
+
+工具调用时：
+- tool_name: 工具名称
+- tool_args: 参数
+- response_hint: 返回字段提示（title/content/word_count）
+
+【可用工具速查】
+
+获取类（返回数据，无副作用）：
+- get_chapter_by_order_tool(chapter_order: int) → {{title, content, word_count}}
+- get_context_tool() → 作品上下文
+
+注意：概括/总结内容需要分析处理，应判定为 complex
+
+【示例】
+
+"你好" → {{"complexity": "simple", "reason": "问候", "action": {{"direct_answer": "..."}}}}
+"你是谁" → {{"complexity": "simple", "reason": "关于AI的问题", "action": {{"direct_answer": "..."}}}}
+"第三章标题是什么" → {{"complexity": "simple", "reason": "单个工具调用", "action": {{"tool_name": "get_chapter_by_order_tool", "tool_args": {{"chapter_order": 3}}, "response_hint": "title"}}}}
+"分析前五章" → {{"complexity": "complex", "reason": "需要读取多章并分析", "action": {{}}}}
+
+注意：direct_answer 的内容由你根据问题自由生成。
+
+【输出格式】
+
+```json
+{{
+  "complexity": "simple|complex",
+  "reason": "判断依据（简短）",
+  "action": {{
+    // simple + answer:
+    "direct_answer": "直接回答内容"
+
+    // simple + tool:
+    "tool_name": "工具名",
+    "tool_args": {{}},
+    "response_hint": "title|content|word_count"
+
+    // complex: 留空 {{}}
+  }}
+}}
+```
+
+⚠️ 如果不确定，选择直接回答。请分析并返回 JSON:"""
+
+
+# 导出
+__all__ = [
+    "PROMPT_VERSION",
+    "get_tool_decision_static_prompt",
+    "get_complexity_decision_prompt",
+]

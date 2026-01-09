@@ -39,13 +39,17 @@ AVAILABLE_TOOLS = """
    - ⚠️ 只能分析现有内容，不能创作新内容（如大纲、设定等）
    - focus 可选值：all/character/plot/foreshadowing/system/worldview
 
-4. continue_writing_tool
-   - 用途：创作新内容（包括大纲、正文、设定等）
-   - 参数：requirements (str) - 创作要求, context (str) - 上下文（可选）
-   - 适用场景：续写、创作正文、生成大纲、设计角色、规划情节、构思剧情
-   - ⚠️ "设计"/"规划"/"构思"/"创作"都是创作任务，使用这个工具
+4. smart_continue
+   - 用途：续写章节内容
+   - 参数：chapter_id (str) - 章节ID, content (str) - 上下文（可选）
+   - 适用场景：续写、继续写、接着写
 
-注意：工具名称不带 _tool 后缀，如 continue_writing、analyze_text 等。
+5. smart_rewrite
+   - 用途：改写/润色章节内容
+   - 参数：chapter_id (str), text_to_rewrite (str), user_requirement (str)
+   - 适用场景：改写、润色、优化、扩写
+
+注意：工具名称不带 _tool 后缀，如 smart_continue、analyze_text 等。
 """
 
 
@@ -76,10 +80,14 @@ class TaskEnricher:
             "tool": "get_chapter_by_order_tool",
         },
         {
-            # 创作类：包含所有"创作新内容"的关键词（包括规划、设计）
-            # 🔧 2025-12-14: "设计"/"规划"/"构思"都是创作任务
-            "keywords": ["续写", "创作", "生成", "补充", "写正文", "继续写", "撰写", "编写", "设计", "规划", "构思", "策划"],
-            "tool": "continue_writing_tool",
+            # 续写类
+            "keywords": ["续写", "继续写", "接着写", "往后写"],
+            "tool": "smart_continue",
+        },
+        {
+            # 改写类
+            "keywords": ["改写", "润色", "优化", "扩写", "重写"],
+            "tool": "smart_rewrite",
         },
     ]
 
@@ -185,7 +193,7 @@ class TaskEnricher:
 请直接返回 JSON 格式（不要其他内容）：
 {{"tool": "工具名", "reason": "简短理由"}}
 
-注意：续写/创作类任务请使用 continue_writing_tool。
+注意：续写类任务请使用 smart_continue，改写/润色类任务请使用 smart_rewrite。
 """
 
         try:
@@ -222,8 +230,8 @@ class TaskEnricher:
                 result = json.loads(json_str)
 
                 tool = result.get("tool")
-                # 2025-12-14: 添加 continue_writing_tool 到验证列表
-                if tool and tool in ["get_chapter_by_order_tool", "get_context_tool", "analyze_text_tool", "continue_writing_tool"]:
+                # 2026-01-09: 更新验证列表，使用 smart_continue/smart_rewrite
+                if tool and tool in ["get_chapter_by_order_tool", "get_context_tool", "analyze_text_tool", "smart_continue", "smart_rewrite", "smart_insert"]:
                     return {"tool": tool, "params": {}}
 
             return None
@@ -275,10 +283,13 @@ class TaskEnricher:
 
             return {"text": text, "focus": focus}
 
-        elif tool == "continue_writing_tool":
-            # 2025-12-14: 添加续写工具参数构建
-            # 使用任务描述作为续写要求
-            return {"requirements": description}
+        elif tool == "smart_continue":
+            # 2026-01-09: 续写工具参数构建
+            return {"content": description}
+
+        elif tool == "smart_rewrite":
+            # 2026-01-09: 改写工具参数构建
+            return {"user_requirement": description}
 
         return {}
 

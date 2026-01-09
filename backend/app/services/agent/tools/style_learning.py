@@ -515,3 +515,119 @@ def get_style_prompt(user_id: str, profile_name: str = "default") -> str:
 def analyze_writing_style(text: str) -> StyleFeatures:
     """分析写作风格"""
     return global_style_system.analyze_text(text)
+
+
+# ==================== @tool 包装（2026-01-09）====================
+
+from langchain_core.tools import tool
+from .tool_registry import register_as_tool
+import json
+
+
+@tool
+@register_as_tool(
+    "learn_style_tool",
+    "creative",
+    "从文本学习用户写作风格"
+)
+def learn_style_tool(user_id: str, text: str, profile_name: str = "default") -> str:
+    """
+    学习用户写作风格
+
+    Args:
+        user_id: 用户ID
+        text: 文本样本
+        profile_name: 风格档案名称
+
+    Returns:
+        学习结果
+    """
+    try:
+        profile = learn_user_style(user_id, text, profile_name)
+        return json.dumps({
+            "success": True,
+            "user_id": profile.user_id,
+            "profile_name": profile.profile_name,
+            "sample_count": profile.sample_count,
+            "confidence_score": profile.confidence_score,
+            "features": {
+                "avg_sentence_length": profile.features.avg_sentence_length,
+                "pov": profile.features.pov,
+                "dialogue_ratio": profile.features.dialogue_ratio
+            }
+        }, ensure_ascii=False, indent=2)
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        }, ensure_ascii=False)
+
+
+@tool
+@register_as_tool(
+    "get_style_guidance_tool",
+    "query",
+    "获取用户风格指导（用于Prompt）"
+)
+def get_style_guidance_tool(user_id: str, profile_name: str = "default") -> str:
+    """
+    获取风格指导
+
+    Args:
+        user_id: 用户ID
+        profile_name: 风格档案名称
+
+    Returns:
+        风格指导文本
+    """
+    try:
+        guidance = get_style_prompt(user_id, profile_name)
+        return json.dumps({
+            "success": True,
+            "user_id": user_id,
+            "profile_name": profile_name,
+            "guidance": guidance
+        }, ensure_ascii=False, indent=2)
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        }, ensure_ascii=False)
+
+
+@tool
+@register_as_tool(
+    "analyze_style_tool",
+    "analysis",
+    "分析文本的写作风格特征"
+)
+def analyze_style_tool(text: str) -> str:
+    """
+    分析写作风格
+
+    Args:
+        text: 待分析文本
+
+    Returns:
+        风格分析结果
+    """
+    try:
+        features = analyze_writing_style(text)
+        return json.dumps({
+            "success": True,
+            "features": {
+                "avg_sentence_length": features.avg_sentence_length,
+                "long_sentence_ratio": features.long_sentence_ratio,
+                "short_sentence_ratio": features.short_sentence_ratio,
+                "vocabulary_richness": features.vocabulary_richness,
+                "common_words": features.common_words[:5],
+                "pov": features.pov,
+                "dialogue_ratio": features.dialogue_ratio,
+                "avg_paragraph_length": features.avg_paragraph_length
+            }
+        }, ensure_ascii=False, indent=2)
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        }, ensure_ascii=False)

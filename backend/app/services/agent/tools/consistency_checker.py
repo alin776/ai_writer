@@ -516,3 +516,141 @@ async def check_story_consistency(
 
     # 执行检查
     return await checker.check_consistency(work_id, chapters)
+
+
+# ==================== @tool 包装（2026-01-09）====================
+
+from langchain_core.tools import tool
+from .tool_registry import register_as_tool
+import json
+
+
+@tool
+@register_as_tool(
+    "check_story_consistency",
+    "analysis",
+    "检查故事一致性（角色、世界观、时间线）"
+)
+async def check_story_consistency_tool(
+    work_id: str,
+    chapters_json: str = "[]",
+    characters_json: str = "[]",
+    worldview_json: str = "{}"
+) -> str:
+    """
+    检查故事一致性
+
+    Args:
+        work_id: 作品ID
+        chapters_json: 章节列表JSON（[{id, content}]）
+        characters_json: 角色列表JSON（[{id, name, ...}]）
+        worldview_json: 世界观JSON（{rule_name: rule_desc}）
+
+    Returns:
+        一致性检查报告JSON
+    """
+    try:
+        chapters = json.loads(chapters_json) if chapters_json else []
+        characters = json.loads(characters_json) if characters_json else []
+        worldview = json.loads(worldview_json) if worldview_json else {}
+
+        report = await check_story_consistency(
+            work_id=work_id,
+            chapters=chapters,
+            characters=characters,
+            worldview=worldview
+        )
+
+        return json.dumps({
+            "success": True,
+            "work_id": report.work_id,
+            "consistency_score": report.consistency_score,
+            "total_elements": report.total_elements,
+            "total_inconsistencies": report.total_inconsistencies,
+            "inconsistencies": [
+                {
+                    "type": inc.type.value,
+                    "severity": inc.severity.value,
+                    "description": inc.description,
+                    "suggestion": inc.suggestion
+                }
+                for inc in report.inconsistencies
+            ]
+        }, ensure_ascii=False, indent=2)
+
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        }, ensure_ascii=False)
+
+
+# ==================== StandardTool 版本（2026-01-09）====================
+
+from .tool_types import ToolInput, ToolOutput, ToolCategory, StandardTool
+from pydantic import Field
+from typing import List, Dict, Any
+
+
+class CheckConsistencyInput(ToolInput):
+    """一致性检查工具输入"""
+    work_id: str = Field(..., description="作品ID")
+    chapters: List[Dict[str, Any]] = Field(default=[], description="章节列表 [{id, content}]")
+    characters: List[Dict[str, Any]] = Field(default=[], description="角色列表 [{id, name, ...}]")
+    worldview: Dict[str, str] = Field(default={}, description="世界观 {rule_name: rule_desc}")
+
+
+class CheckConsistencyOutput(ToolOutput):
+    """一致性检查工具输出"""
+    pass
+
+
+async def check_consistency_executor(input_data: CheckConsistencyInput) -> CheckConsistencyOutput:
+    """一致性检查执行器"""
+    try:
+        report = await check_story_consistency(
+            work_id=input_data.work_id,
+            chapters=input_data.chapters,
+            characters=input_data.characters,
+            worldview=input_data.worldview
+        )
+
+        return CheckConsistencyOutput(
+            success=True,
+            message=f"一致性检查完成，得分: {report.consistency_score}",
+            data={
+                "work_id": report.work_id,
+                "consistency_score": report.consistency_score,
+                "total_elements": report.total_elements,
+                "total_inconsistencies": report.total_inconsistencies,
+                "inconsistencies": [
+                    {
+                        "type": inc.type.value,
+                        "severity": inc.severity.value,
+                        "description": inc.description,
+                        "suggestion": inc.suggestion
+                    }
+                    for inc in report.inconsistencies
+                ]
+            },
+            metadata={"tool": "check_story_consistency"}
+        )
+    except Exception as e:
+        return CheckConsistencyOutput(
+            success=False,
+            message=f"一致性检查失败: {str(e)}",
+            data=None,
+            metadata={"error": str(e)}
+        )
+
+
+check_story_consistency_st = StandardTool(
+    name="check_story_consistency",
+    description="检查故事一致性（角色、世界观、时间线），返回一致性报告和修复建议",
+    category=ToolCategory.ANALYSIS,
+    input_schema=CheckConsistencyInput,
+    output_schema=CheckConsistencyOutput,
+    executor=check_consistency_executor,
+    tags=["analysis", "consistency", "story_bible"],
+    version="1.0.0"
+)

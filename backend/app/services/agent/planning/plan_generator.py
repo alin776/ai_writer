@@ -200,7 +200,7 @@ class PlanGenerator:
         Returns:
             规划 prompt 字符串
         """
-        from app.services.agent.prompt_cache import (
+        from app.services.agent.prompts import (
             get_planning_static_prompt,
             get_planning_agent_mode_prompt
         )

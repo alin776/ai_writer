@@ -94,6 +94,11 @@ class ToolCategory(str, Enum):
     - VERSION: 版本类工具(版本管理、回滚等)
     - QUALITY: 质量类工具(一致性检查、风格检查等)
     - UTILITY: 工具类工具(通用辅助功能)
+
+    新增分类（2026-01-09）:
+    - CREATIVE: 创作类工具(AI生成内容，不直接修改数据)
+    - OPERATION: 操作类工具(修改数据库或编辑器内容，需要用户确认)
+    - QUERY: 查询类工具(只读取数据，不修改)
     """
 
     WRITING = "writing"      # 写作类
@@ -102,6 +107,11 @@ class ToolCategory(str, Enum):
     VERSION = "version"      # 版本类
     QUALITY = "quality"      # 质量类
     UTILITY = "utility"      # 工具类
+
+    # 新增分类（2026-01-09）
+    CREATIVE = "creative"    # 创作类：AI生成内容，不直接修改数据
+    OPERATION = "operation"  # 操作类：修改数据库或编辑器内容，需要用户确认
+    QUERY = "query"          # 查询类：只读取数据，不修改
 
 
 # ==================== 泛型类型变量 ====================

@@ -2,8 +2,7 @@
 写作工具集 (Writing Tools)
 
 提供标准化的写作相关工具,包括:
-1. continue_writing_tool - 续写工具
-2. expand_text_tool - 扩写工具
+1. expand_text_tool - 扩写工具
 
 所有工具使用 StandardTool 包装,支持强类型输入输出验证。
 """
@@ -106,154 +105,7 @@ async def _generate_text(
         return f"错误: 文本生成失败 - {error_str}"
 
 
-# ==================== 1. 续写工具 (Continue Writing) ====================
-
-class ContinueWritingInput(ToolInput):
-    """
-    续写工具输入
-
-    Attributes:
-        context: 已有的文本上下文(必需)
-        requirements: 续写要求(可选)
-        target_length: 目标长度,单位:字符(可选)
-        style: 写作风格(可选)
-
-    🔧 2025-12-25: 增加 context 的 max_length 到 50000，支持多章节批量读取场景
-    """
-
-    context: str = Field(
-        ...,
-        description="已有的文本上下文,用于续写",
-        min_length=10,
-        max_length=50000  # 🔧 2025-12-25: 从 10000 增加到 50000，支持多章节场景
-    )
-
-    requirements: str = Field(
-        default="",
-        description="续写的具体要求(如情节发展、人物行为等)"
-    )
-
-    target_length: int = Field(
-        default=500,
-        description="期望续写的长度(字符数)",
-        ge=100,
-        le=5000
-    )
-
-    style: str = Field(
-        default="",
-        description="写作风格(如:悬疑、温馨、激烈等)"
-    )
-
-
-class ContinueWritingOutput(ToolOutput):
-    """
-    续写工具输出
-
-    在 ToolOutput.data 中包含:
-    - generated_text: 生成的续写文本
-    - word_count: 生成的字数
-    - actual_length: 实际长度(字符数)
-    """
-    pass
-
-
-async def continue_writing_executor(
-    input_data: ContinueWritingInput
-) -> ContinueWritingOutput:
-    """
-    续写工具执行器
-
-    根据已有上下文和要求,生成续写内容。
-
-    Args:
-        input_data: 续写输入参数
-
-    Returns:
-        续写输出结果
-    """
-    try:
-        # 构建提示词
-        prompt = f"""你是一位专业的小说续写助手。请根据以下上下文续写内容。
-
-【上下文】
-{input_data.context}
-
-【续写要求】
-- 目标长度: 约 {input_data.target_length} 字符"""
-
-        if input_data.requirements:
-            prompt += f"\n- 具体要求: {input_data.requirements}"
-
-        if input_data.style:
-            prompt += f"\n- 写作风格: {input_data.style}"
-
-        prompt += """
-
-【重要】
-1. 直接输出续写的小说正文,不要输出任何说明文字、建议或问题
-2. 保持与上下文的风格一致
-3. 情节合理自然,符合人物性格
-4. 立即开始续写:"""
-
-        # 调用 AI 生成
-        generated_text = await _generate_text(
-            prompt=prompt,
-            temperature=0.8,
-            max_tokens=min(input_data.target_length * 2, 4000),
-            task_type=TaskType.CONTENT_CREATION  # ← 新增：指定为创作任务
-        )
-
-        # 计算字数
-        word_count = len(generated_text)
-
-        return ContinueWritingOutput(
-            success=True,
-            message="续写成功",
-            data={
-                "generated_text": generated_text,
-                "word_count": word_count,
-                "actual_length": len(generated_text)
-            },
-            metadata={
-                "context_length": len(input_data.context),
-                "target_length": input_data.target_length,
-                "style": input_data.style or "default"
-            }
-        )
-
-    except InsufficientCreditsError as e:
-        logger.warning(f"续写工具积分不足: {e}")
-        return ContinueWritingOutput(
-            success=False,
-            message=e.message,
-            data={"generated_text": e.message},
-            metadata={"error": "insufficient_credits"}
-        )
-    except Exception as e:
-        logger.error(f"续写工具执行失败: {e}")
-        return ContinueWritingOutput(
-            success=False,
-            message=f"续写失败: {str(e)}",
-            data=None,
-            metadata={"error": str(e)}
-        )
-
-
-# 创建续写工具实例
-continue_writing_tool = StandardTool(
-    name="continue_writing",
-    description="创作新的小说内容，包括续写正文、生成大纲、设计角色、规划情节等",
-    category=ToolCategory.WRITING,
-    input_schema=ContinueWritingInput,
-    output_schema=ContinueWritingOutput,
-    executor=continue_writing_executor,
-    tags=["writing", "generation", "novel", "outline", "creation"],
-    version="1.0.0"
-)
-
-
-# ==================== 2. 扩写工具 (Expand Text) ====================
+# ==================== 1. 扩写工具 (Expand Text) ====================
 
 class ExpandTextInput(ToolInput):
     """
@@ -433,11 +285,8 @@ __all__ = [
     # 异常
     "InsufficientCreditsError",
     # 输入输出模型
-    "ContinueWritingInput",
-    "ContinueWritingOutput",
     "ExpandTextInput",
     "ExpandTextOutput",
     # 工具实例
-    "continue_writing_tool",
     "expand_text_tool",
 ]

@@ -54,8 +54,9 @@ export function ExecutionFlow({
       // 嵌入在 step 中的 revision
       if (item.type === 'step') {
         const stepData = item.data as StepFlowData;
-        if (stepData.revision?.status === 'pending' && stepData.revisionItemId) {
-          result.push({ id: stepData.revisionItemId, isEmbedded: true });
+        if (stepData.revision?.status === 'pending') {
+          // v7.4: 使用 revisionItemId 或 item.id 作为 fallback
+          result.push({ id: stepData.revisionItemId || item.id, isEmbedded: true });
         }
       }
     });
@@ -113,15 +114,17 @@ export function ExecutionFlow({
             );
           case 'step': {
             const stepData = item.data as StepFlowData;
+            // v7.4: 使用 item.id 作为 fallback，确保回调函数始终有效
+            const revisionId = stepData.revisionItemId || item.id;
             return (
               <StepCard
                 key={item.id}
                 {...stepData}
                 // v7.3: 传递修订回调给 StepCard（用于内嵌的 RevisionCard）
-                onAcceptRevision={stepData.revisionItemId ? (selectedVersion) => onAcceptRevision?.(stepData.revisionItemId!, (stepData.revision as any)?.requestId, selectedVersion) : undefined}
-                onDiscardRevision={stepData.revisionItemId ? () => onDiscardRevision?.(stepData.revisionItemId!, (stepData.revision as any)?.requestId) : undefined}
-                onUndoRevision={stepData.revisionItemId ? () => onUndoRevision?.(stepData.revisionItemId!) : undefined}
-                onRedoRevision={stepData.revisionItemId ? () => onRedoRevision?.(stepData.revisionItemId!) : undefined}
+                onAcceptRevision={stepData.revision ? (selectedVersion) => onAcceptRevision?.(revisionId, (stepData.revision as any)?.requestId, selectedVersion) : undefined}
+                onDiscardRevision={stepData.revision ? () => onDiscardRevision?.(revisionId, (stepData.revision as any)?.requestId) : undefined}
+                onUndoRevision={stepData.revision ? () => onUndoRevision?.(revisionId) : undefined}
+                onRedoRevision={stepData.revision ? () => onRedoRevision?.(revisionId) : undefined}
               />
             );
           }

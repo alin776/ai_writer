@@ -15,7 +15,7 @@ import json
 import re
 
 from app.services.agent.model_selector import TaskType
-from app.services.agent.prompt_cache import get_tool_decision_static_prompt
+from app.services.agent.prompts import get_tool_decision_static_prompt
 from app.services.agent.utils.tool_helpers import normalize_tool_params
 from app.services.agent.core import MessageCleaner
 from app.services.agent.prompts.format_guidelines import get_format_guidelines
@@ -567,7 +567,7 @@ class AgentExecutor:
         recursion_depth: int
     ) -> Dict[str, Any]:
         """处理需要工具调用的情况"""
-        tool_name = decision.get("tool_name", "continue_writing_tool")
+        tool_name = decision.get("tool_name", "smart_continue")
         tool_args = decision.get("tool_args", {})
 
         # 标准化参数格式
