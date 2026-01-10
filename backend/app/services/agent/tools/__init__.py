@@ -120,6 +120,11 @@ from .chapter_tools import (
     update_chapter_content_tool
 )
 
+# ==================== 定位工具（2026-01-10）====================
+from .locate_tools import (
+    locate_content
+)
+
 # ==================== 辅助工具（2026-01-09）====================
 from .consistency_checker import check_story_consistency_tool, check_story_consistency_st
 from .show_dont_tell import show_emotion_tool, enhance_scene_tool
@@ -224,6 +229,9 @@ __all__ = [
     "update_chapter_title_tool",
     "delete_chapter_tool",
     "update_chapter_content_tool",
+
+    # ==================== 定位工具（2026-01-10）====================
+    "locate_content",
 
     # ==================== 辅助工具（2026-01-09）====================
     "check_story_consistency_tool",

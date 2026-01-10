@@ -1,8 +1,14 @@
 """
 智能位置推断 - 根据用户意图推断内容插入位置
+
+支持三种定位方式：
+1. 文本锚点（before_anchor / after_anchor）
+2. 关键词推断（续写→末尾，开头→开头）
+3. 段落定位（第N段）
 """
 import re
-from typing import Optional
+from typing import Optional, Dict, Any
+from difflib import SequenceMatcher
 
 
 class PositionInferrer:
@@ -120,6 +126,146 @@ class PositionInferrer:
         else:
             return len(content)
 
+    def find_by_anchors(
+        self,
+        content: str,
+        before_anchor: Optional[str] = None,
+        after_anchor: Optional[str] = None,
+        fallback: str = "end"
+    ) -> Dict[str, Any]:
+        """
+        通过前后锚点定位插入位置
+
+        三级回退策略：
+        1. 精确匹配：同时找到 before + after
+        2. 单锚点匹配：只找到其中一个
+        3. 模糊匹配：用相似度找最接近的位置
+        4. fallback：都失败时用备用位置
+
+        Args:
+            content: 章节内容
+            before_anchor: 插入点前面的文本
+            after_anchor: 插入点后面的文本
+            fallback: 备用位置
+
+        Returns:
+            {"position": int, "confidence": float, "reason": str}
+        """
+        if not content:
+            return {
+                "position": 0,
+                "confidence": 0.5,
+                "reason": "内容为空，插入到开头"
+            }
+
+        # Level 1: 双锚点精确匹配
+        if before_anchor and after_anchor:
+            before_idx = content.find(before_anchor)
+            if before_idx != -1:
+                # 在 before_anchor 后面找 after_anchor
+                search_start = before_idx + len(before_anchor)
+                after_idx = content.find(after_anchor, search_start)
+                if after_idx != -1 and after_idx - search_start < 200:
+                    # 两个锚点之间距离合理（<200字符）
+                    position = before_idx + len(before_anchor)
+                    return {
+                        "position": position,
+                        "confidence": 1.0,
+                        "reason": f"精确匹配：在「{before_anchor[-10:]}」后插入"
+                    }
+
+        # Level 2: 单锚点匹配
+        if before_anchor:
+            # 找最后一个匹配（更可能是用户指的位置）
+            idx = content.rfind(before_anchor)
+            if idx != -1:
+                position = idx + len(before_anchor)
+                return {
+                    "position": position,
+                    "confidence": 0.9,
+                    "reason": f"单锚点匹配：在「{before_anchor[-10:]}」后插入"
+                }
+
+        if after_anchor:
+            # 找第一个匹配
+            idx = content.find(after_anchor)
+            if idx != -1:
+                return {
+                    "position": idx,
+                    "confidence": 0.85,
+                    "reason": f"单锚点匹配：在「{after_anchor[:10]}」前插入"
+                }
+
+        # Level 3: 模糊匹配（滑动窗口 + 相似度）
+        anchor = before_anchor or after_anchor
+        if anchor and len(anchor) >= 10:
+            fuzzy_result = self._fuzzy_find(content, anchor)
+            if fuzzy_result and fuzzy_result["confidence"] >= 0.7:
+                return fuzzy_result
+
+        # Level 4: Fallback
+        fallback_pos = self.resolve_position(fallback, content)
+        return {
+            "position": fallback_pos,
+            "confidence": 0.5,
+            "reason": f"锚点匹配失败，使用备用位置: {fallback}"
+        }
+
+    def _fuzzy_find(self, content: str, anchor: str, threshold: float = 0.7) -> Optional[Dict[str, Any]]:
+        """
+        模糊匹配：用滑动窗口找最相似的位置
+
+        Args:
+            content: 章节内容
+            anchor: 要匹配的锚点文本
+            threshold: 相似度阈值
+
+        Returns:
+            {"position": int, "confidence": float, "reason": str} 或 None
+        """
+        anchor_len = len(anchor)
+        best_ratio = 0.0
+        best_pos = -1
+
+        # 滑动窗口，步长为 anchor 长度的 1/4
+        step = max(1, anchor_len // 4)
+        for i in range(0, len(content) - anchor_len + 1, step):
+            window = content[i:i + anchor_len]
+            ratio = SequenceMatcher(None, anchor, window).ratio()
+            if ratio > best_ratio:
+                best_ratio = ratio
+                best_pos = i
+
+        if best_ratio >= threshold:
+            return {
+                "position": best_pos + anchor_len,
+                "confidence": best_ratio,
+                "reason": f"模糊匹配（相似度{best_ratio:.0%}）"
+            }
+
+        return None
+
 
 # 单例实例
 position_inferrer = PositionInferrer()
+
+
+def find_by_anchors(
+    content: str,
+    before_anchor: Optional[str] = None,
+    after_anchor: Optional[str] = None,
+    fallback: str = "end"
+) -> Dict[str, Any]:
+    """
+    通过前后锚点定位插入位置（模块级函数，方便直接调用）
+
+    Args:
+        content: 章节内容
+        before_anchor: 插入点前面的文本（20-50字）
+        after_anchor: 插入点后面的文本（20-50字）
+        fallback: 定位失败时的备用位置 ("end" | "start" | int)
+
+    Returns:
+        {"position": int, "confidence": float, "reason": str}
+    """
+    return position_inferrer.find_by_anchors(content, before_anchor, after_anchor, fallback)

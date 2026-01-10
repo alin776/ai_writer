@@ -46,6 +46,10 @@ export interface EditorAction {
   before_anchor?: string;
   /** 锚点定位：修改点后的文本（30-50字） */
   after_anchor?: string;
+  /** 🆕 节点 ID（最高优先级定位） */
+  node_id?: string;
+  /** 🆕 段落索引（可用于从 getAllNodes() 获取 node_id） */
+  paragraph_index?: number;
 }
 
 export interface ApprovalRequest {
@@ -608,6 +612,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                             position: editorAction.position,
                             beforeAnchor: editorAction.before_anchor,
                             afterAnchor: editorAction.after_anchor,
+                            nodeId: editorAction.node_id,
+                            paragraphIndex: editorAction.paragraph_index,
                             revisionId: `rev-${approvalReq.request_id}-${Date.now()}`
                           }
                         })
@@ -766,6 +772,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                             position: editorAction.position,
                             beforeAnchor: editorAction.before_anchor,
                             afterAnchor: editorAction.after_anchor,
+                            nodeId: editorAction.node_id,
+                            paragraphIndex: editorAction.paragraph_index,
                             revisionId: `rev-${approvalReq.request_id}-${Date.now()}`
                           }
                         })
@@ -1012,6 +1020,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                         position: position,
                         beforeAnchor: editorAction?.before_anchor,
                         afterAnchor: editorAction?.after_anchor,
+                        nodeId: editorAction?.node_id,
+                        paragraphIndex: editorAction?.paragraph_index,
                       }
                     }));
                   }

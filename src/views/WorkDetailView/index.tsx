@@ -1400,8 +1400,9 @@ const WorkDetailView: React.FC = () => {
 
   // 🆕 监听 Agent 章节操作的乐观更新事件
   useEffect(() => {
-    const handleChapterPreview = (e: CustomEvent) => {
-      const { action_type, request_id, work_id, chapter_id, chapter_title, new_title, content, order } = e.detail;
+    const handleChapterPreview = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { action_type, request_id, work_id, chapter_id, chapter_title, new_title, content, order } = customEvent.detail;
 
       // 只处理当前作品的事件
       if (work_id !== workId) return;
@@ -1451,8 +1452,9 @@ const WorkDetailView: React.FC = () => {
       }
     };
 
-    const handleChapterRevert = (e: CustomEvent) => {
-      const { action_type, request_id, work_id, chapter_id } = e.detail;
+    const handleChapterRevert = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { action_type, request_id, work_id, chapter_id } = customEvent.detail;
 
       // 只处理当前作品的事件
       if (work_id !== workId) return;
@@ -1484,12 +1486,14 @@ const WorkDetailView: React.FC = () => {
       }
     };
 
-    const handleChapterConfirm = async (e: CustomEvent) => {
-      const { work_id } = e.detail;
+    const handleChapterConfirm = async (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { work_id } = customEvent.detail;
       // 只处理当前作品的事件
       if (work_id !== workId) return;
 
       // 从数据库重新加载章节列表
+      if (!workId) return;
       try {
         const freshChapters = await DataService.getChapters(workId);
         setChapters(freshChapters);
@@ -1501,6 +1505,7 @@ const WorkDetailView: React.FC = () => {
 
     // v8.0: 监听操作回滚事件，刷新章节列表
     const handleOperationsRollback = async () => {
+      if (!workId) return;
       try {
         const freshChapters = await DataService.getChapters(workId);
         setChapters(freshChapters);

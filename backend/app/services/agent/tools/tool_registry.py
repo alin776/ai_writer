@@ -510,10 +510,11 @@ class StandardToolRegistry:
 
         包含:
         - _standard_tools: 新的 StandardTool 工具字典
-        - _dynamic_registry: 旧的 DynamicToolRegistry 实例(兼容)
+        - _dynamic_registry: 使用全局 DynamicToolRegistry 实例(确保与 @register_as_tool 装饰器共享)
         """
         self._standard_tools: Dict[str, StandardTool] = {}
-        self._dynamic_registry = DynamicToolRegistry()
+        # 🔧 2026-01-10: 使用全局注册表实例，确保与 @register_as_tool 装饰器注册的工具共享
+        self._dynamic_registry = global_registry
 
     # ==================== 标准化工具注册 ====================
 

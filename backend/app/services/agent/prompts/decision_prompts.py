@@ -15,7 +15,7 @@ from .tool_descriptions import (
 )
 
 # Prompt 版本号 - 修改 Prompt 时请更新此版本号
-PROMPT_VERSION = "v2.38.0"  # 2026-01-10: 章节操作工具支持直接使用章节序号
+PROMPT_VERSION = "v2.39.0"  # 2026-01-10: 创作类→操作类工具流程强化，所有示例添加 apply_chapter_edit
 
 
 @cache_review(expire=3600, key_prefix=f"prompt:tool_decision:{PROMPT_VERSION}")

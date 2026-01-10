@@ -140,13 +140,14 @@ class MonitoringMiddleware(BaseHTTPMiddleware):
         Returns:
             是否跳过监控
         """
-        # 跳过静态资源、health check等
+        # 跳过静态资源、health check、高频轮询等
         skip_paths = [
             "/docs",
             "/redoc",
             "/openapi.json",
             "/favicon.ico",
-            "/static/"
+            "/static/",
+            "/api/v1/channels/unread-summary"
         ]
 
         return any(path.startswith(skip_path) for skip_path in skip_paths)

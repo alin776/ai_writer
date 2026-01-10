@@ -80,6 +80,13 @@ class ToolExecutor:
             # 调用 StandardTool
             result = await registry.call_tool(normalized_name, params)
 
+            # 🔧 处理返回值为 JSON 字符串的情况（如 locate_content、@tool 装饰器返回值）
+            if isinstance(result, str):
+                try:
+                    result = json.loads(result)
+                except json.JSONDecodeError:
+                    pass  # 保持原样，让后续逻辑处理
+
             # 提取返回值
             if isinstance(result, dict) and result.get("success"):
                 tool_result = self.extract_result(normalized_name, result)
@@ -160,6 +167,9 @@ class ToolExecutor:
             params.setdefault("chapter_id", state.get("chapter_id", ""))
             params.setdefault("operation", "append")
             params.setdefault("position", None)
+            params.setdefault("before_anchor", None)  # 🆕 锚点定位
+            params.setdefault("after_anchor", None)   # 🆕 锚点定位
+            params.setdefault("original_text", None)  # 🆕 原文（用于前端定位）
             params.setdefault("user_id", state.get("user_id"))
             params.setdefault("description", None)
 
@@ -243,6 +253,11 @@ class ToolExecutor:
 
         elif tool_name in ["smart_rewrite", "smart_continue", "smart_insert", "apply_chapter_edit"]:
             return json.dumps(data, ensure_ascii=False)
+
+        elif tool_name == "locate_content":
+            # locate_content 返回的 success 在顶层，data 就是整个结果
+            # 返回完整 JSON 供下游工具使用
+            return json.dumps(result, ensure_ascii=False)
 
         elif tool_name == "get_context":
             return data.get("context", "")

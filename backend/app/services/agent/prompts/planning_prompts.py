@@ -77,11 +77,25 @@ def _get_planning_core_rules() -> str:
 2. 将计划转换为具体的 tasks 数组
 3. **绝对不能**只回复文字（如"好的，开始执行！"），必须生成 tasks
 
-【重要补充 - CREATIVE 与 OPERATION 工具分离】
-⚠️ 2026-01-10 更新：CREATIVE 工具（smart_continue, smart_rewrite, smart_insert）只生成内容，不直接写入编辑器。
-如果用户要求把内容写入编辑器，需要：
-1) 先用 CREATIVE 工具生成内容
-2) 再用 apply_chapter_edit 工具写入（会触发用户确认）
+【⚠️⚠️⚠️ 最重要规则 - CREATIVE 与 OPERATION 工具分离 ⚠️⚠️⚠️】
+
+**创作类工具**（smart_continue, smart_rewrite, smart_insert）只生成内容，**绝不直接写入编辑器**！
+
+**必须遵循的流程**：
+1. 先用 CREATIVE 工具生成内容
+2. **必须**再用 apply_chapter_edit 工具写入编辑器
+
+**对应关系**：
+- smart_continue → apply_chapter_edit(operation="append")
+- smart_insert → apply_chapter_edit(operation="insert")
+- smart_rewrite → apply_chapter_edit(operation="replace")
+
+**什么时候需要 apply_chapter_edit？**
+- 用户说"续写"、"插入"、"改写"、"润色"、"扩写" → ✅ 需要！
+- 用户说"帮我写一段XX给我看看"、"生成一个大纲" → ❌ 不需要
+
+❌ **错误示例**：只有 smart_continue，没有 apply_chapter_edit
+✅ **正确示例**：smart_continue → apply_chapter_edit
 
 【核心原则】⚠️ 最重要！
 
@@ -167,9 +181,32 @@ def _get_planning_core_rules() -> str:
 
 ⚠️⚠️⚠️ 【工具选择强制规则 - 最高优先级！】⚠️⚠️⚠️
 
+🔴🔴🔴 **【定位场景 - P0优先级！在改写前必须先检查！】** 🔴🔴🔴
+
+**用户指定了模糊位置？→ 必须先用 locate_content 定位！**
+
+触发词检测（任何一个匹配就必须调用 locate_content）：
+- "第N段"（第一段、第二段、第三段...）
+- "开头"、"结尾"、"中间"
+- "XX的地方"、"XX那里"、"XX部分"
+- "在...处"、"在...后"、"在...前"
+
+✅ 正确流程：locate_content → smart_rewrite/smart_insert → apply_chapter_edit
+❌ 错误流程：直接 smart_rewrite（没有定位，无法精确替换！）
+
+示例：
+- "把第三段改得更生动" → locate_content(query="第三段") → smart_rewrite → apply_chapter_edit
+- "修改开头" → locate_content(query="开头") → smart_rewrite → apply_chapter_edit
+- "在第二段后插入" → locate_content(query="第二段") → smart_insert → apply_chapter_edit
+
+⚠️ **参数传递规则**：locate_content 返回的 node_id、paragraph_index、before_anchor、after_anchor 必须传给 apply_chapter_edit！
+
+---
+
 **改写/润色场景** → **必须用 smart_rewrite**
   - 用户说"改写"、"润色"、"修改"、"优化"、"扩写"第X章 → smart_rewrite
   - ⚠️ "扩写"是把现有内容写得更丰富，不是往后续写！属于改写场景！
+  - ⚠️ 如果用户指定了位置（如"第三段"）→ 必须先 locate_content！
 
 **续写场景** → 用 smart_continue（只生成内容）
   - 用户说"续写第X章"、"继续写"、"往后写" → smart_continue

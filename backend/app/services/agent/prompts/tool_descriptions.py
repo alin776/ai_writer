@@ -54,27 +54,63 @@ def _get_editor_tools_section() -> str:
     """编辑器工具描述（直接修改章节内容）"""
     return """
 【编辑器工具 - 修改内容时优先使用】
+
+⚠️ **核心规则：创作类 vs 操作类**
+- 创作类工具（smart_continue, smart_insert, smart_rewrite）：只生成内容，不写入编辑器
+- 操作类工具（apply_chapter_edit）：将内容写入编辑器
+
+⚠️ **什么时候需要调用 apply_chapter_edit？**
+- 用户说"续写"、"插入"、"改写"、"润色" → 需要！（内容要写入编辑器）
+- 用户说"帮我写一段XX"、"生成一个大纲" → 不需要！（只是看内容，不写入编辑器）
+
+⚠️ **创作类工具 → 操作类工具的对应关系**
+- smart_continue → apply_chapter_edit(operation="append")
+- smart_insert → apply_chapter_edit(operation="insert")
+- smart_rewrite → apply_chapter_edit(operation="replace")
+
+---
+
 - smart_rewrite: 改写/修改章节内容（生成3个版本供选择）
   参数: chapter_id, text_to_rewrite, user_requirement, base_version
   触发词: "修改"、"改写"、"重写"、"润色"、"优化"、"扩写"
   ⚠️ "扩写"= 把现有内容写得更丰富，属于改写场景，不是续写！
+  ⚠️ 如果用户想把改写内容写入编辑器 → 后续调用 apply_chapter_edit(operation="replace")
   ⚠️ **参数填充规则**（极其重要！）：
     * 如果用户指定了要改写的文本 → text_to_rewrite 填入该文本
     * 如果用户说"改写第X章" → 先用 get_chapter_by_order_tool 获取章节，再用 $TASK_N.content$ 引用
     * user_requirement 必须从用户消息中提取改写要求！
 
-- smart_continue: 智能续写（只生成内容，不写入编辑器）
+- smart_continue: 智能续写（只生成内容）
   参数: chapter_id, chapter_content, user_requirement, word_count
   触发词: "续写"、"继续写"、"往后写"
-  ⚠️ 此工具只生成内容，需要用 apply_chapter_edit 写入编辑器
+  ⚠️ 如果用户想把续写内容写入编辑器 → 后续调用 apply_chapter_edit(operation="append")
 
-- smart_insert: 智能插入（根据意图生成插入内容）
+- smart_insert: 智能插入（只生成内容）
   参数: chapter_id, user_intent, chapter_content, insert_context, word_count
-  触发词: "插入"、"在...处添加"
+  触发词: "插入"、"在...处添加"、"在...后面加"
+  ⚠️ 如果用户想把插入内容写入编辑器 → 后续调用 apply_chapter_edit(operation="insert")
+  ⚠️ **定位规则**：插入位置由 locate_content 工具确定，smart_insert 只负责生成内容
+  ⚠️ insert_context 可以从 locate_content 返回的 text 获取，用于风格参考
 
-- apply_chapter_edit: 直接应用编辑到章节
-  参数: chapter_id, operation, content
-  ⚠️ 此工具用于将已生成的内容应用到编辑器
+- apply_chapter_edit: 将已生成的内容应用到编辑器（操作类工具）
+  参数: chapter_id, operation, content, position, before_anchor, after_anchor, original_text, node_id, paragraph_index
+  operation: "append"(续写) | "insert"(插入) | "replace"(替换)
+  ⚠️ 此工具用于将创作类工具生成的内容写入编辑器
+  ⚠️ **必须在创作类工具之后调用**：先创作，后应用！
+  ⚠️ **定位参数传递规则**：
+    * 如果 locate_content 返回了 node_id → 直接传入 node_id
+    * 如果 locate_content 返回了 paragraph_index → 传入 paragraph_index（前端会映射到 node_id）
+    * 如果有锚点 → 传入 before_anchor 和 after_anchor
+
+- locate_content: 定位章节中的内容位置（定位工具）
+  参数: chapter_id, query, nodes_info(可选)
+  query: "第三段"、"开头"、"结尾"、具体文本片段
+  返回: paragraph_index, text_preview, before_anchor, after_anchor, node_id
+  触发词: 用户说"把第X段改了"、"修改开头"、"找到XX的位置"
+  ⚠️ **使用场景**：
+    * 用户指定了模糊位置（如"第三段"）→ 先用 locate_content 定位
+    * 用户说"修改主角出场的地方" → 先用 locate_content 定位
+  ⚠️ **工作流程**：locate_content → smart_rewrite/smart_insert → apply_chapter_edit
 """
 
 

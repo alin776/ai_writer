@@ -68,6 +68,10 @@ export interface EditorAction {
   before_anchor?: string;
   /** 锚点定位：修改点后的文本（30-50字），用于位置失效时重新定位 */
   after_anchor?: string;
+  /** 🆕 节点 ID（最高优先级定位，来自 UniqueID 扩展） */
+  node_id?: string;
+  /** 🆕 段落索引（可用于从 getAllNodes() 获取 node_id） */
+  paragraph_index?: number;
 }
 
 export interface AgentStep {

@@ -252,6 +252,11 @@ async def apply_chapter_edit(
     content: str,
     operation: str = "append",
     position: Optional[int] = None,
+    before_anchor: Optional[str] = None,
+    after_anchor: Optional[str] = None,
+    original_text: Optional[str] = None,  # 🆕 原文（用于前端定位）
+    node_id: Optional[str] = None,  # 🆕 节点ID（最高优先级定位）
+    paragraph_index: Optional[int] = None,  # 🆕 段落索引（从 locate_content 获取）
     user_id: Optional[str] = None,
     description: Optional[str] = None
 ) -> str:
@@ -263,6 +268,11 @@ async def apply_chapter_edit(
         content: 要添加/替换的内容
         operation: 操作类型 ("append" | "replace" | "insert")
         position: 插入位置（仅insert操作需要）
+        before_anchor: 插入点前面的文本（用于精确定位）
+        after_anchor: 插入点后面的文本（用于精确定位）
+        original_text: 原文（用于前端定位，replace 操作时传递）
+        node_id: 节点ID（最高优先级定位，从 locate_content 获取）
+        paragraph_index: 段落索引（从 locate_content 获取，用于映射到 node_id）
         user_id: 用户ID
         description: 操作描述
 
@@ -291,7 +301,8 @@ async def apply_chapter_edit(
         if operation not in ["append", "replace", "insert"]:
             return json.dumps({"success": False, "error": "invalid_operation"}, ensure_ascii=False)
 
-        if operation == "insert" and position is None:
+        # insert 操作需要位置信息（position 或 锚点）
+        if operation == "insert" and position is None and not before_anchor and not after_anchor:
             return json.dumps({"success": False, "error": "missing_position_for_insert"}, ensure_ascii=False)
 
         # 返回需要用户确认的信息
@@ -304,6 +315,11 @@ async def apply_chapter_edit(
             "content": content,
             "content_length": len(content),
             "position": position,
+            "before_anchor": before_anchor,
+            "after_anchor": after_anchor,
+            "original_text": original_text,  # 🆕 原文（用于前端定位）
+            "node_id": node_id,  # 🆕 节点ID（最高优先级定位）
+            "paragraph_index": paragraph_index,  # 🆕 段落索引（从 locate_content 获取）
             "description": description or f"AI{_get_operation_name(operation)}：+{len(content)}字",
             "remaining_quota": remaining if user_id else None
         }, ensure_ascii=False)
@@ -494,6 +510,9 @@ async def smart_rewrite(
                 "message": "缺少要改写的内容"
             }, ensure_ascii=False)
 
+        # 🆕 2026-01-10: 锚点定位职责已移交给 locate_content 工具
+        # smart_rewrite 只负责创作，不再自动获取章节内容计算锚点
+
         # ✅ 使用AI生成3个实际的改写版本
         logger.info(f"[smart_rewrite] 开始生成改写版本，原文长度: {len(text_to_rewrite)}, 用户要求: {user_requirement}, 基准版本: {'有' if base_version else '无'}")
         # ✅ 2025-12-01: 成本追踪通过请求上下文自动完成，无需传递user_id
@@ -504,6 +523,9 @@ async def smart_rewrite(
             base_version=base_version,
             num_versions=3
         )
+
+        # 🆕 2026-01-10: 锚点定位职责已移交给 locate_content 工具
+        # smart_rewrite 只负责创作，不负责定位
 
         return json.dumps({
             "success": True,
@@ -523,7 +545,7 @@ async def smart_rewrite(
 @register_as_tool(
     "smart_insert",
     "creative",
-    "生成插入内容（只生成，不写入编辑器）。返回生成的内容和推荐位置，由前端决定是否应用。"
+    "生成插入内容（只生成，不写入编辑器）。返回生成的内容，由前端决定是否应用。定位由 locate_content 工具负责。"
 )
 async def smart_insert(
     chapter_id: str,
@@ -536,16 +558,19 @@ async def smart_insert(
     """
     智能插入 - 生成要插入的内容（不直接修改编辑器）
 
+    🆕 2026-01-10: 锚点定位职责已移交给 locate_content 工具
+    smart_insert 只负责创作，不负责定位
+
     Args:
         chapter_id: 章节ID
         user_intent: 用户的意图描述（如"在这里加一段心理描写"）
-        chapter_content: 章节完整内容
-        insert_context: 插入点附近的上下文
+        chapter_content: 章节完整内容（用于风格分析）
+        insert_context: 插入点附近的上下文（从 locate_content 获取）
         word_count: 期望生成字数
         user_id: 用户ID
 
     Returns:
-        生成的插入内容和位置推断
+        生成的插入内容
     """
     try:
         # 如果没有提供章节内容，自动获取
@@ -592,15 +617,8 @@ async def smart_insert(
         # CREATIVE 工具：应用输出过滤器，去除脏信息
         generated_content = creative_output_filter(generated_content)
 
-        # 推断插入位置
-        position_result = {"position": "cursor", "confidence": 0.8, "reason": "根据用户意图"}
-        if chapter_content:
-            position_result = position_inferrer.infer_position(
-                chapter_content=chapter_content,
-                operation="insert",
-                user_intent=user_intent,
-                context={"insert_context": insert_context} if insert_context else None
-            )
+        # 🆕 2026-01-10: 锚点定位职责已移交给 locate_content 工具
+        # smart_insert 只负责创作，不负责定位
 
         return json.dumps({
             "success": True,
@@ -608,7 +626,6 @@ async def smart_insert(
             "chapter_id": chapter_id,
             "content": generated_content,
             "content_length": len(generated_content),
-            "position_inference": position_result,
             "description": f"AI生成插入内容：{len(generated_content)}字"
         }, ensure_ascii=False)
 
@@ -840,6 +857,11 @@ class ApplyChapterEditInput(ToolInput):
     content: str = Field(..., description="编辑内容")
     operation: str = Field(default="append", description="操作类型：append/replace/insert", pattern="^(append|replace|insert)$")
     position: Optional[int] = Field(default=None, description="插入位置（仅 insert 操作）")
+    before_anchor: Optional[str] = Field(default=None, description="插入点前面的文本（用于精确定位）")
+    after_anchor: Optional[str] = Field(default=None, description="插入点后面的文本（用于精确定位）")
+    original_text: Optional[str] = Field(default=None, description="原文（用于前端定位，replace 操作时传递）")
+    node_id: Optional[str] = Field(default=None, description="节点ID（最高优先级定位，从 locate_content 获取）")
+    paragraph_index: Optional[int] = Field(default=None, description="段落索引（从 locate_content 获取）")
     user_id: Optional[str] = Field(default=None, description="用户ID")
     description: Optional[str] = Field(default=None, description="操作描述")
 
@@ -853,11 +875,17 @@ async def apply_chapter_edit_executor(input_data: ApplyChapterEditInput) -> Appl
     """章节编辑应用执行器（包装 @tool 版本）"""
     try:
         # 🔧 2025-12-14: @tool 装饰器返回 StructuredTool，需要用 .ainvoke() 调用
+        # 🔧 2026-01-10: 添加锚点、原文、node_id、paragraph_index 参数传递
         result_str = await apply_chapter_edit.ainvoke({
             "chapter_id": input_data.chapter_id,
             "content": input_data.content,
             "operation": input_data.operation,
             "position": input_data.position,
+            "before_anchor": input_data.before_anchor,
+            "after_anchor": input_data.after_anchor,
+            "original_text": input_data.original_text,
+            "node_id": input_data.node_id,
+            "paragraph_index": input_data.paragraph_index,
             "user_id": input_data.user_id,
             "description": input_data.description
         })

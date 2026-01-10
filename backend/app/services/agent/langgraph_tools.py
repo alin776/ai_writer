@@ -1067,6 +1067,9 @@ from app.services.agent.tools.consistency_checker import check_story_consistency
 from app.services.agent.tools.show_dont_tell import show_emotion_tool, enhance_scene_tool
 from app.services.agent.tools.style_learning import learn_style_tool, get_style_guidance_tool, analyze_style_tool
 
+# 导入定位工具（2026-01-10）
+from app.services.agent.tools.locate_tools import locate_content
+
 LANGGRAPH_TOOLS = [
     # 查询工具
     get_context_tool,
@@ -1079,6 +1082,8 @@ LANGGRAPH_TOOLS = [
     analyze_text_tool,
     check_story_consistency_tool,
     analyze_style_tool,
+    # 定位工具（2026-01-10）
+    locate_content,
     # 创作工具
     smart_continue,
     smart_rewrite,

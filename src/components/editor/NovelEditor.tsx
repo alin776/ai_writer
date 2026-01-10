@@ -30,8 +30,10 @@ import { SlashCommand } from './SlashCommandExtension';
 import { AIHighlight } from './AIHighlightExtension';
 import { AIAutoCompleteExtension } from './AIAutoCompleteExtension';
 import { AIDeleted, AIInserted } from './AIRevisionMark'; // 🆕 AI 修订标记扩展
+import { UniqueID } from './UniqueIDExtension'; // 🆕 节点唯一ID扩展，用于精确定位
 import { ToastContainer } from '@/components/ui/Toast';
 import { useToast } from '@/hooks/useToast';
+import { locateRevisionPosition, locateInsertPosition } from '@/utils/revisionLocator'; // 🆕 锚点定位工具
 import { useEditorStore } from '@/store/editorStore';
 import AIService from '@/services/AIService';
 import { getEditorWordCount, countCharactersInHtml } from '@/utils/wordCount';
@@ -248,6 +250,10 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           }
         },
       }),
+      // 🆕 节点唯一ID扩展（用于 Agent 精确定位）
+      UniqueID.configure({
+        types: ['paragraph', 'heading', 'blockquote', 'codeBlock'],
+      }),
     ],
     content: content || '<p></p>',
     editorProps: {
@@ -379,6 +385,70 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     }
   }, [workId, chapterId]);
 
+  // ===== 暴露 UniqueID API 给外部调用（如 Agent） =====
+  useEffect(() => {
+    if (!editor) return;
+
+    // 挂载到 window，供 Agent 或其他模块调用
+    (window as any).__editorNodeAPI = {
+      /**
+       * 通过 ID 查找节点
+       * @param id 节点 ID
+       * @returns { success, position, text } 或 { success: false }
+       */
+      findByNodeID: (id: string) => {
+        const result = (editor.storage as any).uniqueID?.findNodeByID(id);
+        if (result) {
+          return {
+            success: true,
+            position: { from: result.pos, to: result.pos + result.node.nodeSize },
+            text: result.text,
+          };
+        }
+        return { success: false };
+      },
+
+      /**
+       * 获取所有节点列表（带 ID 和预览）
+       * @returns 节点信息列表
+       */
+      getAllNodes: () => {
+        return (editor.storage as any).uniqueID?.getAllNodes() || [];
+      },
+
+      /**
+       * 通过 ID 选中节点
+       * @param id 节点 ID
+       * @returns 是否成功
+       */
+      selectNodeByID: (id: string) => {
+        return (editor.storage as any).uniqueID?.selectNodeByID(id) || false;
+      },
+
+      /**
+       * 通过 ID 替换节点内容
+       * @param id 节点 ID
+       * @param content 新内容（HTML 或纯文本）
+       * @returns 是否成功
+       */
+      replaceNodeByID: (id: string, content: string) => {
+        return (editor.storage as any).uniqueID?.replaceNodeByID(id, content) || false;
+      },
+
+      /**
+       * 获取当前文档的 JSON 结构（带 ID）
+       * @returns Tiptap JSON
+       */
+      getDocumentJSON: () => {
+        return editor.getJSON();
+      },
+    };
+
+    return () => {
+      delete (window as any).__editorNodeAPI;
+    };
+  }, [editor]);
+
   // ===== 动态更新 AI 自动补全开关状态 =====
   useEffect(() => {
     if (!editor) return;
@@ -509,15 +579,23 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         revisionId?: string;
         originalMessage?: string;
         context?: any;
+        beforeAnchor?: string;  // 锚点定位
+        afterAnchor?: string;   // 锚点定位
+        nodeId?: string;        // 🆕 节点 ID（最高优先级）
+        paragraphIndex?: number; // 🆕 段落索引
       }>;
 
-      const { type, original, replacement, position, revisionId, originalMessage, context } = customEvent.detail;
+      const { type, original, replacement, position, revisionId, originalMessage, context, beforeAnchor, afterAnchor, nodeId, paragraphIndex } = customEvent.detail;
 
       console.log('[NovelEditor] 收到显示修订请求:', {
         type,
         original: original?.substring(0, 50) + '...',
         replacement: replacement?.substring(0, 50) + '...',
-        position
+        position,
+        nodeId,
+        paragraphIndex,
+        beforeAnchor: beforeAnchor?.substring(0, 30),
+        afterAnchor: afterAnchor?.substring(0, 30)
       });
 
       if (!replacement) {
@@ -528,8 +606,68 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       const rid = revisionId || `rev-${Date.now()}`;
 
       try {
-        // v8.1: 处理 position 为 null 的情况（全文替换）
-        const resolvedPosition = position || { from: 0, to: editor.state.doc.content.size };
+        // 🆕 v8.3: 定位优先级：nodeId > paragraphIndex > position > 锚点 > 默认
+        let resolvedPosition = position;
+
+        // 1. 尝试通过 nodeId 定位（最高优先级）
+        if (!resolvedPosition && nodeId) {
+          const nodeResult = (window as any).__editorNodeAPI?.findByNodeID(nodeId);
+          if (nodeResult?.success) {
+            resolvedPosition = nodeResult.position;
+            console.log('[NovelEditor] nodeId 定位成功:', nodeId, resolvedPosition);
+          }
+        }
+
+        // 2. 尝试通过 paragraphIndex 定位（从 getAllNodes 获取 nodeId）
+        if (!resolvedPosition && paragraphIndex !== undefined) {
+          const nodes = (window as any).__editorNodeAPI?.getAllNodes();
+          if (nodes && nodes[paragraphIndex]) {
+            const targetNodeId = nodes[paragraphIndex].id;
+            const nodeResult = (window as any).__editorNodeAPI?.findByNodeID(targetNodeId);
+            if (nodeResult?.success) {
+              resolvedPosition = nodeResult.position;
+              console.log('[NovelEditor] paragraphIndex 定位成功:', paragraphIndex, '→', targetNodeId, resolvedPosition);
+            }
+          }
+        }
+
+        // 3. 如果没有 position 但有锚点，使用锚点定位
+        if (!resolvedPosition && (beforeAnchor || afterAnchor)) {
+          const docText = editor.state.doc.textContent;
+
+          if (type === 'modify' && original) {
+            // 修改模式：定位原文位置
+            const result = locateRevisionPosition(docText, {
+              originalText: original,
+              beforeAnchor,
+              afterAnchor
+            });
+            if (result.success && result.position) {
+              resolvedPosition = result.position;
+              console.log('[NovelEditor] 锚点定位成功 (modify):', result.method, resolvedPosition);
+            }
+          } else if (type === 'continue' || type === 'insert') {
+            // 续写/插入模式：定位插入点
+            const result = locateInsertPosition(docText, { beforeAnchor, afterAnchor });
+            if (result.success && result.position) {
+              resolvedPosition = result.position;
+              console.log('[NovelEditor] 锚点定位成功 (insert):', result.method, resolvedPosition);
+            }
+          }
+        }
+
+        // 如果仍然没有位置，使用默认值
+        if (!resolvedPosition) {
+          if (type === 'continue') {
+            // 续写默认追加到末尾
+            const endPos = editor.state.doc.content.size;
+            resolvedPosition = { from: endPos, to: endPos };
+          } else {
+            // 其他模式默认全文
+            resolvedPosition = { from: 0, to: editor.state.doc.content.size };
+          }
+          console.log('[NovelEditor] 使用默认位置:', resolvedPosition);
+        }
 
         if (type === 'modify') {
           // 修改模式：原文显示删除线 + 新内容显示绿色高亮

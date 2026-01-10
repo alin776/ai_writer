@@ -373,9 +373,15 @@ class StreamEventHandler:
                     elif operation == "replace":
                         inferred_type = "modify"
 
+                    # v8.2: 添加锚点字段用于精确定位
+                    # v8.3: 添加 node_id 和 paragraph_index 用于 UniqueID 定位
                     approval_data["editor_action"] = {
                         "type": inferred_type,
                         "position": position_payload,
+                        "before_anchor": tool_result.get("before_anchor"),
+                        "after_anchor": tool_result.get("after_anchor"),
+                        "node_id": tool_result.get("node_id"),  # 🆕 节点ID（最高优先级定位）
+                        "paragraph_index": tool_result.get("paragraph_index"),  # 🆕 段落索引
                         "requires_confirmation": True
                     }
 
@@ -388,54 +394,9 @@ class StreamEventHandler:
                 callback_result = await self._approval_callback(approval_data)
                 logger.info(f"[HITL] ✅ 回调执行成功")
 
-                request_id = approval_data.get("request_id")
-                if isinstance(callback_result, dict) and callback_result.get("request_id"):
-                    request_id = callback_result.get("request_id")
-                elif isinstance(callback_result, str):
-                    request_id = callback_result
-
-                # v7.0: 发送 revision 事件到执行轨迹
-                action_type = tool_result.get("action_type", "edit")
-                operation = tool_result.get("operation")
-
-                # 映射 action_type/operation 到 revision_type
-                revision_type_map = {
-                    "rewrite": "replace",
-                    "edit": "replace",
-                    "continue": "append",
-                    "insert": "insert",
-                    "create": "create",
-                    "rename": "rename"
-                }
-                revision_type = revision_type_map.get(action_type, "replace")
-                if operation == "append":
-                    revision_type = "append"
-                elif operation == "insert":
-                    revision_type = "insert"
-
-                # 生成内容预览（前50字）
-                content_preview = None
-                new_content = tool_result.get("content") or tool_result.get("new_content")
-                if new_content:
-                    content_preview = new_content[:50] if len(new_content) > 50 else new_content
-
-                # 发送 revision 事件（v7.5 非阻塞式修订：携带完整数据）
-                await self.emit_revision(
-                    revision_type=revision_type,
-                    request_id=request_id,
-                    chapter_id=tool_result.get("chapter_id"),
-                    chapter_title=tool_result.get("chapter_title"),
-                    content=new_content,
-                    content_preview=content_preview,
-                    original_content=tool_result.get("original_content"),
-                    position=tool_result.get("position"),
-                    operation=operation,
-                    editor_action=tool_result.get("editor_action"),
-                    old_title=tool_result.get("old_title"),
-                    new_title=tool_result.get("new_title"),
-                    versions=versions
-                )
-                logger.info(f"[HITL] ✅ revision 事件已发送: type={revision_type}")
+                # 🆕 v8.3: approval_request 已包含完整数据，不再重复发送 revision 事件
+                # 前端 onApprovalRequest 会处理修订显示，避免重复弹窗
+                logger.info(f"[HITL] ✅ approval_request 已发送，跳过 revision 事件（避免重复）")
 
             except json.JSONDecodeError as e:
                 logger.warning(

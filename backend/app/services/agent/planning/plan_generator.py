@@ -471,71 +471,19 @@ chapter_id: {chapter_id}
         """
         验证人物/地点查询必须先搜索
 
-        规则：
-        - 用户提到人物名（如"赵穆"）但未指定章节 → 第一个任务必须是 search_analysis_fragments_tool
-        - 如果违反规则，自动在最前面插入搜索任务
+        🔧 2026-01-10: 暂时禁用此功能
+        原因：正则表达式误判严重，把"增加环境描写"识别为人物名
+        后续可考虑用 jieba 词性标注来智能判断
 
         Args:
             tasks: 任务列表
             message: 用户消息
 
         Returns:
-            修复后的任务列表
+            原始任务列表（不再自动插入搜索任务）
         """
-        # 检测是否包含人物名（中文名字通常是2-4个汉字）
-        # 常见模式：帮我改写XX的描写、XX的人物描写、关于XX的...
-        character_patterns = [
-            r"(?:帮我|请|把|将)?[\u4e00-\u9fa5]{2,4}(?:的)?(?:人物|角色)?(?:描写|描述|形象|性格|特点)",
-            r"(?:关于|有关)[\u4e00-\u9fa5]{2,4}(?:的|出现)",
-            r"[\u4e00-\u9fa5]{2,4}(?:出现在哪|在哪里|在哪章)",
-        ]
-
-        has_character_query = False
-        for pattern in character_patterns:
-            if re.search(pattern, message):
-                has_character_query = True
-                break
-
-        if not has_character_query:
-            return tasks
-
-        # 检查是否已经有章节ID指定（如果有就不需要搜索）
-        if re.search(r"第\s*\d+\s*章", message):
-            return tasks
-
-        # 检查第一个任务是否是搜索
-        first_task = tasks[0] if tasks else None
-        if first_task and first_task.get("tool") == "search_analysis_fragments_tool":
-            return tasks
-
-        # 提取人物名
-        character_name = None
-        name_match = re.search(r"([\u4e00-\u9fa5]{2,4})(?:的)?(?:人物|角色)?(?:描写|描述|形象)", message)
-        if name_match:
-            character_name = name_match.group(1)
-
-        if not character_name:
-            return tasks
-
-        # 插入搜索任务
-        logger.info(f"[PlanValidator] 检测到人物查询'{character_name}'但未指定章节，自动插入搜索任务")
-
-        search_task = {
-            "task_id": 0,  # 临时ID，后面会重新编号
-            "description": f"搜索'{character_name}'出现位置",
-            "tool": "search_analysis_fragments_tool",
-            "params": {"query": character_name},
-            "checkpoint": False
-        }
-
-        # 重新编号所有任务
-        new_tasks = [search_task]
-        for i, task in enumerate(tasks):
-            task["task_id"] = i + 2  # 从2开始
-            new_tasks.append(task)
-        new_tasks[0]["task_id"] = 1
-
-        return new_tasks
+        # 🔧 暂时禁用，直接返回原任务列表
+        return tasks
 
     def _optimize_multi_chapter_tasks(self, tasks: List[Dict], message: str) -> List[Dict]:
         """
