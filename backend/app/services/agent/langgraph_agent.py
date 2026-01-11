@@ -1307,22 +1307,44 @@ class WritingAgentGraph:
 
                     # 从压缩后的上下文中提取历史消息
                     messages = context_bundle.get("messages", [])
+                    context_obj = context_bundle.get("context")
+                    metadata = context_bundle.get("metadata", {})
+
                     if messages:
                         logger.info(
                             f"[Planning] 从 ContextManager 加载了 {len(messages)} 条历史消息 "
-                            f"(token: {context_bundle['metadata'].get('token_count', 0)})"
+                            f"(token: {metadata.get('token_count', 0)}, "
+                            f"has_summary: {metadata.get('has_summary', False)})"
                         )
-                        # 格式化历史消息（保持原有格式兼容）
-                        history_lines = []
+
+                        history_parts = []
+
+                        # ✅ 修复：提取并使用摘要信息（如果有）
+                        if context_obj and context_obj.summary_memory.summary:
+                            summary = context_obj.summary_memory.summary
+                            history_parts.append(f"【历史对话摘要】\n{summary}")
+                            logger.info(f"[Planning] 使用对话摘要: {len(summary)}字符")
+
+                            # 添加重要事实（如果有）
+                            if context_obj.summary_memory.important_facts:
+                                facts = "\n".join(f"- {fact}" for fact in context_obj.summary_memory.important_facts)
+                                history_parts.append(f"【重要信息】\n{facts}")
+
+                        # 格式化近期对话消息（只取 user/assistant）
+                        recent_lines = []
                         for msg in messages:
                             role = msg.get("role", "")
                             content = msg.get("content", "")
                             if role == "user":
-                                history_lines.append(f"用户: {content}")
+                                recent_lines.append(f"用户: {content}")
                             elif role == "assistant":
-                                history_lines.append(f"助手: {content}")
-                        if history_lines:
-                            conversation_history = "\n".join(history_lines)
+                                recent_lines.append(f"助手: {content}")
+
+                        if recent_lines:
+                            history_parts.append("【近期对话】\n" + "\n".join(recent_lines))
+
+                        if history_parts:
+                            conversation_history = "\n\n".join(history_parts)
                 except Exception as e:
                     logger.warning(f"[Planning] ContextManager 加载历史失败: {e}", exc_info=True)
 

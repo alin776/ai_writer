@@ -261,6 +261,26 @@ class ContextManager:
             if not context:
                 context = Context(session_id=session_id)
 
+        # ✅ 修复：在添加新消息之前，检查是否需要生成摘要
+        # 这样可以在 ShortMemory 自动截断之前保存历史消息的摘要
+        max_messages = context.short_memory.max_turns * 2  # 12条
+        current_count = len(context.short_memory.messages)
+        new_count = len(new_messages)
+
+        # 如果添加新消息后会超过阈值，先生成摘要
+        if current_count + new_count > max_messages and current_count > 0:
+            # 计算需要摘要的消息数量
+            overflow = current_count + new_count - max_messages
+            if overflow > 0:
+                logger.info(
+                    f"[ContextManager] 消息即将溢出 ({current_count}+{new_count}>{max_messages})，"
+                    f"主动触发摘要生成"
+                )
+                # 获取将被截断的消息
+                messages_to_summarize = context.short_memory.messages[:overflow]
+                if messages_to_summarize:
+                    await self._generate_and_save_summary(context, messages_to_summarize)
+
         # 添加新消息到短期记忆
         for msg_dict in new_messages:
             message = Message(
@@ -286,6 +306,7 @@ class ContextManager:
         logger.info(
             f"[ContextManager] 更新上下文: {session_id}, "
             f"消息数={len(context.short_memory.messages)}, "
+            f"摘要长度={len(context.summary_memory.summary)}, "
             f"Token={context.get_total_tokens()}"
         )
 
@@ -350,6 +371,45 @@ class ContextManager:
         logger.info(
             f"[ContextManager] 压缩完成: {context.session_id}, "
             f"保留{len(context.short_memory.messages)}条消息, "
+            f"摘要长度={len(context.summary_memory.summary)}"
+        )
+
+    async def _generate_and_save_summary(self, context: Context, messages: List[Message]):
+        """
+        生成摘要并保存到 context（用于 update_context 中的主动摘要）
+
+        Args:
+            context: 上下文对象
+            messages: 需要摘要的消息列表
+        """
+        if not messages:
+            return
+
+        try:
+            # 生成摘要，添加超时保护
+            new_summary = await asyncio.wait_for(
+                self._generate_summary(messages),
+                timeout=ContextConfig.SUMMARY_TIMEOUT
+            )
+        except asyncio.TimeoutError:
+            logger.error("[ContextManager] 摘要生成超时，使用降级摘要")
+            record_timeout_event("summary_generation_timeout")
+            new_summary = self._fallback_summary(messages)
+
+        if not new_summary:
+            return
+
+        # 合并到现有摘要
+        if context.summary_memory.summary:
+            context.summary_memory.summary = f"{context.summary_memory.summary}\n\n---\n\n{new_summary}"
+        else:
+            context.summary_memory.summary = new_summary
+
+        context.summary_memory.last_updated = time.time()
+
+        logger.info(
+            f"[ContextManager] 主动摘要生成完成: "
+            f"摘要了{len(messages)}条消息, "
             f"摘要长度={len(context.summary_memory.summary)}"
         )
 
