@@ -1185,6 +1185,12 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
               } else {
                 // 等待打字机效果完成
                 const waitForQueue = setInterval(() => {
+                  // 如果 Worker 已停止但队列不为空，直接完成（避免死锁）
+                  if (typewriterWorkerRef.current === null && typewriterQueueRef.current.length > 0) {
+                    clearInterval(waitForQueue);
+                    finishStream();
+                    return;
+                  }
                   if (typewriterQueueRef.current.length === 0) {
                     clearInterval(waitForQueue);
                     finishStream();
