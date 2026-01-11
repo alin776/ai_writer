@@ -265,9 +265,9 @@ export default function HistoryPanel({
       <div className="fixed inset-0 bg-black/30 dark:bg-black/50 z-40" onClick={onClose} />
 
       <div
-        className={`fixed top-16 right-6 w-[360px] sm:w-[420px] max-h-[70vh] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden ${className}`}
+        className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] sm:w-[480px] min-h-[500px] max-h-[85vh] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden ${className}`}
       >
-        <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm">
+        <div className="px-4 py-3 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">历史会话</h3>
@@ -306,7 +306,6 @@ export default function HistoryPanel({
             <div className="px-4 py-10 text-center text-gray-500 dark:text-slate-400 text-sm">
               <div className="text-3xl mb-2">🗂️</div>
               <p className="font-medium text-gray-700 dark:text-slate-300">暂无历史会话</p>
-              <p className="text-xs mt-1 text-gray-500 dark:text-slate-500">近期会话会出现在这里</p>
             </div>
           )}
 
@@ -380,7 +379,7 @@ export default function HistoryPanel({
           )}
         </div>
 
-        <div className="px-4 py-3 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+        <div className="px-4 py-3 bg-white dark:bg-slate-800">
           <p className="text-[11px] text-gray-500 dark:text-slate-500 text-center">历史会话存储 30 天</p>
         </div>
       </div>

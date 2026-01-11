@@ -345,6 +345,22 @@ class SecondaryToolHandler:
         """调用 smart_rewrite 工具"""
         # 智能版本引用
         base_version = tool_args.get("base_version", "")
+        if base_version is None:
+            base_version = ""
+        elif not isinstance(base_version, str):
+            if isinstance(base_version, (int, float)) and base_version == 0:
+                base_version = ""
+            else:
+                base_version = str(base_version)
+
+        context = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
+        selected_text = context.get("selected_text", "")
+        locate_original_text = context.get("locate_original_text", "")
+        text_to_rewrite = tool_args.get("text_to_rewrite", "")
+        if selected_text:
+            text_to_rewrite = selected_text
+        elif locate_original_text and not text_to_rewrite:
+            text_to_rewrite = locate_original_text
         last_versions = state.get("context", {}).get("last_rewrite_versions", {})
         if base_version and last_versions:
             resolved = resolve_version_reference(base_version, last_versions)
@@ -357,7 +373,7 @@ class SecondaryToolHandler:
         try:
             result = await registry.call_tool("smart_rewrite", {
                 "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
-                "text_to_rewrite": tool_args.get("text_to_rewrite", ""),
+                "text_to_rewrite": text_to_rewrite,
                 "chapter_content": None,
                 "user_requirement": tool_args.get("user_requirement", ""),
                 "base_version": base_version,
@@ -370,7 +386,7 @@ class SecondaryToolHandler:
             logger.warning(f"[SecondaryToolHandler] smart_rewrite 失败，降级: {e}")
             return await smart_rewrite.ainvoke({
                 "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
-                "text_to_rewrite": tool_args.get("text_to_rewrite", ""),
+                "text_to_rewrite": text_to_rewrite,
                 "chapter_content": None,
                 "user_requirement": tool_args.get("user_requirement", ""),
                 "base_version": base_version,
@@ -446,6 +462,12 @@ class SecondaryToolHandler:
     ) -> str:
         """调用 apply_chapter_edit 工具"""
         logger.info(f"[SecondaryToolHandler] 🚀 调用 apply_chapter_edit, chapter_id={tool_args.get('chapter_id')}")
+        context = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
+        node_id = tool_args.get("node_id") or context.get("locate_node_id")
+        paragraph_index = tool_args.get("paragraph_index") or context.get("locate_paragraph_index")
+        before_anchor = tool_args.get("before_anchor") or context.get("locate_before_anchor")
+        after_anchor = tool_args.get("after_anchor") or context.get("locate_after_anchor")
+        original_text = tool_args.get("original_text") or context.get("locate_original_text")
 
         try:
             result = await registry.call_tool("apply_chapter_edit", {
@@ -453,8 +475,15 @@ class SecondaryToolHandler:
                 "content": tool_args.get("content", ""),
                 "operation": tool_args.get("operation", "replace"),
                 "position": None,
+                "before_anchor": before_anchor,
+                "after_anchor": after_anchor,
+                "original_text": original_text,
+                "node_id": node_id,
+                "paragraph_index": paragraph_index,
                 "user_id": state.get("user_id"),
-                "description": None
+                "description": None,
+                "conversation_id": tool_args.get("conversation_id") or state.get("conversation_id"),
+                "work_id": tool_args.get("work_id") or state.get("work_id")
             })
             if isinstance(result, dict) and result.get("success"):
                 return json.dumps(result.get("data", {}), ensure_ascii=False)
@@ -466,8 +495,15 @@ class SecondaryToolHandler:
                 "content": tool_args.get("content", ""),
                 "operation": tool_args.get("operation", "replace"),
                 "position": None,
+                "before_anchor": before_anchor,
+                "after_anchor": after_anchor,
+                "original_text": original_text,
+                "node_id": node_id,
+                "paragraph_index": paragraph_index,
                 "user_id": state.get("user_id"),
-                "description": None
+                "description": None,
+                "conversation_id": tool_args.get("conversation_id") or state.get("conversation_id"),
+                "work_id": tool_args.get("work_id") or state.get("work_id")
             })
 
     def build_task_instruction(

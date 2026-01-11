@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Globe2, FileText, MessageSquare, MoreHorizontal, Clock3, PanelRightClose } from 'lucide-react';
+import { SquarePen, Globe2, Clock3, List, FileEdit } from 'lucide-react';
 import { useEditorStore, type RightSidebarType } from '../../store/editorStore';
 import type { Tab } from '@/utils/tabStorage';
 import clsx from 'clsx';
@@ -12,13 +12,19 @@ interface SessionTabBarProps {
   onCreateTab: (afterTabId?: string) => Promise<any>;
   onCloseTab: (tabId: string) => void;
   onOpenHistory?: () => void;
-  onCollapseRightPanel?: () => void;
+  // 左侧面板（目录）展开/收缩
+  isLeftPanelCollapsed?: boolean;
+  onExpandLeftPanel?: () => void;
+  onCollapseLeftPanel?: () => void;
+  // 右侧编辑器展开/收缩
+  isEditorCollapsed?: boolean;
+  onToggleEditor?: () => void;
 }
 
 /**
  * SessionTabBar 组件 - 会话标签栏
  *
- * 布局: [会话标签...] [+] [🌍] [📄] [💬] [×]
+ * 布局: [目录] [+] [🌍] [🕐] [📖] ... [会话标签...]
  */
 export const SessionTabBar: React.FC<SessionTabBarProps> = ({
   tabs,
@@ -27,7 +33,11 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
   onCreateTab,
   onCloseTab,
   onOpenHistory,
-  onCollapseRightPanel,
+  isLeftPanelCollapsed = false,
+  onExpandLeftPanel,
+  onCollapseLeftPanel,
+  isEditorCollapsed = false,
+  onToggleEditor,
 }) => {
   const { t } = useTranslation();
   const { rightSidebarType, toggleRightSidebar, closeRightSidebar } = useEditorStore();
@@ -47,8 +57,6 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
   };
 
   const functionButtons = [
-    { type: 'agent' as RightSidebarType, icon: MessageSquare, title: t('editor.sessionTab.aiAssistant') },
-    { type: 'summary' as RightSidebarType, icon: FileText, title: t('editor.sessionTab.summary') },
     { type: 'worldview' as RightSidebarType, icon: Globe2, title: t('editor.sessionTab.worldview') },
   ];
 
@@ -62,12 +70,87 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
   };
 
   return (
-    <div className="flex items-center justify-between h-10 px-3 border-b bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700">
-      {/* 左侧：会话标签区域 */}
+    <div className="flex items-center justify-between h-10 px-3 bg-white dark:bg-slate-900">
+      {/* 左侧：功能按钮组 */}
+      <div className="flex items-center gap-1">
+        {/* 目录展开/收缩按钮 - 最左边 */}
+        {isLeftPanelCollapsed ? (
+          <button
+            onClick={() => onExpandLeftPanel?.()}
+            className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
+            title={t('editor.toolbar.expandChapterList')}
+          >
+            <List className="w-4 h-4" />
+          </button>
+        ) : (
+          <button
+            onClick={() => onCollapseLeftPanel?.()}
+            className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
+            title={t('editor.toolbar.collapseChapterList')}
+          >
+            <List className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* + 新增会话按钮 */}
+        <button
+          className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
+          onClick={handleCreate}
+          disabled={creating}
+          title={t('editor.sessionTab.addSession')}
+        >
+          <SquarePen className="w-4 h-4" />
+        </button>
+
+        {/* 功能图标按钮 */}
+        {functionButtons.map(({ type, icon: Icon, title }) => (
+          <button
+            key={type}
+            onClick={() => {
+              toggleRightSidebar(type);
+              // 如果编辑器是收起状态，点击世界观时自动展开编辑器
+              if (type === 'worldview' && isEditorCollapsed && onToggleEditor) {
+                onToggleEditor();
+              }
+            }}
+            className={clsx(
+              'p-1.5 rounded transition-all',
+              rightSidebarType === type
+                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700'
+            )}
+            title={title}
+          >
+            <Icon className="w-4 h-4" />
+          </button>
+        ))}
+
+        {/* 历史入口 */}
+        <button
+          onClick={() => (onOpenHistory ? onOpenHistory() : closeRightSidebar())}
+          className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
+          title={t('editor.sessionTab.history')}
+        >
+          <Clock3 className="w-4 h-4" />
+        </button>
+
+        {/* 编辑器展开/收缩按钮 */}
+        {onToggleEditor && (
+          <button
+            onClick={onToggleEditor}
+            className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
+            title={isEditorCollapsed ? t('editor.sessionTab.expandEditor') : t('editor.sessionTab.collapseEditor')}
+          >
+            <FileEdit className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {/* 右侧：会话标签区域 */}
       <div
         ref={tabsContainerRef}
         onWheel={handleTabsWheel}
-        className="flex items-center gap-1 flex-1 overflow-x-auto overflow-y-hidden"
+        className="flex items-center gap-1 flex-1 overflow-x-auto overflow-y-hidden justify-end"
       >
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId;
@@ -103,54 +186,6 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
         })}
 
         {tabs.length === 0 && <span className="text-sm text-slate-400 dark:text-slate-500 px-2">{t('editor.sessionTab.noSessions')}</span>}
-      </div>
-
-      {/* 右侧：功能按钮组 */}
-      <div className="flex items-center gap-1">
-        {/* + 新增会话按钮 */}
-        <button
-          className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
-          onClick={handleCreate}
-          disabled={creating}
-          title={t('editor.sessionTab.addSession')}
-        >
-          <Plus className="w-4 h-4" />
-        </button>
-
-        {/* 功能图标按钮 */}
-        {functionButtons.map(({ type, icon: Icon, title }) => (
-          <button
-            key={type}
-            onClick={() => toggleRightSidebar(type)}
-            className={clsx(
-              'p-1.5 rounded transition-all',
-              rightSidebarType === type
-                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700'
-            )}
-            title={title}
-          >
-            <Icon className="w-4 h-4" />
-          </button>
-        ))}
-
-        {/* 历史入口：改为时钟图标，保持浅色风格 */}
-        <button
-          onClick={() => (onOpenHistory ? onOpenHistory() : closeRightSidebar())}
-          className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
-          title={t('editor.sessionTab.history')}
-        >
-          <Clock3 className="w-4 h-4" />
-        </button>
-
-        {/* 收起右侧面板 - 挪到历史会话之后 */}
-        <button
-          className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
-          onClick={() => onCollapseRightPanel?.()}
-          title={t('editor.sessionTab.collapsePanel')}
-        >
-          <PanelRightClose className="w-4 h-4" />
-        </button>
       </div>
     </div>
   );

@@ -436,6 +436,7 @@ chapter_id: {chapter_id}
 
         # 🔧 2025-12-25: 新增规划验证和自动修复
         plan_data = self._validate_and_fix_plan(plan_data, message)
+        plan_data["tasks"] = self._ensure_editor_apply_tasks(plan_data.get("tasks", []))
 
         return plan_data
 
@@ -602,6 +603,112 @@ chapter_id: {chapter_id}
             task["params"] = json.loads(params_str)
         except json.JSONDecodeError:
             pass  # 保持原样
+
+    def _ensure_editor_apply_tasks(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Ensure smart_* editor tasks are followed by apply_chapter_edit (default version A)."""
+        if not tasks:
+            return tasks
+
+        max_task_id = 0
+        for task in tasks:
+            try:
+                task_id = int(task.get("task_id", 0))
+                max_task_id = max(max_task_id, task_id)
+            except (TypeError, ValueError):
+                continue
+
+        next_task_id = max_task_id + 1
+        last_locate_task_id: Optional[int] = None
+        idx = 0
+
+        while idx < len(tasks):
+            task = tasks[idx]
+            tool = task.get("tool")
+            task_id = task.get("task_id")
+            params = task.get("params", {}) or {}
+
+            if tool == "locate_content":
+                last_locate_task_id = task_id
+
+            if tool in {"smart_rewrite", "smart_continue", "smart_insert"} and task_id:
+                if not params.get("chapter_id"):
+                    idx += 1
+                    continue
+                if self._has_apply_task(tasks, task_id):
+                    idx += 1
+                    continue
+
+                apply_task = self._build_apply_task(
+                    source_tool=tool,
+                    source_task_id=task_id,
+                    locate_task_id=last_locate_task_id,
+                    new_task_id=next_task_id
+                )
+                if apply_task:
+                    tasks.insert(idx + 1, apply_task)
+                    next_task_id += 1
+                    idx += 2
+                    continue
+
+            idx += 1
+
+        return tasks
+
+    def _has_apply_task(self, tasks: List[Dict[str, Any]], source_task_id: int) -> bool:
+        needle = f"$TASK_{source_task_id}"
+        for task in tasks:
+            if task.get("tool") != "apply_chapter_edit":
+                continue
+            params = task.get("params", {})
+            try:
+                params_str = json.dumps(params, ensure_ascii=False)
+            except Exception:
+                params_str = str(params)
+            if needle in params_str:
+                return True
+        return False
+
+    def _build_apply_task(
+        self,
+        source_tool: str,
+        source_task_id: int,
+        locate_task_id: Optional[int],
+        new_task_id: int
+    ) -> Optional[Dict[str, Any]]:
+        if source_tool == "smart_rewrite":
+            params = {
+                "chapter_id": f"$TASK_{source_task_id}.chapter_id$",
+                "operation": "replace",
+                "content": f"$TASK_{source_task_id}.versions[0].content$",
+                "original_text": f"$TASK_{source_task_id}.original_text$"
+            }
+        elif source_tool == "smart_continue":
+            params = {
+                "chapter_id": f"$TASK_{source_task_id}.chapter_id$",
+                "operation": "append",
+                "content": f"$TASK_{source_task_id}.content$"
+            }
+        elif source_tool == "smart_insert":
+            params = {
+                "chapter_id": f"$TASK_{source_task_id}.chapter_id$",
+                "operation": "insert",
+                "content": f"$TASK_{source_task_id}.content$"
+            }
+        else:
+            return None
+
+        if locate_task_id:
+            params.setdefault("node_id", f"$TASK_{locate_task_id}.node_id$")
+            params.setdefault("paragraph_index", f"$TASK_{locate_task_id}.paragraph_index$")
+            params.setdefault("before_anchor", f"$TASK_{locate_task_id}.before_anchor$")
+            params.setdefault("after_anchor", f"$TASK_{locate_task_id}.after_anchor$")
+
+        return {
+            "task_id": new_task_id,
+            "description": "应用到编辑器",
+            "tool": "apply_chapter_edit",
+            "params": params
+        }
 
     @staticmethod
     def _quick_acceptance_from_text(text: str) -> Optional[Dict[str, Any]]:

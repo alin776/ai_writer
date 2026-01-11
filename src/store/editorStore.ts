@@ -5,7 +5,7 @@ import { countWordsInHtml } from '@/utils/wordCount';
 /**
  * 右侧面板类型
  */
-export type RightSidebarType = 'worldview' | 'summary' | 'agent' | null;
+export type RightSidebarType = 'worldview' | 'agent' | null;
 
 /**
  * 编辑器状态接口
@@ -131,9 +131,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   // 切换右侧面板
   toggleRightSidebar: (type: RightSidebarType) => {
     set((state) => {
-      // 如果点击的是当前已打开的面板，保持打开（不改变状态）
+      // 如果点击的是当前已打开的面板，关闭它
       if (state.rightSidebarType === type) {
-        return state;
+        return { rightSidebarType: null };
       }
       // 否则切换到新面板（或打开面板）
       return { rightSidebarType: type };

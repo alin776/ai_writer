@@ -37,7 +37,7 @@ def _split_paragraphs(content: str) -> List[Dict[str, Any]]:
     # 优先按 HTML <p> 标签分割（与前端 Tiptap 一致）
     if '<p' in content:
         # 匹配 <p>...</p>、<p ...>...</p>、<h1>...</h1> 等块级元素
-        block_pattern = r'<(p|h[1-6]|blockquote)[^>]*>(.*?)</\1>'
+        block_pattern = r'<(p|h[1-6]|blockquote|pre)[^>]*>(.*?)</\1>'
         matches = re.findall(block_pattern, content, re.DOTALL | re.IGNORECASE)
 
         for i, (tag, inner_html) in enumerate(matches):
@@ -128,6 +128,30 @@ def _find_text_position(content: str, target_text: str) -> Optional[Dict[str, An
     }
 
 
+def _find_text_by_node_id(content: str, node_id: str) -> Optional[str]:
+    """
+    根据 data-id 从 HTML 中提取节点文本
+
+    Args:
+        content: 章节内容（HTML）
+        node_id: 节点 ID（UniqueID）
+
+    Returns:
+        纯文本或 None
+    """
+    if not node_id:
+        return None
+
+    pattern = rf'<(p|h[1-6]|blockquote|pre)[^>]*\\sdata-id=["\\\']{re.escape(node_id)}["\\\'][^>]*>(.*?)</\\1>'
+    match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
+    if not match:
+        return None
+
+    inner_html = match.group(2)
+    text = re.sub(r'<[^>]+>', '', inner_html).strip()
+    return text if text else None
+
+
 def _match_node_by_index(nodes_info: List[Dict], paragraph_index: int) -> Optional[str]:
     """
     根据段落索引从 nodes_info 中获取 node_id
@@ -175,6 +199,7 @@ async def locate_content(
     chapter_id: str,
     query: str,
     nodes_info: Optional[str] = None,  # JSON 字符串格式的节点列表
+    node_id: Optional[str] = None,  # node_id (front-end structural hint)
     user_id: Optional[str] = None
 ) -> str:
     """
@@ -229,6 +254,38 @@ async def locate_content(
             "chapter_id": chapter_id,
             "total_paragraphs": len(paragraphs)
         }
+
+        # Structured locate: node_id hint from front-end
+        if node_id:
+            node_text = _find_text_by_node_id(chapter_content, node_id)
+            node_para_index = None
+            if nodes_list:
+                for i, node in enumerate(nodes_list):
+                    if node.get("id") == node_id:
+                        node_para_index = i
+                        break
+
+            if node_text is None and node_para_index is not None and 0 <= node_para_index < len(paragraphs):
+                node_text = paragraphs[node_para_index]["text"]
+
+            result.update({
+                "locate_method": "node_id",
+                "paragraph_index": node_para_index,
+                "text_preview": (node_text[:50] + "...") if node_text and len(node_text) > 50 else (node_text or ""),
+                "text": node_text or "",
+                "node_id": node_id,
+                "confidence": 1.0
+            })
+
+            if node_para_index is not None and 0 <= node_para_index < len(paragraphs):
+                if node_para_index > 0:
+                    result["before_anchor"] = paragraphs[node_para_index - 1]["text"][-30:]
+                if node_para_index < len(paragraphs) - 1:
+                    result["after_anchor"] = paragraphs[node_para_index + 1]["text"][:30]
+
+            logger.info(f"[locate_content] node_id locate success: {node_id}")
+            return json.dumps(result, ensure_ascii=False)
+
 
         # 策略1: 段落索引定位（第N段）
         para_index = _parse_paragraph_query(query)

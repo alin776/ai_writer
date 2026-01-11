@@ -60,9 +60,15 @@ interface NovelEditorProps {
   // ===== 左侧面板折叠状态 =====
   isLeftPanelCollapsed?: boolean;
   onExpandLeftPanel?: () => void;
+  onCollapseLeftPanel?: () => void;
   // ===== 右侧面板折叠状态 =====
   isRightPanelCollapsed?: boolean;
   onExpandRightPanel?: () => void;
+  onCollapseRightPanel?: () => void;
+  // ===== AI 面板折叠状态 =====
+  isAIPanelCollapsed?: boolean;
+  onToggleAIPanel?: () => void;
+  onCollapseAIPanel?: () => void;
   // ===== InlineAI 回调 =====
   onInlineAISend?: (message: string, context: InlineAIContext) => void;
   isInlineAILoading?: boolean;
@@ -110,8 +116,13 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   onToggleAIAutoComplete,
   isLeftPanelCollapsed = false,
   onExpandLeftPanel,
+  onCollapseLeftPanel,
   isRightPanelCollapsed = false,
   onExpandRightPanel,
+  onCollapseRightPanel,
+  isAIPanelCollapsed = false,
+  onToggleAIPanel,
+  onCollapseAIPanel,
   onInlineAISend,
   isInlineAILoading = false,
 }) => {
@@ -650,8 +661,13 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             // 续写/插入模式：定位插入点
             const result = locateInsertPosition(docText, { beforeAnchor, afterAnchor });
             if (result.success && result.position) {
-              resolvedPosition = result.position;
-              console.log('[NovelEditor] 锚点定位成功 (insert):', result.method, resolvedPosition);
+              const isAnchorFallback = (beforeAnchor || afterAnchor) && result.method === 'exact';
+              if (!isAnchorFallback || type === 'continue') {
+                resolvedPosition = result.position;
+                console.log('[NovelEditor] 锚点定位成功 (insert):', result.method, resolvedPosition);
+              } else {
+                console.warn('[NovelEditor] 锚点定位失败，插入已取消');
+              }
             }
           }
         }
@@ -662,9 +678,22 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             // 续写默认追加到末尾
             const endPos = editor.state.doc.content.size;
             resolvedPosition = { from: endPos, to: endPos };
+          } else if (type === 'modify') {
+            const docText = editor.state.doc.textContent;
+            const normalizeText = (text: string) => text.replace(/\s+/g, '');
+            const normalizedOriginal = normalizeText(original || '');
+            const normalizedDoc = normalizeText(docText);
+            if (normalizedOriginal && normalizedOriginal === normalizedDoc) {
+              resolvedPosition = { from: 0, to: editor.state.doc.content.size };
+            } else {
+              console.warn('[NovelEditor] 修订定位失败，已取消应用');
+              toast.error(t('editor.aiMenu.revisionFailed'));
+              return;
+            }
           } else {
-            // 其他模式默认全文
-            resolvedPosition = { from: 0, to: editor.state.doc.content.size };
+            console.warn('[NovelEditor] 插入定位失败，已取消应用');
+            toast.error(t('editor.aiMenu.revisionFailed'));
+            return;
           }
           console.log('[NovelEditor] 使用默认位置:', resolvedPosition);
         }
@@ -755,7 +784,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             return;
           }
 
-          const insertPos = position?.to || state.doc.content.size;
+          const insertPos = resolvedPosition?.to ?? state.doc.content.size;
           const textContent = replacement || '';
 
           // 🔧 修复：处理包含换行符的文本
@@ -793,7 +822,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           setActiveRevision({
             id: rid,
             type: 'continue',
-            position: position || { from: insertPos, to: insertPos },
+            position: resolvedPosition || { from: insertPos, to: insertPos },
             replacement,
             originalMessage,
             context
@@ -816,8 +845,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             return;
           }
 
-          const insertPos = position?.from ?? state.doc.content.size;
-          const resolvedPosition = position ?? { from: insertPos, to: insertPos };
+          const insertPos = resolvedPosition?.from ?? state.doc.content.size;
+          const insertPosition = resolvedPosition ?? { from: insertPos, to: insertPos };
           const textContent = replacement || '';
 
           // 🔧 修复：处理包含换行符的文本
@@ -855,7 +884,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           setActiveRevision({
             id: rid,
             type: 'insert',
-            position: resolvedPosition,
+            position: insertPosition,
             replacement,
             originalMessage,
             context
@@ -1589,11 +1618,9 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           editor={editor}
           aiAutoCompleteEnabled={aiAutoCompleteEnabled}
           onToggleAIAutoComplete={onToggleAIAutoComplete}
-          isLeftPanelCollapsed={isLeftPanelCollapsed}
-          onExpandLeftPanel={onExpandLeftPanel}
-          isRightPanelCollapsed={isRightPanelCollapsed}
-          onExpandRightPanel={onExpandRightPanel}
           saveStatus={saveStatus}
+          isEditorFullscreen={isAIPanelCollapsed}
+          onToggleFullscreen={isAIPanelCollapsed ? onToggleAIPanel : onCollapseAIPanel}
         />
 
         {/* 编辑器内容区域 - 沉浸式画布 */}

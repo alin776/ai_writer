@@ -12,6 +12,9 @@ from uuid import UUID
 import logging
 import asyncio
 import json
+import re
+import uuid
+import redis
 
 from langchain_core.tools import tool
 from .tool_registry import register_as_tool
@@ -22,11 +25,26 @@ from app.services.rate_limiter import agent_edit_limiter
 from app.core.database import AsyncSessionLocal
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.agent.model_selector import TaskType
+from app.services.agent.tools.operation_log import OperationLogManager
 
 logger = logging.getLogger(__name__)
 
 # AI服务实例（延迟初始化）
 _ai_service: Optional[HTTPAIService] = None
+
+# Global Redis pool for operation logs
+_operation_redis_pool = None
+
+
+def _get_operation_log_manager() -> OperationLogManager:
+    """Get operation log manager with a shared Redis connection pool."""
+    global _operation_redis_pool
+    if _operation_redis_pool is None:
+        _operation_redis_pool = redis.ConnectionPool(
+            host='localhost', port=6379, db=1,
+            decode_responses=False, max_connections=10
+        )
+    return OperationLogManager(redis.Redis(connection_pool=_operation_redis_pool))
 
 
 def _get_ai_service() -> HTTPAIService:
@@ -258,7 +276,9 @@ async def apply_chapter_edit(
     node_id: Optional[str] = None,  # 🆕 节点ID（最高优先级定位）
     paragraph_index: Optional[int] = None,  # 🆕 段落索引（从 locate_content 获取）
     user_id: Optional[str] = None,
-    description: Optional[str] = None
+    description: Optional[str] = None,
+    conversation_id: Optional[str] = None,
+    work_id: Optional[str] = None
 ) -> str:
     """
     对章节执行编辑操作
@@ -302,28 +322,203 @@ async def apply_chapter_edit(
             return json.dumps({"success": False, "error": "invalid_operation"}, ensure_ascii=False)
 
         # insert 操作需要位置信息（position 或 锚点）
-        if operation == "insert" and position is None and not before_anchor and not after_anchor:
+        if (
+            operation == "insert"
+            and position is None
+            and not before_anchor
+            and not after_anchor
+            and not node_id
+            and paragraph_index is None
+        ):
             return json.dumps({"success": False, "error": "missing_position_for_insert"}, ensure_ascii=False)
 
-        # 返回需要用户确认的信息
-        return json.dumps({
-            "success": True,
-            "requires_confirmation": True,
-            "action_type": "edit",
-            "chapter_id": chapter_id,
-            "operation": operation,
-            "content": content,
-            "content_length": len(content),
-            "position": position,
-            "before_anchor": before_anchor,
-            "after_anchor": after_anchor,
-            "original_text": original_text,  # 🆕 原文（用于前端定位）
-            "node_id": node_id,  # 🆕 节点ID（最高优先级定位）
-            "paragraph_index": paragraph_index,  # 🆕 段落索引（从 locate_content 获取）
-            "description": description or f"AI{_get_operation_name(operation)}：+{len(content)}字",
-            "remaining_quota": remaining if user_id else None
-        }, ensure_ascii=False)
+        async with AsyncSessionLocal() as db:
+            from app.services.chapter_service import ChapterService
+            from app.schemas.chapter import ChapterUpdate
+            from app.services.agent.langgraph_tools import resolve_chapter_id
 
+            resolved_chapter_id = chapter_id
+            if work_id and not chapter_id.count('-') == 4:
+                resolved_id, error = await resolve_chapter_id(work_id, chapter_id, db)
+                if error:
+                    return error
+                if resolved_id:
+                    resolved_chapter_id = resolved_id
+
+            chapter_svc = ChapterService(db)
+            chapter = await chapter_svc.get_chapter_by_id(resolved_chapter_id)
+            if not chapter:
+                return json.dumps({"success": False, "error": f"chapter_not_found: {chapter_id}"}, ensure_ascii=False)
+
+            old_content = chapter.content or ""
+            actual_content = content
+            if isinstance(actual_content, str) and actual_content.strip().startswith('{'):
+                try:
+                    parsed = json.loads(actual_content)
+                    if isinstance(parsed, dict) and "content" in parsed:
+                        actual_content = parsed["content"]
+                except json.JSONDecodeError:
+                    pass
+
+            if not actual_content or not str(actual_content).strip():
+                return json.dumps({"success": False, "error": "empty_content"}, ensure_ascii=False)
+
+            def _replace_by_node_id(raw: str, target_id: str, replacement: str):
+                if not target_id:
+                    return None
+                pattern = rf'(<(p|h[1-6]|blockquote|pre)[^>]*\sdata-id=["\']{re.escape(target_id)}["\'][^>]*>)(.*?)(</\2>)'
+                match = re.search(pattern, raw, re.DOTALL | re.IGNORECASE)
+                if not match:
+                    return None
+                return raw[:match.start(3)] + replacement + raw[match.end(3):]
+
+            def _insert_after_node_id(raw: str, target_id: str, insertion: str):
+                if not target_id:
+                    return None
+                pattern = rf'(<(p|h[1-6]|blockquote|pre)[^>]*\sdata-id=["\']{re.escape(target_id)}["\'][^>]*>.*?</\2>)'
+                match = re.search(pattern, raw, re.DOTALL | re.IGNORECASE)
+                if not match:
+                    return None
+                insert_at = match.end(1)
+                return raw[:insert_at] + insertion + raw[insert_at:]
+
+            def _get_paragraph_text(raw: str, idx: int):
+                if idx is None or idx < 0:
+                    return None
+                if '<p' in raw:
+                    pattern = r'<(p|h[1-6]|blockquote|pre)[^>]*>(.*?)</\1>'
+                    matches = re.findall(pattern, raw, re.DOTALL | re.IGNORECASE)
+                    if 0 <= idx < len(matches):
+                        inner_html = matches[idx][1]
+                        text_value = re.sub(r'<[^>]+>', '', inner_html).strip()
+                        return text_value or None
+                    return None
+                paragraphs = [p.strip() for p in re.split(r'\n\n+|\n', raw) if p.strip()]
+                if 0 <= idx < len(paragraphs):
+                    return paragraphs[idx]
+                return None
+
+            if operation == "append" and old_content.endswith(actual_content):
+                return json.dumps({
+                    "success": True,
+                    "action_type": "update_content",
+                    "chapter_id": resolved_chapter_id,
+                    "work_id": str(chapter.work_id),
+                    "operation": operation,
+                    "no_change": True,
+                    "description": description or "append already applied"
+                }, ensure_ascii=False)
+
+            new_content = None
+            insert_pos = None
+
+            if operation == "append":
+                new_content = old_content + actual_content
+
+            elif operation == "insert":
+                insert_pos = position
+                if isinstance(insert_pos, dict):
+                    insert_pos = insert_pos.get("from") or insert_pos.get("to")
+                if insert_pos is None and node_id:
+                    inserted = _insert_after_node_id(old_content, node_id, actual_content)
+                    if inserted is not None:
+                        new_content = inserted
+                if new_content is None and insert_pos is None and paragraph_index is not None:
+                    para_text = _get_paragraph_text(old_content, paragraph_index)
+                    if para_text:
+                        idx = old_content.find(para_text)
+                        if idx != -1:
+                            insert_pos = idx + len(para_text)
+                if new_content is None and insert_pos is None and (before_anchor or after_anchor):
+                    inferred = position_inferrer.find_by_anchors(
+                        content=old_content,
+                        before_anchor=before_anchor,
+                        after_anchor=after_anchor,
+                        fallback="end"
+                    )
+                    insert_pos = inferred.get("position")
+                if new_content is None:
+                    if insert_pos is None:
+                        insert_pos = len(old_content)
+                    if isinstance(insert_pos, int) and 0 <= insert_pos <= len(old_content):
+                        if old_content[insert_pos:insert_pos + len(actual_content)] == actual_content:
+                            return json.dumps({
+                                "success": True,
+                                "action_type": "update_content",
+                                "chapter_id": resolved_chapter_id,
+                                "work_id": str(chapter.work_id),
+                                "operation": operation,
+                                "no_change": True,
+                                "description": description or "insert already applied"
+                            }, ensure_ascii=False)
+                    new_content = old_content[:insert_pos] + actual_content + old_content[insert_pos:]
+
+            elif operation == "replace":
+                replaced = None
+                if isinstance(position, dict) and "from" in position and "to" in position:
+                    try:
+                        start_pos = int(position.get("from"))
+                        end_pos = int(position.get("to"))
+                        if 0 <= start_pos <= end_pos <= len(old_content):
+                            replaced = old_content[:start_pos] + actual_content + old_content[end_pos:]
+                    except (TypeError, ValueError):
+                        replaced = None
+                if node_id:
+                    replaced = _replace_by_node_id(old_content, node_id, actual_content)
+                if replaced is None and original_text:
+                    if original_text in old_content:
+                        replaced = old_content.replace(original_text, actual_content, 1)
+                if replaced is None and paragraph_index is not None:
+                    para_text = _get_paragraph_text(old_content, paragraph_index)
+                    if para_text and para_text in old_content:
+                        replaced = old_content.replace(para_text, actual_content, 1)
+                if replaced is None and before_anchor and after_anchor:
+                    before_idx = old_content.find(before_anchor)
+                    if before_idx != -1:
+                        start_idx = before_idx + len(before_anchor)
+                        after_idx = old_content.find(after_anchor, start_idx)
+                        if after_idx != -1:
+                            replaced = old_content[:start_idx] + actual_content + old_content[after_idx:]
+                if replaced is None:
+                    if original_text and actual_content in old_content and original_text not in old_content:
+                        return json.dumps({
+                            "success": True,
+                            "action_type": "update_content",
+                            "chapter_id": resolved_chapter_id,
+                            "work_id": str(chapter.work_id),
+                            "operation": operation,
+                            "no_change": True,
+                            "description": description or "replace already applied"
+                        }, ensure_ascii=False)
+                    if not original_text and not before_anchor and not after_anchor and not node_id and paragraph_index is None:
+                        replaced = actual_content
+                    else:
+                        return json.dumps({"success": False, "error": "locate_failed"}, ensure_ascii=False)
+                new_content = replaced
+
+            await chapter_svc.update_chapter(resolved_chapter_id, ChapterUpdate(content=new_content))
+
+            if conversation_id:
+                op_log = _get_operation_log_manager()
+                op_log.record_operation(
+                    conversation_id=conversation_id,
+                    op_id=str(uuid.uuid4()),
+                    op_type="update_content",
+                    chapter_id=resolved_chapter_id,
+                    work_id=str(chapter.work_id),
+                    rollback_data={"old_content": old_content},
+                    description=description or f"update content ({operation})"
+                )
+
+            return json.dumps({
+                "success": True,
+                "action_type": "update_content",
+                "chapter_id": resolved_chapter_id,
+                "work_id": str(chapter.work_id),
+                "operation": operation,
+                "content_length": len(actual_content),
+                "description": description or f"update content ({operation})"
+            }, ensure_ascii=False)
     except Exception as e:
         logger.error(f"apply_chapter_edit failed: {e}")
         return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
@@ -864,6 +1059,8 @@ class ApplyChapterEditInput(ToolInput):
     paragraph_index: Optional[int] = Field(default=None, description="段落索引（从 locate_content 获取）")
     user_id: Optional[str] = Field(default=None, description="用户ID")
     description: Optional[str] = Field(default=None, description="操作描述")
+    conversation_id: Optional[str] = Field(default=None, description="会话ID（用于操作日志）")
+    work_id: Optional[str] = Field(default=None, description="作品ID（可选）")
 
 
 class ApplyChapterEditOutput(ToolOutput):
@@ -887,7 +1084,9 @@ async def apply_chapter_edit_executor(input_data: ApplyChapterEditInput) -> Appl
             "node_id": input_data.node_id,
             "paragraph_index": input_data.paragraph_index,
             "user_id": input_data.user_id,
-            "description": input_data.description
+            "description": input_data.description,
+            "conversation_id": input_data.conversation_id,
+            "work_id": input_data.work_id
         })
 
         result_data = json.loads(result_str) if isinstance(result_str, str) else result_str

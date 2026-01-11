@@ -1,4 +1,5 @@
 ﻿import React, { useMemo, useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   BookOpen,
@@ -19,12 +20,16 @@ import {
   BookMarked,
   MessageCircle,
   User,
+  CheckCheck,
+  ExternalLink,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useWorkNavStore } from '../../store/workNavStore';
+import { useNotificationStore } from '../../store/notificationStore';
 import { channelApi } from '@/services/channelApi';
 import clsx from 'clsx';
 import UserCardPopover from './UserCardPopover';
+import NotificationItem from '../notifications/NotificationItem';
 
 interface NavItem {
   id: string;
@@ -69,6 +74,13 @@ export const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const { lastWorkPath } = useWorkNavStore();
+  const {
+    notifications,
+    unreadCount: notificationUnreadCount,
+    isLoading: notificationLoading,
+    fetchNotifications,
+    markAllAsRead,
+  } = useNotificationStore();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isLibraryExpanded, setIsLibraryExpanded] = useState(true);
   const [isServiceExpanded, setIsServiceExpanded] = useState(true);
@@ -77,6 +89,8 @@ export const Sidebar: React.FC = () => {
   const [hasChannelMention, setHasChannelMention] = useState(false); // 频道是否有@提醒
   const [channelUnreadCount, setChannelUnreadCount] = useState(0); // 频道未读消息总数
   const [isNavScrolled, setIsNavScrolled] = useState(false); // 导航区域是否滚动
+  const [isNotificationHovered, setIsNotificationHovered] = useState(false); // 通知中心悬浮状态
+  const notificationHoverRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // 获取频道未读状态
@@ -114,6 +128,13 @@ export const Sidebar: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isUserCardOpen]);
+
+  // 悬浮通知中心时加载通知
+  useEffect(() => {
+    if (isNotificationHovered && isCollapsed) {
+      fetchNotifications({ isRead: false });
+    }
+  }, [isNotificationHovered, isCollapsed, fetchNotifications]);
 
   const handleLogout = () => {
     logout();
@@ -286,7 +307,117 @@ export const Sidebar: React.FC = () => {
         )}
 
         <div className="mt-6 pt-6 border-t border-gray-200 dark:border-slate-700 space-y-0.5">
-          {bottomNavItems.map(renderNavItem)}
+          {bottomNavItems.map((item) => {
+            // 通知中心特殊处理
+            if (item.id === 'notifications') {
+              const Icon = item.icon;
+              const active = isActive(item.path);
+              const tooltip = item.label;
+              const hasUnread = notificationUnreadCount > 0;
+
+              return (
+                <div
+                  key={item.id}
+                  ref={notificationHoverRef}
+                  className="relative"
+                  onMouseEnter={() => setIsNotificationHovered(true)}
+                  onMouseLeave={() => setIsNotificationHovered(false)}
+                >
+                  <Link
+                    to={item.path}
+                    className={clsx(
+                      'group relative flex items-center px-3 py-2 rounded-lg transition-all duration-200 !text-gray-900 dark:!text-white',
+                      active
+                        ? 'bg-blue-50 dark:bg-blue-900/30'
+                        : 'hover:bg-gray-100 dark:hover:bg-slate-800',
+                      isCollapsed ? 'justify-center' : 'space-x-3'
+                    )}
+                    title={isCollapsed && !isNotificationHovered ? tooltip : undefined}
+                  >
+                    <div className="relative flex-shrink-0">
+                      <Icon className={clsx(isCollapsed ? 'w-5 h-5' : 'w-4 h-4', 'text-gray-900 dark:text-white')} />
+                      {/* 未读通知红点 */}
+                      {hasUnread && (
+                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                      )}
+                    </div>
+                    {!isCollapsed && (
+                      <>
+                        <span className="text-sm font-medium flex-1">{item.label}</span>
+                        {/* 未读数量徽章 */}
+                        {hasUnread && (
+                          <span className="text-xs bg-red-500 text-white rounded-full h-5 min-w-5 px-1.5 flex items-center justify-center">
+                            {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </Link>
+
+                  {/* 收缩状态下悬浮显示通知列表 - 使用 Portal 避免被裁剪 */}
+                  {isCollapsed && isNotificationHovered && createPortal(
+                    <div
+                      className="fixed w-80 bg-white dark:bg-slate-900 rounded-lg shadow-xl border border-gray-200 dark:border-slate-700 z-[100]"
+                      style={(() => {
+                        if (!notificationHoverRef.current) return { left: 72, top: 0 };
+                        const rect = notificationHoverRef.current.getBoundingClientRect();
+                        const popupHeight = 400; // 弹窗预估高度
+                        const viewportHeight = window.innerHeight;
+                        let top = rect.top;
+                        // 如果弹窗会超出屏幕底部，向上调整
+                        if (top + popupHeight > viewportHeight - 16) {
+                          top = viewportHeight - popupHeight - 16;
+                        }
+                        // 确保不超出屏幕顶部
+                        if (top < 16) top = 16;
+                        return { left: rect.right + 8, top };
+                      })()}
+                      onMouseEnter={() => setIsNotificationHovered(true)}
+                      onMouseLeave={() => setIsNotificationHovered(false)}
+                    >
+                      {/* 通知列表 */}
+                      <div className="max-h-80 overflow-y-auto">
+                        {notificationLoading ? (
+                          <div className="flex items-center justify-center py-8">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                          </div>
+                        ) : notifications.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center py-8 text-gray-500 dark:text-gray-400">
+                            <Bell className="w-8 h-8 mb-2 opacity-50" />
+                            <p className="text-sm">暂无通知</p>
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                            {notifications.slice(0, 5).map((notification) => (
+                              <NotificationItem
+                                key={notification.id}
+                                notification={notification}
+                                onClose={() => setIsNotificationHovered(false)}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 底部 - 查看全部 */}
+                      <div className="px-4 py-2 border-t border-gray-200 dark:border-slate-700">
+                        <Link
+                          to="/notifications"
+                          onClick={() => setIsNotificationHovered(false)}
+                          className="flex items-center justify-center gap-2 w-full px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                        >
+                          查看全部通知
+                          <ExternalLink className="w-3 h-3" />
+                        </Link>
+                      </div>
+                    </div>,
+                    document.body
+                  )}
+                </div>
+              );
+            }
+            return renderNavItem(item);
+          })}
         </div>
       </nav>
 

@@ -1711,6 +1711,7 @@ class WritingAgentGraph:
                                 work_id=work_id,
                                 chapter_id=chapter_id,
                                 context=initial_context,
+                                context_payload=context,
                                 on_task_start=wrapped_on_task_start,  # v6.0: 使用包装回调
                                 on_task_progress=on_task_progress,
                                 on_task_done=wrapped_on_task_done,  # v6.0: 使用包装回调
@@ -1858,6 +1859,7 @@ class WritingAgentGraph:
         work_id: str,
         chapter_id: str,
         context: str,
+        context_payload: Optional[Dict[str, Any]] = None,
         on_task_start: Optional[callable] = None,
         on_task_progress: Optional[callable] = None,
         on_task_done: Optional[callable] = None,
@@ -1870,6 +1872,7 @@ class WritingAgentGraph:
             work_id: 作品ID
             chapter_id: 章节ID
             context: 上下文
+            context_payload: 结构化上下文（原始 request.context）
             on_task_start: 任务开始回调
             on_task_progress: 任务进度回调
             on_task_done: 任务完成回调
@@ -1883,6 +1886,7 @@ class WritingAgentGraph:
             work_id=work_id,
             chapter_id=chapter_id,
             context=context,
+            context_payload=context_payload,
             on_task_start=on_task_start,
             on_task_progress=on_task_progress,
             on_task_done=on_task_done,
@@ -2084,6 +2088,7 @@ class WritingAgentGraph:
         work_id: str,
         chapter_id: str,
         context: str,
+        context_payload: Optional[Dict[str, Any]] = None,
         on_progress: Optional[callable] = None,
         conversation_id: Optional[str] = None  # v8.0: 添加 conversation_id 用于操作日志
     ) -> str:
@@ -2094,6 +2099,7 @@ class WritingAgentGraph:
             work_id: 作品ID
             chapter_id: 章节ID
             context: 上下文
+            context_payload: 结构化上下文（原始 request.context）
             on_progress: 进度回调
             conversation_id: 会话ID（用于操作日志记录）
 
@@ -2105,6 +2111,7 @@ class WritingAgentGraph:
             work_id=work_id,
             chapter_id=chapter_id,
             context=context,
+            context_payload=context_payload,
             on_progress=on_progress,
             conversation_id=conversation_id
         )
@@ -2179,36 +2186,45 @@ class WritingAgentGraph:
             "position": result_obj.get("position")  # v7.5: 添加 position 字段
         }
 
-        # v8.1: 如果没有 editor_action，根据 operation 类型自动生成
-        # 即使 position 为 None，也需要生成 editor_action 以便前端显示修订标记
-        if not approval_data.get("editor_action"):
-            operation = approval_data.get("operation")
-            position_value = result_obj.get("position")
+        # v8.1: Ensure editor_action exists and carries location data when available.
+        editor_action = result_obj.get("editor_action")
+        if not isinstance(editor_action, dict):
+            editor_action = {}
 
-            # 根据 position 构建 position_payload
-            if position_value is not None:
-                if isinstance(position_value, dict) and "from" in position_value:
-                    position_payload = position_value
-                else:
-                    position_payload = {"from": position_value, "to": position_value}
+        operation = approval_data.get("operation")
+        position_value = result_obj.get("position")
+
+        # Build position payload from tool result if present.
+        if position_value is not None:
+            if isinstance(position_value, dict) and "from" in position_value:
+                position_payload = position_value
             else:
-                # position 为 None 时，使用特殊标记表示"末尾"或"全文"
-                position_payload = None
+                position_payload = {"from": position_value, "to": position_value}
+        else:
+            position_payload = None
 
-            # 根据 operation 推断编辑类型
+        inferred_type = "modify"
+        if operation == "append":
+            inferred_type = "continue"
+        elif operation == "insert":
+            inferred_type = "insert"
+        elif operation == "replace":
             inferred_type = "modify"
-            if operation == "append":
-                inferred_type = "continue"
-            elif operation == "insert":
-                inferred_type = "insert"
-            elif operation == "replace":
-                inferred_type = "modify"
 
-            approval_data["editor_action"] = {
-                "type": inferred_type,
-                "position": position_payload,
-                "requires_confirmation": True
-            }
+        if "type" not in editor_action:
+            editor_action["type"] = inferred_type
+        if "position" not in editor_action:
+            editor_action["position"] = position_payload
+        if "requires_confirmation" not in editor_action:
+            editor_action["requires_confirmation"] = True
+
+        for key in ("before_anchor", "after_anchor", "node_id", "paragraph_index", "original_text"):
+            if key not in editor_action:
+                value = result_obj.get(key)
+                if value is not None:
+                    editor_action[key] = value
+
+        approval_data["editor_action"] = editor_action
 
         # 调用审批回调（用于前端通知）
         callback_result = None

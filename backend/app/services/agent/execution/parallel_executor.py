@@ -52,6 +52,7 @@ class ParallelExecutor:
         work_id: str,
         chapter_id: str,
         context: str,
+        context_payload: Optional[Dict[str, Any]] = None,
         on_task_start: Optional[callable] = None,
         on_task_progress: Optional[callable] = None,
         on_task_done: Optional[callable] = None,
@@ -70,6 +71,7 @@ class ParallelExecutor:
             work_id: 作品ID
             chapter_id: 章节ID
             context: 上下文
+            context_payload: 结构化上下文（原始 request.context）
             on_task_start: 任务开始回调
             on_task_progress: 任务进度回调
             on_task_done: 任务完成回调
@@ -110,6 +112,7 @@ class ParallelExecutor:
                 work_id=work_id,
                 chapter_id=chapter_id,
                 context=all_context,
+                context_payload=context_payload,
                 resolver=resolver,
                 semaphore=semaphore,
                 on_task_start=on_task_start,
@@ -126,6 +129,7 @@ class ParallelExecutor:
                 work_id=work_id,
                 chapter_id=chapter_id,
                 context=all_context,
+                context_payload=context_payload,
                 resolver=resolver,
                 semaphore=semaphore,
                 on_task_start=on_task_start,
@@ -142,6 +146,7 @@ class ParallelExecutor:
                 work_id=work_id,
                 chapter_id=chapter_id,
                 context=all_context,
+                context_payload=context_payload,
                 resolver=resolver,
                 on_task_start=on_task_start,
                 on_task_progress=on_task_progress,
@@ -233,7 +238,8 @@ class ParallelExecutor:
         on_task_start: Optional[callable],
         on_task_progress: Optional[callable],
         on_task_done: Optional[callable],
-        batch_name: str
+        batch_name: str,
+        context_payload: Optional[Dict[str, Any]] = None
     ) -> tuple:
         """
         并行执行一批任务
@@ -243,6 +249,7 @@ class ParallelExecutor:
             work_id: 作品ID
             chapter_id: 章节ID
             context: 上下文
+            context_payload: 结构化上下文（原始 request.context）
             resolver: 参数解析器
             semaphore: 并发信号量
             on_task_start: 任务开始回调
@@ -262,6 +269,7 @@ class ParallelExecutor:
                     work_id=work_id,
                     chapter_id=chapter_id,
                     context=context,
+                    context_payload=context_payload,
                     resolver=resolver,
                     on_task_start=on_task_start,
                     on_task_progress=on_task_progress,
@@ -307,7 +315,8 @@ class ParallelExecutor:
         resolver,
         on_task_start: Optional[callable],
         on_task_progress: Optional[callable],
-        on_task_done: Optional[callable]
+        on_task_done: Optional[callable],
+        context_payload: Optional[Dict[str, Any]] = None
     ) -> tuple:
         """
         串行执行一批任务
@@ -317,6 +326,7 @@ class ParallelExecutor:
             work_id: 作品ID
             chapter_id: 章节ID
             context: 上下文
+            context_payload: 结构化上下文（原始 request.context）
             resolver: 参数解析器
             on_task_start: 任务开始回调
             on_task_progress: 任务进度回调
@@ -336,6 +346,7 @@ class ParallelExecutor:
                 work_id=work_id,
                 chapter_id=chapter_id,
                 context=all_context,
+                context_payload=context_payload,
                 resolver=resolver,
                 on_task_start=on_task_start,
                 on_task_progress=on_task_progress,
@@ -357,7 +368,8 @@ class ParallelExecutor:
         on_task_start: Optional[callable],
         on_task_progress: Optional[callable],
         on_task_done: Optional[callable],
-        batch_name: str
+        batch_name: str,
+        context_payload: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         执行单个任务（带重试）
@@ -367,6 +379,7 @@ class ParallelExecutor:
             work_id: 作品ID
             chapter_id: 章节ID
             context: 上下文
+            context_payload: 结构化上下文（原始 request.context）
             resolver: 参数解析器
             on_task_start: 任务开始回调
             on_task_progress: 任务进度回调
@@ -405,6 +418,7 @@ class ParallelExecutor:
                     work_id=work_id,
                     chapter_id=chapter_id,
                     context=context,
+                    context_payload=context_payload,
                     on_progress=on_task_progress,
                     conversation_id=getattr(self, '_conversation_id', None)  # v8.0: 传递 conversation_id
                 )

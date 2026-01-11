@@ -588,38 +588,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                       console.log('[useAgentChat] 🆕 派发章节预览事件 (planning):', actionType, approvalReq.chapter_title);
                     }
 
-                    // 编辑器修订标记
-                    if (editorAction) {
-                      const editorActionType = editorAction.type;
-                      const resolvedType =
-                        editorActionType === 'continue' || approvalReq.operation === 'append'
-                          ? 'continue'
-                          : editorActionType === 'insert' || approvalReq.operation === 'insert'
-                            ? 'insert'
-                            : 'modify';
-
-                      let replacement = approvalReq.new_content;
-                      if (approvalReq.action_type === 'rewrite' && approvalReq.versions?.length > 0) {
-                        replacement = approvalReq.versions[0].content;
-                      }
-
-                      window.dispatchEvent(
-                        new CustomEvent('agent-show-revision', {
-                          detail: {
-                            type: resolvedType,
-                            original: approvalReq.original_content,
-                            replacement,
-                            position: editorAction.position,
-                            beforeAnchor: editorAction.before_anchor,
-                            afterAnchor: editorAction.after_anchor,
-                            nodeId: editorAction.node_id,
-                            paragraphIndex: editorAction.paragraph_index,
-                            revisionId: `rev-${approvalReq.request_id}-${Date.now()}`
-                          }
-                        })
-                      );
-                      console.log('[useAgentChat] 🎯 派发修订事件到编辑器 (planning):', resolvedType);
-                    }
+                    // 注意：修订显示由 revision 流事件统一派发，避免重复插入
                   }
                 }
               : {}),
@@ -748,38 +717,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     }
 
                     // 🆕 立即派发事件到编辑器，显示修订标记（红删绿增）
-                    if (editorAction) {
-                      const actionType = editorAction.type;
-                      const resolvedType =
-                        actionType === 'continue' || approvalReq.operation === 'append'
-                          ? 'continue'
-                          : actionType === 'insert' || approvalReq.operation === 'insert'
-                            ? 'insert'
-                            : 'modify';
+                    // ???????? revision ??????????????
 
-                      // 对于 rewrite 类型，默认显示第一个版本
-                      let replacement = approvalReq.new_content;
-                      if (approvalReq.action_type === 'rewrite' && approvalReq.versions?.length > 0) {
-                        replacement = approvalReq.versions[0].content;
-                      }
-
-                      window.dispatchEvent(
-                        new CustomEvent('agent-show-revision', {
-                          detail: {
-                            type: resolvedType,
-                            original: approvalReq.original_content,
-                            replacement,
-                            position: editorAction.position,
-                            beforeAnchor: editorAction.before_anchor,
-                            afterAnchor: editorAction.after_anchor,
-                            nodeId: editorAction.node_id,
-                            paragraphIndex: editorAction.paragraph_index,
-                            revisionId: `rev-${approvalReq.request_id}-${Date.now()}`
-                          }
-                        })
-                      );
-                      console.log('[useAgentChat] 🎯 立即派发修订事件到编辑器:', resolvedType);
-                    }
                   }
                 }
               : {}),

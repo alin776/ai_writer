@@ -31,6 +31,14 @@ export interface AgentChatRequest {
       from: number;
       to: number;
     };
+    /** 前端结构性定位结果（用于 locate_content 快速路径） */
+    locate_node_id?: string;
+    locate_paragraph_index?: number;
+    locate_method?: string;
+    locate_original_text?: string;
+    locate_before_anchor?: string;
+    locate_after_anchor?: string;
+    nodes_info?: string;
     [key: string]: any;
   };
 }

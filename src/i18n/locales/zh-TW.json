@@ -343,7 +343,10 @@
       "insertImage": "插入圖片",
       "enterLinkUrl": "請輸入連結網址:",
       "enterImageUrl": "請輸入圖片網址:",
-      "removeLink": "移除連結"
+      "removeLink": "移除連結",
+      "expandAIPanel": "展開AI對話框",
+      "enterFullscreen": "進入全螢幕",
+      "exitFullscreen": "退出全螢幕"
     },
     "sessionTab": {
       "newSession": "新會話",
@@ -354,7 +357,9 @@
       "summary": "概要",
       "worldview": "世界觀",
       "history": "歷史會話",
-      "collapsePanel": "收起側欄"
+      "collapsePanel": "收起側欄",
+      "expandEditor": "展開編輯器",
+      "collapseEditor": "收起編輯器"
     },
     "aiPanel": {
       "welcomeMessage": "你好！我是你的寫作助手。我可以幫你續寫故事情節、優化文字表達、分析人物關係，以及提供創作建議。",

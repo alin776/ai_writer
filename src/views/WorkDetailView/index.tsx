@@ -23,7 +23,6 @@ import type { Chapter as NovelChapter, WorldData, Character, Location, Setting, 
 import { formatDate } from '../../utils/formatDate';
 import NovelEditor from '../../components/editor/NovelEditor';
 import { WorldviewPanel } from '../../components/editor/WorldviewPanel';
-import { SummaryPanel } from '../../components/editor/SummaryPanel';
 import { AIPanel } from '../../components/editor/AIPanel';
 import SessionTabBar from '../../components/editor/SessionTabBar';
 import { useEditorStore } from '../../store/editorStore';
@@ -301,6 +300,7 @@ const WorkDetailView: React.FC = () => {
   // 折叠状态
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
+  const [isEditorCollapsed, setIsEditorCollapsed] = useState(false); // 编辑器收缩状态
 
   const DEFAULT_RIGHT_PANEL_WIDTH = 288; // 默认 288px (w-72)
   const COLLAPSED_RIGHT_PANEL_WIDTH = 0; // collapsed width - 完全隐藏
@@ -312,6 +312,9 @@ const WorkDetailView: React.FC = () => {
   });
   const rightPanelWidthRef = useRef(rightPanelWidth);
   const [isResizing, setIsResizing] = useState(false);
+  // 拖拽起始位置和起始宽度
+  const resizeStartX = useRef<number>(0);
+  const resizeStartWidth = useRef<number>(0);
 
   // 添加章节输入框状态
   const [isAddingChapter, setIsAddingChapter] = useState(false);
@@ -1355,19 +1358,24 @@ const WorkDetailView: React.FC = () => {
    */
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    // 记录拖拽起始位置和当前宽度
+    resizeStartX.current = e.clientX;
+    resizeStartWidth.current = rightPanelWidth;
     setIsResizing(true);
-  }, []);
+  }, [rightPanelWidth]);
 
   useEffect(() => {
     if (!isResizing) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      // 计算新宽度（从右边缘往左计算）
-      const newWidth = window.innerWidth - e.clientX;
+      // 计算鼠标移动的差值
+      const diff = e.clientX - resizeStartX.current;
+      // 往右拉 diff > 0，面板变大；往左拉 diff < 0，面板变小
+      const newWidth = resizeStartWidth.current + diff;
 
       // 限制最小和最大宽度
       const minWidth = 240; // 最小 240px
-      const maxWidth = 600; // 最大 600px
+      const maxWidth = 900; // 最大 900px
       const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
 
       rightPanelWidthRef.current = clampedWidth;
@@ -1503,30 +1511,49 @@ const WorkDetailView: React.FC = () => {
       }
     };
 
-    // v8.0: 监听操作回滚事件，刷新章节列表
-    const handleOperationsRollback = async () => {
+    const refreshChaptersAndContent = async () => {
       if (!workId) return;
       try {
         const freshChapters = await DataService.getChapters(workId);
         setChapters(freshChapters);
-        console.log('[WorkDetailView] 🔄 操作回滚后刷新章节列表');
+
+        const activeChapterId = editorChapterIdRef.current || currentChapterId;
+        if (activeChapterId) {
+          const activeChapter = freshChapters.find(ch => ch.id === activeChapterId);
+          if (activeChapter) {
+            setCurrentChapterContent(activeChapter.content || '');
+          }
+        }
+
+        console.log('[WorkDetailView] 🔄 刷新章节列表与当前内容');
       } catch (err) {
-        console.error('[WorkDetailView] 回滚后刷新章节列表失败:', err);
+        console.error('[WorkDetailView] 刷新章节列表失败:', err);
       }
+    };
+
+    // v8.0: 监听操作回滚事件，刷新章节列表
+    const handleOperationsRollback = async () => {
+      await refreshChaptersAndContent();
+    };
+
+    const handleOperationsApplied = async () => {
+      await refreshChaptersAndContent();
     };
 
     window.addEventListener('agent-chapter-preview', handleChapterPreview as EventListener);
     window.addEventListener('agent-chapter-revert', handleChapterRevert as EventListener);
     window.addEventListener('agent-chapter-confirm', handleChapterConfirm as EventListener);
     window.addEventListener('agent-operations-rollback', handleOperationsRollback as EventListener);
+    window.addEventListener('agent-operations-applied', handleOperationsApplied as EventListener);
 
     return () => {
       window.removeEventListener('agent-chapter-preview', handleChapterPreview as EventListener);
       window.removeEventListener('agent-chapter-revert', handleChapterRevert as EventListener);
       window.removeEventListener('agent-chapter-confirm', handleChapterConfirm as EventListener);
       window.removeEventListener('agent-operations-rollback', handleOperationsRollback as EventListener);
+      window.removeEventListener('agent-operations-applied', handleOperationsApplied as EventListener);
     };
-  }, [workId]);
+  }, [workId, currentChapterId]);
 
   // 如果 workId 不存在，不渲染任何内容（路由已切换到其他页面）
   if (!workId) {
@@ -1553,10 +1580,10 @@ const WorkDetailView: React.FC = () => {
 
   return (
     <>
-      <div className="flex bg-zinc-50/30 dark:bg-slate-900" style={{ height: 'calc(100vh - 44px)' }}>
+      <div className="flex bg-zinc-50/30 dark:bg-slate-900 h-full">
         {/* 左侧章节面板 */}
         <div
-          className={`bg-gradient-to-b from-white to-zinc-50/30 dark:from-slate-900 dark:to-slate-900 flex flex-col border-r border-zinc-100/80 dark:border-slate-700 transition-all duration-300 h-full overflow-hidden ${
+          className={`bg-gradient-to-b from-white to-zinc-50/30 dark:from-slate-900 dark:to-slate-900 flex flex-col border-r border-zinc-100/80 dark:border-slate-700 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] h-full overflow-hidden ${
             isLeftCollapsed ? 'w-0 border-r-0' : 'w-60'
           }`}
         >
@@ -1564,7 +1591,7 @@ const WorkDetailView: React.FC = () => {
             /* 展开状态 */
             <div className="flex-1 flex flex-col min-h-0">
               {/* 标题区域 - 与右侧工具栏对齐 */}
-              <div className="px-3 py-1.5 flex items-center justify-between border-b border-zinc-100 dark:border-slate-700 flex-shrink-0">
+              <div className="px-3 py-1.5 flex items-center justify-between flex-shrink-0">
                 <h2 className="text-[15px] text-zinc-800 dark:text-slate-100 tracking-tight">{t('workDetail.title')}</h2>
                 <div className="flex items-center gap-1">
                   <button
@@ -1573,13 +1600,6 @@ const WorkDetailView: React.FC = () => {
                     className="h-7 w-7 p-0 flex items-center justify-center text-zinc-500 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
                   >
                     <Plus className="h-5 w-5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsLeftCollapsed(true)}
-                    className="h-7 w-7 p-0 flex items-center justify-center text-zinc-500 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
                   </button>
                 </div>
               </div>
@@ -1827,46 +1847,27 @@ const WorkDetailView: React.FC = () => {
           )}
         </div>
 
-        {/* 中间编辑器区域 */}
-        <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 overflow-hidden">
-          <NovelEditor
-            key={currentChapterId}
-            content={currentChapterContent}
-            onSave={handleEditorSave}
-            placeholder={t('editor.startWriting')}
-            autoSave={true}
-            autoSaveInterval={3000}
-            chapterTitle={currentChapterMeta?.title}
-            chapterOrder={currentChapterMeta?.order}
-            workId={workId}
-            chapterId={currentChapterId || undefined}
-            aiAutoCompleteEnabled={aiAutoCompleteEnabled}
-            onToggleAIAutoComplete={handleToggleAIAutoComplete}
-            isLeftPanelCollapsed={isLeftCollapsed}
-            onExpandLeftPanel={() => setIsLeftCollapsed(false)}
-            isRightPanelCollapsed={isRightCollapsed}
-            onExpandRightPanel={() => setIsRightCollapsed(false)}
-          />
-        </div>
-
-        {/* 右侧面板 */}
+        {/* 中间 AI 面板区域 */}
         <div
-          className={`relative bg-white dark:bg-slate-900 border-l border-zinc-100 dark:border-slate-700 flex flex-col overflow-hidden ${isResizing ? '' : 'transition-[width] duration-200 ease-out'}`}
-          style={{ width: `${isRightCollapsed ? COLLAPSED_RIGHT_PANEL_WIDTH : rightPanelWidth}px` }}
+          className={`relative bg-white dark:bg-slate-900 flex flex-col overflow-hidden ${isResizing ? '' : 'transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]'}`}
+          style={{
+            flex: isEditorCollapsed ? '1 1 0%' : '0 0 auto',
+            width: isEditorCollapsed ? undefined : `${isRightCollapsed ? COLLAPSED_RIGHT_PANEL_WIDTH : rightPanelWidth}px`,
+          }}
         >
-          {/* 可拖动的分隔条 */}
-          {!isRightCollapsed && (
+          {/* 可拖动的分隔条 - 仅在非收缩模式显示 */}
+          {!isRightCollapsed && !isEditorCollapsed && (
             <div
               onMouseDown={handleMouseDown}
-              className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 transition-colors z-10 group"
-              style={{ marginLeft: '-2px' }}
+              className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 transition-colors z-10 group"
+              style={{ marginRight: '-2px' }}
             >
               <div className="absolute inset-y-0 -left-1 -right-1" />
             </div>
           )}
 
-          <div className={`flex-1 flex flex-col h-full ${isRightCollapsed ? 'opacity-0 pointer-events-none select-none' : ''}`}>
-            {/* SessionTabBar */}
+            <div className={`flex flex-col h-full min-h-0 ${isRightCollapsed ? 'opacity-0 pointer-events-none select-none' : ''}`}>
+            {/* SessionTabBar - 始终占满宽度 */}
             <SessionTabBar
               tabs={tabs}
               activeTabId={activeTabId}
@@ -1874,30 +1875,17 @@ const WorkDetailView: React.FC = () => {
               onCreateTab={createTab}
               onCloseTab={closeTab}
               onOpenHistory={handleOpenHistory}
-              onCollapseRightPanel={() => {
-                setIsRightCollapsed(true);
-              }}
+              isLeftPanelCollapsed={isLeftCollapsed}
+              onExpandLeftPanel={() => setIsLeftCollapsed(false)}
+              onCollapseLeftPanel={() => setIsLeftCollapsed(true)}
+              isEditorCollapsed={isEditorCollapsed}
+              onToggleEditor={() => setIsEditorCollapsed(!isEditorCollapsed)}
             />
 
-            {/* 内容区 */}
-            <div className="flex-1 overflow-hidden">
-              {rightSidebarType === 'worldview' ? (
-                <WorldviewPanel
-                  workId={workId!}
-                  worldData={worldData}
-                  initialTab={worldviewInitialTab}
-                  targetItemId={worldviewTargetItemId}
-                  onTargetItemScrolled={() => setWorldviewTargetItemId(undefined)}
-                  onWorldDataUpdate={refreshWorldData}
-                />
-              ) : rightSidebarType === 'summary' ? (
-                <SummaryPanel
-                  workId={workId!}
-                  currentChapterId={currentChapterId}
-                  onToast={showToast}
-                />
-              ) : (
-                tabs.map((tab) => (
+            {/* 内容区 - AIPanel 始终处理自己的滚动 */}
+            <div className={`flex-1 min-h-0 overflow-hidden ${isEditorCollapsed ? 'flex justify-center' : ''}`}>
+                <div className={isEditorCollapsed ? 'w-full max-w-3xl h-full' : 'h-full'}>
+                {tabs.map((tab) => (
                   <div
                     key={tab.id}
                     style={{
@@ -1911,11 +1899,60 @@ const WorkDetailView: React.FC = () => {
                       sessionId={tab.sessionId}
                       onTitleChange={(title) => updateTabTitle(tab.id, title)}
                       isActive={tab.id === activeTabId}
+                      expandedMode={isEditorCollapsed}
                     />
                   </div>
-                ))
-              )}
+                ))}
+              </div>
             </div>
+          </div>
+        </div>
+
+        {/* 右侧编辑器窗口 - 圆弧样式 */}
+        <div
+          className="flex-1 flex flex-col bg-white dark:bg-slate-900 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          style={{
+            maxWidth: isEditorCollapsed ? 0 : 9999,
+            padding: isEditorCollapsed ? 0 : 12,
+            opacity: isEditorCollapsed ? 0 : 1,
+            overflow: 'hidden',
+          }}
+        >
+          <div className="flex-1 flex flex-col rounded-2xl border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl shadow-zinc-300/30 dark:shadow-slate-950/50 overflow-hidden">
+            {rightSidebarType === 'worldview' ? (
+              <WorldviewPanel
+                workId={workId!}
+                worldData={worldData}
+                initialTab={worldviewInitialTab}
+                targetItemId={worldviewTargetItemId}
+                onTargetItemScrolled={() => setWorldviewTargetItemId(undefined)}
+                onWorldDataUpdate={refreshWorldData}
+              />
+            ) : (
+              <NovelEditor
+                key={currentChapterId}
+                content={currentChapterContent}
+                onSave={handleEditorSave}
+                placeholder={t('editor.startWriting')}
+                autoSave={true}
+                autoSaveInterval={3000}
+                chapterTitle={currentChapterMeta?.title}
+                chapterOrder={currentChapterMeta?.order}
+                workId={workId}
+                chapterId={currentChapterId || undefined}
+                aiAutoCompleteEnabled={aiAutoCompleteEnabled}
+                onToggleAIAutoComplete={handleToggleAIAutoComplete}
+                isLeftPanelCollapsed={isLeftCollapsed}
+                onExpandLeftPanel={() => setIsLeftCollapsed(false)}
+                onCollapseLeftPanel={() => setIsLeftCollapsed(true)}
+                isRightPanelCollapsed={isEditorCollapsed}
+                onExpandRightPanel={() => setIsEditorCollapsed(false)}
+                onCollapseRightPanel={() => setIsEditorCollapsed(true)}
+                isAIPanelCollapsed={isRightCollapsed}
+                onToggleAIPanel={() => setIsRightCollapsed(false)}
+                onCollapseAIPanel={() => setIsRightCollapsed(true)}
+              />
+            )}
           </div>
         </div>
       </div>

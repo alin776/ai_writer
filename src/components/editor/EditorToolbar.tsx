@@ -8,10 +8,10 @@ import {
   Undo,
   Redo,
   Wand2,
-  PanelLeftOpen,
-  PanelRightOpen,
   Replace,
   Sparkles,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import FindReplaceDialog from './FindReplaceDialog';
 import SmartFormatDialog from './SmartFormatDialog';
@@ -20,22 +20,18 @@ interface EditorToolbarProps {
   editor: Editor;
   aiAutoCompleteEnabled?: boolean;
   onToggleAIAutoComplete?: () => void;
-  isLeftPanelCollapsed?: boolean;
-  onExpandLeftPanel?: () => void;
-  isRightPanelCollapsed?: boolean;
-  onExpandRightPanel?: () => void;
   saveStatus?: 'saved' | 'saving' | 'unsaved';
+  isEditorFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 const EditorToolbar: React.FC<EditorToolbarProps> = ({
   editor,
   aiAutoCompleteEnabled = false,
   onToggleAIAutoComplete,
-  isLeftPanelCollapsed = false,
-  onExpandLeftPanel,
-  isRightPanelCollapsed = false,
-  onExpandRightPanel,
   saveStatus = 'saved',
+  isEditorFullscreen = false,
+  onToggleFullscreen,
 }) => {
   const { t } = useTranslation();
   const [showFindReplace, setShowFindReplace] = useState(false);
@@ -74,17 +70,25 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
   );
 
   return (
-    <div className="px-3 py-1.5 flex items-center gap-1.5 border-b border-zinc-100 bg-white shadow-sm shadow-zinc-100/50 dark:bg-slate-900 dark:border-slate-700 dark:shadow-none">
-      {/* 展开目录按钮（仅当目录收起时显示）+ AI 自动补全 + 撤销/重做 */}
-      <div className="flex items-center gap-0.5">
-        {isLeftPanelCollapsed && (
+    <div className="px-3 py-1.5 flex items-center gap-1.5 bg-white dark:bg-slate-900">
+      {/* 全屏切换按钮 - 最左边 */}
+      {onToggleFullscreen && (
+        <div className="flex items-center">
           <ToolbarButton
-            onClick={() => onExpandLeftPanel?.()}
-            title={t('editor.toolbar.expandChapterList')}
+            onClick={onToggleFullscreen}
+            title={isEditorFullscreen ? t('editor.toolbar.exitFullscreen') : t('editor.toolbar.enterFullscreen')}
           >
-            <PanelLeftOpen className="h-3.5 w-3.5" />
+            {isEditorFullscreen ? (
+              <Minimize2 className="h-3.5 w-3.5" />
+            ) : (
+              <Maximize2 className="h-3.5 w-3.5" />
+            )}
           </ToolbarButton>
-        )}
+        </div>
+      )}
+
+      {/* AI 自动补全 + 撤销/重做 */}
+      <div className="flex items-center gap-0.5">
         <ToolbarButton
           onClick={() => onToggleAIAutoComplete?.()}
           isActive={aiAutoCompleteEnabled}
@@ -176,16 +180,6 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
           </div>
         )}
       </div>
-
-      {/* 右侧展开按钮（仅当右侧面板收起时显示） */}
-      {isRightPanelCollapsed && (
-        <ToolbarButton
-          onClick={() => onExpandRightPanel?.()}
-          title={t('editor.toolbar.expandRightPanel')}
-        >
-          <PanelRightOpen className="h-3.5 w-3.5" />
-        </ToolbarButton>
-      )}
     </div>
   );
 };

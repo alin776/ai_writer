@@ -343,7 +343,10 @@
       "insertImage": "Insert image",
       "enterLinkUrl": "Enter link URL:",
       "enterImageUrl": "Enter image URL:",
-      "removeLink": "Remove link"
+      "removeLink": "Remove link",
+      "expandAIPanel": "Expand AI panel",
+      "enterFullscreen": "Enter fullscreen",
+      "exitFullscreen": "Exit fullscreen"
     },
     "sessionTab": {
       "newSession": "New session",
@@ -354,7 +357,9 @@
       "summary": "Summary",
       "worldview": "Worldview",
       "history": "History",
-      "collapsePanel": "Collapse panel"
+      "collapsePanel": "Collapse panel",
+      "expandEditor": "Expand editor",
+      "collapseEditor": "Collapse editor"
     },
     "aiPanel": {
       "welcomeMessage": "Hello! I'm your writing assistant. I can help you continue story plots, optimize expressions, analyze character relationships, and provide creative suggestions.",

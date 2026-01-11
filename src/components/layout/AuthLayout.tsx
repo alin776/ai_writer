@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import Header from './Header';
 import Sidebar from './Sidebar';
 import Loading from '../common/Loading';
 import { useNotificationWebSocket } from '../../hooks/useNotificationWebSocket';
@@ -79,9 +78,6 @@ export const AuthLayout: React.FC = () => {
    */
   return (
     <div className="flex flex-col h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
-      {/* 顶部导航栏 */}
-      <Header />
-
       {/* 主要内容区域 */}
       <div className="flex flex-1 overflow-hidden">
         {/* 侧边栏 */}

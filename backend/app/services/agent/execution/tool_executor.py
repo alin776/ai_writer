@@ -134,12 +134,13 @@ class ToolExecutor:
             current_chapter_id = state.get("chapter_id", "")
             context_data = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
             selected_text = context_data.get("selected_text", "")
+            locate_original_text = context_data.get("locate_original_text", "")
 
             params.setdefault("chapter_id", current_chapter_id)
 
             # text_to_rewrite: 优先使用参数值，其次使用选中文本
             if not params.get("text_to_rewrite"):
-                params["text_to_rewrite"] = selected_text if selected_text else ""
+                params["text_to_rewrite"] = selected_text or locate_original_text or ""
 
             # chapter_content: 兜底使用 text_to_rewrite
             if not params.get("chapter_content"):
@@ -151,6 +152,14 @@ class ToolExecutor:
 
             # base_version: 默认空字符串（不是 None）
             params.setdefault("base_version", "")
+            base_version = params.get("base_version")
+            if base_version is None:
+                params["base_version"] = ""
+            elif not isinstance(base_version, str):
+                if isinstance(base_version, (int, float)) and base_version == 0:
+                    params["base_version"] = ""
+                else:
+                    params["base_version"] = str(base_version)
             params.setdefault("user_id", state.get("user_id"))
 
         elif tool_name == "smart_continue":
@@ -163,15 +172,45 @@ class ToolExecutor:
             params.setdefault("context", None)
             params.setdefault("user_id", state.get("user_id"))
 
+        elif tool_name == "locate_content":
+            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            params.setdefault("node_id", state.get("context", {}).get("locate_node_id"))
+            nodes_info = params.get("nodes_info")
+            if nodes_info is not None and not isinstance(nodes_info, str):
+                params["nodes_info"] = json.dumps(nodes_info, ensure_ascii=False)
+            elif not nodes_info:
+                context_nodes = state.get("context", {}).get("nodes_info")
+                if context_nodes:
+                    params["nodes_info"] = (
+                        context_nodes
+                        if isinstance(context_nodes, str)
+                        else json.dumps(context_nodes, ensure_ascii=False)
+                    )
+
         elif tool_name == "apply_chapter_edit":
+            context = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
             params.setdefault("chapter_id", state.get("chapter_id", ""))
             params.setdefault("operation", "append")
             params.setdefault("position", None)
             params.setdefault("before_anchor", None)  # 🆕 锚点定位
             params.setdefault("after_anchor", None)   # 🆕 锚点定位
             params.setdefault("original_text", None)  # 🆕 原文（用于前端定位）
+            params.setdefault("node_id", context.get("locate_node_id"))
+            params.setdefault("paragraph_index", context.get("locate_paragraph_index"))
+            if not params.get("node_id"):
+                params["node_id"] = context.get("locate_node_id")
+            if params.get("paragraph_index") is None:
+                params["paragraph_index"] = context.get("locate_paragraph_index")
+            if not params.get("before_anchor"):
+                params["before_anchor"] = context.get("locate_before_anchor")
+            if not params.get("after_anchor"):
+                params["after_anchor"] = context.get("locate_after_anchor")
+            if not params.get("original_text"):
+                params["original_text"] = context.get("locate_original_text")
             params.setdefault("user_id", state.get("user_id"))
             params.setdefault("description", None)
+            params.setdefault("conversation_id", state.get("conversation_id", ""))
+            params.setdefault("work_id", state.get("work_id", ""))
 
         elif tool_name == "get_context":
             params.setdefault("work_id", state.get("work_id", ""))
@@ -417,6 +456,22 @@ class ToolExecutor:
                         "new_content": tool_args.get("new_content", tool_args.get("content", "")),
                         "operation": tool_args.get("operation", "replace"),
                         "position": tool_args.get("position"),
+                        "conversation_id": tool_args.get("conversation_id", state.get("conversation_id", "")),
+                        "work_id": tool_args.get("work_id", state.get("work_id", ""))
+                    }
+                elif tool_name == "apply_chapter_edit":
+                    params = {
+                        "chapter_id": tool_args.get("chapter_id", state.get("chapter_id", "")),
+                        "content": tool_args.get("content", ""),
+                        "operation": tool_args.get("operation", "replace"),
+                        "position": tool_args.get("position"),
+                        "before_anchor": tool_args.get("before_anchor"),
+                        "after_anchor": tool_args.get("after_anchor"),
+                        "original_text": tool_args.get("original_text"),
+                        "node_id": tool_args.get("node_id"),
+                        "paragraph_index": tool_args.get("paragraph_index"),
+                        "user_id": tool_args.get("user_id", state.get("user_id", "")),
+                        "description": tool_args.get("description"),
                         "conversation_id": tool_args.get("conversation_id", state.get("conversation_id", "")),
                         "work_id": tool_args.get("work_id", state.get("work_id", ""))
                     }

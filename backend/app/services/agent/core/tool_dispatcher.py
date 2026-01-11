@@ -388,6 +388,13 @@ class ToolDispatcher:
         user_requirement = tool_args.get("user_requirement", "") or state.get("last_user_message", "")
 
         base_version = tool_args.get("base_version", "")
+        if base_version is None:
+            base_version = ""
+        elif not isinstance(base_version, str):
+            if isinstance(base_version, (int, float)) and base_version == 0:
+                base_version = ""
+            else:
+                base_version = str(base_version)
 
         # 诊断日志：帮助定位参数问题
         logger.info(f"[ToolDispatcher] smart_rewrite 参数检查: "
@@ -399,12 +406,16 @@ class ToolDispatcher:
         # InlineAI 支持：优先使用 context 中的 selected_text
         context = state.get("context", {})
         selected_text = context.get("selected_text", "")
+        locate_original_text = context.get("locate_original_text", "")
         selection_position = context.get("selection_position", None)
 
         # 如果有 selected_text，强制使用它
         if selected_text:
             logger.info(f"[ToolDispatcher] 📝 强制使用 InlineAI selected_text ({len(selected_text)} 字符)")
             text_to_rewrite = selected_text
+        elif locate_original_text:
+            logger.info(f"[ToolDispatcher] 🧭 使用 locate_original_text ({len(locate_original_text)} 字符)")
+            text_to_rewrite = locate_original_text
 
         # 智能版本引用
         last_versions = state.get("context", {}).get("last_rewrite_versions", {})
@@ -531,15 +542,28 @@ class ToolDispatcher:
     ) -> str:
         """调用应用章节编辑工具"""
         logger.info(f"[ToolDispatcher] 🚀 准备调用 apply_chapter_edit")
+        context = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
+        node_id = tool_args.get("node_id") or context.get("locate_node_id")
+        paragraph_index = tool_args.get("paragraph_index") or context.get("locate_paragraph_index")
+        before_anchor = tool_args.get("before_anchor") or context.get("locate_before_anchor")
+        after_anchor = tool_args.get("after_anchor") or context.get("locate_after_anchor")
+        original_text = tool_args.get("original_text") or context.get("locate_original_text")
 
         try:
             result = await registry.call_tool("apply_chapter_edit", {
                 "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
                 "content": tool_args.get("content", ""),
                 "operation": tool_args.get("operation", "replace"),
-                "position": None,
+                "position": tool_args.get("position"),
+                "before_anchor": before_anchor,
+                "after_anchor": after_anchor,
+                "original_text": original_text,
+                "node_id": node_id,
+                "paragraph_index": paragraph_index,
                 "user_id": state.get("user_id"),
-                "description": None
+                "description": tool_args.get("description"),
+                "conversation_id": tool_args.get("conversation_id") or state.get("conversation_id"),
+                "work_id": tool_args.get("work_id") or state.get("work_id")
             })
 
             if isinstance(result, dict) and result.get("success"):
@@ -556,9 +580,16 @@ class ToolDispatcher:
                 "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or "",
                 "content": tool_args.get("content", ""),
                 "operation": tool_args.get("operation", "replace"),
-                "position": None,
+                "position": tool_args.get("position"),
+                "before_anchor": before_anchor,
+                "after_anchor": after_anchor,
+                "original_text": original_text,
+                "node_id": node_id,
+                "paragraph_index": paragraph_index,
                 "user_id": state.get("user_id"),
-                "description": None
+                "description": tool_args.get("description"),
+                "conversation_id": tool_args.get("conversation_id") or state.get("conversation_id"),
+                "work_id": tool_args.get("work_id") or state.get("work_id")
             })
 
         return tool_result
