@@ -43,6 +43,8 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
   const { rightSidebarType, toggleRightSidebar, closeRightSidebar } = useEditorStore();
   const [creating, setCreating] = React.useState(false);
   const tabsContainerRef = React.useRef<HTMLDivElement>(null);
+  // 记录打开世界观前编辑器是否收缩
+  const editorWasCollapsedRef = React.useRef<boolean | null>(null);
 
   const handleCreate = async () => {
     if (creating) return;
@@ -106,11 +108,26 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           <button
             key={type}
             onClick={() => {
-              toggleRightSidebar(type);
-              // 如果编辑器是收起状态，点击世界观时自动展开编辑器
-              if (type === 'worldview' && isEditorCollapsed && onToggleEditor) {
-                onToggleEditor();
+              // 判断当前是否正在打开世界观面板（而非关闭）
+              const isOpening = rightSidebarType !== type;
+
+              if (type === 'worldview' && onToggleEditor) {
+                if (isOpening) {
+                  // 打开世界观：记录当前编辑器状态，如果收缩则展开
+                  editorWasCollapsedRef.current = isEditorCollapsed;
+                  if (isEditorCollapsed) {
+                    onToggleEditor(); // 展开
+                  }
+                } else {
+                  // 关闭世界观：恢复到之前的状态
+                  if (editorWasCollapsedRef.current === true && !isEditorCollapsed) {
+                    onToggleEditor(); // 收缩回去
+                  }
+                  editorWasCollapsedRef.current = null;
+                }
               }
+
+              toggleRightSidebar(type);
             }}
             className={clsx(
               'p-1.5 rounded transition-all',
