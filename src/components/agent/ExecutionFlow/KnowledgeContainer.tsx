@@ -22,7 +22,7 @@ export function KnowledgeContainer({
   title,
   icon,
   items,
-  defaultExpanded = true
+  defaultExpanded = false  // 二级卡片默认收缩
 }: KnowledgeContainerProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const IconComponent = ICON_MAP[icon] || BookOpen;

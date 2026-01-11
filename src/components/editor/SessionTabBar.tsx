@@ -73,7 +73,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
     <div className="flex items-center justify-between h-10 px-3 bg-white dark:bg-slate-900">
       {/* 左侧：功能按钮组 */}
       <div className="flex items-center gap-1">
-        {/* 目录展开/收缩按钮 - 最左边 */}
+        {/* 1. 目录展开/收缩按钮 */}
         {isLeftPanelCollapsed ? (
           <button
             onClick={() => onExpandLeftPanel?.()}
@@ -92,17 +92,16 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           </button>
         )}
 
-        {/* + 新增会话按钮 */}
+        {/* 2. 会话记录按钮 */}
         <button
+          onClick={() => (onOpenHistory ? onOpenHistory() : closeRightSidebar())}
           className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
-          onClick={handleCreate}
-          disabled={creating}
-          title={t('editor.sessionTab.addSession')}
+          title={t('editor.sessionTab.history')}
         >
-          <SquarePen className="w-4 h-4" />
+          <Clock3 className="w-4 h-4" />
         </button>
 
-        {/* 功能图标按钮 */}
+        {/* 3. 世界观按钮 */}
         {functionButtons.map(({ type, icon: Icon, title }) => (
           <button
             key={type}
@@ -125,16 +124,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           </button>
         ))}
 
-        {/* 历史入口 */}
-        <button
-          onClick={() => (onOpenHistory ? onOpenHistory() : closeRightSidebar())}
-          className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
-          title={t('editor.sessionTab.history')}
-        >
-          <Clock3 className="w-4 h-4" />
-        </button>
-
-        {/* 编辑器展开/收缩按钮 */}
+        {/* 4. 编辑器展开/收缩按钮 */}
         {onToggleEditor && (
           <button
             onClick={onToggleEditor}
@@ -144,6 +134,16 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
             <FileEdit className="w-4 h-4" />
           </button>
         )}
+
+        {/* 5. 新增会话按钮 */}
+        <button
+          className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
+          onClick={handleCreate}
+          disabled={creating}
+          title={t('editor.sessionTab.addSession')}
+        >
+          <SquarePen className="w-4 h-4" />
+        </button>
       </div>
 
       {/* 右侧：会话标签区域 */}

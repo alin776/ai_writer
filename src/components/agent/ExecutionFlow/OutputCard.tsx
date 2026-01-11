@@ -43,16 +43,27 @@ export function OutputCard({
   onApply,
   onAddToKnowledge
 }: OutputCardProps) {
-  const [expanded, setExpanded] = useState(true);  // 默认展开
+  const [expanded, setExpanded] = useState(false);  // 默认收缩
+  const [needsExpand, setNeedsExpand] = useState(false);  // 是否需要展开按钮
   const [previewOpen, setPreviewOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
 
-  // 内容变化时自动滚动到底部
+  // 检测内容是否超出收缩高度，决定是否显示展开按钮
   useEffect(() => {
-    if (contentRef.current) {
-      contentRef.current.scrollTop = contentRef.current.scrollHeight;
+    if (innerRef.current && contentRef.current) {
+      const contentHeight = innerRef.current.scrollHeight;
+      const containerHeight = 150; // 收缩状态的最大高度
+      setNeedsExpand(contentHeight > containerHeight);
     }
   }, [content]);
+
+  // 内容变化时自动滚动到底部（仅展开状态）
+  useEffect(() => {
+    if (expanded && contentRef.current) {
+      contentRef.current.scrollTop = contentRef.current.scrollHeight;
+    }
+  }, [content, expanded]);
 
   // 复制内容
   const handleCopy = () => {
@@ -113,14 +124,16 @@ export function OutputCard({
         <div className="group flex items-center justify-between px-3 py-1 border-b border-gray-200 dark:border-slate-700">
           <span className="text-[13px] font-medium text-gray-900 dark:text-white">{title}</span>
           <div className="flex gap-1.5">
-            {/* 展开/收缩按钮 */}
-            <button
-              onClick={() => setExpanded(!expanded)}
-              className="p-1.5 text-gray-400 dark:text-slate-500 rounded hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
-              title={expanded ? '收缩' : '展开'}
-            >
-              {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
+            {/* 展开/收缩按钮 - 仅当需要展开时显示 */}
+            {needsExpand && (
+              <button
+                onClick={() => setExpanded(!expanded)}
+                className="p-1.5 text-gray-400 dark:text-slate-500 rounded hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+                title={expanded ? '收缩' : '展开'}
+              >
+                {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+            )}
 
             {/* 更多按钮 - 下拉菜单 */}
             <DropdownMenu>
@@ -193,11 +206,14 @@ export function OutputCard({
           </div>
         </div>
 
-        {/* 内容区域 - 使用固定高度避免影响外层滚动 */}
+        {/* 内容区域 - 收缩时自适应高度，展开时使用更大高度 */}
         <div
           ref={contentRef}
-          className={`px-4 py-4 overflow-y-auto custom-scrollbar transition-all overscroll-contain ${expanded ? 'h-[350px]' : 'h-[100px]'}`}
+          className={`px-4 py-4 overflow-y-auto custom-scrollbar transition-all overscroll-contain ${
+            expanded ? 'max-h-[350px]' : 'max-h-[150px]'
+          }`}
         >
+          <div ref={innerRef}>
           {!content ? (
             <div className="flex items-center gap-2 text-[13px] text-gray-400 dark:text-slate-500">
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -210,7 +226,19 @@ export function OutputCard({
               </ReactMarkdown>
             </div>
           )}
+          </div>
         </div>
+
+        {/* 展开提示条 - 仅当需要展开且处于收缩状态时显示 */}
+        {needsExpand && !expanded && (
+          <button
+            onClick={() => setExpanded(true)}
+            className="w-full py-2 flex items-center justify-center gap-1 text-[12px] text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 border-t border-gray-200 dark:border-slate-700 transition-colors"
+          >
+            <ChevronDown size={14} />
+            展开更多
+          </button>
+        )}
       </div>
 
       {/* 预览弹窗 */}

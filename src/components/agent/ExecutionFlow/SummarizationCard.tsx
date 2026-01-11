@@ -19,7 +19,7 @@ export function SummarizationCard({
   defaultExpanded = true
 }: SummarizationCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
-  const [contextExpanded, setContextExpanded] = useState(true);
+  const [contextExpanded, setContextExpanded] = useState(false);  // 二级卡片默认收缩
 
   // 防御性处理：确保数据存在
   const safeTaskClassification = taskClassification || {

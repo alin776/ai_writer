@@ -244,11 +244,11 @@ const TaskList = ({ tasks }: { tasks: TaskSnapshot[] }) => {
     <div className="relative">
       {/* 展开状态：绝对定位往上展开 */}
       {isExpanded && (
-        <div className="absolute bottom-full left-0 right-0 mb-1 rounded-xl border border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-800 overflow-hidden shadow-lg z-10">
-          {/* 头部：任务进�?+ 收缩按钮 */}
+        <div className="absolute bottom-full left-0 right-0 mb-1 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-lg z-10">
+          {/* 头部：任务进度 + 收缩按钮 */}
           <button
             onClick={() => setIsExpanded(false)}
-            className="w-full flex items-center justify-between px-3 py-2 hover:bg-zinc-100/50 dark:hover:bg-slate-700/50 transition-colors"
+            className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
           >
             <span className="text-[11px] font-medium text-zinc-600 dark:text-slate-300">
               任务进度
@@ -293,10 +293,10 @@ const TaskList = ({ tasks }: { tasks: TaskSnapshot[] }) => {
 
       {/* 收缩状态：只显示当前任务行 */}
       {currentTask && (
-        <div className="rounded-xl border border-zinc-200 dark:border-slate-700 bg-zinc-50/50 dark:bg-slate-800/50 overflow-hidden">
+        <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className={`w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-zinc-100/50 dark:hover:bg-slate-700/50 transition-colors ${
+            className={`w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors ${
               currentTask.status === 'completed'
                 ? 'text-green-700 dark:text-green-400'
                 : currentTask.status === 'running'
@@ -1206,7 +1206,7 @@ ${selectionContext.selected_text}
           </h1>
 
           {/* 居中的输入框区域 */}
-          <div className="w-full max-w-2xl rounded-3xl bg-slate-100 border border-slate-200 px-4 py-3 space-y-3 dark:bg-slate-800 dark:border-slate-700">
+          <div className="w-full max-w-2xl rounded-3xl bg-white border border-gray-200 px-4 py-3 space-y-3 dark:bg-slate-800 dark:border-slate-700">
             <div className="relative">
               <div className="flex flex-wrap items-start gap-2 w-full min-h-12 px-1 py-2 rounded-xl bg-transparent text-gray-800 dark:text-slate-200">
                 {/* 选中文本前置 */}
@@ -1339,7 +1339,7 @@ ${selectionContext.selected_text}
           ref={messagesContainerRef}
           className="flex-1 min-h-0 mb-3 overflow-x-hidden overflow-y-auto scrollbar-auto-hide bg-white dark:bg-slate-900"
         >
-          <div className="min-h-full flex flex-col justify-center gap-2.5">
+          <div className="flex flex-col gap-2.5">
           {messages.map((message, index) => {
             // Skip null/undefined messages
             if (!message) {
@@ -1354,7 +1354,7 @@ ${selectionContext.selected_text}
             return (
               <div key={index} className="flex items-start gap-2 justify-end">
                 <div className="flex flex-col gap-1 w-full items-end group">
-                  <div className="relative p-2.5 rounded-lg flex-initial w-fit max-w-[80%] md:max-w-[60ch] bg-zinc-800 dark:bg-blue-600 text-zinc-50 shadow-sm ml-auto break-words">
+                  <div className="relative p-2.5 rounded-2xl flex-initial w-fit max-w-[80%] md:max-w-[60ch] bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-200 shadow-sm ml-auto break-words">
                     <p className="text-[14px] leading-relaxed whitespace-pre-wrap break-words">
                       {message.content}
                     </p>
@@ -1624,6 +1624,29 @@ ${selectionContext.selected_text}
         </div>
         </div>
 
+      {/* v8.0: 批量操作确认（采纳/弃用）- 放在任务列表上方 */}
+      {hasOperations && !isLoading && (
+        <div className="mb-2 p-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+          <p className="text-[12px] text-zinc-600 dark:text-slate-300 mb-2">
+            Agent 已执行章节操作，请确认是否保留这些修改：
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={acceptAllOperations}
+              className="px-3 py-1.5 text-[11px] bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+            >
+              采纳修改
+            </button>
+            <button
+              onClick={rollbackAllOperations}
+              className="px-3 py-1.5 text-[11px] bg-zinc-200 hover:bg-zinc-300 text-zinc-700 dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-200 rounded-lg transition-colors"
+            >
+              撤销修改
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 任务列表（固定在底部，不随消息滚动） */}
       {tasks.length > 0 && (
         <div className="mb-2">
@@ -1648,31 +1671,8 @@ ${selectionContext.selected_text}
         </div>
       )}
 
-      {/* v8.0: 批量操作确认（采�?弃用�?*/}
-      {hasOperations && !isLoading && (
-        <div className="mb-2 p-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-700">
-          <p className="text-[12px] text-amber-700 dark:text-amber-300 mb-2">
-            Agent 已执行章节操作，请确认是否保留这些修改：
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={acceptAllOperations}
-              className="px-3 py-1.5 text-[11px] bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
-            >
-              采纳修改
-            </button>
-            <button
-              onClick={rollbackAllOperations}
-              className="px-3 py-1.5 text-[11px] bg-red-500 hover:bg-red-600 text-white rounded-md transition-colors"
-            >
-              撤销修改
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 模式选择 + 输入框（放在下方区域�?*/}
-      <div className="rounded-3xl bg-slate-100 border border-slate-200 px-4 py-3 space-y-3 flex-shrink-0 dark:bg-slate-800 dark:border-slate-700">
+      {/* 模式选择 + 输入框（放在下方区域）*/}
+      <div className="rounded-3xl bg-white border border-gray-200 px-4 py-3 space-y-3 flex-shrink-0 dark:bg-slate-800 dark:border-slate-700">
         <div className="relative">
           <div className="flex flex-wrap items-start gap-2 w-full min-h-12 px-1 py-2 rounded-xl bg-transparent text-gray-800 dark:text-slate-200">
             {/* 选中文本前置（放在后，保持同一行逻辑�?*/}
