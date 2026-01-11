@@ -1,6 +1,6 @@
 /**
  * AIRevisionBar - AI修订操作栏组件
- * 显示在修订内容旁边，提供三个操作：重新生成、弃用、采纳
+ * 显示在修订内容旁边，提供两个操作：弃用、采纳
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -19,7 +19,7 @@ export interface RevisionData {
 interface AIRevisionBarProps {
   revision: RevisionData;
   position: { top: number; left: number } | null;
-  onRegenerate: () => void;
+  onRegenerate?: () => void;  // 保留接口但设为可选
   onDiscard: () => void;
   onAccept: () => void;
   isLoading?: boolean;
@@ -28,7 +28,6 @@ interface AIRevisionBarProps {
 const AIRevisionBar: React.FC<AIRevisionBarProps> = ({
   revision,
   position,
-  onRegenerate,
   onDiscard,
   onAccept,
   isLoading = false
@@ -58,7 +57,7 @@ const AIRevisionBar: React.FC<AIRevisionBarProps> = ({
   return (
     <div
       ref={barRef}
-      className="ai-revision-bar"
+      className="flex items-center gap-1.5 px-2 py-1.5 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded-lg shadow-lg animate-in fade-in slide-in-from-top-1 duration-200"
       style={{
         position: 'fixed',
         top: position.top,
@@ -66,34 +65,14 @@ const AIRevisionBar: React.FC<AIRevisionBarProps> = ({
         zIndex: 1000
       }}
     >
-      {/* 重新生成按钮 */}
-      <button
-        onClick={onRegenerate}
-        disabled={isLoading}
-        className="ai-revision-btn ai-revision-btn-refresh"
-        title={t('editor.aiRevision.regenerate')}
-      >
-        {isLoading ? (
-          <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-        ) : (
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-        )}
-        <span>{t('editor.aiRevision.refresh')}</span>
-      </button>
-
       {/* 弃用按钮 */}
       <button
         onClick={onDiscard}
         disabled={isLoading}
-        className="ai-revision-btn ai-revision-btn-discard"
+        className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         title={t('editor.aiRevision.discardChange')}
       >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>
         <span>{t('editor.aiRevision.discard')}</span>
@@ -103,10 +82,10 @@ const AIRevisionBar: React.FC<AIRevisionBarProps> = ({
       <button
         onClick={onAccept}
         disabled={isLoading}
-        className="ai-revision-btn ai-revision-btn-accept"
+        className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         title={t('editor.aiRevision.acceptChange')}
       >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
         </svg>
         <span>{t('editor.aiRevision.accept')}</span>

@@ -172,13 +172,13 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
           },
           // 标题
           h1({ children }) {
-            return <h1 className="text-[15px] font-semibold mb-1.5 mt-2 first:mt-0">{children}</h1>;
+            return <h1 className="text-[18px] font-bold mb-2 mt-3 first:mt-0 text-zinc-900 dark:text-zinc-100 border-b border-zinc-200 dark:border-zinc-700 pb-1">{children}</h1>;
           },
           h2({ children }) {
-            return <h2 className="text-[14px] font-semibold mb-1.5 mt-2 first:mt-0">{children}</h2>;
+            return <h2 className="text-[16px] font-semibold mb-2 mt-3 first:mt-0 text-zinc-800 dark:text-zinc-200">{children}</h2>;
           },
           h3({ children }) {
-            return <h3 className="text-[14px] font-medium mb-1 mt-1.5 first:mt-0">{children}</h3>;
+            return <h3 className="text-[15px] font-medium mb-1.5 mt-2 first:mt-0 text-zinc-700 dark:text-zinc-300">{children}</h3>;
           },
           // 列表
           ul({ children }) {

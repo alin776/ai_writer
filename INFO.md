@@ -1,35 +1,58 @@
-• 我排查了，问题主要有两条链路在“定位信息”上断了，所以前端最后只能走“默认末尾”：
+● 好的，梳理一下刚才讨论的核心内容：
 
-  - 规划执行链路里 request.context 没传进工具执行层，locate_content 拿不到 nodes_info，很难返回 node_id，后续 apply_chapter_edit 就缺
-    定位。
-  - HITL 构造 editor_action 时只塞了 type/position，把 node_id / paragraph_index / before_anchor / after_anchor / original_text 丢了；
-    前端只认 editor_action，所以定位信息丢失后必然落到末尾。
+  ---
+  1. 问题起源
 
-  我已经在下面文件里补上了这两块信息传递（你现在再测，应该不再“跑到结尾”）：
+  当前 smart_rewrite 既要生成内容，又要生成锚点定位，职责不清晰，增加复杂度。
 
-  - 让 planning 的任务执行链路携带结构化 context：backend/app/services/agent/langgraph_agent.py、backend/app/services/agent/execution/
+  ---
+  2. 工具职责分析
 
-  nodes_info 是什么？
+  创作类工具（只生成内容，不定位）：
+  ┌────────────────┬────────────────────────────────┐
+  │      工具      │              作用              │
+  ├────────────────┼────────────────────────────────┤
+  │ smart_rewrite  │ 用户选中文本 → 生成3个润色版本 │
+  ├────────────────┼────────────────────────────────┤
+  │ smart_insert   │ 根据用户意图 → 生成插入内容    │
+  ├────────────────┼────────────────────────────────┤
+  │ smart_continue │ 续写 → 生成续写内容            │
+  └────────────────┴────────────────────────────────┘
+  操作类工具：
+  ┌────────────────────┬──────────────────┐
+  │        工具        │       作用       │
+  ├────────────────────┼──────────────────┤
+  │ apply_chapter_edit │ 将内容写入编辑器 │
+  └────────────────────┴──────────────────┘
+  ---
+  3. 关键结论
 
-  - 它是编辑器当前文档的“节点 id 列表”（只发 id），用于把“第 N 段”精确映射到 node_id。locate_content 可以用它把段落索引转成 node_id；
-    前端再用 node_id 定位到准确位置。
+  smart_rewrite 不需要定位：
+  - 用户选中文本时，前端已知位置
+  - 后端只需生成改写版本，不需要锚点
 
-  这种方法科学吗？
+  smart_insert 需要定位，但定位应该独立：
+  - 用户说"在某处插入" → 需要先定位
+  - 定位逻辑不应该放在创作工具里
 
-  - 是目前最稳的路线：node_id 是结构化定位，稳定性远高于纯文本匹配。再以锚点/原文兜底，是“工程上最可靠”的组合。
+  ---
+  4. 新架构设计
 
-  为什么 Cursor 能那么精准？
+  新增定位工具 locate_content：
 
-  - 它拿的是结构化信息（AST/符号表/编辑器真实位置），不是纯文本猜测。我们这边的等价路线就是：node_id > position > anchor > fuzzy。
+  操作类: locate_content（新增）→ 定位具体位置，返回锚点
+  创作类: smart_rewrite / smart_insert / smart_continue → 只生成内容
+  操作类: apply_chapter_edit → 应用到编辑器
 
-  要更精准，还可以做什么？
+  流程示例（"把第三段改得更生动"）：
+  1. locate_content("第三段") → 返回位置信息
+  2. smart_rewrite(原文) → 返回改写版本
+  3. apply_chapter_edit(位置 + 内容) → 应用
 
-  - 强制：只要没有 node_id/anchor/original_text 就拒绝 apply（返回“定位失败，需要你确认位置”），不要默认 append。
-  - 选区优先：用户有选区时直接使用选区对应 node_id/position。
-  - 位置校验：apply 前用 original_text + anchor 在当前文档做校验，失败就不落地。
+  ---
+  5. 核心原则
 
-  现在你可以这样验证是否真在用新代码
-
-  1. 前端控制台看 agent-show-revision 事件是否带 nodeId/paragraphIndex。
-  2. 后端日志看 locate_content 是否打印收到 nodes_info、是否返回 node_id。
-  3. 如果仍然跑末尾，基本就是“老构建未生效/后端未重启”。
+  职责单一：
+  - 定位工具 → 只管定位
+  - 创作工具 → 只管创作
+  - 应用工具 → 只管应用

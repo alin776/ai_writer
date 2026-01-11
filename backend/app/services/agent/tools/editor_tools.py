@@ -510,12 +510,27 @@ async def apply_chapter_edit(
                     description=description or f"update content ({operation})"
                 )
 
+            # 构建 position 字段（用于前端精确定位）
+            result_position = None
+            if operation == "insert" and insert_pos is not None:
+                result_position = {"from": insert_pos, "to": insert_pos}
+            elif operation == "replace" and isinstance(position, dict):
+                result_position = position
+
             return json.dumps({
                 "success": True,
+                "requires_confirmation": True,  # 触发 HITL 流程，发送 revision 事件给前端
                 "action_type": "update_content",
                 "chapter_id": resolved_chapter_id,
                 "work_id": str(chapter.work_id),
                 "operation": operation,
+                "content": actual_content,  # 新内容（用于前端显示）
+                "original_text": original_text,  # 原文（用于回滚和定位）
+                "position": result_position,  # 位置信息（insert/replace 操作）
+                "node_id": node_id,  # 定位信息
+                "paragraph_index": paragraph_index,  # 定位信息
+                "before_anchor": before_anchor,  # 定位信息
+                "after_anchor": after_anchor,  # 定位信息
                 "content_length": len(actual_content),
                 "description": description or f"update content ({operation})"
             }, ensure_ascii=False)
