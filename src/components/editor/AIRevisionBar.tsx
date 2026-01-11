@@ -43,7 +43,12 @@ const AIRevisionBar: React.FC<AIRevisionBarProps> = ({
     const rect = bar.getBoundingClientRect();
     const maxRight = window.innerWidth - 20;
     const maxBottom = window.innerHeight - 20;
+    const minTop = 10;  // 最小top值，防止超出上边界
 
+    // 检查上边界：如果top太小，显示在内容下方
+    if (position.top < minTop) {
+      bar.style.top = `${minTop + rect.height + 10}px`;
+    }
     if (rect.right > maxRight) {
       bar.style.left = `${position.left - (rect.right - maxRight)}px`;
     }
@@ -57,10 +62,10 @@ const AIRevisionBar: React.FC<AIRevisionBarProps> = ({
   return (
     <div
       ref={barRef}
-      className="flex items-center gap-1.5 px-2 py-1.5 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded-lg shadow-lg animate-in fade-in slide-in-from-top-1 duration-200"
+      className="flex items-center gap-1 px-1.5 py-1 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded-full shadow-md animate-in fade-in slide-in-from-top-1 duration-200"
       style={{
         position: 'fixed',
-        top: position.top,
+        top: Math.max(10, position.top),  // 确保不超出上边界
         left: position.left,
         zIndex: 1000
       }}
@@ -69,10 +74,10 @@ const AIRevisionBar: React.FC<AIRevisionBarProps> = ({
       <button
         onClick={onDiscard}
         disabled={isLoading}
-        className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-medium bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         title={t('editor.aiRevision.discardChange')}
       >
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>
         <span>{t('editor.aiRevision.discard')}</span>
@@ -82,10 +87,10 @@ const AIRevisionBar: React.FC<AIRevisionBarProps> = ({
       <button
         onClick={onAccept}
         disabled={isLoading}
-        className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-medium bg-green-600 hover:bg-green-700 text-white rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         title={t('editor.aiRevision.acceptChange')}
       >
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
         </svg>
         <span>{t('editor.aiRevision.accept')}</span>

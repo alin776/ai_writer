@@ -746,7 +746,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             try {
               const coords = view.coordsAtPos(insertPos);
               setRevisionBarPosition({
-                top: coords.bottom + 8,
+                top: coords.top - 40,  // 显示在内容上方，避免遮挡高亮内容
                 left: coords.left
               });
             } catch (e) {
@@ -810,7 +810,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             try {
               const coords = view.coordsAtPos(insertPos);
               setRevisionBarPosition({
-                top: coords.bottom + 8,
+                top: coords.top - 40,  // 显示在内容上方，避免遮挡高亮内容
                 left: coords.left
               });
             } catch (e) {
@@ -872,7 +872,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             try {
               const coords = view.coordsAtPos(insertPos);
               setRevisionBarPosition({
-                top: coords.bottom + 8,
+                top: coords.top - 40,  // 显示在内容上方，避免遮挡高亮内容
                 left: coords.left
               });
             } catch (e) {

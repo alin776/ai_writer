@@ -11,7 +11,8 @@
 import re
 import json
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
+from difflib import SequenceMatcher
 
 from langchain_core.tools import tool
 from .tool_registry import register_as_tool
@@ -93,6 +94,61 @@ def _parse_paragraph_query(query: str) -> Optional[int]:
     match = re.search(r'paragraph\s*(\d+)', query, re.IGNORECASE)
     if match:
         return int(match.group(1)) - 1
+
+    return None
+
+
+def _fuzzy_match_paragraphs(query: str, paragraphs: List[Dict[str, Any]], threshold: float = 0.5) -> Optional[Tuple[int, float]]:
+    """
+    使用相似度算法在段落中搜索最佳匹配
+
+    Args:
+        query: 搜索查询
+        paragraphs: 段落列表
+        threshold: 相似度阈值（0.0-1.0），默认 0.5
+
+    Returns:
+        (最佳匹配的段落索引, 相似度) 或 None
+    """
+    best_match = None
+    best_ratio = 0.0
+
+    # 规范化查询：去除多余空格
+    normalized_query = re.sub(r'\s+', '', query)
+
+    for i, para in enumerate(paragraphs):
+        text = para["text"]
+        # 规范化段落文本
+        normalized_text = re.sub(r'\s+', '', text)
+
+        # 方法1：完全包含匹配（最高优先级）
+        if normalized_query in normalized_text:
+            logger.info(f"[_fuzzy_match] 完全包含匹配成功: 第{i + 1}段")
+            return (i, 1.0)
+
+        # 方法2：滑动窗口相似度匹配
+        query_len = len(normalized_query)
+        if query_len > 0 and len(normalized_text) >= query_len:
+            # 在段落中滑动窗口查找最相似的部分
+            for j in range(len(normalized_text) - query_len + 1):
+                window = normalized_text[j:j + query_len]
+                ratio = SequenceMatcher(None, normalized_query, window).ratio()
+                if ratio > best_ratio:
+                    best_ratio = ratio
+                    best_match = i
+
+        # 方法3：整体相似度（用于短文本）
+        if query_len <= 20:
+            # 对于短查询，检查段落开头的相似度
+            head = normalized_text[:min(50, len(normalized_text))]
+            ratio = SequenceMatcher(None, normalized_query, head).ratio()
+            if ratio > best_ratio:
+                best_ratio = ratio
+                best_match = i
+
+    if best_match is not None and best_ratio >= threshold:
+        logger.info(f"[_fuzzy_match] 相似度匹配成功: 第{best_match + 1}段, 相似度={best_ratio:.2f}")
+        return (best_match, best_ratio)
 
     return None
 
@@ -345,14 +401,17 @@ async def locate_content(
             logger.info("[locate_content] 定位到结尾")
             return json.dumps(result, ensure_ascii=False)
 
-        # 策略3: 精确文本匹配（query 长度 > 10 时尝试）
-        if len(query) > 10:
+        # 策略3: 精确文本匹配（🔧 移除长度限制，支持任意长度查询）
+        if len(query) > 0:
             text_result = _find_text_position(chapter_content, query)
             if text_result:
                 # 找到对应的段落索引
                 found_para_index = None
+                # 规范化查询进行匹配
+                normalized_query = re.sub(r'\s+', '', query)
                 for i, para in enumerate(paragraphs):
-                    if query in para["text"]:
+                    normalized_text = re.sub(r'\s+', '', para["text"])
+                    if normalized_query in normalized_text:
                         found_para_index = i
                         break
 
@@ -369,19 +428,21 @@ async def locate_content(
                 logger.info("[locate_content] 精确文本匹配成功")
                 return json.dumps(result, ensure_ascii=False)
 
-        # 策略4: 模糊匹配（在段落中搜索包含 query 关键词的段落）
-        for i, para in enumerate(paragraphs):
-            if query in para["text"]:
-                result.update({
-                    "locate_method": "fuzzy_match",
-                    "paragraph_index": i,
-                    "text_preview": para["preview"],
-                    "text": para["text"],
-                    "node_id": _match_node_by_index(nodes_list, i),
-                    "confidence": 0.8
-                })
-                logger.info(f"[locate_content] 模糊匹配成功: 第{i + 1}段")
-                return json.dumps(result, ensure_ascii=False)
+        # 策略4: 真正的模糊匹配（🔧 使用 SequenceMatcher 相似度算法）
+        fuzzy_result = _fuzzy_match_paragraphs(query, paragraphs, threshold=0.5)
+        if fuzzy_result:
+            para_idx, similarity = fuzzy_result
+            para = paragraphs[para_idx]
+            result.update({
+                "locate_method": "fuzzy_match",
+                "paragraph_index": para_idx,
+                "text_preview": para["preview"],
+                "text": para["text"],
+                "node_id": _match_node_by_index(nodes_list, para_idx),
+                "confidence": similarity
+            })
+            logger.info(f"[locate_content] 模糊匹配成功: 第{para_idx + 1}段, 相似度={similarity:.2f}")
+            return json.dumps(result, ensure_ascii=False)
 
         # 策略5: 返回段落列表，让调用方选择
         result.update({
