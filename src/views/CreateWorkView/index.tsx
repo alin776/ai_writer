@@ -123,9 +123,11 @@ const CreateWorkView: React.FC = () => {
       }
       
       showToast('success', '作品创建成功！');
-      
-      // 跳转到作品详情页
-      navigate(`/works/${newWork.id}`);
+
+      // 跳转到作品详情页，标记为新建作品
+      navigate(`/works/${newWork.id}`, {
+        state: { fromCreate: true }
+      });
     } catch (error) {
       showToast('error', '创建失败，请重试');
       console.error('Failed to create work:', error);
@@ -160,9 +162,11 @@ const CreateWorkView: React.FC = () => {
       }
       
       showToast('success', '作品创建成功！');
-      
-      // 跳转到作品详情页
-      navigate(`/works/${newWork.id}`);
+
+      // 跳转到作品详情页，标记为新建作品
+      navigate(`/works/${newWork.id}`, {
+        state: { fromCreate: true }
+      });
     } catch (error) {
       showToast('error', '创建失败，请重试');
       console.error('Failed to create work:', error);

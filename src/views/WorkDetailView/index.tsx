@@ -56,6 +56,11 @@ const WorkDetailView: React.FC = () => {
   const clearLastWork = useWorkNavStore((state) => state.clearLastWork);
   const autoExtractFromImportRef = useRef(false);
   const autoExtractWorkIdRef = useRef<string | undefined>(undefined);
+  // 检测是否从新建或导入进入（用于设置初始收起状态）
+  const isFromCreateOrImport = Boolean(
+    (location.state as Record<string, any> | null)?.fromCreate ||
+    (location.state as Record<string, any> | null)?.autoExtractWorldview
+  );
 
   if (workId && autoExtractWorkIdRef.current !== workId) {
     autoExtractFromImportRef.current = Boolean(
@@ -297,10 +302,10 @@ const WorkDetailView: React.FC = () => {
   // 导出对话框状态
   const [showExportDialog, setShowExportDialog] = useState(false);
 
-  // 折叠状态
-  const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
+  // 折叠状态（从新建或导入进入时默认收起）
+  const [isLeftCollapsed, setIsLeftCollapsed] = useState(isFromCreateOrImport);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
-  const [isEditorCollapsed, setIsEditorCollapsed] = useState(false); // 编辑器收缩状态
+  const [isEditorCollapsed, setIsEditorCollapsed] = useState(isFromCreateOrImport); // 编辑器收缩状态
 
   const DEFAULT_RIGHT_PANEL_WIDTH = 288; // 默认 288px (w-72)
   const COLLAPSED_RIGHT_PANEL_WIDTH = 0; // collapsed width - 完全隐藏

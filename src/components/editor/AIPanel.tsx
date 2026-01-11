@@ -1198,10 +1198,10 @@ ${selectionContext.selected_text}
     <div className="p-3 flex flex-col h-full min-h-0 dark:bg-slate-900 overflow-hidden">
       <ToastContainer messages={toastMessages} onClose={closeToast} />
 
-      {/* 新会话欢迎界面 - 输入框居中 */}
+      {/* 新会话欢迎界面 - 输入框居中偏上 */}
       {messages.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center min-h-0">
-          <h1 className="text-2xl font-medium text-zinc-700 dark:text-slate-200 mb-8">
+        <div className="flex-1 flex flex-col items-center justify-center min-h-0 pb-24">
+          <h1 className="text-4xl font-medium text-zinc-700 dark:text-slate-200 mb-8">
             我能为你做什么？
           </h1>
 
