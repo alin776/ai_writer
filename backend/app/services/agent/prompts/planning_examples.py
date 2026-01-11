@@ -297,11 +297,12 @@ def get_search_examples() -> str:
   "user_intent": "优化吞噬器灵场景描写",
   "tasks": [
     {"task_id": 1, "description": "定位吞噬器灵场景", "tool": "locate_content", "params": {"chapter_id": "$CHAPTER_ID$", "query": "吞噬器灵"}},
-    {"task_id": 2, "description": "改写场景描写", "tool": "smart_rewrite", "params": {"chapter_id": "$CHAPTER_ID$", "text_to_rewrite": "$TASK_1.text$", "user_requirement": "优化场景描写，增强画面感"}},
-    {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {"chapter_id": "$CHAPTER_ID$", "operation": "replace", "content": "$TASK_2.versions[0].content$", "original_text": "$TASK_2.original_text$", "paragraph_index": "$TASK_1.paragraph_index$", "node_id": "$TASK_1.node_id$"}}
+    {"task_id": 2, "description": "改写场景描写", "tool": "smart_rewrite", "params": {"chapter_id": "$TASK_1.chapter_id$", "text_to_rewrite": "$TASK_1.text$", "user_requirement": "优化场景描写，增强画面感"}},
+    {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {"chapter_id": "$TASK_1.chapter_id$", "operation": "replace", "content": "$TASK_2.versions[0].content$", "original_text": "$TASK_2.original_text$", "paragraph_index": "$TASK_1.paragraph_index$", "node_id": "$TASK_1.node_id$"}}
   ]
 }
 ⚠️ 关键：用户要**修改**内容时，必须用 locate_content 定位，不要用 search_analysis_fragments_tool！
+⚠️ 跨章节支持：smart_rewrite 和 apply_chapter_edit 的 chapter_id 必须使用 $TASK_1.chapter_id$（locate_content 返回的章节ID），支持跨章节修改！
 
 用户: "找一下主角觉醒的描写"
 {
@@ -346,12 +347,12 @@ def get_smart_rewrite_examples() -> str:
   "tasks": [
     {"task_id": 1, "description": "定位吞噬器灵场景", "tool": "locate_content", "params": {"chapter_id": "$CHAPTER_ID$", "query": "吞噬器灵"}},
     {"task_id": 2, "description": "润色场景", "tool": "smart_rewrite", "params": {
-      "chapter_id": "$CHAPTER_ID$",
+      "chapter_id": "$TASK_1.chapter_id$",
       "text_to_rewrite": "$TASK_1.text$",
       "user_requirement": "优化心理描写、扩写感官体验、使节奏更紧凑"
     }},
     {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$CHAPTER_ID$",
+      "chapter_id": "$TASK_1.chapter_id$",
       "operation": "replace",
       "content": "$TASK_2.versions[0].content$",
       "original_text": "$TASK_2.original_text$",

@@ -23,6 +23,14 @@ from app.tasks import start_scheduler, stop_scheduler
 # 配置日志
 from logging.handlers import RotatingFileHandler
 
+
+class AccessLogFilter(logging.Filter):
+    """过滤高频轮询接口的访问日志"""
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        return "/api/v1/channels/unread-summary" not in msg
+
+
 # 确保logs目录存在
 os.makedirs("./logs", exist_ok=True)
 
@@ -57,6 +65,9 @@ logging.getLogger('httpcore').setLevel(logging.WARNING)
 
 # 降低monitoring_middleware的日志级别，减少日志冗余
 logging.getLogger('app.api.middleware.monitoring_middleware').setLevel(logging.DEBUG)
+
+# 过滤 uvicorn access log 中的高频轮询接口
+logging.getLogger('uvicorn.access').addFilter(AccessLogFilter())
 
 # 抑制jieba的pkg_resources警告
 import warnings

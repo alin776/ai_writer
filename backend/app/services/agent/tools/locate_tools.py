@@ -280,6 +280,74 @@ async def _llm_assisted_locate(
     return None
 
 
+async def _llm_rerank_global_results(
+    query: str,
+    candidates: List[Dict[str, Any]]
+) -> Optional[Dict[str, Any]]:
+    """
+    LLM 重排序全局搜索结果
+
+    当多个候选相似度接近时，用 LLM 判断哪个是"真正发生的场景"
+
+    Args:
+        query: 用户查询
+        candidates: 候选结果列表（已排除当前章节）
+
+    Returns:
+        最佳候选或 None
+    """
+    if len(candidates) < 2:
+        return candidates[0] if candidates else None
+
+    # 优先使用 rerank_score（如果有），否则使用 similarity
+    def get_score(c):
+        return c.get("rerank_score", c.get("similarity", 0))
+
+    sim1 = get_score(candidates[0])
+    sim2 = get_score(candidates[1])
+    if abs(sim1 - sim2) >= 0.15:
+        return candidates[0]  # 差距明显，直接返回第一个
+
+    logger.info(f"[_llm_rerank] top-2 相似度接近 ({sim1:.2f} vs {sim2:.2f})，调用 LLM 重排序")
+
+    # 构建候选列表（最多取前3个）
+    top_candidates = candidates[:min(3, len(candidates))]
+    candidates_text = "\n".join([
+        f"{i + 1}. [第{c.get('chapter_order', '?')}章 {c.get('chapter_title', '')}]: {c.get('content', '')[:80]}..."
+        for i, c in enumerate(top_candidates)
+    ])
+
+    prompt = f"""用户想找的内容："{query}"
+
+候选段落：
+{candidates_text}
+
+请判断哪个是用户要找的"真正发生的场景/动作"，而非"讨论/回忆/解释"。
+只返回数字（1-{len(top_candidates)}），不要解释。"""
+
+    try:
+        ai_service = _get_ai_service()
+        result = await ai_service.call_ai(
+            system_prompt="你是内容定位助手，帮助区分'场景描写'和'概念讨论'。",
+            user_prompt=prompt,
+            max_tokens=10,
+            temperature=0.1,
+            task_type=TaskType.SIMPLE_QA
+        )
+
+        match = re.search(r'\d+', result.strip())
+        if match:
+            selected_idx = int(match.group()) - 1
+            if 0 <= selected_idx < len(top_candidates):
+                logger.info(f"[_llm_rerank] LLM 选择候选 {selected_idx + 1}")
+                return top_candidates[selected_idx]
+
+    except Exception as e:
+        logger.warning(f"[_llm_rerank] LLM 重排序失败: {e}")
+
+    return candidates[0]  # 失败时返回第一个
+
+
 def _find_text_position(content: str, target_text: str) -> Optional[Dict[str, Any]]:
     """
     在内容中查找目标文本的位置
@@ -411,12 +479,16 @@ async def locate_content(
 
         # 获取章节内容
         chapter_content = ""
+        work_id = None  # 用于全局降级
+        chapter_title = ""
         async with AsyncSessionLocal() as db:
             from app.services.chapter_service import ChapterService
             chapter_svc = ChapterService(db)
             chapter = await chapter_svc.get_chapter_by_id(chapter_id)
             if chapter and chapter.content:
                 chapter_content = chapter.content
+                work_id = str(chapter.work_id) if chapter.work_id else None
+                chapter_title = chapter.title or ""
 
         if not chapter_content:
             return json.dumps({
@@ -640,7 +712,87 @@ async def locate_content(
             logger.info(f"[locate_content] LLM 辅助定位成功: 第{llm_idx + 1}段")
             return json.dumps(result, ensure_ascii=False)
 
-        # 策略6: 返回段落列表，让调用方选择
+        # 策略6: 全局降级 - 在整个作品中搜索
+        if work_id:
+            logger.info(f"[locate_content] 章节内未找到，尝试全局搜索: work_id={work_id}")
+            try:
+                async with AsyncSessionLocal() as db:
+                    from app.services.search.hybrid_retriever import HybridRetriever
+                    retriever = HybridRetriever(db)
+                    global_results = await retriever.search(
+                        work_id=work_id,
+                        query=query,
+                        top_k=5,  # 增加到5，确保有足够的跨章节候选
+                        current_order=None,  # 不限制时序
+                        look_ahead=None,
+                    )
+
+                    if global_results:
+                        # 过滤掉当前章节（章节内定位已失败，说明内容不在当前章节）
+                        other_chapter_results = [
+                            r for r in global_results
+                            if r.get("chapter_id") and r.get("chapter_id") != chapter_id
+                        ]
+
+                        # 初始化变量
+                        best = None
+                        target_chapter_id = None
+                        target_paragraph_index = None
+
+                        if not other_chapter_results:
+                            logger.info(f"[locate_content] 全局搜索结果都在当前章节，跳过")
+                        else:
+                            # LLM 重排序（当 top-2 相似度接近时）
+                            best = await _llm_rerank_global_results(query, other_chapter_results)
+                            if best:
+                                target_chapter_id = best.get("chapter_id")
+                                target_paragraph_index = best.get("paragraph_index")
+
+                        # 如果向量检索直接返回了 paragraph_index，直接使用
+                        if best and target_chapter_id and target_paragraph_index is not None:
+                            result.update({
+                                "locate_method": "global_fallback",
+                                "chapter_id": target_chapter_id,
+                                "chapter_title": best.get("chapter_title", ""),
+                                "paragraph_index": target_paragraph_index,
+                                "text_preview": best.get("content", "")[:50] + "...",
+                                "text": best.get("content", ""),
+                                "confidence": best.get("similarity", 0.7),
+                                "cross_chapter": target_chapter_id != chapter_id
+                            })
+                            logger.info(f"[locate_content] 全局降级成功: chapter={target_chapter_id}, para={target_paragraph_index}")
+                            return json.dumps(result, ensure_ascii=False)
+
+                        # 如果没有 paragraph_index（全文检索结果），需要在目标章节内二次定位
+                        elif best and target_chapter_id:
+                            # 获取目标章节内容并定位
+                            from app.services.chapter_service import ChapterService
+                            chapter_svc = ChapterService(db)
+                            target_chapter = await chapter_svc.get_chapter_by_id(target_chapter_id)
+                            if target_chapter and target_chapter.content:
+                                target_paragraphs = _split_paragraphs(target_chapter.content)
+                                # 用全局搜索返回的 content 进行精确匹配
+                                match_result = _fuzzy_match_paragraphs(best.get("content", ""), target_paragraphs, threshold=0.3)
+                                if match_result:
+                                    para_idx, similarity = match_result
+                                    para = target_paragraphs[para_idx]
+                                    result.update({
+                                        "locate_method": "global_fallback",
+                                        "chapter_id": target_chapter_id,
+                                        "chapter_title": target_chapter.title or "",
+                                        "paragraph_index": para_idx,
+                                        "text_preview": para["preview"],
+                                        "text": para["text"],
+                                        "confidence": similarity * 0.8,  # 降低置信度
+                                        "cross_chapter": target_chapter_id != chapter_id
+                                    })
+                                    logger.info(f"[locate_content] 全局降级+二次定位成功: chapter={target_chapter_id}, para={para_idx}")
+                                    return json.dumps(result, ensure_ascii=False)
+
+            except Exception as e:
+                logger.warning(f"[locate_content] 全局降级失败: {e}")
+
+        # 策略7: 返回段落列表，让调用方选择
         result.update({
             "locate_method": "list",
             "message": "无法自动定位，请从以下段落中选择",

@@ -594,9 +594,19 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         afterAnchor?: string;   // 锚点定位
         nodeId?: string;        // 🆕 节点 ID（最高优先级）
         paragraphIndex?: number; // 🆕 段落索引
+        chapterId?: string;     // 🆕 目标章节ID（跨章节检查）
       }>;
 
-      const { type, original, replacement, position, revisionId, originalMessage, context, beforeAnchor, afterAnchor, nodeId, paragraphIndex } = customEvent.detail;
+      const { type, original, replacement, position, revisionId, originalMessage, context, beforeAnchor, afterAnchor, nodeId, paragraphIndex, chapterId: targetChapterId } = customEvent.detail;
+
+      // 🆕 跨章节检查：如果目标章节不是当前章节，提示用户（但不阻止修改）
+      // 后端已经在目标章节完成了修改，这里只是通知用户
+      if (targetChapterId && chapterId && targetChapterId !== chapterId) {
+        console.log('[NovelEditor] 跨章节修改:', { targetChapterId, currentChapterId: chapterId });
+        toast.info(t('editor.aiMenu.crossChapterModified') || '内容已在其他章节修改，请切换查看');
+        // 不 return，继续处理（但由于不是当前章节，修订标记不会显示在当前编辑器）
+        return;  // 当前编辑器不显示修订标记，用户需要切换到目标章节查看
+      }
 
       console.log('[NovelEditor] 收到显示修订请求:', {
         type,

@@ -230,7 +230,8 @@ class ToolExecutor:
             params.setdefault("top_k", 5)
             params.setdefault("chapter_id", state.get("chapter_id", ""))
             params.setdefault("include_current", True)
-            params.setdefault("look_ahead", 2)
+            params.setdefault("look_ahead", 0)
+            params.setdefault("max_content_length", 2000)
 
         elif tool_name == "get_worldview_summary":
             params.setdefault("work_id", state.get("work_id", ""))

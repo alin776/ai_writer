@@ -116,15 +116,20 @@ def _get_editor_tools_section() -> str:
 - locate_content: 定位章节中的内容位置（**修改前必须调用！**）
   参数: chapter_id, query, nodes_info(可选)
   query: "第三段"、"开头"、"结尾"、"段融吞噬器灵的场景"、具体文本片段
-  返回: paragraph_index, text_preview, before_anchor, after_anchor, node_id, text
+  返回: chapter_id, paragraph_index, text_preview, before_anchor, after_anchor, node_id, text, cross_chapter
   ⚠️ **核心用途**：为 apply_chapter_edit 提供定位信息（paragraph_index, node_id）
+  ⚠️ **跨章节定位**：如果内容不在当前章节，会自动全局搜索并返回目标章节的 chapter_id
+    * 返回的 chapter_id 可能与传入的不同（cross_chapter=true）
+    * **必须使用返回的 chapter_id 调用 smart_rewrite 和 apply_chapter_edit**
   ⚠️ **必须使用场景**：
     * 用户要**改写/润色/修改**某内容 → 先用 locate_content 定位！
     * 用户要**插入**内容到某位置 → 先用 locate_content 定位！
     * 用户说"找到XX场景，改写它" → 先用 locate_content 定位！
     * 用户指定模糊位置（如"第三段"、"开头"）→ 先用 locate_content 定位！
   ⚠️ **工作流程**：locate_content → smart_rewrite/smart_insert → apply_chapter_edit
-  ⚠️ **参数传递**：locate_content 返回的 paragraph_index 和 node_id 必须传给 apply_chapter_edit
+  ⚠️ **参数传递**：locate_content 返回的 chapter_id、paragraph_index 和 node_id 必须传给后续工具
+    * 示例：smart_rewrite(chapter_id=$TASK_1.chapter_id$, ...)
+    * 示例：apply_chapter_edit(chapter_id=$TASK_1.chapter_id$, paragraph_index=$TASK_1.paragraph_index$, ...)
 """
 
 

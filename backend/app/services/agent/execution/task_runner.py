@@ -227,7 +227,8 @@ class TaskRunner:
                 "top_k": params.get("top_k", 5),
                 "chapter_id": chapter_id or "",
                 "include_current": params.get("include_current", True),
-                "look_ahead": params.get("look_ahead", 2),
+                "look_ahead": params.get("look_ahead", 0),
+                "max_content_length": params.get("max_content_length", 2000),
             }
 
         elif tool_name == "smart_continue":
@@ -346,7 +347,8 @@ class TaskRunner:
                 "top_k": params.get("top_k", 5),
                 "chapter_id": chapter_id or "",
                 "include_current": params.get("include_current", True),
-                "look_ahead": params.get("look_ahead", 2),
+                "look_ahead": params.get("look_ahead", 0),
+                "max_content_length": params.get("max_content_length", 2000),
             })
         elif tool_name == "smart_continue":
             # 🔧 2026-01-11: 修复参数名 - smart_continue 期望 chapter_content，不是 content

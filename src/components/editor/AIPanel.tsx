@@ -1632,16 +1632,18 @@ ${selectionContext.selected_text}
           </p>
           <div className="flex gap-2">
             <button
-              onClick={acceptAllOperations}
-              className="px-3 py-1.5 text-[11px] bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+              onClick={rollbackAllOperations}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] bg-zinc-100 hover:bg-zinc-200 text-zinc-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded-full border border-zinc-200 dark:border-slate-600 transition-colors"
             >
-              采纳修改
+              <X className="w-3.5 h-3.5" />
+              弃用
             </button>
             <button
-              onClick={rollbackAllOperations}
-              className="px-3 py-1.5 text-[11px] bg-zinc-200 hover:bg-zinc-300 text-zinc-700 dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-200 rounded-lg transition-colors"
+              onClick={acceptAllOperations}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] bg-green-50 hover:bg-green-100 text-green-700 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:text-green-400 rounded-full border border-green-200 dark:border-green-800 transition-colors"
             >
-              撤销修改
+              <Check className="w-3.5 h-3.5" />
+              采纳
             </button>
           </div>
         </div>

@@ -347,7 +347,8 @@ class ToolDispatcher:
                 "top_k": tool_args.get("top_k", 5),
                 "chapter_id": state.get("chapter_id", ""),
                 "include_current": tool_args.get("include_current", True),
-                "look_ahead": tool_args.get("look_ahead", 2)
+                "look_ahead": tool_args.get("look_ahead", 0),
+                "max_content_length": tool_args.get("max_content_length", 2000)
             })
 
             if isinstance(result, dict) and result.get("success"):
@@ -367,7 +368,8 @@ class ToolDispatcher:
                 "top_k": tool_args.get("top_k", 5),
                 "chapter_id": state.get("chapter_id", ""),
                 "include_current": tool_args.get("include_current", True),
-                "look_ahead": tool_args.get("look_ahead", 2),
+                "look_ahead": tool_args.get("look_ahead", 0),
+                "max_content_length": tool_args.get("max_content_length", 2000),
             })
 
     async def _call_smart_rewrite(

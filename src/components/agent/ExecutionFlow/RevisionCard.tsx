@@ -158,7 +158,7 @@ export function RevisionCard({
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onAccept?.(versions ? selectedVersion : undefined); }}
-                className="flex items-center gap-1 px-2.5 py-1 text-[12px] text-white bg-blue-500 rounded-full hover:bg-blue-600 transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1 text-[12px] text-green-700 bg-green-50 border border-green-200 rounded-full hover:bg-green-100 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:text-green-400 dark:border-green-800 transition-colors"
               >
                 <Check size={12} />
                 采纳

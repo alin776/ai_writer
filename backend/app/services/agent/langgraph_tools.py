@@ -696,22 +696,24 @@ async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order
 
 @tool
 async def search_analysis_fragments_tool(
-    work_id: Optional[str] = None,
-    query: str = "",
+    work_id: str,
+    query: str,
     top_k: int = 5,
     chapter_id: str = "",
     include_current: bool = True,
-    look_ahead: int = 2
+    look_ahead: int = 0,
+    max_content_length: int = 2000
 ) -> str:
     """检索分析碎片工具：混合检索（向量+全文），召回作品相关片段
 
     Args:
-        work_id: 作品ID（UUID格式）
-        query: 查询文本
+        work_id: 作品ID（UUID格式，必需）
+        query: 查询文本（必需）
         top_k: 返回前K个最相关结果
         chapter_id: 当前章节ID（可选，用于确定时序窗口）
         include_current: 是否包含当前章
-        look_ahead: 允许向后看的章节数
+        look_ahead: 允许向后看的章节数（默认0表示不限制，检索所有章节）
+        max_content_length: 返回内容的最大长度（默认2000）
 
     Returns:
         相关片段JSON
@@ -721,6 +723,13 @@ async def search_analysis_fragments_tool(
             "status": "missing_prerequisite",
             "missing": "work_id",
             "message": "需要指定作品ID才能检索分析片段"
+        }, ensure_ascii=False, indent=2)
+
+    if not query or not query.strip():
+        return json.dumps({
+            "status": "missing_prerequisite",
+            "missing": "query",
+            "message": "需要指定查询文本才能检索分析片段"
         }, ensure_ascii=False, indent=2)
 
     uuid_error = validate_uuid(work_id, "作品ID")
@@ -750,13 +759,15 @@ async def search_analysis_fragments_tool(
                     current_order = chapter.order
 
             retriever = HybridRetriever(db)
+            # look_ahead=0 表示不限制时序窗口，检索所有章节
+            # current_order=None 时传 None 让 retriever 自行处理
             results = await retriever.search(
                 work_id=work_id,
                 query=query,
-                current_order=current_order if current_order is not None else 10**6,
+                current_order=current_order,
                 top_k=top_k,
                 include_current=include_current,
-                look_ahead=look_ahead,
+                look_ahead=look_ahead if look_ahead > 0 else None,
             )
 
             if not results:
@@ -771,10 +782,12 @@ async def search_analysis_fragments_tool(
             for i, result in enumerate(results):
                 formatted_results.append({
                     "rank": i + 1,
+                    "chapter_id": result.get("chapter_id"),  # 新增
                     "similarity": result.get("similarity", 0),
                     "chapter_title": result.get("chapter_title"),
                     "chapter_order": result.get("chapter_order"),
-                    "content": result.get("content", "")[:2000],
+                    "paragraph_index": result.get("paragraph_index"),  # 新增
+                    "content": result.get("content", "")[:max_content_length],
                     "source": result.get("source", "vector")
                 })
 
@@ -1296,12 +1309,13 @@ get_chapter_by_order_tool_st = StandardTool(
 
 class SearchAnalysisFragmentsInput(ToolInput):
     """检索分析碎片工具输入"""
-    work_id: str = Field(..., description="作品ID")
-    query: str = Field(..., description="查询文本")
+    work_id: str = Field(..., description="作品ID（必需）")
+    query: str = Field(..., description="查询文本（必需）")
     top_k: int = Field(default=5, description="返回前K个最相关结果", ge=1, le=20)
     chapter_id: str = Field(default="", description="当前章节ID（可选）")
     include_current: bool = Field(default=True, description="是否包含当前章")
-    look_ahead: int = Field(default=2, description="允许向后看的章节数", ge=0, le=10)
+    look_ahead: int = Field(default=0, description="允许向后看的章节数（0表示不限制）", ge=0)
+    max_content_length: int = Field(default=2000, description="返回内容的最大长度", ge=100, le=10000)
 
 
 class SearchAnalysisFragmentsOutput(ToolOutput):
@@ -1319,7 +1333,8 @@ async def search_analysis_fragments_executor(input_data: SearchAnalysisFragments
             "top_k": input_data.top_k,
             "chapter_id": input_data.chapter_id,
             "include_current": input_data.include_current,
-            "look_ahead": input_data.look_ahead
+            "look_ahead": input_data.look_ahead,
+            "max_content_length": input_data.max_content_length
         })
 
         return SearchAnalysisFragmentsOutput(

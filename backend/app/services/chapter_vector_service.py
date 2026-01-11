@@ -62,52 +62,44 @@ class ChapterVectorService:
 
         return VectorStoreService._global_model
 
-    def _split_content(self, content: str, chunk_size: int = 500, max_chunks: Optional[int] = None) -> List[str]:
+    def _split_by_paragraphs(self, content: str, max_paragraphs: Optional[int] = None) -> List[str]:
         """
-        内容分段（按句子边界切分）
+        按段落切分内容（与前端编辑器结构对齐）
 
         Args:
-            content: 章节内容
-            chunk_size: 每段最大字符数
-            max_chunks: 分块数量上限（超过则截断并记录告警）
+            content: 章节内容（HTML 格式）
+            max_paragraphs: 段落数量上限
 
         Returns:
-            List[str]: 分段后的文本列表
+            List[str]: 段落文本列表，索引即为 paragraph_index
+
+        注意：不过滤短段落，保持与 locate_tools._split_paragraphs 索引一致
         """
-        # 清理 HTML 标签（编辑器可能存储 <p></p> 等标签）
-        content = re.sub(r'<[^>]+>', '', content)
-        # 清理常见 HTML 实体
-        content = content.replace('&nbsp;', ' ').replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
+        paragraphs = []
 
-        # 按中文句子边界分割
-        sentences = re.split(r'([。！？\n])', content)
+        # 优先按 HTML <p> 标签分割（与前端 Tiptap 一致）
+        if '<p' in content:
+            block_pattern = r'<(p|h[1-6]|blockquote|pre)[^>]*>(.*?)</\1>'
+            matches = re.findall(block_pattern, content, re.DOTALL | re.IGNORECASE)
 
-        chunks = []
-        current_chunk = ""
+            for tag, inner_html in matches:
+                # 去除内部 HTML 标签，只保留文本
+                text = re.sub(r'<[^>]+>', '', inner_html).strip()
+                if text:  # 只跳过空段落，不过滤短段落
+                    paragraphs.append(text)
+        else:
+            # 纯文本模式：按换行分割
+            raw_paragraphs = re.split(r'\n\n+|\n', content)
+            for para in raw_paragraphs:
+                para = para.strip()
+                if para:  # 只跳过空段落
+                    paragraphs.append(para)
 
-        for i in range(0, len(sentences), 2):
-            sentence = sentences[i] + (sentences[i + 1] if i + 1 < len(sentences) else "")
+        if max_paragraphs is not None and len(paragraphs) > max_paragraphs:
+            logger.warning(f"段落数量 {len(paragraphs)} 超过上限 {max_paragraphs}，将截断")
+            paragraphs = paragraphs[:max_paragraphs]
 
-            if len(current_chunk) + len(sentence) > chunk_size:
-                if current_chunk:
-                    chunks.append(current_chunk.strip())
-                current_chunk = sentence
-            else:
-                current_chunk += sentence
-
-        if current_chunk:
-            chunks.append(current_chunk.strip())
-
-        # 过滤过短的段落（<50字符）
-        chunks = [c for c in chunks if len(c) >= 50]
-
-        if max_chunks is not None and len(chunks) > max_chunks:
-            logger.warning(
-                f"章节分块数量 {len(chunks)} 超过上限 {max_chunks}，将截断多余分块"
-            )
-            chunks = chunks[:max_chunks]
-
-        return chunks
+        return paragraphs
 
     def _cosine_similarity(self, a: np.ndarray, b: np.ndarray) -> float:
         """
@@ -134,8 +126,7 @@ class ChapterVectorService:
     ) -> int:
         """
         Store chapter content embeddings (idempotent).
-        - Deletes old vectors for the chapter
-        - Splits content, encodes, and batch inserts
+        按段落生成向量，chunk_index 即为 paragraph_index。
         """
         try:
             logger.info(f"Vectorizing chapter: {chapter_title} (order={chapter_order})")
@@ -147,21 +138,17 @@ class ChapterVectorService:
             await self.db.execute(stmt)
             await self.db.flush()
 
-            # 2) split content
-            chunks = self._split_content(
-                content,
-                chunk_size=chunk_size,
-                max_chunks=max_chunks or self.MAX_CHUNKS,
-            )
+            # 2) 按段落切分（与编辑器结构对齐）
+            paragraphs = self._split_by_paragraphs(content, max_paragraphs=max_chunks or self.MAX_CHUNKS)
 
-            if len(chunks) == 0:
-                logger.warning(f"Skip vectorizing (too short): {chapter_title}")
+            if len(paragraphs) == 0:
+                logger.warning(f"Skip vectorizing (no valid paragraphs): {chapter_title}")
                 await self.db.commit()
                 return 0
 
             # 3) encode
             model = self._get_model()
-            embeddings = model.encode(chunks, normalize_embeddings=True)
+            embeddings = model.encode(paragraphs, normalize_embeddings=True)
 
             # 4) batch insert
             from uuid import UUID
@@ -169,22 +156,22 @@ class ChapterVectorService:
             chapter_uuid = UUID(chapter_id) if isinstance(chapter_id, str) else chapter_id
 
             vectors = []
-            for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            for idx, (para_text, embedding) in enumerate(zip(paragraphs, embeddings)):
                 vectors.append(NovelChapterVector(
                     work_id=work_uuid,
                     chapter_id=chapter_uuid,
                     chapter_order=chapter_order,
                     chapter_title=chapter_title,
-                    chunk_index=idx,
-                    chunk_text=chunk,
+                    chunk_index=idx,  # chunk_index 即为 paragraph_index
+                    chunk_text=para_text,
                     embedding=embedding.tolist()
                 ))
 
             self.db.add_all(vectors)
             await self.db.commit()
 
-            logger.info(f"Stored chapter vectors: {chapter_title} ({len(chunks)} chunks)")
-            return len(chunks)
+            logger.info(f"Stored chapter vectors: {chapter_title} ({len(paragraphs)} paragraphs)")
+            return len(paragraphs)
 
         except Exception as e:
             logger.error(f"store_chapter_vector failed: {e}", exc_info=True)
@@ -202,7 +189,7 @@ class ChapterVectorService:
     ) -> List[Dict[str, Any]]:
         """
         Retrieve context for continuation.
-        Includes current chapter and optional look-ahead window.
+        返回 chapter_id 和 paragraph_index（chunk_index），支持精确定位。
         """
         try:
             logger.info(
@@ -239,8 +226,10 @@ class ChapterVectorService:
                 similarity = self._cosine_similarity(query_embedding, embedding)
                 if similarity >= similarity_threshold:
                     results.append({
+                        'chapter_id': str(vector.chapter_id),  # 新增
                         'chapter_title': vector.chapter_title,
                         'chapter_order': vector.chapter_order,
+                        'paragraph_index': vector.chunk_index,  # 新增：chunk_index 即 paragraph_index
                         'chunk_text': vector.chunk_text,
                         'similarity': float(similarity)
                     })
