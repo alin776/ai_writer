@@ -290,18 +290,18 @@ def get_search_examples() -> str:
 用户: "优化第一章中段融第一次吞噬器灵的场景描写"
 {
   "thinking": {
-    "step1_output": "用户想优化一个特定场景的描写",
-    "step2_material": "需要先搜索'吞噬器灵'相关内容，找到具体位置",
-    "step3_process": "搜索定位 → 读取章节 → 分析并给出优化建议"
+    "step1_output": "用户想优化一个特定场景的描写，需要修改内容",
+    "step2_material": "需要先用 locate_content 定位'吞噬器灵'场景，获取 paragraph_index",
+    "step3_process": "locate_content 定位 → smart_rewrite 改写 → apply_chapter_edit 应用"
   },
   "user_intent": "优化吞噬器灵场景描写",
   "tasks": [
-    {"task_id": 1, "description": "搜索吞噬器灵场景", "tool": "search_analysis_fragments_tool", "params": {"query": "吞噬器灵"}},
-    {"task_id": 2, "description": "读取第一章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 1}},
-    {"task_id": 3, "description": "分析并优化场景描写", "tool": "analyze_text_tool", "params": {"text": "$TASK_2.content$", "focus": "场景描写优化"}}
+    {"task_id": 1, "description": "定位吞噬器灵场景", "tool": "locate_content", "params": {"chapter_id": "$CHAPTER_ID$", "query": "吞噬器灵"}},
+    {"task_id": 2, "description": "改写场景描写", "tool": "smart_rewrite", "params": {"chapter_id": "$CHAPTER_ID$", "text_to_rewrite": "$TASK_1.text$", "user_requirement": "优化场景描写，增强画面感"}},
+    {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {"chapter_id": "$CHAPTER_ID$", "operation": "replace", "content": "$TASK_2.versions[0].content$", "original_text": "$TASK_2.original_text$", "paragraph_index": "$TASK_1.paragraph_index$", "node_id": "$TASK_1.node_id$"}}
   ]
 }
-⚠️ 关键：query 参数提取"吞噬器灵"（核心动作词组），而不是"灵的场景"（错误拆分）！
+⚠️ 关键：用户要**修改**内容时，必须用 locate_content 定位，不要用 search_analysis_fragments_tool！
 
 用户: "找一下主角觉醒的描写"
 {
@@ -338,28 +338,29 @@ def get_smart_rewrite_examples() -> str:
 用户: "帮我润色第1章中段融第一次吞噬器灵的场景"
 {
   "thinking": {
-    "step1_output": "用户想润色特定场景，需要使用 smart_rewrite 并应用到编辑器",
-    "step2_material": "需要先获取第1章内容",
-    "step3_process": "⚠️ 创作类→操作类：获取章节 → smart_rewrite 生成 → apply_chapter_edit 应用"
+    "step1_output": "用户想润色特定场景，需要先定位再改写",
+    "step2_material": "需要先用 locate_content 定位吞噬器灵场景",
+    "step3_process": "⚠️ locate_content 定位 → smart_rewrite 生成 → apply_chapter_edit 应用"
   },
   "user_intent": "润色吞噬器灵场景",
   "tasks": [
-    {"task_id": 1, "description": "获取第1章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 1}},
-    {"task_id": 2, "description": "润色吞噬器灵场景", "tool": "smart_rewrite", "params": {
-      "chapter_id": "$TASK_1.chapter_id$",
-      "text_to_rewrite": "$TASK_1.content$",
-      "chapter_content": "$TASK_1.content$",
+    {"task_id": 1, "description": "定位吞噬器灵场景", "tool": "locate_content", "params": {"chapter_id": "$CHAPTER_ID$", "query": "吞噬器灵"}},
+    {"task_id": 2, "description": "润色场景", "tool": "smart_rewrite", "params": {
+      "chapter_id": "$CHAPTER_ID$",
+      "text_to_rewrite": "$TASK_1.text$",
       "user_requirement": "优化心理描写、扩写感官体验、使节奏更紧凑"
     }},
     {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$TASK_1.chapter_id$",
+      "chapter_id": "$CHAPTER_ID$",
       "operation": "replace",
       "content": "$TASK_2.versions[0].content$",
-      "original_text": "$TASK_2.original_text$"
+      "original_text": "$TASK_2.original_text$",
+      "paragraph_index": "$TASK_1.paragraph_index$",
+      "node_id": "$TASK_1.node_id$"
     }}
   ]
 }
-⚠️ 注意：smart_rewrite 不再返回锚点，使用 original_text 让前端定位
+⚠️ 关键：用 locate_content 定位，然后把 paragraph_index 和 node_id 传给 apply_chapter_edit！
 
 用户: "把这段话改得更有画面感：天色未明，青冥中尚悬着几颗残星。"
 {

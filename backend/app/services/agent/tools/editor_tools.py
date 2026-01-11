@@ -308,6 +308,30 @@ async def apply_chapter_edit(
                 logger.warning(f"[apply_chapter_edit] paragraph_index 类型转换失败: {paragraph_index}")
                 paragraph_index = None
 
+        # 🔧 2026-01-11: 防御性处理 - position 参数语义解析
+        # LLM 可能误传字符串如 "before"、"after"，尝试解析语义
+        if position is not None:
+            if isinstance(position, str):
+                pos_lower = position.lower().strip()
+                # 尝试解析语义，设置 paragraph_index
+                if pos_lower in ["before", "start", "开头", "前面", "beginning"]:
+                    if paragraph_index is None:
+                        paragraph_index = 0
+                    logger.info(f"[apply_chapter_edit] position='{position}' 解析为 paragraph_index=0")
+                elif pos_lower in ["after", "end", "结尾", "后面", "ending"]:
+                    if paragraph_index is None:
+                        paragraph_index = -1  # -1 表示最后
+                    logger.info(f"[apply_chapter_edit] position='{position}' 解析为 paragraph_index=-1")
+                else:
+                    logger.warning(f"[apply_chapter_edit] position 收到无法解析的字符串: {position}")
+                position = None
+            elif not isinstance(position, int):
+                try:
+                    position = int(position)
+                except (ValueError, TypeError):
+                    logger.warning(f"[apply_chapter_edit] position 类型转换失败: {position}")
+                    position = None
+
         # 检查速率限制
         if user_id:
             is_allowed, remaining = await agent_edit_limiter.check(user_id)
@@ -359,6 +383,36 @@ async def apply_chapter_edit(
                 return json.dumps({"success": False, "error": f"chapter_not_found: {chapter_id}"}, ensure_ascii=False)
 
             old_content = chapter.content or ""
+
+            # 🔧 2026-01-11: 处理 paragraph_index = -1（表示最后一段）
+            if paragraph_index == -1 and old_content:
+                if '<p' in old_content:
+                    pattern = r'<(p|h[1-6]|blockquote|pre)[^>]*>(.*?)</\1>'
+                    matches = re.findall(pattern, old_content, re.DOTALL | re.IGNORECASE)
+                    paragraph_index = len(matches) - 1 if matches else 0
+                else:
+                    paragraphs = [p.strip() for p in re.split(r'\n\n+|\n', old_content) if p.strip()]
+                    paragraph_index = len(paragraphs) - 1 if paragraphs else 0
+                logger.info(f"[apply_chapter_edit] paragraph_index=-1 转换为实际索引: {paragraph_index}")
+
+            # 🔧 2026-01-12: 兜底逻辑 - 如果没有定位信息但有 original_text，自动调用 locate_content
+            if original_text and not node_id and paragraph_index is None and operation == "replace":
+                try:
+                    from .locate_tools import locate_content
+                    locate_result_str = await locate_content.ainvoke({
+                        "chapter_id": resolved_chapter_id,
+                        "query": original_text[:100]  # 使用原文前100字作为查询
+                    })
+                    locate_result = json.loads(locate_result_str) if isinstance(locate_result_str, str) else locate_result_str
+                    if locate_result.get("success") and locate_result.get("paragraph_index") is not None:
+                        paragraph_index = locate_result["paragraph_index"]
+                        node_id = locate_result.get("node_id")
+                        before_anchor = before_anchor or locate_result.get("before_anchor")
+                        after_anchor = after_anchor or locate_result.get("after_anchor")
+                        logger.info(f"[apply_chapter_edit] 自动定位成功: paragraph_index={paragraph_index}, node_id={node_id}")
+                except Exception as e:
+                    logger.warning(f"[apply_chapter_edit] 自动定位失败: {e}")
+
             actual_content = content
             if isinstance(actual_content, str) and actual_content.strip().startswith('{'):
                 try:
@@ -471,7 +525,8 @@ async def apply_chapter_edit(
                             replaced = old_content[:start_pos] + actual_content + old_content[end_pos:]
                     except (TypeError, ValueError):
                         replaced = None
-                if node_id:
+                # 🔧 2026-01-11: 添加 replaced is None 检查，避免覆盖 position 对象定位结果
+                if replaced is None and node_id:
                     replaced = _replace_by_node_id(old_content, node_id, actual_content)
                 if replaced is None and original_text:
                     if original_text in old_content:
@@ -1114,9 +1169,16 @@ async def apply_chapter_edit_executor(input_data: ApplyChapterEditInput) -> Appl
 
         result_data = json.loads(result_str) if isinstance(result_str, str) else result_str
 
+        # 🔧 2026-01-12: 修复 message 字段，当 success=False 时使用 error 字段
+        success = result_data.get("success", True)
+        if success:
+            message = result_data.get("description", "编辑已应用")
+        else:
+            message = result_data.get("error", result_data.get("message", "编辑失败"))
+
         return ApplyChapterEditOutput(
-            success=result_data.get("success", True),
-            message=result_data.get("message", "编辑已应用"),
+            success=success,
+            message=message,
             data=result_data,
             metadata={"tool": "apply_chapter_edit", "operation": input_data.operation}
         )

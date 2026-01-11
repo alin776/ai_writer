@@ -9,14 +9,16 @@
 def _get_retrieval_tools_section() -> str:
     """检索工具描述"""
     return """
-【检索工具 - 内容搜索场景使用】
+【检索工具 - 纯搜索/查询场景使用】
 - search_analysis_fragments_tool: 混合检索（向量+全文）召回作品相关片段
-  参数: query(必需), top_k(默认5), work_id(可选), chapter_id(可选)
-  → 适用场景:
-    - 用户给出具体文字片段但不知道在哪章: "微光如露落雪在哪"
-    - 搜索包含某关键词的内容: "哪里提到了XX"、"找一下XX相关的内容"
-    - 查找人物/地点/设定相关描述: "赵穆出现在哪"、"关于源顺镖局的描述"
-    - ⚠️ 用户提到人物名但未指定章节: "帮我改写赵穆的描写" → 先搜索赵穆出现位置
+  参数: work_id(必需), query(必需), top_k(默认5), chapter_id(可选), look_ahead(默认0=不限制), max_content_length(默认2000)
+  → 适用场景（仅用于查询，不用于修改！）:
+    - 用户只是想**查找/搜索**内容: "哪里提到了XX"、"找一下XX相关的内容"
+    - 用户想**了解**某内容在哪: "赵穆出现在哪"、"关于源顺镖局的描述"
+  ⚠️ **禁止场景**（不要用此工具！）:
+    - 用户要**修改/改写/润色**某内容 → 用 locate_content！
+    - 用户要**插入/续写**内容 → 用 locate_content！
+    - 任何需要返回 paragraph_index 的场景 → 用 locate_content！
 
 ⚠️ 【搜索 query 提取规则 - 极其重要！】
 提取用户描述中的**核心动作/事件/专有名词**作为搜索词，保持完整性！
@@ -42,11 +44,9 @@ def _get_retrieval_tools_section() -> str:
    - "首次突破金丹" → 提取 "突破金丹"
 
 ⚠️ 【检索规则 - 强制执行】
-- 用户提到具体文字/关键词但不知位置 → 必须先调用 search_analysis_fragments_tool
-- 用户问"XX在哪"/"哪里提到XX" → 必须先调用 search_analysis_fragments_tool
-- ⚠️ 用户提到人物名（如"赵穆"）但未说在哪章 → 必须先调用 search_analysis_fragments_tool 定位
+- 用户只是想**查询/搜索**内容位置 → 用 search_analysis_fragments_tool
+- 用户要**修改/改写/插入**内容 → 用 locate_content（返回 paragraph_index）
 - **禁止不检索就直接回答"没有找到"或"不存在"！必须先检索确认！**
-- **禁止直接读取"当前章节"然后说"XX未出现"！必须先检索确认XX在哪些章节！**
 """
 
 
@@ -93,24 +93,38 @@ def _get_editor_tools_section() -> str:
   ⚠️ insert_context 可以从 locate_content 返回的 text 获取，用于风格参考
 
 - apply_chapter_edit: 将已生成的内容应用到编辑器（操作类工具）
-  参数: chapter_id, operation, content, position, before_anchor, after_anchor, original_text, node_id, paragraph_index
+  参数: chapter_id, operation, content, paragraph_index(整数), node_id, before_anchor, after_anchor, original_text
   operation: "append"(续写) | "insert"(插入) | "replace"(替换)
   ⚠️ 此工具用于将创作类工具生成的内容写入编辑器
   ⚠️ **必须在创作类工具之后调用**：先创作，后应用！
-  ⚠️ **定位参数传递规则**：
-    * 如果 locate_content 返回了 node_id → 直接传入 node_id
-    * 如果 locate_content 返回了 paragraph_index → 传入 paragraph_index（前端会映射到 node_id）
-    * 如果有锚点 → 传入 before_anchor 和 after_anchor
 
-- locate_content: 定位章节中的内容位置（定位工具）
+  ⚠️ **参数类型约束（必须严格遵守！）**：
+    * paragraph_index: 【必须是整数】如 0、1、2。从 locate_content 获取
+    * node_id: 【字符串】节点ID，从 locate_content 获取
+    * before_anchor/after_anchor: 【文本】锚点字符串
+
+  ❌ **错误示例（绝对禁止！）**：
+    * position="before" ❌ 错误！不要传 position 参数！
+    * position="after" ❌ 错误！
+    * paragraph_index="第三段" ❌ 错误！必须是整数如 2
+
+  ✅ **正确做法**：
+    * 插入/替换操作 → 先调用 locate_content 获取 paragraph_index 和 node_id
+    * 然后将 locate_content 返回的整数 paragraph_index 传入此工具
+    * 示例：locate_content 返回 paragraph_index=2 → apply_chapter_edit(paragraph_index=2)
+
+- locate_content: 定位章节中的内容位置（**修改前必须调用！**）
   参数: chapter_id, query, nodes_info(可选)
-  query: "第三段"、"开头"、"结尾"、具体文本片段
-  返回: paragraph_index, text_preview, before_anchor, after_anchor, node_id
-  触发词: 用户说"把第X段改了"、"修改开头"、"找到XX的位置"
-  ⚠️ **使用场景**：
-    * 用户指定了模糊位置（如"第三段"）→ 先用 locate_content 定位
-    * 用户说"修改主角出场的地方" → 先用 locate_content 定位
+  query: "第三段"、"开头"、"结尾"、"段融吞噬器灵的场景"、具体文本片段
+  返回: paragraph_index, text_preview, before_anchor, after_anchor, node_id, text
+  ⚠️ **核心用途**：为 apply_chapter_edit 提供定位信息（paragraph_index, node_id）
+  ⚠️ **必须使用场景**：
+    * 用户要**改写/润色/修改**某内容 → 先用 locate_content 定位！
+    * 用户要**插入**内容到某位置 → 先用 locate_content 定位！
+    * 用户说"找到XX场景，改写它" → 先用 locate_content 定位！
+    * 用户指定模糊位置（如"第三段"、"开头"）→ 先用 locate_content 定位！
   ⚠️ **工作流程**：locate_content → smart_rewrite/smart_insert → apply_chapter_edit
+  ⚠️ **参数传递**：locate_content 返回的 paragraph_index 和 node_id 必须传给 apply_chapter_edit
 """
 
 

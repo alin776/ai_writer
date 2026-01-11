@@ -17,8 +17,21 @@ from difflib import SequenceMatcher
 from langchain_core.tools import tool
 from .tool_registry import register_as_tool
 from app.core.database import AsyncSessionLocal
+from app.services.ai.http_ai_service import HTTPAIService
+from app.services.agent.model_selector import TaskType
 
 logger = logging.getLogger(__name__)
+
+# AI服务实例（延迟初始化）
+_ai_service: Optional[HTTPAIService] = None
+
+
+def _get_ai_service() -> HTTPAIService:
+    """获取AI服务实例"""
+    global _ai_service
+    if _ai_service is None:
+        _ai_service = HTTPAIService()
+    return _ai_service
 
 
 # ==================== 辅助函数 ====================
@@ -116,15 +129,19 @@ def _fuzzy_match_paragraphs(query: str, paragraphs: List[Dict[str, Any]], thresh
     # 规范化查询：去除多余空格
     normalized_query = re.sub(r'\s+', '', query)
 
+    # 🔧 2026-01-12: 优化精确匹配逻辑 - 找到最精确匹配的段落，而不是第一个包含的段落
+    exact_matches = []  # 收集所有完全包含匹配的段落
+
     for i, para in enumerate(paragraphs):
         text = para["text"]
         # 规范化段落文本
         normalized_text = re.sub(r'\s+', '', text)
 
-        # 方法1：完全包含匹配（最高优先级）
+        # 方法1：完全包含匹配 - 收集所有匹配，稍后选择最佳
         if normalized_query in normalized_text:
-            logger.info(f"[_fuzzy_match] 完全包含匹配成功: 第{i + 1}段")
-            return (i, 1.0)
+            # 计算匹配精确度：查询长度 / 段落长度（越接近1越精确）
+            precision = len(normalized_query) / len(normalized_text) if normalized_text else 0
+            exact_matches.append((i, precision))
 
         # 方法2：滑动窗口相似度匹配
         query_len = len(normalized_query)
@@ -146,9 +163,119 @@ def _fuzzy_match_paragraphs(query: str, paragraphs: List[Dict[str, Any]], thresh
                 best_ratio = ratio
                 best_match = i
 
+    # 🔧 如果有完全包含匹配，选择精确度最高的（查询占段落比例最大的）
+    if exact_matches:
+        # 按精确度降序排序，选择最精确的匹配
+        exact_matches.sort(key=lambda x: x[1], reverse=True)
+        best_idx, best_precision = exact_matches[0]
+        logger.info(f"[_fuzzy_match] 完全包含匹配成功: 第{best_idx + 1}段, 精确度={best_precision:.2f}")
+        return (best_idx, 1.0)
+
     if best_match is not None and best_ratio >= threshold:
         logger.info(f"[_fuzzy_match] 相似度匹配成功: 第{best_match + 1}段, 相似度={best_ratio:.2f}")
         return (best_match, best_ratio)
+
+    return None
+
+
+async def _llm_assisted_locate(
+    query: str,
+    paragraphs: List[Dict[str, Any]],
+    top_k: int = 8
+) -> Optional[Tuple[int, float]]:
+    """
+    LLM 辅助定位（当模糊匹配置信度低时使用）
+
+    使用 lite 模型（gemini-2.5-flash-lite）进行语义理解
+
+    Args:
+        query: 用户查询
+        paragraphs: 段落列表
+        top_k: 候选段落数量
+
+    Returns:
+        (段落索引, 置信度) 或 None
+    """
+    if not paragraphs:
+        return None
+
+    # 🔧 2026-01-12: 基于相似度选择 top_k 个候选段落，而不是简单取前 top_k 个
+    # 计算每个段落与查询的相似度
+    normalized_query = re.sub(r'\s+', '', query)
+    scored_paragraphs = []
+
+    for i, para in enumerate(paragraphs):
+        text = para["text"]
+        normalized_text = re.sub(r'\s+', '', text)
+
+        # 计算相似度（多种方法取最高）
+        score = 0.0
+
+        # 方法1：包含匹配
+        if normalized_query in normalized_text:
+            score = max(score, 0.8)
+
+        # 方法2：关键词匹配（提取查询中的关键词）
+        # 简单实现：按2-4字切分查询，检查段落是否包含
+        for kw_len in [4, 3, 2]:
+            if len(normalized_query) >= kw_len:
+                for j in range(len(normalized_query) - kw_len + 1):
+                    keyword = normalized_query[j:j + kw_len]
+                    if keyword in normalized_text:
+                        score = max(score, 0.5 + kw_len * 0.1)
+                        break
+
+        # 方法3：整体相似度
+        ratio = SequenceMatcher(None, normalized_query[:50], normalized_text[:100]).ratio()
+        score = max(score, ratio)
+
+        scored_paragraphs.append((i, para, score))
+
+    # 按相似度降序排序，取 top_k 个
+    scored_paragraphs.sort(key=lambda x: x[2], reverse=True)
+    top_candidates = scored_paragraphs[:min(top_k, len(scored_paragraphs))]
+
+    # 构建候选列表（保留原始索引映射）
+    candidates_text = "\n".join([
+        f"{j + 1}. [第{orig_idx + 1}段] {para['preview']}"
+        for j, (orig_idx, para, score) in enumerate(top_candidates)
+    ])
+
+    prompt = f"""用户想找的内容："{query}"
+
+候选段落（按相关度排序）：
+{candidates_text}
+
+请选择最符合用户意图的段落编号（1-{len(top_candidates)}）。
+只返回数字，不要解释。如果都不符合，返回 0。"""
+
+    logger.info(f"[_llm_assisted_locate] 开始调用 LLM，候选数量: {len(top_candidates)}")
+
+    try:
+        ai_service = _get_ai_service()
+        result = await ai_service.call_ai(
+            system_prompt="你是内容定位助手，帮助用户找到正确的段落。",
+            user_prompt=prompt,
+            max_tokens=10,
+            temperature=0.1,
+            task_type=TaskType.SIMPLE_QA  # 使用 lite 模型
+        )
+
+        # 解析结果
+        match = re.search(r'\d+', result.strip())
+        if match:
+            selected_idx = int(match.group()) - 1  # 转为 0-based
+            if 0 <= selected_idx < len(top_candidates):
+                # 映射回原始段落索引
+                original_idx = top_candidates[selected_idx][0]
+                logger.info(f"[_llm_assisted_locate] LLM 选择候选 {selected_idx + 1} → 原始第 {original_idx + 1} 段")
+                return (original_idx, 0.85)  # LLM 辅助的置信度设为 0.85
+            elif int(match.group()) == 0:
+                logger.info("[_llm_assisted_locate] LLM 认为没有匹配的段落")
+                return None
+
+    except Exception as e:
+        logger.warning(f"[_llm_assisted_locate] LLM 辅助定位失败: {e}")
 
     return None
 
@@ -428,10 +555,52 @@ async def locate_content(
                 logger.info("[locate_content] 精确文本匹配成功")
                 return json.dumps(result, ensure_ascii=False)
 
-        # 策略4: 真正的模糊匹配（🔧 使用 SequenceMatcher 相似度算法）
+        # 策略4: 模糊匹配 + LLM 辅助
+        # 🔧 2026-01-12: 当模糊匹配置信度 < 0.7 时，调用 LLM 辅助定位
         fuzzy_result = _fuzzy_match_paragraphs(query, paragraphs, threshold=0.5)
+        logger.info(f"[locate_content] 模糊匹配结果: {fuzzy_result}")
+
         if fuzzy_result:
             para_idx, similarity = fuzzy_result
+
+            # 置信度 >= 0.7，直接返回模糊匹配结果
+            if similarity >= 0.7:
+                para = paragraphs[para_idx]
+                result.update({
+                    "locate_method": "fuzzy_match",
+                    "paragraph_index": para_idx,
+                    "text_preview": para["preview"],
+                    "text": para["text"],
+                    "node_id": _match_node_by_index(nodes_list, para_idx),
+                    "confidence": similarity
+                })
+                logger.info(f"[locate_content] 模糊匹配成功: 第{para_idx + 1}段, 相似度={similarity:.2f}")
+                return json.dumps(result, ensure_ascii=False)
+
+            # 置信度 < 0.7，调用 LLM 辅助定位
+            logger.info(f"[locate_content] 模糊匹配置信度低({similarity:.2f})，调用 LLM 辅助定位")
+            llm_result = await _llm_assisted_locate(query, paragraphs, top_k=8)
+
+            if llm_result:
+                llm_idx, llm_confidence = llm_result
+                para = paragraphs[llm_idx]
+                result.update({
+                    "locate_method": "llm_assisted",
+                    "paragraph_index": llm_idx,
+                    "text_preview": para["preview"],
+                    "text": para["text"],
+                    "node_id": _match_node_by_index(nodes_list, llm_idx),
+                    "confidence": llm_confidence
+                })
+                # 生成锚点
+                if llm_idx > 0:
+                    result["before_anchor"] = paragraphs[llm_idx - 1]["text"][-30:]
+                if llm_idx < len(paragraphs) - 1:
+                    result["after_anchor"] = paragraphs[llm_idx + 1]["text"][:30]
+                logger.info(f"[locate_content] LLM 辅助定位成功: 第{llm_idx + 1}段")
+                return json.dumps(result, ensure_ascii=False)
+
+            # LLM 也无法定位，降级返回模糊匹配结果
             para = paragraphs[para_idx]
             result.update({
                 "locate_method": "fuzzy_match",
@@ -441,10 +610,37 @@ async def locate_content(
                 "node_id": _match_node_by_index(nodes_list, para_idx),
                 "confidence": similarity
             })
-            logger.info(f"[locate_content] 模糊匹配成功: 第{para_idx + 1}段, 相似度={similarity:.2f}")
+            logger.info(f"[locate_content] LLM 辅助失败，降级使用模糊匹配: 第{para_idx + 1}段")
             return json.dumps(result, ensure_ascii=False)
 
-        # 策略5: 返回段落列表，让调用方选择
+        # 策略5: 无模糊匹配结果，尝试 LLM 辅助
+        logger.info("[locate_content] 无模糊匹配结果，尝试 LLM 辅助定位")
+        try:
+            llm_result = await _llm_assisted_locate(query, paragraphs, top_k=8)
+            logger.info(f"[locate_content] LLM 辅助定位返回: {llm_result}")
+        except Exception as e:
+            logger.error(f"[locate_content] LLM 辅助定位异常: {e}", exc_info=True)
+            llm_result = None
+
+        if llm_result:
+            llm_idx, llm_confidence = llm_result
+            para = paragraphs[llm_idx]
+            result.update({
+                "locate_method": "llm_assisted",
+                "paragraph_index": llm_idx,
+                "text_preview": para["preview"],
+                "text": para["text"],
+                "node_id": _match_node_by_index(nodes_list, llm_idx),
+                "confidence": llm_confidence
+            })
+            if llm_idx > 0:
+                result["before_anchor"] = paragraphs[llm_idx - 1]["text"][-30:]
+            if llm_idx < len(paragraphs) - 1:
+                result["after_anchor"] = paragraphs[llm_idx + 1]["text"][:30]
+            logger.info(f"[locate_content] LLM 辅助定位成功: 第{llm_idx + 1}段")
+            return json.dumps(result, ensure_ascii=False)
+
+        # 策略6: 返回段落列表，让调用方选择
         result.update({
             "locate_method": "list",
             "message": "无法自动定位，请从以下段落中选择",

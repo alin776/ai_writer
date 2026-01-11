@@ -53,8 +53,9 @@ class ParameterResolver:
     # 占位符正则模式
     # 匹配: $TASK_1$ 或 $TASK_1.content$ 或 $TASK_1.chapter_info.title$
     # 🔧 2025-12-25: 扩展支持数组索引格式 $TASK_1.chapters[3].content$
+    # 🔧 2026-01-12: 修复正则表达式，使用 [$] 匹配字面量 $ 符号
     PLACEHOLDER_PATTERN = re.compile(
-        r'\$TASK_(\d+)(?:\.([a-zA-Z_][a-zA-Z0-9_.\[\]]*))?\$'
+        r'[$]TASK_(\d+)(?:\.([a-zA-Z_][a-zA-Z0-9_.\[\]]*))?[$]'
     )
 
     # 兼容旧格式占位符（逐步废弃）
