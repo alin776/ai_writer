@@ -159,11 +159,20 @@ class ParameterResolver:
 
         for key, value in params.items():
             if isinstance(value, str):
-                # 解析字符串参数中的占位符
-                resolved[key] = self._resolve_string(
-                    value,
-                    current_task_id
-                )
+                # 🔧 2026-01-11: 检查是否是纯占位符，如果是则保留原始类型
+                pure_placeholder_match = self.PLACEHOLDER_PATTERN.fullmatch(value)
+                if pure_placeholder_match:
+                    # 纯占位符（如 "$TASK_1.paragraph_index$"），提取原始值并保留类型
+                    resolved[key] = self._extract_typed_value(
+                        pure_placeholder_match,
+                        current_task_id
+                    )
+                else:
+                    # 混合字符串或非占位符，使用字符串替换
+                    resolved[key] = self._resolve_string(
+                        value,
+                        current_task_id
+                    )
             elif isinstance(value, dict):
                 # 递归解析嵌套字典
                 resolved[key] = self._resolve_params_internal(value, current_task_id)
@@ -172,10 +181,16 @@ class ParameterResolver:
                 resolved[key] = []
                 for item in value:
                     if isinstance(item, str):
-                        # 解析字符串元素
-                        resolved[key].append(
-                            self._resolve_string(item, current_task_id)
-                        )
+                        # 🔧 2026-01-11: 列表元素也检查纯占位符
+                        pure_match = self.PLACEHOLDER_PATTERN.fullmatch(item)
+                        if pure_match:
+                            resolved[key].append(
+                                self._extract_typed_value(pure_match, current_task_id)
+                            )
+                        else:
+                            resolved[key].append(
+                                self._resolve_string(item, current_task_id)
+                            )
                     elif isinstance(item, dict):
                         # 递归解析字典元素
                         resolved[key].append(
@@ -189,6 +204,78 @@ class ParameterResolver:
                 resolved[key] = value
 
         return resolved
+
+    def _extract_typed_value(
+        self,
+        match: re.Match,
+        current_task_id: Optional[int]
+    ) -> Any:
+        """
+        从占位符中提取值，保留原始类型（整数、布尔等）
+
+        🔧 2026-01-11: 新增方法，解决 paragraph_index 等整数字段被转为字符串的问题
+
+        Args:
+            match: 正则匹配对象
+            current_task_id: 当前任务ID
+
+        Returns:
+            提取的原始值（保留类型）
+        """
+        task_id = int(match.group(1))
+        field_path = match.group(2)
+
+        # 检测自引用
+        if current_task_id and task_id == current_task_id:
+            logger.warning(
+                f"[ParameterResolver] 检测到自引用占位符: 任务{current_task_id}引用自己"
+            )
+            return None
+
+        # 检查任务是否已执行
+        if task_id not in self.task_results:
+            if self.strict_mode:
+                raise ParameterResolverError(
+                    f"任务{task_id}尚未执行，无法解析占位符"
+                )
+            else:
+                logger.warning(
+                    f"[ParameterResolver] 任务{task_id}尚未执行，返回None"
+                )
+                return None
+
+        task_result = self.task_results[task_id]
+
+        # 如果没有字段路径，返回完整结果（字符串）
+        if not field_path:
+            return task_result
+
+        # 提取JSON字段，保留原始类型
+        try:
+            data = json.loads(task_result)
+            tokens = self._parse_field_path(field_path)
+
+            value = data
+            for token in tokens:
+                if isinstance(token, int):
+                    if isinstance(value, list) and 0 <= token < len(value):
+                        value = value[token]
+                    else:
+                        return task_result  # 降级返回完整结果
+                elif isinstance(value, dict) and token in value:
+                    value = value[token]
+                else:
+                    return task_result  # 降级返回完整结果
+
+            # 🔧 关键：直接返回原始值，不转换为字符串
+            logger.debug(
+                f"[ParameterResolver] $TASK_{task_id}.{field_path}$ → "
+                f"{type(value).__name__}: {value}"
+            )
+            return value
+
+        except json.JSONDecodeError:
+            return task_result
 
     def _resolve_string(
         self,

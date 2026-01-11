@@ -300,6 +300,14 @@ async def apply_chapter_edit(
         包含确认请求的结果
     """
     try:
+        # 🔧 2026-01-11: 防御性类型转换 - 确保 paragraph_index 是整数或 None
+        if paragraph_index is not None:
+            try:
+                paragraph_index = int(paragraph_index)
+            except (ValueError, TypeError):
+                logger.warning(f"[apply_chapter_edit] paragraph_index 类型转换失败: {paragraph_index}")
+                paragraph_index = None
+
         # 检查速率限制
         if user_id:
             is_allowed, remaining = await agent_edit_limiter.check(user_id)

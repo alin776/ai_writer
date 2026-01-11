@@ -1240,7 +1240,9 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     window.addEventListener('agent-append-text', handleAgentAppend as EventListener);
     window.addEventListener('agent-undo-revision', handleUndoRevision as EventListener);
     window.addEventListener('agent-accept-revision', handleAcceptRevisionEvent as EventListener);
+    window.addEventListener('agent-accept-all-revisions', handleAcceptRevisionEvent as EventListener);  // v8.1: 批量采纳
     window.addEventListener('agent-discard-revision', handleDiscardRevisionEvent as EventListener);
+    window.addEventListener('agent-discard-all-revisions', handleDiscardRevisionEvent as EventListener);  // v8.1: 批量撤销
 
     return () => {
       window.removeEventListener('agent-show-revision', handleShowRevision as EventListener);
@@ -1248,7 +1250,9 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       window.removeEventListener('agent-append-text', handleAgentAppend as EventListener);
       window.removeEventListener('agent-undo-revision', handleUndoRevision as EventListener);
       window.removeEventListener('agent-accept-revision', handleAcceptRevisionEvent as EventListener);
+      window.removeEventListener('agent-accept-all-revisions', handleAcceptRevisionEvent as EventListener);  // v8.1: 批量采纳
       window.removeEventListener('agent-discard-revision', handleDiscardRevisionEvent as EventListener);
+      window.removeEventListener('agent-discard-all-revisions', handleDiscardRevisionEvent as EventListener);  // v8.1: 批量撤销
     };
   }, [editor, autoSave, toast, debouncedSave]);
 

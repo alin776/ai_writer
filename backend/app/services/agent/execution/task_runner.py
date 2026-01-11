@@ -234,9 +234,12 @@ class TaskRunner:
             context_param = self._extract_context_param(params, context)
             # 🔧 2026-01-09: 修复 chapter_id 参数处理，与其他工具保持一致
             # 优先使用 params 中的 chapter_id，否则使用传入的 chapter_id
+            # 🔧 2026-01-11: 修复参数名 - SmartContinueInput 期望 chapter_content，不是 content
             return {
-                "content": context_param,
+                "chapter_content": context_param,  # 修复：content -> chapter_content
                 "chapter_id": params.get("chapter_id") or chapter_id or "",
+                "user_requirement": params.get("user_requirement"),  # 添加用户要求
+                "word_count": params.get("word_count", 500),  # 添加字数
             }
 
         elif tool_name == "analyze_text_tool":
@@ -346,9 +349,12 @@ class TaskRunner:
                 "look_ahead": params.get("look_ahead", 2),
             })
         elif tool_name == "smart_continue":
+            # 🔧 2026-01-11: 修复参数名 - smart_continue 期望 chapter_content，不是 content
             return await smart_continue.ainvoke({
                 "chapter_id": params.get("chapter_id", ""),
-                "content": params.get("content", context),
+                "chapter_content": params.get("chapter_content") or params.get("content") or context,
+                "user_requirement": params.get("user_requirement"),
+                "word_count": params.get("word_count", 500),
             })
         elif tool_name == "analyze_text_tool":
             return await analyze_text_tool.ainvoke({

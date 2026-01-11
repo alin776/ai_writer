@@ -717,7 +717,34 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     }
 
                     // 🆕 立即派发事件到编辑器，显示修订标记（红删绿增）
-                    // ???????? revision ??????????????
+                    // v8.4: 修复 - 补充派发 agent-show-revision 事件（之前是占位符代码）
+                    if (editorAction || approvalReq.new_content) {
+                      // 映射 operation 到编辑器操作类型
+                      let editorType: 'modify' | 'continue' | 'insert' = 'modify';
+                      if (approvalReq.operation === 'append') {
+                        editorType = 'continue';
+                      } else if (approvalReq.operation === 'insert') {
+                        editorType = 'insert';
+                      }
+
+                      const position = editorAction?.position || approvalReq.position;
+
+                      window.dispatchEvent(new CustomEvent('agent-show-revision', {
+                        detail: {
+                          revisionId: `rev-${approvalReq.request_id}`,
+                          chapterId: approvalReq.chapter_id,
+                          type: editorType,
+                          replacement: approvalReq.new_content,
+                          original: approvalReq.original_content,
+                          position: position,
+                          beforeAnchor: editorAction?.before_anchor,
+                          afterAnchor: editorAction?.after_anchor,
+                          nodeId: editorAction?.node_id,
+                          paragraphIndex: editorAction?.paragraph_index,
+                        }
+                      }));
+                      console.log('[useAgentChat] 🆕 派发修订事件到编辑器:', editorType, approvalReq.request_id);
+                    }
 
                   }
                 }
@@ -1712,11 +1739,22 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
   // v8.0: 采纳所有操作
   const acceptAllOperations = useCallback(async () => {
-    if (!sessionState.conversationId) return;
+    console.log('[useAgentChat] acceptAllOperations 被调用, conversationId:', sessionState.conversationId);
+    if (!sessionState.conversationId) {
+      console.warn('[useAgentChat] acceptAllOperations: conversationId 为空，操作取消');
+      return;
+    }
     try {
+      console.log('[useAgentChat] 正在调用 API acceptOperations...');
       await agentApi.acceptOperations(sessionState.conversationId);
       setHasOperations(false);
       console.log('[useAgentChat] 所有操作已采纳');
+
+      // v8.1: 派发采纳事件到编辑器，清除修订标记并保留新内容
+      window.dispatchEvent(new CustomEvent('agent-accept-all-revisions', {
+        detail: { conversationId: sessionState.conversationId }
+      }));
+      console.log('[useAgentChat] ✅ 派发采纳事件到编辑器');
     } catch (error) {
       console.error('[useAgentChat] 采纳操作失败:', error);
     }
@@ -1724,11 +1762,23 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
   // v8.0: 回滚所有操作
   const rollbackAllOperations = useCallback(async () => {
-    if (!sessionState.conversationId) return;
+    console.log('[useAgentChat] rollbackAllOperations 被调用, conversationId:', sessionState.conversationId);
+    if (!sessionState.conversationId) {
+      console.warn('[useAgentChat] rollbackAllOperations: conversationId 为空，操作取消');
+      return;
+    }
     try {
+      console.log('[useAgentChat] 正在调用 API rollbackOperations...');
       const result = await agentApi.rollbackOperations(sessionState.conversationId);
       setHasOperations(false);
       console.log(`[useAgentChat] 已回滚 ${result.rolled_back} 个操作`);
+
+      // v8.1: 派发撤销事件到编辑器，清除修订标记并恢复原文
+      window.dispatchEvent(new CustomEvent('agent-discard-all-revisions', {
+        detail: { conversationId: sessionState.conversationId, rolledBack: result.rolled_back }
+      }));
+      console.log('[useAgentChat] ❌ 派发撤销事件到编辑器');
+
       // 触发刷新事件，通知编辑器重新加载数据
       window.dispatchEvent(new CustomEvent('agent-operations-rollback', {
         detail: { conversationId: sessionState.conversationId, rolledBack: result.rolled_back }

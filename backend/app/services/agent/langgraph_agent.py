@@ -2240,10 +2240,18 @@ class WritingAgentGraph:
         if "requires_confirmation" not in editor_action:
             editor_action["requires_confirmation"] = True
 
+        # 🔧 2026-01-11: 复制定位字段，并确保 paragraph_index 是整数类型
         for key in ("before_anchor", "after_anchor", "node_id", "paragraph_index", "original_text"):
             if key not in editor_action:
                 value = result_obj.get(key)
                 if value is not None:
+                    # 确保 paragraph_index 是整数
+                    if key == "paragraph_index":
+                        try:
+                            value = int(value)
+                        except (ValueError, TypeError):
+                            logger.warning(f"[HITL] paragraph_index 类型转换失败: {value}")
+                            continue
                     editor_action[key] = value
 
         approval_data["editor_action"] = editor_action
