@@ -1856,8 +1856,8 @@ const WorkDetailView: React.FC = () => {
         <div
           className={`relative bg-white dark:bg-slate-900 flex flex-col overflow-hidden ${isResizing ? '' : 'transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]'}`}
           style={{
-            flex: isEditorCollapsed ? '1 1 0%' : '0 0 auto',
-            width: isEditorCollapsed ? undefined : `${isRightCollapsed ? COLLAPSED_RIGHT_PANEL_WIDTH : rightPanelWidth}px`,
+            flex: '1 1 0%',
+            maxWidth: isEditorCollapsed ? 9999 : `${isRightCollapsed ? COLLAPSED_RIGHT_PANEL_WIDTH : rightPanelWidth}px`,
           }}
         >
           {/* 可拖动的分隔条 - 仅在非收缩模式显示 */}
@@ -1915,9 +1915,9 @@ const WorkDetailView: React.FC = () => {
 
         {/* 右侧编辑器窗口 - 圆弧样式 */}
         <div
-          className="flex-1 flex flex-col bg-white dark:bg-slate-900 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          className="flex flex-col bg-white dark:bg-slate-900 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
           style={{
-            maxWidth: isEditorCollapsed ? 0 : 9999,
+            flex: isEditorCollapsed ? '0 0 0' : '1 1 0%',
             padding: isEditorCollapsed ? 0 : 12,
             opacity: isEditorCollapsed ? 0 : 1,
             overflow: 'hidden',
