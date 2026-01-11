@@ -1,22 +1,13 @@
 /**
  * OutputCard - 最终输出卡片组件
- * 显示续写内容，带更多操作（预览/复制/下载）/应用按钮
+ * 显示续写内容
  */
 
-import { MoreHorizontal, Loader2, Eye, Copy, Download } from 'lucide-react';
-import { useState, useRef } from 'react';
+import { Loader2 } from 'lucide-react';
+import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { OutputFlowData } from '@/types/agent';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
-} from '@/components/ui/dropdown-menu';
 import { ContentPreviewModal } from './ContentPreviewModal';
 
 interface OutputCardProps extends OutputFlowData {
@@ -24,14 +15,6 @@ interface OutputCardProps extends OutputFlowData {
   onApply?: () => void;
   onAddToKnowledge?: () => void;
 }
-
-// 文件格式配置
-const FILE_FORMATS = [
-  { key: 'txt', label: 'TXT', color: '#64748b' },
-  { key: 'md', label: 'Markdown', color: '#3b82f6' },
-] as const;
-
-type FileFormat = typeof FILE_FORMATS[number]['key'];
 
 export function OutputCard({
   intro,
@@ -44,31 +27,6 @@ export function OutputCard({
   onAddToKnowledge
 }: OutputCardProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  // 复制内容
-  const handleCopy = () => {
-    navigator.clipboard.writeText(content);
-    onCopy?.();
-  };
-
-  // 下载内容
-  const handleDownload = async (format: FileFormat) => {
-    const formatConfig: Record<FileFormat, { ext: string; mime: string }> = {
-      txt: { ext: '.txt', mime: 'text/plain' },
-      md: { ext: '.md', mime: 'text/markdown' },
-    };
-
-    const config = formatConfig[format];
-
-    const blob = new Blob([content], { type: config.mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${title}${config.ext}`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   // 渲染介绍文字，支持高亮
   const renderIntro = () => {
@@ -99,91 +57,20 @@ export function OutputCard({
         </div>
       )}
 
-      {/* 内容卡片 */}
-      <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-[10px] mt-4">
-        {/* 标题栏 */}
-        <div className="group flex items-center justify-between px-3 py-1 border-b border-gray-200 dark:border-slate-700">
-          <span className="text-[13px] font-medium text-gray-900 dark:text-white">{title}</span>
-          <div className="flex gap-1.5">
-            {/* 更多按钮 - 下拉菜单 */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="p-1.5 text-gray-400 dark:text-slate-500 rounded hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
-                  title="更多操作"
-                >
-                  <MoreHorizontal size={14} />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="min-w-[140px] bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 rounded-xl p-1.5"
-              >
-                {/* 预览 */}
-                <DropdownMenuItem
-                  onClick={() => setPreviewOpen(true)}
-                  className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer"
-                >
-                  <Eye size={16} className="text-gray-500 dark:text-gray-400" />
-                  预览
-                </DropdownMenuItem>
-
-                {/* 复制 */}
-                <DropdownMenuItem
-                  onClick={handleCopy}
-                  className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer"
-                >
-                  <Copy size={16} className="text-gray-500 dark:text-gray-400" />
-                  复制
-                </DropdownMenuItem>
-
-                {/* 下载 - 子菜单 */}
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer data-[state=open]:bg-gray-100 dark:data-[state=open]:bg-slate-700">
-                    <Download size={16} className="text-gray-500 dark:text-gray-400" />
-                    下载
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="min-w-[130px] bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 rounded-xl p-1.5">
-                    {FILE_FORMATS.map((format) => (
-                      <DropdownMenuItem
-                        key={format.key}
-                        onClick={() => handleDownload(format.key)}
-                        className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer"
-                      >
-                        <span
-                          className="w-[18px] h-[18px] flex items-center justify-center text-[10px] font-semibold text-white rounded"
-                          style={{ backgroundColor: format.color }}
-                        >
-                          {format.label[0]}
-                        </span>
-                        {format.label}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              </DropdownMenuContent>
-            </DropdownMenu>
+      {/* 内容区域 - 直接显示，无容器 */}
+      <div className="mt-2">
+        {!content ? (
+          <div className="flex items-center gap-2 text-[13px] text-gray-400 dark:text-slate-500">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>正在生成...</span>
           </div>
-        </div>
-
-        {/* 内容区域 - 直接显示全部内容 */}
-        <div
-          ref={contentRef}
-          className="px-4 py-4"
-        >
-          {!content ? (
-            <div className="flex items-center gap-2 text-[13px] text-gray-400 dark:text-slate-500">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>正在生成...</span>
-            </div>
-          ) : (
-            <div className="text-[14px] text-gray-600 dark:text-[#bbb] leading-[1.8] [&_p]:mb-2.5 [&_p]:indent-8 [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-gray-300 [&_th]:dark:border-slate-600 [&_th]:px-3 [&_th]:py-2 [&_th]:bg-gray-100 [&_th]:dark:bg-slate-700 [&_td]:border [&_td]:border-gray-300 [&_td]:dark:border-slate-600 [&_td]:px-3 [&_td]:py-2">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {content}
-              </ReactMarkdown>
-            </div>
-          )}
-        </div>
+        ) : (
+          <div className="text-[14px] text-gray-600 dark:text-[#bbb] leading-[1.8] [&_p]:mb-2.5 [&_p]:indent-8 [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-gray-300 [&_th]:dark:border-slate-600 [&_th]:px-3 [&_th]:py-2 [&_th]:bg-gray-100 [&_th]:dark:bg-slate-700 [&_td]:border [&_td]:border-gray-300 [&_td]:dark:border-slate-600 [&_td]:px-3 [&_td]:py-2">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {content}
+            </ReactMarkdown>
+          </div>
+        )}
       </div>
 
       {/* 预览弹窗 */}
