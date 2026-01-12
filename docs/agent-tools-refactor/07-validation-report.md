@@ -58,7 +58,7 @@ Task 3: apply_chapter_edit(...)
 
 ## 3. 发现的新问题
 
-### 3.1 章节缓存机制缺失
+### 3.1 章节缓存机制缺失 ✅ 已修复 (2026-01-12)
 
 **问题描述**：
 - Planning 阶段读取的章节内容，在 Execution 阶段会再次读取
@@ -69,9 +69,18 @@ Task 3: apply_chapter_edit(...)
 - 增加响应延迟
 - 增加 Token 消耗
 
-**建议**：
-- 在 AgentState 中引入章节缓存
-- 工具调用前先检查缓存
+**修复方案**：
+- 新增 `ChapterCache` 模块 (`backend/app/services/agent/utils/chapter_cache.py`)
+- 在 `AgentState.context["chapter_cache"]` 中存储章节缓存
+- 支持 5 分钟 TTL，最多缓存 20 章
+- 在 `task_runner.py` 和 `tool_dispatcher.py` 中集成缓存读写
+- 修复 `state` 参数传递，确保缓存跨任务共享
+
+**验证日志**：
+```
+[ChapterCache] 📝 写入: 7f14ccdb... (第1章)
+[ChapterCache] ✅ 命中: 7f14ccdb... (hits=1)
+```
 
 ### 3.2 批量读取未充分利用
 
@@ -229,9 +238,10 @@ class ToolCategory(str, Enum):
 
 ### P0（立即执行）
 
-1. **引入章节缓存机制**
+1. **引入章节缓存机制** ✅ 已完成 (2026-01-12)
    - 在 AgentState 中添加 `chapter_cache: Dict[str, Chapter]`
    - 工具调用前先检查缓存
+   - 实现文件：`backend/app/services/agent/utils/chapter_cache.py`
 
 2. **更新 Planning Prompt**
    - 推荐使用批量读取格式 `"1-5"`
@@ -273,7 +283,7 @@ class ToolCategory(str, Enum):
 
 ### 实现中检查（新增）
 
-- [ ] 章节缓存机制实现完成
+- [x] 章节缓存机制实现完成 ✅ (2026-01-12)
 - [ ] 范围格式解析实现完成
 - [ ] Planning Prompt 更新完成
 - [ ] ToolCategory 枚举更新完成
@@ -299,7 +309,7 @@ class ToolCategory(str, Enum):
 
 ### 新增的优化点
 
-1. 引入章节缓存机制
+1. 引入章节缓存机制 ✅ 已完成
 2. 支持范围格式 `"1-5"`
 3. 统一工具分类体系
 4. 明确二次工具调用边界
