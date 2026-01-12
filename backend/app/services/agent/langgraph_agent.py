@@ -1664,6 +1664,13 @@ class WritingAgentGraph:
                             deep_resolver = ParameterResolver(strict_mode=False)
                             logger.info("[DeepAgent] ParameterResolver 已启用")
 
+                            # 🆕 2026-01-12: 创建共享 state 用于章节缓存（在闭包外部，跨任务共享）
+                            shared_state = {
+                                "work_id": work_id,
+                                "chapter_id": chapter_id,
+                                "context": context_payload or {},
+                            }
+
                             # 定义任务执行函数（传递给 DeepAgentExecutor）
                             async def execute_single_task(task, context, on_task_progress):
                                 import time as time_module  # ✅ 添加计时支持
@@ -1686,6 +1693,7 @@ class WritingAgentGraph:
                                     context=context.get("context_str", initial_context),
                                     on_progress=on_task_progress,
                                     conversation_id=conversation_id,  # v8.0: 传递 conversation_id 用于操作日志
+                                    state=shared_state,  # 🆕 使用共享 state 用于章节缓存
                                 )
 
                                 # ✅ 注册任务结果到参数解析器（供后续任务使用）
@@ -1885,7 +1893,8 @@ class WritingAgentGraph:
         on_task_start: Optional[callable] = None,
         on_task_progress: Optional[callable] = None,
         on_task_done: Optional[callable] = None,
-        conversation_id: Optional[str] = None  # v8.0: 添加 conversation_id 用于操作日志
+        conversation_id: Optional[str] = None,  # v8.0: 添加 conversation_id 用于操作日志
+        state: Optional[Dict[str, Any]] = None  # 🆕 2026-01-12: 添加 state 用于章节缓存
     ) -> List[Dict[str, Any]]:
         """智能并行执行任务 - 委托到 ParallelExecutor
 
@@ -1899,6 +1908,7 @@ class WritingAgentGraph:
             on_task_progress: 任务进度回调
             on_task_done: 任务完成回调
             conversation_id: 会话ID（用于操作日志记录）
+            state: Agent 状态（用于章节缓存）
 
         Returns:
             任务结果列表
@@ -1912,7 +1922,8 @@ class WritingAgentGraph:
             on_task_start=on_task_start,
             on_task_progress=on_task_progress,
             on_task_done=on_task_done,
-            conversation_id=conversation_id
+            conversation_id=conversation_id,
+            state=state  # 🆕 传递 state 用于章节缓存
         )
 
     # ==================== 规划响应（委托到 ResponseBuilder）====================
@@ -2112,7 +2123,8 @@ class WritingAgentGraph:
         context: str,
         context_payload: Optional[Dict[str, Any]] = None,
         on_progress: Optional[callable] = None,
-        conversation_id: Optional[str] = None  # v8.0: 添加 conversation_id 用于操作日志
+        conversation_id: Optional[str] = None,  # v8.0: 添加 conversation_id 用于操作日志
+        state: Optional[Dict[str, Any]] = None  # 🆕 2026-01-12: 添加 state 用于章节缓存
     ) -> str:
         """执行单个任务 - 委托到 TaskRunner
 
@@ -2124,6 +2136,7 @@ class WritingAgentGraph:
             context_payload: 结构化上下文（原始 request.context）
             on_progress: 进度回调
             conversation_id: 会话ID（用于操作日志记录）
+            state: Agent 状态（用于章节缓存）
 
         Returns:
             任务执行结果
@@ -2135,7 +2148,8 @@ class WritingAgentGraph:
             context=context,
             context_payload=context_payload,
             on_progress=on_progress,
-            conversation_id=conversation_id
+            conversation_id=conversation_id,
+            state=state  # 🆕 传递 state 用于章节缓存
         )
         # v7.0: 检测HITL确认请求并发送审批/修订事件
         await self._handle_hitl_tool_result(task, result, work_id=work_id, chapter_id=chapter_id)

@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional, TYPE_CHECKING
 
 from app.services.agent.tools.tool_registry import registry
 from app.services.agent.utils.tool_helpers import resolve_version_reference
+from app.services.agent.utils.chapter_cache import ChapterCache
 
 # 导入 @tool 版本用于降级
 from app.services.agent.langgraph_tools import (
@@ -269,15 +270,27 @@ class ToolDispatcher:
                 "user_prompt": "请先告诉我您要读取哪部作品的章节？"
             }, ensure_ascii=False)
 
+        chapter_id = tool_args.get("chapter_id") or state.get("chapter_id") or ""
+
+        # 🆕 2026-01-12: 缓存检查
+        if chapter_id and "," not in chapter_id:
+            cached = ChapterCache.get_by_id(state, chapter_id)
+            if cached:
+                return json.dumps(cached, ensure_ascii=False, indent=2)
+
         try:
             result = await registry.call_tool("read_chapter", {
                 "work_id": work_id_value,
-                "chapter_id": tool_args.get("chapter_id") or state.get("chapter_id") or ""
+                "chapter_id": chapter_id
             })
 
             if isinstance(result, dict) and result.get("success"):
                 tool_result = result.get("data", {}).get("chapter_info", "")
                 logger.info(f"[StandardTool] read_chapter 执行成功")
+
+                # 🆕 2026-01-12: 缓存写入
+                self._update_chapter_cache(tool_result, work_id_value, state)
+
                 return tool_result
             else:
                 error_msg = result.get("message", "执行失败") if isinstance(result, dict) else "未知错误"
@@ -304,16 +317,29 @@ class ToolDispatcher:
                 "user_prompt": "请先告诉我您要查看哪部作品的章节？您可以说：\n- 「我想看《作品名》的第X章」\n- 或者先创建一部新作品"
             }, ensure_ascii=False)
 
+        chapter_order = tool_args.get("chapter_order", 1)
+
+        # 🆕 2026-01-12: 缓存检查（只对单章节）
+        chapter_order_str = str(chapter_order)
+        if chapter_order_str.isdigit():
+            cached = ChapterCache.get_by_order(state, work_id_value, int(chapter_order_str))
+            if cached:
+                return json.dumps(cached, ensure_ascii=False, indent=2)
+
         logger.info(f"[ToolDispatcher] 🚀 准备调用 get_chapter_by_order_tool, work_id={work_id_value}")
         try:
             result = await registry.call_tool("get_chapter_by_order", {
                 "work_id": work_id_value,
-                "chapter_order": tool_args.get("chapter_order", 1)
+                "chapter_order": chapter_order
             })
 
             if isinstance(result, dict) and result.get("success"):
                 tool_result = result.get("data", {}).get("chapter_info", "")
                 logger.info(f"[StandardTool] get_chapter_by_order 执行成功")
+
+                # 🆕 2026-01-12: 缓存写入
+                self._update_chapter_cache(tool_result, work_id_value, state)
+
                 return tool_result
             else:
                 error_msg = result.get("message", "执行失败") if isinstance(result, dict) else "未知错误"
@@ -764,3 +790,30 @@ class ToolDispatcher:
             logger.warning(f"[ToolDispatcher] 解析工具结果异常: {e}")
 
         return None
+
+    # ==================== 章节缓存方法（2026-01-12 新增）====================
+
+    def _update_chapter_cache(
+        self,
+        tool_result: str,
+        work_id: str,
+        state: "AgentState"
+    ) -> None:
+        """更新章节缓存
+
+        Args:
+            tool_result: 工具返回结果（JSON 字符串）
+            work_id: 作品ID
+            state: Agent 状态
+        """
+        try:
+            data = json.loads(tool_result) if isinstance(tool_result, str) else tool_result
+
+            # 单章节
+            if isinstance(data, dict) and "chapter_id" in data:
+                ChapterCache.set(state, data, work_id)
+            # 多章节
+            elif isinstance(data, dict) and "chapters" in data:
+                ChapterCache.set_batch(state, data["chapters"], work_id)
+        except Exception as e:
+            logger.warning(f"[ToolDispatcher] 缓存写入失败: {e}")

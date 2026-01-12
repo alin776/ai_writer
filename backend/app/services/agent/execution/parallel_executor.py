@@ -56,7 +56,8 @@ class ParallelExecutor:
         on_task_start: Optional[callable] = None,
         on_task_progress: Optional[callable] = None,
         on_task_done: Optional[callable] = None,
-        conversation_id: Optional[str] = None  # v8.0: 添加 conversation_id 用于操作日志
+        conversation_id: Optional[str] = None,  # v8.0: 添加 conversation_id 用于操作日志
+        state: Optional[Dict[str, Any]] = None  # 🆕 2026-01-12: 添加 state 用于章节缓存
     ) -> List[Dict[str, Any]]:
         """
         智能并行执行任务
@@ -76,12 +77,19 @@ class ParallelExecutor:
             on_task_progress: 任务进度回调
             on_task_done: 任务完成回调
             conversation_id: 会话ID（用于操作日志记录）
+            state: Agent 状态（用于章节缓存）
 
         Returns:
             任务结果列表
         """
         # 保存 conversation_id 供内部方法使用
         self._conversation_id = conversation_id
+        # 🆕 2026-01-12: 保存或创建共享 state 用于章节缓存
+        self._shared_state = state if state else {
+            "work_id": work_id,
+            "chapter_id": chapter_id,
+            "context": context_payload or {},
+        }
         # 创建参数解析器
         from app.services.agent.parameter_resolver import ParameterResolver
 
@@ -420,7 +428,8 @@ class ParallelExecutor:
                     context=context,
                     context_payload=context_payload,
                     on_progress=on_task_progress,
-                    conversation_id=getattr(self, '_conversation_id', None)  # v8.0: 传递 conversation_id
+                    conversation_id=getattr(self, '_conversation_id', None),  # v8.0: 传递 conversation_id
+                    state=getattr(self, '_shared_state', None)  # 🆕 2026-01-12: 传递共享 state 用于章节缓存
                 )
 
                 # 注册任务结果

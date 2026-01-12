@@ -14,6 +14,7 @@ from typing import Dict, Any, Optional, Callable, Awaitable
 
 from app.services.agent.tools import registry
 from app.services.agent.utils.tool_helpers import normalize_tool_params
+from app.services.agent.utils.chapter_cache import ChapterCache
 from app.services.agent.langgraph_tools import (
     analyze_text_tool,
     read_chapter_tool,
@@ -67,7 +68,8 @@ class TaskRunner:
         context: str,
         context_payload: Optional[Dict[str, Any]] = None,
         on_progress: Optional[Callable] = None,
-        conversation_id: Optional[str] = None  # v8.0: 添加 conversation_id 用于操作日志
+        conversation_id: Optional[str] = None,  # v8.0: 添加 conversation_id 用于操作日志
+        state: Optional[Dict[str, Any]] = None  # 🆕 2026-01-12: 添加 state 用于章节缓存
     ) -> str:
         """执行单个任务（DeepAgent 模式使用）
 
@@ -79,6 +81,7 @@ class TaskRunner:
             context_payload: 结构化上下文（原始 request.context）
             on_progress: 进度回调
             conversation_id: 会话ID（用于操作日志记录）
+            state: Agent 状态（用于章节缓存）
 
         Returns:
             任务执行结果
@@ -91,6 +94,15 @@ class TaskRunner:
 
         # 标准化参数格式
         params = normalize_tool_params(tool_name, params)
+
+        # 🆕 2026-01-12: 章节缓存检查（支持带/不带 _tool 后缀的名称）
+        cache_tools = ["get_chapter_by_order_tool", "read_chapter_tool", "get_chapter_by_order", "read_chapter"]
+        if state and tool_name in cache_tools:
+            cached_result = self._check_chapter_cache(tool_name, params, work_id, state)
+            if cached_result:
+                if on_progress:
+                    await on_progress(task, "完成（缓存）")
+                return cached_result
 
         if on_progress:
             await on_progress(task, "正在执行...")
@@ -141,6 +153,9 @@ class TaskRunner:
             if isinstance(result_data, dict) and result_data.get("success"):
                 result = self._extract_tool_result(normalized_name, result_data)
                 logger.info(f"[TaskRunner] {normalized_name} 执行成功（DeepAgent模式）")
+                # 🆕 2026-01-12: 章节缓存写入（支持带/不带 _tool 后缀的名称）
+                if state and normalized_name in ["get_chapter_by_order", "read_chapter"]:
+                    self._update_chapter_cache(tool_name, result, work_id, state)
             else:
                 error_msg = result_data.get("message", "执行失败") if isinstance(result_data, dict) else "未知错误"
                 result = json.dumps({"error": "tool_failed", "message": error_msg}, ensure_ascii=False)
@@ -365,3 +380,67 @@ class TaskRunner:
             })
         else:
             return f"任务 {tool_name} 需要手动处理"
+
+    # ==================== 章节缓存方法 ====================
+
+    def _check_chapter_cache(
+        self,
+        tool_name: str,
+        params: dict,
+        work_id: str,
+        state: dict
+    ) -> Optional[str]:
+        """检查章节缓存
+
+        Args:
+            tool_name: 工具名称
+            params: 工具参数
+            work_id: 作品ID
+            state: Agent 状态
+
+        Returns:
+            缓存命中时返回结果字符串，否则返回 None
+        """
+        if tool_name in ["get_chapter_by_order_tool", "get_chapter_by_order"]:
+            chapter_order = str(params.get("chapter_order", "1"))
+            # 只对单章节检查缓存
+            if chapter_order.isdigit():
+                cached = ChapterCache.get_by_order(state, work_id, int(chapter_order))
+                if cached:
+                    return json.dumps(cached, ensure_ascii=False, indent=2)
+
+        elif tool_name in ["read_chapter_tool", "read_chapter"]:
+            chapter_id = params.get("chapter_id")
+            if chapter_id and "," not in chapter_id:
+                cached = ChapterCache.get_by_id(state, chapter_id)
+                if cached:
+                    return json.dumps(cached, ensure_ascii=False, indent=2)
+
+        return None
+
+    def _update_chapter_cache(
+        self,
+        tool_name: str,
+        result: str,
+        work_id: str,
+        state: dict
+    ) -> None:
+        """更新章节缓存
+
+        Args:
+            tool_name: 工具名称
+            result: 工具返回结果（JSON 字符串）
+            work_id: 作品ID
+            state: Agent 状态
+        """
+        try:
+            data = json.loads(result) if isinstance(result, str) else result
+
+            # 单章节
+            if isinstance(data, dict) and "chapter_id" in data:
+                ChapterCache.set(state, data, work_id)
+            # 多章节
+            elif isinstance(data, dict) and "chapters" in data:
+                ChapterCache.set_batch(state, data["chapters"], work_id)
+        except Exception as e:
+            logger.warning(f"[TaskRunner] 缓存写入失败: {e}")

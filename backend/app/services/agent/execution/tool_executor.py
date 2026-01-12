@@ -14,6 +14,7 @@ import json
 import logging
 
 from app.services.agent.tools import registry
+from app.services.agent.utils.chapter_cache import ChapterCache
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,12 @@ class ToolExecutor:
         # 规范化工具名称
         normalized_name = TOOL_NAME_MAPPING.get(tool_name, tool_name)
 
+        # 🆕 2026-01-12: 章节缓存检查
+        if normalized_name in ["read_chapter", "get_chapter_by_order"]:
+            cached_result = self._check_chapter_cache(normalized_name, tool_args, state)
+            if cached_result:
+                return cached_result
+
         try:
             # 准备参数
             params = self.prepare_params(normalized_name, tool_args, state)
@@ -91,6 +98,11 @@ class ToolExecutor:
             if isinstance(result, dict) and result.get("success"):
                 tool_result = self.extract_result(normalized_name, result)
                 logger.info(f"[StandardTool] {normalized_name} 执行成功")
+
+                # 🆕 2026-01-12: 章节缓存写入
+                if normalized_name in ["read_chapter", "get_chapter_by_order"]:
+                    self._update_chapter_cache(normalized_name, result, state)
+
                 return tool_result
             else:
                 error_msg = result.get("message", "执行失败") if isinstance(result, dict) else "未知错误"
@@ -536,3 +548,79 @@ class ToolExecutor:
 
         logger.error(f"[ToolCall] 未知工具: {tool_name}")
         return json.dumps({"error": "unknown_tool", "message": f"未知工具: {tool_name}"}, ensure_ascii=False)
+
+    # ==================== 章节缓存方法 ====================
+
+    def _check_chapter_cache(
+        self,
+        tool_name: str,
+        tool_args: dict,
+        state: dict
+    ) -> Optional[str]:
+        """检查章节缓存
+
+        Args:
+            tool_name: 工具名称（read_chapter 或 get_chapter_by_order）
+            tool_args: 工具参数
+            state: Agent 状态
+
+        Returns:
+            缓存命中时返回结果字符串，否则返回 None
+        """
+        work_id = tool_args.get("work_id") or state.get("work_id", "")
+
+        if tool_name == "read_chapter":
+            chapter_id = tool_args.get("chapter_id")
+            if chapter_id and "," not in chapter_id:  # 单章节才检查缓存
+                cached = ChapterCache.get_by_id(state, chapter_id)
+                if cached:
+                    return json.dumps(cached, ensure_ascii=False, indent=2)
+
+        elif tool_name == "get_chapter_by_order":
+            chapter_order = str(tool_args.get("chapter_order", "1"))
+            # 只对单章节检查缓存（不含逗号和横杠）
+            if chapter_order.isdigit():
+                order = int(chapter_order)
+                cached = ChapterCache.get_by_order(state, work_id, order)
+                if cached:
+                    return json.dumps(cached, ensure_ascii=False, indent=2)
+
+        return None
+
+    def _update_chapter_cache(
+        self,
+        tool_name: str,
+        result: dict,
+        state: dict
+    ) -> None:
+        """更新章节缓存
+
+        Args:
+            tool_name: 工具名称
+            result: 工具返回结果
+            state: Agent 状态
+        """
+        if not isinstance(result, dict) or not result.get("success"):
+            return
+
+        data = result.get("data", {})
+        work_id = state.get("work_id", "")
+
+        # 解析章节数据
+        chapter_info = data.get("chapter_info")
+        if not chapter_info:
+            return
+
+        try:
+            if isinstance(chapter_info, str):
+                chapter_info = json.loads(chapter_info)
+
+            # 单章节
+            if isinstance(chapter_info, dict) and "chapter_id" in chapter_info:
+                ChapterCache.set(state, chapter_info, work_id)
+            # 多章节
+            elif isinstance(chapter_info, dict) and "chapters" in chapter_info:
+                ChapterCache.set_batch(state, chapter_info["chapters"], work_id)
+        except Exception as e:
+            logger.warning(f"[ChapterCache] 缓存写入失败: {e}")
+
