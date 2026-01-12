@@ -675,22 +675,26 @@ chapter_id: {chapter_id}
         locate_task_id: Optional[int],
         new_task_id: int
     ) -> Optional[Dict[str, Any]]:
+        # 🔧 2026-01-12: 跨章节修复 - chapter_id 优先使用 locate_content 的结果
+        # locate_content 会在全局搜索时返回目标章节的 chapter_id
+        chapter_id_ref = f"$TASK_{locate_task_id}.chapter_id$" if locate_task_id else f"$TASK_{source_task_id}.chapter_id$"
+
         if source_tool == "smart_rewrite":
             params = {
-                "chapter_id": f"$TASK_{source_task_id}.chapter_id$",
+                "chapter_id": chapter_id_ref,
                 "operation": "replace",
                 "content": f"$TASK_{source_task_id}.versions[0].content$",
                 "original_text": f"$TASK_{source_task_id}.original_text$"
             }
         elif source_tool == "smart_continue":
             params = {
-                "chapter_id": f"$TASK_{source_task_id}.chapter_id$",
+                "chapter_id": chapter_id_ref,
                 "operation": "append",
                 "content": f"$TASK_{source_task_id}.content$"
             }
         elif source_tool == "smart_insert":
             params = {
-                "chapter_id": f"$TASK_{source_task_id}.chapter_id$",
+                "chapter_id": chapter_id_ref,
                 "operation": "insert",
                 "content": f"$TASK_{source_task_id}.content$"
             }

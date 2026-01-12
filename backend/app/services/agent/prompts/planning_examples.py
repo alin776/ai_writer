@@ -590,6 +590,12 @@ def get_editor_workflow_examples() -> str:
   - smart_insert → apply_chapter_edit(operation="insert")
   - smart_rewrite → apply_chapter_edit(operation="replace")
 
+⚠️⚠️⚠️ 极其重要 - 参数类型规则 ⚠️⚠️⚠️
+- chapter_content 参数必须是字符串，不能是列表！
+- ✅ 正确: "chapter_content": "$TASK_1.content$"（单个章节的内容字符串）
+- ❌ 错误: "chapter_content": "$TASK_1.chapters$"（这是列表，会报错！）
+- ❌ 错误: "chapter_content": "$TASK_1$"（这是完整对象，会报错！）
+
 - **什么时候需要 apply_chapter_edit？**
   - 用户说"续写"、"插入"、"改写"、"润色" → 需要！
   - 用户说"帮我写一段XX"、"生成一个大纲" → 不需要！
@@ -638,13 +644,13 @@ def get_editor_workflow_examples() -> str:
       "query": "他转身离开"
     }},
     {"task_id": 2, "description": "生成插入内容", "tool": "smart_insert", "params": {
-      "chapter_id": "$CHAPTER_ID$",
+      "chapter_id": "$TASK_1.chapter_id$",
       "user_intent": "在他转身离开那里加一段心理描写",
       "insert_context": "$TASK_1.text$",
       "word_count": 200
     }},
     {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$CHAPTER_ID$",
+      "chapter_id": "$TASK_1.chapter_id$",
       "operation": "insert",
       "content": "$TASK_2.content$",
       "node_id": "$TASK_1.node_id$",
@@ -710,6 +716,17 @@ def get_locate_content_examples() -> str:
     """locate_content 定位工具示例（定位 → 改写/插入 → 应用）"""
     return """【locate_content 定位工具示例】⚠️ 用户指定模糊位置时，必须先定位！
 
+⚠️⚠️⚠️ 极其重要 - locate_content 参数规则 ⚠️⚠️⚠️
+locate_content 只接受以下参数：
+- chapter_id: 章节ID（必填）
+- query: 定位查询（必填）
+- nodes_info: 节点列表（可选）
+- node_id: 节点ID（可选）
+
+❌ 绝对禁止传入 work_id 参数！locate_content 不接受 work_id！
+✅ 正确: {"chapter_id": "$CHAPTER_ID$", "query": "吞噬器灵"}
+❌ 错误: {"work_id": "xxx", "chapter_id": "xxx", "query": "xxx"}
+
 ---
 【场景1：定位段落 + 改写】
 
@@ -727,12 +744,12 @@ def get_locate_content_examples() -> str:
       "query": "第三段"
     }},
     {"task_id": 2, "description": "改写内容", "tool": "smart_rewrite", "params": {
-      "chapter_id": "$CHAPTER_ID$",
+      "chapter_id": "$TASK_1.chapter_id$",
       "text_to_rewrite": "$TASK_1.text$",
       "user_requirement": "更生动，增加画面感"
     }},
     {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$CHAPTER_ID$",
+      "chapter_id": "$TASK_1.chapter_id$",
       "operation": "replace",
       "content": "$TASK_2.versions[0].content$",
       "node_id": "$TASK_1.node_id$",
@@ -762,12 +779,12 @@ def get_locate_content_examples() -> str:
       "query": "开头"
     }},
     {"task_id": 2, "description": "改写开头", "tool": "smart_rewrite", "params": {
-      "chapter_id": "$CHAPTER_ID$",
+      "chapter_id": "$TASK_1.chapter_id$",
       "text_to_rewrite": "$TASK_1.text$",
       "user_requirement": "更吸引人，开篇即引人入胜"
     }},
     {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$CHAPTER_ID$",
+      "chapter_id": "$TASK_1.chapter_id$",
       "operation": "replace",
       "content": "$TASK_2.versions[0].content$",
       "node_id": "$TASK_1.node_id$",
@@ -793,13 +810,13 @@ def get_locate_content_examples() -> str:
       "query": "第二段"
     }},
     {"task_id": 2, "description": "生成心理描写", "tool": "smart_insert", "params": {
-      "chapter_id": "$CHAPTER_ID$",
+      "chapter_id": "$TASK_1.chapter_id$",
       "user_intent": "在第二段后插入心理描写",
       "insert_context": "$TASK_1.text$",
       "word_count": 200
     }},
     {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$CHAPTER_ID$",
+      "chapter_id": "$TASK_1.chapter_id$",
       "operation": "insert",
       "content": "$TASK_2.content$",
       "node_id": "$TASK_1.node_id$",
@@ -827,12 +844,12 @@ def get_locate_content_examples() -> str:
       "query": "主角出场"
     }},
     {"task_id": 2, "description": "改写出场描写", "tool": "smart_rewrite", "params": {
-      "chapter_id": "$CHAPTER_ID$",
+      "chapter_id": "$TASK_1.chapter_id$",
       "text_to_rewrite": "$TASK_1.text$",
       "user_requirement": "让主角出场更有气势"
     }},
     {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$CHAPTER_ID$",
+      "chapter_id": "$TASK_1.chapter_id$",
       "operation": "replace",
       "content": "$TASK_2.versions[0].content$",
       "node_id": "$TASK_1.node_id$",
@@ -842,6 +859,41 @@ def get_locate_content_examples() -> str:
   ]
 }
 ⚠️ locate_content 支持语义搜索，可以定位"主角出场"、"战斗场景"等描述性内容
+⚠️ 跨章节支持：smart_rewrite 和 apply_chapter_edit 的 chapter_id 必须使用 $TASK_1.chapter_id$（locate_content 返回的章节ID）
+
+---
+【场景5：跨章节定位 + 修改】⚠️ 用户在A章节，要修改B章节的内容
+
+用户: "我在第4章，想修改第2章中'羚羊献食'那段"
+{
+  "thinking": {
+    "step1_output": "用户要跨章节修改，需要先获取第2章ID，再定位",
+    "step2_material": "先用 get_chapter_by_order_tool 获取第2章，再用 locate_content 定位",
+    "step3_process": "get_chapter_by_order_tool → locate_content → smart_rewrite → apply_chapter_edit"
+  },
+  "user_intent": "跨章节修改第2章内容",
+  "tasks": [
+    {"task_id": 1, "description": "获取第2章", "tool": "get_chapter_by_order_tool", "params": {"chapter_order": 2}},
+    {"task_id": 2, "description": "定位羚羊献食场景", "tool": "locate_content", "params": {
+      "chapter_id": "$TASK_1.chapter_id$",
+      "query": "羚羊献食"
+    }},
+    {"task_id": 3, "description": "改写场景", "tool": "smart_rewrite", "params": {
+      "chapter_id": "$TASK_2.chapter_id$",
+      "text_to_rewrite": "$TASK_2.text$",
+      "user_requirement": "润色这段描写"
+    }},
+    {"task_id": 4, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
+      "chapter_id": "$TASK_2.chapter_id$",
+      "operation": "replace",
+      "content": "$TASK_3.versions[0].content$",
+      "node_id": "$TASK_2.node_id$",
+      "paragraph_index": "$TASK_2.paragraph_index$",
+      "original_text": "$TASK_2.text$"
+    }}
+  ]
+}
+⚠️ 跨章节关键：先用 get_chapter_by_order_tool 获取目标章节ID，再传给 locate_content！
 """
 
 

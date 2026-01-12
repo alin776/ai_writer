@@ -142,6 +142,17 @@ class ToolExecutor:
             if not params.get("text_to_rewrite"):
                 params["text_to_rewrite"] = selected_text or locate_original_text or ""
 
+            # 🔧 2026-01-12: 确保 chapter_content 是字符串类型
+            chapter_content = params.get("chapter_content")
+            if chapter_content is not None and not isinstance(chapter_content, str):
+                if isinstance(chapter_content, list) and len(chapter_content) > 0:
+                    first_item = chapter_content[0]
+                    if isinstance(first_item, dict):
+                        params["chapter_content"] = first_item.get("content", "")
+                    else:
+                        params["chapter_content"] = str(chapter_content)
+                else:
+                    params["chapter_content"] = str(chapter_content) if chapter_content else ""
             # chapter_content: 兜底使用 text_to_rewrite
             if not params.get("chapter_content"):
                 params["chapter_content"] = params.get("text_to_rewrite", "")
@@ -164,15 +175,39 @@ class ToolExecutor:
 
         elif tool_name == "smart_continue":
             params.setdefault("chapter_id", state.get("chapter_id", ""))
+            # 🔧 2026-01-12: 确保 chapter_content 是字符串类型
+            chapter_content = params.get("chapter_content")
+            if chapter_content is not None and not isinstance(chapter_content, str):
+                if isinstance(chapter_content, list) and len(chapter_content) > 0:
+                    first_item = chapter_content[0]
+                    if isinstance(first_item, dict):
+                        params["chapter_content"] = first_item.get("content", "")
+                    else:
+                        params["chapter_content"] = str(chapter_content)
+                else:
+                    params["chapter_content"] = str(chapter_content) if chapter_content else None
             params.setdefault("user_id", state.get("user_id"))
 
         elif tool_name == "smart_insert":
             params.setdefault("chapter_id", state.get("chapter_id", ""))
-            params.setdefault("chapter_content", None)
+            # 🔧 2026-01-12: 确保 chapter_content 是字符串类型，避免 AI 传入列表导致验证失败
+            chapter_content = params.get("chapter_content")
+            if chapter_content is not None and not isinstance(chapter_content, str):
+                # 如果是列表（如 get_chapter_by_order 返回的章节列表），尝试提取内容
+                if isinstance(chapter_content, list) and len(chapter_content) > 0:
+                    first_item = chapter_content[0]
+                    if isinstance(first_item, dict):
+                        params["chapter_content"] = first_item.get("content", "")
+                    else:
+                        params["chapter_content"] = str(chapter_content)
+                else:
+                    params["chapter_content"] = str(chapter_content) if chapter_content else None
             params.setdefault("context", None)
             params.setdefault("user_id", state.get("user_id"))
 
         elif tool_name == "locate_content":
+            # 🔧 2026-01-12: 移除不支持的 work_id 参数，避免 AI 规划错误导致工具调用失败
+            params.pop("work_id", None)
             params.setdefault("chapter_id", state.get("chapter_id", ""))
             params.setdefault("node_id", state.get("context", {}).get("locate_node_id"))
             nodes_info = params.get("nodes_info")
@@ -197,6 +232,13 @@ class ToolExecutor:
             params.setdefault("original_text", None)  # 🆕 原文（用于前端定位）
             params.setdefault("node_id", context.get("locate_node_id"))
             params.setdefault("paragraph_index", context.get("locate_paragraph_index"))
+            # 🔧 2026-01-12: 确保 paragraph_index 是整数或 None，避免上游任务失败时传入错误字符串
+            pi = params.get("paragraph_index")
+            if pi is not None and not isinstance(pi, int):
+                try:
+                    params["paragraph_index"] = int(pi)
+                except (ValueError, TypeError):
+                    params["paragraph_index"] = None
             if not params.get("node_id"):
                 params["node_id"] = context.get("locate_node_id")
             if params.get("paragraph_index") is None:

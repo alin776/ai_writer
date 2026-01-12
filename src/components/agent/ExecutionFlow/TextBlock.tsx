@@ -9,7 +9,7 @@ interface TextBlockProps {
 
 export function TextBlock({ content }: TextBlockProps) {
   return (
-    <p className="text-[13px] text-slate-600 dark:text-slate-300 leading-[1.6] my-2.5">
+    <p className="text-[14px] text-slate-600 dark:text-slate-300 leading-[1.6] my-2.5">
       {content}
     </p>
   );

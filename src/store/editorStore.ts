@@ -8,6 +8,23 @@ import { countWordsInHtml } from '@/utils/wordCount';
 export type RightSidebarType = 'worldview' | 'agent' | null;
 
 /**
+ * 跨章节修订信息
+ */
+export interface PendingCrossChapterRevision {
+  targetChapterId: string;
+  revisionId: string;
+  type: 'modify' | 'continue' | 'insert';
+  original?: string;
+  replacement: string;
+  position?: { from: number; to: number };
+  beforeAnchor?: string;
+  afterAnchor?: string;
+  nodeId?: string;
+  paragraphIndex?: number;
+  timestamp: number;
+}
+
+/**
  * 编辑器状态接口
  */
 interface EditorState {
@@ -18,6 +35,7 @@ interface EditorState {
   rightSidebarType: RightSidebarType; // 右侧面板类型
   lastSavedAt: Date | null;
   isDirty: boolean; // 是否有未保存的更改
+  pendingCrossChapterRevision: PendingCrossChapterRevision | null; // 🆕 跨章节修订
 
   // 方法
   /**
@@ -73,6 +91,17 @@ interface EditorState {
   setDirty: (isDirty: boolean) => void;
 
   /**
+   * 🆕 设置跨章节修订
+   * @param revision 修订信息
+   */
+  setPendingCrossChapterRevision: (revision: PendingCrossChapterRevision | null) => void;
+
+  /**
+   * 🆕 清除跨章节修订
+   */
+  clearPendingCrossChapterRevision: () => void;
+
+  /**
    * 更新章节内容（不保存到服务器）
    * @param content 新内容
    */
@@ -96,6 +125,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   rightSidebarType: null, // 右侧面板默认关闭
   lastSavedAt: null,
   isDirty: false,
+  pendingCrossChapterRevision: null, // 🆕 跨章节修订
 
   // 设置当前章节
   setCurrentChapter: (chapter: Chapter | null) => {
@@ -158,6 +188,16 @@ export const useEditorStore = create<EditorState>((set) => ({
     set({ isDirty });
   },
 
+  // 🆕 设置跨章节修订
+  setPendingCrossChapterRevision: (revision: PendingCrossChapterRevision | null) => {
+    set({ pendingCrossChapterRevision: revision });
+  },
+
+  // 🆕 清除跨章节修订
+  clearPendingCrossChapterRevision: () => {
+    set({ pendingCrossChapterRevision: null });
+  },
+
   // 更新章节内容
   updateChapterContent: (content: string) => {
     set((state) => {
@@ -187,6 +227,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       rightSidebarType: null, // 重置右侧面板
       lastSavedAt: null,
       isDirty: false,
+      pendingCrossChapterRevision: null, // 🆕 重置跨章节修订
     });
   },
 }));

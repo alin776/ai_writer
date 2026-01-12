@@ -130,7 +130,12 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [wordCount, setWordCount] = useState(0);
   const toast = useToast();
-  const { setRightSidebarType } = useEditorStore();
+  const {
+    setRightSidebarType,
+    pendingCrossChapterRevision,
+    setPendingCrossChapterRevision,
+    clearPendingCrossChapterRevision
+  } = useEditorStore();
 
   // 🆕 选区快照：在点击 Ask AI 按钮时立即保存，防止后续操作丢失
   const [inlineAISelectionSnapshot, setInlineAISelectionSnapshot] = useState<{
@@ -575,6 +580,217 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     };
   }, [editor, chapterId, autoSave, toast, debouncedSave]);
 
+  // 🆕 章节切换时检查并显示待处理的跨章节修订
+  useEffect(() => {
+    if (!editor || !chapterId || !pendingCrossChapterRevision) return;
+
+    // 检查当前章节是否是待处理修订的目标章节
+    if (pendingCrossChapterRevision.targetChapterId !== chapterId) return;
+
+    // 🔧 检查修订是否过期（5分钟）
+    const isExpired = Date.now() - pendingCrossChapterRevision.timestamp > 5 * 60 * 1000;
+    if (isExpired) {
+      console.log('[NovelEditor] 跨章节修订已过期，清除');
+      clearPendingCrossChapterRevision();
+      return;
+    }
+
+    // 🔧 2026-01-12 修复：验证编辑器内容是否已包含 replacement
+    // 解决时序问题：content 更新和跨章节修订 useEffect 可能同时触发
+    const docText = editor.state.doc.textContent;
+    const { replacement } = pendingCrossChapterRevision;
+    if (replacement && !docText.includes(replacement)) {
+      console.log('[NovelEditor] 跨章节修订：等待 content 更新...', {
+        replacementPreview: replacement.substring(0, 50),
+        docTextPreview: docText.substring(0, 50)
+      });
+      return; // 不清除 pendingCrossChapterRevision，等待 content 更新后重新触发
+    }
+
+    console.log('[NovelEditor] 检测到待处理的跨章节修订，准备显示:', pendingCrossChapterRevision);
+
+    // 🔧 保存当前修订信息的快照，避免闭包问题
+    const revisionSnapshot = { ...pendingCrossChapterRevision };
+
+    // 🔧 2026-01-12: 跨章节修订重建逻辑
+    // 由于后端已经将修改写入数据库，编辑器加载的是修改后的内容
+    // 需要在编辑器中找到 replacement 的位置，然后重建修订标记
+    const { type, original, replacement: revReplacement, nodeId, paragraphIndex } = revisionSnapshot;
+
+    // 辅助函数：将纯文本偏移量转换为 ProseMirror 位置
+    const textOffsetToPos = (textOffset: number): number => {
+      let currentTextOffset = 0;
+      let resultPos = 0;
+      let found = false;
+
+      editor.state.doc.descendants((node, pos) => {
+        if (found) return false;
+        if (node.isText && node.text) {
+          const nodeTextLen = node.text.length;
+          if (currentTextOffset + nodeTextLen > textOffset) {
+            // 目标位置在这个节点内
+            resultPos = pos + (textOffset - currentTextOffset);
+            found = true;
+            return false;
+          }
+          currentTextOffset += nodeTextLen;
+        }
+        return true;
+      });
+
+      return found ? resultPos : 0;
+    };
+
+    // 辅助函数：通过 nodeId 定位
+    const locateByNodeId = (targetNodeId: string): { from: number; to: number } | null => {
+      const nodeAPI = (window as any).__editorNodeAPI;
+      if (nodeAPI?.findByNodeID) {
+        const result = nodeAPI.findByNodeID(targetNodeId);
+        if (result?.success && result.position) {
+          return result.position;
+        }
+      }
+      return null;
+    };
+
+    // 辅助函数：通过 paragraphIndex 定位
+    const locateByParagraphIndex = (idx: number): { from: number; to: number } | null => {
+      const nodeAPI = (window as any).__editorNodeAPI;
+      if (nodeAPI?.getAllNodes) {
+        const nodes = nodeAPI.getAllNodes();
+        if (nodes && nodes[idx]) {
+          const targetNodeId = nodes[idx].id;
+          return locateByNodeId(targetNodeId);
+        }
+      }
+      return null;
+    };
+
+    if (type === 'modify' && original && revReplacement) {
+      // 修改模式：在编辑器中找到 replacement，在其前面插入带删除线的 original
+      const { state, view } = editor;
+      const { tr } = state;
+      const aiDeletedMark = state.schema.marks.aiDeleted;
+      const aiInsertedMark = state.schema.marks.aiInserted;
+
+      if (!aiDeletedMark || !aiInsertedMark) {
+        console.error('[NovelEditor] 修订标记扩展未正确注册');
+        clearPendingCrossChapterRevision();
+        return;
+      }
+
+      // 定位策略：先确定搜索范围，再在范围内精确定位 replacement
+      let searchRange: { from: number; to: number } | null = null;
+      let targetPos: { from: number; to: number } | null = null;
+
+      // 1. 尝试通过 nodeId 确定搜索范围
+      if (nodeId) {
+        searchRange = locateByNodeId(nodeId);
+        if (searchRange) {
+          console.log('[NovelEditor] 跨章节修订：通过 nodeId 确定搜索范围');
+        }
+      }
+
+      // 2. 尝试通过 paragraphIndex 确定搜索范围
+      if (!searchRange && paragraphIndex !== undefined) {
+        searchRange = locateByParagraphIndex(paragraphIndex);
+        if (searchRange) {
+          console.log('[NovelEditor] 跨章节修订：通过 paragraphIndex 确定搜索范围');
+        }
+      }
+
+      // 3. 在搜索范围内（或全文）查找 replacement 的精确位置
+      const replaceIndex = docText.indexOf(revReplacement);
+
+      if (replaceIndex !== -1) {
+        const from = textOffsetToPos(replaceIndex);
+        const to = textOffsetToPos(replaceIndex + revReplacement.length);
+
+        // 如果有搜索范围，验证 replacement 是否在范围内
+        if (searchRange) {
+          if (from >= searchRange.from && to <= searchRange.to) {
+            targetPos = { from, to };
+            console.log('[NovelEditor] 跨章节修订：在指定范围内找到 replacement');
+          } else {
+            // replacement 不在预期范围内，可能是重复文本，使用第一个匹配
+            targetPos = { from, to };
+            console.log('[NovelEditor] 跨章节修订：replacement 不在预期范围内，使用第一个匹配');
+          }
+        } else {
+          targetPos = { from, to };
+          console.log('[NovelEditor] 跨章节修订：通过全文匹配定位成功');
+        }
+      }
+
+      if (targetPos) {
+        const { from, to } = targetPos;
+
+        // 1. 给 replacement 添加插入标记
+        tr.addMark(from, to, aiInsertedMark.create());
+
+        // 2. 在 replacement 前面插入带删除标记的 original
+        const deletedText = state.schema.text(original, [aiDeletedMark.create()]);
+        tr.insert(from, deletedText);
+
+        view.dispatch(tr);
+
+        // 设置活跃修订状态
+        setActiveRevision({
+          id: revisionSnapshot.revisionId,
+          type: 'modify',
+          position: { from, to },
+          original,
+          replacement: revReplacement,
+        });
+
+        toast.success(t('editor.aiMenu.crossChapterRevisionApplied') || '已显示跨章节修订');
+      } else {
+        console.warn('[NovelEditor] 跨章节修订：无法定位 replacement');
+        toast.warning(t('editor.aiMenu.revisionContentChanged') || '修订内容可能已变化');
+      }
+    } else if ((type === 'continue' || type === 'insert') && revReplacement) {
+      // 续写/插入模式：在编辑器中找到 replacement，添加绿色高亮
+      const replaceIndex = docText.indexOf(revReplacement);
+      if (replaceIndex !== -1) {
+        console.log('[NovelEditor] 跨章节修订：找到 replacement，添加插入标记');
+
+        const { state, view } = editor;
+        const { tr } = state;
+        const aiInsertedMark = state.schema.marks.aiInserted;
+
+        if (aiInsertedMark) {
+          const from = textOffsetToPos(replaceIndex);
+          const to = textOffsetToPos(replaceIndex + revReplacement.length);
+
+          if (from > 0 || replaceIndex === 0) {
+            tr.addMark(from, to, aiInsertedMark.create());
+            view.dispatch(tr);
+
+            setActiveRevision({
+              id: revisionSnapshot.revisionId,
+              type: type as 'continue' | 'insert',
+              position: { from, to },
+              replacement: revReplacement,
+            });
+
+            toast.success(t('editor.aiMenu.crossChapterRevisionApplied') || '已显示跨章节修订');
+          } else {
+            console.warn('[NovelEditor] 跨章节修订：无法定位 replacement');
+            toast.warning(t('editor.aiMenu.revisionContentChanged') || '修订内容可能已变化');
+          }
+        }
+      } else {
+        console.warn('[NovelEditor] 跨章节修订：未找到 replacement');
+        toast.warning(t('editor.aiMenu.revisionContentChanged') || '修订内容可能已变化');
+      }
+    } else {
+      console.warn('[NovelEditor] 跨章节修订：缺少必要数据', { type, hasOriginal: !!original, hasReplacement: !!revReplacement });
+    }
+
+    // 清除待处理的修订
+    clearPendingCrossChapterRevision();
+  }, [editor, chapterId, content, pendingCrossChapterRevision, clearPendingCrossChapterRevision, toast, t, setActiveRevision]);
+
   // 🆕 监听 Agent 改写确认事件（从 useAgentChat 触发）
   // 现在改为显示修订标记，而不是直接替换
   useEffect(() => {
@@ -599,12 +815,27 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
       const { type, original, replacement, position, revisionId, originalMessage, context, beforeAnchor, afterAnchor, nodeId, paragraphIndex, chapterId: targetChapterId } = customEvent.detail;
 
-      // 🆕 跨章节检查：如果目标章节不是当前章节，提示用户（但不阻止修改）
-      // 后端已经在目标章节完成了修改，这里只是通知用户
+      // 🆕 跨章节检查：如果目标章节不是当前章节，保存修订信息并提示用户
+      // 后端已经在目标章节完成了修改，这里保存信息供切换章节时使用
       if (targetChapterId && chapterId && targetChapterId !== chapterId) {
-        console.log('[NovelEditor] 跨章节修改:', { targetChapterId, currentChapterId: chapterId });
+        console.log('[NovelEditor] 跨章节修改，保存修订信息:', { targetChapterId, currentChapterId: chapterId });
+
+        // 🆕 保存跨章节修订信息到 store
+        setPendingCrossChapterRevision({
+          targetChapterId,
+          revisionId: revisionId || `rev-${Date.now()}`,
+          type,
+          original,
+          replacement,
+          position,
+          beforeAnchor,
+          afterAnchor,
+          nodeId,
+          paragraphIndex,
+          timestamp: Date.now()
+        });
+
         toast.info(t('editor.aiMenu.crossChapterModified') || '内容已在其他章节修改，请切换查看');
-        // 不 return，继续处理（但由于不是当前章节，修订标记不会显示在当前编辑器）
         return;  // 当前编辑器不显示修订标记，用户需要切换到目标章节查看
       }
 
@@ -1264,7 +1495,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       window.removeEventListener('agent-discard-revision', handleDiscardRevisionEvent as EventListener);
       window.removeEventListener('agent-discard-all-revisions', handleDiscardRevisionEvent as EventListener);  // v8.1: 批量撤销
     };
-  }, [editor, autoSave, toast, debouncedSave]);
+  }, [editor, autoSave, toast, debouncedSave, chapterId, setPendingCrossChapterRevision, t]);
 
   // 🆕 打开 Ask AI：保存选区并通知右侧 Agent
   const handleOpenInlineAI = useCallback(() => {
