@@ -40,6 +40,7 @@ import type {
   AICallLogStats,
   CostMetrics,
 } from '@/types';
+import type { ChapterRevision } from '@/types/revision';
 import type { SearchResponse } from '@/types/search';
 import type { WorldData, Setting, Character, Location, WorldviewChanges, ApplyChangesResult } from '@/types/novel';
 import type {
@@ -375,6 +376,16 @@ class DataServiceClass {
    */
   async getChapter(id: string): Promise<Chapter> {
     return this.adapter.get(`/chapters/${id}`);
+  }
+
+  /**
+   * 获取章节待处理修订
+   * @param chapterId 章节ID
+   * @param status 修订状态（默认 pending）
+   * @returns Promise<ChapterRevision[]>
+   */
+  async getChapterRevisions(chapterId: string, status: 'pending' = 'pending'): Promise<ChapterRevision[]> {
+    return this.adapter.get(`/chapters/${chapterId}/revisions?status=${status}`);
   }
 
   /**

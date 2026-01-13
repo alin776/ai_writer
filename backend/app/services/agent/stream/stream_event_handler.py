@@ -327,8 +327,9 @@ class StreamEventHandler:
                     except json.JSONDecodeError:
                         pass
 
+                request_id = tool_result.get("request_id") or f"{msg.name}_{msg.tool_call_id}"
                 approval_data = {
-                    "request_id": f"{msg.name}_{msg.tool_call_id}",
+                    "request_id": request_id,
                     "action_type": tool_result.get("action_type", "edit"),
                     "operation": tool_result.get("operation"),
                     "original_content": (
@@ -342,6 +343,7 @@ class StreamEventHandler:
                     "chapter_id": tool_result.get("chapter_id"),
                     "chapter_title": tool_result.get("chapter_title"),
                     "work_id": tool_result.get("work_id"),
+                    "revision_id": tool_result.get("revision_id"),
                     "old_title": tool_result.get("old_title"),
                     "new_title": tool_result.get("new_title"),
                     "editor_action": tool_result.get("editor_action"),

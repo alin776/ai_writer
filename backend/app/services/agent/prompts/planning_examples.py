@@ -993,6 +993,40 @@ locate_content 只接受以下参数：
 ⚠️ 跨章节支持：smart_rewrite 和 apply_chapter_edit 的 chapter_id 必须使用 $TASK_1.chapter_id$（locate_content 返回的章节ID）
 
 ---
+【场景4.5：未指定章节的修改】⚠️ 用户描述内容但没有章节信息
+
+用户: "把'吞噬器灵'那段改得更紧凑"
+{
+  "thinking": {
+    "step1_output": "用户要修改但未说明章节，需要先检索找到目标章节",
+    "step2_material": "search_content 找章 → get_writing_context 读章 → locate_content 精确定位",
+    "step3_process": "search_content → get_writing_context → locate_content → smart_rewrite → apply_chapter_edit"
+  },
+  "user_intent": "修改吞噬器灵相关段落",
+  "tasks": [
+    {"task_id": 1, "description": "检索吞噬器灵场景", "tool": "search_content", "params": {"query": "吞噬器灵", "top_k": 3}},
+    {"task_id": 2, "description": "读取目标章节", "tool": "get_writing_context", "params": {"chapter_id": "$TASK_1.results[0].chapter_id$", "include": "chapter"}},
+    {"task_id": 3, "description": "定位吞噬器灵段落", "tool": "locate_content", "params": {
+      "chapter_id": "$TASK_2.chapters[0].id$",
+      "query": "吞噬器灵"
+    }},
+    {"task_id": 4, "description": "改写段落", "tool": "smart_rewrite", "params": {
+      "chapter_id": "$TASK_3.chapter_id$",
+      "text_to_rewrite": "$TASK_3.text$",
+      "user_requirement": "压缩冗余，节奏更紧凑"
+    }},
+    {"task_id": 5, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
+      "chapter_id": "$TASK_3.chapter_id$",
+      "operation": "replace",
+      "content": "$TASK_4.versions[0].content$",
+      "node_id": "$TASK_3.node_id$",
+      "paragraph_index": "$TASK_3.paragraph_index$",
+      "original_text": "$TASK_3.text$"
+    }}
+  ]
+}
+
+---
 【场景5：跨章节定位 + 修改】⚠️ 用户在A章节，要修改B章节的内容
 
 用户: "我在第4章，想修改第2章中'羚羊献食'那段"

@@ -779,7 +779,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
                       window.dispatchEvent(new CustomEvent('agent-show-revision', {
                         detail: {
-                          revisionId: `rev-${approvalReq.request_id}`,
+                          revisionId: approvalReq.request_id,
+                          requestId: approvalReq.request_id,
                           chapterId: approvalReq.chapter_id,
                           type: editorType,
                           replacement: approvalReq.new_content,

@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState, useRef, useEffect } from 'react';
+﻿import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -40,6 +40,13 @@ interface NavItem {
   roles?: string[];
 }
 
+const notificationNavItem: NavItem = {
+  id: 'notifications',
+  label: '通知中心',
+  icon: Bell,
+  path: '/notifications',
+};
+
 const mainNavItems: NavItem[] = [
   { id: 'works', label: '作品管理', icon: BookOpen, path: '/works' },
   { id: 'knowledge', label: '知识库', icon: Library, path: '/knowledge' },
@@ -50,6 +57,7 @@ const libraryNavItems: NavItem[] = [
   { id: 'channels', label: '频道', icon: MessageCircle, path: '/channels' },
   { id: 'novel-square', label: '小说广场', icon: BookMarked, path: '/library/novel-square' },
   { id: 'my-bookshelf', label: '我的书架', icon: BookOpen, path: '/library/my-bookshelf' },
+  notificationNavItem,
 ];
 
 const serviceNavItems: NavItem[] = [
@@ -91,6 +99,7 @@ export const Sidebar: React.FC = () => {
   const [isNavScrolled, setIsNavScrolled] = useState(false); // 导航区域是否滚动
   const [isNotificationHovered, setIsNotificationHovered] = useState(false); // 通知中心悬浮状态
   const notificationHoverRef = useRef<HTMLDivElement>(null);
+  const notificationHoverTimeoutRef = useRef<number | null>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // 获取频道未读状态
@@ -136,6 +145,32 @@ export const Sidebar: React.FC = () => {
     }
   }, [isNotificationHovered, isCollapsed, fetchNotifications]);
 
+  const clearNotificationHoverTimeout = useCallback(() => {
+    if (notificationHoverTimeoutRef.current) {
+      window.clearTimeout(notificationHoverTimeoutRef.current);
+      notificationHoverTimeoutRef.current = null;
+    }
+  }, []);
+
+  const openNotificationHover = useCallback(() => {
+    clearNotificationHoverTimeout();
+    setIsNotificationHovered(true);
+  }, [clearNotificationHoverTimeout]);
+
+  const closeNotificationHover = useCallback(() => {
+    clearNotificationHoverTimeout();
+    notificationHoverTimeoutRef.current = window.setTimeout(() => {
+      setIsNotificationHovered(false);
+      notificationHoverTimeoutRef.current = null;
+    }, 200);
+  }, [clearNotificationHoverTimeout]);
+
+  useEffect(() => {
+    return () => {
+      clearNotificationHoverTimeout();
+    };
+  }, [clearNotificationHoverTimeout]);
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -164,7 +199,6 @@ export const Sidebar: React.FC = () => {
 
   const bottomNavItems: NavItem[] = useMemo(() => [
     { id: 'profile', label: '个人主页', icon: User, path: user ? `/user/${user.id}` : '/login' },
-    { id: 'notifications', label: '通知中心', icon: Bell, path: '/notifications' },
     { id: 'settings', label: '系统设置', icon: Settings, path: '/settings' },
   ], [user]);
 
@@ -218,10 +252,111 @@ export const Sidebar: React.FC = () => {
     );
   };
 
+  const renderNotificationNavItem = () => {
+    const Icon = notificationNavItem.icon;
+    const active = isActive(notificationNavItem.path);
+    const tooltip = notificationNavItem.label;
+    const hasUnread = notificationUnreadCount > 0;
+
+    return (
+      <div
+        key={notificationNavItem.id}
+        ref={notificationHoverRef}
+        className="relative"
+        onMouseEnter={openNotificationHover}
+        onMouseLeave={closeNotificationHover}
+      >
+        <Link
+          to={notificationNavItem.path}
+          className={clsx(
+            'group relative flex items-center px-3 py-2 rounded-lg transition-all duration-200 !text-gray-900 dark:!text-white',
+            active
+              ? 'bg-blue-50 dark:bg-blue-900/30'
+              : 'hover:bg-gray-100 dark:hover:bg-slate-800',
+            isCollapsed ? 'justify-center' : 'space-x-3'
+          )}
+          title={isCollapsed && !isNotificationHovered ? tooltip : undefined}
+        >
+          <div className="relative flex-shrink-0">
+            <Icon className={clsx(isCollapsed ? 'w-5 h-5' : 'w-4 h-4', 'text-gray-900 dark:text-white')} />
+            {hasUnread && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+            )}
+          </div>
+          {!isCollapsed && (
+            <>
+              <span className="text-sm font-medium flex-1">{notificationNavItem.label}</span>
+              {hasUnread && (
+                <span className="text-xs bg-red-500 text-white rounded-full h-5 min-w-5 px-1.5 flex items-center justify-center">
+                  {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
+                </span>
+              )}
+            </>
+          )}
+        </Link>
+
+        {isCollapsed && isNotificationHovered && createPortal(
+          <div
+            className="fixed w-80 bg-white dark:bg-slate-900 rounded-lg shadow-xl border border-gray-200 dark:border-slate-700 z-[100]"
+            style={(() => {
+              if (!notificationHoverRef.current) return { left: 72, top: 0 };
+              const rect = notificationHoverRef.current.getBoundingClientRect();
+              const popupHeight = 400;
+              const viewportHeight = window.innerHeight;
+              let top = rect.top;
+              if (top + popupHeight > viewportHeight - 16) {
+                top = viewportHeight - popupHeight - 16;
+              }
+              if (top < 16) top = 16;
+              return { left: rect.right + 8, top };
+            })()}
+            onMouseEnter={openNotificationHover}
+            onMouseLeave={closeNotificationHover}
+          >
+            <div className="max-h-80 overflow-y-auto">
+              {notificationLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-gray-500 dark:text-gray-400">
+                  <Bell className="w-8 h-8 mb-2 opacity-50" />
+                  <p className="text-sm">暂无通知</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {notifications.slice(0, 5).map((notification) => (
+                    <NotificationItem
+                      key={notification.id}
+                      notification={notification}
+                      onClose={() => setIsNotificationHovered(false)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="px-4 py-2 border-t border-gray-200 dark:border-slate-700">
+              <Link
+                to={notificationNavItem.path}
+                onClick={() => setIsNotificationHovered(false)}
+                className="flex items-center justify-center gap-2 w-full px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+              >
+                查看全部通知
+                <ExternalLink className="w-3 h-3" />
+              </Link>
+            </div>
+          </div>,
+          document.body
+        )}
+      </div>
+    );
+  };
+
   return (
     <aside
       className={clsx(
-        'relative z-10 bg-gray-50 dark:bg-slate-900 border-r border-gray-200 dark:border-slate-700 transition-all duration-300 flex flex-col overflow-hidden',
+        'relative z-10 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-slate-700 transition-all duration-300 flex flex-col overflow-hidden',
         isCollapsed ? 'w-16' : 'w-64'
       )}
     >
@@ -280,7 +415,9 @@ export const Sidebar: React.FC = () => {
             {!isCollapsed && <span>社区</span>}
             <ChevronDown className={clsx('w-4 h-4 transition-transform', !isLibraryExpanded && '-rotate-90')} />
           </button>
-          {isLibraryExpanded && libraryNavItems.map(renderNavItem)}
+          {isLibraryExpanded && libraryNavItems.map((item) => (
+            item.id === notificationNavItem.id ? renderNotificationNavItem() : renderNavItem(item)
+          ))}
         </div>
 
         <div className="mt-6 space-y-0.5">
@@ -307,117 +444,7 @@ export const Sidebar: React.FC = () => {
         )}
 
         <div className="mt-6 pt-6 border-t border-gray-200 dark:border-slate-700 space-y-0.5">
-          {bottomNavItems.map((item) => {
-            // 通知中心特殊处理
-            if (item.id === 'notifications') {
-              const Icon = item.icon;
-              const active = isActive(item.path);
-              const tooltip = item.label;
-              const hasUnread = notificationUnreadCount > 0;
-
-              return (
-                <div
-                  key={item.id}
-                  ref={notificationHoverRef}
-                  className="relative"
-                  onMouseEnter={() => setIsNotificationHovered(true)}
-                  onMouseLeave={() => setIsNotificationHovered(false)}
-                >
-                  <Link
-                    to={item.path}
-                    className={clsx(
-                      'group relative flex items-center px-3 py-2 rounded-lg transition-all duration-200 !text-gray-900 dark:!text-white',
-                      active
-                        ? 'bg-blue-50 dark:bg-blue-900/30'
-                        : 'hover:bg-gray-100 dark:hover:bg-slate-800',
-                      isCollapsed ? 'justify-center' : 'space-x-3'
-                    )}
-                    title={isCollapsed && !isNotificationHovered ? tooltip : undefined}
-                  >
-                    <div className="relative flex-shrink-0">
-                      <Icon className={clsx(isCollapsed ? 'w-5 h-5' : 'w-4 h-4', 'text-gray-900 dark:text-white')} />
-                      {/* 未读通知红点 */}
-                      {hasUnread && (
-                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                      )}
-                    </div>
-                    {!isCollapsed && (
-                      <>
-                        <span className="text-sm font-medium flex-1">{item.label}</span>
-                        {/* 未读数量徽章 */}
-                        {hasUnread && (
-                          <span className="text-xs bg-red-500 text-white rounded-full h-5 min-w-5 px-1.5 flex items-center justify-center">
-                            {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </Link>
-
-                  {/* 收缩状态下悬浮显示通知列表 - 使用 Portal 避免被裁剪 */}
-                  {isCollapsed && isNotificationHovered && createPortal(
-                    <div
-                      className="fixed w-80 bg-white dark:bg-slate-900 rounded-lg shadow-xl border border-gray-200 dark:border-slate-700 z-[100]"
-                      style={(() => {
-                        if (!notificationHoverRef.current) return { left: 72, top: 0 };
-                        const rect = notificationHoverRef.current.getBoundingClientRect();
-                        const popupHeight = 400; // 弹窗预估高度
-                        const viewportHeight = window.innerHeight;
-                        let top = rect.top;
-                        // 如果弹窗会超出屏幕底部，向上调整
-                        if (top + popupHeight > viewportHeight - 16) {
-                          top = viewportHeight - popupHeight - 16;
-                        }
-                        // 确保不超出屏幕顶部
-                        if (top < 16) top = 16;
-                        return { left: rect.right + 8, top };
-                      })()}
-                      onMouseEnter={() => setIsNotificationHovered(true)}
-                      onMouseLeave={() => setIsNotificationHovered(false)}
-                    >
-                      {/* 通知列表 */}
-                      <div className="max-h-80 overflow-y-auto">
-                        {notificationLoading ? (
-                          <div className="flex items-center justify-center py-8">
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                          </div>
-                        ) : notifications.length === 0 ? (
-                          <div className="flex flex-col items-center justify-center py-8 text-gray-500 dark:text-gray-400">
-                            <Bell className="w-8 h-8 mb-2 opacity-50" />
-                            <p className="text-sm">暂无通知</p>
-                          </div>
-                        ) : (
-                          <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                            {notifications.slice(0, 5).map((notification) => (
-                              <NotificationItem
-                                key={notification.id}
-                                notification={notification}
-                                onClose={() => setIsNotificationHovered(false)}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* 底部 - 查看全部 */}
-                      <div className="px-4 py-2 border-t border-gray-200 dark:border-slate-700">
-                        <Link
-                          to="/notifications"
-                          onClick={() => setIsNotificationHovered(false)}
-                          className="flex items-center justify-center gap-2 w-full px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                        >
-                          查看全部通知
-                          <ExternalLink className="w-3 h-3" />
-                        </Link>
-                      </div>
-                    </div>,
-                    document.body
-                  )}
-                </div>
-              );
-            }
-            return renderNavItem(item);
-          })}
+          {bottomNavItems.map(renderNavItem)}
         </div>
       </nav>
 

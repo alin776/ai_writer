@@ -655,7 +655,7 @@ const WorksView: React.FC = () => {
   }
 
   return (
-    <div className="bg-[#fafafa] dark:bg-gray-900 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 44px)' }}>
+    <div className="bg-[#fafafa] dark:bg-gray-900 flex flex-col overflow-hidden h-full min-h-full">
       {/* Header */}
       <header className="bg-[#fafafa] dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
         <div className="w-full max-w-[1400px] mx-auto px-12 py-4">

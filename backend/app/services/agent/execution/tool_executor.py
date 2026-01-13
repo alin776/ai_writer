@@ -77,7 +77,11 @@ class ToolExecutor:
             str: 工具执行结果（字符串格式）
         """
         # 规范化工具名称
+        tool_args = dict(tool_args or {})
         normalized_name = TOOL_NAME_MAPPING.get(tool_name, tool_name)
+
+        if normalized_name == "locate_content":
+            tool_args = await self._autofill_locate_chapter_id(tool_args, state)
 
         # 🆕 2026-01-12: 章节缓存检查
         if normalized_name in ["read_chapter", "get_chapter_by_order"]:
@@ -235,7 +239,9 @@ class ToolExecutor:
         elif tool_name == "locate_content":
             # 🔧 2026-01-12: 移除不支持的 work_id 参数，避免 AI 规划错误导致工具调用失败
             params.pop("work_id", None)
-            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            ignore_state = self._should_ignore_state_chapter_id(state, params)
+            if not ignore_state:
+                params.setdefault("chapter_id", state.get("chapter_id", ""))
             params.setdefault("node_id", state.get("context", {}).get("locate_node_id"))
             nodes_info = params.get("nodes_info")
             if nodes_info is not None and not isinstance(nodes_info, str):
@@ -306,7 +312,8 @@ class ToolExecutor:
             params.setdefault("work_id", state.get("work_id", ""))
             params.setdefault("query", last_user_message)
             params.setdefault("top_k", 10)
-            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            ignore_state = self._should_ignore_state_chapter_id(state, params)
+            params.setdefault("chapter_id", "" if ignore_state else state.get("chapter_id", ""))
             params.setdefault("look_ahead", 0)
 
         elif tool_name == "get_worldview_summary":
@@ -383,6 +390,90 @@ class ToolExecutor:
             params.setdefault("work_id", state.get("work_id", ""))  # v8.0: 用于章节序号解析
 
         return params
+
+    async def _autofill_locate_chapter_id(self, tool_args: dict, state: dict) -> dict:
+        chapter_id = str(tool_args.get("chapter_id", "") or "").strip()
+        state_chapter_id = str(state.get("chapter_id", "") or "").strip()
+        ignore_state = self._should_ignore_state_chapter_id(state, tool_args)
+        if chapter_id or (state_chapter_id and not ignore_state):
+            return tool_args
+
+        work_id = str(state.get("work_id", "") or "").strip()
+        if not work_id:
+            return tool_args
+
+        query = tool_args.get("query") or state.get("last_user_message", "")
+        query = str(query).strip()
+        if not query:
+            return tool_args
+
+        try:
+            search_result = await registry.call_tool("search_content", {
+                "work_id": work_id,
+                "query": query,
+                "top_k": 1,
+                "chapter_id": "",
+                "look_ahead": 0
+            })
+            chapter_id = self._extract_first_chapter_id(search_result)
+            if chapter_id:
+                tool_args["chapter_id"] = chapter_id
+                logger.info("[ToolExecutor] locate_content 缺少 chapter_id，已通过 search_content 自动补全")
+        except Exception as e:
+            logger.warning(f"[ToolExecutor] locate_content 自动补全 chapter_id 失败: {e}")
+
+        return tool_args
+
+    @staticmethod
+    def _should_ignore_state_chapter_id(state: dict, tool_args: dict) -> bool:
+        message = str(state.get("last_user_message", "") or "")
+        query = str(tool_args.get("query", "") or "")
+        combined = f"{message} {query}".strip()
+        if not combined:
+            return False
+
+        unknown_hints = [
+            "不记得", "记不清", "记不住", "记不得", "想不起来",
+            "忘了", "忘记", "不确定", "不知道", "不清楚", "不太记得",
+        ]
+        chapter_hints = [
+            "第几章", "哪章", "哪一章", "哪个章",
+            "章节", "哪一节", "第几节",
+        ]
+        return any(hint in combined for hint in unknown_hints) and any(
+            hint in combined for hint in chapter_hints
+        )
+
+    @staticmethod
+    def _extract_first_chapter_id(search_result: Any) -> str:
+        if not isinstance(search_result, dict) or not search_result.get("success"):
+            return ""
+
+        data = search_result.get("data", {})
+        if not isinstance(data, dict):
+            return ""
+
+        results_payload = data.get("results")
+        if isinstance(results_payload, str):
+            try:
+                results_payload = json.loads(results_payload)
+            except Exception:
+                return ""
+
+        if isinstance(results_payload, dict):
+            results_list = results_payload.get("results", [])
+        elif isinstance(results_payload, list):
+            results_list = results_payload
+        else:
+            return ""
+
+        if not results_list:
+            return ""
+
+        first_item = results_list[0]
+        if isinstance(first_item, dict):
+            return str(first_item.get("chapter_id", "") or "").strip()
+        return ""
 
     def extract_result(self, tool_name: str, result: dict) -> str:
         """从 StandardTool 返回值中提取实际结果"""

@@ -88,6 +88,8 @@ def _get_retrieval_tools_section() -> str:
     - 用户要**修改/改写/润色**某内容 → 用 locate_content！
     - 用户要**插入/续写**内容 → 用 locate_content！
     - 任何需要返回 paragraph_index 的场景 → 用 locate_content！
+  ✅ **符合场景时的三步链路**：
+    - 用户要修改/插入但**未说明章节** → search_content 找章 → get_writing_context 读章 → locate_content 精确定位
 
 ⚠️ 【搜索 query 提取规则 - 极其重要！】
 提取用户描述中的**核心动作/事件/专有名词**作为搜索词，保持完整性！

@@ -96,8 +96,9 @@ export function NovelReader({ workId, chapterId, onBack, initialChapters, novelT
   const handledHighlightRef = useRef<string | null>(null);
   const highlightTimerRef = useRef<number | null>(null);
 
-  // 预设主题 - 第一个改为渐变暖色，添加强调色
+  // 预设主题 - 默认主题与布局背景一致
   const themes = [
+    { name: '默认', bg: '#f9fafb', text: '#1f2937', darkBg: '#0f172a', darkText: '#e2e8f0', isGradient: false, accent: '#3b82f6', darkAccent: '#60a5fa' },
     { name: '暖阳', bg: 'linear-gradient(to bottom right, #fffbeb, #fff7ed, #fff1f2)', text: '#1f2937', darkBg: '#2a2a2a', darkText: '#d4d4d4', isGradient: true, accent: '#c87941', darkAccent: '#6b9dad' },
     { name: '夜间', bg: '#1a1a1a', text: '#e0e0e0', darkBg: '#0d0d0d', darkText: '#e8e8e8', isGradient: false, accent: '#6b9dad', darkAccent: '#6b9dad' },
     { name: '纯白', bg: '#ffffff', text: '#1f2937', darkBg: '#1f1f1f', darkText: '#ffffff', isGradient: false, accent: '#3b82f6', darkAccent: '#6b9dad' },
@@ -721,7 +722,7 @@ export function NovelReader({ workId, chapterId, onBack, initialChapters, novelT
 
       {/* 右侧面板区域 - 章节列表或评论面板 */}
       <div
-        className={`fixed top-11 right-0 bottom-0 w-80 z-30 transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 right-0 bottom-0 w-80 z-30 transition-transform duration-300 ease-in-out ${
           hasSidePanel ? 'translate-x-0' : 'translate-x-full'
         }`}
         style={{ backgroundColor }}

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Body, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, Body, BackgroundTasks, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from pydantic import Field
@@ -10,7 +10,9 @@ from app.core.security import get_current_active_user
 from app.core.redis_client import redis_client
 from app.models.user import User
 from app.schemas.chapter import ChapterCreate, ChapterUpdate, ChapterResponse, ChapterListResponse, ChapterSummaryResponse
+from app.schemas.chapter_revision import ChapterRevisionResponse
 from app.services.chapter_service import ChapterService
+from app.services.chapter_revision_service import ChapterRevisionService
 from app.services.work_service import WorkService
 from app.services.task_service import TaskService
 from app.services.ai.http_ai_service import HTTPAIService
@@ -123,6 +125,43 @@ async def get_chapter(
         )
     
     return chapter
+
+
+@router.get("/{chapter_id}/revisions", response_model=List[ChapterRevisionResponse])
+async def get_chapter_revisions(
+    chapter_id: str,
+    status_filter: str = Query("pending", alias="status"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取章节待处理修订"""
+    chapter_service = ChapterService(db)
+    chapter = await chapter_service.get_chapter_by_id(chapter_id)
+
+    if not chapter:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chapter not found"
+        )
+
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(str(chapter.work_id))
+
+    if not work or str(work.author_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this chapter"
+        )
+
+    if status_filter != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only pending revisions are supported"
+        )
+
+    revision_service = ChapterRevisionService(db)
+    revisions = await revision_service.get_pending_revisions_by_chapter(chapter_id)
+    return revisions
 
 
 @router.post("", response_model=ChapterResponse, status_code=status.HTTP_201_CREATED)

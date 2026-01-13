@@ -427,6 +427,8 @@ class TaskRunner:
                 "work_id": params.get("work_id", work_id),
                 "chapter_id": params.get("chapter_id", chapter_id or "")
             })
+        elif tool_name == "locate_content":
+            return None
         else:
             return f"任务 {tool_name} 需要手动处理"
 

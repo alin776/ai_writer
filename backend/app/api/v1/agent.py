@@ -1679,12 +1679,35 @@ async def submit_approval_response(
         if request.reason:
             extra_data["reason"] = request.reason
 
+        from app.services.chapter_revision_service import ChapterRevisionService
+        from app.models.chapter_revision import ChapterRevisionStatus
+
+        revision_service = ChapterRevisionService(db)
+        revision = await revision_service.get_revision_by_request_id(request.request_id)
+
+        approval_request = hitl.get_approval_request(request.request_id)
+        approval_data = approval_request.proposed_action if approval_request else None
+
         # 如果是采纳，需要写入数据库
         if request.approved:
-            # 从 HITLManager 获取修订数据
-            approval_request = hitl.get_approval_request(request.request_id)
-            if approval_request:
-                approval_data = approval_request.proposed_action
+            if revision:
+                _, revision_error = await revision_service.apply_revision(revision)
+                if revision_error:
+                    if revision_error == "conflict":
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail="章节已被修改，修订发生冲突，请重新生成修订。"
+                        )
+                    if revision_error == "chapter_not_found":
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail="章节不存在，无法应用修订。"
+                        )
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"修订应用失败: {revision_error}"
+                    )
+            elif approval_data:
                 action_type = approval_data.get("action_type")
                 chapter_id = approval_data.get("chapter_id")
                 work_id = approval_data.get("work_id")
@@ -1705,7 +1728,7 @@ async def submit_approval_response(
                     )
                     logger.info(f"[Approval] 章节已创建: chapter_id={new_chapter.id}, title={title}")
 
-                # 处理章节内容编辑
+                # 处理章节内容编辑（兼容历史审批）
                 elif chapter_id and action_type in ["edit", "rewrite", "continue", "update_content"]:
                     chapter_service = ChapterService(db)
                     content = approval_data.get("content") or approval_data.get("new_content")
@@ -1741,6 +1764,9 @@ async def submit_approval_response(
                     chapter_service = ChapterService(db)
                     await chapter_service.delete_chapter(chapter_id)
                     logger.info(f"[Approval] 章节已删除: chapter_id={chapter_id}")
+        else:
+            if revision:
+                await revision_service.mark_status(revision, ChapterRevisionStatus.DISCARDED)
 
         # 更新 HITLManager 状态
         await hitl.submit_approval(

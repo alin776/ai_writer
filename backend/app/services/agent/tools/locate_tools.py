@@ -451,6 +451,8 @@ async def locate_content(
     query: str,
     nodes_info: Optional[str] = None,  # JSON 字符串格式的节点列表
     node_id: Optional[str] = None,  # node_id (front-end structural hint)
+    before_anchor: Optional[str] = None,  # 兼容参数，避免多余字段导致调用失败
+    after_anchor: Optional[str] = None,  # 兼容参数，避免多余字段导致调用失败
     user_id: Optional[str] = None
 ) -> str:
     """
@@ -460,12 +462,19 @@ async def locate_content(
         chapter_id: 章节ID
         query: 定位查询（如"第三段"、"主角出场的地方"、具体文本）
         nodes_info: 前端传入的节点列表（JSON字符串）
+        before_anchor: 兼容参数（可选）
+        after_anchor: 兼容参数（可选）
         user_id: 用户ID
 
     Returns:
         JSON 格式的定位结果
     """
     try:
+        if not isinstance(query, str):
+            query = str(query or "")
+        if not query.strip():
+            query = before_anchor or after_anchor or ""
+
         logger.info(f"[locate_content] 开始定位: chapter_id={chapter_id}, query={query}")
 
         # 解析 nodes_info

@@ -369,7 +369,6 @@ async def apply_chapter_edit(
 
         async with AsyncSessionLocal() as db:
             from app.services.chapter_service import ChapterService
-            from app.schemas.chapter import ChapterUpdate
             from app.services.agent.langgraph_tools import resolve_chapter_id
 
             resolved_chapter_id = chapter_id
@@ -466,7 +465,7 @@ async def apply_chapter_edit(
             if operation == "append" and old_content.endswith(actual_content):
                 return json.dumps({
                     "success": True,
-                    "requires_confirmation": True,  # 🔧 2026-01-12: 添加此字段，让 AI 知道操作已完成
+                    "requires_confirmation": False,
                     "action_type": "update_content",
                     "chapter_id": resolved_chapter_id,
                     "work_id": str(chapter.work_id),
@@ -510,7 +509,7 @@ async def apply_chapter_edit(
                         if old_content[insert_pos:insert_pos + len(actual_content)] == actual_content:
                             return json.dumps({
                                 "success": True,
-                                "requires_confirmation": True,  # 🔧 2026-01-12: 添加此字段
+                                "requires_confirmation": False,
                                 "action_type": "update_content",
                                 "chapter_id": resolved_chapter_id,
                                 "work_id": str(chapter.work_id),
@@ -551,7 +550,7 @@ async def apply_chapter_edit(
                     if original_text and actual_content in old_content and original_text not in old_content:
                         return json.dumps({
                             "success": True,
-                            "requires_confirmation": True,  # 🔧 2026-01-12: 添加此字段
+                            "requires_confirmation": False,
                             "action_type": "update_content",
                             "chapter_id": resolved_chapter_id,
                             "work_id": str(chapter.work_id),
@@ -565,20 +564,6 @@ async def apply_chapter_edit(
                         return json.dumps({"success": False, "error": "locate_failed"}, ensure_ascii=False)
                 new_content = replaced
 
-            await chapter_svc.update_chapter(resolved_chapter_id, ChapterUpdate(content=new_content))
-
-            if conversation_id:
-                op_log = _get_operation_log_manager()
-                op_log.record_operation(
-                    conversation_id=conversation_id,
-                    op_id=str(uuid.uuid4()),
-                    op_type="update_content",
-                    chapter_id=resolved_chapter_id,
-                    work_id=str(chapter.work_id),
-                    rollback_data={"old_content": old_content},
-                    description=description or f"update content ({operation})"
-                )
-
             # 构建 position 字段（用于前端精确定位）
             result_position = None
             if operation == "insert" and insert_pos is not None:
@@ -586,11 +571,35 @@ async def apply_chapter_edit(
             elif operation == "replace" and isinstance(position, dict):
                 result_position = position
 
+            from app.services.chapter_revision_service import ChapterRevisionService
+
+            revision_request_id = str(uuid.uuid4())
+            revision_service = ChapterRevisionService(db)
+            revision = await revision_service.create_revision(
+                request_id=revision_request_id,
+                work_id=str(chapter.work_id),
+                chapter_id=str(chapter.id),
+                user_id=str(user_id) if user_id else None,
+                operation=operation,
+                new_text=actual_content,
+                original_text=original_text,
+                position=result_position,
+                before_anchor=before_anchor,
+                after_anchor=after_anchor,
+                node_id=node_id,
+                paragraph_index=paragraph_index,
+                base_version=chapter.version,
+                description=description or f"update content ({operation})",
+            )
+
             return json.dumps({
                 "success": True,
                 "requires_confirmation": True,  # 触发 HITL 流程，发送 revision 事件给前端
                 "action_type": "update_content",
+                "request_id": revision.request_id,
+                "revision_id": str(revision.id),
                 "chapter_id": resolved_chapter_id,
+                "chapter_title": chapter.title,
                 "work_id": str(chapter.work_id),
                 "operation": operation,
                 "content": actual_content,  # 新内容（用于前端显示）

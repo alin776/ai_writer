@@ -192,6 +192,11 @@ def _get_planning_core_rules() -> str:
 
 ⚠️ **参数传递规则**：locate_content 返回的 node_id、paragraph_index、before_anchor、after_anchor 必须传给 apply_chapter_edit！
 
+⚠️ **缺章节信息时的三步链路（只在符合场景时触发）**：
+- 条件：用户要修改/插入/续写，但未提供 chapter_id/章节序号/选中文本
+- 流程：search_content（找章）→ get_writing_context（读章）→ locate_content（精确定位）→ smart_* → apply_chapter_edit
+- 说明：search_content 只用于找章，不能替代定位
+
 ---
 
 **改写/润色场景** → **必须用 smart_rewrite**

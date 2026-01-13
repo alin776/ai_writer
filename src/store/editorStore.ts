@@ -22,6 +22,7 @@ export interface PendingCrossChapterRevision {
   nodeId?: string;
   paragraphIndex?: number;
   timestamp: number;
+  isPersistent?: boolean;
 }
 
 /**
@@ -35,7 +36,7 @@ interface EditorState {
   rightSidebarType: RightSidebarType; // 右侧面板类型
   lastSavedAt: Date | null;
   isDirty: boolean; // 是否有未保存的更改
-  pendingCrossChapterRevision: PendingCrossChapterRevision | null; // 🆕 跨章节修订
+  pendingCrossChapterRevisions: PendingCrossChapterRevision[]; // 🆕 跨章节修订队列
 
   // 方法
   /**
@@ -94,12 +95,12 @@ interface EditorState {
    * 🆕 设置跨章节修订
    * @param revision 修订信息
    */
-  setPendingCrossChapterRevision: (revision: PendingCrossChapterRevision | null) => void;
+  enqueuePendingCrossChapterRevision: (revision: PendingCrossChapterRevision) => void;
 
   /**
-   * 🆕 清除跨章节修订
+   * 🆕 移除跨章节修订（按 revisionId）
    */
-  clearPendingCrossChapterRevision: () => void;
+  removePendingCrossChapterRevisions: (revisionIds: string[]) => void;
 
   /**
    * 更新章节内容（不保存到服务器）
@@ -125,7 +126,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   rightSidebarType: null, // 右侧面板默认关闭
   lastSavedAt: null,
   isDirty: false,
-  pendingCrossChapterRevision: null, // 🆕 跨章节修订
+  pendingCrossChapterRevisions: [], // 🆕 跨章节修订队列
 
   // 设置当前章节
   setCurrentChapter: (chapter: Chapter | null) => {
@@ -189,13 +190,31 @@ export const useEditorStore = create<EditorState>((set) => ({
   },
 
   // 🆕 设置跨章节修订
-  setPendingCrossChapterRevision: (revision: PendingCrossChapterRevision | null) => {
-    set({ pendingCrossChapterRevision: revision });
+  enqueuePendingCrossChapterRevision: (revision: PendingCrossChapterRevision) => {
+    set((state) => {
+      const existingIndex = state.pendingCrossChapterRevisions.findIndex(
+        (item) => item.revisionId === revision.revisionId
+      );
+      if (existingIndex === -1) {
+        return {
+          pendingCrossChapterRevisions: [...state.pendingCrossChapterRevisions, revision],
+        };
+      }
+      const nextRevisions = [...state.pendingCrossChapterRevisions];
+      nextRevisions[existingIndex] = revision;
+      return { pendingCrossChapterRevisions: nextRevisions };
+    });
   },
 
-  // 🆕 清除跨章节修订
-  clearPendingCrossChapterRevision: () => {
-    set({ pendingCrossChapterRevision: null });
+  // 🆕 移除跨章节修订（按 revisionId 列表）
+  removePendingCrossChapterRevisions: (revisionIds: string[]) => {
+    if (revisionIds.length === 0) return;
+    const ids = new Set(revisionIds);
+    set((state) => ({
+      pendingCrossChapterRevisions: state.pendingCrossChapterRevisions.filter(
+        (revision) => !ids.has(revision.revisionId)
+      ),
+    }));
   },
 
   // 更新章节内容
@@ -227,7 +246,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       rightSidebarType: null, // 重置右侧面板
       lastSavedAt: null,
       isDirty: false,
-      pendingCrossChapterRevision: null, // 🆕 重置跨章节修订
+      pendingCrossChapterRevisions: [], // 🆕 重置跨章节修订
     });
   },
 }));
