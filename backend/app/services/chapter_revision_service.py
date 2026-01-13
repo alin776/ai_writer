@@ -1,6 +1,5 @@
 from datetime import datetime
 from typing import List, Optional, Tuple
-from datetime import datetime
 import re
 
 from sqlalchemy import select
@@ -101,13 +100,16 @@ class ChapterRevisionService:
         if revision.status != ChapterRevisionStatus.PENDING:
             return (chapter, "")
 
-        if revision.base_version is not None and chapter.version != revision.base_version:
-            revision.status = ChapterRevisionStatus.CONFLICT
-            await self.db.commit()
-            return (None, "conflict")
+        base_version_mismatch = (
+            revision.base_version is not None and chapter.version != revision.base_version
+        )
 
         new_content, error = self._build_new_content(chapter.content or "", revision)
         if error:
+            if base_version_mismatch:
+                revision.status = ChapterRevisionStatus.CONFLICT
+                await self.db.commit()
+                return (None, "conflict")
             return (None, error)
 
         updated, update_error = await chapter_service.update_chapter_with_lock(
@@ -117,6 +119,10 @@ class ChapterRevisionService:
             modifier="agent",
         )
         if update_error:
+            if update_error == "conflict":
+                revision.status = ChapterRevisionStatus.CONFLICT
+                await self.db.commit()
+                return (None, "conflict")
             return (None, update_error)
 
         revision.status = ChapterRevisionStatus.ACCEPTED

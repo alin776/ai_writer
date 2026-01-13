@@ -158,6 +158,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   const handleInlineAISendRef = useRef<((message: string, context: InlineAIContext) => void) | null>(null);
   const appliedRevisionIdsRef = useRef<Set<string>>(new Set());
   const suppressAutoSaveRef = useRef(false);
+  const revisionSaveBlockedRef = useRef(false);
 
   useEffect(() => {
     appliedRevisionIdsRef.current.clear();
@@ -338,7 +339,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       // 使用自定义字数统计（与后端一致）
       setWordCount(getEditorWordCount(editor));
 
-      if (suppressAutoSaveRef.current) {
+      if (suppressAutoSaveRef.current || revisionSaveBlockedRef.current) {
         return;
       }
 
@@ -456,6 +457,12 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     return () => {
       if (editor && autoSave) {
         const html = editor.getHTML();
+        const hasRevisionMarkers = html.includes('data-ai-deleted')
+          || html.includes('data-ai-inserted')
+          || html.includes('data-revision-id');
+        if (revisionSaveBlockedRef.current || hasRevisionMarkers) {
+          return;
+        }
         const json = editor.getJSON();
         if (contentStorageKey) {
           localStorage.setItem(contentStorageKey, html);
@@ -756,6 +763,10 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           suppressAutoSaveRef.current = false;
         }
       };
+      const blockRevisionSave = () => {
+        revisionSaveBlockedRef.current = true;
+        debouncedSave.cancel();
+      };
 
       if (resolvedChapterId && !skipQueue) {
         enqueuePendingCrossChapterRevision({
@@ -874,6 +885,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           }
           console.log('[NovelEditor] 使用默认位置:', resolvedPosition);
         }
+
+        blockRevisionSave();
 
         const insertPosForCheck =
           type === 'modify'
@@ -1404,6 +1417,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         });
 
         editor.commands.setContent(tempDiv.innerHTML);
+        revisionSaveBlockedRef.current = false;
 
         const pendingIds = isBatch
           ? pendingCrossChapterRevisions.map((revision) => revision.revisionId)
@@ -1461,6 +1475,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         });
 
         editor.commands.setContent(tempDiv.innerHTML);
+        revisionSaveBlockedRef.current = false;
 
         const pendingIds = isBatch
           ? pendingCrossChapterRevisions.map((revision) => revision.revisionId)
@@ -1745,7 +1760,17 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         });
       }
 
+      const revisionIdElements = tempDiv.querySelectorAll('span[data-revision-id]');
+      revisionIdElements.forEach(el => {
+        const fragment = document.createDocumentFragment();
+        while (el.firstChild) {
+          fragment.appendChild(el.firstChild);
+        }
+        el.parentNode?.replaceChild(fragment, el);
+      });
+
       editor.commands.setContent(tempDiv.innerHTML);
+      revisionSaveBlockedRef.current = false;
 
       const pendingIds = getPendingRevisionIdsForChapter(chapterId);
       clearPendingRevisions(pendingIds);
@@ -1827,7 +1852,17 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         });
       }
 
+      const revisionIdElements = tempDiv.querySelectorAll('span[data-revision-id]');
+      revisionIdElements.forEach(el => {
+        const fragment = document.createDocumentFragment();
+        while (el.firstChild) {
+          fragment.appendChild(el.firstChild);
+        }
+        el.parentNode?.replaceChild(fragment, el);
+      });
+
       editor.commands.setContent(tempDiv.innerHTML);
+      revisionSaveBlockedRef.current = false;
 
       const pendingIds = getPendingRevisionIdsForChapter(chapterId);
       clearPendingRevisions(pendingIds);

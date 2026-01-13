@@ -510,3 +510,18 @@
 ## Review（采纳冲突与 500 错误修复）
 - 采纳接口对 `HTTPException` 直接透传，避免 409 冲突被统一捕获成 500（`backend/app/api/v1/agent.py`）。
 - 修订标记展示阶段使用 `suppressAutoSaveRef` 跳过 onUpdate 自动保存，避免 `chapter.version` 在采纳前变化导致冲突（`src/components/editor/NovelEditor.tsx`）。
+
+## 计划（切章重复写入与采纳冲突三次修复）
+- [x] 复核章节切换卸载保存/防抖保存是否写入修订标记内容（`src/components/editor/NovelEditor.tsx`、`src/views/WorkDetailView/index.tsx`）
+- [x] 调整修订展示期间保存策略：取消未完成的防抖保存、跳过卸载保存与自动保存（`src/components/editor/NovelEditor.tsx`）
+- [x] 容错 apply_revision：base_version 不一致时尝试应用，失败才标记冲突（`backend/app/services/chapter_revision_service.py`）
+- [x] 更新 Review 记录变更与验证要点
+
+## 解决方案（切章重复写入与采纳冲突三次修复）
+- 修订展示期间不写回正文：取消既有防抖保存并在卸载时跳过保存，避免切章后把红删绿增内容持久化导致重复插入。
+- 采纳端容错版本差：base_version 不一致仍尝试基于当前正文定位应用，只有定位失败或乐观锁冲突才标记为 conflict。
+
+## Review（切章重复写入与采纳冲突三次修复）
+- 修订展示时阻断保存：新增 `revisionSaveBlockedRef`，在显示修订时取消防抖保存并跳过 onUpdate 自动保存与卸载保存，避免红删绿增写回正文（`src/components/editor/NovelEditor.tsx`）。
+- 采纳/弃用后解除阻断，允许正常保存（`src/components/editor/NovelEditor.tsx`）。
+- 后端改为 base_version 不一致时仍尝试应用修订，仅在定位失败或乐观锁冲突时标记为冲突（`backend/app/services/chapter_revision_service.py`）。
