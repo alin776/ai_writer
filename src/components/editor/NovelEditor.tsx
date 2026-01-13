@@ -157,6 +157,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   const lastRevisionContextRef = useRef<{ message: string; context: InlineAIContext } | null>(null);
   const handleInlineAISendRef = useRef<((message: string, context: InlineAIContext) => void) | null>(null);
   const appliedRevisionIdsRef = useRef<Set<string>>(new Set());
+  const suppressAutoSaveRef = useRef(false);
 
   useEffect(() => {
     appliedRevisionIdsRef.current.clear();
@@ -334,10 +335,14 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       },
     },
     onUpdate: ({ editor }) => {
-      setSaveStatus('unsaved');
       // 使用自定义字数统计（与后端一致）
       setWordCount(getEditorWordCount(editor));
 
+      if (suppressAutoSaveRef.current) {
+        return;
+      }
+
+      setSaveStatus('unsaved');
       if (autoSave) {
         debouncedSave(editor);
       }
@@ -743,6 +748,14 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       const rid = requestId || revisionId || `rev-${Date.now()}`;
       const requestIdValue = requestId;
       const resolvedChapterId = targetChapterId || chapterId;
+      const withAutoSaveSuppressed = (action: () => void) => {
+        suppressAutoSaveRef.current = true;
+        try {
+          action();
+        } finally {
+          suppressAutoSaveRef.current = false;
+        }
+      };
 
       if (resolvedChapterId && !skipQueue) {
         enqueuePendingCrossChapterRevision({
@@ -979,45 +992,47 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             return;
           }
 
-          // 1. 在原文位置添加删除标记
-          tr.addMark(resolvedPosition.from, resolvedPosition.to, aiDeletedMark.create());
-          if (aiRevisionIdMark) {
-            tr.addMark(
-              resolvedPosition.from,
-              resolvedPosition.to,
-              aiRevisionIdMark.create({ revisionId: rid })
-            );
-          }
-
-          // 2. 在原文后面插入新内容（带有插入标记）
-          const insertPos = resolvedPosition.to;
-          const textContent = replacement || '';
-
-          // 🔧 修复：处理包含换行符的文本
-          if (textContent.includes('\n')) {
-            // 包含换行符时，先提交删除标记，再用 insertContent 处理多段落
-            view.dispatch(tr);
-
-            // 使用 chain 插入内容并应用标记
-            const endPos = insertPos + textContent.length;
-            editor.chain()
-              .focus()
-              .setTextSelection(insertPos)
-              .insertContent(textContent)
-              .setTextSelection({ from: insertPos, to: endPos })
-              .setMark('aiInserted')
-              .setMark('aiRevisionId', { revisionId: rid })
-              .run();
-          } else {
-            // 无换行符时，使用原子事务
-            const marks = [aiInsertedMark.create()];
+          withAutoSaveSuppressed(() => {
+            // 1. 在原文位置添加删除标记
+            tr.addMark(resolvedPosition.from, resolvedPosition.to, aiDeletedMark.create());
             if (aiRevisionIdMark) {
-              marks.push(aiRevisionIdMark.create({ revisionId: rid }));
+              tr.addMark(
+                resolvedPosition.from,
+                resolvedPosition.to,
+                aiRevisionIdMark.create({ revisionId: rid })
+              );
             }
-            const insertedText = state.schema.text(textContent, marks);
-            tr.insert(insertPos, insertedText);
-            view.dispatch(tr);
-          }
+
+            // 2. 在原文后面插入新内容（带有插入标记）
+            const insertPos = resolvedPosition.to;
+            const textContent = replacement || '';
+
+            // 🔧 修复：处理包含换行符的文本
+            if (textContent.includes('\n')) {
+              // 包含换行符时，先提交删除标记，再用 insertContent 处理多段落
+              view.dispatch(tr);
+
+              // 使用 chain 插入内容并应用标记
+              const endPos = insertPos + textContent.length;
+              editor.chain()
+                .focus()
+                .setTextSelection(insertPos)
+                .insertContent(textContent)
+                .setTextSelection({ from: insertPos, to: endPos })
+                .setMark('aiInserted')
+                .setMark('aiRevisionId', { revisionId: rid })
+                .run();
+            } else {
+              // 无换行符时，使用原子事务
+              const marks = [aiInsertedMark.create()];
+              if (aiRevisionIdMark) {
+                marks.push(aiRevisionIdMark.create({ revisionId: rid }));
+              }
+              const insertedText = state.schema.text(textContent, marks);
+              tr.insert(insertPos, insertedText);
+              view.dispatch(tr);
+            }
+          });
 
           // 3. 计算操作栏位置（使用 requestAnimationFrame 确保 DOM 已重排）
           requestAnimationFrame(() => {
@@ -1050,6 +1065,9 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             lastRevisionContextRef.current = { message: originalMessage, context };
           }
 
+          // 修订标记展示阶段不触发自动保存，避免版本变化导致审批冲突
+          setSaveStatus('saved');
+
         } else if (type === 'continue') {
           // 续写模式：新内容显示绿色高亮
           console.log('[NovelEditor] 应用续写模式修订标记');
@@ -1068,28 +1086,30 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           const insertPos = resolvedPosition?.to ?? state.doc.content.size;
           const textContent = replacement || '';
 
-          // 🔧 修复：处理包含换行符的文本
-          if (textContent.includes('\n')) {
-            // 包含换行符时，用 insertContent 处理多段落
-            const endPos = insertPos + textContent.length;
-            editor.chain()
-              .focus()
-              .setTextSelection(insertPos)
-              .insertContent(textContent)
-              .setTextSelection({ from: insertPos, to: endPos })
-              .setMark('aiInserted')
-              .setMark('aiRevisionId', { revisionId: rid })
-              .run();
-          } else {
-            // 无换行符时，使用原子事务
-            const marks = [aiInsertedMark.create()];
-            if (aiRevisionIdMark) {
-              marks.push(aiRevisionIdMark.create({ revisionId: rid }));
+          withAutoSaveSuppressed(() => {
+            // 🔧 修复：处理包含换行符的文本
+            if (textContent.includes('\n')) {
+              // 包含换行符时，用 insertContent 处理多段落
+              const endPos = insertPos + textContent.length;
+              editor.chain()
+                .focus()
+                .setTextSelection(insertPos)
+                .insertContent(textContent)
+                .setTextSelection({ from: insertPos, to: endPos })
+                .setMark('aiInserted')
+                .setMark('aiRevisionId', { revisionId: rid })
+                .run();
+            } else {
+              // 无换行符时，使用原子事务
+              const marks = [aiInsertedMark.create()];
+              if (aiRevisionIdMark) {
+                marks.push(aiRevisionIdMark.create({ revisionId: rid }));
+              }
+              const insertedText = state.schema.text(textContent, marks);
+              tr.insert(insertPos, insertedText);
+              view.dispatch(tr);
             }
-            const insertedText = state.schema.text(textContent, marks);
-            tr.insert(insertPos, insertedText);
-            view.dispatch(tr);
-          }
+          });
 
           // 计算操作栏位置（使用 requestAnimationFrame 确保 DOM 已重排）
           requestAnimationFrame(() => {
@@ -1119,6 +1139,9 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           if (originalMessage && context) {
             lastRevisionContextRef.current = { message: originalMessage, context };
           }
+
+          // 修订标记展示阶段不触发自动保存，避免版本变化导致审批冲突
+          setSaveStatus('saved');
         } else if (type === 'insert') {
           // 插入模式：在指定位置插入内容，显示绿色高亮
           console.log('[NovelEditor] 应用插入模式修订标记');
@@ -1138,28 +1161,30 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           const insertPosition = resolvedPosition ?? { from: insertPos, to: insertPos };
           const textContent = replacement || '';
 
-          // 🔧 修复：处理包含换行符的文本
-          if (textContent.includes('\n')) {
-            // 包含换行符时，用 insertContent 处理多段落
-            const endPos = insertPos + textContent.length;
-            editor.chain()
-              .focus()
-              .setTextSelection(insertPos)
-              .insertContent(textContent)
-              .setTextSelection({ from: insertPos, to: endPos })
-              .setMark('aiInserted')
-              .setMark('aiRevisionId', { revisionId: rid })
-              .run();
-          } else {
-            // 无换行符时，使用原子事务
-            const marks = [aiInsertedMark.create()];
-            if (aiRevisionIdMark) {
-              marks.push(aiRevisionIdMark.create({ revisionId: rid }));
+          withAutoSaveSuppressed(() => {
+            // 🔧 修复：处理包含换行符的文本
+            if (textContent.includes('\n')) {
+              // 包含换行符时，用 insertContent 处理多段落
+              const endPos = insertPos + textContent.length;
+              editor.chain()
+                .focus()
+                .setTextSelection(insertPos)
+                .insertContent(textContent)
+                .setTextSelection({ from: insertPos, to: endPos })
+                .setMark('aiInserted')
+                .setMark('aiRevisionId', { revisionId: rid })
+                .run();
+            } else {
+              // 无换行符时，使用原子事务
+              const marks = [aiInsertedMark.create()];
+              if (aiRevisionIdMark) {
+                marks.push(aiRevisionIdMark.create({ revisionId: rid }));
+              }
+              const insertedText = state.schema.text(textContent, marks);
+              tr.insert(insertPos, insertedText);
+              view.dispatch(tr);
             }
-            const insertedText = state.schema.text(textContent, marks);
-            tr.insert(insertPos, insertedText);
-            view.dispatch(tr);
-          }
+          });
 
           // 计算操作栏位置（使用 requestAnimationFrame 确保 DOM 已重排）
           requestAnimationFrame(() => {
@@ -1189,6 +1214,9 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           if (originalMessage && context) {
             lastRevisionContextRef.current = { message: originalMessage, context };
           }
+
+          // 修订标记展示阶段不触发自动保存，避免版本变化导致审批冲突
+          setSaveStatus('saved');
         }
 
         toast.info(t('editor.aiPanel.confirmRevision'));

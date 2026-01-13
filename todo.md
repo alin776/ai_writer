@@ -497,3 +497,16 @@
 - 前端日志未出现有效修订事件链输出，但章节切换会触发修订重建；重复插入仍发生，说明仅靠 aiInserted 文本对比不足（`log/localhost-1768297435810.log`、`src/components/editor/NovelEditor.tsx`）。
 - 已为修订内容加 `aiRevisionId` 标记，并在应用前检测文档内是否已存在该 revisionId；若存在则跳过重复插入并恢复操作栏（`src/components/editor/NovelEditor.tsx`）。
 - 采纳/弃用时同步清理 `data-revision-id` 包裹，避免残留标记影响后续判断（`src/components/editor/NovelEditor.tsx`）。
+
+## 计划（采纳冲突与 500 错误修复）
+- [x] 核对 approval-response 409 冲突的触发条件与版本变化来源（`backend/app/api/v1/agent.py`、`backend/app/services/chapter_revision_service.py`）
+- [x] 修复 HTTPException 被吞导致 500 的问题（`backend/app/api/v1/agent.py`）
+- [x] 前端在应用修订标记时禁止自动保存，避免 base_version 变化（`src/components/editor/NovelEditor.tsx`）
+- [x] 更新 Review 记录修复点与验证建议
+
+## 解决方案（采纳冲突与 500 错误修复）
+- 审批接口保留 HTTPException 直接返回，避免 409 被包装为 500；前端在修订标记展示阶段关闭自动保存，避免章节版本提前变化导致冲突。
+
+## Review（采纳冲突与 500 错误修复）
+- 采纳接口对 `HTTPException` 直接透传，避免 409 冲突被统一捕获成 500（`backend/app/api/v1/agent.py`）。
+- 修订标记展示阶段使用 `suppressAutoSaveRef` 跳过 onUpdate 自动保存，避免 `chapter.version` 在采纳前变化导致冲突（`src/components/editor/NovelEditor.tsx`）。

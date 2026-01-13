@@ -1780,6 +1780,8 @@ async def submit_approval_response(
             "request_id": request.request_id,
             "action": "accepted" if request.approved else "rejected"
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Submit approval response error: {str(e)}", exc_info=True)
         raise HTTPException(
