@@ -29,7 +29,7 @@ import AIRevisionBar, { RevisionData } from './AIRevisionBar'; // 🆕 AI 修订
 import { SlashCommand } from './SlashCommandExtension';
 import { AIHighlight } from './AIHighlightExtension';
 import { AIAutoCompleteExtension } from './AIAutoCompleteExtension';
-import { AIDeleted, AIInserted } from './AIRevisionMark'; // 🆕 AI 修订标记扩展
+import { AIDeleted, AIInserted, AIRevisionId } from './AIRevisionMark'; // 🆕 AI 修订标记扩展
 import { UniqueID } from './UniqueIDExtension'; // 🆕 节点唯一ID扩展，用于精确定位
 import { ToastContainer } from '@/components/ui/Toast';
 import { useToast } from '@/hooks/useToast';
@@ -268,6 +268,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       // 🆕 AI 修订标记扩展（删除线+插入标记）
       AIDeleted,
       AIInserted,
+      AIRevisionId,
       // AI 自动补全扩展（流式版本）
       AIAutoCompleteExtension.configure({
         delay: 1000, // 提前触发，提升响应速度
@@ -861,6 +862,107 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           console.log('[NovelEditor] 使用默认位置:', resolvedPosition);
         }
 
+        const insertPosForCheck =
+          type === 'modify'
+            ? resolvedPosition.to
+            : type === 'insert'
+              ? resolvedPosition.from
+              : resolvedPosition.to;
+
+        const { doc } = editor.state;
+        const aiInsertedMark = editor.state.schema.marks.aiInserted;
+        const aiRevisionIdMark = editor.state.schema.marks.aiRevisionId;
+        const normalizeText = (value: string) => value.replace(/\s+/g, '');
+        const findRevisionIdPosition = (revisionId: string) => {
+          if (!revisionId) return null;
+          let foundPos: number | null = null;
+          doc.descendants((node, pos) => {
+            if (!node.isText) {
+              return true;
+            }
+            if (node.marks.some(
+              (mark) => mark.type.name === 'aiRevisionId' && mark.attrs?.revisionId === revisionId
+            )) {
+              foundPos = pos;
+              return false;
+            }
+            return true;
+          });
+          return foundPos;
+        };
+
+        const revisionIdPos = findRevisionIdPosition(rid);
+        if (revisionIdPos !== null) {
+          console.log('[NovelEditor] 修订已存在，跳过重复应用:', rid);
+          appliedRevisionIdsRef.current.add(rid);
+
+          requestAnimationFrame(() => {
+            try {
+              const coords = editor.view.coordsAtPos(revisionIdPos);
+              setRevisionBarPosition({
+                top: coords.top - 40,
+                left: coords.left
+              });
+            } catch (e) {
+              console.warn('[NovelEditor] 无法计算修订栏位置:', e);
+            }
+          });
+
+          setActiveRevision({
+            id: rid,
+            requestId: requestIdValue,
+            type,
+            position: resolvedPosition,
+            original,
+            replacement,
+            originalMessage,
+            context
+          });
+          return;
+        }
+
+        if (replacement) {
+          const resolvedFrom = insertPosForCheck >= doc.content.size
+            ? Math.max(0, doc.content.size - replacement.length)
+            : insertPosForCheck;
+          const resolvedTo = insertPosForCheck >= doc.content.size
+            ? doc.content.size
+            : Math.min(insertPosForCheck + replacement.length, doc.content.size);
+          if (resolvedFrom < resolvedTo) {
+            const existingText = doc.textBetween(resolvedFrom, resolvedTo, '\n', '\n');
+            const hasInsertedMark = aiInsertedMark ? doc.rangeHasMark(resolvedFrom, resolvedTo, aiInsertedMark) : false;
+
+            if (normalizeText(existingText) === normalizeText(replacement) && hasInsertedMark) {
+              console.log('[NovelEditor] 修订已写入，跳过重复应用:', rid);
+              appliedRevisionIdsRef.current.add(rid);
+
+              requestAnimationFrame(() => {
+                try {
+                  const coords = editor.view.coordsAtPos(insertPosForCheck);
+                  setRevisionBarPosition({
+                    top: coords.top - 40,
+                    left: coords.left
+                  });
+                } catch (e) {
+                  console.warn('[NovelEditor] 无法计算修订栏位置:', e);
+                }
+              });
+
+              setActiveRevision({
+                id: rid,
+                requestId: requestIdValue,
+                type,
+                position: resolvedPosition,
+                original,
+                replacement,
+                originalMessage,
+                context
+              });
+              return;
+            }
+          }
+        }
+
         if (type === 'modify') {
           // 修改模式：原文显示删除线 + 新内容显示绿色高亮
           console.log('[NovelEditor] 应用修改模式修订标记, position:', resolvedPosition);
@@ -870,6 +972,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           const { tr } = state;
           const aiDeletedMark = state.schema.marks.aiDeleted;
           const aiInsertedMark = state.schema.marks.aiInserted;
+          const aiRevisionIdMark = state.schema.marks.aiRevisionId;
 
           if (!aiDeletedMark || !aiInsertedMark) {
             console.error('[NovelEditor] 修订标记扩展未正确注册');
@@ -878,6 +981,13 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
           // 1. 在原文位置添加删除标记
           tr.addMark(resolvedPosition.from, resolvedPosition.to, aiDeletedMark.create());
+          if (aiRevisionIdMark) {
+            tr.addMark(
+              resolvedPosition.from,
+              resolvedPosition.to,
+              aiRevisionIdMark.create({ revisionId: rid })
+            );
+          }
 
           // 2. 在原文后面插入新内容（带有插入标记）
           const insertPos = resolvedPosition.to;
@@ -896,10 +1006,15 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
               .insertContent(textContent)
               .setTextSelection({ from: insertPos, to: endPos })
               .setMark('aiInserted')
+              .setMark('aiRevisionId', { revisionId: rid })
               .run();
           } else {
             // 无换行符时，使用原子事务
-            const insertedText = state.schema.text(textContent, [aiInsertedMark.create()]);
+            const marks = [aiInsertedMark.create()];
+            if (aiRevisionIdMark) {
+              marks.push(aiRevisionIdMark.create({ revisionId: rid }));
+            }
+            const insertedText = state.schema.text(textContent, marks);
             tr.insert(insertPos, insertedText);
             view.dispatch(tr);
           }
@@ -943,6 +1058,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           const { state, view } = editor;
           const { tr } = state;
           const aiInsertedMark = state.schema.marks.aiInserted;
+          const aiRevisionIdMark = state.schema.marks.aiRevisionId;
 
           if (!aiInsertedMark) {
             console.error('[NovelEditor] aiInserted 标记扩展未正确注册');
@@ -962,10 +1078,15 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
               .insertContent(textContent)
               .setTextSelection({ from: insertPos, to: endPos })
               .setMark('aiInserted')
+              .setMark('aiRevisionId', { revisionId: rid })
               .run();
           } else {
             // 无换行符时，使用原子事务
-            const insertedText = state.schema.text(textContent, [aiInsertedMark.create()]);
+            const marks = [aiInsertedMark.create()];
+            if (aiRevisionIdMark) {
+              marks.push(aiRevisionIdMark.create({ revisionId: rid }));
+            }
+            const insertedText = state.schema.text(textContent, marks);
             tr.insert(insertPos, insertedText);
             view.dispatch(tr);
           }
@@ -1006,6 +1127,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           const { state, view } = editor;
           const { tr } = state;
           const aiInsertedMark = state.schema.marks.aiInserted;
+          const aiRevisionIdMark = state.schema.marks.aiRevisionId;
 
           if (!aiInsertedMark) {
             console.error('[NovelEditor] aiInserted 标记扩展未正确注册');
@@ -1026,10 +1148,15 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
               .insertContent(textContent)
               .setTextSelection({ from: insertPos, to: endPos })
               .setMark('aiInserted')
+              .setMark('aiRevisionId', { revisionId: rid })
               .run();
           } else {
             // 无换行符时，使用原子事务
-            const insertedText = state.schema.text(textContent, [aiInsertedMark.create()]);
+            const marks = [aiInsertedMark.create()];
+            if (aiRevisionIdMark) {
+              marks.push(aiRevisionIdMark.create({ revisionId: rid }));
+            }
+            const insertedText = state.schema.text(textContent, marks);
             tr.insert(insertPos, insertedText);
             view.dispatch(tr);
           }
@@ -1239,6 +1366,14 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           }
           el.parentNode?.replaceChild(fragment, el);
         });
+        const revisionIdElements = tempDiv.querySelectorAll('span[data-revision-id]');
+        revisionIdElements.forEach(el => {
+          const fragment = document.createDocumentFragment();
+          while (el.firstChild) {
+            fragment.appendChild(el.firstChild);
+          }
+          el.parentNode?.replaceChild(fragment, el);
+        });
 
         editor.commands.setContent(tempDiv.innerHTML);
 
@@ -1282,6 +1417,14 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         // 2. 移除 aiDeleted 标记，但保留其内容（恢复原文）
         const deletedElements = tempDiv.querySelectorAll('del[data-ai-deleted], del.ai-deleted');
         deletedElements.forEach(el => {
+          const fragment = document.createDocumentFragment();
+          while (el.firstChild) {
+            fragment.appendChild(el.firstChild);
+          }
+          el.parentNode?.replaceChild(fragment, el);
+        });
+        const revisionIdElements = tempDiv.querySelectorAll('span[data-revision-id]');
+        revisionIdElements.forEach(el => {
           const fragment = document.createDocumentFragment();
           while (el.firstChild) {
             fragment.appendChild(el.firstChild);

@@ -420,9 +420,9 @@
 
 ## 计划（Explore 展示聚合落地）
 - [ ] 复核流式事件结构与前端执行流渲染路径（`backend/app/services/agent/stream`、`src/hooks/useAgentChat.ts`、`src/components/agent/ExecutionFlow`）
-- [ ] 设计 Explore 轮次聚合规则与数据结构（Search/Locate/Read/Review/证据片段）
-- [ ] 前端实现聚合与 UI 展示，匹配预览卡片内容（`src/components/agent/ExecutionFlow`、`src/components/agent/ExecutionFlowItem`）
-- [ ] 如缺少字段，最小化补充事件载荷（`backend/app/services/agent/stream/event_parser.py`、`backend/app/services/agent/stream/flow_events.py`）
+- [ ] 明确 Explore 为“展示聚合”，设计轮次聚合规则与数据结构（Search → Locate → Read → Review/证据片段）
+- [ ] 前端实现聚合与 UI 展示，匹配预览卡片内容（`src/components/agent/ExecutionFlow`、`src/components/agent/ExecutionFlow/StepCard.tsx`）
+- [ ] 若字段不足，在后端补充最小 tool_result/trace 事件载荷（`backend/app/services/agent/stream/flow_events.py`、`backend/app/services/agent/langgraph_agent.py`）
 - [ ] 更新 Review 记录改动与验证建议
 
 ## 计划（复杂测试提示词-五次）
@@ -466,9 +466,34 @@
 - locate_content 接收 before_anchor/after_anchor 兼容参数，并在 query 为空时使用锚点兜底，避免 unexpected keyword argument 导致 unknown_tool（`backend/app/services/agent/tools/locate_tools.py`）。
 
 ## 计划（修订重复写入排查与修复）
-- [ ] 核对章节切换时修订重建路径与去重逻辑（`src/components/editor/NovelEditor.tsx`）
-- [ ] 评估修订标记是否被保存到章节内容导致二次插入（`src/components/editor/NovelEditor.tsx`、`src/services/EditorSyncService.ts`）
-- [ ] 增加重复写入拦截（基于位置/内容检测或 revisionId 标记），并更新 Review（`src/components/editor/NovelEditor.tsx`、`src/components/editor/AIRevisionMark.ts`）
+- [x] 核对章节切换时修订重建路径与去重逻辑（`src/components/editor/NovelEditor.tsx`）
+- [x] 评估修订标记是否被保存到章节内容导致二次插入（`src/components/editor/NovelEditor.tsx`、`src/services/EditorSyncService.ts`）
+- [x] 增加重复写入拦截（基于位置/内容检测或 revisionId 标记），并更新 Review（`src/components/editor/NovelEditor.tsx`、`src/components/editor/AIRevisionMark.ts`）
 
 ## 解决方案（修订重复写入排查与修复）
 - 在应用修订前检测插入位置是否已存在同样的 replacement（或已带 AI 标记），已存在则跳过写入，并保持修订条不重复入队。
+
+## Review（修订重复写入排查与修复）
+- 章节切换后会重新触发修订重建，且 pending 修订在正文中已被 aiInserted 标记写入（自动保存/缓存），导致重复插入（`src/components/editor/NovelEditor.tsx`、`src/services/EditorSyncService.ts`）。
+- 在应用修订前新增检测：若目标位置已存在同样的 replacement 且带 aiInserted 标记，则跳过重复应用并仅恢复操作栏（`src/components/editor/NovelEditor.tsx`）。
+
+## 计划（复杂测试提示词-六次）
+- [x] 阅读小说素材第2-4章关键段落（`docs/Agent/real-book/一夕千悟，从杂役弟子开始.txt`）
+- [x] 设计 1 条高复杂度跨章节测试 prompt（含定位锚点/替换+插入/切章回看不重复写入验证）
+- [x] 输出 prompt 并更新 Review 记录
+
+## Review（复杂测试提示词-六次）
+- 已基于第2-4章内容提供跨章节替换+插入的复杂测试提示词，包含切章回看与重复写入验证步骤（`docs/Agent/real-book/一夕千悟，从杂役弟子开始.txt`）。
+
+## 计划（重复修订二次修复）
+- [x] 阅读后台日志 `Backend.md`、前端日志 `log/localhost-1768297435810.log` 与轨迹 `INFO.md`，确认重复触发链路
+- [x] 核对修订重建与定位逻辑，识别重复插入的触发点（`src/components/editor/NovelEditor.tsx`、`src/utils/revisionLocator.ts`）
+- [x] 增加基于 revisionId 的修订去重与标记清理，并更新 Review（`src/components/editor/NovelEditor.tsx`、`src/components/editor/AIRevisionMark.ts`）
+
+## 解决方案（重复修订二次修复）
+- 在修订文本上附加 `aiRevisionId` 标记，并在应用前扫描文档是否已存在该 revisionId；若存在则仅恢复操作栏，不再重复插入，同时在采纳/弃用时清理 `data-revision-id` 包裹。
+
+## Review（重复修订二次修复）
+- 前端日志未出现有效修订事件链输出，但章节切换会触发修订重建；重复插入仍发生，说明仅靠 aiInserted 文本对比不足（`log/localhost-1768297435810.log`、`src/components/editor/NovelEditor.tsx`）。
+- 已为修订内容加 `aiRevisionId` 标记，并在应用前检测文档内是否已存在该 revisionId；若存在则跳过重复插入并恢复操作栏（`src/components/editor/NovelEditor.tsx`）。
+- 采纳/弃用时同步清理 `data-revision-id` 包裹，避免残留标记影响后续判断（`src/components/editor/NovelEditor.tsx`）。
