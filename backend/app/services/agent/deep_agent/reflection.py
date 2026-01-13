@@ -23,6 +23,16 @@ class ReflectionResult:
     suggested_tasks: Optional[List[str]] = None  # 建议的新任务
 
 
+@dataclass
+class IterativeReflectionResult:
+    """迭代反思结果（结构化输出）"""
+    summary: str
+    next_step: str
+    action: str
+    new_task: Optional[Dict[str, Any]] = None
+    reasoning: str = ""
+
+
 async def think_tool(
     task: Dict[str, Any],
     result: Dict[str, Any],
@@ -85,6 +95,73 @@ async def think_tool(
     except Exception as e:
         logger.error(f"反思失败: {e}")
         return ReflectionResult(reflection=f"反思异常: {str(e)}", needs_replan=False)
+
+
+async def iterative_reflect(
+    task: Dict[str, Any],
+    result: Dict[str, Any],
+    remaining_tasks: List[Dict[str, Any]],
+    context: Dict[str, Any],
+    agent_graph: Optional[Any] = None,
+) -> IterativeReflectionResult:
+    """结构化反思（summary/next_step/action）"""
+    if agent_graph is None:
+        logger.warning("agent_graph 为空，跳过结构化反思")
+        return IterativeReflectionResult(
+            summary="反思不可用",
+            next_step="继续执行",
+            action="continue"
+        )
+
+    prompt = _build_iterative_reflection_prompt(
+        task=task,
+        result=result,
+        remaining_tasks=remaining_tasks,
+        context=context,
+    )
+
+    try:
+        response = await asyncio.wait_for(
+            agent_graph._generate_text(
+                prompt=prompt,
+                temperature=0.3,
+                max_tokens=300,
+                task_type=TaskType.SIMPLE_QA,
+            ),
+            timeout=DeepAgentConfig.REFLECTION_TIMEOUT
+        )
+
+        if response.get("error"):
+            logger.warning(f"结构化反思 AI 调用失败: {response.get('error')}")
+            return IterativeReflectionResult(
+                summary="结构化反思失败",
+                next_step="继续执行",
+                action="continue"
+            )
+
+        content = response.get("text", "")
+        if not content:
+            return IterativeReflectionResult(
+                summary="结构化反思为空",
+                next_step="继续执行",
+                action="continue"
+            )
+
+        return _parse_iterative_reflection(content)
+    except asyncio.TimeoutError:
+        logger.warning("结构化反思超时")
+        return IterativeReflectionResult(
+            summary="反思超时",
+            next_step="继续执行",
+            action="continue"
+        )
+    except Exception as e:
+        logger.error(f"结构化反思失败: {e}")
+        return IterativeReflectionResult(
+            summary="反思异常",
+            next_step="继续执行",
+            action="continue"
+        )
 
 
 def _build_reflection_prompt(
@@ -179,6 +256,87 @@ def _build_reflection_prompt(
 {{"needs_replan": true, "reflection": "要求2000字，只生成了600字（30%），严重不足。"}}
 
 """
+
+
+def _build_iterative_reflection_prompt(
+    task: Dict[str, Any],
+    result: Dict[str, Any],
+    remaining_tasks: List[Dict[str, Any]],
+    context: Dict[str, Any],
+) -> str:
+    task_desc = task.get("description", "未知任务")
+    user_intent = (
+        context.get("user_intent")
+        or context.get("intent")
+        or context.get("goal")
+        or ""
+    )
+    task_output = result.get("output", result.get("content", ""))
+    if isinstance(task_output, str) and len(task_output) > 300:
+        task_output = task_output[:300] + "..."
+    elif isinstance(task_output, dict):
+        task_output = json.dumps(task_output, ensure_ascii=False)[:300]
+
+    remaining_str = "\n".join([
+        f"  - {t.get('description', '未知')}"
+        for t in remaining_tasks[:5]
+    ]) if remaining_tasks else "  (无剩余任务)"
+
+    return f"""你是 AI Agent，刚完成了一个任务。请用结构化 JSON 反思并给出下一步。
+
+## 用户意图
+{user_intent or "未指定"}
+
+## 刚完成的任务
+- 描述: {task_desc}
+- 输出: {task_output}
+
+## 剩余任务
+{remaining_str}
+
+## 输出格式（必须是合法JSON）
+{{
+  "summary": "用1-2句话总结任务结果",
+  "next_step": "说明接下来要做什么",
+  "action": "continue"
+}}
+"""
+
+
+def _parse_iterative_reflection(response: str) -> IterativeReflectionResult:
+    raw_text = (response or "").strip()
+
+    try:
+        data = json.loads(raw_text)
+    except json.JSONDecodeError:
+        # 提取第一个 JSON
+        try:
+            start = raw_text.find("{")
+            if start != -1:
+                depth = 0
+                end = start
+                for i, char in enumerate(raw_text[start:], start):
+                    if char == "{":
+                        depth += 1
+                    elif char == "}":
+                        depth -= 1
+                        if depth == 0:
+                            end = i + 1
+                            break
+                json_str = raw_text[start:end]
+                data = json.loads(json_str)
+            else:
+                data = {}
+        except Exception:
+            data = {}
+
+    return IterativeReflectionResult(
+        summary=str(data.get("summary", "任务完成")),
+        next_step=str(data.get("next_step", "继续执行")),
+        action=str(data.get("action", "continue")),
+        new_task=data.get("new_task"),
+        reasoning=str(data.get("reasoning", "")),
+    )
 
 
 def _parse_reflection_response(response: str) -> ReflectionResult:

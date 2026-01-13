@@ -68,6 +68,7 @@ class DeepAgentConfig:
         # 输入类工具（获取数据）- 数据获取成功就行，不需要重规划
         "get_context_tool",              # 获取作品上下文
         "search_analysis_fragments_tool", # 检索章节片段
+        "search_content",               # 搜索章节片段（snippet）
         "read_chapter_tool",             # 读取章节内容
         "get_chapter_by_order_tool",     # 按序号获取章节
         # 注：分析类工具（analyze_text_tool, evaluate_quality_tool等）不在此列表

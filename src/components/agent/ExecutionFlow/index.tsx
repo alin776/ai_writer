@@ -5,8 +5,6 @@
  * 支持知识调取容器、可折叠步骤、输出卡片、修订胶囊、批量修订管理
  */
 
-import { useMemo } from 'react';
-import { CheckCheck, XCircle } from 'lucide-react';
 import type { FlowItem, TextFlowData, ToolFlowData, ContentFlowData, StepFlowData, OutputFlowData, AgentHeaderFlowData, CompletionFlowData, SummarizationFlowData, RevisionFlowData } from '@/types/agent';
 import { TextBlock } from './TextBlock';
 import { ToolCard } from './ToolCard';
@@ -42,61 +40,12 @@ export function ExecutionFlow({
   onUndoRevision,
   onRedoRevision
 }: ExecutionFlowProps) {
-  // v7.3: 统计 pending 状态的修订（包括嵌入在 step 中的）
-  const pendingRevisions = useMemo(() => {
-    const result: { id: string; isEmbedded: boolean }[] = [];
-
-    items.forEach(item => {
-      // 独立的 revision
-      if (item.type === 'revision' && (item.data as RevisionFlowData).status === 'pending') {
-        result.push({ id: item.id, isEmbedded: false });
-      }
-      // 嵌入在 step 中的 revision
-      if (item.type === 'step') {
-        const stepData = item.data as StepFlowData;
-        if (stepData.revision?.status === 'pending') {
-          // v7.4: 使用 revisionItemId 或 item.id 作为 fallback
-          result.push({ id: stepData.revisionItemId || item.id, isEmbedded: true });
-        }
-      }
-    });
-
-    return result;
-  }, [items]);
-
-  const pendingCount = pendingRevisions.length;
-
   if (!items || items.length === 0) {
     return null;
   }
 
   return (
     <div>
-      {/* 批量操作栏：当有多个 pending 修订时显示 */}
-      {pendingCount > 1 && (
-        <div className="flex items-center gap-2 mb-3 px-2 py-1.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-          <span className="text-[12px] text-amber-600 dark:text-amber-400">
-            {pendingCount} 项待确认修订
-          </span>
-          <div className="flex gap-1.5 ml-auto">
-            <button
-              onClick={() => onDiscardAllRevisions?.(pendingRevisions.map(r => r.id))}
-              className="flex items-center gap-1 px-2 py-0.5 text-[11px] text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-700 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
-            >
-              <XCircle size={11} />
-              全部弃用
-            </button>
-            <button
-              onClick={() => onAcceptAllRevisions?.(pendingRevisions.map(r => r.id))}
-              className="flex items-center gap-1 px-2 py-0.5 text-[11px] text-white bg-blue-500 rounded-full hover:bg-blue-600 transition-colors"
-            >
-              <CheckCheck size={11} />
-              全部采纳
-            </button>
-          </div>
-        </div>
-      )}
-
       {items.map((item) => {
         switch (item.type) {
           case 'text':

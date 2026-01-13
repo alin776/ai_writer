@@ -22,7 +22,7 @@ const AuthView: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
-  const { login, isAuthenticated, hasHydrated } = useAuthStore();
+  const { login, isAuthenticated, hasHydrated, user } = useAuthStore();
   const useMock = import.meta.env.VITE_USE_MOCK === 'true';
 
   // 获取注册页面传递的状态
@@ -31,7 +31,7 @@ const AuthView: React.FC = () => {
   // 如果用户已登录，自动跳转
   // 注意：如果有待处理的频道邀请，需要先处理邀请再跳转到频道
   useEffect(() => {
-    if (hasHydrated && isAuthenticated) {
+    if (hasHydrated && isAuthenticated && user) {
       // 检查是否有待处理的邀请
       const pendingCode = getPendingInvite();
       if (pendingCode) {
@@ -48,7 +48,7 @@ const AuthView: React.FC = () => {
         navigate('/works', { replace: true });
       }
     }
-  }, [hasHydrated, isAuthenticated, navigate]);
+  }, [hasHydrated, isAuthenticated, user, navigate]);
 
   // 默认 Tab，如果来自注册成功则显示登录
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');

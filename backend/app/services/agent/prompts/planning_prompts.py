@@ -30,7 +30,7 @@ def _get_planning_core_rules() -> str:
 
 1. **查询/分析请求**（不涉及创作）
    - "获取第三章"、"第五章有多少字" → 直接生成任务
-   - "世界观里有什么" → 直接生成 get_worldview_summary 任务
+   - "世界观里有什么" → 直接生成 get_writing_context(include="worldview") 任务
    - "第三章讲了什么" → 直接生成[获取第三章 → 概括]
    - "分析主角人设" → 直接生成[搜索 → 分析]
 
@@ -108,25 +108,22 @@ def _get_planning_core_rules() -> str:
 - **展示计划并询问确认**
 
 ✅ **需要调用工具**的情况（明确提到作品内容）：
-- "获取第三章" → 直接生成 [get_chapter_by_order_tool]
-- "第三章讲了什么" → 直接生成 [get_chapter_by_order_tool → analyze_text_tool]
+- "获取第三章" → 直接生成 [get_writing_context(chapter_orders="3", include="chapter")]
+- "第三章讲了什么" → 直接生成 [get_writing_context → analyze_content]
 - "续写第五章" → 分阶段：先 [世界观 + 第4章 + 第5章]，看到内容后询问续写细节
 - "帮我写第一章" → 分阶段：先 [世界观 + 第0章 + 第1章]，看到世界观后询问创作细节
-- "分析一下主角的人设" → 直接生成 [search + analyze]
+- "分析一下主角的人设" → 直接生成 [search + analyze_content]
 
 ⚠️ **判断原则**：
 - 只有**完全确定**不需要操作作品内容时才使用 direct_answer
 - 创作请求（"帮我写"、"续写"、"创作"）→ ⚠️ 必须分阶段，无论用户是否提供参数
-  - **统一策略**：读取 [世界观 + 前一章 + 目标章节]（三个都读）
-  - 第一阶段任务（3个任务）：
-    1. get_worldview_summary（获取世界观）
-    2. get_chapter_by_order_tool（读取前一章，章节序号=N-1）
-    3. get_chapter_by_order_tool（读取目标章节，章节序号=N）
-  - 章节序号规则：
-    * "写第一章" → 读取 [世界观 + 第0章 + 第1章]（前两个可能为空）
-    * "写第二章" → 读取 [世界观 + 第1章 + 第2章]
-    * "续写第五章" → 读取 [世界观 + 第4章 + 第5章]
-  - ⚠️ 优势：无论是"写新章节"还是"续写已有章节"，都能获取完整上下文
+  - **推荐使用 get_writing_context 一次性获取**：世界观 + 前一章 + 目标章节
+  - 第一阶段任务（1个任务）：
+    * get_writing_context(chapter_orders="N-1,N", include="work,chapter,worldview")
+  - 示例：
+    * "写第一章" → get_writing_context(chapter_orders="0,1", include="work,chapter,worldview")
+    * "续写第五章" → get_writing_context(chapter_orders="4,5", include="work,chapter,worldview,rag")
+  - ⚠️ 优势：1次调用替代3次调用，减少延迟
 - 查询/分析请求 → 直接生成完整任务链
 - 如果不确定 → 生成工具任务，不要擅自直接回答
 
@@ -152,20 +149,14 @@ def _get_planning_core_rules() -> str:
 - 需要哪些章节的内容？
 - 需要人设/大纲等元数据吗？
 - ⚠️ **创作/续写章节时的统一原料获取规则**（最重要！）：
-  - **所有创作请求都需要：世界观 + 前一章 + 目标章节**（三个都读）
-  - 第一阶段任务（同时获取三个）：
-    1. get_worldview_summary（世界观：角色、地点、设定）
-    2. get_chapter_by_order_tool（前一章，章节序号=N-1）
-    3. get_chapter_by_order_tool（目标章节，章节序号=N）
+  - **推荐使用 get_writing_context 一次性获取**：世界观 + 前一章 + 目标章节
+  - 第一阶段任务（1个任务）：
+    * get_writing_context(chapter_orders="N-1,N", include="work,chapter,worldview,rag")
   - 示例：
-    * "帮我写第一章" → [世界观 + 第0章 + 第1章]（前两个可能为空）
-    * "续写第二章" → [世界观 + 第1章 + 第2章]
-    * "帮我写第五章" → [世界观 + 第4章 + 第5章]
-  - ⚠️ 为什么要三个都读？
-    * 前一章：提供剧情衔接上下文
-    * 目标章节：可能已有内容（续写场景），需要基于现有内容继续
-    * 世界观：提供全局设定和角色信息
-    * 如果章节不存在或为空，工具会返回空，不影响流程
+    * "帮我写第一章" → get_writing_context(chapter_orders="0,1", include="work,chapter,worldview")
+    * "续写第二章" → get_writing_context(chapter_orders="1,2", include="work,chapter,worldview,rag")
+    * "帮我写第五章" → get_writing_context(chapter_orders="4,5", include="work,chapter,worldview,rag")
+  - ⚠️ 优势：1次调用替代3次调用
 
 ## Step 3: 处理方式
 
@@ -173,7 +164,7 @@ def _get_planning_core_rules() -> str:
 
 - **直接回答**（知识问答，不需要操作作品）→ 使用 direct_answer 字段
 - 直接返回（无处理）→ 只用获取工具
-- 概括/分析现有内容 → 获取 + analyze_text_tool
+- 概括/分析现有内容 → 获取 + analyze_content
 - 创作新内容（包括大纲/规划/设定）→ smart_continue
 
 【可用工具】
@@ -221,7 +212,6 @@ def _get_planning_core_rules() -> str:
 ⚠️ **【章节操作工具的 chapter_id 参数规则】** ⚠️
 - update_chapter_title、update_chapter_content、delete_chapter 的 chapter_id 参数**支持直接使用章节序号**
 - 例如：用户说"把第2章标题改成XXX" → 直接传 chapter_id: "2"，**不需要**先获取章节信息
-- ❌ 错误做法：先调用 get_chapter_by_order_tool，再用 $TASK_X.chapter_id$ 引用
 - ✅ 正确做法：直接传入章节序号字符串，如 "1"、"2"、"3"
 
 ❌ 禁止：用 smart_continue 处理"扩写"、"优化"、"润色"请求
@@ -230,10 +220,10 @@ def _get_planning_core_rules() -> str:
 【选中文本处理规则】⚠️ 重要！
 
 当 Prompt 中包含【用户选中的文本】时，这表示用户在编辑器中选中了一段文字：
-1. **必须先读取章节内容**（如果有 chapter_id）：调用 read_chapter_tool
-2. 然后使用 analyze_text_tool 分析选中的文本
-3. 将选中的文本作为 analyze_text_tool 的 text 参数
-4. 根据用户指令确定 focus 参数（15字以内）
+1. **必须先读取章节内容**（如果有 chapter_id）：调用 get_writing_context
+2. 然后使用 analyze_content 分析选中的文本
+3. 将选中的文本作为 analyze_content 的 content 参数
+4. 根据用户指令确定 aspects 参数
 """
 
 
@@ -315,7 +305,7 @@ def _get_agent_mode_checkpoint_section() -> str:
 - 需要用户确认才能继续的决策点（极少情况）
 
 ✅ 不需要 checkpoint 的情况（占大多数）：
-- 简单的读取/搜索任务（read_chapter_tool, get_context_tool, search等）
+- 简单的读取/搜索任务（get_writing_context, search_content 等）
 - 单步就能完成的任务（分析、摘要、问答）
 - 常规的改写/续写任务（smart_rewrite, smart_continue）
 - 已经是最后一个任务

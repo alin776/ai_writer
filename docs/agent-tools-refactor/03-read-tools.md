@@ -1,5 +1,8 @@
 # Read 类工具设计
 
+> **实现状态**: ✅ 已完成 (2026-01-12)
+> **Planning Prompt 更新**: ✅ 已完成 (2026-01-12)
+
 ## 1. 概述
 
 Read 类工具负责**获取完整内容**，进行智能预处理（选择、压缩、格式化），但不进行语义推理。
@@ -8,21 +11,30 @@ Read 类工具负责**获取完整内容**，进行智能预处理（选择、�
 
 ## 2. 工具列表
 
-| 工具 | 功能 | 场景 |
-|------|------|------|
-| `get_writing_context` | 获取创作上下文（一站式） | 续写、改写前获取上下文 |
+| 工具 | 功能 | 场景 | 状态 |
+|------|------|------|------|
+| `get_writing_context` | 获取创作上下文（一站式） | 续写、改写前获取上下文 | ✅ 已实现 |
 
 ## 3. get_writing_context
 
 ### 3.1 功能描述
 
 一站式获取创作所需的完整上下文，合并 4 个原子工具：
-- `get_context_tool`
-- `read_chapter_tool`
-- `get_worldview_summary`
-- `get_style_guidance_tool`
+- `get_context_tool` → 标记为 @deprecated
+- `read_chapter_tool` → 标记为 @deprecated
+- `get_worldview_summary` → 标记为 @deprecated
+- `get_style_guidance_tool` → 标记为 @deprecated
 
-### 3.2 变更说明
+### 3.2 实现说明 (2026-01-12)
+
+**实现文件**: `backend/app/services/agent/langgraph_tools.py:718-911`
+
+**实现策略**:
+- 旧工具标记为 `@deprecated`，内部调用 `get_writing_context`
+- 旧工具保留格式转换逻辑，确保向后兼容
+- 新工具添加到 `LANGGRAPH_TOOLS` 列表
+
+### 3.3 变更说明
 
 | 项目 | 变更前 | 变更后 |
 |------|--------|--------|

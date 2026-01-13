@@ -1322,6 +1322,9 @@ async def agent_chat_stream(
                     # 保存任务列表用于后续计算索引
                     plan_data_ref['tasks'] = plan_data.get('tasks', [])
                     await event_queue.put(('plan', plan_data))
+                    # 兼容 plan_update：仅在更新时发送（前端可复用 plan 处理逻辑）
+                    if plan_data.get('is_update'):
+                        await event_queue.put(('plan_update', plan_data))
                     logger.info(f"[Stream] Plan tasks: {len(plan_data.get('tasks', []))} items")
 
                 async def on_task_start(task):
@@ -1348,7 +1351,46 @@ async def agent_chat_stream(
 
                 async def on_task_progress(task, status):
                     """任务进度回调"""
-                    await event_queue.put(('task_progress', {'task_id': task.get('task_id'), 'status': status}))
+                    payload = {'task_id': task.get('task_id'), 'status': status}
+                    await event_queue.put(('task_progress', payload))
+
+                    # 兼容 thinking 事件：从反思进度文本中提取（DeepAgent会发送"💭 反思: ..."）
+                    thinking_payload = None
+                    if isinstance(status, dict) and status.get('type') == 'thinking':
+                        data = status.get('data') or {}
+                        if isinstance(data, str):
+                            thinking_payload = {'summary': data, 'next_step': '', 'task_id': task.get('task_id')}
+                        elif isinstance(data, dict):
+                            thinking_payload = {**data, 'task_id': task.get('task_id')}
+                        if thinking_payload:
+                            summary = str(thinking_payload.get('summary', ''))[:200]
+                            next_step = str(thinking_payload.get('next_step', ''))[:200]
+                            logger.info(
+                                "[Stream] thinking(structured) task_id=%s summary=%s next_step=%s",
+                                task.get('task_id'),
+                                summary,
+                                next_step
+                            )
+                    elif isinstance(status, str):
+                        text = status.strip()
+                        if text.startswith("💭"):
+                            summary = text.lstrip("💭").strip()
+                            if summary.startswith("反思:"):
+                                summary = summary[len("反思:"):].strip()
+                            thinking_payload = {
+                                'summary': summary or text,
+                                'next_step': '',
+                                'task_id': task.get('task_id'),
+                                'raw': text
+                            }
+                            summary_preview = str(thinking_payload.get('summary', ''))[:200]
+                            logger.info(
+                                "[Stream] thinking(text) task_id=%s summary=%s",
+                                task.get('task_id'),
+                                summary_preview
+                            )
+                    if thinking_payload:
+                        await event_queue.put(('thinking', thinking_payload))
 
                 async def on_task_done(task, result_data):
                     """任务完成回调"""

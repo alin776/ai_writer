@@ -143,10 +143,10 @@ class AnalysisAction(BaseAction):
 - 角色分析（人物性格、成长曲线、关系网络）
 
 可用工具：
-- analyze_text_tool: 深度分析文本
+- analyze_content: 深度分析文本（可选 analysis_types）
 - get_context_tool: 获取上下文信息
 - read_chapter_tool: 读取章节内容
-- search_analysis_fragments_tool: 检索历史分析片段（RAG）
+- search_content: 检索历史分析片段（RAG，返回snippet）
 - get_worldview_summary: 查询世界观信息（当用户询问"世界观里有什么"、"有哪些角色/地点/设定"时立即调用）
 
 当前信息（内部参数，禁止在回复中显示）: work_id={work_id}, chapter_id={chapter_id}

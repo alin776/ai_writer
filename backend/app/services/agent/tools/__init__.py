@@ -135,8 +135,10 @@ from app.services.agent.langgraph_tools import (
     get_context_tool_st,
     read_chapter_tool_st,
     get_chapter_by_order_tool_st,
+    search_content_tool_st,
     search_analysis_fragments_tool_st,
-    get_worldview_summary_tool_st
+    get_worldview_summary_tool_st,
+    get_writing_context_tool_st,  # 2026-01-12: 新增聚合工具
 )
 
 
@@ -246,8 +248,10 @@ __all__ = [
     "get_context_tool_st",
     "read_chapter_tool_st",
     "get_chapter_by_order_tool_st",
+    "search_content_tool_st",
     "search_analysis_fragments_tool_st",
     "get_worldview_summary_tool_st",
+    "get_writing_context_tool_st",  # 2026-01-12: 新增聚合工具
 ]
 
 
@@ -278,10 +282,14 @@ def _register_standard_tools():
     registry.register_standard_tool(get_context_tool_st)
     registry.register_standard_tool(read_chapter_tool_st)
     registry.register_standard_tool(get_chapter_by_order_tool_st)
+    registry.register_standard_tool(search_content_tool_st)
     registry.register_standard_tool(search_analysis_fragments_tool_st)
 
     # 世界观工具
     registry.register_standard_tool(get_worldview_summary_tool_st)
+
+    # 聚合工具（2026-01-12: 新增）
+    registry.register_standard_tool(get_writing_context_tool_st)
 
     # 辅助工具（2026-01-09: 新增）
     registry.register_standard_tool(check_story_consistency_st)

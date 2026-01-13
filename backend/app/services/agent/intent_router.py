@@ -282,7 +282,7 @@ class UnifiedIntentRouter:
    - 返回：章节内容
    - 用于："读取第X章"（需要先知道chapter_id）
 
-4. **search_analysis_fragments_tool** - 搜索分析片段
+4. **search_content** - 搜索分析片段（返回snippet）
    - 参数：query (str) - 搜索关键词
    - 返回：相关片段列表
    - 用于："搜索相关内容"

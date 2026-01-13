@@ -153,7 +153,7 @@ export interface PlanResponse {
 }
 
 export interface PlanTask {
-  task_id: string;
+  task_id: number | string;
   description: string;
   status: TaskStatus;
   depends_on: string[];
@@ -161,8 +161,8 @@ export interface PlanTask {
   error?: string;
 }
 
-export type PlanStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
-export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped';
+export type PlanStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
 
 // ==================== 人机协同 (HITL) ====================
 
@@ -240,11 +240,11 @@ export interface Message {
 }
 
 export interface TaskSnapshot {
-  task_id: number;
+  task_id: number | string;
   description: string;
   tool?: string;
   estimated_time?: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
   elapsed_time?: number;
   progress_status?: string;
 }

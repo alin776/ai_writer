@@ -62,28 +62,28 @@ async def get_tool_decision_static_prompt() -> str:
 - apply_chapter_edit: 直接应用编辑到章节 (参数: chapter_id, operation, content)
   ⚠️ 注意：此工具用于将已生成的内容应用到编辑器
 
-【读取工具】
-需work_id: get_chapter_by_order_tool, get_context_tool, read_chapter_tool
-不需work_id: analyze_text_tool
+【读取工具】⚠️ 优先使用 get_writing_context 聚合工具！
+- get_writing_context: 一站式获取创作上下文（推荐！）
+- analyze_content: 一站式内容分析（推荐！）
 {retrieval_tools}
 {operation_tools}
 {creative_tools}
 {analysis_tools}
 ⚠️ **重要变更**：polish_text_tool 已移除
 - 所有润色/修改请求必须提供 chapter_id，使用基于章节上下文的工具
-- 如果涉及多个章节，read_chapter_tool 支持传递多个 chapter_id（用逗号分隔）
+- 如果涉及多个章节，get_writing_context 支持批量读取（chapter_orders="1-5"）
 
 【工具使用规则】
 
-1. 用户提到具体文字但未说章节 → 先用 search_analysis_fragments_tool 定位
+1. 用户提到具体文字但未说章节 → 先用 search_content 定位
 2. 用户说"修改第X章"、"改写第X章" → 使用 smart_rewrite（已知章节）
 3. 用户说"续写"、"继续写" → 使用 smart_continue
 4. 用户说"插入" → 使用 smart_insert
 5. 用户说"创建新章节"、"新建章节" → 使用 create_chapter
 6. 用户说"删除章节" → 使用 delete_chapter（⚠️ 危险操作，需确认）
 7. 用户说"改标题"、"重命名章节" → 使用 update_chapter_title
-8. 用户说"检查一致性"、"有没有矛盾" → 使用 check_story_consistency_tool
-9. 用户说"分析风格"、"写作特点" → 使用 analyze_style_tool
+8. 用户说"检查一致性"、"有没有矛盾" → 使用 analyze_content（analysis_types=["consistency"]）
+9. 用户说"分析风格"、"写作特点" → 使用 analyze_content（analysis_types=["style"]）
 10. 用户说"情感描写"、"展示情绪" → 使用 show_emotion_tool
 11. 用户说"增强场景"、"画面感" → 使用 enhance_scene_tool
 
@@ -112,16 +112,16 @@ async def get_tool_decision_static_prompt() -> str:
 
 【示例 - 需要工具的情况】
 
-"微光如露落雪太书面化" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "微光如露落雪"}}}}
+"微光如露落雪太书面化" → {{"need_tools": true, "tool_name": "search_content", "tool_args": {{"query": "微光如露落雪"}}}}
 "修改第三章，白光退去太平淡" → {{"need_tools": true, "tool_name": "smart_rewrite", "tool_args": {{"chapter_id": "xxx", "text_to_rewrite": "白光退去...", "user_requirement": "更有画面感"}}}}
 "续写第五章" → {{"need_tools": true, "tool_name": "smart_continue", "tool_args": {{"chapter_id": "xxx", "user_requirement": "续写", "word_count": 500}}}}
-"有没有叫赵穆的人物" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "赵穆"}}}}
-"段融是谁" → {{"need_tools": true, "tool_name": "search_analysis_fragments_tool", "tool_args": {{"query": "段融"}}}}
+"有没有叫赵穆的人物" → {{"need_tools": true, "tool_name": "search_content", "tool_args": {{"query": "赵穆"}}}}
+"段融是谁" → {{"need_tools": true, "tool_name": "search_content", "tool_args": {{"query": "段融"}}}}
 "创建一个新章节叫第六章" → {{"need_tools": true, "tool_name": "create_chapter", "tool_args": {{"work_id": "xxx", "title": "第六章"}}}}
 "删除第三章" → {{"need_tools": true, "tool_name": "delete_chapter", "tool_args": {{"chapter_id": "xxx"}}}}
 "把第二章标题改成觉醒" → {{"need_tools": true, "tool_name": "update_chapter_title", "tool_args": {{"chapter_id": "xxx", "new_title": "觉醒"}}}}
-"检查前五章有没有矛盾" → {{"need_tools": true, "tool_name": "check_story_consistency_tool", "tool_args": {{"work_id": "xxx"}}}}
-"分析一下我的写作风格" → {{"need_tools": true, "tool_name": "analyze_style_tool", "tool_args": {{"text": "..."}}}}
+"检查前五章有没有矛盾" → {{"need_tools": true, "tool_name": "analyze_content", "tool_args": {{"analysis_types": ["consistency"], "work_id": "xxx", "content": "..."}}}}
+"分析一下我的写作风格" → {{"need_tools": true, "tool_name": "analyze_content", "tool_args": {{"analysis_types": ["style"], "content": "..."}}}}
 "帮我写一段愤怒的情感描写" → {{"need_tools": true, "tool_name": "show_emotion_tool", "tool_args": {{"emotion": "愤怒", "intensity": 4}}}}
 
 ⚠️ 如果不确定用户是否需要工具，选择直接回答。请严格返回JSON格式:"""
@@ -182,8 +182,7 @@ async def get_complexity_decision_prompt() -> str:
 【可用工具速查】
 
 获取类（返回数据，无副作用）：
-- get_chapter_by_order_tool(chapter_order: int) → {{title, content, word_count}}
-- get_context_tool() → 作品上下文
+- get_writing_context(chapter_orders: str, include: str) → {{work_info, chapters[], worldview, rag_context[]}}
 
 注意：概括/总结内容需要分析处理，应判定为 complex
 
@@ -191,7 +190,7 @@ async def get_complexity_decision_prompt() -> str:
 
 "你好" → {{"complexity": "simple", "reason": "问候", "action": {{"direct_answer": "..."}}}}
 "你是谁" → {{"complexity": "simple", "reason": "关于AI的问题", "action": {{"direct_answer": "..."}}}}
-"第三章标题是什么" → {{"complexity": "simple", "reason": "单个工具调用", "action": {{"tool_name": "get_chapter_by_order_tool", "tool_args": {{"chapter_order": 3}}, "response_hint": "title"}}}}
+"第三章标题是什么" → {{"complexity": "simple", "reason": "单个工具调用", "action": {{"tool_name": "get_writing_context", "tool_args": {{"chapter_orders": "3", "include": "chapter"}}, "response_hint": "title"}}}}
 "分析前五章" → {{"complexity": "complex", "reason": "需要读取多章并分析", "action": {{}}}}
 
 注意：direct_answer 的内容由你根据问题自由生成。

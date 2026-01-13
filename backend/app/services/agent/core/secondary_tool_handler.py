@@ -61,6 +61,7 @@ class SecondaryToolHandler:
         "get_context_tool",
         "read_chapter_tool",
         "search_analysis_fragments_tool",
+        "search_content",
         "get_worldview_summary"
     ]
 

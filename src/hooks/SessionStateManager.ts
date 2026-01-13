@@ -13,11 +13,11 @@ import type { Message, ActivityItem, ProgressData, FlowItem } from '@/types/agen
 
 // 任务接口
 interface Task {
-  task_id: number;
+  task_id: number | string;
   description: string;
   tool?: string;
   estimated_time?: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
   elapsed_time?: number;
   progress_status?: string;  // Multi-Agent 内部进度状态
 }
@@ -34,7 +34,7 @@ export interface SessionState {
   isLoading: boolean;
   error: string | null;
   suggestedActions: string[];
-  currentTaskId: number | null;
+  currentTaskId: number | string | null;
   pendingApproval: any | null;
 
   // SSE连接管理

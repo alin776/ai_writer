@@ -1,5 +1,8 @@
 # 验证报告
 
+> **最后更新**: 2026-01-12
+> **Planning Prompt 更新**: ✅ 已完成 (2026-01-12)
+
 ## 1. 验证概述
 
 本文档记录了对 Agent 工具重构方案的深度验证结果，包括发现的问题、遗漏和修正建议。
@@ -82,27 +85,22 @@ Task 3: apply_chapter_edit(...)
 [ChapterCache] ✅ 命中: 7f14ccdb... (hits=1)
 ```
 
-### 3.2 批量读取未充分利用
+### 3.2 批量读取未充分利用 ✅ 已修复 (2026-01-12)
 
 **问题描述**：
 - `get_chapter_by_order_tool` 支持范围格式 `"1-5"`（2025-12-25 新增）
 - 但 Planning Prompt 中仍使用多个单独的 Task
 
-**当前示例**：
-```python
-# planning_examples.py 中的示例
-Task 1: get_chapter_by_order_tool("4")
-Task 2: get_chapter_by_order_tool("5")
-```
+**修复方案**：
+- 更新 `planning_examples.py` 所有示例使用 `get_writing_context`
+- 更新 `planning_prompts.py` 推荐使用批量格式
+- 更新 `tool_descriptions.py` 标记旧工具为 deprecated
+- 更新 `decision_prompts.py` 使用新工具
 
-**优化后**：
+**修复后示例**：
 ```python
-Task 1: get_chapter_by_order_tool("4-5")  # 一次读取两章
+Task 1: get_writing_context(chapter_orders="4,5", include="chapter,worldview,rag")
 ```
-
-**建议**：
-- 更新 Planning Prompt，推荐使用批量格式
-- 在 `get_writing_context` 中支持范围格式
 
 ### 3.3 工具分类体系不一致
 
@@ -284,8 +282,8 @@ class ToolCategory(str, Enum):
 ### 实现中检查（新增）
 
 - [x] 章节缓存机制实现完成 ✅ (2026-01-12)
-- [ ] 范围格式解析实现完成
-- [ ] Planning Prompt 更新完成
+- [x] 范围格式解析实现完成 ✅ (2026-01-12)
+- [x] Planning Prompt 更新完成 ✅ (2026-01-12)
 - [ ] ToolCategory 枚举更新完成
 
 ---
@@ -310,6 +308,42 @@ class ToolCategory(str, Enum):
 ### 新增的优化点
 
 1. 引入章节缓存机制 ✅ 已完成
-2. 支持范围格式 `"1-5"`
-3. 统一工具分类体系
-4. 明确二次工具调用边界
+2. 支持范围格式 `"1-5"` ✅ 已完成
+3. Planning Prompt 全面更新 ✅ 已完成
+4. 统一工具分类体系
+5. 明确二次工具调用边界
+
+---
+
+## 10. 2026-01-12 更新记录
+
+### 10.1 Planning Prompt 更新
+
+**更新的文件**：
+- `planning_examples.py` - 36 处工具引用更新为新工具
+- `planning_prompts.py` - 核心规则和示例更新
+- `tool_descriptions.py` - 旧工具标记为 deprecated
+- `decision_prompts.py` - 工具引用更新
+
+**验证结果**：
+| 检查项 | 状态 |
+|--------|------|
+| 旧工具引用数量 | 0 |
+| 新工具引用数量 | 36 |
+| 语法检查 | ✅ 通过 |
+
+### 10.2 tool_executor.py 更新
+
+**修复的问题**：
+- `get_writing_context` 未添加到 `LEGACY_TOOLS`
+
+**修复内容**：
+- 导入 `get_writing_context`
+- 添加到 `LEGACY_TOOLS` 字典
+- 添加参数处理逻辑
+
+### 10.3 参数引用格式验证
+
+**验证结果**：
+- `$TASK_1.chapters[0].id$` 格式被 `parameter_resolver.py` 支持
+- `_parse_field_path` 方法支持数组索引解析

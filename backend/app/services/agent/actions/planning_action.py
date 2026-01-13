@@ -178,7 +178,7 @@ class PlanningAction(BaseAction):
 - 用途：当用户询问"世界观里有什么"、"有哪些角色/地点/设定"时调用
 - ⚠️ 必须立即调用，不要问用户想了解什么
 
-**search_analysis_fragments_tool** - 搜索旧设定/其他章节
+**search_content** - 搜索旧设定/其他章节（返回snippet）
 - 用途：查询本章之外的信息（如角色设定、世界观）
 - 参数: `query="关键词", work_id="{work_id}"`
 
@@ -252,7 +252,7 @@ class PlanningAction(BaseAction):
 
 - **情况B：不知道章节号** (用户只给了句子，没说在哪)
   → **禁止直接回答！**
-  → 你必须先调用 `search_analysis_fragments_tool` 搜索这句话，找到它在第几章
+  → 你必须先调用 `search_content` 搜索这句话，找到它在第几章
   → 如果搜不到，你必须反问用户："这句话是在哪一章？我需要看上下文才能给出合适的修改建议。"
 
 ### 第二步：获取 (Retrieve)
@@ -280,7 +280,7 @@ class PlanningAction(BaseAction):
    - 用途：当用户询问"世界观里有什么"、"有哪些角色/地点/设定"时调用
    - ⚠️ 必须立即调用，不要问用户想了解什么
 
-3. **search_analysis_fragments_tool** - 搜索内容/设定
+3. **search_content** - 搜索内容/设定
    - 用途1：当你不知道某句话在哪一章时，用这个搜关键词
    - 用途2：查询旧设定、旧角色
    - 示例: `query="微光如露落雪", work_id={work_id}`
@@ -301,7 +301,7 @@ class PlanningAction(BaseAction):
 2. 定位检查：我知道这是第几章吗？ -> [是/否]
 3. 行动决策：
    - 如果是 -> 调用 read_chapter_tool(chapter_number=X)
-   - 如果否 -> 调用 search_analysis_fragments_tool(query="微光如露落雪") 或 询问用户
+   - 如果否 -> 调用 search_content(query="微光如露落雪") 或 询问用户
 4. 预期目标：获取上下文，判断场景类型和情绪
 [结束思维链]
 ```

@@ -17,10 +17,12 @@ from app.services.agent.utils.chapter_cache import ChapterCache
 # 导入 @tool 版本用于降级
 from app.services.agent.langgraph_tools import (
     analyze_text_tool,
+    analyze_content,
     get_context_tool,
     read_chapter_tool,
     get_chapter_by_order_tool,
     search_analysis_fragments_tool,
+    search_content,
     smart_rewrite,
     smart_continue,
     smart_insert,
@@ -60,6 +62,8 @@ QUERY_TOOLS = [
     "read_chapter_tool",
     "get_chapter_by_order_tool",
     "search_analysis_fragments_tool",
+    "search_content",
+    "get_writing_context",
     "get_worldview_summary",
     "get_style_guidance_tool",
 ]
@@ -67,6 +71,7 @@ QUERY_TOOLS = [
 # 分析类工具：分析内容，不修改数据
 ANALYSIS_TOOLS = [
     "analyze_text_tool",
+    "analyze_content",
     "check_story_consistency_tool",
     "analyze_style_tool",
 ]
@@ -164,6 +169,10 @@ class ToolDispatcher:
         # 6. 搜索分析片段工具
         elif tool_name == "search_analysis_fragments_tool":
             return await self._call_search_analysis_fragments(tool_args, state, last_user_message)
+
+        # 6.1 搜索内容工具
+        elif tool_name == "search_content":
+            return await self._call_search_content(tool_args, state, last_user_message)
 
         # 7. 智能改写工具
         elif tool_name == "smart_rewrite":
@@ -374,7 +383,7 @@ class ToolDispatcher:
                 "chapter_id": state.get("chapter_id", ""),
                 "include_current": tool_args.get("include_current", True),
                 "look_ahead": tool_args.get("look_ahead", 0),
-                "max_content_length": tool_args.get("max_content_length", 2000)
+                "max_content_length": tool_args.get("max_content_length", 200)
             })
 
             if isinstance(result, dict) and result.get("success"):
@@ -395,7 +404,48 @@ class ToolDispatcher:
                 "chapter_id": state.get("chapter_id", ""),
                 "include_current": tool_args.get("include_current", True),
                 "look_ahead": tool_args.get("look_ahead", 0),
-                "max_content_length": tool_args.get("max_content_length", 2000),
+                "max_content_length": tool_args.get("max_content_length", 200),
+            })
+
+    async def _call_search_content(
+        self, tool_args: Dict[str, Any], state: "AgentState", last_user_message: str
+    ) -> str:
+        """调用搜索内容工具"""
+        work_id_value = state.get("work_id")
+        if not work_id_value:
+            logger.warning(f"[ToolDispatcher] ⚠️ search_content 缺少必需参数 work_id")
+            return json.dumps({
+                "error": "missing_work_id",
+                "message": "需要提供作品ID才能搜索内容",
+                "user_prompt": "请先告诉我您要搜索哪部作品的内容？"
+            }, ensure_ascii=False)
+
+        try:
+            result = await registry.call_tool("search_content", {
+                "work_id": work_id_value,
+                "query": tool_args.get("query", last_user_message),
+                "top_k": tool_args.get("top_k", 10),
+                "chapter_id": state.get("chapter_id", ""),
+                "look_ahead": tool_args.get("look_ahead", 0),
+            })
+
+            if isinstance(result, dict) and result.get("success"):
+                tool_result = result.get("data", {}).get("results", "")
+                logger.info(f"[StandardTool] search_content 执行成功")
+                return tool_result
+            else:
+                error_msg = result.get("message", "执行失败") if isinstance(result, dict) else "未知错误"
+                logger.error(f"[StandardTool] search_content 执行失败: {error_msg}")
+                return json.dumps({"error": "tool_failed", "message": error_msg}, ensure_ascii=False)
+
+        except Exception as e:
+            logger.warning(f"[StandardTool] search_content 调用失败，降级到 @tool: {e}")
+            return await search_content.ainvoke({
+                "work_id": work_id_value,
+                "query": tool_args.get("query", last_user_message),
+                "top_k": tool_args.get("top_k", 10),
+                "chapter_id": state.get("chapter_id", ""),
+                "look_ahead": tool_args.get("look_ahead", 0),
             })
 
     async def _call_smart_rewrite(

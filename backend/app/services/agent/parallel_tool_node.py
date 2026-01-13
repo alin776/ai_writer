@@ -24,7 +24,9 @@ PARALLEL_SAFE_TOOLS = {
     "get_context_tool",
     "read_chapter_tool",
     "get_chapter_by_order_tool",
-    "search_analysis_fragments_tool"
+    "search_analysis_fragments_tool",
+    "search_content",
+    "analyze_content"
     # 注意：以下工具不能并行
     # - smart_continue/smart_rewrite/smart_insert: 数据写入，必须串行
     # - analyze_text_tool: 可能依赖其他工具结果，应串行

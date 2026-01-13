@@ -145,8 +145,8 @@ class StuckAction(BaseAction):
 可用工具：
 - get_context_tool: 获取当前创作背景
 - read_chapter_tool: 读取已写章节
-- search_analysis_fragments_tool: 检索相关创作灵感和分析（RAG）
-- analyze_text_tool: 分析现有内容
+- search_content: 检索相关创作灵感和分析（RAG，返回snippet）
+- analyze_content: 分析现有内容（可选 analysis_types）
 - smart_continue: 续写章节内容
 - get_worldview_summary: 查询世界观信息（当用户询问"世界观里有什么"、"有哪些角色/地点/设定"时立即调用）
 

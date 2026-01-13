@@ -423,6 +423,56 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       persistMessages(baseMessages, streamConversationId, uiMode);
 
       try {
+        const normalizeTaskId = (id: any) => {
+          if (id === null || id === undefined) return id;
+          if (typeof id === 'number') return id;
+          const asNumber = Number(id);
+          return Number.isNaN(asNumber) ? id : asNumber;
+        };
+
+        const normalizeTaskStatus = (status?: string) => {
+          if (!status) return 'pending';
+          if (status === 'in_progress') return 'running';
+          return status;
+        };
+
+        const getTaskDescription = (task: any) =>
+          cleanTaskDescription(task?.description ?? task?.title ?? '');
+
+        const applyPlanUpdate = (plan: any, forceUpdate: boolean = false) => {
+          const currentTasks = sessionManager.getSession(sessionId)?.tasks || [];
+          const currentTaskMap = new Map(
+            currentTasks.map(t => [normalizeTaskId(t.task_id), t])
+          );
+          const isUpdate = forceUpdate || plan?.is_update === true;
+          const sourceTasks = Array.isArray(plan?.tasks) ? plan.tasks : [];
+
+          const updatedTasks: Task[] = sourceTasks.map((t: any) => {
+            const taskId = normalizeTaskId(t.task_id);
+            const existing = currentTaskMap.get(taskId);
+
+            // 重规划时：保留已完成任务的状态
+            if (isUpdate && existing && existing.status === 'completed') {
+              return existing;
+            }
+
+            // 保留正在运行任务的状态
+            if (existing && existing.status === 'running') {
+              return { ...existing, description: getTaskDescription(t) };
+            }
+
+            return {
+              task_id: taskId,
+              description: getTaskDescription(t),
+              tool: t.tool,
+              estimated_time: t.estimated_time,
+              status: normalizeTaskStatus(t.status) as Task['status'],
+            };
+          });
+
+          sessionManager.updateSession(sessionId, { tasks: updatedTasks });
+        };
+
         await agentApi.chatStream(
           { ...request, conversation_id: streamConversationId },
           {
@@ -439,44 +489,21 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
             ...(backendMode === 'planning'
               ? {
                   onPlan: (plan: any) => {
-                    // 获取当前任务列表，用于保留已完成任务的状态
-                    const currentTasks = sessionManager.getSession(sessionId)?.tasks || [];
-                    const currentTaskMap = new Map(currentTasks.map(t => [t.task_id, t]));
-                    const isUpdate = plan.is_update === true;
-
-                    const updatedTasks: Task[] = plan.tasks.map((t: any) => {
-                      const existing = currentTaskMap.get(t.task_id);
-
-                      // 重规划时：保留已完成任务的状态
-                      if (isUpdate && existing && existing.status === 'completed') {
-                        return existing;
-                      }
-
-                      // 保留正在运行任务的状态
-                      if (existing && existing.status === 'running') {
-                        return { ...existing, description: cleanTaskDescription(t.description) };
-                      }
-
-                      return {
-                        task_id: t.task_id,
-                        description: cleanTaskDescription(t.description),
-                        tool: t.tool,
-                        estimated_time: t.estimated_time,
-                        status: t.status || 'pending',
-                      };
-                    });
-
-                    sessionManager.updateSession(sessionId, { tasks: updatedTasks });
+                    applyPlanUpdate(plan);
+                  },
+                  onPlanUpdate: (plan: any) => {
+                    applyPlanUpdate(plan, true);
                   },
                   onTaskStart: (task: any) => {
-                    taskStartTimes.set(task.task_id, Date.now());
+                    const taskId = normalizeTaskId(task.task_id);
+                    taskStartTimes.set(taskId, Date.now());
 
                     // v6.0: flowItems 由 onFlowEvent 的 step_start 处理，这里只更新任务状态
                     const updatedTasks = (sessionManager.getSession(sessionId)?.tasks || []).map((t) =>
-                      t.task_id === task.task_id ? { ...t, status: 'running' as const } : t
+                      normalizeTaskId(t.task_id) === taskId ? { ...t, status: 'running' as const } : t
                     );
                     sessionManager.updateSession(sessionId, {
-                      currentTaskId: task.task_id,
+                      currentTaskId: taskId,
                       tasks: updatedTasks
                     });
 
@@ -494,12 +521,12 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     }
                   },
                   onTaskDone: (taskDone: any) => {
-                    const startTime = taskStartTimes.get(taskDone.task_id);
+                    const taskId = normalizeTaskId(taskDone.task_id);
+                    const startTime = taskStartTimes.get(taskId);
                     let elapsedTime = taskDone.elapsed_time || 0;
                     if (startTime && elapsedTime === 0) {
                       elapsedTime = (Date.now() - startTime) / 1000;
                     }
-                    const taskId = taskDone.task_id;
                     const timerKey = `task-${taskId}`;
 
                     // v6.7: 确保 running 状态至少显示 500ms，提升用户体验
@@ -512,7 +539,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                       // v6.0: flowItems 由 onFlowEvent 的 step_complete 处理，这里只更新任务状态
                       sessionManager.updateSession(sessionId, {
                         tasks: (sessionManager.getSession(sessionId)?.tasks || []).map((t) =>
-                          t.task_id === taskId
+                          normalizeTaskId(t.task_id) === taskId
                             ? { ...t, status: 'completed', elapsed_time: elapsedTime, progress_status: undefined }
                             : t
                         ),
@@ -529,16 +556,37 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     }
                   },
                   onTaskProgress: (progress: any) => {
-                    // 更新任务的进度状态（用于 Multi-Agent 内部进度）
-                    const taskId = progress.task_id;
+                    // 更新任务的进度状态（仅字符串）
+                    const taskId = normalizeTaskId(progress.task_id);
                     const status = progress.status;
-                    if (taskId !== undefined && status) {
+                    if (taskId !== undefined && typeof status === 'string' && status) {
                       sessionManager.updateSession(sessionId, {
                         tasks: (sessionManager.getSession(sessionId)?.tasks || []).map((t) =>
-                          t.task_id === taskId ? { ...t, progress_status: status } : t
+                          normalizeTaskId(t.task_id) === taskId ? { ...t, progress_status: status } : t
                         )
                       });
                     }
+                  },
+                  onThinking: (thinking: any) => {
+                    const summary = typeof thinking === 'string'
+                      ? thinking
+                      : (thinking?.summary ?? thinking?.content ?? thinking?.text ?? '');
+                    const nextStep = thinking?.next_step ? `下一步：${thinking.next_step}` : '';
+                    const description = [summary, nextStep].filter(Boolean).join(' ');
+                    if (!description) return;
+                    const activity: ActivityItem = {
+                      id: `thinking-${Date.now()}`,
+                      type: 'thinking',
+                      description,
+                      timestamp: new Date().toISOString(),
+                      status: 'completed'
+                    };
+                    sessionManager.updateSession(sessionId, {
+                      activities: [
+                        ...(sessionManager.getSession(sessionId)?.activities || []),
+                        activity
+                      ]
+                    });
                   },
                   // 🆕 planning 模式也需要处理审批请求
                   onApprovalRequest: (approvalReq: any) => {

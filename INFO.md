@@ -1,355 +1,178 @@
-# Agent 工具重构方案
+获取第2章与第3章的上下文内容
+调用工具
+get_writing_context
+在第2章中定位目标句子
+调用工具
+locate_content
+为第2章生成更细腻的替换句
+调用工具
+smart_rewrite
+将替换句应用到第2章编辑器
+调用工具
+apply_chapter_edit
+新增内容预览
+"段融那副模样，让赵穆心头火气一滞，意识尚未跟上，手已换过了刀。他将废刀塞入段融手中，暗忖这其中门道他..."
+弃用
+采纳
+在第3章中定位插入位置
+调用工具
+locate_content
+为第3章生成关于意识旁观的段落
+调用工具
+smart_insert
+将新段落应用到第3章编辑器
+调用工具
+apply_chapter_edit
+新增内容预览
+"他“看见”一个壮硕人影在练刀，视角却无比诡异。他并非旁观，而是仿佛化作了那人身体里的内息，随着刀势在..."
+弃用
+采纳
+将1个输入型任务和6个输出型任务的结果进行AI整合，生成连贯的最终响应。
+调用工具
+response_builder.summarize
+我已经按照您的指示，对第2章和第3章的内容进行了修订。请注意，在定位目标内容时，工具遇到了一些情况，我已在下方详细说明。
 
-## 背景
+📝 修订结果总结
+1. 【第2章 浑圆桩】内容替换
+目标句子：您要求替换的句子是 “这怎么回事？一点也不顺手了……倒像是攥了一把新刀……”
+实际定位情况：在获取的第2章内容中，未能找到完全匹配的此句。locate_content 工具定位到了另一句相关内容并将其作为替换目标。
+被替换的句子：赵穆见段融如此，心头涌起的火气，下来了一大半，他接过刀来，将手中的废刀，放在了段融手上，微怒道：“归队吧！”
+替换后的内容：
+段融那副模样，让赵穆心头火气一滞，意识尚未跟上，手已换过了刀。他将废刀塞入段融手中，暗忖这其中门道他还差得远，只剩一丝余怒道：“归队吧！”
 
-当前 Agent 有 21 个工具，存在以下问题：
-1. 工具重复（如 `read_chapter_tool` 和 `get_chapter_by_order_tool`）
-2. 职责不清（Search 工具返回完整内容，越界了）
-3. Read 工具过多，调用链路冗长（续写需要调用 3-4 个工具）
+要点：
+体现了赵穆“意识无法介入”的无力感。
+保留了“门道”二字。
+长度与原句相近。
+状态：此替换已在编辑器中生成，并带有修订标记。
+2. 【第3章 一夕千悟】内容插入
+目标插入位置：在句子 “段融站了一会儿，周身已经开始冒热气，他能明显感到气脉在奔腾一般，但他的意识却无法介入进去。” 之后。
+实际定位情况：locate_content 工具未能精确找到该句作为插入点，而是定位到了第3章的起始位置。
+实际插入位置：内容被插入到了第3章的第一句话 段融这一夜，仿佛一直处在梦境中…… 之后。
+插入内容：
+他“看见”一个壮硕人影在练刀，视角却无比诡异。他并非旁观，而是仿佛化作了那人身体里的内息，随着刀势在经脉中奔腾流转。他的神识只是一个渺小的浮萍，在这股洪流中身不由己，只能被动地承接着。那人毕生的苦练与感悟，都化作最本源的印记，不由分说地烙在他的神魂深处，仿佛要将他彻底重塑。
 
----
+要点：
+隐晦地说明了“意识只能旁观、内息自转”的体验。
+避免了直接提及“吞噬器灵”。
+字数符合要求（137字）。
+状态：此插入已在编辑器中生成，并带有修订标记。
+请切回第2章/第3章查看红删绿增修订标记，确认修改是否符合您的预期。 由于定位问题，请特别检查第2章的替换内容是否是您想修改的句子，以及第3章的插入位置是否正确。
 
-## Search 和 Read 的关系
-
-> **Search 和 Read 是「弱依赖的探索式关系」**
-
-### Search = 索引/线索生成器
-
-- 快速定位"哪里可能有相关内容"
-- 返回：位置 + **片段(snippet)**
-- 不保证上下文完整
-- 成本低、速度快
-- 类比：`grep / ripgrep`
-
-### Read = 上下文获取器
-
-- 真正"读代码/文本本身"
-- 返回：**完整上下文**
-- 能看到连续的、完整的内容
-- 成本高、但信息完整
-- 类比：`vim / less`
-
-### 关系
-
-```
-Search（定位）
-   ↓ 返回：位置 + 片段（snippet）
-   ↓
-（模型推理/判断）
-   ↓
-Read（获取上下文）
-   ↓ 返回：完整上下文
-```
-
-**"grep 常常用来决定我 vim 打开哪个文件"**
-
----
-
-## 重构目标
-
-按 **Search / Read / Update** 三大类重新设计，精简到 15 个工具。
-
----
-
-## 四个核心工具设计
-
-### 1. search_content（搜索多个位置）
-
-**为什么需要：**
-- 修改伏笔时，需要找到所有相关位置（牵一发动全身）
-- 用户说"找一下关于XX的内容"
-
-**返回：**
-```json
-{
-    "results": [
-        {"chapter_id": "xxx", "chapter_order": 2, "paragraph_index": 3, "snippet": "主角拿起戒指..."},
-        {"chapter_id": "yyy", "chapter_order": 5, "paragraph_index": 7, "snippet": "那枚戒指闪烁..."}
+✅ 执行任务列表
+[
+  {
+    "work_id": "48e063af-6b4d-4911-817c-b5dc41d863b9",
+    "chapters": [
+      {
+        "id": "7356bc11-2cde-49ca-a45c-d2926ff7f4ae",
+        "title": "第2章 浑圆桩",
+        "order": 2,
+        "content": "赵穆将自己的兵刃，交给段融后，伸了个懒腰，便踱步走到了兵器架前，随便抓了把废刀在手。\n赵穆站在众人面前，右手打了个刀花，道：“这招羚羊献食，我再给你们演练两遍，都看清楚了！”\n赵穆先快打了一遍，只见腿跳刀翻，动作行云流水，似乎带有某种熟稔的韵律一般，看的一众杂役弟子，顿时眼热心羡。\n“看好了！”\n赵穆又喝了一声，接着慢打了一遍，一边打，一边讲解动作要点。\n“右脚上前落在左脚前方，抬左脚向前弹踢！”\n“同时，右手刀由前向右下方，划弧抡撩，然后挑于前方，刀刃向上，刀尖向前！”\n“……”\n赵穆一番演练讲解，扭过头去，看着一脸茫然的一众杂役弟子，他清嗓子咳嗽一声，说道：“来，都打两遍，让我看看。”\n赵穆说完，一众杂役弟子开始围着兵器架子，哗啦啦地抽下刀来。\n赵穆转身看向院门处，只见段融呆呆地坐在那里，赵穆走近了几步，叫道：“小子，刀擦好了吗？”\n段融愣了一下，抬起头来，眼神似乎失焦了一般，呆呆地看着赵穆。\n赵穆有些想发火，他觉得段融是因为不满让他擦刀，故意作出这种呆滞的表情，戏弄于他。\n但，这时段融好似反应过来了，虽然目光还有些呆滞，但他站了起来，将手中刀，插进刀鞘，双手捧着，献于赵穆身前。\n赵穆见段融如此，心头涌起的火气，下来了一大半，他接过刀来，将手中的废刀，放在了段融手上，微怒道：“归队吧！”\n段融抬头看着两手捧着的废刀，似是好一会儿才反应过来一般，拿着废刀，站回到了杂役弟子的人群中。\n赵穆看着段融茫然若失的样子，喃喃道：“不会是前几天发烧，给烧傻了吧？”\n段融站到了队伍的最后，只是茫然地站在了那里，并未像其他杂役弟子一样，已经开始举刀演练起来了。\n今日已经是赵穆，第二日教授羚羊献食这招了。\n这些杂役弟子也都不笨，依葫芦画瓢也都能把套路打下来，但真能打出点意思来的，也就三个人：孔斌、李充、张征。\n从他教授这些杂役弟子以来，几天下来，赵穆就注意到这三人了，三人中以孔斌的根骨最佳，套路也是练得最有样子，而李充、张征次之，不分上下。\n赵穆只重点指导了下这三人，纠正了下细微处的动作，而其他人只是一眼扫过。\n待众人演练完毕，赵穆沉声道：“好了。下去仔细练习，熟能生巧！”\n“现在，都给我站桩！自古都是未练拳，先站桩！”\n“桩站不好，手脚就生不出劲！手上没劲，再好的套路，也是花架子，不中用的！”\n一众杂役弟子都将手中的刀放在脚边，开始站桩。\n赵穆教这些杂役弟子的桩功，乃是一种名为浑圆桩的古老桩功！\n两脚弓步，双手胸前虚抱，五指稍微张开！\n站桩，要一身备五弓，即：身弓、左右臂弓、左右腿弓。\n五弓以身弓为主，臂弓、腿弓为辅。一身备五，五弓合一，形成全身协调统一的整劲。\n除了段融提刀而立，一动未动，其他杂役弟子都站起桩来。\n赵穆依旧只是指导了孔斌、李充、张征三人，拍了拍他们的肩肘，将他们的站桩姿势调整了。\n看得其他杂役弟子，好不眼热！\n赵穆指导完三人的桩功，便怀里夹着那柄牛尾刀，头也不回地走了。\n他每日指导这些杂役弟子练功的时间，也不过只有半柱香而已。\n而赵穆自始至终，都没再看段融一眼。\n段融看似傻愣愣的站着，但其实心里很是清明，或者说，他能清楚得感知到，他的脑子变得迟钝起来。\n脑子里，似乎被塞进了一团“东西”，涨得无法运转，就如同吃饱了肚子，不便运动一样。\n夕阳的余晖洒进了，这方院落，映在了一个个杂役弟子，大汗淋漓，青筋暴起的脸上。\n有些人牙关咬紧，腮帮子鼓了起来，就是撑着一口气。\n站桩能生劲，就在于消耗极大。\n你打拳架子，甚至于与人打斗，都是各处肌肉轮番调动。\n轮番调动，就能轮流休息，但站桩却是全身肌肉一同使力，消耗陡然攀升数倍。\n不过才半柱香的时间，已经有人坚持不住了，气一泄，全身肌肉就开始酸疼，一直身，身子就软了，再也站不下去了。\n几个散劲的杂役弟子，眼神艳羡地看了看，孔斌、李充、张征三人，摇头叹息了下，神色黯然地出了院子。\n在一片残红里，能隐隐看到孔斌、李充、张征三人身上，有淡淡的热气升腾着。\n姿势越标准，消耗越大，他们三人站桩的姿势是赵穆亲自摆正过的，消耗也是一众杂役弟子中最大的，但他们三人通常都能坚持到最后。\n见到陆续有人离开院落，段融虽说迟钝也反应了过来，跟着人群，走了出去。\n这些杂役弟子都心绪黯淡，没有攀谈的欲望，都是各自默默走着。\n明日的练武时辰，这些人里，恐怕还会有几人要缺席了。\n这些杂役弟子，走到了下人院的厨房，开始领取晚饭。\n段融闻到饭香，才忽然感到一阵饥饿，他排在队伍里，领到了一碗白菜汤和两个玉米面窝头。\n段融将汤水和窝头，吃了个干净，才摇摇晃晃地走到了他们平素睡觉的地方。\n此时，天色才刚擦黑，大通铺上，一个人也没有，段融直接躺了下去，倒头就睡了过去。\n他感觉到脑子里的“东西”，像冰一般在慢慢融化，融进他的神魂里。\n离源顺镖局不远的一处偏僻院落里。\n赵穆吃过晚饭后，用院子的井水，洗了洗身子，然后赤裸着上身抓起了那柄牛尾刀。\n赵穆的惯例，就是每晚都要练功，打几趟套路，站一个时辰的桩功。\n他能从杂役弟子，晋升学徒，到现在的实习镖师，除了有些天赋外，勤奋是必不可少的品质。\n赵穆抓着牛尾刀刚打了几式，忽然狐疑地停了下来，就着门口射出来的昏黄灯光，看向手中的牛尾刀。\n这柄刀，从他成为学徒开始，就一直在用，二三年了，早已经颇有感情。\n甚至这半年多来，一入手就隐隐有一丝人刀相应的感觉。\n但，今天晚上，这种感觉，却忽然消失了……\n“没错，是我的刀啊！”赵穆看着在灯光下，泛着寒光的刀刃，目色古怪。\n他将刀在手里掂了掂，可那股熟悉的门道却怎么也使不出来，仿佛这手这刀，都不再听他使唤。",
+        "word_count": 1908
+      },
+      {
+        "id": "7f9ecac9-5dca-4340-93f8-ea58738193c3",
+        "title": "第3章 一夕千悟",
+        "order": 3,
+        "content": "段融这一夜，仿佛一直处在梦境中……\n他“看见”一个人影，身体颇为壮硕，背对着他在练刀。\n起初，还打得生涩，常常接不上趟，但慢慢就熟稔起来，越打越流畅。\n段融不仅能看到他的动作，渐渐地，竟如内视一般，能“看见”他的内息流转。\n而且他站桩和练功时，是两种完全不同的内息流转方式……\n“这是……五虎群羊刀的内功心法！”\n段融蓦然转醒，四周是此起彼伏的鼾声，月光从破洞的窗纸上照了进来，在他的身侧投下一片银白。\n段融脑中一片清明，他立马翻身下了床。\n他走到了院子里，从角落捡起一根树枝，仿佛自然而然地，就摆了个起手式。\n从起手式开始，他竟然将五虎群羊刀，一式一式地打了出来，而且越打越快！\n段融心头越来越兴奋，此时，这套刀法，他竟如同练了几年一般，熟稔无比！\n段融一趟打完，并未停下，接着又打第二趟，而且越打心头越清明，就仿佛是将印在脑海里的刀法，演练了出来一般。\n“刀为心印，一夕千悟……”\n就在段融越打越兴奋时，手中的那根拇指粗细的树枝，忽然咔嚓一声，折断了。\n段融陡然停下，随即发现右臂的肌肉，微微发疼！\n幸亏手中的树枝，不堪受力，断了，要再打下去，他右臂的肌肉，非拉伤不可。\n段融略微思量了下，便理解了这其中的缘由。\n他虽然通过吞噬器灵，一夕千悟，直接获得了入门级的五虎群羊刀的经验，但是他的身体素质并未变化，仍然是个弱鸡。\n以他现在羸弱的身体，根本支撑不住，入门级五虎群羊刀的攻击强度。\n但，打熬身体是水磨功夫，这得慢慢来，急也没用。\n段融现在在思考的是另一个问题，就是五虎群羊刀的内功心法，说得更明白点，就是站桩和练功时，那两种完全不同的内息流转方式。\n段融在梦中，如此真切地感受过内息的流转，但此时他想开始尝试，却完全找不到下手处。\n“内息？”\n段融思量了一会儿，便开始站起了浑圆桩功。\n如果赵穆此时在这里，定会十分惊讶，因为段融此时站桩的姿势，几乎是和他一样标准。\n这浑圆桩，赵穆可是整整站了三年了，但段融进镖局不过才一个多月而已。\n段融之所以，通过站桩来尝试修炼内息，是因为站桩时的内息运转要比练功时，变化少了很多。\n站桩时，内息流转的方式在他的脑子里，历历在目一般，他只要有办法开始，他一定能将其运转起来。\n但，他根本捕捉不到内息。\n段融站了一会儿，周身已经开始冒热气，他能明显感到气脉在奔腾一般，但他的意识却无法介入进去。\n“这……怎么回事？摸不到门道自开，意识只能旁观。啊……”\n段融陡然停了桩功，开始在院子里，踱步思索。\n他思索了一会儿，一有思路就再次站桩尝试，尝试失败，就再次停下来思索，如此反复，直到东面的天际露出了一抹鱼肚白。\n这时，有三个人影，打着哈欠，从杂役宿舍里走了出来。\n段融不扭过头去看，也知道来的是谁。\n是孔斌、李充、张征三人，这三人早已经结成了一个小团体。\n这三人孔斌身材魁梧，人也深沉；李充身材颀长，为人轻浮；张征在两人眼前，就稍显有些矮小了，为人却最是灵活机警。\n这三人从进入镖局开始，就每日早起一个时辰练功。\n要知道杂役弟子，除了傍晚的练功时间外，还有很多活儿要干，一天下来，经常浑身酸疼。\n肌肉恢复也是需要时间的，充足的睡眠是必不可少的。\n能做到每日都早起一个时辰，是需要毅力的，并不容易。\n起码段融的原身就做不到。\n通常来说，比你有天赋的人，都会比你努力。\n他们收获的都是正反馈，眼见就能拿到结果，哪有不努力的道理？\n而你通常遭遇的是一次接一次的挫败，直到你放弃或蜕变为止！\n三人见段融竟然比他们起得还早，已经开始站桩了，都是微微一愣。\n李充冷笑了一下，上前一步，道：“吆，这不是段融吗？”\n李充的语气中，有一股嘲讽的意味，段融自然听得出来，根本就没搭理他。\n李充见段融没搭理自己，脸上的肌肉跳了跳，挖苦道：“怎么？眼见都要考核了，才想着临时抱佛脚啊！有什么用？癞蛤蟆想吃天鹅肉，真以为自己能选上学徒啊？”\n这李充虽是男子，右耳上却戴着一银环，这是父母怕养不大，充作女孩来养。\n他家里原本也颇为富足，从小也是娇生惯养，只是后来家里落魄了，才把他送来这源顺镖局，做了杂役弟子。\n段融上世，在社畜界摸爬滚打多年，对这种毫无城府的煞笔，从来就是赖得搭理。\n李充见自己一番嘲弄，段融竟好似没听见一般，仍然一动不动地站着浑圆桩，顿时便来了火气。“段融，我跟你说话呢？你听见没有？你一个毫无天赋的家伙，活该做一辈子杂役，在这儿给我装什么装？”\n李充见段融兀自不搭理自己，一时有些压不住怒气，眼见就要动手，忽然被孔斌一把按住了肩膀。\n“老弟，他练他的，我们练我们的，你何必跟他一般见识？真动起手来，万一打伤了，要挨责罚的！”\n“斌哥，你看他那样，我跟他打招呼，他跟没听见一样。”\n孔斌看了段融一眼，只见段融的头顶热气蒸腾，浑圆桩的站姿也颇为标准，心里微微有些讶异，道：“马上要考核了，别惹事！”\n孔斌说完，便在院子一僻静角落处，开始站桩。\n张征也拍了下李充的肩膀，道：“我们的目标是晋升学徒，其他事，不重要！”\n张征说完，便站在孔斌的不远处，开始练功。\n李充瞪了段融背影一眼，往地上啐了一口吐沫，也只得兀自站起桩来。\n他虽然在段融面前，装得趾高气扬的，但其实在三人中，他是最没话语权的。\n孔斌人狠话少，心里最有谱，天赋也最好，是三人的核心。张征的脑子灵活，鬼点子最多。\n李充通常就是个听吩咐的，要不他练武还有些天赋，孔斌和张征，都不想带他玩的。",
+        "word_count": 1843
+      }
+    ]
+  },
+  {
+    "success": true,
+    "query": "这怎么回事？一点也不顺手了……倒像是攥了一把新刀……",
+    "chapter_id": "7356bc11-2cde-49ca-a45c-d2926ff7f4ae",
+    "total_paragraphs": 65,
+    "locate_method": "llm_assisted",
+    "paragraph_index": 14,
+    "text_preview": "赵穆见段融如此，心头涌起的火气，下来了一大半，他接过刀来，将手中的废刀，放在了段融手上，微怒道：“归...",
+    "text": "赵穆见段融如此，心头涌起的火气，下来了一大半，他接过刀来，将手中的废刀，放在了段融手上，微怒道：“归队吧！”",
+    "node_id": "6nf35ycf",
+    "confidence": 0.85,
+    "before_anchor": "，但他站了起来，将手中刀，插进刀鞘，双手捧着，献于赵穆身前。",
+    "after_anchor": "段融抬头看着两手捧着的废刀，似是好一会儿才反应过来一般，拿着"
+  },
+  {
+    "success": true,
+    "action_type": "rewrite",
+    "chapter_id": "7356bc11-2cde-49ca-a45c-d2926ff7f4ae",
+    "original_text": "赵穆见段融如此，心头涌起的火气，下来了一大半，他接过刀来，将手中的废刀，放在了段融手上，微怒道：“归队吧！”",
+    "versions": [
+      {
+        "style_name": "版本A",
+        "reason": "侧重于身体先于意识的本能动作。",
+        "content": "段融那副模样，让赵穆心头火气一滞，意识尚未跟上，手已换过了刀。他将废刀塞入段融手中，暗忖这其中门道他还差得远，只剩一丝余怒道：“归队吧！”"
+      },
+      {
+        "style_name": "版本B",
+        "reason": "侧重于怒意被无力感压制的内在冲突。",
+        "content": "对上段融的目光，赵穆心头的火仿佛被无形的手掐灭大半。这动作不经思索，意识都无法介入，他已换好刀塞过去，只觉连其中门道都懒得再提，闷声道：“归队吧！”"
+      },
+      {
+        "style_name": "版本C",
+        "reason": "侧重于事后才察觉自身行为的抽离感。",
+        "content": "赵穆见他这般，胸中火气竟自行退了潮。不等意识做出决断，他已换好刀塞了过去。直到话音出口，才发觉连其中门道都未点拨，只剩一句余怒未消的命令：“归队吧！”"
+      }
     ],
-    "total": 2
-}
-```
-
-**实现：**
-```python
-async def search_content(
-    work_id: str,
-    query: str,
-    top_k: int = 10
-) -> str:
-    """
-    搜索多个相关位置（返回位置 + 片段）
-    基于 HybridRetriever（向量 + 全文检索）
-    """
-    retriever = HybridRetriever(db)
-    results = await retriever.search(work_id=work_id, query=query, top_k=top_k)
-
-    return [{
-        "chapter_id": r["chapter_id"],
-        "chapter_order": r["chapter_order"],
-        "paragraph_index": r["paragraph_index"],
-        "snippet": r["content"][:200]  # 只返回片段，不是完整内容
-    } for r in results]
-```
-
-**与现有工具的关系：**
-- 重命名 `search_analysis_fragments_tool` → `search_content`
-- 简化返回内容，只返回片段
-
----
-
-### 2. locate_content（定位单个位置）
-
-**为什么需要：**
-- 用户说"把第三段改了"
-- 精确定位单个位置
-
-**返回：**
-```json
-{
-    "chapter_id": "xxx",
-    "paragraph_index": 3,
-    "snippet": "主角缓缓走进大厅...",
-    "node_id": "abc123",
+    "description": "AI改写：54字 → 生成3个版本"
+  },
+  {
+    "success": true,
+    "requires_confirmation": true,
+    "action_type": "update_content",
+    "chapter_id": "7356bc11-2cde-49ca-a45c-d2926ff7f4ae",
+    "work_id": "48e063af-6b4d-4911-817c-b5dc41d863b9",
+    "operation": "replace",
+    "content": "段融那副模样，让赵穆心头火气一滞，意识尚未跟上，手已换过了刀。他将废刀塞入段融手中，暗忖这其中门道他还差得远，只剩一丝余怒道：“归队吧！”",
+    "original_text": "赵穆见段融如此，心头涌起的火气，下来了一大半，他接过刀来，将手中的废刀，放在了段融手上，微怒道：“归队吧！”",
+    "position": null,
+    "node_id": "6nf35ycf",
+    "paragraph_index": 14,
+    "before_anchor": "，但他站了起来，将手中刀，插进刀鞘，双手捧着，献于赵穆身前。",
+    "after_anchor": "段融抬头看着两手捧着的废刀，似是好一会儿才反应过来一般，拿着",
+    "content_length": 69,
+    "description": "update content (replace)"
+  },
+  {
+    "success": true,
+    "query": "段融站了一会儿，周身已经开始冒热气，他能明显感到气脉在奔腾一般，但他的意识却无法介入进去。",
+    "chapter_id": "7f9ecac9-5dca-4340-93f8-ea58738193c3",
+    "total_paragraphs": 64,
+    "locate_method": "keyword",
+    "paragraph_index": 0,
+    "text_preview": "段融这一夜，仿佛一直处在梦境中……",
+    "text": "段融这一夜，仿佛一直处在梦境中……",
+    "node_id": "hicij01s",
     "confidence": 0.95
-}
-```
-
-**实现：**
-- 保持现有 `locate_content` 的 7 种定位策略
-- 返回位置 + 片段（不是完整段落）
-
-**与现有工具的关系：**
-- 保持现有实现，无需修改
-
----
-
-### 3. get_writing_context（获取完整上下文）
-
-**为什么需要：**
-- 续写前需要完整上下文
-- 合并 4 个原子工具，减少调用次数
-
-**返回：**
-```json
-{
-    "work_info": {"title": "...", "description": "...", "genre": "..."},
-    "chapter": {"id": "...", "title": "...", "content": "完整内容..."},
-    "worldview": {
-        "characters": [...],
-        "locations": [...],
-        "settings": [...]
+  },
+  {
+    "success": true,
+    "action_type": "insert",
+    "chapter_id": "7f9ecac9-5dca-4340-93f8-ea58738193c3",
+    "content": "他“看见”一个壮硕人影在练刀，视角却无比诡异。他并非旁观，而是仿佛化作了那人身体里的内息，随着刀势在经脉中奔腾流转。他的神识只是一个渺小的浮萍，在这股洪流中身不由己，只能被动地承接着。那人毕生的苦练与感悟，都化作最本源的印记，不由分说地烙在他的神魂深处，仿佛要将他彻底重塑。",
+    "content_length": 137,
+    "description": "AI生成插入内容：137字"
+  },
+  {
+    "success": true,
+    "requires_confirmation": true,
+    "action_type": "update_content",
+    "chapter_id": "7f9ecac9-5dca-4340-93f8-ea58738193c3",
+    "work_id": "48e063af-6b4d-4911-817c-b5dc41d863b9",
+    "operation": "insert",
+    "content": "他“看见”一个壮硕人影在练刀，视角却无比诡异。他并非旁观，而是仿佛化作了那人身体里的内息，随着刀势在经脉中奔腾流转。他的神识只是一个渺小的浮萍，在这股洪流中身不由己，只能被动地承接着。那人毕生的苦练与感悟，都化作最本源的印记，不由分说地烙在他的神魂深处，仿佛要将他彻底重塑。",
+    "original_text": "替换",
+    "position": {
+      "from": 39,
+      "to": 39
     },
-    "style_guidance": "使用第一人称，句子较长...",
-    "rag_context": [...]
-}
-```
-
-**实现：**
-```python
-async def get_writing_context(
-    work_id: str,
-    chapter_id: str = "",
-    user_id: str = "",
-    include: List[str] = ["work", "chapter", "worldview", "style", "rag"]
-) -> str:
-    """
-    获取创作上下文（一站式）
-    合并：get_context + read_chapter + get_worldview_summary + get_style_guidance
-    """
-    result = {}
-
-    if "work" in include:
-        work = await work_service.get_work_by_id(work_id)
-        result["work_info"] = {
-            "title": work.title,
-            "description": work.description,
-            "genre": work.genre,
-            "total_chapters": len(work.chapters)
-        }
-
-    if "chapter" in include and chapter_id:
-        chapter = await chapter_service.get_chapter_by_id(chapter_id)
-        result["chapter"] = {
-            "id": str(chapter.id),
-            "title": chapter.title,
-            "order": chapter.order,
-            "content": chapter.content,  # 完整内容
-            "word_count": chapter.word_count
-        }
-
-    if "worldview" in include:
-        result["worldview"] = {
-            "characters": await worldview_service.get_characters_by_work(work_id),
-            "locations": await worldview_service.get_locations_by_work(work_id),
-            "settings": await worldview_service.get_settings_by_work(work_id)
-        }
-
-    if "style" in include and user_id:
-        result["style_guidance"] = get_style_prompt(user_id)
-
-    if "rag" in include:
-        result["rag_context"] = await chapter_vector_service.retrieve_for_writing(
-            work_id=work_id,
-            current_chapter_order=chapter.order if chapter else None,
-            query="作品背景、人物关系、情节发展",
-            top_k=5
-        )
-
-    return json.dumps(result, ensure_ascii=False)
-```
-
-**与现有工具的关系：**
-- 新建聚合工具
-- 删除 4 个原子工具：`get_context_tool`, `read_chapter_tool`, `get_worldview_summary`, `get_style_guidance_tool`
-
-**优化效果：**
-```
-Before: get_context → read_chapter → get_worldview → get_style → smart_continue
-After:  get_writing_context → smart_continue
-```
-
----
-
-### 4. analyze_content（分析内容）
-
-**为什么需要：**
-- 创作后需要分析质量
-- 合并 3 个分析工具
-
-**返回：**
-```json
-{
-    "text_analysis": {
-        "issues": ["第3段有语病", "第5段逻辑不通"],
-        "suggestions": [...]
-    },
-    "style_features": {
-        "avg_sentence_length": 25,
-        "pov": "first_person",
-        "dialogue_ratio": 0.3
-    },
-    "consistency_report": {
-        "score": 85,
-        "inconsistencies": [...]
-    }
-}
-```
-
-**实现：**
-```python
-async def analyze_content(
-    text: str,
-    work_id: str = "",
-    analysis_types: List[str] = ["text", "style", "consistency"]
-) -> str:
-    """
-    分析内容质量（一站式）
-    合并：analyze_text + analyze_style + check_story_consistency
-    """
-    result = {}
-
-    if "text" in analysis_types:
-        result["text_analysis"] = await _analyze_text_with_llm(text)
-
-    if "style" in analysis_types:
-        features = analyze_writing_style(text)
-        result["style_features"] = {
-            "avg_sentence_length": features.avg_sentence_length,
-            "pov": features.pov,
-            "dialogue_ratio": features.dialogue_ratio
-        }
-
-    if "consistency" in analysis_types and work_id:
-        report = await check_story_consistency(work_id, ...)
-        result["consistency_report"] = {
-            "score": report.consistency_score,
-            "inconsistencies": report.inconsistencies
-        }
-
-    return json.dumps(result, ensure_ascii=False)
-```
-
-**与现有工具的关系：**
-- 新建聚合工具
-- 删除 3 个原子工具：`analyze_text_tool`, `analyze_style_tool`, `check_story_consistency_tool`
-
----
-
-## 工具分类总览
-
-### Search（搜索/定位）- 2 个
-
-| 工具 | 功能 | 返回 |
-|------|------|------|
-| `search_content` | 搜索多个相关位置 | 位置 + 片段（多个） |
-| `locate_content` | 定位单个位置 | 位置 + 片段（单个） |
-
-### Read（读取/分析）- 2 个
-
-| 工具 | 功能 | 返回 |
-|------|------|------|
-| `get_writing_context` | 获取创作上下文 | 完整上下文 |
-| `analyze_content` | 分析内容质量 | 分析报告 |
-
-### Update（创建/修改/删除）- 11 个
-
-| 工具 | 功能 | 类型 |
-|------|------|------|
-| `smart_continue` | 智能续写 | 创作 |
-| `smart_rewrite` | 智能重写 | 创作 |
-| `smart_insert` | 智能插入 | 创作 |
-| `show_emotion_tool` | 展示情感 | 增强 |
-| `enhance_scene_tool` | 增强场景 | 增强 |
-| `learn_style_tool` | 学习风格 | 增强 |
-| `apply_chapter_edit` | 应用编辑 | 操作 |
-| `create_chapter` | 创建章节 | 操作 |
-| `update_chapter_title` | 更新标题 | 操作 |
-| `update_chapter_content` | 更新内容 | 操作 |
-| `delete_chapter` | 删除章节 | 操作 |
-
----
-
-## 删除的工具
-
-| 工具 | 删除原因 |
-|------|----------|
-| `get_chapter_by_order_tool` | 与 `read_chapter_tool` 重复 |
-| `search_analysis_fragments_tool` | 重命名为 `search_content` |
-| `get_context_tool` | 合并到 `get_writing_context` |
-| `read_chapter_tool` | 合并到 `get_writing_context` |
-| `get_worldview_summary` | 合并到 `get_writing_context` |
-| `get_style_guidance_tool` | 合并到 `get_writing_context` |
-| `analyze_text_tool` | 合并到 `analyze_content` |
-| `analyze_style_tool` | 合并到 `analyze_content` |
-| `check_story_consistency_tool` | 合并到 `analyze_content` |
-
----
-
-## 实现步骤
-
-1. 创建 `get_writing_context` 聚合工具
-2. 创建 `analyze_content` 聚合工具
-3. 重命名 `search_analysis_fragments_tool` 为 `search_content`
-4. 删除冗余的原子工具
-5. 更新 `LANGGRAPH_TOOLS` 列表
-6. 更新工具描述文档
-
----
-
-## 设计原则
-
-1. **Search 返回片段，Read 返回完整上下文**
-2. **参数控制返回内容**，而不是创建多个工具
-3. **减少工具数量**，降低 Agent 决策负担
-4. **一站式调用**，常见场景一次搞定
-
----
-
-## 效果
-
-| 指标 | Before | After |
-|------|--------|-------|
-| 工具总数 | 21 | 15 |
-| 续写调用次数 | 4-5 次 | 2 次 |
-| Agent 决策复杂度 | 高 | 低 |
+    "node_id": "hicij01s",
+    "paragraph_index": 0,
+    "before_anchor": "{\"success\": true, \"query\": \"段融站了一会儿，周身已经开始冒热气，他能明显感到气脉在奔腾一般，但他的意识却无法介入进去。\", \"chapter_id\": \"7f9ecac9-5dca-4340-93f8-ea58738193c3\", \"total_paragraphs\": 64, \"locate_method\": \"keyword\", \"paragraph_index\": 0, \"text_preview\": \"段融这一夜，仿佛一直处在梦境中……\", \"text\": \"段融这一夜，仿佛一直处在梦境中……\", \"node_id\": \"hicij01s\", \"confidence\": 0.95}",
+    "after_anchor": null,
+    "content_length": 137,
+    "description": "update content (insert)"
+  }
+]

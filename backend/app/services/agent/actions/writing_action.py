@@ -423,7 +423,7 @@ class WritingAction(BaseAction):
 - get_context_tool: 获取作品/章节上下文（包含作品信息、章节内容、相关分析）
 - read_chapter_tool: 读取指定章节的完整内容（需要chapter_id）
 - get_chapter_by_order_tool: 通过章节序号获取章节（⭐用户说"第X章"时用这个）
-- search_analysis_fragments_tool: 从向量数据库检索相关的小说分析片段（RAG）
+- search_content: 从向量数据库检索相关的小说分析片段（RAG，返回snippet）
 - get_worldview_summary: 查询世界观信息（当用户询问"世界观里有什么"、"有哪些角色/地点/设定"时立即调用）
 
 ## ✍️ 编辑器工具（直接修改编辑器内容 - 优先使用）

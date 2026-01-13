@@ -10,9 +10,10 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional, Callable
 
 from .config import DeepAgentConfig
-from .reflection import think_tool, should_reflect, ReflectionResult
+from .reflection import think_tool, iterative_reflect, should_reflect, ReflectionResult
 from .task_enricher import get_task_enricher
 from app.services.agent.model_selector import TaskType
+from app.services.agent.execution.dynamic_plan import DynamicPlan
 from app.services.agent.tools import registry  # 2025-12-14: 导入 registry 用于动态获取工具
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,8 @@ class DeepAgentExecutor:
 
         # 为关键任务补充验收标准（从描述/意图中推断数量等），便于末尾校验
         tasks = self._inject_acceptance(tasks, user_intent)
+        dynamic_plan = DynamicPlan(tasks)
+        tasks = dynamic_plan.tasks
 
         logger.info(f"DeepAgent 开始执行，共 {len(tasks)} 个任务，反思功能已启用")
 
@@ -96,12 +99,14 @@ class DeepAgentExecutor:
             task_enricher.set_ai_generate_func(self.agent._generate_text)
 
         has_checkpoint = any(t.get("checkpoint") for t in tasks)
-        i = 0
-        while i < len(tasks):
-            task = tasks[i]
+        while dynamic_plan.has_pending():
+            task = dynamic_plan.get_next()
+            if not task:
+                break
+            i = dynamic_plan.current_index
             task_id = task.get("task_id", i + 1)
-            total_tasks = len(tasks)
-            remaining_tasks_count = total_tasks - (i + 1)
+            total_tasks = dynamic_plan.get_total_count()
+            remaining_tasks_count = len(dynamic_plan.get_remaining())
 
             # ✅ 任务增强：为缺少 tool 的任务自动推断工具
             # 这对重规划生成的任务尤为重要
@@ -112,7 +117,7 @@ class DeepAgentExecutor:
                     context=context,
                     completed_results=results  # ✅ 传递已完成任务结果
                 )
-                tasks[i] = task  # 更新任务列表
+                task = dynamic_plan.update_task(i, task)  # 更新任务列表
 
             # 发送任务开始事件
             if self.on_task_start:
@@ -243,6 +248,9 @@ class DeepAgentExecutor:
                     tasks = tasks[:i + 1] + ([remedy_task] if remedy_task else []) + updated_remaining
                     if new_tasks:
                         self.replan_count += 1
+                    # 重新绑定动态计划（保留状态）
+                    dynamic_plan.replace_tasks(tasks, current_index=i, new_task_ids=new_task_ids)
+                    tasks = dynamic_plan.tasks
 
                     # 发送更新的计划事件
                     if self.on_plan:
@@ -254,7 +262,7 @@ class DeepAgentExecutor:
                         ]
 
                         await self._safe_callback(self.on_plan, {
-                            "tasks": [self._format_task(t, j) for j, t in enumerate(tasks, 1)],
+                            "tasks": dynamic_plan.to_display_list(),
                             "is_update": True,
                             "new_task_ids": new_task_ids,
                             "reason": reflection_result.reflection[:100],
@@ -262,7 +270,11 @@ class DeepAgentExecutor:
 
                     logger.info(f"计划已更新，新任务数: {len(new_tasks or []) + (1 if remedy_task else 0)}")
 
-            i += 1
+            # 更新任务状态
+            if result.get("status") == "failed":
+                dynamic_plan.mark_failed(task_id)
+            else:
+                dynamic_plan.mark_completed(task_id)
 
         # 最终校验：发现缺口则追加一次补救任务
         tasks, results = await self._final_check_and_fix(
@@ -271,6 +283,7 @@ class DeepAgentExecutor:
             context=context,
             user_intent=user_intent,
             execute_task_func=execute_task_func,
+            dynamic_plan=dynamic_plan,
         )
 
         logger.info(
@@ -318,13 +331,26 @@ class DeepAgentExecutor:
                 "timestamp": datetime.now().isoformat(),
             })
 
-            # MVP方案：复用 task_progress 事件发送反思内容
-            # 前端 progress_status 会自动显示，无需任何改动
+            # 结构化 thinking：通过 task_progress 发送字典，由后端/前端转为 thinking 事件
             if self.on_task_progress:
+                structured = await iterative_reflect(
+                    task=task,
+                    result=result,
+                    remaining_tasks=remaining_tasks,
+                    context=context,
+                    agent_graph=self.agent,
+                )
                 await self._safe_callback(
                     self.on_task_progress,
                     task,
-                    f"💭 反思: {reflection_result.reflection}"
+                    {
+                        "type": "thinking",
+                        "data": {
+                            "summary": structured.summary,
+                            "next_step": structured.next_step,
+                            "action": structured.action,
+                        }
+                    }
                 )
 
             logger.debug(f"反思完成: needs_replan={reflection_result.needs_replan}")
@@ -551,6 +577,7 @@ class DeepAgentExecutor:
         context: Dict[str, Any],
         user_intent: str,
         execute_task_func: Callable,
+        dynamic_plan: Optional[DynamicPlan] = None,
     ) -> (List[Dict[str, Any]], Dict[Any, Dict[str, Any]]):
         """末尾验收：数量/必需要点不达标则追加一次补救任务"""
 
@@ -665,11 +692,15 @@ class DeepAgentExecutor:
         }
 
         tasks.append(remedy_task)
+        if dynamic_plan:
+            dynamic_plan.replace_tasks(tasks, current_index=dynamic_plan.current_index, new_task_ids=[new_task_id])
+            tasks = dynamic_plan.tasks
 
         # 🔧 2025-12-16: 通知前端任务列表已更新（之前缺失导致前端看不到补救任务）
         if self.on_plan:
+            display_tasks = dynamic_plan.to_display_list() if dynamic_plan else [self._format_task(t, j) for j, t in enumerate(tasks, 1)]
             await self._safe_callback(self.on_plan, {
-                "tasks": [self._format_task(t, j) for j, t in enumerate(tasks, 1)],
+                "tasks": display_tasks,
                 "is_update": True,
                 "new_task_ids": [new_task_id],
                 "reason": f"末尾验收未通过: {requirement_text[:50]}",
@@ -690,6 +721,11 @@ class DeepAgentExecutor:
             logger.error(f"补救任务执行失败: {e}")
 
         results[new_task_id] = remedy_result
+        if dynamic_plan:
+            if remedy_result.get("status") == "failed":
+                dynamic_plan.mark_failed(new_task_id)
+            else:
+                dynamic_plan.mark_completed(new_task_id)
 
         if self.on_task_done:
             task_with_time = {**remedy_task, "elapsed_time": remedy_result.get("elapsed_time", 0)}

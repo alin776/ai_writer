@@ -300,6 +300,9 @@ async def apply_chapter_edit(
         包含确认请求的结果
     """
     try:
+        # 🔧 2026-01-13: 添加调试日志
+        logger.info(f"[apply_chapter_edit] 参数: chapter_id={chapter_id}, operation={operation}, content_len={len(content) if content else 0}")
+
         # 🔧 2026-01-11: 防御性类型转换 - 确保 paragraph_index 是整数或 None
         if paragraph_index is not None:
             try:
@@ -463,6 +466,7 @@ async def apply_chapter_edit(
             if operation == "append" and old_content.endswith(actual_content):
                 return json.dumps({
                     "success": True,
+                    "requires_confirmation": True,  # 🔧 2026-01-12: 添加此字段，让 AI 知道操作已完成
                     "action_type": "update_content",
                     "chapter_id": resolved_chapter_id,
                     "work_id": str(chapter.work_id),
@@ -506,6 +510,7 @@ async def apply_chapter_edit(
                         if old_content[insert_pos:insert_pos + len(actual_content)] == actual_content:
                             return json.dumps({
                                 "success": True,
+                                "requires_confirmation": True,  # 🔧 2026-01-12: 添加此字段
                                 "action_type": "update_content",
                                 "chapter_id": resolved_chapter_id,
                                 "work_id": str(chapter.work_id),
@@ -546,6 +551,7 @@ async def apply_chapter_edit(
                     if original_text and actual_content in old_content and original_text not in old_content:
                         return json.dumps({
                             "success": True,
+                            "requires_confirmation": True,  # 🔧 2026-01-12: 添加此字段
                             "action_type": "update_content",
                             "chapter_id": resolved_chapter_id,
                             "work_id": str(chapter.work_id),

@@ -58,6 +58,12 @@ class ParameterResolver:
         r'[$]TASK_(\d+)(?:\.([a-zA-Z_][a-zA-Z0-9_.\[\]]*))?[$]'
     )
 
+    # 🆕 2026-01-12: 兼容模式 - 支持没有结尾 $ 的占位符（AI 偶尔生成错误格式）
+    # 匹配: $TASK_1 或 $TASK_1.content（没有结尾 $，后面跟空白、逗号、引号等）
+    LOOSE_PLACEHOLDER_PATTERN = re.compile(
+        r'[$]TASK_(\d+)(?:\.([a-zA-Z_][a-zA-Z0-9_.\[\]]*))?(?=\s|$|,|\}|\"|\')'
+    )
+
     # 兼容旧格式占位符（逐步废弃）
     # 匹配: 【步骤1返回的章节内容】、【任务1的结果】等
     LEGACY_PATTERN = re.compile(
@@ -162,6 +168,9 @@ class ParameterResolver:
             if isinstance(value, str):
                 # 🔧 2026-01-11: 检查是否是纯占位符，如果是则保留原始类型
                 pure_placeholder_match = self.PLACEHOLDER_PATTERN.fullmatch(value)
+                # 🆕 2026-01-12: 兼容模式 - 也检查没有结尾 $ 的占位符
+                if not pure_placeholder_match:
+                    pure_placeholder_match = self.LOOSE_PLACEHOLDER_PATTERN.fullmatch(value)
                 if pure_placeholder_match:
                     # 纯占位符（如 "$TASK_1.paragraph_index$"），提取原始值并保留类型
                     resolved[key] = self._extract_typed_value(
@@ -184,6 +193,9 @@ class ParameterResolver:
                     if isinstance(item, str):
                         # 🔧 2026-01-11: 列表元素也检查纯占位符
                         pure_match = self.PLACEHOLDER_PATTERN.fullmatch(item)
+                        # 🆕 2026-01-12: 兼容模式
+                        if not pure_match:
+                            pure_match = self.LOOSE_PLACEHOLDER_PATTERN.fullmatch(item)
                         if pure_match:
                             resolved[key].append(
                                 self._extract_typed_value(pure_match, current_task_id)
@@ -226,6 +238,9 @@ class ParameterResolver:
         task_id = int(match.group(1))
         field_path = match.group(2)
 
+        # 🔧 2026-01-13: 添加调试日志
+        logger.info(f"[ParameterResolver] 解析占位符: $TASK_{task_id}.{field_path}$")
+
         # 检测自引用
         if current_task_id and task_id == current_task_id:
             logger.warning(
@@ -247,6 +262,9 @@ class ParameterResolver:
 
         task_result = self.task_results[task_id]
 
+        # 🔧 2026-01-13: 添加调试日志
+        logger.info(f"[ParameterResolver] 任务{task_id}结果长度: {len(task_result) if task_result else 0}")
+
         # 如果没有字段路径，返回完整结果（字符串）
         if not field_path:
             return task_result
@@ -255,6 +273,7 @@ class ParameterResolver:
         try:
             data = json.loads(task_result)
             tokens = self._parse_field_path(field_path)
+            logger.info(f"[ParameterResolver] 解析路径 {field_path} -> tokens: {tokens}")
 
             value = data
             for token in tokens:
@@ -262,20 +281,23 @@ class ParameterResolver:
                     if isinstance(value, list) and 0 <= token < len(value):
                         value = value[token]
                     else:
+                        logger.warning(f"[ParameterResolver] 数组索引 {token} 越界，降级返回完整结果")
                         return task_result  # 降级返回完整结果
                 elif isinstance(value, dict) and token in value:
                     value = value[token]
                 else:
+                    logger.warning(f"[ParameterResolver] 字段 {token} 不存在于 {type(value).__name__}，降级返回完整结果")
                     return task_result  # 降级返回完整结果
 
             # 🔧 关键：直接返回原始值，不转换为字符串
-            logger.debug(
+            logger.info(
                 f"[ParameterResolver] $TASK_{task_id}.{field_path}$ → "
-                f"{type(value).__name__}: {value}"
+                f"{type(value).__name__}: {str(value)[:100]}"
             )
             return value
 
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            logger.warning(f"[ParameterResolver] JSON解析失败: {e}")
             return task_result
 
     def _resolve_string(
@@ -302,6 +324,17 @@ class ParameterResolver:
             lambda m: self._replace_placeholder(m, current_task_id),
             text
         )
+
+        # 🆕 2026-01-12: 兼容模式 - 尝试解析没有结尾 $ 的占位符
+        if self.LOOSE_PLACEHOLDER_PATTERN.search(result):
+            logger.warning(
+                f"[ParameterResolver] 检测到不规范占位符（缺少结尾$）: {text[:100]}, "
+                f"建议使用标准格式 $TASK_N$ 或 $TASK_N.field$"
+            )
+            result = self.LOOSE_PLACEHOLDER_PATTERN.sub(
+                lambda m: self._replace_placeholder(m, current_task_id),
+                result
+            )
 
         # 2. 兼容旧格式占位符 【步骤1...】
         if self.LEGACY_PATTERN.search(result):

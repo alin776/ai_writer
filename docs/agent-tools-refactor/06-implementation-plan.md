@@ -1,38 +1,43 @@
 # 实现计划
 
+> **实现状态**: ✅ 阶段 1-3 已完成 (2026-01-12)
+
 ## 1. 实现阶段
 
-### 阶段 1：创建聚合工具
+### 阶段 1：创建聚合工具 ✅ 已完成
 
-| 任务 | 文件 | 优先级 |
-|------|------|--------|
-| 创建 `get_writing_context` | `langgraph_tools.py` | P0 |
-| 创建 `analyze_content` | `analysis_tools.py` | P0 |
-| 重命名 `search_analysis_fragments_tool` → `search_content` | `langgraph_tools.py` | P1 |
+| 任务 | 文件 | 优先级 | 状态 |
+|------|------|--------|------|
+| 创建 `get_writing_context` | `langgraph_tools.py` | P0 | ✅ 完成 |
+| 创建 `analyze_content` | `analysis_tools.py` | P0 | ✅ 完成 |
+| 重命名 `search_analysis_fragments_tool` → `search_content` | `langgraph_tools.py` | P1 | 待评估 |
 
-### 阶段 2：添加向后兼容层
+### 阶段 2：添加向后兼容层 ✅ 已完成
 
-| 任务 | 文件 | 优先级 |
-|------|------|--------|
-| 添加工具名称映射 | `tool_executor.py` | P0 |
-| 添加参数转换逻辑 | `tool_executor.py` | P0 |
-| 标记旧工具为 deprecated | 各工具文件 | P1 |
+| 任务 | 文件 | 优先级 | 状态 |
+|------|------|--------|------|
+| 添加工具名称映射 | `tool_executor.py` | P0 | ✅ 完成 |
+| 添加参数转换逻辑 | `tool_executor.py` | P0 | ✅ 完成 |
+| 标记旧工具为 deprecated | 各工具文件 | P1 | ✅ 完成 |
 
-### 阶段 3：更新 Agent 配置
+### 阶段 3：更新 Agent 配置 ✅ 已完成
 
-| 任务 | 文件 | 优先级 |
-|------|------|--------|
-| 更新工具描述 | `planning_examples.py` | P0 |
-| 更新 LANGGRAPH_TOOLS 列表 | `langgraph_tools.py` | P0 |
-| 更新二次工具调用逻辑 | `agent_executor.py` | P1 |
+| 任务 | 文件 | 优先级 | 状态 |
+|------|------|--------|------|
+| 更新工具描述 | `planning_examples.py` | P0 | ✅ 完成 |
+| 更新 Planning Prompt | `planning_prompts.py` | P0 | ✅ 完成 |
+| 更新工具描述模块 | `tool_descriptions.py` | P0 | ✅ 完成 |
+| 更新决策提示词 | `decision_prompts.py` | P0 | ✅ 完成 |
+| 更新 LANGGRAPH_TOOLS 列表 | `langgraph_tools.py` | P0 | ✅ 完成 |
+| 添加 get_writing_context 到 LEGACY_TOOLS | `tool_executor.py` | P0 | ✅ 完成 |
 
 ### 阶段 4：测试与验证
 
-| 任务 | 文件 | 优先级 |
-|------|------|--------|
-| 编写单元测试 | `tests/` | P0 |
-| 编写集成测试 | `tests/` | P1 |
-| 回归测试 | - | P0 |
+| 任务 | 文件 | 优先级 | 状态 |
+|------|------|--------|------|
+| 编写单元测试 | `tests/` | P0 | 待完成 |
+| 编写集成测试 | `tests/` | P1 | 待完成 |
+| 回归测试 | - | P0 | 待完成 |
 
 ---
 
@@ -452,25 +457,26 @@ LANGGRAPH_TOOLS = [
 
 ### 实现前检查
 
-- [ ] 确认现有工具的完整列表
-- [ ] 确认现有工具的调用频率
-- [ ] 确认 Planning Prompt 的当前内容
-- [ ] 确认 tool_executor.py 的当前映射
+- [x] 确认现有工具的完整列表
+- [x] 确认现有工具的调用频率
+- [x] 确认 Planning Prompt 的当前内容
+- [x] 确认 tool_executor.py 的当前映射
 
 ### 实现中检查
 
-- [ ] get_writing_context 实现完成
-- [ ] analyze_content 实现完成
-- [ ] search_content 重命名完成
-- [ ] 工具映射添加完成
-- [ ] 参数转换添加完成
-- [ ] Planning Prompt 更新完成
-- [ ] LANGGRAPH_TOOLS 更新完成
+- [x] get_writing_context 实现完成 ✅ (2026-01-12)
+- [x] analyze_content 实现完成 ✅ (2026-01-12)
+- [ ] search_content 重命名完成（待评估）
+- [x] 工具映射添加完成 ✅ (2026-01-12)
+- [x] 参数转换添加完成 ✅ (2026-01-12)
+- [x] Planning Prompt 更新完成 ✅ (2026-01-12)
+- [x] LANGGRAPH_TOOLS 更新完成 ✅ (2026-01-12)
+- [x] get_writing_context 添加到 LEGACY_TOOLS ✅ (2026-01-12)
 
 ### 实现后检查
 
 - [ ] 单元测试通过
 - [ ] 集成测试通过
 - [ ] 回归测试通过
-- [ ] 旧工具调用兼容
+- [x] 旧工具调用兼容 ✅ (2026-01-12)
 - [ ] 前端功能正常

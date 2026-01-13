@@ -162,9 +162,11 @@ class AgentApiService {
       onError?: (error: string) => void;
       // Planning ????
       onPlan?: (plan: any) => void;
+      onPlanUpdate?: (plan: any) => void;
       onTaskStart?: (task: any) => void;
       onTaskProgress?: (progress: any) => void;
       onTaskDone?: (taskDone: any) => void;
+      onThinking?: (thinking: any) => void;
       // React ????
       onProgress?: (progress: any) => void;
       onToolCall?: (toolCall: any) => void;
@@ -261,6 +263,13 @@ class AgentApiService {
                 case 'plan':
                   callbacks.onPlan?.(data.data);
                   break;
+                case 'plan_update':
+                  if (callbacks.onPlanUpdate) {
+                    callbacks.onPlanUpdate(data.data);
+                  } else {
+                    callbacks.onPlan?.(data.data);
+                  }
+                  break;
                 case 'task_start':
                   callbacks.onTaskStart?.(data.data);
                   break;
@@ -269,6 +278,12 @@ class AgentApiService {
                   break;
                 case 'task_done':
                   callbacks.onTaskDone?.(data.data);
+                  break;
+                case 'task_complete':
+                  callbacks.onTaskDone?.(data.data);
+                  break;
+                case 'thinking':
+                  callbacks.onThinking?.(data.data);
                   break;
 
                 // React ????

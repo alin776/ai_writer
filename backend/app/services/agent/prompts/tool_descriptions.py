@@ -6,12 +6,81 @@
 """
 
 
+def _get_new_aggregated_tools_section() -> str:
+    """新聚合工具描述（优先使用！）"""
+    return """
+【🔴 新聚合工具 - 优先使用！】
+
+⚠️ **重要：优先使用新聚合工具，减少工具调用次数！**
+
+| 旧工具 | 新工具 | 说明 |
+|--------|--------|------|
+| get_chapter_by_order_tool | get_writing_context | 一站式获取上下文 |
+| read_chapter_tool | get_writing_context | 支持批量读取 |
+| get_worldview_summary | get_writing_context | include="worldview" |
+| get_context_tool | get_writing_context | include="work,rag" |
+| analyze_text_tool | analyze_content | 一站式分析 |
+
+---
+
+- get_writing_context: 🔴 一站式获取创作上下文（推荐！）
+  参数:
+    - chapter_orders: 章节序号，支持 "5" / "1,2,3" / "1-5"
+    - chapter_id: 章节UUID（与 chapter_orders 二选一）
+    - include: 包含内容类型，逗号分隔
+      * "work" - 作品信息
+      * "chapter" - 章节内容
+      * "worldview" - 世界观（角色、地点、设定）
+      * "rag" - RAG检索相关内容
+      * "style" - 风格指导
+    - rag_query: RAG查询（可选）
+    - rag_top_k: RAG返回数量（默认5）
+  返回: {work_info, chapters[], worldview, rag_context[], style_guidance}
+
+  ✅ 使用示例：
+    - 续写前获取上下文: get_writing_context(chapter_orders="5", include="work,chapter,worldview,rag")
+    - 批量读取章节: get_writing_context(chapter_orders="1-5", include="chapter")
+    - 只获取世界观: get_writing_context(include="worldview")
+
+  ⚠️ 对比旧方式：
+    - 旧：get_worldview_summary + get_chapter_by_order_tool + get_context_tool（3次调用）
+    - 新：get_writing_context（1次调用）
+
+---
+
+- analyze_content: 🔴 一站式内容分析（推荐！）
+  参数:
+    - content: 待分析文本（必需）
+    - analysis_types: 分析类型列表（可选）
+      * "text" - 文本分析
+      * "style" - 风格分析
+      * "consistency" - 一致性检查
+      * "quality" - 质量评估
+    - aspects: 分析维度列表，可选值：
+      * "grammar" - 语法检查
+      * "logic" - 逻辑分析
+      * "style" - 风格分析
+      * "structure" - 结构分析
+      * "character" - 人物分析
+      * "plot" - 情节分析
+    - depth: 分析深度 "shallow" / "normal" / "deep"
+    - focus: 分析重点（可选）
+    - context: 上下文信息（可选）
+  返回: {analysis, summary, scores, issues[], suggestions[]}
+
+  ✅ 使用示例：
+    - 检查问题: analyze_content(content="...", aspects=["grammar", "logic"])
+    - 深度分析: analyze_content(content="...", aspects=["style", "structure"], depth="deep")
+    - 风格分析: analyze_content(content="...", analysis_types=["style"])
+"""
+
+
 def _get_retrieval_tools_section() -> str:
     """检索工具描述"""
     return """
 【检索工具 - 纯搜索/查询场景使用】
-- search_analysis_fragments_tool: 混合检索（向量+全文）召回作品相关片段
-  参数: work_id(必需), query(必需), top_k(默认5), chapter_id(可选), look_ahead(默认0=不限制), max_content_length(默认2000)
+- search_content: 混合检索（向量+全文）召回作品相关片段（返回snippet）
+  参数: work_id(必需), query(必需), top_k(默认10), chapter_id(可选), look_ahead(默认0=不限制)
   → 适用场景（仅用于查询，不用于修改！）:
     - 用户只是想**查找/搜索**内容: "哪里提到了XX"、"找一下XX相关的内容"
     - 用户想**了解**某内容在哪: "赵穆出现在哪"、"关于源顺镖局的描述"
@@ -44,7 +113,7 @@ def _get_retrieval_tools_section() -> str:
    - "首次突破金丹" → 提取 "突破金丹"
 
 ⚠️ 【检索规则 - 强制执行】
-- 用户只是想**查询/搜索**内容位置 → 用 search_analysis_fragments_tool
+- 用户只是想**查询/搜索**内容位置 → 用 search_content
 - 用户要**修改/改写/插入**内容 → 用 locate_content（返回 paragraph_index）
 - **禁止不检索就直接回答"没有找到"或"不存在"！必须先检索确认！**
 """
@@ -77,7 +146,7 @@ def _get_editor_tools_section() -> str:
   ⚠️ 如果用户想把改写内容写入编辑器 → 后续调用 apply_chapter_edit(operation="replace")
   ⚠️ **参数填充规则**（极其重要！）：
     * 如果用户指定了要改写的文本 → text_to_rewrite 填入该文本
-    * 如果用户说"改写第X章" → 先用 get_chapter_by_order_tool 获取章节，再用 $TASK_N.content$ 引用
+    * 如果用户说"改写第X章" → 先用 get_writing_context 获取章节，再用 $TASK_N.chapters[0].content$ 引用
     * user_requirement 必须从用户消息中提取改写要求！
 
 - smart_continue: 智能续写（只生成内容）
@@ -134,32 +203,17 @@ def _get_editor_tools_section() -> str:
 
 
 def _get_read_tools_section() -> str:
-    """读取工具描述"""
+    """读取工具描述（已废弃，请使用 get_writing_context）"""
     return """
-【读取工具】
-- get_chapter_by_order_tool: 按序号获取章节（支持批量！）
-  参数: chapter_order，支持三种格式：
-    - 单个: "1"
-    - 多个: "1,2,3,4,5"
-    - 范围: "1-5"（一次性读取第1到第5章）
-  返回: {title, order, content, word_count}
-  ⚠️ 需要读取多章时，用范围格式 "1-5" 一次读取，避免生成多个读取任务！
+【读取工具】⚠️ 已废弃，请优先使用 get_writing_context！
 
-- read_chapter_tool: 读取指定章节的完整内容
-  参数: chapter_id（支持多个，用逗号分隔）
-  需要: work_id
-
-- get_context_tool: 获取作品上下文
-  参数: work_id
-  返回: 作品信息、章节内容、相关分析
-
-- get_worldview_summary: 查询世界观信息
-  触发词: "世界观里有什么"、"有哪些角色/地点/设定"
-  返回: 角色、地点、设定等世界观信息
-
-- analyze_text_tool: 分析文本（不需要work_id）
-  参数: text, focus
-  ⚠️ focus 参数必须简洁（15字以内）
+以下工具已被 get_writing_context 替代，仅保留向后兼容：
+- get_chapter_by_order_tool → 请用 get_writing_context(chapter_orders="1-5", include="chapter")
+- read_chapter_tool → 请用 get_writing_context(chapter_id="xxx", include="chapter")
+- get_context_tool → 请用 get_writing_context(include="work,rag")
+- get_worldview_summary → 请用 get_writing_context(include="worldview")
+- analyze_text_tool → 请用 analyze_content(content="...", aspects=["style"])
+- search_analysis_fragments_tool → 请用 search_content(query="...", top_k=10)
 """
 
 
@@ -214,14 +268,14 @@ def _get_operation_tools_section() -> str:
 def _get_analysis_tools_section() -> str:
     """分析工具描述（一致性检查、风格分析）"""
     return """
-【分析工具】
-- check_story_consistency_tool: 故事一致性检查
+【分析工具】⚠️ 已有聚合工具，请优先使用 analyze_content
+- check_story_consistency_tool: 故事一致性检查（兼容）
   参数: work_id, chapters_json(章节JSON，默认"[]"), characters_json(角色JSON，默认"[]"), worldview_json(世界观JSON，默认"{}")
   用途: 检查故事中的逻辑漏洞、人设矛盾、时间线错误
   返回: 一致性问题列表及修复建议
   触发词: "检查一致性"、"有没有矛盾"、"逻辑漏洞"
 
-- analyze_style_tool: 风格分析工具
+- analyze_style_tool: 风格分析工具（兼容）
   参数: text(待分析文本)
   用途: 分析文本的写作风格特征
   返回: 句式特点、用词偏好、节奏分析、风格标签
@@ -238,6 +292,7 @@ def _get_analysis_tools_section() -> str:
 def get_all_tools_description() -> str:
     """获取所有工具的完整描述"""
     return (
+        _get_new_aggregated_tools_section() +  # 🔴 新聚合工具放在最前面！
         _get_retrieval_tools_section() +
         _get_editor_tools_section() +
         _get_read_tools_section() +
@@ -249,6 +304,7 @@ def get_all_tools_description() -> str:
 
 # 导出
 __all__ = [
+    "_get_new_aggregated_tools_section",  # 新增
     "_get_retrieval_tools_section",
     "_get_editor_tools_section",
     "_get_read_tools_section",

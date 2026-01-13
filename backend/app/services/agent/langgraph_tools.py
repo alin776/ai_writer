@@ -17,7 +17,7 @@ import json
 import logging
 import re
 import threading
-from typing import Optional
+from typing import Optional, Union, List
 
 from langchain_core.tools import tool
 
@@ -317,157 +317,171 @@ async def analyze_text_tool(text: str, focus: str = "all") -> str:
         )
 
 
+# ==================== 分析工具（聚合） ====================
+
+def _extract_content_from_context(context_value: str) -> str:
+    if not context_value:
+        return ""
+    context_text = str(context_value).strip()
+    if not context_text:
+        return ""
+
+    parsed = None
+    if context_text[:1] in ("{", "["):
+        try:
+            parsed = json.loads(context_text)
+        except Exception:
+            parsed = None
+
+    if isinstance(parsed, dict):
+        chapters = parsed.get("chapters")
+        if isinstance(chapters, list) and chapters:
+            contents = []
+            for chapter in chapters:
+                if isinstance(chapter, dict):
+                    content = chapter.get("content", "")
+                else:
+                    content = str(chapter) if chapter is not None else ""
+                if content:
+                    contents.append(content)
+            if contents:
+                return "\n\n".join(contents)
+        for key in ("content", "text", "chapter_content"):
+            value = parsed.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+
+    if isinstance(parsed, list):
+        contents = []
+        for item in parsed:
+            if isinstance(item, dict):
+                content = item.get("content", "")
+            else:
+                content = item if isinstance(item, str) else ""
+            if content:
+                contents.append(content)
+        if contents:
+            return "\n\n".join(contents)
+
+    if len(context_text) >= 10:
+        return context_text
+    return ""
+
+@tool
+async def analyze_content(
+    content: str = "",
+    text: str = "",
+    work_id: str = "",
+    chapter_id: str = "",
+    analysis_types: Union[str, List[str]] = "text,style",
+    focus: str = "all",
+    depth: str = "normal",
+    context: str = ""
+) -> str:
+    """分析工具：一站式内容分析"""
+    content_value = content or text
+    if not isinstance(content_value, str):
+        content_value = str(content_value) if content_value is not None else ""
+    if not content_value.strip():
+        content_value = _extract_content_from_context(context)
+    if not content_value or not content_value.strip():
+        logger.warning("[analyze_content] 收到空文本")
+        return "错误：未提供待分析的文本内容。"
+
+    if "$TASK_" in content_value and "$" in content_value[content_value.find("$TASK_")+1:]:
+        logger.warning("[analyze_content] 检测到未解析的占位符")
+        return f"错误：文本参数中包含未解析的占位符。原始参数: {content_value[:200]}"
+
+    analysis_list: List[str] = []
+    if isinstance(analysis_types, (list, tuple, set)):
+        analysis_list = [str(item).strip().lower() for item in analysis_types if str(item).strip()]
+    else:
+        analysis_list = [
+            item.strip().lower()
+            for item in str(analysis_types).split(",")
+            if item.strip()
+        ]
+    if not analysis_list:
+        analysis_list = ["text", "style"]
+
+    try:
+        from app.services.agent.tools.analysis_tools import AnalyzeContentInput, analyze_content_executor
+        input_data = AnalyzeContentInput(
+            text=content_value,
+            analysis_types=analysis_list,
+            focus=focus,
+            depth=depth,
+            context=context,
+            work_id=work_id,
+            chapter_id=chapter_id
+        )
+        result = await analyze_content_executor(input_data)
+        if result.success and result.data is not None:
+            return json.dumps(result.data, ensure_ascii=False, indent=2)
+        return json.dumps({
+            "error": result.message,
+            "data": result.data
+        }, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"[analyze_content] 执行失败: {e}")
+        return json.dumps({
+            "error": f"分析失败: {str(e)}"
+        }, ensure_ascii=False, indent=2)
+
+
 # ==================== 章节工具 ====================
 
 @tool
 async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "") -> str:
-    """读取指定章节工具：从数据库读取单个或多个章节内容
+    """[DEPRECATED] 读取指定章节工具 - 请使用 get_writing_context 代替
 
     Args:
         work_id: 作品ID（UUID格式）
-        chapter_id: 章节ID（UUID格式或章节序号）或多个章节引用（用逗号分隔，如 "id1,id2,id3" 或 "1,2,3"）
+        chapter_id: 章节ID（UUID格式或章节序号）
 
     Returns:
-        章节信息JSON（单章节）或章节列表JSON（多章节）
+        章节信息JSON
 
-    🔧 2025-12-15: 支持章节序号自动转 UUID
+    @deprecated 请使用 get_writing_context(work_id=..., chapter_id=..., include="chapter")
     """
-    if not work_id:
-        return json.dumps({
-            "status": "missing_prerequisite",
-            "missing": "work_id",
-            "message": "需要指定作品ID才能读取章节"
-        }, ensure_ascii=False, indent=2)
-
-    if not chapter_id:
-        return json.dumps({
-            "status": "missing_prerequisite",
-            "missing": "chapter_id",
-            "message": "需要指定章节ID才能读取章节"
-        }, ensure_ascii=False, indent=2)
-
-    uuid_error = validate_uuid(work_id, "作品ID")
-    if uuid_error:
-        return uuid_error
-
-    # 🆕 支持多章节ID（逗号分隔）
-    chapter_refs = [cid.strip() for cid in chapter_id.split(",") if cid.strip()]
-
-    # 🔧 2025-12-15: 智能解析章节引用（支持 UUID 或序号）
-    chapter_ids = []
-    for ref in chapter_refs:
-        resolved_id, resolve_error = await resolve_chapter_id(work_id, ref)
-        if resolve_error:
-            return resolve_error
-        if resolved_id:
-            chapter_ids.append(resolved_id)
-
-    async with AsyncSessionLocal() as db:
-        try:
-            from app.services.chapter_service import ChapterService
-
-            chapter_service = ChapterService(db)
-
-            # 🆕 多章节处理
-            if len(chapter_ids) > 1:
-                # 🔧 2025-12-25: 智能压缩 - 与 get_chapter_by_order_tool 保持一致
-                content_limit = _get_content_limit_for_batch(len(chapter_ids))
-                is_compressed = content_limit < 5000
-
-                chapters_info = []
-                for cid in chapter_ids:
-                    chapter = await _retry_on_failure(
-                        chapter_service.get_chapter_by_id,
-                        cid,
-                        max_retries=2
-                    )
-
-                    if chapter:
-                        # 清理 HTML 标签
-                        from app.utils.text_cleaner import text_cleaner
-                        clean_content = text_cleaner.html_to_clean_text(
-                            chapter.content if chapter.content else "",
-                            preserve_structure=False
-                        )
-                        chapters_info.append({
-                            "chapter_id": str(chapter.id),
-                            "title": chapter.title,
-                            "order": chapter.order,
-                            "content": clean_content[:content_limit] if clean_content else "",
-                            "content_length": len(clean_content) if clean_content else 0,
-                            "word_count": chapter.word_count,
-                            "status": chapter.status.value if hasattr(chapter, 'status') else "unknown"
-                        })
-                    else:
-                        chapters_info.append({
-                            "chapter_id": cid,
-                            "error": f"未找到章节 {cid}"
-                        })
-
-                compression_note = f"（已压缩，每章限制{content_limit}字）" if is_compressed else ""
-                logger.info(f"[read_chapter_tool] ✅ 读取多章节成功: 共 {len(chapters_info)} 章{compression_note}")
-
-                result = {
-                    "type": "multi_chapter",
-                    "count": len(chapters_info),
-                    "chapters": chapters_info
-                }
-                if is_compressed:
-                    result["compression_note"] = f"由于章节数量较多（{len(chapter_ids)}章），每章内容已压缩至{content_limit}字以内"
-
-                return json.dumps(result, ensure_ascii=False, indent=2)
-
-            # 单章节处理（保持原有逻辑）
-            else:
-                chapter = await _retry_on_failure(
-                    chapter_service.get_chapter_by_id,
-                    chapter_ids[0],
-                    max_retries=2
-                )
-
-                if not chapter:
-                    return json.dumps({
-                        "error": f"未找到章节 {chapter_ids[0]}",
-                        "work_id": work_id
-                    }, ensure_ascii=False, indent=2)
-
-                # 清理 HTML 标签
-                from app.utils.text_cleaner import text_cleaner
-                clean_content = text_cleaner.html_to_clean_text(
-                    chapter.content if chapter.content else "",
-                    preserve_structure=False
-                )
-
-                chapter_info = {
-                    "chapter_id": str(chapter.id),
-                    "title": chapter.title,
-                    "order": chapter.order,
-                    "content": clean_content[:5000] if clean_content else "",
-                    "content_length": len(clean_content) if clean_content else 0,
-                    "word_count": chapter.word_count,
-                    "status": chapter.status.value if hasattr(chapter, 'status') else "unknown"
-                }
-
-                logger.info(f"[read_chapter_tool] ✅ 读取章节成功: {chapter.title}")
-                return json.dumps(chapter_info, ensure_ascii=False, indent=2)
-
-        except Exception as e:
-            try:
-                await db.rollback()
-            except:
-                pass
-            logger.error(f"[read_chapter_tool] ❌ 读取章节失败: {e}")
+    logger.warning("[read_chapter_tool] ⚠️ 此工具已废弃，请使用 get_writing_context")
+    result_str = await get_writing_context.ainvoke({
+        "work_id": work_id or "",
+        "chapter_id": chapter_id,
+        "include": "chapter"
+    })
+    # 格式转换：从 {"chapters": [...]} 转为单章节格式
+    try:
+        result = json.loads(result_str)
+        chapters = result.get("chapters", [])
+        if chapters and len(chapters) == 1:
+            ch = chapters[0]
             return json.dumps({
-                "error": f"读取章节失败: {str(e)}",
-                "work_id": work_id,
-                "chapter_id": chapter_id
+                "chapter_id": ch.get("id"),
+                "title": ch.get("title"),
+                "order": ch.get("order"),
+                "content": ch.get("content", ""),
+                "content_length": len(ch.get("content", "")),
+                "word_count": ch.get("word_count"),
+                "status": "unknown"
             }, ensure_ascii=False, indent=2)
-
-        finally:
-            try:
-                await db.close()
-            except:
-                pass
+        elif chapters:
+            return json.dumps({
+                "type": "multi_chapter",
+                "count": len(chapters),
+                "chapters": [{
+                    "chapter_id": ch.get("id"),
+                    "title": ch.get("title"),
+                    "order": ch.get("order"),
+                    "content": ch.get("content", ""),
+                    "content_length": len(ch.get("content", "")),
+                    "word_count": ch.get("word_count"),
+                    "status": "unknown"
+                } for ch in chapters]
+            }, ensure_ascii=False, indent=2)
+    except:
+        pass
+    return result_str
 
 
 def _parse_chapter_orders(chapter_order: str) -> list[int]:
@@ -551,147 +565,55 @@ def _get_content_limit_for_batch(chapter_count: int) -> int:
 
 @tool
 async def get_chapter_by_order_tool(work_id: Optional[str] = None, chapter_order: str = "1") -> str:
-    """通过章节序号获取章节内容（支持批量读取）
+    """[DEPRECATED] 通过章节序号获取章节内容 - 请使用 get_writing_context 代替
 
     Args:
         work_id: 作品ID（UUID格式）
-        chapter_order: 章节序号，支持三种格式：
-                      - 单个: "1"
-                      - 多个: "1,2,3,4,5"
-                      - 范围: "1-5"（读取第1到第5章）
+        chapter_order: 章节序号（支持 "1" / "1,2,3" / "1-5"）
 
     Returns:
-        章节信息JSON（单章节）或章节列表JSON（多章节）
+        章节信息JSON
 
-    🔧 2025-12-25: 优化支持多章节批量读取，减少规划任务数
+    @deprecated 请使用 get_writing_context(work_id=..., chapter_orders=..., include="chapter")
     """
-    # 解析章节序号
-    orders = _parse_chapter_orders(chapter_order)
-
-    if not work_id:
-        order_desc = f"第{orders[0]}章" if len(orders) == 1 else f"第{orders[0]}-{orders[-1]}章"
-        return json.dumps({
-            "status": "missing_prerequisite",
-            "missing": "work_id",
-            "message": f"需要指定作品ID才能查询{order_desc}"
-        }, ensure_ascii=False, indent=2)
-
-    uuid_error = validate_uuid(work_id, "作品ID")
-    if uuid_error:
-        return uuid_error
-
-    async with AsyncSessionLocal() as db:
-        try:
-            from app.services.work_service import WorkService
-            from app.utils.text_cleaner import text_cleaner
-
-            work_service = WorkService(db)
-            work = await _retry_on_failure(
-                work_service.get_work_by_id,
-                work_id,
-                use_cache=False,
-                max_retries=2
-            )
-
-            if not work or not work.chapters:
-                return json.dumps({
-                    "error": "未找到作品或作品没有章节",
-                    "work_id": work_id
-                }, ensure_ascii=False, indent=2)
-
-            # 构建章节序号到章节的映射
-            chapter_map = {ch.order: ch for ch in work.chapters}
-
-            # 🆕 多章节处理
-            if len(orders) > 1:
-                # 🔧 2025-12-25: 智能压缩 - 根据章节数量动态调整每章内容限制
-                content_limit = _get_content_limit_for_batch(len(orders))
-                is_compressed = content_limit < 5000
-
-                chapters_info = []
-                for order in orders:
-                    chapter = chapter_map.get(order)
-                    if chapter:
-                        clean_content = text_cleaner.html_to_clean_text(
-                            chapter.content if chapter.content else "",
-                            preserve_structure=True,
-                            max_length=content_limit
-                        )
-                        chapters_info.append({
-                            "chapter_id": str(chapter.id),
-                            "title": chapter.title,
-                            "order": chapter.order,
-                            "content": clean_content,
-                            "content_length": len(clean_content),
-                            "word_count": chapter.word_count,
-                            "status": chapter.status.value if hasattr(chapter, 'status') else "unknown"
-                        })
-                    else:
-                        chapters_info.append({
-                            "order": order,
-                            "error": f"未找到第{order}章"
-                        })
-
-                compression_note = f"（已压缩，每章限制{content_limit}字）" if is_compressed else ""
-                logger.info(f"[get_chapter_by_order_tool] ✅ 批量读取成功: 共 {len(chapters_info)} 章{compression_note}")
-
-                result = {
-                    "type": "multi_chapter",
-                    "count": len(chapters_info),
-                    "chapters": chapters_info
-                }
-                # 如果启用了压缩，添加提示信息
-                if is_compressed:
-                    result["compression_note"] = f"由于章节数量较多（{len(orders)}章），每章内容已压缩至{content_limit}字以内"
-
-                return json.dumps(result, ensure_ascii=False, indent=2)
-
-            # 单章节处理（保持原有逻辑）
-            target_order = orders[0]
-            target_chapter = chapter_map.get(target_order)
-
-            if not target_chapter:
-                return json.dumps({
-                    "error": f"未找到第{target_order}章",
-                    "work_id": work_id,
-                    "total_chapters": len(work.chapters)
-                }, ensure_ascii=False, indent=2)
-
-            clean_content = text_cleaner.html_to_clean_text(
-                target_chapter.content if target_chapter.content else "",
-                preserve_structure=True,
-                max_length=5000
-            )
-
-            chapter_info = {
-                "chapter_id": str(target_chapter.id),
-                "title": target_chapter.title,
-                "order": target_chapter.order,
-                "content": clean_content,
-                "content_length": len(clean_content),
-                "word_count": target_chapter.word_count,
-                "status": target_chapter.status.value if hasattr(target_chapter, 'status') else "unknown"
-            }
-
-            logger.info(f"[get_chapter_by_order_tool] ✅ 找到第{target_order}章: {target_chapter.title}")
-            return json.dumps(chapter_info, ensure_ascii=False, indent=2)
-
-        except Exception as e:
-            try:
-                await db.rollback()
-            except:
-                pass
-            logger.error(f"[get_chapter_by_order_tool] ❌ 查询失败: {e}")
+    logger.warning("[get_chapter_by_order_tool] ⚠️ 此工具已废弃，请使用 get_writing_context")
+    result_str = await get_writing_context.ainvoke({
+        "work_id": work_id or "",
+        "chapter_orders": chapter_order,
+        "include": "chapter"
+    })
+    # 格式转换：从 {"chapters": [...]} 转为原格式
+    try:
+        result = json.loads(result_str)
+        chapters = result.get("chapters", [])
+        if chapters and len(chapters) == 1:
+            ch = chapters[0]
             return json.dumps({
-                "error": f"查询失败: {str(e)}",
-                "work_id": work_id
+                "chapter_id": ch.get("id"),
+                "title": ch.get("title"),
+                "order": ch.get("order"),
+                "content": ch.get("content", ""),
+                "content_length": len(ch.get("content", "")),
+                "word_count": ch.get("word_count"),
+                "status": "unknown"
             }, ensure_ascii=False, indent=2)
-
-        finally:
-            try:
-                await db.close()
-            except:
-                pass
+        elif chapters:
+            return json.dumps({
+                "type": "multi_chapter",
+                "count": len(chapters),
+                "chapters": [{
+                    "chapter_id": ch.get("id"),
+                    "title": ch.get("title"),
+                    "order": ch.get("order"),
+                    "content": ch.get("content", ""),
+                    "content_length": len(ch.get("content", "")),
+                    "word_count": ch.get("word_count"),
+                    "status": "unknown"
+                } for ch in chapters]
+            }, ensure_ascii=False, indent=2)
+    except:
+        pass
+    return result_str
 
 
 @tool
@@ -702,9 +624,9 @@ async def search_analysis_fragments_tool(
     chapter_id: str = "",
     include_current: bool = True,
     look_ahead: int = 0,
-    max_content_length: int = 2000
+    max_content_length: int = 200
 ) -> str:
-    """检索分析碎片工具：混合检索（向量+全文），召回作品相关片段
+    """检索分析碎片工具：混合检索（向量+全文），召回作品相关片段（兼容旧名）
 
     Args:
         work_id: 作品ID（UUID格式，必需）
@@ -713,7 +635,7 @@ async def search_analysis_fragments_tool(
         chapter_id: 当前章节ID（可选，用于确定时序窗口）
         include_current: 是否包含当前章
         look_ahead: 允许向后看的章节数（默认0表示不限制，检索所有章节）
-        max_content_length: 返回内容的最大长度（默认2000）
+        max_content_length: 返回片段长度上限（默认200）
 
     Returns:
         相关片段JSON
@@ -778,8 +700,13 @@ async def search_analysis_fragments_tool(
                     "results": []
                 }, ensure_ascii=False, indent=2)
 
+            snippet_length = min(max_content_length, 200)
             formatted_results = []
             for i, result in enumerate(results):
+                content = result.get("content", "")
+                snippet = content[:snippet_length]
+                if len(content) > snippet_length:
+                    snippet += "..."
                 formatted_results.append({
                     "rank": i + 1,
                     "chapter_id": result.get("chapter_id"),  # 新增
@@ -787,7 +714,7 @@ async def search_analysis_fragments_tool(
                     "chapter_title": result.get("chapter_title"),
                     "chapter_order": result.get("chapter_order"),
                     "paragraph_index": result.get("paragraph_index"),  # 新增
-                    "content": result.get("content", "")[:max_content_length],
+                    "snippet": snippet,
                     "source": result.get("source", "vector")
                 })
 
@@ -819,8 +746,71 @@ async def search_analysis_fragments_tool(
 
 
 @tool
+async def search_content(
+    work_id: str,
+    query: str,
+    top_k: int = 10,
+    chapter_id: str = "",
+    look_ahead: int = 0
+) -> str:
+    """搜索多个相关位置（返回位置 + 片段）
+
+    Args:
+        work_id: 作品ID（UUID格式，必需）
+        query: 查询文本（必需）
+        top_k: 返回前K个最相关结果
+        chapter_id: 当前章节ID（可选，用于时序窗口）
+        look_ahead: 允许向后看的章节数（默认0表示不限制）
+
+    Returns:
+        位置 + 片段 JSON
+    """
+    # 复用旧检索实现，统一返回片段字段
+    result_str = await search_analysis_fragments_tool.ainvoke({
+        "work_id": work_id,
+        "query": query,
+        "top_k": top_k,
+        "chapter_id": chapter_id,
+        "include_current": True,
+        "look_ahead": look_ahead,
+        "max_content_length": 200
+    })
+
+    try:
+        result = json.loads(result_str) if isinstance(result_str, str) else result_str
+        if not isinstance(result, dict) or "results" not in result:
+            return result_str
+
+        formatted_results = []
+        for i, item in enumerate(result.get("results", [])):
+            content = item.get("content", "") if isinstance(item, dict) else ""
+            snippet = item.get("snippet", "") if isinstance(item, dict) else ""
+            if not snippet:
+                snippet = content[:200] + "..." if len(content) > 200 else content
+            formatted_results.append({
+                "rank": i + 1,
+                "chapter_id": item.get("chapter_id"),
+                "chapter_order": item.get("chapter_order"),
+                "chapter_title": item.get("chapter_title"),
+                "paragraph_index": item.get("paragraph_index"),
+                "snippet": snippet,
+                "similarity": item.get("similarity", 0),
+                "source": item.get("source", "hybrid")
+            })
+
+        return json.dumps({
+            "work_id": result.get("work_id", work_id),
+            "query": result.get("query", query),
+            "total_results": len(formatted_results),
+            "results": formatted_results
+        }, ensure_ascii=False, indent=2)
+    except Exception:
+        return result_str
+
+
+@tool
 async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") -> str:
-    """获取上下文工具：检索作品、章节和世界观信息
+    """[DEPRECATED] 获取上下文工具 - 请使用 get_writing_context 代替
 
     Args:
         work_id: 作品ID（UUID格式）
@@ -828,231 +818,296 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
 
     Returns:
         上下文信息JSON
+
+    @deprecated 请使用 get_writing_context(work_id=..., chapter_id=..., include="work,chapter,rag")
     """
-    if not work_id:
-        return json.dumps({
-            "status": "limited_mode",
-            "error": "missing_work_id",
-            "work_id": None,
-            "work_info": {},
+    logger.warning("[get_context_tool] ⚠️ 此工具已废弃，请使用 get_writing_context")
+    result_str = await get_writing_context.ainvoke({
+        "work_id": work_id or "",
+        "chapter_id": chapter_id,
+        "include": "work,chapter,rag"
+    })
+    # 格式转换：转为原格式
+    try:
+        result = json.loads(result_str)
+        converted = {
+            "work_id": result.get("work_id"),
+            "work_info": result.get("work_info", {}),
             "current_chapter": {},
-            "related_analysis": [],
-            "message": "未指定作品，无法获取详细上下文。",
-            "suggestion": "提供作品ID可获得更详细的上下文信息"
-        }, ensure_ascii=False, indent=2)
-
-    uuid_error = validate_uuid(work_id, "作品ID")
-    if uuid_error:
-        return uuid_error
-
-    if chapter_id:
-        uuid_error = validate_uuid(chapter_id, "章节ID")
-        if uuid_error:
-            return uuid_error
-
-    async with AsyncSessionLocal() as db:
-        try:
-            from app.services.work_service import WorkService
-            from app.services.chapter_service import ChapterService
-            from app.services.chapter_vector_service import ChapterVectorService
-
-            work_service = WorkService(db)
-            chapter_service = ChapterService(db)
-            chapter_vector_service = ChapterVectorService(db)
-
-            context_info = {
-                "work_id": work_id,
-                "work_info": {},
-                "current_chapter": {},
-                "related_analysis": []
+            "related_context": result.get("rag_context", [])
+        }
+        # 转换章节信息
+        chapters = result.get("chapters", [])
+        if chapters:
+            ch = chapters[0]
+            converted["current_chapter"] = {
+                "chapter_id": ch.get("id"),
+                "title": ch.get("title"),
+                "order": ch.get("order"),
+                "content_preview": ch.get("content", "")[:1000],
+                "word_count": ch.get("word_count")
             }
-
-            # 1. 获取作品信息
-            work = await _retry_on_failure(
-                work_service.get_work_by_id,
-                work_id,
-                use_cache=False,
-                max_retries=2
-            )
-
-            if work:
-                context_info["work_info"] = {
-                    "title": work.title,
-                    "description": work.description[:200] if work.description else "",
-                    "genre": work.genre if hasattr(work, 'genre') else "未知",
-                    "total_chapters": len(work.chapters) if work.chapters else 0
-                }
-            else:
-                context_info["work_info"] = {"error": "作品未找到"}
-
-            # 2. 获取当前章节
-            if chapter_id:
-                chapter = await _retry_on_failure(
-                    chapter_service.get_chapter_by_id,
-                    chapter_id,
-                    max_retries=2
-                )
-
-                if chapter:
-                    # 清理 HTML 标签
-                    from app.utils.text_cleaner import text_cleaner
-                    clean_preview = text_cleaner.html_to_clean_text(
-                        chapter.content[:1200] if chapter.content else "",
-                        preserve_structure=False
-                    )
-                    context_info["current_chapter"] = {
-                        "chapter_id": str(chapter.id),
-                        "title": chapter.title,
-                        "order": chapter.order,
-                        "content_preview": clean_preview[:1000] if clean_preview else "",
-                        "word_count": chapter.word_count
-                    }
-
-            # 3. RAG检索章节上下文
-            try:
-                current_order = None  # 默认无限制检索
-                if chapter_id:
-                    chapter = await chapter_service.get_chapter_by_id(chapter_id)
-                    if chapter:
-                        current_order = chapter.order
-
-                query = "作品背景、人物关系、情节发展、伏笔线索"
-                chapter_rag_results = await _retry_on_failure(
-                    chapter_vector_service.retrieve_for_writing,
-                    work_id=work_id,
-                    current_chapter_order=current_order if current_order is not None else 10**6,  # 无限制时使用大数
-                    query=query,
-                    top_k=5,
-                    similarity_threshold=0.3,
-                    max_retries=2
-                )
-
-                if chapter_rag_results:
-                    context_info["related_context"] = [
-                        {
-                            "chapter_title": r['chapter_title'],
-                            "chapter_order": r['chapter_order'],
-                            "similarity": r['similarity'],
-                            "content": r['chunk_text'][:500]
-                        }
-                        for r in chapter_rag_results
-                    ]
-                else:
-                    context_info["related_context"] = []
-
-            except Exception as rag_error:
-                logger.error(f"[get_context_tool] RAG检索失败: {rag_error}")
-                context_info["related_context"] = []
-
-            logger.info(f"[get_context_tool] ✅ 获取上下文成功")
-            return json.dumps(context_info, ensure_ascii=False, indent=2)
-
-        except Exception as e:
-            try:
-                await db.rollback()
-            except:
-                pass
-            logger.error(f"[get_context_tool] ❌ 获取上下文失败: {e}")
-            return json.dumps({
-                "error": f"获取上下文失败: {str(e)}",
-                "work_id": work_id
-            }, ensure_ascii=False, indent=2)
-
-        finally:
-            try:
-                await db.close()
-            except:
-                pass
+        return json.dumps(converted, ensure_ascii=False, indent=2)
+    except:
+        pass
+    return result_str
 
 
 # ==================== 世界观查询工具 ====================
 
 @tool
 async def get_worldview_summary(work_id: str) -> str:
-    """获取作品的世界观摘要信息
+    """[DEPRECATED] 获取作品的世界观摘要信息 - 请使用 get_writing_context 代替
 
-    这个工具用于查询作品中已保存的世界观内容，包括：
-    - 角色列表及其描述、关系
-    - 地点列表及其描述
-    - 世界设定列表（魔法体系、规则等）
-
-    适用场景：
-    - 用户询问"世界观里有什么"、"有哪些角色"等问题时使用
-    - 需要了解作品全局设定时使用
-
-    参数:
+    Args:
         work_id: 作品ID（UUID格式）
 
-    返回:
-        JSON格式的世界观摘要，包含characters、locations、settings三个部分
+    Returns:
+        世界观摘要JSON
 
-    示例:
-        work_id = "627feba4-2097-4f28-a3f3-7641d10f7f40"
+    @deprecated 请使用 get_writing_context(work_id=..., include="worldview")
     """
-    # 验证 work_id 格式
+    logger.warning("[get_worldview_summary] ⚠️ 此工具已废弃，请使用 get_writing_context")
+    result_str = await get_writing_context.ainvoke({
+        "work_id": work_id,
+        "include": "worldview"
+    })
+    # 格式转换：转为原格式
+    try:
+        result = json.loads(result_str)
+        worldview = result.get("worldview", {})
+        converted = {
+            "total": {
+                "characters": len(worldview.get("characters", [])),
+                "locations": len(worldview.get("locations", [])),
+                "settings": len(worldview.get("settings", []))
+            },
+            "characters": worldview.get("characters", []),
+            "locations": worldview.get("locations", []),
+            "settings": worldview.get("settings", [])
+        }
+        return json.dumps(converted, ensure_ascii=False, indent=2)
+    except:
+        pass
+    return result_str
+
+
+# ==================== 聚合工具 ====================
+
+@tool
+async def get_writing_context(
+    work_id: str,
+    chapter_id: str = "",
+    chapter_orders: str = "",
+    user_id: str = "",
+    include: Union[str, List[str]] = "work,chapter,worldview,style,rag",
+    rag_query: str = "",
+    rag_top_k: int = 5,
+    use_cache: bool = True
+) -> str:
+    """获取创作上下文（一站式聚合工具）
+
+    合并了 get_context_tool, read_chapter_tool, get_chapter_by_order_tool,
+    get_worldview_summary, get_style_guidance_tool 的功能。
+
+    Args:
+        work_id: 作品ID（UUID格式，必需）
+        chapter_id: 章节ID（UUID格式，可选，用于单章节读取）
+        chapter_orders: 章节序号（支持 "1" / "1,2,3" / "1-5"，可选）
+        user_id: 用户ID（用于获取风格指导，可选）
+        include: 包含的内容类型，逗号分隔（可选值：work,chapter,worldview,style,rag）
+        rag_query: RAG检索查询（可选，默认自动生成）
+        rag_top_k: RAG返回数量（默认5）
+        use_cache: 是否使用章节缓存（默认True）
+
+    Returns:
+        JSON格式的创作上下文
+
+    使用示例:
+        # 续写前获取完整上下文
+        get_writing_context(work_id="xxx", chapter_orders="5", include="work,chapter,worldview,style,rag")
+
+        # 只获取章节内容
+        get_writing_context(work_id="xxx", chapter_orders="1-5", include="chapter")
+
+        # 只获取世界观
+        get_writing_context(work_id="xxx", include="worldview")
+    """
+    if not work_id:
+        return json.dumps({
+            "error": "缺少必需参数",
+            "missing": "work_id",
+            "message": "需要指定作品ID"
+        }, ensure_ascii=False, indent=2)
+
     uuid_error = validate_uuid(work_id, "作品ID")
     if uuid_error:
         return uuid_error
 
+    # 解析 include 参数
+    include_value = include
+    if isinstance(include_value, (list, tuple, set)):
+        include_value = ",".join([str(i).strip() for i in include_value if str(i).strip()])
+    include_value = include_value or "work,chapter,worldview,style,rag"
+    include_set = set(i.strip() for i in str(include_value).split(",") if i.strip())
+
+    result = {"work_id": work_id}
+
     async with AsyncSessionLocal() as db:
         try:
+            from app.services.work_service import WorkService
             from app.services.worldview_service import WorldviewService
+            from app.services.chapter_vector_service import ChapterVectorService
+            from app.utils.text_cleaner import text_cleaner
 
-            worldview_service = WorldviewService(db)
+            work_service = WorkService(db)
+            work = None
 
-            # 获取世界观数据
-            characters = await worldview_service.get_characters_by_work(work_id)
-            locations = await worldview_service.get_locations_by_work(work_id)
-            settings = await worldview_service.get_settings_by_work(work_id)
+            # 预先获取 work（避免重复查询）
+            if "work" in include_set or "chapter" in include_set:
+                work = await _retry_on_failure(
+                    work_service.get_work_by_id, work_id, use_cache=use_cache, max_retries=2
+                )
+                # 检查 work 是否存在
+                if not work:
+                    return json.dumps({
+                        "error": "作品不存在",
+                        "work_id": work_id,
+                        "message": f"未找到ID为 {work_id} 的作品"
+                    }, ensure_ascii=False, indent=2)
 
-            # 构建摘要
-            summary = {
-                "total": {
-                    "characters": len(characters),
-                    "locations": len(locations),
-                    "settings": len(settings)
-                },
-                "characters": [],
-                "locations": [],
-                "settings": []
-            }
-
-            # 添加角色信息
-            for char in characters:
-                char_info = {
-                    "name": char.name,
-                    "role": char.role if hasattr(char, 'role') else "",
-                    "description": char.description[:200] if char.description else ""
+            # 1. 获取作品信息
+            if "work" in include_set and work:
+                result["work_info"] = {
+                    "id": str(work.id),
+                    "title": work.title,
+                    "description": work.description[:300] if work.description else "",
+                    "genre": work.genre if hasattr(work, 'genre') else "",
+                    "total_chapters": len(work.chapters) if work.chapters else 0
                 }
-                if hasattr(char, 'tags') and char.tags:
-                    char_info["tags"] = char.tags[:5]  # 最多5个标签
-                summary["characters"].append(char_info)
 
-            # 添加地点信息
-            for loc in locations:
-                loc_info = {
-                    "name": loc.name,
-                    "type": loc.type if hasattr(loc, 'type') else "",
-                    "description": loc.description[:200] if loc.description else ""
+            # 2. 获取章节内容
+            if "chapter" in include_set:
+                chapters = []
+
+                # 优先使用 chapter_orders（支持范围格式）
+                if chapter_orders and work and work.chapters:
+                    orders = _parse_chapter_orders(chapter_orders)
+                    content_limit = _get_content_limit_for_batch(len(orders))
+                    chapter_map = {ch.order: ch for ch in work.chapters}
+
+                    for order in orders:
+                        ch = chapter_map.get(order)
+                        if ch:
+                            raw_content = ch.content if ch.content else ""
+                            clean_content = text_cleaner.html_to_clean_text(
+                                raw_content,
+                                preserve_structure=True,
+                                max_length=content_limit
+                            )
+                            if raw_content and len(raw_content) > content_limit:
+                                clean_content = (
+                                    f"{clean_content}\n\n"
+                                    f"[内容已截断，完整内容共 {len(raw_content)} 字]"
+                                )
+                            chapters.append({
+                                "id": str(ch.id),
+                                "title": ch.title,
+                                "order": ch.order,
+                                "content": clean_content,
+                                "word_count": ch.word_count
+                            })
+
+                # 使用 chapter_id（单章节）
+                elif chapter_id:
+                    from app.services.chapter_service import ChapterService
+                    chapter_service = ChapterService(db)
+                    resolved_id, resolve_error = await resolve_chapter_id(work_id, chapter_id)
+                    if resolve_error:
+                        return resolve_error
+                    if resolved_id:
+                        ch = await chapter_service.get_chapter_by_id(resolved_id)
+                        if ch:
+                            clean_content = text_cleaner.html_to_clean_text(
+                                ch.content if ch.content else "",
+                                preserve_structure=True
+                            )
+                            chapters.append({
+                                "id": str(ch.id),
+                                "title": ch.title,
+                                "order": ch.order,
+                                "content": clean_content,
+                                "word_count": ch.word_count
+                            })
+
+                result["chapters"] = chapters
+
+            # 3. 获取世界观
+            if "worldview" in include_set:
+                worldview_service = WorldviewService(db)
+                characters = await worldview_service.get_characters_by_work(work_id)
+                locations = await worldview_service.get_locations_by_work(work_id)
+                settings = await worldview_service.get_settings_by_work(work_id)
+
+                result["worldview"] = {
+                    "characters": [
+                        {"name": c.name, "description": c.description[:200] if c.description else ""}
+                        for c in characters
+                    ],
+                    "locations": [
+                        {"name": l.name, "description": l.description[:200] if l.description else ""}
+                        for l in locations
+                    ],
+                    "settings": [
+                        {
+                            "name": s.title,
+                            "description": s.content[:200] if s.content else "",
+                            "title": s.title,
+                            "content": s.content[:200] if s.content else ""
+                        }
+                        for s in settings
+                    ]
                 }
-                summary["locations"].append(loc_info)
 
-            # 添加设定信息
-            for setting in settings:
-                setting_info = {
-                    "title": setting.title,
-                    "category": setting.category if hasattr(setting, 'category') else "",
-                    "content": setting.content[:200] if setting.content else ""
-                }
-                summary["settings"].append(setting_info)
+            # 4. 获取风格指导
+            if "style" in include_set and user_id:
+                from app.services.agent.tools.style_learning import get_style_prompt
+                result["style_guidance"] = get_style_prompt(user_id)
 
-            logger.info(f"[get_worldview_summary] ✅ 获取世界观摘要成功: {summary['total']}")
-            return json.dumps(summary, ensure_ascii=False, indent=2)
+            # 5. RAG检索
+            if "rag" in include_set:
+                chapter_vector_service = ChapterVectorService(db)
+                current_order = None
+
+                # 确定当前章节序号
+                if result.get("chapters"):
+                    current_order = result["chapters"][-1].get("order")
+
+                query = rag_query or "作品背景、人物关系、情节发展"
+                rag_results = await chapter_vector_service.retrieve_for_writing(
+                    work_id=work_id,
+                    current_chapter_order=current_order,
+                    query=query,
+                    top_k=rag_top_k
+                )
+
+                result["rag_context"] = [
+                    {
+                        "chapter_order": r.get("chapter_order"),
+                        "chapter_title": r.get("chapter_title", ""),
+                        "content": r.get("chunk_text", "")[:500],
+                        "relevance": round(r.get("similarity", 0), 2)
+                    }
+                    for r in rag_results
+                ]
+
+            logger.info(f"[get_writing_context] ✅ 获取创作上下文成功: include={include}")
+            return json.dumps(result, ensure_ascii=False, indent=2)
 
         except Exception as e:
-            logger.error(f"[get_worldview_summary] 获取世界观摘要失败: {e}", exc_info=True)
+            logger.error(f"[get_writing_context] 获取创作上下文失败: {e}", exc_info=True)
             return json.dumps({
-                "error": "获取世界观摘要失败",
+                "error": "获取创作上下文失败",
                 "message": str(e)
             }, ensure_ascii=False, indent=2)
 
@@ -1084,19 +1139,13 @@ from app.services.agent.tools.style_learning import learn_style_tool, get_style_
 from app.services.agent.tools.locate_tools import locate_content
 
 LANGGRAPH_TOOLS = [
-    # 查询工具
-    get_context_tool,
-    read_chapter_tool,
-    get_chapter_by_order_tool,
-    search_analysis_fragments_tool,
-    get_worldview_summary,
-    get_style_guidance_tool,
-    # 分析工具
-    analyze_text_tool,
-    check_story_consistency_tool,
-    analyze_style_tool,
-    # 定位工具（2026-01-10）
+    # Search 类工具
+    search_content,
     locate_content,
+    # Read 类工具（聚合）
+    get_writing_context,
+    # 分析工具
+    analyze_content,
     # 创作工具
     smart_continue,
     smart_rewrite,
@@ -1124,19 +1173,24 @@ __all__ = [
     "_generate_text_helper",
     # 写作工具
     "analyze_text_tool",
+    "analyze_content",
     # 章节工具
     "read_chapter_tool",
     "get_chapter_by_order_tool",
+    "search_content",
     "search_analysis_fragments_tool",
     "get_context_tool",
     # 世界观工具
     "get_worldview_summary",
+    # 聚合工具（2026-01-12）
+    "get_writing_context",
     # 工具列表
     "LANGGRAPH_TOOLS",
     # StandardTool 版本（2025-12-14）
     "get_context_tool_st",
     "read_chapter_tool_st",
     "get_chapter_by_order_tool_st",
+    "search_content_tool_st",
     "search_analysis_fragments_tool_st",
     "get_worldview_summary_tool_st",
 ]
@@ -1315,7 +1369,7 @@ class SearchAnalysisFragmentsInput(ToolInput):
     chapter_id: str = Field(default="", description="当前章节ID（可选）")
     include_current: bool = Field(default=True, description="是否包含当前章")
     look_ahead: int = Field(default=0, description="允许向后看的章节数（0表示不限制）", ge=0)
-    max_content_length: int = Field(default=2000, description="返回内容的最大长度", ge=100, le=10000)
+    max_content_length: int = Field(default=200, description="返回片段长度上限", ge=100, le=10000)
 
 
 class SearchAnalysisFragmentsOutput(ToolOutput):
@@ -1365,7 +1419,62 @@ search_analysis_fragments_tool_st = StandardTool(
 )
 
 
-# ==================== 5. GetWorldviewSummaryTool StandardTool ====================
+# ==================== 5. SearchContentTool StandardTool ====================
+
+class SearchContentInput(ToolInput):
+    """搜索内容工具输入"""
+    work_id: str = Field(..., description="作品ID（必需）")
+    query: str = Field(..., description="查询文本（必需）")
+    top_k: int = Field(default=10, description="返回前K个最相关结果", ge=1, le=20)
+    chapter_id: str = Field(default="", description="当前章节ID（可选）")
+    look_ahead: int = Field(default=0, description="允许向后看的章节数（0表示不限制）", ge=0)
+
+
+class SearchContentOutput(ToolOutput):
+    """搜索内容工具输出"""
+    pass
+
+
+async def search_content_executor(input_data: SearchContentInput) -> SearchContentOutput:
+    """搜索内容执行器（包装 @tool 版本）"""
+    try:
+        result_str = await search_content.ainvoke({
+            "work_id": input_data.work_id,
+            "query": input_data.query,
+            "top_k": input_data.top_k,
+            "chapter_id": input_data.chapter_id,
+            "look_ahead": input_data.look_ahead
+        })
+
+        return SearchContentOutput(
+            success=True,
+            message="搜索成功",
+            data={"results": result_str},
+            metadata={"tool": "search_content", "query": input_data.query}
+        )
+    except Exception as e:
+        logger.error(f"search_content_executor 失败: {e}")
+        return SearchContentOutput(
+            success=False,
+            message=f"搜索失败: {str(e)}",
+            data=None,
+            metadata={"error": str(e)}
+        )
+
+
+search_content_tool_st = StandardTool(
+    name="search_content",
+    description="搜索多个相关位置，返回位置+片段（snippet）",
+    category=ToolCategory.UTILITY,
+    input_schema=SearchContentInput,
+    output_schema=SearchContentOutput,
+    executor=search_content_executor,
+    tags=["chapter", "search", "snippet"],
+    version="1.0.0"
+)
+
+
+# ==================== 6. GetWorldviewSummaryTool StandardTool ====================
 
 class GetWorldviewSummaryInput(ToolInput):
     """获取世界观摘要工具输入"""
@@ -1408,6 +1517,67 @@ get_worldview_summary_tool_st = StandardTool(
     output_schema=GetWorldviewSummaryOutput,
     executor=get_worldview_summary_executor,
     tags=["worldview", "summary", "context"],
+    version="1.0.0"
+)
+
+
+# ==================== 6. GetWritingContextTool StandardTool (2026-01-12) ====================
+
+class GetWritingContextInput(ToolInput):
+    """获取创作上下文工具输入"""
+    work_id: str = Field(..., description="作品ID")
+    chapter_id: str = Field(default="", description="章节ID（可选）")
+    chapter_orders: str = Field(default="", description="章节序号，支持批量：1 / 1,2,3 / 1-5")
+    user_id: str = Field(default="", description="用户ID（用于获取风格）")
+    include: Union[str, List[str]] = Field(default="work,chapter,worldview,style,rag", description="包含内容类型")
+    rag_query: str = Field(default="", description="RAG检索查询")
+    rag_top_k: int = Field(default=5, description="RAG返回数量")
+    use_cache: bool = Field(default=True, description="是否使用缓存")
+
+
+class GetWritingContextOutput(ToolOutput):
+    """获取创作上下文工具输出"""
+    pass
+
+
+async def get_writing_context_executor(input_data: GetWritingContextInput) -> GetWritingContextOutput:
+    """获取创作上下文执行器（包装 @tool 版本）"""
+    try:
+        result_str = await get_writing_context.ainvoke({
+            "work_id": input_data.work_id,
+            "chapter_id": input_data.chapter_id,
+            "chapter_orders": input_data.chapter_orders,
+            "user_id": input_data.user_id,
+            "include": input_data.include,
+            "rag_query": input_data.rag_query,
+            "rag_top_k": input_data.rag_top_k,
+            "use_cache": input_data.use_cache
+        })
+
+        return GetWritingContextOutput(
+            success=True,
+            message="获取创作上下文成功",
+            data={"context": result_str},
+            metadata={"tool": "get_writing_context"}
+        )
+    except Exception as e:
+        logger.error(f"get_writing_context_executor 失败: {e}")
+        return GetWritingContextOutput(
+            success=False,
+            message=f"获取创作上下文失败: {str(e)}",
+            data=None,
+            metadata={"error": str(e)}
+        )
+
+
+get_writing_context_tool_st = StandardTool(
+    name="get_writing_context",
+    description="一站式获取创作上下文（章节、世界观、RAG等）",
+    category=ToolCategory.UTILITY,
+    input_schema=GetWritingContextInput,
+    output_schema=GetWritingContextOutput,
+    executor=get_writing_context_executor,
+    tags=["chapter", "context", "worldview", "rag"],
     version="1.0.0"
 )
 

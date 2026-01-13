@@ -336,9 +336,9 @@ chapter_id: {chapter_id}
 - 当前用户在章节聊天面板中（chapter_id={chapter_id}）
 - 用户要求修改/润色本章内容时，必须使用以下流程：
   1. 任务1: 调用 read_chapter_tool(work_id="{work_id}", chapter_id="{chapter_id}") 读取章节完整内容
-  2. 任务2: 调用 analyze_text_tool 分析原文中该句话的场景、情绪、角色状态
-  3. 任务3: 基于分析结果，给出符合场景的多个修改建议（用 analyze_text_tool 输出）
-- ✅ 正确示例：read_chapter_tool → analyze_text_tool(focus="场景情绪分析")
+  2. 任务2: 调用 analyze_content 分析原文中该句话的场景、情绪、角色状态（analysis_types="text"）
+  3. 任务3: 基于分析结果，给出符合场景的多个修改建议（用 analyze_content 输出）
+- ✅ 正确示例：read_chapter_tool → analyze_content(focus="场景情绪分析", analysis_types="text")
 - ⚠️ focus 参数必须简洁（15字以内）
 """
 
@@ -399,9 +399,10 @@ chapter_id: {chapter_id}
                 {
                     "task_id": 2,
                     "description": "基于上下文响应用户请求",
-                    "tool": "analyze_text_tool",
+                    "tool": "analyze_content",
                     "params": {
-                        "text": "$TASK_1$",
+                        "content": "$TASK_1$",
+                        "analysis_types": "text",
                         "focus": "根据用户请求进行分析或回答"
                     },
                     "estimated_time": "10秒"

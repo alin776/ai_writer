@@ -1584,13 +1584,14 @@ class WritingAgentGraph:
                                 ))
 
                         # 检索工具
-                        elif tool_name == "search_analysis_fragments_tool":
+                        elif tool_name in ["search_analysis_fragments_tool", "search_content"]:
                             data = json_module.loads(result_str) if isinstance(result_str, str) else result_str
                             items = []
                             # 实际返回格式是 results 字段
                             results = data.get("results", []) if isinstance(data, dict) else data if isinstance(data, list) else []
                             for f in results[:5]:
-                                content = f.get("content", "")[:30]
+                                content = f.get("snippet") or f.get("content", "")
+                                content = content[:30]
                                 items.append({"name": f"{content}...", "tag": "片段", "similarity": f.get("similarity")})
                             if items:
                                 await on_flow_event(FlowEventBuilder.knowledge_loaded(
@@ -1668,7 +1669,7 @@ class WritingAgentGraph:
                             shared_state = {
                                 "work_id": work_id,
                                 "chapter_id": chapter_id,
-                                "context": context_payload or {},
+                                "context": context or {},
                             }
 
                             # 定义任务执行函数（传递给 DeepAgentExecutor）

@@ -95,6 +95,20 @@ def normalize_tool_params(tool_name: str, params: Dict[str, Any]) -> Dict[str, A
             normalized["text"] = params["content"]
             del normalized["content"]
             logger.info(f"[参数标准化] {tool_name}.content → text")
+        if "analysis_types" in params and isinstance(params["analysis_types"], str):
+            normalized["analysis_types"] = [
+                item.strip().lower()
+                for item in params["analysis_types"].split(",")
+                if item.strip()
+            ]
+            logger.info(f"[参数标准化] {tool_name}.analysis_types: str → list")
+        if "aspects" in params and isinstance(params["aspects"], str):
+            normalized["aspects"] = [
+                item.strip().lower()
+                for item in params["aspects"].split(",")
+                if item.strip()
+            ]
+            logger.info(f"[参数标准化] {tool_name}.aspects: str → list")
         if "text" in normalized and not isinstance(normalized["text"], str):
             normalized["text"] = str(normalized["text"])
             logger.info(f"[参数标准化] {tool_name}.text: {type(params.get('text', params.get('content'))).__name__} → str")

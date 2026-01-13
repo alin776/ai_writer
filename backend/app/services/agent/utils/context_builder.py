@@ -25,10 +25,14 @@ FULL_CONTENT_TOOLS = {
     "read_chapter_tool": 8000,
     "get_chapter_by_order_tool": 8000,
     "get_context_tool": 6000,
+    # 🆕 2026-01-12: 聚合工具
+    "get_writing_context": 10000,  # 聚合工具返回内容较多
     # 分析类工具 - 需要较多内容
     "analyze_text_tool": 5000,
+    "analyze_content": 8000,  # 🆕 分析工具返回完整报告
     # 检索类工具 - 保留中等内容
     "search_analysis_fragments_tool": 4000,
+    "search_content": 2000,
 }
 
 # 任务描述关键词匹配（作为备用方案）

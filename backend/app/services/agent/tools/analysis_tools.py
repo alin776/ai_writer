@@ -9,8 +9,10 @@
 """
 
 from typing import Optional, List, Dict, Any
+import json
 import logging
 from pydantic import Field
+from app.utils.json_parser import parse_ai_json
 
 from .tool_types import ToolInput, ToolOutput, ToolCategory, StandardTool
 from .writing_tools import _ensure_ai_service, _generate_text, InsufficientCreditsError
@@ -30,18 +32,45 @@ class AnalyzeContentInput(ToolInput):
         aspects: 分析维度列表(可选)
         depth: 分析深度(shallow/normal/deep)
         context: 额外的上下文信息(可选)
+        analysis_types: 分析类型列表(可选)
+        focus: 分析重点(可选)
+        work_id: 作品ID（用于一致性检查）
+        chapter_id: 章节ID（可选）
     """
 
     content: str = Field(
         ...,
         description="待分析的文本内容",
         min_length=10,
-        max_length=20000
+        max_length=20000,
+        alias="text"  # 兼容 text 参数
     )
 
     aspects: List[str] = Field(
         default_factory=lambda: ["grammar", "logic", "style", "structure"],
         description="分析维度: grammar(语法), logic(逻辑), style(风格), structure(结构), character(人物), plot(情节)"
+    )
+
+    analysis_types: List[str] = Field(
+        default_factory=lambda: ["text", "style"],
+        description="分析类型: text(文本), style(风格), consistency(一致性), quality(质量)"
+    )
+
+    focus: str = Field(
+        default="all",
+        description="分析重点: grammar/logic/style/structure/character/plot/all",
+        min_length=1,
+        max_length=100
+    )
+
+    work_id: str = Field(
+        default="",
+        description="作品ID（用于一致性检查）"
+    )
+
+    chapter_id: str = Field(
+        default="",
+        description="章节ID（可选）"
     )
 
     depth: str = Field(
@@ -54,6 +83,9 @@ class AnalyzeContentInput(ToolInput):
         default="",
         description="额外的上下文信息,帮助更准确的分析"
     )
+
+    class Config:
+        populate_by_name = True  # 允许同时使用 content 和 text
 
 
 class AnalyzeContentOutput(ToolOutput):
@@ -68,6 +100,251 @@ class AnalyzeContentOutput(ToolOutput):
     - suggestions: 改进建议列表
     """
     pass
+
+
+async def _run_text_analysis(
+    content: str,
+    aspects: List[str],
+    depth: str,
+    context: str,
+    focus: str
+) -> Dict[str, Any]:
+    """执行文本分析（兼容旧版 aspects）"""
+    # 构建分析维度描述
+    aspect_descriptions = {
+        "grammar": "语法错误和用词不当",
+        "logic": "逻辑连贯性和因果关系",
+        "style": "写作风格和表达方式",
+        "structure": "文章结构和段落组织",
+        "character": "人物刻画和性格一致性",
+        "plot": "情节发展和冲突设置"
+    }
+
+    selected_aspects = [
+        f"- {aspect}: {aspect_descriptions.get(aspect, aspect)}"
+        for aspect in aspects
+        if aspect in aspect_descriptions
+    ]
+
+    depth_instructions = {
+        "shallow": "进行基础层面的分析,指出明显问题",
+        "normal": "进行中等深度的分析,包含详细的问题说明和建议",
+        "deep": "进行深度分析,包含深层次的问题挖掘、详细的改进方案和最佳实践建议"
+    }
+
+    # 构建提示词
+    prompt = f"""你是一位专业的文本分析专家。请对以下内容进行全面分析。
+
+【待分析内容】
+{content}"""
+
+    if context:
+        prompt += f"""
+
+【上下文信息】
+{context}"""
+
+    if focus and focus != "all":
+        prompt += f"""
+
+【分析重点】
+{focus}"""
+
+    prompt += f"""
+
+【分析要求】
+- 分析深度: {depth_instructions.get(depth, depth_instructions["normal"])}
+- 分析维度:
+{chr(10).join(selected_aspects)}
+
+【输出格式】
+请按以下格式输出:
+
+## 分析摘要
+[用1-2段话总结整体分析结果]
+
+## 详细分析
+{chr(10).join([f"### {aspect_descriptions.get(a, a)}" + chr(10) + "[具体分析内容]" for a in aspects if a in aspect_descriptions])}
+
+## 主要问题
+1. [问题1]
+2. [问题2]
+...
+
+## 改进建议
+1. [建议1]
+2. [建议2]
+...
+
+## 评分 (0-100)
+{chr(10).join([f"- {aspect_descriptions.get(a, a)}: [分数]" for a in aspects if a in aspect_descriptions])}
+
+请开始分析:"""
+
+    analysis_text = await _generate_text(
+        prompt=prompt,
+        temperature=0.3,
+        max_tokens=3000,
+        task_type=TaskType.SUMMARIZATION
+    )
+
+    # 解析结果
+    summary = ""
+    scores = {}
+    issues = []
+    suggestions = []
+
+    if "## 分析摘要" in analysis_text:
+        parts = analysis_text.split("## 详细分析")
+        if len(parts) > 0:
+            summary_section = parts[0].replace("## 分析摘要", "").strip()
+            summary = summary_section.split("\n\n")[0] if summary_section else ""
+
+    if "## 主要问题" in analysis_text:
+        issues_section = analysis_text.split("## 主要问题")[1].split("## 改进建议")[0]
+        issues = [
+            line.strip()
+            for line in issues_section.split("\n")
+            if line.strip() and (line.strip()[0].isdigit() or line.strip().startswith("-"))
+        ]
+
+    if "## 改进建议" in analysis_text:
+        suggestions_section = analysis_text.split("## 改进建议")[1].split("## 评分")[0] if "## 评分" in analysis_text else analysis_text.split("## 改进建议")[1]
+        suggestions = [
+            line.strip()
+            for line in suggestions_section.split("\n")
+            if line.strip() and (line.strip()[0].isdigit() or line.strip().startswith("-"))
+        ]
+
+    if "## 评分" in analysis_text:
+        score_section = analysis_text.split("## 评分")[1]
+        for line in score_section.split("\n"):
+            if ":" in line:
+                try:
+                    aspect_name, score_str = line.split(":")
+                    aspect_name = aspect_name.strip().replace("-", "").strip()
+                    score = int(''.join(filter(str.isdigit, score_str)))
+                    if 0 <= score <= 100:
+                        scores[aspect_name] = score
+                except Exception:
+                    continue
+
+    return {
+        "analysis": analysis_text,
+        "summary": summary or "分析完成",
+        "scores": scores,
+        "issues": issues,
+        "suggestions": suggestions
+    }
+
+
+def _run_style_analysis(content: str) -> Dict[str, Any]:
+    """执行风格分析（规则计算）"""
+    try:
+        from app.services.agent.tools.style_learning import analyze_writing_style
+        features = analyze_writing_style(content)
+        vocabulary_level = "basic"
+        if features.vocabulary_richness >= 0.6:
+            vocabulary_level = "advanced"
+        elif features.vocabulary_richness >= 0.4:
+            vocabulary_level = "intermediate"
+
+        tone = "neutral"
+        if getattr(features, "exclamation_usage", 0) > 0.05:
+            tone = "excited"
+        elif getattr(features, "ellipsis_usage", 0) > 0.05:
+            tone = "hesitant"
+
+        description_ratio = round(features.long_sentence_ratio, 2)
+        action_ratio = round(features.short_sentence_ratio, 2)
+        return {
+            "avg_sentence_length": features.avg_sentence_length,
+            "pov": features.pov,
+            "long_sentence_ratio": round(features.long_sentence_ratio, 2),
+            "short_sentence_ratio": round(features.short_sentence_ratio, 2),
+            "vocabulary_richness": round(features.vocabulary_richness, 2),
+            "common_words": features.common_words[:5],
+            "dialogue_ratio": round(features.dialogue_ratio, 2),
+            "avg_paragraph_length": features.avg_paragraph_length,
+            "description_ratio": description_ratio,
+            "action_ratio": action_ratio,
+            "tone": tone,
+            "vocabulary_level": vocabulary_level
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+async def _build_consistency_context(input_data: "AnalyzeContentInput") -> str:
+    """构建一致性检查上下文（优先使用传入 context）"""
+    if input_data.context:
+        return input_data.context
+    if not input_data.work_id:
+        return ""
+
+    try:
+        from app.services.agent.langgraph_tools import get_writing_context
+        include_parts = ["worldview"]
+        chapter_id = input_data.chapter_id or ""
+        if chapter_id:
+            include_parts.insert(0, "chapter")
+
+        result_str = await get_writing_context.ainvoke({
+            "work_id": input_data.work_id,
+            "chapter_id": chapter_id,
+            "include": ",".join(include_parts)
+        })
+        return result_str if isinstance(result_str, str) else json.dumps(result_str, ensure_ascii=False)
+    except Exception as e:
+        logger.warning(f"[analyze_content] 获取一致性上下文失败: {e}")
+        return ""
+
+
+async def _run_consistency_check(content: str, context: str, work_id: str) -> Dict[str, Any]:
+    """执行一致性检查（LLM）"""
+    if not context:
+        return {"error": "一致性检查需要提供 context 或 work_id"}
+
+    prompt = f"""请检查以下新内容与作品上下文的一致性：
+
+作品上下文：
+{context}
+
+新内容：
+{content}
+
+请以 JSON 格式返回检查结果：
+{{
+  "score": 0-100,
+  "inconsistencies": [{{"type": "类型", "description": "描述"}}],
+  "warnings": [{{"type": "类型", "description": "描述"}}]
+}}
+"""
+
+    report = await _generate_text(
+        prompt=prompt,
+        temperature=0.3,
+        max_tokens=1500,
+        task_type=TaskType.DEEP_ANALYSIS
+    )
+
+    report_text = report.strip() if isinstance(report, str) else str(report)
+    parsed = parse_ai_json(
+        report_text,
+        fallback_value={"error": "解析失败", "raw_report": report_text[:500]},
+        log_prefix="consistency_check"
+    )
+
+    if isinstance(parsed, dict) and not parsed.get("error"):
+        parsed.setdefault("work_id", work_id)
+        parsed.setdefault("raw_report", report_text)
+        return parsed
+
+    return {
+        "work_id": work_id,
+        "report": report_text,
+        "error": parsed.get("error") if isinstance(parsed, dict) else "parse_failed"
+    }
 
 
 async def analyze_content_executor(
@@ -85,136 +362,69 @@ async def analyze_content_executor(
         分析输出结果
     """
     try:
-        # 构建分析维度描述
-        aspect_descriptions = {
-            "grammar": "语法错误和用词不当",
-            "logic": "逻辑连贯性和因果关系",
-            "style": "写作风格和表达方式",
-            "structure": "文章结构和段落组织",
-            "character": "人物刻画和性格一致性",
-            "plot": "情节发展和冲突设置"
-        }
+        analysis_types = [t.strip().lower() for t in (input_data.analysis_types or []) if t.strip()]
+        if not analysis_types:
+            analysis_types = ["text", "style"]
 
-        selected_aspects = [
-            f"- {aspect}: {aspect_descriptions.get(aspect, aspect)}"
-            for aspect in input_data.aspects
-            if aspect in aspect_descriptions
-        ]
-
-        depth_instructions = {
-            "shallow": "进行基础层面的分析,指出明显问题",
-            "normal": "进行中等深度的分析,包含详细的问题说明和建议",
-            "deep": "进行深度分析,包含深层次的问题挖掘、详细的改进方案和最佳实践建议"
-        }
-
-        # 构建提示词
-        prompt = f"""你是一位专业的文本分析专家。请对以下内容进行全面分析。
-
-【待分析内容】
-{input_data.content}"""
-
-        if input_data.context:
-            prompt += f"""
-
-【上下文信息】
-{input_data.context}"""
-
-        prompt += f"""
-
-【分析要求】
-- 分析深度: {depth_instructions[input_data.depth]}
-- 分析维度:
-{chr(10).join(selected_aspects)}
-
-【输出格式】
-请按以下格式输出:
-
-## 分析摘要
-[用1-2段话总结整体分析结果]
-
-## 详细分析
-{chr(10).join([f"### {aspect_descriptions.get(a, a)}" + chr(10) + "[具体分析内容]" for a in input_data.aspects if a in aspect_descriptions])}
-
-## 主要问题
-1. [问题1]
-2. [问题2]
-...
-
-## 改进建议
-1. [建议1]
-2. [建议2]
-...
-
-## 评分 (0-100)
-{chr(10).join([f"- {aspect_descriptions.get(a, a)}: [分数]" for a in input_data.aspects if a in aspect_descriptions])}
-
-请开始分析:"""
-
-        # 调用 AI 生成
-        # ✅ 2025-12-08: 添加 task_type，使用适合分析任务的模型
-        analysis_text = await _generate_text(
-            prompt=prompt,
-            temperature=0.3,  # 较低温度,更客观
-            max_tokens=3000,
-            task_type=TaskType.SUMMARIZATION  # 分析任务属于摘要类型
-        )
-
-        # 解析结果
-        analysis = analysis_text
+        report_sections = []
+        data: Dict[str, Any] = {"analysis_types": analysis_types}
         summary = ""
-        scores = {}
-        issues = []
-        suggestions = []
+        scores: Dict[str, Any] = {}
+        issues: List[str] = []
+        suggestions: List[str] = []
 
-        # 简单解析(实际项目中可以用更复杂的解析逻辑)
-        if "## 分析摘要" in analysis_text:
-            parts = analysis_text.split("## 详细分析")
-            if len(parts) > 0:
-                summary_section = parts[0].replace("## 分析摘要", "").strip()
-                summary = summary_section.split("\n\n")[0] if summary_section else ""
+        if "text" in analysis_types:
+            text_result = await _run_text_analysis(
+                input_data.content,
+                input_data.aspects,
+                input_data.depth,
+                input_data.context,
+                input_data.focus
+            )
+            data["text_analysis"] = text_result
+            summary = text_result.get("summary", "")
+            scores = text_result.get("scores", {})
+            issues = text_result.get("issues", [])
+            suggestions = text_result.get("suggestions", [])
+            report_sections.append(f"【文本分析】\n{text_result.get('analysis', '')}")
 
-        if "## 主要问题" in analysis_text:
-            issues_section = analysis_text.split("## 主要问题")[1].split("## 改进建议")[0]
-            issues = [
-                line.strip()
-                for line in issues_section.split("\n")
-                if line.strip() and (line.strip()[0].isdigit() or line.strip().startswith("-"))
-            ]
+        if "style" in analysis_types:
+            style_features = _run_style_analysis(input_data.content)
+            data["style_features"] = style_features
+            report_sections.append(f"【风格特征】\n{json.dumps(style_features, ensure_ascii=False)}")
 
-        if "## 改进建议" in analysis_text:
-            suggestions_section = analysis_text.split("## 改进建议")[1].split("## 评分")[0] if "## 评分" in analysis_text else analysis_text.split("## 改进建议")[1]
-            suggestions = [
-                line.strip()
-                for line in suggestions_section.split("\n")
-                if line.strip() and (line.strip()[0].isdigit() or line.strip().startswith("-"))
-            ]
+        if "consistency" in analysis_types:
+            consistency_context = await _build_consistency_context(input_data)
+            consistency_report = await _run_consistency_check(
+                input_data.content,
+                consistency_context,
+                input_data.work_id
+            )
+            data["consistency_report"] = consistency_report
+            report_sections.append(f"【一致性检查】\n{json.dumps(consistency_report, ensure_ascii=False)}")
 
-        # 解析评分
-        if "## 评分" in analysis_text:
-            score_section = analysis_text.split("## 评分")[1]
-            for line in score_section.split("\n"):
-                if ":" in line:
-                    try:
-                        aspect_name, score_str = line.split(":")
-                        aspect_name = aspect_name.strip().replace("-", "").strip()
-                        score = int(''.join(filter(str.isdigit, score_str)))
-                        if 0 <= score <= 100:
-                            scores[aspect_name] = score
-                    except:
-                        continue
+        if "quality" in analysis_types:
+            quality_result = await evaluate_quality_executor(
+                EvaluateQualityInput(content=input_data.content)
+            )
+            quality_data = quality_result.data or {}
+            data["quality_evaluation"] = quality_data
+            report_sections.append(f"【质量评估】\n{json.dumps(quality_data, ensure_ascii=False)}")
+
+        analysis_text = "\n\n".join([s for s in report_sections if s]) or "分析完成"
+        data.setdefault("analysis", analysis_text)
+        data.setdefault("summary", summary or "分析完成")
+        data.setdefault("scores", scores)
+        data.setdefault("issues", issues)
+        data.setdefault("suggestions", suggestions)
 
         return AnalyzeContentOutput(
             success=True,
             message="分析完成",
-            data={
-                "analysis": analysis,
-                "summary": summary or "分析完成",
-                "scores": scores,
-                "issues": issues,
-                "suggestions": suggestions
-            },
+            data=data,
             metadata={
                 "content_length": len(input_data.content),
+                "analysis_types": analysis_types,
                 "aspects": input_data.aspects,
                 "depth": input_data.depth,
                 "issues_count": len(issues),
@@ -243,7 +453,7 @@ async def analyze_content_executor(
 # 创建内容分析工具实例
 analyze_content_tool = StandardTool(
     name="analyze_content",
-    description="多维度分析文本内容,包括语法、逻辑、风格、结构等,提供详细的问题诊断和改进建议",
+    description="多维度分析文本内容,支持 analysis_types 聚合与 aspects 兼容,提供诊断与建议",
     category=ToolCategory.ANALYSIS,
     input_schema=AnalyzeContentInput,
     output_schema=AnalyzeContentOutput,

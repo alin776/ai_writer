@@ -17,10 +17,12 @@ from app.services.agent.utils.tool_helpers import normalize_tool_params
 from app.services.agent.utils.chapter_cache import ChapterCache
 from app.services.agent.langgraph_tools import (
     analyze_text_tool,
+    analyze_content,
     read_chapter_tool,
     get_chapter_by_order_tool,
     get_context_tool,
     search_analysis_fragments_tool,
+    search_content,
 )
 from app.services.agent.tools.editor_tools import smart_continue
 
@@ -36,13 +38,15 @@ class TaskRunner:
     # 工具名称映射
     TOOL_NAME_MAPPING = {
         "smart_continue": "smart_continue",
-        "analyze_text_tool": "analyze_text",
-        "analyze_content_tool": "analyze_text",  # 兼容：统一使用 analyze_text
-        "analyze_content": "analyze_text",       # 兼容：统一使用 analyze_text
+        "analyze_text_tool": "analyze_content",
+        "analyze_content_tool": "analyze_content",
+        "analyze_content": "analyze_content",
         "get_context_tool": "get_context",
         "read_chapter_tool": "read_chapter",
         "get_chapter_by_order_tool": "get_chapter_by_order",
-        "search_analysis_fragments_tool": "search_analysis_fragments",
+        "search_analysis_fragments_tool": "search_content",
+        "search_analysis_fragments": "search_content",
+        "search_content": "search_content",
     }
 
     def __init__(
@@ -246,6 +250,25 @@ class TaskRunner:
                 "max_content_length": params.get("max_content_length", 2000),
             }
 
+        elif tool_name == "search_content":
+            if not work_id:
+                logger.warning(
+                    f"[TaskRunner] search_content 需要 work_id 参数，"
+                    f"但当前 work_id 为空。任务描述: {task.get('description', 'N/A')}"
+                )
+                return json.dumps({
+                    "error": "需要指定作品ID才能搜索内容",
+                    "message": "请在聊天时指定作品ID，或在作品详情页使用此功能",
+                    "tool": "search_content"
+                }, ensure_ascii=False, indent=2)
+            return {
+                "work_id": work_id,
+                "query": params.get("query", "相关内容"),
+                "top_k": params.get("top_k", 10),
+                "chapter_id": chapter_id or "",
+                "look_ahead": params.get("look_ahead", 0),
+            }
+
         elif tool_name == "smart_continue":
             context_param = self._extract_context_param(params, context)
             # 🔧 2026-01-09: 修复 chapter_id 参数处理，与其他工具保持一致
@@ -258,11 +281,18 @@ class TaskRunner:
                 "word_count": params.get("word_count", 500),  # 添加字数
             }
 
-        elif tool_name == "analyze_text_tool":
+        elif tool_name in {"analyze_text_tool", "analyze_content"}:
             text_param, focus_param = self._extract_analyze_params(params, context)
+            context_param = params.get("context", "")
+            if not context_param or "$TASK_" in str(context_param):
+                context_param = context
             return {
+                "content": text_param,
                 "text": text_param,
-                "focus": focus_param
+                "analysis_types": params.get("analysis_types", "text,style"),
+                "focus": focus_param,
+                "depth": params.get("depth", "normal"),
+                "context": context_param
             }
 
         else:
@@ -363,7 +393,15 @@ class TaskRunner:
                 "chapter_id": chapter_id or "",
                 "include_current": params.get("include_current", True),
                 "look_ahead": params.get("look_ahead", 0),
-                "max_content_length": params.get("max_content_length", 2000),
+                "max_content_length": params.get("max_content_length", 200),
+            })
+        elif tool_name == "search_content":
+            return await search_content.ainvoke({
+                "work_id": work_id,
+                "query": params.get("query", "相关内容"),
+                "top_k": params.get("top_k", 10),
+                "chapter_id": chapter_id or "",
+                "look_ahead": params.get("look_ahead", 0),
             })
         elif tool_name == "smart_continue":
             # 🔧 2026-01-11: 修复参数名 - smart_continue 期望 chapter_content，不是 content
@@ -377,6 +415,17 @@ class TaskRunner:
             return await analyze_text_tool.ainvoke({
                 "text": params.get("text", ""),
                 "focus": params.get("focus", "all")
+            })
+        elif tool_name == "analyze_content":
+            return await analyze_content.ainvoke({
+                "content": params.get("content", ""),
+                "text": params.get("text", ""),
+                "analysis_types": params.get("analysis_types", "text,style"),
+                "focus": params.get("focus", "all"),
+                "depth": params.get("depth", "normal"),
+                "context": params.get("context", ""),
+                "work_id": params.get("work_id", work_id),
+                "chapter_id": params.get("chapter_id", chapter_id or "")
             })
         else:
             return f"任务 {tool_name} 需要手动处理"

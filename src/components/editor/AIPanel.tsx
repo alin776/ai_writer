@@ -180,15 +180,45 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
           h3({ children }) {
             return <h3 className="text-[15px] font-medium mb-1.5 mt-2 first:mt-0 text-zinc-700 dark:text-zinc-300">{children}</h3>;
           },
-          // 列表
-          ul({ children }) {
-            return <ul className="list-disc list-inside mb-1.5 space-y-0.5 text-[14px]">{children}</ul>;
+          // 列表 - 使用 list-outside 让嵌套列表有更好的缩进
+          ul({ children, className }) {
+            // 检查是否是任务列表（contains-task-list）
+            const isTaskList = className?.includes('contains-task-list');
+            return (
+              <ul className={`mb-1.5 space-y-1 text-[14px] ${isTaskList ? 'list-none pl-0' : 'list-disc list-outside pl-5'}`}>
+                {children}
+              </ul>
+            );
           },
           ol({ children }) {
-            return <ol className="list-decimal list-inside mb-1.5 space-y-0.5 text-[14px]">{children}</ol>;
+            return <ol className="list-decimal list-outside mb-1.5 space-y-1 text-[14px] pl-5">{children}</ol>;
           },
-          li({ children }) {
-            return <li className="text-[14px]">{children}</li>;
+          li({ children, className }) {
+            const isTaskItem = className?.includes('task-list-item');
+            return (
+              <li className={`text-[14px] ${isTaskItem ? 'flex items-start gap-2 list-none' : ''}`}>
+                {children}
+              </li>
+            );
+          },
+          // 任务列表 checkbox
+          input({ type, checked, disabled }) {
+            if (type === 'checkbox') {
+              return (
+                <span className={`inline-flex items-center justify-center w-4 h-4 rounded border flex-shrink-0 mt-0.5 ${
+                  checked
+                    ? 'bg-blue-500 border-blue-500 text-white'
+                    : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800'
+                }`}>
+                  {checked && (
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </span>
+              );
+            }
+            return null;
           },
           // 链接
           a({ href, children }) {

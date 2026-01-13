@@ -23,7 +23,9 @@ PARALLEL_SAFE_TOOLS = {
     "read_chapter_tool",
     "get_chapter_by_order_tool",
     "search_analysis_fragments_tool",
-    "analyze_text_tool"  # 允许并行（无参数依赖时）
+    "search_content",
+    "analyze_text_tool",  # 允许并行（无参数依赖时）
+    "analyze_content"
 }
 
 

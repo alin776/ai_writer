@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 # 定义工具类型
 INPUT_TOOLS = {
     "get_context_tool",
-    "search_analysis_fragments_tool",
+    "search_content",
+    "get_writing_context",
     "get_worldview_summary",  # 世界观查询工具，仅用于提供创作上下文
     "get_chapter_by_order_tool",  # 章节读取工具，在续写场景下是输入型
     "read_chapter_tool"  # 章节读取工具，在续写场景下是输入型
@@ -41,7 +42,7 @@ OUTPUT_TOOLS = {
     "smart_continue",
     "smart_rewrite",
     "smart_insert",
-    "analyze_text_tool"
+    "analyze_content"
 }
 
 
@@ -222,7 +223,7 @@ class ResponseBuilder:
                 tool_name = task.get("tool", "unknown")
                 result = task.get("result", "") or ""
 
-                if tool_name == "analyze_text_tool":
+                if tool_name in {"analyze_text_tool", "analyze_content"}:
                     parts.append(f"## 分析结果\n\n{result}")
                 elif tool_name in {"smart_continue", "smart_rewrite", "smart_insert"}:
                     parts.append(f"## 创作内容\n\n{result}")
@@ -355,10 +356,11 @@ class ResponseBuilder:
             all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
 
         # 上下文压缩
+        # 🔧 2026-01-12: 增加 max_context_length 从 6000 到 15000，避免分析结果被省略
         compressed_context = _build_summarization_context(
             user_message=message,
             task_results=task_results,
-            max_context_length=6000
+            max_context_length=15000
         )
 
         original_length = len(all_context)

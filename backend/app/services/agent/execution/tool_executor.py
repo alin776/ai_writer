@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # 工具名称映射（@tool 名称 → StandardTool 名称）
 TOOL_NAME_MAPPING = {
-    "analyze_text_tool": "analyze_text",
+    "analyze_text_tool": "analyze_content",
     "smart_rewrite": "smart_rewrite",
     "smart_continue": "smart_continue",
     "smart_insert": "smart_insert",
@@ -30,7 +30,9 @@ TOOL_NAME_MAPPING = {
     "get_context_tool": "get_context",
     "read_chapter_tool": "read_chapter",
     "get_chapter_by_order_tool": "get_chapter_by_order",
-    "search_analysis_fragments_tool": "search_analysis_fragments",
+    "search_analysis_fragments_tool": "search_content",
+    "search_analysis_fragments": "search_content",
+    "search_content": "search_content",
     # 世界观工具
     "get_worldview_summary": "get_worldview_summary",
     # 分析工具
@@ -41,6 +43,9 @@ TOOL_NAME_MAPPING = {
     "update_chapter_title": "update_chapter_title",
     "delete_chapter": "delete_chapter",
     "update_chapter_content": "update_chapter_content",
+    # 聚合工具（2026-01-12）
+    "get_writing_context": "get_writing_context",
+    "get_style_guidance_tool": "get_style_guidance",
 }
 
 
@@ -80,6 +85,12 @@ class ToolExecutor:
             if cached_result:
                 return cached_result
 
+        # 🆕 2026-01-12: get_writing_context 也使用章节缓存
+        if normalized_name == "get_writing_context":
+            cached_result = self._check_writing_context_cache(tool_args, state)
+            if cached_result:
+                return cached_result
+
         try:
             # 准备参数
             params = self.prepare_params(normalized_name, tool_args, state)
@@ -102,6 +113,10 @@ class ToolExecutor:
                 # 🆕 2026-01-12: 章节缓存写入
                 if normalized_name in ["read_chapter", "get_chapter_by_order"]:
                     self._update_chapter_cache(normalized_name, result, state)
+
+                # 🆕 2026-01-12: get_writing_context 章节缓存写入
+                if normalized_name == "get_writing_context":
+                    self._update_writing_context_cache(result, state)
 
                 return tool_result
             else:
@@ -285,10 +300,28 @@ class ToolExecutor:
             params.setdefault("chapter_id", state.get("chapter_id", ""))
             params.setdefault("include_current", True)
             params.setdefault("look_ahead", 0)
-            params.setdefault("max_content_length", 2000)
+            params.setdefault("max_content_length", 200)
+
+        elif tool_name == "search_content":
+            params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("query", last_user_message)
+            params.setdefault("top_k", 10)
+            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            params.setdefault("look_ahead", 0)
 
         elif tool_name == "get_worldview_summary":
             params.setdefault("work_id", state.get("work_id", ""))
+
+        # 🆕 2026-01-12: get_writing_context 聚合工具
+        elif tool_name == "get_writing_context":
+            params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            params.setdefault("chapter_orders", "")
+            params.setdefault("user_id", state.get("user_id", ""))
+            params.setdefault("include", "work,chapter,worldview,style,rag")
+            params.setdefault("rag_query", "")
+            params.setdefault("rag_top_k", 5)
+            params.setdefault("use_cache", True)
 
         elif tool_name == "evaluate_quality":
             if "text" in params and "content" not in params:
@@ -301,8 +334,24 @@ class ToolExecutor:
         elif tool_name == "analyze_content":
             params.setdefault("content", last_user_message)
             params.setdefault("aspects", ["grammar", "logic", "style", "structure"])
+            params.setdefault("analysis_types", ["text", "style"])
+            params.setdefault("focus", "all")
             params.setdefault("depth", "normal")
             params.setdefault("context", "")
+            params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            if isinstance(params.get("analysis_types"), str):
+                params["analysis_types"] = [
+                    item.strip().lower()
+                    for item in params["analysis_types"].split(",")
+                    if item.strip()
+                ]
+            if isinstance(params.get("aspects"), str):
+                params["aspects"] = [
+                    item.strip().lower()
+                    for item in params["aspects"].split(",")
+                    if item.strip()
+                ]
 
         # 章节管理工具（OPERATION 类）- 需要传递 conversation_id
         elif tool_name == "create_chapter":
@@ -356,6 +405,12 @@ class ToolExecutor:
         elif tool_name == "get_context":
             return data.get("context", "")
 
+        elif tool_name == "get_writing_context":
+            context = data.get("context", "")
+            if isinstance(context, str):
+                return context
+            return json.dumps(context, ensure_ascii=False)
+
         elif tool_name == "read_chapter":
             return data.get("chapter_info", "")
 
@@ -364,6 +419,9 @@ class ToolExecutor:
 
         elif tool_name == "search_analysis_fragments":
             return data.get("fragments", "")
+
+        elif tool_name == "search_content":
+            return data.get("results", "")
 
         elif tool_name == "get_worldview_summary":
             # 返回 JSON 字符串格式的世界观摘要
@@ -393,7 +451,10 @@ class ToolExecutor:
         """降级到 @tool 版本（向后兼容）"""
         from app.services.agent.langgraph_tools import (
             analyze_text_tool,
+            analyze_content,
             get_worldview_summary,
+            get_writing_context,
+            search_content,
         )
         from app.services.agent.tools.editor_tools import (
             smart_rewrite,
@@ -424,11 +485,15 @@ class ToolExecutor:
 
         LEGACY_TOOLS = {
             "analyze_text_tool": analyze_text_tool,
+            "analyze_content": analyze_content,
             "smart_rewrite": smart_rewrite,
             "smart_continue": smart_continue,
             "smart_insert": smart_insert,
             "apply_chapter_edit": apply_chapter_edit,
             "get_worldview_summary": get_worldview_summary,
+            # 聚合工具（2026-01-12）
+            "get_writing_context": get_writing_context,
+            "search_content": search_content,
             # 创作增强工具
             "show_emotion_tool": show_emotion_tool,
             "enhance_scene_tool": enhance_scene_tool,
@@ -453,9 +518,28 @@ class ToolExecutor:
                         "text": tool_args.get("text", last_user_message),
                         "focus": tool_args.get("focus", "all")
                     }
+                elif tool_name == "analyze_content":
+                    params = {
+                        "content": tool_args.get("content", last_user_message),
+                        "text": tool_args.get("text", ""),
+                        "analysis_types": tool_args.get("analysis_types", "text,style"),
+                        "focus": tool_args.get("focus", "all"),
+                        "depth": tool_args.get("depth", "normal"),
+                        "context": tool_args.get("context", ""),
+                        "work_id": tool_args.get("work_id", state.get("work_id", "")),
+                        "chapter_id": tool_args.get("chapter_id", state.get("chapter_id", ""))
+                    }
                 elif tool_name == "get_worldview_summary":
                     params = {
                         "work_id": tool_args.get("work_id", state.get("work_id", ""))
+                    }
+                elif tool_name == "search_content":
+                    params = {
+                        "work_id": tool_args.get("work_id", state.get("work_id", "")),
+                        "query": tool_args.get("query", last_user_message),
+                        "top_k": tool_args.get("top_k", 10),
+                        "chapter_id": tool_args.get("chapter_id", state.get("chapter_id", "")),
+                        "look_ahead": tool_args.get("look_ahead", 0),
                     }
                 elif tool_name == "show_emotion_tool":
                     params = {
@@ -515,6 +599,8 @@ class ToolExecutor:
                         "work_id": tool_args.get("work_id", state.get("work_id", ""))
                     }
                 elif tool_name == "apply_chapter_edit":
+                    # 🔧 2026-01-13: 添加调试日志
+                    logger.info(f"[apply_chapter_edit] tool_args: chapter_id={tool_args.get('chapter_id')}, content_len={len(tool_args.get('content', '')) if tool_args.get('content') else 0}")
                     params = {
                         "chapter_id": tool_args.get("chapter_id", state.get("chapter_id", "")),
                         "content": tool_args.get("content", ""),
@@ -537,6 +623,18 @@ class ToolExecutor:
                         "chapters_json": tool_args.get("chapters_json", "[]"),
                         "characters_json": tool_args.get("characters_json", "[]"),
                         "worldview_json": tool_args.get("worldview_json", "{}")
+                    }
+                # 聚合工具（2026-01-12）
+                elif tool_name == "get_writing_context":
+                    params = {
+                        "work_id": tool_args.get("work_id", state.get("work_id", "")),
+                        "chapter_id": tool_args.get("chapter_id", state.get("chapter_id", "")),
+                        "chapter_orders": tool_args.get("chapter_orders", ""),
+                        "user_id": tool_args.get("user_id", state.get("user_id", "")),
+                        "include": tool_args.get("include", "work,chapter,worldview,style,rag"),
+                        "rag_query": tool_args.get("rag_query", ""),
+                        "rag_top_k": tool_args.get("rag_top_k", 5),
+                        "use_cache": tool_args.get("use_cache", True)
                     }
                 else:
                     params = tool_args
@@ -623,4 +721,165 @@ class ToolExecutor:
                 ChapterCache.set_batch(state, chapter_info["chapters"], work_id)
         except Exception as e:
             logger.warning(f"[ChapterCache] 缓存写入失败: {e}")
+
+    # ==================== get_writing_context 缓存方法 ====================
+
+    def _check_writing_context_cache(
+        self,
+        tool_args: dict,
+        state: dict
+    ) -> Optional[str]:
+        """检查 get_writing_context 的章节缓存
+
+        如果请求的所有章节都在缓存中，直接返回缓存结果。
+        注意：只有当 include 仅包含 chapter 时才使用缓存，
+        因为 worldview/rag 等数据需要实时查询。
+
+        Args:
+            tool_args: 工具参数
+            state: Agent 状态
+
+        Returns:
+            缓存命中时返回结果字符串，否则返回 None
+        """
+        work_id = tool_args.get("work_id") or state.get("work_id", "")
+        include_value = tool_args.get("include", "work,chapter,worldview,style,rag")
+        if isinstance(include_value, (list, tuple, set)):
+            include_value = ",".join([str(i).strip() for i in include_value if str(i).strip()])
+
+        # 只有当 include 仅包含 chapter 时才使用缓存
+        include_set = set(i.strip() for i in str(include_value).split(",") if i.strip())
+        if include_set != {"chapter"}:
+            # 包含其他数据类型，无法使用缓存
+            return None
+
+        chapter_orders = tool_args.get("chapter_orders", "")
+        chapter_id = tool_args.get("chapter_id", "")
+
+        # 解析章节序号
+        if chapter_orders:
+            orders = self._parse_chapter_orders(chapter_orders)
+            if not orders:
+                return None
+
+            # 检查所有章节是否都在缓存中
+            cached_chapters = []
+            for order in orders:
+                cached = ChapterCache.get_by_order(state, work_id, order)
+                if not cached:
+                    return None  # 有一章未命中，放弃缓存
+                cached_chapters.append({
+                    "id": cached.get("chapter_id"),
+                    "title": cached.get("title"),
+                    "order": cached.get("order"),
+                    "content": cached.get("content", ""),
+                    "word_count": cached.get("word_count")
+                })
+
+            logger.info(f"[ChapterCache] ✅ get_writing_context 缓存命中: {len(cached_chapters)} 章")
+            return json.dumps({
+                "work_id": work_id,
+                "chapters": cached_chapters
+            }, ensure_ascii=False, indent=2)
+
+        elif chapter_id:
+            cached = ChapterCache.get_by_id(state, chapter_id)
+            if cached:
+                logger.info(f"[ChapterCache] ✅ get_writing_context 缓存命中: {chapter_id[:8]}...")
+                return json.dumps({
+                    "work_id": work_id,
+                    "chapters": [{
+                        "id": cached.get("chapter_id"),
+                        "title": cached.get("title"),
+                        "order": cached.get("order"),
+                        "content": cached.get("content", ""),
+                        "word_count": cached.get("word_count")
+                    }]
+                }, ensure_ascii=False, indent=2)
+
+        return None
+
+    def _update_writing_context_cache(
+        self,
+        result: dict,
+        state: dict
+    ) -> None:
+        """更新 get_writing_context 返回的章节缓存
+
+        Args:
+            result: 工具返回结果
+            state: Agent 状态
+        """
+        if not isinstance(result, dict) or not result.get("success"):
+            return
+
+        data = result.get("data", {})
+        work_id = state.get("work_id", "")
+
+        # 从 context 字段解析章节数据
+        context_str = data.get("context")
+        if not context_str:
+            return
+
+        try:
+            if isinstance(context_str, str):
+                context_data = json.loads(context_str)
+            else:
+                context_data = context_str
+
+            chapters = context_data.get("chapters", [])
+            if not chapters:
+                return
+
+            # 转换格式并写入缓存
+            for ch in chapters:
+                if isinstance(ch, dict) and ch.get("id"):
+                    chapter_data = {
+                        "chapter_id": ch.get("id"),
+                        "title": ch.get("title"),
+                        "order": ch.get("order"),
+                        "content": ch.get("content", ""),
+                        "word_count": ch.get("word_count")
+                    }
+                    ChapterCache.set(state, chapter_data, work_id)
+
+            logger.info(f"[ChapterCache] 📝 get_writing_context 缓存写入: {len(chapters)} 章")
+
+        except Exception as e:
+            logger.warning(f"[ChapterCache] get_writing_context 缓存写入失败: {e}")
+
+    def _parse_chapter_orders(self, chapter_order: str) -> list:
+        """解析章节序号参数"""
+        if isinstance(chapter_order, int):
+            return [chapter_order]
+
+        chapter_order = str(chapter_order).strip()
+
+        # 范围格式 "1-5"
+        if "-" in chapter_order and "," not in chapter_order:
+            parts = chapter_order.split("-")
+            if len(parts) == 2:
+                try:
+                    start = int(parts[0].strip())
+                    end = int(parts[1].strip())
+                    if start <= end:
+                        return list(range(start, end + 1))
+                except ValueError:
+                    pass
+
+        # 多个格式 "1,2,3"
+        if "," in chapter_order:
+            orders = []
+            for part in chapter_order.split(","):
+                try:
+                    orders.append(int(part.strip()))
+                except ValueError:
+                    continue
+            return sorted(set(orders))
+
+        # 单个格式 "1"
+        try:
+            return [int(chapter_order)]
+        except ValueError:
+            return []
 
