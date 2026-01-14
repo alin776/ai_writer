@@ -6,7 +6,7 @@ import { useAgentChat } from '../../hooks/useAgentChat';
 import { useEditorStore } from '../../store/editorStore';
 import { useChatDraftStore } from '../../store/chatDraftStore';
 import { agentApi } from '../../services/agentApi';  // v7.5: 非阻塞式修订
-import type { AgentChatRequest, TaskSnapshot } from '../../types/agent';
+import type { AgentChatRequest, TaskSnapshot, RevisionFlowData, FlowItem, StepFlowData } from '../../types/agent';
 import type { AgentMode } from '../agent/ModeSelector';
 import ModeSelector from '../agent/ModeSelector';
 import ActivityStream from '../agent/ActivityStream';  // �?导入ActivityStream
@@ -1424,6 +1424,22 @@ ${selectionContext.selected_text}
           const showActivityStream = isStreamingMessage && mode === 'agent' && activities.length > 0;
           const showThinking = isStreamingMessage && !showActivityStream && flowItemsWithoutOutput.length === 0;
           const showFlowBlock = flowItemsWithoutOutput.length > 0 || showActivityStream || showThinking;
+          const findRevisionByItemId = (targetId: string): RevisionFlowData | null => {
+            if (!targetId) return null;
+            for (const item of messageFlowItems as FlowItem[]) {
+              if (!item) continue;
+              if (item.type === 'step') {
+                const stepData = item.data as StepFlowData;
+                if ((stepData.revisionItemId === targetId || item.id === targetId) && stepData.revision) {
+                  return stepData.revision as RevisionFlowData;
+                }
+              }
+              if (item.type === 'revision' && item.id === targetId) {
+                return item.data as RevisionFlowData;
+              }
+            }
+            return null;
+          };
 
           return (
             <div key={index} className="space-y-2">
@@ -1435,6 +1451,9 @@ ${selectionContext.selected_text}
                         items={flowItemsWithoutOutput}
                         onAcceptRevision={(itemId, requestId, selectedVersion) => {
                           console.log('[AIPanel] RevisionCard accepted:', { itemId, requestId, selectedVersion });
+                          const revisionData = findRevisionByItemId(itemId);
+                          const resolvedRequestId = requestId || revisionData?.requestId;
+                          const targetChapterId = revisionData?.chapterId;
 
                           // v7.2: �?pendingApproval 中提取快照数据用于撤销/重做
                           let snapshot: {
@@ -1478,11 +1497,11 @@ ${selectionContext.selected_text}
                           // 如果�?pendingApproval，且 requestId 匹配，则调用 submitApproval
                           if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
                             submitApproval(true, selectedVersion);
-                          } else if (requestId) {
+                          } else if (resolvedRequestId) {
                             // v7.5: 非阻塞式修订 - 直接调用后端 API 写入数据�?
                             console.log('[AIPanel] 非阻塞式修订，直接调用后�?API');
                             agentApi.submitApprovalResponse({
-                              request_id: requestId,
+                              request_id: resolvedRequestId,
                               approved: true,
                               selected_version: selectedVersion
                             }).then(() => {
@@ -1493,7 +1512,11 @@ ${selectionContext.selected_text}
                             // 派发采纳事件到编辑器
                             window.dispatchEvent(
                               new CustomEvent('agent-accept-revision', {
-                                detail: { request_id: requestId }
+                                detail: {
+                                  request_id: resolvedRequestId,
+                                  revision_id: itemId,
+                                  chapter_id: targetChapterId
+                                }
                               })
                             );
                           } else {
@@ -1501,13 +1524,20 @@ ${selectionContext.selected_text}
 
                             window.dispatchEvent(
                               new CustomEvent('agent-accept-revision', {
-                                detail: { request_id: itemId }
+                                detail: {
+                                  request_id: itemId,
+                                  revision_id: itemId,
+                                  chapter_id: targetChapterId
+                                }
                               })
                             );
                           }
                         }}
                         onDiscardRevision={(itemId, requestId) => {
                           console.log('[AIPanel] RevisionCard discarded:', { itemId, requestId });
+                          const revisionData = findRevisionByItemId(itemId);
+                          const resolvedRequestId = requestId || revisionData?.requestId;
+                          const targetChapterId = revisionData?.chapterId;
 
                           // v7.2: �?pendingApproval 中提取快照数据用于重�?
                           let snapshot: {
@@ -1534,11 +1564,11 @@ ${selectionContext.selected_text}
 
                           if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
                             submitApproval(false);
-                          } else if (requestId) {
+                          } else if (resolvedRequestId) {
                             // v7.5: 非阻塞式修订 - 直接调用后端 API
                             console.log('[AIPanel] 非阻塞式修订，直接调用后�?API (弃用)');
                             agentApi.submitApprovalResponse({
-                              request_id: requestId,
+                              request_id: resolvedRequestId,
                               approved: false
                             }).catch((err) => {
                               console.error('[AIPanel] �?弃用请求失败:', err);
@@ -1546,7 +1576,11 @@ ${selectionContext.selected_text}
                             // v7.6: 派发弃用事件到编辑器（直接操作修订标记）
                             window.dispatchEvent(
                               new CustomEvent('agent-discard-revision', {
-                                detail: { request_id: requestId }
+                                detail: {
+                                  request_id: resolvedRequestId,
+                                  revision_id: itemId,
+                                  chapter_id: targetChapterId
+                                }
                               })
                             );
                           } else {
@@ -1554,7 +1588,11 @@ ${selectionContext.selected_text}
 
                             window.dispatchEvent(
                               new CustomEvent('agent-discard-revision', {
-                                detail: { request_id: itemId }
+                                detail: {
+                                  request_id: itemId,
+                                  revision_id: itemId,
+                                  chapter_id: targetChapterId
+                                }
                               })
                             );
                           }

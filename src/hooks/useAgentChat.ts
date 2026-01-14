@@ -1028,6 +1028,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     window.dispatchEvent(new CustomEvent('agent-show-revision', {
                       detail: {
                         revisionId: revisionItemId,
+                        requestId: revisionData.requestId,
                         chapterId: revisionData.chapterId,
                         type: editorType,
                         replacement: revisionData.content,  // NovelEditor 期望 replacement
@@ -1506,7 +1507,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           // 派发"确认采纳"事件，让编辑器应用修改（移除标记，保留新内容）
           window.dispatchEvent(
             new CustomEvent('agent-accept-revision', {
-              detail: { request_id: pending.request_id }
+              detail: { request_id: pending.request_id, chapter_id: pending.chapter_id }
             })
           );
           console.log('[useAgentChat] ✅ 派发采纳事件');
@@ -1519,7 +1520,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           // v7.6: 弃用时：派发弃用事件，移除修订标记，恢复原文
           window.dispatchEvent(
             new CustomEvent('agent-discard-revision', {
-              detail: { request_id: pending.request_id }
+              detail: { request_id: pending.request_id, chapter_id: pending.chapter_id }
             })
           );
           console.log('[useAgentChat] ❌ 派发弃用事件');

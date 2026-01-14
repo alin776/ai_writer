@@ -176,6 +176,76 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       .filter((revision) => revision.targetChapterId === targetChapterId)
       .map((revision) => revision.revisionId);
   }, [pendingCrossChapterRevisions]);
+  const applyRevisionDecisionToHtml = (
+    html: string,
+    decision: 'accept' | 'discard',
+    revisionIds?: string[]
+  ) => {
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    const ids = (revisionIds || []).filter(Boolean);
+    const unwrap = (element: Element) => {
+      const fragment = document.createDocumentFragment();
+      while (element.firstChild) {
+        fragment.appendChild(element.firstChild);
+      }
+      element.parentNode?.replaceChild(fragment, element);
+    };
+    const normalizeTargets = (revisionId: string) => {
+      const revisionElements = Array.from(
+        tempDiv.querySelectorAll(`[data-revision-id="${revisionId}"]`)
+      );
+      const deletedTargets = new Set<HTMLElement>();
+      const insertedTargets = new Set<HTMLElement>();
+
+      revisionElements.forEach((element) => {
+        const deletedAncestor = element.closest('del[data-ai-deleted], del.ai-deleted');
+        if (deletedAncestor) deletedTargets.add(deletedAncestor as HTMLElement);
+        const insertedAncestor = element.closest('ins[data-ai-inserted], ins.ai-inserted');
+        if (insertedAncestor) insertedTargets.add(insertedAncestor as HTMLElement);
+
+        element.querySelectorAll('del[data-ai-deleted], del.ai-deleted').forEach((node) => {
+          deletedTargets.add(node as HTMLElement);
+        });
+        element.querySelectorAll('ins[data-ai-inserted], ins.ai-inserted').forEach((node) => {
+          insertedTargets.add(node as HTMLElement);
+        });
+      });
+
+      return { deletedTargets, insertedTargets };
+    };
+
+    if (ids.length === 0) {
+      const deletedElements = tempDiv.querySelectorAll('del[data-ai-deleted], del.ai-deleted');
+      const insertedElements = tempDiv.querySelectorAll('ins[data-ai-inserted], ins.ai-inserted');
+      const revisionIdElements = tempDiv.querySelectorAll('span[data-revision-id]');
+
+      if (decision === 'accept') {
+        deletedElements.forEach(el => el.remove());
+        insertedElements.forEach(el => unwrap(el));
+      } else {
+        insertedElements.forEach(el => el.remove());
+        deletedElements.forEach(el => unwrap(el));
+      }
+      revisionIdElements.forEach(el => unwrap(el));
+      return tempDiv.innerHTML;
+    }
+
+    ids.forEach((revisionId) => {
+      const { deletedTargets, insertedTargets } = normalizeTargets(revisionId);
+      if (decision === 'accept') {
+        deletedTargets.forEach(el => el.remove());
+        insertedTargets.forEach(el => unwrap(el));
+      } else {
+        insertedTargets.forEach(el => el.remove());
+        deletedTargets.forEach(el => unwrap(el));
+      }
+      const revisionIdElements = tempDiv.querySelectorAll(`[data-revision-id="${revisionId}"]`);
+      revisionIdElements.forEach(el => unwrap(el));
+    });
+
+    return tempDiv.innerHTML;
+  };
 
   // 按作品/章节隔离本地缓存，避免不同作品间内容串联
   const contentStorageKey = useMemo(() => {
@@ -1387,41 +1457,44 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     const handleAcceptRevisionEvent = (event: Event) => {
       console.log('[NovelEditor] 收到采纳修订请求');
       const isBatch = event.type === 'agent-accept-all-revisions';
+      const customEvent = event as CustomEvent<{
+        request_id?: string;
+        revision_id?: string;
+        chapter_id?: string;
+        requestId?: string;
+        revisionId?: string;
+        chapterId?: string;
+      }>;
+      const detail = customEvent.detail || {};
+      const targetChapterId = detail.chapter_id || detail.chapterId;
+      const revisionIds = [
+        detail.request_id,
+        detail.revision_id,
+        detail.requestId,
+        detail.revisionId
+      ].filter(Boolean) as string[];
+
+      if (!isBatch && targetChapterId && chapterId && targetChapterId !== chapterId) {
+        if (revisionIds.length > 0) {
+          clearPendingRevisions(revisionIds);
+        }
+        return;
+      }
 
       try {
-        // 使用 DOM API 移除修订标记
         const currentHtml = editor.getHTML();
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = currentHtml;
+        const nextHtml = applyRevisionDecisionToHtml(
+          currentHtml,
+          'accept',
+          isBatch ? undefined : (revisionIds.length > 0 ? revisionIds : undefined)
+        );
 
-        // 1. 移除所有 aiDeleted 标记的元素（删除原文）
-        const deletedElements = tempDiv.querySelectorAll('del[data-ai-deleted], del.ai-deleted');
-        deletedElements.forEach(el => el.remove());
-
-        // 2. 移除 aiInserted 标记，但保留其内容
-        const insertedElements = tempDiv.querySelectorAll('ins[data-ai-inserted], ins.ai-inserted');
-        insertedElements.forEach(el => {
-          const fragment = document.createDocumentFragment();
-          while (el.firstChild) {
-            fragment.appendChild(el.firstChild);
-          }
-          el.parentNode?.replaceChild(fragment, el);
-        });
-        const revisionIdElements = tempDiv.querySelectorAll('span[data-revision-id]');
-        revisionIdElements.forEach(el => {
-          const fragment = document.createDocumentFragment();
-          while (el.firstChild) {
-            fragment.appendChild(el.firstChild);
-          }
-          el.parentNode?.replaceChild(fragment, el);
-        });
-
-        editor.commands.setContent(tempDiv.innerHTML);
+        editor.commands.setContent(nextHtml);
         revisionSaveBlockedRef.current = false;
 
         const pendingIds = isBatch
           ? pendingCrossChapterRevisions.map((revision) => revision.revisionId)
-          : getPendingRevisionIdsForChapter(chapterId);
+          : revisionIds.length > 0 ? revisionIds : getPendingRevisionIdsForChapter(chapterId);
         clearPendingRevisions(pendingIds);
 
         // 触发保存
@@ -1445,41 +1518,44 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     const handleDiscardRevisionEvent = (event: Event) => {
       console.log('[NovelEditor] 收到弃用修订请求');
       const isBatch = event.type === 'agent-discard-all-revisions';
+      const customEvent = event as CustomEvent<{
+        request_id?: string;
+        revision_id?: string;
+        chapter_id?: string;
+        requestId?: string;
+        revisionId?: string;
+        chapterId?: string;
+      }>;
+      const detail = customEvent.detail || {};
+      const targetChapterId = detail.chapter_id || detail.chapterId;
+      const revisionIds = [
+        detail.request_id,
+        detail.revision_id,
+        detail.requestId,
+        detail.revisionId
+      ].filter(Boolean) as string[];
+
+      if (!isBatch && targetChapterId && chapterId && targetChapterId !== chapterId) {
+        if (revisionIds.length > 0) {
+          clearPendingRevisions(revisionIds);
+        }
+        return;
+      }
 
       try {
-        // 使用 DOM API 移除修订标记
         const currentHtml = editor.getHTML();
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = currentHtml;
+        const nextHtml = applyRevisionDecisionToHtml(
+          currentHtml,
+          'discard',
+          isBatch ? undefined : (revisionIds.length > 0 ? revisionIds : undefined)
+        );
 
-        // 1. 移除 aiInserted 标记及其内容（删除新内容）
-        const insertedElements = tempDiv.querySelectorAll('ins[data-ai-inserted], ins.ai-inserted');
-        insertedElements.forEach(el => el.remove());
-
-        // 2. 移除 aiDeleted 标记，但保留其内容（恢复原文）
-        const deletedElements = tempDiv.querySelectorAll('del[data-ai-deleted], del.ai-deleted');
-        deletedElements.forEach(el => {
-          const fragment = document.createDocumentFragment();
-          while (el.firstChild) {
-            fragment.appendChild(el.firstChild);
-          }
-          el.parentNode?.replaceChild(fragment, el);
-        });
-        const revisionIdElements = tempDiv.querySelectorAll('span[data-revision-id]');
-        revisionIdElements.forEach(el => {
-          const fragment = document.createDocumentFragment();
-          while (el.firstChild) {
-            fragment.appendChild(el.firstChild);
-          }
-          el.parentNode?.replaceChild(fragment, el);
-        });
-
-        editor.commands.setContent(tempDiv.innerHTML);
+        editor.commands.setContent(nextHtml);
         revisionSaveBlockedRef.current = false;
 
         const pendingIds = isBatch
           ? pendingCrossChapterRevisions.map((revision) => revision.revisionId)
-          : getPendingRevisionIdsForChapter(chapterId);
+          : revisionIds.length > 0 ? revisionIds : getPendingRevisionIdsForChapter(chapterId);
         clearPendingRevisions(pendingIds);
 
         // 清理状态
@@ -1631,6 +1707,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     pendingCrossChapterRevisions,
     clearPendingRevisions,
     getPendingRevisionIdsForChapter,
+    applyRevisionDecisionToHtml,
     t
   ]);
 
@@ -1696,7 +1773,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   const handleAcceptRevision = useCallback(async () => {
     if (!activeRevision || !editor) return;
 
-    const { id, requestId, type, position, replacement } = activeRevision;
+    const { id, requestId, type, position } = activeRevision;
 
     if (requestId) {
       try {
@@ -1714,65 +1791,18 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     console.log('[NovelEditor] 采纳修订:', { id, type, position });
 
     try {
-      // 使用 DOM API 替代正则表达式（更安全、更可靠）
       const currentHtml = editor.getHTML();
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = currentHtml;
+      const revisionIds = [requestId, id].filter(Boolean) as string[];
+      const nextHtml = applyRevisionDecisionToHtml(
+        currentHtml,
+        'accept',
+        revisionIds.length > 0 ? revisionIds : undefined
+      );
 
-      if (type === 'modify' && position) {
-        // 修改模式：删除带删除线的原文，移除新内容的插入标记
-
-        // 1. 移除所有 aiDeleted 标记的元素（删除原文）
-        const deletedElements = tempDiv.querySelectorAll('del[data-ai-deleted], del.ai-deleted');
-        deletedElements.forEach(el => {
-          el.remove();
-        });
-
-        // 2. 移除 aiInserted 标记，但保留其内容
-        const insertedElements = tempDiv.querySelectorAll('ins[data-ai-inserted], ins.ai-inserted');
-        insertedElements.forEach(el => {
-          // 将 ins 标签替换为其内容
-          const fragment = document.createDocumentFragment();
-          while (el.firstChild) {
-            fragment.appendChild(el.firstChild);
-          }
-          el.parentNode?.replaceChild(fragment, el);
-        });
-      } else if (type === 'continue') {
-        // 续写模式：移除插入标记，保留内容
-        const insertedElements = tempDiv.querySelectorAll('ins[data-ai-inserted], ins.ai-inserted');
-        insertedElements.forEach(el => {
-          const fragment = document.createDocumentFragment();
-          while (el.firstChild) {
-            fragment.appendChild(el.firstChild);
-          }
-          el.parentNode?.replaceChild(fragment, el);
-        });
-      } else if (type === 'insert') {
-        // 插入模式：移除插入标记，保留内容
-        const insertedElements = tempDiv.querySelectorAll('ins[data-ai-inserted], ins.ai-inserted');
-        insertedElements.forEach(el => {
-          const fragment = document.createDocumentFragment();
-          while (el.firstChild) {
-            fragment.appendChild(el.firstChild);
-          }
-          el.parentNode?.replaceChild(fragment, el);
-        });
-      }
-
-      const revisionIdElements = tempDiv.querySelectorAll('span[data-revision-id]');
-      revisionIdElements.forEach(el => {
-        const fragment = document.createDocumentFragment();
-        while (el.firstChild) {
-          fragment.appendChild(el.firstChild);
-        }
-        el.parentNode?.replaceChild(fragment, el);
-      });
-
-      editor.commands.setContent(tempDiv.innerHTML);
+      editor.commands.setContent(nextHtml);
       revisionSaveBlockedRef.current = false;
 
-      const pendingIds = getPendingRevisionIdsForChapter(chapterId);
+      const pendingIds = revisionIds.length > 0 ? revisionIds : getPendingRevisionIdsForChapter(chapterId);
       clearPendingRevisions(pendingIds);
 
       // 触发保存
@@ -1797,7 +1827,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   const handleDiscardRevision = useCallback(async () => {
     if (!activeRevision || !editor) return;
 
-    const { id, requestId, type, position, original } = activeRevision;
+    const { id, requestId, type, position } = activeRevision;
 
     if (requestId) {
       try {
@@ -1815,56 +1845,18 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     console.log('[NovelEditor] 弃用修订:', { id, type, position });
 
     try {
-      // 使用 DOM API 替代正则表达式（更安全、更可靠）
       const currentHtml = editor.getHTML();
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = currentHtml;
+      const revisionIds = [requestId, id].filter(Boolean) as string[];
+      const nextHtml = applyRevisionDecisionToHtml(
+        currentHtml,
+        'discard',
+        revisionIds.length > 0 ? revisionIds : undefined
+      );
 
-      if (type === 'modify') {
-        // 修改模式：移除插入的新内容，恢复原文（移除删除线标记）
-
-        // 1. 移除 aiInserted 标记及其内容（删除新内容）
-        const insertedElements = tempDiv.querySelectorAll('ins[data-ai-inserted], ins.ai-inserted');
-        insertedElements.forEach(el => {
-          el.remove();
-        });
-
-        // 2. 移除 aiDeleted 标记，但保留其内容（恢复原文）
-        const deletedElements = tempDiv.querySelectorAll('del[data-ai-deleted], del.ai-deleted');
-        deletedElements.forEach(el => {
-          const fragment = document.createDocumentFragment();
-          while (el.firstChild) {
-            fragment.appendChild(el.firstChild);
-          }
-          el.parentNode?.replaceChild(fragment, el);
-        });
-      } else if (type === 'continue') {
-        // 续写模式：移除插入的新内容
-        const insertedElements = tempDiv.querySelectorAll('ins[data-ai-inserted], ins.ai-inserted');
-        insertedElements.forEach(el => {
-          el.remove();
-        });
-      } else if (type === 'insert') {
-        // 插入模式：移除插入的新内容
-        const insertedElements = tempDiv.querySelectorAll('ins[data-ai-inserted], ins.ai-inserted');
-        insertedElements.forEach(el => {
-          el.remove();
-        });
-      }
-
-      const revisionIdElements = tempDiv.querySelectorAll('span[data-revision-id]');
-      revisionIdElements.forEach(el => {
-        const fragment = document.createDocumentFragment();
-        while (el.firstChild) {
-          fragment.appendChild(el.firstChild);
-        }
-        el.parentNode?.replaceChild(fragment, el);
-      });
-
-      editor.commands.setContent(tempDiv.innerHTML);
+      editor.commands.setContent(nextHtml);
       revisionSaveBlockedRef.current = false;
 
-      const pendingIds = getPendingRevisionIdsForChapter(chapterId);
+      const pendingIds = revisionIds.length > 0 ? revisionIds : getPendingRevisionIdsForChapter(chapterId);
       clearPendingRevisions(pendingIds);
 
       // 清理状态

@@ -548,10 +548,15 @@
 - `agent-show-revision` 未把后端 `requestId` 传进编辑器，导致编辑器侧采纳/弃用（右侧浮窗按钮）无法回写后端，只做本地 DOM 操作；刷新后仍会显示待确认，用户感知为“没生效”（`src/hooks/useAgentChat.ts:970`、`src/components/editor/NovelEditor.tsx:1696`）。
 
 ## 计划（修订采纳/弃用无响应修复）
-- [ ] 补齐修订事件携带 `requestId`，保证编辑器侧采纳/弃用可回写后端（`src/hooks/useAgentChat.ts`）
-- [ ] 采纳/弃用派发时携带 `chapterId`，并在编辑器侧按 `request_id` 精准清理标记（`src/components/editor/AIPanel.tsx`、`src/components/editor/NovelEditor.tsx`）
-- [ ] 跨章节采纳/弃用时仅清理队列，不修改当前章节内容（`src/components/editor/NovelEditor.tsx`）
-- [ ] 更新 Review 记录改动与验证要点
+- [x] 补齐修订事件携带 `requestId`，保证编辑器侧采纳/弃用可回写后端（`src/hooks/useAgentChat.ts`）
+- [x] 采纳/弃用派发时携带 `chapterId`，并在编辑器侧按 `request_id` 精准清理标记（`src/components/editor/AIPanel.tsx`、`src/components/editor/NovelEditor.tsx`）
+- [x] 跨章节采纳/弃用时仅清理队列，不修改当前章节内容（`src/components/editor/NovelEditor.tsx`）
+- [x] 更新 Review 记录改动与验证要点
+
+## Review（修订采纳/弃用无响应修复）
+- 修订事件补齐 `requestId` 并透传到编辑器展示，保证编辑器侧采纳/弃用可以回写后端（`src/hooks/useAgentChat.ts`）。
+- 采纳/弃用派发时携带 `chapter_id` 与 `revision_id`，编辑器侧按修订 ID 精准清理标记，跨章节时仅清理队列不动正文（`src/components/editor/AIPanel.tsx`、`src/components/editor/NovelEditor.tsx`）。
+- 采纳/弃用操作改为按修订 ID 清除 `del/ins` 与 `data-revision-id` 包裹，避免误删同章节其他修订（`src/components/editor/NovelEditor.tsx`）。
 
 ## 计划（工作台分割线拖拽）
 - [x] 核对分割线拖拽逻辑与面板布局绑定（`src/views/WorkDetailView/index.tsx`）
@@ -564,3 +569,16 @@
 ## Review（工作台分割线拖拽）
 - AI 面板改为用 `width` 绑定 `rightPanelWidth`，并在非收起时使用 `flex: 0 1 auto`，确保拖拽直接影响面板宽度（`src/views/WorkDetailView/index.tsx`）。
 - 编辑器收起时恢复 `flex: 1 1 0%` + `width: auto`，保持全宽展示与本地缓存逻辑不冲突（`src/views/WorkDetailView/index.tsx`）。
+
+## 计划（编辑器收缩动画异常 review）
+- [x] 核对编辑器收缩/展开时的布局与过渡设置（`src/views/WorkDetailView/index.tsx`）
+- [x] 复核 AI 面板与编辑器面板的 `flex/width` 组合是否导致收缩方向异常（`src/views/WorkDetailView/index.tsx`）
+- [x] 汇总问题根因与修复建议并更新 Review
+
+## 解决方案（编辑器收缩动画异常 review）
+- 避免在同一动画中同时过渡 AI 面板的 `flex/width` 与编辑器面板的 `flex`；优先只对编辑器面板做宽度/`flex-basis` 过渡，或在收缩时移除 AI 面板的 `transition-all`，避免先扩张再收缩的视觉反弹。
+
+## Review（编辑器收缩动画异常 review）
+- AI 面板在 `isEditorCollapsed` 切换时从固定 `width` 变为 `auto`，`transition-all` 触发不可插值的宽度切换，动画阶段会先把 AI 面板收窄再跳到最终宽度，表现为“先扩再收”的错觉（`src/views/WorkDetailView/index.tsx:1856`）。
+- 编辑器面板同时过渡 `flex/padding/opacity`，`transition-all` 让 padding 先收缩导致内容视觉上先“变大”再消失，加剧收缩方向错觉（`src/views/WorkDetailView/index.tsx:1917`）。
+- 当前没有面板收缩动画的自动化校验，回归风险主要依赖手动 UI 验证。
