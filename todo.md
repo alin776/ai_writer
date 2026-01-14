@@ -650,6 +650,11 @@
 ## Review（复杂测试提示词-跳转验证）
 - 基于第2-5章锚点句设计跨章节替换/插入/续写组合，并要求定位失败即停与点击修订卡片跳转验证。
 
+## 计划（跳转强制展开编辑器）
+- [ ] 定位跳转事件处理位置，增加“强制展开编辑器”逻辑（`src/views/WorkDetailView/index.tsx`）
+- [ ] 确保跨章节/同章节跳转都触发展开，且不影响原有折叠按钮逻辑
+- [ ] 更新 Review
+
 ## 计划（工作台分割线拖拽）
 - [x] 核对分割线拖拽逻辑与面板布局绑定（`src/views/WorkDetailView/index.tsx`）
 - [x] 调整 AI 面板宽度绑定方式，确保拖拽改变实际宽度（`src/views/WorkDetailView/index.tsx`）
@@ -712,3 +717,25 @@
 ## Review（工作台任意区域滚轮滚动）
 - 使用 `data-ai-scroll-container="active"` 标记当前 AI 消息滚动容器，避免多标签并存时滚动到非活跃面板（`src/components/editor/AIPanel.tsx`）。
 - 工作台根容器捕获 `wheel` 事件，将无可滚父容器的滚轮代理到 AI 消息区；保留可滚子区域（章节列表/知识下拉/编辑器）原生滚动（`src/views/WorkDetailView/index.tsx`）。
+
+## 计划（收起时滚动条贴右）
+- [x] 核对收起状态下 AI 面板宽度限制来源（`src/views/WorkDetailView/index.tsx`）
+- [x] 将内容宽度限制移到 AIPanel 内部，仅在收起时居中内容、保持滚动容器全宽（`src/components/editor/AIPanel.tsx`、`src/views/WorkDetailView/index.tsx`）
+- [x] 自查展开/收起切换与滚动条位置
+
+## 解决方案（收起时滚动条贴右）
+- 收起状态去掉外层 `max-w-3xl` 限制，让滚动容器撑满面板，改在 AIPanel 内部用居中内容容器保持阅读宽度。
+
+## Review（收起时滚动条贴右）
+- 收起状态移除外层 `max-w-3xl` 约束，让滚动容器铺满面板，从而滚动条贴右；内容仍在 AIPanel 内部居中限宽（`src/views/WorkDetailView/index.tsx`、`src/components/editor/AIPanel.tsx`）。
+
+## 计划（收起时底部区域保持宽度）
+- [x] 核对底部操作区的宽度来源与收起态影响（`src/components/editor/AIPanel.tsx`）
+- [x] 为底部操作区增加与消息列表一致的居中限宽容器（仅收起态生效）（`src/components/editor/AIPanel.tsx`）
+- [x] 自查收起/展开切换时滚动条位置与底部区域宽度表现
+
+## 解决方案（收起时底部区域保持宽度）
+- 底部操作区（批量操作/任务列表/建议操作/输入框）包裹一层居中限宽容器，在 `expandedMode` 时生效，保持宽度不变，同时不影响滚动条贴右。
+
+## Review（收起时底部区域保持宽度）
+- 底部操作区新增居中限宽包裹，在收起态保持与消息区一致的宽度，避免输入框/任务栏拉满（`src/components/editor/AIPanel.tsx`）。

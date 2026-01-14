@@ -1370,7 +1370,9 @@ ${selectionContext.selected_text}
           data-ai-scroll-container={isActive ? 'active' : undefined}
           className="flex-1 min-h-0 mb-3 overflow-x-hidden overflow-y-auto scrollbar-auto-hide bg-white dark:bg-slate-900"
         >
-          <div className="flex flex-col gap-2.5">
+          <div className={`flex w-full ${expandedMode ? 'justify-center' : ''}`}>
+            <div className={`${expandedMode ? 'w-full max-w-3xl' : 'w-full'}`}>
+              <div className="flex flex-col gap-2.5">
           {messages.map((message, index) => {
             // Skip null/undefined messages
             if (!message) {
@@ -1709,187 +1711,193 @@ ${selectionContext.selected_text}
         )}
 
           <div ref={messagesEndRef} />
-        </div>
-        </div>
-
-      {/* v8.0: 批量操作确认（采纳/弃用）- 放在任务列表上方 */}
-      {hasOperations && !isLoading && (
-        <div className="mb-2 p-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-          <p className="text-[12px] text-zinc-600 dark:text-slate-300 mb-2">
-            Agent 已执行章节操作，请确认是否保留这些修改：
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={rollbackAllOperations}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] bg-zinc-100 hover:bg-zinc-200 text-zinc-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded-full border border-zinc-200 dark:border-slate-600 transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-              弃用
-            </button>
-            <button
-              onClick={acceptAllOperations}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] bg-green-50 hover:bg-green-100 text-green-700 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:text-green-400 rounded-full border border-green-200 dark:border-green-800 transition-colors"
-            >
-              <Check className="w-3.5 h-3.5" />
-              采纳
-            </button>
+              </div>
+            </div>
           </div>
         </div>
-      )}
 
-      {/* 任务列表（固定在底部，不随消息滚动） */}
-      {tasks.length > 0 && (
-        <div className="mb-2">
-          <TaskList tasks={tasks as TaskSnapshot[]} />
-        </div>
-      )}
-
-      {/* 建议操作 */}
-      {suggestedActions.length > 0 && !isLoading && (
-        <div className="mb-2 flex flex-wrap gap-1.5">
-          {suggestedActions.map((action, idx) => (
-            <button
-              key={idx}
-              onClick={() => {
-                setInputValue(action);
-              }}
-              className="px-2 py-1 text-[10px] bg-zinc-100 hover:bg-zinc-200 text-zinc-600 rounded transition-colors dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300"
-            >
-              {action}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* 模式选择 + 输入框（放在下方区域）*/}
-      <div className="rounded-3xl bg-white border border-gray-200 px-4 py-3 space-y-3 flex-shrink-0 dark:bg-slate-800 dark:border-slate-700">
-        <div className="relative">
-          <div className="flex flex-wrap items-start gap-2 w-full min-h-12 px-1 py-2 rounded-xl bg-transparent text-gray-800 dark:text-slate-200">
-            {/* 选中文本前置（放在后，保持同一行逻辑�?*/}
-            {selectionContext?.selected_text && (
-              <span
-                className="inline-flex items-center gap-2 rounded-xl bg-zinc-50 text-zinc-800 px-3 py-2 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
-                style={{ maxWidth: '100%' }}
-                title={selectionContext.selected_text}
-              >
-                <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
-                <span className="truncate max-w-[240px]">{selectionContext.selected_text}</span>
+      <div className={`flex w-full ${expandedMode ? 'justify-center' : ''}`}>
+        <div className={`${expandedMode ? 'w-full max-w-3xl' : 'w-full'}`}>
+          {/* v8.0: 批量操作确认（采纳/弃用）- 放在任务列表上方 */}
+          {hasOperations && !isLoading && (
+            <div className="mb-2 p-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+              <p className="text-[12px] text-zinc-600 dark:text-slate-300 mb-2">
+                Agent 已执行章节操作，请确认是否保留这些修改：
+              </p>
+              <div className="flex gap-2">
                 <button
-                  type="button"
-                  className="hover:text-zinc-900 transition-colors dark:hover:text-slate-100"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setSelectionContext(null);
-                  }}
-                  aria-label="移除选中"
+                  onClick={rollbackAllOperations}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] bg-zinc-100 hover:bg-zinc-200 text-zinc-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded-full border border-zinc-200 dark:border-slate-600 transition-colors"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3.5 h-3.5" />
+                  弃用
                 </button>
-              </span>
+                <button
+                  onClick={acceptAllOperations}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] bg-green-50 hover:bg-green-100 text-green-700 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:text-green-400 rounded-full border border-green-200 dark:border-green-800 transition-colors"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  采纳
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 任务列表（固定在底部，不随消息滚动） */}
+          {tasks.length > 0 && (
+            <div className="mb-2">
+              <TaskList tasks={tasks as TaskSnapshot[]} />
+            </div>
+          )}
+
+          {/* 建议操作 */}
+          {suggestedActions.length > 0 && !isLoading && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {suggestedActions.map((action, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    setInputValue(action);
+                  }}
+                  className="px-2 py-1 text-[10px] bg-zinc-100 hover:bg-zinc-200 text-zinc-600 rounded transition-colors dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300"
+                >
+                  {action}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* 模式选择 + 输入框（放在下方区域）*/}
+          <div className="rounded-3xl bg-white border border-gray-200 px-4 py-3 space-y-3 flex-shrink-0 dark:bg-slate-800 dark:border-slate-700">
+            <div className="relative">
+              <div className="flex flex-wrap items-start gap-2 w-full min-h-12 px-1 py-2 rounded-xl bg-transparent text-gray-800 dark:text-slate-200">
+                {/* 选中文本前置（放在后，保持同一行逻辑�?*/}
+                {selectionContext?.selected_text && (
+                  <span
+                    className="inline-flex items-center gap-2 rounded-xl bg-zinc-50 text-zinc-800 px-3 py-2 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
+                    style={{ maxWidth: '100%' }}
+                    title={selectionContext.selected_text}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
+                    <span className="truncate max-w-[240px]">{selectionContext.selected_text}</span>
+                    <button
+                      type="button"
+                      className="hover:text-zinc-900 transition-colors dark:hover:text-slate-100"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setSelectionContext(null);
+                      }}
+                      aria-label="移除选中"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {optimizationSelected && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
+                    <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
+                    optimization
+                    <button
+                      type="button"
+                      className="hover:text-zinc-900 transition-colors"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        removeOptimization();
+                      }}
+                    aria-label="\u79fb\u9664 AI \u53bb\u75d5\u8ff9"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {selectedDocs.map((doc) => (
+                  <span
+                    key={doc.id}
+                    className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
+                  >
+                    <Tag className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
+                    {doc.title}
+                    <button
+                      type="button"
+                      className="hover:text-zinc-900 transition-colors dark:hover:text-slate-100"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        removeKnowledgeTag(doc.id);
+                      }}
+                      aria-label={`移除 ${doc.title}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+
+                <textarea
+                  ref={inputRef}
+                  value={inputValue}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  onClick={syncAtStateFromRef}
+                  onFocus={syncAtStateFromRef}
+                  placeholder="输入消息，输入@选择指令..."
+                  className="flex-1 min-w-[200px] bg-transparent outline-none border-none text-[12px] placeholder:text-gray-400 resize-none leading-relaxed dark:text-slate-200 dark:placeholder:text-slate-500"
+                  disabled={isLoading}
+                  rows={1}
+                  wrap="soft"
+                  style={{
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word',
+                    overflowY: 'hidden',
+                    overflowX: 'hidden',
+                    padding: '6px 0',
+                    flexBasis: '100%',
+                    minWidth: '100%',
+                    minHeight: '32px',
+                    maxHeight: '200px',
+                  }}
+                />
+              </div>
+            </div>
+
+            {truncatedCount > 0 && (
+              <div className="text-[11px] text-amber-600 px-1 dark:text-amber-400">
+                章节内容超过 5000 字，已截断超过的 {truncatedCount} 字符进行去痕迹�?
+              </div>
             )}
-            {optimizationSelected && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
-                <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
-                optimization
-                <button
-                  type="button"
-                  className="hover:text-zinc-900 transition-colors"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    removeOptimization();
-                  }}
-                aria-label="\u79fb\u9664 AI \u53bb\u75d5\u8ff9"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {selectedDocs.map((doc) => (
-              <span
-                key={doc.id}
-                className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
-              >
-                <Tag className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
-                {doc.title}
-                <button
-                  type="button"
-                  className="hover:text-zinc-900 transition-colors dark:hover:text-slate-100"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    removeKnowledgeTag(doc.id);
-                  }}
-                  aria-label={`移除 ${doc.title}`}
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            ))}
 
-            <textarea
-              ref={inputRef}
-              value={inputValue}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              onClick={syncAtStateFromRef}
-              onFocus={syncAtStateFromRef}
-              placeholder="输入消息，输入@选择指令..."
-              className="flex-1 min-w-[200px] bg-transparent outline-none border-none text-[12px] placeholder:text-gray-400 resize-none leading-relaxed dark:text-slate-200 dark:placeholder:text-slate-500"
-              disabled={isLoading}
-              rows={1}
-              wrap="soft"
-              style={{
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                overflowWrap: 'break-word',
-                overflowY: 'hidden',
-                overflowX: 'hidden',
-                padding: '6px 0',
-                flexBasis: '100%',
-                minWidth: '100%',
-                minHeight: '32px',
-                maxHeight: '200px',
-              }}
-            />
-          </div>
-        </div>
+            <div className="flex items-center justify-between gap-2">
+              <ModeSelector
+                mode={mode}
+                onModeChange={setMode}
+                disabled={isLoading}
+                compact
+                className="bg-white dark:bg-slate-800"
+              />
 
-        {truncatedCount > 0 && (
-          <div className="text-[11px] text-amber-600 px-1 dark:text-amber-400">
-            章节内容超过 5000 字，已截断超过的 {truncatedCount} 字符进行去痕迹�?
-          </div>
-        )}
-
-        <div className="flex items-center justify-between gap-2">
-          <ModeSelector
-            mode={mode}
-            onModeChange={setMode}
-            disabled={isLoading}
-            compact
-            className="bg-white dark:bg-slate-800"
-          />
-
-          <div className="flex items-center gap-1.5">
-            {isLoading ? (
-              <button
-                onClick={handleStop}
-                className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-800 flex items-center justify-center shadow-sm border border-gray-200 transition-colors dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-200 dark:border-slate-500"
-                aria-label="\u505c\u6b62\u53d1\u9001"
-              >
-                <Square className="w-4 h-4" strokeWidth={2.5} />
-              </button>
-            ) : inputValue.trim() ? (
-              <button
-                onClick={handleSend}
-                disabled={!inputValue.trim()}
-                className="w-10 h-10 rounded-full transition-all flex items-center justify-center bg-gray-900 text-white hover:bg-gray-800 active:scale-95 shadow-sm dark:bg-blue-600 dark:hover:bg-blue-500"
-                aria-label="\u53d1\u9001"
-              >
-                <Send className="h-4 w-4" strokeWidth={2.4} />
-              </button>
-            ) : null}
+              <div className="flex items-center gap-1.5">
+                {isLoading ? (
+                  <button
+                    onClick={handleStop}
+                    className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-800 flex items-center justify-center shadow-sm border border-gray-200 transition-colors dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-200 dark:border-slate-500"
+                    aria-label="\u505c\u6b62\u53d1\u9001"
+                  >
+                    <Square className="w-4 h-4" strokeWidth={2.5} />
+                  </button>
+                ) : inputValue.trim() ? (
+                  <button
+                    onClick={handleSend}
+                    disabled={!inputValue.trim()}
+                    className="w-10 h-10 rounded-full transition-all flex items-center justify-center bg-gray-900 text-white hover:bg-gray-800 active:scale-95 shadow-sm dark:bg-blue-600 dark:hover:bg-blue-500"
+                    aria-label="\u53d1\u9001"
+                  >
+                    <Send className="h-4 w-4" strokeWidth={2.4} />
+                  </button>
+                ) : null}
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -1949,8 +1949,8 @@ const WorkDetailView: React.FC = () => {
             />
 
             {/* 内容区 - AIPanel 始终处理自己的滚动 */}
-            <div className={`flex-1 min-h-0 overflow-hidden ${isEditorCollapsed ? 'flex justify-center' : ''}`}>
-                <div className={isEditorCollapsed ? 'w-full max-w-3xl h-full' : 'h-full'}>
+            <div className={`flex-1 min-h-0 overflow-hidden`}>
+                <div className="h-full">
                 {tabs.map((tab) => (
                   <div
                     key={tab.id}
