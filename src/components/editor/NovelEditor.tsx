@@ -5,6 +5,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useEditor, EditorContent } from '@tiptap/react';
+import { TextSelection } from 'prosemirror-state';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import CharacterCount from '@tiptap/extension-character-count';
@@ -102,6 +103,14 @@ type AgentApprovalRequest = {
   }>;
 };
 
+type RevisionJumpRequest = {
+  chapterId?: string;
+  revisionId?: string;
+  requestId?: string;
+  position?: { from: number; to: number };
+  attempts?: number;
+};
+
 const CROSS_CHAPTER_REVISION_TTL_MS = 30 * 60 * 1000;
 
 /**
@@ -159,6 +168,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   const appliedRevisionIdsRef = useRef<Set<string>>(new Set());
   const suppressAutoSaveRef = useRef(false);
   const revisionSaveBlockedRef = useRef(false);
+  const pendingRevisionJumpRef = useRef<RevisionJumpRequest | null>(null);
+  const pendingJumpTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     appliedRevisionIdsRef.current.clear();
@@ -447,6 +458,83 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     },
     autoSaveInterval
   );
+
+  const findRevisionIdPosition = useCallback((revisionId: string) => {
+    if (!editor || !revisionId) return null;
+    let foundPos: number | null = null;
+    editor.state.doc.descendants((node, pos) => {
+      if (!node.isText) {
+        return true;
+      }
+      if (node.marks.some(
+        (mark) => mark.type.name === 'aiRevisionId' && mark.attrs?.revisionId === revisionId
+      )) {
+        foundPos = pos;
+        return false;
+      }
+      return true;
+    });
+    return foundPos;
+  }, [editor]);
+
+  const jumpToRevision = useCallback((request: RevisionJumpRequest) => {
+    if (!editor) return false;
+    const { position, revisionId, requestId } = request;
+    const { state, view } = editor;
+    const maxPos = state.doc.content.size;
+    const clamp = (value: number) => Math.max(0, Math.min(value, maxPos));
+    const applySelection = (from: number, to: number) => {
+      const safeFrom = clamp(Math.min(from, to));
+      const safeTo = clamp(Math.max(from, to));
+      const tr = state.tr.setSelection(TextSelection.create(state.doc, safeFrom, safeTo));
+      tr.scrollIntoView();
+      view.dispatch(tr);
+      view.focus();
+    };
+
+    if (position) {
+      applySelection(position.from, position.to);
+      return true;
+    }
+
+    const targetId = revisionId || requestId;
+    if (!targetId) return false;
+    const pos = findRevisionIdPosition(targetId);
+    if (pos === null) return false;
+    applySelection(pos, pos);
+    return true;
+  }, [editor, findRevisionIdPosition]);
+
+  const attemptPendingRevisionJump = useCallback(() => {
+    const pending = pendingRevisionJumpRef.current;
+    if (!pending) return;
+    if (pending.chapterId && chapterId && pending.chapterId !== chapterId) return;
+    if (jumpToRevision(pending)) {
+      pendingRevisionJumpRef.current = null;
+      return;
+    }
+    const attempts = pending.attempts ?? 0;
+    if (attempts >= 3) return;
+    pending.attempts = attempts + 1;
+    if (pendingJumpTimerRef.current !== null) return;
+    pendingJumpTimerRef.current = window.setTimeout(() => {
+      pendingJumpTimerRef.current = null;
+      attemptPendingRevisionJump();
+    }, 150);
+  }, [chapterId, jumpToRevision]);
+
+  useEffect(() => {
+    attemptPendingRevisionJump();
+  }, [attemptPendingRevisionJump, pendingCrossChapterRevisions]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingJumpTimerRef.current !== null) {
+        window.clearTimeout(pendingJumpTimerRef.current);
+        pendingJumpTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // 当 content prop 变化时更新编辑器内容
   useEffect(() => {
@@ -969,23 +1057,6 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         const aiInsertedMark = editor.state.schema.marks.aiInserted;
         const aiRevisionIdMark = editor.state.schema.marks.aiRevisionId;
         const normalizeText = (value: string) => value.replace(/\s+/g, '');
-        const findRevisionIdPosition = (revisionId: string) => {
-          if (!revisionId) return null;
-          let foundPos: number | null = null;
-          doc.descendants((node, pos) => {
-            if (!node.isText) {
-              return true;
-            }
-            if (node.marks.some(
-              (mark) => mark.type.name === 'aiRevisionId' && mark.attrs?.revisionId === revisionId
-            )) {
-              foundPos = pos;
-              return false;
-            }
-            return true;
-          });
-          return foundPos;
-        };
 
         const revisionIdPos = findRevisionIdPosition(rid);
         if (revisionIdPos !== null) {
@@ -1678,10 +1749,24 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       }
     };
 
+    const handleJumpRevision = (event: Event) => {
+      const customEvent = event as CustomEvent<RevisionJumpRequest & { workId?: string }>;
+      const { workId: targetWorkId, chapterId: targetChapterId, revisionId, requestId, position } = customEvent.detail || {};
+      if (targetWorkId && workId && targetWorkId !== workId) return;
+      pendingRevisionJumpRef.current = {
+        chapterId: targetChapterId,
+        revisionId,
+        requestId,
+        position
+      };
+      attemptPendingRevisionJump();
+    };
+
     window.addEventListener('agent-show-revision', handleShowRevision as EventListener);
     window.addEventListener('agent-replace-text', handleAgentReplace as EventListener);
     window.addEventListener('agent-append-text', handleAgentAppend as EventListener);
     window.addEventListener('agent-undo-revision', handleUndoRevision as EventListener);
+    window.addEventListener('agent-jump-revision', handleJumpRevision as EventListener);
     window.addEventListener('agent-accept-revision', handleAcceptRevisionEvent as EventListener);
     window.addEventListener('agent-accept-all-revisions', handleAcceptRevisionEvent as EventListener);  // v8.1: 批量采纳
     window.addEventListener('agent-discard-revision', handleDiscardRevisionEvent as EventListener);
@@ -1692,6 +1777,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       window.removeEventListener('agent-replace-text', handleAgentReplace as EventListener);
       window.removeEventListener('agent-append-text', handleAgentAppend as EventListener);
       window.removeEventListener('agent-undo-revision', handleUndoRevision as EventListener);
+      window.removeEventListener('agent-jump-revision', handleJumpRevision as EventListener);
       window.removeEventListener('agent-accept-revision', handleAcceptRevisionEvent as EventListener);
       window.removeEventListener('agent-accept-all-revisions', handleAcceptRevisionEvent as EventListener);  // v8.1: 批量采纳
       window.removeEventListener('agent-discard-revision', handleDiscardRevisionEvent as EventListener);
@@ -1708,6 +1794,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     clearPendingRevisions,
     getPendingRevisionIdsForChapter,
     applyRevisionDecisionToHtml,
+    attemptPendingRevisionJump,
+    workId,
     t
   ]);
 

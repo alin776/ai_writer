@@ -320,6 +320,7 @@ const WorkDetailView: React.FC = () => {
   // 拖拽起始位置和起始宽度
   const resizeStartX = useRef<number>(0);
   const resizeStartWidth = useRef<number>(0);
+  const workbenchRef = useRef<HTMLDivElement>(null);
 
   // 添加章节输入框状态
   const [isAddingChapter, setIsAddingChapter] = useState(false);
@@ -1411,6 +1412,48 @@ const WorkDetailView: React.FC = () => {
     rightPanelWidthRef.current = rightPanelWidth;
   }, [rightPanelWidth]);
 
+  const findScrollableParent = useCallback((target: HTMLElement) => {
+    const boundary = workbenchRef.current;
+    let node: HTMLElement | null = target;
+    while (node && node !== boundary) {
+      const style = window.getComputedStyle(node);
+      const overflowY = style.overflowY;
+      const isScrollable = (overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight;
+      if (isScrollable) return node;
+      node = node.parentElement;
+    }
+    return null;
+  }, []);
+
+  const canScroll = useCallback((node: HTMLElement, deltaY: number) => {
+    if (deltaY < 0) {
+      return node.scrollTop > 0;
+    }
+    if (deltaY > 0) {
+      return node.scrollTop + node.clientHeight < node.scrollHeight;
+    }
+    return false;
+  }, []);
+
+  const handleGlobalWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    if (event.defaultPrevented || event.ctrlKey) return;
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.closest('input, textarea, select, [contenteditable="true"], .ProseMirror')) {
+      return;
+    }
+    const aiContainer = document.querySelector('[data-ai-scroll-container="active"]') as HTMLElement | null;
+    if (!aiContainer || aiContainer.clientHeight === 0) return;
+    const scrollableParent = findScrollableParent(target);
+    if (scrollableParent) {
+      if (scrollableParent === aiContainer || canScroll(scrollableParent, event.deltaY)) {
+        return;
+      }
+    }
+    if (aiContainer.scrollHeight <= aiContainer.clientHeight) return;
+    aiContainer.scrollTop += event.deltaY;
+  }, [canScroll, findScrollableParent]);
+
   // 🆕 监听 Agent 章节操作的乐观更新事件
   useEffect(() => {
     const handleChapterPreview = (e: Event) => {
@@ -1545,11 +1588,23 @@ const WorkDetailView: React.FC = () => {
       await refreshChaptersAndContent();
     };
 
+    const handleJumpRevision = (e: Event) => {
+      const customEvent = e as CustomEvent<{
+        workId?: string;
+        chapterId?: string;
+      }>;
+      const { workId: targetWorkId, chapterId: targetChapterId } = customEvent.detail || {};
+      if (targetWorkId && targetWorkId !== workId) return;
+      if (!targetChapterId || targetChapterId === currentChapterId) return;
+      handleChapterSelect(targetChapterId);
+    };
+
     window.addEventListener('agent-chapter-preview', handleChapterPreview as EventListener);
     window.addEventListener('agent-chapter-revert', handleChapterRevert as EventListener);
     window.addEventListener('agent-chapter-confirm', handleChapterConfirm as EventListener);
     window.addEventListener('agent-operations-rollback', handleOperationsRollback as EventListener);
     window.addEventListener('agent-operations-applied', handleOperationsApplied as EventListener);
+    window.addEventListener('agent-jump-revision', handleJumpRevision as EventListener);
 
     return () => {
       window.removeEventListener('agent-chapter-preview', handleChapterPreview as EventListener);
@@ -1557,8 +1612,9 @@ const WorkDetailView: React.FC = () => {
       window.removeEventListener('agent-chapter-confirm', handleChapterConfirm as EventListener);
       window.removeEventListener('agent-operations-rollback', handleOperationsRollback as EventListener);
       window.removeEventListener('agent-operations-applied', handleOperationsApplied as EventListener);
+      window.removeEventListener('agent-jump-revision', handleJumpRevision as EventListener);
     };
-  }, [workId, currentChapterId]);
+  }, [workId, currentChapterId, handleChapterSelect]);
 
   // 如果 workId 不存在，不渲染任何内容（路由已切换到其他页面）
   if (!workId) {
@@ -1585,7 +1641,11 @@ const WorkDetailView: React.FC = () => {
 
   return (
     <>
-      <div className="flex bg-zinc-50/30 dark:bg-slate-900 h-full">
+      <div
+        ref={workbenchRef}
+        onWheelCapture={handleGlobalWheel}
+        className="flex bg-zinc-50/30 dark:bg-slate-900 h-full"
+      >
         {/* 左侧章节面板 */}
         <div
           className={`bg-gradient-to-b from-white to-zinc-50/30 dark:from-slate-900 dark:to-slate-900 flex flex-col border-r border-zinc-100/80 dark:border-slate-700 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] h-full overflow-hidden ${

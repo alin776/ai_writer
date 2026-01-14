@@ -1367,6 +1367,7 @@ ${selectionContext.selected_text}
         {/* 有消息时：消息列表 + 底部固定输入框 */}
         <div
           ref={messagesContainerRef}
+          data-ai-scroll-container={isActive ? 'active' : undefined}
           className="flex-1 min-h-0 mb-3 overflow-x-hidden overflow-y-auto scrollbar-auto-hide bg-white dark:bg-slate-900"
         >
           <div className="flex flex-col gap-2.5">
@@ -1596,6 +1597,25 @@ ${selectionContext.selected_text}
                               })
                             );
                           }
+                        }}
+                        onJumpRevision={(itemId, requestId) => {
+                          console.log('[AIPanel] RevisionCard jump:', { itemId, requestId });
+                          const revisionData = findRevisionByItemId(itemId);
+                          const resolvedRequestId = requestId || revisionData?.requestId;
+                          const targetChapterId = revisionData?.chapterId || chapterId;
+                          const targetRevisionId = resolvedRequestId || itemId;
+
+                          window.dispatchEvent(
+                            new CustomEvent('agent-jump-revision', {
+                              detail: {
+                                workId,
+                                chapterId: targetChapterId,
+                                revisionId: targetRevisionId,
+                                requestId: resolvedRequestId,
+                                position: revisionData?.editorPosition
+                              }
+                            })
+                          );
                         }}
                         onUndoRevision={(itemId) => {
                           console.log('[AIPanel] RevisionCard undo:', { itemId });

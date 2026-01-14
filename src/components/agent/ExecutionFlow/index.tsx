@@ -22,6 +22,7 @@ interface ExecutionFlowProps {
   onAddToKnowledge?: (title: string, content: string) => void;
   onAcceptRevision?: (itemId: string, requestId: string | undefined, selectedVersion?: number) => void;
   onDiscardRevision?: (itemId: string, requestId: string | undefined) => void;
+  onJumpRevision?: (itemId: string, requestId: string | undefined) => void;
   onAcceptAllRevisions?: (itemIds: string[]) => void;
   onDiscardAllRevisions?: (itemIds: string[]) => void;
   // v7.2: 撤销/重做回调
@@ -35,6 +36,7 @@ export function ExecutionFlow({
   onAddToKnowledge,
   onAcceptRevision,
   onDiscardRevision,
+  onJumpRevision,
   onAcceptAllRevisions,
   onDiscardAllRevisions,
   onUndoRevision,
@@ -74,6 +76,7 @@ export function ExecutionFlow({
                 onDiscardRevision={stepData.revision ? () => onDiscardRevision?.(revisionId, (stepData.revision as any)?.requestId) : undefined}
                 onUndoRevision={stepData.revision ? () => onUndoRevision?.(revisionId) : undefined}
                 onRedoRevision={stepData.revision ? () => onRedoRevision?.(revisionId) : undefined}
+                onJumpRevision={stepData.revision ? () => onJumpRevision?.(revisionId, (stepData.revision as any)?.requestId) : undefined}
               />
             );
           }
@@ -120,6 +123,7 @@ export function ExecutionFlow({
                 onDiscard={() => onDiscardRevision?.(item.id, revisionData.requestId)}
                 onUndo={() => onUndoRevision?.(item.id)}
                 onRedo={() => onRedoRevision?.(item.id)}
+                onJump={() => onJumpRevision?.(item.id, revisionData.requestId)}
               />
             );
           }

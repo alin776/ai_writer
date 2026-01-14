@@ -12,6 +12,7 @@ interface RevisionCardProps extends RevisionFlowData {
   onDiscard?: () => void;
   onUndo?: () => void;   // v7.2: 撤销回调
   onRedo?: () => void;   // v7.2: 重做回调
+  onJump?: () => void;
 }
 
 export function RevisionCard({
@@ -25,7 +26,8 @@ export function RevisionCard({
   onAccept,
   onDiscard,
   onUndo,
-  onRedo
+  onRedo,
+  onJump
 }: RevisionCardProps) {
   // v7.1: 已处理的修订默认收起，pending 状态默认展开
   const [expanded, setExpanded] = useState(status === 'pending');
@@ -89,7 +91,23 @@ export function RevisionCard({
           {/* 章节信息 */}
           {chapterTitle && (
             <div className="mb-2">
-              <span className="text-[13px] text-blue-500 dark:text-[#5c9eff] underline underline-offset-2 cursor-pointer hover:text-blue-600">
+              <span
+                className="text-[13px] text-blue-500 dark:text-[#5c9eff] underline underline-offset-2 cursor-pointer hover:text-blue-600"
+                role={onJump ? 'button' : undefined}
+                tabIndex={onJump ? 0 : undefined}
+                onClick={(e) => {
+                  if (!onJump) return;
+                  e.stopPropagation();
+                  onJump();
+                }}
+                onKeyDown={(e) => {
+                  if (!onJump) return;
+                  if (e.key !== 'Enter' && e.key !== ' ') return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onJump();
+                }}
+              >
                 {chapterTitle}
               </span>
             </div>
@@ -135,7 +153,25 @@ export function RevisionCard({
           ) : (
             // 其他类型 - 内容预览
             contentPreview && (
-              <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-2.5 mb-3">
+              <div
+                className={`bg-gray-50 dark:bg-slate-700/50 rounded-lg p-2.5 mb-3${
+                  onJump ? ' cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700' : ''
+                }`}
+                role={onJump ? 'button' : undefined}
+                tabIndex={onJump ? 0 : undefined}
+                onClick={(e) => {
+                  if (!onJump) return;
+                  e.stopPropagation();
+                  onJump();
+                }}
+                onKeyDown={(e) => {
+                  if (!onJump) return;
+                  if (e.key !== 'Enter' && e.key !== ' ') return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onJump();
+                }}
+              >
                 <div className="text-[11px] text-gray-400 dark:text-slate-500 mb-1">
                   {revisionType === 'create' ? '章节内容预览' : '新增内容预览'}
                 </div>

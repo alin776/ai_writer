@@ -199,6 +199,56 @@
 ## Review（作品管理底部空白条）
 - 作品管理页根容器移除固定高度，改为 `h-full min-h-full`，消除底部空白条（`src/views/WorksView/index.tsx`）。
 
+## 计划（上下文记忆与工具结果复用）
+- [x] 梳理现有上下文/记忆/缓存机制与时效范围
+- [x] 明确工具结果在跨轮次/跨会话的复用边界与限制
+- [x] 更新 Review 并输出答复
+
+## 解决方案（上下文记忆与工具结果复用）
+- 对话上下文由 `ContextManager` 负责构建与更新（`backend/app/services/agent/langgraph_agent.py`、`backend/app/services/context/manager.py`），持久化存储在 Redis（`backend/app/services/context/store.py` 默认 24 小时 TTL）；同一会话/线程在下一轮可复用历史消息与摘要。
+- 启用长期记忆时，会将消息写入向量记忆并支持跨会话检索（`backend/app/services/context/manager.py`、`backend/app/services/context/vector_memory_store.py`），但保存的是对话内容而非通用工具结果。
+- 工具结果的局部复用已实现章节级缓存：章节内容写入 `AgentState.context["chapter_cache"]`（`backend/app/services/agent/utils/chapter_cache.py`，5 分钟 TTL），`get_writing_context` 仅在 `include=chapter` 时复用缓存（`backend/app/services/agent/execution/tool_executor.py`）。
+- 其他工具结果默认只在当轮任务上下文中使用；若需跨轮/跨会话复用，需要显式写入上下文或记忆系统（可扩展 `ContextManager`/`EnhancedMemoryManager`/`StateManager`）。
+- 记忆容量与缓存阈值配置在 `config/agent.yaml`（短/中期条数、Redis TTL 等）。
+
+## Review（上下文记忆与工具结果复用）
+- 已梳理对话上下文由 `ContextManager` 管理并写入 Redis（默认 24 小时 TTL），同会话可复用历史消息/摘要（`backend/app/services/agent/langgraph_agent.py`、`backend/app/services/context/manager.py`、`backend/app/services/context/store.py`）。
+- 启用长期记忆时会写入向量库以支持跨会话语义检索，但存的是对话内容而非通用工具结果（`backend/app/services/context/manager.py`、`backend/app/services/context/vector_memory_store.py`）。
+- 已确认章节内容有 5 分钟缓存，`get_writing_context` 仅在 `include=chapter` 时命中缓存，避免重复读取（`backend/app/services/agent/utils/chapter_cache.py`、`backend/app/services/agent/execution/tool_executor.py`）。
+- 其他工具结果默认不跨轮次缓存，如需复用需显式写入上下文或记忆系统，或扩展状态缓存。
+
+## 计划（工具层缓存方案展开）
+- [x] 梳理可缓存工具与缓存边界（按 tool+args、user/work 隔离、TTL）
+- [x] 设计缓存键/存储层与读写流程（复用现有缓存组件）
+- [x] 明确失效钩子与可观测性，并输出说明
+
+## 解决方案（工具层缓存方案展开）
+- 缓存键建议采用 `tool_cache:{user_id}:{work_id}:{tool_name}:{args_hash}`，对 `tool_args` 做稳定序列化（剔除追踪字段、排序键），用 MD5 截断；可参考 `backend/app/core/cache.py` 的 `_generate_cache_key` 逻辑。
+- 存储层优先复用 Redis 能力：可复用 `backend/app/core/cache.py`（依赖 `app.core.redis_client`）或 `backend/app/core/redis.py` 的 `CacheExpire`；无 Redis 时降级为进程内缓存（类似 `backend/app/services/agent/utils/llm_optimizer.py` 的 LLMCache）。
+- 读写流程放在 `ToolExecutor` 层：执行前查缓存（允许 `use_cache=false` 强制绕过），执行后写缓存；只对“读/搜索类”工具默认启用，写操作不缓存（`backend/app/services/agent/execution/tool_executor.py`）。
+- 失效钩子建议绑定“写入/修改”工具：如 `apply_chapter_edit`、`update_chapter_content`、`create_chapter`、`delete_chapter` 等执行成功后，按 `work_id`/`chapter_id` 维度清理相关缓存（可新增 `tool_cache` 前缀或引入版本号）。
+- 可观测性：记录命中/未命中与 TTL，输出到日志或指标；参考 `ChapterCache` 的命中统计（`backend/app/services/agent/utils/chapter_cache.py`）。
+
+## Review（工具层缓存方案展开）
+- 已明确工具层缓存建议落点在 `ToolExecutor`（命中优先、`use_cache` 可绕过），并区分读/写工具是否缓存。
+- 已给出缓存键结构、稳定序列化与 Redis/进程内降级方案参考（`backend/app/core/cache.py`、`backend/app/services/agent/utils/llm_optimizer.py`）。
+- 已给出失效钩子与观测点方向（写工具触发清理、命中统计日志）。
+
+## 计划（工具层缓存默认配置）
+- [x] 确定默认 TTL 映射（按工具分钟）
+- [x] 确定缓存白名单（默认启用工具）
+- [x] 确定失效范围规则（按 work_id/chapter_id）
+
+## 解决方案（工具层缓存默认配置）
+- 默认 TTL（分钟）：locate_content=5、search_content=2、search_analysis_fragments=3、get_writing_context=3（include=chapter 时 5；include=rag 时 2）。
+- 兼容别名：read_chapter/get_chapter_by_order/get_context/get_worldview_summary 作为 get_writing_context 的别名共用 TTL，不单独配置（避免重复缓存）。
+- 默认白名单：locate_content、search_content、search_analysis_fragments、get_writing_context（含别名）。
+- 失效范围：若工具参数包含 `chapter_id` 或 `chapter_orders`，优先按章失效；无章节参数或涉及多章/世界观/RAG，则按 `work_id` 失效；对 `get_writing_context` 同时包含章节与世界观时，章+作品双向失效。
+
+## Review（工具层缓存默认配置）
+- 已给出默认 TTL 映射与白名单；read_chapter/get_chapter_by_order/get_context/get_worldview_summary 归并为 get_writing_context 别名共用 TTL，避免重复缓存。
+- 已明确失效范围：优先按章，否则按作品；混合上下文时章+作品双向失效。
+
 ## Review（修订入库持久化）
 - 新增 `ChapterRevision` 模型与迁移，支持 pending/accepted/discarded/conflict 并记录定位信息（`backend/app/models/chapter_revision.py`、`backend/alembic/versions/20260113_1800_add_chapter_revisions.py`）。
 - `apply_chapter_edit` 改为创建修订记录并返回 `request_id`/`revision_id`，不再直接写正文；HITL 使用工具返回的 `request_id`（`backend/app/services/agent/tools/editor_tools.py`、`backend/app/services/agent/stream/stream_event_handler.py`）。
@@ -559,10 +609,46 @@
 - 采纳/弃用操作改为按修订 ID 清除 `del/ins` 与 `data-revision-id` 包裹，避免误删同章节其他修订（`src/components/editor/NovelEditor.tsx`）。
 
 ## 计划（修订卡片点击跳转 review）
-- [ ] 核对修订卡片（章节标题/内容预览）是否绑定跳转行为（`src/components/agent/ExecutionFlow/RevisionCard.tsx`、`src/components/agent/ExecutionFlow/StepCard.tsx`）
-- [ ] 核对 AIPanel 是否提供跳转事件或与编辑器联动入口（`src/components/editor/AIPanel.tsx`、`src/hooks/useAgentChat.ts`）
-- [ ] 核对编辑器是否存在“按修订 ID 定位”的实现或事件监听（`src/components/editor/NovelEditor.tsx`、`src/components/editor/AIRevisionMark.ts`）
-- [ ] 汇总结论与建议并更新 Review
+- [x] 核对修订卡片（章节标题/内容预览）是否绑定跳转行为（`src/components/agent/ExecutionFlow/RevisionCard.tsx`、`src/components/agent/ExecutionFlow/StepCard.tsx`）
+- [x] 核对 AIPanel 是否提供跳转事件或与编辑器联动入口（`src/components/editor/AIPanel.tsx`、`src/hooks/useAgentChat.ts`）
+- [x] 核对编辑器是否存在“按修订 ID 定位”的实现或事件监听（`src/components/editor/NovelEditor.tsx`、`src/components/editor/AIRevisionMark.ts`）
+- [x] 汇总结论与建议并更新 Review
+
+## Review（修订卡片点击跳转 review）
+- 修订卡片的章节标题与内容预览仅有样式（cursor/underline），未绑定任何 onClick 或事件派发，因此点击无跳转行为（`src/components/agent/ExecutionFlow/RevisionCard.tsx:90`、`src/components/agent/ExecutionFlow/RevisionCard.tsx:137`）。
+- ExecutionFlow/StepCard/AIPanel 仅处理采纳/弃用/撤销/重做，没有“跳转到修订”的事件或回调桥接，导致前端链路上不存在跳转入口（`src/components/agent/ExecutionFlow/index.tsx:19`、`src/components/editor/AIPanel.tsx:1449`）。
+- 编辑器侧虽有 `aiRevisionId` 标记并能定位该标记位置，但没有监听任何“跳转修订”的事件，也没有暴露滚动定位 API，因此点击后无法滚动到目标位置（`src/components/editor/NovelEditor.tsx:972`、`src/components/editor/NovelEditor.tsx:1681`）。
+- 若修订属于其他章节，当前代码也没有“切换到目标章节”的联动逻辑，导致跨章节跳转不可用（`src/views/WorkDetailView/index.tsx:574`）。
+
+## 计划（修订卡片点击跳转实现）
+- [x] 为修订卡片的章节标题/内容预览增加点击回调入口（`src/components/agent/ExecutionFlow/RevisionCard.tsx`）
+- [x] ExecutionFlow/StepCard/AIPanel 贯通跳转回调并派发跳转事件（`src/components/agent/ExecutionFlow/index.tsx`、`src/components/agent/ExecutionFlow/StepCard.tsx`、`src/components/editor/AIPanel.tsx`）
+- [x] WorkDetailView 监听跳转事件并切换到目标章节（`src/views/WorkDetailView/index.tsx`）
+- [x] NovelEditor 监听跳转事件并按 revisionId 滚动定位（跨章节先挂起，切章后再尝试）（`src/components/editor/NovelEditor.tsx`）
+- [x] 更新 Review
+
+## Review（修订卡片点击跳转实现）
+- 修订卡片的章节标题与内容预览绑定跳转回调，点击触发事件传递（`src/components/agent/ExecutionFlow/RevisionCard.tsx`）。
+- ExecutionFlow/StepCard/AIPanel 贯通 jump 回调并派发 `agent-jump-revision`，携带 `workId/chapterId/revisionId` 与可选位置（`src/components/agent/ExecutionFlow/index.tsx`、`src/components/agent/ExecutionFlow/StepCard.tsx`、`src/components/editor/AIPanel.tsx`）。
+- WorkDetailView 监听 `agent-jump-revision` 并切换到目标章节，支持跨章节跳转（`src/views/WorkDetailView/index.tsx`）。
+- NovelEditor 监听 `agent-jump-revision`，优先用 `position` 或修订标记定位并滚动；跨章节时挂起并重试，避免切章后未应用修订导致定位失败（`src/components/editor/NovelEditor.tsx`）。
+
+## 计划（修复 editor 初始化错误）
+- [x] 定位 `editor` 早期引用的位置并确认触发 TDZ 的调用链（`src/components/editor/NovelEditor.tsx`）
+- [x] 调整跳转相关回调与 useEffect 的定义顺序，保证 `editor` 初始化后再引用（`src/components/editor/NovelEditor.tsx`）
+- [x] 更新 Review
+
+## Review（修复 editor 初始化错误）
+- `findRevisionIdPosition/jumpToRevision` 在 `useEditor` 初始化前引用 `editor`，触发 TDZ 报错；将相关回调与重试 effect 移到 `useEditor` 之后，避免提前访问（`src/components/editor/NovelEditor.tsx`）。
+
+## 计划（复杂测试提示词-跳转验证）
+- [x] 复核小说素材中第2-5章关键锚点句（`docs/Agent/real-book/一夕千悟，从杂役弟子开始.txt`）
+- [x] 设计 1 条高复杂度跨章节测试 prompt（多任务、替换+插入+续写、明确锚点、失败即停）
+- [x] 加入“切章与点击修订卡片跳转”验证步骤说明
+- [x] 输出 prompt 并更新 Review
+
+## Review（复杂测试提示词-跳转验证）
+- 基于第2-5章锚点句设计跨章节替换/插入/续写组合，并要求定位失败即停与点击修订卡片跳转验证。
 
 ## 计划（工作台分割线拖拽）
 - [x] 核对分割线拖拽逻辑与面板布局绑定（`src/views/WorkDetailView/index.tsx`）
@@ -600,3 +686,29 @@
 ## Review（编辑器收缩动画修复）
 - AI 面板改为固定 `flex-basis` 并通过 `flex-grow` 控制展开，移除 `width:auto` 的过渡跳变，避免收缩时的视觉反弹（`src/views/WorkDetailView/index.tsx:1856`）。
 - 保持拖拽更新 `rightPanelWidth` 通过 `flex-basis` 生效，收起状态 `flex-basis` 为 0，逻辑一致（`src/views/WorkDetailView/index.tsx:1856`）。
+
+## 计划（工作台全局滚动 review）
+- [x] 核对外层布局的滚动容器与溢出控制（`src/components/layout/AuthLayout.tsx`）
+- [x] 核对工作台页面自身的高度/溢出设置与内层滚动区域（`src/views/WorkDetailView/index.tsx`、`src/components/editor/AIPanel.tsx`）
+- [x] 汇总问题根因与改造影响范围并更新 Review
+
+## 解决方案（工作台全局滚动 review）
+- 将滚动容器上移到页面根（或 `main` 外层），去掉工作台内的 `overflow-hidden`/局部 `overflow-y-auto`，让滚轮在任意区域触发全局滚动；必要时保留局部区域的 `max-height` 与 sticky 以避免布局抖动。
+
+## Review（工作台全局滚动 review）
+- 主布局把滚动锁定在 `main` 上（`overflow-y-auto`），同时父级 `flex` 容器用 `overflow-hidden`，使页面滚动只能发生在内容区，无法在侧边栏/空白区域触发全局滚动（`src/components/layout/AuthLayout.tsx:82`、`src/components/layout/AuthLayout.tsx:87`）。
+- 工作台根容器与左右面板均使用 `h-full` + `overflow-hidden`，且左侧章节列表、中间消息区各自 `overflow-y-auto`，滚动被拆分为多个局部滚动区，导致“只有中间可滚”（`src/views/WorkDetailView/index.tsx:1588`、`src/views/WorkDetailView/index.tsx:1591`、`src/views/WorkDetailView/index.tsx:1613`）。
+- AI 面板内容区显式 `overflow-y-auto` 且外层 `overflow-hidden`，即使放开外层滚动，也会继续抢占滚轮并维持局部滚动（`src/components/editor/AIPanel.tsx:1228`、`src/components/editor/AIPanel.tsx:1368`）。
+- 当前结构下改为“全局滚动”会牵涉导航栏、章节列表、AI 面板与编辑器的滚动联动，需明确是否接受这些区域一起滚动或需要 sticky 固定策略。
+
+## 计划（工作台任意区域滚轮滚动）
+- [x] 确认“全局滚动”具体指向的滚动容器（默认中间 AI 消息区）（`src/components/editor/AIPanel.tsx`、`src/views/WorkDetailView/index.tsx`）
+- [x] 增加滚轮事件代理：在工作台根容器捕获滚轮并转发到目标滚动容器（`src/views/WorkDetailView/index.tsx`）
+- [x] 自查输入框/可滚动子区域不会被意外阻断（`src/components/editor/AIPanel.tsx`）
+
+## 解决方案（工作台任意区域滚轮滚动）
+- 不改布局与滚动结构，仅在工作台根容器捕获 `wheel` 事件，必要时 `preventDefault` 并把滚轮 delta 转发到指定滚动容器（如 AI 面板消息列表），实现“任意位置滚动同一内容区”。
+
+## Review（工作台任意区域滚轮滚动）
+- 使用 `data-ai-scroll-container="active"` 标记当前 AI 消息滚动容器，避免多标签并存时滚动到非活跃面板（`src/components/editor/AIPanel.tsx`）。
+- 工作台根容器捕获 `wheel` 事件，将无可滚父容器的滚轮代理到 AI 消息区；保留可滚子区域（章节列表/知识下拉/编辑器）原生滚动（`src/views/WorkDetailView/index.tsx`）。
