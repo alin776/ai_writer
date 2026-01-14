@@ -57,6 +57,13 @@ TOOL_CACHE_INVALIDATION_TOOLS = {
     "create_chapter",
 }
 
+GWC_ALIAS_TOOL_INCLUDES = {
+    "read_chapter": "chapter",
+    "get_chapter_by_order": "chapter",
+    "get_context": "work,chapter,rag",
+    "get_worldview_summary": "worldview",
+}
+
 
 class ToolExecutor:
     """工具执行器
@@ -88,8 +95,16 @@ class ToolExecutor:
         # 规范化工具名称
         tool_args = dict(tool_args or {})
         normalized_name = TOOL_NAME_MAPPING.get(tool_name, tool_name)
+        tool_policy = self._resolve_tool_policy(state)
 
-        if normalized_name == "locate_content":
+        if tool_policy == "no_tool":
+            return json.dumps({
+                "error": "tool_disabled",
+                "message": "tool_policy=no_tool",
+                "tool": normalized_name,
+            }, ensure_ascii=False)
+
+        if tool_policy == "auto" and normalized_name == "locate_content":
             tool_args = await self._autofill_locate_chapter_id(tool_args, state)
 
         # 🆕 2026-01-12: 章节缓存检查
@@ -108,8 +123,22 @@ class ToolExecutor:
             # 准备参数
             params = self.prepare_params(normalized_name, tool_args, state)
 
+            cached_result = self._read_cover_cache(normalized_name, params, state)
+            if cached_result is not None:
+                return cached_result
+
             # 工具层缓存命中检查
             cache_ctx = ToolCache.get_context(normalized_name, params, state)
+            if tool_policy == "cache_only":
+                if cache_ctx:
+                    cached_result = ToolCache.read(cache_ctx)
+                    if cached_result is not None:
+                        return cached_result
+                return json.dumps({
+                    "error": "tool_cache_miss",
+                    "message": "tool_policy=cache_only",
+                    "tool": normalized_name,
+                }, ensure_ascii=False)
             if cache_ctx:
                 cached_result = ToolCache.read(cache_ctx)
                 if cached_result is not None:
@@ -780,6 +809,160 @@ class ToolExecutor:
         logger.error(f"[ToolCall] 未知工具: {tool_name}")
         return json.dumps({"error": "unknown_tool", "message": f"未知工具: {tool_name}"}, ensure_ascii=False)
 
+    def _read_cover_cache(
+        self,
+        tool_name: str,
+        params: dict,
+        state: dict
+    ) -> Optional[str]:
+        if tool_name == "get_writing_context":
+            cached = ToolCache.read_covering_gwc(params, state)
+            if cached is None:
+                return None
+            include_set = self._normalize_include_set(params.get("include"))
+            filtered = self._filter_gwc_context(cached, include_set)
+            return filtered or cached
+
+        if tool_name in GWC_ALIAS_TOOL_INCLUDES:
+            gwc_params = self._build_gwc_params_for_alias(tool_name, params, state)
+            cached = ToolCache.read_covering_gwc(gwc_params, state)
+            if cached is None:
+                return None
+            converted = self._convert_gwc_to_alias(tool_name, cached)
+            if converted is not None:
+                return converted
+        return None
+
+    @staticmethod
+    def _normalize_include_set(include_value: Any) -> set:
+        if include_value is None:
+            return set()
+        if isinstance(include_value, str):
+            return set(item.strip() for item in include_value.split(",") if item.strip())
+        if isinstance(include_value, (list, tuple, set)):
+            return set(str(item).strip() for item in include_value if str(item).strip())
+        return set([str(include_value).strip()])
+
+    @staticmethod
+    def _load_gwc_context(result_str: str) -> Optional[Dict[str, Any]]:
+        if not isinstance(result_str, str) or not result_str.strip():
+            return None
+        try:
+            data = json.loads(result_str)
+        except Exception:
+            return None
+        return data if isinstance(data, dict) else None
+
+    def _filter_gwc_context(self, result_str: str, include_set: set) -> Optional[str]:
+        if not include_set:
+            return None
+        data = self._load_gwc_context(result_str)
+        if not data:
+            return None
+        keep_keys = {"work_id"}
+        if "work" in include_set:
+            keep_keys.add("work_info")
+        if "chapter" in include_set:
+            keep_keys.add("chapters")
+        if "worldview" in include_set:
+            keep_keys.add("worldview")
+        if "style" in include_set:
+            keep_keys.add("style_guidance")
+        if "rag" in include_set:
+            keep_keys.add("rag_context")
+        filtered = {k: v for k, v in data.items() if k in keep_keys}
+        return json.dumps(filtered, ensure_ascii=False, indent=2)
+
+    def _build_gwc_params_for_alias(
+        self,
+        tool_name: str,
+        params: dict,
+        state: dict
+    ) -> dict:
+        include_value = GWC_ALIAS_TOOL_INCLUDES.get(tool_name, "")
+        gwc_params = {
+            "work_id": params.get("work_id") or state.get("work_id", ""),
+            "chapter_id": params.get("chapter_id") or state.get("chapter_id", ""),
+            "chapter_orders": "",
+            "user_id": params.get("user_id") or state.get("user_id", ""),
+            "include": include_value,
+            "rag_query": "",
+            "rag_top_k": 5,
+            "use_cache": params.get("use_cache", True)
+        }
+        if tool_name == "get_chapter_by_order":
+            gwc_params["chapter_orders"] = str(params.get("chapter_order") or "").strip()
+        return gwc_params
+
+    def _convert_gwc_to_alias(self, tool_name: str, result_str: str) -> Optional[str]:
+        data = self._load_gwc_context(result_str)
+        if not data:
+            return None
+
+        if tool_name in {"read_chapter", "get_chapter_by_order"}:
+            chapters = data.get("chapters", [])
+            if not isinstance(chapters, list):
+                return None
+            if len(chapters) == 1:
+                payload = self._format_chapter_payload(chapters[0])
+                return json.dumps(payload, ensure_ascii=False, indent=2)
+            if len(chapters) > 1:
+                return json.dumps({
+                    "type": "multi_chapter",
+                    "count": len(chapters),
+                    "chapters": [self._format_chapter_payload(ch) for ch in chapters]
+                }, ensure_ascii=False, indent=2)
+            return None
+
+        if tool_name == "get_context":
+            converted = {
+                "work_id": data.get("work_id"),
+                "work_info": data.get("work_info", {}),
+                "current_chapter": {},
+                "related_context": data.get("rag_context", [])
+            }
+            chapters = data.get("chapters", [])
+            if chapters:
+                ch = chapters[0]
+                content = ch.get("content", "") if isinstance(ch, dict) else ""
+                converted["current_chapter"] = {
+                    "chapter_id": ch.get("id") if isinstance(ch, dict) else "",
+                    "title": ch.get("title") if isinstance(ch, dict) else "",
+                    "order": ch.get("order") if isinstance(ch, dict) else None,
+                    "content_preview": content[:1000],
+                    "word_count": ch.get("word_count") if isinstance(ch, dict) else None
+                }
+            return json.dumps(converted, ensure_ascii=False, indent=2)
+
+        if tool_name == "get_worldview_summary":
+            worldview = data.get("worldview", {}) if isinstance(data.get("worldview"), dict) else {}
+            converted = {
+                "total": {
+                    "characters": len(worldview.get("characters", [])),
+                    "locations": len(worldview.get("locations", [])),
+                    "settings": len(worldview.get("settings", []))
+                },
+                "characters": worldview.get("characters", []),
+                "locations": worldview.get("locations", []),
+                "settings": worldview.get("settings", [])
+            }
+            return json.dumps(converted, ensure_ascii=False, indent=2)
+
+        return None
+
+    @staticmethod
+    def _format_chapter_payload(chapter: Dict[str, Any]) -> Dict[str, Any]:
+        content = chapter.get("content", "") or ""
+        return {
+            "chapter_id": chapter.get("chapter_id") or chapter.get("id"),
+            "title": chapter.get("title"),
+            "order": chapter.get("order"),
+            "content": content,
+            "content_length": len(content),
+            "word_count": chapter.get("word_count"),
+            "status": chapter.get("status", "unknown")
+        }
+
     # ==================== 章节缓存方法 ====================
 
     def _check_chapter_cache(
@@ -805,7 +988,8 @@ class ToolExecutor:
             if chapter_id and "," not in chapter_id:  # 单章节才检查缓存
                 cached = ChapterCache.get_by_id(state, chapter_id)
                 if cached:
-                    return json.dumps(cached, ensure_ascii=False, indent=2)
+                    payload = self._format_chapter_payload(cached)
+                    return json.dumps(payload, ensure_ascii=False, indent=2)
 
         elif tool_name == "get_chapter_by_order":
             chapter_order = str(tool_args.get("chapter_order", "1"))
@@ -814,7 +998,8 @@ class ToolExecutor:
                 order = int(chapter_order)
                 cached = ChapterCache.get_by_order(state, work_id, order)
                 if cached:
-                    return json.dumps(cached, ensure_ascii=False, indent=2)
+                    payload = self._format_chapter_payload(cached)
+                    return json.dumps(payload, ensure_ascii=False, indent=2)
 
         return None
 
@@ -1015,4 +1200,13 @@ class ToolExecutor:
             return [int(chapter_order)]
         except ValueError:
             return []
+
+    @staticmethod
+    def _resolve_tool_policy(state: dict) -> str:
+        if not isinstance(state, dict):
+            return "auto"
+        policy = str(state.get("tool_policy") or "").strip().lower()
+        if policy in {"auto", "no_tool", "cache_only"}:
+            return policy
+        return "auto"
 

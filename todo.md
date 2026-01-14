@@ -199,6 +199,94 @@
 ## Review（作品管理底部空白条）
 - 作品管理页根容器移除固定高度，改为 `h-full min-h-full`，消除底部空白条（`src/views/WorksView/index.tsx`）。
 
+## Review（缓存优先 + MemoryPack）
+- 工具缓存新增 include 超集命中，并在调用前优先读取覆盖缓存，避免重复请求（`backend/app/services/agent/utils/tool_cache.py`、`backend/app/services/agent/execution/tool_executor.py`）。
+- 别名读取工具改为可复用 get_writing_context 缓存并补齐返回格式，章节缓存返回补全 content_length/status（`backend/app/services/agent/execution/tool_executor.py`）。
+- MemoryPack 从助手输出解析后写入长期记忆，携带 work_id/chapter_id；构建上下文时注入最新 MemoryPack（长度限制 2000）（`backend/app/services/context/manager.py`、`backend/app/services/context/vector_memory_store.py`）。
+- ContextManager 支持 chapter_id 入参并在 LangGraph 保存对话时传入（`backend/app/services/agent/langgraph_agent.py`、`backend/app/services/context/manager.py`）。
+
+## 计划（复查缓存与 MemoryPack）
+- [x] 复查缓存覆盖命中与别名工具转换链路的输入输出一致性
+- [x] 核对 MemoryPack 解析/持久化/注入流程，检查边界与错误处理
+- [x] 评估是否引入新问题、是否真正解决“上下文复用”诉求
+- [x] 汇总发现并更新 Review
+
+## 解决方案（复查缓存与 MemoryPack）
+- 从 ToolExecutor/ToolCache/ContextManager/VectorMemoryStore 逐段核对缓存命中、格式转换与注入逻辑，确认无回归并覆盖原问题场景。
+
+## Review（复查缓存与 MemoryPack）
+- MemoryPack 解析改为先抽取 fenced block，再用花括号深度解析，避免嵌套 JSON 被正则截断（`backend/app/services/context/manager.py`）。
+- 清理 `get_latest_memory` 中的重复 `except` 逻辑，避免死代码与返回类型混乱（`backend/app/services/context/vector_memory_store.py`）。
+- 规划阶段仍未引入“缓存命中即跳过工具任务”的决策逻辑，实际仍可能生成工具任务，只是 ToolExecutor 返回缓存结果（`backend/app/services/agent/langgraph_agent.py`、`backend/app/services/agent/execution/tool_executor.py`）。
+- MemoryPack 注入取“最新一条 work 级记忆”，未根据 chapter_id 过滤，跨章节时可能注入不匹配的记忆（`backend/app/services/context/manager.py`）。
+- `get_latest_memory` 使用 `collection.get` 拉取全量匹配再按 timestamp 选最新，数据量大时可能有性能压力（`backend/app/services/context/vector_memory_store.py`）。
+- 仍缺少缓存命中/MemoryPack 解析与注入的自动化测试覆盖。
+
+## 计划（方案A：上下文足够则不生成工具任务）
+- [x] 按 chapter_id/session 优先级检索 MemoryPack，并将 chapter_id 传入上下文构建
+- [x] 将 MemoryPack 摘要注入 tool_policy 判定与 direct_answer 提示
+- [x] 调整 tool_policy 推断逻辑，使“上下文足够”时返回 no_tool
+- [x] 更新 Review
+
+## 解决方案（方案A：上下文足够则不生成工具任务）
+- 以 chapter_id/session 优先检索 MemoryPack，注入规划与直答提示，让 tool_policy 能准确判定 no_tool，从源头避免生成工具任务。
+
+## Review（方案A：上下文足够则不生成工具任务）
+- build_context 增加 chapter_id 入参，MemoryPack 检索按“chapter_id+session → chapter_id → session → work”优先级；并返回 memory_pack_text（`backend/app/services/context/manager.py`）。
+- 向量存储支持 metadata_filter，用于按 chapter_id/session 过滤最新 MemoryPack（`backend/app/services/context/vector_memory_store.py`）。
+- MemoryPack 文本注入 conversation_history，直答与 tool_policy 判定可见；tool_policy 判定提示加入 MemoryPack 规则（`backend/app/services/agent/langgraph_agent.py`）。
+- 仍依赖 AI 判定 no_tool，若 MemoryPack 不充分会回退 auto；未做自动化测试验证。
+
+## 计划（再次Review：缓存与MemoryPack）
+- [x] 复核新增 MemoryPack 优先级检索与 metadata_filter 过滤逻辑
+- [x] 复核 tool_policy 判定链路是否可确保“无工具任务”目标
+- [x] 检查改动是否引入新问题（格式、性能、回退路径）
+- [x] 检查修改完整性与逻辑一致性（Context/Planning/Execution）
+- [x] 深入确认问题是否真实存在及是否有遗漏
+- [x] 更新 Review
+
+## 解决方案（再次Review：缓存与MemoryPack）
+- 逐段核对最新改动的调用链、边界与回退逻辑，并给出是否满足预期与遗漏清单。
+
+## Review（再次Review：缓存与MemoryPack）
+- tool_policy 仍为 AI 判定，未加入硬性“MemoryPack 命中则 no_tool”规则，因此仍可能生成工具任务；若要彻底“无工具日志”，需增加强规则（`backend/app/services/agent/langgraph_agent.py`）。
+- MemoryPack 按 chapter_id/session 优先检索已实现，但 `UnifiedMemoryCoordinator` 的 build_context 未传 chapter_id（已补齐），避免在该路径中回落到 work 级记忆（`backend/app/services/agent/memory/unified_coordinator.py`、`backend/app/services/context/manager.py`）。
+- metadata_filter 仅在 `get_latest_memory` 中使用，不影响其他向量检索；回退顺序清晰，但当 chapter_id 为空时会回落到 work 级最新，仍可能跨章污染（`backend/app/services/context/manager.py`）。
+- get_latest_memory 仍使用 collection.get 全量过滤+排序，数据量大时可能影响性能；建议后续增加索引或限制返回量（`backend/app/services/context/vector_memory_store.py`）。
+- 缺少针对“工具任务不生成”的自动化测试与日志断言，真实问题是否解决需结合实际两轮对话测试验证。
+
+## 计划（强制 no_tool）
+- [x] 增加 MemoryPack 命中硬规则，满足条件时强制 no_tool
+- [x] 更新 Review
+
+## 解决方案（强制 no_tool）
+- 在 tool_policy 推断前检查 MemoryPack 命中与上下文充足信号，直接设置 no_tool，避免生成任何工具任务/日志。
+
+## Review（强制 no_tool）
+- 规划阶段新增 MemoryPack 命中硬规则：只要 MemoryPack 存在即强制 tool_policy=no_tool，阻断工具任务生成（`backend/app/services/agent/langgraph_agent.py`）。
+
+## 计划（修复启动错误）
+- [x] 修复向量检索的 try/except 结构导致的 SyntaxError
+
+## 解决方案（修复启动错误）
+- 将 search_memories 的 return 置于 try 内，并补齐 except，恢复正常异常处理链路。
+
+## Review（修复启动错误）
+- 修复 `search_memories` 缺失 except 的语法错误，恢复服务启动（`backend/app/services/context/vector_memory_store.py`）。
+
+## 计划（缓存优先 + MemoryPack）
+- [x] 扩展工具缓存：get_writing_context 支持 include 超集命中
+- [x] ToolExecutor 预检缓存并为别名读取工具补齐结果格式
+- [x] ContextManager 解析 MemoryPack 并写入长期记忆（含 work_id/chapter_id）
+- [x] 构建上下文时注入最新 MemoryPack（限制长度）
+- [x] 更新 Review
+
+## 解决方案（缓存优先 + MemoryPack）
+- 在工具层为 get_writing_context 增加 include 超集匹配，优先复用已缓存的上下文结果，避免重复调用。
+- 在 ToolExecutor 侧将别名读取工具（read_chapter/get_context/get_worldview_summary）通过缓存结果转换为原格式返回，保证下游解析不变。
+- 从助手输出中提取 MemoryPack JSON，按 work_id/chapter_id 写入长期记忆，便于跨轮次复用。
+- 构建上下文时优先注入最新 MemoryPack（可截断），使模型可直接用缓存回答。
+
 ## 计划（上下文记忆与工具结果复用）
 - [x] 梳理现有上下文/记忆/缓存机制与时效范围
 - [x] 明确工具结果在跨轮次/跨会话的复用边界与限制
@@ -413,10 +501,10 @@
 - 在 `backend/app/services/agent/execution/tool_executor.py` 增加“用户不记得章节”识别，locate_content/search_content 在该场景不默认使用当前 chapter_id，允许自动 search_content 补全目标章节。
 - 验证建议：用“我记不清第几章/哪一章”复测，检查日志出现 search_content，且 locate_content 的 chapter_id 来自搜索结果。
 
-## 计划（Explore 工具与原文读取）
+## 计划（精读工具 read_chapter_raw/read_chapter_segment）
 - [ ] 复核现有检索/定位/读取工具链与标准工具注册方式（`backend/app/services/agent/langgraph_tools.py`、`backend/app/services/agent/tools/__init__.py`）
 - [ ] 新增 read_chapter_raw 工具，返回原始章节全文（避免清洗/截断）（`backend/app/services/agent/langgraph_tools.py`、`backend/app/services/agent/tools/__init__.py`、`backend/app/services/agent/execution/tool_executor.py`）
-- [ ] 新增 explore_content 工具，按 search → locate → read_raw 循环补漏并输出证据（`backend/app/services/agent/langgraph_tools.py`、`backend/app/services/agent/tools/__init__.py`、`backend/app/services/agent/execution/tool_executor.py`）
+- [ ] 新增 read_chapter_segment 工具，按 node_id/paragraph_index/锚点精读片段并返回命中状态（`backend/app/services/agent/langgraph_tools.py`、`backend/app/services/agent/tools/__init__.py`、`backend/app/services/agent/execution/tool_executor.py`）
 - [ ] 更新工具说明与使用建议（`backend/app/services/agent/prompts/tool_descriptions.py`）
 - [ ] 更新 Review 记录改动与验证建议
 
@@ -878,3 +966,344 @@
 - 第1步调用了 1 次 `get_writing_context include=chapter`，符合“仅一次读取”；但后续“继续/复问”仍触发 `get_context_tool`（内部调用 `get_writing_context include=work,chapter,rag`），违反“后续禁用读取工具”规则（`Backend.md`、`INFO.md`）。
 - 复问阶段依旧调用了 `get_context_tool` 与 `analyze_content`，未满足“复问不再调用工具”的约束（`INFO.md`）。
 - 新改动后缓存生效：复问阶段 `get_context` 出现 ToolCache 命中日志（`Backend.md` 16:45:14 附近），说明工具缓存已接入，但整体流程仍不符合“禁用工具调用”的测试预期。
+
+## 计划（tool_policy 禁用工具直答）
+- [x] 阅读规划与请求入口，确定 tool_policy 注入点（`backend/app/api/v1/agent.py`、`backend/app/services/agent/planning/plan_generator.py`）
+- [x] 增加 tool_policy 参数并在规划层优先处理（禁止工具时直接产出 direct_answer）
+- [x] 必要时跳过快速路径工具调用，补充 Review
+
+## 解决方案（tool_policy 禁用工具直答）
+- 增加 `tool_policy`（auto/no_tool/cache_only）到请求与上下文；规划层检测后直接生成 `direct_answer` 并清空 tasks，跳过工具调用。
+
+## Review（tool_policy 禁用工具直答）
+- 请求层新增 `tool_policy` 字段并注入到 context（auto/no_tool/cache_only），用于后续规划与执行策略（`backend/app/api/v1/agent.py`）。
+- 规划层在 `no_tool` 时直接生成 direct_answer 并返回空任务；规划 prompt 同步注入 tool_policy 供模型参考（`backend/app/services/agent/planning/plan_generator.py`）。
+- 规划阶段若 `tool_policy` 非 auto，跳过快速路径，避免快速路径工具调用（`backend/app/services/agent/langgraph_agent.py`）。
+- 执行层读取 tool_policy：`cache_only` 仅允许缓存命中，未命中返回 tool_cache_miss；`no_tool` 直接拒绝工具调用（`backend/app/services/agent/execution/tool_executor.py`）。
+- 并行执行共享 state 注入 tool_policy，保证 TaskRunner/ToolExecutor 可见（`backend/app/services/agent/execution/parallel_executor.py`、`backend/app/services/agent/execution/task_runner.py`、`backend/app/services/agent/langgraph_agent.py`）。
+
+## 计划（复杂测试提示词-九次）
+- [x] 复核小说素材关键线索（`docs/Agent/real-book/一夕千悟，从杂役弟子开始.txt`）
+- [x] 设计 1 条新测试 prompt（强调 tool_policy/no_tool 与复问）
+- [x] 输出 prompt 并更新 Review
+
+## 解决方案（复杂测试提示词-九次）
+- 基于素材设计新的多步测试 prompt，用于验证 tool_policy=no_tool 时不调用工具、仅用上下文回答。
+
+## Review（复杂测试提示词-九次）
+- 已输出新的测试 prompt，包含一次读取、两轮复问与 tool_policy=no_tool 的强约束。
+
+## 计划（日志符合预期核验-二次）
+- [x] 阅读后台日志并定位关键工具调用（`Backend.md`）
+- [x] 阅读执行轨迹并对照用户规则（`INFO.md`）
+- [x] 判断是否符合“no_tool/缓存命中/禁用工具”预期并更新 Review
+
+## 解决方案（日志符合预期核验-二次）
+- 对照 Backend.md/INFO.md 中工具调用与 tool_policy 规则，给出是否符合预期与偏差说明。
+
+## Review（日志符合预期核验-二次）
+- 第二轮虽包含 `tool_policy="no_tool"` 文本，但请求体未传 `tool_policy` 字段，后端未识别为 no_tool；规划继续生成工具任务并调用 `get_context_tool`（`Backend.md` 17:25:26~17:26:06）。
+- 执行轨迹显示复问阶段仍调用 `get_context_tool` 与 `analyze_content`，违反“no_tool 不调用工具”的测试预期（`INFO.md`）。
+- 若要生效，需在请求体明确传 `tool_policy: "no_tool"`（或在前端/调用方把该字段写入 request.context），仅在消息里写文本不生效。
+
+## 计划（前端固定传 tool_policy）
+- [x] 定位前端请求封装与请求类型（`src/services/agentApi.ts`、`src/types/agent.ts`）
+- [x] 在请求层为 chat/chatStream 注入 tool_policy 默认值（`src/services/agentApi.ts`）
+- [x] 补充类型定义并更新 Review
+
+## 解决方案（前端固定传 tool_policy）
+- 在 agentApi 层统一补齐 `tool_policy`（优先使用请求显式值，其次读取 context.tool_policy，默认 auto），确保每次请求都携带该字段。
+- 同步扩展 `AgentChatRequest` 类型，添加 `tool_policy` 可选字段，避免前端传参时报错。
+
+## Review（前端固定传 tool_policy）
+- `AgentChatRequest` 新增 `tool_policy` 字段（`src/types/agent.ts`）。
+- `chat`/`chatStream` 请求在发送前统一补齐 `tool_policy`，优先使用显式值，其次读取 `context.tool_policy`，默认 `auto`（`src/services/agentApi.ts`）。
+
+## 计划（导入作品弹窗超出屏幕）
+- [x] 核对导入弹窗尺寸与定位是否使用固定像素，确认导致越界的样式来源（`src/views/WorksView/index.tsx`）
+- [x] 将弹窗宽高上限改为基于视窗的约束，避免高分屏/缩放下溢出（`src/views/WorksView/index.tsx`）
+- [x] 简查导出弹窗是否存在同类固定尺寸风险并记录结论（`src/views/WorksView/index.tsx`）
+
+## 解决方案（导入作品弹窗超出屏幕）
+- 把导入弹窗的宽高上限从固定像素改为 `min(固定值, 视窗尺寸)`，确保在缩放或小窗口下仍留出边距且不超出屏幕。
+
+## Review（导入作品弹窗超出屏幕）
+- 导入弹窗增加视窗上限约束：宽度加 `max-w`，高度用 `min(700px, 90vh)`，避免缩放/小窗口时超出屏幕（`src/views/WorksView/index.tsx`）。
+- 导出弹窗仍保持固定宽高（`w-[520px]`/`max-h-[640px]`），未改动；如后续出现同类越界可按相同方式处理（`src/views/WorksView/index.tsx`）。
+
+## 计划（日志符合预期核验-三次）
+- [x] 阅读后台日志并定位关键工具调用（`Backend.md`）
+- [x] 阅读执行轨迹并对照用户规则（`INFO.md`）
+- [x] 判断是否符合预期并更新 Review
+
+## 解决方案（日志符合预期核验-三次）
+- 对照 Backend.md/INFO.md 中工具调用与 tool_policy/缓存规则，给出是否符合预期与偏差说明。
+
+## Review（日志符合预期核验-三次）
+- 未符合预期：后续仍调用工具。Backend.md 显示在用户消息包含 `tool_policy = "no_tool"` 文本后仍生成 2 个任务并调用 `get_context` 与 `analyze_content`（`Backend.md` 17:45:26~17:45:42）。
+- INFO.md 执行轨迹明确出现 “调用工具 get_context_tool / analyze_content / response_builder.summarize”，违反“no_tool 不调用工具”的规则。
+- 仍未看到请求层显式传 `tool_policy` 的日志痕迹；后端仅在日志中记录用户 message 文本包含 `tool_policy = "no_tool"`，未体现请求字段生效（`Backend.md` 17:44:43 附近）。
+
+## 计划（导入弹窗内容可见性）
+- [x] 核对当前导入弹窗高度上限导致内容区域滚动的触发条件（`src/views/WorksView/index.tsx`）
+- [x] 调整高度上限为纯视窗比例，放宽大屏可用高度以避免不必要的内部滚动（`src/views/WorksView/index.tsx`）
+- [x] 更新 Review 记录变更点与预期影响
+
+## 解决方案（导入弹窗内容可见性）
+- 将导入弹窗的 `max-height` 从 `min(700px, 90vh)` 改为 `90vh`（或略高），让高分辨率下优先撑满可视区，减少内部滚动出现的概率。
+
+## Review（导入弹窗内容可见性）
+- 导入弹窗最大高度改为 `90vh`，避免大屏仍被 700px 上限限制而出现不必要的内部滚动（`src/views/WorksView/index.tsx`）。
+
+## 计划（导入弹窗单屏压缩与预览缩减）
+- [x] 移除“选择文件”文案并压缩导入弹窗整体间距/字号（`src/views/WorksView/index.tsx`）
+- [x] 预览区仅保留关键统计并将章节列表缩为前 3 章（`src/views/WorksView/index.tsx`）
+- [x] 更新 Review 记录调整点与内容缩减范围
+
+## 解决方案（导入弹窗单屏压缩与预览缩减）
+- 去掉“选择文件”标签，整体缩小 padding/margin/字号；预览仅显示标题+章节数+总字数，并将章节列表由 5 章缩为 3 章，以减少单屏高度占用。
+
+## Review（导入弹窗单屏压缩与预览缩减）
+- 移除“选择文件”标签，缩小导入弹窗 padding/margin/字号，降低单屏高度占用（`src/views/WorksView/index.tsx`）。
+- 预览区仅保留标题/章节数/总字数，章节列表缩为前 3 章并同步调整“更多章节”计数（`src/views/WorksView/index.tsx`）。
+
+## 计划（导入确认按钮圆角一致）
+- [x] 核对导入弹窗确认按钮样式，确认圆角与取消按钮不一致的位置（`src/views/WorksView/index.tsx`）
+- [x] 为确认导入按钮补齐与取消按钮一致的圆角样式（`src/views/WorksView/index.tsx`）
+- [x] 更新 Review 记录调整点
+
+## 解决方案（导入确认按钮圆角一致）
+- 在确认导入按钮的 class 中补充 `rounded-lg`，与取消按钮保持同等圆角。
+
+## Review（导入确认按钮圆角一致）
+- 确认导入按钮补齐 `rounded-lg`，与取消按钮的圆角保持一致（`src/views/WorksView/index.tsx`）。
+
+## 计划（素材测试用 prompt）
+- [x] 通读小说素材，提取人物/背景/关键线索用于构造测试提示词（`docs/Agent/real-book/一夕千悟，从杂役弟子开始.txt`）
+- [x] 设计 1 条单提示词，包含多段输出与局部改写要求，确保回复足够长用于滚动测试
+- [x] 更新 Review 并输出最终 prompt
+
+## 解决方案（素材测试用 prompt）
+- 基于段融/赵穆/太一门/吞噬器灵等要素，设计单条长输出 prompt，包含摘要、改写、补写与风格约束，保证回复长度可触发滚动。
+
+## Review（素材测试用 prompt）
+- Prompt 采用单条长指令，包含“摘要+改写+补写+对话+要点清单”多段输出，覆盖段融/赵穆/器灵/太一门/许儒虎/杨震等要素，确保回复足够长以触发滚动。
+
+## 计划（工具策略开关与会话持久化）
+- [ ] 核对 AIPanel 发送请求与会话标识（`src/components/editor/AIPanel.tsx`）
+- [ ] 增加 tool_policy 状态、会话级持久化，并注入请求体（`src/components/editor/AIPanel.tsx`）
+- [ ] 增加工具策略选择 UI（`src/components/editor/AIPanel.tsx`）
+- [ ] 更新 Review
+
+## 解决方案（工具策略开关与会话持久化）
+- 在 AIPanel 提供 tool_policy 选择控件，按 sessionId 写入 localStorage 并在请求体显式传递，确保 no_tool/cache_only 生效。
+
+## 计划（自动解析 tool_policy）
+- [x] 核对后端请求入口与上下文注入位置（`backend/app/api/v1/agent.py`）
+- [x] 增加指令文本解析：匹配“no_tool/不调用工具/仅用 MemoryPack”等触发 tool_policy（`backend/app/api/v1/agent.py`）
+- [x] 增加 cache_only 触发词解析并保留显式传参优先级（`backend/app/api/v1/agent.py`）
+- [x] 更新 Review
+
+## 解决方案（自动解析 tool_policy）
+- 在请求入口对 message 做轻量规则解析，未显式传或仅传 `auto` 时自动补齐/覆盖为 `no_tool` 或 `cache_only`，避免 UI 依赖。
+
+## Review（自动解析 tool_policy）
+- 新增 `infer_tool_policy_from_message`，支持 `tool_policy=...` 显式指令与“仅用 MemoryPack/不调用工具/只用缓存”等短语触发（`backend/app/api/v1/agent.py`）。
+- `agent_chat_stream` 在未显式传参或仅传 `auto` 时自动推断 tool_policy，显式 `no_tool/cache_only` 仍优先，默认回退为 `auto`（`backend/app/api/v1/agent.py`）。
+
+## 计划（上下文充足性自动判断）
+- [x] 核对规划入口与上下文构建位置（`backend/app/api/v1/agent.py`、`backend/app/services/agent/langgraph_agent.py`）
+- [x] 增加“上下文是否足够回答”判定并写入 tool_policy（`backend/app/services/agent/langgraph_agent.py`）
+- [x] 移除基于关键词的 tool_policy 解析逻辑，改为模型判定优先（`backend/app/api/v1/agent.py`）
+- [x] 更新 Review
+
+## 解决方案（上下文充足性自动判断）
+- 在规划前用轻量 AI 判定评估上下文是否足够；足够则自动设为 `no_tool`，部分相关且可能依赖缓存则 `cache_only`，不足则维持 `auto`；显式传参仍优先。
+
+## Review（上下文充足性自动判断）
+- 移除基于消息关键词的 tool_policy 推断逻辑，恢复请求显式/上下文字段优先（`backend/app/api/v1/agent.py`）。
+- 新增 `_infer_tool_policy_from_context`，基于历史上下文摘要与结构化上下文概览做 AI 判定，并在 `auto` 时自动覆盖为 `no_tool`/`cache_only`（`backend/app/services/agent/langgraph_agent.py`）。
+
+## 计划（日志异常排查-四次）
+- [x] 阅读后台日志定位失败原因（`Backend.md`）
+- [x] 对照执行轨迹确认失败阶段与工具参数（`INFO.md`）
+- [x] 汇总结论并更新 Review
+
+## 解决方案（日志异常排查-四次）
+- 通过 Backend.md/INFO.md 核对失败节点与工具参数，确认是否为 analyze_content 参数校验或策略判定导致，并给出结论。
+
+## Review（日志异常排查-四次）
+- 失败原因确认：`analyze_content` 的 `focus` 入参过长触发 Pydantic 校验（<=100 字符限制），导致工具执行失败（`Backend.md` 19:37:04 附近）。
+- 规划仍生成 2 个任务，第一步 `get_writing_context` 成功，第二步 `analyze_content` 失败后仍进入 summarization（`Backend.md` 19:37:04~19:37:22）。
+- 本轮上下文为空（ContextManager 0 消息），自动工具策略判定不会触发，流程仍按 `auto` 调用工具（`Backend.md` 19:36:31 附近）。
+
+## 计划（analyze_content focus 截断修复）
+- [x] 定位 analyze_content focus 组装位置（`backend/app/services/agent/execution/task_runner.py`）
+- [x] 对 focus 超长进行截断并给出简短兜底（`backend/app/services/agent/execution/task_runner.py`）
+- [x] 更新 Review
+
+## 解决方案（analyze_content focus 截断修复）
+- 在 TaskRunner 组装 analyze_content 参数时，将 focus 截断到 100 字符以内并保留短提示，避免触发校验失败。
+
+## Review（analyze_content focus 截断修复）
+- `analyze_text_tool/analyze_content` 的 focus 过长时截断为 100 字符以内，并在空值时回退为 `all`，避免触发校验错误（`backend/app/services/agent/execution/task_runner.py`）。
+
+## 计划（日志符合预期核验-五次）
+- [x] 阅读后台日志定位本次请求的工具调用与错误（`Backend.md`）
+- [x] 核对是否仍出现 focus 超长校验失败或工具调用异常（`Backend.md`）
+- [x] 汇总结论并更新 Review
+
+## 解决方案（日志符合预期核验-五次）
+- 对照 Backend.md 中本轮日志判断修复是否生效（focus 不再超长报错），并给出是否符合预期的结论。
+
+## Review（日志符合预期核验-五次）
+- focus 超长校验错误已消失：本轮没有出现 `string_too_long` 或 `AnalyzeContentInput` 校验失败日志。
+- 第1轮仍只生成读取任务（get_writing_context），未生成 analyze_content 任务，且由 summarization 直接生成回复（`Backend.md` 19:50:12 左右）。
+- 第2轮生成 direct_answer 且任务数为 0，未触发工具调用，符合“有上下文直接回答”的预期（`Backend.md` 19:53:25~19:53:26）。
+
+## 计划（日志符合预期核验-六次）
+- [x] 阅读后台日志定位本次请求的工具调用与错误（`Backend.md`）
+- [x] 核对是否满足“仅首次读取、后续不再调用工具”的预期（`Backend.md`）
+- [x] 汇总结论并更新 Review
+
+## 解决方案（日志符合预期核验-六次）
+- 对照 Backend.md 判断本轮工具调用次数与是否命中 no_tool 规则，给出是否符合预期的结论。
+
+## Review（日志符合预期核验-六次）
+- 不符合预期：第2轮仍调用 `get_context` 与 `analyze_content`，并进入 summarization（`Backend.md` 20:03:57~20:04:34）。
+- 规划未稳定进入 direct_answer：Planning JSON 两次解析失败后仍生成 2 个任务并调用工具（`Backend.md` 20:03:31~20:03:57）。
+- 日志未出现自动 tool_policy 判定的记录，当前策略未能阻止工具调用。
+
+## 计划（日志问题定位+测试prompt）
+- [x] 阅读 `Backend.md` 最新日志，定位 MemoryPack/缓存/工具策略异常节点
+- [x] 对照 `backend/app/services/context/vector_memory_store.py` 与 `backend/app/services/context/manager.py`，核对 `get_latest_memory` 过滤与 include 组装
+- [x] 输出问题结论与最小修复建议（为何未命中 MemoryPack/no_tool）
+- [x] 基于小说素材设计两轮测试 prompt（第1轮生成 MemoryPack，第2轮严格 no_tool）
+- [x] 更新 Review
+
+## 解决方案（日志问题定位+测试prompt）
+- 定位 MemoryPack 读取失败的具体报错点，并解释其对 no_tool/缓存命中造成的影响。
+- 修复建议：`get_latest_memory` 的 `metadata_filter` 拆成单键 `$and` 条件，`include` 去掉 `ids`，确保 MemoryPack 能被正确取回。
+- 提供一组新的两轮测试 prompt，覆盖“一次读取→MemoryPack→二轮 no_tool 复问”的路径。
+
+## Review（日志问题定位+测试prompt）
+- 日志异常点：`get_latest_memory` 在 `collection.get` 的 where 里传入了多键 dict（`chapter_id`+`session_id`），触发 “Expected where to have exactly one operator”；同时 include 里带了 `ids`，触发 “Expected include item ... got ids”，导致 MemoryPack 读取失败（`Backend.md` 21:56:56 / 21:59:21）。
+- 影响：MemoryPack 未能注入上下文，自动 no_tool 判定失效，规划继续生成工具任务并调用 `get_context/analyze_content`，与“仅用 MemoryPack 复问”目标不一致。
+- 修复：在 `backend/app/services/context/vector_memory_store.py` 中将 `metadata_filter` 拆成单键条件并移除 include 里的 `ids`，避免 Chroma 校验错误，恢复 MemoryPack 获取。
+- 测试建议：用“两轮 prompt”验证第1轮仅一次读取生成 MemoryPack，第2轮在 `tool_policy=no_tool` 下仅用 MemoryPack 回答且无工具调用。
+- 未运行测试；建议重新跑一次两轮对话并观察 Backend.md 中是否还有 `get_latest_memory` 报错与工具调用。
+
+## 计划（Backend.md 新日志复核）
+- [x] 阅读 `Backend.md` 最新日志，定位异常节点与工具调用
+- [x] 对照 `backend/app/services/context/vector_memory_store.py` 与 `backend/app/services/context/manager.py`，核对 MemoryPack 获取是否仍报错
+- [x] 输出结论：是否符合“仅一次读取+二轮 no_tool 无工具调用”
+- [x] 更新 Review
+
+## 解决方案（Backend.md 新日志复核）
+- 逐条定位日志中的错误/告警，并判断是否仍存在 MemoryPack 获取失败或 tool_policy 未生效问题。
+
+## Review（Backend.md 新日志复核）
+- 未再出现 `get_latest_memory` 报错（where/include 校验错误已消失），MemoryPack 命中并强制 `tool_policy=no_tool`（`Backend.md` 22:13:37 / 22:15:57）。
+- 第2轮未触发任何工具任务：规划完成后 `Plan tasks: 0 items` 且 direct_answer 直接返回，符合“no_tool 无工具调用”（`Backend.md` 22:16:31）。
+- 第1轮同样直接生成 `direct_answer` 且任务数为 0，未见一次性读取工具调用；不符合“第1轮必须只读一次章节再生成 MemoryPack”的测试预期（`Backend.md` 22:14:59）。
+- 额外异常：`ContextManager: 长期记忆已启用 (user_id=None)` 出现于启动阶段，说明本轮上下文初始化时 user_id 未就绪，可能影响 LTM 命中稳定性（`Backend.md` 22:13:07）。
+
+## 计划（两轮测试 prompt-新增）
+- [x] 复核小说素材第4-5章关键内容（`docs/Agent/real-book/一夕千悟，从杂役弟子开始.txt`）
+- [x] 设计两轮测试 prompt：第1轮单次读取+MemoryPack，第2轮严格 no_tool 复问
+- [x] 更新 Review
+
+## 解决方案（两轮测试 prompt-新增）
+- 基于第4/5章要素，提供一组新测试 prompt，覆盖“读取一次→MemoryPack→no_tool 复问”的完整路径。
+
+## Review（两轮测试 prompt-新增）
+- 已基于第4章“家底”与第5章“太一门”要素设计新的两轮测试 prompt，强调“仅一次读取→MemoryPack→二轮 no_tool 复问”路径。
+- 提示在新会话/新 conversation_id 下执行，避免旧 MemoryPack 触发 no_tool 导致跳过读取。
+
+## 计划（测试prompt-变体）
+- [x] 复核小说素材第1-3章要点（`docs/Agent/real-book/一夕千悟，从杂役弟子开始.txt`）
+- [x] 设计两轮新测试 prompt：第1轮强制一次读取+MemoryPack，第2轮严格 no_tool（不同于上一组）
+- [x] 更新 Review
+
+## 解决方案（测试prompt-变体）
+- 基于第1-3章要素提供另一组测试 prompt，覆盖“读取一次→MemoryPack→no_tool 复问”的路径。
+
+## Review（测试prompt-变体）
+- 已基于第2章“浑圆桩”和第3章“一夕千悟”的要素设计两轮测试 prompt，强调“只读一次→MemoryPack→no_tool 复问”。
+- 提示在新 work_id 或清空 MemoryPack 后执行，避免旧记忆触发 no_tool 跳过读取。
+
+## 计划（斗破两轮测试prompt）
+- [x] 复核素材前3章要点（`docs/Agent/real-book/斗破：开局获取抽取系统.txt`）
+- [x] 设计两轮测试 prompt：第1轮单次读取+MemoryPack，第2轮严格 no_tool 复问
+- [x] 更新 Review
+
+## 解决方案（斗破两轮测试prompt）
+- 第1轮 prompt：
+  【第1轮｜只读一次并生成 MemoryPack（斗破：第3章 蕴养筋脉）】
+  前置：请在新 work_id 或清空该 work 的 MemoryPack 后执行，避免旧记忆导致跳过读取。
+  tool_policy = "auto"（如支持字段，请在请求体传）
+  规则：
+  1) 仅允许调用一次读取工具：get_writing_context / read_chapter / get_context（三选一）
+  2) 必须读取第3章《蕴养筋脉》，只读该章
+  3) 禁止搜索/定位/分析类工具（search_content/locate_content/analyze_content）
+  4) 输出 MemoryPack JSON，字段：characters/items/places/events/skills/foreshadowing/quotes
+     - 每个字段≥2条；quotes≥3条并标注“章3”
+  5) 生成 6 条复问清单（每条含长问+短问，必须仅凭 MemoryPack 可答）
+  输出格式：
+  1) MemoryPack JSON
+  2) 复问清单（长问/短问）
+  3) 工具调用记录（仅1次）
+- 第2轮 prompt：
+  【第2轮｜严格 no_tool 复问】
+  tool_policy = "no_tool"（请在请求体传）
+  基于上一轮 MemoryPack 回答 6 条复问清单。
+  要求：
+  1) 不调用任何工具
+  2) 仅使用 MemoryPack 信息
+  3) 每题 1-2 句，末尾标注来源字段路径（如 MemoryPack.events[0]）
+  4) 可附 1 条≤20字证据短引文（含章号）
+  5) 若找不到，回答“未在MemoryPack中找到”
+  输出格式：
+  - Q1: ...
+  - Q2: ...
+  ...
+  工具调用记录：无
+
+## Review（斗破两轮测试prompt）
+- 已基于第3章“蕴养筋脉”设计两轮测试 prompt，强调“只读一次→MemoryPack→no_tool 复问”。
+- 提示在新 work_id/新会话下执行，避免旧 MemoryPack 直接触发 no_tool 跳过读取。
+
+## 计划（斗破日志复核）
+- [x] 阅读 `Backend.md` 最新日志，定位异常节点与工具调用
+- [x] 核对 MemoryPack 命中/读取路径是否正常（`backend/app/services/context/manager.py`、`backend/app/services/context/vector_memory_store.py`）
+- [x] 输出结论：是否符合“第1轮仅一次读取+第2轮 no_tool 无工具调用”
+- [x] 更新 Review
+
+## 解决方案（斗破日志复核）
+- 对照日志逐条定位错误/告警，并判断工具调用次数与 no_tool 规则是否达标。
+
+## Review（斗破日志复核）
+- 第1轮符合“只读一次”：规划生成 1 个任务并调用 `read_chapter`（内部走 `get_writing_context include=chapter`），任务数=1（`Backend.md` 22:45:28 附近）。
+- 第1轮无额外工具：仅一次读取后进入 summarization 输出，未见搜索/定位/分析工具调用。
+- 第2轮符合 no_tool：规划结果为 direct_answer，任务数=0，没有任何工具调用（`Backend.md` 22:48:12）。
+- 仍存在规划解析不稳：第2轮 `Planning` JSON 第1次解析失败后重试成功，但最终仍 direct_answer，无实际工具调用（`Backend.md` 22:47:45~22:48:12）。
+
+## 计划（斗破四轮测试prompt）
+- [x] 复核素材第7-10章要点（`docs/Agent/real-book/斗破：开局获取抽取系统.txt`）
+- [x] 设计四轮测试 prompt：第1轮只读一次+MemoryPack，第2-4轮严格 no_tool 复问
+- [x] 更新 Review
+
+## 解决方案（斗破四轮测试prompt）
+- 基于第7-10章要素提供四轮测试 prompt，覆盖“读取一次→MemoryPack→三轮 no_tool 复问”的路径。
+
+## Review（斗破四轮测试prompt）
+- 已基于第7-10章要素（斗气阁取《炼火焚》、薰儿赠《弄炎决》、米特尔拍卖场交易、后山水池事件、吸收桃花火、会议室对话）设计四轮测试 prompt。
+- 提示在新 work_id/新会话下执行，避免旧 MemoryPack 触发 no_tool 导致跳过读取。
+
+## 计划（AIPanel 消息置顶）
+- [ ] 核对 AIPanel 消息列表与滚动逻辑（`src/components/editor/AIPanel.tsx`）
+- [ ] 调整滚动与占位策略，让最新 AI 消息贴顶显示、用户消息自动滚出视野（`src/components/editor/AIPanel.tsx`）
+- [ ] 更新 Review
+
+## 解决方案（AIPanel 消息置顶）
+- 在消息列表中记录最新 AI 消息锚点，自动滚动时对齐到顶部，并通过底部占位高度保证短消息也能滚动隐藏用户消息。

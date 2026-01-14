@@ -783,6 +783,105 @@ class WritingAgentGraph:
         """判断请求复杂度 - 委托到 IntentClassifier"""
         return await self.intent_classifier.judge_complexity(message, intent)
 
+    async def _infer_tool_policy_from_context(
+        self,
+        message: str,
+        conversation_history: str,
+        context: Optional[Dict[str, Any]],
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> Optional[str]:
+        """基于现有上下文判断是否需要调用工具（AI判定）"""
+        history = (conversation_history or "").strip()
+        context_payload = context if isinstance(context, dict) else {}
+
+        has_known_context = bool(
+            history
+            or context_payload.get("knowledge_docs")
+            or context_payload.get("worldview_data")
+            or context_payload.get("selected_text")
+            or context_payload.get("current_content")
+            or context_payload.get("text")
+        )
+        if not has_known_context:
+            return None
+
+        max_history_chars = 2200
+        if len(history) > max_history_chars:
+            head_len = 1600
+            tail_len = 400
+            history = f"{history[:head_len]}\n\n...[省略部分历史]...\n\n{history[-tail_len:]}"
+
+        knowledge_docs = context_payload.get("knowledge_docs") if isinstance(context_payload.get("knowledge_docs"), list) else []
+        knowledge_titles = [doc.get("title") for doc in knowledge_docs if isinstance(doc, dict) and doc.get("title")]
+        knowledge_titles = knowledge_titles[:5]
+
+        worldview_data = context_payload.get("worldview_data") if isinstance(context_payload.get("worldview_data"), dict) else {}
+        worldview_profile = {
+            "characters": len(worldview_data.get("characters", []) or []),
+            "locations": len(worldview_data.get("locations", []) or []),
+            "settings": len(worldview_data.get("settings", []) or []),
+            "has_guidelines": bool(worldview_data.get("guidelines"))
+        }
+
+        context_keys = [
+            key for key in context_payload.keys()
+            if key not in {"knowledge_docs", "worldview_data"}
+        ]
+        context_keys = sorted(context_keys)[:20]
+
+        context_profile = {
+            "context_keys": context_keys,
+            "has_selected_text": bool(context_payload.get("selected_text") or context_payload.get("selection")),
+            "has_current_content": bool(context_payload.get("current_content") or context_payload.get("text")),
+            "knowledge_docs": len(knowledge_docs),
+            "knowledge_titles": knowledge_titles,
+            "worldview": worldview_profile,
+            "has_memorypack": "memorypack" in history.lower()
+        }
+
+        if metadata:
+            context_profile["context_tokens"] = metadata.get("token_count", 0)
+            context_profile["has_summary"] = bool(metadata.get("has_summary"))
+
+        prompt = (
+            "你是工具策略判定器。根据用户请求和可用上下文判断是否需要调用工具。\n"
+            "可选策略:\n"
+            "- no_tool: 仅用现有上下文即可准确回答，不需要再读取/检索/分析工具\n"
+            "- cache_only: 可能需要工具结果，但应仅允许使用缓存；若缓存未命中，不调用真实工具\n"
+            "- auto: 需要调用工具获取新信息\n\n"
+            "要求:\n"
+            "1) 仅依据提供的上下文判断，不臆造。\n"
+            "2) 如果上下文明显足够，选 no_tool。\n"
+            "3) 如果上下文部分相关但不确定，优先选 auto；只有明显依赖历史工具结果才选 cache_only。\n"
+            "4) 如果已有 MemoryPack 且能覆盖问题关键信息，选 no_tool。\n"
+            "5) 只返回严格JSON，不要包含多余文字。\n\n"
+            f"用户请求:\n{message}\n\n"
+            f"可用上下文摘要:\n{history or '无'}\n\n"
+            f"上下文概览(JSON):\n{json.dumps(context_profile, ensure_ascii=False)}\n"
+        )
+
+        try:
+            result = await self.ai_service.call_ai(
+                system_prompt="你是精确的策略判定器，只返回JSON。",
+                user_prompt=prompt,
+                max_tokens=200,
+                temperature=0.1,
+                task_type=TaskType.TEXT_CLASSIFICATION
+            )
+            decision = self._extract_json_from_text(result) or {}
+            policy = str(decision.get("policy", "")).strip().lower()
+            if policy in {"auto", "no_tool", "cache_only"}:
+                reason = str(decision.get("reason", "")).strip()
+                if reason:
+                    logger.info(f"[ToolPolicy] 自动判定: {policy} ({reason})")
+                else:
+                    logger.info(f"[ToolPolicy] 自动判定: {policy}")
+                return policy
+        except Exception as e:
+            logger.warning(f"[ToolPolicy] 自动判定失败: {e}")
+
+        return None
+
     def _detect_quick_action(self, message: str) -> Optional[Dict]:
         """规则检测快速路径 - 委托到 IntentClassifier"""
         return self.intent_classifier.detect_quick_action(message)
@@ -1291,6 +1390,7 @@ class WritingAgentGraph:
                 # ========== 加载对话历史（使用 ContextManager 压缩） ==========
                 conversation_history = ""
                 context_bundle = None  # 保存上下文包，用于后续更新
+                metadata: Dict[str, Any] = {}
 
                 # 动态设置 user_id（用于长期记忆隔离）
                 if user_id:
@@ -1302,13 +1402,15 @@ class WritingAgentGraph:
                         session_id=isolated_thread_id,
                         system_prompt="",  # Planning 阶段不需要系统提示
                         query=message,
-                        work_id=work_id
+                        work_id=work_id,
+                        chapter_id=chapter_id
                     )
 
                     # 从压缩后的上下文中提取历史消息
                     messages = context_bundle.get("messages", [])
                     context_obj = context_bundle.get("context")
                     metadata = context_bundle.get("metadata", {})
+                    memory_pack_text = context_bundle.get("memory_pack_text")
 
                     if messages:
                         logger.info(
@@ -1318,6 +1420,8 @@ class WritingAgentGraph:
                         )
 
                         history_parts = []
+                        if memory_pack_text:
+                            history_parts.append(memory_pack_text)
 
                         # ✅ 修复：提取并使用摘要信息（如果有）
                         if context_obj and context_obj.summary_memory.summary:
@@ -1348,11 +1452,44 @@ class WritingAgentGraph:
                 except Exception as e:
                     logger.warning(f"[Planning] ContextManager 加载历史失败: {e}", exc_info=True)
 
+                tool_policy = "auto"
+                forced_no_tool = False
+                if metadata and metadata.get("memory_pack"):
+                    memory_pack_text = context_bundle.get("memory_pack_text")
+                    if memory_pack_text:
+                        forced_no_tool = True
+                        tool_policy = "no_tool"
+                        if not isinstance(context, dict):
+                            context = {}
+                        context["tool_policy"] = tool_policy
+                        logger.info("[Planning] MemoryPack 命中，强制 tool_policy=no_tool")
+
+                if not forced_no_tool and context and isinstance(context.get("tool_policy"), str):
+                    candidate_policy = context.get("tool_policy", "").strip().lower()
+                    if candidate_policy in {"auto", "no_tool", "cache_only"}:
+                        tool_policy = candidate_policy
+                    else:
+                        logger.warning(f"[Planning] 无效 tool_policy={candidate_policy}，已回退为 auto")
+
+                if tool_policy == "auto":
+                    inferred_policy = await self._infer_tool_policy_from_context(
+                        message=message,
+                        conversation_history=conversation_history,
+                        context=context,
+                        metadata=metadata
+                    )
+                    if inferred_policy in {"no_tool", "cache_only"}:
+                        tool_policy = inferred_policy
+                        if not isinstance(context, dict):
+                            context = {}
+                        context["tool_policy"] = tool_policy
+                        logger.info(f"[Planning] 自动判定 tool_policy={tool_policy}，优先使用上下文/缓存")
+
                 # ========== 快速路径判断 - 委托到 QuickPathHandler ==========
                 # 在规划生成前判断是否可以走快速路径
                 enable_quick_path = os.getenv("ENABLE_QUICK_PATH", "true").lower() == "true"
 
-                if enable_quick_path:
+                if enable_quick_path and tool_policy == "auto":
                     quick_result = await self.quick_path_handler.try_quick_path(
                         message=message,
                         work_id=work_id,
@@ -1376,12 +1513,15 @@ class WritingAgentGraph:
                                     {"role": "assistant", "content": quick_result.get("response", "")}
                                 ],
                                 context=context_bundle.get("context") if context_bundle else None,
-                                work_id=work_id
+                                work_id=work_id,
+                                chapter_id=chapter_id
                             )
                             logger.info(f"[Planning] 快速路径对话已保存到 ContextManager")
                         except Exception as e:
                             logger.warning(f"[Planning] 快速路径保存对话失败: {e}")
                         return quick_result
+                elif enable_quick_path:
+                    logger.info(f"[Planning] tool_policy={tool_policy}，跳过快速路径")
 
                 # ========== 🆕 AI 意图分类（复用 IntentClassifier）==========
                 # 在规划前判断：如果是普通对话，直接响应，不进入规划流程
@@ -1475,7 +1615,8 @@ class WritingAgentGraph:
                                 {"role": "assistant", "content": direct_answer}
                             ],
                             context=context_bundle.get("context") if context_bundle else None,
-                            work_id=work_id
+                            work_id=work_id,
+                            chapter_id=chapter_id
                         )
                         logger.info(f"[Planning] direct_answer 对话已保存到 ContextManager")
                     except Exception as e:
@@ -1670,6 +1811,7 @@ class WritingAgentGraph:
                                 "work_id": work_id,
                                 "chapter_id": chapter_id,
                                 "context": context or {},
+                                "tool_policy": tool_policy,
                             }
 
                             # 定义任务执行函数（传递给 DeepAgentExecutor）
@@ -1831,7 +1973,8 @@ class WritingAgentGraph:
                             {"role": "assistant", "content": final_content}
                         ],
                         context=context_bundle.get("context") if context_bundle else None,
-                        work_id=work_id
+                        work_id=work_id,
+                        chapter_id=chapter_id
                     )
                     logger.info(f"[Planning] 已保存对话到 ContextManager (session={isolated_thread_id})")
                 except Exception as e:

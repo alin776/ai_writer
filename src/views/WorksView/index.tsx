@@ -1132,19 +1132,22 @@ const WorksView: React.FC = () => {
       {/* 导入弹窗 */}
       {showImportModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeImportModal}>
-          <div className="bg-white dark:bg-gray-800 w-[550px] max-h-[700px] overflow-y-auto scrollbar-hide rounded-xl" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ transform: 'skewX(2deg)' }} className="p-6">
+          <div
+            className="bg-white dark:bg-gray-800 w-[550px] max-w-[92vw] overflow-y-auto scrollbar-hide rounded-xl"
+            style={{ transform: 'skewX(-2deg)', maxHeight: '90vh' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ transform: 'skewX(2deg)' }} className="p-4">
               {/* 标题栏 */}
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg text-gray-900 dark:text-gray-100">{t('works.import.title')}</h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base text-gray-900 dark:text-gray-100">{t('works.import.title')}</h2>
                 <button onClick={closeImportModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-lg">
                   <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 </button>
               </div>
 
               {/* 文件选择区域 */}
-              <div className="mb-4">
-                <label className="block text-gray-700 dark:text-gray-300 mb-2" style={{ fontSize: '12px' }}>{t('works.import.selectFile')}</label>
+              <div className="mb-3">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -1154,20 +1157,20 @@ const WorksView: React.FC = () => {
                 />
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-gray-900 dark:hover:border-gray-400 p-8 text-center cursor-pointer transition-colors rounded-lg"
+                  className="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-gray-900 dark:hover:border-gray-400 p-6 text-center cursor-pointer transition-colors rounded-lg"
                 >
                   {importFile ? (
                     <div className="flex items-center justify-center gap-2">
                       <File className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                      <span className="text-gray-900 dark:text-gray-100" style={{ fontSize: '13px' }}>{importFile.name}</span>
+                      <span className="text-gray-900 dark:text-gray-100" style={{ fontSize: '12px' }}>{importFile.name}</span>
                       <span className="text-gray-400 dark:text-gray-500" style={{ fontSize: '11px' }}>
                         ({(importFile.size / 1024).toFixed(1)} KB)
                       </span>
                     </div>
                   ) : (
                     <div>
-                      <Upload className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
-                      <p className="text-gray-600 dark:text-gray-400" style={{ fontSize: '13px' }}>{t('works.import.dropHint')}</p>
+                      <Upload className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-1" />
+                      <p className="text-gray-600 dark:text-gray-400" style={{ fontSize: '12px' }}>{t('works.import.dropHint')}</p>
                       <p className="text-gray-400 dark:text-gray-500 mt-1" style={{ fontSize: '11px' }}>{t('works.import.formatHint')}</p>
                     </div>
                   )}
@@ -1175,7 +1178,7 @@ const WorksView: React.FC = () => {
               </div>
 
               {/* 格式说明 */}
-              <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg" style={{ fontSize: '11px' }}>
+              <div className="mb-3 p-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg" style={{ fontSize: '11px' }}>
                 <p className="text-gray-600 dark:text-gray-400 mb-1"><strong>JSON</strong>：{t('works.import.jsonFormat').replace('JSON格式：', '').replace('JSON: ', '')}</p>
                 <p className="text-gray-600 dark:text-gray-400 mb-1"><strong>Markdown</strong>：{t('works.import.markdownFormat').replace('Markdown格式：', '').replace('Markdown: ', '')}</p>
                 <p className="text-gray-600 dark:text-gray-400"><strong>TXT</strong>：{t('works.import.txtFormat').replace('TXT格式：', '').replace('TXT: ', '')}</p>
@@ -1183,7 +1186,7 @@ const WorksView: React.FC = () => {
 
               {/* 预览加载中 */}
               {isPreviewing && (
-                <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-center rounded-lg">
+                <div className="mb-3 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-center rounded-lg">
                   <div className="animate-spin w-6 h-6 border-2 border-gray-300 dark:border-gray-500 border-t-gray-900 dark:border-t-gray-100 rounded-full mx-auto mb-2"></div>
                   <p className="text-gray-600 dark:text-gray-400" style={{ fontSize: '12px' }}>{t('works.import.parsing')}</p>
                 </div>
@@ -1191,10 +1194,10 @@ const WorksView: React.FC = () => {
 
               {/* 预览结果 */}
               {importPreview && !isPreviewing && (
-                <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
-                  <h3 className="text-gray-900 dark:text-gray-100 font-medium mb-3" style={{ fontSize: '13px' }}>{t('works.import.preview')}</h3>
+                <div className="mb-3 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
+                  <h3 className="text-gray-900 dark:text-gray-100 font-medium mb-2" style={{ fontSize: '12px' }}>{t('works.import.preview')}</h3>
 
-                  <div className="space-y-2" style={{ fontSize: '12px' }}>
+                  <div className="space-y-1" style={{ fontSize: '12px' }}>
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">{t('works.import.workTitle')}</span>
                       <span className="text-gray-900 dark:text-gray-100 font-medium">{importPreview.work.title}</span>
@@ -1207,34 +1210,21 @@ const WorksView: React.FC = () => {
                       <span className="text-gray-600 dark:text-gray-400">{t('works.import.totalWords')}</span>
                       <span className="text-gray-900 dark:text-gray-100">{importPreview.work.totalWords.toLocaleString()} {t('works.stats.words')}</span>
                     </div>
-                    {importPreview.charactersCount > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">{t('works.import.characters')}</span>
-                        <span className="text-gray-900 dark:text-gray-100">{importPreview.charactersCount}</span>
-                      </div>
-                    )}
-                    {importPreview.locationsCount > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">{t('works.import.locations')}</span>
-                        <span className="text-gray-900 dark:text-gray-100">{importPreview.locationsCount}</span>
-                      </div>
-                    )}
                   </div>
 
                   {/* 章节列表 */}
                   {importPreview.chapters.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                      <p className="text-gray-600 dark:text-gray-400 mb-2" style={{ fontSize: '11px' }}>{t('works.import.chapterList')}</p>
+                    <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
                       <div className="space-y-1">
-                        {importPreview.chapters.slice(0, 5).map((chapter, idx) => (
+                        {importPreview.chapters.slice(0, 3).map((chapter, idx) => (
                           <div key={idx} className="flex justify-between text-gray-500 dark:text-gray-400" style={{ fontSize: '11px' }}>
                             <span className="truncate flex-1 mr-2">{chapter.title}</span>
                             <span>{chapter.wordCount.toLocaleString()} {t('works.stats.words')}</span>
                           </div>
                         ))}
-                        {importPreview.chapters.length > 5 && (
+                        {importPreview.chapters.length > 3 && (
                           <p className="text-gray-400 dark:text-gray-500" style={{ fontSize: '11px' }}>
-                            {t('works.import.moreChapters', { count: importPreview.chapters.length - 5 })}
+                            {t('works.import.moreChapters', { count: importPreview.chapters.length - 3 })}
                           </p>
                         )}
                       </div>
@@ -1243,7 +1233,7 @@ const WorksView: React.FC = () => {
 
                   {/* 警告信息 */}
                   {importPreview.warnings.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                    <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
                       {importPreview.warnings.map((warning, idx) => (
                         <div key={idx} className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400" style={{ fontSize: '11px' }}>
                           <AlertCircle className="w-3.5 h-3.5" />
@@ -1256,7 +1246,7 @@ const WorksView: React.FC = () => {
               )}
 
               {/* 底部按钮 */}
-              <div className="flex items-center gap-2 mt-6">
+              <div className="flex items-center gap-2 mt-4">
                 <button
                   onClick={closeImportModal}
                   className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-900 dark:hover:border-gray-400 transition-colors rounded-lg"
@@ -1272,7 +1262,7 @@ const WorksView: React.FC = () => {
                     !importFile || !importPreview || isImporting
                       ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                       : 'bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white'
-                  }`}
+                  } rounded-lg`}
                   style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
                 >
                   {isImporting ? (

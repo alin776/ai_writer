@@ -255,10 +255,69 @@ class VectorMemoryStore:
             )
 
             return memories
-
         except Exception as e:
             logger.error(f"❌ 记忆检索失败: {e}")
             return []
+
+    async def get_latest_memory(
+        self,
+        user_id: str,
+        work_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        memory_type: Optional[str] = None,
+        isolation_level: IsolationLevel = IsolationLevel.WORK,
+        metadata_filter: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """获取最新的一条记忆（按时间戳）"""
+        try:
+            isolation_key = build_isolation_key(
+                user_id=user_id,
+                level=isolation_level,
+                work_id=work_id,
+                session_id=session_id
+            )
+
+            filters: List[Dict[str, Any]] = [{"isolation_key": isolation_key}]
+            if memory_type:
+                filters.append({"memory_type": memory_type})
+            if metadata_filter:
+                cleaned = {k: v for k, v in metadata_filter.items() if v}
+                for key, value in cleaned.items():
+                    filters.append({key: value})
+
+            if len(filters) == 1:
+                where_filter = filters[0]
+            else:
+                where_filter = {"$and": filters}
+
+            results = self.collection.get(
+                where=where_filter,
+                include=["documents", "metadatas"]
+            )
+
+            ids = results.get("ids", []) if isinstance(results, dict) else []
+            metadatas = results.get("metadatas", []) if isinstance(results, dict) else []
+            documents = results.get("documents", []) if isinstance(results, dict) else []
+
+            if not ids:
+                return None
+
+            latest_index = 0
+            latest_ts = -1.0
+            for idx, meta in enumerate(metadatas):
+                ts = meta.get("timestamp", 0) if isinstance(meta, dict) else 0
+                if ts >= latest_ts:
+                    latest_ts = ts
+                    latest_index = idx
+
+            return {
+                "id": ids[latest_index],
+                "content": documents[latest_index],
+                "metadata": metadatas[latest_index]
+            }
+        except Exception as e:
+            logger.error(f"❌ 获取最新记忆失败: {e}")
+            return None
 
     async def delete_memory(self, memory_id: str) -> bool:
         """

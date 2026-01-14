@@ -81,6 +81,19 @@ class AgentApiService {
     }
   }
 
+  private withToolPolicy(request: AgentChatRequest): AgentChatRequest {
+    if (request.tool_policy !== undefined) {
+      return request;
+    }
+
+    const contextPolicy = request.context?.tool_policy;
+    if (contextPolicy !== undefined) {
+      return { ...request, tool_policy: contextPolicy };
+    }
+
+    return { ...request, tool_policy: 'auto' };
+  }
+
   private normalizeHistorySession(session: any): HistorySessionItem | null {
     if (!session) return null;
 
@@ -140,7 +153,8 @@ class AgentApiService {
    * Agent对话
    */
   async chat(request: AgentChatRequest): Promise<AgentChatResponse> {
-    const response = await this.client.post<AgentChatResponse>('/chat', request);
+    const finalRequest = this.withToolPolicy(request);
+    const response = await this.client.post<AgentChatResponse>('/chat', finalRequest);
     return response.data;
   }
 
@@ -180,6 +194,7 @@ class AgentApiService {
       controller?: AbortController;
     }
   ): Promise<void> {
+    const finalRequest = this.withToolPolicy(request);
     const token = this.getToken();
     const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
     const defaultBase = rawBase.replace(/\/api\/v1\/?$/, '');
@@ -201,7 +216,7 @@ class AgentApiService {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : '',
         },
-        body: JSON.stringify(request),
+        body: JSON.stringify(finalRequest),
         signal: options?.signal,
       });
 

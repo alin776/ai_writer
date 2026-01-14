@@ -243,6 +243,7 @@ class AgentChatRequest(BaseModel):
     conversation_id: Optional[str] = Field(None, description="Conversation ID for continuing session")
     context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Extra context")
     enable_reflection: bool = Field(False, description="Enable DeepAgent reflection mode")
+    tool_policy: Optional[str] = Field(None, description="Tool policy: auto/no_tool/cache_only")
 
 
 class AgentChatResponse(BaseModel):
@@ -1087,6 +1088,12 @@ async def agent_chat_stream(
 
                 # 准备上下文（创建新dict避免修改原request）
                 context = dict(request.context) if request.context else {}
+                raw_tool_policy = request.tool_policy or context.get("tool_policy") or "auto"
+                tool_policy = str(raw_tool_policy).strip().lower()
+                if tool_policy not in {"auto", "no_tool", "cache_only"}:
+                    logger.warning(f"[agent_chat_stream] 无效 tool_policy={raw_tool_policy}，已回退为 auto")
+                    tool_policy = "auto"
+                context["tool_policy"] = tool_policy
 
                 # 知识库文档注入
                 knowledge_service = KnowledgeService(db)

@@ -136,6 +136,7 @@ class TaskRunner:
                 tool_state = dict(state or {})
                 if state_context:
                     tool_state["context"] = state_context
+                    tool_state.setdefault("tool_policy", state_context.get("tool_policy"))
                 tool_state.setdefault("work_id", work_id)
                 tool_state.setdefault("chapter_id", chapter_id)
                 tool_state.setdefault("last_user_message", context)
@@ -153,6 +154,7 @@ class TaskRunner:
             tool_state = dict(state or {})
             if state_context:
                 tool_state["context"] = state_context
+                tool_state.setdefault("tool_policy", state_context.get("tool_policy"))
             tool_state.setdefault("work_id", work_id)
             tool_state.setdefault("chapter_id", chapter_id)
             tool_state.setdefault("last_user_message", context)
@@ -339,7 +341,14 @@ class TaskRunner:
             focus_param = "all"
             logger.info(f"[TaskRunner] analyze_text_tool 的 focus 参数为空/占位符，使用默认值 'all'")
         else:
-            logger.info(f"[TaskRunner] analyze_text_tool 使用 focus: '{str(focus_param)[:80]}...'")
+            focus_text = str(focus_param).strip()
+            if len(focus_text) > 100:
+                focus_text = f"{focus_text[:97]}..."
+                logger.info(f"[TaskRunner] analyze_text_tool focus 过长，已截断至 {len(focus_text)} 字符")
+            if not focus_text:
+                focus_text = "all"
+            focus_param = focus_text
+            logger.info(f"[TaskRunner] analyze_text_tool 使用 focus: '{focus_text[:80]}...'")
 
         return text_param, focus_param
 

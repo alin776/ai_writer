@@ -92,6 +92,8 @@ class ParallelExecutor:
             "chapter_id": chapter_id,
             "context": context_payload or {},
         }
+        if isinstance(context_payload, dict) and "tool_policy" in context_payload:
+            self._shared_state.setdefault("tool_policy", context_payload.get("tool_policy"))
         # 创建参数解析器
         from app.services.agent.parameter_resolver import ParameterResolver
 

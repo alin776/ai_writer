@@ -10,6 +10,8 @@
 import time
 import logging
 import asyncio
+import json
+import re
 from typing import List, Optional, Dict, Any
 
 from app.services.context.models import (
@@ -75,7 +77,8 @@ class ContextManager:
         system_prompt: str = "",
         query: Optional[str] = None,  # ✅ 用于长期记忆检索的查询
         task_type: Optional[Any] = None,  # ✅ 新增：任务类型（用于自适应预算）
-        work_id: Optional[str] = None  # ✅ 新增：作品ID（用于向量记忆隔离）
+        work_id: Optional[str] = None,  # ✅ 新增：作品ID（用于向量记忆隔离）
+        chapter_id: Optional[str] = None  # ✅ 新增：章节ID（用于MemoryPack优先级）
     ) -> Dict[str, Any]:
         """
         构建上下文 - 用于chat_stream方法
@@ -87,6 +90,7 @@ class ContextManager:
             task_type: 任务类型（用于自适应预算，可选）
                       可选值：TaskType.CREATIVE, TaskType.ANALYTICAL, TaskType.QA, TaskType.CHAT
             work_id: 作品ID（可选，用于隔离不同作品的向量记忆）
+            chapter_id: 章节ID（可选，用于优先匹配MemoryPack）
 
         Returns:
             Dict包含:
@@ -151,6 +155,17 @@ class ContextManager:
                 work_id=work_id  # ✅ 新增：传递work_id
             )
 
+        memory_pack = None
+        memory_pack_text = None
+        if self.enable_long_term_memory and self._vector_store and self.user_id and work_id:
+            memory_pack = await self._retrieve_latest_memory_pack(
+                work_id=work_id,
+                session_id=session_id,
+                chapter_id=chapter_id
+            )
+            if memory_pack:
+                memory_pack_text = self._format_memory_pack(memory_pack)
+
         # ✅ P1-4修复：去重短期记忆
         if context.short_memory.messages:
             original_count = len(context.short_memory.messages)
@@ -168,7 +183,7 @@ class ContextManager:
                 record_dedup(original_count - len(context.short_memory.messages))
 
         # 构建LLM消息列表
-        messages = self._build_messages(context, long_term_memories)
+        messages = self._build_messages(context, long_term_memories, memory_pack)
 
         return {
             "messages": messages,
@@ -179,25 +194,30 @@ class ContextManager:
                 "has_summary": bool(context.summary_memory.summary),
                 "compression_triggered": total_tokens > max_tokens * 0.8,
                 "long_term_memories": len(long_term_memories),  # ✅ 长期记忆数量
+                "memory_pack": bool(memory_pack),
+                "memory_pack_text": bool(memory_pack_text),
                 "adaptive_budget_enabled": self.enable_adaptive_budget,  # ✅ 新增：是否启用自适应预算
                 "task_type": task_type.value if (task_type and hasattr(task_type, 'value')) else None  # ✅ 新增：任务类型
             },
-            "context": context  # 返回context对象供后续更新
+            "context": context,  # 返回context对象供后续更新
+            "memory_pack_text": memory_pack_text
         }
 
     def _build_messages(
         self,
         context: Context,
-        long_term_memories: List[Dict] = None  # ✅ 新增：长期记忆
+        long_term_memories: List[Dict] = None,  # ✅ 新增：长期记忆
+        memory_pack: Optional[Dict[str, Any]] = None  # ✅ 新增：MemoryPack
     ) -> List[Dict]:
         """
         构建LLM消息列表
 
         按照Token预算分配：
         1. 系统提示 (20%)
-        2. 长期记忆 (15%) - ✅ 新增
-        3. 摘要上下文 (25%)
-        4. 近期对话 (35%)
+        2. MemoryPack (10%) - ✅ 新增
+        3. 长期记忆 (15%) - ✅ 新增
+        4. 摘要上下文 (25%)
+        5. 近期对话 (35%)
         """
         messages = []
 
@@ -208,7 +228,16 @@ class ContextManager:
                 "content": context.system_prompt
             })
 
-        # 2. 长期记忆 (15%) - ✅ 新增
+        # 2. MemoryPack (10%) - ✅ 新增
+        if memory_pack:
+            memory_pack_content = self._format_memory_pack(memory_pack)
+            if memory_pack_content:
+                messages.append({
+                    "role": "system",
+                    "content": memory_pack_content
+                })
+
+        # 3. 长期记忆 (15%) - ✅ 新增
         if long_term_memories:
             ltm_content = self._format_long_term_memories(long_term_memories)
             messages.append({
@@ -216,7 +245,7 @@ class ContextManager:
                 "content": ltm_content
             })
 
-        # 3. 摘要上下文 (25%)
+        # 4. 摘要上下文 (25%)
         if context.summary_memory.summary:
             summary_content = f"对话摘要：\n{context.summary_memory.summary}"
 
@@ -230,7 +259,7 @@ class ContextManager:
                 "content": summary_content
             })
 
-        # 4. 近期对话 (35%)
+        # 5. 近期对话 (35%)
         for msg in context.short_memory.messages:
             messages.append({
                 "role": msg.role,
@@ -245,7 +274,8 @@ class ContextManager:
         session_id: str,
         new_messages: List[Dict],
         context: Optional[Context] = None,
-        work_id: Optional[str] = None  # ✅ 新增：作品ID（用于向量记忆隔离）
+        work_id: Optional[str] = None,  # ✅ 新增：作品ID（用于向量记忆隔离）
+        chapter_id: Optional[str] = None
     ):
         """
         更新上下文 - chat_stream完成后调用
@@ -255,6 +285,7 @@ class ContextManager:
             new_messages: 新消息列表 [{"role": "user", "content": "..."}, ...]
             context: 现有上下文（如果有）
             work_id: 作品ID（可选，用于向量记忆隔离）
+            chapter_id: 章节ID（可选，用于MemoryPack标记）
         """
         if not context:
             context = await self.store.load(session_id)
@@ -299,6 +330,22 @@ class ContextManager:
                     role=message.role,
                     work_id=work_id  # ✅ 新增：传递work_id
                 )
+
+                if message.role == "assistant":
+                    memory_pack = self._extract_memory_pack(message.content)
+                    if memory_pack:
+                        await self._save_to_long_term_memory(
+                            content=json.dumps(memory_pack, ensure_ascii=False),
+                            session_id=session_id,
+                            role=message.role,
+                            importance=0.9,
+                            work_id=work_id,
+                            isolation_level=IsolationLevel.WORK,
+                            memory_type="memory_pack",
+                            metadata={
+                                "chapter_id": chapter_id or ""
+                            }
+                        )
 
         # 保存更新后的上下文
         await self.store.save(context)
@@ -1116,7 +1163,9 @@ class ContextManager:
         role: str,
         importance: Optional[float] = None,
         work_id: Optional[str] = None,
-        isolation_level: IsolationLevel = IsolationLevel.WORK  # ✅ 新增：隔离级别
+        isolation_level: IsolationLevel = IsolationLevel.WORK,  # ✅ 新增：隔离级别
+        memory_type: str = "conversation",
+        metadata: Optional[Dict[str, Any]] = None
     ):
         """
         保存到长期记忆
@@ -1128,6 +1177,8 @@ class ContextManager:
             importance: 重要度（如未指定则自动评估）
             work_id: 作品ID（WORK 级别时使用）
             isolation_level: 隔离级别（默认 WORK）
+            memory_type: 记忆类型
+            metadata: 额外元数据
         """
         if not self.enable_long_term_memory or not self._vector_store or not self.user_id:
             return
@@ -1148,9 +1199,10 @@ class ContextManager:
                 user_id=self.user_id,
                 work_id=work_id,
                 session_id=session_id,
-                memory_type="conversation",
+                memory_type=memory_type,
                 importance=importance,
-                isolation_level=isolation_level  # ✅ 新增
+                isolation_level=isolation_level,  # ✅ 新增
+                metadata=metadata
             )
 
             logger.info(
@@ -1206,6 +1258,11 @@ class ContextManager:
                 timeout=ContextConfig.LTM_TIMEOUT
             )
 
+            memories = [
+                mem for mem in memories
+                if mem.get("metadata", {}).get("memory_type") != "memory_pack"
+            ]
+
             logger.info(
                 f"🔍 检索长期记忆 | 级别={isolation_level.value} | "
                 f"work_id={work_id or 'N/A'} | "
@@ -1221,6 +1278,48 @@ class ContextManager:
         except Exception as e:
             logger.error(f"❌ 检索长期记忆失败: {e}")
             return []
+
+    async def _retrieve_latest_memory_pack(
+        self,
+        work_id: Optional[str],
+        session_id: Optional[str] = None,
+        chapter_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        if not work_id or not self._vector_store or not self.user_id:
+            return None
+
+        try:
+            candidates: List[Optional[Dict[str, Any]]] = []
+            if chapter_id and session_id:
+                candidates.append({"chapter_id": chapter_id, "session_id": session_id})
+            if chapter_id:
+                candidates.append({"chapter_id": chapter_id})
+            if session_id:
+                candidates.append({"session_id": session_id})
+            candidates.append(None)
+
+            for metadata_filter in candidates:
+                memory = await asyncio.wait_for(
+                    self._vector_store.get_latest_memory(
+                        user_id=self.user_id,
+                        work_id=work_id,
+                        session_id=session_id,
+                        memory_type="memory_pack",
+                        isolation_level=IsolationLevel.WORK,
+                        metadata_filter=metadata_filter
+                    ),
+                    timeout=ContextConfig.LTM_TIMEOUT
+                )
+                if memory:
+                    return memory
+            return None
+        except asyncio.TimeoutError:
+            logger.error(f"❌ 获取 MemoryPack 超时 ({ContextConfig.LTM_TIMEOUT}s)")
+            record_timeout_event("ltm_memory_pack_timeout")
+            return None
+        except Exception as e:
+            logger.error(f"❌ 获取 MemoryPack 失败: {e}")
+            return None
 
     def _format_long_term_memories(self, memories: List[Dict]) -> str:
         """
@@ -1251,6 +1350,95 @@ class ContextManager:
             )
 
         return "\n".join(lines)
+
+    def _format_memory_pack(self, memory_pack: Dict[str, Any], max_length: int = 2000) -> str:
+        if not memory_pack:
+            return ""
+        content = memory_pack.get("content", "")
+        if isinstance(content, dict):
+            content = json.dumps(content, ensure_ascii=False)
+        else:
+            content = str(content)
+
+        if len(content) > max_length:
+            content = content[:max_length] + "..."
+
+        chapter_id = memory_pack.get("metadata", {}).get("chapter_id", "")
+        header = "最新 MemoryPack"
+        if chapter_id:
+            header = f"{header} (chapter_id={chapter_id})"
+        return f"{header}：\n{content}"
+
+    def _extract_memory_pack(self, content: str) -> Optional[Dict[str, Any]]:
+        if not content:
+            return None
+
+        candidates: List[str] = []
+        for match in re.finditer(r"```(?:json)?\s*([\s\S]*?)\s*```", content, flags=re.IGNORECASE):
+            block = match.group(1)
+            json_block = self._extract_first_json_object(block)
+            if json_block:
+                candidates.append(json_block)
+
+        lowered = content.lower()
+        idx = lowered.find("memorypack")
+        if idx != -1:
+            json_block = self._extract_first_json_object(content[idx:])
+            if json_block:
+                candidates.append(json_block)
+
+        if content.strip().startswith("{"):
+            json_block = self._extract_first_json_object(content)
+            if json_block:
+                candidates.append(json_block)
+
+        for candidate in candidates:
+            try:
+                data = json.loads(candidate)
+            except Exception:
+                continue
+            if self._is_memory_pack(data):
+                return data
+        return None
+
+    @staticmethod
+    def _is_memory_pack(data: Any) -> bool:
+        if not isinstance(data, dict):
+            return False
+        required = {"characters", "items", "places", "events", "skills", "foreshadowing", "quotes"}
+        return required.issubset(data.keys())
+
+    @staticmethod
+    def _extract_first_json_object(content: str) -> Optional[str]:
+        if not content:
+            return None
+        start = content.find("{")
+        if start == -1:
+            return None
+
+        depth = 0
+        in_string = False
+        escape = False
+        for idx in range(start, len(content)):
+            ch = content[idx]
+            if in_string:
+                if escape:
+                    escape = False
+                elif ch == "\\":
+                    escape = True
+                elif ch == "\"":
+                    in_string = False
+                continue
+
+            if ch == "\"":
+                in_string = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return content[start:idx + 1]
+        return None
 
     def _analyze_task_type(self, query: str):
         """

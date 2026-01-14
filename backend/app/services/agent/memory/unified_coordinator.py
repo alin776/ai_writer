@@ -341,7 +341,8 @@ class UnifiedMemoryCoordinator:
                     system_prompt=system_prompt,
                     query=query,
                     task_type=task_type,
-                    work_id=work_id
+                    work_id=work_id,
+                    chapter_id=metadata.get("chapter_id") if metadata else None
                 )
 
                 result["messages"] = context_result.get("messages", [])

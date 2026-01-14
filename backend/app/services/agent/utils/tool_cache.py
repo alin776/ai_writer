@@ -6,8 +6,9 @@ Provides a Redis-backed cache with an in-memory fallback for tool results.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 import hashlib
+import itertools
 import json
 import logging
 
@@ -41,6 +42,9 @@ TOOL_TTL_SECONDS = {
     "search_content": 2 * 60,
     "search_analysis_fragments": 2 * 60,
 }
+
+# get_writing_context include options
+GWC_INCLUDE_TYPES = {"work", "chapter", "worldview", "style", "rag"}
 
 # Volatile params that should not affect cache keys.
 VOLATILE_ARG_KEYS = {
@@ -181,6 +185,29 @@ class ToolCache:
             return
 
         _local_cache.set(cache_ctx.key, value, ttl=cache_ctx.ttl_seconds)
+
+    @staticmethod
+    def read_covering_gwc(params: Dict[str, Any], state: Dict[str, Any]) -> Optional[str]:
+        """尝试命中 get_writing_context 的 include 超集缓存"""
+        if not ToolCache._should_cache("get_writing_context", params):
+            return None
+
+        include_set = _normalize_include_set(params.get("include"))
+        include_candidates = _build_include_supersets(include_set)
+        if not include_candidates:
+            return None
+
+        base_params = dict(params)
+        for include_value in include_candidates:
+            candidate_params = dict(base_params)
+            candidate_params["include"] = include_value
+            cache_ctx = ToolCache.get_context("get_writing_context", candidate_params, state)
+            if not cache_ctx:
+                continue
+            cached = ToolCache.read(cache_ctx)
+            if cached is not None:
+                return cached
+        return None
 
     @staticmethod
     def invalidate(
@@ -329,6 +356,21 @@ def _normalize_include_set(include_value: Any) -> set:
     if isinstance(include_value, (list, tuple, set)):
         return set(str(item).strip() for item in include_value if str(item).strip())
     return set([str(include_value).strip()])
+
+
+def _build_include_supersets(include_set: set) -> List[str]:
+    if not include_set:
+        include_set = set(GWC_INCLUDE_TYPES)
+
+    remaining = sorted(GWC_INCLUDE_TYPES - include_set)
+    candidates: List[str] = []
+    for size in range(len(remaining) + 1):
+        for combo in itertools.combinations(remaining, size):
+            candidate = set(include_set).union(combo)
+            if not candidate:
+                continue
+            candidates.append(",".join(sorted(candidate)))
+    return candidates
 
 
 def _parse_chapter_orders(chapter_orders: str) -> list:

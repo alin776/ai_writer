@@ -68,6 +68,21 @@ class PlanGenerator:
         increment_counter("planning_phase_start")
         logger.info(f"[Planning] 开始规划: {message[:50]}...")
 
+        tool_policy = self._resolve_tool_policy(context)
+        if tool_policy == "no_tool":
+            direct_answer = await self._generate_direct_answer(
+                message=message,
+                conversation_history=conversation_history,
+                context=context
+            )
+            if not direct_answer:
+                direct_answer = "抱歉，当前策略禁止调用工具，且上下文不足以生成可靠答复。"
+            return {
+                "user_intent": "直接回答（禁用工具）",
+                "direct_answer": direct_answer,
+                "tasks": []
+            }
+
         # 构建规划 prompt（异步）
         plan_prompt = await self._build_plan_prompt_async(
             message=message,
@@ -228,6 +243,7 @@ class PlanGenerator:
 
         # 章节上下文提示
         chapter_planning_hint = self._build_chapter_hint(work_id, chapter_id)
+        tool_policy = self._resolve_tool_policy(context)
 
         # 组装完整 prompt
         plan_prompt = f"""AI写作助手。{history_section}{knowledge_section}{selected_text_section}
@@ -236,6 +252,7 @@ class PlanGenerator:
 【内部参数 - 用户不可见】
 work_id: {work_id}
 chapter_id: {chapter_id}
+tool_policy: {tool_policy}
 
 ⚠️⚠️⚠️ 极其重要 - 任务描述规则 ⚠️⚠️⚠️
 任务的 description 字段会直接显示给用户！绝对禁止在 description 中包含：
@@ -257,6 +274,62 @@ chapter_id: {chapter_id}
 {static_prompt}{chapter_planning_hint}"""
 
         return plan_prompt
+
+    def _resolve_tool_policy(self, context: Optional[Dict[str, Any]]) -> str:
+        if not context:
+            return "auto"
+        raw_policy = context.get("tool_policy") or ""
+        policy = str(raw_policy).strip().lower()
+        if policy in {"no_tool", "cache_only", "auto"}:
+            return policy
+        return "auto"
+
+    async def _generate_direct_answer(
+        self,
+        message: str,
+        conversation_history: str,
+        context: Optional[Dict[str, Any]]
+    ) -> str:
+        from app.services.agent.model_selector import TaskType
+
+        prompt = self._build_direct_answer_prompt(
+            message=message,
+            conversation_history=conversation_history,
+            context=context
+        )
+        result = await self.agent._generate_text(
+            prompt=prompt,
+            temperature=0.3,
+            max_tokens=2000,
+            task_type=TaskType.CONTENT_CREATION
+        )
+        return result.get("text", "").strip()
+
+    def _build_direct_answer_prompt(
+        self,
+        message: str,
+        conversation_history: str,
+        context: Optional[Dict[str, Any]]
+    ) -> str:
+        history_section = ""
+        if conversation_history:
+            history_section = f"""
+【对话历史】
+{conversation_history}
+
+"""
+
+        knowledge_section = self._build_knowledge_section(context)
+        selected_text_section = self._build_selected_text_section(context)
+
+        return f"""AI写作助手。{history_section}{knowledge_section}{selected_text_section}
+用户: {message}
+
+【要求】
+1) 不调用任何工具，只能基于已提供的上下文回答。
+2) 直接输出最终答案，不要输出计划或JSON。
+3) 如果上下文不足，请明确说明信息不足。
+"""
 
     def _build_knowledge_section(self, context: Optional[Dict[str, Any]]) -> str:
         """构建知识库文档部分"""
