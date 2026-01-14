@@ -515,7 +515,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     }
     const attempts = pending.attempts ?? 0;
     if (attempts >= 3) return;
-    pending.attempts = attempts + 1;
+    pendingRevisionJumpRef.current = { ...pending, attempts: attempts + 1 };
     if (pendingJumpTimerRef.current !== null) return;
     pendingJumpTimerRef.current = window.setTimeout(() => {
       pendingJumpTimerRef.current = null;

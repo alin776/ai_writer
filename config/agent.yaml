@@ -21,6 +21,13 @@ MEMORY_CACHE_SIZE=1000
 MEMORY_FORGET_THRESHOLD=0.1
 REDIS_TTL=3600
 REDIS_CONNECTION_POOL_SIZE=20
+TOOL_CACHE_ENABLED=true
+# 逗号分隔的工具白名单（标准化名称）
+TOOL_CACHE_WHITELIST="get_writing_context,locate_content,search_content,search_analysis_fragments"
+# 默认工具TTL（分钟），key=value 逗号分隔
+TOOL_CACHE_TTL_MINUTES="locate_content=5,search_content=2,search_analysis_fragments=2"
+# get_writing_context 的 include 分类TTL（分钟），key=value 逗号分隔
+TOOL_CACHE_GWC_TTL_MINUTES="default=3,chapter=5,rag=2,worldview=30,work=10,style=30"
 
 # ==================== 质量控制配置 ====================
 QUALITY_THRESHOLD=8.0

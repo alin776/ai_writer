@@ -240,14 +240,43 @@
 - [x] 确定失效范围规则（按 work_id/chapter_id）
 
 ## 解决方案（工具层缓存默认配置）
-- 默认 TTL（分钟）：locate_content=5、search_content=2、search_analysis_fragments=3、get_writing_context=3（include=chapter 时 5；include=rag 时 2）。
+- 默认 TTL（分钟）：locate_content=5、search_content=2、search_analysis_fragments=2；get_writing_context=3（include=chapter 时 5、include=rag 时 2、include=worldview 时 30、include=work 时 10、include=style 时 30）。
 - 兼容别名：read_chapter/get_chapter_by_order/get_context/get_worldview_summary 作为 get_writing_context 的别名共用 TTL，不单独配置（避免重复缓存）。
 - 默认白名单：locate_content、search_content、search_analysis_fragments、get_writing_context（含别名）。
 - 失效范围：若工具参数包含 `chapter_id` 或 `chapter_orders`，优先按章失效；无章节参数或涉及多章/世界观/RAG，则按 `work_id` 失效；对 `get_writing_context` 同时包含章节与世界观时，章+作品双向失效。
 
 ## Review（工具层缓存默认配置）
-- 已给出默认 TTL 映射与白名单；read_chapter/get_chapter_by_order/get_context/get_worldview_summary 归并为 get_writing_context 别名共用 TTL，避免重复缓存。
+- 已给出默认 TTL 映射与白名单；get_writing_context 按 include 动态 TTL（chapter 5 / rag 2 / worldview 30 / work 10 / style 30 / 默认 3）。
+- read_chapter/get_chapter_by_order/get_context/get_worldview_summary 归并为 get_writing_context 别名共用 TTL，避免重复缓存。
 - 已明确失效范围：优先按章，否则按作品；混合上下文时章+作品双向失效。
+
+## 计划（工具层缓存实现）
+- [x] 实现 tool_cache 辅助（缓存键、TTL 计算、序列化、读写）
+- [x] 在 ToolExecutor 增加缓存命中/写入逻辑
+- [x] 增加写工具后的缓存失效并更新 Review
+
+## 解决方案（工具层缓存实现）
+- 新增 `backend/app/services/agent/utils/tool_cache.py`：统一缓存白名单、别名映射、TTL 计算（含 get_writing_context include 特例）、参数稳定化与 Redis/内存读写。
+- 在 `backend/app/services/agent/execution/tool_executor.py` 中：StandardTool 调用前查缓存，成功后写缓存；`use_cache=false` 时跳过。
+- 写工具成功后触发失效：按 chapter_id 优先清理 chapter scope，同时清理同 work 的多章 scope；缺少章节信息时降级按 work scope 清理。
+
+## Review（工具层缓存实现）
+- 新增 `backend/app/services/agent/utils/tool_cache.py`，提供缓存键生成、别名/TTL 规则、Redis+本地缓存读写与失效。
+- `backend/app/services/agent/execution/tool_executor.py` 已接入缓存命中/写入与写工具失效钩子。
+
+## 计划（工具缓存配置化）
+- [x] 在配置中新增工具缓存开关/白名单/TTL 参数（`config/agent.yaml`、`backend/app/core/config.py`）
+- [x] 读取配置并覆盖默认缓存规则（`backend/app/services/agent/utils/tool_cache.py`）
+- [x] 更新 Review 并输出说明
+
+## 解决方案（工具缓存配置化）
+- 新增配置项：`TOOL_CACHE_ENABLED`、`TOOL_CACHE_WHITELIST`、`TOOL_CACHE_TTL_MINUTES`、`TOOL_CACHE_GWC_TTL_MINUTES`，通过 `settings` 提供给工具缓存模块。
+- `TOOL_CACHE_TTL_MINUTES` 使用 `key=value` 形式配置分钟（如 `locate_content=5`），`TOOL_CACHE_GWC_TTL_MINUTES` 针对 `get_writing_context` 的 include 分类 TTL（chapter/rag/worldview/work/style/default）。
+- `tool_cache.py` 读取配置并合并默认值，允许在 `config/agent.yaml` 关闭缓存或调整白名单/TTL。
+
+## Review（工具缓存配置化）
+- 已在 `config/agent.yaml` 与 `backend/app/core/config.py` 增加工具缓存开关/白名单/TTL 配置项。
+- `backend/app/services/agent/utils/tool_cache.py` 已读取 `settings` 覆盖默认 TTL/白名单，并支持 `get_writing_context` 的 include 分类 TTL。
 
 ## Review（修订入库持久化）
 - 新增 `ChapterRevision` 模型与迁移，支持 pending/accepted/discarded/conflict 并记录定位信息（`backend/app/models/chapter_revision.py`、`backend/alembic/versions/20260113_1800_add_chapter_revisions.py`）。
@@ -651,9 +680,44 @@
 - 基于第2-5章锚点句设计跨章节替换/插入/续写组合，并要求定位失败即停与点击修订卡片跳转验证。
 
 ## 计划（跳转强制展开编辑器）
-- [ ] 定位跳转事件处理位置，增加“强制展开编辑器”逻辑（`src/views/WorkDetailView/index.tsx`）
-- [ ] 确保跨章节/同章节跳转都触发展开，且不影响原有折叠按钮逻辑
-- [ ] 更新 Review
+- [x] 定位跳转事件处理位置，增加“强制展开编辑器”逻辑（`src/views/WorkDetailView/index.tsx`）
+- [x] 确保跨章节/同章节跳转都触发展开，且不影响原有折叠按钮逻辑
+- [x] 更新 Review
+
+## Review（跳转强制展开编辑器）
+- 跳转事件到达时强制展开编辑器，再执行同章/跨章定位，确保编辑器可见（`src/views/WorkDetailView/index.tsx`）。
+
+## 计划（修订跳转定位 review）
+- [x] 核对修订卡片跳转事件是否携带可定位信息（`src/components/editor/AIPanel.tsx`、`src/components/agent/ExecutionFlow/RevisionCard.tsx`）
+- [x] 核对编辑器跳转逻辑是否能命中实际修订标记（`src/components/editor/NovelEditor.tsx`、`src/components/editor/AIRevisionMark.ts`）
+- [x] 对照修订生成与标记写入的 revisionId/requestId 映射关系（`src/hooks/useAgentChat.ts`、`src/components/editor/NovelEditor.tsx`）
+- [x] 汇总结论并更新 Review
+
+## Review（修订跳转定位 review）
+- 跨章节切换会卸载编辑器：`NovelEditor` 使用 `key={currentChapterId}` 强制重建，导致跳转请求仅存在于旧实例的 `pendingRevisionJumpRef`，切章后新实例不再持有该请求，因此只能切到章节但不滚动到红删绿增（`src/views/WorkDetailView/index.tsx`、`src/components/editor/NovelEditor.tsx`）。
+- 跳转事件未带可靠定位位置：AIPanel 仅传 `revisionData.editorPosition`，而修订事件实际提供的是 `position`/`editorAction.position`，导致大多数情况下 position 为空，只能依赖 `aiRevisionId` 标记；一旦标记未成功写入或已被清理，就无法定位（`src/components/editor/AIPanel.tsx`、`src/hooks/useAgentChat.ts`）。
+- `aiRevisionId` 标记依赖 `requestId` 写入，但跳转事件以 `revisionId/requestId` 取其一；若 `requestId` 在某些事件为空，且标记使用了不同的 id，会出现“跳章成功但定位失败”的表现（`src/components/editor/NovelEditor.tsx`、`src/hooks/useAgentChat.ts`）。
+
+## 计划（修订跳转定位修复）
+- [x] 将跳转请求落到全局状态，保证切章后仍可定位（`src/store/editorStore.ts`、`src/components/editor/NovelEditor.tsx`、`src/views/WorkDetailView/index.tsx`）
+- [x] AIPanel 派发跳转时补齐 position（优先 editorAction.position/position）（`src/components/editor/AIPanel.tsx`）
+- [x] 统一跳转 ID 优先级，确保与 aiRevisionId 标记一致（`src/components/editor/AIPanel.tsx`、`src/components/editor/NovelEditor.tsx`）
+- [x] 更新 Review
+
+## Review（修订跳转定位修复）
+- 跳转请求存入全局 store，切章重建编辑器后仍可继续定位，避免只跳章不定位的问题（`src/store/editorStore.ts`、`src/components/editor/NovelEditor.tsx`）。
+- AIPanel 跳转事件补齐 position（优先 editorAction.position/position），降低仅靠 revisionId 标记定位失败的概率（`src/components/editor/AIPanel.tsx`）。
+- 定位时优先用 requestId（与 aiRevisionId 标记一致），减少 revisionId/requestId 不一致导致的定位失败（`src/components/editor/NovelEditor.tsx`）。
+
+## 计划（回滚上一次跳转修复）
+- [x] 核对上一次改动涉及的文件与回滚范围（`src/store/editorStore.ts`、`src/components/editor/NovelEditor.tsx`、`src/components/editor/AIPanel.tsx`）
+- [x] 回滚 pendingRevisionJump 全局存储逻辑，恢复编辑器内本地跳转状态（`src/store/editorStore.ts`、`src/components/editor/NovelEditor.tsx`）
+- [x] 回滚 AIPanel 跳转 position/ID 优先级改动（`src/components/editor/AIPanel.tsx`、`src/components/editor/NovelEditor.tsx`）
+- [x] 更新 Review
+
+## Review（回滚上一次跳转修复）
+- 移除全局 `pendingRevisionJump` 状态与相关写入，恢复使用编辑器本地 `pendingRevisionJumpRef` 的跳转流程（`src/store/editorStore.ts`、`src/components/editor/NovelEditor.tsx`）。
+- AIPanel 跳转事件恢复仅使用 `revisionData.editorPosition`，并恢复 `revisionId` 优先级（`src/components/editor/AIPanel.tsx`、`src/components/editor/NovelEditor.tsx`）。
 
 ## 计划（工作台分割线拖拽）
 - [x] 核对分割线拖拽逻辑与面板布局绑定（`src/views/WorkDetailView/index.tsx`）
@@ -739,3 +803,78 @@
 
 ## Review（收起时底部区域保持宽度）
 - 底部操作区新增居中限宽包裹，在收起态保持与消息区一致的宽度，避免输入框/任务栏拉满（`src/components/editor/AIPanel.tsx`）。
+
+## 计划（目录滚动不联动 AI）
+- [x] 核对滚轮代理逻辑对左侧目录区域的命中条件（`src/views/WorkDetailView/index.tsx`）
+- [x] 为目录区域增加滚轮代理豁免，避免同时滚动 AI（`src/views/WorkDetailView/index.tsx`）
+- [x] 自查目录滚动与 AI 滚动互不干扰
+
+## 解决方案（目录滚动不联动 AI）
+- 在左侧目录容器上标记 `data-scroll-scope`，滚轮代理检测命中后直接返回，不转发到 AI 消息区。
+
+## Review（目录滚动不联动 AI）
+- 目录容器标记 `data-scroll-scope="chapter-list"`，滚轮代理命中后直接跳过，避免联动 AI 滚动（`src/views/WorkDetailView/index.tsx`）。
+
+## 计划（复杂测试提示词-八次）
+- [x] 复核小说素材中的关键线索与人物关系（`docs/Agent/real-book/一夕千悟，从杂役弟子开始.txt`）
+- [x] 设计 1 条新的高复杂度测试 prompt（多阶段、重复复用同一信息，以验证工具缓存/上下文记忆）
+- [x] 输出 prompt 并更新 Review
+
+## 解决方案（复杂测试提示词-八次）
+- 基于素材设计一条多任务、跨信息复用的复杂测试 prompt，用于验证重复查询时能否命中上下文/缓存并减少工具调用。
+
+## Review（复杂测试提示词-八次）
+- 已复核第1-5章人物与关键线索（段融、赵穆、孔斌/李充/张征、杨震、许儒虎；吞噬器灵/浑圆桩/太一门等）。
+- 已输出新的复杂测试 prompt，包含一次读取、多处复用、记忆包与复问清单，用于验证上下文记忆/工具缓存。
+
+## 计划（日志符合预期核验）
+- [x] 阅读后台日志并定位工具调用轨迹（`Backend.md`）
+- [x] 阅读执行轨迹并对照用户指令与工具调用（`INFO.md`）
+- [x] 对照预期规则（一次读取、后续禁用工具、记忆复用）判断是否符合，并更新 Review
+
+## 解决方案（日志符合预期核验）
+- 通过 Backend.md 与 INFO.md 对照，核对是否仅一次读取、后续无读/搜/定位工具调用、复问阶段仅用 MemoryPack 输出；给出是否符合预期与偏差说明。
+
+## Review（日志符合预期核验）
+- 第1步确实调用了 1 次 `get_writing_context`（满足“仅一次读取”），但后续请求又触发 `get_context`/`get_writing_context`，违反“后续禁用读取工具”的规则（`Backend.md`）。
+- 执行轨迹显示“开始处理这些后续步骤”时仍有“理解用户意图并获取相关上下文→get_context_tool”，且复问阶段也再次调用了 `get_context_tool` 与 `analyze_content`，不符合“仅用 MemoryPack 回答”的预期（`INFO.md`）。
+- 第一次输出只给了“已读取内容概括”，未产出 MemoryPack/衍生输出/复问清单，导致下一轮缺少可复用上下文，整体不符合测试约束（`INFO.md`）。
+
+## 计划（工具缓存未命中排查）
+- [x] 对照日志确认第二次调用的工具名与参数差异（`Backend.md`、`INFO.md`）
+- [x] 核对工具调用路径是否走 ToolExecutor（`backend/app/services/agent/execution/task_runner.py`、`backend/app/services/agent/execution/tool_executor.py`）
+- [x] 核对缓存白名单/开关/参数归一化与 include 差异（`backend/app/services/agent/utils/tool_cache.py`、`config/agent.yaml`）
+- [x] 给出原因结论与最小改动建议，并更新 Review
+
+## 解决方案（工具缓存未命中排查）
+- 从日志与代码路径确认是否绕过 ToolCache；对比 include 参数是否变化导致 key 不同；检查白名单与开关配置，给出“为何未命中”的结论与修复选项。
+
+## Review（工具缓存未命中排查）
+- 第二次调用实际是 `get_context_tool`（经 `TaskRunner` → `registry.call_tool` 调用 StandardTool `get_context`），未经过 `ToolExecutor`，因此不会触发 `ToolCache`（`backend/app/services/agent/execution/task_runner.py`、`backend/app/services/agent/execution/tool_executor.py`）。
+- 第一次是 `get_writing_context include=chapter`，第二次是 `get_context_tool` 内部转为 `get_writing_context include=work,chapter,rag`，即便走缓存也会因 include 不同导致 key 不同（`backend/app/services/agent/langgraph_tools.py`）。
+- 配置层白名单与开关已允许 `get_writing_context`（`config/agent.yaml`），因此“未命中”的关键不是配置，而是调用路径绕过 ToolCache + include 参数不同。
+
+## 计划（方案1：统一走 ToolExecutor）
+- [x] 梳理 TaskRunner 直接调用 registry 的路径并确定改动点（`backend/app/services/agent/execution/task_runner.py`）
+- [x] 将 StandardTool 调用改为走 ToolExecutor，并统一构建 tool_state（`backend/app/services/agent/execution/task_runner.py`）
+- [x] 确认不影响既有参数预处理与章节缓存行为，补充 Review 说明
+
+## 解决方案（方案1：统一走 ToolExecutor）
+- 让 TaskRunner 对所有工具调用统一走 ToolExecutor（复用现有参数预处理），确保工具层缓存生效；构建统一 tool_state 以传递 work_id/chapter_id/last_user_message/上下文。
+
+## Review（方案1：统一走 ToolExecutor）
+- TaskRunner 的 StandardTool 调用改为统一走 ToolExecutor，构建 tool_state 传递 work_id/chapter_id/last_user_message/context，确保工具缓存可命中（`backend/app/services/agent/execution/task_runner.py`）。
+- 移除 TaskRunner 对 registry 的直接依赖，避免绕过 ToolCache；章节缓存仍由 ToolExecutor 负责写入（`backend/app/services/agent/execution/task_runner.py`）。
+
+## 计划（最新日志符合预期核验）
+- [x] 阅读后台日志确认工具调用与缓存命中（`Backend.md`）
+- [x] 阅读执行轨迹核对工具调用次数与“禁用工具”规则（`INFO.md`）
+- [x] 给出是否符合预期的结论与偏差说明，并更新 Review
+
+## 解决方案（最新日志符合预期核验）
+- 对照 Backend.md/INFO.md 判断：是否满足“第1步仅一次读取、后续不再调用读取工具、复问阶段无工具调用”；并指出缓存命中情况。
+
+## Review（最新日志符合预期核验）
+- 第1步调用了 1 次 `get_writing_context include=chapter`，符合“仅一次读取”；但后续“继续/复问”仍触发 `get_context_tool`（内部调用 `get_writing_context include=work,chapter,rag`），违反“后续禁用读取工具”规则（`Backend.md`、`INFO.md`）。
+- 复问阶段依旧调用了 `get_context_tool` 与 `analyze_content`，未满足“复问不再调用工具”的约束（`INFO.md`）。
+- 新改动后缓存生效：复问阶段 `get_context` 出现 ToolCache 命中日志（`Backend.md` 16:45:14 附近），说明工具缓存已接入，但整体流程仍不符合“禁用工具调用”的测试预期。

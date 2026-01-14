@@ -25,6 +25,7 @@ export interface PendingCrossChapterRevision {
   isPersistent?: boolean;
 }
 
+
 /**
  * 编辑器状态接口
  */
@@ -101,6 +102,7 @@ interface EditorState {
    * 🆕 移除跨章节修订（按 revisionId）
    */
   removePendingCrossChapterRevisions: (revisionIds: string[]) => void;
+
 
   /**
    * 更新章节内容（不保存到服务器）
@@ -216,6 +218,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       ),
     }));
   },
+
 
   // 更新章节内容
   updateChapterContent: (content: string) => {

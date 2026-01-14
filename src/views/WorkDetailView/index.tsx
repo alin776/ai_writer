@@ -1439,6 +1439,9 @@ const WorkDetailView: React.FC = () => {
     if (event.defaultPrevented || event.ctrlKey) return;
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+    if (target.closest('[data-scroll-scope="chapter-list"]')) {
+      return;
+    }
     if (target.closest('input, textarea, select, [contenteditable="true"], .ProseMirror')) {
       return;
     }
@@ -1595,6 +1598,9 @@ const WorkDetailView: React.FC = () => {
       }>;
       const { workId: targetWorkId, chapterId: targetChapterId } = customEvent.detail || {};
       if (targetWorkId && targetWorkId !== workId) return;
+      if (isEditorCollapsed) {
+        setIsEditorCollapsed(false);
+      }
       if (!targetChapterId || targetChapterId === currentChapterId) return;
       handleChapterSelect(targetChapterId);
     };
@@ -1614,7 +1620,7 @@ const WorkDetailView: React.FC = () => {
       window.removeEventListener('agent-operations-applied', handleOperationsApplied as EventListener);
       window.removeEventListener('agent-jump-revision', handleJumpRevision as EventListener);
     };
-  }, [workId, currentChapterId, handleChapterSelect]);
+  }, [workId, currentChapterId, handleChapterSelect, isEditorCollapsed]);
 
   // 如果 workId 不存在，不渲染任何内容（路由已切换到其他页面）
   if (!workId) {
@@ -1651,6 +1657,7 @@ const WorkDetailView: React.FC = () => {
           className={`bg-gradient-to-b from-white to-zinc-50/30 dark:from-slate-900 dark:to-slate-900 flex flex-col border-r border-zinc-100/80 dark:border-slate-700 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] h-full overflow-hidden ${
             isLeftCollapsed ? 'w-0 border-r-0' : 'w-60'
           }`}
+          data-scroll-scope="chapter-list"
         >
           {isLeftCollapsed ? null : (
             /* 展开状态 */

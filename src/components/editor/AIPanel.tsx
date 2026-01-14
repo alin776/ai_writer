@@ -1606,7 +1606,6 @@ ${selectionContext.selected_text}
                           const resolvedRequestId = requestId || revisionData?.requestId;
                           const targetChapterId = revisionData?.chapterId || chapterId;
                           const targetRevisionId = resolvedRequestId || itemId;
-
                           window.dispatchEvent(
                             new CustomEvent('agent-jump-revision', {
                               detail: {

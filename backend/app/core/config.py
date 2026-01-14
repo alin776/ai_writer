@@ -147,6 +147,12 @@ class Settings(BaseSettings):
     MEMORY_MEDIUM_TERM_SIZE: int = 100  # 中期记忆容量（最近N条）
     MEMORY_FORGET_THRESHOLD: float = 0.1  # 遗忘阈值（重要度低于此值将被遗忘）
 
+    # 工具缓存配置
+    TOOL_CACHE_ENABLED: bool = True  # 是否启用工具结果缓存
+    TOOL_CACHE_WHITELIST: str = "get_writing_context,locate_content,search_content,search_analysis_fragments"
+    TOOL_CACHE_TTL_MINUTES: str = "locate_content=5,search_content=2,search_analysis_fragments=2"
+    TOOL_CACHE_GWC_TTL_MINUTES: str = "default=3,chapter=5,rag=2,worldview=30,work=10,style=30"
+
     # 质量循环配置
     QUALITY_LOOP_MAX_ITERATIONS: int = 3  # 质量循环最大迭代次数
     QUALITY_LOOP_PASS_THRESHOLD: float = 8.0  # 质量通过阈值（0-10分）

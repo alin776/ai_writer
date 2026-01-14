@@ -12,7 +12,6 @@ import re
 import logging
 from typing import Dict, Any, Optional, Callable, Awaitable
 
-from app.services.agent.tools import registry
 from app.services.agent.utils.tool_helpers import normalize_tool_params
 from app.services.agent.utils.chapter_cache import ChapterCache
 from app.services.agent.langgraph_tools import (
@@ -134,36 +133,38 @@ class TaskRunner:
             if tool_params is None:
                 logger.info(f"[TaskRunner] 使用统一接口调用未知工具: {tool_name}")
                 state_context = context_payload if isinstance(context_payload, dict) else {}
+                tool_state = dict(state or {})
+                if state_context:
+                    tool_state["context"] = state_context
+                tool_state.setdefault("work_id", work_id)
+                tool_state.setdefault("chapter_id", chapter_id)
+                tool_state.setdefault("last_user_message", context)
+                tool_state.setdefault("conversation_id", conversation_id or "")
                 result = await self._call_tool_via_registry(
                     tool_name=tool_name,
                     tool_args=params,
-                    state={
-                        "work_id": work_id,
-                        "chapter_id": chapter_id,
-                        "last_user_message": context,
-                        "conversation_id": conversation_id or "",
-                        "context": state_context
-                    }
+                    state=tool_state
                 )
                 if on_progress:
                     await on_progress(task, "完成")
                 return result
 
-            # 调用 StandardTool
-            logger.info(f"[TaskRunner] 调用 registry.call_tool({normalized_name})")
-            result_data = await registry.call_tool(normalized_name, tool_params)
+            state_context = context_payload if isinstance(context_payload, dict) else {}
+            tool_state = dict(state or {})
+            if state_context:
+                tool_state["context"] = state_context
+            tool_state.setdefault("work_id", work_id)
+            tool_state.setdefault("chapter_id", chapter_id)
+            tool_state.setdefault("last_user_message", context)
+            tool_state.setdefault("conversation_id", conversation_id or "")
 
-            # 提取结果
-            if isinstance(result_data, dict) and result_data.get("success"):
-                result = self._extract_tool_result(normalized_name, result_data)
-                logger.info(f"[TaskRunner] {normalized_name} 执行成功（DeepAgent模式）")
-                # 🆕 2026-01-12: 章节缓存写入（支持带/不带 _tool 后缀的名称）
-                if state and normalized_name in ["get_chapter_by_order", "read_chapter"]:
-                    self._update_chapter_cache(tool_name, result, work_id, state)
-            else:
-                error_msg = result_data.get("message", "执行失败") if isinstance(result_data, dict) else "未知错误"
-                result = json.dumps({"error": "tool_failed", "message": error_msg}, ensure_ascii=False)
-                logger.error(f"[TaskRunner] {normalized_name} 执行失败（DeepAgent模式）: {error_msg}")
+            logger.info(f"[TaskRunner] 调用 ToolExecutor({normalized_name})")
+            result = await self._call_tool_via_registry(
+                tool_name=tool_name,
+                tool_args=tool_params,
+                state=tool_state
+            )
+            logger.info(f"[TaskRunner] {normalized_name} 执行成功（ToolExecutor）")
 
         except ValueError as e:
             error_msg = str(e)

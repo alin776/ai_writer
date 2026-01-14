@@ -15,6 +15,7 @@ import logging
 
 from app.services.agent.tools import registry
 from app.services.agent.utils.chapter_cache import ChapterCache
+from app.services.agent.utils.tool_cache import ToolCache
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,14 @@ TOOL_NAME_MAPPING = {
     # 聚合工具（2026-01-12）
     "get_writing_context": "get_writing_context",
     "get_style_guidance_tool": "get_style_guidance",
+}
+
+TOOL_CACHE_INVALIDATION_TOOLS = {
+    "apply_chapter_edit",
+    "update_chapter_content",
+    "update_chapter_title",
+    "delete_chapter",
+    "create_chapter",
 }
 
 
@@ -99,6 +108,13 @@ class ToolExecutor:
             # 准备参数
             params = self.prepare_params(normalized_name, tool_args, state)
 
+            # 工具层缓存命中检查
+            cache_ctx = ToolCache.get_context(normalized_name, params, state)
+            if cache_ctx:
+                cached_result = ToolCache.read(cache_ctx)
+                if cached_result is not None:
+                    return cached_result
+
             # 调用 StandardTool
             result = await registry.call_tool(normalized_name, params)
 
@@ -114,6 +130,9 @@ class ToolExecutor:
                 tool_result = self.extract_result(normalized_name, result)
                 logger.info(f"[StandardTool] {normalized_name} 执行成功")
 
+                if cache_ctx:
+                    ToolCache.write(cache_ctx, tool_result)
+
                 # 🆕 2026-01-12: 章节缓存写入
                 if normalized_name in ["read_chapter", "get_chapter_by_order"]:
                     self._update_chapter_cache(normalized_name, result, state)
@@ -122,6 +141,7 @@ class ToolExecutor:
                 if normalized_name == "get_writing_context":
                     self._update_writing_context_cache(result, state)
 
+                self._invalidate_tool_cache_if_needed(normalized_name, params, result, state)
                 return tool_result
             else:
                 error_msg = result.get("message", "执行失败") if isinstance(result, dict) else "未知错误"
@@ -137,6 +157,28 @@ class ToolExecutor:
             # 其他错误，也尝试降级
             logger.error(f"[StandardTool] 调用失败: {e}")
             return await self.fallback_to_legacy(tool_name, tool_args, state)
+
+    def _invalidate_tool_cache_if_needed(
+        self,
+        tool_name: str,
+        params: dict,
+        result: dict,
+        state: dict
+    ) -> None:
+        if tool_name not in TOOL_CACHE_INVALIDATION_TOOLS:
+            return
+
+        data = result.get("data", {}) if isinstance(result, dict) else {}
+        work_id = data.get("work_id") or params.get("work_id") or state.get("work_id")
+        chapter_id = data.get("chapter_id") or params.get("chapter_id") or state.get("chapter_id")
+        include_work_scope = tool_name in {"create_chapter", "delete_chapter"} or not chapter_id
+
+        ToolCache.invalidate(
+            work_id=str(work_id) if work_id else None,
+            chapter_id=str(chapter_id) if chapter_id else None,
+            include_work_scope=include_work_scope,
+            include_multi_scope=True,
+        )
 
     def prepare_params(
         self,
