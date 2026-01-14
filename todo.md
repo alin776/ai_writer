@@ -525,3 +525,42 @@
 - 修订展示时阻断保存：新增 `revisionSaveBlockedRef`，在显示修订时取消防抖保存并跳过 onUpdate 自动保存与卸载保存，避免红删绿增写回正文（`src/components/editor/NovelEditor.tsx`）。
 - 采纳/弃用后解除阻断，允许正常保存（`src/components/editor/NovelEditor.tsx`）。
 - 后端改为 base_version 不一致时仍尝试应用修订，仅在定位失败或乐观锁冲突时标记为冲突（`backend/app/services/chapter_revision_service.py`）。
+
+## 计划（复杂测试提示词-七次）
+- [x] 阅读小说素材第2-5章关键段落（`docs/Agent/real-book/一夕千悟，从杂役弟子开始.txt`）
+- [x] 设计 1 条高复杂度跨章节测试 prompt（含定位锚点/替换+插入/失败即停/切回验证/切章不重复）
+- [x] 输出 prompt 并更新 Review 记录
+
+## 解决方案（复杂测试提示词-七次）
+- 基于第2-5章关键句设计跨章节替换+插入的复杂测试 prompt，要求 locate_content 必须命中，否则停止；并要求切回目标章节查看红删绿增、切换章节后再回看不重复。
+
+## Review（复杂测试提示词-七次）
+- 已基于第2-5章关键段落提供新的复杂测试 prompt，覆盖替换+插入、失败即停、切章回看与不重复验证。
+
+## 计划（采纳/弃用按钮无响应 review）
+- [x] 核对修订卡片按钮回调是否绑定到 AIPanel（`src/components/editor/AIPanel.tsx`、`src/components/agent/ExecutionFlow/RevisionCard.tsx`）
+- [x] 核对采纳/弃用事件在编辑器内的处理是否依赖当前章节（`src/components/editor/NovelEditor.tsx`）
+- [x] 汇总发现与建议并更新 Review
+
+## Review（采纳/弃用按钮无响应）
+- 修订卡片点击会触发 AIPanel 回调，但事件只派发 `request_id`，不带 `chapterId`，编辑器侧只对“当前章节”做 DOM 清理；跨章节时看起来像“按钮没反应”（`src/components/editor/AIPanel.tsx:1478`、`src/components/editor/NovelEditor.tsx:1387`）。
+- 编辑器对 `agent-accept-revision`/`agent-discard-revision` 的处理不区分具体修订 ID，会清空当前章节全部修订标记；当目标修订不在当前章节时表现为“无变化”，也会导致多修订时行为不准确（`src/components/editor/NovelEditor.tsx:1387`、`src/components/editor/NovelEditor.tsx:1445`）。
+- `agent-show-revision` 未把后端 `requestId` 传进编辑器，导致编辑器侧采纳/弃用（右侧浮窗按钮）无法回写后端，只做本地 DOM 操作；刷新后仍会显示待确认，用户感知为“没生效”（`src/hooks/useAgentChat.ts:970`、`src/components/editor/NovelEditor.tsx:1696`）。
+
+## 计划（修订采纳/弃用无响应修复）
+- [ ] 补齐修订事件携带 `requestId`，保证编辑器侧采纳/弃用可回写后端（`src/hooks/useAgentChat.ts`）
+- [ ] 采纳/弃用派发时携带 `chapterId`，并在编辑器侧按 `request_id` 精准清理标记（`src/components/editor/AIPanel.tsx`、`src/components/editor/NovelEditor.tsx`）
+- [ ] 跨章节采纳/弃用时仅清理队列，不修改当前章节内容（`src/components/editor/NovelEditor.tsx`）
+- [ ] 更新 Review 记录改动与验证要点
+
+## 计划（工作台分割线拖拽）
+- [x] 核对分割线拖拽逻辑与面板布局绑定（`src/views/WorkDetailView/index.tsx`）
+- [x] 调整 AI 面板宽度绑定方式，确保拖拽改变实际宽度（`src/views/WorkDetailView/index.tsx`）
+- [x] 自查收起/展开状态下的宽度与本地缓存表现
+
+## 解决方案（工作台分割线拖拽）
+- 将 AI 面板宽度从仅用 `maxWidth` 约束，改为使用 `flex-basis/width` 绑定 `rightPanelWidth`，让拖拽实时改变面板宽度；编辑器收起时恢复 `flex: 1` 以占满空间。
+
+## Review（工作台分割线拖拽）
+- AI 面板改为用 `width` 绑定 `rightPanelWidth`，并在非收起时使用 `flex: 0 1 auto`，确保拖拽直接影响面板宽度（`src/views/WorkDetailView/index.tsx`）。
+- 编辑器收起时恢复 `flex: 1 1 0%` + `width: auto`，保持全宽展示与本地缓存逻辑不冲突（`src/views/WorkDetailView/index.tsx`）。

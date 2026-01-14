@@ -1856,8 +1856,8 @@ const WorkDetailView: React.FC = () => {
         <div
           className={`relative bg-white dark:bg-slate-900 flex flex-col overflow-hidden ${isResizing ? '' : 'transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]'}`}
           style={{
-            flex: '1 1 0%',
-            maxWidth: isEditorCollapsed ? 9999 : `${isRightCollapsed ? COLLAPSED_RIGHT_PANEL_WIDTH : rightPanelWidth}px`,
+            flex: isEditorCollapsed ? '1 1 0%' : '0 1 auto',
+            width: isEditorCollapsed ? 'auto' : `${isRightCollapsed ? COLLAPSED_RIGHT_PANEL_WIDTH : rightPanelWidth}px`,
           }}
         >
           {/* 可拖动的分隔条 - 仅在非收缩模式显示 */}
