@@ -558,6 +558,12 @@
 - 采纳/弃用派发时携带 `chapter_id` 与 `revision_id`，编辑器侧按修订 ID 精准清理标记，跨章节时仅清理队列不动正文（`src/components/editor/AIPanel.tsx`、`src/components/editor/NovelEditor.tsx`）。
 - 采纳/弃用操作改为按修订 ID 清除 `del/ins` 与 `data-revision-id` 包裹，避免误删同章节其他修订（`src/components/editor/NovelEditor.tsx`）。
 
+## 计划（修订卡片点击跳转 review）
+- [ ] 核对修订卡片（章节标题/内容预览）是否绑定跳转行为（`src/components/agent/ExecutionFlow/RevisionCard.tsx`、`src/components/agent/ExecutionFlow/StepCard.tsx`）
+- [ ] 核对 AIPanel 是否提供跳转事件或与编辑器联动入口（`src/components/editor/AIPanel.tsx`、`src/hooks/useAgentChat.ts`）
+- [ ] 核对编辑器是否存在“按修订 ID 定位”的实现或事件监听（`src/components/editor/NovelEditor.tsx`、`src/components/editor/AIRevisionMark.ts`）
+- [ ] 汇总结论与建议并更新 Review
+
 ## 计划（工作台分割线拖拽）
 - [x] 核对分割线拖拽逻辑与面板布局绑定（`src/views/WorkDetailView/index.tsx`）
 - [x] 调整 AI 面板宽度绑定方式，确保拖拽改变实际宽度（`src/views/WorkDetailView/index.tsx`）
@@ -582,3 +588,15 @@
 - AI 面板在 `isEditorCollapsed` 切换时从固定 `width` 变为 `auto`，`transition-all` 触发不可插值的宽度切换，动画阶段会先把 AI 面板收窄再跳到最终宽度，表现为“先扩再收”的错觉（`src/views/WorkDetailView/index.tsx:1856`）。
 - 编辑器面板同时过渡 `flex/padding/opacity`，`transition-all` 让 padding 先收缩导致内容视觉上先“变大”再消失，加剧收缩方向错觉（`src/views/WorkDetailView/index.tsx:1917`）。
 - 当前没有面板收缩动画的自动化校验，回归风险主要依赖手动 UI 验证。
+
+## 计划（编辑器收缩动画修复）
+- [x] 核对 AI 面板与编辑器面板的宽度/过渡目标，确认最小修复点（`src/views/WorkDetailView/index.tsx`）
+- [x] 改为固定数值 `flex-basis` + `flex-grow` 切换，避免 `width:auto` 引发的回弹（`src/views/WorkDetailView/index.tsx`）
+- [x] 自查收缩/展开/拖拽/AI 面板收起组合表现
+
+## 解决方案（编辑器收缩动画修复）
+- AI 面板始终使用数值 `flex-basis`（基于 `rightPanelWidth`，收起时为 0），仅切换 `flex-grow` 以填充空间，避免 `width:auto` 与 `transition-all` 的非插值跳变导致“先扩再收”。
+
+## Review（编辑器收缩动画修复）
+- AI 面板改为固定 `flex-basis` 并通过 `flex-grow` 控制展开，移除 `width:auto` 的过渡跳变，避免收缩时的视觉反弹（`src/views/WorkDetailView/index.tsx:1856`）。
+- 保持拖拽更新 `rightPanelWidth` 通过 `flex-basis` 生效，收起状态 `flex-basis` 为 0，逻辑一致（`src/views/WorkDetailView/index.tsx:1856`）。
