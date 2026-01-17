@@ -253,10 +253,29 @@ def _get_output_format() -> str:
       "title": "简洁标题（4-8字，如：获取世界观、读取章节、分析内容）",
       "description": "详细描述（可选，用于日志）",
       "tool": "工具名",
-      "params": {}
+      "params": {},
+      "depends_on": []
     }
   ]
 }
+
+【参数引用规则】⚠️ 推荐使用 $ref（结构化引用）
+
+当一个任务需要依赖前置任务结果时，必须：
+1. 使用 `depends_on` 显式声明依赖任务ID
+2. 在 params 中使用 `$ref` 结构化引用结果字段
+
+示例：
+{
+  "task_id": 2,
+  "tool": "analyze_content",
+  "params": {
+    "content": {"$ref": {"task_id": 1, "path": "chapters[0].content"}}
+  },
+  "depends_on": [1]
+}
+
+⚠️ 旧格式 `$TASK_1.field$` 仅作为兼容兜底，不建议继续使用。
 
 ⚠️⚠️⚠️ **【最重要】direct_answer 和 tasks 的使用规则** ⚠️⚠️⚠️
 

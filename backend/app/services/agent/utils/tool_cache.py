@@ -178,13 +178,21 @@ class ToolCache:
 
     @staticmethod
     def write(cache_ctx: ToolCacheContext, value: str) -> None:
+        cache_value = value
+        if not isinstance(cache_value, str):
+            try:
+                cache_value = json.dumps(cache_value, ensure_ascii=False)
+            except Exception:
+                cache_value = str(cache_value)
+            logger.debug(f"[ToolCache] 结果已序列化: {cache_ctx.key}")
+
         if redis_client.is_available():
-            success = redis_client.set(cache_ctx.key, value, cache_ctx.ttl_seconds)
+            success = redis_client.set(cache_ctx.key, cache_value, cache_ctx.ttl_seconds)
             if not success:
                 logger.warning(f"[ToolCache] write failed: {cache_ctx.key}")
             return
 
-        _local_cache.set(cache_ctx.key, value, ttl=cache_ctx.ttl_seconds)
+        _local_cache.set(cache_ctx.key, cache_value, ttl=cache_ctx.ttl_seconds)
 
     @staticmethod
     def read_covering_gwc(params: Dict[str, Any], state: Dict[str, Any]) -> Optional[str]:

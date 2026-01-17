@@ -289,6 +289,14 @@ class TaskRunner:
             context_param = params.get("context", "")
             if not context_param or "$TASK_" in str(context_param):
                 context_param = context
+            if isinstance(focus_param, str) and len(focus_param) > 100:
+                logger.info("[TaskRunner] analyze_text_tool 的 focus 过长，转入 context")
+                focus_note = focus_param
+                focus_param = "all"
+                if context_param:
+                    context_param = f"{context_param}\n\n[FocusHint]\n{focus_note}"
+                else:
+                    context_param = f"[FocusHint]\n{focus_note}"
             return {
                 "content": text_param,
                 "text": text_param,
@@ -324,6 +332,8 @@ class TaskRunner:
             (text_param, focus_param)
         """
         text_param = params.get("text", "").strip()
+        if text_param.lower() == "none":
+            text_param = ""
 
         # 处理空值和占位符 - 优先使用选中文本
         if not text_param or "$TASK_" in text_param:
@@ -334,6 +344,9 @@ class TaskRunner:
             else:
                 logger.info(f"[TaskRunner] analyze_text_tool 的 text 参数为空或含占位符，使用 context 兜底（{len(context)}字符）")
                 text_param = context[:50000]
+        elif len(text_param) < 10 and context:
+            logger.info(f"[TaskRunner] analyze_text_tool 的 text 参数过短，使用 context 兜底（{len(context)}字符）")
+            text_param = context[:50000]
 
         # focus 参数处理
         focus_param = params.get("focus", "all")

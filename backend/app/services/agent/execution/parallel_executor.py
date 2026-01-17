@@ -100,76 +100,173 @@ class ParallelExecutor:
         resolver = ParameterResolver(strict_mode=False)
         logger.info("[ParameterResolver] 参数解析器已启用")
 
-        # 任务分组
-        parallel_tasks, parallel_dependent_tasks, sequential_tasks, first_layer_ids = \
-            self._classify_tasks(tasks, resolver)
-
-        logger.info(
-            f"[ParallelExecution] 任务分组: "
-            f"第一层并行={len(parallel_tasks)}, "
-            f"第二层并行={len(parallel_dependent_tasks)}, "
-            f"串行={len(sequential_tasks)}"
+        task_results, _ = await self._execute_with_dag(
+            tasks=tasks,
+            work_id=work_id,
+            chapter_id=chapter_id,
+            context=context,
+            context_payload=context_payload,
+            resolver=resolver,
+            on_task_start=on_task_start,
+            on_task_progress=on_task_progress,
+            on_task_done=on_task_done
         )
 
-        task_results = []
-        all_context = context
+        task_results.sort(key=lambda x: x["task_id"])
+        return task_results
 
-        # 创建信号量（并发控制）
+    async def _execute_with_dag(
+        self,
+        tasks: List[Dict[str, Any]],
+        work_id: str,
+        chapter_id: str,
+        context: str,
+        resolver,
+        on_task_start: Optional[callable],
+        on_task_progress: Optional[callable],
+        on_task_done: Optional[callable],
+        context_payload: Optional[Dict[str, Any]] = None
+    ) -> tuple:
+        """基于 depends_on 的就绪队列调度执行任务。"""
+        tasks_by_id, deps_by_id, ordered_ids = self._build_dependency_graph(tasks)
+
+        logger.info(
+            f"[ParallelExecution] DAG 调度启用，任务数={len(ordered_ids)}, "
+            f"有依赖任务={sum(1 for i in ordered_ids if deps_by_id.get(i))}"
+        )
+
+        task_results: List[Dict[str, Any]] = []
+        all_context = context
+        completed: Set[int] = set()
+        pending: Set[int] = set(ordered_ids)
+
         semaphore = asyncio.Semaphore(self.MAX_CONCURRENCY)
 
-        # 第1批：并行执行独立的数据获取任务
-        if parallel_tasks:
-            results, all_context = await self._execute_parallel_batch(
-                tasks=parallel_tasks,
+        while pending:
+            ready = [
+                task_id for task_id in ordered_ids
+                if task_id in pending and deps_by_id.get(task_id, set()).issubset(completed)
+            ]
+
+            if not ready:
+                logger.warning("[ParallelExecution] 依赖循环或缺失，降级为按顺序执行剩余任务")
+                ready = [task_id for task_id in ordered_ids if task_id in pending]
+
+            parallel_ids = [
+                task_id for task_id in ready
+                if not deps_by_id.get(task_id)
+                and tasks_by_id[task_id].get("tool") in PARALLEL_SAFE_TOOLS
+            ]
+
+            if parallel_ids:
+                parallel_tasks = [tasks_by_id[task_id] for task_id in parallel_ids]
+                results, all_context = await self._execute_parallel_batch(
+                    tasks=parallel_tasks,
+                    work_id=work_id,
+                    chapter_id=chapter_id,
+                    context=all_context,
+                    context_payload=context_payload,
+                    resolver=resolver,
+                    semaphore=semaphore,
+                    on_task_start=on_task_start,
+                    on_task_progress=on_task_progress,
+                    on_task_done=on_task_done,
+                    batch_name="并行就绪"
+                )
+                task_results.extend(results)
+                for result in results:
+                    task_id = result.get("task_id")
+                    if isinstance(task_id, int):
+                        completed.add(task_id)
+                        pending.discard(task_id)
+                continue
+
+            # 依赖任务或非并行安全任务：按顺序串行执行
+            task_id = ready[0]
+            task = tasks_by_id[task_id]
+            result = await self._execute_single_task_with_retry(
+                task=task,
                 work_id=work_id,
                 chapter_id=chapter_id,
                 context=all_context,
                 context_payload=context_payload,
                 resolver=resolver,
-                semaphore=semaphore,
                 on_task_start=on_task_start,
                 on_task_progress=on_task_progress,
                 on_task_done=on_task_done,
-                batch_name="第一层"
+                batch_name="串行就绪"
             )
-            task_results.extend(results)
+            task_results.append(result)
+            all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
+            completed.add(task_id)
+            pending.discard(task_id)
 
-        # 第2批：并行执行只依赖第一层的分析任务
-        if parallel_dependent_tasks:
-            results, all_context = await self._execute_parallel_batch(
-                tasks=parallel_dependent_tasks,
-                work_id=work_id,
-                chapter_id=chapter_id,
-                context=all_context,
-                context_payload=context_payload,
-                resolver=resolver,
-                semaphore=semaphore,
-                on_task_start=on_task_start,
-                on_task_progress=on_task_progress,
-                on_task_done=on_task_done,
-                batch_name="第二层"
-            )
-            task_results.extend(results)
+        return task_results, all_context
 
-        # 第3批：串行执行有复杂依赖的任务
-        if sequential_tasks:
-            results, all_context = await self._execute_sequential_batch(
-                tasks=sequential_tasks,
-                work_id=work_id,
-                chapter_id=chapter_id,
-                context=all_context,
-                context_payload=context_payload,
-                resolver=resolver,
-                on_task_start=on_task_start,
-                on_task_progress=on_task_progress,
-                on_task_done=on_task_done
-            )
-            task_results.extend(results)
+    def _build_dependency_graph(
+        self,
+        tasks: List[Dict[str, Any]]
+    ) -> tuple:
+        """构建任务依赖关系图（显式 depends_on + 参数引用推断）。"""
+        from app.services.agent.parameter_resolver import ParameterResolver
 
-        # 按 task_id 排序，保持原始顺序
-        task_results.sort(key=lambda x: x["task_id"])
+        tasks_by_id: Dict[int, Dict[str, Any]] = {}
+        ordered_ids: List[int] = []
+        seen: Set[int] = set()
+        next_id = 1
 
-        return task_results
+        for idx, task in enumerate(tasks):
+            raw_task_id = task.get("task_id")
+            task_id: Optional[int]
+            try:
+                task_id = int(raw_task_id)
+            except (TypeError, ValueError):
+                task_id = None
+
+            if not task_id or task_id in seen:
+                task_id = next_id
+                next_id += 1
+                task["task_id"] = task_id
+
+            seen.add(task_id)
+            tasks_by_id[task_id] = task
+            ordered_ids.append(task_id)
+            next_id = max(next_id, task_id + 1)
+
+        deps_by_id: Dict[int, Set[int]] = {}
+        valid_ids = set(tasks_by_id.keys())
+
+        for task_id in ordered_ids:
+            task = tasks_by_id[task_id]
+            explicit = self._normalize_dep_list(task.get("depends_on"))
+            inferred = ParameterResolver.extract_dependencies(task.get("params", {}))
+            deps = set(explicit).union(inferred)
+            deps.discard(task_id)
+            invalid = deps - valid_ids
+            if invalid:
+                logger.warning(f"[ParallelExecution] 任务{task_id}依赖不存在: {sorted(invalid)}")
+            deps_by_id[task_id] = {dep for dep in deps if dep in valid_ids}
+
+        return tasks_by_id, deps_by_id, ordered_ids
+
+    @staticmethod
+    def _normalize_dep_list(value: Any) -> List[int]:
+        if value is None:
+            return []
+        if isinstance(value, (int, str)):
+            try:
+                return [int(value)]
+            except (TypeError, ValueError):
+                return []
+        if isinstance(value, list):
+            normalized = []
+            for item in value:
+                try:
+                    normalized.append(int(item))
+                except (TypeError, ValueError):
+                    continue
+            return normalized
+        return []
 
     def _classify_tasks(
         self,
@@ -436,15 +533,18 @@ class ParallelExecutor:
                     state=getattr(self, '_shared_state', None)  # 🆕 2026-01-12: 传递共享 state 用于章节缓存
                 )
 
-                # 注册任务结果
-                await resolver.register_result(task_id, result)
+                raw_result = result
+                result_text = self._stringify_result(result)
+
+                # 注册任务结果（保留结构体）
+                await resolver.register_result(task_id, raw_result)
                 logger.debug(f"[ParameterResolver] 任务{task_id}结果已注册")
 
                 elapsed_time = time.time() - start_time
                 task_with_time = {**task, "elapsed_time": elapsed_time}
 
                 if on_task_done:
-                    await on_task_done(task_with_time, result)
+                    await on_task_done(task_with_time, result_text)
 
                 logger.info(
                     f"[ParallelExecution] {batch_name}任务{task_id}完成" +
@@ -455,7 +555,8 @@ class ParallelExecutor:
                     "task_id": task_id,
                     "description": description,
                     "tool": tool_name,
-                    "result": result,
+                    "result": result_text,
+                    "raw_result": raw_result,
                     "status": "completed",
                     "elapsed_time": elapsed_time
                 }
@@ -496,3 +597,14 @@ class ParallelExecutor:
             "result": error_result,
             "status": "failed"
         }
+
+    @staticmethod
+    def _stringify_result(result: Any) -> str:
+        if result is None:
+            return ""
+        if isinstance(result, (dict, list)):
+            try:
+                return json.dumps(result, ensure_ascii=False)
+            except Exception:
+                return str(result)
+        return str(result)

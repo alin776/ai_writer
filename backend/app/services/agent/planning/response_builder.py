@@ -349,6 +349,7 @@ class ResponseBuilder:
 
         # 构建知识库文档上下文
         knowledge_section = self._build_knowledge_section(knowledge_docs)
+        task_results_snapshot = self._build_task_results_snapshot(task_results)
 
         # 构建完整上下文
         all_context = f"用户请求：{message}\n\n"
@@ -398,6 +399,9 @@ class ResponseBuilder:
         # 构建总结 prompt
         summary_prompt = f"""基于以下任务执行结果，生成最终的响应给用户。
 {knowledge_section}
+【任务结果快照(JSON，仅可依据此处与压缩上下文回答)】
+{task_results_snapshot}
+
 {compressed_context}
 
 ⚠️ 重要规则（必须遵守）：
@@ -405,6 +409,7 @@ class ResponseBuilder:
    - 章节标题 = 工具返回的 title 字段值
    - 章节内容 = 工具返回的 content 字段值
    - 章节序号 = 工具返回的 order 字段值
+   - 禁止引入其他作品/人物/设定，若未在任务结果中出现，请明确说明“未找到”
 
 2. 【分阶段执行识别】⚠️ 最重要！
    - 如果任务结果只包含**准备信息**（如世界观、章节内容），没有创作/分析结果
@@ -509,6 +514,28 @@ class ResponseBuilder:
             logger.warning(f"[Summarization] 流式生成超时，返回部分内容（{len(result.get('text', ''))}字符）")
 
         return result.get("text", "")
+
+    def _build_task_results_snapshot(self, task_results: List[Dict]) -> str:
+        """构建任务结果快照，避免上下文污染。"""
+        snapshot = []
+        for task in task_results:
+            result = task.get("result", "")
+            if not isinstance(result, str):
+                try:
+                    result = json.dumps(result, ensure_ascii=False)
+                except Exception:
+                    result = str(result)
+            if len(result) > 2000:
+                result = f"{result[:2000]}...[省略{len(result) - 2000}字符]..."
+            snapshot.append({
+                "task_id": task.get("task_id"),
+                "tool": task.get("tool", ""),
+                "status": task.get("status", ""),
+                "description": task.get("description", ""),
+                "result": result
+            })
+
+        return json.dumps(snapshot, ensure_ascii=False)
 
     def _build_knowledge_section(self, knowledge_docs: Optional[List[Dict]]) -> str:
         """构建知识库文档上下文"""

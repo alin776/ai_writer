@@ -28,7 +28,7 @@ import re
 import json
 import logging
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +80,7 @@ class ParameterResolver:
                 - False: 依赖未执行的任务会返回占位符并记录警告
         """
         self.task_results: Dict[int, str] = {}
+        self.task_payloads: Dict[int, Any] = {}
         self.strict_mode = strict_mode
         self._lock = asyncio.Lock()  # ✅ 【修复-问题1】添加异步锁保证并发安全
         logger.info(
@@ -87,7 +88,7 @@ class ParameterResolver:
             f"严格模式: {strict_mode}"
         )
 
-    async def register_result(self, task_id: int, result: str) -> None:
+    async def register_result(self, task_id: int, result: Any) -> None:
         """
         注册任务执行结果（线程安全）
 
@@ -103,26 +104,36 @@ class ParameterResolver:
                 f"无效的task_id: {task_id}，必须是正整数"
             )
 
+        raw_result = result
+        result_str = ""
+
         # ✅ 【修复-问题4】验证result不为None和类型检查
         if result is None:
             logger.warning(
                 f"[ParameterResolver] 任务{task_id}结果为None，转换为空字符串"
             )
-            result = ""
-
-        if not isinstance(result, str):
-            logger.warning(
-                f"[ParameterResolver] 任务{task_id}结果类型为{type(result).__name__}，"
-                f"转换为字符串"
-            )
-            result = str(result)
+            raw_result = None
+            result_str = ""
+        elif isinstance(result, str):
+            result_str = result
+            try:
+                raw_result = json.loads(result)
+            except Exception:
+                raw_result = result
+        else:
+            try:
+                result_str = json.dumps(result, ensure_ascii=False)
+            except Exception:
+                result_str = str(result)
+            raw_result = result
 
         # ✅ 【修复-问题1】使用锁保证并发安全
         async with self._lock:
-            self.task_results[task_id] = result
+            self.task_results[task_id] = result_str
+            self.task_payloads[task_id] = raw_result
             logger.debug(
                 f"[ParameterResolver] 注册任务{task_id}结果, "
-                f"长度={len(result)}字符"
+                f"长度={len(result_str)}字符"
             )
 
     async def resolve_params(
@@ -184,8 +195,11 @@ class ParameterResolver:
                         current_task_id
                     )
             elif isinstance(value, dict):
-                # 递归解析嵌套字典
-                resolved[key] = self._resolve_params_internal(value, current_task_id)
+                if self._is_ref_obj(value):
+                    resolved[key] = self._resolve_ref(value, current_task_id)
+                else:
+                    # 递归解析嵌套字典
+                    resolved[key] = self._resolve_params_internal(value, current_task_id)
             elif isinstance(value, list):
                 # ✅ 【修复-问题5】递归解析列表中的字符串和字典
                 resolved[key] = []
@@ -205,10 +219,13 @@ class ParameterResolver:
                                 self._resolve_string(item, current_task_id)
                             )
                     elif isinstance(item, dict):
-                        # 递归解析字典元素
-                        resolved[key].append(
-                            self._resolve_params_internal(item, current_task_id)
-                        )
+                        if self._is_ref_obj(item):
+                            resolved[key].append(self._resolve_ref(item, current_task_id))
+                        else:
+                            # 递归解析字典元素
+                            resolved[key].append(
+                                self._resolve_params_internal(item, current_task_id)
+                            )
                     else:
                         # 其他类型直接保留
                         resolved[key].append(item)
@@ -261,44 +278,22 @@ class ParameterResolver:
                 return None
 
         task_result = self.task_results[task_id]
+        payload = self.task_payloads.get(task_id, task_result)
 
         # 🔧 2026-01-13: 添加调试日志
         logger.info(f"[ParameterResolver] 任务{task_id}结果长度: {len(task_result) if task_result else 0}")
 
-        # 如果没有字段路径，返回完整结果（字符串）
+        # 如果没有字段路径，返回完整结果（保留类型）
         if not field_path:
-            return task_result
+            return payload
 
-        # 提取JSON字段，保留原始类型
-        try:
-            data = json.loads(task_result)
-            tokens = self._parse_field_path(field_path)
-            logger.info(f"[ParameterResolver] 解析路径 {field_path} -> tokens: {tokens}")
-
-            value = data
-            for token in tokens:
-                if isinstance(token, int):
-                    if isinstance(value, list) and 0 <= token < len(value):
-                        value = value[token]
-                    else:
-                        logger.warning(f"[ParameterResolver] 数组索引 {token} 越界，降级返回完整结果")
-                        return task_result  # 降级返回完整结果
-                elif isinstance(value, dict) and token in value:
-                    value = value[token]
-                else:
-                    logger.warning(f"[ParameterResolver] 字段 {token} 不存在于 {type(value).__name__}，降级返回完整结果")
-                    return task_result  # 降级返回完整结果
-
-            # 🔧 关键：直接返回原始值，不转换为字符串
-            logger.info(
-                f"[ParameterResolver] $TASK_{task_id}.{field_path}$ → "
-                f"{type(value).__name__}: {str(value)[:100]}"
-            )
-            return value
-
-        except json.JSONDecodeError as e:
-            logger.warning(f"[ParameterResolver] JSON解析失败: {e}")
-            return task_result
+        value = self._extract_from_payload(payload, field_path, None)
+        # 🔧 关键：直接返回原始值，不转换为字符串
+        logger.info(
+            f"[ParameterResolver] $TASK_{task_id}.{field_path}$ → "
+            f"{type(value).__name__}: {str(value)[:100]}"
+        )
+        return value
 
     def _resolve_string(
         self,
@@ -479,6 +474,146 @@ class ParameterResolver:
             return json_string
 
     def _parse_field_path(self, field_path: str) -> list:
+        """
+        解析字段路径为访问令牌列表
+
+        🔧 2025-12-25: 新增方法，支持数组索引解析
+
+        Args:
+            field_path: 字段路径，如 "chapters[3].content"
+
+        Returns:
+            访问令牌列表，如 ["chapters", 3, "content"]
+        """
+        tokens = []
+        # 匹配字段名或数组索引
+        # 例如: "chapters[3].content" -> ["chapters", "[3]", "content"]
+        pattern = re.compile(r'([a-zA-Z_][a-zA-Z0-9_]*)|\[(\d+)\]')
+
+        for match in pattern.finditer(field_path):
+            if match.group(1):
+                # 字段名
+                tokens.append(match.group(1))
+            elif match.group(2):
+                # 数组索引
+                tokens.append(int(match.group(2)))
+
+        return tokens
+
+    def _extract_from_payload(
+        self,
+        payload: Any,
+        field_path: str,
+        fallback: str
+    ) -> Any:
+        """从结构化结果中提取字段，失败则回退到 fallback。"""
+        data = payload
+        if isinstance(payload, str):
+            try:
+                data = json.loads(payload)
+            except Exception:
+                return fallback
+
+        tokens = self._parse_field_path(field_path)
+        logger.info(f"[ParameterResolver] 解析路径 {field_path} -> tokens: {tokens}")
+
+        value = data
+        for token in tokens:
+            if isinstance(token, int):
+                if isinstance(value, list) and 0 <= token < len(value):
+                    value = value[token]
+                else:
+                    logger.warning(f"[ParameterResolver] 数组索引 {token} 越界，降级返回完整结果")
+                    return fallback
+            elif isinstance(value, dict) and token in value:
+                value = value[token]
+            else:
+                logger.warning(f"[ParameterResolver] 字段 {token} 不存在于 {type(value).__name__}，降级返回完整结果")
+                return fallback
+
+        return value
+
+    @classmethod
+    def extract_dependencies(cls, params: Any) -> Set[int]:
+        """从参数中提取任务依赖（占位符 + $ref）。"""
+        deps: Set[int] = set()
+
+        def _walk(value: Any) -> None:
+            if isinstance(value, dict):
+                if cls._is_ref_obj(value):
+                    ref_obj = value.get("$ref") or value.get("ref") or {}
+                    task_id = ref_obj.get("task_id")
+                    try:
+                        deps.add(int(task_id))
+                    except (TypeError, ValueError):
+                        pass
+                    return
+                for item in value.values():
+                    _walk(item)
+            elif isinstance(value, list):
+                for item in value:
+                    _walk(item)
+            elif isinstance(value, str):
+                for match in cls.PLACEHOLDER_PATTERN.finditer(value):
+                    try:
+                        deps.add(int(match.group(1)))
+                    except (TypeError, ValueError):
+                        continue
+                for match in cls.LOOSE_PLACEHOLDER_PATTERN.finditer(value):
+                    try:
+                        deps.add(int(match.group(1)))
+                    except (TypeError, ValueError):
+                        continue
+
+        _walk(params)
+        return deps
+
+    @staticmethod
+    def _is_ref_obj(value: Any) -> bool:
+        if not isinstance(value, dict):
+            return False
+        keys = set(value.keys())
+        if keys == {"$ref"} and isinstance(value.get("$ref"), dict):
+            return True
+        if keys == {"ref"} and isinstance(value.get("ref"), dict):
+            return True
+        return False
+
+    def _resolve_ref(
+        self,
+        ref_wrapper: Dict[str, Any],
+        current_task_id: Optional[int]
+    ) -> Any:
+        ref_obj = ref_wrapper.get("$ref") or ref_wrapper.get("ref") or {}
+        task_id = ref_obj.get("task_id")
+        try:
+            task_id = int(task_id)
+        except (TypeError, ValueError):
+            return ref_obj.get("default")
+
+        if current_task_id and task_id == current_task_id:
+            logger.warning(
+                f"[ParameterResolver] 检测到自引用引用: 任务{current_task_id}引用自己"
+            )
+            return ref_obj.get("default")
+
+        if task_id not in self.task_results:
+            if self.strict_mode:
+                raise ParameterResolverError(
+                    f"任务{task_id}尚未执行，无法解析引用"
+                )
+            logger.warning(
+                f"[ParameterResolver] 任务{task_id}尚未执行，返回默认值"
+            )
+            return ref_obj.get("default")
+
+        payload = self.task_payloads.get(task_id, self.task_results.get(task_id))
+        path = ref_obj.get("path") or ""
+        if not path:
+            return payload
+
+        default_value = ref_obj.get("default")
+        return self._extract_from_payload(payload, path, default_value)
         """
         解析字段路径为访问令牌列表
 

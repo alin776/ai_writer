@@ -423,6 +423,22 @@ def _match_node_by_index(nodes_info: List[Dict], paragraph_index: int) -> Option
     return None
 
 
+def _apply_anchor_fields(
+    result: Dict[str, Any],
+    paragraphs: List[Dict[str, Any]],
+    paragraph_index: Optional[int]
+) -> None:
+    """根据段落索引填充锚点字段。"""
+    if paragraph_index is None or not paragraphs:
+        return
+    if paragraph_index < 0 or paragraph_index >= len(paragraphs):
+        return
+    if paragraph_index > 0:
+        result["before_anchor"] = paragraphs[paragraph_index - 1]["text"][-30:]
+    if paragraph_index < len(paragraphs) - 1:
+        result["after_anchor"] = paragraphs[paragraph_index + 1]["text"][:30]
+
+
 # ==================== 主工具函数 ====================
 
 @tool
@@ -516,7 +532,14 @@ async def locate_content(
             "success": True,
             "query": query,
             "chapter_id": chapter_id,
-            "total_paragraphs": len(paragraphs)
+            "total_paragraphs": len(paragraphs),
+            "node_id": None,
+            "paragraph_index": None,
+            "text_preview": "",
+            "text": "",
+            "before_anchor": None,
+            "after_anchor": None,
+            "cross_chapter": False,
         }
 
         # Structured locate: node_id hint from front-end
@@ -592,6 +615,7 @@ async def locate_content(
                 "node_id": _match_node_by_index(nodes_list, 0),
                 "confidence": 0.95
             })
+            _apply_anchor_fields(result, paragraphs, 0)
             logger.info("[locate_content] 定位到开头")
             return json.dumps(result, ensure_ascii=False)
 
@@ -606,6 +630,7 @@ async def locate_content(
                 "node_id": _match_node_by_index(nodes_list, last_idx),
                 "confidence": 0.95
             })
+            _apply_anchor_fields(result, paragraphs, last_idx)
             logger.info("[locate_content] 定位到结尾")
             return json.dumps(result, ensure_ascii=False)
 
@@ -655,6 +680,7 @@ async def locate_content(
                     "node_id": _match_node_by_index(nodes_list, para_idx),
                     "confidence": similarity
                 })
+                _apply_anchor_fields(result, paragraphs, para_idx)
                 logger.info(f"[locate_content] 模糊匹配成功: 第{para_idx + 1}段, 相似度={similarity:.2f}")
                 return json.dumps(result, ensure_ascii=False)
 
@@ -691,6 +717,7 @@ async def locate_content(
                 "node_id": _match_node_by_index(nodes_list, para_idx),
                 "confidence": similarity
             })
+            _apply_anchor_fields(result, paragraphs, para_idx)
             logger.info(f"[locate_content] LLM 辅助失败，降级使用模糊匹配: 第{para_idx + 1}段")
             return json.dumps(result, ensure_ascii=False)
 
@@ -759,6 +786,17 @@ async def locate_content(
 
                         # 如果向量检索直接返回了 paragraph_index，直接使用
                         if best and target_chapter_id and target_paragraph_index is not None:
+                            anchor_paragraphs = None
+                            node_id = None
+                            if target_chapter_id == chapter_id:
+                                anchor_paragraphs = paragraphs
+                                node_id = _match_node_by_index(nodes_list, target_paragraph_index)
+                            else:
+                                from app.services.chapter_service import ChapterService
+                                chapter_svc = ChapterService(db)
+                                target_chapter = await chapter_svc.get_chapter_by_id(target_chapter_id)
+                                if target_chapter and target_chapter.content:
+                                    anchor_paragraphs = _split_paragraphs(target_chapter.content)
                             result.update({
                                 "locate_method": "global_fallback",
                                 "chapter_id": target_chapter_id,
@@ -766,9 +804,12 @@ async def locate_content(
                                 "paragraph_index": target_paragraph_index,
                                 "text_preview": best.get("content", "")[:50] + "...",
                                 "text": best.get("content", ""),
+                                "node_id": node_id,
                                 "confidence": best.get("similarity", 0.7),
                                 "cross_chapter": target_chapter_id != chapter_id
                             })
+                            if anchor_paragraphs:
+                                _apply_anchor_fields(result, anchor_paragraphs, target_paragraph_index)
                             logger.info(f"[locate_content] 全局降级成功: chapter={target_chapter_id}, para={target_paragraph_index}")
                             return json.dumps(result, ensure_ascii=False)
 
@@ -792,9 +833,11 @@ async def locate_content(
                                         "paragraph_index": para_idx,
                                         "text_preview": para["preview"],
                                         "text": para["text"],
+                                        "node_id": None,
                                         "confidence": similarity * 0.8,  # 降低置信度
                                         "cross_chapter": target_chapter_id != chapter_id
                                     })
+                                    _apply_anchor_fields(result, target_paragraphs, para_idx)
                                     logger.info(f"[locate_content] 全局降级+二次定位成功: chapter={target_chapter_id}, para={para_idx}")
                                     return json.dumps(result, ensure_ascii=False)
 

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 
 from app.core.database import AsyncSessionLocal
+from app.utils.datetime_utils import get_utc_now, make_aware
 from app.models.channel import Channel, ChannelType, ChannelStatus
 from app.models.channel_message import ChannelMessage
 from app.models.notification import Notification, NotificationType, NotificationPriority
@@ -83,7 +84,7 @@ async def check_work_channel_activity():
             )
             channels = result.scalars().all()
 
-            now = datetime.utcnow()
+            now = get_utc_now()
             locked_count = 0
             warning_count = 0
             promoted_count = 0
@@ -99,12 +100,12 @@ async def check_work_channel_activity():
                 last_message = last_message_result.scalar_one_or_none()
 
                 if last_message:
-                    last_message_time = last_message.created_at
+                    last_message_time = make_aware(last_message.created_at)
                     channel.last_message_at = last_message_time
                 else:
                     # 如果没有消息，使用频道创建时间
-                    last_message_time = channel.created_at
-                    channel.last_message_at = channel.created_at
+                    last_message_time = make_aware(channel.created_at)
+                    channel.last_message_at = last_message_time
 
                 days_since_last_message = (now - last_message_time).days
 
@@ -149,7 +150,7 @@ async def check_work_channel_activity():
 
                 # 规则3: 活跃满30天且成员增长 -> 转正永久
                 elif not channel.is_permanent:
-                    channel_age_days = (now - channel.created_at).days
+                    channel_age_days = (now - make_aware(channel.created_at)).days
 
                     if (channel_age_days >= 30 and
                         days_since_last_message < 7 and  # 仍然活跃

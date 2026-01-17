@@ -14,7 +14,9 @@ import json
 import logging
 import os
 import re
-from typing import Dict, List, Any, Optional, TYPE_CHECKING
+from typing import Dict, List, Any, Optional, TYPE_CHECKING, Tuple
+
+from pydantic import ValidationError
 
 import httpx
 
@@ -474,10 +476,11 @@ tool_policy: {tool_policy}
                     "description": "基于上下文响应用户请求",
                     "tool": "analyze_content",
                     "params": {
-                        "content": "$TASK_1$",
+                        "content": {"$ref": {"task_id": 1, "path": ""}},
                         "analysis_types": "text",
                         "focus": "根据用户请求进行分析或回答"
                     },
+                    "depends_on": [1],
                     "estimated_time": "10秒"
                 }
             ]
@@ -512,7 +515,140 @@ tool_policy: {tool_policy}
         plan_data = self._validate_and_fix_plan(plan_data, message)
         plan_data["tasks"] = self._ensure_editor_apply_tasks(plan_data.get("tasks", []))
 
-        return plan_data
+        return self._normalize_plan_schema(plan_data)
+
+    def _normalize_plan_schema(self, plan_data: Dict[str, Any]) -> Dict[str, Any]:
+        """校验并归一化规划输出结构，补齐 depends_on。"""
+        from app.services.agent.parameter_resolver import ParameterResolver
+        from app.services.agent.planning.plan_schema import PlanSchema
+
+        try:
+            plan = PlanSchema.model_validate(plan_data)
+        except ValidationError as exc:
+            logger.warning(f"[Planning] 规划结构校验失败，尝试转换占位符: {exc}")
+            tasks = plan_data.get("tasks", []) or []
+            for task in tasks:
+                task_id = task.get("task_id")
+                params = task.get("params", {})
+                converted_params, has_legacy, has_unconverted = self._convert_placeholders_to_ref(params)
+                if has_legacy:
+                    task["params"] = converted_params
+                if has_unconverted:
+                    logger.warning(
+                        f"[Planning] 发现嵌入式旧占位符，保留原字符串等待解析: task_id={task_id}"
+                    )
+                depends_on = self._normalize_dep_list(task.get("depends_on"))
+                inferred = ParameterResolver.extract_dependencies(task.get("params", {}))
+                if task_id:
+                    try:
+                        inferred.discard(int(task_id))
+                    except (TypeError, ValueError):
+                        pass
+                if inferred:
+                    depends_on = sorted(set(depends_on).union(inferred))
+                task["depends_on"] = depends_on
+            plan_data["tasks"] = tasks
+            return plan_data
+
+        normalized = plan.model_dump()
+        tasks = normalized.get("tasks", []) or []
+
+        for task in tasks:
+            task_id = task.get("task_id")
+            params = task.get("params", {})
+            converted_params, has_legacy, has_unconverted = self._convert_placeholders_to_ref(params)
+            if has_legacy:
+                task["params"] = converted_params
+                logger.warning(
+                    f"[Planning] 检测到旧占位符，已转换为 $ref: task_id={task_id}"
+                )
+            if has_unconverted:
+                logger.warning(
+                    f"[Planning] 发现嵌入式旧占位符，保留原字符串等待解析: task_id={task_id}"
+                )
+            depends_on = self._normalize_dep_list(task.get("depends_on"))
+            inferred = ParameterResolver.extract_dependencies(task.get("params", {}))
+            if task_id:
+                try:
+                    inferred.discard(int(task_id))
+                except (TypeError, ValueError):
+                    pass
+            if inferred:
+                depends_on = sorted(set(depends_on).union(inferred))
+            task["depends_on"] = depends_on
+
+        normalized["tasks"] = tasks
+        return normalized
+
+    def _convert_placeholders_to_ref(self, value: Any) -> Tuple[Any, bool, bool]:
+        """将纯占位符字符串转换为 $ref，并标记残留占位符。"""
+        from app.services.agent.parameter_resolver import ParameterResolver
+
+        has_legacy = False
+        has_unconverted = False
+
+        if isinstance(value, str):
+            match = ParameterResolver.PLACEHOLDER_PATTERN.fullmatch(value)
+            if not match:
+                match = ParameterResolver.LOOSE_PLACEHOLDER_PATTERN.fullmatch(value)
+            if match:
+                has_legacy = True
+                task_id = match.group(1)
+                path = match.group(2) or ""
+                try:
+                    task_id = int(task_id)
+                except (TypeError, ValueError):
+                    return value, True, True
+                return {"$ref": {"task_id": task_id, "path": path}}, True, False
+
+            if (ParameterResolver.PLACEHOLDER_PATTERN.search(value)
+                    or ParameterResolver.LOOSE_PLACEHOLDER_PATTERN.search(value)):
+                has_legacy = True
+                has_unconverted = True
+
+            return value, has_legacy, has_unconverted
+
+        if isinstance(value, dict):
+            if "$ref" in value or "ref" in value:
+                return value, False, False
+            converted: Dict[str, Any] = {}
+            for key, item in value.items():
+                new_value, found, unconverted = self._convert_placeholders_to_ref(item)
+                converted[key] = new_value
+                has_legacy = has_legacy or found
+                has_unconverted = has_unconverted or unconverted
+            return converted, has_legacy, has_unconverted
+
+        if isinstance(value, list):
+            converted_list: List[Any] = []
+            for item in value:
+                new_value, found, unconverted = self._convert_placeholders_to_ref(item)
+                converted_list.append(new_value)
+                has_legacy = has_legacy or found
+                has_unconverted = has_unconverted or unconverted
+            return converted_list, has_legacy, has_unconverted
+
+        return value, False, False
+
+    @staticmethod
+    def _normalize_dep_list(value: Any) -> List[int]:
+        """把 depends_on 归一化为 int 列表。"""
+        if value is None:
+            return []
+        if isinstance(value, (int, str)):
+            try:
+                return [int(value)]
+            except (TypeError, ValueError):
+                return []
+        if isinstance(value, list):
+            normalized = []
+            for item in value:
+                try:
+                    normalized.append(int(item))
+                except (TypeError, ValueError):
+                    continue
+            return normalized
+        return []
 
     def _validate_and_fix_plan(self, plan_data: Dict[str, Any], message: str) -> Dict[str, Any]:
         """
@@ -654,7 +790,7 @@ tool_policy: {tool_policy}
 
         params_str = json.dumps(params, ensure_ascii=False)
 
-        # 替换 $TASK_N.content$ 和 $TASK_N$ 为 $TASK_1.chapters$
+        # 替换 $TASK_N.content$ 和 $TASK_N$ 为 $TASK_1.chapters$（后续统一转为 $ref）
         # 例如：$TASK_1.content$\n$TASK_2.content$... → $TASK_1.chapters$
         for old_idx in sorted(old_indices, reverse=True):
             # 处理 $TASK_N.content$ 格式
@@ -729,16 +865,20 @@ tool_policy: {tool_policy}
         return tasks
 
     def _has_apply_task(self, tasks: List[Dict[str, Any]], source_task_id: int) -> bool:
+        from app.services.agent.parameter_resolver import ParameterResolver
+
         needle = f"$TASK_{source_task_id}"
         for task in tasks:
             if task.get("tool") != "apply_chapter_edit":
                 continue
             params = task.get("params", {})
+            if source_task_id in ParameterResolver.extract_dependencies(params):
+                return True
             try:
                 params_str = json.dumps(params, ensure_ascii=False)
             except Exception:
                 params_str = str(params)
-            if needle in params_str:
+            if needle in params_str or f"\"task_id\": {source_task_id}" in params_str:
                 return True
         return False
 
@@ -751,35 +891,40 @@ tool_policy: {tool_policy}
     ) -> Optional[Dict[str, Any]]:
         # 🔧 2026-01-12: 跨章节修复 - chapter_id 优先使用 locate_content 的结果
         # locate_content 会在全局搜索时返回目标章节的 chapter_id
-        chapter_id_ref = f"$TASK_{locate_task_id}.chapter_id$" if locate_task_id else f"$TASK_{source_task_id}.chapter_id$"
+        chapter_id_ref = {
+            "$ref": {
+                "task_id": locate_task_id or source_task_id,
+                "path": "chapter_id"
+            }
+        }
 
         if source_tool == "smart_rewrite":
             params = {
                 "chapter_id": chapter_id_ref,
                 "operation": "replace",
-                "content": f"$TASK_{source_task_id}.versions[0].content$",
-                "original_text": f"$TASK_{source_task_id}.original_text$"
+                "content": {"$ref": {"task_id": source_task_id, "path": "versions[0].content"}},
+                "original_text": {"$ref": {"task_id": source_task_id, "path": "original_text"}}
             }
         elif source_tool == "smart_continue":
             params = {
                 "chapter_id": chapter_id_ref,
                 "operation": "append",
-                "content": f"$TASK_{source_task_id}.content$"
+                "content": {"$ref": {"task_id": source_task_id, "path": "content"}}
             }
         elif source_tool == "smart_insert":
             params = {
                 "chapter_id": chapter_id_ref,
                 "operation": "insert",
-                "content": f"$TASK_{source_task_id}.content$"
+                "content": {"$ref": {"task_id": source_task_id, "path": "content"}}
             }
         else:
             return None
 
         if locate_task_id:
-            params.setdefault("node_id", f"$TASK_{locate_task_id}.node_id$")
-            params.setdefault("paragraph_index", f"$TASK_{locate_task_id}.paragraph_index$")
-            params.setdefault("before_anchor", f"$TASK_{locate_task_id}.before_anchor$")
-            params.setdefault("after_anchor", f"$TASK_{locate_task_id}.after_anchor$")
+            params.setdefault("node_id", {"$ref": {"task_id": locate_task_id, "path": "node_id"}})
+            params.setdefault("paragraph_index", {"$ref": {"task_id": locate_task_id, "path": "paragraph_index"}})
+            params.setdefault("before_anchor", {"$ref": {"task_id": locate_task_id, "path": "before_anchor"}})
+            params.setdefault("after_anchor", {"$ref": {"task_id": locate_task_id, "path": "after_anchor"}})
 
         return {
             "task_id": new_task_id,

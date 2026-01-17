@@ -386,6 +386,15 @@ class ToolExecutor:
             ignore_state = self._should_ignore_state_chapter_id(state, params)
             params.setdefault("chapter_id", "" if ignore_state else state.get("chapter_id", ""))
             params.setdefault("look_ahead", 0)
+            try:
+                top_k = int(params.get("top_k", 10))
+            except (TypeError, ValueError):
+                top_k = 10
+            if top_k < 1:
+                top_k = 1
+            if top_k > 50:
+                top_k = 50
+            params["top_k"] = top_k
 
         elif tool_name == "get_worldview_summary":
             params.setdefault("work_id", state.get("work_id", ""))
@@ -569,9 +578,14 @@ class ToolExecutor:
 
         elif tool_name == "get_writing_context":
             context = data.get("context", "")
-            if isinstance(context, str):
-                return context
-            return json.dumps(context, ensure_ascii=False)
+            if context is None:
+                return ""
+            if isinstance(context, (dict, list)):
+                try:
+                    return json.dumps(context, ensure_ascii=False)
+                except Exception:
+                    return str(context)
+            return context
 
         elif tool_name == "read_chapter":
             return data.get("chapter_info", "")

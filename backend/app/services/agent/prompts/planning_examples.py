@@ -89,10 +89,10 @@ def get_user_confirmation_examples() -> str:
   "user_intent": "执行之前讨论的续写计划",
   "output_title": "续写内容",
   "tasks": [
-    {"task_id": 1, "description": "获取创作上下文", "tool": "get_writing_context", "params": {"chapter_orders": "5", "include": "chapter,worldview,rag"}},
-    {"task_id": 2, "description": "分析战斗风格", "tool": "analyze_content", "params": {"content": "$TASK_1.chapters[0].content$", "aspects": ["style"], "depth": "normal"}},
-    {"task_id": 3, "description": "续写500字战斗场景", "tool": "smart_continue", "params": {"chapter_id": "$TASK_1.chapters[0].id$", "chapter_content": "$TASK_1.chapters[0].content$", "user_requirement": "续写战斗场景，保持现有风格", "word_count": 500}},
-    {"task_id": 4, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {"chapter_id": "$TASK_1.chapters[0].id$", "operation": "append", "content": "$TASK_3.content$"}}
+    {"task_id": 1, "description": "获取创作上下文", "tool": "get_writing_context", "params": {"chapter_orders": "5", "include": "chapter,worldview,rag"}, "depends_on": []},
+    {"task_id": 2, "description": "分析战斗风格", "tool": "analyze_content", "params": {"content": {"$ref": {"task_id": 1, "path": "chapters[0].content"}}, "aspects": ["style"], "depth": "normal"}, "depends_on": [1]},
+    {"task_id": 3, "description": "续写500字战斗场景", "tool": "smart_continue", "params": {"chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}}, "chapter_content": {"$ref": {"task_id": 1, "path": "chapters[0].content"}}, "user_requirement": "续写战斗场景，保持现有风格", "word_count": 500}, "depends_on": [1]},
+    {"task_id": 4, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {"chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}}, "operation": "append", "content": {"$ref": {"task_id": 3, "path": "content"}}}, "depends_on": [1, 3]}
   ]
 }
 
@@ -105,9 +105,9 @@ def get_user_confirmation_examples() -> str:
   },
   "user_intent": "续写1000字战斗场景",
   "tasks": [
-    {"task_id": 1, "description": "获取创作上下文", "tool": "get_writing_context", "params": {"chapter_orders": "5", "include": "chapter,worldview,rag"}},
-    {"task_id": 2, "description": "续写1000字战斗场景", "tool": "smart_continue", "params": {"chapter_id": "$TASK_1.chapters[0].id$", "chapter_content": "$TASK_1.chapters[0].content$", "user_requirement": "续写战斗场景", "word_count": 1000}},
-    {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {"chapter_id": "$TASK_1.chapters[0].id$", "operation": "append", "content": "$TASK_2.content$"}}
+    {"task_id": 1, "description": "获取创作上下文", "tool": "get_writing_context", "params": {"chapter_orders": "5", "include": "chapter,worldview,rag"}, "depends_on": []},
+    {"task_id": 2, "description": "续写1000字战斗场景", "tool": "smart_continue", "params": {"chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}}, "chapter_content": {"$ref": {"task_id": 1, "path": "chapters[0].content"}}, "user_requirement": "续写战斗场景", "word_count": 1000}, "depends_on": [1]},
+    {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {"chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}}, "operation": "append", "content": {"$ref": {"task_id": 2, "path": "content"}}}, "depends_on": [1, 2]}
   ]
 }
 
@@ -120,9 +120,9 @@ def get_user_confirmation_examples() -> str:
   },
   "user_intent": "直接续写第5章战斗场景",
   "tasks": [
-    {"task_id": 1, "description": "获取创作上下文", "tool": "get_writing_context", "params": {"chapter_orders": "5", "include": "chapter,worldview,rag"}},
-    {"task_id": 2, "description": "续写战斗场景", "tool": "smart_continue", "params": {"chapter_id": "$TASK_1.chapters[0].id$", "chapter_content": "$TASK_1.chapters[0].content$", "user_requirement": "续写战斗场景", "word_count": 500}},
-    {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {"chapter_id": "$TASK_1.chapters[0].id$", "operation": "append", "content": "$TASK_2.content$"}}
+    {"task_id": 1, "description": "获取创作上下文", "tool": "get_writing_context", "params": {"chapter_orders": "5", "include": "chapter,worldview,rag"}, "depends_on": []},
+    {"task_id": 2, "description": "续写战斗场景", "tool": "smart_continue", "params": {"chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}}, "chapter_content": {"$ref": {"task_id": 1, "path": "chapters[0].content"}}, "user_requirement": "续写战斗场景", "word_count": 500}, "depends_on": [1]},
+    {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {"chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}}, "operation": "append", "content": {"$ref": {"task_id": 2, "path": "content"}}}, "depends_on": [1, 2]}
   ]
 }
 """
@@ -141,8 +141,8 @@ def get_staged_execution_examples() -> str:
   },
   "user_intent": "续写后5章（分阶段执行）",
   "tasks": [
-    {"task_id": 1, "description": "获取最近章节和世界观", "tool": "get_writing_context", "params": {"chapter_orders": "-3", "include": "chapter,worldview,rag"}},
-    {"task_id": 2, "description": "分析情节走向并规划大纲", "tool": "analyze_content", "params": {"content": "$TASK_1.chapters$", "aspects": ["plot", "structure"], "depth": "deep"}}
+    {"task_id": 1, "description": "获取最近章节和世界观", "tool": "get_writing_context", "params": {"chapter_orders": "-3", "include": "chapter,worldview,rag"}, "depends_on": []},
+    {"task_id": 2, "description": "分析情节走向并规划大纲", "tool": "analyze_content", "params": {"content": {"$ref": {"task_id": 1, "path": "chapters"}}, "aspects": ["plot", "structure"], "depth": "deep"}, "depends_on": [1]}
   ]
 }
 ⚠️ 注意：这个任务只生成了分析阶段，执行完成后 AI 会在响应中说："我分析了现有内容，这是后5章的大纲规划...你觉得这个方向可以吗？确认后我会开始续写第一章。"
@@ -156,9 +156,9 @@ def get_staged_execution_examples() -> str:
   },
   "user_intent": "续写第6章",
   "tasks": [
-    {"task_id": 1, "description": "获取第5章上下文", "tool": "get_writing_context", "params": {"chapter_orders": "5", "include": "chapter,worldview,rag"}},
-    {"task_id": 2, "description": "续写第6章", "tool": "smart_continue", "params": {"chapter_id": "$TASK_1.chapters[0].id$", "chapter_content": "$TASK_1.chapters[0].content$", "user_requirement": "基于之前规划的大纲续写第6章", "word_count": 3000}},
-    {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {"chapter_id": "$TASK_1.chapters[0].id$", "operation": "append", "content": "$TASK_2.content$"}}
+    {"task_id": 1, "description": "获取第5章上下文", "tool": "get_writing_context", "params": {"chapter_orders": "5", "include": "chapter,worldview,rag"}, "depends_on": []},
+    {"task_id": 2, "description": "续写第6章", "tool": "smart_continue", "params": {"chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}}, "chapter_content": {"$ref": {"task_id": 1, "path": "chapters[0].content"}}, "user_requirement": "基于之前规划的大纲续写第6章", "word_count": 3000}, "depends_on": [1]},
+    {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {"chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}}, "operation": "append", "content": {"$ref": {"task_id": 2, "path": "content"}}}, "depends_on": [1, 2]}
   ]
 }
 
@@ -190,7 +190,7 @@ def get_creation_request_examples() -> str:
   "user_intent": "创作第一章（分阶段）",
   "direct_answer": "好的，我先了解一下作品的世界观和已有内容...",
   "tasks": [
-    {"task_id": 1, "description": "获取创作上下文", "tool": "get_writing_context", "params": {"chapter_orders": "0,1", "include": "work,chapter,worldview"}}
+    {"task_id": 1, "description": "获取创作上下文", "tool": "get_writing_context", "params": {"chapter_orders": "0,1", "include": "work,chapter,worldview"}, "depends_on": []}
   ]
 }
 
@@ -203,8 +203,8 @@ def get_creation_request_examples() -> str:
   },
   "user_intent": "创作第一章（用户已确认参数）",
   "tasks": [
-    {"task_id": 1, "description": "创作第一章", "tool": "smart_continue", "params": {"chapter_id": "$CHAPTER_ID$", "chapter_content": "", "user_requirement": "创作第一章，3000字，激昂风格，重点介绍主角", "word_count": 3000}},
-    {"task_id": 2, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {"chapter_id": "$CHAPTER_ID$", "operation": "append", "content": "$TASK_1.content$"}}
+    {"task_id": 1, "description": "创作第一章", "tool": "smart_continue", "params": {"chapter_id": "$CHAPTER_ID$", "chapter_content": "", "user_requirement": "创作第一章，3000字，激昂风格，重点介绍主角", "word_count": 3000}, "depends_on": []},
+    {"task_id": 2, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {"chapter_id": "$CHAPTER_ID$", "operation": "append", "content": {"$ref": {"task_id": 1, "path": "content"}}}, "depends_on": [1]}
   ]
 }
 
@@ -218,7 +218,7 @@ def get_creation_request_examples() -> str:
   "user_intent": "续写第二章（分阶段执行）",
   "direct_answer": "好的，我先了解一下作品的世界观和已有内容...",
   "tasks": [
-    {"task_id": 1, "description": "获取创作上下文", "tool": "get_writing_context", "params": {"chapter_orders": "1,2", "include": "work,chapter,worldview,rag"}}
+    {"task_id": 1, "description": "获取创作上下文", "tool": "get_writing_context", "params": {"chapter_orders": "1,2", "include": "work,chapter,worldview,rag"}, "depends_on": []}
   ]
 }
 
@@ -231,8 +231,8 @@ def get_creation_request_examples() -> str:
   },
   "user_intent": "概括第三章内容",
   "tasks": [
-    {"task_id": 1, "description": "获取第三章", "tool": "get_writing_context", "params": {"chapter_orders": "3", "include": "chapter"}},
-    {"task_id": 2, "description": "概括内容", "tool": "analyze_content", "params": {"content": "$TASK_1.chapters[0].content$", "aspects": ["plot"], "depth": "normal"}}
+    {"task_id": 1, "description": "获取第三章", "tool": "get_writing_context", "params": {"chapter_orders": "3", "include": "chapter"}, "depends_on": []},
+    {"task_id": 2, "description": "概括内容", "tool": "analyze_content", "params": {"content": {"$ref": {"task_id": 1, "path": "chapters[0].content"}}, "aspects": ["plot"], "depth": "normal"}, "depends_on": [1]}
   ]
 }
 
@@ -245,7 +245,7 @@ def get_creation_request_examples() -> str:
   },
   "user_intent": "获取第三章原文",
   "tasks": [
-    {"task_id": 1, "description": "获取第三章", "tool": "get_writing_context", "params": {"chapter_orders": "3", "include": "chapter"}}
+    {"task_id": 1, "description": "获取第三章", "tool": "get_writing_context", "params": {"chapter_orders": "3", "include": "chapter"}, "depends_on": []}
   ]
 }
 
@@ -259,7 +259,7 @@ def get_creation_request_examples() -> str:
   "user_intent": "查询第五章标题",
   "response_hint": "title",
   "tasks": [
-    {"task_id": 1, "description": "获取第五章信息", "tool": "get_writing_context", "params": {"chapter_orders": "5", "include": "chapter"}}
+    {"task_id": 1, "description": "获取第五章信息", "tool": "get_writing_context", "params": {"chapter_orders": "5", "include": "chapter"}, "depends_on": []}
   ]
 }
 
@@ -272,8 +272,8 @@ def get_creation_request_examples() -> str:
   },
   "user_intent": "创作第5-9章大纲",
   "tasks": [
-    {"task_id": 1, "description": "批量获取前四章", "tool": "get_writing_context", "params": {"chapter_orders": "1-4", "include": "chapter,worldview"}},
-    {"task_id": 2, "description": "创作大纲", "tool": "smart_continue", "params": {"context": "$TASK_1.chapters$", "requirements": "基于前四章的人物、情节、伏笔，为第5-9章设计详细大纲：章节标题、主要剧情、涉及角色、伏笔设置", "target_words": 1500}}
+    {"task_id": 1, "description": "批量获取前四章", "tool": "get_writing_context", "params": {"chapter_orders": "1-4", "include": "chapter,worldview"}, "depends_on": []},
+    {"task_id": 2, "description": "创作大纲", "tool": "smart_continue", "params": {"context": {"$ref": {"task_id": 1, "path": "chapters"}}, "requirements": "基于前四章的人物、情节、伏笔，为第5-9章设计详细大纲：章节标题、主要剧情、涉及角色、伏笔设置", "target_words": 1500}, "depends_on": [1]}
   ]
 }
 """
@@ -292,13 +292,13 @@ def get_search_examples() -> str:
   },
   "user_intent": "优化吞噬器灵场景描写",
   "tasks": [
-    {"task_id": 1, "description": "定位吞噬器灵场景", "tool": "locate_content", "params": {"chapter_id": "$CHAPTER_ID$", "query": "吞噬器灵"}},
-    {"task_id": 2, "description": "改写场景描写", "tool": "smart_rewrite", "params": {"chapter_id": "$TASK_1.chapter_id$", "text_to_rewrite": "$TASK_1.text$", "user_requirement": "优化场景描写，增强画面感"}},
-    {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {"chapter_id": "$TASK_1.chapter_id$", "operation": "replace", "content": "$TASK_2.versions[0].content$", "original_text": "$TASK_2.original_text$", "paragraph_index": "$TASK_1.paragraph_index$", "node_id": "$TASK_1.node_id$"}}
+    {"task_id": 1, "description": "定位吞噬器灵场景", "tool": "locate_content", "params": {"chapter_id": "$CHAPTER_ID$", "query": "吞噬器灵"}, "depends_on": []},
+    {"task_id": 2, "description": "改写场景描写", "tool": "smart_rewrite", "params": {"chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}}, "text_to_rewrite": {"$ref": {"task_id": 1, "path": "text"}}, "user_requirement": "优化场景描写，增强画面感"}, "depends_on": [1]},
+    {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {"chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}}, "operation": "replace", "content": {"$ref": {"task_id": 2, "path": "versions[0].content"}}, "original_text": {"$ref": {"task_id": 2, "path": "original_text"}}, "paragraph_index": {"$ref": {"task_id": 1, "path": "paragraph_index"}}, "node_id": {"$ref": {"task_id": 1, "path": "node_id"}}}, "depends_on": [1, 2]}
   ]
 }
 ⚠️ 关键：用户要**修改**内容时，必须用 locate_content 定位，不要用 search_content！
-⚠️ 跨章节支持：smart_rewrite 和 apply_chapter_edit 的 chapter_id 必须使用 $TASK_1.chapter_id$（locate_content 返回的章节ID），支持跨章节修改！
+⚠️ 跨章节支持：smart_rewrite 和 apply_chapter_edit 的 chapter_id 必须使用 {"$ref": {"task_id": 1, "path": "chapter_id"}}（locate_content 返回的章节ID），支持跨章节修改！
 
 用户: "找一下主角觉醒的描写"
 {
@@ -309,7 +309,7 @@ def get_search_examples() -> str:
   },
   "user_intent": "搜索主角觉醒描写",
   "tasks": [
-    {"task_id": 1, "description": "搜索觉醒相关内容", "tool": "search_content", "params": {"query": "觉醒"}}
+    {"task_id": 1, "description": "搜索觉醒相关内容", "tool": "search_content", "params": {"query": "觉醒"}, "depends_on": []}
   ]
 }
 
@@ -322,7 +322,7 @@ def get_search_examples() -> str:
   },
   "user_intent": "搜索赵穆和段融的对话",
   "tasks": [
-    {"task_id": 1, "description": "搜索赵穆和段融", "tool": "search_content", "params": {"query": "赵穆 段融"}}
+    {"task_id": 1, "description": "搜索赵穆和段融", "tool": "search_content", "params": {"query": "赵穆 段融"}, "depends_on": []}
   ]
 }
 """
@@ -341,20 +341,20 @@ def get_smart_rewrite_examples() -> str:
   },
   "user_intent": "润色吞噬器灵场景",
   "tasks": [
-    {"task_id": 1, "description": "定位吞噬器灵场景", "tool": "locate_content", "params": {"chapter_id": "$CHAPTER_ID$", "query": "吞噬器灵"}},
+    {"task_id": 1, "description": "定位吞噬器灵场景", "tool": "locate_content", "params": {"chapter_id": "$CHAPTER_ID$", "query": "吞噬器灵"}, "depends_on": []},
     {"task_id": 2, "description": "润色场景", "tool": "smart_rewrite", "params": {
-      "chapter_id": "$TASK_1.chapter_id$",
-      "text_to_rewrite": "$TASK_1.text$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}},
+      "text_to_rewrite": {"$ref": {"task_id": 1, "path": "text"}},
       "user_requirement": "优化心理描写、扩写感官体验、使节奏更紧凑"
-    }},
+    }, "depends_on": [1]},
     {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$TASK_1.chapter_id$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}},
       "operation": "replace",
-      "content": "$TASK_2.versions[0].content$",
-      "original_text": "$TASK_2.original_text$",
-      "paragraph_index": "$TASK_1.paragraph_index$",
-      "node_id": "$TASK_1.node_id$"
-    }}
+      "content": {"$ref": {"task_id": 2, "path": "versions[0].content"}},
+      "original_text": {"$ref": {"task_id": 2, "path": "original_text"}},
+      "paragraph_index": {"$ref": {"task_id": 1, "path": "paragraph_index"}},
+      "node_id": {"$ref": {"task_id": 1, "path": "node_id"}}
+    }, "depends_on": [1, 2]}
   ]
 }
 ⚠️ 关键：用 locate_content 定位，然后把 paragraph_index 和 node_id 传给 apply_chapter_edit！
@@ -372,13 +372,13 @@ def get_smart_rewrite_examples() -> str:
       "chapter_id": "$CHAPTER_ID$",
       "text_to_rewrite": "天色未明，青冥中尚悬着几颗残星。",
       "user_requirement": "更有画面感"
-    }},
+    }, "depends_on": []},
     {"task_id": 2, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
       "chapter_id": "$CHAPTER_ID$",
       "operation": "replace",
-      "content": "$TASK_1.versions[0].content$",
-      "original_text": "$TASK_1.original_text$"
-    }}
+      "content": {"$ref": {"task_id": 1, "path": "versions[0].content"}},
+      "original_text": {"$ref": {"task_id": 1, "path": "original_text"}}
+    }, "depends_on": [1]}
   ]
 }
 
@@ -391,19 +391,19 @@ def get_smart_rewrite_examples() -> str:
   },
   "user_intent": "扩写战斗场景（改写场景）",
   "tasks": [
-    {"task_id": 1, "description": "获取第3章", "tool": "get_writing_context", "params": {"chapter_orders": "3", "include": "chapter"}},
+    {"task_id": 1, "description": "获取第3章", "tool": "get_writing_context", "params": {"chapter_orders": "3", "include": "chapter"}, "depends_on": []},
     {"task_id": 2, "description": "扩写战斗场景", "tool": "smart_rewrite", "params": {
-      "chapter_id": "$TASK_1.chapters[0].id$",
-      "text_to_rewrite": "$TASK_1.chapters[0].content$",
-      "chapter_content": "$TASK_1.chapters[0].content$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}},
+      "text_to_rewrite": {"$ref": {"task_id": 1, "path": "chapters[0].content"}},
+      "chapter_content": {"$ref": {"task_id": 1, "path": "chapters[0].content"}},
       "user_requirement": "扩写战斗场景，增加细节描写，使其更丰富"
-    }},
+    }, "depends_on": [1]},
     {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$TASK_1.chapters[0].id$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}},
       "operation": "replace",
-      "content": "$TASK_2.versions[0].content$",
-      "original_text": "$TASK_2.original_text$"
-    }}
+      "content": {"$ref": {"task_id": 2, "path": "versions[0].content"}},
+      "original_text": {"$ref": {"task_id": 2, "path": "original_text"}}
+    }, "depends_on": [1, 2]}
   ]
 }
 ⚠️ 关键：扩写/润色/优化 都用 smart_rewrite → apply_chapter_edit（用 original_text 定位）！
@@ -425,8 +425,8 @@ chapter_id: "abc-123"
   },
   "user_intent": "润色选中的文本，使其更丰富",
   "tasks": [
-    {"task_id": 1, "description": "读取章节内容", "tool": "get_writing_context", "params": {"chapter_id": "abc-123", "include": "chapter"}},
-    {"task_id": 2, "description": "分析并给出更丰富的改写建议", "tool": "analyze_content", "params": {"content": "天色未明，青冥中尚悬着几颗残星。", "aspects": ["style"], "context": "$TASK_1.chapters[0].content$"}}
+    {"task_id": 1, "description": "读取章节内容", "tool": "get_writing_context", "params": {"chapter_id": "abc-123", "include": "chapter"}, "depends_on": []},
+    {"task_id": 2, "description": "分析并给出更丰富的改写建议", "tool": "analyze_content", "params": {"content": "天色未明，青冥中尚悬着几颗残星。", "aspects": ["style"], "context": {"$ref": {"task_id": 1, "path": "chapters[0].content"}}}, "depends_on": [1]}
   ]
 }
 
@@ -441,8 +441,8 @@ chapter_id: "def-456"
   },
   "user_intent": "改写选中的文本，使其更有文采",
   "tasks": [
-    {"task_id": 1, "description": "读取章节内容", "tool": "get_writing_context", "params": {"chapter_id": "def-456", "include": "chapter"}},
-    {"task_id": 2, "description": "分析并给出更有文采的改写建议", "tool": "analyze_content", "params": {"content": "他走进房间，看到了她。", "aspects": ["style"], "context": "$TASK_1.chapters[0].content$"}}
+    {"task_id": 1, "description": "读取章节内容", "tool": "get_writing_context", "params": {"chapter_id": "def-456", "include": "chapter"}, "depends_on": []},
+    {"task_id": 2, "description": "分析并给出更有文采的改写建议", "tool": "analyze_content", "params": {"content": "他走进房间，看到了她。", "aspects": ["style"], "context": {"$ref": {"task_id": 1, "path": "chapters[0].content"}}}, "depends_on": [1]}
   ]
 }
 """
@@ -461,8 +461,8 @@ def get_multi_chapter_examples() -> str:
   },
   "user_intent": "对比分析多个章节的心理变化",
   "tasks": [
-    {"task_id": 1, "description": "批量读取第3章和第7章", "tool": "get_writing_context", "params": {"chapter_orders": "3,7", "include": "chapter"}},
-    {"task_id": 2, "description": "对比分析主角心理变化", "tool": "analyze_content", "params": {"content": "$TASK_1.chapters$", "aspects": ["character"], "depth": "deep"}}
+    {"task_id": 1, "description": "批量读取第3章和第7章", "tool": "get_writing_context", "params": {"chapter_orders": "3,7", "include": "chapter"}, "depends_on": []},
+    {"task_id": 2, "description": "对比分析主角心理变化", "tool": "analyze_content", "params": {"content": {"$ref": {"task_id": 1, "path": "chapters"}}, "aspects": ["character"], "depth": "deep"}, "depends_on": [1]}
   ]
 }
 """
@@ -480,9 +480,9 @@ def get_agent_mode_examples() -> str:
   "user_intent": "查询叶凡体质",
   "tasks": [
     {"task_id": 1, "description": "搜索叶凡体质", "tool": "search_content",
-     "params": {"query": "叶凡的体质"}, "checkpoint": false},
+     "params": {"query": "叶凡的体质"}, "checkpoint": false, "depends_on": []},
     {"task_id": 2, "description": "总结体质特点", "tool": "analyze_content",
-     "params": {"content": "$TASK_1$", "aspects": ["character"], "depth": "normal"}, "checkpoint": false}
+     "params": {"content": {"$ref": {"task_id": 1}}, "aspects": ["character"], "depth": "normal"}, "checkpoint": false, "depends_on": [1]}
   ]
 }
 
@@ -493,8 +493,8 @@ def get_agent_mode_examples() -> str:
   "user_intent": "分析前5章情节",
   "output_title": "分析结果",
   "tasks": [
-    {"task_id": 1, "description": "批量读取前5章", "tool": "get_writing_context", "params": {"chapter_orders": "1-5", "include": "chapter"}, "checkpoint": false},
-    {"task_id": 2, "description": "汇总分析情节发展", "tool": "analyze_content", "params": {"content": "$TASK_1.chapters$", "aspects": ["plot", "structure"], "depth": "deep"}, "checkpoint": false}
+    {"task_id": 1, "description": "批量读取前5章", "tool": "get_writing_context", "params": {"chapter_orders": "1-5", "include": "chapter"}, "checkpoint": false, "depends_on": []},
+    {"task_id": 2, "description": "汇总分析情节发展", "tool": "analyze_content", "params": {"content": {"$ref": {"task_id": 1, "path": "chapters"}}, "aspects": ["plot", "structure"], "depth": "deep"}, "checkpoint": false, "depends_on": [1]}
   ]
 }
 
@@ -505,8 +505,8 @@ def get_agent_mode_examples() -> str:
   "user_intent": "概括第3章",
   "output_title": "章节概括",
   "tasks": [
-    {"task_id": 1, "description": "获取第3章", "tool": "get_writing_context", "params": {"chapter_orders": "3", "include": "chapter"}, "checkpoint": false},
-    {"task_id": 2, "description": "概括内容", "tool": "analyze_content", "params": {"content": "$TASK_1.chapters[0].content$", "aspects": ["plot"], "depth": "shallow"}, "checkpoint": false}
+    {"task_id": 1, "description": "获取第3章", "tool": "get_writing_context", "params": {"chapter_orders": "3", "include": "chapter"}, "checkpoint": false, "depends_on": []},
+    {"task_id": 2, "description": "概括内容", "tool": "analyze_content", "params": {"content": {"$ref": {"task_id": 1, "path": "chapters[0].content"}}, "aspects": ["plot"], "depth": "shallow"}, "checkpoint": false, "depends_on": [1]}
   ]
 }
 """
@@ -525,7 +525,7 @@ def get_operation_tools_examples() -> str:
   },
   "user_intent": "创建新章节",
   "tasks": [
-    {"task_id": 1, "description": "创建新章节", "tool": "create_chapter", "params": {"title": "第四章 器灵之秘"}}
+    {"task_id": 1, "description": "创建新章节", "tool": "create_chapter", "params": {"title": "第四章 器灵之秘"}, "depends_on": []}
   ]
 }
 
@@ -538,7 +538,7 @@ def get_operation_tools_examples() -> str:
   },
   "user_intent": "修改章节标题",
   "tasks": [
-    {"task_id": 1, "description": "修改第二章标题", "tool": "update_chapter_title", "params": {"chapter_id": "2", "new_title": "觉醒"}}
+    {"task_id": 1, "description": "修改第二章标题", "tool": "update_chapter_title", "params": {"chapter_id": "2", "new_title": "觉醒"}, "depends_on": []}
   ]
 }
 
@@ -551,7 +551,7 @@ def get_operation_tools_examples() -> str:
   },
   "user_intent": "删除章节",
   "tasks": [
-    {"task_id": 1, "description": "删除第三章", "tool": "delete_chapter", "params": {"chapter_id": "3"}}
+    {"task_id": 1, "description": "删除第三章", "tool": "delete_chapter", "params": {"chapter_id": "3"}, "depends_on": []}
   ]
 }
 
@@ -564,9 +564,9 @@ def get_operation_tools_examples() -> str:
   },
   "user_intent": "批量修改章节标题",
   "tasks": [
-    {"task_id": 1, "description": "修改第1章标题", "tool": "update_chapter_title", "params": {"chapter_id": "1", "new_title": "觉醒"}},
-    {"task_id": 2, "description": "修改第2章标题", "tool": "update_chapter_title", "params": {"chapter_id": "2", "new_title": "修炼"}},
-    {"task_id": 3, "description": "修改第3章标题", "tool": "update_chapter_title", "params": {"chapter_id": "3", "new_title": "突破"}}
+    {"task_id": 1, "description": "修改第1章标题", "tool": "update_chapter_title", "params": {"chapter_id": "1", "new_title": "觉醒"}, "depends_on": []},
+    {"task_id": 2, "description": "修改第2章标题", "tool": "update_chapter_title", "params": {"chapter_id": "2", "new_title": "修炼"}, "depends_on": []},
+    {"task_id": 3, "description": "修改第3章标题", "tool": "update_chapter_title", "params": {"chapter_id": "3", "new_title": "突破"}, "depends_on": []}
   ]
 }
 """
@@ -586,9 +586,9 @@ def get_editor_workflow_examples() -> str:
 
 ⚠️⚠️⚠️ 极其重要 - 参数类型规则 ⚠️⚠️⚠️
 - chapter_content 参数必须是字符串，不能是列表！
-- ✅ 正确: "chapter_content": "$TASK_1.content$"（单个章节的内容字符串）
-- ❌ 错误: "chapter_content": "$TASK_1.chapters$"（这是列表，会报错！）
-- ❌ 错误: "chapter_content": "$TASK_1$"（这是完整对象，会报错！）
+- ✅ 正确: "chapter_content": {"$ref": {"task_id": 1, "path": "content"}}（单个章节的内容字符串）
+- ❌ 错误: "chapter_content": {"$ref": {"task_id": 1, "path": "chapters"}}（这是列表，会报错！）
+- ❌ 错误: "chapter_content": {"$ref": {"task_id": 1}}（这是完整对象，会报错！）
 
 - **什么时候需要 apply_chapter_edit？**
   - 用户说"续写"、"插入"、"改写"、"润色" → 需要！
@@ -606,18 +606,18 @@ def get_editor_workflow_examples() -> str:
   },
   "user_intent": "续写第5章",
   "tasks": [
-    {"task_id": 1, "description": "获取第5章", "tool": "get_writing_context", "params": {"chapter_orders": "5", "include": "chapter,worldview,rag"}},
+    {"task_id": 1, "description": "获取第5章", "tool": "get_writing_context", "params": {"chapter_orders": "5", "include": "chapter,worldview,rag"}, "depends_on": []},
     {"task_id": 2, "description": "生成续写内容", "tool": "smart_continue", "params": {
-      "chapter_id": "$TASK_1.chapters[0].id$",
-      "chapter_content": "$TASK_1.chapters[0].content$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}},
+      "chapter_content": {"$ref": {"task_id": 1, "path": "chapters[0].content"}},
       "user_requirement": "续写",
       "word_count": 500
-    }},
+    }, "depends_on": [1]},
     {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$TASK_1.chapters[0].id$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}},
       "operation": "append",
-      "content": "$TASK_2.content$"
-    }}
+      "content": {"$ref": {"task_id": 2, "path": "content"}}
+    }, "depends_on": [1, 2]}
   ]
 }
 
@@ -636,21 +636,21 @@ def get_editor_workflow_examples() -> str:
     {"task_id": 1, "description": "定位插入位置", "tool": "locate_content", "params": {
       "chapter_id": "$CHAPTER_ID$",
       "query": "他转身离开"
-    }},
+    }, "depends_on": []},
     {"task_id": 2, "description": "生成插入内容", "tool": "smart_insert", "params": {
-      "chapter_id": "$TASK_1.chapter_id$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}},
       "user_intent": "在他转身离开那里加一段心理描写",
-      "insert_context": "$TASK_1.text$",
+      "insert_context": {"$ref": {"task_id": 1, "path": "text"}},
       "word_count": 200
-    }},
+    }, "depends_on": [1]},
     {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$TASK_1.chapter_id$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}},
       "operation": "insert",
-      "content": "$TASK_2.content$",
-      "node_id": "$TASK_1.node_id$",
-      "paragraph_index": "$TASK_1.paragraph_index$",
-      "before_anchor": "$TASK_1.after_anchor$"
-    }}
+      "content": {"$ref": {"task_id": 2, "path": "content"}},
+      "node_id": {"$ref": {"task_id": 1, "path": "node_id"}},
+      "paragraph_index": {"$ref": {"task_id": 1, "path": "paragraph_index"}},
+      "before_anchor": {"$ref": {"task_id": 1, "path": "after_anchor"}}
+    }, "depends_on": [1, 2]}
   ]
 }
 
@@ -666,19 +666,19 @@ def get_editor_workflow_examples() -> str:
   },
   "user_intent": "润色战斗场景",
   "tasks": [
-    {"task_id": 1, "description": "获取第3章", "tool": "get_writing_context", "params": {"chapter_orders": "3", "include": "chapter"}},
+    {"task_id": 1, "description": "获取第3章", "tool": "get_writing_context", "params": {"chapter_orders": "3", "include": "chapter"}, "depends_on": []},
     {"task_id": 2, "description": "生成改写版本", "tool": "smart_rewrite", "params": {
-      "chapter_id": "$TASK_1.chapters[0].id$",
-      "text_to_rewrite": "$TASK_1.chapters[0].content$",
-      "chapter_content": "$TASK_1.chapters[0].content$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}},
+      "text_to_rewrite": {"$ref": {"task_id": 1, "path": "chapters[0].content"}},
+      "chapter_content": {"$ref": {"task_id": 1, "path": "chapters[0].content"}},
       "user_requirement": "润色战斗场景，增加画面感"
-    }},
+    }, "depends_on": [1]},
     {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$TASK_1.chapters[0].id$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}},
       "operation": "replace",
-      "content": "$TASK_2.versions[0].content$",
-      "original_text": "$TASK_2.original_text$"
-    }}
+      "content": {"$ref": {"task_id": 2, "path": "versions[0].content"}},
+      "original_text": {"$ref": {"task_id": 2, "path": "original_text"}}
+    }, "depends_on": [1, 2]}
   ]
 }
 ⚠️ 注意：smart_rewrite 返回 versions 和 original_text，用 original_text 让前端定位
@@ -699,7 +699,7 @@ def get_editor_workflow_examples() -> str:
       "chapter_content": "",
       "user_requirement": "写一段主角觉醒的场景",
       "word_count": 500
-    }}
+    }, "depends_on": []}
   ]
 }
 ⚠️ 注意：没有 apply_chapter_edit，内容只返回给用户看，不写入编辑器
@@ -734,18 +734,18 @@ def get_new_tools_examples() -> str:
     {"task_id": 1, "description": "获取创作上下文", "tool": "get_writing_context", "params": {
       "chapter_orders": "5",
       "include": "work,chapter,worldview,rag"
-    }},
+    }, "depends_on": []},
     {"task_id": 2, "description": "续写内容", "tool": "smart_continue", "params": {
-      "chapter_id": "$TASK_1.chapters[0].id$",
-      "chapter_content": "$TASK_1.chapters[0].content$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}},
+      "chapter_content": {"$ref": {"task_id": 1, "path": "chapters[0].content"}},
       "user_requirement": "续写",
       "word_count": 2000
-    }},
+    }, "depends_on": [1]},
     {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$TASK_1.chapters[0].id$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}},
       "operation": "append",
-      "content": "$TASK_2.content$"
-    }}
+      "content": {"$ref": {"task_id": 2, "path": "content"}}
+    }, "depends_on": [1, 2]}
   ]
 }
 ⚠️ 对比旧方式：需要 3 个工具（get_worldview_summary + get_chapter_by_order_tool + get_context_tool）
@@ -766,12 +766,12 @@ def get_new_tools_examples() -> str:
     {"task_id": 1, "description": "批量读取前5章", "tool": "get_writing_context", "params": {
       "chapter_orders": "1-5",
       "include": "chapter"
-    }},
+    }, "depends_on": []},
     {"task_id": 2, "description": "分析情节发展", "tool": "analyze_content", "params": {
-      "content": "$TASK_1.chapters$",
+      "content": {"$ref": {"task_id": 1, "path": "chapters"}},
       "aspects": ["structure", "plot"],
       "depth": "deep"
-    }}
+    }, "depends_on": [1]}
   ]
 }
 ⚠️ 支持范围格式："1-5" 表示第1到第5章
@@ -790,7 +790,7 @@ def get_new_tools_examples() -> str:
   "tasks": [
     {"task_id": 1, "description": "获取世界观", "tool": "get_writing_context", "params": {
       "include": "worldview"
-    }}
+    }, "depends_on": []}
   ]
 }
 
@@ -809,12 +809,12 @@ def get_new_tools_examples() -> str:
     {"task_id": 1, "description": "获取章节内容", "tool": "get_writing_context", "params": {
       "chapter_id": "$CHAPTER_ID$",
       "include": "chapter"
-    }},
+    }, "depends_on": []},
     {"task_id": 2, "description": "分析内容问题", "tool": "analyze_content", "params": {
-      "content": "$TASK_1.chapters[0].content$",
+      "content": {"$ref": {"task_id": 1, "path": "chapters[0].content"}},
       "aspects": ["grammar", "logic", "style"],
       "depth": "normal"
-    }}
+    }, "depends_on": [1]}
   ]
 }
 
@@ -834,7 +834,7 @@ def get_new_tools_examples() -> str:
     {"task_id": 1, "description": "获取创作上下文", "tool": "get_writing_context", "params": {
       "chapter_orders": "0,1",
       "include": "work,chapter,worldview"
-    }}
+    }, "depends_on": []}
   ]
 }
 ⚠️ 对比旧方式：需要 3 个工具（get_worldview_summary + get_chapter_by_order_tool x2）
@@ -853,6 +853,7 @@ locate_content 只接受以下参数：
 - query: 定位查询（必填）
 - nodes_info: 节点列表（可选）
 - node_id: 节点ID（可选）
+⚠️ nodes_info 仅来自前端/上下文；get_writing_context 不返回 nodes，禁止引用 chapters[*].nodes。
 
 ❌ 绝对禁止传入 work_id 参数！locate_content 不接受 work_id！
 ✅ 正确: {"chapter_id": "$CHAPTER_ID$", "query": "吞噬器灵"}
@@ -873,22 +874,22 @@ locate_content 只接受以下参数：
     {"task_id": 1, "description": "定位第三段", "tool": "locate_content", "params": {
       "chapter_id": "$CHAPTER_ID$",
       "query": "第三段"
-    }},
+    }, "depends_on": []},
     {"task_id": 2, "description": "改写内容", "tool": "smart_rewrite", "params": {
-      "chapter_id": "$TASK_1.chapter_id$",
-      "text_to_rewrite": "$TASK_1.text$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}},
+      "text_to_rewrite": {"$ref": {"task_id": 1, "path": "text"}},
       "user_requirement": "更生动，增加画面感"
-    }},
+    }, "depends_on": [1]},
     {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$TASK_1.chapter_id$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}},
       "operation": "replace",
-      "content": "$TASK_2.versions[0].content$",
-      "node_id": "$TASK_1.node_id$",
-      "paragraph_index": "$TASK_1.paragraph_index$",
-      "before_anchor": "$TASK_1.before_anchor$",
-      "after_anchor": "$TASK_1.after_anchor$",
-      "original_text": "$TASK_1.text$"
-    }}
+      "content": {"$ref": {"task_id": 2, "path": "versions[0].content"}},
+      "node_id": {"$ref": {"task_id": 1, "path": "node_id"}},
+      "paragraph_index": {"$ref": {"task_id": 1, "path": "paragraph_index"}},
+      "before_anchor": {"$ref": {"task_id": 1, "path": "before_anchor"}},
+      "after_anchor": {"$ref": {"task_id": 1, "path": "after_anchor"}},
+      "original_text": {"$ref": {"task_id": 1, "path": "text"}}
+    }, "depends_on": [1, 2]}
   ]
 }
 ⚠️ 关键：locate_content 返回的 node_id、paragraph_index 必须传给 apply_chapter_edit！
@@ -908,19 +909,19 @@ locate_content 只接受以下参数：
     {"task_id": 1, "description": "定位开头", "tool": "locate_content", "params": {
       "chapter_id": "$CHAPTER_ID$",
       "query": "开头"
-    }},
+    }, "depends_on": []},
     {"task_id": 2, "description": "改写开头", "tool": "smart_rewrite", "params": {
-      "chapter_id": "$TASK_1.chapter_id$",
-      "text_to_rewrite": "$TASK_1.text$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}},
+      "text_to_rewrite": {"$ref": {"task_id": 1, "path": "text"}},
       "user_requirement": "更吸引人，开篇即引人入胜"
-    }},
+    }, "depends_on": [1]},
     {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$TASK_1.chapter_id$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}},
       "operation": "replace",
-      "content": "$TASK_2.versions[0].content$",
-      "node_id": "$TASK_1.node_id$",
-      "paragraph_index": "$TASK_1.paragraph_index$"
-    }}
+      "content": {"$ref": {"task_id": 2, "path": "versions[0].content"}},
+      "node_id": {"$ref": {"task_id": 1, "path": "node_id"}},
+      "paragraph_index": {"$ref": {"task_id": 1, "path": "paragraph_index"}}
+    }, "depends_on": [1, 2]}
   ]
 }
 
@@ -939,21 +940,21 @@ locate_content 只接受以下参数：
     {"task_id": 1, "description": "定位第二段", "tool": "locate_content", "params": {
       "chapter_id": "$CHAPTER_ID$",
       "query": "第二段"
-    }},
+    }, "depends_on": []},
     {"task_id": 2, "description": "生成心理描写", "tool": "smart_insert", "params": {
-      "chapter_id": "$TASK_1.chapter_id$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}},
       "user_intent": "在第二段后插入心理描写",
-      "insert_context": "$TASK_1.text$",
+      "insert_context": {"$ref": {"task_id": 1, "path": "text"}},
       "word_count": 200
-    }},
+    }, "depends_on": [1]},
     {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$TASK_1.chapter_id$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}},
       "operation": "insert",
-      "content": "$TASK_2.content$",
-      "node_id": "$TASK_1.node_id$",
-      "paragraph_index": "$TASK_1.paragraph_index$",
-      "before_anchor": "$TASK_1.after_anchor$"
-    }}
+      "content": {"$ref": {"task_id": 2, "path": "content"}},
+      "node_id": {"$ref": {"task_id": 1, "path": "node_id"}},
+      "paragraph_index": {"$ref": {"task_id": 1, "path": "paragraph_index"}},
+      "before_anchor": {"$ref": {"task_id": 1, "path": "after_anchor"}}
+    }, "depends_on": [1, 2]}
   ]
 }
 ⚠️ 注意：smart_insert 不再接收锚点参数，定位由 locate_content 完成，锚点传给 apply_chapter_edit
@@ -973,24 +974,24 @@ locate_content 只接受以下参数：
     {"task_id": 1, "description": "定位主角出场", "tool": "locate_content", "params": {
       "chapter_id": "$CHAPTER_ID$",
       "query": "主角出场"
-    }},
+    }, "depends_on": []},
     {"task_id": 2, "description": "改写出场描写", "tool": "smart_rewrite", "params": {
-      "chapter_id": "$TASK_1.chapter_id$",
-      "text_to_rewrite": "$TASK_1.text$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}},
+      "text_to_rewrite": {"$ref": {"task_id": 1, "path": "text"}},
       "user_requirement": "让主角出场更有气势"
-    }},
+    }, "depends_on": [1]},
     {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$TASK_1.chapter_id$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}},
       "operation": "replace",
-      "content": "$TASK_2.versions[0].content$",
-      "node_id": "$TASK_1.node_id$",
-      "paragraph_index": "$TASK_1.paragraph_index$",
-      "original_text": "$TASK_1.text$"
-    }}
+      "content": {"$ref": {"task_id": 2, "path": "versions[0].content"}},
+      "node_id": {"$ref": {"task_id": 1, "path": "node_id"}},
+      "paragraph_index": {"$ref": {"task_id": 1, "path": "paragraph_index"}},
+      "original_text": {"$ref": {"task_id": 1, "path": "text"}}
+    }, "depends_on": [1, 2]}
   ]
 }
 ⚠️ locate_content 支持语义搜索，可以定位"主角出场"、"战斗场景"等描述性内容
-⚠️ 跨章节支持：smart_rewrite 和 apply_chapter_edit 的 chapter_id 必须使用 $TASK_1.chapter_id$（locate_content 返回的章节ID）
+⚠️ 跨章节支持：smart_rewrite 和 apply_chapter_edit 的 chapter_id 必须使用 {"$ref": {"task_id": 1, "path": "chapter_id"}}（locate_content 返回的章节ID）
 
 ---
 【场景4.5：未指定章节的修改】⚠️ 用户描述内容但没有章节信息
@@ -1004,25 +1005,25 @@ locate_content 只接受以下参数：
   },
   "user_intent": "修改吞噬器灵相关段落",
   "tasks": [
-    {"task_id": 1, "description": "检索吞噬器灵场景", "tool": "search_content", "params": {"query": "吞噬器灵", "top_k": 3}},
-    {"task_id": 2, "description": "读取目标章节", "tool": "get_writing_context", "params": {"chapter_id": "$TASK_1.results[0].chapter_id$", "include": "chapter"}},
+    {"task_id": 1, "description": "检索吞噬器灵场景", "tool": "search_content", "params": {"query": "吞噬器灵", "top_k": 3}, "depends_on": []},
+    {"task_id": 2, "description": "读取目标章节", "tool": "get_writing_context", "params": {"chapter_id": {"$ref": {"task_id": 1, "path": "results[0].chapter_id"}}, "include": "chapter"}, "depends_on": [1]},
     {"task_id": 3, "description": "定位吞噬器灵段落", "tool": "locate_content", "params": {
-      "chapter_id": "$TASK_2.chapters[0].id$",
+      "chapter_id": {"$ref": {"task_id": 2, "path": "chapters[0].id"}},
       "query": "吞噬器灵"
-    }},
+    }, "depends_on": [2]},
     {"task_id": 4, "description": "改写段落", "tool": "smart_rewrite", "params": {
-      "chapter_id": "$TASK_3.chapter_id$",
-      "text_to_rewrite": "$TASK_3.text$",
+      "chapter_id": {"$ref": {"task_id": 3, "path": "chapter_id"}},
+      "text_to_rewrite": {"$ref": {"task_id": 3, "path": "text"}},
       "user_requirement": "压缩冗余，节奏更紧凑"
-    }},
+    }, "depends_on": [3]},
     {"task_id": 5, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$TASK_3.chapter_id$",
+      "chapter_id": {"$ref": {"task_id": 3, "path": "chapter_id"}},
       "operation": "replace",
-      "content": "$TASK_4.versions[0].content$",
-      "node_id": "$TASK_3.node_id$",
-      "paragraph_index": "$TASK_3.paragraph_index$",
-      "original_text": "$TASK_3.text$"
-    }}
+      "content": {"$ref": {"task_id": 4, "path": "versions[0].content"}},
+      "node_id": {"$ref": {"task_id": 3, "path": "node_id"}},
+      "paragraph_index": {"$ref": {"task_id": 3, "path": "paragraph_index"}},
+      "original_text": {"$ref": {"task_id": 3, "path": "text"}}
+    }, "depends_on": [3, 4]}
   ]
 }
 
@@ -1038,24 +1039,24 @@ locate_content 只接受以下参数：
   },
   "user_intent": "跨章节修改第2章内容",
   "tasks": [
-    {"task_id": 1, "description": "获取第2章", "tool": "get_writing_context", "params": {"chapter_orders": "2", "include": "chapter"}},
+    {"task_id": 1, "description": "获取第2章", "tool": "get_writing_context", "params": {"chapter_orders": "2", "include": "chapter"}, "depends_on": []},
     {"task_id": 2, "description": "定位羚羊献食场景", "tool": "locate_content", "params": {
-      "chapter_id": "$TASK_1.chapters[0].id$",
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}},
       "query": "羚羊献食"
-    }},
+    }, "depends_on": [1]},
     {"task_id": 3, "description": "改写场景", "tool": "smart_rewrite", "params": {
-      "chapter_id": "$TASK_2.chapter_id$",
-      "text_to_rewrite": "$TASK_2.text$",
+      "chapter_id": {"$ref": {"task_id": 2, "path": "chapter_id"}},
+      "text_to_rewrite": {"$ref": {"task_id": 2, "path": "text"}},
       "user_requirement": "润色这段描写"
-    }},
+    }, "depends_on": [2]},
     {"task_id": 4, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
-      "chapter_id": "$TASK_2.chapter_id$",
+      "chapter_id": {"$ref": {"task_id": 2, "path": "chapter_id"}},
       "operation": "replace",
-      "content": "$TASK_3.versions[0].content$",
-      "node_id": "$TASK_2.node_id$",
-      "paragraph_index": "$TASK_2.paragraph_index$",
-      "original_text": "$TASK_2.text$"
-    }}
+      "content": {"$ref": {"task_id": 3, "path": "versions[0].content"}},
+      "node_id": {"$ref": {"task_id": 2, "path": "node_id"}},
+      "paragraph_index": {"$ref": {"task_id": 2, "path": "paragraph_index"}},
+      "original_text": {"$ref": {"task_id": 2, "path": "text"}}
+    }, "depends_on": [2, 3]}
   ]
 }
 ⚠️ 跨章节关键：先用 get_writing_context 获取目标章节ID，再传给 locate_content！

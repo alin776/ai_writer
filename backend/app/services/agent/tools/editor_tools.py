@@ -311,6 +311,10 @@ async def apply_chapter_edit(
                 logger.warning(f"[apply_chapter_edit] paragraph_index 类型转换失败: {paragraph_index}")
                 paragraph_index = None
 
+        if node_id and len(str(node_id)) > 64:
+            logger.warning(f"[apply_chapter_edit] node_id 超长({len(str(node_id))})，已清空")
+            node_id = None
+
         # 🔧 2026-01-11: 防御性处理 - position 参数语义解析
         # LLM 可能误传字符串如 "before"、"after"，尝试解析语义
         if position is not None:

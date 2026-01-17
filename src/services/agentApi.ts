@@ -234,6 +234,145 @@ class AgentApiService {
       callbacks.onReader?.(reader, options?.controller);
 
       let buffer = '';
+      let receivedDone = false;
+      let receivedError = false;
+      let doneMetadata: any = null;
+      let doneActions: string[] = [];
+
+      const handleLine = (line: string) => {
+        if (!line.startsWith('data: ')) {
+          return;
+        }
+        try {
+          const data = JSON.parse(line.substring(6));
+
+          switch (data.type) {
+            // ????
+            case 'start':
+              callbacks.onStart?.(data.conversation_id);
+              break;
+            case 'content':
+              const content = typeof data.data === 'string'
+                ? data.data
+                : data.data?.content || data.data;
+              // ✅ 真正的流式：直接传递内容，不再拆分
+              callbacks.onContent?.(content);
+              break;
+            case 'step':
+              callbacks.onStep?.(data.data);
+              break;
+            case 'done':
+              receivedDone = true;
+              doneMetadata = data.metadata;
+              doneActions = Array.isArray(data.suggested_actions) ? data.suggested_actions : [];
+              callbacks.onDone?.(doneMetadata, doneActions);
+              break;
+            case 'error':
+              receivedError = true;
+              callbacks.onError?.(data.error);
+              break;
+
+            // Planning ????
+            case 'plan':
+              callbacks.onPlan?.(data.data);
+              break;
+            case 'plan_update':
+              if (callbacks.onPlanUpdate) {
+                callbacks.onPlanUpdate(data.data);
+              } else {
+                callbacks.onPlan?.(data.data);
+              }
+              break;
+            case 'task_start':
+              callbacks.onTaskStart?.(data.data);
+              break;
+            case 'task_progress':
+              callbacks.onTaskProgress?.(data.data);
+              break;
+            case 'task_done':
+              callbacks.onTaskDone?.(data.data);
+              break;
+            case 'task_complete':
+              callbacks.onTaskDone?.(data.data);
+              break;
+            case 'thinking':
+              callbacks.onThinking?.(data.data);
+              break;
+
+            // React ????
+            case 'progress':
+              callbacks.onProgress?.(data.data);
+              break;
+            case 'tool_call':
+              callbacks.onToolCall?.(data.data);
+              break;
+            case 'activity_complete':
+              callbacks.onActivityComplete?.(data.data);
+              break;
+            case 'approval_request':
+              callbacks.onApprovalRequest?.(data.data);
+              break;
+
+            // 执行轨迹事件 (v6.0)
+            case 'agent_header':
+              callbacks.onFlowEvent?.({ type: 'agent_header', data: data.data, timestamp: data.timestamp });
+              break;
+            case 'text':
+              callbacks.onFlowEvent?.({ type: 'text', data: data.data, timestamp: data.timestamp });
+              break;
+            case 'step_start':
+              callbacks.onFlowEvent?.({ type: 'step_start', stepId: data.step_id, title: data.title, status: data.status, timestamp: data.timestamp });
+              break;
+            case 'knowledge_loaded':
+              callbacks.onFlowEvent?.({ type: 'knowledge_loaded', stepId: data.step_id, knowledgeType: data.knowledge_type, title: data.title, icon: data.icon, items: data.items, timestamp: data.timestamp });
+              break;
+            case 'step_complete':
+              callbacks.onFlowEvent?.({ type: 'step_complete', stepId: data.step_id, description: data.description, toolCall: data.tool_call, status: data.status, timestamp: data.timestamp });
+              break;
+            case 'output_ready':
+              callbacks.onFlowEvent?.({ type: 'output_ready', title: data.title, content: data.content, intro: data.intro, introHighlight: data.intro_highlight, isApplicable: data.is_applicable, timestamp: data.timestamp });
+              break;
+            case 'completion':
+              callbacks.onFlowEvent?.({ type: 'completion', data: data.data, timestamp: data.timestamp });
+              break;
+            case 'revision': {
+              // 兼容后端两种结构：直接 revision 事件 / 包裹在 data 中的 flow_event
+              const payload = data.data as any;
+              const revisionEvent =
+                payload && payload.type === 'revision' && payload.data ? payload : null;
+              const revisionData = revisionEvent ? revisionEvent.data : (payload?.data ?? payload);
+              const timestamp = revisionEvent?.timestamp ?? payload?.timestamp ?? data.timestamp;
+              callbacks.onFlowEvent?.({ type: 'revision', data: revisionData, timestamp });
+              break;
+            }
+            case 'summarization_start':
+              console.log('[AgentApi] Received summarization_start event:', data);
+              console.log('[AgentApi] callbacks.onFlowEvent exists:', !!callbacks.onFlowEvent);
+              if (callbacks.onFlowEvent) {
+                const flowEvent = {
+                  type: 'summarization_start',
+                  task_classification: data.task_classification,
+                  context_stats: data.context_stats,
+                  status: data.status,
+                  timestamp: data.timestamp
+                };
+                console.log('[AgentApi] Calling onFlowEvent with:', flowEvent);
+                callbacks.onFlowEvent(flowEvent);
+              }
+              break;
+            case 'summarization_complete':
+              console.log('[AgentApi] Received summarization_complete event:', data);
+              callbacks.onFlowEvent?.({
+                type: 'summarization_complete',
+                status: data.status,
+                timestamp: data.timestamp
+              });
+              break;
+          }
+        } catch (error) {
+          console.error('[AgentApi] Failed to parse SSE data:', error);
+        }
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -248,134 +387,19 @@ class AgentApiService {
         buffer = lines.pop() || '';
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.substring(6));
-
-              switch (data.type) {
-                // ????
-                case 'start':
-                  callbacks.onStart?.(data.conversation_id);
-                  break;
-                case 'content':
-                  const content = typeof data.data === 'string'
-                    ? data.data
-                    : data.data?.content || data.data;
-                  // ✅ 真正的流式：直接传递内容，不再拆分
-                  callbacks.onContent?.(content);
-                  break;
-                case 'step':
-                  callbacks.onStep?.(data.data);
-                  break;
-                case 'done':
-                  callbacks.onDone?.(data.metadata, data.suggested_actions);
-                  break;
-                case 'error':
-                  callbacks.onError?.(data.error);
-                  break;
-
-                // Planning ????
-                case 'plan':
-                  callbacks.onPlan?.(data.data);
-                  break;
-                case 'plan_update':
-                  if (callbacks.onPlanUpdate) {
-                    callbacks.onPlanUpdate(data.data);
-                  } else {
-                    callbacks.onPlan?.(data.data);
-                  }
-                  break;
-                case 'task_start':
-                  callbacks.onTaskStart?.(data.data);
-                  break;
-                case 'task_progress':
-                  callbacks.onTaskProgress?.(data.data);
-                  break;
-                case 'task_done':
-                  callbacks.onTaskDone?.(data.data);
-                  break;
-                case 'task_complete':
-                  callbacks.onTaskDone?.(data.data);
-                  break;
-                case 'thinking':
-                  callbacks.onThinking?.(data.data);
-                  break;
-
-                // React ????
-                case 'progress':
-                  callbacks.onProgress?.(data.data);
-                  break;
-                case 'tool_call':
-                  callbacks.onToolCall?.(data.data);
-                  break;
-                case 'activity_complete':
-                  callbacks.onActivityComplete?.(data.data);
-                  break;
-                case 'approval_request':
-                  callbacks.onApprovalRequest?.(data.data);
-                  break;
-
-                // 执行轨迹事件 (v6.0)
-                case 'agent_header':
-                  callbacks.onFlowEvent?.({ type: 'agent_header', data: data.data, timestamp: data.timestamp });
-                  break;
-                case 'text':
-                  callbacks.onFlowEvent?.({ type: 'text', data: data.data, timestamp: data.timestamp });
-                  break;
-                case 'step_start':
-                  callbacks.onFlowEvent?.({ type: 'step_start', stepId: data.step_id, title: data.title, status: data.status, timestamp: data.timestamp });
-                  break;
-                case 'knowledge_loaded':
-                  callbacks.onFlowEvent?.({ type: 'knowledge_loaded', stepId: data.step_id, knowledgeType: data.knowledge_type, title: data.title, icon: data.icon, items: data.items, timestamp: data.timestamp });
-                  break;
-                case 'step_complete':
-                  callbacks.onFlowEvent?.({ type: 'step_complete', stepId: data.step_id, description: data.description, toolCall: data.tool_call, status: data.status, timestamp: data.timestamp });
-                  break;
-                case 'output_ready':
-                  callbacks.onFlowEvent?.({ type: 'output_ready', title: data.title, content: data.content, intro: data.intro, introHighlight: data.intro_highlight, isApplicable: data.is_applicable, timestamp: data.timestamp });
-                  break;
-                case 'completion':
-                  callbacks.onFlowEvent?.({ type: 'completion', data: data.data, timestamp: data.timestamp });
-                  break;
-                case 'revision': {
-                  // 兼容后端两种结构：直接 revision 事件 / 包裹在 data 中的 flow_event
-                  const payload = data.data as any;
-                  const revisionEvent =
-                    payload && payload.type === 'revision' && payload.data ? payload : null;
-                  const revisionData = revisionEvent ? revisionEvent.data : (payload?.data ?? payload);
-                  const timestamp = revisionEvent?.timestamp ?? payload?.timestamp ?? data.timestamp;
-                  callbacks.onFlowEvent?.({ type: 'revision', data: revisionData, timestamp });
-                  break;
-                }
-                case 'summarization_start':
-                  console.log('[AgentApi] Received summarization_start event:', data);
-                  console.log('[AgentApi] callbacks.onFlowEvent exists:', !!callbacks.onFlowEvent);
-                  if (callbacks.onFlowEvent) {
-                    const flowEvent = {
-                      type: 'summarization_start',
-                      task_classification: data.task_classification,
-                      context_stats: data.context_stats,
-                      status: data.status,
-                      timestamp: data.timestamp
-                    };
-                    console.log('[AgentApi] Calling onFlowEvent with:', flowEvent);
-                    callbacks.onFlowEvent(flowEvent);
-                  }
-                  break;
-                case 'summarization_complete':
-                  console.log('[AgentApi] Received summarization_complete event:', data);
-                  callbacks.onFlowEvent?.({
-                    type: 'summarization_complete',
-                    status: data.status,
-                    timestamp: data.timestamp
-                  });
-                  break;
-              }
-            } catch (error) {
-              console.error('[AgentApi] Failed to parse SSE data:', error);
-            }
-          }
+          handleLine(line);
         }
+      }
+
+      buffer += decoder.decode();
+      if (buffer.trim()) {
+        const lines = buffer.split('\n');
+        for (const line of lines) {
+          handleLine(line);
+        }
+      }
+      if (!receivedDone && !receivedError && !options?.signal?.aborted) {
+        callbacks.onDone?.(doneMetadata || {}, doneActions || []);
       }
     } catch (error: any) {
       const isAbort =

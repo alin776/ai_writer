@@ -80,7 +80,7 @@ def _get_retrieval_tools_section() -> str:
     return """
 【检索工具 - 纯搜索/查询场景使用】
 - search_content: 混合检索（向量+全文）召回作品相关片段（返回snippet）
-  参数: work_id(必需), query(必需), top_k(默认10), chapter_id(可选), look_ahead(默认0=不限制)
+  参数: work_id(必需), query(必需), top_k(默认10, ≤50), chapter_id(可选), look_ahead(默认0=不限制)
   → 适用场景（仅用于查询，不用于修改！）:
     - 用户只是想**查找/搜索**内容: "哪里提到了XX"、"找一下XX相关的内容"
     - 用户想**了解**某内容在哪: "赵穆出现在哪"、"关于源顺镖局的描述"
@@ -148,7 +148,7 @@ def _get_editor_tools_section() -> str:
   ⚠️ 如果用户想把改写内容写入编辑器 → 后续调用 apply_chapter_edit(operation="replace")
   ⚠️ **参数填充规则**（极其重要！）：
     * 如果用户指定了要改写的文本 → text_to_rewrite 填入该文本
-    * 如果用户说"改写第X章" → 先用 get_writing_context 获取章节，再用 $TASK_N.chapters[0].content$ 引用
+    * 如果用户说"改写第X章" → 先用 get_writing_context 获取章节，再用 {"$ref": {"task_id": N, "path": "chapters[0].content"}} 引用
     * user_requirement 必须从用户消息中提取改写要求！
 
 - smart_continue: 智能续写（只生成内容）
@@ -188,6 +188,7 @@ def _get_editor_tools_section() -> str:
   参数: chapter_id, query, nodes_info(可选)
   query: "第三段"、"开头"、"结尾"、"段融吞噬器灵的场景"、具体文本片段
   返回: chapter_id, paragraph_index, text_preview, before_anchor, after_anchor, node_id, text, cross_chapter
+  ⚠️ nodes_info 仅来自前端/上下文；get_writing_context 不返回 nodes，禁止引用 chapters[*].nodes。
   ⚠️ **核心用途**：为 apply_chapter_edit 提供定位信息（paragraph_index, node_id）
   ⚠️ **跨章节定位**：如果内容不在当前章节，会自动全局搜索并返回目标章节的 chapter_id
     * 返回的 chapter_id 可能与传入的不同（cross_chapter=true）
@@ -199,8 +200,8 @@ def _get_editor_tools_section() -> str:
     * 用户指定模糊位置（如"第三段"、"开头"）→ 先用 locate_content 定位！
   ⚠️ **工作流程**：locate_content → smart_rewrite/smart_insert → apply_chapter_edit
   ⚠️ **参数传递**：locate_content 返回的 chapter_id、paragraph_index 和 node_id 必须传给后续工具
-    * 示例：smart_rewrite(chapter_id=$TASK_1.chapter_id$, ...)
-    * 示例：apply_chapter_edit(chapter_id=$TASK_1.chapter_id$, paragraph_index=$TASK_1.paragraph_index$, ...)
+    * 示例：smart_rewrite(chapter_id={"$ref": {"task_id": 1, "path": "chapter_id"}}, ...)
+    * 示例：apply_chapter_edit(chapter_id={"$ref": {"task_id": 1, "path": "chapter_id"}}, paragraph_index={"$ref": {"task_id": 1, "path": "paragraph_index"}}, ...)
 """
 
 

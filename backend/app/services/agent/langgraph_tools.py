@@ -1425,7 +1425,7 @@ class SearchContentInput(ToolInput):
     """搜索内容工具输入"""
     work_id: str = Field(..., description="作品ID（必需）")
     query: str = Field(..., description="查询文本（必需）")
-    top_k: int = Field(default=10, description="返回前K个最相关结果", ge=1, le=20)
+    top_k: int = Field(default=10, description="返回前K个最相关结果", ge=1, le=50)
     chapter_id: str = Field(default="", description="当前章节ID（可选）")
     look_ahead: int = Field(default=0, description="允许向后看的章节数（0表示不限制）", ge=0)
 
@@ -1554,10 +1554,17 @@ async def get_writing_context_executor(input_data: GetWritingContextInput) -> Ge
             "use_cache": input_data.use_cache
         })
 
+        context_data = result_str
+        if isinstance(result_str, str):
+            try:
+                context_data = json.loads(result_str)
+            except Exception:
+                context_data = result_str
+
         return GetWritingContextOutput(
             success=True,
             message="获取创作上下文成功",
-            data={"context": result_str},
+            data={"context": context_data},
             metadata={"tool": "get_writing_context"}
         )
     except Exception as e:
