@@ -42,7 +42,7 @@ class AnalyzeContentInput(ToolInput):
         ...,
         description="待分析的文本内容",
         min_length=10,
-        max_length=20000,
+        max_length=200000,
         alias="text"  # 兼容 text 参数
     )
 
@@ -362,9 +362,33 @@ async def analyze_content_executor(
         分析输出结果
     """
     try:
+        def _truncate_text(text: str, max_len: int) -> tuple[str, bool]:
+            if len(text) <= max_len:
+                return text, False
+            head_len = int(max_len * 0.7)
+            tail_len = max_len - head_len
+            omitted = len(text) - max_len
+            return (
+                f"{text[:head_len]}\n\n...[省略 {omitted} 字符]...\n\n{text[-tail_len:]}",
+                True
+            )
+
         analysis_types = [t.strip().lower() for t in (input_data.analysis_types or []) if t.strip()]
         if not analysis_types:
             analysis_types = ["text", "style"]
+
+        original_content = input_data.content or ""
+        content_length = len(original_content)
+        text_content = original_content
+        truncated_for_text = False
+        truncated_for_llm = False
+
+        if content_length > 50000:
+            text_content, truncated_for_text = _truncate_text(original_content, 50000)
+
+        llm_content = original_content
+        if content_length > 20000:
+            llm_content, truncated_for_llm = _truncate_text(original_content, 20000)
 
         report_sections = []
         data: Dict[str, Any] = {"analysis_types": analysis_types}
@@ -374,29 +398,44 @@ async def analyze_content_executor(
         suggestions: List[str] = []
 
         if "text" in analysis_types:
-            text_result = await _run_text_analysis(
-                input_data.content,
-                input_data.aspects,
-                input_data.depth,
-                input_data.context,
-                input_data.focus
-            )
-            data["text_analysis"] = text_result
-            summary = text_result.get("summary", "")
-            scores = text_result.get("scores", {})
-            issues = text_result.get("issues", [])
-            suggestions = text_result.get("suggestions", [])
-            report_sections.append(f"【文本分析】\n{text_result.get('analysis', '')}")
+            if content_length > 20000:
+                text_report = await analyze_text_executor(
+                    AnalyzeTextInput(text=text_content, focus=input_data.focus)
+                )
+                analysis_report = (text_report.data or {}).get("analysis_report", "")
+                data["text_analysis"] = {
+                    "analysis": analysis_report,
+                    "summary": "分析完成",
+                    "scores": {},
+                    "issues": [],
+                    "suggestions": []
+                }
+                summary = "分析完成"
+                report_sections.append(f"【文本分析】\n{analysis_report}")
+            else:
+                text_result = await _run_text_analysis(
+                    input_data.content,
+                    input_data.aspects,
+                    input_data.depth,
+                    input_data.context,
+                    input_data.focus
+                )
+                data["text_analysis"] = text_result
+                summary = text_result.get("summary", "")
+                scores = text_result.get("scores", {})
+                issues = text_result.get("issues", [])
+                suggestions = text_result.get("suggestions", [])
+                report_sections.append(f"【文本分析】\n{text_result.get('analysis', '')}")
 
         if "style" in analysis_types:
-            style_features = _run_style_analysis(input_data.content)
+            style_features = _run_style_analysis(text_content if content_length > 20000 else input_data.content)
             data["style_features"] = style_features
             report_sections.append(f"【风格特征】\n{json.dumps(style_features, ensure_ascii=False)}")
 
         if "consistency" in analysis_types:
             consistency_context = await _build_consistency_context(input_data)
             consistency_report = await _run_consistency_check(
-                input_data.content,
+                llm_content,
                 consistency_context,
                 input_data.work_id
             )
@@ -405,7 +444,7 @@ async def analyze_content_executor(
 
         if "quality" in analysis_types:
             quality_result = await evaluate_quality_executor(
-                EvaluateQualityInput(content=input_data.content)
+                EvaluateQualityInput(content=llm_content)
             )
             quality_data = quality_result.data or {}
             data["quality_evaluation"] = quality_data
@@ -423,12 +462,14 @@ async def analyze_content_executor(
             message="分析完成",
             data=data,
             metadata={
-                "content_length": len(input_data.content),
+                "content_length": content_length,
                 "analysis_types": analysis_types,
                 "aspects": input_data.aspects,
                 "depth": input_data.depth,
                 "issues_count": len(issues),
-                "suggestions_count": len(suggestions)
+                "suggestions_count": len(suggestions),
+                "truncated_for_text": truncated_for_text,
+                "truncated_for_llm": truncated_for_llm
             }
         )
 

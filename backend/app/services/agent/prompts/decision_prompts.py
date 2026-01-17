@@ -15,7 +15,7 @@ from .tool_descriptions import (
 )
 
 # Prompt 版本号 - 修改 Prompt 时请更新此版本号
-PROMPT_VERSION = "v2.39.0"  # 2026-01-10: 创作类→操作类工具流程强化，所有示例添加 apply_chapter_edit
+PROMPT_VERSION = "v2.39.1"  # 2026-01-10: 创作类→操作类工具流程强化，所有示例添加 apply_chapter_edit
 
 
 @cache_review(expire=3600, key_prefix=f"prompt:tool_decision:{PROMPT_VERSION}")
@@ -76,6 +76,7 @@ async def get_tool_decision_static_prompt() -> str:
 【工具使用规则】
 
 1. 用户提到具体文字但未说章节 → 先用 search_content 定位
+1.1 用户要求对照/证据/引用原文 → 只用 search_content 或 get_writing_context，不用 analyze_content
 2. 用户说"修改第X章"、"改写第X章" → 使用 smart_rewrite（已知章节）
 3. 用户说"续写"、"继续写" → 使用 smart_continue
 4. 用户说"插入" → 使用 smart_insert
@@ -117,6 +118,7 @@ async def get_tool_decision_static_prompt() -> str:
 "续写第五章" → {{"need_tools": true, "tool_name": "smart_continue", "tool_args": {{"chapter_id": "xxx", "user_requirement": "续写", "word_count": 500}}}}
 "有没有叫赵穆的人物" → {{"need_tools": true, "tool_name": "search_content", "tool_args": {{"query": "赵穆"}}}}
 "段融是谁" → {{"need_tools": true, "tool_name": "search_content", "tool_args": {{"query": "段融"}}}}
+"请给出'二十四桥明月夜'的原文出处" → {{"need_tools": true, "tool_name": "search_content", "tool_args": {{"query": "二十四桥明月夜"}}}}
 "创建一个新章节叫第六章" → {{"need_tools": true, "tool_name": "create_chapter", "tool_args": {{"work_id": "xxx", "title": "第六章"}}}}
 "删除第三章" → {{"need_tools": true, "tool_name": "delete_chapter", "tool_args": {{"chapter_id": "xxx"}}}}
 "把第二章标题改成觉醒" → {{"need_tools": true, "tool_name": "update_chapter_title", "tool_args": {{"chapter_id": "xxx", "new_title": "觉醒"}}}}

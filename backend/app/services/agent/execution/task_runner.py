@@ -297,6 +297,20 @@ class TaskRunner:
                     context_param = f"{context_param}\n\n[FocusHint]\n{focus_note}"
                 else:
                     context_param = f"[FocusHint]\n{focus_note}"
+            text_source = "params"
+            raw_text_param = params.get("text", "")
+            if not raw_text_param or "$TASK_" in str(raw_text_param):
+                text_source = "context_fallback"
+            if len(text_param) > 20000:
+                logger.warning(
+                    f"[TaskRunner] analyze_content 入参过长({len(text_param)}字符)，"
+                    f"source={text_source}"
+                )
+            if len(text_param) > 200000:
+                omitted = len(text_param) - 200000
+                text_param = (
+                    f"{text_param[:140000]}\n\n...[省略 {omitted} 字符]...\n\n{text_param[-60000:]}"
+                )
             return {
                 "content": text_param,
                 "text": text_param,

@@ -1,156 +1,253 @@
-  ---
-  10个复杂测试Prompt
+  🎯 核心设计问题清单
 
-  Prompt 1 - 搜索+改写+情感展示
+  1. 探索触发机制
 
-  帮我找到段融第一次吞噬器灵的场景，然后用"展示而非告诉"的手法改写他内心的兴奋和紧张，让读者能感受到他发现自己能力可用时的激动心情。
-  预期触发工具: search_analysis_fragments_tool → smart_rewrite → show_emotion_tool
+  ❓ 用户如何触发 explore 模式？
+  - A. 专门的命令（如"探索段融的修炼历程"）
+  - B. 自动判断（AI 识别用户意图需要深度探索）
+  - C. UI 上的开关（勾选"启用探索模式"）
+  - D. 混合方式（关键词触发 + UI 开关）
 
-  ---
-  Prompt 2 - 读取+续写+场景增强
+  ❓ explore_content 是独立工具还是流程的一部分？
+  - 场景 1：用户直接调用 explore_content("段融修炼历程")
+  - 场景 2：规划器判断需要探索，生成 explore_content 任务
+  - 场景 3：在 Reflection 节点中自动触发探索
 
-  读取第3章"一夕千悟"的内容，然后帮我续写500字，描写段融在月光下练刀的场景，要增强环境描写的感官细节，让画面更有氛围感。
-  预期触发工具: get_chapter_by_order_tool → smart_continue → enhance_scene_tool
-
-  ---
-  Prompt 3 - 风格学习+风格分析+风格指导
-
-  分析这部小说前三章的写作风格特点，学习作者的文风，然后给我一份风格指导，告诉我如何保持与原作一致的写作风格来续写后续章节。
-  预期触发工具: analyze_style_tool → learn_style_tool → get_style_guidance_tool
+  你更倾向哪种方式？
 
   ---
-  Prompt 4 - 世界观查询+一致性检查
+  2. Review 评估逻辑（最核心）
 
-  查看这部小说的世界观设定，包括器灵等阶系统、精神力等级、源顺镖局的人物关系，然后检查前三章是否存在设定矛盾或逻辑漏洞。
-  预期触发工具: get_worldview_summary → check_story_consistency_tool
+  ❓ 如何判断"信息是否足够"？
+  # 方案 A：纯 AI 判断
+  review = await ai.evaluate(
+      query="段融的修炼历程",
+      collected_info=[...],
+      prompt="判断已收集信息是否足够回答问题"
+  )
+  # 返回：{ status: "sufficient" | "insufficient", missing: [...] }
 
-  ---
-  Prompt 5 - 搜索+分析+改写
+  # 方案 B：量化指标
+  coverage_score = calculate_coverage(query, evidence)
+  if coverage_score > 0.8:
+      status = "sufficient"
+  else:
+      status = "insufficient"
 
-  搜索赵穆出现的所有场景，分析他的人物形象塑造是否立体，然后帮我改写第1章中赵穆第一次出场的描写，让他的性格特点更加鲜明。
-  预期触发工具: search_analysis_fragments_tool → analyze_text_tool → smart_rewrite
+  # 方案 C：混合（AI + 指标）
 
-  ---
-  Prompt 6 - 创建章节+插入内容
+  ❓ 覆盖度如何计算？
+  - 基于关键词匹配？
+  - 基于语义相似度？
+  - 基于用户问题的拆解覆盖？
 
-  帮我创建第4章，标题叫"初露锋芒"，然后在章节开头插入一段承上启下的过渡内容，衔接第3章段融练刀的情节，描写他第二天早上醒来的状态。
-  预期触发工具: create_chapter → smart_insert
+  ❓ "缺少：浑圆桩训练"这种缺失项如何识别？
+  # 示例：
+  用户问题: "段融的修炼历程"
+  AI 拆解: ["器灵吞噬", "浑圆桩训练", "一夕千悟", "五虎群羊刀"]
 
-  ---
-  Prompt 7 - 获取上下文+续写+应用编辑
+  第 1 轮收集到: ["器灵吞噬", "五虎群羊刀"]
+  Review 输出: { missing: ["浑圆桩训练", "一夕千悟"] }
 
-  获取当前作品的完整上下文，然后帮我续写一段段融在考核中展示五虎群羊刀法的精彩打斗场面，写完后直接应用到编辑器中。
-  预期触发工具: get_context_tool → smart_continue → apply_chapter_edit
+  第 2 轮针对性搜索: "浑圆桩训练"
 
-  ---
-  Prompt 8 - 读取多章+分析+更新标题
-
-  读取第1章到第3章的内容，分析每章的核心情节，然后帮我把第2章的标题从"浑圆桩"改成更能体现章节内容的标题。
-  预期触发工具: get_chapter_by_order_tool(范围读取) → analyze_text_tool → update_chapter_title
-
-  ---
-  Prompt 9 - 搜索+情感展示+场景增强+改写
-
-  找到段融被其他杂役弟子嫌弃"一身马粪味"的场景，用展示手法重写他内心的窃喜情绪，同时增强马厩环境的感官描写（气味、声音、光线），让这个场景更加生动立体。
-  预期触发工具: search_analysis_fragments_tool → show_emotion_tool → enhance_scene_tool → smart_rewrite
-
-  ---
-  Prompt 10 - 全流程测试（查询+分析+创作+操作）
-
-  先查看世界观中关于器灵等阶的设定，然后分析第1章中段融读取器灵数据的描写风格，学习这种"系统面板"的写作手法，最后帮我创建一个新章节，写段融吞噬一件更高阶器物时的系统提示和他的反应，要保持风格一致，写完后更新到章节内容中。
-  预期触发工具: get_worldview_summary → search_analysis_fragments_tool → analyze_style_tool → learn_style_tool → create_chapter → update_chapter_content
+  这个拆解和对比逻辑如何实现？
 
   ---
-  工具覆盖矩阵
-  Prompt: 1
-  覆盖的工具: search_analysis_fragments_tool, smart_rewrite, show_emotion_tool
-  ────────────────────────────────────────
-  Prompt: 2
-  覆盖的工具: get_chapter_by_order_tool, smart_continue, enhance_scene_tool
-  ────────────────────────────────────────
-  Prompt: 3
-  覆盖的工具: analyze_style_tool, learn_style_tool, get_style_guidance_tool
-  ────────────────────────────────────────
-  Prompt: 4
-  覆盖的工具: get_worldview_summary, check_story_consistency_tool
-  ────────────────────────────────────────
-  Prompt: 5
-  覆盖的工具: search_analysis_fragments_tool, analyze_text_tool, smart_rewrite
-  ────────────────────────────────────────
-  Prompt: 6
-  覆盖的工具: create_chapter, smart_insert
-  ────────────────────────────────────────
-  Prompt: 7
-  覆盖的工具: get_context_tool, smart_continue, apply_chapter_edit
-  ────────────────────────────────────────
-  Prompt: 8
-  覆盖的工具: get_chapter_by_order_tool, analyze_text_tool, update_chapter_title
-  ────────────────────────────────────────
-  Prompt: 9
-  覆盖的工具: search_analysis_fragments_tool, show_emotion_tool, enhance_scene_tool, smart_rewrite
-  ────────────────────────────────────────
-  Prompt: 10
-  覆盖的工具: get_worldview_summary, search_analysis_fragments_tool, analyze_style_tool, learn_style_tool, create_chapter,
-    update_chapter_content
-  未直接覆盖的工具:
-  - read_chapter_tool - 可在Prompt 2/7中替代 get_chapter_by_order_tool
-  - delete_chapter - 危险操作，建议单独测试："删除第4章"
+  3. 动态查询生成
 
-  这10个prompt设计为复杂的多步骤任务，能够测试工具的组合调用能力和参数传递是否正确。
+  ❓ 每轮的 search_query 如何生成？
 
-  ● 按 Search / Read / Update 三大类分类
+  # 第 1 轮
+  search_query = "吞噬器灵 羚羊献食"  # 从哪来？
 
-  Search（搜索/定位）- 2 个
-  ┌────────────────┬──────────────────┬──────────┐
-  │      工具      │       功能       │   返回   │
-  ├────────────────┼──────────────────┼──────────┤
-  │ search_content │ 搜索多个相关位置 │ 多个结果 │
-  ├────────────────┼──────────────────┼──────────┤
-  │ locate_content │ 定位单个位置     │ 1 个结果 │
-  └────────────────┴──────────────────┴──────────┘
+  # 第 2 轮
+  search_query = "浑圆桩 训练"  # 如何知道要搜这个？
+
+  # 第 3 轮
+  search_query = "五虎群羊刀"  # 为什么是这个？
+
+  可能的策略：
+  - A. 从用户原始问题中提取关键词
+  - B. 从上一轮的 review missing 中提取
+  - C. 从已收集证据中发现新线索（实体抽取）
+  - D. AI 生成下一步探索方向
+
+  你觉得哪种更合理？
+
   ---
-  Read（读取/查询）- 7 个
-  ┌──────────────────────────────┬────────────────┐
-  │             工具             │      功能      │
-  ├──────────────────────────────┼────────────────┤
-  │ get_context_tool             │ 获取作品上下文 │
-  ├──────────────────────────────┼────────────────┤
-  │ read_chapter_tool            │ 读取章节内容   │
-  ├──────────────────────────────┼────────────────┤
-  │ get_worldview_summary        │ 获取世界观摘要 │
-  ├──────────────────────────────┼────────────────┤
-  │ get_style_guidance_tool      │ 获取风格指导   │
-  ├──────────────────────────────┼────────────────┤
-  │ analyze_text_tool            │ 分析文本问题   │
-  ├──────────────────────────────┼────────────────┤
-  │ analyze_style_tool           │ 分析写作风格   │
-  ├──────────────────────────────┼────────────────┤
-  │ check_story_consistency_tool │ 检查故事一致性 │
-  └──────────────────────────────┴────────────────┘
+  4. 证据片段提取
+
+  ❓ 从 read_result 中如何提取"证据片段"？
+
+  read_result = {
+      "chapters": [
+          {
+              "order": 5,
+              "content": "第五章内容，共 3000 字...",
+              "paragraphs": [...]
+          }
+      ]
+  }
+
+  # 如何变成这样？
+  evidence = [
+      {
+          "meta": "第5章 · 第7段",
+          "content": "赵穆的那柄刀，只有他一个人用过..."  # 50字
+      }
+  ]
+
+  可能的方法：
+  - A. 基于 search_query 的关键词高亮匹配
+  - B. 使用 locate_content 定位后提取段落
+  - C. AI 摘要提取相关句子
+  - D. 混合方式
+
+  ❓ 证据片段的长度如何控制？
+  - 固定 50 字？
+  - 完整段落？
+  - 语义完整的句子？
+
   ---
-  Update（创建/修改/删除）- 11 个
-  ┌────────────────────────┬──────────────┐
-  │          工具          │     功能     │
-  ├────────────────────────┼──────────────┤
-  │ smart_continue         │ 智能续写     │
-  ├────────────────────────┼──────────────┤
-  │ smart_rewrite          │ 智能重写     │
-  ├────────────────────────┼──────────────┤
-  │ smart_insert           │ 智能插入     │
-  ├────────────────────────┼──────────────┤
-  │ show_emotion_tool      │ 展示情感     │
-  ├────────────────────────┼──────────────┤
-  │ enhance_scene_tool     │ 增强场景     │
-  ├────────────────────────┼──────────────┤
-  │ learn_style_tool       │ 学习风格     │
-  ├────────────────────────┼──────────────┤
-  │ apply_chapter_edit     │ 应用章节编辑 │
-  ├────────────────────────┼──────────────┤
-  │ create_chapter         │ 创建章节     │
-  ├────────────────────────┼──────────────┤
-  │ update_chapter_title   │ 更新标题     │
-  ├────────────────────────┼──────────────┤
-  │ update_chapter_content │ 更新内容     │
-  ├────────────────────────┼──────────────┤
-  │ delete_chapter         │ 删除章节     │
-  └────────────────────────┴──────────────┘
+  5. 轮次标题生成
+
+  ❓ "初次检索与定位"、"补漏检索与二次定位" 这些标题是？
+
+  round_titles = [
+      "初次检索与定位",      // 固定？AI 生成？
+      "补漏检索与二次定位",  // 如何知道是"补漏"？
+      "交叉验证与收敛"       // 如何知道是"收敛"？
+  ]
+
+  方案：
+  - A. 固定模板（第1/2/3轮）
+  - B. AI 根据本轮行为生成（"本轮补齐了缺失项，标题：补漏检索"）
+  - C. 基于 review 状态映射
+
+  ---
+  6. 缓存与性能
+
+  ❓ 如何避免重复读取？
+
+  # 场景：
+  第 1 轮: search → locate 第5章 → read 第5章
+  第 2 轮: search → locate 第2章 → read 第2章
+  第 3 轮: search → locate 第5章 → read 第5章 (重复！)
+
+  策略：
+  - A. 在 explore_content 内部维护已读章节缓存
+  - B. 复用现有的 ToolCache（但需要传递 state）
+  - C. 如果检测到重复，跳过 read 直接用缓存
+
+  ❓ 如果用户中断探索（关闭页面），如何处理？
+  - 探索进度是否需要持久化？
+  - 下次打开能否恢复？
+
+  ---
+  7. 与现有流程集成
+
+  ❓ explore_content 和其他工具的协调？
+
+  # 场景 1：用户问"分析段融修炼历程并续写第6章"
+  规划器可能生成：
+  tasks = [
+      { tool: "explore_content", params: { query: "段融修炼历程" } },
+      { tool: "smart_continue", params: { chapter: 6 }, depends_on: [1] }
+  ]
+
+  # 这样合理吗？
+  # explore_content 的输出如何传递给 smart_continue？
+
+  ❓ explore_content 是否应该支持嵌套？
+  # 是否允许：
+  explore_content("段融修炼历程", scope="chapters:1-10")
+    → 内部又调用 explore_content("浑圆桩训练", scope="chapters:2-3")
+
+  ---
+  8. 错误处理
+
+  ❓ 如果某轮 search 返回空结果？
+  第 2 轮: search("浑圆桩训练")
+  结果: []  # 没找到
+
+  应该：
+  A. 直接跳过这一轮，继续下一轮
+  B. 尝试扩大搜索范围（去掉一些关键词）
+  C. 标记为失败，提前结束
+  D. 记录 warning 但继续
+
+  ❓ 如何避免死循环？
+  # 如果 AI review 一直判断"不足"
+  第 1 轮: insufficient
+  第 2 轮: insufficient
+  第 3 轮: insufficient
+  ...
+  第 10 轮: insufficient (已到 max_rounds)
+
+  # 这时应该返回什么？
+  # - 部分结果 + 警告？
+  # - 直接失败？
+
+  ---
+  9. 前端交互细节
+
+  ❓ 流式推送时，UI 如何更新？
+
+  // 方式 A：逐个标签出现
+  [🔍 Search: 吞噬器灵]  (0.5s 后出现)
+  [🔍 Search: 吞噬器灵] [🎯 Locate: ...]  (1s 后出现)
+  [🔍 Search: 吞噬器灵] [🎯 Locate: ...] [📄 Read: ...]
+
+  // 方式 B：整轮刷新
+  (等本轮全部完成后，一次性显示完整轮次)
+
+  // 哪种更好？
+
+  ❓ 用户能否中途取消探索？
+  - 需要 UI 上的"停止"按钮吗？
+  - 取消后如何清理资源？
+
+  ❓ 证据片段能否点击跳转？
+  <div className="explore-item" onClick={() => jumpToChapter(5, 7)}>
+    第5章 · 第7段
+    赵穆的那柄刀...
+  </div>
+
+  ---
+  10. 数据持久化
+
+  ❓ 探索结果是否需要保存到数据库？
+  - 作为对话历史的一部分？
+  - 作为独立的 exploration_sessions 表？
+  - 只在前端内存中？
+
+  ❓ MemoryPack 是否需要包含探索证据？
+  MemoryPack = {
+      "characters": [...],
+      "events": [...],
+      "explore_evidence": [  # 新增？
+          {
+              "query": "段融修炼历程",
+              "evidence": [...],
+              "timestamp": "2026-01-17"
+          }
+      ]
+  }
+
+  ---
+  📝 我的问题
+
+  请告诉我你对以下问题的偏好：
+
+  1. 触发方式：自动判断 vs 用户显式调用？
+  2. Review 逻辑：纯 AI vs 量化指标 vs 混合？
+  3. 查询生成：从 missing 提取 vs AI 生成下一步方向？
+  4. 证据提取：关键词匹配 vs AI 摘要？
+  5. 标题生成：固定模板 vs AI 生成？
+
+  以及最关键的：
+
+  6. 你希望 explore_content 是一个"黑盒工具"（内部循环，只返回最终结果），还是"可观测流程"（每轮都推送事件给前端）？
+
+  回答完这些，我们才能设计出真正符合你需求的方案！

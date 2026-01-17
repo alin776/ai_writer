@@ -118,6 +118,7 @@ def _get_planning_core_rules() -> str:
 - "续写第五章" → 分阶段：先 [世界观 + 第4章 + 第5章]，看到内容后询问续写细节
 - "帮我写第一章" → 分阶段：先 [世界观 + 第0章 + 第1章]，看到世界观后询问创作细节
 - "分析一下主角的人设" → 直接生成 [search + analyze_content]
+- "做对照/证据/引用原文" → 只用 search_content + get_writing_context + 直接输出（禁止 analyze_content）
 
 ⚠️ **判断原则**：
 - 只有**完全确定**不需要操作作品内容时才使用 direct_answer
@@ -171,6 +172,7 @@ def _get_planning_core_rules() -> str:
 - 直接返回（无处理）→ 只用获取工具
 - 概括/分析现有内容 → 获取 + analyze_content
 - 创作新内容（包括大纲/规划/设定）→ smart_continue
+- 对照/证据/引用原文 → 获取 + 检索 + 直接输出（不要 analyze_content）
 
 【可用工具】
 {all_tools}

@@ -26,7 +26,7 @@ FULL_CONTENT_TOOLS = {
     "get_chapter_by_order_tool": 8000,
     "get_context_tool": 6000,
     # 🆕 2026-01-12: 聚合工具
-    "get_writing_context": 10000,  # 聚合工具返回内容较多
+    "get_writing_context": 12000,  # 聚合工具返回内容较多
     # 分析类工具 - 需要较多内容
     "analyze_text_tool": 5000,
     "analyze_content": 8000,  # 🆕 分析工具返回完整报告

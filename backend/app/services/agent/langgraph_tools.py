@@ -484,51 +484,98 @@ async def read_chapter_tool(work_id: Optional[str] = None, chapter_id: str = "")
     return result_str
 
 
-def _parse_chapter_orders(chapter_order: str) -> list[int]:
-    """解析章节序号参数，支持三种格式
+def _parse_chapter_orders(
+    chapter_order: str,
+    available_orders: Optional[List[int]] = None
+) -> tuple[list[int], list[str], bool]:
+    """解析章节序号参数，支持混合格式与最近 N 章
 
     Args:
         chapter_order: 章节序号，支持以下格式：
             - 单个: "1" 或 1
             - 多个: "1,2,3,4,5"
-            - 范围: "1-5"（读取第1到第5章）
+            - 范围: "1-5"
+            - 混合: "1-5,7"
+            - 最近: "-3"（最近三章，需要 available_orders）
+        available_orders: 作品中可用的章节序号（用于 -N 解析）
 
     Returns:
-        章节序号列表，如 [1, 2, 3, 4, 5]
+        (orders, ignored_parts, used_fallback)
+        - orders: 按输入顺序去重后的章节序号列表
+        - ignored_parts: 无法解析的片段
+        - used_fallback: 是否回退到默认第1章
     """
+    orders: list[int] = []
+    ignored_parts: list[str] = []
+    seen: set[int] = set()
+    used_fallback = False
+    available_orders = sorted(available_orders or [])
+
+    def append_order(order: int) -> None:
+        if order not in seen:
+            orders.append(order)
+            seen.add(order)
+
+    def append_recent(n: int) -> None:
+        if n <= 0:
+            ignored_parts.append(f"-{abs(n)}")
+            return
+        if not available_orders:
+            ignored_parts.append(f"-{n}")
+            return
+        for order in available_orders[-n:]:
+            append_order(order)
+
     # 处理整数输入（向后兼容）
     if isinstance(chapter_order, int):
-        return [chapter_order]
+        if chapter_order < 0:
+            append_recent(abs(chapter_order))
+        else:
+            append_order(chapter_order)
+        if not orders:
+            used_fallback = True
+            append_order(1)
+        return orders, ignored_parts, used_fallback
 
     chapter_order = str(chapter_order).strip()
+    if not chapter_order:
+        return [], [], False
 
-    # 格式1: 范围 "1-5"
-    if "-" in chapter_order and "," not in chapter_order:
-        parts = chapter_order.split("-")
-        if len(parts) == 2:
-            try:
-                start = int(parts[0].strip())
-                end = int(parts[1].strip())
-                if start <= end:
-                    return list(range(start, end + 1))
-            except ValueError:
-                pass
+    parts = [part.strip() for part in chapter_order.split(",") if part.strip()]
+    for part in parts:
+        if re.fullmatch(r"-\d+", part):
+            append_recent(abs(int(part)))
+            continue
 
-    # 格式2: 多个 "1,2,3,4,5"
-    if "," in chapter_order:
-        orders = []
-        for part in chapter_order.split(","):
+        if re.fullmatch(r"\d+\s*-\s*\d+", part):
+            start_str, end_str = part.split("-", 1)
             try:
-                orders.append(int(part.strip()))
-            except ValueError:
+                start = int(start_str.strip())
+                end = int(end_str.strip())
+                if start < 0 or end < 0 or start > end:
+                    ignored_parts.append(part)
+                    continue
+                for order in range(start, end + 1):
+                    append_order(order)
                 continue
-        return sorted(set(orders))  # 去重并排序
+            except ValueError:
+                ignored_parts.append(part)
+                continue
 
-    # 格式3: 单个 "1"
-    try:
-        return [int(chapter_order)]
-    except ValueError:
-        return [1]  # 默认返回第1章
+        try:
+            order = int(part)
+            if order < 0:
+                ignored_parts.append(part)
+                continue
+            append_order(order)
+        except ValueError:
+            ignored_parts.append(part)
+
+    if not orders:
+        used_fallback = True
+        append_order(1)
+
+    return orders, ignored_parts, used_fallback
 
 
 def _get_content_limit_for_batch(chapter_count: int) -> int:
@@ -913,7 +960,7 @@ async def get_writing_context(
     Args:
         work_id: 作品ID（UUID格式，必需）
         chapter_id: 章节ID（UUID格式，可选，用于单章节读取）
-        chapter_orders: 章节序号（支持 "1" / "1,2,3" / "1-5"，可选）
+        chapter_orders: 章节序号（支持 "1" / "1,2,3" / "1-5" / "1-5,7" / "-3"，可选）
         user_id: 用户ID（用于获取风格指导，可选）
         include: 包含的内容类型，逗号分隔（可选值：work,chapter,worldview,style,rag）
         rag_query: RAG检索查询（可选，默认自动生成）
@@ -992,31 +1039,53 @@ async def get_writing_context(
 
                 # 优先使用 chapter_orders（支持范围格式）
                 if chapter_orders and work and work.chapters:
-                    orders = _parse_chapter_orders(chapter_orders)
-                    content_limit = _get_content_limit_for_batch(len(orders))
                     chapter_map = {ch.order: ch for ch in work.chapters}
+                    available_orders = sorted(chapter_map.keys())
+                    orders, ignored_parts, used_fallback = _parse_chapter_orders(
+                        chapter_orders,
+                        available_orders=available_orders
+                    )
+                    missing_orders = []
+                    selected_chapters = []
 
                     for order in orders:
                         ch = chapter_map.get(order)
                         if ch:
-                            raw_content = ch.content if ch.content else ""
-                            clean_content = text_cleaner.html_to_clean_text(
-                                raw_content,
-                                preserve_structure=True,
-                                max_length=content_limit
+                            selected_chapters.append(ch)
+                        else:
+                            missing_orders.append(order)
+
+                    content_limit = _get_content_limit_for_batch(len(selected_chapters))
+
+                    for ch in selected_chapters:
+                        raw_content = ch.content if ch.content else ""
+                        clean_content = text_cleaner.html_to_clean_text(
+                            raw_content,
+                            preserve_structure=True,
+                            max_length=content_limit
+                        )
+                        if raw_content and len(raw_content) > content_limit:
+                            clean_content = (
+                                f"{clean_content}\n\n"
+                                f"[内容已截断，完整内容共 {len(raw_content)} 字]"
                             )
-                            if raw_content and len(raw_content) > content_limit:
-                                clean_content = (
-                                    f"{clean_content}\n\n"
-                                    f"[内容已截断，完整内容共 {len(raw_content)} 字]"
-                                )
-                            chapters.append({
-                                "id": str(ch.id),
-                                "title": ch.title,
-                                "order": ch.order,
-                                "content": clean_content,
-                                "word_count": ch.word_count
-                            })
+                        chapters.append({
+                            "id": str(ch.id),
+                            "title": ch.title,
+                            "order": ch.order,
+                            "content": clean_content,
+                            "word_count": ch.word_count
+                        })
+
+                    orders_info = {}
+                    if ignored_parts:
+                        orders_info["ignored_parts"] = ignored_parts
+                    if missing_orders:
+                        orders_info["missing_orders"] = missing_orders
+                    if used_fallback:
+                        orders_info["fallback_order"] = 1
+                    if orders_info:
+                        result["chapter_orders_info"] = orders_info
 
                 # 使用 chapter_id（单章节）
                 elif chapter_id:
