@@ -77,6 +77,11 @@ def _get_planning_core_rules() -> str:
 2. 将计划转换为具体的 tasks 数组
 3. **绝对不能**只回复文字（如"好的，开始执行！"），必须生成 tasks
 
+【枚举项强制覆盖规则】⚠️
+
+- 当用户列出多个关键词/人物/地点/物品（用顿号/斜杠/逗号/引号等分隔）时，tasks 必须逐项覆盖，不能合并或省略。
+- 每一项必须在任务 description 或 params 中显式出现，确保执行链可追踪。
+
 【⚠️⚠️⚠️ 最重要规则 - CREATIVE 与 OPERATION 工具分离 ⚠️⚠️⚠️】
 
 **创作类工具**（smart_continue, smart_rewrite, smart_insert）只生成内容，**绝不直接写入编辑器**！

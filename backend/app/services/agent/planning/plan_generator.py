@@ -86,7 +86,7 @@ class PlanGenerator:
             }
 
         # 构建规划 prompt（异步）
-        plan_prompt = await self._build_plan_prompt_async(
+        plan_prompt_base = await self._build_plan_prompt_async(
             message=message,
             work_id=work_id,
             chapter_id=chapter_id,
@@ -94,6 +94,10 @@ class PlanGenerator:
             conversation_history=conversation_history,
             enable_reflection=enable_reflection
         )
+        enumerated_items = self._extract_enumerated_items(message)
+        if enumerated_items:
+            logger.info(f"[Planning] 检测到枚举项: {enumerated_items}")
+        plan_prompt_extra = ""
 
         # 调用 AI 生成规划
         plan_text = ""
@@ -103,7 +107,7 @@ class PlanGenerator:
             for retry_attempt in range(self.MAX_PLANNING_RETRIES):
                 # 🔧 2025-12-29: 规划任务需要理解对话上下文，使用 STORY_PLANNING 选择更强模型
                 plan_result = await self.agent._generate_text(
-                    prompt=plan_prompt,
+                    prompt=f"{plan_prompt_base}{plan_prompt_extra}",
                     temperature=0.3 + (retry_attempt * 0.1),
                     max_tokens=2000,
                     task_type=TaskType.STORY_PLANNING
@@ -123,6 +127,19 @@ class PlanGenerator:
                         )
                         has_tasks = plan_data.get("tasks") and len(plan_data.get("tasks", [])) > 0
                         if has_direct_answer or has_tasks:
+                            if enumerated_items and has_tasks and self._should_enforce_enumerated_items(plan_data.get("tasks", [])):
+                                missing_items = self._find_missing_enumerated_items(
+                                    plan_data.get("tasks", []),
+                                    enumerated_items
+                                )
+                                if missing_items:
+                                    logger.warning(
+                                        f"[Planning] 枚举项覆盖不完整，缺失: {missing_items}"
+                                    )
+                                    if retry_attempt < self.MAX_PLANNING_RETRIES - 1:
+                                        plan_prompt_extra = self._build_enumerated_items_prompt(missing_items)
+                                        continue
+                                    plan_data["missing_enumerated_items"] = missing_items
                             if retry_attempt > 0:
                                 logger.info(f"[Planning] 第{retry_attempt + 1}次重试成功")
                             # 🆕 日志：记录是直接回答还是任务规划
@@ -516,6 +533,120 @@ tool_policy: {tool_policy}
         plan_data["tasks"] = self._ensure_editor_apply_tasks(plan_data.get("tasks", []))
 
         return self._normalize_plan_schema(plan_data)
+
+    def _extract_enumerated_items(self, message: str) -> List[str]:
+        if not message:
+            return []
+
+        items: List[str] = []
+        seen = set()
+
+        quoted_segments = re.findall(r'["“”‘’「」『』](.+?)["“”‘’「」『』]', message)
+        for segment in quoted_segments:
+            for part in self._split_enumerated_items(segment):
+                normalized = self._normalize_enumerated_item(part)
+                if normalized and normalized not in seen:
+                    items.append(normalized)
+                    seen.add(normalized)
+
+        enum_pattern = re.compile(
+            r'([一-鿿A-Za-z0-9]{1,20}(?:[、,/，;；|｜]+[一-鿿A-Za-z0-9]{1,20})+)'
+        )
+        for segment in enum_pattern.findall(message):
+            for part in self._split_enumerated_items(segment):
+                normalized = self._normalize_enumerated_item(part)
+                if normalized and normalized not in seen:
+                    items.append(normalized)
+                    seen.add(normalized)
+
+        return items
+
+    @staticmethod
+    def _split_enumerated_items(segment: str) -> List[str]:
+        if not segment:
+            return []
+        return [part.strip() for part in re.split(r'[、,/，;；|｜]+', segment) if part.strip()]
+
+    @staticmethod
+    def _normalize_enumerated_item(raw: str) -> str:
+        if not raw:
+            return ""
+        item = raw.strip()
+        item = item.strip("\"“”'‘’「」『』[]()（）{}<>《》")
+        item = re.sub(r'^[：:、,，;；|/]+|[：:、,，;；|/]+$', "", item)
+        item = item.strip()
+
+        if not item:
+            return ""
+        if len(item) > 30:
+            return ""
+        if any(ch in item for ch in ["=", "{", "}"]):
+            return ""
+        if not re.search(r'[一-鿿A-Za-z]', item):
+            return ""
+        if re.fullmatch(r'\d+', item):
+            return ""
+        if re.fullmatch(r'第\d+章', item) or re.fullmatch(r'第\d+段', item):
+            return ""
+
+        return item
+
+    @staticmethod
+    def _should_enforce_enumerated_items(tasks: List[Dict[str, Any]]) -> bool:
+        if not tasks:
+            return False
+        tools = {task.get("tool") for task in tasks if task.get("tool")}
+        if not tools:
+            return False
+        return not tools.issubset({"get_writing_context"})
+
+    def _find_missing_enumerated_items(
+        self,
+        tasks: List[Dict[str, Any]],
+        enumerated_items: List[str]
+    ) -> List[str]:
+        if not tasks or not enumerated_items:
+            return []
+
+        task_texts: List[str] = []
+        for task in tasks:
+            parts = []
+            title = task.get("title")
+            if title:
+                parts.append(str(title))
+            description = task.get("description")
+            if description:
+                parts.append(str(description))
+            tool = task.get("tool")
+            if tool:
+                parts.append(str(tool))
+            params = task.get("params", {})
+            if params:
+                try:
+                    parts.append(json.dumps(params, ensure_ascii=False))
+                except Exception:
+                    parts.append(str(params))
+            if parts:
+                task_texts.append(" ".join(parts))
+
+        lowered_texts = [text.lower() for text in task_texts]
+        missing = []
+        for item in enumerated_items:
+            needle = item.lower()
+            if not any(needle in text for text in lowered_texts):
+                missing.append(item)
+
+        return missing
+
+    @staticmethod
+    def _build_enumerated_items_prompt(missing_items: List[str]) -> str:
+        items_text = "、".join(missing_items)
+        return f"""
+
+⚠️ 补充硬约束：用户列出的枚举项必须逐项覆盖，不可合并或省略。
+当前未覆盖的枚举项：{items_text}
+请重新生成完整 tasks，确保每一项至少在一个任务 description 或 params 中显式出现，并安排对应操作（搜索/定位/分析/改写等）。
+"""
 
     def _normalize_plan_schema(self, plan_data: Dict[str, Any]) -> Dict[str, Any]:
         """校验并归一化规划输出结构，补齐 depends_on。"""

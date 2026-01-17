@@ -199,11 +199,28 @@
 ## Review（作品管理底部空白条）
 - 作品管理页根容器移除固定高度，改为 `h-full min-h-full`，消除底部空白条（`src/views/WorksView/index.tsx`）。
 
+## 计划（规划枚举项强校验/强制补齐）
+- [x] 梳理规划生成与提示词入口，明确枚举项覆盖校验插入点（`backend/app/services/agent/planning/plan_generator.py`、`backend/app/services/agent/prompts/planning_prompts.py`）
+- [x] 实现枚举项提取与覆盖校验，缺失时触发重规划并提示补齐（`backend/app/services/agent/planning/plan_generator.py`）
+- [x] 强化规划提示词，明确“枚举项必须全覆盖”的硬规则（`backend/app/services/agent/prompts/planning_prompts.py`）
+- [x] 更新 Review 记录变更与注意事项
+
+## 解决方案（规划枚举项强校验/强制补齐）
+- 在规划阶段从用户指令中提取枚举项（优先识别引号/分隔符列表），作为强制覆盖清单。
+- 规划结果若未覆盖全部枚举项，追加硬约束提示后触发重规划；重试仍缺失则记录警告并保留缺失列表用于排查。
+- 在规划提示词中加入“枚举项必须全覆盖、不可合并或省略”的明确规则，减少漏项概率。
+
+
+## Review（规划枚举项强校验/强制补齐）
+- 规划阶段新增枚举项提取与覆盖校验，缺失时追加硬约束提示并触发重规划，最终仍缺失则记录 `missing_enumerated_items` 便于排查（`backend/app/services/agent/planning/plan_generator.py`）。
+- 枚举项校验仅在任务链不止 `get_writing_context` 时触发，避免创作分阶段读取上下文时被误判（`backend/app/services/agent/planning/plan_generator.py`）。
+- 规划提示词新增“枚举项必须全覆盖”规则，要求每项在任务 description/params 中显式出现（`backend/app/services/agent/prompts/planning_prompts.py`）。
 ## Review（缓存优先 + MemoryPack）
 - 工具缓存新增 include 超集命中，并在调用前优先读取覆盖缓存，避免重复请求（`backend/app/services/agent/utils/tool_cache.py`、`backend/app/services/agent/execution/tool_executor.py`）。
 - 别名读取工具改为可复用 get_writing_context 缓存并补齐返回格式，章节缓存返回补全 content_length/status（`backend/app/services/agent/execution/tool_executor.py`）。
 - MemoryPack 从助手输出解析后写入长期记忆，携带 work_id/chapter_id；构建上下文时注入最新 MemoryPack（长度限制 2000）（`backend/app/services/context/manager.py`、`backend/app/services/context/vector_memory_store.py`）。
 - ContextManager 支持 chapter_id 入参并在 LangGraph 保存对话时传入（`backend/app/services/agent/langgraph_agent.py`、`backend/app/services/context/manager.py`）。
+
 
 ## 计划（复查缓存与 MemoryPack）
 - [x] 复查缓存覆盖命中与别名工具转换链路的输入输出一致性
@@ -1307,3 +1324,33 @@
 
 ## 解决方案（AIPanel 消息置顶）
 - 在消息列表中记录最新 AI 消息锚点，自动滚动时对齐到顶部，并通过底部占位高度保证短消息也能滚动隐藏用户消息。
+
+## 计划（get_content_tool 截断与多章节读取排查）
+- [x] 定位 get_content_tool/实际读取工具实现与调用路径（`backend/app/services/agent/langgraph_tools.py`、`backend/app/services/agent/utils/context_builder.py`、`backend/app/utils/text_cleaner.py`、`docs/agent-tools-refactor/03-read-tools.md`）
+- [x] 核对批量读取截断策略、清洗截断与多章节解析逻辑（`backend/app/services/agent/langgraph_tools.py`、`backend/app/utils/text_cleaner.py`）
+- [x] 汇总结论与影响范围并更新 Review
+
+## 解决方案（get_content_tool 截断与多章节读取排查）
+- 代码中未发现 `get_content_tool`，读取工具已统一为 `get_writing_context`，旧读取工具仅作为 @deprecated 包装转调（`docs/agent-tools-refactor/03-read-tools.md`、`backend/app/services/agent/langgraph_tools.py`）。
+- 批量读取走 `chapter_orders` 时，`get_writing_context` 会按请求序号数量设置每章 `content_limit` 并在 `html_to_clean_text` 中截断，超限追加“内容已截断”提示；即使实际命中章节较少，也会按大范围限长，确实会降低内容精度（`backend/app/services/agent/langgraph_tools.py`、`backend/app/utils/text_cleaner.py`）。
+- 单章走 `chapter_id` 路径不设置 `max_length`，但结果进入 Summarization 后仍可能被 `_compress_task_result` 二次压缩（`backend/app/services/agent/utils/context_builder.py`）。
+- 多章节解析 `_parse_chapter_orders` 会去重并排序，不支持“范围+列表”混合写法（如 `1-5,7`），非法或不存在的序号会被静默跳过；`-3` 会被解析为负数序号，难以命中章节，返回顺序也不保留原输入（`backend/app/services/agent/langgraph_tools.py`）。
+
+## Review（get_content_tool 截断与多章节读取排查）
+- 未找到 `get_content_tool` 的实现，实际读取由 `get_writing_context` 统一承载，旧工具只是兼容包装（`docs/agent-tools-refactor/03-read-tools.md`、`backend/app/services/agent/langgraph_tools.py`）。
+- 批量读取使用 `content_limit` + `html_to_clean_text(max_length=...)` 截断，并追加“内容已截断”提示，确实会丢失细节（`backend/app/services/agent/langgraph_tools.py`、`backend/app/utils/text_cleaner.py`）。
+- Summarization 阶段会对 `get_writing_context` 结果再压缩（保留首尾并插入省略提示），存在二次损失风险（`backend/app/services/agent/utils/context_builder.py`）。
+- `_parse_chapter_orders` 的排序/去重、范围混合不支持、非法值静默跳过与 `-3` 负数解析，都会造成“多章节读取不准确”的表现（`backend/app/services/agent/langgraph_tools.py`）。
+
+## 计划（Explored 搜索查看机制说明）
+- [x] 复核 ActivityStream 与 ExecutionFlow 的数据入口/渲染路径（`src/components/agent/ActivityStream.tsx`、`src/components/agent/ExecutionFlow/index.tsx`、`src/components/editor/AIPanel.tsx`）
+- [x] 复核流式事件与 flowItems/activities 生成逻辑（`src/hooks/useAgentChatStream.ts`、`backend/app/api/v1/agent.py`、`backend/app/services/agent/stream/flow_events.py`）
+- [x] 明确 ExploreCard 设计与当前未接入的缺口，整理答复要点（`src/components/agent/ExecutionFlow/ExploreCard.tsx`）
+
+## 解决方案（Explored 搜索查看机制说明）
+- 后端通过 SSE 推送 progress/flow 事件，前端分别用 ActivityStream 渲染“活动流”、ExecutionFlow 渲染“执行轨迹”；要呈现截图里的“Explored”轨迹，需要把工具调用与证据片段按 Search → Locate → Read → Review 聚合成 ExploreFlowData，再喂给 ExploreCard（当前仅有 UI 组件，尚未接入聚合逻辑）。
+
+## Review（Explored 搜索查看机制说明）
+- 确认“活动流”来自 `ActivityStream`，数据由 `useAgentChatStream` 的 progress 事件转换为 `activities`，仅在流式中展示（`src/components/agent/ActivityStream.tsx`、`src/hooks/useAgentChatStream.ts`、`src/components/editor/AIPanel.tsx`）。
+- “执行轨迹”来自 `ExecutionFlow`，数据由后端 flow 事件（`agent_header/step_* /output_ready/...`）通过 SSE 直达前端 `flowItems` 渲染（`backend/app/api/v1/agent.py`、`backend/app/services/agent/stream/flow_events.py`、`src/components/agent/ExecutionFlow/index.tsx`）。
+- `ExploreCard` 只定义了 UI 与轮次聚合展示，当前未在 `ExecutionFlow` 或消息流里接入（`src/components/agent/ExecutionFlow/ExploreCard.tsx`），需要额外的聚合层把 Search/Locate/Read/Review 事件拼成 `ExploreFlowData` 才能呈现截图式“Explored”轨迹。
