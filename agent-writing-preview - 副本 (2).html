@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文枢AI - 执行轨迹预览</title>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #1e1e1e;
+            color: #e0e0e0;
+            line-height: 1.6;
+            padding: 24px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        /* Agent 头部 */
+        .agent-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .agent-logo {
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #a78bfa;
+        }
+
+        .agent-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .agent-badge {
+            font-size: 10px;
+            padding: 1px 5px;
+            background: #2a2a2a;
+            color: #888;
+            border-radius: 3px;
+            border: 1px solid #3a3a3a;
+        }
+
+        /* Agent 消息 */
+        .agent-message {
+            color: #ccc;
+            font-size: 14px;
+            margin-bottom: 16px;
+            line-height: 1.7;
+        }
+
+        /* 执行步骤 */
+        .execution-step {
+            margin-bottom: 12px;
+        }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 0;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .step-title-area {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .step-icon {
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: #888;
+        }
+
+        .step-icon.completed {
+            color: #888;
+        }
+
+        .step-icon.running {
+            color: #3b82f6;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .step-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #fff;
+        }
+
+        .step-toggle {
+            color: #666;
+            font-size: 10px;
+            transition: transform 0.2s;
+        }
+
+        .step-spacer {
+            flex: 1;
+        }
+
+        /* 步骤内容 */
+        .step-content {
+            margin-left: 26px;
+            padding-top: 4px;
+        }
+
+        /* 知识调取容器 */
+        .knowledge-section {
+            margin-bottom: 8px;
+        }
+
+        .knowledge-container {
+            display: inline-block;
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            border-radius: 16px;
+            padding: 4px 10px;
+        }
+
+        .knowledge-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .knowledge-icon {
+            color: #888;
+            display: flex;
+            align-items: center;
+        }
+
+        .knowledge-title {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .knowledge-toggle {
+            color: #666;
+            font-size: 9px;
+            margin-left: 2px;
+        }
+
+        .knowledge-items {
+            padding-top: 6px;
+        }
+
+        .knowledge-item {
+            display: block;
+            padding: 3px 0;
+            font-size: 13px;
+            color: #5c9eff;
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+
+        .knowledge-item:hover {
+            color: #7cb3ff;
+        }
+
+        /* 知识项分类标签 */
+        .knowledge-item .tag {
+            display: inline-block;
+            font-size: 10px;
+            padding: 1px 4px;
+            background: #3a3a3a;
+            color: #888;
+            border-radius: 3px;
+            margin-left: 6px;
+            text-decoration: none;
+        }
+
+        /* 步骤描述 */
+        .step-description {
+            font-size: 13px;
+            color: #999;
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+
+        /* 文件/工具操作 */
+        .tool-operation {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            border-radius: 16px;
+            margin: 8px 0;
+        }
+
+        .tool-icon {
+            color: #888;
+            display: flex;
+            align-items: center;
+        }
+
+        .tool-text {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .tool-name {
+            font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+            color: #aaa;
+            font-size: 12px;
+        }
+
+        /* Explore 轨迹 */
+        .explore-panel {
+            margin: 8px 0;
+        }
+
+        .explore-round {
+            display: flex;
+            gap: 10px;
+            padding: 8px 0;
+            align-items: flex-start;
+        }
+
+
+        .explore-round-capsule {
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            border-radius: 16px;
+            padding: 6px 10px;
+            width: auto;
+            align-self: flex-start;
+            display: inline-flex;
+            flex-direction: column;
+            max-width: 100%;
+        }
+
+        .explore-round-capsule.collapsed {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            width: auto;
+            padding: 4px 10px;
+            border-radius: 16px;
+            flex-direction: row;
+            max-width: 100%;
+        }
+
+        .explore-round-index {
+            width: auto;
+            height: auto;
+            border-radius: 0;
+            background: transparent;
+            border: none;
+            color: #888;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .explore-round-capsule.collapsed .explore-round-index {
+            width: auto;
+            height: auto;
+            border-radius: 0;
+            font-size: 12px;
+        }
+
+        .explore-round-capsule.collapsed .explore-round-toggle {
+            display: none;
+        }
+
+        .explore-round-capsule.collapsed .explore-round-title {
+            font-size: 12px;
+            margin: 0;
+            color: #888;
+        }
+
+        .explore-round-body {
+            flex: 1;
+            width: fit-content;
+            max-width: 100%;
+        }
+
+        .explore-round-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .explore-round-header.compact {
+            margin: 0;
+        }
+
+        .explore-round-title.compact {
+            margin: 0;
+        }
+
+        .explore-round-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 0;
+        }
+
+        .explore-round-toggle {
+            font-size: 10px;
+            color: #666;
+            margin-left: auto;
+        }
+
+        .explore-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            width: fit-content;
+            max-width: 100%;
+        }
+
+        .explore-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            border-radius: 16px;
+            padding: 4px 10px;
+            font-size: 12px;
+            color: #888;
+        }
+
+        .explore-tag i {
+            color: #888;
+        }
+
+        .explore-tag .tag-strong {
+            color: #5c9eff;
+            font-weight: 500;
+        }
+
+        .explore-status {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 6px;
+            font-size: 11px;
+            color: #777;
+            width: fit-content;
+            max-width: 100%;
+        }
+
+        .explore-status .hit {
+            color: #10b981;
+        }
+
+        .explore-status .warn {
+            color: #f59e0b;
+        }
+
+        .explore-evidence {
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            border-radius: 16px;
+            padding: 4px 10px;
+            margin-top: 6px;
+            font-size: 12px;
+            color: #888;
+            width: fit-content;
+            max-width: 100%;
+        }
+
+        .explore-evidence strong {
+            color: #bdbdbd;
+        }
+
+        .explore-evidence-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .explore-evidence-title {
+            font-size: 11px;
+            color: #888;
+        }
+
+        .explore-evidence-toggle {
+            font-size: 9px;
+            color: #666;
+        }
+
+        .explore-items {
+            padding-top: 4px;
+        }
+
+        .explore-item {
+            padding: 2px 0;
+            border-top: 1px dashed #2a2a2a;
+        }
+
+        .explore-item:first-child {
+            border-top: none;
+        }
+
+        .explore-item .meta {
+            font-size: 10px;
+            color: #6f6f6f;
+        }
+
+        /* 分隔 */
+        .section-gap {
+            height: 16px;
+        }
+
+        /* 最终输出 */
+        .final-output {
+            margin-top: 8px;
+        }
+
+        .output-intro {
+            font-size: 14px;
+            color: #ccc;
+            margin-bottom: 12px;
+            line-height: 1.7;
+        }
+
+        .output-intro strong {
+            color: #fff;
+        }
+
+        /* 续写内容卡片 */
+        .content-card {
+            background: #252525;
+            border: 1px solid #333;
+            border-radius: 10px;
+            margin-top: 16px;
+            overflow: hidden;
+        }
+
+        .content-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            border-bottom: 1px solid #333;
+        }
+
+        .content-title-area {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .content-icon {
+            width: 24px;
+            height: 24px;
+            background: #10b981;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+
+        .content-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #fff;
+        }
+
+        .content-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            font-size: 11px;
+            padding: 4px 10px;
+            background: #3a3a3a;
+            color: #ccc;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .action-btn:hover {
+            background: #4a4a4a;
+        }
+
+        .action-btn.primary {
+            background: #3b82f6;
+            color: #fff;
+        }
+
+        .action-btn.primary:hover {
+            background: #2563eb;
+        }
+
+        .content-body {
+            padding: 16px;
+            max-height: 350px;
+            overflow-y: auto;
+        }
+
+        .chapter-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 12px;
+        }
+
+        .chapter-text {
+            font-size: 14px;
+            color: #bbb;
+            line-height: 1.8;
+        }
+
+        .chapter-text p {
+            margin-bottom: 10px;
+            text-indent: 2em;
+        }
+
+        .chapter-text .highlight {
+            color: #5c9eff;
+            font-weight: 500;
+        }
+
+        /* 完成状态 */
+        .completion-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 16px;
+            color: #10b981;
+            font-size: 13px;
+        }
+
+        .completion-icon {
+            font-size: 11px;
+        }
+
+        /* Token 统计 */
+        .token-stats {
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .token-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* 隐藏内容 */
+        .hidden {
+            display: none;
+        }
+
+        /* 上下文处理统计 */
+        .context-stat {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 3px 0;
+            font-size: 13px;
+        }
+
+        .context-label {
+            color: #888;
+            min-width: 60px;
+        }
+
+        .context-value {
+            color: #aaa;
+            font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+        }
+
+        /* 修订胶囊样式 */
+        .revision-capsule {
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            border-radius: 16px;
+            padding: 4px 10px;
+            display: inline-block;
+        }
+
+        .revision-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .revision-toggle {
+            color: #666;
+            font-size: 9px;
+            margin-left: 2px;
+        }
+
+        .revision-icon {
+            color: #888;
+            display: flex;
+            align-items: center;
+        }
+
+        .revision-title {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .revision-badge {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-left: auto;
+        }
+
+        .revision-badge.pending {
+            background: #3a3a3a;
+            color: #888;
+        }
+
+        .revision-badge.accepted {
+            background: #3a3a3a;
+            color: #10b981;
+        }
+
+        .revision-badge.discarded {
+            background: #3a3a3a;
+            color: #888;
+        }
+
+        .revision-content {
+            padding-top: 6px;
+        }
+
+        .revision-target {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+
+        .target-icon {
+            color: #666;
+            display: flex;
+            align-items: center;
+        }
+
+        .target-name {
+            font-size: 13px;
+            color: #5c9eff;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+            cursor: pointer;
+        }
+
+        .target-name:hover {
+            color: #7cb3ff;
+        }
+
+        .target-action {
+            font-size: 10px;
+            padding: 1px 4px;
+            background: #3a3a3a;
+            color: #888;
+            border-radius: 3px;
+        }
+
+        .target-action.replace {
+            color: #fbbf24;
+        }
+
+        .revision-preview {
+            background: #222;
+            border-radius: 8px;
+            padding: 8px 10px;
+            margin-bottom: 8px;
+        }
+
+        .preview-label {
+            font-size: 10px;
+            color: #666;
+            margin-bottom: 3px;
+        }
+
+        .preview-text {
+            font-size: 12px;
+            color: #888;
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .revision-stats {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 11px;
+            color: #666;
+        }
+
+        .stat-item i {
+            color: #888;
+        }
+
+        .revision-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .revision-btn {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border: none;
+            border-radius: 12px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .revision-btn.discard {
+            background: #3a3a3a;
+            color: #ccc;
+        }
+
+        .revision-btn.discard:hover {
+            background: #4a4a4a;
+        }
+
+        .revision-btn.accept {
+            background: #3a3a3a;
+            color: #ccc;
+        }
+
+        .revision-btn.accept:hover {
+            background: #4a4a4a;
+        }
+
+        .revision-result {
+            font-size: 11px;
+            padding: 4px 0;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .revision-result.accepted {
+            color: #888;
+        }
+
+        .revision-result.discarded {
+            color: #888;
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Agent 头部 -->
+        <div class="agent-header">
+            <div class="agent-logo"><i data-lucide="sparkles" style="width:18px;height:18px"></i></div>
+            <span class="agent-name">AI写作助手</span>
+            <span class="agent-badge">Pro</span>
+        </div>
+
+        <!-- Agent 消息 -->
+        <div class="agent-message">
+            好的，我来帮你续写第五章。让我先了解一下前文内容和世界观设定，确保续写的内容与已有情节保持一致。
+        </div>
+
+        <!-- 执行步骤 1: 获取世界观 -->
+        <div class="execution-step">
+            <div class="step-header" onclick="toggleStep(this)">
+                <div class="step-icon completed"><i data-lucide="check" style="width:12px;height:12px"></i></div>
+                <div class="step-title-area">
+                    <span class="step-title">获取世界观设定</span>
+                    <span class="step-toggle">∧</span>
+                </div>
+                <div class="step-spacer"></div>
+            </div>
+            <div class="step-content">
+                <!-- 世界观知识 -->
+                <div class="knowledge-section">
+                    <div class="knowledge-container">
+                        <div class="knowledge-header" onclick="toggleKnowledge(this)">
+                            <span class="knowledge-icon"><i data-lucide="book-open" style="width:12px;height:12px"></i></span>
+                            <span class="knowledge-title">世界观已加载(5)</span>
+                            <span class="knowledge-toggle">∧</span>
+                        </div>
+                        <div class="knowledge-items">
+                            <a class="knowledge-item">林逸 - 主角<span class="tag">人物</span></a>
+                            <a class="knowledge-item">苏瑶 - 女主<span class="tag">人物</span></a>
+                            <a class="knowledge-item">青云宗<span class="tag">地点</span></a>
+                            <a class="knowledge-item">灵气修炼体系<span class="tag">设定</span></a>
+                            <a class="knowledge-item">写作规范：每章3000字<span class="tag">规范</span></a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-description">
+                    已加载作品世界观：2个主要人物、1个重要地点、1个力量体系设定、1条写作规范。
+                </div>
+
+                <div class="tool-operation">
+                    <span class="tool-icon"><i data-lucide="wrench" style="width:12px;height:12px"></i></span>
+                    <span class="tool-text">调用工具</span>
+                    <span class="tool-name">get_worldview_summary</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 执行步骤 2: 读取章节 -->
+        <div class="execution-step">
+            <div class="step-header" onclick="toggleStep(this)">
+                <div class="step-icon completed"><i data-lucide="check" style="width:12px;height:12px"></i></div>
+                <div class="step-title-area">
+                    <span class="step-title">读取前文章节</span>
+                    <span class="step-toggle">∧</span>
+                </div>
+                <div class="step-spacer"></div>
+            </div>
+            <div class="step-content">
+                <!-- 章节内容 -->
+                <div class="knowledge-section">
+                    <div class="knowledge-container">
+                        <div class="knowledge-header" onclick="toggleKnowledge(this)">
+                            <span class="knowledge-icon"><i data-lucide="file-text" style="width:12px;height:12px"></i></span>
+                            <span class="knowledge-title">章节已读取(2)</span>
+                            <span class="knowledge-toggle">∧</span>
+                        </div>
+                        <div class="knowledge-items">
+                            <a class="knowledge-item">第三章：初入青云 (2856字)</a>
+                            <a class="knowledge-item">第四章：灵根测试 (3102字)</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-description">
+                    已读取第3-4章内容，了解到林逸刚通过灵根测试，被分配到外门弟子区，即将开始修炼生涯。
+                </div>
+
+                <div class="tool-operation">
+                    <span class="tool-icon"><i data-lucide="wrench" style="width:12px;height:12px"></i></span>
+                    <span class="tool-text">调用工具</span>
+                    <span class="tool-name">get_chapter_by_order_tool (3-4)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 执行步骤 3: 检索相关片段 -->
+        <div class="execution-step">
+            <div class="step-header" onclick="toggleStep(this)">
+                <div class="step-icon completed"><i data-lucide="check" style="width:12px;height:12px"></i></div>
+                <div class="step-title-area">
+                    <span class="step-title">检索相关设定</span>
+                    <span class="step-toggle">∧</span>
+                </div>
+                <div class="step-spacer"></div>
+            </div>
+            <div class="step-content">
+                <!-- 检索结果 -->
+                <div class="knowledge-section">
+                    <div class="knowledge-container">
+                        <div class="knowledge-header" onclick="toggleKnowledge(this)">
+                            <span class="knowledge-icon"><i data-lucide="search" style="width:12px;height:12px"></i></span>
+                            <span class="knowledge-title">检索结果(3)</span>
+                            <span class="knowledge-toggle">∧</span>
+                        </div>
+                        <div class="knowledge-items">
+                            <a class="knowledge-item">外门弟子修炼规则 (相似度: 0.89)</a>
+                            <a class="knowledge-item">青云宗等级制度 (相似度: 0.85)</a>
+                            <a class="knowledge-item">林逸的特殊体质伏笔 (相似度: 0.82)</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-description">
+                    通过向量检索找到3条相关设定，将用于保持续写内容的一致性。
+                </div>
+
+                <div class="tool-operation">
+                    <span class="tool-icon"><i data-lucide="wrench" style="width:12px;height:12px"></i></span>
+                    <span class="tool-text">调用工具</span>
+                    <span class="tool-name">search_analysis_fragments_tool</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 执行步骤 3.5: Explore 轨迹 -->
+        <div class="execution-step">
+            <div class="step-header" onclick="toggleStep(this)">
+                <div class="step-icon completed"><i data-lucide="check" style="width:12px;height:12px"></i></div>
+                <div class="step-title-area">
+                    <span class="step-title">Explore 轨迹（3 轮）</span>
+                    <span class="step-toggle">∧</span>
+                </div>
+                <div class="step-spacer"></div>
+            </div>
+            <div class="step-content">
+                <div class="explore-panel">
+            <div class="explore-round">
+                        <div class="explore-round-capsule collapsed">
+                            <div class="explore-round-header compact" onclick="toggleExploreRound(this)">
+                                <div class="explore-round-index"><i data-lucide="scan" style="width:12px;height:12px"></i></div>
+                                <div class="explore-round-title compact">初次检索与定位</div>
+                                <span class="explore-round-toggle">∧</span>
+                            </div>
+                        <div class="explore-round-body hidden">
+                                <div class="explore-tags">
+                                    <span class="explore-tag"><i data-lucide="search" style="width:12px;height:12px"></i>Search: <span class="tag-strong">吞噬器灵 羚羊献食</span></span>
+                                    <span class="explore-tag"><i data-lucide="crosshair" style="width:12px;height:12px"></i>Locate: 第5章 · 第7段</span>
+                                    <span class="explore-tag"><i data-lucide="file-text" style="width:12px;height:12px"></i>ReadRaw: 第5章</span>
+                                    <span class="explore-tag"><i data-lucide="check-circle" style="width:12px;height:12px"></i>Review: 覆盖不足</span>
+                                </div>
+                                <div class="explore-status">
+                                    <span class="hit">命中 4 条</span>
+                                    <span class="warn">缺少：浑圆桩训练</span>
+                                </div>
+                                <div class="explore-evidence">
+                                    <div class="explore-evidence-header" onclick="toggleExplore(this)">
+                                        <span class="explore-evidence-title">证据片段（4）</span>
+                                        <span class="explore-evidence-toggle">∧</span>
+                                    </div>
+                                    <div class="explore-items">
+                                        <div class="explore-item">
+                                            <div class="meta">第5章 · 第7段</div>
+                                            赵穆的那柄刀，只有他一个人用过，吞噬效果也只有一条……
+                                        </div>
+                                        <div class="explore-item">
+                                            <div class="meta">第5章 · 第9段</div>
+                                            器灵吞噬后，刀身泛起一道寒芒……
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="explore-round">
+                        <div class="explore-round-capsule collapsed">
+                            <div class="explore-round-header compact" onclick="toggleExploreRound(this)">
+                                <div class="explore-round-index"><i data-lucide="scan" style="width:12px;height:12px"></i></div>
+                                <div class="explore-round-title compact">补漏检索与二次定位</div>
+                                <span class="explore-round-toggle">∧</span>
+                            </div>
+                        <div class="explore-round-body hidden">
+                                <div class="explore-tags">
+                                    <span class="explore-tag"><i data-lucide="search" style="width:12px;height:12px"></i>Search: <span class="tag-strong">浑圆桩 训练</span></span>
+                                    <span class="explore-tag"><i data-lucide="crosshair" style="width:12px;height:12px"></i>Locate: 第2章 · 第12段</span>
+                                    <span class="explore-tag"><i data-lucide="file-text" style="width:12px;height:12px"></i>ReadRaw: 第2章</span>
+                                    <span class="explore-tag"><i data-lucide="check-circle" style="width:12px;height:12px"></i>Review: 补齐要点</span>
+                                </div>
+                                <div class="explore-status">
+                                    <span class="hit">命中 5 条</span>
+                                    <span>补漏完成</span>
+                                </div>
+                                <div class="explore-evidence">
+                                    <div class="explore-evidence-header" onclick="toggleExplore(this)">
+                                        <span class="explore-evidence-title">证据片段（5）</span>
+                                        <span class="explore-evidence-toggle">∧</span>
+                                    </div>
+                                    <div class="explore-items">
+                                        <div class="explore-item">
+                                            <div class="meta">第2章 · 第12段</div>
+                                            他每日指导这些杂役弟子练功的时间，也不过只有半柱香而已……
+                                        </div>
+                                        <div class="explore-item">
+                                            <div class="meta">第2章 · 第15段</div>
+                                            浑圆桩要稳，腰胯不可松散……
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="explore-round">
+                        <div class="explore-round-capsule collapsed">
+                            <div class="explore-round-header compact" onclick="toggleExploreRound(this)">
+                                <div class="explore-round-index"><i data-lucide="scan" style="width:12px;height:12px"></i></div>
+                                <div class="explore-round-title compact">交叉验证与收敛</div>
+                                <span class="explore-round-toggle">∧</span>
+                            </div>
+                        <div class="explore-round-body hidden">
+                                <div class="explore-tags">
+                                    <span class="explore-tag"><i data-lucide="search" style="width:12px;height:12px"></i>Search: <span class="tag-strong">五虎群羊刀</span></span>
+                                    <span class="explore-tag"><i data-lucide="crosshair" style="width:12px;height:12px"></i>Locate: 第5章 · 第8段</span>
+                                    <span class="explore-tag"><i data-lucide="file-text" style="width:12px;height:12px"></i>ReadRaw: 第5章</span>
+                                    <span class="explore-tag"><i data-lucide="check-circle" style="width:12px;height:12px"></i>Review: 通过</span>
+                                </div>
+                                <div class="explore-status">
+                                    <span class="hit">命中 3 条</span>
+                                    <span>覆盖度达标</span>
+                                </div>
+                                <div class="explore-evidence">
+                                    <div class="explore-evidence-header" onclick="toggleExplore(this)">
+                                        <span class="explore-evidence-title">证据片段（3）</span>
+                                        <span class="explore-evidence-toggle">∧</span>
+                                    </div>
+                                    <div class="explore-items">
+                                        <div class="explore-item">
+                                            <div class="meta">第5章 · 第8段</div>
+                                            入门级的五虎群羊刀刀法，刀势凌厉而克制……
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-description">
+                    多轮检索-定位-原文读取，逐轮 review 覆盖度，补漏后输出完整证据链。
+                </div>
+
+                <!-- AI 分析与规划 -->
+                <div class="knowledge-section" style="margin-top: 12px;">
+                    <div style="background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 16px; padding: 4px 10px; display: inline-block; max-width: 100%;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; transition: margin-bottom 0.2s; cursor: pointer; user-select: none;" onclick="toggleAINarrative(this)">
+                            <span style="color: #888; display: flex; align-items: center;"><i data-lucide="brain" style="width:12px;height:12px"></i></span>
+                            <span style="font-size: 13px; color: #fff; font-weight: 500;">AI 分析与规划</span>
+                            <span class="narrative-toggle" style="font-size: 9px; color: #666; margin-left: auto;">∧</span>
+                        </div>
+                        <div class="narrative-content">
+                            <!-- 探索总结 -->
+                            <div style="margin-bottom: 10px; transition: margin-bottom 0.2s;">
+                                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                                    <span style="color: #888; display: flex; align-items: center;"><i data-lucide="file-search" style="width:12px;height:12px"></i></span>
+                                    <span style="font-size: 12px; color: #888; font-weight: 500;">探索总结</span>
+                                </div>
+                                <div style="font-size: 12px; color: #999; line-height: 1.7; padding-left: 18px;">
+                                    经过3轮深度探索，我收集到续写第5章所需的完整背景信息。主角林逸刚通过灵根测试（下品灵根），被分配到青云宗外门弟子区。了解到外门弟子每月可领取一枚聚灵丹，需完成任务获取更多资源。发现下月即将举行外门大比，前十名可进入灵泉池修炼。
+                                </div>
+                            </div>
+
+                            <!-- 下一步行动 -->
+                            <div style="margin-bottom: 10px; transition: margin-bottom 0.2s;">
+                                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                                    <span style="color: #888; display: flex; align-items: center;"><i data-lucide="arrow-right-circle" style="width:12px;height:12px"></i></span>
+                                    <span style="font-size: 12px; color: #888; font-weight: 500;">下一步行动</span>
+                                </div>
+                                <div style="font-size: 12px; color: #999; line-height: 1.7; padding-left: 18px;">
+                                    基于这些背景信息，我将执行 <span style="color: #5c9eff; font-family: 'SF Mono', Monaco, monospace; font-size: 11px;">smart_continue</span> 续写第5章，重点描写：林逸初到外门的感受和环境、了解修炼规则和资源制度的过程、得知外门大比后决心参加以弥补资质不足。
+                                </div>
+                            </div>
+
+                            <!-- 统计数据 -->
+                            <div style="display: flex; gap: 8px; flex-wrap: wrap; padding-left: 18px;">
+                                <div style="display: flex; align-items: center; gap: 4px; padding: 2px 6px; background: #222; border-radius: 4px; font-size: 11px;">
+                                    <i data-lucide="book-open" style="width:11px;height:11px;color:#666"></i>
+                                    <span style="color: #666;">世界观</span>
+                                    <span style="color: #5c9eff; font-weight: 500;">5</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 4px; padding: 2px 6px; background: #222; border-radius: 4px; font-size: 11px;">
+                                    <i data-lucide="file-text" style="width:11px;height:11px;color:#666"></i>
+                                    <span style="color: #666;">章节</span>
+                                    <span style="color: #5c9eff; font-weight: 500;">1-4</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 4px; padding: 2px 6px; background: #222; border-radius: 4px; font-size: 11px;">
+                                    <i data-lucide="layers" style="width:11px;height:11px;color:#666"></i>
+                                    <span style="color: #666;">证据</span>
+                                    <span style="color: #5c9eff; font-weight: 500;">13</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 4px; padding: 2px 6px; background: #222; border-radius: 4px; font-size: 11px;">
+                                    <i data-lucide="check-circle" style="width:11px;height:11px;color:#10b981"></i>
+                                    <span style="color: #666;">覆盖度</span>
+                                    <span style="color: #10b981; font-weight: 500;">95%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tool-operation">
+                    <span class="tool-icon"><i data-lucide="wrench" style="width:12px;height:12px"></i></span>
+                    <span class="tool-text">调用工具</span>
+                    <span class="tool-name">explore_content (max_rounds: 3)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 执行步骤 4: 执行续写 -->
+        <div class="execution-step">
+            <div class="step-header" onclick="toggleStep(this)">
+                <div class="step-icon completed"><i data-lucide="check" style="width:12px;height:12px"></i></div>
+                <div class="step-title-area">
+                    <span class="step-title">生成续写内容</span>
+                    <span class="step-toggle">∧</span>
+                </div>
+                <div class="step-spacer"></div>
+            </div>
+            <div class="step-content">
+                <div class="step-description">
+                    基于世界观设定、前文内容和检索到的相关片段，开始生成第五章内容。
+                </div>
+
+                <div class="tool-operation">
+                    <span class="tool-icon"><i data-lucide="pen-tool" style="width:12px;height:12px"></i></span>
+                    <span class="tool-text">调用工具</span>
+                    <span class="tool-name">smart_continue (目标: 3000字)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 执行步骤 5: AI整合分析 (Summarization) -->
+        <div class="execution-step">
+            <div class="step-header" onclick="toggleStep(this)">
+                <div class="step-icon completed"><i data-lucide="check" style="width:12px;height:12px"></i></div>
+                <div class="step-title-area">
+                    <span class="step-title">AI整合分析</span>
+                    <span class="step-toggle">∧</span>
+                </div>
+                <div class="step-spacer"></div>
+            </div>
+            <div class="step-content">
+                <!-- 任务分类 -->
+                <div class="knowledge-section">
+                    <div class="knowledge-container">
+                        <div class="knowledge-header" onclick="toggleKnowledge(this)">
+                            <span class="knowledge-icon"><i data-lucide="layers" style="width:12px;height:12px"></i></span>
+                            <span class="knowledge-title">任务分类(4)</span>
+                            <span class="knowledge-toggle">∧</span>
+                        </div>
+                        <div class="knowledge-items">
+                            <a class="knowledge-item">get_worldview_summary<span class="tag">输入型</span></a>
+                            <a class="knowledge-item">get_chapter_by_order_tool<span class="tag">输入型</span></a>
+                            <a class="knowledge-item">search_analysis_fragments_tool<span class="tag">输入型</span></a>
+                            <a class="knowledge-item">smart_continue<span class="tag">输出型</span></a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 上下文压缩信息 -->
+                <div class="knowledge-section">
+                    <div class="knowledge-container">
+                        <div class="knowledge-header" onclick="toggleKnowledge(this)">
+                            <span class="knowledge-icon"><i data-lucide="file-minus" style="width:12px;height:12px"></i></span>
+                            <span class="knowledge-title">上下文处理</span>
+                            <span class="knowledge-toggle">∧</span>
+                        </div>
+                        <div class="knowledge-items">
+                            <div class="context-stat">
+                                <span class="context-label">原始大小</span>
+                                <span class="context-value">6048 字符</span>
+                            </div>
+                            <div class="context-stat">
+                                <span class="context-label">处理后</span>
+                                <span class="context-value">5643 字符</span>
+                            </div>
+                            <div class="context-stat">
+                                <span class="context-label">整合模式</span>
+                                <span class="context-value">流式生成</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-description">
+                    将3个输入型任务和1个输出型任务的结果进行AI整合，生成连贯的最终响应。
+                </div>
+
+                <div class="tool-operation">
+                    <span class="tool-icon"><i data-lucide="sparkles" style="width:12px;height:12px"></i></span>
+                    <span class="tool-text">调用工具</span>
+                    <span class="tool-name">response_builder.summarize</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 执行步骤 6: 修订编辑器章节 -->
+        <div class="execution-step">
+            <div class="step-header" onclick="toggleStep(this)">
+                <div class="step-icon completed"><i data-lucide="check" style="width:12px;height:12px"></i></div>
+                <div class="step-title-area">
+                    <span class="step-title">修订编辑器章节</span>
+                    <span class="step-toggle">∧</span>
+                </div>
+                <div class="step-spacer"></div>
+            </div>
+            <div class="step-content">
+                <!-- 修订操作胶囊 -->
+                <div class="knowledge-section">
+                    <div class="revision-capsule">
+                        <div class="revision-header" onclick="toggleRevision(this)">
+                            <span class="revision-icon"><i data-lucide="file-pen" style="width:12px;height:12px"></i></span>
+                            <span class="revision-title">章节修订</span>
+                            <span class="revision-toggle">∧</span>
+                            <span class="revision-badge pending">待确认</span>
+                        </div>
+                        <div class="revision-content">
+                            <div class="revision-target">
+                                <span class="target-name">第五章：外门初修</span>
+                            </div>
+                            <div class="revision-preview">
+                                <div class="preview-label">新增内容预览：</div>
+                                <div class="preview-text">"清晨的第一缕阳光穿透薄雾，洒在青云宗外门弟子居住的木屋上..."</div>
+                            </div>
+                            <div class="revision-actions">
+                                <button class="revision-btn discard" onclick="handleRevisionDiscard()">
+                                    <i data-lucide="x" style="width:12px;height:12px"></i>
+                                    弃用
+                                </button>
+                                <button class="revision-btn accept" onclick="handleRevisionAccept()">
+                                    <i data-lucide="check" style="width:12px;height:12px"></i>
+                                    采纳
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-description">
+                    已将续写内容应用到编辑器，显示为<span style="color:#10b981">绿色高亮</span>标记。您可以在编辑器中预览并决定是否采纳。
+                </div>
+
+                <div class="tool-operation">
+                    <span class="tool-icon"><i data-lucide="wrench" style="width:12px;height:12px"></i></span>
+                    <span class="tool-text">调用工具</span>
+                    <span class="tool-name">apply_chapter_edit (operation: append)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-gap"></div>
+
+        <!-- Agent 头部 2 -->
+        <div class="agent-header">
+            <div class="agent-logo"><i data-lucide="sparkles" style="width:18px;height:18px"></i></div>
+            <span class="agent-name">AI写作助手</span>
+            <span class="agent-badge">Pro</span>
+        </div>
+
+        <!-- 最终输出 -->
+        <div class="final-output">
+            <div class="output-intro">
+                第五章已续写完成！本章主要讲述<strong>林逸开始外门修炼</strong>的经历，包含以下情节：
+            </div>
+
+            <!-- 续写内容卡片 -->
+            <div class="content-card">
+                <div class="content-header">
+                    <div class="content-title-area">
+                        <span class="content-title">第五章：外门初修</span>
+                    </div>
+                    <div class="content-actions">
+                        <button class="action-btn">复制</button>
+                        <button class="action-btn primary">应用到章节</button>
+                    </div>
+                </div>
+                <div class="content-body">
+                    <div class="chapter-text">
+                        <p>清晨的第一缕阳光穿透薄雾，洒在青云宗外门弟子居住的木屋上。林逸早早醒来，盘腿坐在简陋的床榻上，回想着昨日灵根测试的结果。</p>
+                        <p><span class="highlight">"下品灵根......"</span>他轻声呢喃，眼中闪过一丝不甘。在场的弟子中，他的资质几乎是最差的，但这并没有让他气馁。前世的记忆告诉他，修行之路从来不是一帆风顺的。</p>
+                        <p>推开木门，清新的空气扑面而来。外门弟子区位于青云峰的山脚，虽然灵气不如山顶浓郁，但对于刚入门的弟子来说已经足够。</p>
+                        <p>"新来的？"一个爽朗的声音从旁边传来。林逸转头，看到一个身穿青色外门弟子服的少年正朝他走来，脸上带着友善的笑容。</p>
+                        <p>"在下林逸，昨日刚通过测试。"林逸拱手行礼。</p>
+                        <p>"我叫张浩，来这里已经三个月了。"少年拍了拍林逸的肩膀，"走，我带你去领取修炼资源，顺便给你介绍一下这里的规矩。"</p>
+                        <p>两人并肩而行，张浩一边走一边介绍着外门的情况。原来，外门弟子每月可以领取一枚<span class="highlight">聚灵丹</span>和一本基础功法，但想要获得更多资源，就必须完成宗门发布的任务。</p>
+                        <p>"对了，"张浩压低声音，"下个月就是外门大比了，前十名可以获得进入<span class="highlight">灵泉池</span>修炼一天的机会。那可是内门弟子才能享受的待遇！"</p>
+                        <p>林逸眼中闪过一丝精光。灵泉池......如果能在那里修炼，或许能弥补他灵根资质的不足。</p>
+                        <p>"我会参加的。"他坚定地说道。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 完成状态 -->
+        <div class="completion-status">
+            <span class="completion-icon"><i data-lucide="check-circle" style="width:14px;height:14px"></i></span>
+            <span>任务已完成</span>
+        </div>
+    </div>
+
+    <script>
+        function toggleStep(header) {
+            const content = header.nextElementSibling;
+            const toggle = header.querySelector('.step-toggle');
+
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                toggle.textContent = '∧';
+            } else {
+                content.classList.add('hidden');
+                toggle.textContent = '∨';
+            }
+        }
+
+        function toggleKnowledge(header) {
+            const items = header.parentElement.querySelector('.knowledge-items');
+            const toggle = header.querySelector('.knowledge-toggle');
+
+            if (items.classList.contains('hidden')) {
+                items.classList.remove('hidden');
+                toggle.textContent = '∧';
+            } else {
+                items.classList.add('hidden');
+                toggle.textContent = '∨';
+            }
+        }
+
+        function toggleExplore(header) {
+            const items = header.parentElement.querySelector('.explore-items');
+            const toggle = header.querySelector('.explore-evidence-toggle');
+
+            if (items.classList.contains('hidden')) {
+                items.classList.remove('hidden');
+                toggle.textContent = '∧';
+            } else {
+                items.classList.add('hidden');
+                toggle.textContent = '∨';
+            }
+        }
+
+        function toggleExploreRound(header) {
+            const body = header.parentElement.querySelector('.explore-round-body');
+            const toggle = header.querySelector('.explore-round-toggle');
+            const capsule = header.parentElement;
+            const title = header.querySelector('.explore-round-title');
+
+            if (body.classList.contains('hidden')) {
+                body.classList.remove('hidden');
+                toggle.textContent = '∧';
+                capsule.classList.remove('collapsed');
+                header.classList.remove('compact');
+                title.classList.remove('compact');
+            } else {
+                body.classList.add('hidden');
+                toggle.textContent = '∨';
+                capsule.classList.add('collapsed');
+                header.classList.add('compact');
+                title.classList.add('compact');
+            }
+        }
+
+        // 初始化 Lucide 图标
+        lucide.createIcons();
+
+        // 修订胶囊展开/收起
+        function toggleRevision(header) {
+            const content = header.nextElementSibling;
+            const toggle = header.querySelector('.revision-toggle');
+
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                toggle.textContent = '∧';
+            } else {
+                content.classList.add('hidden');
+                toggle.textContent = '∨';
+            }
+        }
+
+        // AI 分析与规划展开/收起
+        function toggleAINarrative(header) {
+            const content = header.nextElementSibling;
+            const toggle = header.querySelector('.narrative-toggle');
+            const title = header.querySelector('span:nth-child(2)');
+
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                toggle.textContent = '∧';
+                header.style.marginBottom = '10px';
+                title.style.color = '#fff';
+                title.style.fontWeight = '500';
+            } else {
+                content.classList.add('hidden');
+                toggle.textContent = '∨';
+                header.style.marginBottom = '0';
+                title.style.color = '#888';
+                title.style.fontWeight = 'normal';
+            }
+        }
+
+        // 修订操作处理
+        function handleRevisionAccept() {
+            const capsule = document.querySelector('.revision-capsule');
+            const badge = capsule.querySelector('.revision-badge');
+            const actions = capsule.querySelector('.revision-actions');
+
+            // 更新状态
+            badge.className = 'revision-badge accepted';
+            badge.textContent = '已采纳';
+
+            // 替换按钮为结果文本
+            actions.innerHTML = `
+                <div class="revision-result accepted">
+                    <i data-lucide="check-circle" style="width:12px;height:12px"></i>
+                    修订已采纳，内容已保存到章节
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        function handleRevisionDiscard() {
+            const capsule = document.querySelector('.revision-capsule');
+            const badge = capsule.querySelector('.revision-badge');
+            const actions = capsule.querySelector('.revision-actions');
+
+            // 更新状态
+            badge.className = 'revision-badge discarded';
+            badge.textContent = '已弃用';
+
+            // 替换按钮为结果文本
+            actions.innerHTML = `
+                <div class="revision-result discarded">
+                    <i data-lucide="x-circle" style="width:12px;height:12px"></i>
+                    修订已弃用，编辑器已回滚
+                </div>
+            `;
+            lucide.createIcons();
+        }
+    </script>
+</body>
+</html>
