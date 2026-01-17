@@ -432,7 +432,7 @@ export const EnhancedProgressEventSchema = z.object({
 /**
  * 执行轨迹项类型
  */
-export type FlowItemType = 'text' | 'tool' | 'content' | 'step' | 'output' | 'agent_header' | 'completion' | 'summarization' | 'revision';
+export type FlowItemType = 'text' | 'tool' | 'content' | 'step' | 'output' | 'agent_header' | 'completion' | 'summarization' | 'revision' | 'explore_round' | 'explore_summary';
 
 // ==================== 知识调取相关类型 (v6.0) ====================
 
@@ -581,13 +581,112 @@ export interface RevisionFlowData {
   selectedVersion?: number;     // 选择的改写版本索引
 }
 
+// ==================== Explore 探索轨迹类型 (v9.0) ====================
+
+/**
+ * Explore 工具调用标签
+ */
+export interface ExploreToolCall {
+  type: 'Search' | 'Locate' | 'ReadRaw' | 'Review';
+  value: string;
+  highlight?: string;  // Search 类型的高亮关键词
+}
+
+/**
+ * Explore 证据项
+ */
+export interface ExploreEvidenceItem {
+  chapter: number;
+  paragraph: number;
+  text: string;
+  chapterOrder?: number;
+  chapterTitle?: string;
+  paragraphIndex?: number;
+}
+
+/**
+ * Explore 轮次数据（流事件）
+ */
+export interface ExploreRoundFlowData {
+  stepId: number;
+  roundIdx: number;
+  title: string;
+  toolCalls: ExploreToolCall[];
+  hitCount: number;
+  missingItems: string[];
+  statusText: string;
+  evidences: ExploreEvidenceItem[];
+  reviewStatus: string;  // "覆盖不足" | "补齐要点" | "通过"
+  status: 'running' | 'done';
+}
+
+/**
+ * Explore 统计数据
+ */
+export interface ExploreStats {
+  worldview: number;
+  chapters: string;    // "1-4"
+  evidences: number;
+  coverage: string;    // "95%"
+}
+
+/**
+ * Explore 总结数据（流事件）
+ */
+export interface ExploreSummaryFlowData {
+  stepId: number;
+  totalRounds: number;
+  summary: string;
+  nextAction: string;
+  nextTool?: string;
+  stats: ExploreStats;
+}
+
+/**
+ * ExploreCard 组件使用的轮次数据（兼容旧版）
+ */
+export interface ExploreRound {
+  id: string;
+  title?: string;
+  query?: string;
+  search?: {
+    query?: string;
+    results?: any[];
+  };
+  locate?: {
+    chapterOrder?: number;
+    chapterTitle?: string;
+    paragraphIndex?: number;
+  };
+  readRaw?: {
+    chapterOrder?: number;
+    chapterTitle?: string;
+  };
+  readSegment?: {
+    chapterOrder?: number;
+    chapterTitle?: string;
+    paragraphIndex?: number;
+  };
+  review?: {
+    status: 'pass' | 'insufficient' | 'pending';
+  };
+  evidence?: ExploreEvidenceItem[];
+}
+
+/**
+ * ExploreCard 组件使用的数据（兼容旧版）
+ */
+export interface ExploreFlowData {
+  rounds: ExploreRound[];
+}
+
 /**
  * 执行轨迹项
  */
 export interface FlowItem {
   id: string;
   type: FlowItemType;
-  data: TextFlowData | ToolFlowData | ContentFlowData | StepFlowData | OutputFlowData | AgentHeaderFlowData | CompletionFlowData | SummarizationFlowData | RevisionFlowData;
+  data: TextFlowData | ToolFlowData | ContentFlowData | StepFlowData | OutputFlowData | AgentHeaderFlowData | CompletionFlowData | SummarizationFlowData | RevisionFlowData | ExploreRoundFlowData | ExploreSummaryFlowData | ExploreFlowData;
   timestamp: string;
 }
 

@@ -269,6 +269,79 @@ class FlowEventBuilder:
         }
 
 
+    @staticmethod
+    def explore_round(
+        step_id: int,
+        round_idx: int,
+        title: str,
+        tool_calls: List[Dict[str, Any]],
+        hit_count: int,
+        missing_items: List[str],
+        status_text: str,
+        evidences: List[Dict[str, Any]],
+        review_status: str,
+        status: str = "done"
+    ) -> dict:
+        """构建 Explore 轮次事件
+
+        Args:
+            step_id: 步骤ID
+            round_idx: 轮次索引（从1开始）
+            title: 轮次标题（如"初次检索与定位"）
+            tool_calls: 工具调用列表 [{"type": "Search", "value": "...", "highlight": "..."}]
+            hit_count: 命中条数
+            missing_items: 缺失项列表（黄色警告）
+            status_text: 状态文本（灰色，如"补漏完成"/"覆盖度达标"）
+            evidences: 证据片段列表 [{"chapter": 5, "paragraph": 7, "text": "..."}]
+            review_status: 审查状态（"覆盖不足"/"补齐要点"/"通过"）
+            status: 轮次状态（"running"/"done"）
+        """
+        return {
+            "type": "explore_round",
+            "step_id": step_id,
+            "round_idx": round_idx,
+            "title": title,
+            "tool_calls": tool_calls,
+            "hit_count": hit_count,
+            "missing_items": missing_items,
+            "status_text": status_text,
+            "evidences": evidences,
+            "review_status": review_status,
+            "status": status,
+            "timestamp": get_utc_now().isoformat()
+        }
+
+    @staticmethod
+    def explore_summary(
+        step_id: int,
+        total_rounds: int,
+        summary: str,
+        next_action: str,
+        next_tool: Optional[str],
+        stats: Dict[str, Any]
+    ) -> dict:
+        """构建 Explore AI 分析与规划事件
+
+        Args:
+            step_id: 步骤ID
+            total_rounds: 总轮次数
+            summary: 探索总结
+            next_action: 下一步行动描述
+            next_tool: 下一步要调用的工具名（如 "smart_continue"）
+            stats: 统计信息 {"worldview": 5, "chapters": "1-4", "evidences": 13, "coverage": "95%"}
+        """
+        return {
+            "type": "explore_summary",
+            "step_id": step_id,
+            "total_rounds": total_rounds,
+            "summary": summary,
+            "next_action": next_action,
+            "next_tool": next_tool,
+            "stats": stats,
+            "timestamp": get_utc_now().isoformat()
+        }
+
+
 # 工具图标映射
 TOOL_ICONS = {
     # 世界观/知识类
@@ -289,8 +362,19 @@ TOOL_ICONS = {
     # 编辑类
     "smart_rewrite": "Edit3",
     "smart_insert": "Plus",
+    # Explore 相关
+    "explore_content": "Scan",
+    "read_paragraph": "FileText",
     # 默认
     "_default": "Wrench"
+}
+
+# Explore 工具标签类型图标映射
+EXPLORE_TAG_ICONS = {
+    "Search": "search",
+    "Locate": "crosshair",
+    "ReadRaw": "file-text",
+    "Review": "check-circle",
 }
 
 

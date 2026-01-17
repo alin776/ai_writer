@@ -26,6 +26,7 @@ CACHEABLE_TOOLS = {
     "locate_content",
     "search_content",
     "search_analysis_fragments",
+    "read_paragraph",  # 2026-01-17: 段落精确读取缓存
 }
 
 # Alias tools that should share cache policy with get_writing_context.
@@ -41,6 +42,7 @@ TOOL_TTL_SECONDS = {
     "locate_content": 5 * 60,
     "search_content": 2 * 60,
     "search_analysis_fragments": 2 * 60,
+    "read_paragraph": 10 * 60,  # 2026-01-17: 段落缓存10分钟（内容稳定）
 }
 
 # get_writing_context include options
@@ -218,11 +220,81 @@ class ToolCache:
         return None
 
     @staticmethod
+    def get_paragraph_cache(
+        work_id: str,
+        chapter_order: int,
+        paragraph_index: int,
+        context_before: int = 2,
+        context_after: int = 2,
+        state: Optional[Dict[str, Any]] = None
+    ) -> Optional[str]:
+        """
+        获取段落缓存（2026-01-17）
+
+        Args:
+            work_id: 作品ID
+            chapter_order: 章节序号
+            paragraph_index: 段落索引
+            context_before: 向前读取段落数
+            context_after: 向后读取段落数
+            state: Agent 状态
+
+        Returns:
+            缓存的段落数据（JSON 字符串），未命中返回 None
+        """
+        params = {
+            "work_id": work_id,
+            "chapter_order": chapter_order,
+            "paragraph_index": paragraph_index,
+            "context_before": context_before,
+            "context_after": context_after,
+        }
+        cache_ctx = ToolCache.get_context("read_paragraph", params, state or {})
+        if not cache_ctx:
+            return None
+        return ToolCache.read(cache_ctx)
+
+    @staticmethod
+    def set_paragraph_cache(
+        work_id: str,
+        chapter_order: int,
+        paragraph_index: int,
+        value: str,
+        context_before: int = 2,
+        context_after: int = 2,
+        state: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        设置段落缓存（2026-01-17）
+
+        Args:
+            work_id: 作品ID
+            chapter_order: 章节序号
+            paragraph_index: 段落索引
+            value: 缓存值（JSON 字符串）
+            context_before: 向前读取段落数
+            context_after: 向后读取段落数
+            state: Agent 状态
+        """
+        params = {
+            "work_id": work_id,
+            "chapter_order": chapter_order,
+            "paragraph_index": paragraph_index,
+            "context_before": context_before,
+            "context_after": context_after,
+        }
+        cache_ctx = ToolCache.get_context("read_paragraph", params, state or {})
+        if cache_ctx:
+            ToolCache.write(cache_ctx, value)
+
+    @staticmethod
     def invalidate(
         work_id: Optional[str],
         chapter_id: Optional[str] = None,
+        chapter_order: Optional[int] = None,  # 2026-01-17: 支持章节序号
         include_work_scope: bool = False,
         include_multi_scope: bool = True,
+        include_paragraphs: bool = True,  # 2026-01-17: 是否清除段落缓存
     ) -> int:
         if not work_id:
             return 0
@@ -233,6 +305,11 @@ class ToolCache:
             if include_multi_scope:
                 patterns.append(f"{TOOL_CACHE_PREFIX}:*:{work_id}:chapters:*")
                 patterns.append(f"{TOOL_CACHE_PREFIX}:*:{work_id}:chapter_order:*")
+
+        # 2026-01-17: 段落缓存失效（按章节序号）
+        if chapter_order is not None and include_paragraphs:
+            patterns.append(f"{TOOL_CACHE_PREFIX}:*:{work_id}:paragraph:{chapter_order}:*")
+
         if include_work_scope:
             patterns.append(f"{TOOL_CACHE_PREFIX}:*:{work_id}:work:*")
 
@@ -302,6 +379,12 @@ def _resolve_user_id(params: Dict[str, Any], state: Dict[str, Any]) -> str:
 
 
 def _resolve_scope(params: Dict[str, Any]) -> str:
+    # 2026-01-17: 段落级缓存支持
+    chapter_order = params.get("chapter_order")
+    paragraph_index = params.get("paragraph_index")
+    if chapter_order is not None and paragraph_index is not None:
+        return f"paragraph:{chapter_order}:{paragraph_index}"
+
     chapter_id = str(params.get("chapter_id") or "").strip()
     if chapter_id:
         return f"chapter:{chapter_id}"

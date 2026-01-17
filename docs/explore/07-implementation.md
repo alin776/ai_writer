@@ -1,5 +1,18 @@
 # Explore 核心循环实现
 
+> ⚠️ **实现状态说明**
+>
+> 实际代码（`explore_tools.py`）与本文档设计有以下差异：
+>
+> | 设计 | 实际实现 |
+> |------|---------|
+> | AI 自主决策调用工具 | 规则驱动的固定流程 |
+> | search → locate → read_paragraph | search → get_writing_context |
+> | 多种工具并行执行 | 顺序执行搜索和章节读取 |
+> | 事件回调可用 | explore_round/explore_summary 未实现，回调不可用 |
+>
+> 本文档保留完整设计供后续迭代参考。
+
 ## 0. 设计更新说明
 
 **基于 Review 报告的修正**：

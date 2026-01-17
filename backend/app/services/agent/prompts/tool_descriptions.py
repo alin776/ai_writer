@@ -292,12 +292,61 @@ def _get_analysis_tools_section() -> str:
 """
 
 
+def _get_explore_tools_section() -> str:
+    """探索工具描述（2026-01-17 新增）"""
+    return """
+【探索工具 - 复杂任务使用】
+
+- explore_content: 深度探索工具（get_writing_context 的增强版）
+  参数:
+    - work_id: 作品ID（必需）
+    - target_task: 目标任务描述（必需）
+    - max_rounds: 最大探索轮数（默认5）
+    - timeout_seconds: 超时时间（默认60）
+  返回: {
+    explore_summary,      # AI 分析总结
+    chapters,            # 完整章节原文
+    worldview,           # 世界观设定
+    evidences,           # 搜索证据片段
+    paragraphs           # 精确读取的段落
+  }
+
+  ✅ 使用场景:
+    - 任务涉及多个章节的关联分析
+    - 需要深入理解人物关系、情节发展
+    - 搜索结果需要原文验证
+
+  ⚠️ 与 get_writing_context 的对比:
+    - get_writing_context: 一次性获取，适合简单任务
+    - explore_content: 多轮探索，适合复杂任务
+
+- read_paragraph: 精确读取段落原文 + 上下文
+  参数:
+    - work_id: 作品ID（必需）
+    - chapter_order: 章节序号（1-based，必需）
+    - paragraph_index: 段落索引（0-based，必需）
+    - context_before: 向前读取段落数（默认2）
+    - context_after: 向后读取段落数（默认2）
+  返回: {chapter_title, paragraphs[{index, text, is_target}], total_paragraphs_in_chapter}
+
+  ✅ 使用场景:
+    - 搜索结果片段太短，需要验证完整上下文
+    - 需要精确读取某个段落的前后文
+    - 验证搜索结果在原文中的完整含义
+
+  ✅ 使用示例:
+    - 读取第3章第18段: read_paragraph(work_id="xxx", chapter_order=3, paragraph_index=18)
+    - 读取更多上下文: read_paragraph(work_id="xxx", chapter_order=5, paragraph_index=7, context_before=5, context_after=5)
+"""
+
+
 def get_all_tools_description() -> str:
     """获取所有工具的完整描述"""
     return (
         _get_new_aggregated_tools_section() +  # 🔴 新聚合工具放在最前面！
         _get_retrieval_tools_section() +
         _get_editor_tools_section() +
+        _get_explore_tools_section() +  # 探索工具（2026-01-17 新增）
         _get_read_tools_section() +
         _get_creative_tools_section() +
         _get_operation_tools_section() +
@@ -310,6 +359,7 @@ __all__ = [
     "_get_new_aggregated_tools_section",  # 新增
     "_get_retrieval_tools_section",
     "_get_editor_tools_section",
+    "_get_explore_tools_section",  # 探索工具（2026-01-17 新增）
     "_get_read_tools_section",
     "_get_creative_tools_section",
     "_get_operation_tools_section",

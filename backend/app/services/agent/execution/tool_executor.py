@@ -410,6 +410,20 @@ class ToolExecutor:
             params.setdefault("rag_top_k", 5)
             params.setdefault("use_cache", True)
 
+        # 🆕 2026-01-17: explore_content 深度探索工具
+        elif tool_name == "explore_content":
+            params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("user_id", state.get("user_id", ""))
+            # target_task 必须由 AI 提供，不设默认值
+            params.setdefault("max_rounds", 3)
+
+        # 🆕 2026-01-17: read_paragraph 段落精确读取工具
+        elif tool_name == "read_paragraph":
+            params.setdefault("work_id", state.get("work_id", ""))
+            # chapter_order 和 paragraph_index 必须由 AI 提供
+            params.setdefault("context_before", 2)
+            params.setdefault("context_after", 2)
+
         elif tool_name == "evaluate_quality":
             if "text" in params and "content" not in params:
                 params["content"] = params.pop("text")
@@ -612,6 +626,15 @@ class ToolExecutor:
         elif tool_name == "analyze_content":
             return data.get("analysis", data.get("summary", ""))
 
+        # 🆕 2026-01-18: explore_content 深度探索工具
+        elif tool_name == "explore_content":
+            # explore_content 返回的 JSON 结构不包含 data 字段
+            # 直接返回 explore_summary 或完整结果
+            if "explore_summary" in result:
+                return result.get("explore_summary", "")
+            # 兜底：返回完整 JSON
+            return json.dumps(result, ensure_ascii=False)
+
         # 章节管理工具（OPERATION 类）- 返回完整 JSON 供 HITL 处理
         elif tool_name in ["create_chapter", "update_chapter_title", "delete_chapter", "update_chapter_content"]:
             return json.dumps(data, ensure_ascii=False)
@@ -631,6 +654,8 @@ class ToolExecutor:
             get_worldview_summary,
             get_writing_context,
             search_content,
+            read_paragraph,
+            explore_content,
         )
         from app.services.agent.tools.editor_tools import (
             smart_rewrite,
@@ -670,6 +695,9 @@ class ToolExecutor:
             # 聚合工具（2026-01-12）
             "get_writing_context": get_writing_context,
             "search_content": search_content,
+            # 深度探索工具（2026-01-17）
+            "read_paragraph": read_paragraph,
+            "explore_content": explore_content,
             # 创作增强工具
             "show_emotion_tool": show_emotion_tool,
             "enhance_scene_tool": enhance_scene_tool,
@@ -812,10 +840,31 @@ class ToolExecutor:
                         "rag_top_k": tool_args.get("rag_top_k", 5),
                         "use_cache": tool_args.get("use_cache", True)
                     }
+                # 深度探索工具（2026-01-17）
+                elif tool_name == "read_paragraph":
+                    params = {
+                        "work_id": tool_args.get("work_id", state.get("work_id", "")),
+                        "chapter_order": tool_args.get("chapter_order"),
+                        "paragraph_index": tool_args.get("paragraph_index"),
+                        "context_before": tool_args.get("context_before", 2),
+                        "context_after": tool_args.get("context_after", 2)
+                    }
+                elif tool_name == "explore_content":
+                    params = {
+                        "work_id": tool_args.get("work_id", state.get("work_id", "")),
+                        "target_task": tool_args.get("target_task", ""),
+                        "max_rounds": tool_args.get("max_rounds", 3),
+                        "user_id": tool_args.get("user_id", state.get("user_id", ""))
+                    }
                 else:
                     params = tool_args
 
-                return await legacy_tool.ainvoke(params)
+                result = await legacy_tool.ainvoke(params)
+
+                # 🆕 2026-01-18: explore_content 返回完整 JSON，不在此处提取 explore_summary
+                # 让 parallel_executor 可以解析 frontend_display 并发射事件
+                # explore_summary 的提取移到 parallel_executor 中进行
+                return result
             except Exception as e:
                 logger.error(f"[LegacyTool] 调用失败: {e}")
                 return json.dumps({"error": "legacy_tool_failed", "message": str(e)}, ensure_ascii=False)

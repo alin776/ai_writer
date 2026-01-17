@@ -1,5 +1,14 @@
 # Explore 流式事件
 
+> ✅ **实现状态（2026-01-17 更新）**
+>
+> `explore_round` 和 `explore_summary` 事件方法**已在 flow_events.py 中实现**。
+>
+> **已实现**：
+> - `FlowEventBuilder.explore_round()` - 构建单轮探索事件
+> - `FlowEventBuilder.explore_summary()` - 构建 AI 分析与规划事件
+> - `EXPLORE_TAG_ICONS` - 工具标签类型图标映射
+
 ## 1. 设计原则
 
 **融入现有体系**：复用 `FlowEventBuilder` 的事件格式，只新增必要的 Explore 专用事件。
@@ -105,6 +114,10 @@ FlowEventBuilder.step_complete(
 ---
 
 ## 4. 新增事件：explore_round（V2 完整版）
+
+> ✅ **实现状态：已实现（2026-01-17）**
+>
+> 此事件方法已在 `flow_events.py` 中实现。
 
 > 基于 HTML 设计稿 `agent-writing-preview - 副本 (2).html` 行 957-1148
 
@@ -345,6 +358,10 @@ FlowEventBuilder.explore_round(
 ---
 
 ## 5. 新增事件：explore_summary（AI 分析与规划）
+
+> ✅ **实现状态：已实现（2026-01-17）**
+>
+> 此事件方法已在 `flow_events.py` 中实现。
 
 用于展示探索结束后的 AI 分析和下一步行动。
 

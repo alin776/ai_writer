@@ -1181,6 +1181,170 @@ async def get_writing_context(
             }, ensure_ascii=False, indent=2)
 
 
+# ==================== 段落精确读取工具 ====================
+
+@tool
+async def read_paragraph(
+    work_id: str,
+    chapter_order: int,
+    paragraph_index: int,
+    context_before: int = 2,
+    context_after: int = 2
+) -> str:
+    """精确读取段落原文 + 上下文
+
+    根据搜索结果的位置信息，精确读取指定段落及其前后上下文原文。
+    用于验证搜索结果片段的完整含义。
+
+    Args:
+        work_id: 作品ID（UUID格式，必需）
+        chapter_order: 章节序号（1-based，必需）
+        paragraph_index: 段落索引（0-based，必需）
+        context_before: 向前读取段落数（默认2）
+        context_after: 向后读取段落数（默认2）
+
+    Returns:
+        JSON格式的段落原文列表
+
+    使用示例:
+        # 读取第3章第18段及前后2段
+        read_paragraph(work_id="xxx", chapter_order=3, paragraph_index=18)
+
+        # 读取第5章第7段及前后5段上下文
+        read_paragraph(work_id="xxx", chapter_order=5, paragraph_index=7, context_before=5, context_after=5)
+    """
+    if not work_id:
+        return json.dumps({
+            "success": False,
+            "error": "缺少必需参数 work_id"
+        }, ensure_ascii=False, indent=2)
+
+    uuid_error = validate_uuid(work_id, "作品ID")
+    if uuid_error:
+        return uuid_error
+
+    # 2026-01-17: 检查缓存
+    from app.services.agent.utils.tool_cache import ToolCache
+    cached_result = ToolCache.get_paragraph_cache(
+        work_id=work_id,
+        chapter_order=chapter_order,
+        paragraph_index=paragraph_index,
+        context_before=context_before,
+        context_after=context_after
+    )
+    if cached_result:
+        logger.info(f"[read_paragraph] 缓存命中: 第{chapter_order}章第{paragraph_index}段")
+        return cached_result
+
+    # 大章节保护
+    MAX_CHAPTER_SIZE = 200_000  # 200K 字符
+
+    async with AsyncSessionLocal() as db:
+        try:
+            from app.services.work_service import WorkService
+            from app.services.agent.tools.locate_tools import _split_paragraphs
+
+            work_service = WorkService(db)
+            work = await work_service.get_work_by_id(work_id, use_cache=True)
+
+            if not work:
+                return json.dumps({
+                    "success": False,
+                    "error": f"作品 {work_id} 不存在"
+                }, ensure_ascii=False, indent=2)
+
+            if not work.chapters:
+                return json.dumps({
+                    "success": False,
+                    "error": "作品没有章节"
+                }, ensure_ascii=False, indent=2)
+
+            # 按序号查找章节
+            chapter_map = {ch.order: ch for ch in work.chapters}
+            chapter = chapter_map.get(chapter_order)
+
+            if not chapter:
+                available_orders = sorted(chapter_map.keys())
+                return json.dumps({
+                    "success": False,
+                    "error": f"章节序号 {chapter_order} 不存在",
+                    "available_orders": available_orders[:10]  # 只显示前10个
+                }, ensure_ascii=False, indent=2)
+
+            content = chapter.content or ""
+
+            # 大章节分块处理
+            if len(content) > MAX_CHAPTER_SIZE:
+                # 估算目标位置，只解析附近 10K 字符
+                avg_para_len = 500
+                start_pos = max(0, paragraph_index * avg_para_len - 5000)
+                end_pos = min(len(content), paragraph_index * avg_para_len + 5000)
+                content = content[start_pos:end_pos]
+                # 调整索引
+                paragraph_index = min(paragraph_index, 10)
+
+            # 复用现有段落解析（支持 HTML 和纯文本）
+            paragraphs = _split_paragraphs(content)
+
+            if not paragraphs:
+                return json.dumps({
+                    "success": False,
+                    "error": "章节内容为空或无法解析段落"
+                }, ensure_ascii=False, indent=2)
+
+            if paragraph_index >= len(paragraphs):
+                return json.dumps({
+                    "success": False,
+                    "error": f"段落索引 {paragraph_index} 超出范围",
+                    "total_paragraphs": len(paragraphs),
+                    "valid_range": f"0-{len(paragraphs) - 1}"
+                }, ensure_ascii=False, indent=2)
+
+            # 计算范围
+            start_idx = max(0, paragraph_index - context_before)
+            end_idx = min(len(paragraphs), paragraph_index + context_after + 1)
+
+            # 构建结果
+            result_paragraphs = []
+            for i in range(start_idx, end_idx):
+                result_paragraphs.append({
+                    "index": i,
+                    "text": paragraphs[i]["text"],
+                    "is_target": i == paragraph_index
+                })
+
+            result = json.dumps({
+                "success": True,
+                "work_id": work_id,
+                "chapter_order": chapter_order,
+                "chapter_title": chapter.title,
+                "paragraphs": result_paragraphs,
+                "target_index": paragraph_index,
+                "total_paragraphs_in_chapter": len(paragraphs)
+            }, ensure_ascii=False, indent=2)
+
+            # 2026-01-17: 写入缓存
+            ToolCache.set_paragraph_cache(
+                work_id=work_id,
+                chapter_order=chapter_order,
+                paragraph_index=paragraph_index,
+                value=result,
+                context_before=context_before,
+                context_after=context_after
+            )
+            logger.info(f"[read_paragraph] 缓存写入: 第{chapter_order}章第{paragraph_index}段")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"read_paragraph 失败: {e}")
+            return json.dumps({
+                "success": False,
+                "error": "读取段落失败",
+                "message": str(e)
+            }, ensure_ascii=False, indent=2)
+
+
 # ==================== 工具列表 ====================
 
 # 导入编辑器工具
@@ -1207,12 +1371,17 @@ from app.services.agent.tools.style_learning import learn_style_tool, get_style_
 # 导入定位工具（2026-01-10）
 from app.services.agent.tools.locate_tools import locate_content
 
+# 导入探索工具（2026-01-17）
+from app.services.agent.tools.explore_tools import explore_content
+
 LANGGRAPH_TOOLS = [
     # Search 类工具
     search_content,
     locate_content,
     # Read 类工具（聚合）
     get_writing_context,
+    read_paragraph,  # 段落精确读取（2026-01-17）
+    explore_content,  # 深度探索（2026-01-17）
     # 分析工具
     analyze_content,
     # 创作工具
@@ -1253,6 +1422,10 @@ __all__ = [
     "get_worldview_summary",
     # 聚合工具（2026-01-12）
     "get_writing_context",
+    # 段落读取工具（2026-01-17）
+    "read_paragraph",
+    # 探索工具（2026-01-17）
+    "explore_content",
     # 工具列表
     "LANGGRAPH_TOOLS",
     # StandardTool 版本（2025-12-14）

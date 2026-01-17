@@ -368,6 +368,36 @@ class AgentApiService {
                 timestamp: data.timestamp
               });
               break;
+
+            // Explore 探索事件 (2026-01-17)
+            case 'explore_round':
+              callbacks.onFlowEvent?.({
+                type: 'explore_round',
+                stepId: data.step_id,
+                roundIdx: data.round_idx,
+                title: data.title,
+                toolCalls: data.tool_calls,
+                hitCount: data.hit_count,
+                missingItems: data.missing_items,
+                statusText: data.status_text,
+                evidences: data.evidences,
+                reviewStatus: data.review_status,
+                status: data.status,
+                timestamp: data.timestamp
+              });
+              break;
+            case 'explore_summary':
+              callbacks.onFlowEvent?.({
+                type: 'explore_summary',
+                stepId: data.step_id,
+                totalRounds: data.total_rounds,
+                summary: data.summary,
+                nextAction: data.next_action,
+                nextTool: data.next_tool,
+                stats: data.stats,
+                timestamp: data.timestamp
+              });
+              break;
           }
         } catch (error) {
           console.error('[AgentApi] Failed to parse SSE data:', error);

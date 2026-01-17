@@ -22,6 +22,7 @@ from app.services.agent.langgraph_tools import (
     get_context_tool,
     search_analysis_fragments_tool,
     search_content,
+    read_paragraph,  # 2026-01-17: 段落精确读取
 )
 from app.services.agent.tools.editor_tools import smart_continue
 
@@ -46,6 +47,9 @@ class TaskRunner:
         "search_analysis_fragments_tool": "search_content",
         "search_analysis_fragments": "search_content",
         "search_content": "search_content",
+        # 2026-01-17: 探索工具
+        "read_paragraph": "read_paragraph",
+        "explore_content": "explore_content",
     }
 
     def __init__(
@@ -466,6 +470,15 @@ class TaskRunner:
             })
         elif tool_name == "locate_content":
             return None
+        elif tool_name == "read_paragraph":
+            # 2026-01-17: 段落精确读取
+            return await read_paragraph.ainvoke({
+                "work_id": work_id,
+                "chapter_order": params.get("chapter_order", 1),
+                "paragraph_index": params.get("paragraph_index", 0),
+                "context_before": params.get("context_before", 2),
+                "context_after": params.get("context_after", 2),
+            })
         else:
             return f"任务 {tool_name} 需要手动处理"
 

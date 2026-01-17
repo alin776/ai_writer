@@ -1,5 +1,18 @@
 # Explore 与现有架构集成
 
+> ✅ **实现状态说明（2026-01-17 更新）**
+>
+> | 组件 | 文档状态 | 实际状态 |
+> |------|---------|---------|
+> | `explore_tools.py` | 新增 | ✅ 已实现（~800行） |
+> | `read_paragraph` | 新增 | ✅ 已实现（~130行） |
+> | `flow_events.py` 事件方法 | 修改 | ✅ 已实现（~80行） |
+> | `tool_executor.py` 参数处理 | 修改 | ✅ 已实现（~50行） |
+> | `planning_examples.py` 示例 | 修改 | ✅ 已实现（~120行） |
+> | 前端事件处理 | 修改 | ✅ 已实现（~110行） |
+> | 前端 UI 组件 | 新增 | ✅ 已实现（ExploreCard.tsx ~470行） |
+> | 类型定义 | 新增 | ✅ 已实现（types/agent.ts ~100行） |
+
 ## 1. 集成策略
 
 **最小改动原则**：Explore 作为新工具加入，复用现有工具和事件体系。
@@ -347,27 +360,43 @@ backend/app/services/agent/
 
 ## 8. 改动清单总结
 
-### 后端
+> ✅ **实际实现情况（2026-01-17 更新）**
 
-| 文件 | 改动 | 代码量估计 |
-|------|------|------------|
-| `tools/explore_tools.py` | 新增 | ~300行 |
-| `langgraph_tools.py` | 添加 read_paragraph | ~70行 |
-| `prompts/tool_descriptions.py` | 添加工具描述 | ~50行 |
-| `execution/task_runner.py` | 添加 explore 结果处理 | ~40行 |
-| `stream/flow_events.py` | 添加事件 + 图标 | ~30行 |
-| `utils/tool_cache.py` | 段落级缓存 | ~40行 |
+### 后端（已实现）
 
-**后端总计**：~530行
+| 文件 | 改动 | 代码量 | 状态 |
+|------|------|--------|------|
+| `tools/explore_tools.py` | 新增 | ~800行 | ✅ 已实现 |
+| `langgraph_tools.py` | 添加 read_paragraph + explore_content 导入 | ~135行 | ✅ 已实现 |
+| `prompts/tool_descriptions.py` | 添加工具描述 | ~50行 | ✅ 已实现 |
+| `prompts/planning_prompts.py` | 添加 explore_content 使用指导 | ~15行 | ✅ 已实现 |
+| `prompts/planning_examples.py` | 添加 explore_content 规划示例 | ~120行 | ✅ 已实现 |
+| `execution/task_runner.py` | 添加 explore 结果处理 | ~40行 | ✅ 已实现 |
+| `execution/tool_executor.py` | 添加 work_id 参数注入 + 降级支持 | ~50行 | ✅ 已实现 |
+| `stream/flow_events.py` | 添加事件 + 图标 | ~80行 | ✅ 已实现 |
+| `utils/tool_cache.py` | 段落级缓存 | ~80行 | ✅ 已实现 |
 
-### 前端
+**后端实际完成**：~1370行（核心类 + 工具 + 事件 + 缓存 + 提示词 + 执行器）
 
-| 文件 | 改动 | 代码量估计 |
-|------|------|------------|
-| `src/services/agentApi.ts` | 添加 explore_analysis case | ~15行 |
-| `src/hooks/useAgentChat.ts` | 添加事件处理 | ~20行 |
-| `src/hooks/useAgentChatStream.ts` | 添加事件处理 | ~20行 |
+### 前端（已实现）
 
-**前端总计**：~55行
+| 文件 | 改动 | 代码量估计 | 状态 |
+|------|------|------------|------|
+| `src/services/agentApi.ts` | 添加 explore_round/explore_summary | ~30行 | ✅ 已实现 |
+| `src/hooks/useAgentChat.ts` | 添加事件处理 | ~40行 | ✅ 已实现 |
+| `src/hooks/useAgentChatStream.ts` | 添加事件处理 | ~40行 | ✅ 已实现 |
+| `src/types/agent.ts` | 添加 Explore 类型定义 | ~100行 | ✅ 已实现 |
+| `src/components/agent/ExecutionFlow/ExploreCard.tsx` | 添加流事件组件 | ~270行 | ✅ 已实现 |
+| `src/components/agent/ExecutionFlow/index.tsx` | 添加 explore 渲染 | ~15行 | ✅ 已实现 |
 
-**总计**：~585行新代码
+**前端状态**：✅ 全部完成
+
+### 实际代码量
+
+| 类型 | 文档预估 | 实际情况 |
+|------|---------|---------|
+| 后端 | ~530行 | ~1370行（核心类 + 工具 + 事件 + 缓存 + 提示词 + 执行器） |
+| 前端 | ~55行 | ~495行（事件处理 + UI 组件 + 类型定义） |
+| 总计 | ~585行 | ~1865行 |
+
+**实现状态**：✅ 全部完成（2026-01-17）

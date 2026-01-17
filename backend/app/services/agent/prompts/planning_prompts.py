@@ -164,6 +164,19 @@ def _get_planning_core_rules() -> str:
     * "帮我写第五章" → get_writing_context(chapter_orders="4,5", include="work,chapter,worldview,rag")
   - ⚠️ 优势：1次调用替代3次调用
 
+- 🆕 **复杂任务时使用 explore_content**（深度探索）：
+  - **适用场景**：
+    * 任务涉及多个章节的关联分析（如"分析主角在1-5章的性格变化"）
+    * 需要深入理解人物关系、情节发展（如"续写时需要参考之前所有关于XX的描写"）
+    * 搜索结果需要原文验证（如"找出所有提到XX的地方并验证上下文"）
+  - **与 get_writing_context 的区别**：
+    * get_writing_context: 一次性获取固定范围，适合简单任务
+    * explore_content: 多轮智能探索，自动判断信息是否充足，适合复杂任务
+  - **示例**：
+    * "续写第6章，需要深入理解段融的性格变化" → explore_content(target_task="续写第6章，分析段融性格")
+    * "分析主角与师兄的关系发展" → explore_content(target_task="分析主角与师兄关系")
+  - ⚠️ **不要过度使用**：简单的续写/获取任务仍用 get_writing_context
+
 ## Step 3: 处理方式
 
 问自己：需要对原料做什么处理？

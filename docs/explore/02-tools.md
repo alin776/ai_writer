@@ -124,6 +124,11 @@ locate_result = await locate_content.ainvoke({
 
 ## 3. 新增工具：read_paragraph
 
+> ✅ **实现状态：已实现（2026-01-17）**
+>
+> 此工具已在 `langgraph_tools.py` 中实现（~130行）。
+> 支持精确读取段落 + 上下文，复用 `_split_paragraphs()` 函数。
+
 ### 3.1 为什么需要这个工具？
 
 | 现有工具 | 局限性 |
@@ -315,7 +320,13 @@ def _split_paragraphs(content: str) -> List[Dict[str, Any]]:
 
 ## 4. 工具调用规则
 
-### 4.1 AI 自主选择
+> ⚠️ **实际实现差异**
+>
+> 文档设计的流程与实际代码有差异：
+> - **文档设计**：AI 自主选择工具，支持 `read_paragraph` 精确验证
+> - **实际实现**：规则驱动的固定流程，使用 `get_writing_context` 读整章
+
+### 4.1 AI 自主选择（设计）
 
 AI 根据当前信息缺口决定调用哪些工具：
 

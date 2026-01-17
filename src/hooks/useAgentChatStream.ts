@@ -470,6 +470,45 @@ export function useAgentChatStream(
                 );
                 break;
               }
+              // Explore 探索事件 (2026-01-17)
+              case 'explore_round': {
+                const item: FlowItem = {
+                  id: `flow-${Date.now()}-explore-round-${event.roundIdx}`,
+                  type: 'explore_round',
+                  data: {
+                    stepId: event.stepId,
+                    roundIdx: event.roundIdx,
+                    title: event.title,
+                    toolCalls: event.toolCalls,
+                    hitCount: event.hitCount,
+                    missingItems: event.missingItems,
+                    statusText: event.statusText,
+                    evidences: event.evidences,
+                    reviewStatus: event.reviewStatus,
+                    status: event.status,
+                  },
+                  timestamp,
+                };
+                setFlowItems((prev) => [...prev, item]);
+                break;
+              }
+              case 'explore_summary': {
+                const item: FlowItem = {
+                  id: `flow-${Date.now()}-explore-summary`,
+                  type: 'explore_summary',
+                  data: {
+                    stepId: event.stepId,
+                    totalRounds: event.totalRounds,
+                    summary: event.summary,
+                    nextAction: event.nextAction,
+                    nextTool: event.nextTool,
+                    stats: event.stats,
+                  },
+                  timestamp,
+                };
+                setFlowItems((prev) => [...prev, item]);
+                break;
+              }
               case 'revision': {
                 // v7.0: 修订请求事件
                 const item: FlowItem = {

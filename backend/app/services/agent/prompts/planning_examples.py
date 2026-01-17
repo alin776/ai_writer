@@ -468,6 +468,126 @@ def get_multi_chapter_examples() -> str:
 """
 
 
+def get_explore_content_examples() -> str:
+    """explore_content 深度探索工具示例（2026-01-17）"""
+    return """【explore_content 深度探索示例】⚠️ 复杂任务时使用，替代多次 get_writing_context
+
+🔴 **什么时候用 explore_content？**
+- 任务涉及多个章节的关联分析（如"分析主角在1-5章的性格变化"）
+- 需要深入理解人物关系、情节发展（如"续写时需要参考之前所有关于XX的描写"）
+- 搜索结果需要原文验证（如"找出所有提到XX的地方并验证上下文"）
+
+⚠️ **什么时候不用 explore_content？**
+- 简单的单章节续写 → 用 get_writing_context
+- 只是获取世界观 → 用 get_writing_context(include="worldview")
+- 简单的搜索查询 → 用 search_content
+
+---
+【场景1：复杂续写 - 需要深入理解人物】
+
+用户: "续写第6章，需要深入理解段融的性格变化"
+{
+  "thinking": {
+    "step1_output": "用户要续写，且需要深入理解人物性格变化，这是复杂任务",
+    "step2_material": "⚠️ 需要多轮探索收集段融相关信息，用 explore_content",
+    "step3_process": "explore_content 深度探索 → smart_continue 续写 → apply_chapter_edit 应用"
+  },
+  "user_intent": "深入理解人物后续写第6章",
+  "tasks": [
+    {"task_id": 1, "description": "深度探索段融性格变化", "tool": "explore_content", "params": {
+      "target_task": "续写第6章，需要深入理解段融的性格变化，包括他在前几章的行为、心理描写、与其他角色的互动"
+    }, "depends_on": []},
+    {"task_id": 2, "description": "基于探索结果续写", "tool": "smart_continue", "params": {
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapters[5].id"}},
+      "chapter_content": {"$ref": {"task_id": 1, "path": "context_for_task"}},
+      "user_requirement": "续写第6章，延续段融的性格特点",
+      "word_count": 2000
+    }, "depends_on": [1]},
+    {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
+      "chapter_id": {"$ref": {"task_id": 2, "path": "chapter_id"}},
+      "operation": "append",
+      "content": {"$ref": {"task_id": 2, "path": "content"}}
+    }, "depends_on": [2]}
+  ]
+}
+⚠️ 对比简单续写：简单续写用 get_writing_context，复杂续写用 explore_content
+
+---
+【场景2：多章节关联分析】
+
+用户: "分析主角与师兄的关系在1-5章的发展"
+{
+  "thinking": {
+    "step1_output": "用户要分析跨多章节的人物关系发展",
+    "step2_material": "⚠️ 需要收集多章节中的相关描写，用 explore_content",
+    "step3_process": "explore_content 深度探索 → analyze_content 汇总分析"
+  },
+  "user_intent": "分析多章节中的人物关系发展",
+  "tasks": [
+    {"task_id": 1, "description": "深度探索主角与师兄关系", "tool": "explore_content", "params": {
+      "target_task": "分析主角与师兄的关系，包括：首次见面、互动场景、情感变化、关键转折点"
+    }, "depends_on": []},
+    {"task_id": 2, "description": "汇总分析关系发展", "tool": "analyze_content", "params": {
+      "content": {"$ref": {"task_id": 1, "path": "context_for_task"}},
+      "aspects": ["character"],
+      "depth": "deep"
+    }, "depends_on": [1]}
+  ]
+}
+
+---
+【场景3：验证搜索结果上下文】
+
+用户: "找出所有提到'灵气'的地方，并分析其在不同章节的含义"
+{
+  "thinking": {
+    "step1_output": "用户要找多个位置并分析，需要验证上下文",
+    "step2_material": "⚠️ 搜索后需要读取原文验证，用 explore_content",
+    "step3_process": "explore_content 深度探索（会自动搜索+读取验证）"
+  },
+  "user_intent": "搜索并分析灵气在各章节的含义",
+  "tasks": [
+    {"task_id": 1, "description": "深度探索灵气相关内容", "tool": "explore_content", "params": {
+      "target_task": "找出所有提到'灵气'的地方，读取完整上下文，分析其在不同章节的具体含义和用法"
+    }, "depends_on": []}
+  ]
+}
+⚠️ explore_content 会自动：搜索 → 定位 → 读取原文 → 验证上下文
+
+---
+【反例：简单任务不要用 explore_content】
+
+用户: "续写第5章"
+{
+  "thinking": {
+    "step1_output": "用户要简单续写，不涉及复杂分析",
+    "step2_material": "⚠️ 简单续写用 get_writing_context，不要用 explore_content！",
+    "step3_process": "get_writing_context → smart_continue → apply_chapter_edit"
+  },
+  "user_intent": "简单续写第5章",
+  "tasks": [
+    {"task_id": 1, "description": "获取创作上下文", "tool": "get_writing_context", "params": {
+      "chapter_orders": "4,5",
+      "include": "work,chapter,worldview,rag"
+    }, "depends_on": []},
+    {"task_id": 2, "description": "续写内容", "tool": "smart_continue", "params": {
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapters[1].id"}},
+      "chapter_content": {"$ref": {"task_id": 1, "path": "chapters[1].content"}},
+      "user_requirement": "续写",
+      "word_count": 2000
+    }, "depends_on": [1]},
+    {"task_id": 3, "description": "应用到编辑器", "tool": "apply_chapter_edit", "params": {
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapters[1].id"}},
+      "operation": "append",
+      "content": {"$ref": {"task_id": 2, "path": "content"}}
+    }, "depends_on": [1, 2]}
+  ]
+}
+✅ 正确：简单续写用 get_writing_context
+❌ 错误：简单续写用 explore_content（过度使用，浪费资源）
+"""
+
+
 def get_agent_mode_examples() -> str:
     """Agent 模式示例（带 checkpoint 字段）"""
     return """
@@ -1067,6 +1187,7 @@ def get_all_planning_examples() -> str:
     """获取所有规划示例（用于基础 Planning Prompt）"""
     return (
         get_new_tools_examples() +  # 🔴 P0优先级：新聚合工具示例放在最前面！
+        get_explore_content_examples() +  # 🆕 深度探索示例（2026-01-17）
         get_direct_answer_examples() +
         get_user_confirmation_examples() +
         get_locate_content_examples() +
@@ -1084,6 +1205,7 @@ def get_all_planning_examples() -> str:
 # 导出
 __all__ = [
     "get_new_tools_examples",  # 新增：聚合工具示例
+    "get_explore_content_examples",  # 新增：深度探索示例（2026-01-17）
     "get_direct_answer_examples",
     "get_user_confirmation_examples",
     "get_staged_execution_examples",

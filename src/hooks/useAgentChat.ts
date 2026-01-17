@@ -975,6 +975,45 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   );
                   break;
                 }
+                // Explore 探索事件 (2026-01-17)
+                case 'explore_round': {
+                  const item: FlowItem = {
+                    id: `flow-${Date.now()}-explore-round-${event.roundIdx}`,
+                    type: 'explore_round',
+                    data: {
+                      stepId: event.stepId,
+                      roundIdx: event.roundIdx,
+                      title: event.title,
+                      toolCalls: event.toolCalls,
+                      hitCount: event.hitCount,
+                      missingItems: event.missingItems,
+                      statusText: event.statusText,
+                      evidences: event.evidences,
+                      reviewStatus: event.reviewStatus,
+                      status: event.status,
+                    },
+                    timestamp,
+                  };
+                  currentFlowItems = [...currentFlowItems, item];
+                  break;
+                }
+                case 'explore_summary': {
+                  const item: FlowItem = {
+                    id: `flow-${Date.now()}-explore-summary`,
+                    type: 'explore_summary',
+                    data: {
+                      stepId: event.stepId,
+                      totalRounds: event.totalRounds,
+                      summary: event.summary,
+                      nextAction: event.nextAction,
+                      nextTool: event.nextTool,
+                      stats: event.stats,
+                    },
+                    timestamp,
+                  };
+                  currentFlowItems = [...currentFlowItems, item];
+                  break;
+                }
                 case 'revision': {
                   // v7.5: 非阻塞式修订 - 嵌入到最后一个 step 中 + 派发事件到编辑器
                   const revisionItemId = `flow-${Date.now()}-revision`;

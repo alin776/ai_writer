@@ -536,6 +536,12 @@ class ParallelExecutor:
                 raw_result = result
                 result_text = self._stringify_result(result)
 
+                # 🆕 2026-01-18: explore_content 特殊处理 - 发射轮次事件并提取 explore_summary
+                if tool_name == "explore_content":
+                    raw_result, result_text = await self._handle_explore_content_result(
+                        result, task_id
+                    )
+
                 # 注册任务结果（保留结构体）
                 await resolver.register_result(task_id, raw_result)
                 logger.debug(f"[ParameterResolver] 任务{task_id}结果已注册")
@@ -608,3 +614,112 @@ class ParallelExecutor:
             except Exception:
                 return str(result)
         return str(result)
+
+    async def _handle_explore_content_result(
+        self,
+        result: Any,
+        task_id: int
+    ) -> tuple:
+        """处理 explore_content 的结果
+
+        1. 解析 JSON 提取 frontend_display
+        2. 发射 explore_round 和 explore_summary 事件
+        3. 提取 explore_summary 供后续工具使用
+
+        Args:
+            result: explore_content 返回的结果（JSON 字符串或 dict）
+            task_id: 任务 ID
+
+        Returns:
+            (raw_result, result_text) - 处理后的结果
+        """
+        # 解析 JSON
+        if isinstance(result, str):
+            try:
+                result_data = json.loads(result)
+            except json.JSONDecodeError:
+                logger.warning(f"[ParallelExecution] explore_content 结果解析失败")
+                return result, result
+        elif isinstance(result, dict):
+            result_data = result
+        else:
+            return result, str(result)
+
+        # 检查是否成功
+        if not result_data.get("success"):
+            return result_data, json.dumps(result_data, ensure_ascii=False)
+
+        # 发射 explore_round 和 explore_summary 事件
+        await self._emit_explore_events(result_data, task_id)
+
+        # 提取 explore_summary 供后续工具使用
+        explore_summary = result_data.get("explore_summary", "")
+        if not explore_summary:
+            explore_summary = result_data.get("context_for_task", "")
+
+        # 返回 explore_summary 作为结果（供 ParameterResolver 解析）
+        # 但保留完整 result_data 作为 raw_result（供调试）
+        return result_data, explore_summary
+
+    async def _emit_explore_events(
+        self,
+        result_data: Dict[str, Any],
+        task_id: int
+    ):
+        """发射 explore_round 和 explore_summary 事件
+
+        Args:
+            result_data: explore_content 返回的完整数据
+            task_id: 任务 ID
+        """
+        from app.services.agent.stream.flow_events import FlowEventBuilder
+
+        # 检查是否有 stream_event_handler
+        if not hasattr(self.agent, 'stream_event_handler'):
+            logger.warning("[ParallelExecution] agent 没有 stream_event_handler，无法发射 explore 事件")
+            return
+
+        stream_handler = self.agent.stream_event_handler
+        if not stream_handler:
+            return
+
+        frontend_display = result_data.get("frontend_display", {})
+        if not frontend_display:
+            logger.warning("[ParallelExecution] explore_content 结果缺少 frontend_display")
+            return
+
+        # 发射每一轮的 explore_round 事件
+        rounds = frontend_display.get("rounds", [])
+        for round_data in rounds:
+            try:
+                event = FlowEventBuilder.explore_round(
+                    step_id=task_id,
+                    round_idx=round_data.get("round_idx", 1),
+                    title=round_data.get("title", "探索"),
+                    tool_calls=round_data.get("tool_calls", []),
+                    hit_count=round_data.get("hit_count", 0),
+                    missing_items=round_data.get("missing_items", []),
+                    status_text=round_data.get("status_text", ""),
+                    evidences=round_data.get("evidences", []),
+                    review_status=round_data.get("review_status", "")
+                )
+                await stream_handler.emit_flow_event(event)
+                logger.info(f"[ParallelExecution] 发射 explore_round 事件: 轮次 {round_data.get('round_idx')}")
+            except Exception as e:
+                logger.error(f"[ParallelExecution] 发射 explore_round 事件失败: {e}")
+
+        # 发射 explore_summary 事件
+        ai_analysis = frontend_display.get("ai_analysis", {})
+        try:
+            event = FlowEventBuilder.explore_summary(
+                step_id=task_id,
+                total_rounds=len(rounds),
+                summary=ai_analysis.get("summary", result_data.get("analysis", "")),
+                next_action=ai_analysis.get("next_action", ""),
+                next_tool=ai_analysis.get("next_tool", ""),
+                stats=ai_analysis.get("stats", result_data.get("stats", {}))
+            )
+            await stream_handler.emit_flow_event(event)
+            logger.info(f"[ParallelExecution] 发射 explore_summary 事件: {len(rounds)} 轮")
+        except Exception as e:
+            logger.error(f"[ParallelExecution] 发射 explore_summary 事件失败: {e}")

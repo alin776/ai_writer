@@ -1,6 +1,60 @@
-# Explore 设计 Review 报告 (V4)
+# Explore 设计 Review 报告 (V5)
 
-## 0. 第四轮 Review 发现的问题（最新 - 严重）
+## 0. 第八轮 Review：代码实现核对（2026-01-17）
+
+### 0.1 核对结论
+
+| 维度 | 符合度 | 说明 |
+|------|--------|------|
+| 架构设计 | ✅ 85% | 整体正确，部分实现简化 |
+| 工具复用 | ✅ 100% | search_content、get_writing_context、locate_content 全部存在 |
+| 新增工具 | ❌ 50% | **read_paragraph 工具未实现** |
+| 事件系统 | ❌ 0% | **explore_round/explore_summary 方法未在 flow_events.py 定义** |
+| 数据结构 | ✅ 100% | ExploreState、ExploreResult 完全按文档实现 |
+
+### 0.2 关键差异
+
+#### read_paragraph 工具（❌ 未实现）
+
+| 文档描述 | 实际情况 |
+|---------|---------|
+| 02-tools.md:125-294 有完整设计 | 代码不存在 |
+| explore_tools.py 第117、432行有引用 | 仅有数据结构预留，无工具实现 |
+
+**决策**：标记为"待实现"，当前使用 `get_writing_context` 读整章替代。
+
+#### 事件系统（❌ 未实现）
+
+| 文档定义 | 实际情况 |
+|---------|---------|
+| `FlowEventBuilder.explore_round()` | flow_events.py 中不存在 |
+| `FlowEventBuilder.explore_summary()` | flow_events.py 中不存在 |
+
+**影响**：explore_tools.py 第736、760行调用会在运行时报错。
+
+**决策**：标记为"待实现"，当前 emit_callback 功能不可用。
+
+#### 实现流程简化
+
+| 文档设计 | 实际实现 |
+|---------|---------|
+| search → locate → read_paragraph | search → get_writing_context |
+| AI 自主决策调用工具 | 规则驱动的固定流程 |
+| 精确段落级验证 | 读取整章 |
+
+**决策**：接受简化实现，后续按需迭代。
+
+### 0.3 待修复清单
+
+| 优先级 | 问题 | 状态 |
+|--------|------|------|
+| 🔴 高 | flow_events.py 缺少 explore_round/explore_summary | 待实现 |
+| 🟡 中 | read_paragraph 工具未实现 | 待实现 |
+| 🟢 低 | AI 决策被简化为规则驱动 | 接受 |
+
+---
+
+## 1. 第四轮 Review 发现的问题（严重）
 
 ### 0.1 数据流设计缺失 ❌ 严重
 
