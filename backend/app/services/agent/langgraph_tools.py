@@ -1375,13 +1375,10 @@ from app.services.agent.tools.locate_tools import locate_content
 from app.services.agent.tools.explore_tools import explore_content
 
 LANGGRAPH_TOOLS = [
-    # Search 类工具
-    search_content,
+    # 统一信息获取入口（2026-01-18 更新）
+    explore_content,  # 深度探索 - 替代 search_content 和 get_writing_context
+    # 定位工具（修改内容前必须调用）
     locate_content,
-    # Read 类工具（聚合）
-    get_writing_context,
-    read_paragraph,  # 段落精确读取（2026-01-17）
-    explore_content,  # 深度探索（2026-01-17）
     # 分析工具
     analyze_content,
     # 创作工具
@@ -1397,6 +1394,10 @@ LANGGRAPH_TOOLS = [
     update_chapter_title,
     delete_chapter,
     update_chapter_content,
+    # 内部工具（不暴露给 AI 规划器，但保留以供 explore_content 内部调用）
+    # search_content,      # 内部工具
+    # get_writing_context, # 内部工具
+    # read_paragraph,      # 内部工具
 ]
 
 __all__ = [

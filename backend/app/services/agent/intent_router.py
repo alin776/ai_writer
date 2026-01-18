@@ -41,7 +41,7 @@ class IntentRoute(BaseModel):
     # 工具调用（如果是direct且需要工具）
     tool_call: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="工具名称和参数，例如: {'name': 'get_chapter_by_order_tool', 'args': {'chapter_order': 5}}"
+        description="工具名称和参数，例如: {'name': 'explore_content', 'args': {'target_task': '获取第五章标题'}}"
     )
 
     # 直接回答（如果是direct且不需要工具）
@@ -267,10 +267,10 @@ class UnifiedIntentRouter:
 
 当判断为query_simple + direct时，可以使用以下工具：
 
-1. **get_chapter_by_order_tool** - 根据章节序号获取章节信息
-   - 参数：chapter_order (int) - 章节序号
-   - 返回：{title, content, word_count}
-   - 用于："第X章的标题"、"第X章有多少字"
+1. **explore_content** - 统一信息获取工具（推荐！）
+   - 参数：target_task (str) - 描述任务目标
+   - 返回：根据任务自动获取所需信息
+   - 用于：所有信息获取任务
 
 2. **get_context_tool** - 获取作品上下文信息
    - 参数：无
@@ -282,12 +282,7 @@ class UnifiedIntentRouter:
    - 返回：章节内容
    - 用于："读取第X章"（需要先知道chapter_id）
 
-4. **search_content** - 搜索分析片段（返回snippet）
-   - 参数：query (str) - 搜索关键词
-   - 返回：相关片段列表
-   - 用于："搜索相关内容"
-
-注意：如果用户只是查询标题/字数等元数据，使用get_chapter_by_order_tool即可。
+注意：如果用户查询标题/字数等元数据，使用explore_content即可。
 如果需要分析内容，应该判定为query_complex + agent。"""
 
         # 用户提示
@@ -311,7 +306,7 @@ class UnifiedIntentRouter:
 {{
   "intent": "query_simple",
   "execution": "direct",
-  "tool_call": {{"name": "get_chapter_by_order_tool", "args": {{"chapter_order": 5}}}},
+  "tool_call": {{"name": "explore_content", "args": {{"target_task": "获取第五章的标题"}}}},
   "confidence": 0.95,
   "reasoning": "查询章节标题，直接调用工具"
 }}

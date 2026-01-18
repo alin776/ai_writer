@@ -641,3 +641,159 @@ FlowEventBuilder.explore_analysis(
 **提交哈希：** 10362ae
 **推送分支：** alin3.0
 **状态：** ✅ 成功推送
+
+---
+
+## 第六轮 Review：修复 planning_examples.py 工具示例一致性（进行中）
+
+### 待办清单
+
+- [x] 盘点 `backend/app/services/agent/prompts/planning_examples.py` 中所有 get_writing_context 引用并记录对应示例
+- [x] 将示例与说明文字统一改为 `explore_content`，同步调整流程描述（如 search_content → explore_content → locate_content）
+- [x] 复核该文件确保无残留旧工具名
+- [x] 在本节添加 review 总结
+
+盘点记录：涉及 explore_content 示例说明、Agent 模式示例、编辑器工作流示例、新工具升级提示、locate_content 示例流程与说明。
+
+### review
+
+- 修改：`backend/app/services/agent/prompts/planning_examples.py` 全部示例与说明统一为 explore_content，并调整未指定章节的 locate_content 流程为 explore_content → locate_content → smart_rewrite → apply_chapter_edit。
+- 同步：Agent 模式与编辑器工作流示例改用 explore_content + target_task 表达读取需求。
+- 复核：`rg "get_writing_context"` 无匹配。
+
+---
+
+## 第七轮 Review：planning_examples.py 深度复核（待开始）
+
+### 待办清单
+
+- [x] 复查 `backend/app/services/agent/prompts/planning_examples.py` 变更片段，确认示例参数与 ref 路径一致性
+- [x] 核对 locate_content 场景流程（未指定章节/跨章节/编辑器工作流）是否与工具规则一致
+- [x] 验证是否引入新问题（search_content 示例、节点说明、流程描述冲突）
+- [x] 必要时做最小修正并补充 review 总结
+
+### review
+
+- 修正：`backend/app/services/agent/prompts/planning_examples.py` 的搜索/Agent 模式示例统一改用 explore_content，避免与“统一入口”规则冲突。
+- 补充：搜索示例说明文字改为“检索信息统一用 explore_content”，保持流程一致性。
+- 观察：explore_content 结果字段（如 `context_for_task`、`chapters[0].id`）与文档输出格式存在潜在不一致，需与实际实现/规范统一。
+
+---
+
+## 第八轮 Review：explore_content 输出字段一致性（待开始）
+
+### 待办清单
+
+- [x] 对比 `backend/app/services/agent/tools/explore_tools.py` 的实际输出与 `docs/explore/06-output.md`、`docs/explore/08-integration.md` 的字段说明
+- [x] 必要时更新文档字段（如 `context_for_task`、`explore_summary`、`frontend_display`、`chapters` 列表结构）以匹配实现
+- [x] 复核 `backend/app/services/agent/prompts/planning_examples.py` 中 $ref 路径与实际输出一致
+- [x] 在本节添加 review 总结
+
+### review
+
+- 对齐：`docs/explore/06-output.md` 补充 explore_content 实际返回格式（success/context_for_task/explore_summary/frontend_display/chapters 列表等），并更新示例/TaskRunner 说明以使用 context_for_task。
+- 对齐：`docs/explore/08-integration.md` 更新 explore_content 签名与返回字段说明。
+- 修正：`backend/app/services/agent/prompts/planning_examples.py` 移除不受支持的负索引 $ref。
+- 同步：`docs/explore/03-state.md` 补齐 ChapterRead.id 与 ExploreRound 字段以匹配实现。
+
+---
+
+## 第九轮 Review：工具描述与示例收敛（待开始）
+
+### 待办清单
+
+- [x] 修正 `backend/app/services/agent/prompts/tool_descriptions.py` 中 explore_content 返回字段说明，与实际输出一致
+- [x] 调整 `backend/app/services/agent/prompts/planning_examples.py` 中 explore_content 示例的章节引用，避免 `chapters[1]` 越界风险
+- [x] 复核相关示例与工具描述无新增冲突，并补充 review 总结
+
+### review
+
+- 修正：`backend/app/services/agent/prompts/tool_descriptions.py` 的 explore_content 返回字段，补齐 context_for_task 与 frontend_display。
+- 修正：`backend/app/services/agent/prompts/planning_examples.py` 中 explore_content 示例的 chapters 引用，避免越界。
+
+---
+
+## 第十轮 Review：Explore 聚合 UI 未生效（待开始）
+
+### 待办清单
+
+- [x] 复核 explore_content 执行链路与事件发射路径（ToolExecutor/ParallelExecutor/StreamEventHandler）
+- [x] 核对前端 explore_round/explore_summary 事件消费与组件渲染路径
+- [x] 最小修改保证 explore_content 保留完整 JSON 以便发射聚合事件
+- [x] 复核 UI 数据字段映射，补充 review 总结
+
+### review
+
+- 原因定位：ToolExecutor 对 explore_content 结果做了摘要提取，ParallelExecutor 无法解析完整 JSON，导致 explore_round/explore_summary 未发射。
+- 修正：`backend/app/services/agent/execution/task_runner.py` 传递 emit_explore_events 标记；`backend/app/services/agent/execution/tool_executor.py` 在该标记下返回完整 JSON。
+- 验证：前端已消费 explore_round/explore_summary 并渲染 ExploreCard，无需改动 UI 组件。
+
+---
+
+## 第十一轮 Review：Explore 聚合链路复审（待开始）
+
+### 待办清单
+
+- [x] 复核本轮改动影响范围（`task_runner.py` / `tool_executor.py`），确认无副作用
+- [x] 验证是否真正解决 Explore 聚合 UI 未生效问题（事件发射/数据解析链路）
+- [x] 检查修改完整性（其他调用路径是否遗漏 explore_content 事件支持）
+- [x] 核对逻辑一致性（后端输出字段 ↔ 前端事件映射）
+- [x] 深入验证潜在遗漏点并补充 review 总结
+
+### review
+
+- 结论：标准 Planning 并行执行链路下，`explore_content` 返回完整 JSON → `ParallelExecutor` 可解析并发射 explore_round/explore_summary，UI 可渲染 Explore 轨迹卡片。
+- 风险：`enable_reflection=True` 的 DeepAgent 分支不走 `ParallelExecutor`，现在会保留完整 JSON 作为任务结果，可能导致上下文膨胀且仍无 explore 事件。
+- 遗漏：非 Planning 路径（如 `ToolDispatcher` 直呼工具）未设置 `emit_explore_events`，仍可能只显示普通工具调用而无 Explore 轨迹。
+
+---
+
+## 第十二轮：ToolDispatcher 路径补发 Explore 事件（待开始）
+
+### 待办清单
+
+- [x] 复核 ToolDispatcher 的 explore_content 调用路径与当前返回格式
+- [x] 在 ToolDispatcher 中为 explore_content 设置 emit_explore_events 并触发 explore_round/explore_summary
+- [x] 保持返回值为 explore_summary（避免上下文膨胀），验证不影响现有工具调用
+- [x] 添加 review 总结
+
+### review
+
+- 新增：`backend/app/services/agent/core/tool_dispatcher.py` 在 explore_content 路径设置 emit_explore_events，解析结果并补发 explore_round/explore_summary。
+- 保持：返回 explore_summary/ context_for_task，避免把完整 JSON 直接注入对话上下文。
+
+---
+
+## 第十三轮 Review：ToolDispatcher Explore 路径复审（待开始）
+
+### 待办清单
+
+- [x] 复核 ToolDispatcher 新增事件发射逻辑是否影响其他工具
+- [x] 验证 explore_content 在非规划路径的 UI 表现与输出一致性
+- [x] 检查返回值处理（summary/context_for_task）是否导致下游解析异常
+- [x] 核对事件字段映射（FlowEventBuilder ↔ 前端解析）
+- [x] 补充 review 总结
+
+### review
+
+- 结论：ToolDispatcher 路径已补齐 explore_round/explore_summary 事件发射，前端可复用现有 Explore 卡片渲染。
+- 兼容：返回 explore_summary/context_for_task 避免上下文膨胀；异常时回退原始 tool_result。
+- 注意：该路径使用固定 step_id=1；若需与 StepCard 对齐，可后续接入实际 step_id（当前不影响 Explore 卡片显示）。
+
+---
+
+## 第十四轮 Review：Explore 胶囊层级与布局问题（待开始）
+
+### 待办清单
+
+- [x] 复核 Explore 事件与 StepCard 渲染顺序/层级（`ExecutionFlow` 与 `ExploreCard` 组件）
+- [x] 核对 explore_round/explore_summary 在 flow items 中的插入时机与 stepId 关联
+- [x] 定位 UI 层级不一致原因并给出最小修复方案（如按 stepId 归组渲染）
+- [x] 评估修复对现有 StepCard/ExploreCard 的影响与风险
+- [x] 添加 review 总结
+
+### review
+
+- 原因：Explore 事件以独立 FlowItem 插入，`ExecutionFlow` 未按 stepId 归组，导致 Explore 胶囊与 StepCard 仅按时间序列并列渲染，无法呈现“同一层级/同一折叠块”关系。
+- 关联风险：后端 explore_round 的 step_id 目前与 StepCard 的 stepId 不严格一致（并行任务 + task_id/step_counter 差异、ToolDispatcher 默认 step_id=1），导致即便前端归组也可能错位。
+- 建议：前端按 stepId 归组并在 StepCard 内容区渲染 Explore 卡片；若要稳定归组需后端对齐 explore_round 的 step_id（用 step_start 生成的 step_id）。

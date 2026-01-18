@@ -66,6 +66,8 @@ QUERY_TOOLS = [
     "get_writing_context",
     "get_worldview_summary",
     "get_style_guidance_tool",
+    "explore_content",  # 2026-01-18: 统一信息获取入口
+    "locate_content",   # 2026-01-18: 定位工具
 ]
 
 # 分析类工具：分析内容，不修改数据
@@ -696,12 +698,19 @@ class ToolDispatcher:
         """使用统一接口调用其他工具"""
         logger.info(f"[ToolDispatcher] 使用统一接口调用工具: {tool_name}")
         try:
+            call_state = state
+            if tool_name == "explore_content":
+                call_state = dict(state)
+                call_state["emit_explore_events"] = True
+
             tool_result = await self.agent._call_tool_via_registry(
                 tool_name=tool_name,
                 tool_args=tool_args,
-                state=state
+                state=call_state
             )
             logger.info(f"[ToolDispatcher] ✅ 统一接口调用成功: {tool_name}")
+            if tool_name == "explore_content":
+                return await self._handle_explore_content_result(tool_result)
             return tool_result
         except Exception as e:
             logger.error(f"[ToolDispatcher] 统一接口调用失败: {tool_name}, 错误: {e}")
@@ -710,6 +719,80 @@ class ToolDispatcher:
                 "message": f"工具调用失败: {str(e)}",
                 "user_prompt": "抱歉，我在处理您的请求时遇到了问题。能否换个方式描述？"
             }, ensure_ascii=False)
+
+    async def _handle_explore_content_result(self, tool_result: Any) -> str:
+        result_data = tool_result
+        if isinstance(tool_result, str):
+            try:
+                result_data = json.loads(tool_result)
+            except json.JSONDecodeError:
+                return tool_result
+
+        if not isinstance(result_data, dict):
+            return tool_result if isinstance(tool_result, str) else str(tool_result)
+
+        if not result_data.get("success"):
+            return tool_result if isinstance(tool_result, str) else json.dumps(result_data, ensure_ascii=False)
+
+        await self._emit_explore_events(result_data)
+
+        explore_summary = result_data.get("explore_summary") or result_data.get("context_for_task", "")
+        if explore_summary:
+            return explore_summary
+
+        return tool_result if isinstance(tool_result, str) else json.dumps(result_data, ensure_ascii=False)
+
+    async def _emit_explore_events(self, result_data: Dict[str, Any]) -> None:
+        if not hasattr(self.agent, "stream_event_handler"):
+            logger.warning("[ToolDispatcher] agent 没有 stream_event_handler，无法发射 explore 事件")
+            return
+
+        stream_handler = self.agent.stream_event_handler
+        if not stream_handler:
+            return
+
+        frontend_display = result_data.get("frontend_display", {})
+        if not frontend_display:
+            logger.warning("[ToolDispatcher] explore_content 结果缺少 frontend_display")
+            return
+
+        from app.services.agent.stream.flow_events import FlowEventBuilder
+
+        rounds = frontend_display.get("rounds", [])
+        if not rounds:
+            logger.warning("[ToolDispatcher] explore_content frontend_display.rounds 为空，跳过事件发射")
+            return
+
+        for round_data in rounds:
+            try:
+                event = FlowEventBuilder.explore_round(
+                    step_id=round_data.get("step_id", 1),
+                    round_idx=round_data.get("round_idx", 1),
+                    title=round_data.get("title", "探索"),
+                    tool_calls=round_data.get("tool_calls", []),
+                    hit_count=round_data.get("hit_count", 0),
+                    missing_items=round_data.get("missing_items", []),
+                    status_text=round_data.get("status_text", ""),
+                    evidences=round_data.get("evidences", []),
+                    review_status=round_data.get("review_status", "")
+                )
+                await stream_handler.emit_flow_event(event)
+            except Exception as e:
+                logger.error(f"[ToolDispatcher] 发射 explore_round 事件失败: {e}")
+
+        ai_analysis = frontend_display.get("ai_analysis", {})
+        try:
+            event = FlowEventBuilder.explore_summary(
+                step_id=rounds[0].get("step_id", 1),
+                total_rounds=len(rounds),
+                summary=ai_analysis.get("summary", result_data.get("analysis", "")),
+                next_action=ai_analysis.get("next_action", ""),
+                next_tool=ai_analysis.get("next_tool", ""),
+                stats=ai_analysis.get("stats", result_data.get("stats", {}))
+            )
+            await stream_handler.emit_flow_event(event)
+        except Exception as e:
+            logger.error(f"[ToolDispatcher] 发射 explore_summary 事件失败: {e}")
 
     # ==================== 辅助方法 ====================
 

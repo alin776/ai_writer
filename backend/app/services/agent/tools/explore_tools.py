@@ -51,6 +51,7 @@ class ParagraphRead:
 @dataclass
 class ChapterRead:
     """读取的章节原文"""
+    id: str                      # 章节ID（2026-01-18 新增）
     order: int
     title: str
     content: str                 # 完整原文
@@ -194,6 +195,7 @@ class ExploreState:
         """添加章节原文（覆盖式，同一章节只保留一份）"""
         order = chapter.get("order", chapter.get("chapter_order", 0))
         self.chapters[order] = ChapterRead(
+            id=chapter.get("id", ""),  # 2026-01-18: 添加章节ID
             order=order,
             title=chapter.get("title", chapter.get("chapter_title", "")),
             content=chapter.get("content", ""),
@@ -954,6 +956,26 @@ async def explore_content(
         # 构建 explore_summary - 供后续工具（如 analyze_content）使用的文本摘要
         explore_summary = _build_explore_summary(result)
 
+        # 2026-01-18: 构建兼容 get_writing_context 的 chapters 数组
+        chapters_list = [
+            {
+                "id": ch.id,
+                "title": ch.title,
+                "order": ch.order,
+                "content": ch.content,
+                "word_count": ch.word_count
+            }
+            for order, ch in sorted(result.chapters.items())
+        ]
+
+        # 2026-01-18: 构建兼容 get_writing_context 的 worldview 对象
+        worldview_dict = {}
+        for category, items in result.worldview.items():
+            worldview_dict[category] = [
+                {"name": item.name, "description": item.description}
+                for item in items
+            ]
+
         # 转换为JSON
         return json.dumps({
             "success": True,
@@ -966,7 +988,10 @@ async def explore_content(
             "frontend_display": to_frontend_display(result),
             "context_for_task": build_context_for_task(result),
             # 添加 explore_summary 字段，便于 ParameterResolver 解析
-            "explore_summary": explore_summary
+            "explore_summary": explore_summary,
+            # 2026-01-18: 添加兼容字段，支持 $ref 引用
+            "chapters": chapters_list,
+            "worldview": worldview_dict
         }, ensure_ascii=False, indent=2)
 
     except Exception as e:

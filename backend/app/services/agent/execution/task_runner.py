@@ -145,6 +145,8 @@ class TaskRunner:
                 tool_state.setdefault("chapter_id", chapter_id)
                 tool_state.setdefault("last_user_message", context)
                 tool_state.setdefault("conversation_id", conversation_id or "")
+                if tool_name == "explore_content":
+                    tool_state["emit_explore_events"] = True
                 result = await self._call_tool_via_registry(
                     tool_name=tool_name,
                     tool_args=params,
@@ -163,6 +165,8 @@ class TaskRunner:
             tool_state.setdefault("chapter_id", chapter_id)
             tool_state.setdefault("last_user_message", context)
             tool_state.setdefault("conversation_id", conversation_id or "")
+            if tool_name == "explore_content":
+                tool_state["emit_explore_events"] = True
 
             logger.info(f"[TaskRunner] 调用 ToolExecutor({normalized_name})")
             result = await self._call_tool_via_registry(

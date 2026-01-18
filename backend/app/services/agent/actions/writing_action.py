@@ -422,8 +422,7 @@ class WritingAction(BaseAction):
 ## 📖 读取工具
 - get_context_tool: 获取作品/章节上下文（包含作品信息、章节内容、相关分析）
 - read_chapter_tool: 读取指定章节的完整内容（需要chapter_id）
-- get_chapter_by_order_tool: 通过章节序号获取章节（⭐用户说"第X章"时用这个）
-- search_content: 从向量数据库检索相关的小说分析片段（RAG，返回snippet）
+- explore_content: 统一信息获取工具（⭐用户说"第X章"时用这个）
 - get_worldview_summary: 查询世界观信息（当用户询问"世界观里有什么"、"有哪些角色/地点/设定"时立即调用）
 
 ## ✍️ 编辑器工具（直接修改编辑器内容 - 优先使用）
@@ -450,19 +449,19 @@ class WritingAction(BaseAction):
 【⚠️ 重要】修改/续写章节的正确流程：
 
 1️⃣ 用户说"修改第X章"/"改写第X章"时：
-   第一步：调用 get_chapter_by_order_tool 获取第X章的 chapter_id
+   第一步：调用 explore_content 获取第X章的内容和chapter_id
    第二步：**必须**调用 smart_rewrite(chapter_id=xxx, instructions="根据用户要求修改")
    ❌ 错误：直接返回修改建议文本
    ✅ 正确：调用smart_rewrite工具
 
 2️⃣ 用户说"续写第X章"时：
-   第一步：调用 get_chapter_by_order_tool 获取第X章的 chapter_id
+   第一步：调用 explore_content 获取第X章的内容和chapter_id
    第二步：调用 smart_continue(chapter_id=xxx)
    ✅ 正确：使用 smart_continue
    ❌ 错误：直接返回续写文本
 
 3️⃣ 用户说"插入XX到第X章"时：
-   第一步：调用 get_chapter_by_order_tool 获取第X章的 chapter_id
+   第一步：调用 explore_content 获取第X章的内容和chapter_id
    第二步：**必须**调用 smart_insert(chapter_id=xxx, position="end", content="...")
 
 📌 关键规则：

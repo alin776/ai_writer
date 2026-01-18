@@ -62,8 +62,8 @@ async def get_tool_decision_static_prompt() -> str:
 - apply_chapter_edit: 直接应用编辑到章节 (参数: chapter_id, operation, content)
   ⚠️ 注意：此工具用于将已生成的内容应用到编辑器
 
-【读取工具】⚠️ 优先使用 get_writing_context 聚合工具！
-- get_writing_context: 一站式获取创作上下文（推荐！）
+【读取工具】⚠️ 优先使用 explore_content 统一入口！
+- explore_content: 深度探索工具，自动判断任务复杂度并获取所需信息（推荐！）
 - analyze_content: 一站式内容分析（推荐！）
 {retrieval_tools}
 {operation_tools}
@@ -71,12 +71,12 @@ async def get_tool_decision_static_prompt() -> str:
 {analysis_tools}
 ⚠️ **重要变更**：polish_text_tool 已移除
 - 所有润色/修改请求必须提供 chapter_id，使用基于章节上下文的工具
-- 如果涉及多个章节，get_writing_context 支持批量读取（chapter_orders="1-5"）
+- 如果涉及多个章节，explore_content 支持自动探索获取相关信息
 
 【工具使用规则】
 
-1. 用户提到具体文字但未说章节 → 先用 search_content 定位
-1.1 用户要求对照/证据/引用原文 → 只用 search_content 或 get_writing_context，不用 analyze_content
+1. 用户提到具体文字但未说章节 → 先用 explore_content 定位
+1.1 用户要求对照/证据/引用原文 → 只用 explore_content，不用 analyze_content
 2. 用户说"修改第X章"、"改写第X章" → 使用 smart_rewrite（已知章节）
 3. 用户说"续写"、"继续写" → 使用 smart_continue
 4. 用户说"插入" → 使用 smart_insert
@@ -113,12 +113,12 @@ async def get_tool_decision_static_prompt() -> str:
 
 【示例 - 需要工具的情况】
 
-"微光如露落雪太书面化" → {{"need_tools": true, "tool_name": "search_content", "tool_args": {{"query": "微光如露落雪"}}}}
+"微光如露落雪太书面化" → {{"need_tools": true, "tool_name": "explore_content", "tool_args": {{"target_task": "定位并获取'微光如露落雪'相关内容"}}}}
 "修改第三章，白光退去太平淡" → {{"need_tools": true, "tool_name": "smart_rewrite", "tool_args": {{"chapter_id": "xxx", "text_to_rewrite": "白光退去...", "user_requirement": "更有画面感"}}}}
 "续写第五章" → {{"need_tools": true, "tool_name": "smart_continue", "tool_args": {{"chapter_id": "xxx", "user_requirement": "续写", "word_count": 500}}}}
-"有没有叫赵穆的人物" → {{"need_tools": true, "tool_name": "search_content", "tool_args": {{"query": "赵穆"}}}}
-"段融是谁" → {{"need_tools": true, "tool_name": "search_content", "tool_args": {{"query": "段融"}}}}
-"请给出'二十四桥明月夜'的原文出处" → {{"need_tools": true, "tool_name": "search_content", "tool_args": {{"query": "二十四桥明月夜"}}}}
+"有没有叫赵穆的人物" → {{"need_tools": true, "tool_name": "explore_content", "tool_args": {{"target_task": "查找赵穆相关信息"}}}}
+"段融是谁" → {{"need_tools": true, "tool_name": "explore_content", "tool_args": {{"target_task": "查找段融相关信息"}}}}
+"请给出'二十四桥明月夜'的原文出处" → {{"need_tools": true, "tool_name": "explore_content", "tool_args": {{"target_task": "查找'二十四桥明月夜'原文出处"}}}}
 "创建一个新章节叫第六章" → {{"need_tools": true, "tool_name": "create_chapter", "tool_args": {{"work_id": "xxx", "title": "第六章"}}}}
 "删除第三章" → {{"need_tools": true, "tool_name": "delete_chapter", "tool_args": {{"chapter_id": "xxx"}}}}
 "把第二章标题改成觉醒" → {{"need_tools": true, "tool_name": "update_chapter_title", "tool_args": {{"chapter_id": "xxx", "new_title": "觉醒"}}}}
@@ -184,7 +184,7 @@ async def get_complexity_decision_prompt() -> str:
 【可用工具速查】
 
 获取类（返回数据，无副作用）：
-- get_writing_context(chapter_orders: str, include: str) → {{work_info, chapters[], worldview, rag_context[]}}
+- explore_content(target_task: str) → 自动探索获取所需信息
 
 注意：概括/总结内容需要分析处理，应判定为 complex
 
@@ -192,7 +192,7 @@ async def get_complexity_decision_prompt() -> str:
 
 "你好" → {{"complexity": "simple", "reason": "问候", "action": {{"direct_answer": "..."}}}}
 "你是谁" → {{"complexity": "simple", "reason": "关于AI的问题", "action": {{"direct_answer": "..."}}}}
-"第三章标题是什么" → {{"complexity": "simple", "reason": "单个工具调用", "action": {{"tool_name": "get_writing_context", "tool_args": {{"chapter_orders": "3", "include": "chapter"}}, "response_hint": "title"}}}}
+"第三章标题是什么" → {{"complexity": "simple", "reason": "单个工具调用", "action": {{"tool_name": "explore_content", "tool_args": {{"target_task": "获取第三章标题"}}, "response_hint": "title"}}}}
 "分析前五章" → {{"complexity": "complex", "reason": "需要读取多章并分析", "action": {{}}}}
 
 注意：direct_answer 的内容由你根据问题自由生成。

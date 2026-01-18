@@ -65,9 +65,11 @@ class ExploreStats:
     searched_queries: List[str]
 ```
 
+说明：ExploreResult 为内部结构；explore_content 对外返回会进行封装与裁剪，见 3.2。
+
 ## 3. 序列化格式
 
-### 3.1 完整 JSON 格式
+### 3.1 内部 ExploreResult JSON（参考）
 
 ```json
 {
@@ -183,9 +185,53 @@ class ExploreStats:
 }
 ```
 
+### 3.2 explore_content 实际返回格式
+
+```json
+{
+  "success": true,
+  "work_id": "work_123",
+  "target_task": "续写第6章，分析段融性格",
+  "analysis": "经过 2 轮深度探索，收集到续写第6章所需的完整信息...",
+  "stats": {
+    "total_evidences": 8,
+    "total_paragraphs": 3,
+    "total_chapters": 1,
+    "total_worldview_items": 5,
+    "total_rounds": 2,
+    "searched_queries": ["段融性格", "段融修炼进度", "段融 同门 关系"]
+  },
+  "stop_reason": "AI 判断信息充足",
+  "total_duration_ms": 22000,
+  "frontend_display": {
+    "rounds": [],
+    "ai_analysis": {},
+    "status": "completed"
+  },
+  "context_for_task": "## 世界观设定\n...",
+  "explore_summary": "收集到的信息摘要...",
+  "chapters": [
+    {
+      "id": "chapter_6_id",
+      "order": 6,
+      "title": "第六章",
+      "content": "完整原文...",
+      "word_count": 2891
+    }
+  ],
+  "worldview": {
+    "character": [
+      {"name": "段融", "description": "主角，性格坚韧沉默"}
+    ]
+  }
+}
+```
+
 ## 4. 传递给后续任务
 
 ### 4.1 构建上下文字符串
+
+explore_content 已返回 `context_for_task`，可直接引用；如下为内部构建方法。
 
 ```python
 def build_context_for_task(result: ExploreResult) -> str:
@@ -285,7 +331,7 @@ tasks = [
         "params": {
             "chapter_id": "chapter_6_id",
             # 通过 $ref 引用 explore_content 的结果
-            "chapter_content": {"$ref": {"task_id": 1, "path": ""}}
+            "chapter_content": {"$ref": {"task_id": 1, "path": "context_for_task"}}
         },
         "depends_on": [1]
     }
@@ -294,7 +340,7 @@ tasks = [
 # 2. Execution 阶段：TaskRunner 处理
 # - 执行 task 1 (explore_content)
 # - 将结果保存到 state["explore_result"]
-# - 调用 build_context_for_task() 转换为字符串
+# - 使用 context_for_task 作为上下文字符串
 # - 执行 task 2 时，将转换后的上下文注入 chapter_content
 ```
 
@@ -320,9 +366,8 @@ async def execute_task(self, task, work_id, chapter_id, context,
             explore_result = json.loads(result)
             if state is not None:
                 state["explore_result"] = explore_result
-                # 预构建上下文字符串
-                from app.services.agent.tools.explore_tools import build_context_for_task
-                state["explore_context"] = build_context_for_task(explore_result)
+                # 直接使用 explore_content 返回的上下文
+                state["explore_context"] = explore_result.get("context_for_task", "")
         except Exception as e:
             logger.warning(f"[TaskRunner] 解析 explore_result 失败: {e}")
 
@@ -361,7 +406,7 @@ def to_frontend_display(result: ExploreResult) -> dict:
         "rounds": [
             {
                 "round_idx": r.round_idx,
-                "title": _get_round_title(r.round_idx, r),  # 轮次标题
+                "title": r.title,                           # 轮次标题
                 "tool_calls": _format_tool_calls(r),        # 工具标签
                 "hit_count": r.new_evidences_count,         # 命中数
                 "missing_items": r.missing_items or [],     # 缺失项（黄色）

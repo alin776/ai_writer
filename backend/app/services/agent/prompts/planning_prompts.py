@@ -30,9 +30,9 @@ def _get_planning_core_rules() -> str:
 
 1. **查询/分析请求**（不涉及创作）
    - "获取第三章"、"第五章有多少字" → 直接生成任务
-   - "世界观里有什么" → 直接生成 get_writing_context(include="worldview") 任务
-   - "第三章讲了什么" → 直接生成[获取第三章 → 概括]
-   - "分析主角人设" → 直接生成[搜索 → 分析]
+   - "世界观里有什么" → 直接生成 explore_content(target_task="获取世界观设定") 任务
+   - "第三章讲了什么" → 直接生成[explore_content → 概括]
+   - "分析主角人设" → 直接生成[explore_content → analyze_content]
 
 2. **章节操作请求**（OPERATION 工具，直接执行）
    - "创建新章节"、"新建一个章节" → 直接生成 create_chapter 任务
@@ -113,23 +113,23 @@ def _get_planning_core_rules() -> str:
 - **展示计划并询问确认**
 
 ✅ **需要调用工具**的情况（明确提到作品内容）：
-- "获取第三章" → 直接生成 [get_writing_context(chapter_orders="3", include="chapter")]
-- "第三章讲了什么" → 直接生成 [get_writing_context → analyze_content]
-- "续写第五章" → 分阶段：先 [世界观 + 第4章 + 第5章]，看到内容后询问续写细节
-- "帮我写第一章" → 分阶段：先 [世界观 + 第0章 + 第1章]，看到世界观后询问创作细节
-- "分析一下主角的人设" → 直接生成 [search + analyze_content]
-- "做对照/证据/引用原文" → 只用 search_content + get_writing_context + 直接输出（禁止 analyze_content）
+- "获取第三章" → 直接生成 [explore_content(target_task="读取第三章内容")]
+- "第三章讲了什么" → 直接生成 [explore_content → analyze_content]
+- "续写第五章" → 分阶段：先 [explore_content(target_task="续写准备，获取第4-5章和世界观")]，看到内容后询问续写细节
+- "帮我写第一章" → 分阶段：先 [explore_content(target_task="创作准备，获取世界观和大纲")]，看到世界观后询问创作细节
+- "分析一下主角的人设" → 直接生成 [explore_content → analyze_content]
+- "做对照/证据/引用原文" → 只用 explore_content + 直接输出（禁止 analyze_content）
 
 ⚠️ **判断原则**：
 - 只有**完全确定**不需要操作作品内容时才使用 direct_answer
 - 创作请求（"帮我写"、"续写"、"创作"）→ ⚠️ 必须分阶段，无论用户是否提供参数
-  - **推荐使用 get_writing_context 一次性获取**：世界观 + 前一章 + 目标章节
+  - **使用 explore_content 一次性获取所需信息**
   - 第一阶段任务（1个任务）：
-    * get_writing_context(chapter_orders="N-1,N", include="work,chapter,worldview")
+    * explore_content(target_task="续写/创作准备，获取前文内容和世界观")
   - 示例：
-    * "写第一章" → get_writing_context(chapter_orders="0,1", include="work,chapter,worldview")
-    * "续写第五章" → get_writing_context(chapter_orders="4,5", include="work,chapter,worldview,rag")
-  - ⚠️ 优势：1次调用替代3次调用，减少延迟
+    * "写第一章" → explore_content(target_task="创作第一章，获取世界观和大纲")
+    * "续写第五章" → explore_content(target_task="续写第五章，获取第4-5章和世界观")
+  - ⚠️ 优势：explore_content 自动判断需要多少信息
 - 查询/分析请求 → 直接生成完整任务链
 - 如果不确定 → 生成工具任务，不要擅自直接回答
 
@@ -152,30 +152,23 @@ def _get_planning_core_rules() -> str:
 问自己：生成这个输出需要什么原料？
 
 - **不需要原料**（纯知识问答）→ 直接回答！
-- 需要哪些章节的内容？
-- 需要人设/大纲等元数据吗？
-- ⚠️ **创作/续写章节时的统一原料获取规则**（最重要！）：
-  - **推荐使用 get_writing_context 一次性获取**：世界观 + 前一章 + 目标章节
-  - 第一阶段任务（1个任务）：
-    * get_writing_context(chapter_orders="N-1,N", include="work,chapter,worldview,rag")
-  - 示例：
-    * "帮我写第一章" → get_writing_context(chapter_orders="0,1", include="work,chapter,worldview")
-    * "续写第二章" → get_writing_context(chapter_orders="1,2", include="work,chapter,worldview,rag")
-    * "帮我写第五章" → get_writing_context(chapter_orders="4,5", include="work,chapter,worldview,rag")
-  - ⚠️ 优势：1次调用替代3次调用
+- 需要从作品中获取信息？→ **统一使用 explore_content**
 
-- 🆕 **复杂任务时使用 explore_content**（深度探索）：
-  - **适用场景**：
-    * 任务涉及多个章节的关联分析（如"分析主角在1-5章的性格变化"）
-    * 需要深入理解人物关系、情节发展（如"续写时需要参考之前所有关于XX的描写"）
-    * 搜索结果需要原文验证（如"找出所有提到XX的地方并验证上下文"）
-  - **与 get_writing_context 的区别**：
-    * get_writing_context: 一次性获取固定范围，适合简单任务
-    * explore_content: 多轮智能探索，自动判断信息是否充足，适合复杂任务
-  - **示例**：
-    * "续写第6章，需要深入理解段融的性格变化" → explore_content(target_task="续写第6章，分析段融性格")
-    * "分析主角与师兄的关系发展" → explore_content(target_task="分析主角与师兄关系")
-  - ⚠️ **不要过度使用**：简单的续写/获取任务仍用 get_writing_context
+🔴🔴🔴 **【信息获取统一规则 - 最高优先级！】** 🔴🔴🔴
+
+**所有需要从作品中获取信息的任务，统一使用 explore_content！**
+
+- explore_content 会自动完成：搜索 → 读取章节 → 验证上下文 → 判断信息是否充足
+- 简单任务：explore_content 首轮即返回
+- 复杂任务：explore_content 自动多轮探索
+
+**示例**：
+- "续写第5章" → explore_content(target_task="续写第5章，获取前文内容和世界观")
+- "分析主角性格" → explore_content(target_task="分析主角性格特点和变化")
+- "梳理A与B的关系" → explore_content(target_task="梳理A与B的关系发展历程")
+- "找出所有提到XX的地方" → explore_content(target_task="收集所有关于XX的描写")
+
+⚠️ **不要使用 search_content、get_writing_context 等工具**，这些是 explore_content 内部调用的工具。
 
 ## Step 3: 处理方式
 
@@ -212,10 +205,10 @@ def _get_planning_core_rules() -> str:
 
 ⚠️ **参数传递规则**：locate_content 返回的 node_id、paragraph_index、before_anchor、after_anchor 必须传给 apply_chapter_edit！
 
-⚠️ **缺章节信息时的三步链路（只在符合场景时触发）**：
-- 条件：用户要修改/插入/续写，但未提供 chapter_id/章节序号/选中文本
-- 流程：search_content（找章）→ get_writing_context（读章）→ locate_content（精确定位）→ smart_* → apply_chapter_edit
-- 说明：search_content 只用于找章，不能替代定位
+⚠️ **缺章节信息时的流程**：
+- 条件：用户要修改/插入/续写，但未提供 chapter_id/章节序号
+- 流程：explore_content（获取信息+定位）→ smart_* → apply_chapter_edit
+- 说明：explore_content 会自动搜索并读取相关章节
 
 ---
 
@@ -245,7 +238,7 @@ def _get_planning_core_rules() -> str:
 【选中文本处理规则】⚠️ 重要！
 
 当 Prompt 中包含【用户选中的文本】时，这表示用户在编辑器中选中了一段文字：
-1. **必须先读取章节内容**（如果有 chapter_id）：调用 get_writing_context
+1. **必须先获取上下文**（如果有 chapter_id）：调用 explore_content
 2. 然后使用 analyze_content 分析选中的文本
 3. 将选中的文本作为 analyze_content 的 content 参数
 4. 根据用户指令确定 aspects 参数
@@ -349,7 +342,7 @@ def _get_agent_mode_checkpoint_section() -> str:
 - 需要用户确认才能继续的决策点（极少情况）
 
 ✅ 不需要 checkpoint 的情况（占大多数）：
-- 简单的读取/搜索任务（get_writing_context, search_content 等）
+- 简单的读取/搜索任务（explore_content 等）
 - 单步就能完成的任务（分析、摘要、问答）
 - 常规的改写/续写任务（smart_rewrite, smart_continue）
 - 已经是最后一个任务

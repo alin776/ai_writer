@@ -156,7 +156,13 @@ class ToolExecutor:
 
             # 提取返回值
             if isinstance(result, dict) and result.get("success"):
-                tool_result = self.extract_result(normalized_name, result)
+                if normalized_name == "explore_content" and state.get("emit_explore_events"):
+                    try:
+                        tool_result = json.dumps(result, ensure_ascii=False)
+                    except Exception:
+                        tool_result = str(result)
+                else:
+                    tool_result = self.extract_result(normalized_name, result)
                 logger.info(f"[StandardTool] {normalized_name} 执行成功")
 
                 if cache_ctx:

@@ -40,6 +40,7 @@ class ParagraphRead:
 @dataclass
 class ChapterRead:
     """读取的章节原文"""
+    id: str                     # 章节ID
     order: int
     title: str
     content: str                 # 完整原文
@@ -104,10 +105,11 @@ class ToolCall:
 class ExploreRound:
     """单轮探索记录"""
     round_idx: int
-    reasoning: str               # AI 的思考过程
+    title: str                   # 轮次标题
     tool_calls: List[ToolCall]   # 本轮执行的工具
     new_evidences_count: int     # 本轮新增证据数
     new_paragraphs_count: int    # 本轮新增段落数
+    missing_items: List[str]     # 缺失项
     sufficient: bool             # AI 判断是否充足
     timestamp: datetime
 ```

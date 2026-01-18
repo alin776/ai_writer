@@ -7,48 +7,45 @@
 
 
 def _get_new_aggregated_tools_section() -> str:
-    """新聚合工具描述（优先使用！）"""
+    """新聚合工具描述（2026-01-18 更新：explore_content 为统一入口）"""
     return """
-【🔴 新聚合工具 - 优先使用！】
+🔴🔴🔴 【统一信息获取入口 - 最高优先级！】 🔴🔴🔴
 
-⚠️ **重要：优先使用新聚合工具，减少工具调用次数！**
+⚠️ **重要：所有信息获取都使用 explore_content，它会自动判断需要的深度！**
 
-| 旧工具 | 新工具 | 说明 |
-|--------|--------|------|
-| get_chapter_by_order_tool | get_writing_context | 一站式获取上下文 |
-| read_chapter_tool | get_writing_context | 支持批量读取 |
-| get_worldview_summary | get_writing_context | include="worldview" |
-| get_context_tool | get_writing_context | include="work,rag" |
-| analyze_text_tool | analyze_content | 一站式分析 |
-
----
-
-- get_writing_context: 🔴 一站式获取创作上下文（推荐！）
+- explore_content: **统一信息获取工具**
   参数:
-    - chapter_orders: 章节序号，支持 "5" / "1,2,3" / "1-5"
-    - chapter_id: 章节UUID（与 chapter_orders 二选一）
-    - include: 包含内容类型，逗号分隔
-      * "work" - 作品信息
-      * "chapter" - 章节内容
-      * "worldview" - 世界观（角色、地点、设定）
-      * "rag" - RAG检索相关内容
-      * "style" - 风格指导
-    - rag_query: RAG查询（可选）
-    - rag_top_k: RAG返回数量（默认5）
-  返回: {work_info, chapters[], worldview, rag_context[], style_guidance}
+    - work_id: 作品ID（必需）
+    - target_task: 目标任务描述（必需，描述需要什么信息）
+    - max_rounds: 最大探索轮数（默认3，简单任务1轮即返回）
+  返回: {
+    explore_summary,      # 收集到的信息摘要（供后续工具使用）
+    context_for_task,     # 可直接作为 chapter_content 的上下文
+    frontend_display,     # 前端展示结构
+    chapters,            # 相关章节原文（列表）
+    worldview            # 世界观设定
+  }
 
-  ✅ 使用示例：
-    - 续写前获取上下文: get_writing_context(chapter_orders="5", include="work,chapter,worldview,rag")
-    - 批量读取章节: get_writing_context(chapter_orders="1-5", include="chapter")
-    - 只获取世界观: get_writing_context(include="worldview")
+  ✅ **所有信息获取场景都用这个工具**:
+    - 续写/改写前获取上下文 → explore_content(target_task="续写第5章，需要第4-5章内容和世界观")
+    - 分析人物/情节 → explore_content(target_task="分析主角性格特点，收集相关描写")
+    - 搜索/查找内容 → explore_content(target_task="找出所有关于XX的描写")
+    - 获取世界观设定 → explore_content(target_task="获取世界观和角色设定")
+    - 批量读取章节 → explore_content(target_task="读取第1-5章内容")
 
-  ⚠️ 对比旧方式：
-    - 旧：get_worldview_summary + get_chapter_by_order_tool + get_context_tool（3次调用）
-    - 新：get_writing_context（1次调用）
+  ⚠️ **工作原理**（你不需要关心，explore_content 自动处理）:
+    - 简单查询 → 首轮即返回
+    - 复杂查询 → 自动多轮探索
+    - 信息收敛 → 自动停止
+
+  ⚠️ **禁止直接使用以下工具**（这些是内部工具）:
+    - ❌ search_content（已整合到 explore_content）
+    - ❌ get_writing_context（已整合到 explore_content）
+    - ❌ get_chapter_by_order（已整合到 explore_content）
 
 ---
 
-- analyze_content: 🔴 一站式内容分析（推荐！）
+- analyze_content: 🔴 一站式内容分析
   参数:
     - content: 待分析文本（必需）
     - analysis_types: 分析类型列表（可选）
@@ -76,48 +73,16 @@ def _get_new_aggregated_tools_section() -> str:
 
 
 def _get_retrieval_tools_section() -> str:
-    """检索工具描述"""
+    """检索工具描述（内部工具，由 explore_content 调用）"""
     return """
-【检索工具 - 纯搜索/查询场景使用】
-- search_content: 混合检索（向量+全文）召回作品相关片段（返回snippet）
-  参数: work_id(必需), query(必需), top_k(默认10, ≤50), chapter_id(可选), look_ahead(默认0=不限制)
-  → 适用场景（仅用于查询，不用于修改！）:
-    - 用户只是想**查找/搜索**内容: "哪里提到了XX"、"找一下XX相关的内容"
-    - 用户想**了解**某内容在哪: "赵穆出现在哪"、"关于源顺镖局的描述"
-  ⚠️ **禁止场景**（不要用此工具！）:
-    - 用户要**修改/改写/润色**某内容 → 用 locate_content！
-    - 用户要**插入/续写**内容 → 用 locate_content！
-    - 任何需要返回 paragraph_index 的场景 → 用 locate_content！
-  ✅ **符合场景时的三步链路**：
-    - 用户要修改/插入但**未说明章节** → search_content 找章 → get_writing_context 读章 → locate_content 精确定位
+【内部检索工具 - ⚠️ 禁止直接使用！】
 
-⚠️ 【搜索 query 提取规则 - 极其重要！】
-提取用户描述中的**核心动作/事件/专有名词**作为搜索词，保持完整性！
+以下工具已整合到 explore_content，请使用 explore_content 代替：
 
-✅ 正确提取示例：
-- "段融第一次吞噬器灵的场景" → query: "吞噬器灵" 或 "段融 吞噬器灵"
-- "主角觉醒的描写" → query: "觉醒"
-- "赵穆和段融的对话" → query: "赵穆 段融"
-- "描写战斗的片段" → query: "战斗"
-- "关于源顺镖局的描述" → query: "源顺镖局"
+- search_content: ❌ 内部工具（由 explore_content 自动调用）
+- get_writing_context: ❌ 内部工具（由 explore_content 自动调用）
 
-❌ 错误提取示例（绝对禁止！）：
-- "段融第一次吞噬器灵的场景" → query: "灵的场景" ❌ (拆分了专有名词"吞噬器灵")
-- "主角觉醒的描写" → query: "的描写" ❌ (丢失了核心词"觉醒")
-
-**关键原则**：
-1. 专有名词/动作词组必须保持完整（如"吞噬器灵"、"源顺镖局"、"金丹期"）
-2. 优先提取动词+宾语组合（如"吞噬器灵"而非"器灵"）
-3. 人物名+动作组合效果更好（如"段融 吞噬器灵"）
-4. 不要只提取"的场景"、"的描写"等无意义后缀
-5. **提取技巧**：找到用户描述中"第一次/首次/开始"后面紧跟的动作词组，这通常是核心搜索词
-   - "第一次吞噬器灵" → 提取 "吞噬器灵"
-   - "首次突破金丹" → 提取 "突破金丹"
-
-⚠️ 【检索规则 - 强制执行】
-- 用户只是想**查询/搜索**内容位置 → 用 search_content
-- 用户要**修改/改写/插入**内容 → 用 locate_content（返回 paragraph_index）
-- **禁止不检索就直接回答"没有找到"或"不存在"！必须先检索确认！**
+✅ **正确做法**：使用 explore_content(target_task="你的查询需求")
 """
 
 
@@ -206,17 +171,17 @@ def _get_editor_tools_section() -> str:
 
 
 def _get_read_tools_section() -> str:
-    """读取工具描述（已废弃，请使用 get_writing_context）"""
+    """读取工具描述（内部工具，由 explore_content 调用）"""
     return """
-【读取工具】⚠️ 已废弃，请优先使用 get_writing_context！
+【内部读取工具 - ⚠️ 禁止直接使用！】
 
-以下工具已被 get_writing_context 替代，仅保留向后兼容：
-- get_chapter_by_order_tool → 请用 get_writing_context(chapter_orders="1-5", include="chapter")
-- read_chapter_tool → 请用 get_writing_context(chapter_id="xxx", include="chapter")
-- get_context_tool → 请用 get_writing_context(include="work,rag")
-- get_worldview_summary → 请用 get_writing_context(include="worldview")
-- analyze_text_tool → 请用 analyze_content(content="...", aspects=["style"])
-- search_analysis_fragments_tool → 请用 search_content(query="...", top_k=10)
+以下工具已整合到 explore_content：
+- get_chapter_by_order_tool → 使用 explore_content
+- read_chapter_tool → 使用 explore_content
+- get_context_tool → 使用 explore_content
+- get_worldview_summary → 使用 explore_content
+
+✅ **正确做法**：使用 explore_content(target_task="你的读取需求")
 """
 
 
@@ -293,50 +258,13 @@ def _get_analysis_tools_section() -> str:
 
 
 def _get_explore_tools_section() -> str:
-    """探索工具描述（2026-01-17 新增）"""
+    """探索工具描述（2026-01-18 更新：已在聚合工具部分详细描述）"""
     return """
-【探索工具 - 复杂任务使用】
+【探索工具 - 参见顶部统一入口说明】
 
-- explore_content: 深度探索工具（get_writing_context 的增强版）
-  参数:
-    - work_id: 作品ID（必需）
-    - target_task: 目标任务描述（必需）
-    - max_rounds: 最大探索轮数（默认5）
-    - timeout_seconds: 超时时间（默认60）
-  返回: {
-    explore_summary,      # AI 分析总结
-    chapters,            # 完整章节原文
-    worldview,           # 世界观设定
-    evidences,           # 搜索证据片段
-    paragraphs           # 精确读取的段落
-  }
+explore_content 的详细说明已在顶部【统一信息获取入口】部分。
 
-  ✅ 使用场景:
-    - 任务涉及多个章节的关联分析
-    - 需要深入理解人物关系、情节发展
-    - 搜索结果需要原文验证
-
-  ⚠️ 与 get_writing_context 的对比:
-    - get_writing_context: 一次性获取，适合简单任务
-    - explore_content: 多轮探索，适合复杂任务
-
-- read_paragraph: 精确读取段落原文 + 上下文
-  参数:
-    - work_id: 作品ID（必需）
-    - chapter_order: 章节序号（1-based，必需）
-    - paragraph_index: 段落索引（0-based，必需）
-    - context_before: 向前读取段落数（默认2）
-    - context_after: 向后读取段落数（默认2）
-  返回: {chapter_title, paragraphs[{index, text, is_target}], total_paragraphs_in_chapter}
-
-  ✅ 使用场景:
-    - 搜索结果片段太短，需要验证完整上下文
-    - 需要精确读取某个段落的前后文
-    - 验证搜索结果在原文中的完整含义
-
-  ✅ 使用示例:
-    - 读取第3章第18段: read_paragraph(work_id="xxx", chapter_order=3, paragraph_index=18)
-    - 读取更多上下文: read_paragraph(work_id="xxx", chapter_order=5, paragraph_index=7, context_before=5, context_after=5)
+- read_paragraph: 精确读取段落原文（explore_content 内部使用，通常不需要直接调用）
 """
 
 

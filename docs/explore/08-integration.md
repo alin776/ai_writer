@@ -54,8 +54,8 @@ async def read_paragraph(
 async def explore_content(
     work_id: str,
     target_task: str,
-    max_rounds: int = 5,
-    timeout_seconds: int = 60
+    max_rounds: int = 3,
+    user_id: Optional[str] = None
 ) -> str:
     """
     深度探索工具（get_writing_context 的增强版）
@@ -69,10 +69,10 @@ async def explore_content(
         work_id: 作品ID
         target_task: 目标任务描述
         max_rounds: 最大探索轮数
-        timeout_seconds: 超时时间
+        user_id: 用户ID（可选）
 
     Returns:
-        JSON 格式的探索结果
+        JSON 格式的探索结果（包含 context_for_task、explore_summary、frontend_display 等）
     """
     # 实现见 07-implementation.md
 ```
@@ -122,11 +122,11 @@ def _get_explore_tools_section() -> str:
     - target_task: 目标任务描述（必需）
     - max_rounds: 最大探索轮数（默认5）
   返回: {
-    explore_summary,      # AI 分析
-    chapters,            # 完整章节原文
-    worldview,           # 世界观设定
-    evidences,           # 搜索证据片段
-    paragraphs           # 精确读取的段落
+    explore_summary,      # 可供后续工具使用的摘要文本
+    context_for_task,     # 可直接作为 chapter_content 的上下文
+    frontend_display,     # 前端展示结构
+    chapters,            # 章节原文（列表）
+    worldview            # 世界观设定
   }
 
   ✅ 使用场景:

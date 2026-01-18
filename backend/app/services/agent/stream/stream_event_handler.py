@@ -65,11 +65,15 @@ class StreamEventHandler:
 
     async def emit_flow_event(self, event: dict):
         """发送执行轨迹事件"""
+        event_type = event.get("type", "unknown")
         if self._on_flow_event:
             try:
+                logger.debug(f"[FlowEvent] 发送事件: type={event_type}")
                 await self._on_flow_event(event)
             except Exception as e:
                 logger.error(f"[FlowEvent] 发送失败: {e}")
+        else:
+            logger.warning(f"[FlowEvent] 无回调，跳过事件: type={event_type}")
 
     async def emit_agent_header(self, name: str = "文枢AI", badge: str = ""):
         """发送Agent头部事件"""
