@@ -1810,8 +1810,9 @@ class WritingAgentGraph:
                             shared_state = {
                                 "work_id": work_id,
                                 "chapter_id": chapter_id,
-                                "context": context or {},
+                                "context": context if isinstance(context, dict) else {},
                                 "tool_policy": tool_policy,
+                                "task_step_map": task_step_map,
                             }
 
                             # 定义任务执行函数（传递给 DeepAgentExecutor）
@@ -1829,6 +1830,14 @@ class WritingAgentGraph:
                                     )
                                     logger.debug(f"[DeepAgent] 任务{task_id}参数已解析")
 
+                                task_state = dict(shared_state)
+                                step_id = task_step_map.get(task_id)
+                                if isinstance(step_id, int):
+                                    task_state["step_id"] = step_id
+                                stream_handler = getattr(self, "stream_event_handler", None)
+                                if stream_handler:
+                                    task_state["stream_event_handler"] = stream_handler
+
                                 result_str = await self._execute_task(
                                     task=resolved_task,  # ✅ 使用解析后的任务
                                     work_id=work_id,
@@ -1836,7 +1845,7 @@ class WritingAgentGraph:
                                     context=context.get("context_str", initial_context),
                                     on_progress=on_task_progress,
                                     conversation_id=conversation_id,  # v8.0: 传递 conversation_id 用于操作日志
-                                    state=shared_state,  # 🆕 使用共享 state 用于章节缓存
+                                    state=task_state,  # 🆕 使用共享 state 用于章节缓存
                                 )
 
                                 # ✅ 注册任务结果到参数解析器（供后续任务使用）
@@ -1879,6 +1888,13 @@ class WritingAgentGraph:
                             )
                         else:
                             # 标准模式：使用原有并行执行
+                            shared_state = {
+                                "work_id": work_id,
+                                "chapter_id": chapter_id,
+                                "context": context if isinstance(context, dict) else {},
+                                "tool_policy": tool_policy,
+                                "task_step_map": task_step_map,
+                            }
                             task_results = await self._execute_tasks_in_parallel(
                                 tasks=plan_data["tasks"],
                                 work_id=work_id,
@@ -1888,7 +1904,8 @@ class WritingAgentGraph:
                                 on_task_start=wrapped_on_task_start,  # v6.0: 使用包装回调
                                 on_task_progress=on_task_progress,
                                 on_task_done=wrapped_on_task_done,  # v6.0: 使用包装回调
-                                conversation_id=conversation_id  # v8.0: 传递 conversation_id 用于操作日志
+                                conversation_id=conversation_id,  # v8.0: 传递 conversation_id 用于操作日志
+                                state=shared_state
                             )
                         # ════════════════════════════════════════════
                 except asyncio.TimeoutError:

@@ -508,6 +508,21 @@ class ParallelExecutor:
         if on_task_start:
             await on_task_start(task)
 
+        shared_state = getattr(self, '_shared_state', None)
+        step_id = None
+        if isinstance(shared_state, dict):
+            step_map = shared_state.get("task_step_map")
+            if isinstance(step_map, dict):
+                step_id = step_map.get(task_id)
+        if not isinstance(step_id, int):
+            step_id = task_id
+
+        task_state = dict(shared_state) if isinstance(shared_state, dict) else {}
+        task_state["step_id"] = step_id
+        stream_handler = getattr(self.agent, "stream_event_handler", None)
+        if stream_handler:
+            task_state["stream_event_handler"] = stream_handler
+
         last_error = None
 
         for retry_count in range(self.MAX_RETRIES + 1):
@@ -530,7 +545,7 @@ class ParallelExecutor:
                     context_payload=context_payload,
                     on_progress=on_task_progress,
                     conversation_id=getattr(self, '_conversation_id', None),  # v8.0: 传递 conversation_id
-                    state=getattr(self, '_shared_state', None)  # 🆕 2026-01-12: 传递共享 state 用于章节缓存
+                    state=task_state  # 🆕 2026-01-12: 传递共享 state 用于章节缓存
                 )
 
                 raw_result = result
@@ -539,7 +554,7 @@ class ParallelExecutor:
                 # 🆕 2026-01-18: explore_content 特殊处理 - 发射轮次事件并提取 explore_summary
                 if tool_name == "explore_content":
                     raw_result, result_text = await self._handle_explore_content_result(
-                        result, task_id
+                        result, task_id, step_id
                     )
 
                 # 注册任务结果（保留结构体）
@@ -618,17 +633,19 @@ class ParallelExecutor:
     async def _handle_explore_content_result(
         self,
         result: Any,
-        task_id: int
+        task_id: int,
+        step_id: Optional[int] = None
     ) -> tuple:
         """处理 explore_content 的结果
 
         1. 解析 JSON 提取 frontend_display
-        2. 发射 explore_round 和 explore_summary 事件
+        2. 发射 explore_round 和 explore_summary 事件（若未在工具内发射）
         3. 提取 explore_summary 供后续工具使用
 
         Args:
             result: explore_content 返回的结果（JSON 字符串或 dict）
             task_id: 任务 ID
+            step_id: 步骤 ID
 
         Returns:
             (raw_result, result_text) - 处理后的结果
@@ -650,7 +667,8 @@ class ParallelExecutor:
             return result_data, json.dumps(result_data, ensure_ascii=False)
 
         # 发射 explore_round 和 explore_summary 事件
-        await self._emit_explore_events(result_data, task_id)
+        if not result_data.get("events_emitted"):
+            await self._emit_explore_events(result_data, step_id or task_id)
 
         # 提取 explore_summary 供后续工具使用
         explore_summary = result_data.get("explore_summary", "")
@@ -664,13 +682,13 @@ class ParallelExecutor:
     async def _emit_explore_events(
         self,
         result_data: Dict[str, Any],
-        task_id: int
+        step_id: int
     ):
         """发射 explore_round 和 explore_summary 事件
 
         Args:
             result_data: explore_content 返回的完整数据
-            task_id: 任务 ID
+            step_id: 步骤 ID
         """
         from app.services.agent.stream.flow_events import FlowEventBuilder
 
@@ -693,7 +711,7 @@ class ParallelExecutor:
         for round_data in rounds:
             try:
                 event = FlowEventBuilder.explore_round(
-                    step_id=task_id,
+                    step_id=step_id,
                     round_idx=round_data.get("round_idx", 1),
                     title=round_data.get("title", "探索"),
                     tool_calls=round_data.get("tool_calls", []),
@@ -712,7 +730,7 @@ class ParallelExecutor:
         ai_analysis = frontend_display.get("ai_analysis", {})
         try:
             event = FlowEventBuilder.explore_summary(
-                step_id=task_id,
+                step_id=step_id,
                 total_rounds=len(rounds),
                 summary=ai_analysis.get("summary", result_data.get("analysis", "")),
                 next_action=ai_analysis.get("next_action", ""),

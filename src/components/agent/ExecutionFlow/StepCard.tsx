@@ -3,7 +3,7 @@
  * 可折叠，显示状态图标、知识调取、工具调用、内嵌修订胶囊
  */
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Check, Loader2, ChevronUp, ChevronDown, Wrench } from 'lucide-react';
 import type { StepFlowData } from '@/types/agent';
 import { KnowledgeContainer } from './KnowledgeContainer';
@@ -11,6 +11,7 @@ import { RevisionCard } from './RevisionCard';
 
 interface StepCardProps extends StepFlowData {
   defaultExpanded?: boolean;
+  children?: ReactNode;
   // v7.3: 修订回调（从 ExecutionFlow 传入）
   onAcceptRevision?: (selectedVersion?: number) => void;
   onDiscardRevision?: () => void;
@@ -25,6 +26,7 @@ export function StepCard({
   description,
   knowledge,
   toolCall,
+  children,
   revision,
   defaultExpanded = true,
   onAcceptRevision,
@@ -34,6 +36,7 @@ export function StepCard({
   onJumpRevision
 }: StepCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const showToolCall = toolCall && toolCall.name !== 'explore_content';
 
   return (
     <div className="mb-3">
@@ -84,7 +87,7 @@ export function StepCard({
           )}
 
           {/* 工具调用标签 */}
-          {toolCall && (
+          {showToolCall && (
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full my-2">
               <span className="text-gray-400 dark:text-slate-500">
                 <Wrench size={12} />
@@ -93,6 +96,12 @@ export function StepCard({
               <span className="font-mono text-[12px] text-gray-600 dark:text-slate-300">
                 {toolCall.name}
               </span>
+            </div>
+          )}
+
+          {children && (
+            <div className="mt-2">
+              {children}
             </div>
           )}
 

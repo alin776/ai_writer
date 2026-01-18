@@ -12,12 +12,13 @@ Explore 内容探索工具
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Set, Tuple, Any, Optional, Callable
+from typing import Dict, List, Set, Tuple, Any, Optional, Callable, Awaitable
 from datetime import datetime
 
 from langchain_core.tools import tool
 from .tool_registry import register_as_tool
 from app.utils.datetime_utils import get_utc_now
+from app.services.agent.utils.tool_context import get_stream_event_handler, get_explore_step_id
 
 logger = logging.getLogger(__name__)
 
@@ -530,7 +531,8 @@ class ContentExplorer:
         work_id: str,
         target_task: str,
         max_rounds: int = 3,
-        emit_callback: Optional[Callable[[dict], None]] = None
+        emit_callback: Optional[Callable[[dict], Awaitable[None]]] = None,
+        step_id: Optional[int] = None
     ):
         """
         初始化内容探索器
@@ -545,6 +547,10 @@ class ContentExplorer:
         self.target_task = target_task
         self.max_rounds = max_rounds
         self.emit_callback = emit_callback
+        if isinstance(step_id, int) and step_id > 0:
+            self.step_id = step_id
+        else:
+            self.step_id = 1
         self.state = ExploreState()
         self.start_time = get_utc_now()
 
@@ -568,7 +574,7 @@ class ContentExplorer:
 
             # 发射轮次事件
             if self.emit_callback:
-                self._emit_round_event(round_data)
+                await self._emit_round_event(round_data)
 
             # 检查是否充足
             if round_data.sufficient:
@@ -600,7 +606,7 @@ class ContentExplorer:
 
         # 发射汇总事件
         if self.emit_callback:
-            self._emit_summary_event(result)
+            await self._emit_summary_event(result)
 
         logger.info(f"[ContentExplorer] 探索完成: {len(self.state.rounds)}轮, 原因={stop_reason}")
 
@@ -876,7 +882,7 @@ class ContentExplorer:
 
         return analysis
 
-    def _emit_round_event(self, round_data: ExploreRound):
+    async def _emit_round_event(self, round_data: ExploreRound):
         """发射轮次事件"""
         from app.services.agent.stream.flow_events import FlowEventBuilder
 
@@ -887,7 +893,7 @@ class ContentExplorer:
         ]
 
         event = FlowEventBuilder.explore_round(
-            step_id=1,
+            step_id=self.step_id,
             round_idx=round_data.round_idx,
             title=round_data.title,
             tool_calls=_format_tool_calls_for_frontend(round_data),
@@ -897,9 +903,9 @@ class ContentExplorer:
             evidences=round_evidences,
             review_status=_get_review_status(round_data)
         )
-        self.emit_callback(event)
+        await self.emit_callback(event)
 
-    def _emit_summary_event(self, result: ExploreResult):
+    async def _emit_summary_event(self, result: ExploreResult):
         """发射汇总事件"""
         from app.services.agent.stream.flow_events import FlowEventBuilder
 
@@ -911,14 +917,14 @@ class ContentExplorer:
         }
 
         event = FlowEventBuilder.explore_summary(
-            step_id=1,
+            step_id=self.step_id,
             total_rounds=len(result.rounds),
             summary=result.analysis,
             next_action="基于这些背景信息，我将执行续写任务。",
             next_tool="smart_continue",
             stats=stats
         )
-        self.emit_callback(event)
+        await self.emit_callback(event)
 
 
 # ==================== 工具定义 ====================
@@ -944,10 +950,29 @@ async def explore_content(
     """
     logger.info(f"[explore_content] 开始: work_id={work_id}, target={target_task[:50]}...")
 
+    stream_handler = get_stream_event_handler()
+    step_id = get_explore_step_id()
+    step_id_value = None
+    if step_id is not None:
+        try:
+            step_id_value = int(step_id)
+        except (TypeError, ValueError):
+            step_id_value = None
+
+    events_emitted = False
+    emit_callback = None
+    if stream_handler and stream_handler.has_flow_event_callback():
+        async def emit_callback(event: dict) -> None:
+            nonlocal events_emitted
+            if await stream_handler.emit_flow_event(event):
+                events_emitted = True
+
     explorer = ContentExplorer(
         work_id=work_id,
         target_task=target_task,
-        max_rounds=max_rounds
+        max_rounds=max_rounds,
+        emit_callback=emit_callback,
+        step_id=step_id_value
     )
 
     try:
@@ -987,6 +1012,7 @@ async def explore_content(
             "total_duration_ms": result.total_duration_ms,
             "frontend_display": to_frontend_display(result),
             "context_for_task": build_context_for_task(result),
+            "events_emitted": events_emitted,
             # 添加 explore_summary 字段，便于 ParameterResolver 解析
             "explore_summary": explore_summary,
             # 2026-01-18: 添加兼容字段，支持 $ref 引用

@@ -63,17 +63,23 @@ class StreamEventHandler:
         """重置步骤计数器"""
         self._step_counter = 0
 
-    async def emit_flow_event(self, event: dict):
+    def has_flow_event_callback(self) -> bool:
+        """检查是否已设置执行轨迹事件回调"""
+        return self._on_flow_event is not None
+
+    async def emit_flow_event(self, event: dict) -> bool:
         """发送执行轨迹事件"""
         event_type = event.get("type", "unknown")
         if self._on_flow_event:
             try:
                 logger.debug(f"[FlowEvent] 发送事件: type={event_type}")
                 await self._on_flow_event(event)
+                return True
             except Exception as e:
                 logger.error(f"[FlowEvent] 发送失败: {e}")
-        else:
-            logger.warning(f"[FlowEvent] 无回调，跳过事件: type={event_type}")
+                return False
+        logger.warning(f"[FlowEvent] 无回调，跳过事件: type={event_type}")
+        return False
 
     async def emit_agent_header(self, name: str = "文枢AI", badge: str = ""):
         """发送Agent头部事件"""

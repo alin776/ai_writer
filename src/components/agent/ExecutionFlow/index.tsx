@@ -47,6 +47,26 @@ export function ExecutionFlow({
     return null;
   }
 
+  const stepIds = new Set(
+    items
+      .filter((item) => item.type === 'step')
+      .map((item) => (item.data as StepFlowData).stepId)
+  );
+
+  const exploreItemsByStep = new Map<number, FlowItem[]>();
+  items.forEach((item) => {
+    if (item.type !== 'explore_round' && item.type !== 'explore_summary') {
+      return;
+    }
+    const stepId = (item.data as ExploreRoundFlowData | ExploreSummaryFlowData).stepId;
+    if (!stepIds.has(stepId)) {
+      return;
+    }
+    const grouped = exploreItemsByStep.get(stepId) || [];
+    grouped.push(item);
+    exploreItemsByStep.set(stepId, grouped);
+  });
+
   return (
     <div>
       {items.map((item) => {
@@ -66,6 +86,7 @@ export function ExecutionFlow({
             );
           case 'step': {
             const stepData = item.data as StepFlowData;
+            const exploreItems = exploreItemsByStep.get(stepData.stepId) || [];
             // v7.4: 使用 item.id 作为 fallback，确保回调函数始终有效
             const revisionId = stepData.revisionItemId || item.id;
             return (
@@ -78,7 +99,31 @@ export function ExecutionFlow({
                 onUndoRevision={stepData.revision ? () => onUndoRevision?.(revisionId) : undefined}
                 onRedoRevision={stepData.revision ? () => onRedoRevision?.(revisionId) : undefined}
                 onJumpRevision={stepData.revision ? () => onJumpRevision?.(revisionId, (stepData.revision as any)?.requestId) : undefined}
-              />
+              >
+                {exploreItems.length > 0 && (
+                  <div className="space-y-2">
+                    {exploreItems.map((exploreItem) => {
+                      if (exploreItem.type === 'explore_round') {
+                        return (
+                          <ExploreRoundCard
+                            key={exploreItem.id}
+                            {...(exploreItem.data as ExploreRoundFlowData)}
+                          />
+                        );
+                      }
+                      if (exploreItem.type === 'explore_summary') {
+                        return (
+                          <ExploreSummaryCard
+                            key={exploreItem.id}
+                            {...(exploreItem.data as ExploreSummaryFlowData)}
+                          />
+                        );
+                      }
+                      return null;
+                    })}
+                  </div>
+                )}
+              </StepCard>
             );
           }
           case 'output':
@@ -129,6 +174,9 @@ export function ExecutionFlow({
             );
           }
           case 'explore_round':
+            if (stepIds.has((item.data as ExploreRoundFlowData).stepId)) {
+              return null;
+            }
             return (
               <ExploreRoundCard
                 key={item.id}
@@ -136,6 +184,9 @@ export function ExecutionFlow({
               />
             );
           case 'explore_summary':
+            if (stepIds.has((item.data as ExploreSummaryFlowData).stepId)) {
+              return null;
+            }
             return (
               <ExploreSummaryCard
                 key={item.id}

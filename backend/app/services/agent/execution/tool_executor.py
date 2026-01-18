@@ -16,6 +16,12 @@ import logging
 from app.services.agent.tools import registry
 from app.services.agent.utils.chapter_cache import ChapterCache
 from app.services.agent.utils.tool_cache import ToolCache
+from app.services.agent.utils.tool_context import (
+    set_stream_event_handler,
+    reset_stream_event_handler,
+    set_explore_step_id,
+    reset_explore_step_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +151,27 @@ class ToolExecutor:
                     return cached_result
 
             # 调用 StandardTool
-            result = await registry.call_tool(normalized_name, params)
+            stream_token = None
+            step_token = None
+            if normalized_name == "explore_content" and isinstance(state, dict):
+                stream_handler = state.get("stream_event_handler")
+                if stream_handler:
+                    stream_token = set_stream_event_handler(stream_handler)
+                step_id = state.get("step_id")
+                if isinstance(step_id, str):
+                    try:
+                        step_id = int(step_id)
+                    except ValueError:
+                        step_id = None
+                if isinstance(step_id, int):
+                    step_token = set_explore_step_id(step_id)
+            try:
+                result = await registry.call_tool(normalized_name, params)
+            finally:
+                if step_token is not None:
+                    reset_explore_step_id(step_token)
+                if stream_token is not None:
+                    reset_stream_event_handler(stream_token)
 
             # 🔧 处理返回值为 JSON 字符串的情况（如 locate_content、@tool 装饰器返回值）
             if isinstance(result, str):

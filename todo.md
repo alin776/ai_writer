@@ -797,3 +797,75 @@ FlowEventBuilder.explore_analysis(
 - 原因：Explore 事件以独立 FlowItem 插入，`ExecutionFlow` 未按 stepId 归组，导致 Explore 胶囊与 StepCard 仅按时间序列并列渲染，无法呈现“同一层级/同一折叠块”关系。
 - 关联风险：后端 explore_round 的 step_id 目前与 StepCard 的 stepId 不严格一致（并行任务 + task_id/step_counter 差异、ToolDispatcher 默认 step_id=1），导致即便前端归组也可能错位。
 - 建议：前端按 stepId 归组并在 StepCard 内容区渲染 Explore 卡片；若要稳定归组需后端对齐 explore_round 的 step_id（用 step_start 生成的 step_id）。
+
+---
+
+## 第十五轮：Explore 步骤归组与胶囊调整（待开始）
+
+### 待办清单
+
+- [x] 复核 Explore 事件顺序与 stepId 映射，确定归组策略
+- [x] 前端按 stepId 将 explore_round/explore_summary 归入对应 StepCard 内容区
+- [x] 隐藏 explore_content 的 “调用工具” 胶囊
+- [x] 评估是否需要前端顺序动画（逐个出现）并给出最小实现
+- [x] 添加 review 总结
+
+### review
+
+- 分组：`src/components/agent/ExecutionFlow/index.tsx` 按 stepId 归组 explore_round/explore_summary，并在 StepCard 内容区渲染；无匹配的 Explore 项继续独立显示。
+- 隐藏：`src/components/agent/ExecutionFlow/StepCard.tsx` 对 explore_content 不显示“调用工具”胶囊。
+- 顺序：Explore 事件按流式到达顺序逐条追加，前端无需额外动画即可逐个出现；如需更强的节奏感可再加轻量 stagger 动效。
+
+---
+
+## 第十六轮 Review：Explore 归组后验证（待开始）
+
+### 待办清单
+
+- [x] 验证 Explore 归组是否影响其他 StepCard/Explore 卡片显示
+- [x] 检查 explore_content 胶囊隐藏逻辑是否误伤其他工具
+- [x] 复核无 stepId 的 Explore 事件是否仍可单独显示
+- [x] 核对渲染顺序与重复渲染风险
+- [x] 添加 review 总结
+
+### review
+
+- 结论：Explore 事件按 stepId 归组后，仅影响同 stepId 的 Explore 项，其他 StepCard/Explore 卡片不受影响；无 stepId 匹配仍会独立显示。
+- 逻辑：explore_content 的工具胶囊仅对该工具隐藏，不影响其他工具的 StepCard 展示。
+- 风险：后端 explore_round 使用 task_id 作为 step_id，若与 StepCard 的 stepId 不一致，归组可能失败导致 Explore 仍独立显示。
+
+---
+
+## 第十七轮：Explore 子代理流式事件与 stepId 对齐（待开始）
+
+### 待办清单
+
+- [x] 复核 explore_content 事件发射位置与 stepId 来源，设计流式回调传递方案
+- [x] 为 explore_content 增加上下文回调（按轮次即时发 explore_round），并在结果中标记已发事件
+- [x] 在 ToolExecutor/ParallelExecutor/ToolDispatcher 接入回调与 stepId 映射，避免重复发事件
+- [x] 对齐 stepId（task_id → stepId 映射），确保 Explore 归组稳定
+- [x] 添加 review 总结
+
+### review
+- 新增：`backend/app/services/agent/utils/tool_context.py` 提供 stream_event_handler 与 explore step_id 的上下文传递。
+- 流式：`backend/app/services/agent/tools/explore_tools.py` 通过回调逐轮发送 explore_round，并输出 `events_emitted` 标记，汇总事件也在工具内发送。
+- 事件：`backend/app/services/agent/execution/tool_executor.py` 使用 contextvar 注入 stream handler 与 step_id；`backend/app/services/agent/execution/parallel_executor.py` 与 `backend/app/services/agent/core/tool_dispatcher.py` 在已发事件时跳过补发，确保不重复。
+- 对齐：`backend/app/services/agent/langgraph_agent.py` 写入任务 step_id，`backend/app/services/agent/execution/parallel_executor.py` 以 step_id 发事件并注入 state，Explore 卡片可归组到 StepCard。
+
+---
+
+## 第十八轮：Explore 事件稳健性与 stepId 隔离（待开始）
+
+### 待办清单
+
+- [x] 复核 explore_content 事件发射条件，避免 events_emitted 误判导致缺失卡片
+- [x] 调整 events_emitted 判定逻辑（以实际成功发射为准）
+- [x] 移除对任务对象的 _step_id 直接写入，改用内部映射传递
+- [x] 贯通 Planning/DeepAgent/ToolDispatcher 路径，确保 stepId 一致且不外泄
+- [x] 添加 review 总结
+
+### review
+- 修复：`backend/app/services/agent/stream/stream_event_handler.py` 提供回调检测与发射成功返回值，避免仅凭 handler 存在就标记发射成功。
+- 修复：`backend/app/services/agent/tools/explore_tools.py` 仅在回调可用时启用发射，并以实际发射结果更新 `events_emitted`。
+- 收敛：`backend/app/services/agent/langgraph_agent.py` 不再写入任务 `_step_id`，改用内部映射传递；标准/DeepAgent 路径共享 stepId 映射。
+- 对齐：`backend/app/services/agent/execution/parallel_executor.py` 改用 `task_step_map` 获取 stepId，避免对任务对象的侵入式字段。

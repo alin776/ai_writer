@@ -699,9 +699,19 @@ class ToolDispatcher:
         logger.info(f"[ToolDispatcher] 使用统一接口调用工具: {tool_name}")
         try:
             call_state = state
+            step_id = None
             if tool_name == "explore_content":
-                call_state = dict(state)
+                if isinstance(state, dict):
+                    call_state = dict(state)
+                    step_id = state.get("step_id")
+                else:
+                    call_state = {}
                 call_state["emit_explore_events"] = True
+                stream_handler = getattr(self.agent, "stream_event_handler", None)
+                if stream_handler:
+                    call_state["stream_event_handler"] = stream_handler
+                if isinstance(step_id, int):
+                    call_state["step_id"] = step_id
 
             tool_result = await self.agent._call_tool_via_registry(
                 tool_name=tool_name,
@@ -710,7 +720,7 @@ class ToolDispatcher:
             )
             logger.info(f"[ToolDispatcher] ✅ 统一接口调用成功: {tool_name}")
             if tool_name == "explore_content":
-                return await self._handle_explore_content_result(tool_result)
+                return await self._handle_explore_content_result(tool_result, step_id)
             return tool_result
         except Exception as e:
             logger.error(f"[ToolDispatcher] 统一接口调用失败: {tool_name}, 错误: {e}")
@@ -720,7 +730,11 @@ class ToolDispatcher:
                 "user_prompt": "抱歉，我在处理您的请求时遇到了问题。能否换个方式描述？"
             }, ensure_ascii=False)
 
-    async def _handle_explore_content_result(self, tool_result: Any) -> str:
+    async def _handle_explore_content_result(
+        self,
+        tool_result: Any,
+        step_id: Optional[int] = None
+    ) -> str:
         result_data = tool_result
         if isinstance(tool_result, str):
             try:
@@ -734,7 +748,8 @@ class ToolDispatcher:
         if not result_data.get("success"):
             return tool_result if isinstance(tool_result, str) else json.dumps(result_data, ensure_ascii=False)
 
-        await self._emit_explore_events(result_data)
+        if not result_data.get("events_emitted"):
+            await self._emit_explore_events(result_data, step_id)
 
         explore_summary = result_data.get("explore_summary") or result_data.get("context_for_task", "")
         if explore_summary:
@@ -742,7 +757,11 @@ class ToolDispatcher:
 
         return tool_result if isinstance(tool_result, str) else json.dumps(result_data, ensure_ascii=False)
 
-    async def _emit_explore_events(self, result_data: Dict[str, Any]) -> None:
+    async def _emit_explore_events(
+        self,
+        result_data: Dict[str, Any],
+        step_id: Optional[int] = None
+    ) -> None:
         if not hasattr(self.agent, "stream_event_handler"):
             logger.warning("[ToolDispatcher] agent 没有 stream_event_handler，无法发射 explore 事件")
             return
@@ -763,10 +782,12 @@ class ToolDispatcher:
             logger.warning("[ToolDispatcher] explore_content frontend_display.rounds 为空，跳过事件发射")
             return
 
+        emit_step_id = step_id if isinstance(step_id, int) else 1
+
         for round_data in rounds:
             try:
                 event = FlowEventBuilder.explore_round(
-                    step_id=round_data.get("step_id", 1),
+                    step_id=emit_step_id,
                     round_idx=round_data.get("round_idx", 1),
                     title=round_data.get("title", "探索"),
                     tool_calls=round_data.get("tool_calls", []),
@@ -783,7 +804,7 @@ class ToolDispatcher:
         ai_analysis = frontend_display.get("ai_analysis", {})
         try:
             event = FlowEventBuilder.explore_summary(
-                step_id=rounds[0].get("step_id", 1),
+                step_id=emit_step_id,
                 total_rounds=len(rounds),
                 summary=ai_analysis.get("summary", result_data.get("analysis", "")),
                 next_action=ai_analysis.get("next_action", ""),
