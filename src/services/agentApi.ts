@@ -394,6 +394,8 @@ class AgentApiService {
                 summary: data.summary,
                 nextAction: data.next_action,
                 nextTool: data.next_tool,
+                sufficient: data.sufficient,
+                coverage: data.coverage,
                 stats: data.stats,
                 timestamp: data.timestamp
               });

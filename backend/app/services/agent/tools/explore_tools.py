@@ -24,6 +24,16 @@ from app.services.agent.utils.tool_context import get_stream_event_handler, get_
 
 logger = logging.getLogger(__name__)
 
+MIN_EVIDENCE_SIMILARITY = 0.35
+
+
+def _truncate_text(text: str, max_len: int = 500) -> str:
+    if not text:
+        return ""
+    if len(text) <= max_len:
+        return text
+    return text[:max_len] + "..."
+
 
 # ==================== AI 服务 ====================
 
@@ -132,6 +142,7 @@ class ExploreRound:
     new_paragraphs_count: int    # 本轮新增段落数
     missing_items: List[str]     # 缺失项
     sufficient: bool             # AI 判断是否充足
+    coverage: str = ""           # AI 覆盖度描述
     timestamp: datetime = field(default_factory=get_utc_now)
 
 
@@ -157,6 +168,9 @@ class ExploreState:
 
     searched_queries: Set[str] = field(default_factory=set)
     # 已搜索过的 query
+
+    evidence_keys: Set[str] = field(default_factory=set)
+    # 证据去重指纹
 
     read_paragraph_positions: Set[Tuple[int, int]] = field(default_factory=set)
     # 已读取的段落位置 (chapter_order, paragraph_index)
@@ -209,8 +223,29 @@ class ExploreState:
 
     # ========== 内容存储方法 ==========
 
-    def add_evidence(self, result: Dict, query: str, round_idx: int):
-        """添加搜索结果（不去重，原样保留）"""
+    def _build_evidence_key(self, result: Dict, query: str) -> str:
+        text = result.get("snippet", result.get("content", "")) or ""
+        text = " ".join(str(text).split())
+        chapter_order = result.get("chapter_order", 0)
+        paragraph_index = result.get("paragraph_index", 0)
+        source_type = result.get("source", "")
+        key_parts = [str(chapter_order), str(paragraph_index), source_type, text[:80]]
+        if (not chapter_order and not paragraph_index) and query:
+            key_parts.append(query[:30])
+        return ":".join(key_parts)
+
+    def add_evidence(self, result: Dict, query: str, round_idx: int) -> bool:
+        """添加搜索结果（去重 + 相似度过滤）"""
+        similarity = result.get("similarity")
+        if isinstance(similarity, (int, float)) and 0 < similarity <= 1:
+            if similarity < MIN_EVIDENCE_SIMILARITY:
+                return False
+
+        evidence_key = self._build_evidence_key(result, query)
+        if evidence_key in self.evidence_keys:
+            return False
+        self.evidence_keys.add(evidence_key)
+
         evidence = Evidence(
             text=result.get("snippet", result.get("content", ""))[:200],
             chapter_order=result.get("chapter_order", 0),
@@ -221,6 +256,7 @@ class ExploreState:
             round_idx=round_idx
         )
         self.evidences.append(evidence)
+        return True
 
     def add_paragraph(self, data: Dict, round_idx: int):
         """添加段落原文"""
@@ -475,6 +511,7 @@ def _build_explore_summary(result: ExploreResult) -> str:
 
 def to_frontend_display(result: ExploreResult) -> Dict[str, Any]:
     """转换为前端展示格式（V2 完整版）"""
+    last_round = result.rounds[-1] if result.rounds else None
     return {
         "rounds": [
             {
@@ -501,6 +538,8 @@ def to_frontend_display(result: ExploreResult) -> Dict[str, Any]:
             "summary": result.analysis,
             "next_action": "基于这些背景信息，我将执行续写，重点描写收集到的关键情节要素。",
             "next_tool": "",  # 空字符串，前端不显示
+            "sufficient": last_round.sufficient if last_round else False,
+            "coverage": last_round.coverage if last_round else "",
             "stats": {
                 "worldview": sum(len(items) for items in result.worldview.values()),
                 "chapters": _format_chapters_range(result.chapters),
@@ -657,6 +696,7 @@ class ContentExplorer:
             # AI 评估信息充足性
             try:
                 assessment = await self._ai_assess_sufficiency()
+                round_data.coverage = assessment.coverage
                 if assessment.sufficient:
                     stop_reason = f"AI 判断信息充足: {assessment.coverage}"
                     round_data.sufficient = True
@@ -670,12 +710,20 @@ class ContentExplorer:
                 if len(self.state.evidences) >= 5 and len(self.state.chapters) >= 1:
                     stop_reason = "规则判断信息充足"
                     round_data.sufficient = True
+                    round_data.coverage = "规则判断信息充足"
+                    round_data.missing_items = []
                     break
 
             # 检查是否收敛（连续无新信息）
             if self.state.check_convergence():
-                stop_reason = "信息收敛"
-                break
+                if not round_data.missing_items:
+                    stop_reason = "信息收敛"
+                    break
+
+        if stop_reason == "达到最大轮次" and self.state.rounds:
+            last_round = self.state.rounds[-1]
+            if last_round.missing_items:
+                stop_reason = "达到最大轮次（覆盖不足）"
 
         # 生成分析
         analysis = await self._generate_analysis()
@@ -757,8 +805,8 @@ class ContentExplorer:
 
                 # 添加证据
                 for item in result_data.get("results", []):
-                    self.state.add_evidence(item, query, round_idx)
-                    new_evidences += 1
+                    if self.state.add_evidence(item, query, round_idx):
+                        new_evidences += 1
 
                 duration = int((get_utc_now() - start).total_seconds() * 1000)
                 tool_calls.append(ToolCall(
@@ -945,7 +993,7 @@ class ContentExplorer:
         """
         AI 判断信息是否充足
 
-        使用 QUALITY_EVALUATION 任务类型
+        使用 DEEP_ANALYSIS 任务类型
         """
         from app.services.agent.model_selector import TaskType
 
@@ -980,10 +1028,24 @@ class ContentExplorer:
                 user_prompt=prompt,
                 max_tokens=200,
                 temperature=0.1,
-                task_type=TaskType.QUALITY_EVALUATION
+                task_type=TaskType.DEEP_ANALYSIS
+            )
+
+            logger.info(
+                "[ContentExplorer] 充足性评估原始响应(截断): %s",
+                _truncate_text(response)
             )
 
             result = self._parse_json_response(response)
+            missing_preview = result.get("missing", [])
+            if isinstance(missing_preview, list):
+                missing_preview = missing_preview[:5]
+            logger.info(
+                "[ContentExplorer] 充足性评估解析: sufficient=%s, coverage=%s, missing=%s",
+                result.get("sufficient", False),
+                result.get("coverage", ""),
+                missing_preview
+            )
 
             return SufficiencyAssessment(
                 sufficient=result.get("sufficient", False),
@@ -1113,8 +1175,8 @@ class ContentExplorer:
                 self.state.record_search(query)
 
                 for item in result_data.get("results", []):
-                    self.state.add_evidence(item, query, round_idx)
-                    new_evidences += 1
+                    if self.state.add_evidence(item, query, round_idx):
+                        new_evidences += 1
 
                 duration = int((get_utc_now() - start).total_seconds() * 1000)
                 tool_calls.append(ToolCall(
@@ -1429,6 +1491,7 @@ class ContentExplorer:
         """发射汇总事件"""
         from app.services.agent.stream.flow_events import FlowEventBuilder
 
+        last_round = result.rounds[-1] if result.rounds else None
         stats = {
             "worldview": sum(len(items) for items in result.worldview.values()),
             "chapters": _format_chapters_range(result.chapters),
@@ -1442,7 +1505,9 @@ class ContentExplorer:
             summary=result.analysis,
             next_action="基于这些背景信息，我将执行续写任务。",
             next_tool="",
-            stats=stats
+            stats=stats,
+            sufficient=last_round.sufficient if last_round else False,
+            coverage=last_round.coverage if last_round else ""
         )
         await self.emit_callback(event)
 

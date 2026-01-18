@@ -1,15 +1,90 @@
 # TODO
 
+## 本次优化：Explore 收敛与去重边界修正（2026-01-19）
+
+### 待办清单
+
+- [x] 收敛判定：当存在缺失项时不触发收敛提前停止，并在达到上限时标注覆盖不足
+- [x] 证据指纹优化：在缺失章节/段落信息时引入 query/source 维度，降低误去重
+- [x] 相似度阈值限定在 0-1 范围内生效，避免未知尺度误过滤
+- [x] 输出 review 结论与风险点（含行号）
+- [x] 在本文件补充 review 总结
+
+### 解决方案（拟）
+
+- 收敛仅在 `missing_items` 为空时触发；若跑满上限且仍缺失，则 stop_reason 标注“覆盖不足”
+- 证据指纹在 chapter/paragraph 缺失时追加 query/source，减少误合并
+- similarity 只有在 0~1 之间时应用阈值过滤
+
+### 预期
+
+- 不会因“无新增但仍缺失”而过早停止
+- 证据去重更准确，不影响真正新增片段
+- 相似度阈值不会误过滤高分或非 0-1 量纲数据
+
+### review
+
+- 收敛判定仅在无缺失项时触发，避免“覆盖不足但提前停”误判；跑满上限时会标注覆盖不足（`backend/app/services/agent/tools/explore_tools.py:717`）。
+- 证据去重指纹增加 query/source 维度，降低无章节/段落场景下的误合并（`backend/app/services/agent/tools/explore_tools.py:226`）。
+- 相似度阈值仅对 0-1 量纲生效，避免未知尺度误过滤（`backend/app/services/agent/tools/explore_tools.py:235`）。
+
+---
+
+## 调整 Planning 总体超时到 1 小时（2026-01-19）
+
+### 方案
+
+- 统一使用超时配置常量，避免文案与实际超时不一致。
+- 将 Planning 总体超时改为 3600 秒，并同步日志/metadata 显示。
+
+### 待办清单
+
+- [x] 定位 Planning 总体超时的实现与配置使用点
+- [x] 将总体超时调整为 3600 秒，并对齐日志与返回元数据
+- [x] 在 todo.md 补充 review 记录
+
+### review
+
+- 修改：`TimeoutConfig.TASK_EXECUTION/PLANNING_TOTAL` 统一为 3600 秒
+- 修正：Planning 超时日志与返回 `metadata.timeout_seconds` 读取配置值
+- 说明：超时提示文案改为“超过60分钟”
+- 注意：未调整 `MULTI_AGENT_TOTAL/LANGGRAPH_STREAM/LLM_CALL` 等其他超时
+
+---
+
+## Review：Explore 段落定位与覆盖度展示问题（2026-01-19）
+
+### 方案
+
+- 深入分析 `Backend.md` 与 `INFO.md` 的 Explore 轨迹，定位“段落号缺失”的根因。
+- 对照 `explore_tools.py`、`langgraph_tools.py` 与 `HybridRetriever` 的数据结构，核对字段一致性。
+- 检查前端 Explore 展示（覆盖度/摘要）是否与后端实际评估一致。
+
+### 待办清单
+
+- [x] 通读日志（`Backend.md`/`INFO.md`）并提取异常现象
+- [x] 追踪 Explore 工具链：search → evidence → paragraph read 的数据流
+- [x] 检查前端 Explore 统计/覆盖度的展示逻辑
+- [x] 在 todo.md 补充 review 结论
+
+### review
+
+- 现象：`INFO.md` 显示“段落原文：0 段”和大量 `[None段]`，`Backend.md` 多轮评估持续提示“缺少段落号”，最终覆盖不足停止。
+- 根因1：`HybridRetriever` 全文检索结果 `paragraph_index=None`，合并时可能覆盖向量检索结果，导致证据缺少段落号。
+- 根因2：Explore 执行链只把 `search_content` 结果直接入证据，不会自动转 `locate_content` 或 `read_paragraph`；段落读取完全依赖 AI 在 `paragraphs_to_read` 中手工规划。
+- 展示问题：`to_frontend_display` 覆盖度统计固定为 “95%/70%”，前端 `ExploreSummaryCard` 仅展示 `stats.coverage`，未使用 `sufficient/coverage` 的真实评估字符串。
+- 可读性问题：`_build_explore_summary` 直接输出 `{paragraph_index}`，当为 `None` 时呈现 `[None段]`，影响可读性。
+
 ## 本次优化：Explore 充足性评估 + 可观测性 + 去重收敛（2026-01-19）
 
 ### 待办清单
 
-- [ ] 增加 `_ai_assess_sufficiency` 原始响应与解析结果日志（截断避免刷屏）
-- [ ] 将 `sufficient/coverage` 写入 `explore_summary` 事件（前端可见）
-- [ ] 提升充足性评估的任务类型（QUALITY_EVALUATION → DEEP_ANALYSIS）
-- [ ] 证据去重/相似度阈值：仅“有效新增证据”计入收敛判断
-- [ ] 输出 review 结论与风险点（含行号）
-- [ ] 在本文件补充 review 总结
+- [x] 增加 `_ai_assess_sufficiency` 原始响应与解析结果日志（截断避免刷屏）
+- [x] 将 `sufficient/coverage` 写入 `explore_summary` 事件（前端可见）
+- [x] 提升充足性评估的任务类型（QUALITY_EVALUATION → DEEP_ANALYSIS）
+- [x] 证据去重/相似度阈值：仅“有效新增证据”计入收敛判断
+- [x] 输出 review 结论与风险点（含行号）
+- [x] 在本文件补充 review 总结
 
 ### 解决方案（拟）
 
@@ -23,6 +98,13 @@
 - 当信息已充分时，Explore 会提前停止而不是跑满 10 轮
 - 前端可看到“充足性结论/覆盖描述”，便于定位停不下来的原因
 - 收敛判断更真实，避免重复证据导致“永远有新证据”
+
+### review
+
+- 评估升级：`_ai_assess_sufficiency` 改用 `DEEP_ANALYSIS`，避免轻量模型过度保守（`backend/app/services/agent/tools/explore_tools.py:944`）。
+- 可观测性：记录充足性评估的原始响应（截断）与解析结果，便于定位解析/模型问题（`backend/app/services/agent/tools/explore_tools.py:977`）。
+- 事件增强：`explore_summary` 事件新增 `sufficient/coverage` 字段，前端类型同步但未强制展示（`backend/app/services/agent/stream/flow_events.py:315`、`src/types/agent.ts:636`）。
+- 收敛优化：证据去重 + 相似度阈值，仅有效新增计入收敛判断（`backend/app/services/agent/tools/explore_tools.py:212`、`backend/app/services/agent/tools/explore_tools.py:265`）。
 
 ---
 
@@ -1410,11 +1492,11 @@ FlowEventBuilder.explore_summary() missing 1 required positional argument: 'next
 
 ### 待办清单
 
-- [ ] 查看当前修改的文件详情
-- [ ] 暂存所有修改的文件
-- [ ] 创建提交（包含本次修改的描述）
-- [ ] 推送到远程仓库 origin/alin3.0
-- [ ] 验证推送成功
+- [x] 查看当前修改的文件详情
+- [x] 暂存所有修改的文件
+- [x] 创建提交（包含本次修改的描述）
+- [x] 推送到远程仓库 origin/alin3.0
+- [x] 验证推送成功
 
 ### 当前状态
 
@@ -1434,4 +1516,40 @@ FlowEventBuilder.explore_summary() missing 1 required positional argument: 'next
 
 所有修改成功推送到GitHub远程仓库的alin3.0分支。
 
+### review
+
+- **提交哈希**：b2a85f4
+- **推送分支**：alin3.0
+- **状态**：✅ 成功推送
+- **修改统计**：7个文件，新增1701行，删除256行
+- **主要改动**：
+  - backend/app/services/agent/tools/explore_tools.py：新增564行（AI驱动的探索逻辑）
+  - todo.md：新增566行（文档更新）
+  - Backend.md：重构670行（日志更新）
+  - INFO.md：更新148行
+  - 其他工具执行器和前端组件优化
+- **工作区状态**：干净，与远程分支同步
+
 ---
+
+## 本次排查：INFO (2).md 后台测试日志异常（2026-01-19）
+
+### 待办清单
+
+- [x] 复核日志错误堆栈与触发位置（`INFO (2).md`）
+- [x] 定位 `create_db_session` 关闭/回滚路径并与 `get_db` 对比（`backend/app/core/database.py`）
+- [x] 对照 `event_generator` 的连接生命周期，判断是否为长连接导致的断链回滚失败（`backend/app/api/v1/agent.py`）
+- [x] 输出问题原因与处理建议
+
+### 解决方案（拟）
+
+- 这是 asyncpg 连接已关闭后触发的回滚/关闭异常，典型触发点在 SSE 流式请求结束时的 `session.close()`。
+- `create_db_session` 的 `finally` 没有异常兜底；可参考 `get_db` 在 close 失败时 `invalidate()`，避免 InterfaceError 冒泡。
+- 若是长连接/空闲超时导致断链，需检查数据库空闲/事务超时与连接池回收策略，确保流式请求期间不会被关闭。
+
+### review
+
+- 现象：`INFO (2).md` 显示 `asyncpg` 在回滚/关闭时连接已断开，触发 `InterfaceError`，异常来自 `create_db_session()` 的 `session.close()`（`INFO (2).md`、`backend/app/core/database.py:90`）。
+- 触发点：SSE 流式请求 `event_generator` 结束时退出 `async with create_db_session()`，关闭会话触发回滚；连接可能已被服务端/网络关闭（`backend/app/api/v1/agent.py:1012`）。
+- 对比：`get_db()` 在关闭失败时会 `invalidate()` 并吞掉异常；`create_db_session()` 没有同样兜底，导致异常冒泡。
+- 建议：若需消噪，可在 `create_db_session()` 的 `finally` 中捕获关闭异常并 `invalidate()`；同时排查 DB 超时/连接池策略与 SSE 长连接的冲突。

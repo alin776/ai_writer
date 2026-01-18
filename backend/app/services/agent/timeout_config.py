@@ -37,7 +37,7 @@ class TimeoutConfig:
     """超时配置（单位：秒）
 
     层级结构：
-    ├── 外层任务执行 (TASK_EXECUTION = 900s)
+    ├── 外层任务执行 (TASK_EXECUTION = 3600s)
     │   └── Multi-Agent 总超时 (MULTI_AGENT_TOTAL = 480s)
     │       ├── 大纲师 (outline = 120s)
     │       ├── 主笔 (writing = 120s)
@@ -49,11 +49,11 @@ class TimeoutConfig:
     """
 
     # ==================== 外层超时 ====================
-    # 任务执行总超时（15分钟）
-    TASK_EXECUTION: int = 900
+    # 任务执行总超时（60分钟）
+    TASK_EXECUTION: int = 3600
 
-    # 规划流程总超时（15分钟）
-    PLANNING_TOTAL: int = 900
+    # 规划流程总超时（60分钟）
+    PLANNING_TOTAL: int = 3600
 
     # LangGraph 流式响应超时（8分钟）
     LANGGRAPH_STREAM: int = 480

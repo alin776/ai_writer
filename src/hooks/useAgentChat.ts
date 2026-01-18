@@ -1007,6 +1007,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                       summary: event.summary,
                       nextAction: event.nextAction,
                       nextTool: event.nextTool,
+                      sufficient: event.sufficient,
+                      coverage: event.coverage,
                       stats: event.stats,
                     },
                     timestamp,

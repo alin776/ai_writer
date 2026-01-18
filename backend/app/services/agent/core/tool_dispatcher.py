@@ -809,7 +809,9 @@ class ToolDispatcher:
                 summary=ai_analysis.get("summary", result_data.get("analysis", "")),
                 next_action=ai_analysis.get("next_action", ""),
                 next_tool=ai_analysis.get("next_tool", ""),
-                stats=ai_analysis.get("stats", result_data.get("stats", {}))
+                stats=ai_analysis.get("stats", result_data.get("stats", {})),
+                sufficient=ai_analysis.get("sufficient"),
+                coverage=ai_analysis.get("coverage")
             )
             await stream_handler.emit_flow_event(event)
         except Exception as e:

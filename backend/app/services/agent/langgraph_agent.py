@@ -1372,7 +1372,7 @@ class WritingAgentGraph:
         Returns:
             Dict: Agent响应
         """
-        # ✅ P0-2: 添加360秒总体超时保护（6分钟）
+        # ✅ P0-2: 添加3600秒总体超时保护（60分钟）
         try:
             import time
             from app.services.agent.utils.monitoring import increment_counter, record_timer
@@ -2019,17 +2019,19 @@ class WritingAgentGraph:
         except asyncio.TimeoutError:
             # 总体超时处理
             elapsed = time.time() - start_time
-            logger.error(f"[Planning] 总体超时（{elapsed:.1f}秒，限制360秒）")
+            timeout_seconds = TimeoutConfig.TASK_EXECUTION
+            timeout_minutes = max(1, int(timeout_seconds / 60))
+            logger.error(f"[Planning] 总体超时（{elapsed:.1f}秒，限制{timeout_seconds}秒）")
             increment_counter("chat_with_planning_error", labels={"error_type": "TimeoutError"})
 
             return {
-                "response": f"抱歉，请求处理超时（超过6分钟）。您的请求可能过于复杂，建议：\n1. 简化请求内容\n2. 分步骤进行操作\n3. 稍后重试",
+                "response": f"抱歉，请求处理超时（超过{timeout_minutes}分钟）。您的请求可能过于复杂，建议：\n1. 简化请求内容\n2. 分步骤进行操作\n3. 稍后重试",
                 "conversation_id": conversation_id or "default",
                 "agent_steps": [],
                 "suggested_actions": ["简化请求", "分步操作", "稍后重试"],
                 "metadata": {
                     "error": "Overall timeout",
-                    "timeout_seconds": 360,
+                    "timeout_seconds": timeout_seconds,
                     "elapsed_seconds": elapsed
                 }
             }

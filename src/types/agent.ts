@@ -639,6 +639,8 @@ export interface ExploreSummaryFlowData {
   summary: string;
   nextAction: string;
   nextTool?: string;
+  sufficient?: boolean;
+  coverage?: string;
   stats: ExploreStats;
 }
 

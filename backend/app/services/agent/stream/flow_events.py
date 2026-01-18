@@ -318,7 +318,9 @@ class FlowEventBuilder:
         summary: str,
         next_action: str,
         next_tool: Optional[str],
-        stats: Dict[str, Any]
+        stats: Dict[str, Any],
+        sufficient: Optional[bool] = None,
+        coverage: Optional[str] = None
     ) -> dict:
         """构建 Explore AI 分析与规划事件
 
@@ -329,8 +331,10 @@ class FlowEventBuilder:
             next_action: 下一步行动描述
             next_tool: 下一步要调用的工具名（如 "smart_continue"）
             stats: 统计信息 {"worldview": 5, "chapters": "1-4", "evidences": 13, "coverage": "95%"}
+            sufficient: 是否已判定信息充足
+            coverage: 覆盖度说明
         """
-        return {
+        event = {
             "type": "explore_summary",
             "step_id": step_id,
             "total_rounds": total_rounds,
@@ -340,6 +344,11 @@ class FlowEventBuilder:
             "stats": stats,
             "timestamp": get_utc_now().isoformat()
         }
+        if sufficient is not None:
+            event["sufficient"] = sufficient
+        if coverage is not None:
+            event["coverage"] = coverage
+        return event
 
 
 # 工具图标映射
