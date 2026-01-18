@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Explore 内容探索工具
+Explore 内容探索工具（AI 驱动版本）
 
 实现深度内容探索的核心逻辑：
-1. 多轮探索收集信息
-2. 去重机制避免重复调用
-3. 收敛检测判断信息充足
+1. AI 理解任务，生成探索计划
+2. AI 每轮决定搜索策略
+3. AI 判断信息充足性
 4. 流式事件支持前端展示
+
+Version: 2.0 - AI 驱动的 SubAgent 模式
 """
 
 import json
@@ -21,6 +23,47 @@ from app.utils.datetime_utils import get_utc_now
 from app.services.agent.utils.tool_context import get_stream_event_handler, get_explore_step_id
 
 logger = logging.getLogger(__name__)
+
+
+# ==================== AI 服务 ====================
+
+_ai_service = None
+
+def _get_ai_service():
+    """获取 AI 服务实例（懒初始化）"""
+    global _ai_service
+    if _ai_service is None:
+        from app.services.ai.http_ai_service import HTTPAIService
+        _ai_service = HTTPAIService()
+    return _ai_service
+
+
+# ==================== AI 决策数据结构 ====================
+
+@dataclass
+class ExplorationPlan:
+    """AI 生成的探索计划（第0步）"""
+    key_entities: List[str]           # 关键实体
+    aspects_to_find: List[str]        # 需要了解的方面
+    initial_queries: List[str]        # 初始搜索词
+    understanding: str                # AI 对任务的理解
+
+
+@dataclass
+class RoundPlan:
+    """AI 生成的单轮行动计划"""
+    search_queries: List[str]         # 本轮搜索词
+    chapters_to_read: List[int]       # 本轮要读的章节
+    paragraphs_to_read: List[Dict]    # 本轮要读的段落 [{"chapter": 3, "paragraph": 15}]
+    reason: str                       # AI 决策理由
+
+
+@dataclass
+class SufficiencyAssessment:
+    """AI 对信息充足性的评估"""
+    sufficient: bool                  # 是否充足
+    coverage: str                     # 覆盖情况描述
+    missing: List[str]                # 缺失的信息
 
 
 # ==================== 数据结构 ====================
@@ -457,7 +500,7 @@ def to_frontend_display(result: ExploreResult) -> Dict[str, Any]:
         "ai_analysis": {
             "summary": result.analysis,
             "next_action": "基于这些背景信息，我将执行续写，重点描写收集到的关键情节要素。",
-            "next_tool": "smart_continue",
+            "next_tool": "",  # 空字符串，前端不显示
             "stats": {
                 "worldview": sum(len(items) for items in result.worldview.values()),
                 "chapters": _format_chapters_range(result.chapters),
@@ -524,13 +567,15 @@ def _format_chapters_range(chapters: Dict[int, ChapterRead]) -> str:
 # ==================== ContentExplorer 核心类 ====================
 
 class ContentExplorer:
-    """内容探索器"""
+    """内容探索器（AI 驱动版本）"""
+
+    MAX_ROUNDS = 10  # 安全上限，防止死循环
 
     def __init__(
         self,
         work_id: str,
         target_task: str,
-        max_rounds: int = 3,
+        max_rounds: int = 10,
         emit_callback: Optional[Callable[[dict], Awaitable[None]]] = None,
         step_id: Optional[int] = None
     ):
@@ -540,12 +585,12 @@ class ContentExplorer:
         Args:
             work_id: 作品ID
             target_task: 目标任务描述
-            max_rounds: 最大探索轮次
+            max_rounds: 最大探索轮次（安全上限，AI 会自主决定何时停止）
             emit_callback: 事件发射回调
         """
         self.work_id = work_id
         self.target_task = target_task
-        self.max_rounds = max_rounds
+        self.max_rounds = min(max_rounds, self.MAX_ROUNDS)
         self.emit_callback = emit_callback
         if isinstance(step_id, int) and step_id > 0:
             self.step_id = step_id
@@ -553,10 +598,11 @@ class ContentExplorer:
             self.step_id = 1
         self.state = ExploreState()
         self.start_time = get_utc_now()
+        self.exploration_plan: Optional[ExplorationPlan] = None  # AI 生成的探索计划
 
     async def explore(self) -> ExploreResult:
         """
-        执行探索
+        执行探索（AI 驱动版本）
 
         Returns:
             ExploreResult: 探索结果
@@ -565,23 +611,68 @@ class ContentExplorer:
 
         stop_reason = "达到最大轮次"
 
+        # 第0步：AI 理解任务
+        try:
+            self.exploration_plan = await self._ai_understand_task()
+            logger.info(f"[ContentExplorer] AI 任务理解完成: {self.exploration_plan.understanding[:100]}...")
+        except Exception as e:
+            logger.warning(f"[ContentExplorer] AI 任务理解失败，使用默认策略: {e}")
+            self.exploration_plan = ExplorationPlan(
+                key_entities=[],
+                aspects_to_find=[],
+                initial_queries=[self.target_task[:30]],
+                understanding=self.target_task
+            )
+
         for round_idx in range(1, self.max_rounds + 1):
             round_start = get_utc_now()
 
-            # 执行一轮探索
-            round_data = await self._execute_round(round_idx)
+            # AI 决定本轮行动
+            try:
+                round_plan = await self._ai_plan_round(round_idx)
+            except Exception as e:
+                logger.warning(f"[ContentExplorer] AI 轮次规划失败，使用默认策略: {e}")
+                # 首轮优先使用 exploration_plan.initial_queries
+                default_queries = []
+                if round_idx == 1:
+                    if self.exploration_plan and self.exploration_plan.initial_queries:
+                        default_queries = self.exploration_plan.initial_queries[:3]
+                    else:
+                        default_queries = [self.target_task[:30]]
+                round_plan = RoundPlan(
+                    search_queries=default_queries,
+                    chapters_to_read=[],
+                    paragraphs_to_read=[],
+                    reason="默认策略"
+                )
+
+            # 执行本轮探索
+            round_data = await self._execute_round_with_plan(round_idx, round_plan)
             self.state.rounds.append(round_data)
 
             # 发射轮次事件
             if self.emit_callback:
                 await self._emit_round_event(round_data)
 
-            # 检查是否充足
-            if round_data.sufficient:
-                stop_reason = "AI 判断信息充足"
-                break
+            # AI 评估信息充足性
+            try:
+                assessment = await self._ai_assess_sufficiency()
+                if assessment.sufficient:
+                    stop_reason = f"AI 判断信息充足: {assessment.coverage}"
+                    round_data.sufficient = True
+                    round_data.missing_items = []
+                    break
+                else:
+                    round_data.missing_items = assessment.missing
+            except Exception as e:
+                logger.warning(f"[ContentExplorer] AI 充足性评估失败: {e}")
+                # 使用简单规则兜底
+                if len(self.state.evidences) >= 5 and len(self.state.chapters) >= 1:
+                    stop_reason = "规则判断信息充足"
+                    round_data.sufficient = True
+                    break
 
-            # 检查是否收敛
+            # 检查是否收敛（连续无新信息）
             if self.state.check_convergence():
                 stop_reason = "信息收敛"
                 break
@@ -723,8 +814,437 @@ class ContentExplorer:
             sufficient=sufficient
         )
 
+    # ==================== AI 决策方法 ====================
+
+    async def _ai_understand_task(self) -> ExplorationPlan:
+        """
+        AI 理解任务，生成探索计划（第0步）
+
+        使用 DEEP_ANALYSIS 任务类型确保理解质量
+        """
+        from app.services.agent.model_selector import TaskType
+
+        ai_service = _get_ai_service()
+
+        prompt = f"""你是一个信息收集专家。请分析以下任务，理解需要收集哪些信息。
+
+目标任务：{self.target_task}
+
+请分析这个任务：
+1. 识别关键实体（人物、地点、物品、概念等）
+2. 确定需要了解的方面（关系、事件、状态、背景等）
+3. 设计初始搜索策略
+
+请输出 JSON 格式（不要包含其他内容）：
+{{
+  "key_entities": ["实体1", "实体2"],
+  "aspects_to_find": ["方面1", "方面2"],
+  "initial_queries": ["搜索词1", "搜索词2"],
+  "understanding": "对任务的理解（一句话）"
+}}"""
+
+        try:
+            response = await ai_service.call_ai(
+                system_prompt="你是信息收集专家，擅长分析任务并制定搜索策略。只输出 JSON，不要有其他内容。",
+                user_prompt=prompt,
+                max_tokens=500,
+                temperature=0.3,
+                task_type=TaskType.DEEP_ANALYSIS
+            )
+
+            # 解析 JSON
+            result = self._parse_json_response(response)
+
+            return ExplorationPlan(
+                key_entities=result.get("key_entities", []),
+                aspects_to_find=result.get("aspects_to_find", []),
+                initial_queries=result.get("initial_queries", [self.target_task[:30]]),
+                understanding=result.get("understanding", self.target_task)
+            )
+        except Exception as e:
+            logger.warning(f"[ContentExplorer] AI 任务理解解析失败: {e}")
+            raise
+
+    async def _ai_plan_round(self, round_idx: int) -> RoundPlan:
+        """
+        AI 决定本轮行动计划
+
+        使用 SIMPLE_QA 任务类型优化成本
+        """
+        from app.services.agent.model_selector import TaskType
+
+        ai_service = _get_ai_service()
+
+        # 构建已收集信息摘要
+        collected_summary = self._build_collected_summary()
+
+        # 首轮提示 AI 参考 initial_queries
+        initial_hint = ""
+        if round_idx == 1 and self.exploration_plan and self.exploration_plan.initial_queries:
+            initial_hint = f"\n建议的初始搜索词（供参考）：{', '.join(self.exploration_plan.initial_queries)}"
+
+        prompt = f"""你是信息收集专家。请根据当前状态决定本轮行动。
+
+目标任务：{self.target_task}
+任务理解：{self.exploration_plan.understanding if self.exploration_plan else self.target_task}
+需要了解：{', '.join(self.exploration_plan.aspects_to_find) if self.exploration_plan else '未知'}{initial_hint}
+
+当前轮次：第 {round_idx} 轮
+已收集信息：
+{collected_summary}
+
+已搜索过的关键词（避免重复）：{', '.join(list(self.state.searched_queries)[:10])}
+
+请决定本轮行动：
+1. 需要搜索什么关键词？（避免重复已搜索的）
+2. 需要读取哪些章节？（基于搜索结果中的章节号）
+3. 需要精确读取哪些段落？（可选）
+
+请输出 JSON 格式（不要包含其他内容）：
+{{
+  "search_queries": ["搜索词1", "搜索词2"],
+  "chapters_to_read": [1, 2],
+  "paragraphs_to_read": [],
+  "reason": "决策理由"
+}}"""
+
+        try:
+            response = await ai_service.call_ai(
+                system_prompt="你是信息收集专家。只输出 JSON，不要有其他内容。",
+                user_prompt=prompt,
+                max_tokens=300,
+                temperature=0.2,
+                task_type=TaskType.SIMPLE_QA
+            )
+
+            result = self._parse_json_response(response)
+
+            # 过滤已搜索的查询
+            search_queries = [
+                q for q in result.get("search_queries", [])
+                if q and self.state.should_search(q)
+            ]
+
+            # 过滤已读取的章节
+            chapters_to_read = [
+                c for c in result.get("chapters_to_read", [])
+                if isinstance(c, int) and self.state.should_read_chapter(c)
+            ]
+
+            return RoundPlan(
+                search_queries=search_queries[:3],  # 最多3个搜索
+                chapters_to_read=chapters_to_read[:2],  # 最多2个章节
+                paragraphs_to_read=result.get("paragraphs_to_read", [])[:3],
+                reason=result.get("reason", "")
+            )
+        except Exception as e:
+            logger.warning(f"[ContentExplorer] AI 轮次规划解析失败: {e}")
+            raise
+
+    async def _ai_assess_sufficiency(self) -> SufficiencyAssessment:
+        """
+        AI 判断信息是否充足
+
+        使用 QUALITY_EVALUATION 任务类型
+        """
+        from app.services.agent.model_selector import TaskType
+
+        ai_service = _get_ai_service()
+
+        collected_summary = self._build_collected_summary()
+
+        prompt = f"""你是信息收集专家。请评估已收集的信息是否足够完成目标任务。
+
+目标任务：{self.target_task}
+任务理解：{self.exploration_plan.understanding if self.exploration_plan else self.target_task}
+需要了解的方面：{', '.join(self.exploration_plan.aspects_to_find) if self.exploration_plan else '未知'}
+
+已收集信息：
+{collected_summary}
+
+请评估：
+1. 信息是否足够完成目标任务？
+2. 覆盖了哪些方面？
+3. 还缺少什么关键信息？
+
+请输出 JSON 格式（不要包含其他内容）：
+{{
+  "sufficient": true或false,
+  "coverage": "已覆盖XXX，缺少XXX",
+  "missing": ["缺失项1", "缺失项2"]
+}}"""
+
+        try:
+            response = await ai_service.call_ai(
+                system_prompt="你是信息收集专家。只输出 JSON，不要有其他内容。",
+                user_prompt=prompt,
+                max_tokens=200,
+                temperature=0.1,
+                task_type=TaskType.QUALITY_EVALUATION
+            )
+
+            result = self._parse_json_response(response)
+
+            return SufficiencyAssessment(
+                sufficient=result.get("sufficient", False),
+                coverage=result.get("coverage", ""),
+                missing=result.get("missing", [])
+            )
+        except Exception as e:
+            logger.warning(f"[ContentExplorer] AI 充足性评估解析失败: {e}")
+            raise
+
+    def _build_collected_summary(self) -> str:
+        """构建已收集信息的摘要"""
+        lines = []
+
+        # 证据统计
+        if self.state.evidences:
+            evidence_chapters = set(e.chapter_order for e in self.state.evidences if e.chapter_order > 0)
+            lines.append(f"- 证据片段：{len(self.state.evidences)} 条，来自章节：{sorted(evidence_chapters)}")
+            # 显示部分证据内容
+            for e in self.state.evidences[:3]:
+                lines.append(f"  · [{e.chapter_order}章] {e.text[:80]}...")
+        else:
+            lines.append("- 证据片段：0 条")
+
+        # 章节统计
+        if self.state.chapters:
+            chapter_info = [f"{ch.order}({ch.title})" for ch in self.state.chapters.values()]
+            lines.append(f"- 已读章节：{', '.join(chapter_info)}")
+        else:
+            lines.append("- 已读章节：无")
+
+        # 世界观统计
+        if self.state.worldview:
+            wv_count = sum(len(items) for items in self.state.worldview.values())
+            lines.append(f"- 世界观条目：{wv_count} 个")
+
+        return "\n".join(lines)
+
+    def _parse_json_response(self, response: str) -> Dict[str, Any]:
+        """解析 AI 返回的 JSON（支持嵌套）"""
+        import re
+
+        text = response.strip()
+
+        # 移除可能的 markdown 代码块标记
+        if text.startswith("```json"):
+            text = text[7:]
+        elif text.startswith("```"):
+            text = text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+
+        text = text.strip()
+
+        try:
+            result = json.loads(text)
+            return self._normalize_json_types(result)
+        except json.JSONDecodeError:
+            # 尝试找到 JSON 对象（支持嵌套）
+            # 从第一个 { 到最后一个 }
+            start_idx = text.find('{')
+            end_idx = text.rfind('}')
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                json_str = text[start_idx:end_idx + 1]
+                try:
+                    result = json.loads(json_str)
+                    return self._normalize_json_types(result)
+                except json.JSONDecodeError:
+                    pass
+            raise ValueError(f"无法解析 JSON: {text[:200]}")
+
+    def _normalize_json_types(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """规范化 JSON 中的类型（处理 AI 可能返回字符串的布尔值）"""
+        if "sufficient" in data:
+            val = data["sufficient"]
+            if isinstance(val, str):
+                data["sufficient"] = val.lower() in ("true", "yes", "是", "1")
+        return data
+
+    async def _execute_round_with_plan(self, round_idx: int, plan: RoundPlan) -> ExploreRound:
+        """根据 AI 计划执行一轮探索"""
+        from app.services.agent.langgraph_tools import search_content, get_writing_context, read_paragraph
+
+        tool_calls = []
+        new_evidences = 0
+        new_paragraphs = 0
+
+        # 1. 首轮获取世界观
+        if round_idx == 1:
+            if self.state.should_read_worldview("all"):
+                start = get_utc_now()
+                try:
+                    result = await get_writing_context.ainvoke({
+                        "work_id": self.work_id,
+                        "include": "worldview"
+                    })
+                    result_data = json.loads(result) if isinstance(result, str) else result
+                    if "worldview" in result_data:
+                        wv = result_data["worldview"]
+                        for cat, items in wv.items():
+                            if isinstance(items, list):
+                                self.state.add_worldview_items(items, cat)
+                    self.state.record_worldview_read("all")
+                    duration = int((get_utc_now() - start).total_seconds() * 1000)
+                    tool_calls.append(ToolCall(
+                        tool_name="get_writing_context",
+                        params={"include": "worldview"},
+                        result=result_data,
+                        duration_ms=duration
+                    ))
+                except Exception as e:
+                    logger.warning(f"[ContentExplorer] 获取世界观失败: {e}")
+
+        # 2. 执行 AI 规划的搜索
+        for query in plan.search_queries:
+            if not self.state.should_search(query):
+                continue
+
+            start = get_utc_now()
+            try:
+                result = await search_content.ainvoke({
+                    "work_id": self.work_id,
+                    "query": query,
+                    "top_k": 5
+                })
+                result_data = json.loads(result) if isinstance(result, str) else result
+                self.state.record_search(query)
+
+                for item in result_data.get("results", []):
+                    self.state.add_evidence(item, query, round_idx)
+                    new_evidences += 1
+
+                duration = int((get_utc_now() - start).total_seconds() * 1000)
+                tool_calls.append(ToolCall(
+                    tool_name="search_content",
+                    params={"query": query},
+                    result=result_data,
+                    duration_ms=duration
+                ))
+            except Exception as e:
+                logger.warning(f"[ContentExplorer] 搜索失败: {e}")
+
+        # 3. 读取 AI 规划的章节
+        for chapter_order in plan.chapters_to_read:
+            if not self.state.should_read_chapter(chapter_order):
+                continue
+
+            start = get_utc_now()
+            try:
+                result = await get_writing_context.ainvoke({
+                    "work_id": self.work_id,
+                    "chapter_orders": str(chapter_order),
+                    "include": "chapter"
+                })
+                result_data = json.loads(result) if isinstance(result, str) else result
+                self.state.record_chapter_read(chapter_order)
+
+                for ch in result_data.get("chapters", []):
+                    self.state.add_chapter(ch, round_idx)
+
+                duration = int((get_utc_now() - start).total_seconds() * 1000)
+                tool_calls.append(ToolCall(
+                    tool_name="get_writing_context",
+                    params={"chapter_orders": str(chapter_order)},
+                    result=result_data,
+                    duration_ms=duration
+                ))
+            except Exception as e:
+                logger.warning(f"[ContentExplorer] 读取章节失败: {e}")
+
+        # 4. 读取 AI 规划的段落（精确验证）
+        for para_info in plan.paragraphs_to_read:
+            if not isinstance(para_info, dict):
+                continue
+            chapter_order = para_info.get("chapter") or para_info.get("chapter_order")
+            paragraph_index = para_info.get("paragraph") or para_info.get("paragraph_index")
+            if not chapter_order or paragraph_index is None:
+                continue
+
+            # 检查是否已读取该段落
+            if not self.state.should_read_paragraph(chapter_order, paragraph_index):
+                continue
+
+            start = get_utc_now()
+            try:
+                result = await read_paragraph.ainvoke({
+                    "work_id": self.work_id,
+                    "chapter_order": chapter_order,
+                    "paragraph_index": paragraph_index,
+                    "context_before": 2,
+                    "context_after": 2
+                })
+                result_data = json.loads(result) if isinstance(result, str) else result
+                self.state.record_paragraph_read(chapter_order, paragraph_index)
+
+                # 添加段落到状态
+                if result_data.get("success"):
+                    self.state.add_paragraph({
+                        "chapter_order": chapter_order,
+                        "chapter_title": result_data.get("chapter_title", ""),
+                        "paragraph_index": paragraph_index,
+                        "text": result_data.get("target_paragraph", ""),
+                        "context_before": result_data.get("context_before", []),
+                        "context_after": result_data.get("context_after", [])
+                    }, round_idx)
+                    new_paragraphs += 1
+
+                duration = int((get_utc_now() - start).total_seconds() * 1000)
+                tool_calls.append(ToolCall(
+                    tool_name="read_paragraph",
+                    params={"chapter_order": chapter_order, "paragraph_index": paragraph_index},
+                    result=result_data,
+                    duration_ms=duration
+                ))
+            except Exception as e:
+                logger.warning(f"[ContentExplorer] 读取段落失败: {e}")
+
+        # 5. 如果 AI 没有规划任何行动，使用从证据中提取的章节
+        if not plan.search_queries and not plan.chapters_to_read:
+            chapters_from_evidence = self._determine_chapters_to_read()
+            for chapter_order in chapters_from_evidence[:2]:
+                if not self.state.should_read_chapter(chapter_order):
+                    continue
+
+                start = get_utc_now()
+                try:
+                    result = await get_writing_context.ainvoke({
+                        "work_id": self.work_id,
+                        "chapter_orders": str(chapter_order),
+                        "include": "chapter"
+                    })
+                    result_data = json.loads(result) if isinstance(result, str) else result
+                    self.state.record_chapter_read(chapter_order)
+
+                    for ch in result_data.get("chapters", []):
+                        self.state.add_chapter(ch, round_idx)
+
+                    duration = int((get_utc_now() - start).total_seconds() * 1000)
+                    tool_calls.append(ToolCall(
+                        tool_name="get_writing_context",
+                        params={"chapter_orders": str(chapter_order)},
+                        result=result_data,
+                        duration_ms=duration
+                    ))
+                except Exception as e:
+                    logger.warning(f"[ContentExplorer] 读取章节失败: {e}")
+
+        return ExploreRound(
+            round_idx=round_idx,
+            title=f"第{round_idx}轮：{plan.reason[:20] if plan.reason else _get_round_title(round_idx)}",
+            tool_calls=tool_calls,
+            new_evidences_count=new_evidences,
+            new_paragraphs_count=new_paragraphs,
+            missing_items=[],  # 由 AI 评估后填充
+            sufficient=False   # 由 AI 评估后更新
+        )
+
+    # ==================== 旧规则方法（保留用于兜底）====================
+
     def _generate_search_queries(self, round_idx: int) -> List[str]:
-        """生成搜索查询
+        """生成搜索查询（旧规则方法，用于兜底）
 
         改进的查询生成策略：
         1. 首轮：基于目标任务生成查询
@@ -921,7 +1441,7 @@ class ContentExplorer:
             total_rounds=len(result.rounds),
             summary=result.analysis,
             next_action="基于这些背景信息，我将执行续写任务。",
-            next_tool="smart_continue",
+            next_tool="",
             stats=stats
         )
         await self.emit_callback(event)
@@ -934,7 +1454,7 @@ class ContentExplorer:
 async def explore_content(
     work_id: str,
     target_task: str,
-    max_rounds: int = 3,
+    max_rounds: int = 10,
     user_id: Optional[str] = None
 ) -> str:
     """深度探索内容，收集完成任务所需的所有信息
@@ -942,7 +1462,7 @@ async def explore_content(
     Args:
         work_id: 作品ID（UUID格式，必需）
         target_task: 目标任务描述（如"续写第6章，需要了解主角性格和当前剧情"）
-        max_rounds: 最大探索轮次（默认3轮）
+        max_rounds: 最大探索轮次（默认10轮）
         user_id: 用户ID（可选）
 
     Returns:

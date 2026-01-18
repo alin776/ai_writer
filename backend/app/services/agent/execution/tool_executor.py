@@ -447,7 +447,7 @@ class ToolExecutor:
             params.setdefault("work_id", state.get("work_id", ""))
             params.setdefault("user_id", state.get("user_id", ""))
             # target_task 必须由 AI 提供，不设默认值
-            params.setdefault("max_rounds", 3)
+            params.setdefault("max_rounds", 10)
 
         # 🆕 2026-01-17: read_paragraph 段落精确读取工具
         elif tool_name == "read_paragraph":
@@ -885,7 +885,7 @@ class ToolExecutor:
                     params = {
                         "work_id": tool_args.get("work_id", state.get("work_id", "")),
                         "target_task": tool_args.get("target_task", ""),
-                        "max_rounds": tool_args.get("max_rounds", 3),
+                        "max_rounds": tool_args.get("max_rounds", 10),
                         "user_id": tool_args.get("user_id", state.get("user_id", ""))
                     }
                 else:

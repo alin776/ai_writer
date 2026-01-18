@@ -17,7 +17,7 @@ def _get_new_aggregated_tools_section() -> str:
   参数:
     - work_id: 作品ID（必需）
     - target_task: 目标任务描述（必需，描述需要什么信息）
-    - max_rounds: 最大探索轮数（默认3，简单任务1轮即返回）
+    - max_rounds: 最大探索轮数（默认10，简单任务1轮即返回）
   返回: {
     explore_summary,      # 收集到的信息摘要（供后续工具使用）
     context_for_task,     # 可直接作为 chapter_content 的上下文

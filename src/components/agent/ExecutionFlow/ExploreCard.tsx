@@ -285,6 +285,7 @@ export function ExploreRoundCard({
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   const review = parseReviewStatus(reviewStatus);
   const isRunning = status === 'running';
+  const hasReviewTag = (toolCalls || []).some((tc) => tc.type === 'Review');
 
   return (
     <div className="flex gap-[10px] py-2 items-start">
@@ -326,7 +327,7 @@ export function ExploreRoundCard({
               {toolCalls?.map((tc, idx) => (
                 <ExploreTag key={idx} toolCall={tc} />
               ))}
-              {reviewStatus && (
+              {reviewStatus && !hasReviewTag && (
                 <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-[#888]">
                   <review.icon size={12} className={review.tone} />
                   Review: <span className="text-gray-700 dark:text-[#888]">{review.label}</span>
