@@ -87,12 +87,15 @@ export function ExecutionFlow({
           case 'step': {
             const stepData = item.data as StepFlowData;
             const exploreItems = exploreItemsByStep.get(stepData.stepId) || [];
+            const isExploreStep = exploreItemsByStep.has(stepData.stepId)
+              || stepData.toolCall?.name === 'explore_content';
             // v7.4: 使用 item.id 作为 fallback，确保回调函数始终有效
             const revisionId = stepData.revisionItemId || item.id;
             return (
               <StepCard
                 key={item.id}
                 {...stepData}
+                description={isExploreStep ? undefined : stepData.description}
                 // v7.3: 传递修订回调给 StepCard（用于内嵌的 RevisionCard）
                 onAcceptRevision={stepData.revision ? (selectedVersion) => onAcceptRevision?.(revisionId, (stepData.revision as any)?.requestId, selectedVersion) : undefined}
                 onDiscardRevision={stepData.revision ? () => onDiscardRevision?.(revisionId, (stepData.revision as any)?.requestId) : undefined}

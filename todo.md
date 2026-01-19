@@ -2306,12 +2306,78 @@ FlowEventBuilder.explore_summary() missing 1 required positional argument: 'next
 ### 解决方案（拟）
 
 - 读取 `docs/Agent/real-book/人在诸天，摆烂成帝.txt`，从前两章抽取人物关系、关键事件与设定，组合成需要跨章节验证的任务。
-- 提示词强制包含“章节号+段落号”和多维度证据要求，便于观察 Explore 的工具链与轮次行为。
+- 提示词强制包含"章节号+段落号"和多维度证据要求，便于观察 Explore 的工具链与轮次行为。
 
 ### review
 
-- 基于素材前两章输出多目标测试提示词，覆盖“摆烂态度、系统任务、世界错位、遮天体系、叶天帝大腿策略”等证据点（`docs/Agent/real-book/人在诸天，摆烂成帝.txt`）。
+- 基于素材前两章输出多目标测试提示词，覆盖"摆烂态度、系统任务、世界错位、遮天体系、叶天帝大腿策略"等证据点（`docs/Agent/real-book/人在诸天，摆烂成帝.txt`）。
 - 给出预期执行轨迹：search → locate → read_paragraph → 充足性评估，多轮后输出 explore_summary，便于对照冗余与精度问题。
+
+---
+
+## 将代码上传到GitHub - 第四次（2026-01-19）
+
+### 待办清单
+
+- [x] 查看当前修改的文件详情
+- [x] 暂存所有修改的文件
+- [x] 创建提交（包含本次修改的描述）
+- [x] 推送到远程仓库 origin/alin3.0
+
+### 当前状态
+
+**分支**：alin3.0
+**远程仓库**：https://github.com/alin776/ai_writer.git
+
+**修改的文件（10个）**：
+- Backend.md
+- INFO (2).md
+- backend/app/services/agent/core/tool_dispatcher.py
+- backend/app/services/agent/execution/parallel_executor.py
+- backend/app/services/agent/langgraph_agent.py
+- backend/app/services/agent/stream/flow_events.py
+- backend/app/services/agent/stream/stream_event_handler.py
+- src/hooks/useAgentChatStream.ts
+- src/services/agentApi.ts
+- todo.md
+
+### 预期结果
+
+所有修改成功推送到GitHub远程仓库的alin3.0分支。
+
+### review
+
+- **提交哈希**：e1f7327
+- **推送分支**：alin3.0
+- **推送范围**：2814041..e1f7327
+- **状态**：✅ 成功推送
+- **修改统计**：10个文件，新增3101行，删除906行
+- **主要改动**：
+  - Backend.md：大幅更新（3413行改动）
+  - INFO (2).md：更新247行
+  - todo.md：新增303行
+  - 后端代码优化：
+    - tool_dispatcher.py：补齐 explore_round reason 字段（3行）
+    - parallel_executor.py：补齐 explore_round reason 字段（3行）
+    - langgraph_agent.py：优化事件处理（6行）
+    - flow_events.py：优化事件流（7行）
+    - stream_event_handler.py：修复返回值处理（4行）
+  - 前端代码优化：
+    - useAgentChatStream.ts：补充 reason 映射（2行）
+    - agentApi.ts：补充 reason 解析（1行）
+- **工作区状态**：干净，与远程分支同步
+- **提交信息**：
+  ```
+  fix: 优化 Explore 轮次 reason 字段展示和事件流处理
+
+  - 修复 explore_round 事件缺少 reason 字段的问题
+  - 优化前端 SSE 解析，补充 reason 映射
+  - 更新 tool_dispatcher 和 parallel_executor 的事件发射逻辑
+  - 修复 stream_event_handler 的事件返回值处理
+  - 更新文档（Backend.md, INFO (2).md, todo.md）
+
+  Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+  ```
 
 ---
 
@@ -2505,14 +2571,57 @@ FlowEventBuilder.explore_summary() missing 1 required positional argument: 'next
 
 ### 待办清单
 
-- [ ] 复核 reason 的生成来源与提示词约束（后端 Explore 轮次规划）
-- [ ] 复核 reason 的事件透传与前端展示是否有长度控制
-- [ ] 判断是否存在应有的截断/折叠机制缺失
-- [ ] 输出 review 结论与风险点（含文件行号）
-- [ ] 在 todo.md 补充 review 记录
+- [x] 复核 reason 的生成来源与提示词约束（后端 Explore 轮次规划）
+- [x] 复核 reason 的事件透传与前端展示是否有长度控制
+- [x] 判断是否存在应有的截断/折叠机制缺失
+- [x] 输出 review 结论与风险点（含文件行号）
+- [x] 在 todo.md 补充 review 记录
 
 ### 解决方案（拟）
 
 - 若原因是 AI 输出过长，考虑在提示词中限制长度或后端截断；前端可做折叠/省略以避免 UI 垮塌。
 
 ### review
+
+- reason 来自 `_ai_plan_round` 输出的 JSON 字段，提示词未限制长度且 `max_tokens=300`，模型可能输出较长理由（`backend/app/services/agent/tools/explore_tools.py:1042`）。
+- 前端 `ExploreRoundCard` 直接渲染 reason，无截断/折叠逻辑，导致长文本完整展示（`src/components/agent/ExecutionFlow/ExploreCard.tsx:295`）。
+- 结论：reason 过长是“提示词无约束 + 前端无截断”的正常结果；若需控制，需在提示词加入长度限制或前端加折叠/省略。
+
+---
+
+## Explore 步骤不展示 step_description（2026-01-19）
+
+### 待办清单
+
+- [x] 定位 Explore 步骤与 ExecutionFlow 的关联（stepId ↔ explore_round/explore_summary）
+- [x] 在前端仅对 Explore 步骤隐藏 step_description，其他步骤保持原样
+- [x] 复核 step_complete/toolCall 等更新路径不受影响
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 在 `ExecutionFlow` 渲染 `StepCard` 时，若该 step 有 explore 事件或 toolCall 为 `explore_content`，则传入空的 description。
+- 不改后端事件结构，保证其他步骤 description 仍可显示。
+
+### review
+
+- Explore 步骤判定基于同 stepId 的 explore_round/explore_summary 或 toolCall=explore_content，并在渲染时清空 description，仅影响 Explore（`src/components/agent/ExecutionFlow/index.tsx`）。
+- 其他步骤仍按原逻辑展示 step_start/step_complete 的 description，不影响更新路径。
+
+---
+
+## 生成 Explore 简单测试 Prompt（2026-01-19）
+
+### 待办清单
+
+- [x] 复核素材范围（前两章内容）
+- [x] 生成 2 条简单测试 Prompt（验证 Explore 步骤不显示 step_description）
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- Prompt 聚焦单一目标与少量证据点，便于快速触发 Explore 并观察 UI 展示。
+
+### review
+
+- 输出 2 条轻量 Explore 测试 Prompt，便于快速触发探索并观察 Explore 步骤不展示 step_description 的 UI 行为（`docs/Agent/real-book/人在诸天，摆烂成帝.txt`）。
