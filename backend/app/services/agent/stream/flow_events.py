@@ -67,15 +67,18 @@ class FlowEventBuilder:
         }
 
     @staticmethod
-    def step_start(step_id: int, title: str) -> dict:
+    def step_start(step_id: int, title: str, description: Optional[str] = None) -> dict:
         """构建步骤开始事件"""
-        return {
+        event = {
             "type": "step_start",
             "step_id": step_id,
             "title": title,
             "status": "running",
             "timestamp": get_utc_now().isoformat()
         }
+        if description:
+            event["description"] = description
+        return event
 
     @staticmethod
     def knowledge_loaded(

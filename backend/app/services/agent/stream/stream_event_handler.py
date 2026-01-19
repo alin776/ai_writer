@@ -89,10 +89,10 @@ class StreamEventHandler:
         """发送文本消息事件"""
         await self.emit_flow_event(FlowEventBuilder.text(content))
 
-    async def emit_step_start(self, title: str) -> int:
+    async def emit_step_start(self, title: str, description: Optional[str] = None) -> int:
         """发送步骤开始事件，返回步骤ID"""
         self._step_counter += 1
-        await self.emit_flow_event(FlowEventBuilder.step_start(self._step_counter, title))
+        await self.emit_flow_event(FlowEventBuilder.step_start(self._step_counter, title, description))
         return self._step_counter
 
     async def emit_knowledge_loaded(

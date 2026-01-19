@@ -368,6 +368,7 @@ export function useAgentChatStream(
                   stepId: event.stepId,
                   title: event.title,
                   status: 'running',
+                  description: event.description,  // 立即设置 description
                 };
                 stepDataRef.current.set(event.stepId, stepData);
                 const item: FlowItem = {
@@ -479,6 +480,7 @@ export function useAgentChatStream(
                     stepId: event.stepId,
                     roundIdx: event.roundIdx,
                     title: event.title,
+                    reason: event.reason,  // AI 决策理由（完整）
                     toolCalls: event.toolCalls,
                     hitCount: event.hitCount,
                     missingItems: event.missingItems,

@@ -795,7 +795,8 @@ class ToolDispatcher:
                     missing_items=round_data.get("missing_items", []),
                     status_text=round_data.get("status_text", ""),
                     evidences=round_data.get("evidences", []),
-                    review_status=round_data.get("review_status", "")
+                    review_status=round_data.get("review_status", ""),
+                    reason=round_data.get("reason", "")
                 )
                 await stream_handler.emit_flow_event(event)
             except Exception as e:

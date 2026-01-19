@@ -1,214 +1,33 @@
-2026-01-19 00:43:29,459 - app.main - ERROR - Global exception handler caught: InterfaceError
-2026-01-19 00:43:29,460 - app.main - ERROR - Exception: (sqlalchemy.dialects.postgresql.asyncpg.InterfaceError) <class 'asyncpg.exceptions._base.InterfaceError'>: cannot call Transaction.rollback(): the underlying connection is closed
-(Background on this error at: https://sqlalche.me/e/20/rvf5)
-2026-01-19 00:43:31,045 - app.main - ERROR - Traceback: Traceback (most recent call last):
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 863, in rollback
-    self.await_(self._transaction.rollback())
-                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\asyncpg\connresource.py", line 19, in _check
-    self._check_conn_validity(meth.__name__)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\asyncpg\connresource.py", line 41, in _check_conn_validity
-    raise exceptions.InterfaceError(
-asyncpg.exceptions._base.InterfaceError: cannot call Transaction.rollback(): the underlying connection is closed
+快速止损（1–2 天，可显著降慢/降上限/提精度）
 
-The above exception was the direct cause of the following exception:
+  - 强约束搜索范围：Explore 内根据任务解析“前两章/第X章”范围，把 chapter_id + look_ahead 传给 search_content；同时
+    在 locate_content 增加 disable_global_fallback，禁用跨章降级。
+      - 解决：范围漂移、不精准、循环加长
+      - 风险：若范围解析错误会漏召回
+  - 不可达目标过滤：在充足性评估结果中标注 unreachable（作者/平台/完整全文等），若仅剩不可达项则提前收敛。
+      - 解决：反复 missing_items 导致上限
+      - 风险：可能提前停止（需提示“不可达原因”）
+  - 严格段落号的“补齐优先”：strict 模式不直接丢证据；对无段落号证据先尝试“同章 locate”，失败则标记“待补齐”，避免被
+    完全忽略。
+      - 解决：严格模式导致空转
+      - 风险：保留弱证据会降低严谨度
 
-Traceback (most recent call last):
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1119, in _rollback_impl
-    self.engine.dialect.do_rollback(self.connection)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 692, in do_rollback
-    dbapi_connection.rollback()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 865, in rollback
-    self._handle_exception(error)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 797, in _handle_exception
-    raise translated_error from error
-sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.InterfaceError: <class 'asyncpg.exceptions._base.InterfaceError'>: cannot call Transaction.rollback(): the underlying connection is closed
+  中期优化（1–2 周，稳定提速/提精度）
 
-The above exception was the direct cause of the following exception:
+  - 检索策略收紧：HybridRetriever 关键词匹配从 OR 改“至少 2 词命中 / 动态阈值”，并与向量相似度联合过滤；或者在范围
+      - 风险：召回下降，需要观察
+  - LLM 辅助定位降频：限制每轮 LLM locate 次数，或仅在 top1/top2 相似度接近时触发；对同 query 结果缓存定位。
+      - 解决：慢
+      - 风险：定位成功率降低
+  - 计划驱动的范围锁：RoundPlan 增加 chapter_scope，每轮显式限定搜索/定位范围，避免 AI 自己漂移。
+      - 解决：不精准、循环
+      - 风险：需要扩展 plan schema
 
-Traceback (most recent call last):
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
-    await self.app(scope, receive, _send)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 189, in __call__
-    with collapse_excgroups():
-  File "C:\Program Files\Python312\Lib\contextlib.py", line 158, in __exit__
-    self.gen.throw(value)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\_utils.py", line 91, in collapse_excgroups
-    raise exc
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\responses.py", line 257, in wrap
-    await func()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 217, in stream_response
-    return await super().stream_response(send)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\responses.py", line 246, in stream_response
-    async for chunk in self.body_iterator:
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 181, in body_stream
-    raise app_exc
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 151, in coro
-    await self.app(scope, receive_or_disconnect, send_no_error)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 189, in __call__
-    with collapse_excgroups():
-  File "C:\Program Files\Python312\Lib\contextlib.py", line 158, in __exit__
-    self.gen.throw(value)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\_utils.py", line 91, in collapse_excgroups
-    raise exc
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\responses.py", line 257, in wrap
-    await func()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\responses.py", line 246, in stream_response
-    async for chunk in self.body_iterator:
-  File "D:\Java\ai_writer\backend\app\api\v1\agent.py", line 1012, in event_generator
-    async with create_db_session() as db:
-  File "C:\Program Files\Python312\Lib\contextlib.py", line 217, in __aexit__
-    await anext(self.gen)
-  File "D:\Java\ai_writer\backend\app\core\database.py", line 90, in create_db_session
-    await session.close()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\ext\asyncio\session.py", line 1027, in close
-    await greenlet_spawn(self.sync_session.close)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 202, in greenlet_spawn
-    result = context.switch(value)
-             ^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2468, in close
-    self._close_impl(invalidate=False)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2537, in _close_impl
-    transaction.close(invalidate)
-  File "<string>", line 2, in close
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
-    ret_value = fn(self, *arg, **kw)
-                ^^^^^^^^^^^^^^^^^^^^
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1362, in close
-    transaction.close()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2577, in close
-    self._do_close()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2715, in _do_close
-    self._close_impl()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2701, in _close_impl
-    self._connection_rollback_impl()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2693, in _connection_rollback_impl
-    self.connection._rollback_impl()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1121, in _rollback_impl
-    self._handle_dbapi_exception(e, None, None, None, None)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2344, in _handle_dbapi_exception
-    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1119, in _rollback_impl
-    self.engine.dialect.do_rollback(self.connection)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 692, in do_rollback
-    dbapi_connection.rollback()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 865, in rollback
-    self._handle_exception(error)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 797, in _handle_exception
-    raise translated_error from error
-sqlalchemy.exc.InterfaceError: (sqlalchemy.dialects.postgresql.asyncpg.InterfaceError) <class 'asyncpg.exceptions._base.InterfaceError'>: cannot call Transaction.rollback(): the underlying connection is closed
-(Background on this error at: https://sqlalche.me/e/20/rvf5)
+  长期改造（>2 周，结构性解决）
 
-ERROR:    Exception in ASGI application
-Traceback (most recent call last):
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 863, in rollback
-    self.await_(self._transaction.rollback())
-                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\asyncpg\connresource.py", line 19, in _check
-    self._check_conn_validity(meth.__name__)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\asyncpg\connresource.py", line 41, in _check_conn_validity
-    raise exceptions.InterfaceError(
-asyncpg.exceptions._base.InterfaceError: cannot call Transaction.rollback(): the underlying connection is closed
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1119, in _rollback_impl
-    self.engine.dialect.do_rollback(self.connection)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 692, in do_rollback
-    dbapi_connection.rollback()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 865, in rollback
-    self._handle_exception(error)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 797, in _handle_exception
-    raise translated_error from error
-sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.InterfaceError: <class 'asyncpg.exceptions._base.InterfaceError'>: cannot call Transaction.rollback(): the underlying connection is closed
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\uvicorn\protocols\http\httptools_impl.py", line 419, in run_asgi
-    result = await app(  # type: ignore[func-returns-value]
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\uvicorn\middleware\proxy_headers.py", line 84, in __call__
-    return await self.app(scope, receive, send)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\fastapi\applications.py", line 1054, in __call__
-    await super().__call__(scope, receive, send)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\applications.py", line 123, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 186, in __call__
-    raise exc
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
-    await self.app(scope, receive, _send)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 189, in __call__
-    with collapse_excgroups():
-  File "C:\Program Files\Python312\Lib\contextlib.py", line 158, in __exit__
-    self.gen.throw(value)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\_utils.py", line 91, in collapse_excgroups
-    raise exc
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\responses.py", line 257, in wrap
-    await func()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 217, in stream_response
-    return await super().stream_response(send)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\responses.py", line 246, in stream_response
-    async for chunk in self.body_iterator:
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 181, in body_stream
-    raise app_exc
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 151, in coro
-    await self.app(scope, receive_or_disconnect, send_no_error)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 189, in __call__
-    with collapse_excgroups():
-  File "C:\Program Files\Python312\Lib\contextlib.py", line 158, in __exit__
-    self.gen.throw(value)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\_utils.py", line 91, in collapse_excgroups
-    raise exc
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\responses.py", line 257, in wrap
-    await func()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\starlette\responses.py", line 246, in stream_response
-    async for chunk in self.body_iterator:
-  File "D:\Java\ai_writer\backend\app\api\v1\agent.py", line 1012, in event_generator
-    async with create_db_session() as db:
-  File "C:\Program Files\Python312\Lib\contextlib.py", line 217, in __aexit__
-    await anext(self.gen)
-  File "D:\Java\ai_writer\backend\app\core\database.py", line 90, in create_db_session
-    await session.close()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\ext\asyncio\session.py", line 1027, in close
-    await greenlet_spawn(self.sync_session.close)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 202, in greenlet_spawn
-    result = context.switch(value)
-             ^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2468, in close
-    self._close_impl(invalidate=False)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2537, in _close_impl
-    transaction.close(invalidate)
-  File "<string>", line 2, in close
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
-    ret_value = fn(self, *arg, **kw)
-                ^^^^^^^^^^^^^^^^^^^^
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1362, in close
-    transaction.close()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2577, in close
-    self._do_close()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2715, in _do_close
-    self._close_impl()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2701, in _close_impl
-    self._connection_rollback_impl()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2693, in _connection_rollback_impl
-    self.connection._rollback_impl()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1121, in _rollback_impl
-    self._handle_dbapi_exception(e, None, None, None, None)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2344, in _handle_dbapi_exception
-    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1119, in _rollback_impl
-    self.engine.dialect.do_rollback(self.connection)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 692, in do_rollback
-    dbapi_connection.rollback()
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 865, in rollback
-    self._handle_exception(error)
-  File "D:\Java\ai_writer\backend\venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 797, in _handle_exception
-    raise translated_error from error
-sqlalchemy.exc.InterfaceError: (sqlalchemy.dialects.postgresql.asyncpg.InterfaceError) <class 'asyncpg.exceptions._base.InterfaceError'>: cannot call Transaction.rollback(): the underlying connection is closed
-(Background on this error at: https://sqlalche.me/e/20/rvf5)
-2026-01-19 00:43:53,589 - app.api.middleware.monitoring_middleware - INFO - API请求完成: GET /api/v1/agent/operations/0164eaf3-eba3-4897-bbc7-ef4dce7567e0
+  - 段落级索引：向量索引按段落建库，search 直接返回 paragraph_index，减少 locate 逻辑和 LLM 辅助。
+      - 解决：慢+不精准
+      - 风险：索引重建成本高
+  - 阶段性证据收敛：引入“阶段预算+覆盖度看板”，若同一缺失项多轮无改善，强制降级策略或终止。
+      - 解决：上限+慢
+      - 风险：策略复杂度增加

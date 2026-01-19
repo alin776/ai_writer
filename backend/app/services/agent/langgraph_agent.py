@@ -1755,7 +1755,11 @@ class WritingAgentGraph:
                             agent_header_sent[0] = True
                         # v6.1: 优先使用 title（简洁标题），回退到 description
                         step_title = task.get("title") or task.get("description", "执行任务")
-                        await on_flow_event(FlowEventBuilder.step_start(current_step_id, step_title))
+                        # 同时发送 description，让前端可以立即显示（与 step_complete 保持一致的回退逻辑）
+                        step_description = task.get("description") or task.get("title", "任务完成")
+                        if step_description and step_title and step_description.strip() == step_title.strip():
+                            step_description = None
+                        await on_flow_event(FlowEventBuilder.step_start(current_step_id, step_title, step_description))
                     if on_task_start:
                         await on_task_start(task)
 

@@ -376,6 +376,7 @@ class AgentApiService {
                 stepId: data.step_id,
                 roundIdx: data.round_idx,
                 title: data.title,
+                reason: data.reason,
                 toolCalls: data.tool_calls,
                 hitCount: data.hit_count,
                 missingItems: data.missing_items,
