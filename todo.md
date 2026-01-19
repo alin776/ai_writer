@@ -1,5 +1,92 @@
 # TODO
 
+## 偏好设置语言选择项移除（2026-01-19）
+
+### 待办清单
+
+- [x] 复核 SettingsView 偏好设置中的语言选择位置
+- [x] 移除语言选择下拉与相关布局
+- [x] 简单核对偏好设置其余内容展示
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 在 `SettingsView` 的偏好设置渲染里删除语言选择区块，仅保留外观与编辑器相关配置。
+
+### review
+
+- 移除偏好设置中的语言选择下拉，并清理语言切换逻辑引用（`src/views/SettingsView/index.tsx`）。
+
+## 举报评论下拉菜单主题化（2026-01-19）
+
+### 待办清单
+
+- [x] 复核举报评论弹窗的下拉菜单实现方式
+- [x] 改用可主题化的 Select 组件替换原生 select
+- [x] 简单核对浅色/暗色模式下的下拉显示
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 在 NovelDetail 的举报评论弹窗中使用 `src/components/ui/select`，让下拉列表跟随主题样式。
+
+### review
+
+- 举报评论下拉改用可主题化 Select 组件，匹配浅色/暗色样式（`src/components/library/NovelDetail.tsx`）。
+
+## 核对 INFO (2).md 优化落地情况（2026-01-19）
+
+### 待办清单
+
+- [x] 通读 INFO (2).md 并拆分优化项
+- [x] 核对 Explore 搜索范围/严格段落/不可达过滤 是否实现
+- [x] 核对检索策略收紧、LLM 定位降频、计划驱动范围锁 是否实现
+- [x] 核对段落级索引与阶段性证据收敛 是否实现
+- [x] 汇总结论与未实现项，更新 review
+
+### 解决方案（拟）
+
+- 对照 INFO (2).md 每条优化，逐一比对相关实现文件；标记已实现/部分实现/未实现并给出代码证据。
+
+### review
+
+- 快速止损 3 项已实现：范围锁（解析+search 传参+locate 禁用跨章）、不可达缺失过滤、严格段落补齐策略（`backend/app/services/agent/tools/explore_tools.py`）。
+- 中期优化未完全落地：检索策略收紧未做（关键词最少命中仍为 1）；LLM 定位降频仅在全局 rerank 触发条件实现；RoundPlan 未新增 chapter_scope（`backend/app/services/search/hybrid_retriever.py`、`backend/app/services/agent/tools/locate_tools.py`、`backend/app/services/agent/tools/explore_tools.py`）。
+- 长期改造部分完成：段落级索引已落地并回传 paragraph_index；阶段性证据收敛（阶段预算+覆盖度看板）未实现（`backend/app/services/chapter_vector_service.py`、`backend/app/services/search/hybrid_retriever.py`、`backend/app/services/agent/tools/explore_tools.py`）。
+## 小说广场详情白底去除（2026-01-19）
+
+### 待办清单
+
+- [x] 复核 NovelDetail 顶部详情容器的背景样式
+- [x] 将详情容器背景改为透明（保留间距与布局）
+- [x] 简单核对小说广场详情页观感
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 移除 NovelDetail 顶部详情容器的 `bg-white`，改为 `bg-transparent`（含 dark 模式），让背景透出外层底色。
+
+### review
+
+- 小说广场详情顶部容器背景改为透明（`src/components/library/NovelDetail.tsx`）。
+
+## 移除创建粉丝群提示信息（2026-01-19）
+
+### 待办清单
+
+- [x] 复核创建粉丝群弹窗中的提示信息位置
+- [x] 删除“粉丝群功能”提示块及其列表
+- [x] 简单核对弹窗布局是否受影响
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 直接移除 CreateFangroupDialog 中的提示信息块，保留表单与按钮布局。
+
+### review
+
+- 删除创建粉丝群弹窗中的“粉丝群功能”提示块（`src/views/ChannelsView/components/CreateFangroupDialog.tsx`）。
+
 ## 登录页左侧卡片圆角优化（2026-01-19）
 
 ### 待办清单
@@ -2723,7 +2810,7 @@ FlowEventBuilder.explore_summary() missing 1 required positional argument: 'next
 
 - [x] 追踪证据输出字段的段落号来源，确认默认值写入点
 - [x] 无段落号时保留为 None/缺省，不写入 0
-- [x] 校验前端显示逻辑在缺段落号时不展示“第1段”
+- [x] 校验前端显示逻辑在缺段落号时不展示"第1段"
 - [x] 在 todo.md 补充 review 记录
 
 ### 解决方案（拟）
@@ -2732,8 +2819,75 @@ FlowEventBuilder.explore_summary() missing 1 required positional argument: 'next
 
 ### review
 
-- 段落号空值不再写入 0，避免前端渲染为“第1段”（`backend/app/services/agent/tools/explore_tools.py`）。
+- 段落号空值不再写入 0，避免前端渲染为"第1段"（`backend/app/services/agent/tools/explore_tools.py`）。
 - 前端 evidence meta 在段落号缺失时不展示段落标签（`src/components/agent/ExecutionFlow/ExploreCard.tsx`）。
+
+---
+
+## 将代码上传到GitHub - 第六次（2026-01-19）
+
+### 待办清单
+
+- [x] 查看修改文件详情
+- [x] 暂存所有修改的文件
+- [x] 创建提交
+- [x] 推送到远程仓库 origin/alin3.0
+
+### 当前状态
+
+**分支**：alin3.0
+**远程仓库**：https://github.com/alin776/ai_writer.git
+
+**修改的文件（6个）**：
+- backend/app/services/agent/tools/explore_tools.py
+- backend/app/services/agent/tools/locate_tools.py
+- src/types/agent.ts
+- src/views/AuthView/index.tsx
+- src/views/ForgotPasswordView/index.tsx
+- todo.md
+
+### 预期结果
+
+所有修改成功推送到GitHub远程仓库的alin3.0分支。
+
+### review
+
+- **提交哈希**：446c653
+- **推送分支**：alin3.0
+- **推送范围**：cb01b65..446c653
+- **状态**：✅ 成功推送
+- **修改统计**：6个文件，新增592行，删除55行
+- **主要改动**：
+  - **后端 Explore 性能优化**（285行）：
+    - explore_tools.py：章节范围锁定、全局降级禁用、strict段落号补齐、不可达项处理（278行）
+    - locate_tools.py：增加禁用全局降级参数（7行）
+  - **前端 UI 优化**（54行）：
+    - AuthView/index.tsx：登录/注册页卡片圆角、Logo缩小、曲线边缘、表单圆角（36行）
+    - ForgotPasswordView/index.tsx：忘记密码页表单项圆角（14行）
+    - agent.ts：支持段落号缺失的证据类型（4行）
+  - **文档更新**（308行）：
+    - todo.md：新增登录页优化、Explore范围锁定、段落号补齐等任务记录
+- **工作区状态**：干净，与远程分支同步
+- **提交信息**：
+  ```
+  feat: 优化 Explore 性能和登录页 UI
+
+  后端 Explore 优化：
+  - 实现章节范围锁定，避免跨章漂移
+  - 禁用 locate_content 全局降级，减少误定位
+  - strict 模式强制段落号补齐
+  - 过滤不可达缺失项，提前收敛
+  - 修复无段落号证据误显示为第1段
+
+  前端 UI 优化：
+  - 登录/注册页卡片圆角提升为 rounded-xl
+  - Logo 尺寸缩小到 36px
+  - 恢复曲线边缘装饰并消除分栏竖线
+  - 登录/注册/忘记密码表单项增加圆角
+  - 修复证据段落号缺失时的显示逻辑
+
+  Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+  ```
 
 ---
 

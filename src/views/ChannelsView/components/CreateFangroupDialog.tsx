@@ -286,19 +286,6 @@ export function CreateFangroupDialog({ isOpen, onClose, onSuccess }: CreateFangr
               </p>
             </div>
 
-            {/* 提示信息 */}
-            <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-              <p className="text-sm text-blue-800 dark:text-blue-300">
-                💡 粉丝群功能：
-              </p>
-              <ul className="text-xs text-blue-700 dark:text-blue-400 mt-2 space-y-1 list-disc list-inside">
-                <li>发送公告通知所有成员</li>
-                <li>@全体成员功能</li>
-                <li>永久频道，不会被折叠</li>
-                <li>深度经营你的核心粉丝</li>
-              </ul>
-            </div>
-
             {/* 按钮组 */}
             <div className="flex gap-3 pt-2">
               <button

@@ -22,6 +22,13 @@ import { useGlobalStore } from '../../store/globalStore';
 import { useWorkNavStore } from '../../store/workNavStore';
 import { NovelReader } from './NovelReader';
 import MiniEmojiPicker from '../../views/ChannelsView/components/MiniEmojiPicker';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
 
 interface NovelDetailProps {
   novel: Novel;
@@ -993,7 +1000,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
       </header>
 
       <div className="max-w-6xl mx-auto px-6 py-8">
-        <div className="bg-white dark:bg-slate-900 p-8 mb-6">
+        <div className="bg-transparent p-8 mb-6">
           <div className="flex gap-8">
             <div className="flex-shrink-0">
               <ImageWithFallback
@@ -1702,19 +1709,19 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
               举报原因<span className="text-red-600">*</span>
             </label>
-            <select
-              value={reportReason}
-              onChange={(e) => setReportReason(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">请选择举报原因</option>
-              <option value="spam">垃圾信息</option>
-              <option value="abuse">辱骂内容</option>
-              <option value="porn">色情内容</option>
-              <option value="illegal">违法内容</option>
-              <option value="false">虚假信息</option>
-              <option value="other">其他</option>
-            </select>
+            <Select value={reportReason} onValueChange={setReportReason}>
+              <SelectTrigger className="w-full text-sm">
+                <SelectValue placeholder="请选择举报原因" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="spam">垃圾信息</SelectItem>
+                <SelectItem value="abuse">辱骂内容</SelectItem>
+                <SelectItem value="porn">色情内容</SelectItem>
+                <SelectItem value="illegal">违法内容</SelectItem>
+                <SelectItem value="false">虚假信息</SelectItem>
+                <SelectItem value="other">其他</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">

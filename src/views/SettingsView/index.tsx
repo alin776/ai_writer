@@ -10,7 +10,6 @@ import { useAuthStore } from '../../store/authStore';
 import { DataService } from '../../services/DataService';
 import { useToast } from '../../hooks/useToast';
 import { useTheme } from '../../hooks/useTheme';
-import { languages, type LanguageCode } from '../../i18n';
 import type { NotificationSettings, UserPreferences, UserSession } from '@/types';
 
 const notificationDefaults: NotificationSettings = {
@@ -43,7 +42,7 @@ const SettingsView: React.FC = () => {
   const { user, setUser, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const bioTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   // 标记表单是否已从 user 数据初始化，避免后续 user 更新时覆盖用户编辑
@@ -257,12 +256,6 @@ const SettingsView: React.FC = () => {
   const handleThemeSelect = (nextTheme: UserPreferences['theme']) => {
     setPreferences({ ...preferences, theme: nextTheme });
     applyTheme(nextTheme, { persist: false });
-  };
-
-  const handleLanguageSelect = (nextLanguage: LanguageCode) => {
-    setPreferences({ ...preferences, language: nextLanguage });
-    // 立即应用语言变更
-    i18n.changeLanguage(nextLanguage);
   };
 
   const loadSessions = useCallback(
@@ -945,22 +938,6 @@ const SettingsView: React.FC = () => {
               })}
             </div>
           </div>
-        </div>
-      </div>
-
-      <div className="pt-6">
-        <div>
-          <select
-            value={preferences.language}
-            onChange={(e) => handleLanguageSelect(e.target.value as LanguageCode)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-400 focus:border-blue-300 dark:focus:border-blue-400 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 [&>option:checked]:bg-blue-50 [&>option:checked]:text-blue-700 dark:[&>option:checked]:bg-blue-900/40 dark:[&>option:checked]:text-blue-100"
-          >
-            {languages.map((lang) => (
-              <option key={lang.code} value={lang.code}>
-                {lang.nativeName}
-              </option>
-            ))}
-          </select>
         </div>
       </div>
 
