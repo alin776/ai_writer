@@ -456,7 +456,7 @@ const AuthView: React.FC = () => {
         <div className="absolute bottom-0 left-0 right-0 h-[30%] bg-gradient-to-t from-black/50 to-transparent"></div>
 
         {/* 曲线边缘 */}
-        <div className="absolute right-0 top-0 bottom-0 w-16">
+        <div className="pointer-events-none absolute -right-px top-0 bottom-0 w-16">
           <svg className="absolute right-0 w-16 h-full" preserveAspectRatio="none" viewBox="0 0 100 100">
             <path d="M0,0 Q50,50 0,100 L100,100 L100,0 Z" fill="white" />
           </svg>
@@ -478,7 +478,7 @@ const AuthView: React.FC = () => {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3 animate-fade-in hover:opacity-80 transition-opacity">
             <div className="w-12 h-12 bg-black/30 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20 shadow-lg">
-              <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '48px', height: '48px', filter: 'brightness(0) invert(1)' }} />
+              <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '36px', height: '36px', filter: 'brightness(0) invert(1)' }} />
             </div>
             <span className="text-white tracking-wide drop-shadow-lg">{t('app.name')}</span>
           </Link>
@@ -498,13 +498,13 @@ const AuthView: React.FC = () => {
             </div>
 
             <div className="flex gap-8 text-white">
-              <div className="flex items-center gap-2 bg-black/20 backdrop-blur-sm px-3 py-2 rounded-lg">
+              <div className="flex items-center gap-2 bg-black/20 backdrop-blur-sm px-3 py-2 rounded-xl">
                 <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <span className="text-sm drop-shadow">{t('auth.hero.aiAssist')}</span>
               </div>
-              <div className="flex items-center gap-2 bg-black/20 backdrop-blur-sm px-3 py-2 rounded-lg">
+              <div className="flex items-center gap-2 bg-black/20 backdrop-blur-sm px-3 py-2 rounded-xl">
                 <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
                   <Feather className="w-4 h-4" />
                 </div>
@@ -514,7 +514,7 @@ const AuthView: React.FC = () => {
           </div>
 
           {/* 底部引用 */}
-          <div className="border-l-2 border-white/40 pl-4 animate-fade-in text-white italic bg-black/30 backdrop-blur-md rounded-lg px-4 py-3 text-[16px] max-w-[85%]">
+          <div className="border-l-2 border-white/40 pl-4 animate-fade-in text-white italic bg-black/30 backdrop-blur-md rounded-xl px-4 py-3 text-[16px] max-w-[85%]">
             <span className="drop-shadow">{t('auth.hero.quote')}</span>
             <span className="block mt-1 not-italic text-sm text-white/80 drop-shadow">{t('auth.hero.quoteAuthor')}</span>
           </div>
@@ -531,7 +531,7 @@ const AuthView: React.FC = () => {
           {/* 移动端Logo */}
           <Link to="/" className="lg:hidden flex items-center gap-3 mb-8 hover:opacity-80 transition-opacity">
             <div className="w-12 h-12 bg-gray-900 rounded-full flex items-center justify-center">
-              <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '48px', height: '48px', filter: 'brightness(0) invert(1)' }} />
+              <img src="/logo-icon.svg" alt="文枢AI" style={{ width: '36px', height: '36px', filter: 'brightness(0) invert(1)' }} />
             </div>
             <span className="text-gray-800 tracking-wide">{t('app.name')}</span>
           </Link>
@@ -569,7 +569,7 @@ const AuthView: React.FC = () => {
                     id="login-username"
                     type="text"
                     placeholder={t('auth.usernamePlaceholder')}
-                    className="h-12 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900"
+                    className="h-12 !bg-white rounded-xl border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900"
                     value={loginForm.username}
                     onChange={(e) => {
                       setLoginForm({ ...loginForm, username: e.target.value });
@@ -591,7 +591,7 @@ const AuthView: React.FC = () => {
                       id="login-password"
                       type={showLoginPassword ? "text" : "password"}
                       placeholder={t('auth.passwordPlaceholder')}
-                      className="h-12 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
+                      className="h-12 !bg-white rounded-xl border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
                       value={loginForm.password}
                       onChange={(e) => {
                         setLoginForm({ ...loginForm, password: e.target.value });
@@ -632,7 +632,7 @@ const AuthView: React.FC = () => {
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-12 bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all duration-200 hover:shadow-xl hover:shadow-gray-900/30 hover:scale-[1.02]"
+                  className="w-full h-12 rounded-xl bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all duration-200 hover:shadow-xl hover:shadow-gray-900/30 hover:scale-[1.02]"
                 >
                   {isLoading ? t('auth.loggingIn') : t('auth.loginButton')}
                 </Button>
@@ -647,7 +647,7 @@ const AuthView: React.FC = () => {
                     id="register-username"
                     type="text"
                     placeholder={t('auth.setUsername')}
-                    className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900"
+                    className="h-11 !bg-white rounded-xl border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900"
                     value={registerForm.username}
                     onChange={(e) => {
                       setRegisterForm({ ...registerForm, username: e.target.value });
@@ -662,7 +662,7 @@ const AuthView: React.FC = () => {
                     id="register-email"
                     type="email"
                     placeholder={t('auth.emailPlaceholder')}
-                    className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900"
+                    className="h-11 !bg-white rounded-xl border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900"
                     value={registerForm.email}
                     onChange={(e) => {
                       setRegisterForm({ ...registerForm, email: e.target.value });
@@ -680,7 +680,7 @@ const AuthView: React.FC = () => {
                       type="text"
                       placeholder={t('auth.emailCodePlaceholder')}
                       maxLength={6}
-                      className="h-11 flex-1 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono text-gray-900"
+                      className="h-11 flex-1 !bg-white rounded-xl border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono text-gray-900"
                       value={registerForm.emailVerificationCode}
                       onChange={(e) => {
                         const code = e.target.value.replace(/\D/g, '');
@@ -699,12 +699,12 @@ const AuthView: React.FC = () => {
                         type="button"
                         onClick={handleSendEmailVerification}
                         disabled={!registerForm.email || emailVerificationCountdown > 0 || isSendingCode}
-                        className="h-11 px-6 whitespace-nowrap bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all duration-200"
+                        className="h-11 px-6 rounded-xl whitespace-nowrap bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all duration-200"
                       >
                         {emailVerificationCountdown > 0 ? `${emailVerificationCountdown}${t('auth.seconds')}` : (isSendingCode ? t('auth.sending') : t('auth.sendCode'))}
                       </Button>
                     ) : (
-                      <div className="h-11 px-6 flex items-center bg-green-50 border border-green-200 rounded-md text-green-700 text-sm whitespace-nowrap">
+                      <div className="h-11 px-6 flex items-center bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm whitespace-nowrap">
                         <CheckCircle className="w-4 h-4 mr-2" />
                         {t('auth.verified')}
                       </div>
@@ -719,7 +719,7 @@ const AuthView: React.FC = () => {
                       id="register-password"
                       type={showRegisterPassword ? "text" : "password"}
                       placeholder={t('auth.passwordHint')}
-                      className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
+                      className="h-11 !bg-white rounded-xl border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
                       value={registerForm.password}
                       onChange={(e) => {
                         setRegisterForm({ ...registerForm, password: e.target.value });
@@ -743,7 +743,7 @@ const AuthView: React.FC = () => {
                       id="register-confirm-password"
                       type={showConfirmPassword ? "text" : "password"}
                       placeholder={t('auth.confirmPasswordPlaceholder')}
-                      className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
+                      className="h-11 !bg-white rounded-xl border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
                       value={registerForm.confirmPassword}
                       onChange={(e) => {
                         setRegisterForm({ ...registerForm, confirmPassword: e.target.value });
@@ -768,7 +768,7 @@ const AuthView: React.FC = () => {
                       type="text"
                       placeholder={t('auth.invitationCodePlaceholder')}
                       maxLength={8}
-                      className="h-11 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono uppercase text-gray-900 pr-10"
+                      className="h-11 !bg-white rounded-xl border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono uppercase text-gray-900 pr-10"
                       value={registerForm.invitationCode}
                       onChange={(e) => {
                         setRegisterForm({ ...registerForm, invitationCode: e.target.value.toUpperCase() });
@@ -821,7 +821,7 @@ const AuthView: React.FC = () => {
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-12 bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all duration-200 hover:shadow-xl hover:shadow-gray-900/30 hover:scale-[1.02]"
+                  className="w-full h-12 rounded-xl bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all duration-200 hover:shadow-xl hover:shadow-gray-900/30 hover:scale-[1.02]"
                 >
                   {isLoading ? t('auth.registering') : t('auth.registerButton')}
                 </Button>

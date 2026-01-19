@@ -596,8 +596,8 @@ export interface ExploreToolCall {
  * Explore 证据项
  */
 export interface ExploreEvidenceItem {
-  chapter: number;
-  paragraph: number;
+  chapter?: number;
+  paragraph?: number;
   text: string;
   chapterOrder?: number;
   chapterTitle?: string;

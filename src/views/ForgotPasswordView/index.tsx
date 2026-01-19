@@ -276,7 +276,7 @@ const ForgotPasswordView: React.FC = () => {
                     id="email"
                     type="email"
                     placeholder="请输入邮箱地址"
-                    className="h-12 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900"
+                    className="h-12 !bg-white rounded-xl border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900"
                     value={emailForm.email}
                     onChange={(e) => {
                       setEmailForm({ email: e.target.value });
@@ -295,7 +295,7 @@ const ForgotPasswordView: React.FC = () => {
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-12 bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all duration-200 hover:shadow-xl hover:shadow-gray-900/30 hover:scale-[1.02]"
+                  className="w-full h-12 rounded-xl bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all duration-200 hover:shadow-xl hover:shadow-gray-900/30 hover:scale-[1.02]"
                 >
                   {isLoading ? '发送中...' : '发送验证码'}
                 </Button>
@@ -324,7 +324,7 @@ const ForgotPasswordView: React.FC = () => {
                       type="text"
                       placeholder="请输入6位验证码"
                       maxLength={6}
-                      className="h-12 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono text-center text-lg tracking-wider text-gray-900"
+                      className="h-12 !bg-white rounded-xl border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 font-mono text-center text-lg tracking-wider text-gray-900"
                       value={resetForm.code}
                       onChange={(e) => {
                         setResetForm({ ...resetForm, code: e.target.value.replace(/\D/g, '') });
@@ -336,7 +336,7 @@ const ForgotPasswordView: React.FC = () => {
                       variant="outline"
                       onClick={handleResendCode}
                       disabled={countdown > 0 || isLoading}
-                      className="h-12 px-6 whitespace-nowrap border-gray-200 hover:border-gray-900"
+                      className="h-12 px-6 rounded-xl whitespace-nowrap border-gray-200 hover:border-gray-900"
                     >
                       {countdown > 0 ? `${countdown}秒` : '重新发送'}
                     </Button>
@@ -350,7 +350,7 @@ const ForgotPasswordView: React.FC = () => {
                       id="newPassword"
                       type={showNewPassword ? "text" : "password"}
                       placeholder="请输入新密码（8-20位，含字母、数字、特殊符号）"
-                      className="h-12 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
+                      className="h-12 !bg-white rounded-xl border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
                       value={resetForm.newPassword}
                       onChange={(e) => {
                         setResetForm({ ...resetForm, newPassword: e.target.value });
@@ -374,7 +374,7 @@ const ForgotPasswordView: React.FC = () => {
                       id="confirmPassword"
                       type={showConfirmPassword ? "text" : "password"}
                       placeholder="再次输入新密码"
-                      className="h-12 !bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
+                      className="h-12 !bg-white rounded-xl border-gray-200 focus:border-gray-900 focus:ring-gray-900/20 transition-all duration-200 text-gray-900 pr-10"
                       value={resetForm.confirmPassword}
                       onChange={(e) => {
                         setResetForm({ ...resetForm, confirmPassword: e.target.value });
@@ -401,7 +401,7 @@ const ForgotPasswordView: React.FC = () => {
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-12 bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all duration-200 hover:shadow-xl hover:shadow-gray-900/30 hover:scale-[1.02]"
+                  className="w-full h-12 rounded-xl bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all duration-200 hover:shadow-xl hover:shadow-gray-900/30 hover:scale-[1.02]"
                 >
                   {isLoading ? '重置中...' : '重置密码'}
                 </Button>

@@ -1,5 +1,125 @@
 # TODO
 
+## 登录页左侧卡片圆角优化（2026-01-19）
+
+### 待办清单
+
+- [x] 复核 AuthView 左侧两个卡片的圆角样式
+- [x] 调整 AI 辅助/自由创作卡片与引用卡片的圆角
+- [x] 简单核对左侧视觉一致性
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 将左侧两块卡片从 `rounded-lg` 提升为 `rounded-xl`，保持风格统一。
+
+### review
+
+- 左侧 AI 辅助/自由创作卡片与引用卡片圆角提升为 `rounded-xl`（`src/views/AuthView/index.tsx`）。
+
+## 登录/注册页 Logo 缩小（2026-01-19）
+
+### 待办清单
+
+- [x] 复核 AuthView 左侧与移动端 Logo 样式
+- [x] 参照首页 Logo 尺寸缩小图标大小
+- [x] 简单核对登录/注册页顶部 Logo 观感
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 将 AuthView 的 logo-icon 尺寸从 48px 调整到与首页相近的 36px，保持容器不变。
+
+### review
+
+- 登录/注册页 Logo 图标缩小到 36px，整体更接近首页尺寸（`src/views/AuthView/index.tsx`）。
+
+## 登录/注册曲线边缘恢复与去线（2026-01-19）
+
+### 待办清单
+
+- [x] 复核 AuthView 曲线边缘位置与现状
+- [x] 恢复曲线边缘装饰，并微调位置避免出现竖线
+- [x] 简单核对登录/注册页左右分栏边缘观感
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 在 AuthView 左侧背景恢复曲线 SVG，并将装饰向右轻微覆盖（1px）以消除分栏缝隙线。
+
+### review
+
+- 恢复曲线边缘 SVG，并向右轻微覆盖以消除分栏竖线（`src/views/AuthView/index.tsx`）。
+
+## 注册页分割线移除（2026-01-19）
+
+### 待办清单
+
+- [x] 复核 AuthView 左右分栏之间的分割线来源
+- [x] 移除注册页分割线对应的元素/样式
+- [x] 简单核对登录/注册页左右分栏边缘观感
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 如果分割线来自左侧背景的“曲线边缘” SVG，则移除该装饰块，使左右分栏交界干净无竖线。
+
+### review
+
+- 移除 AuthView 左侧“曲线边缘” SVG 装饰块，去掉左右分栏的竖线分割感（`src/views/AuthView/index.tsx`）。
+
+## 忘记密码表单项圆角补齐（2026-01-19）
+
+### 待办清单
+
+- [x] 复核 ForgotPasswordView 表单项样式位置
+- [x] 为邮箱输入、验证码输入、重发按钮、新密码输入、确认密码输入与提交按钮添加圆角
+- [x] 简单核对忘记密码页视觉一致性
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 在 ForgotPasswordView 的各个输入框与按钮上补充 `rounded-xl`，与登录/注册页的表单项圆角保持一致。
+
+### review
+
+- 忘记密码表单输入框与按钮统一增加圆角（`src/views/ForgotPasswordView/index.tsx`）。
+
+## 登录/注册表单项圆角修正（2026-01-19）
+
+### 待办清单
+
+- [x] 复核 AuthView 表单项当前圆角与类名
+- [x] 撤销 TabsContent 外层新增边框/阴影
+- [x] 为登录/注册表单项（输入框/按钮/验证码按钮）增加圆角（与 Tabs 胶囊一致）
+- [x] 简单核对登录/注册页视觉一致性
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 去除 TabsContent 外层新增样式，改为在登录/注册表单内各输入框与主要按钮上补充 `rounded-xl`，保证圆角风格与顶部 Tabs 一致。
+
+### review
+
+- 移除 TabsContent 外层新增边框/阴影，并为登录/注册表单的输入框与按钮添加更大圆角（`src/views/AuthView/index.tsx`）。
+
+## 登录/注册表单圆角优化（2026-01-19）
+
+### 待办清单
+
+- [x] 复核 AuthView 登录/注册表单结构与样式位置
+- [x] 为登录/注册表单容器添加圆角（与 Tabs 胶囊风格一致）
+- [x] 简单检查登录/注册页视觉边缘一致性
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 在 AuthView 的表单外层补充圆角与必要的溢出控制，确保登录/注册表单区域边缘圆弧化且不影响现有布局。
+
+### review
+
+- 为登录/注册表单容器补充圆角、边框与留白，整体边缘与 Tabs 胶囊风格一致（`src/views/AuthView/index.tsx`）。
+
 ## 设计 Explore 测试 Prompt（2026-01-19）
 
 ### 待办清单
@@ -2474,18 +2594,146 @@ FlowEventBuilder.explore_summary() missing 1 required positional argument: 'next
 
 ### 待办清单
 
-- [ ] 解析目标任务章节范围并保存 scope，提供范围判断方法
-- [ ] Explore 搜索加入范围约束（search_content 传参 + 结果过滤）
-- [ ] locate_content 增加禁用全局降级参数，Explore 在有 scope 时关闭
-- [ ] strict 段落号改为“补齐优先”（缺段落号不直接丢证据）
-- [ ] 评估提示与 missing_items 过滤不可达项，必要时提前收敛
-- [ ] 在 todo.md 补充 review 记录
+- [x] 解析目标任务章节范围并保存 scope，提供范围判断方法
+- [x] Explore 搜索加入范围约束（search_content 传参 + 结果过滤）
+- [x] locate_content 增加禁用全局降级参数，Explore 在有 scope 时关闭
+- [x] strict 段落号改为“补齐优先”（缺段落号不直接丢证据）
+- [x] 评估提示与 missing_items 过滤不可达项，必要时提前收敛
+- [x] 在 todo.md 补充 review 记录
 
 ### 解决方案（拟）
 
 - 在 `explore_tools.py` 加入章节范围解析与过滤，优化搜索/读取/评估链路；在 `locate_tools.py` 增加全局降级开关；补充 strict 模式缺段落号的保留策略与不可达缺失项过滤。
 
 ### review
+
+- 新增章节范围解析与范围过滤，搜索与读取链路锁定目标章节（`backend/app/services/agent/tools/explore_tools.py`）。
+- search_content 增加 scope 传参与结果过滤，locate_content 在 scope 下禁用全局降级（`backend/app/services/agent/tools/explore_tools.py`、`backend/app/services/agent/tools/locate_tools.py`）。
+- strict 段落号模式改为保留无段落号证据并提示待补齐，避免空转（`backend/app/services/agent/tools/explore_tools.py`）。
+- 充足性评估提示限制外部不可达信息，missing_items 过滤后可提前收敛（`backend/app/services/agent/tools/explore_tools.py`）。
+- 证据类型支持段落号缺失（`src/types/agent.ts`）。
+
+---
+
+## Review：深度探索修复完整性与风险检查（2026-01-19）
+
+### 待办清单
+
+- [x] 复核本次改动文件与上下游依赖，确认未引入新问题
+- [x] 对照原问题验证是否真实解决（慢/不精准/易上限）
+- [x] 检查改动覆盖是否完整（范围锁定/全局降级/严格段落号/不可达缺失项）
+- [x] 校验逻辑一致性与边界条件（范围解析/缺失项过滤/可达性收敛）
+- [x] 补充潜在遗漏与风险点清单
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 逐文件检查 `explore_tools.py`、`locate_tools.py`、`src/types/agent.ts` 及相关日志规则，按严重度输出发现与验证结论。
+
+### review
+
+- 已完成范围锁定/全局降级/strict 补齐/不可达缺失项过滤的完整性检查，覆盖原问题触发链路。
+- 发现新的风险：缺段落号证据被保存时默认 paragraph_index=0，可能误显示为“第1段”，需修正（`backend/app/services/agent/tools/explore_tools.py`）。
+- 识别残余风险：不可达缺失项过滤使用关键字匹配，可能误过滤可达内容，需按任务类型细化。
+- 逻辑一致性总体成立：范围解析→搜索过滤→定位禁用跨章→评估过滤形成闭环，但严格段落号仍缺“自动补齐”策略。
+
+---
+
+## 调整不可达缺失项策略（2026-01-19）
+
+### 待办清单
+
+- [x] 增加“明确请求不可达项”识别逻辑
+- [x] 评估阶段：若明确请求且缺失项不可达，标注不可达并提前停止
+- [x] 保持未明确请求场景的过滤策略不变
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 在 `explore_tools.py` 增加显式请求检测，评估逻辑区分“明确请求/未明确请求”，并设置 stop_reason 与缺失项提示。
+
+### review
+
+- 若目标任务明确要求“作者/平台/官网”等不可达项，将标注不可达并终止当前 Explore，避免继续空转（`backend/app/services/agent/tools/explore_tools.py`）。
+- 未明确要求时继续过滤不可达缺失项，保留原止损逻辑（`backend/app/services/agent/tools/explore_tools.py`）。
+
+---
+
+## strict 模式强制补齐段落号（2026-01-19）
+
+### 待办清单
+
+- [x] 复核 strict 模式证据流转与定位逻辑，确定补齐触发点
+- [x] 为缺段落号证据增加强制定位/补齐策略（受范围锁定约束）
+- [x] 限制补齐开销（上限/去重）避免新一轮空转
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 在 `explore_tools.py` strict 模式下对无段落号证据触发 `locate_content` 补齐（同章、禁跨章、限制数量），补齐成功再进入证据/段落流程。
+
+### review
+
+- strict 模式下缺段落号证据将用 snippet/查询词强制触发 locate_content，且禁用跨章降级（`backend/app/services/agent/tools/explore_tools.py`）。
+- 补齐次数受 auto_locate 上限约束，避免 LLM 定位链路失控（`backend/app/services/agent/tools/explore_tools.py`）。
+
+---
+
+## Explore 实测提示词与轨迹验证（2026-01-19）
+
+### 待办清单
+
+- [x] 基于素材输出 2 条严格段落号测试 Prompt
+- [x] 说明预期轨迹与验证点（范围锁定/不可达缺失项/段落号补齐）
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 从《人在诸天，摆烂成帝》前两章构造多目标任务，强制“章节号+段落号”证据，并附预期执行轨迹说明。
+
+### review
+
+- 输出 2 条 strict 模式测试提示词，并标注预期轨迹与验证点（范围锁定、段落号补齐、不可达缺失项处理）。
+
+---
+
+## 生成 5 条复杂 Explore 测试 Prompt（2026-01-19）
+
+### 待办清单
+
+- [x] 基于素材构造 5 条高复杂度任务（多目标+段落号+范围约束）
+- [x] 覆盖 strict 补齐、范围锁定、不可达项终止等场景
+- [x] 输出每条 Prompt 的验证重点
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 以《人在诸天，摆烂成帝》前两章为范围，设计包含“章节号+段落号”证据要求、跨目标验证与不可达项显式请求的复杂测试。
+
+### review
+
+- 基于《人在诸天，摆烂成帝》素材生成 5 条高复杂度测试 Prompt，覆盖 strict 段落号补齐、范围锁定与不可达项终止场景。
+- 每条 Prompt 附验证重点，便于对照 Explore 轨迹。
+
+---
+
+## 修复无段落号证据误显示为第1段（2026-01-19）
+
+### 待办清单
+
+- [x] 追踪证据输出字段的段落号来源，确认默认值写入点
+- [x] 无段落号时保留为 None/缺省，不写入 0
+- [x] 校验前端显示逻辑在缺段落号时不展示“第1段”
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 在 `explore_tools.py` 写入 evidence 时保留 `None`，并确保前端类型允许缺省段落号。
+
+### review
+
+- 段落号空值不再写入 0，避免前端渲染为“第1段”（`backend/app/services/agent/tools/explore_tools.py`）。
+- 前端 evidence meta 在段落号缺失时不展示段落标签（`src/components/agent/ExecutionFlow/ExploreCard.tsx`）。
 
 ---
 
@@ -2625,3 +2873,51 @@ FlowEventBuilder.explore_summary() missing 1 required positional argument: 'next
 ### review
 
 - 输出 2 条轻量 Explore 测试 Prompt，便于快速触发探索并观察 Explore 步骤不展示 step_description 的 UI 行为（`docs/Agent/real-book/人在诸天，摆烂成帝.txt`）。
+
+---
+
+## 将代码上传到GitHub - 第五次（2026-01-19）
+
+### 待办清单
+
+- [x] 查看修改文件详情
+- [x] 暂存所有修改的文件
+- [x] 创建提交
+- [x] 推送到远程仓库 origin/alin3.0
+
+### 当前状态
+
+**分支**：alin3.0
+**远程仓库**：https://github.com/alin776/ai_writer.git
+
+**修改的文件（2个）**：
+- src/components/agent/ExecutionFlow/index.tsx
+- todo.md
+
+### 预期结果
+
+所有修改成功推送到GitHub远程仓库的alin3.0分支。
+
+### review
+
+- **提交哈希**：cb01b65
+- **推送分支**：alin3.0
+- **推送范围**：e1f7327..cb01b65
+- **状态**：✅ 成功推送
+- **修改统计**：2个文件，新增119行，删除7行
+- **主要改动**：
+  - index.tsx：Explore 步骤判定时清空 description，避免与 reason 重复（3行）
+  - todo.md：新增 Explore reason 长度控制与 step_description 隐藏的文档记录（119行）
+- **工作区状态**：干净，与远程分支同步
+- **提交信息**：
+  ```
+  feat: 优化 Explore 步骤展示，隐藏重复的 step_description
+
+  - 前端判定 Explore 步骤时清空 description，避免与 reason 重复显示
+  - 更新文档记录 Explore reason 长度控制方案
+  - 新增 Explore 简单测试 Prompt 说明
+
+  Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+  ```
+
+---

@@ -455,6 +455,7 @@ def _apply_anchor_fields(
 - chapter_id: 章节ID
 - query: 定位描述，如"第三段"、"开头"、"结尾"、具体文本片段
 - nodes_info: [可选] 前端传入的节点列表
+- allow_global_fallback: [可选] 是否允许跨章节全局降级（默认 True）
 
 【输出】：
 - node_id: 节点ID（如果前端传了nodes_info）
@@ -469,6 +470,7 @@ async def locate_content(
     node_id: Optional[str] = None,  # node_id (front-end structural hint)
     before_anchor: Optional[str] = None,  # 兼容参数，避免多余字段导致调用失败
     after_anchor: Optional[str] = None,  # 兼容参数，避免多余字段导致调用失败
+    allow_global_fallback: bool = True,  # 是否允许跨章节全局降级
     user_id: Optional[str] = None
 ) -> str:
     """
@@ -480,6 +482,7 @@ async def locate_content(
         nodes_info: 前端传入的节点列表（JSON字符串）
         before_anchor: 兼容参数（可选）
         after_anchor: 兼容参数（可选）
+        allow_global_fallback: 是否允许跨章节全局降级（默认True）
         user_id: 用户ID
 
     Returns:
@@ -749,7 +752,7 @@ async def locate_content(
             return json.dumps(result, ensure_ascii=False)
 
         # 策略6: 全局降级 - 在整个作品中搜索
-        if work_id:
+        if work_id and allow_global_fallback:
             logger.info(f"[locate_content] 章节内未找到，尝试全局搜索: work_id={work_id}")
             try:
                 async with AsyncSessionLocal() as db:
@@ -843,6 +846,8 @@ async def locate_content(
 
             except Exception as e:
                 logger.warning(f"[locate_content] 全局降级失败: {e}")
+        elif work_id and not allow_global_fallback:
+            logger.info("[locate_content] 全局降级已禁用，跳过跨章节搜索")
 
         # 策略7: 返回段落列表，让调用方选择
         result.update({
