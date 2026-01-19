@@ -280,6 +280,7 @@ class FlowEventBuilder:
         status_text: str,
         evidences: List[Dict[str, Any]],
         review_status: str,
+        reason: str = "",  # AI 生成的决策理由（完整）
         status: str = "done"
     ) -> dict:
         """构建 Explore 轮次事件
@@ -287,13 +288,14 @@ class FlowEventBuilder:
         Args:
             step_id: 步骤ID
             round_idx: 轮次索引（从1开始）
-            title: 轮次标题（如"初次检索与定位"）
+            title: 轮次标题（固定简短标题，如"初次检索与定位"）
             tool_calls: 工具调用列表 [{"type": "Search", "value": "...", "highlight": "..."}]
             hit_count: 命中条数
             missing_items: 缺失项列表（黄色警告）
             status_text: 状态文本（灰色，如"补漏完成"/"覆盖度达标"）
             evidences: 证据片段列表 [{"chapter": 5, "paragraph": 7, "text": "..."}]
             review_status: 审查状态（"覆盖不足"/"补齐要点"/"通过"）
+            reason: AI 生成的决策理由（完整，单独显示）
             status: 轮次状态（"running"/"done"）
         """
         return {
@@ -301,6 +303,7 @@ class FlowEventBuilder:
             "step_id": step_id,
             "round_idx": round_idx,
             "title": title,
+            "reason": reason,  # AI 决策理由（完整）
             "tool_calls": tool_calls,
             "hit_count": hit_count,
             "missing_items": missing_items,

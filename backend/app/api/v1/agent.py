@@ -1493,7 +1493,12 @@ async def agent_chat_stream(
                 while True:
                     # 客户端断开检测（避免后端继续输出）
                     if fastapi_request and await fastapi_request.is_disconnected():
-                        logger.info(f"[Stream] 客户端断开，取消任务 conversation_id={conversation_id}")
+                        logger.info(
+                            "[Stream] 客户端断开，取消任务 "
+                            f"conversation_id={conversation_id} "
+                            f"agent_task_done={agent_task.done() if agent_task else None} "
+                            f"queue_size={event_queue.qsize()}"
+                        )
                         if agent_task and not agent_task.done():
                             agent_task.cancel()
                             try:

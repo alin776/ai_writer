@@ -288,9 +288,21 @@ class HybridRetriever:
         # ========== 3) 合并去重 ==========
         merged: Dict[tuple, Dict[str, Any]] = {}
 
+        def _has_paragraph(item: Dict[str, Any]) -> bool:
+            return item.get("paragraph_index") is not None
+
+        def _should_replace(existing: Dict[str, Any], candidate: Dict[str, Any]) -> bool:
+            existing_has_para = _has_paragraph(existing)
+            candidate_has_para = _has_paragraph(candidate)
+            if candidate_has_para and not existing_has_para:
+                return True
+            if candidate_has_para == existing_has_para:
+                return candidate["similarity"] > existing["similarity"]
+            return False
+
         def _put(item: Dict[str, Any]):
-            key = (item["chapter_order"], item["content"][:80])
-            if key not in merged or item["similarity"] > merged[key]["similarity"]:
+            key = (item["chapter_order"], item.get("content", "")[:80])
+            if key not in merged or _should_replace(merged[key], item):
                 merged[key] = item
 
         for item in formatted_vector:

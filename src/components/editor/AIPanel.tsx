@@ -311,7 +311,7 @@ const TaskList = ({ tasks }: { tasks: TaskSnapshot[] }) => {
                 ) : (
                   <div className="w-3.5 h-3.5 rounded-full border border-current flex-shrink-0" />
                 )}
-                <span className="flex-1 truncate">{task.description}</span>
+                <span className="flex-1 min-w-0 whitespace-normal break-words">{task.description}</span>
                 {task.elapsed_time !== undefined && task.status === 'completed' && (
                   <span className="text-[10px] opacity-60 flex-shrink-0">{task.elapsed_time.toFixed(1)}s</span>
                 )}

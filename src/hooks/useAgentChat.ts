@@ -984,6 +984,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                       stepId: event.stepId,
                       roundIdx: event.roundIdx,
                       title: event.title,
+                      reason: event.reason,  // AI 决策理由（完整）
                       toolCalls: event.toolCalls,
                       hitCount: event.hitCount,
                       missingItems: event.missingItems,

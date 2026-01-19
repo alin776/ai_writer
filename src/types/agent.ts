@@ -611,6 +611,7 @@ export interface ExploreRoundFlowData {
   stepId: number;
   roundIdx: number;
   title: string;
+  reason?: string;  // AI 生成的决策理由（完整）
   toolCalls: ExploreToolCall[];
   hitCount: number;
   missingItems: string[];
@@ -627,7 +628,7 @@ export interface ExploreStats {
   worldview: number;
   chapters: string;    // "1-4"
   evidences: number;
-  coverage: string;    // "95%"
+  coverage: string;    // "充足/覆盖不足/未知"
 }
 
 /**
@@ -650,6 +651,7 @@ export interface ExploreSummaryFlowData {
 export interface ExploreRound {
   id: string;
   title?: string;
+  reason?: string;  // AI 生成的决策理由（完整）
   query?: string;
   search?: {
     query?: string;

@@ -149,78 +149,78 @@ function LegacyRoundCard({ round, index }: { round: ExploreRound; index: number 
           )}
         </div>
 
-        {/* Body - 展开时显示 */}
-        {expanded && (
-          <div className="flex-1 w-fit max-w-full mt-2">
-            {/* 工具标签 */}
-            <div className="flex flex-wrap gap-[6px] w-fit max-w-full">
-              {round.search?.query && (
-                <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-[#888]">
-                  <Search size={12} className="text-gray-500 dark:text-[#888]" />
-                  Search: <span className="text-[#5c9eff] font-medium truncate max-w-[220px] inline-block">{round.search.query}</span>
-                </span>
-              )}
-              {chapterLabel && (
-                <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-[#888]">
-                  <Crosshair size={12} className="text-gray-500 dark:text-[#888]" />
-                  Locate: <span className="text-gray-700 dark:text-[#888]">{chapterLabel}{paragraphLabel ? ` · ${paragraphLabel}` : ''}</span>
-                </span>
-              )}
-              {(round.readRaw?.chapterOrder !== undefined || round.readRaw?.chapterTitle) && (
-                <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-[#888]">
-                  <FileText size={12} className="text-gray-500 dark:text-[#888]" />
-                  ReadRaw: <span className="text-gray-700 dark:text-[#888]">
-                    {round.readRaw?.chapterOrder !== undefined
-                      ? `第${round.readRaw.chapterOrder}章`
-                      : round.readRaw?.chapterTitle}
+          {/* Body - 展开时显示 */}
+          {expanded && (
+            <div className="flex-1 w-fit max-w-full mt-2">
+              {/* 工具标签 */}
+              <div className="flex flex-wrap gap-[6px] w-fit max-w-full">
+                {round.search?.query && (
+                  <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-[#888]">
+                    <Search size={12} className="text-gray-500 dark:text-[#888]" />
+                    Search: <span className="text-[#5c9eff] font-medium truncate max-w-[220px] inline-block">{round.search.query}</span>
                   </span>
-                </span>
-              )}
-              <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-[#888]">
-                <review.icon size={12} className={review.tone} />
-                Review: <span className="text-gray-700 dark:text-[#888]">{review.label}</span>
-              </span>
-            </div>
-
-            {/* 状态信息 */}
-            {hitCount > 0 && (
-              <div className="flex flex-wrap gap-[10px] mt-[6px] text-[11px] text-gray-500 dark:text-[#777] w-fit max-w-full">
-                <span className="text-[#10b981]">命中 {hitCount} 条</span>
-              </div>
-            )}
-
-            {/* 证据片段 */}
-            {round.evidence && round.evidence.length > 0 && (
-              <div className="bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 mt-[6px] text-[12px] text-gray-600 dark:text-[#888] w-fit max-w-full">
-                <div
-                  className="flex items-center gap-[6px] cursor-pointer select-none"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEvidenceExpanded(!evidenceExpanded);
-                  }}
-                >
-                  <span className="text-[11px] text-gray-600 dark:text-[#888]">证据片段（{round.evidence.length}）</span>
-                  <span className="text-[9px] text-gray-400 dark:text-[#666]">{evidenceExpanded ? '∧' : '∨'}</span>
-                </div>
-                {evidenceExpanded && (
-                  <div className="pt-1">
-                    {round.evidence.map((item, idx) => (
-                      <div
-                        key={`${round.id}-evidence-${idx}`}
-                        className={`py-[2px] ${idx > 0 ? 'border-t border-dashed border-gray-200 dark:border-[#3a3a3a]' : ''}`}
-                      >
-                        <div className="text-[10px] text-gray-500 dark:text-[#6f6f6f]">
-                          {renderEvidenceMeta(item)}
-                        </div>
-                        <div className="text-[12px] text-gray-700 dark:text-[#888]">{item.text}</div>
-                      </div>
-                    ))}
-                  </div>
                 )}
+                {chapterLabel && (
+                  <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-[#888]">
+                    <Crosshair size={12} className="text-gray-500 dark:text-[#888]" />
+                    Locate: <span className="text-gray-700 dark:text-[#888]">{chapterLabel}{paragraphLabel ? ` · ${paragraphLabel}` : ''}</span>
+                  </span>
+                )}
+                {(round.readRaw?.chapterOrder !== undefined || round.readRaw?.chapterTitle) && (
+                  <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-[#888]">
+                    <FileText size={12} className="text-gray-500 dark:text-[#888]" />
+                    ReadRaw: <span className="text-gray-700 dark:text-[#888]">
+                      {round.readRaw?.chapterOrder !== undefined
+                        ? `第${round.readRaw.chapterOrder}章`
+                        : round.readRaw?.chapterTitle}
+                    </span>
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-[#888]">
+                  <review.icon size={12} className={review.tone} />
+                  Review: <span className="text-gray-700 dark:text-[#888]">{review.label}</span>
+                </span>
               </div>
-            )}
-          </div>
-        )}
+
+              {/* 状态信息 */}
+              {hitCount > 0 && (
+                <div className="flex flex-wrap gap-[10px] mt-[6px] text-[11px] text-gray-500 dark:text-[#777] w-fit max-w-full">
+                  <span className="text-[#10b981]">命中 {hitCount} 条</span>
+                </div>
+              )}
+
+              {/* 证据片段 */}
+              {round.evidence && round.evidence.length > 0 && (
+                <div className="bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 mt-[6px] text-[12px] text-gray-600 dark:text-[#888] w-fit max-w-full">
+                  <div
+                    className="flex items-center gap-[6px] cursor-pointer select-none"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEvidenceExpanded(!evidenceExpanded);
+                    }}
+                  >
+                    <span className="text-[11px] text-gray-600 dark:text-[#888]">证据片段（{round.evidence.length}）</span>
+                    <span className="text-[9px] text-gray-400 dark:text-[#666]">{evidenceExpanded ? '∧' : '∨'}</span>
+                  </div>
+                  {evidenceExpanded && (
+                    <div className="pt-1">
+                      {round.evidence.map((item, idx) => (
+                        <div
+                          key={`${round.id}-evidence-${idx}`}
+                          className={`py-[2px] ${idx > 0 ? 'border-t border-dashed border-gray-200 dark:border-[#3a3a3a]' : ''}`}
+                        >
+                          <div className="text-[10px] text-gray-500 dark:text-[#6f6f6f]">
+                            {renderEvidenceMeta(item)}
+                          </div>
+                          <div className="text-[12px] text-gray-700 dark:text-[#888]">{item.text}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
       </div>
     </div>
   );
@@ -273,6 +273,7 @@ function ExploreTag({ toolCall }: { toolCall: ExploreToolCall }) {
 export function ExploreRoundCard({
   roundIdx,
   title,
+  reason,  // AI 生成的决策理由（完整）
   toolCalls,
   hitCount,
   missingItems,
@@ -288,7 +289,14 @@ export function ExploreRoundCard({
   const hasReviewTag = (toolCalls || []).some((tc) => tc.type === 'Review');
 
   return (
-    <div className="flex gap-[10px] py-2 items-start">
+    <div className="flex flex-col gap-2 py-2">
+      {/* AI 决策理由（独立显示，在胶囊框上方） */}
+      {reason && (
+        <div className="text-[13px] text-gray-600 dark:text-gray-400 leading-relaxed">
+          {reason}
+        </div>
+      )}
+
       {/* 胶囊容器 - 适配浅色/深色主题 */}
       <div
         className={`
@@ -319,66 +327,66 @@ export function ExploreRoundCard({
           )}
         </div>
 
-        {/* Body - 展开时显示 */}
-        {expanded && (
-          <div className="flex-1 w-fit max-w-full mt-2">
-            {/* 工具标签 - 适配浅色/深色主题 */}
-            <div className="flex flex-wrap gap-[6px] w-fit max-w-full">
-              {toolCalls?.map((tc, idx) => (
-                <ExploreTag key={idx} toolCall={tc} />
-              ))}
-              {reviewStatus && !hasReviewTag && (
-                <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-[#888]">
-                  <review.icon size={12} className={review.tone} />
-                  Review: <span className="text-gray-700 dark:text-[#888]">{review.label}</span>
-                </span>
-              )}
-            </div>
-
-            {/* 状态信息 - 适配浅色/深色主题 */}
-            <div className="flex flex-wrap gap-[10px] mt-[6px] text-[11px] text-gray-500 dark:text-[#777] w-fit max-w-full">
-              {hitCount > 0 && (
-                <span className="text-[#10b981]">命中 {hitCount} 条</span>
-              )}
-              {missingItems && missingItems.length > 0 ? (
-                <span className="text-[#f59e0b]">缺少：{missingItems.join('、')}</span>
-              ) : statusText ? (
-                <span>{statusText}</span>
-              ) : null}
-            </div>
-
-            {/* 证据片段 - 适配浅色/深色主题 */}
-            {evidences && evidences.length > 0 && (
-              <div className="bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 mt-[6px] text-[12px] text-gray-600 dark:text-[#888] w-fit max-w-full">
-                <div
-                  className="flex items-center gap-[6px] cursor-pointer select-none"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEvidenceExpanded(!evidenceExpanded);
-                  }}
-                >
-                  <span className="text-[11px] text-gray-600 dark:text-[#888]">证据片段（{evidences.length}）</span>
-                  <span className="text-[9px] text-gray-400 dark:text-[#666]">{evidenceExpanded ? '∧' : '∨'}</span>
-                </div>
-                {evidenceExpanded && (
-                  <div className="pt-1">
-                    {evidences.map((item, idx) => (
-                      <div
-                        key={`evidence-${idx}`}
-                        className={`py-[2px] ${idx > 0 ? 'border-t border-dashed border-gray-200 dark:border-[#3a3a3a]' : ''}`}
-                      >
-                        <div className="text-[10px] text-gray-500 dark:text-[#6f6f6f]">
-                          {renderEvidenceMeta(item)}
-                        </div>
-                        <div className="text-[12px] text-gray-700 dark:text-[#888]">{item.text}</div>
-                      </div>
-                    ))}
-                  </div>
+          {/* Body - 展开时显示 */}
+          {expanded && (
+            <div className="flex-1 w-fit max-w-full mt-2">
+              {/* 工具标签 - 适配浅色/深色主题 */}
+              <div className="flex flex-wrap gap-[6px] w-fit max-w-full">
+                {toolCalls?.map((tc, idx) => (
+                  <ExploreTag key={idx} toolCall={tc} />
+                ))}
+                {reviewStatus && !hasReviewTag && (
+                  <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-[#888]">
+                    <review.icon size={12} className={review.tone} />
+                    Review: <span className="text-gray-700 dark:text-[#888]">{review.label}</span>
+                  </span>
                 )}
               </div>
-            )}
-          </div>
-        )}
+
+              {/* 状态信息 - 适配浅色/深色主题 */}
+              <div className="flex flex-wrap gap-[10px] mt-[6px] text-[11px] text-gray-500 dark:text-[#777] w-fit max-w-full">
+                {hitCount > 0 && (
+                  <span className="text-[#10b981]">命中 {hitCount} 条</span>
+                )}
+                {missingItems && missingItems.length > 0 ? (
+                  <span className="text-[#f59e0b]">缺少：{missingItems.join('、')}</span>
+                ) : statusText ? (
+                  <span>{statusText}</span>
+                ) : null}
+              </div>
+
+              {/* 证据片段 - 适配浅色/深色主题 */}
+              {evidences && evidences.length > 0 && (
+                <div className="bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 mt-[6px] text-[12px] text-gray-600 dark:text-[#888] w-fit max-w-full">
+                  <div
+                    className="flex items-center gap-[6px] cursor-pointer select-none"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEvidenceExpanded(!evidenceExpanded);
+                    }}
+                  >
+                    <span className="text-[11px] text-gray-600 dark:text-[#888]">证据片段（{evidences.length}）</span>
+                    <span className="text-[9px] text-gray-400 dark:text-[#666]">{evidenceExpanded ? '∧' : '∨'}</span>
+                  </div>
+                  {evidenceExpanded && (
+                    <div className="pt-1">
+                      {evidences.map((item, idx) => (
+                        <div
+                          key={`evidence-${idx}`}
+                          className={`py-[2px] ${idx > 0 ? 'border-t border-dashed border-gray-200 dark:border-[#3a3a3a]' : ''}`}
+                        >
+                          <div className="text-[10px] text-gray-500 dark:text-[#6f6f6f]">
+                            {renderEvidenceMeta(item)}
+                          </div>
+                          <div className="text-[12px] text-gray-700 dark:text-[#888]">{item.text}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
       </div>
     </div>
   );
@@ -393,9 +401,19 @@ export function ExploreSummaryCard({
   summary,
   nextAction,
   nextTool,
+  sufficient,
+  coverage,
   stats,
 }: ExploreSummaryFlowData) {
   const [expanded, setExpanded] = useState(true);
+  const isSufficient = sufficient === true;
+  const isInsufficient = sufficient === false;
+  const CoverageIcon = isInsufficient ? AlertTriangle : isSufficient ? CheckCircle : Clock;
+  const coverageTone = isInsufficient
+    ? 'text-[#f59e0b]'
+    : isSufficient
+      ? 'text-[#10b981]'
+      : 'text-gray-500 dark:text-[#888]';
 
   return (
     <div className="mt-3 mb-3">
@@ -433,6 +451,21 @@ export function ExploreSummaryCard({
                 </div>
                 <div className="text-[12px] text-gray-600 dark:text-[#999] leading-[1.7] pl-[18px]">
                   {summary}
+                </div>
+              </div>
+            )}
+
+            {/* 覆盖度说明 */}
+            {coverage && (
+              <div className="mb-[10px]">
+                <div className="flex items-center gap-[6px] mb-1">
+                  <span className="text-gray-500 dark:text-[#888] flex items-center">
+                    <Brain size={12} />
+                  </span>
+                  <span className="text-[12px] text-gray-600 dark:text-[#888] font-medium">覆盖度说明</span>
+                </div>
+                <div className="text-[12px] text-gray-600 dark:text-[#999] leading-[1.7] pl-[18px]">
+                  {coverage}
                 </div>
               </div>
             )}
@@ -481,9 +514,11 @@ export function ExploreSummaryCard({
                 )}
                 {stats.coverage && (
                   <div className="flex items-center gap-1 px-[6px] py-[2px] bg-gray-100 dark:bg-[#222] rounded text-[11px]">
-                    <CheckCircle size={11} className="text-[#10b981]" />
+                    <span className={coverageTone}>
+                      <CoverageIcon size={11} />
+                    </span>
                     <span className="text-gray-600 dark:text-[#666]">覆盖度</span>
-                    <span className="text-[#10b981] font-medium">{stats.coverage}</span>
+                    <span className={`${coverageTone} font-medium`}>{stats.coverage}</span>
                   </div>
                 )}
               </div>

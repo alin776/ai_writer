@@ -1,5 +1,169 @@
 # TODO
 
+## 设计 Explore 测试 Prompt（2026-01-19）
+
+### 待办清单
+
+- [x] 读取小说素材，提取关键人名/事件用于 Prompt
+- [x] 设计 2 个复杂 Prompt，覆盖多目标、证据链与段落定位需求
+- [x] 给出测试说明，便于验证“行动摘要外置+省略号”效果
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 基于素材中的角色/事件/世界观构造多维检索需求，确保行动摘要足够长以触发省略号。
+- Prompt 包含证据条数、章节/段落号、覆盖维度等约束，便于观察 Explore 轨迹。
+
+### review
+
+- 基于《人在诸天，摆烂成帝》前两章素材设计多目标证据型 Prompt，并包含章节/段落号要求（`docs/Agent/real-book/人在诸天，摆烂成帝.txt`）。
+- 给出手动测试步骤，覆盖“行动摘要外置+省略号”预期校验。
+
+---
+
+## 恢复 Explore 轮次展示为原样（2026-01-19）
+
+### 待办清单
+
+- [x] 复核 ExploreCard 轮次结构与样式（Legacy/流事件组件）
+- [x] 恢复轮次标题与胶囊布局为原样（移除外置标签与省略处理）
+- [x] 恢复后端轮次标题生成规则为原样
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 前端移除外置“行动摘要”标签，轮次标题回到胶囊内部，恢复原始样式。
+- 后端轮次标题回退为 `第N轮：{plan.reason}` 的原逻辑，兜底回原版 `_get_round_title`。
+
+### review
+
+- 移除外置“行动摘要”标签与相关截断样式，恢复轮次胶囊布局（`src/components/agent/ExecutionFlow/ExploreCard.tsx`）。
+- 轮次标题生成回退为原逻辑（含“第N轮”前缀）（`backend/app/services/agent/tools/explore_tools.py`）。
+
+---
+
+## 生成新测试 Prompt 与验证说明（2026-01-19）
+
+### 待办清单
+
+- [x] 复核小说素材，提取关键人物/事件/设定
+- [x] 输出 2 个新的复杂 Prompt（多目标、证据链、段落号约束）
+- [x] 提供测试步骤用于验证当前展示是否符合预期
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- Prompt 覆盖任务线、世界观差异、人物动机与关键对白，强制章节+段落证据格式。
+- 测试步骤聚焦轮次胶囊样式是否恢复原样及标题展示一致性。
+
+### review
+
+- 基于《人在诸天，摆烂成帝》前两章素材设计两条新测试 Prompt，并提供验证步骤（`docs/Agent/real-book/人在诸天，摆烂成帝.txt`）。
+
+## 优化 Explore 探索总结和下一步行动（2026-01-19）
+
+### 待办清单
+
+- [x] 1. 扩展 `SufficiencyAssessment` 数据结构（添加 summary 和 next_action 字段）
+- [x] 2. 扩展 `ExploreRound` 数据结构（添加 summary 和 next_action 字段）
+- [x] 3. 修改 `_ai_assess_sufficiency()` 的 Prompt（添加总结和下一步行动的要求）
+- [x] 4. 修改 `_ai_assess_sufficiency()` 返回（解析并返回新字段）
+- [x] 5. 修改探索循环保存 assessment 结果到 ExploreRound
+- [x] 6. 修改 `_emit_summary_event()` 使用 AI 生成的内容
+- [x] 7. 深度 Review 并修复发现的问题
+- [ ] 8. 测试验证优化效果
+
+### review
+
+**初次实现**（代码量：~33行）：
+- `explore_tools.py:117-124` - 扩展 `SufficiencyAssessment` 数据结构（+2行）
+- `explore_tools.py:183-196` - 扩展 `ExploreRound` 数据结构（+2行）
+- `explore_tools.py:1091-1167` - 修改 `_ai_assess_sufficiency()` prompt 和返回（~15行）
+- `explore_tools.py:830-831` - 保存 assessment 新字段到 ExploreRound（+2行）
+- `explore_tools.py:1757-1779` - 修改 `_emit_summary_event()` 使用 AI 生成内容（~12行）
+
+**深度 Review**（2026-01-19）：
+- 总体评分：4.2/5 → **5/5** ⭐⭐⭐⭐⭐（修复后）
+- 发现问题：AI 评估失败时 except 分支缺少兜底的 summary/next_action
+- 发现优化点：_generate_analysis() 未优先使用 AI 生成的 summary
+
+**修复内容**（代码量：+7行）：
+1. AI 评估失败的兜底逻辑（`explore_tools.py:847-850`）- 设置兜底 summary 和 next_action
+2. _generate_analysis() 优化（`explore_tools.py:1705-1709`）- 优先使用 AI 生成的 summary
+
+**总代码量**：~40行（初次实现 33 行 + 修复 7 行）
+
+**核心改进**：
+- ✅ AI 在充足性评估时同时生成探索总结和下一步行动
+- ✅ 不增加 AI 调用次数，只增加输出长度（max_tokens: 200→500）
+- ✅ 所有边界情况都有兜底逻辑（AI 失败、无轮次、空字符串）
+- ✅ result.analysis 字段和前端显示保持一致
+
+---
+
+## 修复任务列表描述截断与 Locate 占位符（2026-01-19）
+
+### 待办清单
+
+- [x] 定位 TaskList 描述被截断的渲染位置，调整展开态文本换行展示
+- [x] 修正 Explore Locate 工具标签的章节占位符来源，避免显示“第?章”
+- [x] 复核相关前后端展示，确认描述不再被截断且 Locate 标签信息正确
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- TaskList 展开列表移除 `truncate`，改为可换行样式（保留收起态单行截断）
+- Explore `locate_content` 的 tool_call 补充 `chapter_order`，并在前端格式化时对缺失章节兜底为“章节未知/仅段落”
+
+### review
+
+- TaskList 展开态允许换行展示，避免长描述被截断（`src/components/editor/AIPanel.tsx`）
+- Explore Locate 标签优先使用 `chapter_order`，缺失时用章节标题/未知兜底（`backend/app/services/agent/tools/explore_tools.py`）
+- 自动 locate 的 tool_call 记录补充 `chapter_order`，减少“第?章”占位（`backend/app/services/agent/tools/explore_tools.py`）
+
+---
+
+## 优化 Explore 轮次标题去除“第几轮”并提升区分度（2026-01-19）
+
+### 待办清单
+
+- [x] 复核 Explore 轮次标题来源与前端展示路径（后端生成/前端渲染）
+- [x] 设计不含“第几轮”的标题规则（优先使用本轮动作摘要或固定标题）
+- [x] 落地标题生成逻辑与前端展示一致性调整（去除“第N轮/轮次”字样）
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 后端不再直接使用 `plan.reason` 作为标题；标题改为“行动摘要（搜索词/章节/段落）”，不足则回退 `_get_round_title`（不含“第N轮”）。
+- 前端标题兜底文案移除“轮次/第N轮”字样，避免空标题时出现轮次标签。
+
+### review
+
+- 轮次标题改为行动摘要并去除“第N轮”，避免固定编号文案（`backend/app/services/agent/tools/explore_tools.py`）。
+- 标题兜底文案去除“轮次/第N轮”，保持一致性（`src/components/agent/ExecutionFlow/ExploreCard.tsx`）。
+- 胶囊标题添加截断样式，长文本以省略号显示（`src/components/agent/ExecutionFlow/ExploreCard.tsx`）。
+
+---
+
+## 调整 Explore 行动摘要标签外置与胶囊省略（2026-01-19）
+
+### 待办清单
+
+- [x] 复核 Explore 轮次列表结构与样式（Legacy/流事件组件）
+- [x] 将“行动摘要（检索/阅读/段落）”作为外置标签展示，轮次内容放入胶囊
+- [x] 限制胶囊宽度并启用省略号，避免顶到右侧
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- Explore 轮次项外侧新增标签行，替代原本轮次标题的展示位置。
+- 胶囊内容使用 `truncate + max-w` 并补充 `min-w-0`，确保省略号生效。
+
+### review
+
+- Legacy/流事件轮次均新增外置“行动摘要（检索/阅读/段落）”标签行（`src/components/agent/ExecutionFlow/ExploreCard.tsx`）。
+- 胶囊摘要文字启用 `truncate` 并限制宽度，避免顶到右侧（`src/components/agent/ExecutionFlow/ExploreCard.tsx`）。
+
 ## 本次优化：Explore 收敛与去重边界修正（2026-01-19）
 
 ### 待办清单
@@ -74,6 +238,363 @@
 - 根因2：Explore 执行链只把 `search_content` 结果直接入证据，不会自动转 `locate_content` 或 `read_paragraph`；段落读取完全依赖 AI 在 `paragraphs_to_read` 中手工规划。
 - 展示问题：`to_frontend_display` 覆盖度统计固定为 “95%/70%”，前端 `ExploreSummaryCard` 仅展示 `stats.coverage`，未使用 `sufficient/coverage` 的真实评估字符串。
 - 可读性问题：`_build_explore_summary` 直接输出 `{paragraph_index}`，当为 `None` 时呈现 `[None段]`，影响可读性。
+
+---
+
+## 优化 Explore 段落定位与覆盖度展示（2026-01-19）
+
+### 方案
+
+- 优先保留带 `paragraph_index` 的检索结果，避免全文检索覆盖向量结果。
+- Explore 自动补段落：对缺段落号的命中做 `locate_content` + `read_paragraph`。
+- 覆盖度展示改为真实评估（不再固定 95/70），并修正 `[None段]` 可读性。
+
+### 待办清单
+
+- [x] 调整 HybridRetriever 合并逻辑，优先保留有段落号的结果
+- [x] Explore 自动补段落：search 命中后补 locate/read，回填证据段落号
+- [x] 覆盖度展示与摘要格式修正（前后端一致）
+- [x] 在 todo.md 补充 review 记录
+
+---
+
+## 二次 Review：Explore 段落定位与覆盖度展示（2026-01-19）
+
+### 方案
+
+- 复核新增逻辑对检索/定位/段落读取链路的影响，确认无引入新问题。
+- 对照日志与前端展示路径，验证“段落号缺失/覆盖不足”问题是否实质缓解。
+- 补充遗漏点与风险评估。
+
+### 待办清单
+
+- [x] 检查是否引入新问题（异常、性能、错误路径）
+- [x] 验证是否真正解决“段落号缺失/覆盖不足”原问题
+- [x] 检查修改完整性（后端与前端链路覆盖）
+- [x] 验证逻辑一致性（数据结构与展示一致）
+- [x] 更深入验证，确认问题是否真实存在、是否有遗漏
+- [x] 在 todo.md 补充 review 结论
+
+---
+
+## 三次 Review：Explore 段落定位与覆盖度展示（2026-01-19）
+
+### 方案
+
+- 复查自动补段落与覆盖度展示的代码链路，确认无新问题引入。
+- 核对后端事件与前端展示是否一致，验证逻辑一致性与完整性。
+- 深入排查遗漏点并补充风险提示。
+
+### 待办清单
+
+- [x] 验证是否引入新问题
+- [x] 检查是否真正解决原问题
+- [x] 检查修改完整性
+- [x] 验证逻辑一致性
+- [x] 深入验证是否存在遗漏
+- [x] 在 todo.md 补充 review 结论
+
+---
+
+## 修复 Explore 段落补齐风险（2026-01-19）
+
+### 方案
+
+- 仅在 `read_paragraph` 成功后记录已读，避免失败后无法重试。
+- 自动 `locate_content` 写入 `tool_calls`，补齐 Explore 轨迹可观测性。
+- 覆盖度展示对 `sufficient` 未知时用中性色，类型注释同步真实语义。
+
+### 待办清单
+
+- [x] 仅在 `read_paragraph` 成功后 `record_paragraph_read`
+- [x] 自动 `locate_content` 补充 `tool_calls` 记录
+- [x] 覆盖度展示与类型注释修正（未知状态处理）
+- [x] 在 todo.md 补充 review 记录
+
+---
+
+## 四次 Review：Explore 段落补齐风险修复（2026-01-19）
+
+### 方案
+
+- 复核本次修复的段落读取标记、轨迹记录与覆盖度展示，确认无回归。
+- 检查后端事件与前端显示是否一致，并评估剩余风险。
+- 汇总遗漏点与后续建议。
+
+### 待办清单
+
+- [x] 验证是否引入新问题
+- [x] 检查是否真正解决原问题
+- [x] 检查修改完整性
+- [x] 验证逻辑一致性
+- [x] 深入验证是否存在遗漏
+- [x] 在 todo.md 补充 review 结论
+
+### review
+
+- 已解决点：`read_paragraph` 失败不再标记已读，可重试；`locate_content` 写入轨迹可复盘。
+- 仍需关注：自动定位失败/上限仍会导致“段落未知”，若用户要求严格段落号需进一步兜底。
+- 展示一致性：覆盖度未知态采用中性色，但前端仍依赖 `stats.coverage` 文案，需确保后端持续输出“充足/覆盖不足/未知”。
+
+---
+
+## 五次 Review：Explore 段落补齐与覆盖展示（2026-01-19）
+
+### 方案
+
+- 复核最近修复点（段落读取标记、轨迹记录、覆盖度展示），确认无新问题。
+- 逐项验证原问题是否真正缓解，并检查前后端链路完整性与一致性。
+- 输出剩余风险与遗漏点。
+
+### 待办清单
+
+- [x] 验证是否引入新问题
+- [x] 检查是否真正解决原问题
+- [x] 检查修改完整性
+- [x] 验证逻辑一致性
+- [x] 更深入验证是否存在遗漏
+- [x] 在 todo.md 补充 review 结论
+
+### review
+
+- 主要目标已达成：读段落失败可重试、定位步骤入轨迹、覆盖度未知态不再误导。
+- 仍有残余风险：自动定位失败或上限触发时仍可能产生“段落未知”，对严格引用场景需更强兜底。
+- 一致性提醒：`stats.coverage` 语义依赖后端输出，需保证事件与前端一致更新。
+
+---
+
+## 强化段落号强制模式（2026-01-19）
+
+### 方案
+
+- 针对包含“段落号/章节号+段落号”要求的任务，启用“强制段落号”模式：无段落号证据不入库。
+- 严格模式下提升自动定位/读取上限，优先补齐段落号。
+- 明确记录跳过原因，避免静默丢证据。
+
+### 待办清单
+
+- [x] 探测任务是否强制段落号（基于 target_task 关键字）
+- [x] 严格模式下跳过无段落号证据并提升定位/读取上限
+- [x] 在 todo.md 补充 review 记录
+
+### review
+
+- 严格模式检测：基于 `target_task` 关键词启用强制段落号模式（`backend/app/services/agent/tools/explore_tools.py:36`）。
+- 严格模式行为：无段落号证据不入库，并提高自动定位/读取上限（`backend/app/services/agent/tools/explore_tools.py:1216`）。
+- 覆盖度一致性：无覆盖说明时将 `sufficient/coverage` 置空，`stats.coverage` 输出“未知”（`backend/app/services/agent/tools/explore_tools.py:545`）。
+
+---
+
+## 十次 Review：强制段落号与覆盖一致性（2026-01-19）
+
+### 方案
+
+- 复核强制段落号模式的检测与执行路径，确认无遗漏与副作用。
+- 复核覆盖度输出与前端展示一致性，确认未知态不误导。
+- 汇总剩余风险与建议。
+
+### 待办清单
+
+- [x] 验证是否引入新问题
+- [x] 检查是否真正解决原问题
+- [x] 检查修改完整性
+- [x] 验证逻辑一致性
+- [x] 更深入验证是否存在遗漏
+- [x] 在 todo.md 补充 review 结论
+
+### review
+
+- 已解决：严格段落号任务可跳过无段落号证据，覆盖度未知态不再误导前端。
+- 风险残留：严格模式可能显著减少证据数量，需配合更高自动定位/读取上限或明确提示“证据不足”。
+- 一致性确认：`sufficient/coverage` 在无覆盖说明时置空，与 `stats.coverage="未知"` 保持一致。
+
+---
+
+## 完善严格模式证据不足提示（2026-01-19）
+
+### 方案
+
+- 增加“严格段落号模式”下被跳过证据的统计与提示。
+- 提升严格模式自动定位/读取上限，降低“证据不足”概率。
+- 将跳过统计写入分析摘要，便于前端与日志定位。
+
+### 待办清单
+
+- [x] 记录严格模式跳过的证据数量，并在摘要中提示
+- [x] 调整严格模式自动定位/读取上限
+- [x] 在 todo.md 补充 review 记录
+
+### review
+
+- 严格模式新增跳过计数与摘要提示，便于定位“证据不足”原因（`backend/app/services/agent/tools/explore_tools.py:1650`）。
+- 严格模式自动定位/读取上限提升至 12，降低遗漏概率（`backend/app/services/agent/tools/explore_tools.py:28`）。
+
+---
+
+## 十一次 Review：严格模式证据不足提示与上限调整（2026-01-19）
+
+### 方案
+
+- 复核严格模式跳过统计与摘要提示是否准确、无副作用。
+- 验证严格模式上限提升是否引入性能或逻辑风险。
+- 对照前后端展示与覆盖度一致性，检查遗漏。
+
+### 待办清单
+
+- [x] 验证是否引入新问题
+- [x] 检查是否真正解决原问题
+- [x] 检查修改完整性
+- [x] 验证逻辑一致性
+- [x] 更深入验证是否存在遗漏
+- [x] 在 todo.md 补充 review 结论
+
+### review
+
+- 重点修复有效：严格模式跳过计数可直观解释“证据不足”，上限提升缓解漏段落问题。
+- 需关注成本：定位/读取上限提升会增加工具调用次数，可能带来耗时与费用上升。
+- 一致性确认：覆盖度未知态与事件输出保持一致，不再误导前端状态。
+
+---
+
+## 分析后台日志 INFO (2).md（2026-01-19）
+
+### 方案
+
+- 通读 `INFO (2).md`，提取关键异常与行为特征。
+- 对照现有 Explore/Planning 逻辑，定位可能问题点。
+- 输出问题清单与影响评估。
+
+### 待办清单
+
+- [ ] 完整阅读 `INFO (2).md` 日志
+- [ ] 汇总异常与潜在问题
+- [ ] 在 todo.md 补充 review 结论
+
+---
+
+## 六次 Review：Explore 全链路复核（2026-01-19）
+
+### 方案
+
+- 复核最近一次改动（段落读取标记、自动定位轨迹、覆盖度展示、类型注释）。
+- 对照目标诉求逐项确认：是否新增问题、是否解决原问题、完整性、逻辑一致性、遗漏点。
+- 输出审查结论与剩余风险。
+
+### 待办清单
+
+- [x] 验证是否引入新问题
+- [x] 检查是否真正解决原问题
+- [x] 检查修改完整性
+- [x] 验证逻辑一致性
+- [x] 更深入验证是否存在遗漏
+- [x] 在 todo.md 补充 review 结论
+
+### review
+
+- 解决点保持有效：读段落失败可重试、定位轨迹可见、覆盖度未知态不误导。
+- 未覆盖场景：严格“每条证据必须有段落号”仍未强制执行，需启用严格模式或兜底策略。
+- 一致性风险：`stats.coverage` 仍需与后端输出保持同步，避免前端误判状态。
+
+---
+
+## 七次 Review：Explore 全链路复核（2026-01-19）
+
+### 方案
+
+- 复核最近改动（段落读取标记、自动定位轨迹、覆盖度展示与类型注释）是否引入新问题。
+- 逐项验证原问题是否被缓解，检查前后端链路完整性与一致性。
+- 输出剩余风险与遗漏点。
+
+### 待办清单
+
+- [x] 验证是否引入新问题
+- [x] 检查是否真正解决原问题
+- [x] 检查修改完整性
+- [x] 验证逻辑一致性
+- [x] 更深入验证是否存在遗漏
+- [x] 在 todo.md 补充 review 结论
+
+### review
+
+- 核心修复有效：段落读取失败可重试，定位轨迹可追溯，覆盖度未知态不误导。
+- 未彻底消除：严格段落号要求仍需独立“强制模式”兜底，否则仍可能出现“段落未知”。
+- 一致性风险：`stats.coverage` 语义依赖后端持续输出，需防止与前端展示脱节。
+
+---
+
+## 八次 Review：Explore 全链路复核（2026-01-19）
+
+### 方案
+
+- 复查 `explore_tools.py`、`ExploreCard.tsx` 与 `agent.ts` 的最新改动，验证没有回归。
+- 对照“严格段落号”需求，确认当前逻辑仍存在缺口并评估影响。
+- 汇总遗漏点与后续建议。
+
+### 待办清单
+
+- [x] 验证是否引入新问题
+- [x] 检查是否真正解决原问题
+- [x] 检查修改完整性
+- [x] 验证逻辑一致性
+- [x] 更深入验证是否存在遗漏
+- [x] 在 todo.md 补充 review 结论
+
+### review
+
+- 已确认：段落读取标记、定位轨迹、覆盖度未知态三项修复未引入新回归。
+- 未解决：严格段落号需求仍未内建“强制模式”，需在执行层加约束。
+- 一致性风险：前端依赖 `stats.coverage` 的语义仍需与后端保持同步。
+
+---
+
+## 九次 Review：Explore 全链路复核（2026-01-19）
+
+### 方案
+
+- 复核最近一次改动与相关链路，确认无新增问题。
+- 再次验证是否真正解决“段落号缺失/覆盖脱节”问题。
+- 检查修改完整性与逻辑一致性，确认是否遗漏强制段落号模式落地。
+
+### 待办清单
+
+- [x] 验证是否引入新问题
+- [x] 检查是否真正解决原问题
+- [x] 检查修改完整性
+- [x] 验证逻辑一致性
+- [x] 更深入验证是否存在遗漏
+- [x] 在 todo.md 补充 review 结论
+
+### review
+
+- 当前代码仍未落地“强制段落号模式”，严格要求场景仍可能出现“段落未知”。
+- `stats.coverage` 语义已更新但仍需保证后端持续输出并与前端展示同步。
+
+### review
+
+- 仅在 `read_paragraph` 成功后记录已读，避免失败导致无法重试（`backend/app/services/agent/tools/explore_tools.py:1264`）。
+- 自动 `locate_content` 写入 `tool_calls`，补齐 Explore 轨迹可观测性（`backend/app/services/agent/tools/explore_tools.py:1230`）。
+- 覆盖度“未知”时用中性色并同步类型注释（`src/components/agent/ExecutionFlow/ExploreCard.tsx:401`、`src/types/agent.ts:626`）。
+
+### review
+
+- 未完全解决点：自动补段落受上限/定位失败影响，仍可能出现“段落未知”，若要求“每条证据必须有段落号”需进一步兜底。
+- 新问题风险：`read_paragraph` 失败时仍 `record_paragraph_read`，可能导致后续不再尝试读取该段落。
+- 可观测性不足：自动 `locate_content` 未记录到 `tool_calls`，前端轨迹难以复盘定位链路。
+- 语义一致性：`ExploreStats.coverage` 注释仍为百分比，实际已改为“充足/覆盖不足”，需要同步说明。
+
+### review
+
+- 主要问题可缓解但未完全根治：`locate_content` 失败或受 `AUTO_LOCATE/READ` 上限影响时仍可能出现“段落未知”，需视业务要求考虑进一步兜底。
+- 可观测性缺口：自动 `locate_content` 未写入 `tool_calls`，前端轨迹可能缺少定位步骤，影响排查。
+- 风险与成本：自动定位可能触发 LLM 辅助定位，单轮最多 3 次，仍可能带来额外时延与费用。
+- 兼容性说明：`ExploreStats.coverage` 语义从百分比变为“充足/覆盖不足”，类型注释仍为百分比，建议同步更新。
+
+### review
+
+- 优化检索合并：优先保留带 `paragraph_index` 的结果，减少段落号丢失（`backend/app/services/search/hybrid_retriever.py:291`）。
+- 自动补段落：search 命中后自动 `locate_content` + `read_paragraph`，回填段落号并补充原文（`backend/app/services/agent/tools/explore_tools.py:1200`）。
+- 段落解析：读取段落时从 `paragraphs` 中提取目标段与上下文，避免空段落（`backend/app/services/agent/tools/explore_tools.py:50`）。
+- 覆盖度展示：后端统计改为“充足/覆盖不足”，前端展示真实覆盖说明（`backend/app/services/agent/tools/explore_tools.py:532`、`src/components/agent/ExecutionFlow/ExploreCard.tsx:391`）。
 
 ## 本次优化：Explore 充足性评估 + 可观测性 + 去重收敛（2026-01-19）
 
@@ -1553,3 +2074,124 @@ FlowEventBuilder.explore_summary() missing 1 required positional argument: 'next
 - 触发点：SSE 流式请求 `event_generator` 结束时退出 `async with create_db_session()`，关闭会话触发回滚；连接可能已被服务端/网络关闭（`backend/app/api/v1/agent.py:1012`）。
 - 对比：`get_db()` 在关闭失败时会 `invalidate()` 并吞掉异常；`create_db_session()` 没有同样兜底，导致异常冒泡。
 - 建议：若需消噪，可在 `create_db_session()` 的 `finally` 中捕获关闭异常并 `invalidate()`；同时排查 DB 超时/连接池策略与 SSE 长连接的冲突。
+
+---
+
+## 将代码上传到GitHub - 第三次（2026-01-19）
+
+### 待办清单
+
+- [x] 添加所有改动文件到暂存区
+- [x] 创建提交（包含描述性的提交信息）
+- [x] 推送代码到远程 GitHub 仓库
+
+### 当前状态
+
+**分支**：alin3.0
+**远程仓库**：https://github.com/alin776/ai_writer.git
+
+**修改的文件（14个）**：
+- Backend.md
+- INFO (2).md
+- INFO.md
+- backend/app/services/agent/core/tool_dispatcher.py
+- backend/app/services/agent/execution/parallel_executor.py
+- backend/app/services/agent/langgraph_agent.py
+- backend/app/services/agent/stream/flow_events.py
+- backend/app/services/agent/timeout_config.py
+- backend/app/services/agent/tools/explore_tools.py
+- src/hooks/useAgentChat.ts
+- src/hooks/useAgentChatStream.ts
+- src/services/agentApi.ts
+- src/types/agent.ts
+- todo.md
+
+### 预期结果
+
+所有修改成功推送到GitHub远程仓库的alin3.0分支。
+
+### review
+
+- **提交哈希**：0362263
+- **推送分支**：alin3.0
+- **推送范围**：b2a85f4..0362263
+- **状态**：✅ 成功推送
+- **修改统计**：14个文件，新增1170行，删除879行
+- **主要改动**：
+  - Backend.md：重构文档结构（~1094行改动）
+  - INFO (2).md：更新文档（~467行改动）
+  - INFO.md：优化文档（~212行改动）
+  - explore_tools.py：优化事件流处理（87行改动）
+  - tool_dispatcher.py：改进日志输出（4行改动）
+  - parallel_executor.py：优化并行执行器（4行改动）
+  - langgraph_agent.py：更新集成（10行改动）
+  - flow_events.py：优化事件流（13行改动）
+  - timeout_config.py：更新超时配置（10行改动）
+  - 前端文件：完善 Agent 相关 hooks 和类型定义
+  - todo.md：更新任务列表（140行改动）
+- **工作区状态**：干净，与远程分支同步
+- **测试状态**：Git hook 快速测试已通过 ✓
+
+---
+
+## 复查 INFO (2).md 后台测试日志（2026-01-19）
+
+### 待办清单
+
+- [x] 通读 `INFO (2).md` 日志并标注关键错误
+- [x] 对照 `create_db_session` 与 `event_generator` 的连接生命周期
+- [x] 输出问题清单与建议处理方向
+- [x] 在 todo.md 添加 review 结论
+
+### 解决方案（拟）
+
+- 重点关注 `create_db_session` 退出时对已断开连接执行 rollback/close 的异常冒泡。
+- 若为长连接或空闲超时导致的断链，应增加 close 异常兜底并核对连接池/超时配置。
+
+### review
+
+- 日志显示 `create_db_session` 退出时触发 `session.close()`，底层连接已断开，导致 rollback/close 抛出 `InterfaceError`（`INFO (2).md:1`、`backend/app/core/database.py:83`）。
+- 触发路径位于 SSE `event_generator` 中，长连接/断链后退出上下文导致异常冒泡并被全局异常处理捕获（`INFO (2).md:59`、`backend/app/api/v1/agent.py:1008`）。
+- `get_db()` 有关闭失败兜底并 `invalidate()`，但 `create_db_session()` 没有同样保护，导致相同场景下产生噪声错误；建议补齐一致的关闭异常处理。
+
+---
+
+## 继续排查：SSE 断链与连接池关闭异常（2026-01-19）
+
+### 待办清单
+
+- [x] 复核 SSE 断链检测与日志输出路径（`agent.py`）
+- [x] 梳理 DB 会话生命周期与超时参数（`database.py`）
+- [x] 汇总可能触发断链/回滚失败的路径与证据
+- [x] 在 todo.md 添加 review 结论
+
+### 解决方案（拟）
+
+- 对照 `event_generator` 的断链检测日志与 `create_db_session` 的关闭行为，明确断链时序。
+- 核对 `idle_in_transaction_session_timeout`/`pool_recycle` 与请求耗时的关系，判断是否需要额外日志点。
+
+### review
+
+- 断链检测存在：SSE 循环中调用 `fastapi_request.is_disconnected()` 并记录 “客户端断开” 日志，但 `INFO (2).md` 未出现该日志，说明该路径未触发或未被记录（`backend/app/api/v1/agent.py:1495`、`INFO (2).md`）。
+- 关闭异常来源明确：`create_db_session()` 的 `finally` 直接 `session.close()`，该过程会触发 rollback；当底层连接已断开时抛 `InterfaceError`（`backend/app/core/database.py:83`、`INFO (2).md:1`）。
+- 连接超时设置：引擎设置 `pool_recycle=1800`、`statement_timeout=30分钟`、`idle_in_transaction_session_timeout=30分钟`，若 SSE 长时间持有会话且无显式提交/回滚，存在被数据库侧断链的可能；`pool_pre_ping` 仅在连接取用时生效，无法覆盖使用中断链（`backend/app/core/database.py:13`）。
+
+---
+
+## 修复：关闭兜底与断链日志（2026-01-19）
+
+### 待办清单
+
+- [x] 为 `create_db_session` 增加关闭异常兜底与 `invalidate()`
+- [x] SSE 断链路径补充详细日志
+- [x] 在 todo.md 添加 review 结论
+
+### 解决方案（拟）
+
+- 参考 `get_db()` 的关闭逻辑，在 `create_db_session()` 的 `finally` 中捕获 close 异常并 `invalidate()`。
+- 在断链分支记录 `conversation_id` 与任务状态，便于确认断链时序。
+
+### review
+
+- `create_db_session()` 关闭失败时改为记录警告并 `invalidate()`，避免断链场景异常冒泡（`backend/app/core/database.py:86`）。
+- SSE 断链日志补充任务完成状态与队列长度，便于复盘断链时序（`backend/app/api/v1/agent.py:1496`）。

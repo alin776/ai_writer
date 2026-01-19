@@ -87,7 +87,11 @@ async def create_db_session():
             await session.rollback()
             raise
         finally:
-            await session.close()
+            try:
+                await session.close()
+            except Exception as e:
+                logger.warning(f"关闭数据库会话时出错: {e}")
+                await session.invalidate()
 
 
 async def init_db():

@@ -25,6 +25,19 @@ from app.services.agent.utils.tool_context import get_stream_event_handler, get_
 logger = logging.getLogger(__name__)
 
 MIN_EVIDENCE_SIMILARITY = 0.35
+AUTO_LOCATE_LIMIT = 3
+AUTO_READ_LIMIT = 3
+AUTO_LOCATE_LIMIT_STRICT = 12
+AUTO_READ_LIMIT_STRICT = 12
+
+PARAGRAPH_REQUIRED_KEYWORDS = (
+    "段落号",
+    "章节号+段落号",
+    "章节号＋段落号",
+    "章节号及段落号",
+    "段落编号",
+    "段落索引",
+)
 
 
 def _truncate_text(text: str, max_len: int = 500) -> str:
@@ -33,6 +46,39 @@ def _truncate_text(text: str, max_len: int = 500) -> str:
     if len(text) <= max_len:
         return text
     return text[:max_len] + "..."
+
+
+def _requires_paragraph_index(target_task: str) -> bool:
+    if not target_task:
+        return False
+    return any(keyword in target_task for keyword in PARAGRAPH_REQUIRED_KEYWORDS)
+
+
+def _extract_read_paragraph(result_data: Dict[str, Any]) -> Tuple[str, List[str], List[str]]:
+    paragraphs = result_data.get("paragraphs", [])
+    if not isinstance(paragraphs, list) or not paragraphs:
+        return "", [], []
+
+    target_index = result_data.get("target_index")
+    target_text = ""
+    context_before = []
+    context_after = []
+
+    for para in paragraphs:
+        if not isinstance(para, dict):
+            continue
+        text = para.get("text", "")
+        if para.get("is_target"):
+            target_text = text
+            continue
+        para_index = para.get("index")
+        if isinstance(target_index, int) and isinstance(para_index, int):
+            if para_index < target_index:
+                context_before.append(text)
+            elif para_index > target_index:
+                context_after.append(text)
+
+    return target_text, context_before, context_after
 
 
 # ==================== AI 服务 ====================
@@ -74,6 +120,8 @@ class SufficiencyAssessment:
     sufficient: bool                  # 是否充足
     coverage: str                     # 覆盖情况描述
     missing: List[str]                # 缺失的信息
+    summary: str = ""                 # 探索总结（AI生成）
+    next_action: str = ""             # 下一步行动（AI生成）
 
 
 # ==================== 数据结构 ====================
@@ -136,13 +184,16 @@ class ToolCall:
 class ExploreRound:
     """单轮探索记录"""
     round_idx: int
-    title: str                   # 轮次标题
+    title: str                   # 轮次标题（固定简短标题）
     tool_calls: List[ToolCall]   # 本轮执行的工具
     new_evidences_count: int     # 本轮新增证据数
     new_paragraphs_count: int    # 本轮新增段落数
     missing_items: List[str]     # 缺失项
     sufficient: bool             # AI 判断是否充足
+    reason: str = ""             # AI 生成的决策理由（完整）
     coverage: str = ""           # AI 覆盖度描述
+    summary: str = ""            # AI 生成的探索总结
+    next_action: str = ""        # AI 生成的下一步行动
     timestamp: datetime = field(default_factory=get_utc_now)
 
 
@@ -171,6 +222,9 @@ class ExploreState:
 
     evidence_keys: Set[str] = field(default_factory=set)
     # 证据去重指纹
+
+    skipped_evidences_strict: int = 0
+    # 严格模式下跳过的证据数
 
     read_paragraph_positions: Set[Tuple[int, int]] = field(default_factory=set)
     # 已读取的段落位置 (chapter_order, paragraph_index)
@@ -234,8 +288,23 @@ class ExploreState:
             key_parts.append(query[:30])
         return ":".join(key_parts)
 
-    def add_evidence(self, result: Dict, query: str, round_idx: int) -> bool:
+    def add_evidence(
+        self,
+        result: Dict,
+        query: str,
+        round_idx: int,
+        require_paragraph_index: bool = False
+    ) -> bool:
         """添加搜索结果（去重 + 相似度过滤）"""
+        if require_paragraph_index and result.get("paragraph_index") is None:
+            text_preview = result.get("snippet", result.get("content", "")) or ""
+            logger.info(
+                "[ContentExplorer] 严格段落号模式跳过证据: query=%s, preview=%s",
+                query,
+                _truncate_text(text_preview, 80)
+            )
+            self.skipped_evidences_strict += 1
+            return False
         similarity = result.get("similarity")
         if isinstance(similarity, (int, float)) and 0 < similarity <= 1:
             if similarity < MIN_EVIDENCE_SIMILARITY:
@@ -437,7 +506,8 @@ def build_context_for_task(result: ExploreResult) -> str:
         if evidences_to_show:
             sections.append("\n## 相关片段\n")
             for e in evidences_to_show[:10]:  # 最多显示 10 条
-                sections.append(f"- [{e.chapter_order}章{e.paragraph_index}段] {e.text}\n")
+                para_label = f"{e.paragraph_index}段" if isinstance(e.paragraph_index, int) else "段落未知"
+                sections.append(f"- [{e.chapter_order}章{para_label}] {e.text}\n")
 
     # 5. AI 分析
     if result.analysis:
@@ -498,7 +568,8 @@ def _build_explore_summary(result: ExploreResult) -> str:
             for e in evidences[:3]:  # 每章最多 3 条
                 # 截断证据文本，避免 summary 过长
                 text_preview = e.text[:200] + "..." if len(e.text) > 200 else e.text
-                summary_parts.append(f"  - [{e.paragraph_index}段] {text_preview}")
+                para_label = f"{e.paragraph_index}段" if isinstance(e.paragraph_index, int) else "段落未知"
+                summary_parts.append(f"  - [{para_label}] {text_preview}")
         summary_parts.append("")
 
     # 5. AI 分析
@@ -512,11 +583,15 @@ def _build_explore_summary(result: ExploreResult) -> str:
 def to_frontend_display(result: ExploreResult) -> Dict[str, Any]:
     """转换为前端展示格式（V2 完整版）"""
     last_round = result.rounds[-1] if result.rounds else None
+    coverage_label = "未知"
+    if last_round and last_round.coverage:
+        coverage_label = "充足" if last_round.sufficient else "覆盖不足"
     return {
         "rounds": [
             {
                 "round_idx": r.round_idx,
                 "title": r.title,
+                "reason": r.reason,  # AI 生成的决策理由（完整）
                 "tool_calls": _format_tool_calls_for_frontend(r),
                 "hit_count": r.new_evidences_count,
                 "missing_items": r.missing_items,
@@ -538,13 +613,13 @@ def to_frontend_display(result: ExploreResult) -> Dict[str, Any]:
             "summary": result.analysis,
             "next_action": "基于这些背景信息，我将执行续写，重点描写收集到的关键情节要素。",
             "next_tool": "",  # 空字符串，前端不显示
-            "sufficient": last_round.sufficient if last_round else False,
-            "coverage": last_round.coverage if last_round else "",
+            "sufficient": last_round.sufficient if last_round and last_round.coverage else None,
+            "coverage": last_round.coverage if last_round and last_round.coverage else "",
             "stats": {
                 "worldview": sum(len(items) for items in result.worldview.values()),
                 "chapters": _format_chapters_range(result.chapters),
                 "evidences": len(result.evidences),
-                "coverage": "95%" if result.rounds and result.rounds[-1].sufficient else "70%"
+                "coverage": coverage_label
             }
         },
         "step_description": "多轮检索-定位-原文读取，逐轮 review 覆盖度，补漏后输出完整证据链。",
@@ -571,11 +646,29 @@ def _format_tool_calls_for_frontend(round_data: ExploreRound) -> List[Dict[str, 
                 "highlight": query
             })
         elif tc.tool_name == "locate_content":
-            chapter = tc.params.get("chapter_order", "?")
-            para = tc.result.get("paragraph_index", "?") if isinstance(tc.result, dict) else "?"
+            chapter_order = tc.params.get("chapter_order")
+            chapter_title = ""
+            chapter_id = ""
+            if isinstance(tc.result, dict):
+                chapter_title = tc.result.get("chapter_title") or ""
+                chapter_id = tc.result.get("chapter_id") or ""
+                if not chapter_order:
+                    chapter_order = tc.result.get("chapter_order")
+            if isinstance(chapter_order, str) and chapter_order.isdigit():
+                chapter_order = int(chapter_order)
+            if isinstance(chapter_order, int):
+                chapter_label = f"第{chapter_order}章"
+            elif chapter_title:
+                chapter_label = f"《{chapter_title}》"
+            else:
+                chapter_label = "章节未知"
+            para = tc.result.get("paragraph_index") if isinstance(tc.result, dict) else None
+            if isinstance(para, str) and para.isdigit():
+                para = int(para)
+            para_label = f"第{para}段" if isinstance(para, int) else "段落未知"
             tags.append({
                 "type": "Locate",
-                "value": f"第{chapter}章 · 第{para}段"
+                "value": f"{chapter_label} · {para_label}"
             })
         elif tc.tool_name in ["read_paragraph", "get_chapter_by_order_tool"]:
             chapter = tc.params.get("chapter_order", "?")
@@ -629,6 +722,7 @@ class ContentExplorer:
         """
         self.work_id = work_id
         self.target_task = target_task
+        self.require_paragraph_index = _requires_paragraph_index(target_task)
         self.max_rounds = min(max_rounds, self.MAX_ROUNDS)
         self.emit_callback = emit_callback
         if isinstance(step_id, int) and step_id > 0:
@@ -638,6 +732,8 @@ class ContentExplorer:
         self.state = ExploreState()
         self.start_time = get_utc_now()
         self.exploration_plan: Optional[ExplorationPlan] = None  # AI 生成的探索计划
+        if self.require_paragraph_index:
+            logger.info("[ContentExplorer] 启用严格段落号模式")
 
     async def explore(self) -> ExploreResult:
         """
@@ -697,6 +793,8 @@ class ContentExplorer:
             try:
                 assessment = await self._ai_assess_sufficiency()
                 round_data.coverage = assessment.coverage
+                round_data.summary = assessment.summary  # 保存 AI 生成的总结
+                round_data.next_action = assessment.next_action  # 保存 AI 生成的下一步行动
                 if assessment.sufficient:
                     stop_reason = f"AI 判断信息充足: {assessment.coverage}"
                     round_data.sufficient = True
@@ -712,6 +810,10 @@ class ContentExplorer:
                     round_data.sufficient = True
                     round_data.coverage = "规则判断信息充足"
                     round_data.missing_items = []
+                    # 设置兜底的 summary 和 next_action
+                    stats = self.state.get_stats()
+                    round_data.summary = f"经过 {stats['rounds_count']} 轮探索，收集到 {stats['total_evidences']} 条证据和 {stats['total_chapters']} 个章节的背景信息。"
+                    round_data.next_action = "基于这些背景信息，我将执行后续任务。"
                     break
 
             # 检查是否收敛（连续无新信息）
@@ -805,7 +907,12 @@ class ContentExplorer:
 
                 # 添加证据
                 for item in result_data.get("results", []):
-                    if self.state.add_evidence(item, query, round_idx):
+                    if self.state.add_evidence(
+                        item,
+                        query,
+                        round_idx,
+                        require_paragraph_index=self.require_paragraph_index
+                    ):
                         new_evidences += 1
 
                 duration = int((get_utc_now() - start).total_seconds() * 1000)
@@ -855,6 +962,7 @@ class ContentExplorer:
         return ExploreRound(
             round_idx=round_idx,
             title=_get_round_title(round_idx),
+            reason="",  # 旧规则方法无 AI 决策理由
             tool_calls=tool_calls,
             new_evidences_count=new_evidences,
             new_paragraphs_count=new_paragraphs,
@@ -994,18 +1102,21 @@ class ContentExplorer:
         AI 判断信息是否充足
 
         使用 DEEP_ANALYSIS 任务类型
+        同时生成探索总结和下一步行动
         """
         from app.services.agent.model_selector import TaskType
 
         ai_service = _get_ai_service()
 
         collected_summary = self._build_collected_summary()
+        rounds_count = len(self.state.rounds)
 
         prompt = f"""你是信息收集专家。请评估已收集的信息是否足够完成目标任务。
 
 目标任务：{self.target_task}
 任务理解：{self.exploration_plan.understanding if self.exploration_plan else self.target_task}
 需要了解的方面：{', '.join(self.exploration_plan.aspects_to_find) if self.exploration_plan else '未知'}
+探索轮次：{rounds_count}
 
 已收集信息：
 {collected_summary}
@@ -1014,19 +1125,23 @@ class ContentExplorer:
 1. 信息是否足够完成目标任务？
 2. 覆盖了哪些方面？
 3. 还缺少什么关键信息？
+4. 用自然语言总结探索过程和收集到的关键内容（2-3句话）
+5. 基于探索结果，描述下一步将如何完成任务（1-2句话）
 
 请输出 JSON 格式（不要包含其他内容）：
 {{
   "sufficient": true或false,
   "coverage": "已覆盖XXX，缺少XXX",
-  "missing": ["缺失项1", "缺失项2"]
+  "missing": ["缺失项1", "缺失项2"],
+  "summary": "经过X轮深度探索，我收集到...（具体描述关键信息，如人物、情节、设定等）",
+  "next_action": "基于这些背景信息，我将执行 [工具名] [具体行动]，重点描写/处理..."
 }}"""
 
         try:
             response = await ai_service.call_ai(
                 system_prompt="你是信息收集专家。只输出 JSON，不要有其他内容。",
                 user_prompt=prompt,
-                max_tokens=200,
+                max_tokens=500,  # 增加 token 限制以生成更长的总结
                 temperature=0.1,
                 task_type=TaskType.DEEP_ANALYSIS
             )
@@ -1041,16 +1156,20 @@ class ContentExplorer:
             if isinstance(missing_preview, list):
                 missing_preview = missing_preview[:5]
             logger.info(
-                "[ContentExplorer] 充足性评估解析: sufficient=%s, coverage=%s, missing=%s",
+                "[ContentExplorer] 充足性评估解析: sufficient=%s, coverage=%s, missing=%s, summary=%s, next_action=%s",
                 result.get("sufficient", False),
                 result.get("coverage", ""),
-                missing_preview
+                missing_preview,
+                _truncate_text(result.get("summary", ""), 100),
+                _truncate_text(result.get("next_action", ""), 100)
             )
 
             return SufficiencyAssessment(
                 sufficient=result.get("sufficient", False),
                 coverage=result.get("coverage", ""),
-                missing=result.get("missing", [])
+                missing=result.get("missing", []),
+                summary=result.get("summary", ""),
+                next_action=result.get("next_action", "")
             )
         except Exception as e:
             logger.warning(f"[ContentExplorer] AI 充足性评估解析失败: {e}")
@@ -1127,7 +1246,7 @@ class ContentExplorer:
 
     async def _execute_round_with_plan(self, round_idx: int, plan: RoundPlan) -> ExploreRound:
         """根据 AI 计划执行一轮探索"""
-        from app.services.agent.langgraph_tools import search_content, get_writing_context, read_paragraph
+        from app.services.agent.langgraph_tools import search_content, get_writing_context, read_paragraph, locate_content
 
         tool_calls = []
         new_evidences = 0
@@ -1160,6 +1279,10 @@ class ContentExplorer:
                     logger.warning(f"[ContentExplorer] 获取世界观失败: {e}")
 
         # 2. 执行 AI 规划的搜索
+        auto_locate_used = 0
+        auto_read_used = 0
+        locate_limit = AUTO_LOCATE_LIMIT_STRICT if self.require_paragraph_index else AUTO_LOCATE_LIMIT
+        read_limit = AUTO_READ_LIMIT_STRICT if self.require_paragraph_index else AUTO_READ_LIMIT
         for query in plan.search_queries:
             if not self.state.should_search(query):
                 continue
@@ -1175,7 +1298,100 @@ class ContentExplorer:
                 self.state.record_search(query)
 
                 for item in result_data.get("results", []):
-                    if self.state.add_evidence(item, query, round_idx):
+                    if not isinstance(item, dict):
+                        continue
+                    paragraph_index = item.get("paragraph_index")
+                    chapter_id = item.get("chapter_id")
+                    chapter_order = item.get("chapter_order")
+                    snippet = item.get("snippet") or item.get("content") or ""
+
+                    if isinstance(chapter_order, str) and chapter_order.isdigit():
+                        chapter_order = int(chapter_order)
+                    if isinstance(paragraph_index, str) and paragraph_index.isdigit():
+                        paragraph_index = int(paragraph_index)
+                        item["paragraph_index"] = paragraph_index
+
+                    if paragraph_index is None and auto_locate_used < locate_limit:
+                        if chapter_id and snippet and len(snippet) >= 20:
+                            auto_locate_used += 1
+                            locate_start = get_utc_now()
+                            locate_result = await locate_content.ainvoke({
+                                "chapter_id": chapter_id,
+                                "query": snippet
+                            })
+                            locate_data = json.loads(locate_result) if isinstance(locate_result, str) else locate_result
+                            locate_duration = int((get_utc_now() - locate_start).total_seconds() * 1000)
+                            tool_calls.append(ToolCall(
+                                tool_name="locate_content",
+                                params={
+                                    "chapter_id": chapter_id,
+                                    "chapter_order": chapter_order,
+                                    "query": snippet[:80]
+                                },
+                                result=locate_data,
+                                duration_ms=locate_duration
+                            ))
+                            if (
+                                isinstance(locate_data, dict)
+                                and locate_data.get("success")
+                                and not locate_data.get("cross_chapter")
+                                and locate_data.get("paragraph_index") is not None
+                            ):
+                                item["paragraph_index"] = locate_data.get("paragraph_index")
+                                paragraph_index = item.get("paragraph_index")
+                                if isinstance(paragraph_index, str) and paragraph_index.isdigit():
+                                    paragraph_index = int(paragraph_index)
+                                    item["paragraph_index"] = paragraph_index
+
+                    if (
+                        paragraph_index is not None
+                        and chapter_order
+                        and auto_read_used < read_limit
+                        and self.state.should_read_paragraph(chapter_order, paragraph_index)
+                    ):
+                        read_start = get_utc_now()
+                        try:
+                            read_result = await read_paragraph.ainvoke({
+                                "work_id": self.work_id,
+                                "chapter_order": chapter_order,
+                                "paragraph_index": paragraph_index,
+                                "context_before": 2,
+                                "context_after": 2
+                            })
+                            read_data = json.loads(read_result) if isinstance(read_result, str) else read_result
+
+                            if read_data.get("success"):
+                                self.state.record_paragraph_read(chapter_order, paragraph_index)
+                                target_text, context_before, context_after = _extract_read_paragraph(read_data)
+                                if not target_text:
+                                    target_text = read_data.get("target_paragraph", "")
+                                self.state.add_paragraph({
+                                    "chapter_order": chapter_order,
+                                    "chapter_title": read_data.get("chapter_title", ""),
+                                    "paragraph_index": paragraph_index,
+                                    "text": target_text,
+                                    "context_before": context_before,
+                                    "context_after": context_after
+                                }, round_idx)
+                                new_paragraphs += 1
+                                auto_read_used += 1
+
+                            read_duration = int((get_utc_now() - read_start).total_seconds() * 1000)
+                            tool_calls.append(ToolCall(
+                                tool_name="read_paragraph",
+                                params={"chapter_order": chapter_order, "paragraph_index": paragraph_index},
+                                result=read_data,
+                                duration_ms=read_duration
+                            ))
+                        except Exception as e:
+                            logger.warning(f"[ContentExplorer] 自动读取段落失败: {e}")
+
+                    if self.state.add_evidence(
+                        item,
+                        query,
+                        round_idx,
+                        require_paragraph_index=self.require_paragraph_index
+                    ):
                         new_evidences += 1
 
                 duration = int((get_utc_now() - start).total_seconds() * 1000)
@@ -1239,17 +1455,20 @@ class ContentExplorer:
                     "context_after": 2
                 })
                 result_data = json.loads(result) if isinstance(result, str) else result
-                self.state.record_paragraph_read(chapter_order, paragraph_index)
 
                 # 添加段落到状态
                 if result_data.get("success"):
+                    self.state.record_paragraph_read(chapter_order, paragraph_index)
+                    target_text, context_before, context_after = _extract_read_paragraph(result_data)
+                    if not target_text:
+                        target_text = result_data.get("target_paragraph", "")
                     self.state.add_paragraph({
                         "chapter_order": chapter_order,
                         "chapter_title": result_data.get("chapter_title", ""),
                         "paragraph_index": paragraph_index,
-                        "text": result_data.get("target_paragraph", ""),
-                        "context_before": result_data.get("context_before", []),
-                        "context_after": result_data.get("context_after", [])
+                        "text": target_text,
+                        "context_before": context_before,
+                        "context_after": context_after
                     }, round_idx)
                     new_paragraphs += 1
 
@@ -1295,7 +1514,8 @@ class ContentExplorer:
 
         return ExploreRound(
             round_idx=round_idx,
-            title=f"第{round_idx}轮：{plan.reason[:20] if plan.reason else _get_round_title(round_idx)}",
+            title=_get_round_title(round_idx),  # 使用固定的简短标题
+            reason=plan.reason if plan.reason else "",  # 保存完整的 AI 决策理由
             tool_calls=tool_calls,
             new_evidences_count=new_evidences,
             new_paragraphs_count=new_paragraphs,
@@ -1449,7 +1669,14 @@ class ContentExplorer:
         return covered
 
     async def _generate_analysis(self) -> str:
-        """生成分析总结"""
+        """生成分析总结（优先使用 AI 生成的）"""
+        # 优先使用最后一轮 AI 生成的 summary
+        if self.state.rounds:
+            last_round = self.state.rounds[-1]
+            if last_round.summary:
+                return last_round.summary
+
+        # 兜底：生成硬编码统计信息
         stats = self.state.get_stats()
 
         analysis = f"经过 {stats['rounds_count']} 轮深度探索，收集到以下信息：\n\n"
@@ -1457,6 +1684,10 @@ class ContentExplorer:
         analysis += f"2. 章节原文：{stats['total_chapters']} 章\n"
         analysis += f"3. 证据片段：{stats['total_evidences']} 条\n"
         analysis += f"4. 段落原文：{stats['total_paragraphs']} 段\n\n"
+        if self.require_paragraph_index and self.state.skipped_evidences_strict:
+            analysis += (
+                f"严格段落号模式已跳过 {self.state.skipped_evidences_strict} 条无段落号证据。\n\n"
+            )
 
         if self.state.chapters:
             chapter_titles = [ch.title for ch in self.state.chapters.values()]
@@ -1483,7 +1714,8 @@ class ContentExplorer:
             missing_items=round_data.missing_items,
             status_text=_get_status_text(round_data),
             evidences=round_evidences,
-            review_status=_get_review_status(round_data)
+            review_status=_get_review_status(round_data),
+            reason=round_data.reason  # AI 决策理由（完整）
         )
         await self.emit_callback(event)
 
@@ -1492,22 +1724,37 @@ class ContentExplorer:
         from app.services.agent.stream.flow_events import FlowEventBuilder
 
         last_round = result.rounds[-1] if result.rounds else None
+        coverage_label = "未知"
+        if last_round and last_round.coverage:
+            coverage_label = "充足" if last_round.sufficient else "覆盖不足"
         stats = {
             "worldview": sum(len(items) for items in result.worldview.values()),
             "chapters": _format_chapters_range(result.chapters),
             "evidences": len(result.evidences),
-            "coverage": "95%" if result.rounds and result.rounds[-1].sufficient else "70%"
+            "coverage": coverage_label
         }
+
+        # 使用 AI 生成的总结和下一步行动（如果有的话）
+        summary = result.analysis  # 默认使用硬编码的分析
+        next_action = "基于这些背景信息，我将执行后续任务。"  # 默认值
+
+        if last_round:
+            # 优先使用 AI 生成的总结
+            if last_round.summary:
+                summary = last_round.summary
+            # 优先使用 AI 生成的下一步行动
+            if last_round.next_action:
+                next_action = last_round.next_action
 
         event = FlowEventBuilder.explore_summary(
             step_id=self.step_id,
             total_rounds=len(result.rounds),
-            summary=result.analysis,
-            next_action="基于这些背景信息，我将执行续写任务。",
+            summary=summary,  # AI 生成的总结
+            next_action=next_action,  # AI 生成的下一步行动
             next_tool="",
             stats=stats,
-            sufficient=last_round.sufficient if last_round else False,
-            coverage=last_round.coverage if last_round else ""
+            sufficient=last_round.sufficient if last_round and last_round.coverage else None,
+            coverage=last_round.coverage if last_round and last_round.coverage else None
         )
         await self.emit_callback(event)
 
