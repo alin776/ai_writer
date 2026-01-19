@@ -77,7 +77,7 @@ export function RevisionCard({
             · {chapterTitle || newTitle}
           </span>
         )}
-        <span className="text-gray-400 dark:text-gray-600 text-[9px] ml-0.5">
+        <span className="text-gray-400 dark:text-slate-600 text-[9px] ml-0.5">
           {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
         </span>
         <span className={`text-[10px] px-1.5 py-0.5 rounded-full ml-auto ${statusStyles[status]}`}>

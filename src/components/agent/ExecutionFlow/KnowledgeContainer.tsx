@@ -40,7 +40,7 @@ export function KnowledgeContainer({
           <IconComponent size={12} />
         </span>
         <span className="text-[13px] text-gray-500">{title}</span>
-        <span className="text-gray-400 dark:text-gray-600 text-[9px] ml-0.5">
+        <span className="text-gray-400 dark:text-slate-600 text-[9px] ml-0.5">
           {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
         </span>
       </div>

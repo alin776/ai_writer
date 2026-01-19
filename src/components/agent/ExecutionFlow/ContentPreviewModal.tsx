@@ -119,8 +119,8 @@ export function ContentPreviewModal({
               </svg>
             </div>
             <div>
-              <h2 className="text-[15px] font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
-              <span className="text-xs text-gray-500 dark:text-gray-500">预览模式</span>
+              <h2 className="text-[15px] font-semibold text-gray-900 dark:text-slate-100">{title}</h2>
+              <span className="text-xs text-gray-500 dark:text-slate-500">预览模式</span>
             </div>
           </div>
 
@@ -130,7 +130,7 @@ export function ContentPreviewModal({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                  className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 dark:text-slate-500 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-slate-300 transition-colors"
                   title="下载"
                 >
                   <Download size={18} />
@@ -141,7 +141,7 @@ export function ContentPreviewModal({
                   <DropdownMenuItem
                     key={format.key}
                     onClick={() => handleDownload(format.key)}
-                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer"
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer"
                   >
                     <span
                       className="w-[18px] h-[18px] flex items-center justify-center text-[10px] font-semibold text-white rounded"
@@ -158,7 +158,7 @@ export function ContentPreviewModal({
             {/* 复制 */}
             <button
               onClick={handleCopy}
-              className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 dark:text-slate-500 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-slate-300 transition-colors"
               title={copied ? '已复制' : '复制'}
             >
               {copied ? <Check size={18} /> : <Copy size={18} />}
@@ -168,7 +168,7 @@ export function ContentPreviewModal({
             {onAddToKnowledge && (
               <button
                 onClick={onAddToKnowledge}
-                className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 dark:text-slate-500 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-slate-300 transition-colors"
                 title="添加到知识库"
               >
                 <BookPlus size={18} />
@@ -181,7 +181,7 @@ export function ContentPreviewModal({
             {/* 全屏 */}
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 dark:text-slate-500 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-slate-300 transition-colors"
               title={isFullscreen ? '退出全屏' : '全屏'}
             >
               {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
@@ -190,7 +190,7 @@ export function ContentPreviewModal({
             {/* 关闭 */}
             <button
               onClick={onClose}
-              className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 dark:text-slate-500 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-slate-300 transition-colors"
               title="关闭"
             >
               <X size={18} />

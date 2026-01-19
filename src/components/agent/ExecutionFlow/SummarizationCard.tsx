@@ -65,7 +65,7 @@ export function SummarizationCard({
         {/* 标题区域 */}
         <div className="flex items-center gap-1.5">
           <span className="text-[14px] font-medium text-gray-900 dark:text-white">AI整合分析</span>
-          <span className="text-gray-400 dark:text-gray-600 text-[10px]">
+          <span className="text-gray-400 dark:text-slate-600 text-[10px]">
             {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
           </span>
         </div>
@@ -100,7 +100,7 @@ export function SummarizationCard({
                   <FileText size={12} />
                 </span>
                 <span className="text-[13px] text-gray-500">上下文处理</span>
-                <span className="text-gray-400 dark:text-gray-600 text-[9px] ml-0.5">
+                <span className="text-gray-400 dark:text-slate-600 text-[9px] ml-0.5">
                   {contextExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
                 </span>
               </div>
@@ -108,19 +108,19 @@ export function SummarizationCard({
                 <div className="pt-1.5 space-y-1">
                   <div className="flex items-center gap-2 text-[13px]">
                     <span className="text-gray-500 min-w-[60px]">原始大小</span>
-                    <span className="font-mono text-[12px] text-gray-600 dark:text-gray-400">
+                    <span className="font-mono text-[12px] text-gray-600 dark:text-slate-400">
                       {safeContextStats.originalLength} 字符
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-[13px]">
                     <span className="text-gray-500 min-w-[60px]">处理后</span>
-                    <span className="font-mono text-[12px] text-gray-600 dark:text-gray-400">
+                    <span className="font-mono text-[12px] text-gray-600 dark:text-slate-400">
                       {safeContextStats.compressedLength} 字符
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-[13px]">
                     <span className="text-gray-500 min-w-[60px]">整合模式</span>
-                    <span className="font-mono text-[12px] text-gray-600 dark:text-gray-400">
+                    <span className="font-mono text-[12px] text-gray-600 dark:text-slate-400">
                       {safeContextStats.mode}
                     </span>
                   </div>

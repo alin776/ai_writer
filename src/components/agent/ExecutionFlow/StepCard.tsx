@@ -59,7 +59,7 @@ export function StepCard({
         {/* 标题区域 */}
         <div className="flex items-center gap-1.5">
           <span className="text-[14px] font-medium text-gray-900 dark:text-white">{title}</span>
-          <span className="text-gray-400 dark:text-gray-600 text-[10px]">
+          <span className="text-gray-400 dark:text-slate-600 text-[10px]">
             {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
           </span>
         </div>
@@ -81,7 +81,7 @@ export function StepCard({
 
           {/* 步骤描述 */}
           {description && (
-            <div className="text-[13px] text-gray-500 dark:text-[#999] my-2 leading-[1.6]">
+            <div className="text-[13px] text-gray-500 dark:text-slate-300 my-2 leading-[1.6]">
               {description}
             </div>
           )}

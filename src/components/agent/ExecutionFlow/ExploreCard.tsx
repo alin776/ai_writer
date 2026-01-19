@@ -1,12 +1,12 @@
 /**
  * ExploreCard - Explore 轨迹聚合展示
  * 按轮次聚合 search/locate/read 结果
- * v10.1: 适配浅色/深色主题，与现有组件样式一致
+ * v10.2: 优化深色模式为深蓝色调（slate 系列）
  *
  * 设计规范：
  * - 响应式主题：使用 Tailwind dark: 前缀
  * - 浅色模式：白色背景，灰色边框和文本
- * - 深色模式：深灰色背景，更深的边框
+ * - 深色模式：深蓝灰色背景（slate-800/900），深蓝色边框（slate-700）
  * - 高亮色：蓝色 (#5c9eff)，成功色：绿色 (#10b981)，警告色：橙色 (#f59e0b)
  */
 
@@ -82,13 +82,13 @@ export function ExploreCard({ rounds, defaultExpanded = true }: ExploreCardProps
         onClick={() => setExpanded(!expanded)}
       >
         <div className="w-[18px] h-[18px] flex items-center justify-center">
-          <Check size={12} className="text-gray-500 dark:text-[#888]" />
+          <Check size={12} className="text-gray-500 dark:text-slate-400" />
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-[14px] font-medium text-gray-900 dark:text-white">
             Explore 轨迹（{safeRounds.length}轮）
           </span>
-          <span className="text-gray-400 dark:text-[#666] text-[10px]">
+          <span className="text-gray-400 dark:text-slate-600 text-[10px]">
             {expanded ? '∧' : '∨'}
           </span>
         </div>
@@ -103,7 +103,7 @@ export function ExploreCard({ rounds, defaultExpanded = true }: ExploreCardProps
               <LegacyRoundCard key={round.id} round={round} index={index} />
             ))}
           </div>
-          <div className="text-[13px] text-gray-500 dark:text-[#999] leading-[1.6] my-2">
+          <div className="text-[13px] text-gray-500 dark:text-slate-300 leading-[1.6] my-2">
             多轮检索-定位-原文读取，逐轮 review 覆盖度，补漏后输出完整证据链。
           </div>
         </div>
@@ -126,7 +126,7 @@ function LegacyRoundCard({ round, index }: { round: ExploreRound; index: number 
       {/* 胶囊容器 - 适配浅色/深色主题 */}
       <div
         className={`
-          bg-white dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] self-start max-w-full
+          bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-[16px] self-start max-w-full
           ${expanded
             ? 'inline-flex flex-col px-[10px] py-[6px]'
             : 'inline-flex flex-row items-center gap-2 px-[10px] py-1'
@@ -138,14 +138,14 @@ function LegacyRoundCard({ round, index }: { round: ExploreRound; index: number 
           className="flex items-center gap-2 cursor-pointer select-none"
           onClick={() => setExpanded(!expanded)}
         >
-          <div className="text-gray-500 dark:text-[#888] flex items-center justify-center text-[12px] font-medium">
+          <div className="text-gray-500 dark:text-slate-400 flex items-center justify-center text-[12px] font-medium">
             <Scan size={12} />
           </div>
-          <div className={`flex items-center gap-2 text-[13px] text-gray-600 dark:text-[#888] ${expanded ? 'mb-0' : 'text-[12px]'}`}>
+          <div className={`flex items-center gap-2 text-[13px] text-gray-600 dark:text-slate-400 ${expanded ? 'mb-0' : 'text-[12px]'}`}>
             {buildRoundTitle(round, index)}
           </div>
           {expanded && (
-            <span className="text-[10px] text-gray-400 dark:text-[#666] ml-auto">∧</span>
+            <span className="text-[10px] text-gray-400 dark:text-slate-600 ml-auto">∧</span>
           )}
         </div>
 
@@ -155,43 +155,43 @@ function LegacyRoundCard({ round, index }: { round: ExploreRound; index: number 
               {/* 工具标签 */}
               <div className="flex flex-wrap gap-[6px] w-fit max-w-full">
                 {round.search?.query && (
-                  <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-[#888]">
-                    <Search size={12} className="text-gray-500 dark:text-[#888]" />
-                    Search: <span className="text-[#5c9eff] font-medium truncate max-w-[220px] inline-block">{round.search.query}</span>
+                  <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-slate-400">
+                    <Search size={12} className="text-gray-500 dark:text-slate-400" />
+                    Search: <span className="text-gray-700 dark:text-slate-400 font-medium truncate max-w-[220px] inline-block">{round.search.query}</span>
                   </span>
                 )}
                 {chapterLabel && (
-                  <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-[#888]">
-                    <Crosshair size={12} className="text-gray-500 dark:text-[#888]" />
-                    Locate: <span className="text-gray-700 dark:text-[#888]">{chapterLabel}{paragraphLabel ? ` · ${paragraphLabel}` : ''}</span>
+                  <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-slate-400">
+                    <Crosshair size={12} className="text-gray-500 dark:text-slate-400" />
+                    Locate: <span className="text-gray-700 dark:text-slate-400">{chapterLabel}{paragraphLabel ? ` · ${paragraphLabel}` : ''}</span>
                   </span>
                 )}
                 {(round.readRaw?.chapterOrder !== undefined || round.readRaw?.chapterTitle) && (
-                  <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-[#888]">
-                    <FileText size={12} className="text-gray-500 dark:text-[#888]" />
-                    ReadRaw: <span className="text-gray-700 dark:text-[#888]">
+                  <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-slate-400">
+                    <FileText size={12} className="text-gray-500 dark:text-slate-400" />
+                    ReadRaw: <span className="text-gray-700 dark:text-slate-400">
                       {round.readRaw?.chapterOrder !== undefined
                         ? `第${round.readRaw.chapterOrder}章`
                         : round.readRaw?.chapterTitle}
                     </span>
                   </span>
                 )}
-                <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-[#888]">
+                <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-slate-400">
                   <review.icon size={12} className={review.tone} />
-                  Review: <span className="text-gray-700 dark:text-[#888]">{review.label}</span>
+                  Review: <span className="text-gray-700 dark:text-slate-400">{review.label}</span>
                 </span>
               </div>
 
               {/* 状态信息 */}
               {hitCount > 0 && (
-                <div className="flex flex-wrap gap-[10px] mt-[6px] text-[11px] text-gray-500 dark:text-[#777] w-fit max-w-full">
+                <div className="flex flex-wrap gap-[10px] mt-[6px] text-[11px] text-gray-500 dark:text-slate-500 w-fit max-w-full">
                   <span className="text-[#10b981]">命中 {hitCount} 条</span>
                 </div>
               )}
 
               {/* 证据片段 */}
               {round.evidence && round.evidence.length > 0 && (
-                <div className="bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 mt-[6px] text-[12px] text-gray-600 dark:text-[#888] w-fit max-w-full">
+                <div className="bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-[16px] px-[10px] py-1 mt-[6px] text-[12px] text-gray-600 dark:text-slate-400 w-fit max-w-full">
                   <div
                     className="flex items-center gap-[6px] cursor-pointer select-none"
                     onClick={(e) => {
@@ -199,20 +199,20 @@ function LegacyRoundCard({ round, index }: { round: ExploreRound; index: number 
                       setEvidenceExpanded(!evidenceExpanded);
                     }}
                   >
-                    <span className="text-[11px] text-gray-600 dark:text-[#888]">证据片段（{round.evidence.length}）</span>
-                    <span className="text-[9px] text-gray-400 dark:text-[#666]">{evidenceExpanded ? '∧' : '∨'}</span>
+                    <span className="text-[11px] text-gray-600 dark:text-slate-400">证据片段（{round.evidence.length}）</span>
+                    <span className="text-[9px] text-gray-400 dark:text-slate-600">{evidenceExpanded ? '∧' : '∨'}</span>
                   </div>
                   {evidenceExpanded && (
                     <div className="pt-1">
                       {round.evidence.map((item, idx) => (
                         <div
                           key={`${round.id}-evidence-${idx}`}
-                          className={`py-[2px] ${idx > 0 ? 'border-t border-dashed border-gray-200 dark:border-[#3a3a3a]' : ''}`}
+                          className={`py-[2px] ${idx > 0 ? 'border-t border-dashed border-gray-200 dark:border-slate-700' : ''}`}
                         >
-                          <div className="text-[10px] text-gray-500 dark:text-[#6f6f6f]">
+                          <div className="text-[10px] text-gray-500 dark:text-slate-500">
                             {renderEvidenceMeta(item)}
                           </div>
-                          <div className="text-[12px] text-gray-700 dark:text-[#888]">{item.text}</div>
+                          <div className="text-[12px] text-gray-700 dark:text-slate-400">{item.text}</div>
                         </div>
                       ))}
                     </div>
@@ -256,10 +256,10 @@ function ExploreTag({ toolCall }: { toolCall: ExploreToolCall }) {
   const isSearchType = toolCall.type === 'Search';
 
   return (
-    <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-[#888]">
-      <IconComponent size={12} className="text-gray-500 dark:text-[#888]" />
+    <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-slate-400">
+      <IconComponent size={12} className="text-gray-500 dark:text-slate-400" />
       {toolCall.type}:{' '}
-      <span className={isSearchType ? 'text-[#5c9eff] font-medium' : 'text-gray-700 dark:text-[#888]'}>
+      <span className={isSearchType ? 'text-gray-700 dark:text-slate-400 font-medium' : 'text-gray-700 dark:text-slate-400'}>
         {toolCall.highlight || toolCall.value}
       </span>
     </span>
@@ -292,7 +292,7 @@ export function ExploreRoundCard({
     <div className="flex flex-col gap-2 py-2">
       {/* AI 决策理由（独立显示，在胶囊框上方） */}
       {reason && (
-        <div className="text-[13px] text-gray-600 dark:text-gray-400 leading-relaxed">
+        <div className="text-[13px] text-gray-600 dark:text-slate-400 leading-relaxed">
           {reason}
         </div>
       )}
@@ -300,7 +300,7 @@ export function ExploreRoundCard({
       {/* 胶囊容器 - 适配浅色/深色主题 */}
       <div
         className={`
-          bg-white dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] self-start max-w-full
+          bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-[16px] self-start max-w-full
           ${expanded
             ? 'inline-flex flex-col px-[10px] py-[6px]'
             : 'inline-flex flex-row items-center gap-2 px-[10px] py-1'
@@ -314,16 +314,16 @@ export function ExploreRoundCard({
           onClick={() => setExpanded(!expanded)}
         >
           {/* 轮次图标 */}
-          <div className="text-gray-500 dark:text-[#888] flex items-center justify-center text-[12px] font-medium">
+          <div className="text-gray-500 dark:text-slate-400 flex items-center justify-center text-[12px] font-medium">
             <Scan size={12} />
           </div>
           {/* 轮次标题 */}
-          <div className={`flex items-center gap-2 text-[13px] text-gray-600 dark:text-[#888] ${expanded ? 'mb-0' : 'text-[12px]'}`}>
+          <div className={`flex items-center gap-2 text-[13px] text-gray-600 dark:text-slate-400 ${expanded ? 'mb-0' : 'text-[12px]'}`}>
             {title || `深度探索（第${roundIdx}轮）`}
           </div>
           {/* 展开/折叠按钮 - 折叠时隐藏 */}
           {expanded && (
-            <span className="text-[10px] text-gray-400 dark:text-[#666] ml-auto">∧</span>
+            <span className="text-[10px] text-gray-400 dark:text-slate-600 ml-auto">∧</span>
           )}
         </div>
 
@@ -336,15 +336,15 @@ export function ExploreRoundCard({
                   <ExploreTag key={idx} toolCall={tc} />
                 ))}
                 {reviewStatus && !hasReviewTag && (
-                  <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-[#888]">
+                  <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-slate-400">
                     <review.icon size={12} className={review.tone} />
-                    Review: <span className="text-gray-700 dark:text-[#888]">{review.label}</span>
+                    Review: <span className="text-gray-700 dark:text-slate-400">{review.label}</span>
                   </span>
                 )}
               </div>
 
               {/* 状态信息 - 适配浅色/深色主题 */}
-              <div className="flex flex-wrap gap-[10px] mt-[6px] text-[11px] text-gray-500 dark:text-[#777] w-fit max-w-full">
+              <div className="flex flex-wrap gap-[10px] mt-[6px] text-[11px] text-gray-500 dark:text-slate-500 w-fit max-w-full">
                 {hitCount > 0 && (
                   <span className="text-[#10b981]">命中 {hitCount} 条</span>
                 )}
@@ -357,7 +357,7 @@ export function ExploreRoundCard({
 
               {/* 证据片段 - 适配浅色/深色主题 */}
               {evidences && evidences.length > 0 && (
-                <div className="bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 mt-[6px] text-[12px] text-gray-600 dark:text-[#888] w-fit max-w-full">
+                <div className="bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-[16px] px-[10px] py-1 mt-[6px] text-[12px] text-gray-600 dark:text-slate-400 w-fit max-w-full">
                   <div
                     className="flex items-center gap-[6px] cursor-pointer select-none"
                     onClick={(e) => {
@@ -365,20 +365,20 @@ export function ExploreRoundCard({
                       setEvidenceExpanded(!evidenceExpanded);
                     }}
                   >
-                    <span className="text-[11px] text-gray-600 dark:text-[#888]">证据片段（{evidences.length}）</span>
-                    <span className="text-[9px] text-gray-400 dark:text-[#666]">{evidenceExpanded ? '∧' : '∨'}</span>
+                    <span className="text-[11px] text-gray-600 dark:text-slate-400">证据片段（{evidences.length}）</span>
+                    <span className="text-[9px] text-gray-400 dark:text-slate-600">{evidenceExpanded ? '∧' : '∨'}</span>
                   </div>
                   {evidenceExpanded && (
                     <div className="pt-1">
                       {evidences.map((item, idx) => (
                         <div
                           key={`evidence-${idx}`}
-                          className={`py-[2px] ${idx > 0 ? 'border-t border-dashed border-gray-200 dark:border-[#3a3a3a]' : ''}`}
+                          className={`py-[2px] ${idx > 0 ? 'border-t border-dashed border-gray-200 dark:border-slate-700' : ''}`}
                         >
-                          <div className="text-[10px] text-gray-500 dark:text-[#6f6f6f]">
+                          <div className="text-[10px] text-gray-500 dark:text-slate-500">
                             {renderEvidenceMeta(item)}
                           </div>
-                          <div className="text-[12px] text-gray-700 dark:text-[#888]">{item.text}</div>
+                          <div className="text-[12px] text-gray-700 dark:text-slate-400">{item.text}</div>
                         </div>
                       ))}
                     </div>
@@ -413,19 +413,19 @@ export function ExploreSummaryCard({
     ? 'text-[#f59e0b]'
     : isSufficient
       ? 'text-[#10b981]'
-      : 'text-gray-500 dark:text-[#888]';
+      : 'text-gray-500 dark:text-slate-400';
 
   return (
     <div className="mt-3 mb-3">
       {/* 卡片容器 - 适配浅色/深色主题 */}
-      <div className="bg-white dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-[16px] px-[10px] py-1 inline-block max-w-full">
+      <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-[16px] px-[10px] py-1 inline-block max-w-full">
         {/* Header */}
         <div
           className="flex items-center gap-2 cursor-pointer select-none"
           onClick={() => setExpanded(!expanded)}
           style={{ marginBottom: expanded ? '10px' : '0' }}
         >
-          <span className="text-gray-500 dark:text-[#888] flex items-center">
+          <span className="text-gray-500 dark:text-slate-400 flex items-center">
             <Brain size={12} />
           </span>
           <span
@@ -434,7 +434,7 @@ export function ExploreSummaryCard({
           >
             AI 分析与规划
           </span>
-          <span className="text-[9px] text-gray-400 dark:text-[#666] ml-auto">{expanded ? '∧' : '∨'}</span>
+          <span className="text-[9px] text-gray-400 dark:text-slate-600 ml-auto">{expanded ? '∧' : '∨'}</span>
         </div>
 
         {/* Content */}
@@ -444,12 +444,12 @@ export function ExploreSummaryCard({
             {summary && (
               <div className="mb-[10px]">
                 <div className="flex items-center gap-[6px] mb-1">
-                  <span className="text-gray-500 dark:text-[#888] flex items-center">
+                  <span className="text-gray-500 dark:text-slate-400 flex items-center">
                     <FileSearch size={12} />
                   </span>
-                  <span className="text-[12px] text-gray-600 dark:text-[#888] font-medium">探索总结</span>
+                  <span className="text-[12px] text-gray-600 dark:text-slate-400 font-medium">探索总结</span>
                 </div>
-                <div className="text-[12px] text-gray-600 dark:text-[#999] leading-[1.7] pl-[18px]">
+                <div className="text-[12px] text-gray-600 dark:text-slate-300 leading-[1.7] pl-[18px]">
                   {summary}
                 </div>
               </div>
@@ -459,12 +459,12 @@ export function ExploreSummaryCard({
             {coverage && (
               <div className="mb-[10px]">
                 <div className="flex items-center gap-[6px] mb-1">
-                  <span className="text-gray-500 dark:text-[#888] flex items-center">
+                  <span className="text-gray-500 dark:text-slate-400 flex items-center">
                     <Brain size={12} />
                   </span>
-                  <span className="text-[12px] text-gray-600 dark:text-[#888] font-medium">覆盖度说明</span>
+                  <span className="text-[12px] text-gray-600 dark:text-slate-400 font-medium">覆盖度说明</span>
                 </div>
-                <div className="text-[12px] text-gray-600 dark:text-[#999] leading-[1.7] pl-[18px]">
+                <div className="text-[12px] text-gray-600 dark:text-slate-300 leading-[1.7] pl-[18px]">
                   {coverage}
                 </div>
               </div>
@@ -474,55 +474,20 @@ export function ExploreSummaryCard({
             {nextAction && (
               <div className="mb-[10px]">
                 <div className="flex items-center gap-[6px] mb-1">
-                  <span className="text-gray-500 dark:text-[#888] flex items-center">
+                  <span className="text-gray-500 dark:text-slate-400 flex items-center">
                     <ArrowRightCircle size={12} />
                   </span>
-                  <span className="text-[12px] text-gray-600 dark:text-[#888] font-medium">下一步行动</span>
+                  <span className="text-[12px] text-gray-600 dark:text-slate-400 font-medium">下一步行动</span>
                 </div>
-                <div className="text-[12px] text-gray-600 dark:text-[#999] leading-[1.7] pl-[18px]">
+                <div className="text-[12px] text-gray-600 dark:text-slate-300 leading-[1.7] pl-[18px]">
                   {nextAction}
                   {nextTool && (
-                    <span className="ml-1 text-[#5c9eff] font-mono text-[11px]">{nextTool}</span>
+                    <span className="ml-1 text-[#5c9eff] dark:text-[#7db3ff] font-mono text-[11px]">{nextTool}</span>
                   )}
                 </div>
               </div>
             )}
 
-            {/* 统计标签 - 适配浅色/深色主题 */}
-            {stats && (
-              <div className="flex flex-wrap gap-2 pl-[18px]">
-                {stats.worldview !== undefined && (
-                  <div className="flex items-center gap-1 px-[6px] py-[2px] bg-gray-100 dark:bg-[#222] rounded text-[11px]">
-                    <BookOpen size={11} className="text-gray-500 dark:text-[#666]" />
-                    <span className="text-gray-600 dark:text-[#666]">世界观</span>
-                    <span className="text-[#5c9eff] font-medium">{stats.worldview}</span>
-                  </div>
-                )}
-                {stats.chapters && (
-                  <div className="flex items-center gap-1 px-[6px] py-[2px] bg-gray-100 dark:bg-[#222] rounded text-[11px]">
-                    <FileText size={11} className="text-gray-500 dark:text-[#666]" />
-                    <span className="text-gray-600 dark:text-[#666]">章节</span>
-                    <span className="text-[#5c9eff] font-medium">{stats.chapters}</span>
-                  </div>
-                )}
-                {stats.evidences !== undefined && (
-                  <div className="flex items-center gap-1 px-[6px] py-[2px] bg-gray-100 dark:bg-[#222] rounded text-[11px]">
-                    <Layers size={11} className="text-gray-500 dark:text-[#666]" />
-                    <span className="text-gray-600 dark:text-[#666]">证据</span>
-                    <span className="text-[#5c9eff] font-medium">{stats.evidences}</span>
-                  </div>
-                )}
-                {stats.coverage && (
-                  <div className="flex items-center gap-1 px-[6px] py-[2px] bg-gray-100 dark:bg-[#222] rounded text-[11px]">
-                    <span className={coverageTone}>
-                      <CoverageIcon size={11} />
-                    </span>
-                    <span className="text-gray-600 dark:text-[#666]">覆盖度</span>
-                    <span className={`${coverageTone} font-medium`}>{stats.coverage}</span>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         )}
       </div>
