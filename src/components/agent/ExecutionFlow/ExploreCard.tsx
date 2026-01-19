@@ -12,7 +12,7 @@
 
 import { useState } from 'react';
 import type { ComponentType } from 'react';
-import { Check, Scan, Search, Crosshair, FileText, CheckCircle, AlertTriangle, Clock, Brain, ArrowRightCircle, FileSearch, BookOpen, Layers } from 'lucide-react';
+import { Check, Scan, Search, Crosshair, FileText, CheckCircle, AlertTriangle, Clock, Brain, ArrowRightCircle, FileSearch, BookOpen, Layers, ChevronUp, ChevronDown } from 'lucide-react';
 import type { ExploreFlowData, ExploreRound, ExploreEvidenceItem, ExploreRoundFlowData, ExploreSummaryFlowData, ExploreToolCall } from '@/types/agent';
 
 interface ExploreCardProps extends ExploreFlowData {
@@ -88,8 +88,8 @@ export function ExploreCard({ rounds, defaultExpanded = true }: ExploreCardProps
           <span className="text-[14px] font-medium text-gray-900 dark:text-white">
             Explore 轨迹（{safeRounds.length}轮）
           </span>
-          <span className="text-gray-400 dark:text-slate-600 text-[10px]">
-            {expanded ? '∧' : '∨'}
+          <span className="text-gray-400 dark:text-slate-600 flex items-center">
+            {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
           </span>
         </div>
         <div className="flex-1" />
@@ -144,9 +144,9 @@ function LegacyRoundCard({ round, index }: { round: ExploreRound; index: number 
           <div className={`flex items-center gap-2 text-[13px] text-gray-600 dark:text-slate-400 ${expanded ? 'mb-0' : 'text-[12px]'}`}>
             {buildRoundTitle(round, index)}
           </div>
-          {expanded && (
-            <span className="text-[10px] text-gray-400 dark:text-slate-600 ml-auto">∧</span>
-          )}
+          <span className="text-gray-400 dark:text-slate-600 ml-auto flex items-center">
+            {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+          </span>
         </div>
 
           {/* Body - 展开时显示 */}
@@ -200,7 +200,9 @@ function LegacyRoundCard({ round, index }: { round: ExploreRound; index: number 
                     }}
                   >
                     <span className="text-[11px] text-gray-600 dark:text-slate-400">证据片段（{round.evidence.length}）</span>
-                    <span className="text-[9px] text-gray-400 dark:text-slate-600">{evidenceExpanded ? '∧' : '∨'}</span>
+                    <span className="text-gray-400 dark:text-slate-600 flex items-center">
+                      {evidenceExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                    </span>
                   </div>
                   {evidenceExpanded && (
                     <div className="pt-1">
@@ -321,10 +323,10 @@ export function ExploreRoundCard({
           <div className={`flex items-center gap-2 text-[13px] text-gray-600 dark:text-slate-400 ${expanded ? 'mb-0' : 'text-[12px]'}`}>
             {title || `深度探索（第${roundIdx}轮）`}
           </div>
-          {/* 展开/折叠按钮 - 折叠时隐藏 */}
-          {expanded && (
-            <span className="text-[10px] text-gray-400 dark:text-slate-600 ml-auto">∧</span>
-          )}
+          {/* 展开/折叠按钮 */}
+          <span className="text-gray-400 dark:text-slate-600 ml-auto flex items-center">
+            {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+          </span>
         </div>
 
           {/* Body - 展开时显示 */}
@@ -366,7 +368,9 @@ export function ExploreRoundCard({
                     }}
                   >
                     <span className="text-[11px] text-gray-600 dark:text-slate-400">证据片段（{evidences.length}）</span>
-                    <span className="text-[9px] text-gray-400 dark:text-slate-600">{evidenceExpanded ? '∧' : '∨'}</span>
+                    <span className="text-gray-400 dark:text-slate-600 flex items-center">
+                      {evidenceExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                    </span>
                   </div>
                   {evidenceExpanded && (
                     <div className="pt-1">
@@ -434,7 +438,9 @@ export function ExploreSummaryCard({
           >
             AI 分析与规划
           </span>
-          <span className="text-[9px] text-gray-400 dark:text-slate-600 ml-auto">{expanded ? '∧' : '∨'}</span>
+          <span className="text-gray-400 dark:text-slate-600 ml-auto flex items-center">
+            {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+          </span>
         </div>
 
         {/* Content */}
