@@ -482,8 +482,9 @@ class ExplorationPlan:
 
 @dataclass
 class RoundPlan:
-    """AI 生成的单轮行动计划"""
-    search_queries: List[str]         # 本轮搜索词
+    """AI 生成的单轮行动计划（V3：区分精确搜索和语义搜索）"""
+    exact_keywords: List[str]         # 精确搜索关键词（找具体实体：人名、地名）
+    semantic_queries: List[str]       # 语义搜索 query（找抽象概念：性格、关系）
     chapters_to_read: List[int]       # 本轮要读的章节
     paragraphs_to_read: List[Dict]    # 本轮要读的段落 [{"chapter": 3, "paragraph": 15}]
     reason: str                       # AI 决策理由
@@ -1303,6 +1304,7 @@ class ContentExplorer:
         self.state = ExploreState()
         self.start_time = get_utc_now()
         self.exploration_plan: Optional[ExplorationPlan] = None  # AI 生成的探索计划
+        self.missing_items_from_assessment: List[str] = []  # V3: 阶段2评估后的缺失项，用于指导阶段3
         if self.require_paragraph_index:
             logger.info("[ContentExplorer] 启用严格段落号模式")
         if self.chapter_scopes_raw:
@@ -1571,66 +1573,100 @@ class ContentExplorer:
 
     async def explore(self) -> ExploreResult:
         """
-        执行探索（V2：精确搜索优先 + AI 补充）
+        执行探索（V3：精确搜索 + AI 评估 + AI 补充循环）
 
         流程：
-        1. 阶段1：精确搜索（确定性，一次完成）
-        2. 阶段2：AI 补充探索（可选，最多 max_rounds 轮）
+        1. 阶段1：精确搜索（SQL ILIKE，确定性，无 AI 调用）
+        2. 阶段2：AI 评估覆盖度（1次 AI 调用）
+           - sufficient=true → 直接返回
+           - sufficient=false → 保存 missing_items，进入阶段3
+        3. 阶段3：AI 补充循环（最多3轮，参考 missing_items）
 
         Returns:
             ExploreResult: 探索结果
         """
-        logger.info(f"[ContentExplorer] 开始探索 V2: work_id={self.work_id}, target={self.target_task[:50]}...")
+        logger.info(f"[ContentExplorer] 开始探索 V3: work_id={self.work_id}, target={self.target_task[:50]}...")
 
         stop_reason = "达到最大轮次"
 
-        # ========== 阶段1：精确搜索（确定性）==========
+        # ========== 阶段1：精确搜索（确定性，无 AI 调用）==========
         exact_search_success = await self._execute_exact_search_phase()
         exact_evidence_count = len(self.state.evidences)
 
-        # 如果精确搜索有结果，创建精确搜索轮次记录
+        # ========== 阶段2：AI 评估覆盖度（无论精确搜索结果数量）==========
         if exact_search_success and exact_evidence_count > 0:
-            is_sufficient = exact_evidence_count >= 5
-            exact_search_round = ExploreRound(
-                round_idx=0,
-                title="精确搜索",
-                tool_calls=[],
-                new_evidences_count=exact_evidence_count,
-                new_paragraphs_count=0,
-                missing_items=[] if is_sufficient else ["精确搜索结果不足，需 AI 补充"],
-                sufficient=is_sufficient,
-                reason="精确搜索完成" if is_sufficient else "精确搜索结果不足",
-                coverage="精确搜索已覆盖目标关键词" if is_sufficient else f"精确搜索找到 {exact_evidence_count} 条证据，不足 5 条",
-                summary=f"通过精确搜索，在指定章节范围内找到 {exact_evidence_count} 条相关证据。",
-                next_action="基于这些证据，整理输出结果。" if is_sufficient else "启动 AI 补充探索以获取更多信息。"
-            )
-            self.state.rounds.append(exact_search_round)
+            logger.info(f"[ContentExplorer] 阶段2：AI 评估覆盖度 (精确搜索找到 {exact_evidence_count} 条证据)")
 
-            # 发射轮次事件
-            if self.emit_callback:
-                await self._emit_round_event(exact_search_round)
+            try:
+                # 调用 AI 评估
+                assessment = await self._ai_assess_sufficiency()
 
-            # 如果精确搜索充足，直接返回
-            if is_sufficient:
-                logger.info(f"[ContentExplorer] 精确搜索充足，跳过 AI 循环: {exact_evidence_count} 条证据")
-                stop_reason = "精确搜索充足"
-
-                # 计算总耗时并返回结果
-                total_duration_ms = int((get_utc_now() - self.start_time).total_seconds() * 1000)
-                return ExploreResult(
-                    evidences=self.state.evidences,
-                    paragraphs=self.state.paragraphs,
-                    chapters=self.state.chapters,
-                    worldview=self.state.worldview,
-                    analysis=exact_search_round.summary,
-                    stats=self.state.get_stats(),
-                    rounds=self.state.rounds,
-                    stop_reason=stop_reason,
-                    total_duration_ms=total_duration_ms
+                # 创建精确搜索轮次记录（包含 AI 评估结果）
+                exact_search_round = ExploreRound(
+                    round_idx=0,
+                    title="精确搜索",
+                    tool_calls=[],
+                    new_evidences_count=exact_evidence_count,
+                    new_paragraphs_count=0,
+                    missing_items=assessment.missing if not assessment.sufficient else [],
+                    sufficient=assessment.sufficient,
+                    reason="AI 评估完成",
+                    coverage=assessment.coverage,
+                    summary=assessment.summary,
+                    next_action=assessment.next_action
                 )
+                self.state.rounds.append(exact_search_round)
 
-        # ========== 阶段2：AI 补充探索（如果精确搜索不足）==========
-        logger.info(f"[ContentExplorer] 精确搜索不足，启动 AI 补充: 当前 {exact_evidence_count} 条证据")
+                # 发射轮次事件
+                if self.emit_callback:
+                    await self._emit_round_event(exact_search_round)
+
+                # V3 核心改动：AI 判断充足则直接返回（仅1次 AI 调用）
+                if assessment.sufficient:
+                    logger.info(f"[ContentExplorer] AI 判断信息充足，跳过补充循环: {assessment.coverage}")
+                    stop_reason = f"AI 判断信息充足: {assessment.coverage}"
+
+                    total_duration_ms = int((get_utc_now() - self.start_time).total_seconds() * 1000)
+                    return ExploreResult(
+                        evidences=self.state.evidences,
+                        paragraphs=self.state.paragraphs,
+                        chapters=self.state.chapters,
+                        worldview=self.state.worldview,
+                        analysis=assessment.summary,
+                        stats=self.state.get_stats(),
+                        rounds=self.state.rounds,
+                        stop_reason=stop_reason,
+                        total_duration_ms=total_duration_ms
+                    )
+
+                # 保存 missing_items 用于阶段3规划
+                self.missing_items_from_assessment = assessment.missing
+                logger.info(f"[ContentExplorer] AI 评估不足，缺失项: {self.missing_items_from_assessment}")
+
+            except Exception as e:
+                logger.warning(f"[ContentExplorer] AI 评估失败，直接进入补充循环: {e}")
+                # V3: AI 评估失败时不再用数量判断，直接进入阶段3补充循环
+                exact_search_round = ExploreRound(
+                    round_idx=0,
+                    title="精确搜索",
+                    tool_calls=[],
+                    new_evidences_count=exact_evidence_count,
+                    new_paragraphs_count=0,
+                    missing_items=["AI 评估失败，需要补充探索"],
+                    sufficient=False,
+                    reason="AI 评估异常，进入补充循环",
+                    coverage=f"精确搜索找到 {exact_evidence_count} 条证据，待进一步补充",
+                    summary=f"通过精确搜索，找到 {exact_evidence_count} 条相关证据。",
+                    next_action="启动补充探索以确保信息覆盖完整。"
+                )
+                self.state.rounds.append(exact_search_round)
+
+                if self.emit_callback:
+                    await self._emit_round_event(exact_search_round)
+                # 不再用 >=5 条规则返回，直接继续进入阶段3
+
+        # ========== 阶段3：AI 补充循环（如果阶段2评估不足）==========
+        logger.info(f"[ContentExplorer] 阶段3：AI 补充循环，当前 {exact_evidence_count} 条证据")
 
         # 第0步：AI 理解任务
         try:
@@ -1656,7 +1692,7 @@ class ContentExplorer:
                 round_plan = await self._ai_plan_round(round_idx)
             except Exception as e:
                 logger.warning(f"[ContentExplorer] AI 轮次规划失败，使用默认策略: {e}")
-                # 首轮优先使用 exploration_plan.initial_queries
+                # 首轮优先使用 exploration_plan.initial_queries 作为语义搜索
                 default_queries = []
                 if round_idx == 1:
                     if self.exploration_plan and self.exploration_plan.initial_queries:
@@ -1664,7 +1700,8 @@ class ContentExplorer:
                     else:
                         default_queries = [self.target_task[:30]]
                 round_plan = RoundPlan(
-                    search_queries=default_queries,
+                    exact_keywords=[],  # V3: 默认不做精确搜索
+                    semantic_queries=default_queries,  # V3: 使用语义搜索
                     chapters_to_read=[],
                     paragraphs_to_read=[],
                     reason="默认策略"
@@ -1711,19 +1748,14 @@ class ContentExplorer:
                         round_data.missing_items = []
                         break
                     round_data.missing_items = reachable_missing
+                    # V3: 更新缺失项，用于下一轮规划
+                    self.missing_items_from_assessment = reachable_missing
             except Exception as e:
                 logger.warning(f"[ContentExplorer] AI 充足性评估失败: {e}")
-                # 使用简单规则兜底
-                if len(self.state.evidences) >= 5 and len(self.state.chapters) >= 1:
-                    stop_reason = "规则判断信息充足"
-                    round_data.sufficient = True
-                    round_data.coverage = "规则判断信息充足"
-                    round_data.missing_items = []
-                    # 设置兜底的 summary 和 next_action
-                    stats = self.state.get_stats()
-                    round_data.summary = f"经过 {stats['rounds_count']} 轮探索，收集到 {stats['total_evidences']} 条证据和 {stats['total_chapters']} 个章节的背景信息。"
-                    round_data.next_action = "基于这些背景信息，我将执行后续任务。"
-                    break
+                # V3: AI 评估失败时，不使用数量判断，继续循环直到收敛或达到最大轮次
+                # 设置兜底信息，让循环继续
+                round_data.coverage = f"AI 评估失败，当前 {len(self.state.evidences)} 条证据"
+                round_data.missing_items = ["AI 评估失败，继续探索"]
 
             # 检查是否收敛（连续无新信息）
             if self.state.check_convergence():
@@ -1938,7 +1970,12 @@ class ContentExplorer:
 
     async def _ai_plan_round(self, round_idx: int) -> RoundPlan:
         """
-        AI 决定本轮行动计划
+        AI 决定本轮行动计划（V3.1：仅语义搜索，删除精确搜索）
+
+        V3.1 改动说明：
+        - AI 补充阶段只用语义搜索，不再用精确搜索
+        - 精确搜索在阶段1已完成，AI 补充阶段的目的是找"语义相关但字面不同"的内容
+        - 删除 exact_keywords 字段，只保留 semantic_queries
 
         使用 SIMPLE_QA 任务类型优化成本
         """
@@ -1949,6 +1986,11 @@ class ContentExplorer:
         # 构建已收集信息摘要
         collected_summary = self._build_collected_summary()
 
+        # V3: 参考阶段2评估的缺失项
+        missing_hint = ""
+        if self.missing_items_from_assessment:
+            missing_hint = f"\n缺失信息（需重点补充）：{', '.join(self.missing_items_from_assessment[:5])}"
+
         # 首轮提示 AI 参考 initial_queries
         initial_hint = ""
         if round_idx == 1 and self.exploration_plan and self.exploration_plan.initial_queries:
@@ -1958,8 +2000,9 @@ class ContentExplorer:
         if self.chapter_scopes_raw:
             scope_hint = f"\n章节范围约束：仅限{_format_scope_ranges(self.chapter_scopes_raw)}，禁止跨章扩展。"
 
+        # V3.1: 只用语义搜索，删除精确搜索
         example_payload = {
-            "search_queries": ["搜索词1", "搜索词2"],
+            "semantic_queries": ["某人的性格特点", "两人之间的关系发展", "某事件的具体经过"],
             "chapters_to_read": [],
             "paragraphs_to_read": [{"chapter": 3, "paragraph": 15}],
             "reason": "决策理由"
@@ -1970,7 +2013,7 @@ class ContentExplorer:
 
 目标任务：{self.target_task}
 任务理解：{self.exploration_plan.understanding if self.exploration_plan else self.target_task}
-需要了解：{', '.join(self.exploration_plan.aspects_to_find) if self.exploration_plan else '未知'}{initial_hint}{scope_hint}
+需要了解：{', '.join(self.exploration_plan.aspects_to_find) if self.exploration_plan else '未知'}{missing_hint}{initial_hint}{scope_hint}
 
 当前轮次：第 {round_idx} 轮
 已收集信息：
@@ -1978,10 +2021,16 @@ class ContentExplorer:
 
 已搜索过的关键词（避免重复）：{', '.join(list(self.state.searched_queries)[:10])}
 
-请决定本轮行动：
-1. 需要搜索什么关键词？（避免重复已搜索的）
-2. 需要读取哪些章节？（仅在任务明确要求整章/全文时返回，否则留空）
-3. 需要精确读取哪些段落？（优先使用）
+请决定本轮要搜索什么内容：
+
+【搜索策略】使用语义搜索（semantic_queries）：
+- 生成 1-3 个语义查询，用于查找缺失的信息
+- 查询应该是完整的语义短语，如"女主与主角的关系发展"
+- 避免与已搜索过的关键词重复
+
+其他字段说明：
+- chapters_to_read: 需要读取哪些章节？（仅在任务明确要求整章/全文时填写，否则留空）
+- paragraphs_to_read: 需要精确读取哪些段落？（优先使用，格式为 {{"chapter": 章节号, "paragraph": 段落号}}）
 
 请输出 JSON 格式（不要包含其他内容）：
 {example_json}"""
@@ -1990,18 +2039,25 @@ class ContentExplorer:
             response = await ai_service.call_ai(
                 system_prompt="你是信息收集专家。只输出 JSON，不要有其他内容。",
                 user_prompt=prompt,
-                max_tokens=300,
+                max_tokens=400,
                 temperature=0.2,
                 task_type=TaskType.SIMPLE_QA
             )
 
             result = self._parse_json_response(response)
 
-            # 过滤已搜索的查询
-            search_queries = [
-                q for q in result.get("search_queries", [])
+            # V3.1: 只处理语义搜索，删除精确搜索
+            semantic_queries = [
+                q for q in result.get("semantic_queries", [])
                 if q and self.state.should_search(q)
             ]
+
+            # 兼容旧格式：如果 AI 返回 search_queries，当作语义搜索处理
+            if not semantic_queries and "search_queries" in result:
+                semantic_queries = [
+                    q for q in result.get("search_queries", [])
+                    if q and self.state.should_search(q)
+                ]
 
             # 过滤已读取的章节
             chapters_to_read = [
@@ -2010,7 +2066,8 @@ class ContentExplorer:
             ]
 
             return RoundPlan(
-                search_queries=search_queries[:3],  # 最多3个搜索
+                exact_keywords=[],  # V3.1: AI 补充阶段不再使用精确搜索
+                semantic_queries=semantic_queries[:3],  # 最多3个语义搜索
                 chapters_to_read=chapters_to_read[:2],  # 最多2个章节
                 paragraphs_to_read=result.get("paragraphs_to_read", [])[:3],
                 reason=result.get("reason", "")
@@ -2023,6 +2080,11 @@ class ContentExplorer:
         """
         AI 判断信息是否充足
 
+        V3.1 改进：
+        - 增加量化标准，避免 AI 过于保守
+        - 提高 temperature 到 0.2，允许更灵活的判断
+        - 最大轮次后若证据 ≥30 条，倾向于判断充足
+
         使用 DEEP_ANALYSIS 任务类型
         同时生成探索总结和下一步行动
         """
@@ -2032,6 +2094,23 @@ class ContentExplorer:
 
         collected_summary = self._build_collected_summary()
         rounds_count = len(self.state.rounds)
+        evidence_count = len(self.state.evidences)
+        chapter_count = len(set(e.chapter_order for e in self.state.evidences if e.chapter_order > 0))
+
+        # V3.1: 最大轮次且证据充足时，提示 AI 倾向于判断充足
+        # V3.2: 添加反例避免过度乐观
+        sufficiency_hint = ""
+        if rounds_count >= 3 and evidence_count >= 30:
+            sufficiency_hint = f"""
+【充足性判断指南】
+✅ 当前状态：已探索 {rounds_count} 轮，收集 {evidence_count} 条证据，覆盖 {chapter_count} 个章节。
+✅ 这是较为充足的信息量，倾向于判断为充足。
+
+❌ 但如果存在以下情况，仍应判断为不足：
+- 目标任务明确要求的某个关键概念/人物完全无证据
+- 证据全部来自同一章节（缺乏多角度验证）
+- 目标任务要求特定数量或格式的信息，但未满足
+"""
 
         prompt = f"""你是信息收集专家。请评估已收集的信息是否足够完成目标任务。
 
@@ -2039,17 +2118,27 @@ class ContentExplorer:
 任务理解：{self.exploration_plan.understanding if self.exploration_plan else self.target_task}
 需要了解的方面：{', '.join(self.exploration_plan.aspects_to_find) if self.exploration_plan else '未知'}
 探索轮次：{rounds_count}
-
+{sufficiency_hint}
 已收集信息：
 {collected_summary}
 
 注意：只能基于本地作品库可检索内容进行评估，不要要求搜索引擎/外部平台/作者等不可达信息。
 如果目标任务限定了章节范围，缺失项必须来自该范围内。
 
+【充足性判断标准】
+判断为"充足"的条件（满足任一即可）：
+1. 已收集 ≥30 条证据，且覆盖目标任务提到的主要方面
+2. 目标任务中的关键人物/概念都有相关证据
+3. 连续搜索未发现新信息（信息已收敛）
+
+判断为"不足"的条件：
+1. 目标任务明确提出的关键概念完全没有相关证据
+2. 仅有 <10 条证据，且来自少于 2 个章节
+
 请评估：
 1. 信息是否足够完成目标任务？
 2. 覆盖了哪些方面？
-3. 还缺少什么关键信息？
+3. 还缺少什么关键信息？（只列出真正缺失且可检索的内容）
 4. 用自然语言总结探索过程和收集到的关键内容（2-3句话）
 5. 基于探索结果，描述下一步将如何完成任务（1-2句话）
 
@@ -2067,7 +2156,7 @@ class ContentExplorer:
                 system_prompt="你是信息收集专家。只输出 JSON，不要有其他内容。",
                 user_prompt=prompt,
                 max_tokens=500,  # 增加 token 限制以生成更长的总结
-                temperature=0.1,
+                temperature=0.2,  # V3.1: 从 0.1 提高到 0.2，允许更灵活的判断
                 task_type=TaskType.DEEP_ANALYSIS
             )
 
@@ -2232,12 +2321,21 @@ class ContentExplorer:
                 except Exception as e:
                     logger.warning(f"[ContentExplorer] 获取世界观失败: {e}")
 
-        # 2. 执行 AI 规划的搜索
+        # 2. V3.1: 初始化变量（精确搜索已在阶段1完成，AI补充阶段只用语义搜索）
         auto_locate_used = 0
         auto_read_used = 0
         locate_limit = AUTO_LOCATE_LIMIT_STRICT if self.require_paragraph_index else AUTO_LOCATE_LIMIT
         read_limit = AUTO_READ_LIMIT_STRICT if self.require_paragraph_index else AUTO_READ_LIMIT
-        for query in plan.search_queries:
+
+        # V3.1 说明：AI 补充阶段不再执行精确搜索
+        # 原因：
+        # 1. 阶段1已完成精确搜索，找到了所有"字面包含关键词"的内容
+        # 2. AI 补充阶段的目的是找"语义相关但字面不同"的内容
+        # 3. AI 生成的查询是语义性的（如"林仙的摆烂哲学"），不适合精确搜索
+        # 原精确搜索代码已移除，保留 plan.exact_keywords 字段是为了向后兼容
+
+        # 2.2 语义搜索（向量相似度）
+        for query in plan.semantic_queries:
             if not self.state.should_search(query):
                 continue
 
@@ -2558,7 +2656,8 @@ class ContentExplorer:
                 logger.warning(f"[ContentExplorer] 读取段落失败: {e}")
 
         # 5. 如果 AI 没有规划任何行动，使用从证据中提取的章节
-        if not plan.search_queries and not plan.chapters_to_read:
+        # V3.1: 移除 exact_keywords 检查（已废弃），只检查实际使用的字段
+        if not plan.semantic_queries and not plan.chapters_to_read and not plan.paragraphs_to_read:
             chapters_from_evidence = self._filter_chapters_for_reading(
                 self._determine_chapters_to_read(),
                 limit=2
