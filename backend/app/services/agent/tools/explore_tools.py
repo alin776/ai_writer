@@ -1037,7 +1037,19 @@ def _build_explore_summary(result: ExploreResult) -> str:
     summary_parts.append(f"【探索统计】")
     summary_parts.append(f"- 探索轮次: {stats.get('rounds_count', 0)} 轮")
     summary_parts.append(f"- 收集证据: {stats.get('total_evidences', 0)} 条")
-    summary_parts.append(f"- 读取章节: {stats.get('total_chapters', 0)} 章")
+
+    # 🔧 2026-01-21: 修改统计展示，避免"读取章节: 0 章"误导AI
+    # 显示证据覆盖的章节范围，而不是整章阅读的数量
+    if result.evidences:
+        chapter_orders = sorted(set(e.chapter_order for e in result.evidences if e.chapter_order))
+        if chapter_orders:
+            min_ch, max_ch = min(chapter_orders), max(chapter_orders)
+            summary_parts.append(f"- 证据覆盖: 第{min_ch}-{max_ch}章 ({len(chapter_orders)}个章节)")
+        else:
+            summary_parts.append(f"- 证据覆盖: 未知")
+    elif stats.get('total_chapters', 0) > 0:
+        summary_parts.append(f"- 整章阅读: {stats.get('total_chapters', 0)} 章")
+
     summary_parts.append(f"- 世界观条目: {stats.get('total_worldview_items', 0)} 个")
     summary_parts.append(f"- 结束原因: {result.stop_reason}")
     summary_parts.append("")
