@@ -439,11 +439,15 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       const json = editor.getJSON();
 
       // 保存到 localStorage（作为备份）
-      if (contentStorageKey) {
-        localStorage.setItem(contentStorageKey, html);
-      }
-      if (jsonStorageKey) {
-        localStorage.setItem(jsonStorageKey, JSON.stringify(json));
+      try {
+        if (contentStorageKey) {
+          localStorage.setItem(contentStorageKey, html);
+        }
+        if (jsonStorageKey) {
+          localStorage.setItem(jsonStorageKey, JSON.stringify(json));
+        }
+      } catch (e) {
+        console.warn('localStorage 存储失败，可能配额已满:', e);
       }
 
       // 调用外部保存回调
@@ -622,11 +626,15 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           return;
         }
         const json = editor.getJSON();
-        if (contentStorageKey) {
-          localStorage.setItem(contentStorageKey, html);
-        }
-        if (jsonStorageKey) {
-          localStorage.setItem(jsonStorageKey, JSON.stringify(json));
+        try {
+          if (contentStorageKey) {
+            localStorage.setItem(contentStorageKey, html);
+          }
+          if (jsonStorageKey) {
+            localStorage.setItem(jsonStorageKey, JSON.stringify(json));
+          }
+        } catch (e) {
+          console.warn('localStorage 存储失败，可能配额已满:', e);
         }
         if (onSave) {
           onSave(html, json);
