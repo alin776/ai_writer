@@ -1610,7 +1610,7 @@ class ContentExplorer:
                     new_paragraphs_count=0,
                     missing_items=assessment.missing if not assessment.sufficient else [],
                     sufficient=assessment.sufficient,
-                    reason="AI 评估完成",
+                    reason="充足性评估完成",
                     coverage=assessment.coverage,
                     summary=assessment.summary,
                     next_action=assessment.next_action
@@ -1621,10 +1621,10 @@ class ContentExplorer:
                 if self.emit_callback:
                     await self._emit_round_event(exact_search_round)
 
-                # V3 核心改动：AI 判断充足则直接返回（仅1次 AI 调用）
+                # V3 核心改动：判断充足则直接返回
                 if assessment.sufficient:
-                    logger.info(f"[ContentExplorer] AI 判断信息充足，跳过补充循环: {assessment.coverage}")
-                    stop_reason = f"AI 判断信息充足: {assessment.coverage}"
+                    logger.info(f"[ContentExplorer] 判断信息充足，跳过补充循环: {assessment.coverage}")
+                    stop_reason = f"判断信息充足: {assessment.coverage}"
 
                     total_duration_ms = int((get_utc_now() - self.start_time).total_seconds() * 1000)
                     return ExploreResult(
@@ -1732,7 +1732,7 @@ class ContentExplorer:
                     else:
                         round_data.coverage = note
                 if assessment.sufficient:
-                    stop_reason = f"AI 判断信息充足: {assessment.coverage}"
+                    stop_reason = f"判断信息充足: {assessment.coverage}"
                     round_data.sufficient = True
                     round_data.missing_items = []
                     break
@@ -2076,20 +2076,128 @@ class ContentExplorer:
             logger.warning(f"[ContentExplorer] AI 轮次规划解析失败: {e}")
             raise
 
+    def _calculate_keyword_coverage(self) -> float:
+        """
+        计算关键词覆盖率（V3.3：用于规则判断）
+
+        Returns:
+            float: 覆盖率 0.0-1.0
+        """
+        if not self.search_keywords:
+            return 1.0  # 无关键词时默认充足
+
+        covered = 0
+        for kw in self.search_keywords:
+            for e in self.state.evidences:
+                if kw in e.text or kw in e.query:
+                    covered += 1
+                    break
+
+        return covered / len(self.search_keywords)
+
+    def _generate_rule_based_summary(self, evidence_count: int, chapter_count: int, keyword_coverage: float) -> str:
+        """生成规则判断时的总结"""
+        # 收集章节信息
+        chapter_orders = sorted(set(e.chapter_order for e in self.state.evidences if e.chapter_order > 0))
+        if chapter_orders:
+            chapter_range = f"第{min(chapter_orders)}-{max(chapter_orders)}章"
+        else:
+            chapter_range = "未知章节"
+
+        # 收集关键词信息
+        covered_keywords = []
+        if self.search_keywords:
+            for kw in self.search_keywords[:5]:
+                for e in self.state.evidences:
+                    if kw in e.text or kw in e.query:
+                        covered_keywords.append(kw)
+                        break
+
+        keyword_info = f"，涉及{', '.join(covered_keywords[:3])}等关键内容" if covered_keywords else ""
+
+        return f"通过精确搜索，收集到 {evidence_count} 条证据，覆盖 {chapter_count} 个章节（{chapter_range}）{keyword_info}。"
+
+    def _rule_based_sufficiency(self) -> Optional[SufficiencyAssessment]:
+        """
+        规则优先的充足性判断（V3.3：减少 AI 不稳定性）
+
+        判断规则：
+        1. 证据 ≥ 30 条 且 章节 ≥ 3 个 → 直接充足
+        2. 关键词覆盖率 ≥ 80% 且 证据 ≥ 20 条 → 直接充足
+        3. 证据 < 5 条 → 直接不足
+        4. 其他情况 → 返回 None，交给 AI 判断
+
+        Returns:
+            SufficiencyAssessment 或 None（需要 AI 判断）
+        """
+        evidence_count = len(self.state.evidences)
+        chapter_count = len(set(e.chapter_order for e in self.state.evidences if e.chapter_order > 0))
+        keyword_coverage = self._calculate_keyword_coverage()
+
+        logger.info(
+            "[ContentExplorer] 规则判断: 证据=%d, 章节=%d, 关键词覆盖=%.1f%%",
+            evidence_count, chapter_count, keyword_coverage * 100
+        )
+
+        # 规则1：数量充足 → 直接通过
+        if evidence_count >= 30 and chapter_count >= 3:
+            logger.info("[ContentExplorer] 规则1命中: 证据≥30 且 章节≥3 → 直接充足")
+            return SufficiencyAssessment(
+                sufficient=True,
+                coverage=f"证据充足：{evidence_count}条证据，覆盖{chapter_count}个章节",
+                missing=[],
+                summary=self._generate_rule_based_summary(evidence_count, chapter_count, keyword_coverage),
+                next_action="基于充足的背景信息，将执行后续任务。"
+            )
+
+        # 规则2：关键词高覆盖 → 直接通过（需要至少2个章节）
+        if keyword_coverage >= 0.8 and evidence_count >= 20 and chapter_count >= 2:
+            logger.info("[ContentExplorer] 规则2命中: 关键词覆盖≥80%% 且 证据≥20 且 章节≥2 → 直接充足")
+            return SufficiencyAssessment(
+                sufficient=True,
+                coverage=f"关键词覆盖率：{keyword_coverage:.0%}，证据{evidence_count}条",
+                missing=[],
+                summary=self._generate_rule_based_summary(evidence_count, chapter_count, keyword_coverage),
+                next_action="关键信息已覆盖，将执行后续任务。"
+            )
+
+        # 规则3：证据极少 → 直接不足
+        if evidence_count < 5:
+            logger.info("[ContentExplorer] 规则3命中: 证据<5 → 直接不足")
+            return SufficiencyAssessment(
+                sufficient=False,
+                coverage=f"证据不足：仅{evidence_count}条",
+                missing=["需要更多相关信息"],
+                summary=f"当前仅收集到 {evidence_count} 条证据，信息量不足。",
+                next_action="需要继续探索以收集更多背景信息。"
+            )
+
+        # 其他情况：返回 None，交给 AI 判断
+        logger.info("[ContentExplorer] 边界情况: 证据=%d, 章节=%d → 交给AI判断", evidence_count, chapter_count)
+        return None
+
     async def _ai_assess_sufficiency(self) -> SufficiencyAssessment:
         """
         AI 判断信息是否充足
 
-        V3.1 改进：
-        - 增加量化标准，避免 AI 过于保守
-        - 提高 temperature 到 0.2，允许更灵活的判断
-        - 最大轮次后若证据 ≥30 条，倾向于判断充足
+        V3.3 改进：
+        - 新增规则优先判断，减少 AI 不稳定性
+        - 只有边界情况（5-30条证据）才调用 AI
+        - 降低 temperature 到 0.1，提高稳定性
 
         使用 DEEP_ANALYSIS 任务类型
         同时生成探索总结和下一步行动
         """
         from app.services.agent.model_selector import TaskType
 
+        # V3.3: 规则优先判断，减少 AI 不稳定性
+        rule_result = self._rule_based_sufficiency()
+        if rule_result is not None:
+            logger.info("[ContentExplorer] 规则判断命中，跳过 AI 评估")
+            return rule_result
+
+        # 边界情况：调用 AI 判断
+        logger.info("[ContentExplorer] 边界情况，调用 AI 评估")
         ai_service = _get_ai_service()
 
         collected_summary = self._build_collected_summary()
@@ -2156,7 +2264,7 @@ class ContentExplorer:
                 system_prompt="你是信息收集专家。只输出 JSON，不要有其他内容。",
                 user_prompt=prompt,
                 max_tokens=500,  # 增加 token 限制以生成更长的总结
-                temperature=0.2,  # V3.1: 从 0.1 提高到 0.2，允许更灵活的判断
+                temperature=0.1,  # V3.3: 降低到 0.1，提高稳定性（边界情况才调用）
                 task_type=TaskType.DEEP_ANALYSIS
             )
 
@@ -2190,11 +2298,22 @@ class ContentExplorer:
             raise
 
     def _build_collected_summary(self) -> str:
-        """构建已收集信息的摘要（增强版，展示更多证据细节）"""
+        """构建已收集信息的摘要（V3.3：增加关键词覆盖统计）"""
         lines = []
 
         if self.chapter_scopes:
             lines.append(f"- 任务章节范围：{_format_scope_ranges(self.chapter_scopes)}")
+
+        # 🆕 V3.3: 关键词覆盖统计（让 AI 明确知道每个关键词的命中情况）
+        if self.search_keywords and self.state.evidences:
+            lines.append("- 【关键词覆盖统计】")
+            for kw in self.search_keywords[:10]:  # 最多展示 10 个关键词
+                # 同时检查 e.text 和 e.query（query 包含精确搜索匹配的关键词）
+                # 这样即使文本被截断，也能通过 query 检测到匹配
+                count = sum(1 for e in self.state.evidences if kw in e.text or kw in e.query)
+                status = "✓" if count > 0 else "✗"
+                lines.append(f"    · \"{kw}\": {count} 条 {status}")
+            lines.append("")  # 空行分隔
 
         # 证据统计（按章节分组，显示段落号）
         if self.state.evidences:
