@@ -1,4 +1,4 @@
-# Operate SubAgent 任务清单
+# ContentOperator 任务清单
 
 ## 总览
 
@@ -350,7 +350,8 @@ smart_rewrite → 返回1个版本 → operate_apply → HITL确认
 - [06-测试计划.md](./06-测试计划.md) - 测试用例和验证方案
 - [07-迁移指南.md](./07-迁移指南.md) - 渐进式迁移步骤
 - [09-流程图.md](./09-流程图.md) - 完整流程图
-- [10-replace_all实现.md](./10-replace_all实现.md) - **replace_all 操作详细实现方案**
+- [10-replace_all实现.md](./10-replace_all实现.md) - replace_all 操作详细实现方案
+- [11-前端UI设计.md](./11-前端UI设计.md) - **执行轨迹UI设计、OperateCard组件规范**
 
 ---
 
