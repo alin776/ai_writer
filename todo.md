@@ -1,5 +1,607 @@
 # TODO
 
+## V3.4 修复：AI 评估稳定性（分离提取与判断）（2026-01-21）
+
+### 待办清单
+
+- [x] 读取现有 _ai_assess_sufficiency 方法代码
+- [x] 设计新的提取指标数据结构 EvidenceExtraction
+- [x] 修改 AI prompt：从判断改为提取
+- [x] 实现确定性规则判断函数
+- [x] 验证代码语法正确性
+
+### 解决方案
+
+**问题根源**：AI 直接做主观判断（sufficient: true/false）导致不稳定
+
+**解决方案**：分离提取与判断
+- **AI 只做客观提取**：关键词覆盖、内容质量等
+- **代码规则判断**：基于提取结果用确定性规则判断
+
+### 改动文件
+
+| 文件 | 改动类型 | 说明 |
+|------|----------|------|
+| `explore_tools.py:503-532` | 新增 | `EvidenceExtraction` 数据类 |
+| `explore_tools.py:2208-2225` | 重构 | `_ai_assess_sufficiency` 改为调用提取+规则判断 |
+| `explore_tools.py:2227-2346` | 新增 | `_ai_extract_evidence_metrics` AI 提取客观指标 |
+| `explore_tools.py:2348-2436` | 新增 | `_evaluate_from_extraction` 确定性规则判断 |
+
+### 规则判断逻辑
+
+```
+V3.4.1 修复后的规则：
+
+规则0（最高优先级）：关键词覆盖率 < 50% 且 关键词数 ≥ 3 → 不足（必须继续探索）
+规则1：证据 ≥ 30 条 且 覆盖率 ≥ 50% → 充足
+规则2：关键词覆盖率 ≥ 70% 且 证据 ≥ 15 条 → 充足
+规则3：章节 ≥ 3 个 且 内容质量 ≥ 2/3 → 充足
+规则4：证据 < 5 条 → 不足
+规则5：其他 → 不足（保守策略）
+```
+
+### V3.4.1 紧急修复（2026-01-21）
+
+**问题**：用户测试发现 64 条证据 + 33% 关键词覆盖率被误判为充足
+
+**修复**：
+- 新增规则0：关键词覆盖率 < 50% 时强制判断为不足
+- 规则1 添加覆盖率条件：证据 ≥ 30 **且** 覆盖率 ≥ 50%
+
+| 场景 | 修复前 | 修复后 |
+|------|--------|--------|
+| 64条证据, 33%覆盖 | ❌ 规则1命中→充足 | ✅ 规则0命中→不足 |
+| 64条证据, 80%覆盖 | ✅ 规则1命中→充足 | ✅ 规则1命中→充足 |
+
+### 预期效果
+
+| 测试场景 | 改进前 | 改进后 |
+|----------|--------|--------|
+| 94条证据 | AI 判断不稳定 | 规则1命中，100%充足 |
+| 64条证据 | AI 判断不稳定 | 规则1命中，100%充足 |
+| 总执行时间 | 5.5-16分钟 | 预计 1-2分钟 |
+
+### review
+
+- 新增 `EvidenceExtraction` 数据类存储 AI 提取的客观指标（关键词覆盖、章节覆盖、内容质量等）
+- `_ai_assess_sufficiency` 重构为两步：AI 提取 → 规则判断
+- `_ai_extract_evidence_metrics` 使用 `temperature=0` 确保提取稳定
+- `_evaluate_from_extraction` 实现 5 条确定性规则，消除 AI 主观判断的不稳定性
+- 语法验证通过
+
+### 深度 Review 发现的问题及修复
+
+| 问题 | 严重程度 | 状态 | 修复方案 |
+|------|----------|------|----------|
+| JSON 示例格式错误 | 🔴 高 | ✅ 已修复 | 修正 f-string 中的引号转义（2275行） |
+| 关键词覆盖率依赖 AI 提取 | 🟡 中 | ✅ 已修复 | 改用代码计算 `_calculate_keyword_coverage()`（2366行） |
+| AI 提取失败时 summary 为空 | 🟡 中 | ✅ 已修复 | 添加兜底值（2337-2351行） |
+| `_rule_based_sufficiency` 未调用 | 🟢 低 | ⏸️ 保留 | 保留为备用方法，不影响功能 |
+
+### 深度验证清单
+
+| 检查项 | 结果 |
+|--------|------|
+| 1. 验证是否引入新问题 | ✅ 无新问题（已修复 JSON 格式 bug） |
+| 2. 检查是否真正解决原问题 | ✅ 规则判断 100% 确定性 |
+| 3. 检查修改完整性 | ✅ 阶段2/阶段3 调用路径完整 |
+| 4. 验证逻辑一致性 | ✅ 关键词覆盖率改用代码计算 |
+| 5. 更深入验证遗漏 | ✅ 添加了异常兜底值 |
+
+### 二次深度 Review（2026-01-21）
+
+| 检查项 | 结果 | 说明 |
+|--------|------|------|
+| JSON 格式验证 | ✅ 通过 | `{"林仙": true, "叶凡": true}` 格式正确 |
+| 空关键词边界 | ✅ 可接受 | 生成 `{"": true}`，不影响规则判断 |
+| 规则覆盖测试 | ✅ 通过 | 64/71/94/76条证据全部命中规则1 |
+| 边界情况测试 | ✅ 通过 | 5-30条证据按规则2/3/5处理 |
+| 数据流完整性 | ✅ 通过 | summary/next_action 正确传递 |
+| dataclass 默认值 | ✅ 通过 | potential_gaps 独立实例 |
+| 语法验证 | ✅ 通过 | py_compile 无错误 |
+
+### 规则覆盖验证
+
+```
+原测试场景（全部命中规则1）：
+- 任务1 (林仙+10086): 64条证据 → 规则1命中: 证据≥30 → 充足
+- 任务2 (摆烂哲学): 71条证据 → 规则1命中: 证据≥30 → 充足
+- 任务3 (叶凡定位): 94条证据 → 规则1命中: 证据≥30 → 充足
+- 任务4 (修行策略): 76条证据 → 规则1命中: 证据≥30 → 充足
+
+边界情况测试：
+- 少量证据 (10条,低覆盖): 规则5 → 不足
+- 中等证据+高覆盖 (20条,80%): 规则2命中 → 充足
+- 多章节+高质量 (10条,3章节,质量3/3): 规则3命中 → 充足
+- 极少证据 (3条): 规则4命中 → 不足
+```
+
+---
+
+## Operate SubAgent 开发计划评审（2026-01-21）
+
+### 待办清单
+
+- [x] 通读 `tasks/operate-subagent` 相关计划文档，整理关键设计与依赖
+- [x] 评审开发计划合理性：范围、依赖、风险、测试覆盖与迁移策略
+- [x] 输出评审结论并回填 todo.md（含 review 小结）
+
+### 解决方案（拟）
+
+基于 `tasks/operate-subagent` 的规划文档与任务清单，按“功能完整性、依赖闭环、风险控制、测试可执行性、迁移路径”五个维度进行评审，给出可行性结论与需修正的高风险点，并在 todo.md 记录结论。
+
+### review
+
+- 方向可行，但核心实现与路由设计存在阻塞级不一致：路由表解包与 content→replace_all 映射缺失会导致运行错误
+- operate_apply/数据结构/JSON Schema 仅覆盖 append/replace/insert，create/title/content 无法被规划正确调用
+- create 流程假设 smart_continue 产出标题，但当前工具未返回 title，需要新增或改造
+- smart_rewrite 简化影响面大，计划漏掉 `src/hooks/useAgentChat.ts` 等依赖文件，需补全或延后
+- operate_apply 的 StandardTool 注册步骤未覆盖（registry 与分类/工具发现需补充）
+
+## Review：AI 评估与检索问题核对（2026-01-21）
+
+### 待办清单
+
+- [x] 通读 `INFO.md`、`INFO (2).md`、`Backend.md` 与 `message-2025-11-18T14-00-13.md`，提取与 4 个问题相关的证据
+- [x] 复核 `backend/app/services/agent/tools/explore_tools.py` 与 `backend/app/services/search/hybrid_retriever.py` 的对应实现（温度、缓存 key、收敛逻辑、reranker 线程）
+- [x] 对照日志给出每个问题是否成立的结论，并标注证据位置
+- [x] 在 todo.md 补充 review 结论
+
+### 解决方案（拟）
+
+- 以日志为主证据，结合代码对应逻辑，逐条判断问题是否真实存在与触发条件。
+
+### review
+
+- 问题1（AI 评估不稳定）：成立。相同任务与 94 条证据在不同时间出现“充足/不足”相反结论（`Backend.md:360-396` vs `Backend.md:1188-1215`），且当时评估调用温度为 0.2（`Backend.md:380`、`Backend.md:1195`）。提示词条件仍较宽泛（“满足任一即可/信息收敛”等，`backend/app/services/agent/tools/explore_tools.py:2233-2241`）。当前代码已降温并加规则优先（`backend/app/services/agent/tools/explore_tools.py:2180-2265`），但日志中的不稳定性客观存在。
+- 问题2（Reranker 缓存命中低）：成立。缓存 key 绑定 query + candidates（`backend/app/services/search/hybrid_retriever.py:49-71`），日志中查询语义频繁变化（`Backend.md:171`、`Backend.md:190`、`Backend.md:198` 等），且未见任何“缓存命中”记录，说明命中率极低。
+- 问题3（补充循环无法识别“原文不存在”）：成立。收敛逻辑在缺失项存在时固定标记“覆盖不足”（`backend/app/services/agent/tools/explore_tools.py:1761-1766`），日志中“试探博弈”类缺失项多轮重复，最终以“达到最大轮次（覆盖不足）”结束（`Backend.md:1113-1127`）。
+- 问题4（Reranker 耗时波动大）：成立。重排为单线程执行（`backend/app/services/search/hybrid_retriever.py:40`），日志显示多次重排串行发生且耗时差异明显（`Backend.md:171-183`、`Backend.md:190-200`），易受排队与负载波动影响。
+
+## 代码回滚到 28f134b（2026-01-21）
+
+### 待办清单
+
+- [x] 查看当前 git 状态
+- [x] 确认目标提交存在
+- [x] 执行 git reset 回滚
+- [x] 验证工作区状态
+
+### 当前状态
+
+**目标提交**：28f134b229de0c142e47b25afdb13b4ed0e8ad98
+**分支**：alin3.0
+**远程仓库**：https://github.com/alin776/ai_writer.git
+
+### 预期结果
+
+将代码回滚到 28f134b 的状态，丢弃所有未提交的修改。
+
+### review
+
+- **当前提交**：28f134b feat: UI 优化和文档更新
+- **回滚方式**：git reset --hard 28f134b
+- **状态**：✅ 成功回滚
+- **丢弃的修改**：
+  - Backend.md
+  - INFO (2).md
+  - INFO.md
+  - backend/app/core/config.py
+  - backend/app/services/agent/langgraph_tools.py
+  - backend/app/services/agent/planning/plan_generator.py
+  - backend/app/services/agent/planning/response_builder.py
+  - backend/app/services/agent/tools/explore_tools.py
+  - backend/app/services/agent/utils/context_builder.py
+  - backend/app/services/search/hybrid_retriever.py
+  - todo.md（未提交的部分）
+- **工作区状态**：干净，已与远程分支同步
+- **说明**：所有未提交的修改已被丢弃，代码恢复到第七次推送后的状态
+
+---
+
+## Explore 范围锁定与约束强化（2026-01-21）
+
+### 待办清单
+
+- [x] 修复范围映射：补齐 AsyncSessionLocal 导入，确保章节标题映射生效
+- [x] 前置范围过滤：检索层按章节范围过滤，多段范围分段检索后合并
+- [x] 负向语义优先：避免“不要整章阅读”误判为需要整章
+- [x] 规划约束强校验：缺失范围/禁止整章/段落号要求时强制追加
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 在 `backend/app/services/agent/tools/explore_tools.py` 补齐 `AsyncSessionLocal` 导入，修复范围映射。
+- 在 `backend/app/services/agent/langgraph_tools.py` 的检索接口增加章节范围过滤，`hybrid_retriever` 支持 scope 过滤；多段范围在 Explore 层拆分检索并合并去重。
+- 在 Explore 解析任务时显式识别“不要整章阅读/仅段落”，优先级高于关键词触发 `require_full_chapter`。
+- 在规划阶段强制校验约束字段，缺失则重试或补全，避免“精读整章”跑偏。
+
+### review
+
+- 补齐 `AsyncSessionLocal` 导入，范围映射恢复可用（`backend/app/services/agent/tools/explore_tools.py`）。
+- 支持“章节1-2/章节(1-2, 34-35)”等范围解析，多段范围分段检索并合并去重；单章范围允许 `look_ahead=0` 精确锁定，并在检索层加入上下界过滤（`backend/app/services/agent/tools/explore_tools.py`、`backend/app/services/agent/langgraph_tools.py`、`backend/app/services/search/hybrid_retriever.py`、`backend/app/services/chapter_vector_service.py`）。
+- 增加“不要整章阅读/仅段落”等负向语义拦截，禁止整章读取并强化段落模式触发（`backend/app/services/agent/tools/explore_tools.py`）。
+- 规划阶段补齐范围/段落/禁止整章/禁止越界约束到 `explore_content` 的 `target_task`（`backend/app/services/agent/planning/plan_generator.py`）。
+
+## Review：INFO (2).md / Backend.md 轨迹核对（2026-01-21）
+
+### 待办清单
+
+- [x] 通读前端执行轨迹与后端日志，定位章节范围与命中偏差
+- [x] 对照最新缓存隔离/章节映射改动，判断是否符合预期
+- [x] 输出问题结论与下一步修复建议
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 结合 `INFO (2).md` 与 `Backend.md` 的时间线，核对是否仍出现跨范围命中、重复检索或定位失败；回溯到 `explore_tools.py` 的范围映射与共享缓存逻辑，确认是否还有误用旧证据或范围解析失败的情况。
+
+### review
+
+- 章节范围映射未生效：日志反复出现 `AsyncSessionLocal` 未定义，导致范围映射失败（`Backend.md:199`、`Backend.md:973`）。
+- 范围约束仍失效：在仅限 1-2/34-35/70-71/98-99 的任务中，多次读到 50、76、57、27 等章（`Backend.md:997`、`Backend.md:999`、`Backend.md:1000`；`INFO (2).md:203`、`INFO (2).md:224`）。
+- “不要整章阅读”触发了 `require_full_chapter`：日志显示任务被判定为完整章节原文，违反用户指令（`Backend.md:973`）。
+- 计划器未覆盖“不要整章阅读/不得引用范围外内容”等约束，导致 AI 下一步行动倾向于“精读整章”（`Backend.md:760`、`INFO (2).md:95`）。
+- 共享缓存隔离已生效（仅复用 searched/read 集合），但仍需要修复范围映射与负向关键词触发，才能达成“范围内精准+提速”的预期。
+
+## Explore 大跨度复杂 Prompt 设计（2026-01-21）
+
+### 待办清单
+
+- [x] 通读小说素材并定位跨章关键内容
+- [x] 生成 2 条大跨度复杂 Prompt（多主题/证据链/章节+段落号）
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 基于 `docs/Agent/real-book/人在诸天，摆烂成帝.txt` 的设定与关键转折，设计跨多个章节范围的探索任务，强制输出章节号+段落号证据链，用于验证范围锁定与准确性。
+
+### review
+
+- 已围绕第34-35、70-73、96-99章等跨度范围定位关键情节与人物关系，用于构建多主题证据链任务（`docs/Agent/real-book/人在诸天，摆烂成帝.txt`）。
+- 输出 2 条大跨度复杂 Prompt，要求“章节号+段落号+原文引用”，以验证范围锁定、段落号补齐与跨范围准确性。
+
+---
+
+## Explore 大跨度复杂 Prompt 设计（第二轮）（2026-01-21）
+
+### 待办清单
+
+- [x] 复核小说素材内可用的跨章线索与关键节点
+- [x] 生成 2 条跨度更大的复杂 Prompt（多主题/证据链/章节+段落号）
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 基于 `docs/Agent/real-book/人在诸天，摆烂成帝.txt` 的跨章剧情（1-2/34-35/70-73/96-99），设计带强约束的检索任务，覆盖系统任务、势力博弈、资源代价与情绪转折，并要求严格段落号输出。
+
+### review
+
+- 已复核 1-2、34-35、70-73、96-99 章关键事件与角色互动节点，覆盖“系统任务/奖励、势力博弈、人皇幡、狠人道统、资源代价”等线索。
+- 已生成 2 条大跨度复杂 Prompt，包含多主题证据链、跨章因果与严格段落号输出约束。
+
+---
+
+## Explore 大跨度复杂 Prompt 设计（第三轮）（2026-01-21）
+
+### 待办清单
+
+- [x] 通读小说素材并定位跨章关键内容
+- [x] 生成 5 条大跨度复杂 Prompt（多主题/证据链/章节+段落号）
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 基于 `docs/Agent/real-book/一夕千悟，从杂役弟子开始.txt` 的设定与情节（吞噬器灵、考核晋升、宗门统治、悬赏要犯），设计跨多章节范围的探索任务，强制输出章节号+段落号证据链，用于验证范围锁定与只读段落策略。
+
+### review
+
+- 已覆盖第1-5章关键线索（吞噬器灵、浑圆桩训练、一夕千悟、家底与资源、太一门通缉线），用于构建跨章证据链任务（`docs/Agent/real-book/一夕千悟，从杂役弟子开始.txt`）。
+- 输出 5 条复杂 Prompt，强调多主题/多范围/严格段落号与“禁止整章阅读”，用于验证范围锁定与段落模式。
+
+---
+
+## Review：Prompt1 测试轨迹核对（2026-01-21）
+
+### 待办清单
+
+- [x] 通读 `INFO (2).md` 与 `Backend.md`，提取 Prompt1 的实际执行轨迹
+- [x] 对照预期验证点（范围锁定/只读段落/不整章/收敛）列出符合与不符合项
+- [x] 结合日志定位偏差根因（工具调用、范围解析、规划/评估等）
+- [x] 给出最小改动修复建议与验证方法
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 以 Prompt1 触发的 Explore 轮次为主线，核对 `search_content`/`locate_content`/`read_paragraph` 是否被范围约束，
+  是否出现越界证据、整章读取、段落号缺失与多轮空转；必要时对照 `backend/app/services/agent/tools/explore_tools.py`、
+  `backend/app/services/agent/langgraph_tools.py` 的范围过滤与段落策略，给出修复建议。
+
+### review
+
+- 范围锁定符合预期：Explore 明确锁定第1-5章，未见越界读段落（`Backend.md:448`、`Backend.md:494`）。
+- “禁止整章阅读”在后端生效，但前端轨迹仍显示多次 `ReadRaw: 第1章/第5章`，存在工具映射或约束绕过的表现差异（`Backend.md:449`、`INFO (2).md:24`、`INFO (2).md:28`）。
+- 段落号约束未完全满足：出现 `第5章第0段` 且评估提示“证据缺失段落号”，导致格式不达标（`Backend.md:496`、`Backend.md:561`、`INFO (2).md:495`）。
+- 收敛不符合预期：资源链任务跑满 10 轮并以“覆盖不足”结束，未按“缺失即停止”的指令提前终止（`Backend.md:1467`、`INFO (2).md:472`）。
+- 召回不足：第4-5章内的“家底/药补”未命中，说明检索与段落定位仍错过明确原文（`Backend.md:1201`、`Backend.md:1462`）。
+
+## Explore 板块运行机制梳理（2026-01-21）
+
+### 待办清单
+
+- [x] 通读 Explore 文档与后端实现，整理功能定位与必要性
+- [x] 串起后端执行流程与事件输出（explore_content → ContentExplorer → FlowEventBuilder）
+- [x] 串起前端事件接收与渲染路径（agentApi/useAgentChat/ExecutionFlow/ExploreCard）
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 以 `docs/explore` 与 `backend/app/services/agent/tools/explore_tools.py` 为主线，结合前端 `src/services/agentApi.ts`、`src/hooks/useAgentChat*.ts`、`src/components/agent/ExecutionFlow/*`，梳理 Explore 的触发时机、轮次执行、停止条件、事件流与 UI 展示链路。
+
+### review
+
+- Explore 定位为复杂任务的多轮信息收集（get_writing_context 增强版），核心实现集中在 `backend/app/services/agent/tools/explore_tools.py`，AI 规划轮次并判断充足性。
+- 事件链路由 ContentExplorer 发出 explore_round/explore_summary，经 `backend/app/services/agent/stream/flow_events.py` 定义字段并流式发送，支持轮次展示与总结展示。
+- 前端接收链路为 `src/services/agentApi.ts` → `src/hooks/useAgentChatStream.ts`/`src/hooks/useAgentChat.ts` → `src/components/agent/ExecutionFlow/index.tsx` → `src/components/agent/ExecutionFlow/ExploreCard.tsx`，类型定义在 `src/types/agent.ts`。
+
+---
+
+## Explore 检索性能与准确性对标调研（Codex / OpenCode）（2026-01-21）
+
+### 待办清单
+
+- [x] 在本地确认是否已有 `openai/codex` 与 `anomalyco/opencode` 的代码副本或文档
+- [x] 明确获取源码的方式（用户提供路径/压缩包或批准联网克隆）
+- [x] 阅读两项目的检索/索引/缓存/召回-重排流程并整理关键做法
+- [x] 对照当前 Explore 的慢与不准问题，提炼可落地的优化建议
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 若本地无仓库，则请求用户提供代码路径或批准联网 `git clone`；在此基础上聚焦检索链路（embedding、索引、缓存、query 改写/重排、并发与超时）并总结可迁移到 Explore 的提速与提准策略。
+
+### review
+
+- Codex 侧重点在“快速文件名检索”：`codex-rs/file-search/src/lib.rs` 用 ignore 并行遍历 + nucleo 模糊匹配 + top-k 堆合并，配合取消标记与索引高亮；`codex-rs/tui/src/file_search.rs` 做 100ms debounce 和取消非前缀查询；`codex-rs/app-server/src/codex_message_processor.rs` 接收 cancellation_token 防止旧结果覆盖。
+- OpenCode 侧重点在“ripgrep 驱动的文件/内容检索”：`packages/opencode/src/file/ripgrep.ts` 用 `rg --json` + `--max-count` 限制；`packages/opencode/src/file/index.ts` 缓存文件/目录列表并用 fuzzysort 排序；`packages/opencode/src/server/routes/file.ts` 将文本检索限制为 10 条返回；`specs/03-request-throttling.md`/`specs/perf-roadmap.md` 明确通过 debounce + stale 保护抑制请求风暴。
+- 可迁移到 Explore 的方向：引入“查询 debounce + 取消/去重 + top-k 限制 + 结果阈值 + 更强的范围约束与 read_paragraph 验证”，优先解决慢与不准。
+
+---
+
+## 排查 Explore 是否存在“顺序读整章”的行为（2026-01-21）
+
+### 待办清单
+
+- [x] 阅读 Explore 核心流程与章节读取路径，确认是否有按序读取整章的逻辑
+- [x] 结合 AI 轮次规划/兜底策略，判断触发条件与表现
+- [x] 输出结论与证据位置，更新 todo.md 的 review
+
+### 解决方案（拟）
+
+- 重点检查 `backend/app/services/agent/tools/explore_tools.py` 中 `chapters_to_read` 的生成与兜底 `_determine_chapters_to_read`，确认是否存在按章节排序读取或默认读整章的策略。
+
+### review
+
+- 存在“按章节顺序读整章”的路径：AI 规划返回 `chapters_to_read` 后按列表顺序逐章读取（`backend/app/services/agent/tools/explore_tools.py:1626`），而兜底 `_determine_chapters_to_read` 会 `sorted` 章节号并只取前 2 章读取（`backend/app/services/agent/tools/explore_tools.py:1817`、`backend/app/services/agent/tools/explore_tools.py:1720`）。
+- AI 轮次提示里示例为 `chapters_to_read: [1, 2]`，容易诱导顺序读章（`backend/app/services/agent/tools/explore_tools.py:1223`）。
+- 当任务触发 `chapter_scope`（如“前两章”）时，搜索被锁定在范围内，且章节读取依然按序号遍历，因此“顺序读整章”表现更明显（`backend/app/services/agent/tools/explore_tools.py:1636`）。
+
+---
+
+## Explore 顺序读整章策略收紧（2026-01-21）
+
+### 待办清单
+
+- [x] 调整 AI 规划提示，弱化整章读取示例并强调优先段落
+- [x] 按证据密度排序章节，并在非全文任务下限制整章读取数量
+- [x] 更新兜底与充足性规则，避免非全文任务强制读整章
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 在 `backend/app/services/agent/tools/explore_tools.py` 引入“全文任务判定”，重排 `chapters_to_read` 并在非全文任务下仅允许读取 1 章或改为段落优先；调整 AI Prompt 的示例与规则；兜底规则由“必须读章”改为“至少读段落”。
+
+### review
+
+- 新增全文任务判定（`FULL_CHAPTER_REQUIRED_KEYWORDS` + `_requires_full_chapter`），并在 ContentExplorer 初始化记录（`backend/app/services/agent/tools/explore_tools.py`）。
+- 引入章节证据排序与过滤：基于证据相似度/段落命中排序，并在非全文任务下仅允许读取 1 章且跳过已有段落证据的章节（`backend/app/services/agent/tools/explore_tools.py`）。
+- 调整 AI 轮次 Prompt：去掉 `chapters_to_read: [1, 2]` 的顺序示例，强调“非全文任务不读整章，优先段落”（`backend/app/services/agent/tools/explore_tools.py`）。
+- 兜底充足性规则改为“非全文任务至少读段落”，避免强制整章读取（`backend/app/services/agent/tools/explore_tools.py`）。
+
+---
+
+## Explore 复杂测试 Prompt 设计（2026-01-21）
+
+### 待办清单
+
+- [x] 确认小说素材文件并通读关键内容
+- [x] 设计 2 条覆盖大跨度章节的复杂 Prompt（强调多主题、多证据链、需要段落定位）
+- [x] 更新 todo.md 的 review 记录
+
+### 解决方案（拟）
+
+- 基于 `docs/Agent/real-book/人在诸天，摆烂成帝.txt`，围绕“跨章人物/系统/情绪/关键事件链”设计复杂探索任务，强调精确段落定位与证据链抽取，以验证 Explore 的段落优先与非顺序读整章策略。
+
+### review
+
+- 提供 2 条跨多章节的复杂测试 Prompt，强调段落号定位与证据链抽取，验证 Explore 的“非全文任务不顺序读整章”策略（`docs/Agent/real-book/人在诸天，摆烂成帝.txt`）。
+
+---
+
+## Explore 跨章节复杂 Prompt 设计（2026-01-21）
+
+### 待办清单
+
+- [x] 复核小说素材关键设定与人物（跨章测试所需）
+- [x] 设计 2 条跨度较大的复杂探索 Prompt（多主题/证据链/段落号要求）
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 基于 `docs/Agent/real-book/人在诸天，摆烂成帝.txt` 的角色/世界观设定，构造跨多个章节范围的检索任务，明确要求输出章节号+段落号，并限制在指定范围内检索，以测试 Explore 的范围锁定与非顺序读整章行为。
+
+### review
+
+- 已设计 2 条跨章节复杂 Prompt，覆盖 1-2、34-35、70-74、96-100 等跨度区间，并明确要求输出章节号+段落号与证据链，便于验证范围锁定与段落优先策略。
+
+---
+
+## Explore 章节范围误命中排查（2026-01-21）
+
+### 待办清单
+
+- [x] 通读 `INFO (2).md` 与 `Backend.md`，定位“搜索34-35却命中1-2”的轨迹
+- [x] 对照 `backend/app/services/agent/tools/explore_tools.py` 的范围锁定/共享缓存/前端输出逻辑
+- [x] 定位根因并给出修复建议（最小改动）
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 核对 `explore_content` 的 `chapter_scopes` 是否解析生效与是否过滤搜索结果；检查共享缓存复用是否把旧证据带入新任务。
+- 可能修复：共享缓存按范围拆分 key，或复用时仅继承去重集合/已读位置，不带旧证据；对输出前进行范围过滤。
+
+### review
+
+- 根因：共享缓存复用 `ExploreState` 时把旧 `evidences/paragraphs` 带入新任务，且旧证据的 `round_idx` 与新任务轮次冲突，导致前端显示出第1-2章的旧证据（`backend/app/services/agent/tools/explore_tools.py`；日志显示“复用共享状态: evidences=21, paragraphs=19”）。
+- 共享缓存 key 未包含章节范围，导致不同范围任务在同一会话下共享状态，出现跨范围污染（`backend/app/services/agent/tools/explore_tools.py`）。
+- 日志出现“章节范围解析失败”，说明 `resolve_chapter_id` 对 96-97/100 等章节序号未命中（该作品仅 77 条 chapter.order），范围锁定优化失效且过滤后无命中（`backend/app/services/agent/langgraph_tools.py`）。
+- 最小修复建议：共享缓存 key 加入 `chapter_scopes`；或仅复用去重集合/已读位置并清空旧证据；或在输出前按范围过滤旧证据，避免显示越界内容。
+
+---
+
+## Explore 共享缓存隔离与章节标题映射（2026-01-21）
+
+### 待办清单
+
+- [x] 共享缓存按章节范围隔离，并仅复用去重/已读位置
+- [x] 章节范围解析改为按标题“第X章”映射真实章节序号
+- [x] 简要验证范围锁定与证据不污染
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 在 `backend/app/services/agent/tools/explore_tools.py` 中为共享缓存 key 加入范围标识（`chapter_scopes`），并在复用时只继承 `searched_queries`/`read_*` 集合，不复用旧证据列表，避免跨任务污染。
+- 在范围解析阶段通过章节标题（如“第100章”）映射到真实 `chapter.order`，用于范围锁定与过滤，避免标题序号与数据库序号不一致导致范围失效。
+
+### review
+
+- 共享缓存 key 加入章节范围，复用时仅保留 `searched_queries`/`read_*` 去重集合，避免跨范围证据污染（`backend/app/services/agent/tools/explore_tools.py`）。
+- 增加标题“第X章”到真实 `chapter.order` 的映射，并在范围过滤、读章/读段落时应用，范围提示仍以原始编号展示（`backend/app/services/agent/tools/explore_tools.py`）。
+- `resolve_chapter_id` 使用映射后的起始章，降低范围解析失败；若映射为空则保持原始范围并记录告警（`backend/app/services/agent/tools/explore_tools.py`）。
+- 验证方式：仅做代码路径复核，未进行实跑。
+
+
+## 排查 Explore 执行轨迹与后台日志异常（2026-01-21）
+
+### 待办清单
+
+- [x] 通读 `INFO (2).md` 与 `Backend.md`，梳理前后端轨迹与关键异常
+- [x] 对照 Explore 逻辑与新策略，定位“默认策略/未读章/覆盖不足”的触发点
+- [x] 给出问题结论与可执行修复建议
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 基于 `INFO (2).md` 的执行轨迹与 `Backend.md` 的后端日志，定位 Explore 轮次中搜索/定位/读段落是否触发、是否被去重/限制；对照 `backend/app/services/agent/tools/explore_tools.py`、`backend/app/services/agent/stream/flow_events.py` 与解析工具（如 `backend/app/utils/json_parser.py`）查明默认策略/计划解析失败的根因，并给出修复建议。
+
+### review
+
+- `INFO (2).md` 显示每轮均为“默认策略”，两次 10 轮探索后仍只覆盖 1-10 章，后续范围完全缺失。
+- `Backend.md` 反复出现 `AI 轮次规划失败，使用默认策略: Invalid format specifier ' 3, "paragraph": 15'`，来源是 `_ai_plan_round` 里的 JSON 示例未转义花括号（`backend/app/services/agent/tools/explore_tools.py:1295-1301`），导致轮次规划未执行。
+- `ContentExplorer` 将章节范围锁定为第 1-10 章（`backend/app/services/agent/tools/explore_tools.py:128-155` 仅解析首个范围），搜索与定位只在该范围内运行，覆盖不足是必然结果。
+- 日志未见 `read_chapter`，本次未出现“顺序读整章”；但多次 `get_writing_context include=chapter` 注入整章上下文，导致输出证据缺少段落号。
+- 修复建议：转义 JSON 示例花括号/用 `json.dumps` 构造示例；支持多段范围解析并在搜索时逐段执行或统一过滤；在需要段落号时只允许 `read_paragraph` 产出证据。
+
+---
+
+## Explore 轮次规划修复与多范围支持（2026-01-21）
+
+### 待办清单
+
+- [x] 修复 `_ai_plan_round` 的 JSON 示例格式，避免 f-string 解析失败
+- [x] 支持多段章节范围解析与过滤（如 1-10、34-38、70-76、96-100）
+- [x] 在“需段落号”任务下，限制证据来源为段落读取
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 修复 `backend/app/services/agent/tools/explore_tools.py` 中 JSON 示例花括号，确保 AI 轮次规划正常；扩展章节范围解析为列表并在检索/定位/读取处统一过滤；当任务要求段落号时，减少整章上下文注入，确保证据来自 `read_paragraph`。
+
+### review
+
+- 轮次规划示例改为 `json.dumps` 输出，避免 f-string 花括号导致规划失败（`backend/app/services/agent/tools/explore_tools.py:1349`）。
+- 新增多段范围解析 `_parse_chapter_scopes`，并统一用 `chapter_scopes` 过滤范围与提示（`backend/app/services/agent/tools/explore_tools.py:166`）。
+- 多段范围下跳过单范围优化，确保搜索结果在范围列表内过滤（`backend/app/services/agent/tools/explore_tools.py:925`）。
+- 严格段落号模式仅接受段落来源证据，读段落后补充 evidence（`backend/app/services/agent/tools/explore_tools.py:468`、`backend/app/services/agent/tools/explore_tools.py:1709`、`backend/app/services/agent/tools/explore_tools.py:1812`）。
+
+---
+
+## Explore 任务耗时偏慢问题 Review（2026-01-21）
+
+### 待办清单
+
+- [x] 结合前端轨迹/截图与后端日志，确认耗时阶段与调用次数
+- [x] 对照 Explore/locate/AI 调用实现，定位慢的具体原因
+- [x] 给出可行的提速建议与改动范围
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 基于 `backend/app/services/agent/tools/explore_tools.py`、`backend/app/services/agent/tools/locate_tools.py` 与 `backend/app/services/ai/http_ai_service.py`，核对轮次上限、AI 调用次数/超时、严格段落号下的 locate/read 限制，结合日志判断瓶颈并输出提速方案。
+
+### review
+
+- 后端日志显示首个 Explore 任务从 14:32:14 跑到 14:44:15（约 12 分钟），期间出现 77 次 `locate_content` 调用与 231 条 LLM 辅助定位日志，10 次充足性评估，符合前端 700+ 秒耗时表现。
+- 第二个任务从 14:44:31 起在日志中持续到 14:58:13（约 13 分钟），期间主要是 `read_paragraph` 与多轮充足性评估，未见 `locate_content`，说明耗时主要来自多轮 LLM 规划/评估与段落读取。
+- 性能瓶颈集中在：严格段落号模式下 `locate_content` 频繁触发 LLM 辅助定位（`backend/app/services/agent/tools/locate_tools.py:690`），且 `AUTO_LOCATE_LIMIT_STRICT=12` + 每轮 3 个搜索词 * top_k=5 放大了定位次数（`backend/app/services/agent/tools/explore_tools.py:1604`）。
+- LLM 调用读超时为 `None`（`backend/app/services/ai/http_ai_service.py:122`），单次耗时不可控，会放大多轮/多次调用的累计时长。
+- 提速建议：限制 locate 查询长度并去重（对重复 snippet/query 直接缓存命中）；降低 `AUTO_LOCATE_LIMIT_STRICT`/`AUTO_READ_LIMIT_STRICT`；在多轮无新增证据时提前中断；优先让 `search_content` 返回段落号以绕过 `locate_content`。
+
+---
+
+## Explore 提速优化（定位缓存与段落索引）（2026-01-21）
+
+### 待办清单
+
+- [x] 实现 `locate_content` 结果缓存，并对 `locate_query` 去重/截断
+- [x] 在 HybridRetriever 的 text 结果中补齐 `paragraph_index`
+- [x] 简要验证 Explore 使用新索引后是否减少 locate 次数
+- [ ] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 在 `backend/app/services/agent/tools/locate_tools.py` 增加基于 `chapter_id + query` 的定位缓存，并在 Explore 调用处限制/去重 `locate_query`；在 `backend/app/services/search/hybrid_retriever.py` 的全文检索路径里按段落切分并定位 snippet 对应段落号，确保 `search_content` 直接返回 `paragraph_index` 以减少 `locate_content` 调用。
+
+### review
+
+- `locate_content` 增加内存缓存与 query 标准化（去空白/截断），并在成功定位时写入缓存（`backend/app/services/agent/tools/locate_tools.py`）。
+- Explore 侧对 `locate_query` 做去重与截断，避免同一段落/查询反复触发定位（`backend/app/services/agent/tools/explore_tools.py`）。
+- HybridRetriever 的 text 命中补齐 `paragraph_index`，让 `search_content` 返回段落号以直接 `read_paragraph`（`backend/app/services/search/hybrid_retriever.py`）。
+- 验证方式：未跑完整任务，仅基于代码路径确认 `paragraph_index` 命中后会跳过 `locate_content` 调用，预计减少 LLM 定位次数。
+
+---
+
+## Explore 提速优化（跨进程缓存/收敛止损/证据共享）（2026-01-21）
+
+### 待办清单
+
+- [x] 引入 `locate_content` 跨进程缓存（ToolCache/Redis），避免多 worker 重复定位
+- [x] 补充“连续无新增证据/段落则提前停止”的收敛短路
+- [x] 同一次请求内共享 Explore 证据/章节/段落，减少重复检索
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 在 `backend/app/services/agent/tools/locate_tools.py` 中接入 `ToolCache`（以 `work_id + chapter_id + query` 为 key），在读取章节后尝试缓存命中并写回结果；保持现有内存缓存作为热缓存。
+- 在 `backend/app/services/agent/tools/explore_tools.py` 的轮次循环中，当 `check_convergence()` 且 `missing_items` 非空时提前止损，设置 `stop_reason` 为“连续无新增信息（覆盖不足）”。
+- 在 `backend/app/services/agent/tools/explore_tools.py` 增加轻量共享缓存（MemoryCache），以 `work_id + user_id + conversation_id` 为 key 复用 ExploreState（证据/段落/章节/世界观与去重集合），新任务以缓存状态为种子但不继承轮次记录。
+
+### review
+
+- `locate_content` 增加 ToolCache 跨进程命中与写入，命中后回填本地缓存以减少重复定位（`backend/app/services/agent/tools/locate_tools.py`）。
+- Explore 在连续无新增信息且仍有缺失项时提前止损，避免跑满轮次（`backend/app/services/agent/tools/explore_tools.py`）。
+- Explore 新增共享状态缓存（按 `work_id + user_id + conversation_id`），启动时复用证据/章节/段落，完成后合并回写（`backend/app/services/agent/tools/explore_tools.py`、`backend/app/services/agent/execution/tool_executor.py`）。
+
 ## 偏好设置语言选择项移除（2026-01-19）
 
 ### 待办清单

@@ -19,8 +19,14 @@ from .tool_registry import register_as_tool
 from app.core.database import AsyncSessionLocal
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.agent.model_selector import TaskType
+from app.services.agent.utils.performance import MemoryCache
+from app.services.agent.utils.tool_cache import ToolCache
 
 logger = logging.getLogger(__name__)
+
+LOCATE_QUERY_MAX_LEN = 200
+LOCATE_CACHE_TTL_SECONDS = 5 * 60
+_LOCATE_CACHE = MemoryCache(max_size=2000, default_ttl=LOCATE_CACHE_TTL_SECONDS)
 
 # AI服务实例（延迟初始化）
 _ai_service: Optional[HTTPAIService] = None
@@ -35,6 +41,12 @@ def _get_ai_service() -> HTTPAIService:
 
 
 # ==================== 辅助函数 ====================
+
+def _normalize_locate_query(query: str, max_len: int = LOCATE_QUERY_MAX_LEN) -> str:
+    text = " ".join((query or "").split())
+    if len(text) > max_len:
+        text = text[:max_len]
+    return text
 
 def _split_paragraphs(content: str) -> List[Dict[str, Any]]:
     """
@@ -494,6 +506,20 @@ async def locate_content(
         if not query.strip():
             query = before_anchor or after_anchor or ""
 
+        query = _normalize_locate_query(query)
+        cache_key = None
+        tool_cache_ctx = None
+        if chapter_id and query and not nodes_info and not node_id:
+            cache_key = f"{chapter_id}:{'1' if allow_global_fallback else '0'}:{query}"
+            cached = _LOCATE_CACHE.get(cache_key)
+            if cached is not None:
+                logger.info(
+                    "[locate_content] 命中缓存: chapter_id=%s, query=%s",
+                    chapter_id,
+                    query[:80]
+                )
+                return cached
+
         logger.info(f"[locate_content] 开始定位: chapter_id={chapter_id}, query={query}")
 
         # 解析 nodes_info
@@ -525,6 +551,31 @@ async def locate_content(
                 "message": f"章节内容为空: {chapter_id}"
             }, ensure_ascii=False)
 
+        # ToolCache 跨进程缓存命中检查（有 work_id 才可用）
+        if chapter_id and work_id and query and not nodes_info and not node_id:
+            cache_params = {
+                "work_id": work_id,
+                "chapter_id": chapter_id,
+                "query": query,
+                "allow_global_fallback": allow_global_fallback,
+                "user_id": user_id,
+            }
+            tool_cache_ctx = ToolCache.get_context("locate_content", cache_params, {
+                "work_id": work_id,
+                "user_id": user_id or "",
+            })
+            if tool_cache_ctx:
+                cached = ToolCache.read(tool_cache_ctx)
+                if cached is not None:
+                    logger.info(
+                        "[locate_content] ToolCache 命中: chapter_id=%s, query=%s",
+                        chapter_id,
+                        query[:80]
+                    )
+                    if cache_key:
+                        _LOCATE_CACHE.set(cache_key, cached)
+                    return cached
+
         # 分割段落
         paragraphs = _split_paragraphs(chapter_content)
         logger.info(f"[locate_content] 章节共 {len(paragraphs)} 个段落")
@@ -544,6 +595,13 @@ async def locate_content(
             "after_anchor": None,
             "cross_chapter": False,
         }
+
+        def _cache_result(payload: str) -> str:
+            if cache_key:
+                _LOCATE_CACHE.set(cache_key, payload)
+            if tool_cache_ctx:
+                ToolCache.write(tool_cache_ctx, payload)
+            return payload
 
         # Structured locate: node_id hint from front-end
         if node_id:
@@ -574,7 +632,7 @@ async def locate_content(
                     result["after_anchor"] = paragraphs[node_para_index + 1]["text"][:30]
 
             logger.info(f"[locate_content] node_id locate success: {node_id}")
-            return json.dumps(result, ensure_ascii=False)
+            return _cache_result(json.dumps(result, ensure_ascii=False))
 
 
         # 策略1: 段落索引定位（第N段）
@@ -598,7 +656,7 @@ async def locate_content(
                     result["after_anchor"] = paragraphs[para_index + 1]["text"][:30]
 
                 logger.info(f"[locate_content] 段落定位成功: 第{para_index + 1}段")
-                return json.dumps(result, ensure_ascii=False)
+                return _cache_result(json.dumps(result, ensure_ascii=False))
             else:
                 return json.dumps({
                     "success": False,
@@ -620,7 +678,7 @@ async def locate_content(
             })
             _apply_anchor_fields(result, paragraphs, 0)
             logger.info("[locate_content] 定位到开头")
-            return json.dumps(result, ensure_ascii=False)
+            return _cache_result(json.dumps(result, ensure_ascii=False))
 
         if any(kw in query_lower for kw in ["结尾", "末尾", "最后", "结束", "最后一段"]):
             last_idx = len(paragraphs) - 1
@@ -635,7 +693,7 @@ async def locate_content(
             })
             _apply_anchor_fields(result, paragraphs, last_idx)
             logger.info("[locate_content] 定位到结尾")
-            return json.dumps(result, ensure_ascii=False)
+            return _cache_result(json.dumps(result, ensure_ascii=False))
 
         # 策略3: 精确文本匹配（🔧 移除长度限制，支持任意长度查询）
         if len(query) > 0:
@@ -662,7 +720,7 @@ async def locate_content(
                     "confidence": 1.0
                 })
                 logger.info("[locate_content] 精确文本匹配成功")
-                return json.dumps(result, ensure_ascii=False)
+                return _cache_result(json.dumps(result, ensure_ascii=False))
 
         # 策略4: 模糊匹配 + LLM 辅助
         # 🔧 2026-01-12: 当模糊匹配置信度 < 0.7 时，调用 LLM 辅助定位
@@ -685,7 +743,7 @@ async def locate_content(
                 })
                 _apply_anchor_fields(result, paragraphs, para_idx)
                 logger.info(f"[locate_content] 模糊匹配成功: 第{para_idx + 1}段, 相似度={similarity:.2f}")
-                return json.dumps(result, ensure_ascii=False)
+                return _cache_result(json.dumps(result, ensure_ascii=False))
 
             # 置信度 < 0.7，调用 LLM 辅助定位
             logger.info(f"[locate_content] 模糊匹配置信度低({similarity:.2f})，调用 LLM 辅助定位")
@@ -708,7 +766,7 @@ async def locate_content(
                 if llm_idx < len(paragraphs) - 1:
                     result["after_anchor"] = paragraphs[llm_idx + 1]["text"][:30]
                 logger.info(f"[locate_content] LLM 辅助定位成功: 第{llm_idx + 1}段")
-                return json.dumps(result, ensure_ascii=False)
+                return _cache_result(json.dumps(result, ensure_ascii=False))
 
             # LLM 也无法定位，降级返回模糊匹配结果
             para = paragraphs[para_idx]
@@ -722,7 +780,7 @@ async def locate_content(
             })
             _apply_anchor_fields(result, paragraphs, para_idx)
             logger.info(f"[locate_content] LLM 辅助失败，降级使用模糊匹配: 第{para_idx + 1}段")
-            return json.dumps(result, ensure_ascii=False)
+            return _cache_result(json.dumps(result, ensure_ascii=False))
 
         # 策略5: 无模糊匹配结果，尝试 LLM 辅助
         logger.info("[locate_content] 无模糊匹配结果，尝试 LLM 辅助定位")
@@ -749,7 +807,7 @@ async def locate_content(
             if llm_idx < len(paragraphs) - 1:
                 result["after_anchor"] = paragraphs[llm_idx + 1]["text"][:30]
             logger.info(f"[locate_content] LLM 辅助定位成功: 第{llm_idx + 1}段")
-            return json.dumps(result, ensure_ascii=False)
+            return _cache_result(json.dumps(result, ensure_ascii=False))
 
         # 策略6: 全局降级 - 在整个作品中搜索
         if work_id and allow_global_fallback:
@@ -814,7 +872,7 @@ async def locate_content(
                             if anchor_paragraphs:
                                 _apply_anchor_fields(result, anchor_paragraphs, target_paragraph_index)
                             logger.info(f"[locate_content] 全局降级成功: chapter={target_chapter_id}, para={target_paragraph_index}")
-                            return json.dumps(result, ensure_ascii=False)
+                            return _cache_result(json.dumps(result, ensure_ascii=False))
 
                         # 如果没有 paragraph_index（全文检索结果），需要在目标章节内二次定位
                         elif best and target_chapter_id:
@@ -842,7 +900,7 @@ async def locate_content(
                                     })
                                     _apply_anchor_fields(result, target_paragraphs, para_idx)
                                     logger.info(f"[locate_content] 全局降级+二次定位成功: chapter={target_chapter_id}, para={para_idx}")
-                                    return json.dumps(result, ensure_ascii=False)
+                                    return _cache_result(json.dumps(result, ensure_ascii=False))
 
             except Exception as e:
                 logger.warning(f"[locate_content] 全局降级失败: {e}")
@@ -860,7 +918,7 @@ async def locate_content(
             "confidence": 0.0
         })
         logger.info("[locate_content] 无法自动定位，返回段落列表")
-        return json.dumps(result, ensure_ascii=False)
+        return _cache_result(json.dumps(result, ensure_ascii=False))
 
     except Exception as e:
         logger.error(f"[locate_content] 定位失败: {e}", exc_info=True)

@@ -1129,9 +1129,37 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
               // 启动打字机 Worker（如果未启动）
               if (typewriterWorkerRef.current === null) {
+                // V3.4.1 优化：批量更新计数器（每 50 个字符更新一次 UI，避免性能问题）
+                let charsSinceLastUpdate = 0;
+                const BATCH_UPDATE_SIZE = 50; // 每 50 个字符更新一次 UI
+
                 const processQueue = () => {
                   if (stopRequestedRef.current || typewriterQueueRef.current.length === 0) {
-                    // 队列空了，停止 Worker
+                    // 队列空了，先刷新剩余内容到 UI，然后停止 Worker
+                    if (charsSinceLastUpdate > 0) {
+                      // 最后一次更新 UI
+                      const currentSession = sessionManager.getSession(sessionId);
+                      const currentMessages = currentSession?.messages || baseMessages;
+                      const updated = [...currentMessages];
+                      const target = updated[agentMessageIndex];
+                      if (target) {
+                        const existingFlowItems = (target as Message).flowItems || [];
+                        const updatedFlowItems = existingFlowItems.map(item => {
+                          if (item.type === 'output') {
+                            return { ...item, data: { ...item.data, content: streamingContent } };
+                          }
+                          return item;
+                        });
+                        updated[agentMessageIndex] = {
+                          ...target,
+                          content: streamingContent,
+                          agentSteps,
+                          flowItems: updatedFlowItems
+                        };
+                        sessionManager.updateSession(sessionId, { messages: updated });
+                      }
+                      charsSinceLastUpdate = 0;
+                    }
                     if (typewriterWorkerRef.current) {
                       typewriterWorkerRef.current.postMessage({ type: 'stop' });
                       typewriterWorkerRef.current.terminate();
@@ -1144,34 +1172,35 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   const char = typewriterQueueRef.current.shift();
                   if (char) {
                     streamingContent += char;
+                    charsSinceLastUpdate++;
 
-                    // 更新UI
-                    const currentSession = sessionManager.getSession(sessionId);
-                    const currentMessages = currentSession?.messages || baseMessages;
-                    const updated = [...currentMessages];
-                    const target = updated[agentMessageIndex];
-                    if (target) {
-                      // v6.8: 同步更新 flowItems 中 output 类型项的 content
-                      const existingFlowItems = (target as Message).flowItems || [];
-                      const updatedFlowItems = existingFlowItems.map(item => {
-                        if (item.type === 'output') {
-                          return {
-                            ...item,
-                            data: { ...item.data, content: streamingContent }
-                          };
-                        }
-                        return item;
-                      });
+                    // V3.4.1 优化：只有达到批量大小时才更新 UI
+                    if (charsSinceLastUpdate >= BATCH_UPDATE_SIZE) {
+                      const currentSession = sessionManager.getSession(sessionId);
+                      const currentMessages = currentSession?.messages || baseMessages;
+                      const updated = [...currentMessages];
+                      const target = updated[agentMessageIndex];
+                      if (target) {
+                        // v6.8: 同步更新 flowItems 中 output 类型项的 content
+                        const existingFlowItems = (target as Message).flowItems || [];
+                        const updatedFlowItems = existingFlowItems.map(item => {
+                          if (item.type === 'output') {
+                            return { ...item, data: { ...item.data, content: streamingContent } };
+                          }
+                          return item;
+                        });
 
-                      updated[agentMessageIndex] = {
-                        ...target,
-                        content: streamingContent,
-                        agentSteps,
-                        flowItems: updatedFlowItems  // v6.8: 更新 flowItems
-                      };
-                      sessionManager.updateSession(sessionId, { messages: updated });
-                      // 节流持久化内容，确保切换章节时不丢失
-                      persistMessagesThrottled(updated, streamConversationId, uiMode, false);
+                        updated[agentMessageIndex] = {
+                          ...target,
+                          content: streamingContent,
+                          agentSteps,
+                          flowItems: updatedFlowItems  // v6.8: 更新 flowItems
+                        };
+                        sessionManager.updateSession(sessionId, { messages: updated });
+                        // 节流持久化内容，确保切换章节时不丢失
+                        persistMessagesThrottled(updated, streamConversationId, uiMode, false);
+                      }
+                      charsSinceLastUpdate = 0;
                     }
                   }
                 };
@@ -1194,10 +1223,10 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
             onDone: (metadata, actions) => {
               // ✅ 打字机效果：等待队列清空后再完成
               const finishStream = () => {
-                // 清空队列中剩余的所有字符
-                while (typewriterQueueRef.current.length > 0) {
-                  const char = typewriterQueueRef.current.shift();
-                  if (char) streamingContent += char;
+                // V3.4.1 修复：使用 join 一次性合并，避免 O(n²) 的 shift 循环
+                if (typewriterQueueRef.current.length > 0) {
+                  streamingContent += typewriterQueueRef.current.join('');
+                  typewriterQueueRef.current = [];
                 }
 
                 // 清理 Worker
@@ -1299,7 +1328,13 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
               };
 
               // 如果队列为空，直接完成；否则等待队列清空
-              if (typewriterQueueRef.current.length === 0) {
+              // V3.4.1 修复：对于长内容（超过 5000 字符），直接完成，不等待打字机效果
+              const queueLength = typewriterQueueRef.current.length;
+              if (queueLength === 0) {
+                finishStream();
+              } else if (queueLength > 5000) {
+                // 长内容：直接跳过打字机效果，立即完成
+                console.log(`[useAgentChat] 长内容（${queueLength}字符），跳过打字机效果直接完成`);
                 finishStream();
               } else {
                 // 等待打字机效果完成

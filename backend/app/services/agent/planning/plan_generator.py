@@ -94,10 +94,11 @@ class PlanGenerator:
             conversation_history=conversation_history,
             enable_reflection=enable_reflection
         )
-        enumerated_items = self._extract_enumerated_items(message)
-        if enumerated_items:
-            logger.info(f"[Planning] 检测到枚举项: {enumerated_items}")
-        plan_prompt_extra = ""
+        # 🔧 2026-01-21: 禁用枚举项检测功能
+        # 原因：提取算法误判严重，产生大量噪音（如"干了"、"需要回答"），触发无意义重试
+        # enumerated_items = self._extract_enumerated_items(message)
+        # if enumerated_items:
+        #     logger.info(f"[Planning] 检测到枚举项: {enumerated_items}")
 
         # 调用 AI 生成规划
         plan_text = ""
@@ -107,7 +108,7 @@ class PlanGenerator:
             for retry_attempt in range(self.MAX_PLANNING_RETRIES):
                 # 🔧 2025-12-29: 规划任务需要理解对话上下文，使用 STORY_PLANNING 选择更强模型
                 plan_result = await self.agent._generate_text(
-                    prompt=f"{plan_prompt_base}{plan_prompt_extra}",
+                    prompt=plan_prompt_base,
                     temperature=0.3 + (retry_attempt * 0.1),
                     max_tokens=2000,
                     task_type=TaskType.STORY_PLANNING
@@ -127,19 +128,7 @@ class PlanGenerator:
                         )
                         has_tasks = plan_data.get("tasks") and len(plan_data.get("tasks", [])) > 0
                         if has_direct_answer or has_tasks:
-                            if enumerated_items and has_tasks and self._should_enforce_enumerated_items(plan_data.get("tasks", [])):
-                                missing_items = self._find_missing_enumerated_items(
-                                    plan_data.get("tasks", []),
-                                    enumerated_items
-                                )
-                                if missing_items:
-                                    logger.warning(
-                                        f"[Planning] 枚举项覆盖不完整，缺失: {missing_items}"
-                                    )
-                                    if retry_attempt < self.MAX_PLANNING_RETRIES - 1:
-                                        plan_prompt_extra = self._build_enumerated_items_prompt(missing_items)
-                                        continue
-                                    plan_data["missing_enumerated_items"] = missing_items
+                            # 🔧 2026-01-21: 禁用枚举项覆盖检查，不再触发重试
                             if retry_attempt > 0:
                                 logger.info(f"[Planning] 第{retry_attempt + 1}次重试成功")
                             # 🆕 日志：记录是直接回答还是任务规划
@@ -788,6 +777,7 @@ tool_policy: {tool_policy}
         检查项：
         1. 人物查询是否先搜索
         2. 多章节请求的任务完整性
+        3. explore_content 任务约束补齐
 
         Args:
             plan_data: 规划数据
@@ -806,8 +796,92 @@ tool_policy: {tool_policy}
         # 验证2: 检查多章节批量读取格式（现在工具支持范围格式）
         tasks = self._optimize_multi_chapter_tasks(tasks, message)
 
+        # 验证3: 约束补齐（范围/段落/禁止整章/禁止越界）
+        constraints = self._extract_task_constraints(message)
+        if constraints:
+            tasks = self._apply_constraints_to_tasks(tasks, constraints)
+
         plan_data["tasks"] = tasks
         return plan_data
+
+    @staticmethod
+    def _extract_task_constraints(message: str) -> Dict[str, str]:
+        if not message:
+            return {}
+        constraints: Dict[str, str] = {}
+        scope_text = PlanGenerator._extract_scope_text(message)
+        if scope_text:
+            constraints["scope_text"] = scope_text
+        if any(keyword in message for keyword in ["段落号", "只允许精确段落", "只读段落", "仅段落"]):
+            constraints["require_paragraph"] = "true"
+        if any(keyword in message for keyword in ["不要整章", "不读整章", "禁止整章", "不要全文", "不读全文", "不要全章", "不读全章"]):
+            constraints["forbid_full_chapter"] = "true"
+        if any(keyword in message for keyword in ["不得引用范围外内容", "禁止引用范围外内容"]):
+            constraints["forbid_out_of_scope"] = "true"
+        return constraints
+
+    @staticmethod
+    def _extract_scope_text(message: str) -> str:
+        if not message:
+            return ""
+        matches: List[str] = []
+        patterns = [
+            r"第\s*\d+\s*[到至\-~—～]\s*\d+\s*章",
+            r"第\s*[一二两三四五六七八九十]+\s*[到至\-~—～]\s*[一二两三四五六七八九十]+\s*章",
+            r"章节\s*\(?\s*\d+\s*[到至\-~—～]\s*\d+\s*\)?",
+            r"\d+\s*[到至\-~—～]\s*\d+\s*章",
+            r"第\s*\d+\s*章",
+            r"第\s*[一二两三四五六七八九十]+\s*章",
+            r"章节\s*\d+\s*章",
+        ]
+        for pattern in patterns:
+            matches.extend(re.findall(pattern, message))
+        if not matches:
+            return ""
+        deduped = []
+        seen = set()
+        for item in matches:
+            if item not in seen:
+                deduped.append(item)
+                seen.add(item)
+        return "、".join(deduped)
+
+    @staticmethod
+    def _apply_constraints_to_tasks(
+        tasks: List[Dict[str, Any]],
+        constraints: Dict[str, str]
+    ) -> List[Dict[str, Any]]:
+        if not tasks or not constraints:
+            return tasks
+
+        constraint_parts: List[str] = []
+        scope_text = constraints.get("scope_text")
+        if scope_text:
+            constraint_parts.append(f"章节范围：{scope_text}")
+        if constraints.get("forbid_full_chapter"):
+            constraint_parts.append("不要整章阅读")
+        if constraints.get("require_paragraph"):
+            constraint_parts.append("只允许精确段落读取")
+        if constraints.get("forbid_out_of_scope"):
+            constraint_parts.append("不得引用范围外内容")
+        if not constraint_parts:
+            return tasks
+
+        constraint_text = "；".join(constraint_parts)
+        for task in tasks:
+            if task.get("tool") != "explore_content":
+                continue
+            params = task.get("params") or {}
+            target_task = params.get("target_task") or task.get("description") or ""
+            if constraint_text and constraint_text not in target_task:
+                if target_task:
+                    target_task = f"{target_task}\n约束：{constraint_text}"
+                else:
+                    target_task = f"约束：{constraint_text}"
+            params["target_task"] = target_task
+            task["params"] = params
+
+        return tasks
 
     def _validate_search_before_read(self, tasks: List[Dict], message: str) -> List[Dict]:
         """

@@ -20,19 +20,38 @@ logger = logging.getLogger(__name__)
 # === 小说写作专用：任务感知压缩配置 ===
 # 参考 KoboldAI 的关键词触发机制
 # 根据工具名称决定保留长度（更可靠）
+# 🆕 2026-01-21: 完善工具截断配置，确保所有返回大量内容的工具都有合适的限制
 FULL_CONTENT_TOOLS = {
-    # 章节读取类工具 - 需要完整内容
+    # === 章节读取类工具 - 需要完整内容 ===
     "read_chapter_tool": 8000,
+    "read_chapter": 8000,  # 兼容不带 _tool 后缀
     "get_chapter_by_order_tool": 8000,
+    "get_chapter_by_order": 8000,  # 兼容不带 _tool 后缀
     "get_context_tool": 6000,
-    # 🆕 2026-01-12: 聚合工具
-    "get_writing_context": 12000,  # 聚合工具返回内容较多
-    # 分析类工具 - 需要较多内容
+    "get_context": 6000,  # 兼容不带 _tool 后缀
+    # === 聚合工具 - 返回内容较多 ===
+    "get_writing_context": 12000,
+    # === 分析类工具 - 需要较多内容 ===
     "analyze_text_tool": 5000,
-    "analyze_content": 8000,  # 🆕 分析工具返回完整报告
-    # 检索类工具 - 保留中等内容
+    "analyze_text": 5000,  # 兼容不带 _tool 后缀
+    "analyze_content": 8000,
+    "analyze_style_tool": 4000,  # 风格分析报告
+    "analyze_style": 4000,  # 兼容不带 _tool 后缀
+    # === 检索/定位类工具 ===
     "search_analysis_fragments_tool": 4000,
+    "search_analysis_fragments": 4000,  # 兼容不带 _tool 后缀
     "search_content": 2000,
+    "locate_content": 4000,  # 定位工具返回段落文本+锚点
+    "read_paragraph": 3000,  # 读取段落完整内容
+    # === 探索类工具 - 返回大量证据 ===
+    "explore_content": 20000,
+    # === 世界观/一致性类工具 ===
+    "get_worldview_summary": 6000,  # 角色/地点/设定列表
+    "check_story_consistency_tool": 5000,  # 一致性分析报告
+    "check_consistency": 5000,  # 兼容不带 _tool 后缀
+    # === 风格类工具 ===
+    "get_style_guidance_tool": 4000,
+    "get_style_guidance": 4000,  # 兼容不带 _tool 后缀
 }
 
 # 任务描述关键词匹配（作为备用方案）

@@ -448,6 +448,7 @@ class ToolExecutor:
             params.setdefault("user_id", state.get("user_id", ""))
             # target_task 必须由 AI 提供，不设默认值
             params.setdefault("max_rounds", 10)
+            params.setdefault("conversation_id", state.get("conversation_id", ""))
 
         # 🆕 2026-01-17: read_paragraph 段落精确读取工具
         elif tool_name == "read_paragraph":
@@ -874,12 +875,20 @@ class ToolExecutor:
                     }
                 # 深度探索工具（2026-01-17）
                 elif tool_name == "read_paragraph":
+                    chapter_order = tool_args.get("chapter_order")
+                    paragraph_index = tool_args.get("paragraph_index")
+                    # 验证必需参数
+                    if chapter_order is None or paragraph_index is None:
+                        return json.dumps({
+                            "success": False,
+                            "error": f"缺少必需参数: chapter_order={chapter_order}, paragraph_index={paragraph_index}"
+                        }, ensure_ascii=False)
                     params = {
                         "work_id": tool_args.get("work_id", state.get("work_id", "")),
-                        "chapter_order": tool_args.get("chapter_order"),
-                        "paragraph_index": tool_args.get("paragraph_index"),
-                        "context_before": tool_args.get("context_before", 2),
-                        "context_after": tool_args.get("context_after", 2)
+                        "chapter_order": int(chapter_order),
+                        "paragraph_index": int(paragraph_index),
+                        "context_before": tool_args.get("context_before") or 2,
+                        "context_after": tool_args.get("context_after") or 2
                     }
                 elif tool_name == "explore_content":
                     params = {

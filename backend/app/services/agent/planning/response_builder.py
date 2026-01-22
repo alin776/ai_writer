@@ -516,20 +516,32 @@ class ResponseBuilder:
         return result.get("text", "")
 
     def _build_task_results_snapshot(self, task_results: List[Dict]) -> str:
-        """构建任务结果快照，避免上下文污染。"""
+        """构建任务结果快照，避免上下文污染。
+
+        2026-01-21: 根据工具类型使用不同的截断限制，与 context_builder.py 保持一致
+        """
+        from app.services.agent.utils.context_builder import FULL_CONTENT_TOOLS
+
+        DEFAULT_LIMIT = 2000  # 默认截断限制
+
         snapshot = []
         for task in task_results:
+            tool_name = task.get("tool", "")
             result = task.get("result", "")
             if not isinstance(result, str):
                 try:
                     result = json.dumps(result, ensure_ascii=False)
                 except Exception:
                     result = str(result)
-            if len(result) > 2000:
-                result = f"{result[:2000]}...[省略{len(result) - 2000}字符]..."
+
+            # 根据工具类型确定截断限制
+            truncate_limit = FULL_CONTENT_TOOLS.get(tool_name, DEFAULT_LIMIT)
+
+            if len(result) > truncate_limit:
+                result = f"{result[:truncate_limit]}...[省略{len(result) - truncate_limit}字符]..."
             snapshot.append({
                 "task_id": task.get("task_id"),
-                "tool": task.get("tool", ""),
+                "tool": tool_name,
                 "status": task.get("status", ""),
                 "description": task.get("description", ""),
                 "result": result

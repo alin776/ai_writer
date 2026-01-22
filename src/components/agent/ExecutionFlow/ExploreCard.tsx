@@ -12,7 +12,7 @@
 
 import { useState } from 'react';
 import type { ComponentType } from 'react';
-import { Check, Scan, Search, Crosshair, FileText, CheckCircle, AlertTriangle, Clock, Brain, ArrowRightCircle, FileSearch, BookOpen, Layers, ChevronUp, ChevronDown } from 'lucide-react';
+import { Check, Scan, Search, Crosshair, FileText, CheckCircle, AlertTriangle, Clock, Brain, ArrowRightCircle, FileSearch, BookOpen, Layers, ChevronUp, ChevronDown, Globe } from 'lucide-react';
 import type { ExploreFlowData, ExploreRound, ExploreEvidenceItem, ExploreRoundFlowData, ExploreSummaryFlowData, ExploreToolCall } from '@/types/agent';
 
 interface ExploreCardProps extends ExploreFlowData {
@@ -235,6 +235,8 @@ const TOOL_ICONS: Record<string, ComponentType<any>> = {
   Search: Search,
   Locate: Crosshair,
   ReadRaw: FileText,
+  ReadParagraph: FileText,  // 段落读取（与整章阅读使用相同图标）
+  Worldview: Globe,         // 世界观读取
   Review: CheckCircle,
 };
 

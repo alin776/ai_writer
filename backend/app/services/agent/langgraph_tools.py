@@ -730,13 +730,23 @@ async def search_analysis_fragments_tool(
             retriever = HybridRetriever(db)
             # look_ahead=0 表示不限制时序窗口，检索所有章节
             # current_order=None 时传 None 让 retriever 自行处理
+            look_ahead_param = look_ahead
+            if not chapter_id and look_ahead <= 0:
+                look_ahead_param = None
+            min_order = None
+            max_order = None
+            if current_order is not None and look_ahead_param is not None:
+                min_order = current_order
+                max_order = current_order + look_ahead_param
             results = await retriever.search(
                 work_id=work_id,
                 query=query,
                 current_order=current_order,
                 top_k=top_k,
                 include_current=include_current,
-                look_ahead=look_ahead if look_ahead > 0 else None,
+                look_ahead=look_ahead_param,
+                min_order=min_order,
+                max_order=max_order,
             )
 
             if not results:

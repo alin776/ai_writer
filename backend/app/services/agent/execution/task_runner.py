@@ -476,12 +476,20 @@ class TaskRunner:
             return None
         elif tool_name == "read_paragraph":
             # 2026-01-17: 段落精确读取
+            # 注意：使用 or 确保 None 值也会被默认值替换
+            chapter_order = params.get("chapter_order")
+            paragraph_index = params.get("paragraph_index")
+            if chapter_order is None or paragraph_index is None:
+                return json.dumps({
+                    "success": False,
+                    "error": f"缺少必需参数: chapter_order={chapter_order}, paragraph_index={paragraph_index}"
+                }, ensure_ascii=False)
             return await read_paragraph.ainvoke({
                 "work_id": work_id,
-                "chapter_order": params.get("chapter_order", 1),
-                "paragraph_index": params.get("paragraph_index", 0),
-                "context_before": params.get("context_before", 2),
-                "context_after": params.get("context_after", 2),
+                "chapter_order": int(chapter_order),
+                "paragraph_index": int(paragraph_index),
+                "context_before": params.get("context_before") or 2,
+                "context_after": params.get("context_after") or 2,
             })
         else:
             return f"任务 {tool_name} 需要手动处理"

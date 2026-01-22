@@ -32,11 +32,23 @@
 
 ## 阶段0：前置任务
 
-### 0.1 扩展 apply_chapter_edit（新增 replace_all）
+### 0.1 扩展 apply_chapter_edit（新增 replace_all）⚠️ 阻塞项
 
 **背景**：`content`（整体替换）操作需要走 HITL 确认流程，但现有 `update_chapter_content` 是乐观执行模式（直接写入）。
 
-**方案**：在 `apply_chapter_edit` 中新增 `operation="replace_all"`
+**设计决策**：在 `apply_chapter_edit` 中新增 `operation="replace_all"`
+
+> **为什么不用 `update_chapter_content`？**
+>
+> | 特性 | apply_chapter_edit | update_chapter_content |
+> |------|---------------------|-------------------------|
+> | HITL 确认 | ✅ 有 | ❌ 无（直接执行） |
+> | 修订记录 | ✅ ChapterRevisionService | ❌ 只有操作日志 |
+> | 前端交互 | 用户确认后才写入 | 立即写入数据库 |
+>
+> 整章替换是高风险操作，必须用户确认后执行，所以选择 `apply_chapter_edit`。
+
+**详细实现方案**：见 **[10-replace_all实现.md](./10-replace_all实现.md)**
 
 **replace_all 语义定义**：
 - **含义**：用新内容**完全替换**整个章节的**全部内容**
@@ -64,11 +76,16 @@
   - [ ] replace_all 逻辑：`new_content = content`（直接全量替换）
 - [ ] 添加单元测试
 
-### 0.2 简化 smart_rewrite（从3个版本改为1个）
+### 0.2 简化 smart_rewrite（从3个版本改为1个）🟡 可选/延后
 
-**背景**：当前 `smart_rewrite` 生成3个改写版本，用户在前端选择。为简化 operate_apply 流程，改为只生成1个版本。
+**状态**：**建议延后**，不是阻塞项。
 
-**现有流程**：
+**理由**：
+- `operate_apply` 可直接接收用户选中版本的 `content`
+- 前端改动范围大（AgentEditConfirmDialog.tsx、AIPanel.tsx、useAgentChat.ts）
+- 不影响核心功能实现
+
+**如需实现，现有流程**：
 ```
 smart_rewrite → 返回3个版本(versions数组) → 前端展示3个选项 → 用户选择 → apply_chapter_edit
 ```
@@ -92,6 +109,10 @@ smart_rewrite → 返回1个版本 → operate_apply → HITL确认
 - [ ] `src/components/AIPanel.tsx`
   - [ ] 第1478行：修改 `pendingApproval.versions[selectedVersion].content` 的使用方式
   - [ ] 适配新的返回结构
+- [ ] `src/hooks/useAgentChat.ts`
+  - [ ] 第1554-1582行：`submitApproval` 函数依赖 `pending.versions[selectedVersion]`
+  - [ ] 修改版本选择逻辑，适配单版本模式
+  - [ ] 如果保留多版本，确保 operate_apply 能接收用户选中的版本
 
 **测试**：
 - [ ] 添加单元测试
@@ -113,18 +134,32 @@ smart_rewrite → 返回1个版本 → operate_apply → HITL确认
 
 ### 1.2 实现意图路由
 
-路由表：
-| operation | 底层工具 | 需要定位 |
-|-----------|----------|---------|
-| append | apply_chapter_edit(append) | ✗ |
-| replace | apply_chapter_edit(replace) | ✓ |
-| insert | apply_chapter_edit(insert) | ✓ |
-| content | apply_chapter_edit(replace_all) | ✗ |
-| create | create_chapter | ✗ |
-| title | update_chapter_title | ✗ |
+路由表（**三元组**）：
+| operation | 底层工具 | 目标操作 | 需要定位 |
+|-----------|----------|---------|---------|
+| append | apply_chapter_edit | append | ✗ |
+| replace | apply_chapter_edit | replace | ✓ |
+| insert | apply_chapter_edit | insert | ✓ |
+| content | apply_chapter_edit | **replace_all** | ✗ |
+| create | create_chapter | None | ✗ |
+| title | update_chapter_title | None | ✗ |
 
-- [ ] 实现 `ROUTING_TABLE` 路由表
-- [ ] 实现路由逻辑
+- [ ] 实现 `ROUTING_TABLE` 路由表（返回三元组）
+- [ ] `_route_operation()` 返回 `(tool_name, target_operation, needs_locate)`
+- [ ] `_execute_operation()` 使用 `target_operation` 而非原始 `operation`
+
+### 1.2.1 实现智能定位（支持 direct locate）
+
+定位优先级：
+| 优先级 | 方法 | 条件 |
+|--------|------|------|
+| 1 | DIRECT | paragraph_index 或 node_id 已提供 |
+| 2 | TEXT_MATCH | replace + original_text |
+| 3 | SEMANTIC | insert + target_description |
+
+- [ ] `_smart_locate()` 支持 paragraph_index 和 node_id 参数
+- [ ] DIRECT 定位直接返回，跳过 locate_content 调用
+- [ ] insert 定位失败时降级为 append（fallback 策略）
 
 ### 1.3 实现工具定义
 - [ ] 实现 `@tool operate_apply`
@@ -136,21 +171,25 @@ smart_rewrite → 返回1个版本 → operate_apply → HITL确认
 ### 1.4 注册工具
 - [ ] 在 `tools/__init__.py` 添加导出
 - [ ] 在 `tool_dispatcher.py` 添加到 `OPERATION_TOOLS`
+- [ ] 在 `_register_standard_tools()` 中注册 `operate_apply_tool`
 - [ ] 验证工具可被正确识别和调用
 
 ### 1.5 单元测试
 - [ ] 创建 `tests/unit/agent/tools/test_operate_tools.py`
-- [ ] 测试意图路由
+- [ ] 测试意图路由（三元组返回）
   - [ ] append → apply_chapter_edit(append), 无需定位
   - [ ] replace → apply_chapter_edit(replace), 需要定位
   - [ ] insert → apply_chapter_edit(insert), 需要定位
-  - [ ] content → apply_chapter_edit(replace_all), 无需定位
+  - [ ] content → apply_chapter_edit(**replace_all**), 无需定位
   - [ ] create → create_chapter, 无需定位
   - [ ] title → update_chapter_title, 无需定位
 - [ ] 测试定位策略
-  - [ ] replace + original_text → 文本匹配
-  - [ ] insert + target_description → 语义定位
-  - [ ] 定位失败处理
+  - [ ] DIRECT 定位（paragraph_index）
+  - [ ] DIRECT 定位（node_id）
+  - [ ] TEXT_MATCH（replace + original_text）
+  - [ ] SEMANTIC（insert + target_description）
+  - [ ] insert 定位失败降级为 append
+  - [ ] replace 定位失败返回错误
 - [ ] 测试各操作执行
   - [ ] append 操作
   - [ ] replace 操作
@@ -262,16 +301,32 @@ smart_rewrite → 返回1个版本 → operate_apply → HITL确认
 
 ---
 
+## 待确认问题的决策
+
+| 问题 | 决策 | 理由 |
+|------|------|------|
+| smart_rewrite 是否必须改为单版本？ | **建议保留多版本** | operate_apply 可直接接收用户选中版本的 content，无需强改。简化是优化，不是必须 |
+| create/title 是否需要 HITL 确认？ | **待明确** | 当前设计 create 走 create_chapter（乐观执行），title 走 update_chapter_title（同样乐观）。如需 HITL，需额外设计 |
+| 是否支持 direct locate 直通？ | **✅ 已支持** | `_smart_locate` 已添加 paragraph_index/node_id 参数，优先级最高 |
+| create 流程中标题从哪里来？ | **待设计** | smart_continue 只返回 content，需要新工具或修改 smart_continue 同时生成标题 |
+
+---
+
 ## 深度验证发现的问题
 
 ### 已确认的问题
 
 | # | 问题 | 影响 | 状态 |
 |---|------|------|------|
-| 1 | `editor_tools.py:360` operation 验证列表缺少 replace_all | 阻塞 | ❌ 待修复 |
-| 2 | `chapter_revision_service.py` 缺少 replace_all 分支 | 阻塞 | ❌ 待修复 |
-| 3 | 前端 versions[] 依赖需要适配 | 阻塞 | ❌ 待修复 |
+| 1 | `editor_tools.py:360` operation 验证列表缺少 replace_all | 阻塞 | ❌ 待实现（见 [10-replace_all实现.md](./10-replace_all实现.md)） |
+| 2 | `chapter_revision_service.py` 缺少 replace_all 分支 | 阻塞 | ❌ 待实现（见 [10-replace_all实现.md](./10-replace_all实现.md)） |
+| 3 | 前端 versions[] 依赖需要适配 | 🟡 可选 | 延后（operate_apply 可直接接收选中版本） |
 | 4 | planning_prompts.py 缺少 replace_all 说明 | 中等 | ❌ 待修复 |
+| 5 | `useAgentChat.ts:1554-1582` 依赖 versions 选择逻辑 | 🟡 可选 | 延后（不影响核心功能） |
+| 6 | `_route_operation` 原设计返回二元组，应改为三元组 | 阻塞 | ✅ 文档已修复 |
+| 7 | `_execute_operation` 使用原始 operation 而非 target_operation | 阻塞 | ✅ 文档已修复 |
+| 8 | `_smart_locate` 原设计不支持 direct locate | 中等 | ✅ 文档已修复 |
+| 9 | insert 定位失败策略不一致（返回错误 vs 降级 append） | 中等 | ✅ 文档已修复 |
 
 ### 已验证无问题的部分
 
@@ -295,6 +350,7 @@ smart_rewrite → 返回1个版本 → operate_apply → HITL确认
 - [06-测试计划.md](./06-测试计划.md) - 测试用例和验证方案
 - [07-迁移指南.md](./07-迁移指南.md) - 渐进式迁移步骤
 - [09-流程图.md](./09-流程图.md) - 完整流程图
+- [10-replace_all实现.md](./10-replace_all实现.md) - **replace_all 操作详细实现方案**
 
 ---
 
@@ -309,3 +365,9 @@ smart_rewrite → 返回1个版本 → operate_apply → HITL确认
 | 2026-01-21 | 更新：content 操作改用 apply_chapter_edit(replace_all) 以支持 HITL |
 | 2026-01-21 | 更新：新增阶段0前置任务（扩展 replace_all + 简化 smart_rewrite） |
 | 2026-01-21 | 更新：深度验证，补充遗漏的修改文件和风险点 |
+| 2026-01-21 | **Review 修订**：修复路由表三元组解包问题（#6） |
+| 2026-01-21 | **Review 修订**：修复 content → replace_all 操作传递问题（#7） |
+| 2026-01-21 | **Review 修订**：新增 direct locate 支持（#8） |
+| 2026-01-21 | **Review 修订**：明确 insert 定位失败降级为 append（#9） |
+| 2026-01-21 | **Review 修订**：补充 useAgentChat.ts 适配说明（#5） |
+| 2026-01-21 | **Review 修订**：补充 StandardTool registry 注册任务 |

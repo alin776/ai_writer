@@ -185,7 +185,9 @@ class ChapterVectorService:
         top_k: int = 5,
         similarity_threshold: float = 0.3,
         include_current: bool = True,
-        look_ahead: int = 0
+        look_ahead: int = 0,
+        min_order: Optional[int] = None,
+        max_order: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
         Retrieve context for continuation.
@@ -204,8 +206,10 @@ class ChapterVectorService:
             from uuid import UUID
             work_uuid = UUID(work_id) if isinstance(work_id, str) else work_id
 
-            upper_order = current_chapter_order + (look_ahead or 0)
+            upper_order = max_order if max_order is not None else current_chapter_order + (look_ahead or 0)
             conditions = [NovelChapterVector.work_id == work_uuid]
+            if isinstance(min_order, int):
+                conditions.append(NovelChapterVector.chapter_order >= min_order)
             if include_current:
                 conditions.append(NovelChapterVector.chapter_order <= upper_order)
             else:
@@ -313,3 +317,110 @@ class ChapterVectorService:
                 'vector_dimension': self.VECTOR_DIM,
                 'model_name': self.MODEL_NAME
             }
+
+    # ==================== 精确搜索方法（Explore V2）====================
+
+    async def exact_search_paragraphs(
+        self,
+        work_id: str,
+        keywords: List[str],
+        chapter_range: Optional[tuple] = None,
+        match_mode: str = "any",
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        精确搜索：在段落文本中搜索包含关键词的段落（确定性，不走向量）
+
+        Args:
+            work_id: 作品ID
+            keywords: 关键词列表
+            chapter_range: 章节范围 (min_order, max_order)，None 表示全部
+            match_mode: 匹配模式
+                - "any": 任一关键词匹配（OR）
+                - "all": 所有关键词都匹配（AND）
+                - "phrase": 第一个关键词作为精确短语匹配
+            limit: 返回结果数量上限
+
+        Returns:
+            List[Dict]: 命中的段落列表
+        """
+        from uuid import UUID
+        from sqlalchemy import or_, and_
+
+        try:
+            work_uuid = UUID(work_id) if isinstance(work_id, str) else work_id
+
+            if not keywords:
+                logger.warning("[exact_search] 关键词为空")
+                return []
+
+            # 构建基础查询
+            stmt = select(NovelChapterVector).where(
+                NovelChapterVector.work_id == work_uuid
+            )
+
+            # 章节范围约束
+            if chapter_range:
+                min_order, max_order = chapter_range
+                if min_order is not None:
+                    stmt = stmt.where(NovelChapterVector.chapter_order >= min_order)
+                if max_order is not None:
+                    stmt = stmt.where(NovelChapterVector.chapter_order <= max_order)
+
+            # 关键词匹配条件
+            if match_mode == "phrase":
+                # 精确短语匹配（第一个关键词）
+                stmt = stmt.where(
+                    NovelChapterVector.chunk_text.ilike(f"%{keywords[0]}%")
+                )
+            elif match_mode == "all":
+                # AND：所有关键词都必须匹配
+                conditions = [
+                    NovelChapterVector.chunk_text.ilike(f"%{kw}%")
+                    for kw in keywords
+                ]
+                stmt = stmt.where(and_(*conditions))
+            else:
+                # OR：任一关键词匹配（默认）
+                conditions = [
+                    NovelChapterVector.chunk_text.ilike(f"%{kw}%")
+                    for kw in keywords
+                ]
+                stmt = stmt.where(or_(*conditions))
+
+            # 按章节和段落排序
+            stmt = stmt.order_by(
+                NovelChapterVector.chapter_order,
+                NovelChapterVector.chunk_index
+            ).limit(limit)
+
+            # 执行查询
+            result = await self.db.execute(stmt)
+            vectors = result.scalars().all()
+
+            # 构建返回结果
+            results = []
+            for v in vectors:
+                # 记录匹配到的关键词
+                matched = [kw for kw in keywords if kw.lower() in v.chunk_text.lower()]
+                results.append({
+                    "chapter_id": str(v.chapter_id),
+                    "chapter_order": v.chapter_order,
+                    "chapter_title": v.chapter_title,
+                    "paragraph_index": v.chunk_index,
+                    "text": v.chunk_text,
+                    "matched_keywords": matched,
+                    "match_count": len(matched)
+                })
+
+            logger.info(
+                f"[exact_search] work={work_id}, keywords={keywords[:3]}..., "
+                f"mode={match_mode}, range={chapter_range}, hits={len(results)}"
+            )
+
+            return results
+
+        except Exception as e:
+            logger.error(f"[exact_search] 精确搜索失败: {e}", exc_info=True)
+            return []
+
