@@ -432,7 +432,7 @@ export const EnhancedProgressEventSchema = z.object({
 /**
  * 执行轨迹项类型
  */
-export type FlowItemType = 'text' | 'tool' | 'content' | 'step' | 'output' | 'agent_header' | 'completion' | 'summarization' | 'revision' | 'explore_round' | 'explore_summary';
+export type FlowItemType = 'text' | 'tool' | 'content' | 'step' | 'output' | 'agent_header' | 'completion' | 'summarization' | 'revision' | 'explore_round' | 'explore_summary' | 'operate';
 
 // ==================== 知识调取相关类型 (v6.0) ====================
 
@@ -684,13 +684,71 @@ export interface ExploreFlowData {
   rounds: ExploreRound[];
 }
 
+// ==================== Operate 操作轨迹类型 (v10.0) ====================
+
+/**
+ * Operate 操作类型
+ */
+export type OperateOperationType = 'append' | 'replace' | 'insert' | 'content' | 'create' | 'title';
+
+/**
+ * Operate 定位方式
+ */
+export type OperateLocateMethod = 'direct' | 'text_match' | 'semantic' | 'none' | 'fallback' | 'failed';
+
+/**
+ * Operate 阶段状态
+ */
+export type OperatePhaseStatus = 'pending' | 'running' | 'done' | 'skipped';
+
+/**
+ * Operate 标签
+ */
+export interface OperateTag {
+  label: string;      // 标签名：输入、工具、方式、位置、操作、状态
+  value: string;      // 显示值（已转换为用户友好名称）
+  icon?: string;      // Lucide 图标名
+  variant?: 'default' | 'success' | 'warning' | 'info';
+}
+
+/**
+ * Operate 阶段数据
+ */
+export interface OperatePhaseData {
+  phase: 1 | 2 | 3;
+  title: string;
+  status: OperatePhaseStatus;
+  tags: OperateTag[];
+}
+
+/**
+ * Operate 轨迹数据（流事件）
+ */
+export interface OperateFlowData {
+  stepId: number;
+  operation: OperateOperationType;     // 原始操作类型
+  phases: OperatePhaseData[];          // 三阶段数据
+  status: 'running' | 'done' | 'error';
+  // 定位结果（阶段2）
+  locateMethod?: OperateLocateMethod;  // direct | text_match | semantic | none | fallback
+  locateTarget?: string;               // "第五章 · 第2段"
+  // 执行结果（阶段3）
+  targetOperation?: string;            // 实际执行的操作（如 content → replace_all）
+  toolUsed?: string;                   // 使用的工具
+  chapterId?: string;
+  chapterTitle?: string;
+  requiresConfirmation?: boolean;
+  revisionId?: string;
+  requestId?: string;
+}
+
 /**
  * 执行轨迹项
  */
 export interface FlowItem {
   id: string;
   type: FlowItemType;
-  data: TextFlowData | ToolFlowData | ContentFlowData | StepFlowData | OutputFlowData | AgentHeaderFlowData | CompletionFlowData | SummarizationFlowData | RevisionFlowData | ExploreRoundFlowData | ExploreSummaryFlowData | ExploreFlowData;
+  data: TextFlowData | ToolFlowData | ContentFlowData | StepFlowData | OutputFlowData | AgentHeaderFlowData | CompletionFlowData | SummarizationFlowData | RevisionFlowData | ExploreRoundFlowData | ExploreSummaryFlowData | ExploreFlowData | OperateFlowData;
   timestamp: string;
 }
 

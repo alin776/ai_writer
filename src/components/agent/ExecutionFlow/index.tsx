@@ -5,7 +5,7 @@
  * 支持知识调取容器、可折叠步骤、输出卡片、修订胶囊、批量修订管理
  */
 
-import type { FlowItem, TextFlowData, ToolFlowData, ContentFlowData, StepFlowData, OutputFlowData, AgentHeaderFlowData, CompletionFlowData, SummarizationFlowData, RevisionFlowData, ExploreRoundFlowData, ExploreSummaryFlowData } from '@/types/agent';
+import type { FlowItem, TextFlowData, ToolFlowData, ContentFlowData, StepFlowData, OutputFlowData, AgentHeaderFlowData, CompletionFlowData, SummarizationFlowData, RevisionFlowData, ExploreRoundFlowData, ExploreSummaryFlowData, OperateFlowData } from '@/types/agent';
 import { TextBlock } from './TextBlock';
 import { ToolCard } from './ToolCard';
 import { ContentBlock } from './ContentBlock';
@@ -16,6 +16,7 @@ import { CompletionStatus } from './CompletionStatus';
 import { SummarizationCard } from './SummarizationCard';
 import { RevisionCard } from './RevisionCard';
 import { ExploreRoundCard, ExploreSummaryCard } from './ExploreCard';
+import { OperateCard } from './OperateCard';
 
 interface ExecutionFlowProps {
   items: FlowItem[];
@@ -194,6 +195,13 @@ export function ExecutionFlow({
               <ExploreSummaryCard
                 key={item.id}
                 {...(item.data as ExploreSummaryFlowData)}
+              />
+            );
+          case 'operate':
+            return (
+              <OperateCard
+                key={item.id}
+                data={item.data as OperateFlowData}
               />
             );
           default:

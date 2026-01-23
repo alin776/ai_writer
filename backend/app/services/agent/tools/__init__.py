@@ -125,6 +125,16 @@ from .locate_tools import (
     locate_content
 )
 
+# ==================== ContentOperator（2026-01-23）====================
+from .operate_tools import (
+    ContentOperator,
+    OperationType,
+    OperateResult,
+    get_operator,
+    operate_apply,
+    operate_apply_tool
+)
+
 # ==================== 辅助工具（2026-01-09）====================
 from .consistency_checker import check_story_consistency_tool, check_story_consistency_st
 from .show_dont_tell import show_emotion_tool, enhance_scene_tool
@@ -235,6 +245,14 @@ __all__ = [
     # ==================== 定位工具（2026-01-10）====================
     "locate_content",
 
+    # ==================== ContentOperator（2026-01-23）====================
+    "ContentOperator",
+    "OperationType",
+    "OperateResult",
+    "get_operator",
+    "operate_apply",
+    "operate_apply_tool",
+
     # ==================== 辅助工具（2026-01-09）====================
     "check_story_consistency_tool",
     "check_story_consistency_st",
@@ -299,6 +317,9 @@ def _register_standard_tools():
     registry.register_standard_tool(update_chapter_title_tool)
     registry.register_standard_tool(delete_chapter_tool)
     registry.register_standard_tool(update_chapter_content_tool)
+
+    # ContentOperator（2026-01-23: 新增）
+    registry.register_standard_tool(operate_apply_tool)
 
 
 # 模块加载时自动注册

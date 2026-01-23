@@ -4,9 +4,9 @@
 
 | 阶段 | 状态 | 说明 |
 |------|------|------|
-| 阶段0：前置 | ⏳ 待开始 | 扩展底层工具 + 简化 smart_rewrite |
-| 阶段1：新增 | ⏳ 待开始 | 添加 operate_apply 工具 |
-| 阶段2：共存 | ⏳ 待开始 | 更新示例，灰度验证 |
+| 阶段0：前置 | ✅ 已完成 | 扩展底层工具 replace_all |
+| 阶段1：新增 | ✅ 已完成 | 添加 operate_apply 工具 |
+| 阶段2：共存 | ✅ 已完成 | 更新示例，Planning 集成 |
 | 阶段3：弃用 | ⏳ 待开始 | 移除旧模式（可选） |
 
 ---
@@ -68,12 +68,12 @@
 | replace_all | 整体替换章节**全部**内容 | 无需定位 |
 
 **需要修改的文件**：
-- [ ] `backend/app/services/agent/tools/editor_tools.py`
-  - [ ] 第360行：operation验证列表添加 `"replace_all"`
-  - [ ] 添加 replace_all 处理分支（直接用 content 替换整个章节内容）
-- [ ] `backend/app/services/chapter_revision_service.py`
-  - [ ] `_build_new_content` 方法添加 replace_all 分支
-  - [ ] replace_all 逻辑：`new_content = content`（直接全量替换）
+- [x] `backend/app/services/agent/tools/editor_tools.py`
+  - [x] 第360行：operation验证列表添加 `"replace_all"`
+  - [x] 添加 replace_all 处理分支（直接用 content 替换整个章节内容）
+- [x] `backend/app/services/chapter_revision_service.py`
+  - [x] `_build_new_content` 方法添加 replace_all 分支
+  - [x] replace_all 逻辑：`new_content = content`（直接全量替换）
 - [ ] 添加单元测试
 
 ### 0.2 简化 smart_rewrite（从3个版本改为1个）🟡 可选/延后
@@ -123,14 +123,14 @@ smart_rewrite → 返回1个版本 → operate_apply → HITL确认
 ## 阶段1：新增工具
 
 ### 1.1 创建核心文件
-- [ ] 创建 `backend/app/services/agent/tools/operate_tools.py`
-- [ ] 实现 `OperationType` 枚举（6种类型）
-- [ ] 实现 `OperateResult` 数据类
-- [ ] 实现 `ContentOperator` 类
-  - [ ] `operate()` 主方法（三阶段流程）
-  - [ ] `_route_operation()` 意图路由
-  - [ ] `_smart_locate()` 智能定位（仅 replace/insert）
-  - [ ] `_execute_operation()` 执行底层工具
+- [x] 创建 `backend/app/services/agent/tools/operate_tools.py`
+- [x] 实现 `OperationType` 枚举（6种类型）
+- [x] 实现 `OperateResult` 数据类
+- [x] 实现 `ContentOperator` 类
+  - [x] `operate()` 主方法（三阶段流程）
+  - [x] `_route_operation()` 意图路由
+  - [x] `_smart_locate()` 智能定位（仅 replace/insert）
+  - [x] `_execute_operation()` 执行底层工具
 
 ### 1.2 实现意图路由
 
@@ -144,9 +144,9 @@ smart_rewrite → 返回1个版本 → operate_apply → HITL确认
 | create | create_chapter | None | ✗ |
 | title | update_chapter_title | None | ✗ |
 
-- [ ] 实现 `ROUTING_TABLE` 路由表（返回三元组）
-- [ ] `_route_operation()` 返回 `(tool_name, target_operation, needs_locate)`
-- [ ] `_execute_operation()` 使用 `target_operation` 而非原始 `operation`
+- [x] 实现 `ROUTING_TABLE` 路由表（返回三元组）
+- [x] `_route_operation()` 返回 `(tool_name, target_operation, needs_locate)`
+- [x] `_execute_operation()` 使用 `target_operation` 而非原始 `operation`
 
 ### 1.2.1 实现智能定位（支持 direct locate）
 
@@ -157,21 +157,21 @@ smart_rewrite → 返回1个版本 → operate_apply → HITL确认
 | 2 | TEXT_MATCH | replace + original_text |
 | 3 | SEMANTIC | insert + target_description |
 
-- [ ] `_smart_locate()` 支持 paragraph_index 和 node_id 参数
-- [ ] DIRECT 定位直接返回，跳过 locate_content 调用
-- [ ] insert 定位失败时降级为 append（fallback 策略）
+- [x] `_smart_locate()` 支持 paragraph_index 和 node_id 参数
+- [x] DIRECT 定位直接返回，跳过 locate_content 调用
+- [x] insert 定位失败时降级为 append（fallback 策略）
 
 ### 1.3 实现工具定义
-- [ ] 实现 `@tool operate_apply`
-- [ ] 实现 `OperateApplyInput` (Pydantic)
-- [ ] 实现 `OperateApplyOutput` (Pydantic)
-- [ ] 实现 `operate_apply_executor`
-- [ ] 创建 `operate_apply_tool` (StandardTool)
+- [x] 实现 `@tool operate_apply`
+- [x] 实现 `OperateApplyInput` (Pydantic)
+- [x] 实现 `OperateApplyOutput` (Pydantic)
+- [x] 实现 `operate_apply_executor`
+- [x] 创建 `operate_apply_tool` (StandardTool)
 
 ### 1.4 注册工具
-- [ ] 在 `tools/__init__.py` 添加导出
-- [ ] 在 `tool_dispatcher.py` 添加到 `OPERATION_TOOLS`
-- [ ] 在 `_register_standard_tools()` 中注册 `operate_apply_tool`
+- [x] 在 `tools/__init__.py` 添加导出
+- [x] 在 `tool_dispatcher.py` 添加到 `OPERATION_TOOLS`
+- [x] 在 `_register_standard_tools()` 中注册 `operate_apply_tool`
 - [ ] 验证工具可被正确识别和调用
 
 ### 1.5 单元测试
@@ -207,21 +207,33 @@ smart_rewrite → 返回1个版本 → operate_apply → HITL确认
 ## 阶段2：更新示例
 
 ### 2.1 更新 planning_prompts.py
-- [ ] 添加 `operate_apply` 工具描述
-- [ ] 说明支持的 6 种 operation
-- [ ] 强调：需要 AI 生成内容 → operate_apply
-- [ ] 标记底层工具为内部使用
+- [x] 添加 `operate_apply` 工具描述
+- [x] 说明支持的 6 种 operation
+- [x] 强调：需要 AI 生成内容 → operate_apply
+- [x] 更新流程说明（locate → smart_* → operate_apply）
 
 ### 2.2 更新 planning_examples.py
-- [ ] 添加续写示例（append）
-- [ ] 添加改写部分示例（replace）
-- [ ] 添加插入示例（insert）
-- [ ] 添加重写整章示例（content）
-- [ ] 添加写新章节示例（create）
-- [ ] 添加改进标题示例（title）
-- [ ] 保留旧示例（兼容性）
+- [x] 添加续写示例（append）
+- [x] 添加改写部分示例（replace）
+- [x] 添加插入示例（insert）
+- [x] 添加重写整章示例（content）
+- [x] 添加写新章节示例（create）
+- [x] 添加改进标题示例（title）
+- [x] 保留旧示例（兼容性）
 
-### 2.3 集成测试
+### 2.3 更新 tool_descriptions.py
+- [x] 添加 `operate_apply` 完整工具描述
+- [x] 更新编辑器工具部分的推荐说明
+- [x] 更新 smart_rewrite/smart_continue/smart_insert 后续操作说明
+- [x] 更新 locate_content 工作流程说明
+
+### 2.4 更新 decision_prompts.py
+- [x] 添加 `operate_apply` 简要描述
+
+### 2.5 更新 get_editor_workflow_examples()
+- [x] 更新创作类→操作类对应关系（推荐 operate_apply）
+
+### 2.6 集成测试
 - [ ] 创建 `tests/integration/agent/test_operate_apply.py`
 - [ ] 测试 append 完整流程
 - [ ] 测试 replace 完整流程（自动定位）
@@ -318,15 +330,19 @@ smart_rewrite → 返回1个版本 → operate_apply → HITL确认
 
 | # | 问题 | 影响 | 状态 |
 |---|------|------|------|
-| 1 | `editor_tools.py:360` operation 验证列表缺少 replace_all | 阻塞 | ❌ 待实现（见 [10-replace_all实现.md](./10-replace_all实现.md)） |
-| 2 | `chapter_revision_service.py` 缺少 replace_all 分支 | 阻塞 | ❌ 待实现（见 [10-replace_all实现.md](./10-replace_all实现.md)） |
+| 1 | `editor_tools.py:360` operation 验证列表缺少 replace_all | 阻塞 | ✅ 已修复 |
+| 2 | `chapter_revision_service.py` 缺少 replace_all 分支 | 阻塞 | ✅ 已修复 |
 | 3 | 前端 versions[] 依赖需要适配 | 🟡 可选 | 延后（operate_apply 可直接接收选中版本） |
 | 4 | planning_prompts.py 缺少 replace_all 说明 | 中等 | ❌ 待修复 |
 | 5 | `useAgentChat.ts:1554-1582` 依赖 versions 选择逻辑 | 🟡 可选 | 延后（不影响核心功能） |
-| 6 | `_route_operation` 原设计返回二元组，应改为三元组 | 阻塞 | ✅ 文档已修复 |
-| 7 | `_execute_operation` 使用原始 operation 而非 target_operation | 阻塞 | ✅ 文档已修复 |
-| 8 | `_smart_locate` 原设计不支持 direct locate | 中等 | ✅ 文档已修复 |
-| 9 | insert 定位失败策略不一致（返回错误 vs 降级 append） | 中等 | ✅ 文档已修复 |
+| 6 | `_route_operation` 原设计返回二元组，应改为三元组 | 阻塞 | ✅ 代码已实现 |
+| 7 | `_execute_operation` 使用原始 operation 而非 target_operation | 阻塞 | ✅ 代码已实现 |
+| 8 | `_smart_locate` 原设计不支持 direct locate | 中等 | ✅ 代码已实现 |
+| 9 | insert 定位失败策略不一致（返回错误 vs 降级 append） | 中等 | ✅ 代码已实现 |
+| 10 | `_smart_locate` 的 chapter_id 类型声明为 str 但可能为 None | 高 | ✅ Review 修复 |
+| 11 | 缺少参数验证（create 需要 work_id，title 需要 title） | 高 | ✅ Review 修复 |
+| 12 | 定位失败时 OperateResult 未设置 target_operation 和 tool_used | 低 | ✅ Review 修复 |
+| 13 | OperateResult 缺少 content_length 和 original_text 字段 | 低 | ✅ Review 修复 |
 
 ### 已验证无问题的部分
 
@@ -372,3 +388,10 @@ smart_rewrite → 返回1个版本 → operate_apply → HITL确认
 | 2026-01-21 | **Review 修订**：明确 insert 定位失败降级为 append（#9） |
 | 2026-01-21 | **Review 修订**：补充 useAgentChat.ts 适配说明（#5） |
 | 2026-01-21 | **Review 修订**：补充 StandardTool registry 注册任务 |
+| 2026-01-23 | **开发完成**：阶段0、阶段1 代码实现完成 |
+| 2026-01-23 | **Review 修复**：chapter_id 类型声明、参数验证、OperateResult 字段补全 |
+| 2026-01-23 | **阶段2完成**：更新 tool_descriptions.py（添加 operate_apply 完整描述） |
+| 2026-01-23 | **阶段2完成**：更新 decision_prompts.py（添加 operate_apply 简要描述） |
+| 2026-01-23 | **阶段2完成**：更新 get_editor_workflow_examples()（推荐 operate_apply） |
+| 2026-01-23 | **Review 修复**：tool_dispatcher.py 添加 operate_apply 显式分发逻辑 |
+| 2026-01-23 | **Review 修复**：decision_prompts.py PROMPT_VERSION 更新为 v2.40.0 |

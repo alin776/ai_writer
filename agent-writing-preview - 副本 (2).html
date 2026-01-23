@@ -616,11 +616,16 @@
 
         /* 修订胶囊样式 */
         .revision-capsule {
-            background: #2a2a2a;
-            border: 1px solid #3a3a3a;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
             border-radius: 16px;
             padding: 4px 10px;
             display: inline-block;
+        }
+
+        .revision-capsule.expanded {
+            border-radius: 12px;          /* rounded-xl */
+            padding: 8px 12px;
         }
 
         .revision-header {
@@ -632,64 +637,64 @@
         }
 
         .revision-toggle {
-            color: #666;
+            color: var(--text-dimmed);
             font-size: 9px;
             margin-left: 2px;
         }
 
         .revision-icon {
-            color: #888;
+            color: var(--text-muted);
             display: flex;
             align-items: center;
         }
 
         .revision-title {
             font-size: 13px;
-            color: #888;
+            color: var(--text-muted);
         }
 
         .revision-badge {
             font-size: 10px;
             padding: 2px 8px;
-            border-radius: 10px;
+            border-radius: 999px;         /* rounded-full */
             margin-left: auto;
         }
 
         .revision-badge.pending {
-            background: #3a3a3a;
-            color: #888;
+            background: var(--badge-pending-bg);
+            color: var(--badge-pending-text);
         }
 
         .revision-badge.accepted {
-            background: #3a3a3a;
-            color: #10b981;
+            background: var(--badge-accepted-bg);
+            color: var(--badge-accepted-text);
         }
 
         .revision-badge.discarded {
-            background: #3a3a3a;
-            color: #888;
+            background: var(--badge-discarded-bg);
+            color: var(--badge-discarded-text);
         }
 
         .revision-content {
-            padding-top: 6px;
+            padding-top: 8px;
         }
 
         .revision-target {
             display: flex;
             align-items: center;
             gap: 6px;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }
 
         .target-icon {
-            color: #666;
+            color: var(--text-dimmed);
             display: flex;
             align-items: center;
         }
 
         .target-name {
             font-size: 13px;
-            color: #5c9eff;
+            color: var(--accent-blue);
             text-decoration: underline;
             text-underline-offset: 2px;
             cursor: pointer;
@@ -702,32 +707,32 @@
         .target-action {
             font-size: 10px;
             padding: 1px 4px;
-            background: #3a3a3a;
-            color: #888;
+            background: var(--bg-tertiary);
+            color: var(--text-muted);
             border-radius: 3px;
         }
 
         .target-action.replace {
-            color: #fbbf24;
+            color: var(--accent-amber);
         }
 
         .revision-preview {
-            background: #222;
+            background: var(--bg-tertiary);
             border-radius: 8px;
-            padding: 8px 10px;
+            padding: 10px 12px;
             margin-bottom: 8px;
         }
 
         .preview-label {
-            font-size: 10px;
-            color: #666;
-            margin-bottom: 3px;
+            font-size: 11px;
+            color: var(--text-dimmed);
+            margin-bottom: 4px;
         }
 
         .preview-text {
-            font-size: 12px;
-            color: #888;
-            line-height: 1.5;
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.6;
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
@@ -749,12 +754,12 @@
         }
 
         .stat-item i {
-            color: #888;
+            color: var(--text-muted);
         }
 
         .revision-actions {
             display: flex;
-            gap: 6px;
+            gap: 8px;
         }
 
         .revision-btn {
@@ -763,32 +768,33 @@
             gap: 4px;
             padding: 4px 10px;
             border: none;
-            border-radius: 12px;
-            font-size: 11px;
+            border-radius: 999px;           /* rounded-full */
+            font-size: 12px;
             cursor: pointer;
             transition: all 0.15s;
         }
 
         .revision-btn.discard {
-            background: #3a3a3a;
-            color: #ccc;
+            background: var(--btn-discard-bg);
+            color: var(--btn-discard-text);
         }
 
         .revision-btn.discard:hover {
-            background: #4a4a4a;
+            opacity: 0.8;
         }
 
         .revision-btn.accept {
-            background: #3a3a3a;
-            color: #ccc;
+            background: var(--btn-accept-bg);
+            color: var(--btn-accept-text);
+            border: 1px solid var(--btn-accept-border);
         }
 
         .revision-btn.accept:hover {
-            background: #4a4a4a;
+            opacity: 0.9;
         }
 
         .revision-result {
-            font-size: 11px;
+            font-size: 12px;
             padding: 4px 0;
             display: flex;
             align-items: center;
@@ -796,11 +802,11 @@
         }
 
         .revision-result.accepted {
-            color: #888;
+            color: var(--badge-accepted-text);
         }
 
         .revision-result.discarded {
-            color: #888;
+            color: var(--text-muted);
         }
 
         /* 滚动条样式 */
@@ -820,9 +826,673 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #555;
         }
+
+        /* ═══════════════════════════════════════════════════════════════════════════ */
+        /* 主题切换支持 - 精确匹配项目 Tailwind 色彩系统 */
+        /* ═══════════════════════════════════════════════════════════════════════════ */
+
+        :root {
+            /* 深色模式（默认）- 对应 dark: 前缀 */
+            --bg-primary: #0f172a;           /* slate-900 */
+            --bg-secondary: #1e293b;         /* slate-800 */
+            --bg-tertiary: #1e293b;          /* slate-800 */
+            --bg-card: #1e293b;              /* slate-800 (胶囊/卡片背景) */
+            --bg-tag: #1e293b;               /* slate-800 (标签背景) */
+            --border-color: #334155;         /* slate-700 */
+            --text-primary: #ffffff;
+            --text-secondary: #cbd5e1;       /* slate-300 */
+            --text-muted: #94a3b8;           /* slate-400 */
+            --text-dimmed: #64748b;          /* slate-500/600 */
+            --accent-blue: #5c9eff;
+            --accent-green: #10b981;         /* emerald-500 */
+            --accent-amber: #f59e0b;         /* amber-500 */
+            --accent-red: #ef4444;           /* red-500 */
+            /* 状态标签颜色 */
+            --badge-pending-bg: rgba(217, 119, 6, 0.3);   /* amber-900/30 */
+            --badge-pending-text: #fbbf24;                 /* amber-400 */
+            --badge-accepted-bg: rgba(6, 78, 59, 0.3);    /* emerald-900/30 */
+            --badge-accepted-text: #34d399;                /* emerald-400 */
+            --badge-discarded-bg: #334155;                 /* slate-700 */
+            --badge-discarded-text: #94a3b8;               /* slate-400 */
+            /* 按钮颜色 */
+            --btn-discard-bg: #334155;       /* slate-700 */
+            --btn-discard-text: #94a3b8;     /* slate-400 */
+            --btn-accept-bg: rgba(6, 78, 59, 0.3);   /* green-900/30 */
+            --btn-accept-text: #34d399;      /* green-400 */
+            --btn-accept-border: #166534;    /* green-800 */
+        }
+
+        body.light-mode {
+            /* 浅色模式 */
+            --bg-primary: #ffffff;
+            --bg-secondary: #f9fafb;         /* gray-50 */
+            --bg-tertiary: #f3f4f6;          /* gray-100 */
+            --bg-card: #ffffff;              /* white */
+            --bg-tag: #f9fafb;               /* gray-50 */
+            --border-color: #e5e7eb;         /* gray-200 */
+            --text-primary: #111827;         /* gray-900 */
+            --text-secondary: #4b5563;       /* gray-600 */
+            --text-muted: #6b7280;           /* gray-500 */
+            --text-dimmed: #9ca3af;          /* gray-400 */
+            --accent-blue: #2563eb;          /* blue-600 */
+            /* 状态标签颜色 */
+            --badge-pending-bg: #fef3c7;     /* amber-100 */
+            --badge-pending-text: #d97706;   /* amber-600 */
+            --badge-accepted-bg: #d1fae5;    /* emerald-100 */
+            --badge-accepted-text: #059669;  /* emerald-600 */
+            --badge-discarded-bg: #f3f4f6;   /* gray-100 */
+            --badge-discarded-text: #6b7280; /* gray-500 */
+            /* 按钮颜色 */
+            --btn-discard-bg: #f3f4f6;       /* gray-100 */
+            --btn-discard-text: #6b7280;     /* gray-500 */
+            --btn-accept-bg: #f0fdf4;        /* green-50 */
+            --btn-accept-text: #15803d;      /* green-700 */
+            --btn-accept-border: #bbf7d0;    /* green-200 */
+        }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+        }
+
+        /* 主题切换按钮 */
+        .theme-toggle {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: all 0.2s;
+        }
+
+        .theme-toggle:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════ */
+        /* Operate SubAgent 样式（符合项目规范） */
+        /* ═══════════════════════════════════════════════════════════════════════════ */
+
+        .operate-panel {
+            margin: 8px 0;
+        }
+
+        .operate-phase {
+            margin-bottom: 8px;
+        }
+
+        /* 胶囊容器 - 精确匹配 ExploreRoundCard */
+        .operate-phase-capsule {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 6px 10px;
+            display: inline-flex;
+            flex-direction: column;
+            max-width: 100%;
+            transition: all 0.2s ease;
+        }
+
+        .operate-phase-capsule.collapsed {
+            display: inline-flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 10px;
+            border-radius: 16px;
+        }
+
+        .operate-phase-capsule.skipped {
+            opacity: 0.5;
+        }
+
+        .operate-phase-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .operate-phase-index {
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+        }
+
+        .operate-phase-title {
+            font-size: 13px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .operate-phase-capsule.collapsed .operate-phase-title {
+            color: var(--text-muted);
+            font-weight: normal;
+        }
+
+        .operate-phase-toggle {
+            font-size: 10px;
+            color: var(--text-dimmed);
+            margin-left: auto;
+        }
+
+        .operate-phase-body {
+            padding-top: 8px;
+        }
+
+        .operate-phase-capsule.collapsed .operate-phase-body {
+            display: none;
+        }
+
+        .operate-phase-capsule.collapsed .operate-phase-toggle {
+            display: none;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════ */
+        /* 标签组样式 - 精确匹配 ExploreCard */
+        /* ═══════════════════════════════════════════════════════════════════════════ */
+
+        .operate-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .operate-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--bg-tag);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 4px 10px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .operate-tag i {
+            color: var(--text-muted);
+        }
+
+        .operate-tag .tag-value {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .operate-tag .tag-value.code {
+            font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+            color: var(--text-muted);
+            font-weight: normal;
+        }
+
+        .operate-tag .tag-value.warning {
+            color: var(--accent-amber);
+        }
+
+        .operate-tag.success {
+            border-color: rgba(16, 185, 129, 0.3);
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .operate-tag.success .tag-value {
+            color: var(--accent-green);
+        }
+
+        .operate-tag.warning {
+            border-color: rgba(245, 158, 11, 0.3);
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        /* 定位策略列表 */
+        .locate-strategy {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+        }
+
+        .strategy-header {
+            font-size: 11px;
+            color: var(--text-dimmed);
+            margin-bottom: 6px;
+        }
+
+        .strategy-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .strategy-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            border: 1px solid transparent;
+            transition: all 0.15s;
+        }
+
+        .strategy-item.disabled {
+            opacity: 0.4;
+        }
+
+        .strategy-item.active {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: var(--accent-green);
+        }
+
+        .strategy-num {
+            width: 18px;
+            height: 18px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .strategy-item.active .strategy-num {
+            background: var(--accent-green);
+            border-color: var(--accent-green);
+            color: #fff;
+        }
+
+        .strategy-name {
+            font-weight: 500;
+            color: var(--text-secondary);
+            min-width: 90px;
+        }
+
+        .strategy-item.active .strategy-name {
+            color: var(--accent-green);
+        }
+
+        .strategy-desc {
+            color: var(--text-dimmed);
+            flex: 1;
+        }
+
+        .strategy-status {
+            color: var(--text-dimmed);
+            font-size: 10px;
+        }
+
+        .strategy-status.hit {
+            color: var(--accent-green);
+            font-weight: 500;
+        }
+
+        /* 定位结果 */
+        .locate-result {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+        }
+
+        .locate-result-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        .locate-result-body {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 4px 16px;
+        }
+
+        .locate-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .locate-label {
+            font-size: 10px;
+            color: var(--text-dimmed);
+            min-width: 85px;
+        }
+
+        .locate-value {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .locate-value.highlight {
+            color: var(--accent-blue);
+            font-weight: 500;
+        }
+
+        .locate-value.code {
+            font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+            color: var(--accent-green);
+        }
+
+        /* 执行代码块 */
+        .execute-call {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+        }
+
+        .execute-call-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        .execute-call-code {
+            font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        .code-func {
+            color: var(--accent-blue);
+        }
+
+        .code-str {
+            color: var(--accent-green);
+        }
+
+        .code-str.warning {
+            color: var(--accent-amber);
+        }
+
+        .code-num {
+            color: var(--accent-amber);
+        }
+
+        /* 执行结果 */
+        .execute-result {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+        }
+
+        .execute-result-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 2px 0;
+        }
+
+        .result-label {
+            font-size: 10px;
+            color: var(--text-dimmed);
+            min-width: 130px;
+        }
+
+        .result-value {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .result-value.yes {
+            color: var(--accent-green);
+            font-weight: 500;
+        }
+
+        .result-value.code {
+            font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+        }
+
+        .result-value.warning {
+            color: var(--accent-amber);
+        }
+
+        /* Operate 状态 */
+        .operate-status {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            font-size: 11px;
+            color: var(--text-dimmed);
+        }
+
+        .operate-status .hit {
+            color: var(--accent-green);
+        }
+
+        .operate-status .warn {
+            color: var(--accent-amber);
+        }
+
+        /* 跳过消息 */
+        .skipped-message {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--text-dimmed);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════ */
+        /* Operate 执行总结卡片 - 使用与阶段卡片一致的胶囊样式 */
+        /* ═══════════════════════════════════════════════════════════════════════════ */
+
+        .operate-summary {
+            /* 使用与 operate-phase-capsule 相同的胶囊样式 */
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 6px 10px;
+            display: inline-flex;
+            flex-direction: column;
+            max-width: 100%;
+            margin-top: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .operate-summary.collapsed {
+            display: inline-flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 10px;
+        }
+
+        .operate-summary-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .operate-summary-title {
+            font-size: 13px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .operate-summary.collapsed .operate-summary-title {
+            color: var(--text-muted);
+            font-weight: normal;
+        }
+
+        .operate-summary-body {
+            padding-top: 8px;
+        }
+
+        .operate-summary.collapsed .operate-summary-body {
+            display: none;
+        }
+
+        .operate-summary.collapsed .operate-phase-toggle {
+            display: none;
+        }
+
+        .operate-summary-section {
+            margin-bottom: 10px;
+        }
+
+        .operate-summary-section-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 4px;
+        }
+
+        .operate-summary-section-title {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .operate-summary-section-content {
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            padding-left: 18px;
+        }
+
+        .operate-summary-stats {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding-left: 18px;
+        }
+
+        .operate-summary-stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .operate-summary-stat-label {
+            color: var(--text-dimmed);
+        }
+
+        .operate-summary-stat-value {
+            color: var(--accent-blue);
+            font-weight: 500;
+        }
+
+        .operate-summary-stat-value.success {
+            color: var(--accent-green);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════════════ */
+        /* 修订卡片优化（添加撤销/重做） */
+        /* ═══════════════════════════════════════════════════════════════════════════ */
+
+        .revision-undo-redo {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .revision-undo-btn {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            padding: 3px 8px;
+            font-size: 11px;
+            color: var(--text-muted);
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .revision-undo-btn:hover {
+            background: var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        /* 快捷键提示 */
+        .keyboard-hints {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 11px;
+            color: var(--text-dimmed);
+            margin-top: 8px;
+        }
+
+        .keyboard-hint {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .keyboard-key {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 20px;
+            height: 18px;
+            padding: 0 4px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            font-size: 10px;
+            font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+        }
+
+        /* 加载动画 */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .animate-pulse {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
     </style>
 </head>
 <body>
+    <!-- 主题切换按钮 -->
+    <button class="theme-toggle" onclick="toggleTheme()" title="切换主题">
+        <i data-lucide="sun" style="width:18px;height:18px" class="light-icon"></i>
+        <i data-lucide="moon" style="width:18px;height:18px;display:none" class="dark-icon"></i>
+    </button>
+
     <div class="container">
         <!-- Agent 头部 -->
         <div class="agent-header">
@@ -1337,6 +2007,258 @@
             <span class="completion-icon"><i data-lucide="check-circle" style="width:14px;height:14px"></i></span>
             <span>任务已完成</span>
         </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════════════════ -->
+        <!-- Operate SubAgent 执行轨迹预览 -->
+        <!-- ═══════════════════════════════════════════════════════════════════════════ -->
+
+        <div style="height: 48px;"></div>
+        <div style="border-top: 1px dashed #3a3a3a; padding-top: 24px; margin-bottom: 24px;">
+            <div style="font-size: 12px; color: #666; margin-bottom: 8px;">Operate SubAgent 执行轨迹预览</div>
+        </div>
+
+        <!-- Agent 头部 - Operate 场景 -->
+        <div class="agent-header">
+            <div class="agent-logo"><i data-lucide="sparkles" style="width:18px;height:18px"></i></div>
+            <span class="agent-name">AI写作助手</span>
+            <span class="agent-badge">Pro</span>
+        </div>
+
+        <!-- Agent 消息 - Operate 场景 -->
+        <div class="agent-message">
+            好的，我来帮你改写第三段，让描写更加生动。让我先定位到目标段落，然后生成改写内容。
+        </div>
+
+        <!-- Operate 执行步骤 1: 生成改写内容 -->
+        <div class="execution-step">
+            <div class="step-header" onclick="toggleStep(this)">
+                <div class="step-icon completed"><i data-lucide="check" style="width:12px;height:12px"></i></div>
+                <div class="step-title-area">
+                    <span class="step-title">生成改写内容</span>
+                    <span class="step-toggle">∧</span>
+                </div>
+                <div class="step-spacer"></div>
+            </div>
+            <div class="step-content">
+                <div class="step-description">
+                    根据用户要求，生成更生动的改写版本。
+                </div>
+
+                <div class="tool-operation">
+                    <span class="tool-icon"><i data-lucide="pen-tool" style="width:12px;height:12px"></i></span>
+                    <span class="tool-text">调用工具</span>
+                    <span class="tool-name">smart_rewrite</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Operate 执行步骤 2: Operate SubAgent 轨迹 -->
+        <div class="execution-step">
+            <div class="step-header" onclick="toggleStep(this)">
+                <div class="step-icon completed"><i data-lucide="check" style="width:12px;height:12px"></i></div>
+                <div class="step-title-area">
+                    <span class="step-title">Operate 轨迹（3 阶段）</span>
+                    <span class="step-toggle">∧</span>
+                </div>
+                <div class="step-spacer"></div>
+            </div>
+            <div class="step-content">
+                <div class="operate-panel">
+                    <!-- 阶段1: 意图路由 - 标签组形式 -->
+                    <div class="operate-phase">
+                        <div class="operate-phase-capsule">
+                            <div class="operate-phase-header" onclick="toggleOperatePhase(this)">
+                                <div class="operate-phase-index">
+                                    <i data-lucide="git-branch" style="width:12px;height:12px"></i>
+                                </div>
+                                <div class="operate-phase-title">阶段1：意图路由</div>
+                                <span class="operate-phase-toggle">∧</span>
+                            </div>
+                            <div class="operate-phase-body">
+                                <!-- 使用标签组展示路由信息 -->
+                                <div class="operate-tags">
+                                    <span class="operate-tag">
+                                        <i data-lucide="arrow-right" style="width:11px;height:11px"></i>
+                                        输入: <span class="tag-value">replace</span>
+                                    </span>
+                                    <span class="operate-tag">
+                                        <i data-lucide="wrench" style="width:11px;height:11px"></i>
+                                        工具: <span class="tag-value code">apply_chapter_edit</span>
+                                    </span>
+                                    <span class="operate-tag">
+                                        <i data-lucide="cog" style="width:11px;height:11px"></i>
+                                        底层: <span class="tag-value code">replace</span>
+                                    </span>
+                                    <span class="operate-tag success">
+                                        <i data-lucide="crosshair" style="width:11px;height:11px"></i>
+                                        需定位: <span class="tag-value">是</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 阶段2: 智能定位 -->
+                    <div class="operate-phase">
+                        <div class="operate-phase-capsule">
+                            <div class="operate-phase-header" onclick="toggleOperatePhase(this)">
+                                <div class="operate-phase-index">
+                                    <i data-lucide="crosshair" style="width:12px;height:12px"></i>
+                                </div>
+                                <div class="operate-phase-title">阶段2：智能定位</div>
+                                <span class="operate-phase-toggle">∧</span>
+                            </div>
+                            <div class="operate-phase-body">
+                                <!-- 用户友好的标签组 -->
+                                <div class="operate-tags">
+                                    <span class="operate-tag">
+                                        <i data-lucide="search" style="width:11px;height:11px"></i>
+                                        方式: <span class="tag-value">文本匹配</span>
+                                    </span>
+                                    <span class="operate-tag">
+                                        <i data-lucide="map-pin" style="width:11px;height:11px"></i>
+                                        位置: <span class="tag-value">第五章 · 第2段</span>
+                                    </span>
+                                    <span class="operate-tag success">
+                                        <i data-lucide="check-circle" style="width:11px;height:11px"></i>
+                                        状态: <span class="tag-value">已定位</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 阶段3: 执行操作 -->
+                    <div class="operate-phase">
+                        <div class="operate-phase-capsule">
+                            <div class="operate-phase-header" onclick="toggleOperatePhase(this)">
+                                <div class="operate-phase-index">
+                                    <i data-lucide="play" style="width:12px;height:12px"></i>
+                                </div>
+                                <div class="operate-phase-title">阶段3：执行操作</div>
+                                <span class="operate-phase-toggle">∧</span>
+                            </div>
+                            <div class="operate-phase-body">
+                                <!-- 用户友好的标签组 -->
+                                <div class="operate-tags">
+                                    <span class="operate-tag">
+                                        <i data-lucide="edit-3" style="width:11px;height:11px"></i>
+                                        操作: <span class="tag-value">替换段落</span>
+                                    </span>
+                                    <span class="operate-tag">
+                                        <i data-lucide="file-text" style="width:11px;height:11px"></i>
+                                        目标: <span class="tag-value">第五章 · 第2段</span>
+                                    </span>
+                                    <span class="operate-tag success">
+                                        <i data-lucide="clock" style="width:11px;height:11px"></i>
+                                        状态: <span class="tag-value">等待确认</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Operate 执行总结卡片 - 默认收起的胶囊样式 -->
+                <div class="operate-phase">
+                    <div class="operate-summary collapsed">
+                        <div class="operate-summary-header" onclick="toggleOperateSummary(this)">
+                            <span style="color: var(--text-muted); display: flex; align-items: center;"><i data-lucide="brain" style="width:12px;height:12px"></i></span>
+                            <span class="operate-summary-title">Operate 执行总结</span>
+                            <span class="operate-phase-toggle">∨</span>
+                        </div>
+                        <div class="operate-summary-body hidden">
+                        <!-- 路由决策 -->
+                        <div class="operate-summary-section">
+                            <div class="operate-summary-section-header">
+                                <span style="color: var(--text-muted); display: flex; align-items: center;"><i data-lucide="git-branch" style="width:12px;height:12px"></i></span>
+                                <span class="operate-summary-section-title">路由决策</span>
+                            </div>
+                            <div class="operate-summary-section-content">
+                                输入操作 <span style="color: var(--accent-blue); font-weight: 500;">replace</span> 需要定位到具体段落，自动选择 <span style="font-family: 'SF Mono', Monaco, monospace; color: var(--accent-green); font-size: 11px;">apply_chapter_edit</span> 工具执行局部替换。
+                            </div>
+                        </div>
+
+                        <!-- 定位过程 -->
+                        <div class="operate-summary-section">
+                            <div class="operate-summary-section-header">
+                                <span style="color: var(--text-muted); display: flex; align-items: center;"><i data-lucide="crosshair" style="width:12px;height:12px"></i></span>
+                                <span class="operate-summary-section-title">定位过程</span>
+                            </div>
+                            <div class="operate-summary-section-content">
+                                未提供直接定位参数，使用 <span style="color: var(--accent-green);">TEXT_MATCH</span> 策略通过原文匹配定位到第5章第3段（置信度 95%）。
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="step-description">
+                    三阶段流程：意图路由 → 智能定位 → 执行操作，自动完成参数映射和定位。
+                </div>
+
+                <div class="tool-operation">
+                    <span class="tool-icon"><i data-lucide="wrench" style="width:12px;height:12px"></i></span>
+                    <span class="tool-text">调用工具</span>
+                    <span class="tool-name">operate_apply (operation: replace)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Operate 执行步骤 3: HITL 确认 -->
+        <div class="execution-step">
+            <div class="step-header" onclick="toggleStep(this)">
+                <div class="step-icon completed"><i data-lucide="check" style="width:12px;height:12px"></i></div>
+                <div class="step-title-area">
+                    <span class="step-title">HITL 确认</span>
+                    <span class="step-toggle">∧</span>
+                </div>
+                <div class="step-spacer"></div>
+            </div>
+            <div class="step-content">
+                <!-- 修订操作胶囊 - Operate 版本（添加撤销/重做） -->
+                <div class="knowledge-section">
+                    <div class="revision-capsule" id="operate-revision">
+                        <div class="revision-header" onclick="toggleRevision(this)">
+                            <span class="revision-icon"><i data-lucide="file-pen" style="width:12px;height:12px"></i></span>
+                            <span class="revision-title">段落改写</span>
+                            <span class="revision-toggle">∧</span>
+                            <span class="revision-badge pending" id="operate-badge">待确认</span>
+                        </div>
+                        <div class="revision-content">
+                            <div class="revision-target">
+                                <span class="target-icon"><i data-lucide="file-text" style="width:12px;height:12px"></i></span>
+                                <span class="target-name">第五章：外门初修</span>
+                                <span class="target-action">替换 第3段</span>
+                            </div>
+                            <div class="revision-preview" style="margin-bottom: 4px;">
+                                <div class="preview-label">原文：</div>
+                                <div class="preview-text" style="text-decoration: line-through; color: #666;">推开木门，清新的空气扑面而来。外门弟子区位于青云峰的山脚，虽然灵气不如山顶浓郁，但对于刚入门的弟子来说已经足够。</div>
+                            </div>
+                            <div class="revision-preview">
+                                <div class="preview-label">改写：</div>
+                                <div class="preview-text" style="color: #aaa;">吱呀一声，木门被缓缓推开。清冽的山风裹挟着淡淡的草木芬芳扑面而来，让林逸精神一振。他深吸一口气，感受着空气中若有若无的灵气波动——虽然比不上传说中内门的灵气充沛，但这里确实比山下的凡俗之地强了不知多少倍。</div>
+                            </div>
+                            <div class="revision-actions" id="operate-actions">
+                                <button class="revision-btn discard" onclick="handleOperateDiscard()">
+                                    <i data-lucide="x" style="width:12px;height:12px"></i>
+                                    弃用
+                                </button>
+                                <button class="revision-btn accept" onclick="handleOperateAccept()">
+                                    <i data-lucide="check" style="width:12px;height:12px"></i>
+                                    采纳
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-description">
+                    改写内容已生成，等待用户确认。采纳后将替换编辑器中的原文。
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <script>
@@ -1476,6 +2398,150 @@
             `;
             lucide.createIcons();
         }
+
+        // Operate SubAgent 阶段展开/收起
+        function toggleOperatePhase(header) {
+            const body = header.parentElement.querySelector('.operate-phase-body');
+            const toggle = header.querySelector('.operate-phase-toggle');
+            const capsule = header.parentElement;
+            const title = header.querySelector('.operate-phase-title');
+
+            if (body.classList.contains('hidden')) {
+                body.classList.remove('hidden');
+                toggle.textContent = '∧';
+                capsule.classList.remove('collapsed');
+                header.classList.remove('compact');
+                title.classList.remove('compact');
+            } else {
+                body.classList.add('hidden');
+                toggle.textContent = '∨';
+                capsule.classList.add('collapsed');
+                header.classList.add('compact');
+                title.classList.add('compact');
+            }
+        }
+
+        // Operate 修订操作处理
+        function handleOperateAccept() {
+            const badge = document.getElementById('operate-badge');
+            const actions = document.getElementById('operate-actions');
+
+            badge.className = 'revision-badge accepted';
+            badge.textContent = '已采纳';
+
+            actions.innerHTML = `
+                <div class="revision-result accepted">
+                    <i data-lucide="check-circle" style="width:12px;height:12px"></i>
+                    修订已采纳，第3段已替换
+                </div>
+                <div class="revision-undo-redo">
+                    <button class="revision-undo-btn" onclick="handleOperateUndo()">
+                        <i data-lucide="rotate-ccw" style="width:10px;height:10px"></i>
+                        撤销
+                    </button>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        function handleOperateDiscard() {
+            const badge = document.getElementById('operate-badge');
+            const actions = document.getElementById('operate-actions');
+
+            badge.className = 'revision-badge discarded';
+            badge.textContent = '已弃用';
+
+            actions.innerHTML = `
+                <div class="revision-result discarded">
+                    <i data-lucide="x-circle" style="width:12px;height:12px"></i>
+                    修订已弃用，保留原文
+                </div>
+                <div class="revision-undo-redo">
+                    <button class="revision-undo-btn" onclick="handleOperateRedo()">
+                        <i data-lucide="rotate-cw" style="width:10px;height:10px"></i>
+                        重做
+                    </button>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        // 主题切换
+        function toggleTheme() {
+            document.body.classList.toggle('light-mode');
+            const lightIcon = document.querySelector('.light-icon');
+            const darkIcon = document.querySelector('.dark-icon');
+
+            if (document.body.classList.contains('light-mode')) {
+                lightIcon.style.display = 'none';
+                darkIcon.style.display = 'block';
+            } else {
+                lightIcon.style.display = 'block';
+                darkIcon.style.display = 'none';
+            }
+            lucide.createIcons();
+        }
+
+        // Operate 执行总结展开/收起
+        function toggleOperateSummary(header) {
+            const body = header.nextElementSibling;
+            const toggle = header.querySelector('.operate-phase-toggle');
+            const capsule = header.parentElement;  // 获取父元素（operate-summary）
+            const title = header.querySelector('.operate-summary-title');
+
+            if (body.classList.contains('hidden')) {
+                body.classList.remove('hidden');
+                toggle.textContent = '∧';
+                capsule.classList.remove('collapsed');  // 展开时移除collapsed
+                if (title) title.style.color = 'var(--text-primary)';
+                if (title) title.style.fontWeight = '500';
+            } else {
+                body.classList.add('hidden');
+                toggle.textContent = '∨';
+                capsule.classList.add('collapsed');  // 收缩时添加collapsed
+                if (title) title.style.color = 'var(--text-muted)';
+                if (title) title.style.fontWeight = 'normal';
+            }
+        }
+
+        // 撤销/重做处理
+        function handleOperateUndo() {
+            const badge = document.getElementById('operate-badge');
+            const actions = document.getElementById('operate-actions');
+
+            badge.className = 'revision-badge pending';
+            badge.textContent = '待确认';
+
+            actions.innerHTML = `
+                <button class="revision-btn discard" onclick="handleOperateDiscard()">
+                    <i data-lucide="x" style="width:12px;height:12px"></i>
+                    弃用
+                </button>
+                <button class="revision-btn accept" onclick="handleOperateAccept()">
+                    <i data-lucide="check" style="width:12px;height:12px"></i>
+                    采纳
+                </button>
+            `;
+            lucide.createIcons();
+        }
+
+        function handleOperateRedo() {
+            handleOperateUndo(); // 重做就是恢复到待确认状态
+        }
+
+        // 键盘快捷键支持
+        document.addEventListener('keydown', function(e) {
+            const badge = document.getElementById('operate-badge');
+            if (!badge || badge.textContent !== '待确认') return;
+
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleOperateAccept();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                handleOperateDiscard();
+            }
+        });
     </script>
 </body>
 </html>

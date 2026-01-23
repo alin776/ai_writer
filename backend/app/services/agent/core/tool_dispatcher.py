@@ -54,6 +54,7 @@ OPERATION_TOOLS = [
     "update_chapter_title",
     "delete_chapter",
     "update_chapter_content",
+    "operate_apply",  # 2026-01-23: ContentOperator 统一入口
 ]
 
 # 查询类工具：只读取数据，不修改
@@ -199,6 +200,10 @@ class ToolDispatcher:
         # 12. 更新章节内容工具（2026-01-09 新增）
         elif tool_name == "update_chapter_content":
             return await self._call_update_chapter_content(tool_args, state)
+
+        # 13. operate_apply 统一操作工具（2026-01-23 新增）
+        elif tool_name == "operate_apply":
+            return await self._call_operate_apply(tool_args, state)
 
         # 其他工具：使用统一接口
         else:
@@ -691,6 +696,25 @@ class ToolDispatcher:
 
         from app.services.agent.tools.chapter_tools import update_chapter_content
         return await update_chapter_content.ainvoke(tool_args)
+
+    async def _call_operate_apply(
+        self, tool_args: Dict[str, Any], state: "AgentState"
+    ) -> str:
+        """调用 operate_apply 统一操作工具（2026-01-23 新增）"""
+        logger.info(f"[ToolDispatcher] 🚀 准备调用 operate_apply, operation={tool_args.get('operation')}")
+
+        # 补充 state 中的参数
+        if not tool_args.get("chapter_id") and state.get("chapter_id"):
+            tool_args["chapter_id"] = state.get("chapter_id")
+        if not tool_args.get("work_id") and state.get("work_id"):
+            tool_args["work_id"] = state.get("work_id")
+        if not tool_args.get("user_id") and state.get("user_id"):
+            tool_args["user_id"] = state.get("user_id")
+        if not tool_args.get("conversation_id") and state.get("conversation_id"):
+            tool_args["conversation_id"] = state.get("conversation_id")
+
+        from app.services.agent.tools.operate_tools import operate_apply
+        return await operate_apply.ainvoke(tool_args)
 
     async def _call_generic_tool(
         self, tool_name: str, tool_args: Dict[str, Any], state: "AgentState"

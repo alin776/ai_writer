@@ -88,19 +88,31 @@ def _get_planning_core_rules() -> str:
 
 **必须遵循的流程**：
 1. 先用 CREATIVE 工具生成内容
-2. **必须**再用 apply_chapter_edit 工具写入编辑器
+2. **必须**再用 operate_apply 或 apply_chapter_edit 工具写入编辑器
 
-**对应关系**：
-- smart_continue → apply_chapter_edit(operation="append")
-- smart_insert → apply_chapter_edit(operation="insert")
-- smart_rewrite → apply_chapter_edit(operation="replace")
+**🆕 推荐：使用 operate_apply 统一入口**
 
-**什么时候需要 apply_chapter_edit？**
+operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
+| operation | 说明 | 使用场景 |
+|-----------|------|---------|
+| append | 续写 | smart_continue 后追加到章节末尾 |
+| replace | 改写 | smart_rewrite 后替换指定段落 |
+| insert | 插入 | smart_insert 后在指定位置插入 |
+| content | 整章替换 | 重写整章内容 |
+| create | 创建章节 | 写新章节（需要 work_id 和 title） |
+| title | 修改标题 | 改进章节标题 |
+
+**推荐流程（使用 operate_apply）**：
+- smart_continue → operate_apply(operation="append")
+- smart_rewrite → operate_apply(operation="replace")
+- smart_insert → operate_apply(operation="insert")
+
+**什么时候需要写入编辑器？**
 - 用户说"续写"、"插入"、"改写"、"润色"、"扩写" → ✅ 需要！
 - 用户说"帮我写一段XX给我看看"、"生成一个大纲" → ❌ 不需要
 
-❌ **错误示例**：只有 smart_continue，没有 apply_chapter_edit
-✅ **正确示例**：smart_continue → apply_chapter_edit
+❌ **错误示例**：只有 smart_continue，没有 operate_apply/apply_chapter_edit
+✅ **正确示例**：smart_continue → operate_apply(operation="append")
 
 【核心原则】⚠️ 最重要！
 
@@ -195,19 +207,19 @@ def _get_planning_core_rules() -> str:
 - "XX的地方"、"XX那里"、"XX部分"
 - "在...处"、"在...后"、"在...前"
 
-✅ 正确流程：locate_content → smart_rewrite/smart_insert → apply_chapter_edit
+✅ 正确流程：locate_content → smart_rewrite/smart_insert → operate_apply
 ❌ 错误流程：直接 smart_rewrite（没有定位，无法精确替换！）
 
 示例：
-- "把第三段改得更生动" → locate_content(query="第三段") → smart_rewrite → apply_chapter_edit
-- "修改开头" → locate_content(query="开头") → smart_rewrite → apply_chapter_edit
-- "在第二段后插入" → locate_content(query="第二段") → smart_insert → apply_chapter_edit
+- "把第三段改得更生动" → locate_content(query="第三段") → smart_rewrite → operate_apply(operation="replace")
+- "修改开头" → locate_content(query="开头") → smart_rewrite → operate_apply(operation="replace")
+- "在第二段后插入" → locate_content(query="第二段") → smart_insert → operate_apply(operation="insert")
 
-⚠️ **参数传递规则**：locate_content 返回的 node_id、paragraph_index、before_anchor、after_anchor 必须传给 apply_chapter_edit！
+⚠️ **参数传递规则**：locate_content 返回的 node_id、paragraph_index、before_anchor、after_anchor 必须传给 operate_apply！
 
 ⚠️ **缺章节信息时的流程**：
 - 条件：用户要修改/插入/续写，但未提供 chapter_id/章节序号
-- 流程：explore_content（获取信息+定位）→ smart_* → apply_chapter_edit
+- 流程：explore_content（获取信息+定位）→ smart_* → operate_apply
 - 说明：explore_content 会自动搜索并读取相关章节
 
 ---
@@ -219,12 +231,12 @@ def _get_planning_core_rules() -> str:
 
 **续写场景** → 用 smart_continue（只生成内容）
   - 用户说"续写第X章"、"继续写"、"往后写" → smart_continue
-  - 如果用户要求写入编辑器，需要额外调用 apply_chapter_edit
+  - 如果用户要求写入编辑器，需要额外调用 operate_apply(operation="append")
 
 **章节操作场景** → 用 OPERATION 工具（需要用户确认）
-  - 用户说"创建新章节"、"新建章节" → create_chapter
+  - 用户说"创建新章节"、"新建章节" → operate_apply(operation="create") 或 create_chapter
   - 用户说"删除章节" → delete_chapter（⚠️ 危险操作）
-  - 用户说"改标题"、"重命名章节" → update_chapter_title
+  - 用户说"改标题"、"重命名章节" → operate_apply(operation="title") 或 update_chapter_title
   - 用户说"更新章节内容" → update_chapter_content
 
 ⚠️ **【章节操作工具的 chapter_id 参数规则】** ⚠️

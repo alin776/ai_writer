@@ -1199,7 +1199,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           // 3. 计算操作栏位置（使用 requestAnimationFrame 确保 DOM 已重排）
           requestAnimationFrame(() => {
             try {
-              const coords = view.coordsAtPos(insertPos);
+              const coords = view.coordsAtPos(resolvedPosition.to);
               setRevisionBarPosition({
                 top: coords.top - 40,  // 显示在内容上方，避免遮挡高亮内容
                 left: coords.left

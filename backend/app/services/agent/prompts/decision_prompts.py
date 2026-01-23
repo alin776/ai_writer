@@ -15,7 +15,7 @@ from .tool_descriptions import (
 )
 
 # Prompt 版本号 - 修改 Prompt 时请更新此版本号
-PROMPT_VERSION = "v2.39.1"  # 2026-01-10: 创作类→操作类工具流程强化，所有示例添加 apply_chapter_edit
+PROMPT_VERSION = "v2.40.0"  # 2026-01-23: 添加 operate_apply 统一操作工具描述
 
 
 @cache_review(expire=3600, key_prefix=f"prompt:tool_decision:{PROMPT_VERSION}")
@@ -59,6 +59,9 @@ async def get_tool_decision_static_prompt() -> str:
   参数: chapter_id, chapter_content, user_requirement, word_count
 - smart_insert: 智能插入（根据意图生成插入内容）
   参数: chapter_id, user_intent, chapter_content, insert_context, word_count
+- operate_apply: 🆕 统一应用 AI 生成的内容（推荐！）
+  参数: operation(append/replace/insert/content/create/title), chapter_id, content, ...
+  ⚠️ 可替代 apply_chapter_edit，支持更多操作类型
 - apply_chapter_edit: 直接应用编辑到章节 (参数: chapter_id, operation, content)
   ⚠️ 注意：此工具用于将已生成的内容应用到编辑器
 

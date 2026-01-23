@@ -10,7 +10,7 @@ export const mockAIModels: AIModel[] = [
     type: 'gemini-2.5-pro',
     provider: 'Google',
     apiKey: 'sk-*********************abc123',
-    apiEndpoint: 'https://204992.xyz/v1',
+    apiEndpoint: 'https://204992.xyz:8443/v1',
     usageLimit: 10000,
     usedCount: 3547,
     inputPricePerMillion: 1.25,   // 输入：$1.25/百万tokens
@@ -25,7 +25,7 @@ export const mockAIModels: AIModel[] = [
     type: 'gemini-2.5-flash',
     provider: 'Google',
     apiKey: 'sk-*********************xyz789',
-    apiEndpoint: 'https://204992.xyz/v1',
+    apiEndpoint: 'https://204992.xyz:8443/v1',
     usageLimit: 50000,
     usedCount: 25680,
     inputPricePerMillion: 0.30,   // 输入：$0.30/百万tokens
@@ -40,7 +40,7 @@ export const mockAIModels: AIModel[] = [
     type: 'gemini-2.5-flash-lite',
     provider: 'Google',
     apiKey: 'sk-*********************lite123',
-    apiEndpoint: 'https://204992.xyz/v1',
+    apiEndpoint: 'https://204992.xyz:8443/v1',
     usageLimit: 100000,
     usedCount: 45230,
     inputPricePerMillion: 0.10,   // 输入：$0.10/百万tokens

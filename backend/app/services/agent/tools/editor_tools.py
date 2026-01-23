@@ -357,7 +357,7 @@ async def apply_chapter_edit(
         if not content or not content.strip():
             return json.dumps({"success": False, "error": "empty_content"}, ensure_ascii=False)
 
-        if operation not in ["append", "replace", "insert"]:
+        if operation not in ["append", "replace", "insert", "replace_all"]:
             return json.dumps({"success": False, "error": "invalid_operation"}, ensure_ascii=False)
 
         # insert 操作需要位置信息（position 或 锚点）
@@ -481,7 +481,11 @@ async def apply_chapter_edit(
             new_content = None
             insert_pos = None
 
-            if operation == "append":
+            # replace_all: 整体替换章节内容（不需要定位）
+            if operation == "replace_all":
+                new_content = actual_content
+
+            elif operation == "append":
                 new_content = old_content + actual_content
 
             elif operation == "insert":
@@ -1147,7 +1151,7 @@ class ApplyChapterEditInput(ToolInput):
     """章节编辑应用工具输入"""
     chapter_id: str = Field(..., description="章节ID")
     content: str = Field(..., description="编辑内容")
-    operation: str = Field(default="append", description="操作类型：append/replace/insert", pattern="^(append|replace|insert)$")
+    operation: str = Field(default="append", description="操作类型：append/replace/insert/replace_all", pattern="^(append|replace|insert|replace_all)$")
     position: Optional[int] = Field(default=None, description="插入位置（仅 insert 操作）")
     before_anchor: Optional[str] = Field(default=None, description="插入点前面的文本（用于精确定位）")
     after_anchor: Optional[str] = Field(default=None, description="插入点后面的文本（用于精确定位）")

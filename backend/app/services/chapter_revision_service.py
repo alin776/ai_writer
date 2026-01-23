@@ -187,6 +187,10 @@ class ChapterRevisionService:
         if operation == "append":
             return (old_content + actual_content, "")
 
+        # replace_all: 整体替换章节内容（不需要定位）
+        if operation == "replace_all":
+            return (actual_content, "")
+
         if operation == "insert":
             insert_pos = None
             new_content = None

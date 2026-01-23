@@ -45,7 +45,7 @@ class Settings(BaseSettings):
 
     # OpenAI 配置
     OPENAI_API_KEY: str
-    OPENAI_BASE_URL: str = "https://204992.xyz/v1"
+    OPENAI_BASE_URL: str = "https://204992.xyz:8443/v1"
     OPENAI_MODEL: str = "gemini-2.5-pro"  # 默认模型，可通过环境变量修改
 
     @validator("OPENAI_TIMEOUT", pre=True)

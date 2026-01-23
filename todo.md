@@ -1,5 +1,86 @@
 # TODO
 
+## 修复 work-nav-storage 超出 localStorage 配额导致崩溃（2026-01-23）
+
+### 待办清单
+
+- [ ] 定位 workNavStore 持久化写入量与触发点，确认 lastChapterMap/bookshelfMap 无界增长导致配额溢出
+- [ ] 在 workNavStore 加入持久化瘦身与 map 容量上限，移除无效条目
+- [ ] 为持久化 storage 加入 QuotaExceededError 兜底，避免抛错导致页面崩溃
+- [ ] 手动验证浏览/保存状态仍可用，记录改动与风险
+
+### 解决方案（拟）
+
+- 为 workNavStore 增加裁剪工具函数，限制 lastChapterMap 与 bookshelfMap 的最大条目数，并在 merge/更新时做裁剪；bookshelfMap 在移除时直接删键，避免无效状态占用空间。
+- 引入安全 storage：包装 localStorage.setItem 捕获 QuotaExceededError，先裁剪再重试，仍失败则跳过写入/清理该 key，避免触发应用错误边界。
+
+## Operate_apply 执行轨迹与重复调用修复（2026-01-23）
+
+### 待办清单
+
+- [ ] 梳理 operate_apply/规划后处理/执行轨迹的重复来源
+- [ ] 规划后处理统一 apply_chapter_edit → operate_apply，避免重复任务
+- [ ] 增加 operate_apply 轨迹事件并前端渲染，补充 locate→smart→apply 展示，隐藏重复 StepCard
+
+### 解决方案（拟）
+
+- 规划后处理新增“统一入口”规则：识别 smart_* 后续的 apply 任务时优先生成 operate_apply，并将现有 apply_chapter_edit 任务转换为 operate_apply（replace_all → content）。
+- operate_apply 执行完成后发出 operate 轨迹事件，前端接收后渲染 OperateCard；补充 source_tool 标签用于展示 locate→smart→apply 链路；若同 stepId 已有 operate 轨迹，则不再渲染 operate_apply 的 StepCard，避免重复展示。
+
+## 章节内容文件化（一次性切换方案）（2026-01-23）
+
+### 深度探索（已完成）
+
+- [x] 扫描章节内容读写链路（API/Service/Agent/前端）
+- [x] 梳理 DB content 依赖（搜索/向量化/评论/概括/导入/导出）
+- [x] 评估“一步到位”影响面与关键风险点
+- [x] 修订一次性切换的落地路径与改动点
+
+### 待办清单
+
+- [ ] 明确“一步到位”存储决策：HTML 文件（保留 data-id）、本地目录、文件为真源、DB content 作为兼容副本
+- [ ] 新增章节文件存储模块（读/写/删除/原子写入）并接入配置项（如 CHAPTER_STORAGE_ROOT）
+- [ ] 修改写入路径：ChapterService/update_chapter_with_lock/apply_revision/create/import 统一落盘并同步 DB
+- [ ] 修改删除路径：删除章节时清理文件，回滚/恢复流程同步落盘
+- [ ] 提供一次性迁移脚本：把现有章节 content 导出到文件并校验
+- [ ] 补充最小回归验证：编辑、搜索/向量化、评论定位、导出/导入、AI 生成/应用
+
+### 解决方案（拟）
+
+- 采用 HTML 文件为章节内容载体，保留 `data-id` 以确保段落级定位；文件路径以 `work_id/chapter_id.html` 组织，并通过配置指定根目录。
+- 文件为真源：所有写入先落盘，再同步 DB 的 `content`（用于搜索/向量化/导出/前端渲染）；读取默认仍用 DB，必要时可“文件兜底回填”。
+- 一次性迁移脚本扫描所有章节，将 DB 内容落到文件，记录失败项；本地环境允许停机/一次性迁移。
+- import_service 目前直接构建 Chapter，需补充“落盘与同步”以避免导入章节没有对应文件。
+
+### review
+
+- 章节内容是 HTML 字符串并依赖 `data-id` 定位，改成 Markdown 会破坏 locate/paragraph_index 逻辑；必须保留 HTML（`src/components/editor/UniqueIDExtension.ts`、`backend/app/services/agent/tools/locate_tools.py`）。
+- 搜索与检索大量依赖 DB `Chapter.content`（ILIKE/片段/检索），移除 DB 副本会导致搜索/检索失效（`backend/app/api/v1/search.py`、`backend/app/services/search/hybrid_retriever.py`）。
+- 向量化与概括、评论清理都直接使用 `chapter.content`，需保证 DB 同步或改为文件读取（`backend/app/api/v1/chapters.py`、`backend/app/services/chapter_comment_service.py`）。
+- 导入流程直接 new `Chapter`，不会经过 ChapterService；若不补写文件会出现“DB 有内容、文件缺失”的断层（`backend/app/services/import_service.py`）。
+- 前端阅读与 AI 上下文依赖 `chapter.content` 返回值，API 仍需提供完整 HTML 内容（`src/components/library/NovelReader.tsx`、`src/components/editor/AIPanel.tsx`）。
+
+## Codex / OpenCode 编辑流对标深度调研（2026-01-23）
+
+### 待办清单
+
+- [x] 确认本地是否已有 `openai/codex` 与 `anomalyco/opencode` 源码，准备获取方式
+- [x] 深读两项目的“编辑/应用”流程：工具定义、参数约束、定位/写入策略、回滚或审批
+- [x] 对照当前 operate_apply 统一入口，提炼可直接迁移的设计要点
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 若本地无源码，克隆到 `/tmp` 做只读分析；聚焦 edit/patch/command 工具与执行轨迹生成逻辑，抽取“统一入口”“内部定位”“变更落盘/回滚”“事件展示”的最佳实践，并映射到本项目的 operate_apply 设计。
+
+### review
+
+- Codex 把“定位+应用”收敛为 `apply_patch`：补丁格式内自带上下文/old lines 来定位（不是独立 locate），并在工具层做验证与安全/审批；UI 用 `fileChange` + `turn/diff/updated` 形成统一改动轨迹（`/tmp/codex/codex-rs/apply-patch/apply_patch_tool_instructions.md`、`/tmp/codex/codex-rs/core/src/tools/handlers/apply_patch.rs`、`/tmp/codex/codex-rs/app-server/README.md`、`/tmp/codex/codex-rs/mcp-server/src/patch_approval.rs`）。
+- Codex 的 apply_patch 运行时先做安全评估（AutoApprove/AskUser/Reject），再在沙箱中执行补丁并发出事件；补丁批准是显式的交互步骤（`/tmp/codex/codex-rs/core/src/apply_patch.rs`、`/tmp/codex/codex-rs/core/src/tools/runtimes/apply_patch.rs`）。
+- OpenCode 也是以 `apply_patch` 作为统一编辑入口：解析补丁→计算新内容→生成统一 diff→权限询问（附 diff metadata）→写盘→LSP 诊断回传（`/tmp/opencode2/packages/opencode/src/tool/apply_patch.ts`）。
+- OpenCode 的“定位”内嵌在 patch apply 中：通过上下文/old_lines 搜索匹配，包含多种容错策略（exact/rstrip/trim/normalize），不需要显式 locate_content（`/tmp/opencode2/packages/opencode/src/patch/index.ts`）。
+- 两者共同点：生成阶段先读取/理解文件，再由统一 patch 入口写入；“定位”被 diff/patch 的上下文吸收，产出统一的改动轨迹与审批流，这与 operate_apply 的目标一致，但当前代码仍保留独立 locate/apply 显示链路。
+
 ## V3.4 修复：AI 评估稳定性（分离提取与判断）（2026-01-21）
 
 ### 待办清单

@@ -76,7 +76,7 @@ interface UseAgentChatReturn {
   error: string | null;
   suggestedActions: string[];
   tasks: Task[];
-  currentTaskId: number | null;
+  currentTaskId: number | string | null;
   activities: ActivityItem[];
   progressData: ProgressData | null;
   flowItems: FlowItem[];  // v5.0: 执行轨迹项
