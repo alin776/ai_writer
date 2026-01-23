@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Message } from '@/types/agent';
+// 暂时注释掉，等待修复后再启用
+// import { compressSessionMessages } from '@/utils/sessionCompression';
+// import { analyzeLocalStorage } from '@/utils/storageDebug';
 
 export interface ConversationSession {
   id: string;
@@ -42,7 +45,7 @@ const STORAGE_KEY_PREFIX = 'agent_conversation_';
 const SESSIONS_LIST_KEY = 'agent_conversation_sessions';
 const SESSIONS_ORDER_KEY = 'agent_sessions_order';
 const CONTEXT_SESSION_MAP_KEY = 'agent_context_session_map';
-const DEFAULT_MAX_SESSIONS = 10;
+const DEFAULT_MAX_SESSIONS = 5; // 先改为 5，观察效果后再决定是否进一步减少
 const DEFAULT_TITLE = '新会话';
 
 function generateSessionId(): string {
@@ -140,10 +143,25 @@ export function useConversationPersistence(
         const now = new Date().toISOString();
         const existing = currentSession;
 
+        // 暂时禁用压缩功能，先验证问题根源
+        /*
+        // 检查存储使用情况
+        const storageStats = analyzeLocalStorage();
+
+        // 根据存储使用情况自动压缩消息
+        let compressedMessages = messages;
+        if (storageStats.usage > 50) {
+          console.log(
+            `[Persistence] localStorage 使用率 ${storageStats.usage.toFixed(2)}%，应用压缩策略`
+          );
+          compressedMessages = compressSessionMessages(messages, sessionId, sessionId);
+        }
+        */
+
         const session: ConversationSession = {
           id: sessionId,
           conversationId: conversationId || existing?.conversationId || '',
-          messages,
+          messages, // 暂时不压缩
           createdAt: existing?.createdAt || now,
           updatedAt: now,
           title: metadata?.title || existing?.title || generateTitleFromMessages(messages),

@@ -1449,13 +1449,15 @@ async def agent_chat_stream(
                     # v7.5: 存储修订数据到 HITLManager（用于后续采纳时写入数据库）
                     request_id = approval_data.get("request_id") or str(uuid.uuid4())
                     approval_data["request_id"] = request_id
+                    description = approval_data.get("description") or approval_data.get("message") or "修订请求"
+                    approval_data["description"] = description
 
                     # 创建 approval request 存储到 Redis（使用相同的 request_id）
                     hitl.create_approval_request(
                         agent_id="writing_agent",
                         user_id=user_id,
-                        title=approval_data.get("description", "修订请求"),
-                        description=approval_data.get("description", ""),
+                        title=description,
+                        description=description,
                         proposed_action=approval_data,  # 存储完整的修订数据
                         context={"work_id": request.work_id, "chapter_id": request.chapter_id},
                         timeout_seconds=3600,  # 1小时过期

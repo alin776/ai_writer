@@ -160,6 +160,51 @@
 - HITL 审批回调缺 `title/description`，仍会报验证错误，需补齐事件字段（`Backend.md:309`、`Backend.md:329`）。
 - 外部模型 504 超时触发重试，属外部依赖波动但会显著拉长任务耗时（`Backend.md:175`、`Backend.md:186`）。
 
+## Backend.md 测试日志复核（2026-01-24）
+
+### 待办清单
+
+- [x] 通读 2026-01-24 日志片段并标注关键告警/失败行号
+- [x] 对照 explore_content 输出结构，确认 `chapters[].paragraphs` 缺失导致 smart_rewrite/replace 失败
+- [x] 最小修复：补齐 `chapters[].paragraphs`（优先 result.paragraphs，其次 evidence），确保原文定位可用
+- [x] 评估 ModelSelector 未传 task_type 与 WebSocket 断连日志是否需修复或可忽略
+- [x] 补充回归验证要点并更新 review
+
+### 解决方案（拟）
+
+- 在 `explore_content` 返回的 `chapters` 中补 `paragraphs`（字段包含 `text`、`paragraph_index`），避免规划引用 `chapters[0].paragraphs[0].text` 失效。
+- 若无整段原文，仅用 evidence 片段做降级填充；控制条目数量，避免返回过大。
+- 视需要补齐 `task_type` 参数（世界观同步等调用）并忽略可复现的前端断连异常。
+
+### review
+
+- `explore_content` 的 `chapters` 现在会携带 `paragraphs`（优先已读段落，其次章节原文，最后证据片段），避免 `chapters[0].paragraphs[0].text` 解析失败。
+- `Backend.md` 中的缺段落与 replace 缺 original_text 属于同源问题（`Backend.md:487-491`、`Backend.md:553-560`），本次已通过补字段规避。
+- WebSocket 断连日志是客户端中断导致的发送失败（`Backend.md:20-66`），可视为噪声；ModelSelector 未传 `task_type` 出现在世界观同步调用（`Backend.md:155`），不影响本次修复但建议后续补齐。
+- 回归重点：确认 smart_rewrite 读取到完整原文、operate_apply replace 不再报缺 original_text，且 chapters 列表长度与段落数量合理。
+
+## Backend.md 测试日志复核（2026-01-24 00:40）
+
+### 待办清单
+
+- [x] 通读最新日志并提取 ERROR/WARNING 行号
+- [x] 判断是否仍存在旧路径引用（如 frontend_display.snippets）导致降级
+- [x] 判断 replace 失败是否仍由 original_text 缺失引起
+- [x] 给出是否符合预期的结论与最小修复建议
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 聚焦 `ParameterResolver` 的路径引用与 `operate_apply` replace 参数，确认是否仍走旧字段。
+- 若仍引用 `frontend_display.snippets`，统一改用 `chapters[].paragraphs` 或 `frontend_display.search_results`。
+
+### review
+
+- 规划仍在引用 `frontend_display.snippets`（字段不存在），导致参数解析降级并影响改写/替换（`Backend.md:174`、`Backend.md:175`、`Backend.md:253`、`Backend.md:254`）。
+- replace 失败依旧是 `original_text` 缺失触发，说明 apply 环节未拿到定位原文（`Backend.md:257`、`Backend.md:259`、`Backend.md:260`）。
+- smart_rewrite 出现 JSON 解析失败并回退默认版本，质量不稳定（`Backend.md:194`）。
+- insert/append/title 正常完成，说明 operate_apply 入口可用但 replace 仍未闭环（`Backend.md:242`、`Backend.md:293`、`Backend.md:305`）。
+
 ## 修复 explore_content 引用路径与兼容 search_results（2026-01-23）
 
 ### 待办清单
@@ -178,6 +223,30 @@
 
 - explore_content 返回补齐 `frontend_display.search_results`，并在缺 chapter_id 时按章节序号解析 UUID（`backend/app/services/agent/tools/explore_tools.py`）。
 - tool_descriptions 明确后续参数只引用 `chapters[...]` 或 `explore_summary/context_for_task`，避免再用展示字段（`backend/app/services/agent/prompts/tool_descriptions.py`）。
+
+## 修复 replace 定位原文与 HITL 标题描述（2026-01-23）
+
+### 待办清单
+
+- [x] 完善 `frontend_display.search_results` 兼容结构（补 `paragraphs[0].text`）
+- [x] 规划提示补充禁止引用 frontend_display，replace 必须传 original_text 的明确规则
+- [x] 规划后处理：若 operate_apply replace 缺 original_text，尝试从 smart_rewrite 依赖补齐
+- [x] HITL 回调补齐 title/description 默认值（避免 ApprovalRequest 校验失败）
+- [ ] 最小验证：无 paragraphs 缺失告警、replace 可定位、HITL 不再报错
+
+### 解决方案（拟）
+
+- search_results 兼容 `paragraphs` 列表（仅包含 text），避免旧路径解析失败。
+- planning_prompts 增加强约束：禁止用 frontend_display 做参数引用，replace 必须提供 original_text。
+- plan_generator 补齐 replace 的 original_text（当 content 依赖 smart_rewrite 版本时自动引用 original_text）。
+- 在 on_approval_request 回调中兜底 description，保证 HITL 审批数据完整。
+
+### review
+
+- search_results 增加 `paragraphs` 兼容结构，旧路径 `paragraphs[0].text` 可解析（`backend/app/services/agent/tools/explore_tools.py`）。
+- planning_prompts 明确禁止引用 `frontend_display`，强调 replace 必须传 original_text（`backend/app/services/agent/prompts/planning_prompts.py`）。
+- plan_generator 在 replace 缺 original_text 时自动引用 smart_rewrite 输出（`backend/app/services/agent/planning/plan_generator.py`）。
+- HITL 回调统一补齐 description 默认值，避免 ApprovalRequest 校验失败（`backend/app/api/v1/agent.py`）。
 ## explore_content 章节ID回填与参数过滤（2026-01-23）
 
 ### 待办清单

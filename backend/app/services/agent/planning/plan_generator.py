@@ -520,6 +520,7 @@ tool_policy: {tool_policy}
         # 🔧 2025-12-25: 新增规划验证和自动修复
         plan_data = self._validate_and_fix_plan(plan_data, message)
         plan_data["tasks"] = self._ensure_editor_apply_tasks(plan_data.get("tasks", []))
+        plan_data["tasks"] = self._ensure_replace_original_text(plan_data.get("tasks", []))
 
         return self._normalize_plan_schema(plan_data)
 
@@ -1067,6 +1068,49 @@ tool_policy: {tool_policy}
                     continue
 
             idx += 1
+
+        return tasks
+
+    def _ensure_replace_original_text(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """补齐 replace 操作的 original_text（优先取 smart_rewrite 输出）"""
+        if not tasks:
+            return tasks
+
+        from app.services.agent.parameter_resolver import ParameterResolver
+
+        task_by_id: Dict[int, Dict[str, Any]] = {}
+        for task in tasks:
+            try:
+                task_id = int(task.get("task_id", 0))
+            except (TypeError, ValueError):
+                continue
+            task_by_id[task_id] = task
+
+        for task in tasks:
+            if task.get("tool") not in {"operate_apply", "apply_chapter_edit"}:
+                continue
+            params = task.get("params", {}) or {}
+            if params.get("operation") != "replace":
+                continue
+            if params.get("original_text"):
+                continue
+
+            deps = ParameterResolver.extract_dependencies(params)
+            source_task_id = None
+            for dep_id in deps:
+                dep_task = task_by_id.get(dep_id)
+                if dep_task and dep_task.get("tool") == "smart_rewrite":
+                    source_task_id = dep_id
+                    break
+
+            if source_task_id:
+                params["original_text"] = {
+                    "$ref": {
+                        "task_id": source_task_id,
+                        "path": "original_text"
+                    }
+                }
+                task["params"] = params
 
         return tasks
 

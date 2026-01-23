@@ -12,6 +12,9 @@ import './i18n';
 // 导入存储调试工具（开发模式）
 if (import.meta.env.DEV) {
   import('./utils/storageDebug');
+  import('./utils/storageValidation');
+  // 暂时禁用 sessionCompressionTest，等待修复后再启用
+  // import('./utils/sessionCompressionTest');
 }
 
 const LoadingFallback: React.FC = () => {

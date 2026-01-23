@@ -1159,6 +1159,12 @@ def _build_search_results(result: ExploreResult, limit: int = 10) -> List[Dict[s
             "chapter_title": e.chapter_title or "",
             "paragraph_index": e.paragraph_index,
             "text": text,
+            "paragraphs": [
+                {
+                    "text": text,
+                    "paragraph_index": e.paragraph_index
+                }
+            ],
             "similarity": e.similarity,
             "source": e.source_type,
             "round_idx": e.round_idx,
@@ -1166,6 +1172,79 @@ def _build_search_results(result: ExploreResult, limit: int = 10) -> List[Dict[s
         if len(results) >= limit:
             break
     return results
+
+
+def _build_chapter_paragraphs(
+    result: ExploreResult,
+    chapter_order: int,
+    chapter_content: str,
+    limit: int = 3
+) -> List[Dict[str, Any]]:
+    """为 chapters 输出补齐可用段落（优先已读段落，其次章节原文，再次证据片段）"""
+    paragraphs: List[Dict[str, Any]] = []
+    seen = set()
+
+    for p in result.paragraphs:
+        if p.chapter_order != chapter_order:
+            continue
+        text = (p.text or "").strip()
+        if not text:
+            continue
+        key = (p.paragraph_index, text[:80])
+        if key in seen:
+            continue
+        seen.add(key)
+        paragraphs.append({
+            "text": text,
+            "paragraph_index": p.paragraph_index
+        })
+
+    if paragraphs:
+        return paragraphs[:limit]
+
+    if chapter_content:
+        try:
+            from app.services.agent.tools.locate_tools import _split_paragraphs
+            parsed = _split_paragraphs(chapter_content)
+            for para in parsed[:limit]:
+                text = (para.get("text") or "").strip()
+                if not text:
+                    continue
+                key = (para.get("index"), text[:80])
+                if key in seen:
+                    continue
+                seen.add(key)
+                paragraphs.append({
+                    "text": text,
+                    "paragraph_index": para.get("index")
+                })
+        except Exception:
+            pass
+
+    if paragraphs:
+        return paragraphs[:limit]
+
+    evidences = [
+        e for e in result.evidences
+        if e.chapter_order == chapter_order and e.text
+    ]
+    evidences.sort(key=lambda e: e.similarity or 0, reverse=True)
+    for e in evidences:
+        text = (e.text or "").strip()
+        if not text:
+            continue
+        key = (e.paragraph_index, text[:80])
+        if key in seen:
+            continue
+        seen.add(key)
+        paragraphs.append({
+            "text": text,
+            "paragraph_index": e.paragraph_index
+        })
+        if len(paragraphs) >= limit:
+            break
+
+    return paragraphs
 
 
 def to_frontend_display(result: ExploreResult) -> Dict[str, Any]:
@@ -3394,6 +3473,13 @@ async def explore_content(
                 fallback_chapters[chapter_order]
                 for chapter_order in sorted(fallback_chapters)
             ]
+
+        for entry in chapters_list:
+            entry["paragraphs"] = _build_chapter_paragraphs(
+                result,
+                entry.get("order", 0),
+                entry.get("content", "")
+            )
 
         # 2026-01-18: 构建兼容 get_writing_context 的 worldview 对象
         worldview_dict = {}
